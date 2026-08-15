@@ -308,6 +308,38 @@ def test_the_partition_writes_nothing():
             assert np.array_equal(cp.hkl_intensity, buf)
 
 
+# ------------------------------------------------------- additive, not a bump
+def test_a_result_written_before_this_field_still_loads():
+    """The claim the freeze rests on: additive with a default.
+
+    ``SCHEMA_VERSION`` did not move for this field (the events rule — a new
+    field is not a new kind), which is only true if a `RefinementResult`
+    serialized before it existed still validates.  ``extra="forbid"`` makes the
+    converse fail loudly, so both directions are pinned here.
+    """
+    from rietx.schemas.results import PhaseAgreement, RefinementResult
+
+    older = {
+        "status": "converged", "mode": "rietveld", "parameters": [],
+        "statistics": {"rwp": 0.1, "rp": 0.1, "rexp": 0.1, "chi2": 1.0,
+                       "gof": 1.0, "n_points": 10, "n_free_parameters": 2},
+        "provenance": {"package_version": "0.6.0",
+                       "created_utc": "2026-01-01T00:00:00Z"},
+    }
+    assert RefinementResult.model_validate(older).phase_agreement == []
+
+    row = PhaseAgreement(name="LaB6", r_bragg=0.03, r_f=0.015, n_reflections=30)
+    with_rows = RefinementResult.model_validate(
+        {**older, "phase_agreement": [row.model_dump()]})
+    back = RefinementResult.model_validate_json(with_rows.model_dump_json())
+    assert back.phase_agreement == [row]
+
+    # absent-for-cause round-trips as None, never as 0.0
+    bare = RefinementResult.model_validate(
+        {**older, "phase_agreement": [{"name": "x"}]}).phase_agreement[0]
+    assert bare.r_bragg is None and bare.r_f is None and bare.n_reflections == 0
+
+
 # ---------------------------------------------------------------- CIF export
 def test_cif_carries_the_tags_and_the_esd_method():
     """The dictionary tags, on the phase's own block, plus the §10 sentence."""

@@ -195,11 +195,15 @@ the esd method completely. Gaps 1 and 8 of the McCusker audit
   is in the manual and in `structure_r_factors`' docstring; the numbers are
   here.
 
-  **Counts.** `-m "not slow"`, `[dev]` venv, macOS: **2284 passed, 108
-  skipped** in ~160 s, against **2272 passed, 108 skipped** with
-  `--ignore=tests/test_structure_r_factors.py` — +12 passed, +0 skipped,
-  exactly the twelve new tests, and no other module's count moved. Full suite
-  (incl. acceptance) green.
+  **Counts.** `-m "not slow"`, `[dev]` venv, macOS: **2285 passed, 108
+  skipped**, against **2272 passed, 108 skipped** with
+  `--ignore=tests/test_structure_r_factors.py` — +13 passed, +0 skipped,
+  exactly the thirteen new tests, and no other module's count moved. Full
+  suite (incl. acceptance) green. The partition costs **1.2× a forward
+  evaluate** (23 ms against 19 ms on FAP's 329 reflections × 2 lines), 0.47 %
+  of that fit — it runs once per `_build_result`, which is once per `fit`,
+  per `run_stage`, per `replay`, and per stage boundary under
+  `stage_reports=True`, where the `lebail_gap` beside it already costs more.
 
   **Gotchas for whoever is next.** (a) `lebail_gap` flips the model to Le Bail
   mode and seeds *flat*; this partition must **not** — its shares come from the
