@@ -240,9 +240,14 @@ def test_esd_matches_a_monte_carlo_through_decode():
 
     The Monte Carlo perturbs the *internal* vector and decodes, so it goes
     through the softplus on ``a``, the ``b ← a`` crystal-system tie and the
-    4f site's x = y = DOF constraint exactly as a refinement does.  Agreement
-    to a few percent at 20 000 samples is the linearisation plus the sampling
-    error, and the propagated numbers are ~1e-3 Å against a ~2 Å distance.
+    4f site's x = y = DOF constraint exactly as a refinement does.
+
+    The 5 % bar is set on measurement, not on hope.  The disagreement here has
+    a floor of ~2 % that more samples do not remove — the linearisation
+    J·Cov·Jᵀ rests on, against a Monte Carlo that carries the curvature — so
+    the sample count buys only the scatter around it: over eight seeds at
+    5 000 draws the worst row lands between 0.9 % and 2.4 %, and 20 000 draws
+    (4× the wall clock) measured 1.9 %.
     """
     model, structure, table, theta, sd, corr = _rutile_with_covariance()
     g = geometry_table(model, table, theta, structure,
@@ -252,9 +257,10 @@ def test_esd_matches_a_monte_carlo_through_decode():
 
     cov_int = corr * np.outer(sd, sd)
     rng = np.random.default_rng(20260815)
-    draws = rng.multivariate_normal(theta, cov_int, size=20000)
+    draws = rng.multivariate_normal(theta, cov_int, size=5000)
     samples = np.array([
         [_distance_at(table.decode(t), d) for d in rows] for t in draws])
+    assert samples.shape == (5000, len(rows))
     mc = samples.std(axis=0, ddof=1)
     for row, sigma in zip(rows, mc, strict=True):
         assert row.stderr == pytest.approx(sigma, rel=0.05)
