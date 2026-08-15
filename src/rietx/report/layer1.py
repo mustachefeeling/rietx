@@ -341,16 +341,57 @@ def contents_signature(trends: list[TrendAnalysis],
 # ----------------------------------------------------------------------
 # hkl-grouped angular trends
 # ----------------------------------------------------------------------
-def _templates(observable: str, two_theta: np.ndarray, wavelength: float
-               ) -> dict[str, np.ndarray]:
+#: Which position templates a geometry may be offered, in the *same* names
+#: ``report/layer2.py``'s ``_POSITION_ACTIONS`` uses (and that
+#: ``schemas/indexing.py``'s ``SHIFT_TEMPLATES`` narrows from).  A template is
+#: a candidate *cause*, so offering one whose cause does not exist in this
+#: geometry is the confident wrong singleton the report exists to prevent:
+#: before WP-1073 a capillary fit whose peaks followed cos θ was told to refine
+#: ``sample_displacement``, which ``ParameterTable`` force-fixes outside
+#: ``bragg_brentano`` — a suggestion that cannot be taken.  ``cos_2theta`` is
+#: eq (4)'s perpendicular half and exists only for a capillary; ``sin_2theta``
+#: is shared but means different physics on either side (flat-plate
+#: transparency, capillary along-beam offset), which is why the *action* map is
+#: keyed the same way rather than this one alone.
+#:
+#: ``flat_plate_transmission`` keeps the flat-plate row unchanged: that
+#: geometry models no displacement at all (see :class:`~rietx.schemas.
+#: instrument.Geometry`), so both of its aberration templates name parameters
+#: it holds fixed.  The diagnosis is at least the right one there — a flat
+#: specimen off the axis — where for a capillary neither the shape nor the
+#: parameter was; narrowing it is a separate decision this WP does not take.
+POSITION_TEMPLATES: dict[str, tuple[str, ...]] = {
+    "bragg_brentano": ("constant", "cos_theta", "sin_2theta", "tan_theta"),
+    "debye_scherrer": ("constant", "sin_2theta", "cos_2theta", "tan_theta"),
+    "flat_plate_transmission": ("constant", "cos_theta", "sin_2theta",
+                                "tan_theta"),
+}
+
+
+def _templates(observable: str, two_theta: np.ndarray, wavelength: float,
+               geometry: str | None = None) -> dict[str, np.ndarray]:
+    """The candidate shapes for one observable, narrowed to ``geometry``.
+
+    ``geometry=None`` returns every position shape the package knows — the
+    union, which is what a geometry-free caller narrows from
+    (``indexing.quality.shift_template_basis``) and what the width and
+    intensity observables always get, having no geometry dependence.
+    """
     theta = np.radians(two_theta / 2.0)
     if observable == "position":
-        return {
+        shapes = {
             "constant": np.ones_like(theta),          # zero-point error
             "cos_theta": np.cos(theta),               # specimen displacement
-            "sin_2theta": np.sin(2.0 * theta),        # transparency
+            "sin_2theta": np.sin(2.0 * theta),        # transparency, or the
+                                                      # capillary along-beam
+                                                      # offset (eq 4)
+            "cos_2theta": np.cos(2.0 * theta),        # capillary across-beam
+                                                      # offset (eq 4)
             "tan_theta": np.tan(theta),               # cell (Δd/d)
         }
+        if geometry is None:
+            return shapes
+        return {n: shapes[n] for n in POSITION_TEMPLATES[geometry]}
     if observable == "width":
         return {
             "inv_cos_theta": 1.0 / np.cos(theta),     # crystallite size
@@ -364,14 +405,19 @@ def _templates(observable: str, two_theta: np.ndarray, wavelength: float
     }
 
 
-def analyse_trends(attributions: list[RegionAttribution], wavelength: float
-                   ) -> list[TrendAnalysis]:
+def analyse_trends(attributions: list[RegionAttribution], wavelength: float,
+                   geometry: str | None = None) -> list[TrendAnalysis]:
     """Fit the angular templates to the per-region coefficients.
 
     Only regions that passed their local gates contribute — a coefficient the
     gates rejected is not evidence.  Each observable is fitted jointly across
     its templates (they are correlated by construction), and the collinearity
     actually present over the sampled angles decides ``separable``.
+
+    ``geometry`` narrows the *position* candidates to the causes that exist on
+    that instrument (:data:`POSITION_TEMPLATES`); ``None`` offers them all,
+    which is the pre-WP-1073 behaviour and what a caller with no instrument in
+    hand gets.
     """
     kind_for = {"position": "position", "width": "width", "intensity": "intensity"}
     out: list[TrendAnalysis] = []
@@ -394,7 +440,7 @@ def analyse_trends(attributions: list[RegionAttribution], wavelength: float
         val = np.array([p[1] for p in pts])
         w = 1.0 / np.array([p[2] for p in pts])
 
-        templates = _templates(observable, tt, wavelength)
+        templates = _templates(observable, tt, wavelength, geometry)
         names = list(templates)
         design = np.vstack([templates[n] for n in names])
         if len(pts) <= 2:

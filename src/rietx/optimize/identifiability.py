@@ -75,6 +75,8 @@ EXCHANGE_CANDIDATE_GLOBS = [
     "instrument.zero_shift",
     "instrument.geometry.sample_displacement",
     "instrument.geometry.sample_transparency",
+    "instrument.geometry.capillary_offset_along_beam",
+    "instrument.geometry.capillary_offset_across_beam",
     "phases.*.cell.*",
     "phases.*.scale",
     "phases.*.atoms.*.biso",
@@ -95,6 +97,12 @@ NULL_IDENTITY: dict[str, float] = {
     "instrument.zero_shift": 0.0,
     "instrument.geometry.sample_displacement": 0.0,
     "instrument.geometry.sample_transparency": 0.0,
+    # eq (4)'s pair: zero exactly when the capillary is on the 2θ circle's
+    # centre, which is the aberration's own null — and the reason they belong
+    # here is the trio {1, sin2θ, cos2θ} they form with the zero shift, which
+    # is what a capillary fit has to separate and this scan is for
+    "instrument.geometry.capillary_offset_along_beam": 0.0,
+    "instrument.geometry.capillary_offset_across_beam": 0.0,
 }
 
 

@@ -9,6 +9,7 @@
   ],
   "debye_scherrer": [
     "capillary_radius_mm",
+    "goniometer_radius_mm",
     "mu_r",
     "packing_fraction",
     "polarization",

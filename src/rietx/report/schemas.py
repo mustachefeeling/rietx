@@ -110,7 +110,19 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   stays the reader's.  **No gate moved**: EXCHANGEABLE_MIN_R2 stands on
 #   0.8's geometric argument, and the new constant gates nothing —
 #   ``RivalComparison`` still carries no ``decisive`` field.
-THRESHOLDS_VERSION = "0.9"
+# 1.0 (WP-1073): the position templates and their actions become geometry-
+#   dependent.  ``cos_2theta`` joins the vocabulary (McCusker eq 4's
+#   across-beam capillary displacement) and two ``ActionKind`` members with
+#   it, ``refine_capillary_offset_along_beam`` / ``…_across_beam``.  A
+#   consumer sees three changes on ``debye_scherrer`` data and none anywhere
+#   else: ``cos_theta`` is no longer offered (a flat-plate aberration a
+#   capillary does not have), ``sin_2theta`` now maps to the along-beam offset
+#   rather than to flat-plate transparency, and the two new kinds can be
+#   emitted.  This is a *correction*, not an extension: both old actions named
+#   parameters ``ParameterTable`` force-fixes outside ``bragg_brentano``, so a
+#   capillary fit was being told to refine what it could not free.  No
+#   threshold moved.
+THRESHOLDS_VERSION = "1.0"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -607,10 +619,15 @@ class RegionAttribution(Base):
 class TrendTemplate(Base):
     """One angular-dependence template fitted across regions.
 
-    ``name`` identifies the physics: ``constant``→zero shift, ``cos_theta``→
-    specimen displacement, ``sin_2theta``→transparency, ``tan_theta``→cell
-    error (position); ``inv_cos_theta``→size, ``tan_theta``→strain (width);
-    ``sin2_over_lambda2``→ADP (intensity).
+    ``name`` identifies the physics, and for **position** the physics depends
+    on the geometry, so which names can appear does too
+    (:data:`~rietx.report.layer1.POSITION_TEMPLATES`): ``constant``→zero shift
+    and ``tan_theta``→cell error everywhere; ``cos_theta``→specimen
+    displacement and ``sin_2theta``→transparency on a flat plate;
+    ``sin_2theta``→along-beam and ``cos_2theta``→across-beam capillary
+    displacement (McCusker eq 4) on ``debye_scherrer``.  Width:
+    ``inv_cos_theta``→size, ``tan_theta``→strain.  Intensity:
+    ``sin2_over_lambda2``→ADP.
     """
 
     name: str
@@ -726,6 +743,8 @@ ActionKind = Literal[
     "refine_zero_shift",
     "refine_sample_displacement",
     "refine_sample_transparency",
+    "refine_capillary_offset_along_beam",
+    "refine_capillary_offset_across_beam",
     "refine_cell",
     "refine_profile_widths",
     "refine_sample_size_broadening",

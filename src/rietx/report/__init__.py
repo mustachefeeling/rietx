@@ -234,7 +234,8 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         return report
 
     report.layer1_available = True
-    report.trends = analyse_trends(attributions, model.wavelength)
+    report.trends = analyse_trends(attributions, model.wavelength,
+                                   model.geometry_kind)
     # The contents-type clause (WP-1057): sign-alternating intensity misfit
     # with no angular trend is the one signature the trend templates are
     # structurally blind to, and the honest zero-action report it produces
@@ -248,7 +249,8 @@ def build_report(result: RefinementResult, *, model=None, values=None,
                        f"is the deciding statistic")
         report.summary += "; " + clause
     actions = suggest_actions(attributions, report.trends, report.unmatched,
-                              rwp=result.statistics.rwp, ticks=ticks)
+                              rwp=result.statistics.rwp, ticks=ticks,
+                              geometry=model.geometry_kind)
     predicted = estimate_delta_chi2(result, attributions)
     for action in actions:
         action.expected_delta_chi2 = predicted

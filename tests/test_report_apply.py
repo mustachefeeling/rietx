@@ -1,7 +1,7 @@
 """WP-1012 — from a typed suggestion to the verbs that carry it out.
 
 Two halves, and the split is the point.  The **mapping** is pure: which of the
-sixteen ``ActionKind`` members is a button, what stage a button runs, and why a
+eighteen ``ActionKind`` members is a button, what stage a button runs, and why a
 non-button is not one — all answerable without a fit, so they are asserted
 against hand-built :class:`SuggestedAction` objects, including the four kinds no
 report currently emits as a primary suggestion (they exist only in
@@ -15,8 +15,12 @@ two profile widths) on a model whose cell is 0.0005 Å off — small enough to s
 inside the linearisation radius so Layer 1 does not abstain, and outside the
 plan so the strategy veto does not cover it.  Everything the report says about
 that project is a measurement, not a construction: ``refine_scale`` comes back
-vetoed because the plan already refines it, and the two Bragg-Brentano geometry
-actions come back *unreachable* because this is a Debye-Scherrer instrument.
+vetoed because the plan already refines it, and the two geometry actions come
+back *unreachable* — this instrument is a capillary that declares no
+goniometer radius, and McCusker eq (4) divides by one, so the pair it would
+free is structurally fixed (WP-1073; before it, the unreachable pair here was
+the Bragg-Brentano one, suggested on a Debye-Scherrer instrument because the
+templates were geometry-blind).
 """
 
 from __future__ import annotations
@@ -89,7 +93,7 @@ def test_every_action_kind_is_classified_and_the_split_is_declared():
     for kind, rule in RECIPES.items():
         assert rule.kind == kind
         how.setdefault(rule.how, []).append(kind)
-    assert len(how["stage"]) == 11
+    assert len(how["stage"]) == 13
     assert how["index"] == ["reindex_or_recheck_cell"]
     assert sorted(how["advice"]) == [
         "add_impurity_phase", "collect_better_data",
@@ -370,10 +374,12 @@ def test_the_report_says_what_applies_beside_what_it_suggests(narrow):
     assert by_kind["refine_scale"]["can_apply"] is False
     assert "already refined by the staged plan" in by_kind["refine_scale"]["refusal"]
 
-    # …and Layer 2's position templates name Bragg-Brentano aberrations whatever
-    # the geometry: on this Debye-Scherrer instrument both are locked, so the
+    # …and Layer 2's position templates name this geometry's own aberrations —
+    # eq (4)'s two capillary offsets — which are locked here because the
+    # instrument declares no goniometer radius for eq (4) to divide by.  So the
     # suggestion is unreachable rather than a button that frees nothing
-    for kind in ("refine_sample_displacement", "refine_sample_transparency"):
+    for kind in ("refine_capillary_offset_along_beam",
+                 "refine_capillary_offset_across_beam"):
         arm = by_kind[kind]
         assert arm["can_apply"] is False, kind
         assert "every match is held" in arm["refusal"], arm
@@ -473,7 +479,7 @@ def test_apply_refuses_what_the_report_refuses_and_says_which(narrow):
     assert client.post("/api/report/apply", {})[0] == 400
 
     # vetoed and unreachable both answer 409 with the reason, not silence
-    for kind in ("refine_scale", "refine_sample_displacement"):
+    for kind in ("refine_scale", "refine_capillary_offset_along_beam"):
         status, payload = client.post("/api/report/apply", {"kind": kind})
         assert status == 409, (kind, payload)
         assert payload["error"]["code"] == "ACTION_NOT_APPLICABLE"

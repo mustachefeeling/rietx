@@ -53,15 +53,47 @@ from .schemas import (
     VerificationOutcome,
 )
 
-#: template name → (action, parameter path) for position and width trends
-_POSITION_ACTIONS: dict[str, tuple[ActionKind, str]] = {
-    "constant": ("refine_zero_shift", "instrument.zero_shift"),
-    "cos_theta": ("refine_sample_displacement",
-                  "instrument.geometry.sample_displacement"),
-    "sin_2theta": ("refine_sample_transparency",
-                   "instrument.geometry.sample_transparency"),
-    "tan_theta": ("refine_cell", "phases.*.cell.*"),
+#: template name → (action, parameter path) for position trends, **per
+#: geometry**: one shape can have different causes on different instruments,
+#: and a cause a geometry does not have must not be suggested there.
+#: ``sin_2theta`` is the case that forces the keying — flat-plate transparency
+#: on one side of it, the capillary's along-beam displacement (McCusker eq 4)
+#: on the other — and the capillary's ``cos_theta`` row is the one that had to
+#: go: before WP-1073 it named ``sample_displacement``, which ``ParameterTable``
+#: force-fixes outside ``bragg_brentano``, so the suggestion could not be
+#: taken.  Keyed by the same geometry names as
+#: :data:`~rietx.report.layer1.POSITION_TEMPLATES`, which decides what can
+#: reach here at all; the two are checked against each other by test.
+_POSITION_ACTIONS_BY_GEOMETRY: dict[str, dict[str, tuple[ActionKind, str]]] = {
+    "bragg_brentano": {
+        "constant": ("refine_zero_shift", "instrument.zero_shift"),
+        "cos_theta": ("refine_sample_displacement",
+                      "instrument.geometry.sample_displacement"),
+        "sin_2theta": ("refine_sample_transparency",
+                       "instrument.geometry.sample_transparency"),
+        "tan_theta": ("refine_cell", "phases.*.cell.*"),
+    },
+    "debye_scherrer": {
+        "constant": ("refine_zero_shift", "instrument.zero_shift"),
+        "sin_2theta": ("refine_capillary_offset_along_beam",
+                       "instrument.geometry.capillary_offset_along_beam"),
+        "cos_2theta": ("refine_capillary_offset_across_beam",
+                       "instrument.geometry.capillary_offset_across_beam"),
+        "tan_theta": ("refine_cell", "phases.*.cell.*"),
+    },
+    "flat_plate_transmission": {
+        "constant": ("refine_zero_shift", "instrument.zero_shift"),
+        "cos_theta": ("refine_sample_displacement",
+                      "instrument.geometry.sample_displacement"),
+        "sin_2theta": ("refine_sample_transparency",
+                       "instrument.geometry.sample_transparency"),
+        "tan_theta": ("refine_cell", "phases.*.cell.*"),
+    },
 }
+
+#: the map a caller with no geometry in hand gets — the flat-plate one, which
+#: is what every caller got before the keying existed
+_POSITION_ACTIONS = _POSITION_ACTIONS_BY_GEOMETRY["bragg_brentano"]
 _WIDTH_ACTIONS: dict[str, tuple[ActionKind, str]] = {
     "inv_cos_theta": ("refine_sample_size_broadening", "phases.*.lor_size"),
     "tan_theta": ("refine_sample_strain_broadening", "phases.*.lor_strain"),
@@ -576,13 +608,23 @@ def suggest_actions(attributions: list[RegionAttribution],
                     trends: list[TrendAnalysis],
                     unmatched: list[UnmatchedPeak],
                     *, rwp: float,
-                    ticks: list[float] | None = None) -> list[SuggestedAction]:
-    """Build the typed action list from Layers 0-1."""
+                    ticks: list[float] | None = None,
+                    geometry: str | None = None) -> list[SuggestedAction]:
+    """Build the typed action list from Layers 0-1.
+
+    ``geometry`` picks the position-action map (:data:`_POSITION_ACTIONS_BY_
+    GEOMETRY`); ``None`` keeps the flat-plate one every caller got before the
+    map was keyed.  A template the chosen map has no entry for yields no
+    action, which is the whole point — it cannot reach here anyway once
+    ``analyse_trends`` is given the same geometry.
+    """
     actions: list[SuggestedAction] = []
     by_obs = {t.observable: t for t in trends}
+    position_actions = _POSITION_ACTIONS_BY_GEOMETRY.get(geometry or "",
+                                                         _POSITION_ACTIONS)
 
     if "position" in by_obs:
-        actions += _trend_actions(by_obs["position"], _POSITION_ACTIONS, "deg")
+        actions += _trend_actions(by_obs["position"], position_actions, "deg")
     if "width" in by_obs:
         actions += _trend_actions(by_obs["width"], _WIDTH_ACTIONS, "deg")
 
