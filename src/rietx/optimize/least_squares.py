@@ -23,6 +23,7 @@ full-model finite differences:
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -427,6 +428,14 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
             # rows touch table θ only — no Pawley-intensity columns.
             restr0 = restr_blk.start
             r_phys = restraint_partials(model.restraints, values, table)
+            if model.restraint_weight_scale != 1.0:
+                # eq (7)'s c_w, applied to the assembled block and never inside
+                # restraint_partials — model.geometry calls that same function
+                # at unit weight for the unweighted partials every reported
+                # geometry esd is built from (WP-1074; CompiledModel's field
+                # comment).  √ matches restraint_residual: c_w weights S_G, the
+                # sum of these rows squared.
+                r_phys = r_phys * math.sqrt(model.restraint_weight_scale)
             cmat = table.constraint_block()[0].toarray()  # C small: dense is fine
             dpdu = np.array([dpdu_of(c, theta_t) for c in range(n_table)],
                             dtype=np.float64)

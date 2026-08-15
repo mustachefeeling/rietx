@@ -437,15 +437,22 @@ class RestraintRow(Base):
 class RestraintReport(Base):
     """Per-restraint deviations and the pooled restraint χ² (WP-0406).
 
-    ``restraint_chi2`` = Σ weight·(deviation/σ)² is the sum of the squared
-    restraint residual rows — the penalty the restraints add to the cost.  It
-    is *not* part of the data-row Rwp/χ²/GoF (those see data rows only), by
-    design: restraints are soft observations, not measured intensities.
+    ``restraint_chi2`` = Σ weight·(deviation/σ)² is S_G of McCusker eq (7) —
+    the sum of the squared restraint rows at unit c_w.  It is *not* part of the
+    data-row Rwp/χ²/GoF (those see data rows only), by design: restraints are
+    soft observations, not measured intensities.
+
+    ``weight_scale`` is the c_w the stage that produced this ran at (WP-1074),
+    so the penalty actually added to the minimised S is
+    ``weight_scale · restraint_chi2``.  The deviations themselves are reported
+    unscaled because "is this restraint satisfied?" is a question about the
+    geometry, and c_w is a choice about how hard to insist on the answer.
     """
 
     rows: list[RestraintRow]
     restraint_chi2: float
     n_restraints: int
+    weight_scale: float = 1.0
 
 
 class GeometryDistance(Base):

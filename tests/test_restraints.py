@@ -305,6 +305,151 @@ def test_min_image_refreezes_when_coordinates_move():
     assert d_near < d_far  # different min-image frozen at each compile-time position
 
 
+# ------------------------------------------------- (e) the c_w schedule (1074)
+def _scaled_triclinic(c_w: float):
+    """The (b) fixture compiled at a given stage c_w; returns (model, table)."""
+    s, table = _triclinic([
+        BondRestraint(atom_i=0, atom_j=1, target=2.0, sigma=0.02, op_index=0),
+        AngleRestraint(atom_i=1, atom_j=0, atom_k=2, target_deg=100.0, sigma=1.0,
+                       op_index_i=0, op_index_k=0),
+        ValueRestraint(path="phases.0.atoms.1.occ", target=0.9, sigma=0.05),
+    ])
+    model = compile_model(s, LAB, _blank(20.0, 90.0, 0.1), mode="rietveld",
+                          free_paths=set(table.free_paths),
+                          restraint_weight_scale=c_w)
+    return model, table
+
+
+def test_stage_scale_multiplies_every_restraint_row_by_sqrt_cw():
+    """c_w weights S_G, so each row — the thing squared — carries √c_w, and the
+    data rows above it are untouched (McCusker eq 7: S = S_y + c_w·S_G)."""
+    m1, table = _scaled_triclinic(1.0)
+    m4, _ = _scaled_triclinic(4.0)
+    theta = table.x0()
+    r1 = _make_residual(m1, table)(theta)
+    r4 = _make_residual(m4, table)(theta)
+    n_data = len(m1.tt)
+    n_restr = m1.restraints.n_rows
+
+    assert np.array_equal(r1[:n_data], r4[:n_data]), "data rows moved"
+    np.testing.assert_allclose(r4[n_data:], 2.0 * r1[n_data:], rtol=0, atol=0)
+    # the Jacobian carries the same factor, and only on those rows
+    J1 = _make_jacobian(m1, table)(theta)
+    J4 = _make_jacobian(m4, table)(theta)
+    assert np.array_equal(J1[:n_data], J4[:n_data])
+    np.testing.assert_allclose(J4[n_data:], 2.0 * J1[n_data:], rtol=0, atol=0)
+    assert len(r4) == n_data + n_restr
+
+
+def test_zero_scale_keeps_the_rows_in_the_layout():
+    """c_w = 0 silences the restraints without removing their rows: the block
+    membership the statistics exclusion is built on must not change mid-plan."""
+    m0, table = _scaled_triclinic(0.0)
+    r0 = _make_residual(m0, table)(table.x0())
+    n_data = len(m0.tt)
+    assert m0.restraints.n_rows == 3
+    assert len(r0) == n_data + 3
+    assert np.array_equal(r0[n_data:], np.zeros(3))
+
+
+def test_identity_default_is_the_pre_schedule_row():
+    """The default takes the identity path: rows are exactly √w·(computed −
+    target)/σ, the WP-0406 formula, with no √1.0 round trip in between."""
+    s, table = _triclinic([
+        BondRestraint(atom_i=0, atom_j=1, target=2.0, sigma=0.02, op_index=0),
+        ValueRestraint(path="phases.0.atoms.1.occ", target=0.9, sigma=0.05),
+    ])
+    # compiled without the argument at all — the pre-WP-1074 call
+    m = compile_model(s, LAB, _blank(20.0, 90.0, 0.1), mode="rietveld",
+                      free_paths=set(table.free_paths))
+    assert m.restraint_weight_scale == 1.0
+    rows = _make_residual(m, table)(table.x0())[len(m.tt):]
+    report = summarise_restraints(m.restraints, table.decode(table.x0()))
+    hand = np.array([np.sqrt(r.weight) * r.deviation / r.sigma for r in report.rows])
+    np.testing.assert_allclose(rows, hand, rtol=0, atol=0)
+
+
+def test_restraint_jacobian_matches_fd_under_a_scale():
+    """The analytic block and FD of the augmented residual agree at c_w ≠ 1 —
+    the two seams (row build, Jacobian block) cannot drift apart silently."""
+    model, table = _scaled_triclinic(7.5)
+    theta = table.x0()
+    J = _make_jacobian(model, table)(theta)
+    residual = _make_residual(model, table)
+    r0 = residual(theta)
+    n_data = len(model.tt)
+
+    for row in range(model.restraints.n_rows):
+        for c in range(len(theta)):
+            h = 1e-6 * max(1.0, abs(theta[c]))
+            tp = theta.copy()
+            tp[c] += h
+            fd = (residual(tp)[n_data + row] - r0[n_data + row]) / h
+            an = J[n_data + row, c]
+            denom = max(abs(fd), abs(an), 1e-8)
+            assert abs(an - fd) / denom < 5e-3, (
+                f"row {row}, col {c}: analytic {an:.3e} vs FD {fd:.3e}")
+
+
+def test_a_negative_scale_is_refused():
+    s, table = _triclinic([BondRestraint(atom_i=0, atom_j=1, target=2.0, sigma=0.02)])
+    with pytest.raises(ValueError, match="restraint_weight_scale"):
+        compile_model(s, LAB, _blank(20.0, 90.0, 0.1), mode="rietveld",
+                      restraint_weight_scale=-1.0)
+
+
+def test_the_report_records_the_scale_it_was_measured_under():
+    """A result carries no plan, so S_G's weighting is only knowable if the
+    report says it: the penalty in S is weight_scale·restraint_chi2."""
+    m, table = _scaled_triclinic(9.0)
+    report = summarise_restraints(m.restraints, table.decode(table.x0()),
+                                  m.restraint_weight_scale)
+    assert report.weight_scale == 9.0
+    # deviations stay unscaled — the geometry question, not the weighting one
+    plain = summarise_restraints(m.restraints, table.decode(table.x0()))
+    assert plain.weight_scale == 1.0
+    assert plain.restraint_chi2 == report.restraint_chi2
+
+
+def test_the_scale_is_recorded_on_the_node_and_survives_a_cherry_pick():
+    """``NodeAction`` carries the stage's own arguments, so a stiff stage
+    cherry-picked elsewhere runs stiff (the seed/strain_seed rule, WP-1004)."""
+    from rietx import Stage
+
+    pattern = synthesize_rutile()
+    s = _rutile_with_bond(RUTILE_OX + 0.008, target=_true_ti_o_bond(), sigma=0.01)
+    s.phases[0].scale.value = 6e-3
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.profile.w.value = 1.2e-2
+
+    ref = Refinement(s, ins)
+    ref.run_stage(pattern, Stage("scale_bkg", ["phases.*.scale",
+                                               "instrument.background.*"]))
+    ref.run_stage(pattern, Stage("stiff", ["phases.*.atoms.*.dof.*"],
+                                 restraint_weight_scale=25.0))
+    node = ref.history[ref.history.order[-1]]
+    assert node.action.restraint_weight_scale == 25.0
+    assert "restraint_weight_scale=25.0" in node.action.api_call()
+    # an unscaled stage keeps its pre-WP-1074 line exactly
+    assert "restraint_weight_scale" not in ref.history[
+        ref.history.order[-2]].action.api_call()
+
+    ref.cherry_pick(node.id, pattern)
+    picked = ref.history[ref.history.order[-1]]
+    assert picked.action.restraint_weight_scale == 25.0
+
+
+def test_the_stage_spec_mirror_round_trips_the_scale():
+    from rietx import Stage
+    from rietx.schemas.plan import StageSpec
+
+    stage = Stage("stiff", ["phases.*.atoms.*.dof.*"], restraint_weight_scale=12.5)
+    spec = StageSpec.from_stage(stage)
+    assert spec.restraint_weight_scale == 12.5
+    assert spec.model_validate_json(spec.model_dump_json()).to_stage(
+        ).restraint_weight_scale == 12.5
+
+
 # ---------------------------------------------------------- diagnostics/guards
 def test_restraint_tension_flags_conflict_with_data():
     """A restraint fighting the data (tight σ, target far from the true bond)

@@ -385,13 +385,19 @@ def _angle_row_partials(r_phys, row, it, values, idx, pref) -> None:
 # ----------------------------------------------------------------------
 # reporting
 # ----------------------------------------------------------------------
-def summarise_restraints(compiled: CompiledRestraints | None, values: dict):
+def summarise_restraints(compiled: CompiledRestraints | None, values: dict,
+                         weight_scale: float = 1.0):
     """A :class:`RestraintReport` of computed-vs-target deviations, or None.
 
     Deviations in units of σ are the headline — an over-tight restraint
     fighting the data shows up as a large ``deviation_over_sigma`` here and,
     past a threshold, a ``RESTRAINT_TENSION`` diagnostic (never hide a bad
-    sub-fit).  ``restraint_chi2`` = Σ weight·(dev/σ)² is the pooled penalty.
+    sub-fit).  ``restraint_chi2`` = Σ weight·(dev/σ)² is S_G at unit c_w.
+
+    ``weight_scale`` is the stage's c_w (McCusker eq 7), recorded rather than
+    applied: it is what turns the reported S_G into the penalty the fit
+    actually minimised, and without it a reader of a result — which carries no
+    plan — cannot tell a satisfied restraint from a barely-weighted one.
     """
     if compiled is None:
         return None
@@ -416,4 +422,5 @@ def summarise_restraints(compiled: CompiledRestraints | None, values: dict):
             phase_index=ph, kind=kind, atoms=atoms, path=path,
             computed=computed, target=target, sigma=it.sigma, weight=it.weight,
             deviation=dev, deviation_over_sigma=dev_sig))
-    return RestraintReport(rows=rows, restraint_chi2=chi2, n_restraints=len(rows))
+    return RestraintReport(rows=rows, restraint_chi2=chi2, n_restraints=len(rows),
+                           weight_scale=float(weight_scale))

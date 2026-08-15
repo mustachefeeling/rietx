@@ -979,7 +979,8 @@ class Refinement:
                       list(node.action.turn_on),
                       max_iter=node.action.max_iter or 100,
                       lebail_cycles=node.action.lebail_cycles or 3,
-                      seed=node.action.seed, strain_seed=node.action.strain_seed)
+                      seed=node.action.seed, strain_seed=node.action.strain_seed,
+                      restraint_weight_scale=node.action.restraint_weight_scale)
         return self.run_stage(data, stage)
 
     # ------------------------------------------------------------------
@@ -1075,9 +1076,14 @@ class Refinement:
         # set lets the compiler allocate FCJ nodes for axial parameters
         # that are about to refine from zero
         table.apply_to_models(self.structure, self.instrument)
-        new_model = compile_model(self.structure, self.instrument, data, mode=mode,
-                                  two_theta_limits=two_theta_limits,
-                                  free_paths=set(table.free_paths))
+        new_model = compile_model(
+            self.structure, self.instrument, data, mode=mode,
+            two_theta_limits=two_theta_limits,
+            free_paths=set(table.free_paths),
+            # eq (7)'s c_w for this stage: frozen onto the model here, with the
+            # hkl list and the windows, because a schedule reweights the
+            # restraints *between* stages and never inside one (WP-1074)
+            restraint_weight_scale=stage.restraint_weight_scale)
         carried = False
         if model is not None and mode in ("lebail", "pawley") and model.mode == mode:
             _carry_lebail(model, new_model)
@@ -1269,6 +1275,7 @@ class Refinement:
                     kind="stage", name=stage.name, turn_on=list(stage.turn_on),
                     max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
                     seed=stage.seed, strain_seed=stage.strain_seed,
+                    restraint_weight_scale=stage.restraint_weight_scale,
                 ), model, table, outcome, stage_diagnostics)
         return model, outcome, guard, stage_results, diagnostics
 
@@ -1359,6 +1366,7 @@ class Refinement:
                 kind="stage", name=stage.name, turn_on=list(stage.turn_on),
                 max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
                 seed=stage.seed, strain_seed=stage.strain_seed,
+                restraint_weight_scale=stage.restraint_weight_scale,
             ), model, table, outcome, diagnostics)
 
         self.result_ = _build_result(
@@ -1857,7 +1865,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # model.restraints is None outside it and this is naturally skipped.  A
     # restraint fighting the data (|dev/σ| large) becomes a RESTRAINT_TENSION
     # diagnostic — never hide a bad sub-fit.
-    restraints_report = summarise_restraints(model.restraints, values)
+    restraints_report = summarise_restraints(model.restraints, values,
+                                             model.restraint_weight_scale)
     if restraints_report is not None:
         diagnostics = diagnostics + _restraint_tension_diagnostics(
             restraints_report, structure)

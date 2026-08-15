@@ -52,6 +52,10 @@ class NodeAction(Base):
     coefficient on the dead-gradient floor, and a Stephens stage started from the
     all-zero block the seed exists to avoid.  Both are additive with a 0.0
     default, which is the no-seed behaviour, so pre-v1.0 nodes replay unchanged.
+    ``restraint_weight_scale`` (WP-1074) is the same rule for eq (7)'s c_w: a
+    stiff early stage cherry-picked without it would run its restraints at the
+    weight the *schedule* had already relaxed to.  Additive with a 1.0 default,
+    which is the no-scaling behaviour.
 
     ``ties``/``untied`` (WP-1070) are the ``"set_tie"`` action's own arguments,
     additive under the same rule.  They record what the action *did*, not the
@@ -69,6 +73,7 @@ class NodeAction(Base):
     lebail_cycles: int = 3
     seed: float = 0.0
     strain_seed: float = 0.0
+    restraint_weight_scale: float = 1.0
     ties: dict[str, TieSpec] = Field(default_factory=dict)
     untied: list[str] = Field(default_factory=list)
 
@@ -81,11 +86,16 @@ class NodeAction(Base):
         if self.kind == "root":
             return "rx.Refinement(structure, instrument)"
         if self.kind == "stage":
-            seeds = "".join(f", {n}={v!r}" for n, v in
-                            (("seed", self.seed), ("strain_seed", self.strain_seed))
-                            if v)
+            # each extra is printed only when it differs from the Stage default,
+            # so a plain stage's line keeps its pre-WP-1004 text exactly
+            extras = "".join(
+                f", {n}={v!r}" for n, v, off in
+                (("seed", self.seed, 0.0),
+                 ("strain_seed", self.strain_seed, 0.0),
+                 ("restraint_weight_scale", self.restraint_weight_scale, 1.0))
+                if v != off)
             return (f"ref.run_stage(data, rx.Stage({self.name!r}, {self.turn_on!r}, "
-                    f"max_iter={self.max_iter}{seeds}))")
+                    f"max_iter={self.max_iter}{extras}))")
         if self.kind == "set_vary":
             parts = []
             if self.turn_on:
