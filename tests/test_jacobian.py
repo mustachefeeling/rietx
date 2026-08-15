@@ -12,8 +12,12 @@ import numpy as np
 
 from rietx import Instrument, PatternData
 from rietx.model.forward import compile_model
-from rietx.optimize.least_squares import _make_jacobian, _make_residual
-from rietx.params.vector import ParameterTable
+from rietx.optimize.least_squares import (
+    _column_extras,
+    _make_jacobian,
+    _make_residual,
+)
+from rietx.params.vector import AffineTie, ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 from tests.test_coordinates import make_rutile
@@ -48,12 +52,18 @@ def _state(structure, wavelength=1.5406, tt=(10.0, 90.0, 0.02)):
     return structure, ins, pattern
 
 
-def _check_columns(structure, free_paths):
+def _check_columns(structure, free_paths, ties=(), *, instrument=None):
     structure, ins, pattern = _state(structure)
+    if instrument is not None:
+        ins = instrument
     table = ParameterTable(structure, ins)
     table.set_vary(["*"], False)
+    for path, tie in ties:
+        table.set_tie(path, tie)
+    table.refresh_ties()
     for path in free_paths:
         assert table.set_vary([path], True), path
+    table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
                           free_paths=set(table.free_paths))
 
@@ -154,6 +164,142 @@ def test_dof_absent_in_lebail_jacobian():
                           free_paths=set(table.free_paths))
     J = _make_jacobian(model, table)(table.x0())
     assert np.allclose(J[:, 0], 0.0)
+
+
+# ------------------------------------------------- user ties (WP-1070)
+def _column(structure, free_paths, path, ties=()):
+    """The analytic column for ``path``, with ``ties`` declared on the table.
+
+    Returned rather than compared to finite differences on purpose: the check
+    below is *additivity*, which is exact and independent of the branch that
+    produced any of the three columns.  An FD reference could not separate a
+    gated column from an un-gated one at the step size the fallback itself
+    uses — it **is** that finite difference.
+    """
+    structure, ins, pattern = _state(structure)
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for tied, tie in ties:
+        table.set_tie(tied, tie)
+    table.refresh_ties()
+    for p in free_paths:
+        assert table.set_vary([p], True), p
+    table.apply_to_models(structure, ins)
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          free_paths=set(table.free_paths))
+    theta = table.x0()
+    return _make_jacobian(model, table)(theta)[:, table.free_paths.index(path)]
+
+
+def test_a_tie_makes_one_column_carry_both_dependents():
+    """∂y/∂θ with b₁ ← b₀ is ∂y/∂b₀ + ∂y/∂b₁, and the column must be the sum.
+
+    Exact by the chain rule at coefficient 1, and measurable one column at a
+    time by freeing each Biso alone — so this says the tie is *carried*, not
+    merely that the column looks plausible.  The peak-chain branch handles it
+    because it re-derives from ``table.decode``; the assertion is what would
+    fail if a branch computed only the path it was named for.
+    """
+    tie = [("phases.0.atoms.1.biso", AffineTie.identity("phases.0.atoms.0.biso"))]
+    b0 = _column(make_rutile(), ["phases.0.atoms.0.biso"], "phases.0.atoms.0.biso")
+    b1 = _column(make_rutile(), ["phases.0.atoms.1.biso"], "phases.0.atoms.1.biso")
+    tied = _column(make_rutile(), ["phases.0.atoms.0.biso"],
+                   "phases.0.atoms.0.biso", ties=tie)
+    assert np.linalg.norm(b1) > 0.01 * np.linalg.norm(b0), "degenerate test state"
+    # 3.1e-8 measured; the floor is the peak chain's own per-reflection FD, and
+    # a dropped dependent would be 20-30 % of the column, not 1e-5 of it
+    assert np.allclose(tied, b0 + b1, rtol=0, atol=1e-5 * np.abs(b0 + b1).max())
+
+
+def test_a_tie_across_phases_keeps_the_far_phases_contribution():
+    """The phases re-derived are the ones C touches, not the ones the path names.
+
+    ``_peak_chain_column`` reads its ``affected`` list off the free path's own
+    ``phases.N.`` prefix.  A tie into another phase moves that phase's scalars
+    through ``decode`` all the same, so a column built from the prefix alone
+    comes back missing the far phase entirely — silently, since nothing about
+    the near phase is wrong.
+    """
+    def two_phase():
+        both = make_rutile()
+        both.phases.append(make_p21c_toy().phases[0])
+        both.phases[1].scale.value = 1e-3
+        return both
+
+    tie = [("phases.1.atoms.1.biso", AffineTie.identity("phases.0.atoms.0.biso"))]
+    near = _column(two_phase(), ["phases.0.atoms.0.biso"], "phases.0.atoms.0.biso")
+    far = _column(two_phase(), ["phases.1.atoms.1.biso"], "phases.1.atoms.1.biso")
+    tied = _column(two_phase(), ["phases.0.atoms.0.biso"],
+                   "phases.0.atoms.0.biso", ties=tie)
+    assert np.linalg.norm(far) > 0.01 * np.linalg.norm(near), "degenerate test state"
+    assert np.allclose(tied, near + far, rtol=0, atol=1e-5 * np.abs(near + far).max())
+
+
+def test_a_tie_beyond_a_branchs_reach_falls_back_and_stays_exact():
+    """A tie between background coefficients leaves the background branch.
+
+    y is exactly linear in the Chebyshev coefficients, so the tied column has a
+    closed form — the *sum* of the two design rows — which the branch that
+    writes one design row cannot produce.  The gate sends the column to the
+    whole-model FD fallback instead, and that decodes through C like the
+    residual does.
+    """
+    structure, ins, pattern = _state(make_rutile())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    table.set_tie("instrument.background.c1",
+                  AffineTie.identity("instrument.background.c0"))
+    table.refresh_ties()
+    assert table.set_vary(["instrument.background.c0"], True)
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          free_paths=set(table.free_paths))
+    column = _make_jacobian(model, table)(table.x0())[:, 0]
+    n0 = list(model.bkg_paths).index("instrument.background.c0")
+    n1 = list(model.bkg_paths).index("instrument.background.c1")
+    both = -(model.bkg_design[n0] + model.bkg_design[n1]) / model.sigma
+    assert np.allclose(column[:len(both)], both, rtol=1e-4)
+    # and the un-gated branch really would have been wrong here
+    one = -model.bkg_design[n0] / model.sigma
+    assert not np.allclose(one, both, rtol=1e-2)
+
+
+def test_a_cross_atom_dof_tie_matches_finite_differences():
+    """Two general-position atoms moving together: outside one atom's rows.
+
+    ``_structural_column`` reads the coefficients of *one* atom's x/y/z off C,
+    so a tie between two atoms' displacement DOFs reaches past it.  Nothing
+    here is protected by symmetry — P2₁/c general sites, monoclinic cell.
+    """
+    toy = make_p21c_toy()
+    toy.phases[0].atoms.append(Atom(
+        label="N", species="N", x=Parameter(value=0.61),
+        y=Parameter(value=0.18), z=Parameter(value=0.77)))
+    _check_columns(toy, ["phases.0.atoms.1.dof.0", "phases.0.scale"],
+                   ties=[("phases.0.atoms.2.dof.0",
+                          AffineTie.identity("phases.0.atoms.1.dof.0"))])
+
+
+def test_column_extras_is_empty_without_a_tie_and_names_one_with():
+    """The dispatch input itself: empty everywhere an unconstrained model looks.
+
+    That emptiness is what keeps every existing model on exactly the branch it
+    took before the gate — the derived ties are the reason the list is *not*
+    empty in general, and they stay on their own branches because each declares
+    the reach it covers.
+    """
+    structure, ins, _ = _state(make_rutile())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    table.set_vary(["phases.0.atoms.0.biso", "phases.0.cell.a"], True)
+    extras = dict(zip(table.free_paths, _column_extras(table), strict=True))
+    assert extras["phases.0.atoms.0.biso"] == []
+    # a derived tie is not a special case: tetragonal b←a shows up the same way
+    assert extras["phases.0.cell.a"] == ["phases.0.cell.b"]
+
+    table.set_tie("phases.0.atoms.1.biso",
+                  AffineTie.identity("phases.0.atoms.0.biso"))
+    extras = dict(zip(table.free_paths, _column_extras(table), strict=True))
+    assert extras["phases.0.atoms.0.biso"] == ["phases.0.atoms.1.biso"]
 
 
 def test_p21c_general_site_has_all_six_adp_and_three_coord():
