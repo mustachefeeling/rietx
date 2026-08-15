@@ -166,6 +166,15 @@ McCusker audit (`../milestones/v1.0.md` § Appendix).
   **2:38 idle and 7:45 while the full suite ran beside it** — the range is the
   point, not either figure.
 
+  The **full** suite, once, green: **2503 passed, 126 skipped** in 25:30
+  (a fast run shared the machine for part of it). Against 1073's final-tree
+  **2491 / 126** that is +12 passed and +0 skipped — identical to the fast
+  delta, as it should be, since all twelve rows are fast. Collected 2629
+  against 2617. The docs-only edits that close the WP (ROADMAP, CLAUDE.md, this
+  file, the record, 1003's mailbox, and the cap constant) landed while it ran;
+  `test_docs_consistency.py` was re-run on the final tree by itself and is
+  green, and a docs-only change does not earn a second full run.
+
   **On arrival**, pruned `### Inherited`: 1072's warning was still true
   (checked `geometry.py:331,339,382` before folding), so it became the Context
   bullet on the seam and the check it asked for became a task; nothing was
