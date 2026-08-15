@@ -36,6 +36,30 @@ McCusker audit (`../milestones/v1.0.md` § Appendix).
   where the weight enters row assembly).
 - Additive defaulted schema field; no version bump (events precedent).
 
+### Inherited
+
+**From [1072](1072-geometry-table.md), 2026-08-15 — `model/restraints.py` now
+has a second consumer, and it is not a restraint.** The geometry table builds
+`_Bond` / `_Angle` items with `sigma = 1.0` and `weight = 1.0` and calls
+`restraint_partials` on them, precisely so that its `pref = √weight/σ` is 1 and
+the returned partials are ∂(distance or angle)/∂p unweighted. Those partials
+become every reported esd.
+
+So **where the stage scalar enters decides whether this WP silently corrupts
+the geometry esds.** Multiply it into `_Bond.weight` / `_Angle.weight`, or into
+`pref` inside `restraint_partials`, and every geometry esd comes back scaled by
+√c_w — with no test failing that a reader would connect to the change: the
+distances are computed elsewhere, and `stderr / stderr_diagonal` is a ratio, so
+the one number the geometry tests compare against a Monte Carlo is the only
+thing that would move. The safe seam is the one this file already names — "where
+the weight enters row assembly", i.e. the *residual and Jacobian row build*, not
+the compiled item and not the shared partials function.
+
+Whichever seam you pick, pin it: `tests/test_geometry_table.py`'s
+`test_esd_matches_a_monte_carlo_through_decode` is the assertion that would
+have caught it, and a fixture carrying both restraints *and* a non-unit c_w is
+the direct check.
+
 ## Non-goals
 
 - Automatic scheduling (reduce-on-convergence heuristics) — the caller or a

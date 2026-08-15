@@ -240,6 +240,33 @@ still moving, which is why it was deferred.
 
 ### Inherited
 
+**From [1072](1072-geometry-table.md), 2026-08-15 — the 1069/1071 trap a third
+time, and this one is the largest single block of prose-carried names in Part
+1.** `concepts.md` § Fit statistics gains "The bonding geometry", the only
+documentation of **thirty-six** public names (counted, not estimated:
+`python -m tests.api_surface` and grep the geometry ones, minus the fourteen
+that belong to the unrelated instrument `Geometry`). They are `GeometryTable`
+and its seven members, `GeometryDistance` and its eleven fields, `GeometryAngle`
+and its thirteen, `RefinementResult.geometry` and `FitReport.geometry`.
+`report.md` adds the bullet for the last of those and points here rather than
+repeating the fields. Same
+consequence as the two entries below — those names sit in the *documented*
+bucket because that prose spells them — so re-run `tests/test_manual_api.py`
+after any move, split or rewrite of § Fit statistics.
+
+Three things a rewrite must keep, none of them editorial. The section says a
+bond between two sites appears **twice**, once from each end, and that the row
+count naming an atom is its coordination number: that is the listing rule, not
+a caveat, and a reader who loses it will read every table as double-counted.
+It says `stderr = None` is *absence*, never zero, and names both routes there
+(no covariance; symmetry-fixed) — the esd being unquotable is the single most
+misreadable thing in the section. And the §10 sentence about the full
+correlation matrix is quoted, not paraphrased, because
+`GeometryDistance.stderr_diagonal` exists only to make that sentence
+measurable. The measured spread behind it (full/diagonal 0.71–1.15 on 11-BM
+NAC) is in WP-1072's handover and deliberately *not* in the chapter; if a pass
+wants a number there, take it from that handover rather than re-deriving one.
+
 **From [1071](1071-data-support-checks.md), 2026-08-15 — the same trap as
 1069's below, twice, plus one name that left the deferred bucket.**
 `concepts.md` § Fit statistics gains two subsections: "How many observations
