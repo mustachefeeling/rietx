@@ -127,11 +127,23 @@ through the **full** parameter covariance, and the CIF export writes the
   2.725/2.866 Å.
 
   **Counts** (this checkout's `.venv`, `[dev]` only — no jax, no torch;
-  macOS/darwin): fast selection **2365 passed + 112 skipped in 2:39**, against
-  WP-1071's 2343 + 112 on the previous tree. **+22 passed, +0 skipped** against
-  exactly 22 tests added — every one a new pass, no new skip. (The 2:39 vs
-  1071's 3:01–3:03 is machine state; 22 added tests cannot make a suite
-  faster.) Full-suite figures below.
+  macOS/darwin). Fast selection **2365 passed + 112 skipped**, against
+  WP-1071's 2343 + 112 on the previous tree; full suite **2473 passed + 121
+  skipped in 23:42**, against 1071's 2451 + 121 in 28:17. **+22 passed, +0
+  skipped in both** — exactly the 22 tests added, every one a new pass and no
+  new skip. Wall clock as a range across this session's runs: the fast
+  selection measured 2:39 and 2:51 on trees that differ only in comments, so
+  read the 23:42-against-28:17 as machine state too, not as a change (the
+  full suite is set by `indexing-acceptance`, whose slowest single setup was
+  842 s).
+
+  **One process slip, recorded because the counts depend on it.** The full
+  suite was launched and then four more commits landed — two comment-only,
+  one docs, and one cutting a Monte Carlo from 20 000 to 5 000 draws inside a
+  2.5× assertion margin. That is exactly the mid-edit launch `tests/CLAUDE.md`
+  warns about. The fast selection was therefore re-measured on the final tree
+  and returned the identical 2365 + 112, which is what licenses quoting the
+  23:42 run's counts for it.
 
   **Three decisions worth knowing before touching this.**
 
