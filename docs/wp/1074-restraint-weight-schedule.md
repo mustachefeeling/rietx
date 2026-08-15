@@ -67,9 +67,11 @@ McCusker audit (`../milestones/v1.0.md` § Appendix).
       deliberately bad start, relaxed second stage converges; the
       §8 failure-mode note ("if the geometric assumptions are invalid, the
       refinement will not progress") quoted in the docstring.
-- [ ] Pin the geometry seam: a fixture carrying both restraints *and* a
-      non-unit c_w leaves `tests/test_geometry_table.py`'s
-      `test_esd_matches_a_monte_carlo_through_decode` number unmoved.
+- [x] Pin the geometry seam: a fixture carrying both restraints *and* a
+      non-unit c_w leaves every geometry esd unmoved. The Monte Carlo the
+      mailbox named does **not** catch this (measured, both bugs injected):
+      its fixture declares no restraints and runs at c_w = 1, so a leak
+      conditioned on the model is invisible to it.
 - [ ] Manual sentence (`using/concepts.md`) + `AGENT_PROTOCOL.md` row.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/`.
 
