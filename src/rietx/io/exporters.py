@@ -286,15 +286,18 @@ def _write_refinement_metadata(block, result: RefinementResult,
     # McCusker et al. (1999) §10: "In any publication, the method used to
     # calculate the e.s.d.'s should be stated."  The inflation factor alone
     # does not state it — a reader cannot tell what it multiplied — so the base
-    # estimator is named first and the factor second, in that order.
-    esd_method = ("esds are the square roots of the diagonal of "
-                  "chi^2_red * (J^T J)^-1, J the Jacobian of the weighted "
-                  "residual at convergence")
-    if st.esd_inflation is not None:
-        esd_method += (", then multiplied by the Berar-Lelann "
-                       f"serial-correlation factor {st.esd_inflation:.3g} "
-                       "(Berar & Lelann, 1991, J. Appl. Cryst. 24, 1)")
-    block.set_pair("_pd_proc_ls_special_details", gemmi.cif.quote(esd_method))
+    # estimator is named first and the factor second, in that order.  Written
+    # only when the result actually carries esds: a replay or evaluate-only
+    # result has none, and describing a method nothing used is a claim.
+    if any(p.stderr is not None for p in result.parameters):
+        esd_method = ("esds are the square roots of the diagonal of "
+                      "chi^2_red * (J^T J)^-1, J the Jacobian of the weighted "
+                      "residual at convergence")
+        if st.esd_inflation is not None:
+            esd_method += (", then multiplied by the Berar-Lelann "
+                           f"serial-correlation factor {st.esd_inflation:.3g} "
+                           "(Berar & Lelann, 1991, J. Appl. Cryst. 24, 1)")
+        block.set_pair("_pd_proc_ls_special_details", gemmi.cif.quote(esd_method))
     block.set_pair("_pd_proc_ls_profile_function",
                    gemmi.cif.quote(_profile_description(instrument)))
     block.set_pair("_pd_proc_ls_background_function",
@@ -311,7 +314,12 @@ def _write_phase_agreement(block, row: PhaseAgreement | None) -> None:
     is "the conventional R factor", sum|F(meas) − F(calc)| / sum|F(meas)|,
     which is McCusker eq (13) exactly.  ``_all`` rather than ``_gt`` because
     every partitionable reflection is summed: there is no intensity threshold
-    (no ``_reflns_threshold_expression`` to point at).
+    (no ``_reflns_threshold_expression`` to point at).  For the same reason
+    ``_refine_ls_number_reflns`` — "number of unique reflections used in the
+    least-squares refinement" — is the count that entered the sums: unique
+    (one per hkl orbit, not per emission line, which is what GSAS's ``NFOBS``
+    counts) and short of the phase's list only by reflections off the Ewald
+    sphere, which the refinement did not use either.
 
     Nothing is written outside Rietveld mode, where the row is absent for
     cause — an omitted tag says "not measured", a zero would be a claim.

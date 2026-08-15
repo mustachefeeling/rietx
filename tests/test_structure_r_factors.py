@@ -333,3 +333,15 @@ def test_cif_carries_the_tags_and_the_esd_method():
     assert "(J^T J)^-1" in details
     assert "chi^2_red" in details
     assert "Berar-Lelann" in details
+
+    # ...and a result carrying no esds must not describe how they were made.
+    # An evaluate-only or replayed result has none, and a method statement
+    # about nothing is a claim, not a disclosure.
+    bare = result.model_copy(deep=True)
+    for p in bare.parameters:
+        p.stderr = None
+    bare_block = refinement_cif_doc(bare, ref.fitted_structure,
+                                    ref.fitted_instrument).sole_block()
+    assert bare_block.find_value("_pd_proc_ls_special_details") is None
+    # the profile R factors are unconditional and must still be there
+    assert bare_block.find_value("_pd_proc_ls_prof_wR_factor") is not None
