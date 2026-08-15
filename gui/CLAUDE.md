@@ -37,10 +37,16 @@ touch" syntax), and a typed number is compared to the **rendered** value, which 
 what lets values render lossily at 12 significant digits. Everything applies
 through the same verbs a form calls — same history nodes — and every refusal is
 the verb's own words (`held_because`, `TieSpec.describe`) with a line number
-attached, never restated. Two grammar facts are load-bearing: a `tie` renders
-**last** on its line (it contains spaces, so `=` runs to end-of-line) and column
+attached, never restated. Three grammar facts are load-bearing: a `tie` renders
+**last** on its line (it contains spaces, so `=` runs to end-of-line); column
 widths are **per block** (a fixed width made the renderer emit
-`polarization 0.99min 0`, which its own parser refused). Comments parse but do not
+`polarization 0.99min 0`, which its own parser refused); and a **stage line's
+keys are derived from `StageSpec`** (`textdoc.STAGE_KEYS`), never listed, so a
+new field on the schema reaches the renderer, the parser and — via
+`test_textdoc`'s pin against `model_fields` — `lib/rxt.ts` too. Listed, it was
+the same tuple in two places, and a field missing from both is not a rendering
+gap but a value dropped on every save. An added key is not a `FORMAT_VERSION`
+bump, on the events precedent: no line's *meaning* changed. Comments parse but do not
 survive a re-render, on purpose: storing one would be a second authority.
 
 The **frontend** (WP-1010) is a Svelte 5 + Vite + TS workspace in `gui/` whose

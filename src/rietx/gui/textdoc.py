@@ -96,6 +96,23 @@ FORMAT_VERSION = "1"
 #: document is a lossy view and ``changes`` is what makes that safe.
 VALUE_DIGITS = 12
 
+#: A stage line's trailing ``<key> <number>`` pairs: every :class:`StageSpec`
+#: field except the two the line already carries positionally
+#: (``stage <name>  free <globs>``).  **Derived, not listed** — the previous
+#: spelling was this same tuple written out in the renderer and again in the
+#: parser, so WP-1074's ``restraint_weight_scale`` would have rendered nowhere,
+#: parsed nowhere, and been dropped on every save, which is the loss
+#: ``schemas/plan.py``'s docstring describes one rank up.  Declaration order, so
+#: a new field appends and existing documents render byte-for-byte as before.
+#:
+#: An added key is not a :data:`FORMAT_VERSION` bump, for the reason a new field
+#: on an event kind is not an ``EVENT_SCHEMA_VERSION`` bump: no line's *meaning*
+#: changed, and every document a previous build wrote still parses here.
+STAGE_KEYS = tuple(k for k in StageSpec.model_fields
+                   if k not in ("name", "turn_on"))
+#: The subset that must come back as ``int``.
+STAGE_INT_KEYS = ("max_iter", "lebail_cycles")
+
 #: Blocks whose *name* is reserved so a later WP can fill them in without a
 #: format bump.  Recognised by the parser and refused with the owner, which is
 #: the difference between "not yet" and "you typed nonsense".  Empty since
@@ -394,7 +411,7 @@ def _render_plan(doc: ProjectDoc) -> list[str]:
     for stage in spec.stages:
         parts = [f"stage {stage.name.ljust(width)}  free "
                  + ", ".join(stage.turn_on)]
-        for key in ("max_iter", "lebail_cycles", "seed", "strain_seed"):
+        for key in STAGE_KEYS:
             value = getattr(stage, key)
             if value != getattr(default, key):
                 parts.append(f"{key} {_fmt(value) if isinstance(value, float) else value}")
@@ -695,7 +712,7 @@ def _parse_stage(n: int, rest: list[str], raw: str, fail) -> StageSpec | None:
         fail(n, f"stage {name!r} needs 'free <glob>[, <glob>…]'", raw, name)
         return None
     rest = rest[1:]
-    keys = ("max_iter", "lebail_cycles", "seed", "strain_seed")
+    keys = STAGE_KEYS
     cut = next((i for i, token in enumerate(rest) if token in keys), len(rest))
     globs = [g for g in " ".join(rest[:cut]).replace(",", " ").split() if g]
     if not globs:
@@ -710,10 +727,9 @@ def _parse_stage(n: int, rest: list[str], raw: str, fail) -> StageSpec | None:
                     f"but found {key!r}", raw, name)
             return None
         fields[key] = float(tail.pop(0))
-    if "max_iter" in fields:
-        fields["max_iter"] = int(fields["max_iter"])
-    if "lebail_cycles" in fields:
-        fields["lebail_cycles"] = int(fields["lebail_cycles"])
+    for key in STAGE_INT_KEYS:
+        if key in fields:
+            fields[key] = int(fields[key])
     return StageSpec(name=name, turn_on=globs, **fields)
 
 
