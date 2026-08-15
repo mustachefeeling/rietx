@@ -199,7 +199,8 @@ the esd method completely. Gaps 1 and 8 of the McCusker audit
   skipped**, against **2272 passed, 108 skipped** with
   `--ignore=tests/test_structure_r_factors.py` — +13 passed, +0 skipped,
   exactly the thirteen new tests, and no other module's count moved. Full
-  suite (incl. acceptance) green. The partition costs **1.2× a forward
+  suite on the same venv and platform: **2392 passed, 117 skipped**, ~23 min.
+  The partition costs **1.2× a forward
   evaluate** (23 ms against 19 ms on FAP's 329 reflections × 2 lines), 0.47 %
   of that fit — it runs once per `_build_result`, which is once per `fit`,
   per `run_stage`, per `replay`, and per stage boundary under
