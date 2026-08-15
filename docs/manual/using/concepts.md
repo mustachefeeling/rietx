@@ -265,6 +265,17 @@ receives the intensity it predicted, and both indices flatter it. That is the
 paper's own warning, and it fixes what they are for: watching an R_B fall as you
 improve a model, not judging a model in isolation.
 
+**A trace phase's R_B is not comparable with the major phase's.** Neither index
+is weighted — eq (14) has no w — so a reflection the fit barely constrains
+counts as much as one that dominates it, and a minor phase's windows sit under
+the major phase's peaks, where the counts the major phase failed to describe are
+handed out too. Measured on the 11-BM NAC pattern with its 1.35 wt % CaF₂
+impurity: NAC reads R_B 0.052 and the impurity 0.385, with the whole of the
+impurity's misfit in four reflections at I(obs)/I(calc) ≈ 2.2 — every one of
+them under a strong NAC peak with a large positive residual. Read R_B beside the
+phase's weight fraction, and treat a trace phase's value as a question rather
+than a measurement.
+
 Both are absent — an empty list — for a Le Bail or Pawley fit. There the
 intensities *are* the fit, so the partition would be compared against itself.
 

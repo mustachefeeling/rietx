@@ -411,9 +411,18 @@ def structure_r_factors(i_obs: np.ndarray, i_calc: np.ndarray,
     where it defines them ("this is, of course, biased towards the structural
     model, but it gives an indication of the reliability of the structure") and
     is equally clear on what they are for: monitoring the *improvement* of a
-    structural model, never judging one in isolation.  A weighted R_B (Cox &
-    Papoular, 1996, *Mater. Sci. Forum* **228-231**, 233) exists and is not
-    computed here.
+    structural model, never judging one in isolation.
+
+    Both are also **unweighted** — eq (14) carries no w — which is what makes a
+    trace phase's value incomparable with the major phase's: a reflection the
+    weighted fit barely constrains counts as much as one that dominates it, and
+    a minor phase's windows sit under the major phase's peaks, so the counts the
+    major phase failed to describe are handed out too.  Measured on 11-BM NAC
+    with its 1.35 wt % CaF₂ (WP-1069's handover): 0.052 against 0.385, the whole
+    of the impurity's misfit in four reflections at I(obs)/I(calc) ≈ 2.2, every
+    one of them under a strong NAC peak.  The weighted variant that answers this
+    (Cox & Papoular, 1996, *Mater. Sci. Forum* **228-231**, 233) is not computed
+    here.
 
     Reflections whose intensity could not be partitioned arrive as NaN and are
     dropped; ``n`` reports how many were summed.  Both values are ``None`` when
