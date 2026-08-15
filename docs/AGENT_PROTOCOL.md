@@ -250,6 +250,35 @@ Judge a fit in this order:
    every background-dominated pattern would trigger it, including converged
    ones.
 
+9. **Last, the structure R factors** — `result.phase_agreement`, one
+   `PhaseAgreement` per phase, carrying `r_bragg` (R_B, eq 14 of McCusker et
+   al. 1999) and `r_f` (R_F, eq 13). They are last on purpose. A powder
+   pattern does not measure individual reflection intensities, so I(obs) is
+   the observed pattern *partitioned in proportion to I(calc)*: a wrong model
+   receives the intensity it predicted, and both indices flatter it. They are
+   for watching R_B fall as you improve a model, and for the publication that
+   will ask for one — never for judging a model in isolation, and never as
+   evidence that a correction helped. Absent (an empty list) in Le Bail and
+   Pawley mode, where the intensities *are* the fit and the comparison would
+   be circular.
+
+   **Do not compare a trace phase's R_B with the major phase's.** Neither
+   index is weighted, so a reflection the fit barely constrains weighs as much
+   as one that dominates it, and a minor phase's windows sit under the major
+   phase's peaks, where the counts the major phase failed to describe are
+   handed out too. Measured on 11-BM NAC with 1.35 wt % CaF₂: 0.052 for the
+   major phase against 0.385 for the impurity, all of the latter in four
+   reflections at I(obs)/I(calc) ≈ 2.2, each under a strong NAC peak. Read it
+   beside `qpa.phases[].weight_fraction`, and treat a trace phase's value as a
+   question rather than a measurement.
+
+   `write_refinement_cif` writes them as `_refine_ls_R_I_factor` and
+   `_refine_ls_R_factor_all` on each phase's own block, beside a
+   `_pd_proc_ls_special_details` that states the esd method in full — the
+   base estimator √diag(χ²_red·(JᵀJ)⁻¹), then the Bérar-Lelann factor it was
+   multiplied by, which §10 of the guidelines requires any publication to
+   state.
+
 **Adding parameters: use ΔBIC, not Hamilton's R-ratio.** Measured on this
 package's own data (WP-0503): at 7251 channels Hamilton's test blesses a 0.13 %
 χ² improvement that is physically inert. ΔBIC has the sample-size penalty that

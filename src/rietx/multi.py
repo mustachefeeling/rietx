@@ -31,6 +31,7 @@ from .refine import (
     _absorption_record,
     _constraint_diagnostics,
     _guard_diagnostics,
+    _phase_agreement,
     _qpa_unavailable_diagnostics,
     _resolve_specimen_absorption,
     _utcnow,
@@ -272,7 +273,12 @@ class MultiHistogramRefinement:
                 two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
                 y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
                 sigma=model.sigma.tolist(),
-                ticks=self._ticks(model, struct, values), qpa=qpa, diagnostics=diags))
+                ticks=self._ticks(model, struct, values), qpa=qpa,
+                # per histogram, like the QPA and the absorption record above:
+                # the partition is of *this* pattern's counts, so a joint fit
+                # has one structure R per histogram, not a pooled one
+                phase_agreement=_phase_agreement(model, values, struct),
+                diagnostics=diags))
 
         # pooled combined statistics (reported, never quoted alone) --------------
         combined = compute_statistics(

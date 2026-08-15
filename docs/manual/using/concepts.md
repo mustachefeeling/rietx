@@ -240,6 +240,46 @@ residuals still land near 1.51, because same-sign runs happen by chance, and lab
 data with unmodelled profile detail typically lands at 2 to 4. Treat it as an
 upper bound on the serial-correlation damage rather than as a measurement of it.
 
+### Structure agreement indices
+
+Every field above measures the *pattern*. Two more measure the **structure**, and
+a journal will ask for at least one of them {cite}`mccusker1999`. They live on
+`RefinementResult.phase_agreement`, one `PhaseAgreement` row per phase, keyed by
+`PhaseAgreement.name` — the same name the phase carries everywhere else.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `PhaseAgreement.r_bragg` | R_B, the Bragg-intensity R-factor | how well the model reproduces the *integrated intensities* I = m·F², m the multiplicity — rather than the profile. Written to a CIF as `_refine_ls_R_I_factor`. |
+| `PhaseAgreement.r_f` | R_F, the structure-factor R-factor | the same comparison on the amplitude rather than the intensity, so it is the number a single-crystal R is directly comparable with. Written as `_refine_ls_R_factor_all`. |
+| `PhaseAgreement.n_reflections` | how many reflections were summed | smaller than the phase's reflection list whenever one falls off the Ewald sphere. |
+
+A joint multi-histogram fit reports them per histogram, on
+`HistogramResult.phase_agreement`: the partition is of one pattern's counts, so
+there is no pooled value.
+
+**Both are biased towards the model you are testing.** A powder pattern does not
+measure individual reflection intensities — overlapped peaks share their counts —
+so the "observed" intensity of each reflection is the observed pattern
+*partitioned in proportion to the calculated one*. A wrong model therefore
+receives the intensity it predicted, and both indices flatter it. That is the
+paper's own warning, and it fixes what they are for: watching an R_B fall as you
+improve a model, not judging a model in isolation.
+
+**A trace phase's R_B is not comparable with the major phase's.** Neither index
+is weighted — the sums count every reflection alike, whatever its counting
+statistics — so a reflection the fit barely constrains weighs as much as one
+that dominates it, and a minor phase's windows sit under
+the major phase's peaks, where the counts the major phase failed to describe are
+handed out too. Measured on the 11-BM NAC pattern with its 1.35 wt % CaF₂
+impurity: NAC reads R_B 0.052 and the impurity 0.385, with the whole of the
+impurity's misfit in four reflections at I(obs)/I(calc) ≈ 2.2 — every one of
+them under a strong NAC peak with a large positive residual. Read R_B beside the
+phase's weight fraction, and treat a trace phase's value as a question rather
+than a measurement.
+
+Both are absent — an empty list — for a Le Bail or Pawley fit. There the
+intensities *are* the fit, so the partition would be compared against itself.
+
 ### What the statistics cannot tell you
 
 They measure agreement, not correctness. A background flexible enough to imitate

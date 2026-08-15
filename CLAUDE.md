@@ -337,7 +337,9 @@ recent list, and is therefore not behind the 409 (WP-1044).
   what it changed — never an Rwp comparison as its evidence.** v0.5's
   measured method result: of eight corrections, two provably cannot move
   Rwp, one moves it the wrong way when it is right, and the two largest
-  accuracy wins are invisible in it (`docs/milestones/v0.5.md`).
+  accuracy wins are invisible in it (`docs/milestones/v0.5.md`). **Nor an
+  R_Bragg comparison** (WP-1069): I(obs) is I(calc) times the reflection's
+  own obs/calc count ratio, so it flatters whatever model partitioned it.
 - **Licensing**: port code only from permissive sources with ATTRIBUTION.md
   updates. BGMN/Profex/xrayutilities are GPL — concepts only, never code.
   TOPAS/FullProf are closed — papers only.

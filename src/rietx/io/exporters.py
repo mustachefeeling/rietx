@@ -43,7 +43,11 @@ from ..schemas.instrument import (
     BackgroundPSpline,
     Instrument,
 )
-from ..schemas.results import QuantitativePhaseAnalysis, RefinementResult
+from ..schemas.results import (
+    PhaseAgreement,
+    QuantitativePhaseAnalysis,
+    RefinementResult,
+)
 from ..schemas.structure import Structure
 
 _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -279,15 +283,56 @@ def _write_refinement_metadata(block, result: RefinementResult,
     block.set_pair("_refine_ls_goodness_of_fit_all", _g(st.gof))
     block.set_pair("_refine_ls_number_parameters", str(st.n_free_parameters))
     block.set_pair("_pd_proc_number_of_points", str(st.n_points))
-    if st.esd_inflation is not None:
-        block.set_pair("_pd_proc_ls_special_details",
-                       gemmi.cif.quote(
-                           "parameter esds multiplied by the Berar-Lelann "
-                           f"serial-correlation factor {st.esd_inflation:.3g}"))
+    # McCusker et al. (1999) §10: "In any publication, the method used to
+    # calculate the e.s.d.'s should be stated."  The inflation factor alone
+    # does not state it — a reader cannot tell what it multiplied — so the base
+    # estimator is named first and the factor second, in that order.  Written
+    # only when the result actually carries esds: a replay or evaluate-only
+    # result has none, and describing a method nothing used is a claim.
+    if any(p.stderr is not None for p in result.parameters):
+        esd_method = ("esds are the square roots of the diagonal of "
+                      "chi^2_red * (J^T J)^-1, J the Jacobian of the weighted "
+                      "residual at convergence")
+        if st.esd_inflation is not None:
+            esd_method += (", then multiplied by the Berar-Lelann "
+                           f"serial-correlation factor {st.esd_inflation:.3g} "
+                           "(Berar & Lelann, 1991, J. Appl. Cryst. 24, 1)")
+        block.set_pair("_pd_proc_ls_special_details", gemmi.cif.quote(esd_method))
     block.set_pair("_pd_proc_ls_profile_function",
                    gemmi.cif.quote(_profile_description(instrument)))
     block.set_pair("_pd_proc_ls_background_function",
                    gemmi.cif.quote(_background_description(instrument)))
+
+
+def _write_phase_agreement(block, row: PhaseAgreement | None) -> None:
+    """R_Bragg and R_F under their dictionary tags, on one phase's block.
+
+    Tag names checked against the COMCIFS core dictionary rather than
+    remembered.  ``_refine_ls_R_I_factor`` is the one whose own definition
+    names it — "most often calculated in Rietveld refinements of powder data,
+    where it is referred to as R~B~ or R~Bragg~"; ``_refine_ls_R_factor_all``
+    is "the conventional R factor", sum|F(meas) − F(calc)| / sum|F(meas)|,
+    which is McCusker eq (13) exactly.  ``_all`` rather than ``_gt`` because
+    every partitionable reflection is summed: there is no intensity threshold
+    (no ``_reflns_threshold_expression`` to point at).  For the same reason
+    ``_refine_ls_number_reflns`` — "number of unique reflections used in the
+    least-squares refinement" — is the count that entered the sums: unique
+    (one per hkl orbit; GSAS's ``NFOBS`` counts (line, reflection) pairs
+    instead, measured 654 against our 329 orbits on the same FAP pattern) and
+    short of the phase's list only by reflections off the Ewald sphere, which
+    the refinement did not use either.
+
+    Nothing is written outside Rietveld mode, where the row is absent for
+    cause — an omitted tag says "not measured", a zero would be a claim.
+    """
+    if row is None:
+        return
+    if row.r_bragg is not None:
+        block.set_pair("_refine_ls_R_I_factor", _g(row.r_bragg))
+    if row.r_f is not None:
+        block.set_pair("_refine_ls_R_factor_all", _g(row.r_f))
+    if row.n_reflections:
+        block.set_pair("_refine_ls_number_reflns", str(row.n_reflections))
 
 
 def _write_pattern_loop(block, result: RefinementResult) -> None:
@@ -318,9 +363,15 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
     import re
 
     doc = gemmi.cif.Document()
+    agreement = {row.name: row for row in result.phase_agreement}
     for ip, phase in enumerate(structure.phases):
         block = doc.add_new_block(re.sub(r"\W+", "_", phase.name) or f"phase_{ip}")
         write_structure_block(block, phase)
+        # Structure-sensitive R factors, on the phase's *own* block: both tags
+        # are core-dictionary `_refine_ls` items, whose scope is the structure
+        # in the block, not the pattern.  So a multi-phase export gives each
+        # phase its own pair, which is how they are read.
+        _write_phase_agreement(block, agreement.get(phase.name))
         if ip == 0:
             # refinement scalars + the pattern loop live on the first block, so
             # a single-phase export is one self-contained block that both

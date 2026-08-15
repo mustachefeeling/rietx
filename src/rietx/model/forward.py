@@ -959,6 +959,123 @@ class CompiledModel:
         for cp, vec in zip(self.phases, intens, strict=True):
             cp.hkl_intensity = vec
 
+    def structure_intensity_partition(
+            self, values: dict[str, float]
+    ) -> list[tuple[np.ndarray, np.ndarray]]:
+        """Per-phase (I_obs, I_calc) in the units of eq (14), I_hkl = m·|F|².
+
+        The 'observed' integrated intensities of McCusker et al. (1999) §6 and
+        §11: the net observed counts are handed to the reflections in
+        proportion to their *calculated* profile contributions, which is the
+        same partition :meth:`lebail_update` performs — with one difference
+        that is the whole point.  Le Bail's shares come from empirical per-hkl
+        intensities that the partition itself then rewrites; these come from
+        the **structural model** (S·m·|F|²·P·Lp·E·A·R), so the answer says how
+        well that model reproduces the pattern rather than converging to it.
+        The paper is explicit that this is the intended procedure — "by
+        distributing the intensities of the overlapping reflections according
+        to the structural model" — and equally explicit about the price: an
+        I(obs) built from I(calc) is biased towards the model.
+
+        Evaluate-only.  Nothing is written: no buffer, no θ, no recompile — the
+        windows, reflection lists and FCJ node counts are reused exactly as
+        compiled, so frozen-per-stage discreteness is untouched.  Runs at fit
+        close, outside any traced scope, hence plain numpy throughout (the
+        :meth:`lebail_update` convention one method up).
+
+        **Every correction divides out except m and |F|².**  Writing the
+        calculated counts of reflection k as W_k = Σ_l Σ_i I_lk·Ω_lk,i and its
+        observed share as O_k = Σ_l Σ_i [I_lk·Ω_lk,i / y_bragg,i]·net_i, the
+        two differ only by the observed/calculated ratio, so
+
+            I_obs,k = m_k·|F_k|² · O_k / W_k .
+
+        Scale, preferred orientation, Lorentz-polarization, extinction,
+        absorption, roughness and the emission-line weights all appear in both
+        W and O and cancel — which is what makes the returned pair the paper's
+        I_hkl rather than a count.  Computing the ratio instead of
+        reconstructing the correction product is not an optimisation: the
+        product would have to be divided out per (line, reflection), and a
+        systematically absent reflection would divide by |F|² = 0.
+
+        **The sums run over hkl, not over (line, hkl).**  Both W and O
+        accumulate every emission line's window contribution into the one
+        reflection, so a Kα doublet counts its reflection once, at the summed
+        weight — the ``RefinementResult.ticks`` lesson (all lines, never just
+        the primary) one rank down.
+
+        A reflection with W_k = 0 — a dead position off the Ewald sphere, an
+        empty frozen window, or an exactly absent |F|² — has no ratio, and is
+        returned as NaN in *both* arrays rather than as a zero that would enter
+        the sums as perfect agreement.
+        """
+        if self.mode != "rietveld":
+            raise RuntimeError(
+                "structure_intensity_partition needs calculated structure "
+                f"factors; mode is {self.mode!r}")
+        sl = values["instrument.geometry.axial_sl"]
+        hl = values["instrument.geometry.axial_hl"]
+        bkg = np.asarray(self.background(values), dtype=np.float64)
+        net = np.maximum(np.asarray(self.y_obs, dtype=np.float64) - bkg, 0.0)
+
+        # pass 1 — every phase's profiles and the *total* Bragg curve they are
+        # shares of.  Per-phase denominators would issue the same counts once
+        # per overlapping phase (lebail_update's docstring has the measurement).
+        all_peaks, all_profs = [], []
+        y_bragg = np.zeros(len(self.tt), dtype=np.float64)
+        for ip, cp in enumerate(self.phases):
+            peaks = self.phase_peaks(ip, values)
+            profs: list[list[np.ndarray | None]] = []
+            for il, (pos, gamma, eta, intensity) in enumerate(peaks):
+                row: list[np.ndarray | None] = []
+                for k in range(len(cp.reflections)):
+                    om = self._reflection_profile(cp, il, k, pos[k], gamma[k],
+                                                  eta[k], sl, hl)
+                    row.append(om)
+                    if om is not None:
+                        i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
+                        y_bragg[i0:i1] += intensity[k] * om
+                profs.append(row)
+            all_peaks.append(peaks)
+            all_profs.append(profs)
+
+        out: list[tuple[np.ndarray, np.ndarray]] = []
+        for ip, cp in enumerate(self.phases):
+            peaks, profs = all_peaks[ip], all_profs[ip]
+            n = len(cp.reflections)
+            w_calc = np.zeros(n)
+            o_obs = np.zeros(n)
+            for k in range(n):
+                for il in range(len(self.line_wavelengths)):
+                    om = profs[il][k]
+                    if om is None:
+                        continue
+                    i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
+                    contrib = float(peaks[il][3][k]) * np.asarray(om)
+                    w_calc[k] += float(contrib.sum())
+                    denom = y_bragg[i0:i1]
+                    good = denom > 1e-12
+                    if not np.any(good):
+                        continue
+                    o_obs[k] += float(
+                        (contrib[good] / denom[good] * net[i0:i1][good]).sum())
+            # I_calc as the paper defines it: multiplicity × |F|², with the
+            # scale and every angle-dependent correction left out (they are in
+            # the ratio above, on both sides).  Recomputed rather than unpicked
+            # from phase_peaks' product, which folds preferred orientation in.
+            cell = tuple(values[f"phases.{ip}.cell.{key}"]
+                         for key in ("a", "b", "c", "alpha", "beta", "gamma"))
+            d = d_spacings(cp.reflections.hkl, *cell)
+            f2 = np.asarray(structure_factors_squared(
+                cp.reflections.hkl, d, cp.sites,
+                *self._site_values(ip, values, cell)), dtype=np.float64)
+            i_calc = np.asarray(cp.reflections.multiplicity,
+                                dtype=np.float64) * f2
+            live = w_calc > 0.0
+            ratio = np.where(live, o_obs / np.where(live, w_calc, 1.0), np.nan)
+            out.append((i_calc * ratio, np.where(live, i_calc, np.nan)))
+        return out
+
     # ------------------------------------------------------------------
     # Pawley intensity block (per-hkl intensities as free parameters)
     # ------------------------------------------------------------------

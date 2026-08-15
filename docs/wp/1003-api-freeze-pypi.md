@@ -14,8 +14,27 @@ WP-1067 § Floor (the manual's release-gating half; the rest ships in 1.0.x),
 
 ### Inherited
 
+**From [1069](1069-structure-r-factors.md), 2026-08-15 — landed pre-freeze;
+here is what it added to the surface you are freezing.** Three public schema
+names and two public fields: `PhaseAgreement` (`name`, `r_bragg`, `r_f`,
+`n_reflections`), `RefinementResult.phase_agreement` and
+`HistogramResult.phase_agreement`, all additive with defaults, so
+`SCHEMA_VERSION` did not move (the events precedent) and the freeze ratifies
+rather than versions them. The refinement CIF gained three per-phase tags —
+`_refine_ls_R_I_factor`, `_refine_ls_R_factor_all`, `_refine_ls_number_reflns`
+— written on **each phase's own block**, not on block 0 beside the profile R
+factors, because all three are core-dictionary `_refine_ls` items scoped to the
+structure. `_pd_proc_ls_special_details` changed content, not presence: it now
+states the base esd estimator before the Bérar-Lelann factor, and is written
+whether or not that factor exists (before, it was written only when it did).
+Nothing was removed and nothing was renamed. Two things it did **not** touch,
+in case you look: `agent.refine_json`'s schema (the rows ride inside
+`AgentSuccess.result`, which is the `RefinementResult`) and `capabilities()`,
+whose arms are backends/solvers/plans/modes/anodes/formats/contracts.
+
 **From the 2026-08-15 planning session — the McCusker compliance set
 (WPs 1069–1074) exists, and its ordering against this freeze is your call.**
+(1069 is now closed ✅; the ruling below stands for the remaining five.)
 WP-1068's reading of the guidelines became a full audit
 (`../milestones/v1.0.md` § Appendix): no correctness defect, nine gaps. Six
 became WPs; difference Fourier went to the v2+ fence; the
