@@ -97,7 +97,10 @@ CONTACT_MAX_ANG = 3.5
 #: Contacts kept per asymmetric-unit atom, nearest first.  Bonds and angles are
 #: uncapped — chemistry bounds them — but the contact count grows with the
 #: cutoff volume, and a table nobody can read is not evidence.  Whatever this
-#: drops is counted in ``GeometryTable.notes``, never dropped in silence.
+#: drops is counted in ``GeometryTable.notes``, never dropped in silence: a
+#: firing cap is also the one thing that breaks the orbit-count relation the
+#: search is checked with, since it can truncate one direction of a pair and
+#: not the other.
 MAX_CONTACTS_PER_ATOM = 24
 
 #: Phases with more asymmetric-unit atoms than this are skipped, and said in
@@ -275,13 +278,12 @@ def _angle_degrees(item: _Angle, values: dict) -> float:
 
 
 def _phase_items(phase, sites, values, ip: int, notes: list[str]):
-    """``(bond items, contact items, angle items, descriptors)`` for one phase.
+    """``(labels, bonds, contacts, angles)`` descriptors for one phase.
 
-    The items are :mod:`.restraints` ``_Bond``/``_Angle`` objects with σ = 1
-    and weight = 1, so :func:`~rietx.model.restraints.restraint_partials`
-    returns ∂(distance or angle)/∂p unweighted.  The descriptors carry what
-    the partials cannot: labels, the symmetry code of each image, and the
-    value itself.
+    Bonds and contacts are ``(reference atom, neighbour entry)`` pairs; an
+    angle is ``(vertex, entry, entry)``.  An entry carries what the ``_Bond``
+    and ``_Angle`` items built from it cannot: the distance, and the symmetry
+    code of the image.
     """
     cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in _CELL_NAMES)
     g = _metric_g(cell)
