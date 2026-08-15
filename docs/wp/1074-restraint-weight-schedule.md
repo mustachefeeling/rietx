@@ -72,7 +72,7 @@ McCusker audit (`../milestones/v1.0.md` § Appendix).
       mailbox named does **not** catch this (measured, both bugs injected):
       its fixture declares no restraints and runs at c_w = 1, so a leak
       conditioned on the model is invisible to it.
-- [ ] Manual sentence (`using/concepts.md`) + `AGENT_PROTOCOL.md` row.
+- [x] Manual sentence (`using/concepts.md`) + `AGENT_PROTOCOL.md` row (§8.19).
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/`.
 
 ## Acceptance

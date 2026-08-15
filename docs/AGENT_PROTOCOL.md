@@ -904,7 +904,7 @@ about high-symmetry lattices until the corpus moves — post-v1 by scope call.
 
 ---
 
-## 8. Eighteen things that will surprise you, all measured
+## 8. Nineteen things that will surprise you, all measured
 
 These are the findings from building the package that change how an agent
 should behave. Each one cost a debugging pass.
@@ -1152,6 +1152,30 @@ converged report names *no* position cause, because the zero shift and the cell
 between them imitate most of eq (4). The `zero` stage's own rung names
 `refine_capillary_offset_along_beam` at 0.66. **Corollary for the agent: this is
 §9's rule with a concrete case — read the trajectory, not the last state.**
+
+**8.19 A restraint's weight is a per-stage decision, and a fit can converge to
+an impossible bond without saying so.** `Stage.restraint_weight_scale` is c_w of
+McCusker eq (7), S = S_y + c_w·S_G: high while the structure is incomplete or
+approximate, reduced as it improves. It defaults to 1.0 (every restraint exactly
+as declared), and 0.0 silences the restraints for a stage while keeping their
+rows, so the row count the statistics exclude never changes mid-plan.
+
+Measured on a synthetic case whose data under-determines two oxygen sites,
+starting from a Zr–O of 3.73 Å for a 1.87 Å bond: the same three stages run at
+c_w = 1 throughout converge with that distance at **4.834 Å**, the restraint
+148σ in tension and the coordinates 0.425 rms from truth; run at c_w = 300 then
+1, the stiff stage lands the bond at 1.866 Å (0.03σ) and the relaxed stage
+converges at 1.872 Å, 0.00107 rms. The plans differ in nothing but c_w.
+
+**Corollary for the agent: this is a case where the fit statistics are the
+weaker channel and you must read `result.restraints`.** The failed fit's Rwp is
+0.0393 against 0.0327 and its GoF 1.23 against 1.02 — a slightly worse fit, not
+an announcement of a 4.8 Å bond; `RESTRAINT_TENSION` is what fires. And a stiff
+c_w makes a restraint more authoritative, not more correct: where the assumed
+coordination is wrong, §8 of the paper says the refinement "will not progress
+satisfactorily", and raising c_w makes that worse rather than better.
+`RestraintReport.weight_scale` records which value produced a report, so the
+penalty actually minimised is `weight_scale · restraint_chi2`.
 
 ---
 

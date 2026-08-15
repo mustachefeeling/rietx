@@ -441,6 +441,7 @@ NodeAction.kind
 NodeAction.lebail_cycles
 NodeAction.max_iter
 NodeAction.name
+NodeAction.restraint_weight_scale
 NodeAction.seed
 NodeAction.strain_seed
 NodeAction.ties
@@ -932,6 +933,7 @@ StageSpec.from_stage
 StageSpec.lebail_cycles
 StageSpec.max_iter
 StageSpec.name
+StageSpec.restraint_weight_scale
 StageSpec.seed
 StageSpec.strain_seed
 StageSpec.to_stage
