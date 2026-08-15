@@ -203,7 +203,11 @@ audit (`../milestones/v1.0.md` § Appendix).
   (was 407: the wizard parity row now covers a sixth `debye_scherrer`
   field), `svelte-check` 372 files / 0 errors, Sphinx `-W` clean, ruff clean.
   The **full** suite, once on the final tree: **2491 passed, 126 skipped**
-  in 24:21, green. It had to fire, and the reason is worth keeping: the
+  in 24:21, green — 2617 against the fast selection's 2500, a gap of 117
+  slow rows, and `main`'s fast 2477 + the same 117 + this WP's 23 lands on
+  2617, so the full figure is consistent with the fast delta without a
+  second hour of machine time re-measuring `main` (tests/CLAUDE.md § Running,
+  rung 4). It had to fire, and the reason is worth keeping: the
   offsets themselves cannot move an acceptance number (no acceptance
   instrument declares a goniometer radius, so both are force-fixed and the
   forward branch is skipped), but the *report vocabulary* changed on every
