@@ -210,6 +210,11 @@ class Identifiability(Base):
     three are carried as evidence on the same terms as the absorption table —
     numbers, not verdicts; thresholds live in the report.
 
+    This answers **which** parameter the data cannot support;
+    :class:`DataSupport` answers **how many** the pattern can carry at all,
+    from the reflection count rather than from the Jacobian.  Neither claims
+    the other's job, and the coarse number is the one a reader checks first.
+
     Empty ⇔ nothing was measurable: fewer than two free parameters, no
     Jacobian retained by the solver, or no pair/candidate to project
     (``exchangeability`` is additionally empty in Pawley mode, where the
