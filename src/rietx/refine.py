@@ -174,6 +174,10 @@ class Refinement:
         #: ties are rederived by every ``ParameterTable`` build and are absent
         #: here, which is what ``untie`` and ``TieSpec.user`` read.
         self._ties: dict[str, TieSpec] = {}
+        #: of those, the ones the most recent table build actually declared —
+        #: what ``TieSpec.user`` is answered from, so a row names whose tie is
+        #: *in force* on it rather than whose was asked for
+        self._applied_ties: set[str] = set()
 
     # ------------------------------------------------------------------
     # history plumbing
@@ -316,12 +320,19 @@ class Refinement:
         """
         candidate = self.structure if structure is None else structure
         try:
-            ParameterTable(candidate,
-                           self.instrument if instrument is None else instrument)
+            table = ParameterTable(
+                candidate, self.instrument if instrument is None else instrument)
         except ValueError as exc:
             raise ValueError(
                 f"this model has no parameter table, so the edit is refused "
                 f"rather than recorded: {exc}") from None
+        # Reconcile the user constraints with the model being accepted, here
+        # rather than at the next table build: this is the recorded verb, so the
+        # register it leaves is the one the node carries, and a tie that stopped
+        # applying is said once — at the edit that ended it — instead of on
+        # every listing afterwards (WP-1070).
+        applied = self._apply_ties(table)
+        self._ties = {p: s for p, s in self._ties.items() if p in applied}
         if structure is not None:
             self.structure = structure.model_copy(deep=True)
         if instrument is not None:
@@ -377,7 +388,7 @@ class Refinement:
             rows.append(ParameterRow(
                 path=e.path, value=e.value, vary=e.vary, lo=e.lo, hi=e.hi,
                 transform=e.transform,
-                tie=(TieSpec.from_tie(e.tie, user=e.path in self._ties)
+                tie=(TieSpec.from_tie(e.tie, user=e.path in self._applied_ties)
                      if e.tie is not None else None),
                 locked=e.locked,
                 esd=esd.get(e.path),
@@ -475,7 +486,7 @@ class Refinement:
     # ------------------------------------------------------------------
     # user constraints (WP-1070)
     # ------------------------------------------------------------------
-    def _apply_ties(self, table: ParameterTable) -> None:
+    def _apply_ties(self, table: ParameterTable) -> set[str]:
         """Re-declare this refinement's user ties on a freshly built table.
 
         Every ``ParameterTable`` rederives the *symmetry* ties from the space
@@ -491,9 +502,17 @@ class Refinement:
         the symmetry the derived tie exists to enforce, so an occupied row is
         skipped and said out loud, alongside the vanished-path case
         :meth:`_prepare_table` reports for a free path.
+
+        Returns the paths actually declared, which is what
+        :meth:`parameters` answers ``TieSpec.user`` from: a row must say whose
+        tie is *in force* on it, and after such a collision the register and the
+        table disagree about that.  :meth:`edit` prunes the register against the
+        model it accepts, so the disagreement is momentary on the recorded path
+        and this stays the defence for the unrecorded ones.
         """
+        self._applied_ties: set[str] = set()
         if not self._ties:
-            return
+            return self._applied_ties
         by_path = {e.path: e for e in table.entries}
         dropped: list[str] = []
         for path, spec in self._ties.items():
@@ -512,12 +531,13 @@ class Refinement:
                 table.set_tie(path, AffineTie(
                     terms=tuple((p, float(c)) for p, c in spec.terms),
                     const=float(spec.const)))
+                self._applied_ties.add(path)
         if dropped:
             warnings.warn(
                 f"{len(dropped)} user tie(s) no longer apply to this model and "
-                f"were not re-declared: {'; '.join(dropped)}. Symmetry outranks "
-                "a user tie; call untie() to drop them for good.",
-                UserWarning, stacklevel=3)
+                f"were dropped: {'; '.join(dropped)}. Symmetry outranks a user "
+                "tie.", UserWarning, stacklevel=3)
+        return self._applied_ties
 
     def _tie_entry(self, table: ParameterTable, path: str, *, role: str):
         """The entry ``path`` names, refusing with the reason a tie cannot use it.
