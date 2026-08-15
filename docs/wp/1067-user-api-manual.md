@@ -238,6 +238,27 @@ things land here instead: the README **declares the GUI a beta feature**, and
 screenshots. Do not absorb any of 1017's mailbox — it is about panels that are
 still moving, which is why it was deferred.
 
+### Inherited
+
+**From [1069](1069-structure-r-factors.md), 2026-08-15 — `concepts.md` gained a
+section, and the coverage partition now leans on its prose.** § Fit statistics
+has a new subsection, "Structure agreement indices", carrying the only
+documentation of seven public names: `PhaseAgreement` and its four fields,
+`RefinementResult.phase_agreement` and `HistogramResult.phase_agreement`. They
+are in the *documented* bucket purely because that prose spells them; there is
+no other chapter and no deferral entry. So if the 1.0.x pass moves, splits or
+rewrites § Fit statistics, re-run `tests/test_manual_api.py` before believing
+the move — `test_derived_surface_is_partitioned` is what fails, and it fails
+with a name list rather than a location, which is the slow way to find out.
+
+The subsection also carries two reading rules that are *measured*, not
+editorial, so trim them only against the numbers behind them (WP-1069's
+handover): both indices are biased towards the model that partitioned them, and
+neither is weighted, so a trace phase's R_B is not comparable with the major
+phase's. The second is repeated in `AGENT_PROTOCOL.md` § 4 step 9 on purpose —
+different audience, same measurement — and that is not duplication to
+consolidate away.
+
 ## Non-goals
 
 - **No GUI chapters** (WP-1017). One beta-marked line is the whole of it.

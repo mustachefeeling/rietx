@@ -112,7 +112,7 @@ the esd method completely. Gaps 1 and 8 of the McCusker audit
 ## Handover log
 
 - **2026-08-15** — **closed ✅.** No `### Inherited` on arrival, so nothing to
-  prune. All six tasks landed; three commits.
+  prune. All six tasks landed; ten commits.
 
   **Done.** `CompiledModel.structure_intensity_partition` (evaluate-only, at
   fit close), `optimize.statistics.structure_r_factors` (eqs 13/14),
@@ -123,6 +123,18 @@ the esd method completely. Gaps 1 and 8 of the McCusker audit
   statistics chapter, `AGENT_PROTOCOL.md` § 4 step 9, one root CLAUDE.md
   clause. `agent.refine_json` needed no change: `AgentSuccess.result` *is* the
   `RefinementResult`, so the rows serialize already.
+
+  **Task 4 named two surfaces that turned out not to exist, and went to three
+  others instead.** `gui/textdoc.py` renders no statistics at all — it is the
+  `.rxt` parameter/plan editor, and its whole vocabulary is rows, globs, peaks
+  and stages. The FitReport's `summary` is a *judging* surface, and this WP's
+  own non-goal forbids a gate or threshold on these values, so a passive number
+  there would have been the first sentence in that string that decided nothing.
+  What the item was really asking for — that a reader meet the numbers where
+  they read the others — went to the manual's § Fit statistics (beside the
+  `Statistics` table), `AGENT_PROTOCOL.md` § 4 as step 9 of the judging order,
+  and the CIF. If a later WP gives the FitReport a structure-R statement, it
+  should arrive with a threshold and a measured reason for it, not as a field.
 
   **The design decision, and why.** Writing the calculated counts of
   reflection k as W_k = Σ_l Σ_i I_lk·Ω_lk,i and its observed share as
