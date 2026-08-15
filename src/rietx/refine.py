@@ -37,7 +37,7 @@ from .optimize.qpa import (
     estimate_flat_plate_mu_t,
     microabsorption_diagnostics,
 )
-from .optimize.statistics import compute_statistics, structure_r_factors
+from .optimize.statistics import compute_statistics, data_support, structure_r_factors
 from .params.vector import AffineTie, ParameterTable
 from .report.schemas import THRESHOLDS_VERSION, StageReport
 from .schemas.common import Diagnostic, Provenance
@@ -1903,6 +1903,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         sigma=model.sigma.tolist(),
         ticks=ticks, qpa=qpa, restraints=restraints_report,
         phase_agreement=_phase_agreement(model, values, structure),
+        data_support=data_support(model, values, list(table.free_paths)),
         absorption=absorption, identifiability=identifiability,
     )
 

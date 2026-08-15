@@ -21,10 +21,23 @@ coherently, χ²' = Σ_runs (Σ_{i∈run} δᵢ)² ≥ χ², and multiply every 
 
 from __future__ import annotations
 
+import fnmatch
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from ..backend.linalg64 import require_fp64, to_host_fp64
-from ..schemas.results import Statistics
+from ..schemas.results import DataSupport, Statistics
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from ..model.forward import CompiledModel
+
+#: Which free parameters McCusker §9's ratio is about.  fnmatch, so ``*``
+#: crosses dots — the glob reaches every atom entry (``…dof.k``, ``…occ``,
+#: ``…biso``, ``…adp.k``) and nothing else, since ``atoms.`` appears in no
+#: other path.  See :class:`~rietx.schemas.results.DataSupport` for why the
+#: cell, profile, background and scale are outside it.
+STRUCTURAL_PARAMETER_GLOB = "phases.*.atoms.*"
 
 
 def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
@@ -449,3 +462,85 @@ def structure_r_factors(i_obs: np.ndarray, i_calc: np.ndarray,
     den_f = float(f_obs.sum())
     r_f = float(np.abs(f_obs - f_calc).sum() / den_f) if den_f > 0 else None
     return r_b, r_f, n
+
+
+def measured_mask(tt: np.ndarray, position: np.ndarray, fwhm: np.ndarray
+                  ) -> np.ndarray:
+    """Which peaks the fitted grid actually measured (WP-1071).
+
+    True where a **fitted** channel lies within half the peak's own FWHM of
+    its centre.  One criterion answers the two questions the range ends answer
+    badly on their own: a peak whose top falls inside an excluded region was
+    not observed however far inside ``tt_min``/``tt_max`` it sits (``tt`` is
+    the fitted grid, so an excluded region is a hole in it — WP-1033's
+    fitted-mask rule one rank down), and a peak just past an edge with half
+    its area still on the detector was.
+
+    Half a FWHM is the width at which the *top* of the peak — the part §2
+    counts steps across, and the part an integrated intensity is actually
+    determined by — is still on the grid.  A non-finite position (a reflection
+    off the Ewald sphere) is False, never an error.
+    """
+    tt = np.asarray(tt, dtype=np.float64)
+    pos = np.asarray(position, dtype=np.float64)
+    width = np.abs(np.asarray(fwhm, dtype=np.float64))
+    valid = np.isfinite(pos) & np.isfinite(width)
+    if not len(tt):
+        return np.zeros(pos.shape, dtype=bool)
+    probe = np.where(valid, pos, tt[0])
+    j = np.searchsorted(tt, probe)
+    left = tt[np.clip(j - 1, 0, len(tt) - 1)]
+    right = tt[np.clip(j, 0, len(tt) - 1)]
+    nearest = np.minimum(np.abs(probe - left), np.abs(probe - right))
+    return valid & (nearest <= 0.5 * width)
+
+
+def count_unique_reflections(model: "CompiledModel",
+                             values: dict[str, float]) -> int:
+    """Unique reflections this pattern measured, summed over phases (WP-1071).
+
+    The observation count of McCusker et al. (1999) §9 — "only the integrated
+    intensities of the individual reflections can be considered unique
+    observations".  One orbit representative is one reflection
+    (``generate_reflections`` merges the Laue orbit already), and a reflection
+    counts **once** however many emission lines put a peak on the grid: the
+    Kα2 companion is the same reflection measured a second time, not a second
+    observation.  It counts if *any* line was measured
+    (:func:`measured_mask`) — the ``RefinementResult.ticks`` lesson, since a
+    reflection whose Kα1 sits below the first fitted channel can still have
+    its Kα2 on the grid.
+
+    Positions and widths come from :meth:`~rietx.model.forward.CompiledModel.phase_peaks`
+    at the values given, so this census can never disagree with the profile
+    the fit drew.  Evaluate-only: nothing is written and nothing recompiles.
+
+    This is the **raw** count and it over-counts, deliberately: two reflections
+    at one 2θ are one observation and both are counted here.
+    """
+    total = 0
+    for ip in range(len(model.phases)):
+        seen: np.ndarray | None = None
+        for pos, w1, w2, _intensity in model.phase_peaks(ip, values):
+            ok = measured_mask(model.tt, np.asarray(pos, dtype=np.float64),
+                               model.peak_fwhm(w1, w2))
+            seen = ok if seen is None else (seen | ok)
+        if seen is not None:
+            total += int(np.count_nonzero(seen))
+    return total
+
+
+def data_support(model: "CompiledModel", values: dict[str, float],
+                 free_paths: list[str]) -> DataSupport:
+    """Assemble :class:`~rietx.schemas.results.DataSupport` for a finished fit.
+
+    Evidence, not a gate: nothing here refuses anything, and the band it is
+    read against (three, preferably five — McCusker et al. 1999 §9) lives in
+    the report rather than in this function.
+    """
+    n_refl = count_unique_reflections(model, values)
+    n_struct = sum(1 for p in free_paths
+                   if fnmatch.fnmatch(p, STRUCTURAL_PARAMETER_GLOB))
+    ratio = float(n_refl / n_struct) if n_struct else None
+    return DataSupport(n_unique_reflections=n_refl,
+                       n_structural_parameters=n_struct,
+                       observations_per_parameter=ratio)

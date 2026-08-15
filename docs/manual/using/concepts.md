@@ -356,6 +356,40 @@ than a measurement.
 Both are absent — an empty list — for a Le Bail or Pawley fit. There the
 intensities *are* the fit, so the partition would be compared against itself.
 
+### How many observations there are
+
+`Statistics.n_points` is the N the least-squares algorithm uses, and it is not
+the number of observations the pattern holds. Only the integrated intensities of
+individual reflections are unique observations {cite}`mccusker1999`; the profile
+steps across one peak are repeated measurements of the same number. The
+consequence is that the algorithm will refine far more parameters than the data
+support, without complaining, because its N runs into the thousands.
+
+`RefinementResult.data_support` is a `DataSupport` object carrying the count
+that answers this.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `DataSupport.n_unique_reflections` | reflections this pattern measured, summed over phases | one symmetry orbit is one reflection, and a Kα doublet's second line is the same reflection measured again, not a second observation. A reflection counts when a fitted channel lies within half its own FWHM of its position, so an excluded region removes what sits under it and a peak half-measured at a range end still counts. |
+| `DataSupport.n_structural_parameters` | the free parameters the ratio is about | the atomic ones: coordinate DOFs, occupancies, Biso, ADP components. The cell, zero, profile, background, scale, preferred orientation and extinction are excluded — peak positions and shape determine those, not the intensities being counted. |
+| `DataSupport.observations_per_parameter` | the first divided by the second | the guideline is at least three and preferably five {cite}`mccusker1999`. `None` when no structural parameter is free, which is a profile-only stage, a Le Bail fit or a Pawley fit. |
+
+The complement of `DataSupport.n_structural_parameters` is
+`Statistics.n_free_parameters` minus it — the profile, background and cell
+parameters, which the same fit refined against the same pattern but which the
+peak *positions* pay for.
+
+**`DataSupport.n_unique_reflections` over-counts, on purpose.** Two reflections
+at the same 2θ are one observation, and both are counted here. In a cubic cell
+that pair is common — (300) and (221) coincide exactly — so the raw count is an
+upper bound on the information, and the ratio built from it is optimistic.
+
+**Nothing here refuses anything.** The number is evidence, read beside the fit
+rather than as a gate on it, and a ratio below three is a reason to hold
+parameters rather than a reason the fit is wrong. The sharper question — *which*
+parameter is unsupported, rather than how many the pattern can carry — is the
+identifiability evidence in [the report](report.md).
+
 ### What the statistics cannot tell you
 
 They measure agreement, not correctness. A background flexible enough to imitate

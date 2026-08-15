@@ -47,6 +47,58 @@ class Statistics(Base):
     n_free_parameters: int
 
 
+class DataSupport(Base):
+    """How many observations the pattern actually holds (WP-1071).
+
+    ``n_points`` on :class:`Statistics` is what the least-squares algorithm
+    calls N, and it is not what the data can support.  McCusker, Von Dreele,
+    Cox, Louër & Scardi (1999), *J. Appl. Cryst.* **32**, 36-50, §9 is blunt
+    about the consequence: "the Rietveld algorithm will allow many more
+    parameters to be refined than the data can actually support (because
+    mathematically the number of observations is the number of steps in the
+    profile), so the user has to intervene with common sense."  Only the
+    integrated intensities of individual reflections are unique observations,
+    and the paper's band on the ratio is "at least three and preferably five".
+
+    **Evidence, gating nothing.**  Both counts are reported and neither
+    refuses anything: this is the coarse number a reader checks first, and
+    the sharp per-parameter question is
+    :class:`Identifiability`'s — the Gram-condition soft modes and the
+    exchangeability scan answer *which* parameter is unsupported, where this
+    answers *how many* the pattern can carry at all.  Neither claims the
+    other's job.
+
+    ``n_unique_reflections`` counts orbit representatives (so a Laue orbit is
+    one reflection, and the Kα2 companion of a line is not a second one),
+    summed over every phase, restricted to those actually measured — a fitted
+    channel within half the reflection's own FWHM of its position, on **any**
+    emission line.  Half a FWHM rather than the range ends because that is the
+    criterion the excluded regions and the two edges both answer at once: a
+    reflection whose top falls in an excluded gap was not observed, however
+    far inside ``two_theta`` it sits (WP-1033's fitted-mask rule one rank
+    down), and a reflection just past the top edge whose peak is half measured
+    was.  It is the **raw** count, and it over-counts by construction: two
+    reflections at one 2θ are one observation.
+
+    ``n_structural_parameters`` counts the free parameters §9 is about — the
+    atomic ones (coordinate DOFs, occupancies, Biso, ADP DOFs), matched as
+    ``phases.*.atoms.*``.  Cell, zero, profile, background, scale, preferred
+    orientation and extinction are excluded: they are determined by peak
+    positions and shape rather than by the integrated intensities being
+    counted here.  The complement is
+    ``Statistics.n_free_parameters − n_structural_parameters`` — not repeated
+    as a field, because that count already has an authority.
+
+    ``observations_per_parameter`` is the raw ratio, ``None`` when no
+    structural parameter is free (a Le Bail or Pawley fit, or a profile-only
+    stage), where the ratio is not undefined so much as not about anything.
+    """
+
+    n_unique_reflections: int
+    n_structural_parameters: int
+    observations_per_parameter: float | None = None
+
+
 class CorrelationPair(Base):
     """One entry of the worst-|ρ| list (WP-1056).
 
@@ -466,6 +518,13 @@ class RefinementResult(Base):
     # see :class:`PhaseAgreement`.  Empty outside Rietveld mode, where the
     # partition would be circular, and empty for a result not built by a fit.
     phase_agreement: list[PhaseAgreement] = Field(default_factory=list)
+
+    # Observation/parameter evidence (WP-1071) — see :class:`DataSupport`.
+    # Present for anything with a compiled model behind it, ``replay``
+    # included.  None for a joint multi-histogram fit, which would need one
+    # count per histogram, and for a result recorded before v1.0 — the
+    # ``identifiability`` convention: read None as "not measured here".
+    data_support: DataSupport | None = None
 
     # Cylindrical absorption (WP-0501); None unless a capillary µR was given or
     # estimable.  Carries the equivalent Biso bias, because that — not Rwp — is

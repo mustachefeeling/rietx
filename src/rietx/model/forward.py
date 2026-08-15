@@ -97,7 +97,7 @@ from .preferred_orientation import (
 from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from .profiles.fcj import fcj_extent_deg, fcj_node_count, fcj_offsets_weights
 from .profiles.pseudovoigt import pseudo_voigt, pseudo_voigt_derivs, tch_gamma_eta
-from .profiles.voigt import fwhm_to_voigt_params, voigt, voigt_derivs
+from .profiles.voigt import GAUSS_FWHM_TO_SIGMA, fwhm_to_voigt_params, voigt, voigt_derivs
 from .restraints import (
     CompiledRestraints,
     resolve_phase_restraints,
@@ -436,6 +436,28 @@ class CompiledModel:
         if self.shape == "voigt":
             return fwhm_to_voigt_params(gam_g, gam_l)
         return tch_gamma_eta(gam_g, gam_l)
+
+    def peak_fwhm(self, w1: np.ndarray, w2: np.ndarray) -> np.ndarray:
+        """Combined FWHM (° 2θ) from a :meth:`phase_peaks` width pair.
+
+        The shape-agnostic reader of the shape-specific pair — a consumer that
+        wants "how wide is this peak" rather than "what does the profile
+        function need".  Under TCHZ ``w1`` already *is* Γ; under the true Voigt
+        the pair is (σ, γ_HWHM), which inverts to the component FWHMs exactly
+        (:func:`~rietx.model.profiles.voigt.fwhm_to_voigt_params` is two
+        divisions) and then goes through the same TCH quintic.  That last step
+        is the ~1 % approximation ``compile_model`` already relies on for
+        window sizing and FCJ node counts, and for the same reason: the quintic
+        is *fit* to the true Voigt FWHM.
+
+        Evaluate-only, and never in the hot loop — nothing in the residual
+        needs a combined width.
+        """
+        if self.shape == "voigt":
+            gam_g = np.asarray(w1, dtype=np.float64) * GAUSS_FWHM_TO_SIGMA
+            gam_l = 2.0 * np.asarray(w2, dtype=np.float64)
+            return np.asarray(tch_gamma_eta(gam_g, gam_l)[0], dtype=np.float64)
+        return np.asarray(w1, dtype=np.float64)
 
     def _profile(self, x: np.ndarray, w1: np.ndarray, w2: np.ndarray) -> np.ndarray:
         """Unit-area profile of the active shape at offsets ``x``."""
