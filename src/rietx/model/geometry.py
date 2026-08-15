@@ -69,12 +69,17 @@ from .restraints import (
 )
 
 #: A pair is *bonded* when its distance is at most the sum of the two covalent
-#: radii plus this slack, in Å.  The radii are Cordero *et al.* (2008), *Dalton
-#: Trans.*, 2832 ("Covalent radii revisited"), as tabulated by gemmi
-#: (``gemmi.Element.covalent_r``); the slack is the tolerance the Cambridge
-#: Structural Database's own bond perception uses (Bruno *et al.*, 2002, *Acta
-#: Cryst.* B**58**, 389).  It decides which loop a row is *listed* in, and
-#: nothing else: a pair past it is still reported, as a contact.
+#: radii plus this slack, in Å.  The radii are gemmi's
+#: ``gemmi.Element.covalent_r``, which reproduces Cordero *et al.* (2008),
+#: *Dalton Trans.*, 2832 ("Covalent radii revisited") — checked against 30
+#: single-valued entries of its Table 1, agreeing to < 5·10⁻³ Å throughout, so
+#: the citation is a measurement rather than a remembered attribution.
+#:
+#: The slack is **not** a physical constant and is cited to nobody: 0.4 Å is
+#: the tolerance bond-perception software conventionally allows, and it decides
+#: which *loop* a row is listed in and nothing else — a pair past it is still
+#: reported, as a contact.  It travels on ``GeometryTable.bond_slack`` so a
+#: reader never has to guess which value produced a table.
 BOND_SLACK_ANG = 0.40
 
 #: A radius criterion is not evidence of a metal-metal bond, so a pair of two
