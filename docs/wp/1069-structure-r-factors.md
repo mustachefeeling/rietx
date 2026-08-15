@@ -167,13 +167,17 @@ the esd method completely. Gaps 1 and 8 of the McCusker audit
 
   **The FAP `.EXP` comparison could not be made, and the reason is the point.**
   It carries `HST 1 R-FAC 654 0.06830 7.393183E+06` beside
-  `HST 1 RPOWD 0.1005 0.0766 5750`. **654 is a per-(emission line, reflection)
-  count**: our model generates 329 hkl for this range and 658 (line, reflection)
-  rows, against GSAS's `NREF 660` / `NFOBS 654`. So GSAS sums over a doubled
-  list in which each hkl appears twice at different weights, while eqs 13/14
-  sum over hkl — and the file does not say whether 0.06830 is an R(F), an
-  R(F²) or an R_B, so which of ours it should face is not recoverable from it
-  either. No GSAS manual in the local corpus. Under the WP-1001 discipline
+  `HST 1 NREF 660 0.8499` and `HST 1 RPOWD 0.1005 0.0766 5750`. **654 counts
+  (emission line, reflection) pairs, not hkl.** Measured three ways: our
+  compiled model has 329 hkl orbits and 658 (line, reflection) rows, within
+  0.6 % of GSAS's 654/660; generating to GSAS's own quoted d_min of 0.8499 Å
+  gives **326** for one line, a factor 2.0 out; and summing both lines over
+  GSAS's 15–129.98° range gives 646. So GSAS sums over a doubled list in which
+  each hkl appears twice at different weights, while eqs 13/14 sum over hkl.
+  On top of that the file does not say whether 0.06830 is an R(F), an R(F²) or
+  an R_B — `BIGFO 0.137403E+06` against the record's own `7.393183E+06`
+  suggests the third field is Σ|Fo| rather than ΣFo², but that is an inference
+  and no GSAS manual is in the local corpus. Under the WP-1001 discipline
   (adopting a protocol, not just its numbers) this is a comparison that cannot
   be made rather than one that failed, so nothing is asserted against it.
 

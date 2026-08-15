@@ -317,9 +317,10 @@ def _write_phase_agreement(block, row: PhaseAgreement | None) -> None:
     (no ``_reflns_threshold_expression`` to point at).  For the same reason
     ``_refine_ls_number_reflns`` — "number of unique reflections used in the
     least-squares refinement" — is the count that entered the sums: unique
-    (one per hkl orbit, not per emission line, which is what GSAS's ``NFOBS``
-    counts) and short of the phase's list only by reflections off the Ewald
-    sphere, which the refinement did not use either.
+    (one per hkl orbit; GSAS's ``NFOBS`` counts (line, reflection) pairs
+    instead, measured 654 against our 329 orbits on the same FAP pattern) and
+    short of the phase's list only by reflections off the Ewald sphere, which
+    the refinement did not use either.
 
     Nothing is written outside Rietveld mode, where the row is absent for
     cause — an omitted tag says "not measured", a zero would be a claim.
