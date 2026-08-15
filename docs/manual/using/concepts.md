@@ -249,7 +249,7 @@ a journal will ask for at least one of them {cite}`mccusker1999`. They live on
 
 | Field | Is | Reads as |
 |---|---|---|
-| `PhaseAgreement.r_bragg` | R_B, the Bragg-intensity R-factor | how well the model reproduces the *integrated intensities* I = m·F², rather than the profile. Written to a CIF as `_refine_ls_R_I_factor`. |
+| `PhaseAgreement.r_bragg` | R_B, the Bragg-intensity R-factor | how well the model reproduces the *integrated intensities* I = m·F², m the multiplicity — rather than the profile. Written to a CIF as `_refine_ls_R_I_factor`. |
 | `PhaseAgreement.r_f` | R_F, the structure-factor R-factor | the same comparison on the amplitude rather than the intensity, so it is the number a single-crystal R is directly comparable with. Written as `_refine_ls_R_factor_all`. |
 | `PhaseAgreement.n_reflections` | how many reflections were summed | smaller than the phase's reflection list whenever one falls off the Ewald sphere. |
 
@@ -266,8 +266,9 @@ paper's own warning, and it fixes what they are for: watching an R_B fall as you
 improve a model, not judging a model in isolation.
 
 **A trace phase's R_B is not comparable with the major phase's.** Neither index
-is weighted — eq (14) has no w — so a reflection the fit barely constrains
-counts as much as one that dominates it, and a minor phase's windows sit under
+is weighted — the sums count every reflection alike, whatever its counting
+statistics — so a reflection the fit barely constrains weighs as much as one
+that dominates it, and a minor phase's windows sit under
 the major phase's peaks, where the counts the major phase failed to describe are
 handed out too. Measured on the 11-BM NAC pattern with its 1.35 wt % CaF₂
 impurity: NAC reads R_B 0.052 and the impurity 0.385, with the whole of the

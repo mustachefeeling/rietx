@@ -260,7 +260,19 @@ Judge a fit in this order:
    will ask for one — never for judging a model in isolation, and never as
    evidence that a correction helped. Absent (an empty list) in Le Bail and
    Pawley mode, where the intensities *are* the fit and the comparison would
-   be circular. `refinement_cif` writes them as `_refine_ls_R_I_factor` and
+   be circular.
+
+   **Do not compare a trace phase's R_B with the major phase's.** Neither
+   index is weighted, so a reflection the fit barely constrains weighs as much
+   as one that dominates it, and a minor phase's windows sit under the major
+   phase's peaks, where the counts the major phase failed to describe are
+   handed out too. Measured on 11-BM NAC with 1.35 wt % CaF₂: 0.052 for the
+   major phase against 0.385 for the impurity, all of the latter in four
+   reflections at I(obs)/I(calc) ≈ 2.2, each under a strong NAC peak. Read it
+   beside `qpa.phases[].weight_fraction`, and treat a trace phase's value as a
+   question rather than a measurement.
+
+   `write_refinement_cif` writes them as `_refine_ls_R_I_factor` and
    `_refine_ls_R_factor_all` on each phase's own block, beside a
    `_pd_proc_ls_special_details` that states the esd method in full — the
    base estimator √diag(χ²_red·(JᵀJ)⁻¹), then the Bérar-Lelann factor it was
