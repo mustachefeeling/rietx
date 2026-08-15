@@ -109,7 +109,8 @@ round-trip, and visible in `parameters()`. Gap 2 of the McCusker audit
 
 - **2026-08-15** — **closed.** `Refinement.tie` / `tie_equal` / `untie` land,
   recorded as a new `set_tie` `NodeKind` and restored by checkout, replay,
-  `branch` and `Project.open`.
+  `branch` and `Project.open`. No `### Inherited` to prune on arrival: this WP
+  was created by 1068's audit and no session had written to it.
 
   **Done.** All six planned tasks, plus one the plan did not have (below).
   `_ties` on the `Refinement` is the one authority for *which* ties are the
