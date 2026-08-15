@@ -79,7 +79,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # operating detail went down a rank as this comment requires: the figure
     # recipes are in make_figures.py's docstring, the chapters' own rules in
     # the WP.
-    "CLAUDE.md": 625,
+    # 625 -> 644 for WP-1070 (2026-08-15): the constraint verbs, and the rule
+    # underneath them.  The operating detail went down a rank as this comment
+    # requires — the refusal wording, the FAP numbers and the two open freeze
+    # asymmetries are in the WP, the narrative in the v1.0 record.  What cannot
+    # go down a rank is what a session touching the Jacobian never reads:
+    # `_make_jacobian` dispatches on a parameter's *name*, so a branch is a
+    # claim about that name's reach, and a constraint that reaches further
+    # leaves the column short instead of raising.
+    "CLAUDE.md": 644,
     "docs/ROADMAP.md": 400,
     "gui/CLAUDE.md": 580,
     "tests/CLAUDE.md": 180,

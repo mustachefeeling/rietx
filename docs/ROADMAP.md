@@ -75,9 +75,8 @@ added to the frozen surface are in 1003's `### Inherited` — as are 1065's and
 1066's freeze consequences (THRESHOLDS 0.9, the 2.1 round's placement finding,
 the posture notes), whose narratives are in the v1.0 record.
 
-The standing rule 1070 leaves outside its own file: **an analytic Jacobian
-branch is written for one named path, so a constraint that reaches past it must
-not take it.** 1066's naming rule is below.
+1070's standing rule — an analytic Jacobian branch is a claim about what one
+parameter *name* reaches — is in CLAUDE.md § Invariants. 1066's is below.
 
 Naming rule, from [1062](wp/1062-rename.md) and paid out by
 [1066](wp/1066-rename.md): package, import, CLI and state dir are `rietx`; the
