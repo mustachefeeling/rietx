@@ -240,6 +240,26 @@ still moving, which is why it was deferred.
 
 ### Inherited
 
+**From [1071](1071-data-support-checks.md), 2026-08-15 — the same trap as
+1069's below, twice, plus one name that left the deferred bucket.**
+`concepts.md` § Fit statistics gains two subsections: "How many observations
+there are", which is the only documentation of `DataSupport`, its five fields
+and `RefinementResult.data_support`, and "How finely the peaks were sampled",
+likewise for `PatternDiagnostics.steps_per_fwhm` and `.n_peaks_measured`. Same
+consequence as 1069's paragraph — those names are documented *because that
+prose spells them* — so re-run `tests/test_manual_api.py` after any move.
+
+Two further things a rewrite has to keep. The second subsection is the **only**
+place `diagnose` is named in Part 1, and it was removed from
+`api_surface_deferred.txt` on that basis; dropping the mention without
+regenerating the bucket fails the partition from the *other* side
+(documented-and-deferred). And its python block carries
+`<!-- api-doc: no-exec — it needs the reader's own pattern -->`, because
+`rx.diagnose(data)` has no `data` to run against.
+
+The measured numbers in both subsections — the overlap sweep 22.0 → 3.9, the
+6.5 % α check — are from WP-1071's handover; trim them only against it.
+
 **From [1069](1069-structure-r-factors.md), 2026-08-15 — `concepts.md` gained a
 section, and the coverage partition now leans on its prose.** § Fit statistics
 has a new subsection, "Structure agreement indices", carrying the only
