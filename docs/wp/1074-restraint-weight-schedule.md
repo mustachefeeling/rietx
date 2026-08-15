@@ -35,30 +35,20 @@ McCusker audit (`../milestones/v1.0.md` § Appendix).
   not their block membership (`model/rows.py` — the one edit, if any, is
   where the weight enters row assembly).
 - Additive defaulted schema field; no version bump (events precedent).
-
-### Inherited
-
-**From [1072](1072-geometry-table.md), 2026-08-15 — `model/restraints.py` now
-has a second consumer, and it is not a restraint.** The geometry table builds
-`_Bond` / `_Angle` items with `sigma = 1.0` and `weight = 1.0` and calls
-`restraint_partials` on them, precisely so that its `pref = √weight/σ` is 1 and
-the returned partials are ∂(distance or angle)/∂p unweighted. Those partials
-become every reported esd.
-
-So **where the stage scalar enters decides whether this WP silently corrupts
-the geometry esds.** Multiply it into `_Bond.weight` / `_Angle.weight`, or into
-`pref` inside `restraint_partials`, and every geometry esd comes back scaled by
-√c_w — with no test failing that a reader would connect to the change: the
-distances are computed elsewhere, and `stderr / stderr_diagonal` is a ratio, so
-the one number the geometry tests compare against a Monte Carlo is the only
-thing that would move. The safe seam is the one this file already names — "where
-the weight enters row assembly", i.e. the *residual and Jacobian row build*, not
-the compiled item and not the shared partials function.
-
-Whichever seam you pick, pin it: `tests/test_geometry_table.py`'s
-`test_esd_matches_a_monte_carlo_through_decode` is the assertion that would
-have caught it, and a fixture carrying both restraints *and* a non-unit c_w is
-the direct check.
+- **`model/restraints.py` has a second consumer, and it is not a restraint**
+  (from WP-1072, verified still true on arrival): `model/geometry.py` builds
+  `_Bond`/`_Angle` items with `sigma = 1.0`, `weight = 1.0` (lines 331, 339)
+  and calls `restraint_partials` (line 382) precisely so that `pref =
+  √weight/σ` is 1 and the partials come back as ∂(distance or angle)/∂p
+  unweighted. Those partials become every reported geometry esd. So **where
+  the stage scalar enters decides whether this WP silently corrupts them**:
+  multiplied into `_Bond.weight`/`_Angle.weight`, or into `pref` inside
+  `restraint_partials`, every geometry esd comes back scaled by √c_w, and no
+  test a reader would connect to the change fails — the distances are computed
+  elsewhere and `stderr / stderr_diagonal` is a ratio, so the Monte Carlo
+  comparison is the only number that moves. The seam is the *residual and
+  Jacobian row build* (`model/rows.py`, `optimize/least_squares.py`), not the
+  compiled item and not the shared partials function.
 
 ## Non-goals
 
@@ -77,6 +67,9 @@ the direct check.
       deliberately bad start, relaxed second stage converges; the
       §8 failure-mode note ("if the geometric assumptions are invalid, the
       refinement will not progress") quoted in the docstring.
+- [ ] Pin the geometry seam: a fixture carrying both restraints *and* a
+      non-unit c_w leaves `tests/test_geometry_table.py`'s
+      `test_esd_matches_a_monte_carlo_through_decode` number unmoved.
 - [ ] Manual sentence (`using/concepts.md`) + `AGENT_PROTOCOL.md` row.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/`.
 
@@ -96,4 +89,8 @@ the direct check.
 
 ## Handover log
 
+- **2026-08-16** — started. Pruned `### Inherited`: 1072's warning is still
+  true (checked `geometry.py:331,339,382` before folding), so it went into
+  Context as the seam constraint, and the check it asks for is now its own
+  task; nothing was stale enough to drop.
 - **2026-08-15** — created from the McCusker audit (WP-1068); gap 6.
