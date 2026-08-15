@@ -41,7 +41,11 @@ diary is `docs/milestones/v1.0.md` § Appendix:
 - **A wall-clock budget in a test is a runaway guard, never a timer** — and it
   may live one rank down, in the library.
 - **Say which numbers moved**: after adding N tests, passed+skipped moves by
-  exactly N in both selections, and a new skip is not a new pass.
+  exactly N in the fast selection, and a new skip is not a new pass.
+- **The full suite fires once, on the final tree**, and only when the change
+  could move a measured number — never while still editing, and never on `main`
+  for a baseline. The ladder, and what one session's ~80 min bought, are in
+  `tests/CLAUDE.md` § Running.
 
 ### Numbers
 
