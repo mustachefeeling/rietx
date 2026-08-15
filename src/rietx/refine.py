@@ -557,7 +557,10 @@ class Refinement:
                 f"that owns this channel) and cannot be a tie {role}")
         if entry.tie is not None:
             sources = ", ".join(repr(p) for p, _ in entry.tie.terms)
-            kind = "a user tie" if path in self._ties else "symmetry"
+            # ``_applied_ties``, not ``_ties``: the question is whose tie is in
+            # force on this row, and after a symmetry collision the register
+            # still names the user's while the table holds the space group's
+            kind = "a user tie" if path in self._applied_ties else "symmetry"
             if role == "source":
                 raise ValueError(
                     f"{path!r} follows {sources} ({kind}), so it carries no "
@@ -679,7 +682,11 @@ class Refinement:
             return []
         for path in hits:
             del self._ties[path]
-            table.set_tie(path, None)
+            if path in self._applied_ties:
+                # a register entry symmetry has since taken over is dropped from
+                # the register and left alone on the table: releasing it there
+                # would strip the space group's tie for one build
+                table.set_tie(path, None)
         self._commit_tie_edit(table, ties={}, untied=hits)
         return hits
 

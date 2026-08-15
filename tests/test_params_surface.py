@@ -422,6 +422,11 @@ def test_symmetry_outranks_a_user_tie_when_an_edit_creates_one(ref):
     assert not rows["phases.0.cell.b"].tie.user, "the space group's tie, not the user's"
     # said once, at the edit: the register is reconciled with the model it left
     assert ref._ties == {}
+    # and the refusals read the table too, so the message names the real holder
+    with pytest.raises(ValueError, match="symmetry outranks a user tie"):
+        ref.tie("phases.0.cell.b", "phases.0.cell.a")
+    with pytest.raises(ValueError, match="tied by symmetry"):
+        ref.untie("phases.0.cell.b")
 
 
 def test_tie_without_history_still_edits():
