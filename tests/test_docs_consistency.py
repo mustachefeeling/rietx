@@ -106,7 +106,18 @@ SIZE_CAPS: dict[str, int | None] = {
     # not the conservative choice, it is wrong in either direction), and an
     # esd that cannot be measured is absent rather than zero.  The orbit-count
     # clause rides with it because it is the only check that saw the bug.
-    "CLAUDE.md": 670,
+    # 670 -> 683 for WP-1073 (2026-08-15): a position correction belongs to a
+    # geometry.  The operating detail went down a rank as this comment
+    # requires — the derivation that fixes eq (4)'s signs is in
+    # `capillary_displacement_shift_deg`'s docstring, the two 11-BM
+    # measurements and the premises they overturned are in the WP, the
+    # narrative in the v1.0 record.  What cannot go down a rank is what a
+    # session adding *any* aberration will otherwise get wrong: the template
+    # and the action are geometry-scoped (a blind map suggests a force-fixed
+    # parameter), a parameter the forward branch skips must be force-fixed
+    # rather than merely unfree, and the evidence for a position correction is
+    # a stage rung rather than the converged report.
+    "CLAUDE.md": 683,
     "docs/ROADMAP.md": 400,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule

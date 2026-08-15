@@ -1,6 +1,8 @@
 # WP-1073 — Capillary sample displacement: eq (4) for Debye-Scherrer geometry
 
-Milestone: v1.0.x · Status: ⬜
+Milestone: v1.0.x · Status: ✅ 2026-08-15 — eq (4) on both forward paths and
+the analytic chain, position templates and actions keyed by geometry, and the
+measured finding that 11-BM is where the correction must *not* be refined
 Depends on: — (post-freeze is fine: additive defaulted schema fields; a
 laboratory capillary user is the beneficiary)
 
@@ -70,16 +72,16 @@ audit (`../milestones/v1.0.md` § Appendix).
 
 ## Tasks
 
-- [ ] `capillary_displacement_shift_deg` in `model/corrections.py` (cited,
+- [x] `capillary_displacement_shift_deg` in `model/corrections.py` (cited,
       conventions by physics), the two `Parameter` fields + radius on the
       geometry, the refusal for a missing radius.
-- [ ] Forward call sites + analytic Jacobian + traced twin; cross-backend
+- [x] Forward call sites + analytic Jacobian + traced twin; cross-backend
       row if a new derivative path needs one (`test_cross_backend.METHODS`
       grows whenever a derivative path does).
-- [ ] The two trend templates and the layer-2 action rows; the Geometry
+- [x] The two trend templates and the layer-2 action rows; the Geometry
       docstring rewritten to name eq (4) and keep the transmission
       statement.
-- [ ] Synthetic recovery test + the 11-BM null; `AGENT_PROTOCOL.md` row;
+- [x] Synthetic recovery test + the 11-BM null; `AGENT_PROTOCOL.md` row;
       manual sentence. PNGs to `tests/output/`.
 
 ## Acceptance
@@ -96,5 +98,85 @@ audit (`../milestones/v1.0.md` § Appendix).
   `~/zotero-linker/derived/YWSBLSIS/`.
 
 ## Handover log
+
+- **2026-08-15** — **shipped.** Five commits, `wp1073-capillary-displacement`
+  off `a189de0`. No `### Inherited` existed on arrival (WP-1072 posted only
+  into 1067's and 1074's mailboxes), so nothing was pruned.
+
+  **Done.** `capillary_displacement_shift_deg` (`model/corrections.py`), the
+  two `Parameter` fields on `Geometry` plus `CAPILLARY_OFFSETS` as the one
+  authority for the pair of names, `Instrument.debye_scherrer(goniometer_
+  radius_mm=…)`, both forward shift sites, `scalar_chain_supported`, the
+  `capillary_offsets` cross-backend config, geometry-keyed position templates
+  and actions with two new `ActionKind` members, `THRESHOLDS_VERSION` 0.9 →
+  1.0, the `capillary_displacement` compare variant, the GUI wizard field,
+  `tests/test_capillary_displacement.py` (14 rows), AGENT_PROTOCOL §8.18 +
+  a degeneracy-table row, Part 1's paragraph and Part 2's eq (4) block.
+
+  **The paper's letters do not travel, so the signs are derived, not
+  transcribed.** Eq (4) is printed `(x·sin2θ − y·cos2θ)/R` with no figure,
+  and GSAS-II pairs its `DisplaceX` with the *cos 2θ* term — the opposite
+  letter. First order in |d|/R, the apparent angle at the goniometer centre
+  moves by (d·t̂)/R with t̂ = (−sin2θ, cos2θ), giving
+  `Δ2θ = (−a·sin2θ + b·cos2θ)/R` with a along the beam (downstream positive)
+  and b perpendicular (positive toward increasing 2θ). That is McCusker's
+  with both axes reversed. The test checks it against an exact ray-circle
+  intersection, and asserts the gap is second order *and non-zero*.
+
+  **Two premises in the Context above did not survive measurement.**
+
+  1. *"11-BM NAC is the null test (recovered x, y ≈ 0)."* It is not a null
+     test, it is a degeneracy test. Over NAC's certified 2-24° the trio
+     {1, sin2θ, cos2θ} has a unit-column Gram eigenvalue of **1.6e-5**, so
+     the fit slides along the null direction to a bound: a = +1.000 mm (its
+     max) ± 2.78, b = +0.72 ± 1.01, ρ(zero, across) = **−1.0000**, two
+     eigenvalue-0 soft modes, `BOUND_HIT` + `HIGH_CORRELATION`. Rwp
+     **improves** 0.14025 → 0.13843 while a walks out of the acceptance
+     band, 10.25121 → 10.23976 Å (**1117 ppm**, 5.6× the ±2e-3 allowed).
+     On 11-BM LaB6 660a over 2-60° (min eig 9.3e-4) the same experiment
+     returns +0.544 ± 0.054 and +0.527 ± 0.041 mm — *10σ from zero* — with
+     a 4.156850 → 4.154113 Å (−658 ppm off the beamline-calibrated value,
+     which itself sits 16 ppm from the SRM 660a certificate) and Rwp
+     0.08849 → 0.08368. **The paper's "eliminated by CA geometry" is a
+     statement about the instrument, not a licence to refine and expect
+     zero.** Both datasets are 2θ-short at 0.41 Å, which is the whole
+     mechanism.
+  2. *"a neglected offset leaves a position signature the report names."*
+     It does not, at convergence. On the synthetic (0.30/−0.20 mm, 8-140°)
+     the zero shift and the cell imitate most of eq (4): a comes back
+     −290 ppm out and the converged report suggests **no** position action
+     at all, while the `zero` stage's own rung names
+     `refine_capillary_offset_along_beam` at 0.66. WP-1058's rule with a
+     concrete case; both halves are asserted.
+
+  **A latent defect fixed on the way.** `_POSITION_ACTIONS` was
+  geometry-blind, so a capillary or transmission fit whose peaks followed
+  cos θ was told to `refine_sample_displacement` — force-fixed outside
+  `bragg_brentano` by `params/vector.py`. Measured on the WP-1012 apply
+  fixture (a Debye-Scherrer instrument): both flat-plate actions were
+  suggested and the route answered 409 "structurally fixed" for both. Now
+  the templates *and* the actions are keyed by geometry.
+
+  **Design decisions worth knowing.** (a) The offsets are **force-fixed when
+  the geometry declares no radius**, not merely refused on an explicit
+  `vary` — without R the forward branch skips the term, so a free entry
+  would be a dead column the solver moves and the model never reads.
+  (b) `flat_plate_transmission`'s action row is left byte-for-byte as it
+  was: that geometry models no displacement either, so its two aberration
+  actions also name held parameters, but the *diagnosis* there is at least
+  the right one (a flat specimen off the axis) where for a capillary neither
+  the shape nor the parameter was — see 1003's mailbox.
+  (c) The two 11-BM rows are **not** marked `slow` although they read real
+  data: both fits together cost 2.9 s and they skip cleanly without the
+  file, so the fast gate is where the evidence belongs.
+
+  **Numbers**, `[dev]` venv (no jax/torch — every jax/torch row in
+  `test_cross_backend.py` self-skipped), darwin/arm64, Python 3.12.12,
+  numpy 2.5.2, package 1.0.0.dev0. `NUMBERS-PENDING`
+
+  **Next.** Nothing left in this WP. For **1003**: two `ActionKind` members
+  and `THRESHOLDS_VERSION` 1.0 join the frozen surface, and the
+  `flat_plate_transmission` asymmetry in (b) is left to ratify — pushed into
+  its `### Inherited`.
 
 - **2026-08-15** — created from the McCusker audit (WP-1068); gap 7.
