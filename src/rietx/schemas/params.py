@@ -36,14 +36,26 @@ from .common import Base, TransformKind
 
 
 class TieSpec(Base):
-    """Serializable form of ``params.vector.AffineTie``: value = Σ c·src + k."""
+    """Serializable form of ``params.vector.AffineTie``: value = Σ c·src + k.
+
+    :attr:`user` separates the two populations that share this shape.  A
+    **symmetry** tie is derived: ``ParameterTable`` rebuilds it from the space
+    group and the Wyckoff position every time it is constructed, and nothing a
+    caller does can remove it.  A **user** tie (WP-1070) is declared through
+    ``Refinement.tie``/``tie_equal``, lives in the history, and can be taken
+    back with ``untie``.  Both hold a row the same way, so ``held_because``
+    reads the same for either; the flag is what lets a client tell a row it may
+    release from one it may not, without having to try.
+    """
 
     terms: list[tuple[str, float]] = Field(default_factory=list)
     const: float = 0.0
+    user: bool = False
 
     @classmethod
-    def from_tie(cls, tie: Any) -> "TieSpec":
-        return cls(terms=[(p, float(c)) for p, c in tie.terms], const=float(tie.const))
+    def from_tie(cls, tie: Any, *, user: bool = False) -> "TieSpec":
+        return cls(terms=[(p, float(c)) for p, c in tie.terms], const=float(tie.const),
+                   user=user)
 
     @property
     def sources(self) -> list[str]:

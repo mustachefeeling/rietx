@@ -38,7 +38,7 @@ from .optimize.qpa import (
     microabsorption_diagnostics,
 )
 from .optimize.statistics import compute_statistics, structure_r_factors
-from .params.vector import ParameterTable
+from .params.vector import AffineTie, ParameterTable
 from .report.schemas import THRESHOLDS_VERSION, StageReport
 from .schemas.common import Diagnostic, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
@@ -169,6 +169,11 @@ class Refinement:
         self._two_theta_limits: tuple[float, float] | None = None
         self._free_paths: list[str] = []
         self._pending_reflections: list[ReflectionState] = []
+        #: user constraints (WP-1070), path → the affine dependence declared for
+        #: it.  The one authority for *which* ties are the user's: the symmetry
+        #: ties are rederived by every ``ParameterTable`` build and are absent
+        #: here, which is what ``untie`` and ``TieSpec.user`` read.
+        self._ties: dict[str, TieSpec] = {}
 
     # ------------------------------------------------------------------
     # history plumbing
@@ -218,6 +223,7 @@ class Refinement:
             free_paths=list(self._free_paths),
             two_theta_limits=self._two_theta_limits,
             reflections=_extract_reflections(model or self._model),
+            ties={p: s.model_copy(deep=True) for p, s in self._ties.items()},
         )
 
     def _record(self, tree: RefinementTree, action: NodeAction, model: CompiledModel,
@@ -257,6 +263,7 @@ class Refinement:
         self._mode = node.state.mode
         self._two_theta_limits = node.state.two_theta_limits
         self._free_paths = list(node.state.free_paths)
+        self._ties = {p: s.model_copy(deep=True) for p, s in node.state.ties.items()}
         self._pending_reflections = [r.model_copy(deep=True) for r in node.state.reflections]
         self._head_id = node.id
         self._invalidate_fit()
@@ -271,6 +278,7 @@ class Refinement:
         ref._mode = self._mode
         ref._two_theta_limits = self._two_theta_limits
         ref._free_paths = list(self._free_paths)
+        ref._ties = {p: s.model_copy(deep=True) for p, s in self._ties.items()}
         ref._head_id = self._head_id
         ref._pending_reflections = [r.model_copy(deep=True) for r in self._pending_reflections]
         if node_id is not None:
@@ -341,7 +349,9 @@ class Refinement:
         """
         if self._free_paths:
             return self._prepare_table(restore=True)
-        return ParameterTable(self.structure, self.instrument)
+        table = ParameterTable(self.structure, self.instrument)
+        self._apply_ties(table)
+        return table
 
     def parameters(self, *, mode: Mode | None = None) -> list[ParameterRow]:
         """Every parameter as data — fixed, locked and tied rows included.
@@ -367,7 +377,8 @@ class Refinement:
             rows.append(ParameterRow(
                 path=e.path, value=e.value, vary=e.vary, lo=e.lo, hi=e.hi,
                 transform=e.transform,
-                tie=TieSpec.from_tie(e.tie) if e.tie is not None else None,
+                tie=(TieSpec.from_tie(e.tie, user=e.path in self._ties)
+                     if e.tie is not None else None),
                 locked=e.locked,
                 esd=esd.get(e.path),
                 mode_fixed=mode_fixed_path(e.path, mode),
@@ -458,6 +469,239 @@ class Refinement:
         node = self.history.add(
             parents=[self._head_id] if self._head_id else [],
             action=NodeAction(kind="set_value", values=dict(values)),
+            state=self.snapshot())
+        self._head_id = node.id
+
+    # ------------------------------------------------------------------
+    # user constraints (WP-1070)
+    # ------------------------------------------------------------------
+    def _apply_ties(self, table: ParameterTable) -> None:
+        """Re-declare this refinement's user ties on a freshly built table.
+
+        Every ``ParameterTable`` rederives the *symmetry* ties from the space
+        group and the Wyckoff positions and knows nothing about a user's, so
+        each build has to be told again — which is exactly what makes
+        :attr:`_ties` the one authority for which ties are the user's.
+
+        **Symmetry outranks a user tie, and this is the one place that can be
+        violated.**  The verbs refuse a target that is already tied, but a tie
+        declared while a path was free stays declared if a later :meth:`edit`
+        makes that same path symmetry-tied — a P1 phase respaced to a cubic
+        symbol ties ``b`` and ``c`` to ``a``.  Overwriting would silently break
+        the symmetry the derived tie exists to enforce, so an occupied row is
+        skipped and said out loud, alongside the vanished-path case
+        :meth:`_prepare_table` reports for a free path.
+        """
+        if not self._ties:
+            return
+        by_path = {e.path: e for e in table.entries}
+        dropped: list[str] = []
+        for path, spec in self._ties.items():
+            entry = by_path.get(path)
+            missing = [p for p, _ in spec.terms if p not in by_path]
+            if entry is None:
+                dropped.append(f"{path} (no such parameter)")
+            elif entry.locked:
+                dropped.append(f"{path} (now structurally fixed)")
+            elif entry.tie is not None:
+                dropped.append(f"{path} (now tied by symmetry to "
+                               f"{', '.join(p for p, _ in entry.tie.terms)})")
+            elif missing:
+                dropped.append(f"{path} (source {missing[0]} no longer exists)")
+            else:
+                table.set_tie(path, AffineTie(
+                    terms=tuple((p, float(c)) for p, c in spec.terms),
+                    const=float(spec.const)))
+        if dropped:
+            warnings.warn(
+                f"{len(dropped)} user tie(s) no longer apply to this model and "
+                f"were not re-declared: {'; '.join(dropped)}. Symmetry outranks "
+                "a user tie; call untie() to drop them for good.",
+                UserWarning, stacklevel=3)
+
+    def _tie_entry(self, table: ParameterTable, path: str, *, role: str):
+        """The entry ``path`` names, refusing with the reason a tie cannot use it.
+
+        One function for both ends because the refusals overlap and their
+        wording must not: ``set_values``' sentences are reused verbatim where
+        they apply, so two surfaces never disagree about why a parameter is
+        held.
+        """
+        by_path = {e.path: e for e in table.entries}
+        entry = by_path.get(path)
+        if entry is None:
+            raise ValueError(f"unknown parameter path: {path!r}")
+        if entry.locked:
+            raise ValueError(
+                f"{path!r} is structurally fixed (symmetry, or a representation "
+                f"that owns this channel) and cannot be a tie {role}")
+        if entry.tie is not None:
+            sources = ", ".join(repr(p) for p, _ in entry.tie.terms)
+            kind = "a user tie" if path in self._ties else "symmetry"
+            if role == "source":
+                raise ValueError(
+                    f"{path!r} follows {sources} ({kind}), so it carries no "
+                    "freedom of its own; tie to what it follows instead")
+            raise ValueError(
+                f"{path!r} already follows {sources} ({kind}); "
+                f"{'untie it first' if kind == 'a user tie' else 'symmetry outranks a user tie'}")
+        if role == "target" and mode_fixed_path(path, self._mode):
+            raise ValueError(
+                f"{path!r} is force-fixed by the {self._mode!r} intensity mode, "
+                "so tying it would reduce a parameter count that is already zero")
+        return entry
+
+    def tie(self, path: str, source: str, *, scale: float = 1.0,
+            offset: float = 0.0) -> str:
+        """Constrain ``path`` to ``scale·source + offset``, recording a node.
+
+        The general affine form, of which :meth:`tie_equal` is the ``scale=1,
+        offset=0`` case.  Complementary occupancies on a shared site are the
+        other one a powder refinement reaches for often::
+
+            ref.tie("phases.0.atoms.1.occ", "phases.0.atoms.0.occ",
+                    scale=-1.0, offset=1.0)
+
+        A constraint, not a restraint: ``path`` leaves θ and the freedom stays
+        with ``source``, so the parameter count drops by one and the
+        observation/parameter ratio rises — which is what makes the esds
+        contract.  ``path`` takes its implied value immediately (the models are
+        written through, as :meth:`set_values` writes them), so nothing is
+        left describing the pre-tie state.
+
+        Refuses rather than approximating, each with its own fix: an unknown
+        path is a typo; a **locked** end is structurally fixed; an
+        **already-tied** target names what holds it, and symmetry always
+        outranks a user tie; a **tied source** carries no freedom, so the tie
+        would be a chain — name what *it* follows; a **mode-fixed** target
+        would reduce a parameter count that is already zero; ``scale=0`` is
+        :meth:`set_values` spelled obscurely; and an implied value outside the
+        target's own bounds would start the bounded solver infeasible.
+
+        Returns ``path``.  Like :meth:`set_vary`, the node is recorded only
+        once the history tree exists.
+        """
+        return self._declare_ties({path: (source, float(scale), float(offset))})[0]
+
+    def tie_equal(self, paths: list[str] | str, *,
+                  source: str | None = None) -> list[str]:
+        """Make every parameter matching ``paths`` one parameter.
+
+        The verb §7 of McCusker et al. (1999) asks for twice — equal
+        displacement parameters across similar atoms, chemically constrained
+        occupancies — spelled the way the recommendation reads::
+
+            ref.tie_equal(["phases.0.atoms.1.biso", "phases.0.atoms.2.biso",
+                           "phases.0.atoms.3.biso"])
+
+        Dot-path globs with fnmatch semantics, exactly as :meth:`set_vary`
+        takes them.  The **first match in table order** carries the freedom and
+        the rest follow it; name ``source`` to choose a different one (it need
+        not be among the matches).  Table order is
+        :meth:`parameters`' order, so which one that is is readable rather than
+        guessed at.
+
+        All-or-nothing, and a matched path that cannot be tied is a refusal
+        rather than a silent omission — an unasked-for constraint that did not
+        happen is the failure this verb exists to make impossible.  A glob that
+        sweeps in a locked row is a glob to narrow, and the message names it.
+
+        Returns the paths actually tied, source excluded.
+        """
+        globs = [paths] if isinstance(paths, str) else list(paths)
+        table = self._working_table()
+        import fnmatch
+
+        matched = [e.path for e in table.entries
+                   if any(fnmatch.fnmatchcase(e.path, g) for g in globs)]
+        if not matched:
+            raise ValueError(f"no parameter matches {globs}")
+        src = source if source is not None else matched[0]
+        targets = [p for p in matched if p != src]
+        if not targets:
+            raise ValueError(
+                f"{globs} matches only {src!r}, so there is nothing to tie to "
+                "it; an equality group needs at least two parameters")
+        return self._declare_ties({p: (src, 1.0, 0.0) for p in targets})
+
+    def untie(self, paths: list[str] | str) -> list[str]:
+        """Release user ties, recording a ``set_tie`` node.
+
+        Globs match against the *declared* ties only, so a sweep such as
+        ``untie("phases.0.atoms.*.biso")`` releases what this refinement tied
+        and leaves symmetry alone.  A literal path that is not a user tie is
+        refused with the reason — that call meant one specific parameter, and a
+        silent no-op would read as success.
+
+        An untied parameter comes back **held** at the value its tie last gave
+        it, not free: releasing a constraint is not a decision to refine, and
+        :meth:`set_vary` is where that decision is spelled.
+        """
+        globs = [paths] if isinstance(paths, str) else list(paths)
+        import fnmatch
+
+        hits = [p for p in self._ties
+                if any(fnmatch.fnmatchcase(p, g) for g in globs)]
+        table = self._working_table()
+        known = {e.path: e for e in table.entries}
+        for glob in globs:
+            if any(ch in glob for ch in "*?[") or glob in hits:
+                continue
+            entry = known.get(glob)
+            if entry is None:
+                raise ValueError(f"unknown parameter path: {glob!r}")
+            if entry.tie is not None:
+                raise ValueError(
+                    f"{glob!r} is tied by symmetry, not by this refinement, and "
+                    "cannot be released")
+            raise ValueError(f"{glob!r} is not tied")
+        if not hits:
+            return []
+        for path in hits:
+            del self._ties[path]
+            table.set_tie(path, None)
+        self._commit_tie_edit(table, ties={}, untied=hits)
+        return hits
+
+    def _declare_ties(self, spec: dict[str, tuple[str, float, float]]) -> list[str]:
+        """Validate and apply ``{target: (source, scale, offset)}`` as one move."""
+        table = self._working_table()
+        for path, (source, scale, offset) in spec.items():
+            if path == source:
+                raise ValueError(f"{path!r} cannot be tied to itself")
+            if scale == 0.0:
+                raise ValueError(
+                    f"a tie with scale 0 fixes {path!r} at {offset}; that is "
+                    "set_values, and it says so in the history")
+            entry = self._tie_entry(table, path, role="target")
+            src = self._tie_entry(table, source, role="source")
+            implied = scale * src.value + offset
+            if not (entry.lo <= implied <= entry.hi):
+                raise ValueError(
+                    f"the tie puts {path}={implied:g} outside its bounds "
+                    f"[{entry.lo}, {entry.hi}]")
+        specs = {path: TieSpec(terms=[(source, scale)], const=offset, user=True)
+                 for path, (source, scale, offset) in spec.items()}
+        for path, (source, scale, offset) in spec.items():
+            table.set_tie(path, AffineTie(terms=((source, scale),), const=offset))
+            self._ties[path] = specs[path]
+        self._commit_tie_edit(table, ties=specs, untied=[])
+        return list(spec)
+
+    def _commit_tie_edit(self, table: ParameterTable, *,
+                         ties: dict[str, TieSpec], untied: list[str]) -> None:
+        """Land a tie edit: values follow, models are written, a node is added."""
+        table.refresh_ties()  # a new dependent takes its source's value at once
+        table.apply_to_models(self.structure, self.instrument)
+        self._free_paths = list(table.free_paths)
+        # the fitted curve, its statistics and its esds all described a model
+        # with a different parameter count
+        self._invalidate_fit()
+        if self.history is None:
+            return
+        node = self.history.add(
+            parents=[self._head_id] if self._head_id else [],
+            action=NodeAction(kind="set_tie", ties=ties, untied=list(untied)),
             state=self.snapshot())
         self._head_id = node.id
 
@@ -709,8 +953,12 @@ class Refinement:
     def _prepare_table(self, *, restore: bool) -> ParameterTable:
         table = ParameterTable(self.structure, self.instrument)
         table.set_vary(["*"], False)
+        # before the free set, not after: a tied entry never matches set_vary,
+        # so restoring first would report every tied path as "no longer exists"
+        self._apply_ties(table)
         if restore and self._free_paths:
-            missing = [p for p in self._free_paths if not table.set_vary([p], True)]
+            missing = [p for p in self._free_paths
+                       if p not in self._ties and not table.set_vary([p], True)]
             if missing:
                 # set_vary reports no hits for a path that no longer exists
                 # (e.g. a phase was removed); dropping it silently would lose
@@ -2097,6 +2345,14 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     instrument = state.instrument.model_copy(deep=True)
     table = ParameterTable(structure, instrument)
     table.set_vary(["*"], False)
+    for path, spec in state.ties.items():
+        # the user constraints the node was recorded under: without them the
+        # replayed model has a different parameter count from the one whose
+        # statistics this call exists to reproduce (WP-1070)
+        table.set_tie(path, AffineTie(
+            terms=tuple((p, float(c)) for p, c in spec.terms),
+            const=float(spec.const)))
+    table.refresh_ties()
     for path in state.free_paths:
         table.set_vary([path], True)
 
