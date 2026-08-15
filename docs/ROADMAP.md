@@ -65,43 +65,21 @@ size caps on this file and CLAUDE.md.
 done measuring ([1065](wp/1065-decisive-swap-license.md) ✅), and the manual's
 release-gating half is landed ([1067](wp/1067-user-api-manual.md) § Floor, 🔄
 for its 1.0.x chapters): next is the freeze
-([1003](wp/1003-api-freeze-pypi.md)), which now has no blockers.** 1067 hands
-it the enumeration it must freeze anyway — **derived**, 1235 names, because a
-curated list cannot notice a new public method — and filed two release
-blockers it did not fix into 1003's mailbox: a fifth load-sensor acceptance
-row, and the weekly `full` CI job, dead since 2026-08-02.
+([1003](wp/1003-api-freeze-pypi.md)).** 1067 hands it the enumeration it must
+freeze anyway — **derived**, 1235 names, because a curated list cannot notice
+a new public method — and filed two release blockers it did not fix into
+1003's mailbox: a fifth load-sensor acceptance row, and the weekly `full` CI
+job, dead since 2026-08-02.
 
-A review of those chapters opened [1068](wp/1068-manual-second-pass.md) (✅):
-voice, sectioning, two chapters, figures, diagrams, `plot_result(style=)` in
-1003's mailbox — and, once the McCusker paper arrived, the compliance audit in
-the v1.0 record: no correctness defect, nine gaps, three of them WP-sized.
+That review opened [1068](wp/1068-manual-second-pass.md) (✅), whose McCusker
+reading became the v1.0 record's compliance audit: nine gaps, no correctness
+defect — now the six WPs of § "The McCusker compliance set". **The freeze's
+one open sequencing decision is which of them land before it**; the
+recommendation and its grounds are in 1003's `### Inherited`.
 
-1066's narrative — the second rename in two days, 363 files, zero numbers moved,
-two unpredicted findings — is in the v1.0 record; its standing rule is below.
-
-1065 landed what round 3 said was missing: the exchange clause now states
-what each swap outcome *licenses* (THRESHOLDS **0.9** — decisive: the
-winning rival's fit is the answer, quoted without caveat; tie: protocol or
-the declared stand-off), with the grade a documented constant
-(`RIVAL_DECISIVE_MIN_CHI2_RATIO` = 1.10) that gates nothing, and the eval
-glossary's `assumption_wrong` no longer names refinable geometry. The
-targeted 2.1 round (12 cells) measured both fixes: C1 moved 0/7 → 1/5
-valid and `assumption_wrong` vanished from every answer — but the mining
-showed the license sentence reached agent context in only 2 of 12 cells
-(agents grep statistics out of piped responses; the summary string is what
-the grep drops), so the follow-through question is now *placement*, not
-wording — recorded for a successor per the registration, not re-run. N1,
-the tie guard, degraded without the sentence in context (N=1 suspect: the
-glossary exclusion's "converge it"); any wording revision adds the E8′
-cells per the registration.
-
-The freeze inherits: 0.9 is the wording to freeze and
-`RIVAL_DECISIVE_MIN_CHI2_RATIO` joins the public names; the 2.1 round
-outcome, the pull-usage posture notes and two harness notes are in 1003's
-`### Inherited`, above the unchanged 1064 decisions (`report_trajectory` →
-False, no `compare_exchanges` arm, Layer 2 posture). Grids and mechanisms:
-the v1.0 record's round-3 and 2.1 appendices; raw records
-`eval-runs/2026-08-13-round3` and `…-round3p1`.
+1065's and 1066's narratives are in the v1.0 record and their freeze
+consequences in 1003's `### Inherited` (THRESHOLDS 0.9, the 2.1 round's
+placement finding, the posture notes); 1066's standing rule is below.
 
 Naming rule, from [1062](wp/1062-rename.md) and paid out by
 [1066](wp/1066-rename.md): package, import, CLI and state dir are `rietx`; the
@@ -357,6 +335,23 @@ the panels settle. 1067 declares that beta status; its **§ Floor gates
 [1003](wp/1003-api-freeze-pypi.md)** and the rest lands in 1.0.x, so it stays
 open past the milestone by design rather than being split.
 
+### The McCusker compliance set (added 2026-08-15)
+
+The WP-1068 audit (`milestones/v1.0.md` § Appendix): no correctness defect,
+nine gaps — six WPs below, difference Fourier fenced to v2+, the
+divergence-slit correction declined in the audit itself. Ordering
+recommendations are the Depends cells, grounds in 1003's `### Inherited`;
+the freeze decides.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1069](wp/1069-structure-r-factors.md) | R_Bragg and R_F, and the stated esd method | ⬜ | — (before 1003 recommended) |
+| [1070](wp/1070-user-facing-constraints.md) | User-facing constraints: ties on the Refinement surface | ⬜ | 1004 (before 1003 recommended) |
+| [1071](wp/1071-data-support-checks.md) | Effective observations and steps per FWHM | ⬜ | — (before 1003 recommended) |
+| [1072](wp/1072-geometry-table.md) | Interatomic geometry, esds from the full covariance | ⬜ | — (either side of 1003) |
+| [1073](wp/1073-capillary-displacement.md) | Capillary sample displacement, eq (4) | ⬜ | — (1.0.x) |
+| [1074](wp/1074-restraint-weight-schedule.md) | Restraint weight schedule (c_w) | ⬜ | 0406 (1.0.x) |
+
 ## v2+ (seams pre-built, implementations fenced out)
 
 Fundamental Parameters Approach as a differentiable convolution stack
@@ -385,6 +380,11 @@ DICVOL04's own test corpus (sourcing notes in WP-1043 § corpus; until it lands,
 every indexing-scoreboard summary says "high-symmetry" out loud), plus the
 SDPDRR-2/CONOGRAPH profile acquisitions; and **Boultif-Louër volume tightening**
 (the gated design is recorded in WP-1042 § Deferred).
+
+Added 2026-08-15 (the McCusker audit): **difference Fourier / maximum-entropy
+maps** (§6) — the partition input exists (`lebail_update`); the consumer is
+structure completion, fenced beside structure solution, and the debugging
+half the paper uses maps for is Layer 0/2's job here.
 
 No WP files for v2+ on purpose — the fence is a scope-discipline decision
 ([DESIGN.md](DESIGN.md#locked-decisions)), and pre-writing packages invites

@@ -14,6 +14,36 @@ WP-1067 § Floor (the manual's release-gating half; the rest ships in 1.0.x),
 
 ### Inherited
 
+**From the 2026-08-15 planning session — the McCusker compliance set
+(WPs 1069–1074) exists, and its ordering against this freeze is your call.**
+WP-1068's reading of the guidelines became a full audit
+(`../milestones/v1.0.md` § Appendix): no correctness defect, nine gaps. Six
+became WPs; difference Fourier went to the v2+ fence; the
+divergence-slit correction was declined in the audit itself. The
+recommendation, with the one hard argument first:
+
+- **[1070](1070-user-facing-constraints.md) (user-facing constraints) is the
+  case for landing before the freeze**: recording a tie edit adds a member to
+  the **closed** `NodeKind` literal (`schemas/history.py:39`) — free before
+  the freeze, a versioned history-format decision after it — and it is the
+  audit's largest gap, recommended four separate times by the paper.
+- **[1069](1069-structure-r-factors.md) (R_Bragg/R_F + the stated esd
+  method) is release credibility**: every published refinement quotes a
+  structure R, Young/Prince/Sparks require one, and the pdCIF export has no
+  structure-R tag. The partition machinery (`lebail_update`) already exists.
+- **[1071](1071-data-support-checks.md)** is small and purely evidential
+  (two additive fields, two diagnostic codes, no gates).
+- **[1072](1072-geometry-table.md)** is additive either side;
+  **[1073](1073-capillary-displacement.md)** and
+  **[1074](1074-restraint-weight-schedule.md)** are 1.0.x.
+
+Landing none of them pre-freeze is also coherent — everything but 1070's
+node kind is additive-with-default under the events precedent — but that
+choice prices a history-format version bump onto 1070 and ships the release
+without a structure R. Decide, and push the ruling into each affected
+WP's `### Inherited` (their Depends lines carry the recommendation, not a
+ruling).
+
 **From [1068](1068-manual-second-pass.md), 2026-08-14 — one new public keyword
 to freeze.** `viz.plots.plot_result` gained `style: str = "light" | "dark"`,
 reached through `RefinementResult.plot(**kw)`. It exists because the manual's
