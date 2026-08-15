@@ -356,6 +356,60 @@ than a measurement.
 Both are absent — an empty list — for a Le Bail or Pawley fit. There the
 intensities *are* the fit, so the partition would be compared against itself.
 
+### The bonding geometry
+
+The other thing a journal asks for is the distances and angles, and the
+guidelines rank them above every R value: the two most important criteria for
+judging a refinement are the profile fit and *the chemical sense of the
+structure* {cite}`mccusker1999`. `RefinementResult.geometry` is a
+`GeometryTable` carrying them.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `GeometryTable.distances` | one `GeometryDistance` per neighbour | every asymmetric-unit atom's **whole** environment, so the number of rows naming an atom is its coordination number. A bond between two sites is therefore in the list twice, once from each end. |
+| `GeometryTable.bonds` , `GeometryTable.contacts` | the two halves of that list | split by `GeometryDistance.bonded`: at most the two covalent radii plus `GeometryTable.bond_slack`, or beyond it out to `GeometryTable.contact_max`. The guidelines ask for both — "interatomic distances (both bonding and nonbonding) should be reasonable". |
+| `GeometryTable.angles` | one `GeometryAngle` per pair of bonded neighbours | at every vertex, over that vertex's complete bonded environment. Contacts are not arms. |
+| `GeometryTable.notes` | where coverage stopped | a per-atom contact cap or a phase too large to search. Empty means nothing was bounded. |
+
+A row's value is `GeometryDistance.distance` in ångströms, or
+`GeometryAngle.angle` in degrees. Each names its atoms twice: as
+`GeometryDistance.atom_1` and `GeometryDistance.atom_2` — the labels the
+structure carries, with `GeometryAngle.atom_1`, `GeometryAngle.atom_2` and
+`GeometryAngle.atom_3` putting the **vertex in the middle** — and as
+`GeometryDistance.atom_index_1`, `GeometryDistance.atom_index_2`,
+`GeometryAngle.atom_index_1`, `GeometryAngle.atom_index_2` and
+`GeometryAngle.atom_index_3`, which index `Phase.atoms` directly.
+`GeometryDistance.phase_index` and `GeometryAngle.phase_index` say which phase,
+in a multi-phase fit.
+
+`GeometryDistance.symmetry_2` is the CIF `n_klm` code of the image the second
+atom sits at, and resolves against the operation list the exported CIF writes
+beside it. `GeometryDistance.symmetry_1` is always `.`, the published position;
+so is `GeometryAngle.symmetry_2`, the vertex, while `GeometryAngle.symmetry_1`
+and `GeometryAngle.symmetry_3` code the two arms.
+
+**The esd is the point.** `GeometryDistance.stderr` is propagated through the
+**whole** parameter covariance, which is what the guidelines require of any
+derived quantity: "the whole correlation matrix, not just the diagonal
+elements, should be included in the calculation" {cite}`mccusker1999`.
+`GeometryDistance.stderr_diagonal` is the same propagation with the refined
+parameters' correlations zeroed — the number a reader combining the printed
+parameter esds in quadrature would get. It is carried so the difference is
+visible rather than asserted, and it is never the answer. `GeometryAngle.stderr`
+and `GeometryAngle.stderr_diagonal` are the same pair, in degrees.
+
+Both are `None` in two situations that mean the same thing, and neither is
+σ = 0. A result with no covariance behind it — any evaluate-only pass, a replay
+of a history node included — has distances and no esds at all. And a row whose
+value is fixed by symmetry has no variance to report: a fluorite Ca–F distance
+with the cell held, or a rutile O–Ti–O angle, which stays at exactly 90° however
+the one free coordinate degree of freedom moves.
+
+Geometry is Rietveld-only. `RefinementResult.geometry` is `None` in Le Bail and
+Pawley mode, where the dummy atom the mode requires is not a structure to
+measure, and it is computed at the close of the fit rather than on demand: the
+covariance it needs is read off the final Jacobian, which is never stored.
+
 ### How many observations there are
 
 `Statistics.n_points` is the N the least-squares algorithm uses, and it is not

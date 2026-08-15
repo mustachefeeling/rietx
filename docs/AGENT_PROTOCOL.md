@@ -205,6 +205,30 @@ Judge a fit in this order:
 4. **Whether the refined values are physically possible.** Negative Biso.
    Occupancies above 1. A cell that moved 0.5 %. An ADP tensor that is not an
    ellipsoid. These are all reported, but you have to read them.
+
+   **And the geometry, which is the same question asked of the structure
+   rather than of a parameter.** `result.geometry` (also `report.geometry`)
+   is a `GeometryTable`: `bonds` and `contacts` — McCusker et al. 1999 §11
+   asks for "both bonding and nonbonding" — and `angles` at every vertex.
+   This is the paper's criterion (ii), which it ranks *with* the profile fit
+   and above every R value, so read it before step 8 and not after. Nothing
+   in the package scores it; a Si–O at 1.75 Å or a 60° O–M–O is yours to
+   recognise. Each row lists the whole environment of each asymmetric-unit
+   atom, so **the number of rows naming an atom is its coordination number**,
+   and a bond between two sites appears twice, once from each end.
+
+   Two things about the esd. `stderr` is propagated through the *whole*
+   covariance, which §10 requires of any derived quantity, and
+   `stderr_diagonal` beside it is what ignoring the correlations would have
+   given — quote the first, and use the pair when you need to say how much
+   the correlations mattered. And `None` never means zero: it means the row
+   had no covariance behind it (an evaluate-only pass) or is fixed by
+   symmetry, and an esd of 0 on a symmetry-fixed 90° angle would be a claim
+   about precision rather than a statement about constraint.
+   `write_refinement_cif` writes the whole table as `_geom_bond_*`,
+   `_geom_contact_*` and `_geom_angle_*` loops, with the symmetry codes
+   resolvable against the `_space_group_symop_operation_xyz` loop it writes
+   beside them.
 5. **The esds, with their inflation.** `statistics.esd_inflation` is the
    Bérar-Lelann factor for serial correlation. Note it has an expected value of
    ≈1.51 even for perfectly white residuals — treat it as an upper bound on the

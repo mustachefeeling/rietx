@@ -545,7 +545,6 @@ PeakList.two_theta_min
 PeakList.usable
 PeakList.wavelength
 Phase
-Phase.atoms
 Phase.cell
 Phase.extinction
 Phase.gauss_size

@@ -158,6 +158,11 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # surface even at Layer 0 — a restraint fighting the data is worth reporting
     # regardless of whether the fit is mature enough to linearise.
     report.restraints = result.restraints
+    # Bonding geometry rides through on the same terms and for the same reason
+    # (WP-1072): it is measured against the structure, not against the fit's
+    # maturity, and "are these distances chemically sensible" is exactly the
+    # question a reader asks first when Layer 1 abstains.
+    report.geometry = result.geometry
     # The identifiability section (WP-1056) is likewise read from the stored
     # result plus what the fit screened at Jacobian time, never linearised —
     # and an exchangeable held parameter is exactly the evidence a *converged*
