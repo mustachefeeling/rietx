@@ -60,10 +60,10 @@ McCusker audit (`../milestones/v1.0.md` § Appendix).
 
 ## Tasks
 
-- [ ] The `Stage` field (name it against eq 7, cite it), threaded to the
+- [x] The `Stage` field (name it against eq 7, cite it), threaded to the
       restraint row assembly at stage compile; identity default pinned
       bit-identical against a pre-change fit.
-- [ ] A two-stage schedule test: stiff first stage holds geometry through a
+- [x] A two-stage schedule test: stiff first stage holds geometry through a
       deliberately bad start, relaxed second stage converges; the
       §8 failure-mode note ("if the geometric assumptions are invalid, the
       refinement will not progress") quoted in the docstring.
