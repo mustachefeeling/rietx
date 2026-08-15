@@ -87,7 +87,16 @@ SIZE_CAPS: dict[str, int | None] = {
     # `_make_jacobian` dispatches on a parameter's *name*, so a branch is a
     # claim about that name's reach, and a constraint that reaches further
     # leaves the column short instead of raising.
-    "CLAUDE.md": 648,
+    # 648 -> 656 for WP-1071 (2026-08-15): the observation count.  The
+    # operating detail went down a rank as this comment requires — the
+    # estimator, its three caveats and the one measured deviation from the
+    # paper are in `optimize.statistics.effective_observations`' docstring, the
+    # sampling floor's evidence in `background.diagnostics`, the acceptance
+    # numbers in the WP.  What cannot go down a rank is the shortcut a session
+    # adding any support statistic will otherwise take: `n_points` is the
+    # algorithm's N and not the number of observations, and the two bands set a
+    # diagnostic's level rather than gating a fit.
+    "CLAUDE.md": 656,
     "docs/ROADMAP.md": 400,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
