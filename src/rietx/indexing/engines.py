@@ -246,8 +246,8 @@ MIN_AGREEMENT = 2
 #: ``found_by`` entry for a checked analogue prior (WP-1045).  It lives here
 #: rather than in ``priors`` because :func:`agreement` — the ranking's first key
 #: — has to know which finders are *engines*, and ``priors`` imports this module.
-#: ``rietx.indexing.priors`` re-exports it, so it is still spelled
-#: ``priors.PRIOR_FINDER`` everywhere it was.
+#: This is the one public spelling; the ``priors.PRIOR_FINDER`` re-export was
+#: deleted pre-freeze (WP-1003).
 PRIOR_FINDER = "prior"
 
 

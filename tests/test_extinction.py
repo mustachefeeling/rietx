@@ -152,7 +152,7 @@ def test_seed_softplus_lifts_a_zero_coefficient_into_a_live_gradient():
 
 
 def test_stagespec_round_trips_the_seed():
-    from rietx.schemas.history import StageSpec
+    from rietx.schemas.plan import StageSpec
     from rietx.strategy.staged import Stage
 
     spec = StageSpec.from_stage(Stage("extinction", ["phases.*.extinction"], seed=1e-3))

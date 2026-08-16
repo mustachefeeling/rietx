@@ -52,8 +52,9 @@ from .engines import (
 )
 from .qspace import af_from_cell, refine_candidate, sigma_effective
 
-# The finder name a prior-confirmed candidate carries in ``found_by``,
-# re-exported from ``engines`` so it is still spelled ``priors.PRIOR_FINDER``.
+# The finder name a prior-confirmed candidate carries in ``found_by`` —
+# imported for this module's own use; the one public spelling is
+# ``engines.PRIOR_FINDER`` (the ``priors.``-path re-export went in WP-1003).
 # Deliberately **not** a registered engine: it never appears in ``engines_run``,
 # so a prior-only candidate fails the ``found_by ⊇ engines_run`` agreement test
 # naturally (``engines_disagree``, capping) and the gate needs no new vocabulary
@@ -351,6 +352,6 @@ def prior_used_diagnostic(reports: list[PriorReport], jumped: list[str],
                     "the engines did not find it, and its grade says so"))
 
 
-__all__ = ["MAX_PRIOR_INDEX", "PRIOR_FINDER", "PriorReport",
+__all__ = ["MAX_PRIOR_INDEX", "PriorReport",
            "build_prior_candidates", "cell_systems", "prior_seed_afs",
            "prior_systems", "prior_used_diagnostic", "spacegroup_prior"]

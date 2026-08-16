@@ -30,10 +30,10 @@ from .instrument import Instrument
 # ``StageSpec``/``PlanSpec`` used to be *defined* here, in parallel with a second
 # copy in ``agent.py`` that had a ``strain_seed`` field this one lacked — so a
 # Stephens stage lost its seed on the way through a history tree.  One schema
-# now lives in ``schemas/plan.py``; this import keeps the historical
-# ``schemas.history.StageSpec`` path working (WP-1004).
+# lives in ``schemas/plan.py`` (WP-1004); the compat re-export was deleted
+# pre-freeze (WP-1003), so import both from there.
 from .params import TieSpec
-from .plan import PlanSpec, StageSpec  # noqa: F401
+from .plan import PlanSpec
 from .results import Statistics
 from .structure import Structure
 

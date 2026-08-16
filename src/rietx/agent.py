@@ -111,8 +111,7 @@ from .optimize.least_squares import SOLVERS
 from .params.multi import SharingMap
 from .report.schemas import FitReport, StageReport
 from .schemas.common import Base, Mode
-from .schemas.indexing import (  # noqa: F401 — re-exports (WP-1045)
-    IndexingControls,
+from .schemas.indexing import (
     IndexingEvidence,
     IndexingResult,
     PeakList,
@@ -122,8 +121,9 @@ from .schemas.instrument import Instrument
 from .schemas.pattern import PatternData
 
 # one plan schema for the whole package (WP-1004): this module used to define a
-# second ``StageSpec``/``PlanSpec`` pair that had drifted from the history one
-from .schemas.plan import PlanSpec, StageSpec  # noqa: F401
+# second ``StageSpec``/``PlanSpec`` pair that had drifted from the history one;
+# the compat re-export went pre-freeze (WP-1003)
+from .schemas.plan import PlanSpec
 from .schemas.results import RefinementResult
 from .schemas.sequential import SeriesResult
 from .schemas.structure import Structure
