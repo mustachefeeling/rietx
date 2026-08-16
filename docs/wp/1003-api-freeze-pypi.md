@@ -1,7 +1,7 @@
 # WP-1003 — API freeze + PyPI release
 
-Milestone: v1.0 · Status: 🔄 2026-08-16 — register ruled + reviewed; Phase 1
-5 of 9 landed, CI track diagnosed (weekly verification outstanding)
+Milestone: v1.0 · Status: 🔄 2026-08-16 — Phase 1 complete (9 of 9); full
+suite on the final tree and the weekly CI verification both outstanding
 Depends on: every other v1.0 row, all closed. The release-gating half of the
 manual is [1067](1067-user-api-manual.md) § Floor (landed); 1067's remaining
 chapters, the GUI and indexing continue *after* this WP ships, and the freeze
@@ -273,20 +273,20 @@ blast radii from the 2026-08-16 review):
       docstring crossref and the `indexing/CLAUDE.md` mention; tests stay
 - [x] Flip `RefineRequest.report_trajectory` to `False`; CLAUDE.md's
       "default-on there" sentence moves in the same commit
-- [ ] Add `Diagnostic.value`; restructure `gate_failures` to carry gate codes —
+- [x] Add `Diagnostic.value`; restructure `gate_failures` to carry gate codes —
       the *package* string-matches gate names in five places (layer1 ×3,
       layer2 ×2), so internal consumers switch to codes too; retire the
       frontend `gateName` parse (`App.test.ts` fixtures, vitest +
       svelte-check, committed dist rebuilt)
-- [ ] Drop the two flat-plate-transmission **Layer 2 actions** (Layer 1
+- [x] Drop the two flat-plate-transmission **Layer 2 actions** (Layer 1
       templates stay — see the register); extend the geometry meta-test to all
       three geometries; `THRESHOLDS_VERSION` → 1.1
-- [ ] File the internals (backend, compiled model, geometry, crystallography
+- [x] File the internals (backend, compiled model, geometry, crystallography
       helpers) in the api-surface exclusions with the internal sentence;
       regenerate `api_surface_deferred.txt` after the deletions
-- [ ] `INDEXING_THRESHOLDS_VERSION` joins the `capabilities()` contracts arm;
+- [x] `INDEXING_THRESHOLDS_VERSION` joins the `capabilities()` contracts arm;
       extend the contracts meta-test
-- [ ] Docs-sentence batch: vary-or-tie contract + `initial`; `stderr=None`;
+- [x] Docs-sentence batch: vary-or-tie contract + `initial`; `stderr=None`;
       `has_sigma`; species asymmetry; single-phase CIF claim; `q_match`
       warning; `expected_delta_chi2`; the prior-corroborates rule;
       `best_axis` always-populated semantics (1054); absent-for-cause `None`
@@ -347,6 +347,47 @@ uv build && uvx twine check dist/*                     # twine is not a dev extr
 
 ## Handover log
 
+- **2026-08-16 (execution, Phase 1 complete)** — the remaining four Phase 1
+  tasks landed, one commit each, on `wp1003-api-freeze-pypi`:
+  - **Landed**: `Diagnostic.value` (populated from `GuardFinding.value` in
+    all six `_guard_diagnostics` loops) + `gate_failures` restructured to
+    `GateFailure(code, message)` — codes are a `Literal` of the four gates,
+    messages byte-identical, the five in-package prefix-matches switched to
+    code equality, the GUI's `gateName` parse retired and the dist rebuilt.
+    Flat-plate Layer 2 narrowed (`THRESHOLDS_VERSION` → 1.1 with a history
+    entry; the geometry meta-test now asserts the exact template/action gap
+    and proves every action freeable against a real table in all three
+    geometries). Internals filed as prose in `tests/api_surface.py` (none
+    reaches the unfiltered surface, so table entries would fail the live-
+    exclusion meta-test; the note says so); `set_backend` documents its
+    process-wide state. `indexing_thresholds_version` joined the
+    `capabilities()` arm (six contracts; meta-test, manual table, root
+    CLAUDE.md all moved). Docs-sentence batch: seven written, five verified
+    already present (details in the commit `90cba00`); the prior-corroborates
+    mechanism was *measured* before documenting (prior + one engine grades
+    `medium` today — the counting fix stays deferred to post-1003 indexing
+    work, on the record in `consensus.grade`).
+  - **Counts**: fast selection 2401 passed / 117 skipped (`[dev]`, no
+    jax/torch, macOS, main checkout, `-n auto --dist loadgroup`, 2:57 —
+    passed+skipped moved by exactly 0: no pytest test added or removed).
+    vitest 407 passed / 19 files (−1: the `gateName` test went with the
+    parse), svelte-check clean, ruff clean, `-W` manual build clean,
+    `uv build` + `uvx twine check` both pass on 1.0.0.dev0.
+  - **Outstanding, both verification**: (1) the full suite on this final
+    Phase 1 tree — two background runs were killed externally at ~13 % and
+    ~22 %, all green to that point; run it before Phase 2 lands anything, or
+    let the branch push's CI stand in until then. (2) The weekly `full`
+    verification run 31960416982 (`gh run watch 31960416982`), dispatched
+    17:02 UTC against `eb18f77` — it verifies the CI track (150-min ceiling
+    + fluorite fix), *not* this session's tree.
+  - **Gotchas**: root CLAUDE.md and `src/rietx/indexing/CLAUDE.md` both sit
+    exactly at their caps (700, 280) — an addition must be paid for.  Adding
+    a per-region gate is now a `THRESHOLDS_VERSION` minor event (the
+    `GateCode` Literal).  `test_imports_shown_in_part_one_exist` no longer
+    depends on xdist placement (submodule imports probe via
+    `importlib.import_module`, not `hasattr` alone).  `grade`'s
+    prior-counting is documented, deliberate, and deferred — do not "fix" it
+    in passing.
 - **2026-08-16 (execution, Phase 1 first half)** — five of Phase 1's nine
   tasks landed plus the CI parallel track's diagnosis, all committed on
   `wp1003-api-freeze-pypi`:
