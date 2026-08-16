@@ -13,12 +13,21 @@ description = "API-first, differentiable Rietveld refinement of powder X-ray dif
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-authors = [{ name = "rietx developers" }]
+authors = [{ name = "Yue Wu" }]
 keywords = ["rietveld", "powder-diffraction", "xrd", "crystallography", "refinement"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
+    "Operating System :: MacOS",
+    # The Windows row is a claim with a gate: the scheduled Windows fast-suite
+    # job must be green before any upload that ships this metadata (WP-1003).
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Chemistry",
     "Topic :: Scientific/Engineering :: Physics",
 ]
