@@ -108,9 +108,14 @@ packages = ["src/rietx"]
 # outside the IUCr distribution, and the data + darwin-only goldens are
 # ~25 MB nobody installs.  gui/ is the TS workspace; the wheel carries the
 # committed build output under src/rietx/gui/static instead.
-# gui/index.html needs naming twice: .gitignore re-includes it with a `!`
-# rule (vite's entry module), which outranks the directory exclude here.
-exclude = ["tests", "gui", "gui/index.html"]
+# Leading slashes are load-bearing: these are gitignore-style patterns, and a
+# bare "gui" also matched src/rietx/gui — which silently dropped the GUI
+# server's *python* modules from every build while .gitignore's
+# `!src/rietx/gui/static/**` negation kept the static assets, so the wheel
+# imported until capabilities() touched gui.textdoc (caught by the fresh-venv
+# smoke test, 2026-08-16).  /gui/index.html still needs naming beside /gui:
+# its own `!` negation (vite's entry module) outranks the directory exclude.
+exclude = ["/tests", "/gui", "/gui/index.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

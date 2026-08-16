@@ -261,6 +261,12 @@ def test_the_dist_is_in_the_wheel(tmp_path):
     # package data so the tool description's offline pointer resolves for a
     # pip-only agent with no network
     wanted.append("rietx/data/AGENT_PROTOCOL.md")
+    # the GUI's *python* modules, not only its static assets: the sdist
+    # excludes are gitignore-style, and an unanchored "gui" pattern once
+    # matched src/rietx/gui too — the static files survived on a `!` negation
+    # while the server code vanished, so a wheel install broke at the first
+    # capabilities() call (WP-1003, 2026-08-16)
+    wanted += ["rietx/gui/__init__.py", "rietx/gui/textdoc.py"]
     for name in wanted:
         assert name in inside, f"{name} is missing from the wheel"
 
