@@ -242,11 +242,18 @@ def test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell():
 
     # 3. the hexagonal image of the rhombohedral answer is the hexagonal
     #    answer — the same lattice, described two ways, fitted independently.
-    #    Measured 2026-08-04: 1.4e-9 and 1.2e-8 relative, Rwp equal to 5 dp.
+    #    Measured 2026-08-04 (darwin/arm64): 1.4e-9 and 1.2e-8 relative, Rwp
+    #    equal to 5 dp — and re-measured identical 2026-08-16.  On a Linux CI
+    #    runner the rhombohedral arm's TRF stopping point moved a by 2.5e-6
+    #    while the hexagonal arm agreed with darwin to 7e-10 (weekly run
+    #    31960416982), so rel=1e-6 was a solver-termination sensor, not a
+    #    lattice assertion.  1e-5 carries that measured platform spread and
+    #    still catches the mis-tie this guards by ~300x: pre-WP-1036, c never
+    #    left its start, a ~3e-3 error.
     a_h, c_h = hexagonal_from_rhombohedral(cell_r.a.value, cell_r.alpha.value)
     cell_h = ref_h.fitted_structure.phases[0].cell
-    assert a_h == pytest.approx(cell_h.a.value, rel=1e-6)
-    assert c_h == pytest.approx(cell_h.c.value, rel=1e-6)
+    assert a_h == pytest.approx(cell_h.a.value, rel=1e-5)
+    assert c_h == pytest.approx(cell_h.c.value, rel=1e-5)
     assert res_r.statistics.rwp == pytest.approx(res_h.statistics.rwp, abs=1e-4)
 
     # 4. V_H = 3·V_R, the volume relation between the two descriptions
