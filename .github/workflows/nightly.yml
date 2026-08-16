@@ -1,44 +1,38 @@
-name: monthly
+name: nightly
 
-# The two most expensive kinds of coverage, on the longest cadence, because
-# this repo is private on a free plan: 2000 Actions minutes/month, and **macOS
-# bills at a 10x multiplier** — 5 wall-clock minutes there costs 50.
+# Everything the per-push gate leaves out, once a night.  Until WP-1003's
+# visibility flip this was two workflows on a free-tier budget — weekly.yml
+# (full suite + the 3.11/3.14 edges) and monthly.yml (macOS, torch) — and the
+# collapse back into one nightly is the un-shaping both files promised.  The
+# 3.11/3.14 fast jobs did not move here: ci.yml now runs the whole support
+# window per push.
 #
-#   macOS (fast suite + goldens)   ~4-7 min x10 (2026-07-29 -> 2026-08-06), dispatch-only
-#   torch agreement matrix         ~16 min x1, on the cron
+# No run or monthly totals here — a cross-workflow total written in a comment
+# rots (one sat at 303 against a measured ≈495); read spend from the Actions
+# usage page or `gh run list`, never from comments.
 #
-# The scheduled run bills the torch line only; macOS runs when dispatched
-# (WP-1060 — grounds on the job).  Neither job
-# guards a fast-moving surface: the goldens' capture platform does not change,
-# and torch is an experimental backend, not a supported runtime.  No monthly
-# totals in comments — they rot; read spend from the Actions usage page or
-# `gh run list`.
+# What each job is *for*:
 #
-# What each job is *for* — neither duplicates the weekly Linux run:
-#
-# * `macos` is the closest any runner gets to the bit-identity goldens' capture
-#   machine, and close is all it gets: measured, it reproduces 7 of 8 states and
-#   misses one by exactly one ulp, where Linux misses all 8 by up to ~1100.  So
-#   this job *reports* the comparison and fails only if the goldens skip — see
-#   that step's comment.  It runs the *fast* suite, not the full one: at 10x,
-#   the slow acceptance would cost ~400 billed minutes, and it is already
-#   covered weekly on Linux (weekly.yml).
+# * `full` is the only place the slow real-data acceptance suites run in CI,
+#   and it installs `[dev,jax]`, so it *is* the scheduled jax coverage.
+# * `windows` backs the OS classifier row (WP-1002 measured the fast suite
+#   green there after real fixes, guarded by tests/test_portability.py) and
+#   is the pre-upload gate for any release claiming Windows.
+# * `macos` is the closest any runner gets to the bit-identity goldens'
+#   capture machine, and close is all it gets — it reports the golden
+#   comparison and fails only if the goldens skip (see that step's comment).
+#   The fast suite only: the slow acceptance is already covered on Linux.
 # * `torch` is an independent opinion in the Jacobian-agreement matrix
 #   (WP-0408), not a supported runtime.
-#
-# `workflow_dispatch` takes a `full_macos` input for the times the whole
-# acceptance suite really is wanted on macOS — a release check, or after a
-# change to the peak chain.  Publishing the repo for v1.0 removes the meter
-# entirely, and then all of this can be one nightly again.
 
 on:
   schedule:
-    # 06:00 UTC on the 1st of the month
-    - cron: "0 6 1 * *"
+    # 06:00 UTC nightly
+    - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
       full_macos:
-        description: "Run the full suite (incl. slow acceptance) on macOS — ~10x billing"
+        description: "Run the full suite (incl. slow acceptance) on macOS — a release check, or after a change to the peak chain"
         type: boolean
         default: false
 
@@ -46,15 +40,69 @@ env:
   MPLBACKEND: Agg
 
 jobs:
+  full:
+    name: full suite (Linux, incl. slow acceptance)
+    runs-on: ubuntu-latest
+    # raised from 90 after measured drift 44:21 -> 77:52 (WP-1060), and from
+    # 120 after the drift past it was investigated rather than silently
+    # raised (WP-1003): the 2026-08-16 run *completed* at 1h57 — no hang, the
+    # suite grew, and 77 min of it is indexing-acceptance fixture setup on
+    # the 2-core runner (top four --durations rows). The durable lever is
+    # narrowing what those fixtures search (the post-1003 indexing work);
+    # this guard stays a runaway guard, calibrated above the measured runtime
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+      - run: uv venv --python 3.13
+      - run: uv pip install -e ".[dev,jax]"
+      - name: Record the environment
+        run: |
+          .venv/bin/python -c "import sys, numpy, scipy; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
+          .venv/bin/python -c "import numpy; numpy.show_config()"
+      - name: Full suite
+        # the bit-identity goldens skip here — pinned to darwin/arm64
+        # (tests/test_backend_shim.py, GOLDEN_PLATFORM); the macos job reports
+        # the comparison, and no CI runner reproduces their capture machine
+        run: .venv/bin/python -m pytest -n auto --dist loadgroup --durations=25
+      - name: Upload obs/calc/diff plots
+        # every test refinement writes them (CLAUDE.md's Tests convention);
+        # Rwp hides locally-bad fits, so on a failure these are the first
+        # thing to look at
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-output-linux
+          path: tests/output/
+          if-no-files-found: warn
+          retention-days: 7
+
+  windows:
+    name: fast suite (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        # git-bash, so the python -c quoting below matches the other jobs;
+        # the interpreter path is still Windows's Scripts/ layout
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+      - run: uv venv --python 3.13
+      - run: uv pip install -e ".[dev]"
+      - name: Record the environment
+        run: .venv/Scripts/python -c "import sys, platform, numpy, scipy; print(sys.version, sys.platform, platform.machine()); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
+      - name: Fast suite
+        run: .venv/Scripts/python -m pytest -n auto --dist loadgroup -m "not slow"
+
   macos:
-    # Dispatch-only since WP-1060: the dev machine *is* darwin/arm64 and runs
-    # the fast suite + goldens on every local run, while this runner is
-    # measurably not the capture machine (one ulp off on toy_rich — the step
-    # below only warns), so the cron leg bought ~70 of the workflow's ~86
-    # monthly billed minutes for coverage the goldens' own platform already
-    # has.  tests/test_backend_shim.py's on-the-golden-platform guard is the
-    # local half of this trade: it fails there if the goldens would skip.
-    if: github.event_name == 'workflow_dispatch'
     name: macOS (goldens' capture platform)
     runs-on: macos-latest
     timeout-minutes: 90
@@ -74,8 +122,8 @@ jobs:
         # the bit-identity gate is deselected and run as its own step below.
         # Measured 2026-07-29: this runner does *not* reproduce the capture
         # machine's bits, even at identical numpy/scipy/Accelerate — see that
-        # step's comment.  Requiring them here would redden the tree every month for
-        # a one-ulp difference in a system math library.
+        # step's comment.  Requiring them here would redden the tree nightly
+        # for a one-ulp difference in a system math library.
         run: |
           DESELECT="--deselect tests/test_backend_shim.py::test_numpy_path_bit_identical_to_golden"
           if [ "${{ inputs.full_macos }}" = "true" ]; then

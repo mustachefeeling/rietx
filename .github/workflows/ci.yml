@@ -1,55 +1,32 @@
 name: CI
 
-# The per-push gate, sized for a **free-tier private repo**: GitHub Free
-# includes 2000 Actions minutes/month for private repositories, jobs are billed
-# rounded UP to the whole minute, and the default spending limit is $0 — so an
-# over-budget config does not produce a bill, it produces a month with no CI.
+# The per-push gate on a public repo, where standard runners are free.  This
+# workflow was shaped for a free-tier private repo from WP-1002 until WP-1003
+# (5 billed minutes per push: lint + one fast job, docs pushes skipped, PR
+# merge commits skipped); the flip to public undid the shaping — the history
+# of the shaped version and its measured arithmetic is in git, and the story
+# in docs/wp/1003-api-freeze-pypi.md.
 #
-# Measured 2026-07-29, so the arithmetic is real rather than assumed:
+# What runs per push and per PR, all in parallel:
 #
-#   lint                     23 s  -> 1 min
-#   fast py3.13 (numpy only) ~3 min -> 4 min      == 5 billed minutes per push
+#   lint                          ruff over src/tests/examples
+#   fast py3.11 .. py3.14         the "not slow" suite across the support
+#                                 window (3.14 is claimed in the classifiers,
+#                                 so it gates like the rest)
+#   fast jax                      the same selection with [dev,jax] — the jax
+#                                 rows are jit-compile bound, so this is the
+#                                 slowest job here (~10 min)
 #
-# The first version of this workflow ran four Pythons plus a `[dev,jax]` job
-# and cost **21 minutes per push** — the jax job alone bills 10, because it is
-# jit-compile bound (see the note in weekly.yml).  The rest of the Python
-# matrix and every optional backend now run on a schedule instead, where they
-# cost a fixed amount per month rather than a variable amount per commit.
-#
-# `paths-ignore` skips pushes that touch only inert documentation.  It
-# deliberately does NOT ignore docs/manual/** or docs/VALIDATION.md: the suite
-# builds the manual under -W and asserts VALIDATION.md matches its generator,
-# so those two are code as far as the tests are concerned.
-#
-# Every job skips the push run for a PR merge commit (the `if:` below): the
-# pull_request run already tested that tree, so the post-merge rerun was pure
-# double payment (~9-22 billed min per merged PR, measured 2026-08-06).  NOT
-# PR-only triggers — 23 of the last 60 direct-to-main commits touch code and
-# would go untested until Sunday.  Accepted risks, stated rather than assumed:
-# (a) merging after main moved lands a combined tree untested until the next
-# tested push or the weekly; (b) a push bundling direct commits under a merge
-# head commit is skipped whole — rare, and it heals at the next tested push
-# since CI tests trees, not diffs.  A switch to squash merges makes the
-# condition match nothing, which fails toward extra runs, never lost coverage.
-#
-# When the repo goes public, standard runners become free and all of this
-# shaping can be undone — see docs/wp/1003-api-freeze-pypi.md.
+# No paths-ignore: these jobs are branch-protection required checks, and a
+# path filter would leave a docs-only PR with required checks that never
+# report.  The docs-consistency test rides inside the fast suite.
+# The full suite (slow real-data acceptance included), macOS, Windows and
+# torch run in nightly.yml.
 
 on:
   push:
     branches: [main]
-    paths-ignore: &inert_docs
-      - 'docs/wp/**'
-      - 'docs/milestones/**'
-      - 'docs/ROADMAP.md'
-      - 'docs/DESIGN.md'
-      - 'docs/AGENT_PROTOCOL.md'
-      - 'README.md'
-      - 'CLAUDE.md'
-      - 'ATTRIBUTION.md'
-      - 'LICENSE'
   pull_request:
-    paths-ignore: *inert_docs
   workflow_dispatch:
 
 concurrency:
@@ -61,7 +38,6 @@ env:
 
 jobs:
   lint:
-    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -75,17 +51,20 @@ jobs:
       - run: .venv/bin/python -m ruff check src tests examples
 
   fast:
-    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request')
-    name: fast suite (py3.13, numpy)
+    name: fast py${{ matrix.python }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
-      - run: uv venv --python 3.13
+      - run: uv venv --python ${{ matrix.python }}
       - run: uv pip install -e ".[dev]"
       - name: Record the environment
         run: .venv/bin/python -c "import sys, numpy, scipy; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
@@ -93,4 +72,22 @@ jobs:
         # --dist loadgroup is not optional: it honours the xdist_group marks
         # that pin a shared expensive fixture to one worker.  Plain --dist load
         # still passes, but silently refits.
+        run: .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+
+  fast-jax:
+    name: fast jax
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+      - run: uv venv --python 3.13
+      - run: uv pip install -e ".[dev,jax]"
+      - name: Fast suite with jax installed
+        # jit-compile bound; an actions/cache of tests/.jax_cache was measured
+        # not to help (8:18 warm against 8:12 cold — weekly.yml's note, kept
+        # with the job it explains), so there is no cache step.
         run: .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"

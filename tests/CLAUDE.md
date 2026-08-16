@@ -175,20 +175,19 @@ and never a silent cap.
 
 ## CI
 
-CI runs the same commands (`.github/`), on cadences set by a **free-tier
-budget** — 2000 Actions minutes/month on a private repo, billed per job
-rounded up (macOS at **10×**), so an over-budget config buys a month with no
-CI rather than a bill. Per push: ruff + the fast suite on 3.13, Linux,
-skipped for docs-only pushes and for a PR merge commit's push run (the
-pull_request run already tested that tree); docs-only pushes get `docs.yml`,
-which runs `tests/test_docs_consistency.py`. Weekly: the full suite plus the
-support-window edges 3.11/3.14. Monthly: `[torch]`; macOS is
-dispatch-only (the goldens' guard in `test_backend_shim.py` is the local
-half of that trade). **Before adding a job, price it** — the first version
-of this matrix cost 21 minutes per push, which did not fit. **Read spend
-from the Actions usage page or `gh run list`, never from comments or this
-file**: a written cross-workflow total rots — one sat at 303 against a
-measured ≈495.
+CI runs the same commands (`.github/`). Per push and per PR (`ci.yml`, the
+branch-protection required checks): ruff + the fast suite across 3.11–3.14
+plus a `[dev,jax]` fast job, Linux, **no path filter** — a filtered job is a
+required check that never reports on a docs-only PR. Nightly
+(`nightly.yml`): the full suite `[dev,jax]` on Linux, the Windows fast suite
+(the OS classifier's backing and the release pre-upload gate), macOS fast +
+the informational goldens step (the guard in `test_backend_shim.py` is the
+local half of that trade), and `[torch]`. The free-tier shaping this
+replaced — cadences priced against 2000 min/month, macOS at 10× — was undone
+at WP-1003's visibility flip; its measured arithmetic is in git history and
+DESIGN.md. **Read spend from the Actions usage page or `gh run list`, never
+from comments or this file**: a written cross-workflow total rots — one sat
+at 303 against a measured ≈495.
 
 Two consequences for local work:
 

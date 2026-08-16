@@ -5,27 +5,12 @@ name: GUI frontend
 # `src/rietx/gui/static/` is **committed** (so installing the wheel never needs
 # node), which means a source edit that nobody rebuilt is a real defect.
 #
-# Priced, per the WP-1002 rule — GitHub Free gives a private repo 2000 Actions
-# minutes/month, billed rounded UP per job:
-#
-#   node setup + npm ci + build + git diff + vitest   ~1.5 min -> 3 billed min
-#
-# It triggers only on paths that can invalidate the dist, so a physics-only or
-# docs-only push pays nothing.  (No monthly totals here: a cross-workflow
-# total written in a comment rots — one sat at 303 against a measured ≈495.
-# Read spend from the Actions usage page or `gh run list`, never from
-# comments.)
-# The per-push `ci.yml` is unchanged: `tests/test_gui_dist.py` recomputes the
-# source digest in **stdlib Python**, needs no node, and runs in milliseconds —
-# which is the point of defining the digest in
+# It triggers only on paths that can invalidate the dist — a relevance
+# filter, not a billing one (the free-tier shaping was undone at WP-1003's
+# visibility flip).  The per-push `ci.yml` needs no node either way:
+# `tests/test_gui_dist.py` recomputes the source digest in **stdlib Python**
+# and runs in milliseconds — which is the point of defining the digest in
 # `gui/scripts/build_info.py` rather than in JavaScript.
-#
-# Goes to zero when the repo goes public (see docs/wp/1003-api-freeze-pypi.md).
-#
-# The `if:` on the job skips the push run for a PR merge commit — the
-# pull_request run already tested that tree.  Accepted risks and the
-# squash-merge failure direction: the header comment in ci.yml, which this
-# condition mirrors verbatim.
 
 on:
   push:
@@ -44,7 +29,6 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request')
     name: build, diff, test
     runs-on: ubuntu-latest
     timeout-minutes: 15

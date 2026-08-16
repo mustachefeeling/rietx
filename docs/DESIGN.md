@@ -501,34 +501,34 @@ cross-code number computed over different channels with a different free set
 is not a comparison.
 
 **Where the suite runs, and what that can and cannot prove** (WP-1002; resized
-by WP-1060). Three cadences, each sized by what it bills rather than by what
-would be nice: per push, ruff plus the fast suite on 3.13 (Linux, skipped for
-docs-only pushes and for a PR merge commit's push run, which the pull_request
-run already tested); weekly, the whole suite including `slow` acceptance plus
-the support-window edges 3.11/3.14; monthly, the `[torch]` agreement rows,
-with macOS dispatch-only since the dev machine is the goldens' platform and
-checks them on every local run.
+by WP-1060; un-shaped at WP-1003's visibility flip). Per push and per PR
+(`ci.yml`, the branch-protection required checks): ruff plus the fast suite
+across 3.11–3.14 and a `[dev,jax]` fast job, Linux, no path filter — a
+filtered job is a required check that never reports on a docs-only PR.
+Nightly (`nightly.yml`): the whole suite including `slow` acceptance under
+`[dev,jax]` on Linux, the Windows fast suite backing the OS classifier row,
+macOS fast plus the informational goldens step, and the `[torch]` agreement
+rows.
 
-**The budget is a design input, not an afterthought.** A private repo on the
-free plan gets 2000 Actions minutes a month, billed per job rounded up to the
-whole minute, with a default $0 spending limit — so an over-budget matrix does
-not produce a bill, it produces a month with no CI at all. The first version
-of this one billed **21 minutes per push** (four Pythons plus a jax job) plus
-a nightly full suite, which together left room for about seventeen pushes a
-month. Totals are deliberately not written down here or in the workflow
-comments — a written cross-workflow total rots (one sat at 303 against a
-measured ≈495); read spend from the Actions usage page or `gh run list`. The
-tiering says nothing about which platform matters — macOS carries the coverage
-nothing else can, since it is where the bit-identity goldens were captured, and
-it is gated only because it bills at 10×. Publishing the repo makes standard
-runners free and the constraint disappears.
+**The budget was a design input while the repo was private** (superseded
+2026-08-16, kept as the record of why the cadences had their pre-1.0 shape).
+A private repo on the free plan gets 2000 Actions minutes a month, billed per
+job rounded up to the whole minute, with a default $0 spending limit — so an
+over-budget matrix does not produce a bill, it produces a month with no CI at
+all. The first version of this one billed **21 minutes per push** (four
+Pythons plus a jax job) plus a nightly full suite, which together left room
+for about seventeen pushes a month — hence the per-push/weekly/monthly
+tiering the flip undid. Totals are deliberately not written down here or in
+the workflow comments — a written cross-workflow total rots (one sat at 303
+against a measured ≈495); read spend from the Actions usage page or
+`gh run list`.
 
-Two limits are stated rather than implied by a green badge. The Apple-GPU
+One limit is stated rather than implied by a green badge. The Apple-GPU
 (`torch-mps`) assertions **cannot** run on a hosted runner, which has no Metal
 device, so the only real-hardware evidence for the fp32-column policy is
-maintainer-machine-only. And CI **reports rather than gates**: branch
-protection needs a paid plan or a public repo, so nothing today stops a red
-push landing on `main`.
+maintainer-machine-only. (A second — CI reporting rather than gating, since
+branch protection needs a paid plan or a public repo — closed at WP-1003's
+flip: `ci.yml`'s jobs are required checks on `main`.)
 
 **A bit-identity gate is pinned to its capture environment, never loosened to
 a tolerance.** The multi-platform matrix immediately measured what the goldens
@@ -552,7 +552,7 @@ the capture machine — reproduced 7 of 8 states and missed `toy_rich` by
 are bit-stable. So it is not reduction ordering; the residual variable is the
 system math library the machine image ships, and nothing visible from Python
 distinguishes one image from another. The pin is therefore to a *machine*, and
-**no CI environment asserts these bits at all**: the weekly macOS job reports
+**no CI environment asserts these bits at all**: the nightly macOS job reports
 the comparison and fails only if the goldens *skip*, because a skip and a pass
 look identical in a summary line. That makes the gate maintainer-machine
 evidence — the same shape as the Apple-GPU gap, and recorded the same way in

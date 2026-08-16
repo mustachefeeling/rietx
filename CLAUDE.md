@@ -51,9 +51,9 @@ diary is `docs/milestones/v1.0.md` § Appendix:
 
 Measure, never quote. Local fast counts: the `-m "not slow"` command above,
 verbatim — never add `-q` (`addopts` has one; `-qq` prints no summary at all).
-Full-suite counts and `--durations`: the latest weekly `full` job log
-(`gh run list --workflow weekly.yml`; `[dev,jax]`, Linux, ~90-day retention,
-up to 7 days stale). Quote any count with its venv **and** platform
+Full-suite counts and `--durations`: the latest nightly `full` job log
+(`gh run list --workflow nightly.yml`; `[dev,jax]`, Linux, ~90-day retention,
+up to a day stale). Quote any count with its venv **and** platform
 (`tests/CLAUDE.md` § Quoting numbers); a session's own go in its WP handover.
 
 `rietx compare` answers "does this new correction actually help?": pick a
