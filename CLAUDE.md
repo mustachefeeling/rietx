@@ -211,10 +211,11 @@ projected for a reasoning consumer) and `trajectory` (WP-1058) — **the report 
 every stage boundary, because a run's last state is routinely its least
 informative**: a plan absorbs an error it cannot free into whatever it can and
 converges suggesting nothing, while its own first stage named the cause.
-Default-on there, off in the library half (`fit(stage_reports=True)` →
-`stage_reports_`) which is called in loops; rungs are read off states the plan
-already visits, so the answer is bit-identical; and a report is derived from a
-result, so it rides *beside* one, never inside.
+Default-off on both halves since WP-1003 (1064 measured: unasked rungs bought
+no better decisions at more calls) — `report_trajectory`, and
+`fit(stage_reports=True)` → `stage_reports_`, called in loops. Rungs are states
+the plan already visits (the answer is bit-identical), and a report is derived
+from a result, so it rides *beside* one, never inside.
 
 ### GUI
 

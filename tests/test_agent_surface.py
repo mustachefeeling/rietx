@@ -34,10 +34,16 @@ def request_parts():
 
 @pytest.fixture(scope="module")
 def refined(request_parts):
-    """One converged single-pattern call, shared by every round-trip test."""
+    """One converged single-pattern call, shared by every round-trip test.
+
+    ``report_trajectory=True`` is explicit: the default flipped to False at
+    the freeze (WP-1003, on WP-1064's pre-registered criterion), and this
+    fixture is the trajectory-content test bed.
+    """
     structure, instrument, pattern = request_parts
     out = ag.refine_json(dict(task="refine", structure=structure,
-                              instrument=instrument, pattern=pattern))
+                              instrument=instrument, pattern=pattern,
+                              report_trajectory=True))
     assert out["ok"] is True, out.get("error")
     return out
 
@@ -73,13 +79,14 @@ def test_report_attached_and_gated(refined):
     assert report["layer1_available"] is True
 
 
-def test_trajectory_is_one_rung_per_stage_and_on_by_default(refined):
-    """WP-1058: the untouched request carries the report at every stage.
+def test_trajectory_is_one_rung_per_stage_when_asked(refined):
+    """WP-1058's shape, under WP-1003's default.
 
-    The 1053 pilot's measured bottleneck was *when* the report is read — every
-    agent's first move was this request, and it answered with the converged
-    state only.  So the default is the fix; a caller who wants the cheap path
-    asks for it.
+    A request that asks (the fixture passes ``report_trajectory=True``)
+    carries the report at every stage boundary.  The default is now False —
+    round 3's pre-registered criterion fired (WP-1064: rungs demonstrably
+    read, decisions no better at more calls) — and the bare-request half of
+    that flip is asserted in ``test_trajectory_declined_two_ways``.
     """
     trajectory = refined["trajectory"]
     plan = PLAN_PRESETS["mccusker_default"]()
@@ -91,17 +98,18 @@ def test_trajectory_is_one_rung_per_stage_and_on_by_default(refined):
 
 
 def test_trajectory_declined_two_ways(request_parts):
-    """``report_trajectory=False`` drops the rungs; ``include_report=False``
-    drops both halves — a caller who declines the report must not be handed
-    one a rung at a time (it is what keeps a report-off A/B arm one)."""
+    """The bare request carries no rungs (the WP-1003 default);
+    ``include_report=False`` drops both halves — a caller who declines the
+    report must not be handed one a rung at a time (it is what keeps a
+    report-off A/B arm one)."""
     structure, instrument, pattern = request_parts
     core = dict(task="refine", structure=structure, instrument=instrument,
                 pattern=pattern)
 
-    rungs_only_off = ag.refine_json(dict(core, report_trajectory=False))
-    assert rungs_only_off["ok"], rungs_only_off.get("error")
-    assert rungs_only_off["trajectory"] == []
-    assert rungs_only_off["report"] is not None
+    bare = ag.refine_json(dict(core))
+    assert bare["ok"], bare.get("error")
+    assert bare["trajectory"] == [], "the default is off (WP-1064's criterion)"
+    assert bare["report"] is not None
 
     for request in (dict(core, include_report=False),
                     dict(core, include_report=False, report_trajectory=True)):

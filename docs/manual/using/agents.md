@@ -50,13 +50,16 @@ Two **companions** ride beside whichever arm arrived, rather than being arms
 themselves:
 
 - `evidence` — the answer projected for a reasoning consumer.
-- `trajectory` — the report at every stage boundary, on by default here. **A
-  converged report is routinely the least informative one in the run.** A plan
-  absorbs an error it cannot free into whatever it can, then arrives converged
-  with nothing to suggest, while its own first stage named the cause. Each
-  rung's actions are the ones the plan you ran will *not* fix. The library half,
-  `Refinement.fit(stage_reports=True)`, is off by default, because `fit` is
-  called in loops.
+- `trajectory` — the report at every stage boundary, off by default; ask with
+  `report_trajectory: true` for a run you will read whole. **A converged
+  report is routinely the least informative one in the run.** A plan absorbs
+  an error it cannot free into whatever it can, then arrives converged with
+  nothing to suggest, while its own first stage named the cause. Each rung's
+  actions are the ones the plan you ran will *not* fix. The default was
+  measured, not assumed: two eval rounds found consumers handed the rungs
+  unasked decided no better at more calls, so both halves of the surface now
+  default off (`Refinement.fit(stage_reports=True)` is the library spelling,
+  off because `fit` is called in loops).
 
 ## Registering rietx as a tool
 

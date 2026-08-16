@@ -250,18 +250,20 @@ class RefineRequest(_RequestBase):
     include_report: bool = Field(True, description=(
         "attach the three-layer FitReport (numbers, not pixels — "
         "AGENT_PROTOCOL §5); Layers 1-2 still gate themselves"))
-    report_trajectory: bool = Field(True, description=(
+    report_trajectory: bool = Field(False, description=(
         "attach `trajectory`: the report at every stage boundary, projected "
-        "to a StageReport each (WP-1058). ON by default because the converged "
-        "report is usually the least informative one in the run — a "
-        "compensated fit reads Rwp 0.0137 with an EMPTY action list while the "
-        "same plan's first stage names the cause at confidence 0.997. Costs "
-        "~2.5x the fit's wall clock (measured 1.06 s -> 2.70 s on 59.5k "
-        "channels) and ~26 % of the report's payload; it changes no number "
-        "the fit produces. Turn it off for a fit you are not going to read. "
-        "include_report=false overrides it: that flag means no report content "
-        "at all, so a caller who declines the report is never handed one a "
-        "rung at a time"))
+        "to a StageReport each (WP-1058). OFF by default since WP-1003 — the "
+        "eval rounds' pre-registered criterion fired: consumers given the "
+        "rungs decided no better at more calls, twice measured (WP-1064). "
+        "Turn it on for a run you will actually read: a converged report is "
+        "routinely the least informative one in the run — a compensated fit "
+        "reads Rwp 0.0137 with an EMPTY action list while the same plan's "
+        "first stage names the cause at confidence 0.997. Costs ~2.5x the "
+        "fit's wall clock (measured 1.06 s -> 2.70 s on 59.5k channels) and "
+        "~26 % of the report's payload; it changes no number the fit "
+        "produces. include_report=false overrides it: that flag means no "
+        "report content at all, so a caller who declines the report is never "
+        "handed one a rung at a time"))
 
 
 class MultiRefineRequest(_RequestBase):
