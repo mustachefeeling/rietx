@@ -185,7 +185,11 @@ the templates are: `refine_sample_displacement` on a flat plate,
 `refine_capillary_offset_along_beam` and `refine_capillary_offset_across_beam`
 on a capillary. A suggestion naming a parameter the geometry force-fixes is one
 a caller cannot act on, and this is where that is prevented rather than
-apologised for afterwards.
+apologised for afterwards. On `flat_plate_transmission`, which models neither
+displacement nor transparency, a `cos_theta` or `sin_2theta` trend is
+reported as a shape with **no** action: the diagnosis (a flat specimen off
+the axis) is right, and there is no parameter a suggestion could legally
+free.
 
 Advisory is the design, not a limitation. The package never applies these for
 you.

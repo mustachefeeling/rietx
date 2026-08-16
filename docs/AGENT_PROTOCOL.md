@@ -1145,7 +1145,11 @@ freeing them there measures nothing.
 
 The report's position templates and actions are now chosen by geometry, so the
 two `refine_sample_*` actions no longer reach a capillary fit at all (before
-WP-1073 they did, naming parameters that could not be freed). **And this is a
+WP-1073 they did, naming parameters that could not be freed). On
+`flat_plate_transmission` they do not reach either (WP-1003): that geometry
+models neither aberration, so a `cos_theta` or `sin_2theta` trend there is
+reported as a shape with no action — read it as "a flat specimen off the
+axis", evidence with no legal one-click repair. **And this is a
 correction whose cause the endpoint hides**: measured on a synthetic capillary
 with a 0.30/−0.20 mm offset, refusing the pair puts −290 ppm into `a`, and the
 converged report names *no* position cause, because the zero shift and the cell

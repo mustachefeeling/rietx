@@ -64,6 +64,15 @@ from .schemas import (
 #: taken.  Keyed by the same geometry names as
 #: :data:`~rietx.report.layer1.POSITION_TEMPLATES`, which decides what can
 #: reach here at all; the two are checked against each other by test.
+#:
+#: ``flat_plate_transmission`` maps only the two templates whose parameters
+#: its table can free (WP-1003, ratifying 1073): that geometry models no
+#: displacement or transparency at all, so ``ParameterTable`` force-fixes
+#: both aberration parameters there — the capillary defect class again — and
+#: a ``cos_theta``/``sin_2theta`` trend is *reported as a shape with no
+#: action* rather than as a suggestion that answers 409.  The templates stay
+#: in layer 1 because the diagnosis is right (a flat specimen off the axis);
+#: only the advice was wrong.
 _POSITION_ACTIONS_BY_GEOMETRY: dict[str, dict[str, tuple[ActionKind, str]]] = {
     "bragg_brentano": {
         "constant": ("refine_zero_shift", "instrument.zero_shift"),
@@ -83,16 +92,12 @@ _POSITION_ACTIONS_BY_GEOMETRY: dict[str, dict[str, tuple[ActionKind, str]]] = {
     },
     "flat_plate_transmission": {
         "constant": ("refine_zero_shift", "instrument.zero_shift"),
-        "cos_theta": ("refine_sample_displacement",
-                      "instrument.geometry.sample_displacement"),
-        "sin_2theta": ("refine_sample_transparency",
-                       "instrument.geometry.sample_transparency"),
         "tan_theta": ("refine_cell", "phases.*.cell.*"),
     },
 }
 
-#: the map a caller with no geometry in hand gets — the flat-plate one, which
-#: is what every caller got before the keying existed
+#: the map a caller with no geometry in hand gets — the Bragg-Brentano one,
+#: which is what every caller got before the keying existed
 _POSITION_ACTIONS = _POSITION_ACTIONS_BY_GEOMETRY["bragg_brentano"]
 _WIDTH_ACTIONS: dict[str, tuple[ActionKind, str]] = {
     "inv_cos_theta": ("refine_sample_size_broadening", "phases.*.lor_size"),
@@ -615,10 +620,12 @@ def suggest_actions(attributions: list[RegionAttribution],
     """Build the typed action list from Layers 0-1.
 
     ``geometry`` picks the position-action map (:data:`_POSITION_ACTIONS_BY_
-    GEOMETRY`); ``None`` keeps the flat-plate one every caller got before the
-    map was keyed.  A template the chosen map has no entry for yields no
-    action, which is the whole point — it cannot reach here anyway once
-    ``analyse_trends`` is given the same geometry.
+    GEOMETRY`); ``None`` keeps the Bragg-Brentano one every caller got before
+    the map was keyed.  A template the chosen map has no entry for yields no
+    action.  For a capillary such a template cannot even be offered
+    (``POSITION_TEMPLATES``); on ``flat_plate_transmission`` it *is* offered
+    and deliberately maps to nothing — the trend reports the shape, and there
+    is no parameter the suggestion could legally free (WP-1003).
     """
     actions: list[SuggestedAction] = []
     by_obs = {t.observable: t for t in trends}

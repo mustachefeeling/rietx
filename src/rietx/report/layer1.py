@@ -363,12 +363,13 @@ def contents_signature(trends: list[TrendAnalysis],
 #: transparency, capillary along-beam offset), which is why the *action* map is
 #: keyed the same way rather than this one alone.
 #:
-#: ``flat_plate_transmission`` keeps the flat-plate row unchanged: that
+#: ``flat_plate_transmission`` keeps all four templates *as evidence*: the
 #: geometry models no displacement at all (see :class:`~rietx.schemas.
-#: instrument.Geometry`), so both of its aberration templates name parameters
-#: it holds fixed.  The diagnosis is at least the right one there — a flat
+#: instrument.Geometry`), but the diagnosis is the right one there — a flat
 #: specimen off the axis — where for a capillary neither the shape nor the
-#: parameter was; narrowing it is a separate decision this WP does not take.
+#: parameter was.  WP-1003 settled the split 1073 left open: the shape stays
+#: here, and layer 2's action map carries no entry for it, so the trend is
+#: reported with no suggestion rather than naming a force-fixed parameter.
 POSITION_TEMPLATES: dict[str, tuple[str, ...]] = {
     "bragg_brentano": ("constant", "cos_theta", "sin_2theta", "tan_theta"),
     "debye_scherrer": ("constant", "sin_2theta", "cos_2theta", "tan_theta"),

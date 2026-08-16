@@ -977,17 +977,24 @@ def _assert_exchange_clause_shape(summary):
 
 
 def test_position_templates_and_actions_agree_geometry_by_geometry():
-    """Every offered template has an action, and every action a template.
+    """Every action has a template, and every template an action — except the
+    two flat-plate-transmission shapes withdrawn on purpose.
 
     The two tables are keyed by geometry separately (evidence in
     ``layer1.POSITION_TEMPLATES``, actions in
     ``layer2._POSITION_ACTIONS_BY_GEOMETRY``), and the failure they can have is
-    silent in both directions: a template with no action is a winner that
-    inflates every other action's confidence and suggests nothing, and an
-    action with no template is unreachable code that reads as coverage.  The
-    geometry keys are checked against the ``Geometry.kind`` Literal rather than
-    listed, so a fourth geometry cannot ship with no position vocabulary
-    (WP-1073).
+    silent in both directions: a template with no action goes unexplained where
+    an action was meant, and an action with no template is unreachable code
+    that reads as coverage.  The geometry keys are checked against the
+    ``Geometry.kind`` Literal rather than listed, so a fourth geometry cannot
+    ship with no position vocabulary (WP-1073).
+
+    ``flat_plate_transmission`` is the ruled exception (WP-1003):
+    ``cos_theta``/``sin_2theta`` stay offered as evidence — the diagnosis is
+    right there, a flat specimen off the axis — and map to no action, because
+    both would name parameters the table force-fixes.  The gap is asserted
+    *exactly*, so a template dropped or an action added by accident still
+    fails.
     """
     import typing
 
@@ -999,21 +1006,34 @@ def test_position_templates_and_actions_agree_geometry_by_geometry():
     assert set(POSITION_TEMPLATES) == kinds
     assert set(_POSITION_ACTIONS_BY_GEOMETRY) == kinds
     for geometry, names in POSITION_TEMPLATES.items():
-        assert set(_POSITION_ACTIONS_BY_GEOMETRY[geometry]) == set(names), geometry
-    # and on a capillary every suggested path is one the table can free — the
-    # defect that motivated the keying was a capillary fit being told to
-    # refine ``sample_displacement``, which ParameterTable force-fixes there.
+        offered = set(names)
+        acted = set(_POSITION_ACTIONS_BY_GEOMETRY[geometry])
+        assert acted <= offered, geometry     # no unreachable action anywhere
+        expected_gap = ({"cos_theta", "sin_2theta"}
+                        if geometry == "flat_plate_transmission" else set())
+        assert offered - acted == expected_gap, geometry
+    # and in *every* geometry each suggested path is one that geometry's own
+    # table can free — the defect that motivated the keying was a capillary
+    # fit being told to refine ``sample_displacement``, which ParameterTable
+    # force-fixes there, and the flat-plate rows repeated it (WP-1003).
     # Asked of a real table rather than of a second list, because a list would
     # be the same claim written twice.
     from rietx.params.vector import ParameterTable
     from rietx.schemas.instrument import Instrument
 
-    ins = Instrument.debye_scherrer(wavelength=1.5406,
-                                    goniometer_radius_mm=200.0)
-    table = ParameterTable(make_lab6(), ins)
-    for _name, (kind, path) in _POSITION_ACTIONS_BY_GEOMETRY[
-            "debye_scherrer"].items():
-        assert table.set_vary([path], True), f"{kind} names an unfreeable {path}"
+    instruments = {
+        "bragg_brentano": Instrument.bragg_brentano(),
+        "debye_scherrer": Instrument.debye_scherrer(wavelength=1.5406,
+                                                    goniometer_radius_mm=200.0),
+        "flat_plate_transmission": Instrument.flat_plate_transmission(),
+    }
+    assert set(instruments) == kinds
+    for geometry, ins in instruments.items():
+        table = ParameterTable(make_lab6(), ins)
+        for _name, (kind, path) in _POSITION_ACTIONS_BY_GEOMETRY[
+                geometry].items():
+            assert table.set_vary([path], True), (
+                f"{kind} names an unfreeable {path} on {geometry}")
 
 
 def test_exchange_candidate_families_are_pinned():

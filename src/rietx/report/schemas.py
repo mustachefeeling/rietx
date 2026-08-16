@@ -122,7 +122,15 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   parameters ``ParameterTable`` force-fixes outside ``bragg_brentano``, so a
 #   capillary fit was being told to refine what it could not free.  No
 #   threshold moved.
-THRESHOLDS_VERSION = "1.0"
+# 1.1 (WP-1003): 1.0's correction completed on its third geometry.  On
+#   ``flat_plate_transmission`` the ``cos_theta``/``sin_2theta`` *actions* are
+#   withdrawn — both named parameters ``ParameterTable`` force-fixes there —
+#   while the templates stay offered: the diagnosis (a flat specimen off the
+#   axis) is right, so the trend is reported as a shape with no suggestion.
+#   Emission changes on that geometry only; no threshold moved.  In the same
+#   change, pre-freeze and therefore unversioned, ``gate_failures`` entries
+#   became ``GateFailure(code, message)`` with messages byte-identical.
+THRESHOLDS_VERSION = "1.1"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"

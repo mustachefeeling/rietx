@@ -286,6 +286,16 @@ def test_imports_shown_in_part_one_exist():
                 if not name:
                     continue
                 imported = name.split(" as ")[0].strip()
+                # `from rietx.viz import compare` is a *submodule* import,
+                # legal whether or not the parent re-exports it — and hasattr
+                # sees a submodule only after something has imported it, which
+                # made this assertion depend on xdist test placement.
+                if not hasattr(module, imported):
+                    try:
+                        importlib.import_module(f"{module_name}.{imported}")
+                        continue
+                    except ModuleNotFoundError:
+                        pass
                 assert hasattr(module, imported), (
                     f"{page.name}: `from {module_name} import {imported}` — "
                     f"{module_name} exports no {imported!r}"
