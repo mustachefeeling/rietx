@@ -81,7 +81,7 @@ addresses into the parameter table, not attributes of a class.
 The chapters run in the order a first session with the package runs: install
 it, get one fit to the end, learn what the fit did, read the numbers it
 returned, read the report on top of them, find out what is on disk, then wire
-it into something.
+it into something. The closing chapter is the 1.0 stability promise.
 
 ```{toctree}
 :caption: Part 1 — Using rietx
@@ -94,6 +94,7 @@ using/results
 using/report
 using/files
 using/agents
+using/compatibility
 ```
 
 ## Part 2 — Theory

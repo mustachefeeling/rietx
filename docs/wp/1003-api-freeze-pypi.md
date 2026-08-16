@@ -296,7 +296,7 @@ blast radii from the 2026-08-16 review):
 
 Phase 2 — the promise in writing:
 
-- [ ] Compatibility page in manual Part 1: the two tiers, the hybrid rule with
+- [x] Compatibility page in manual Part 1: the two tiers, the hybrid rule with
       both clauses, the provisional list, the internal sentence, the JSON
       dialect, the raw-bytes upload note, the brand/format two-promises split
       (1062/1066), and 1058's stated principle (a library primitive is cheap,
