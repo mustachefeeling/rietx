@@ -1,7 +1,8 @@
 # WP-1003 — API freeze + PyPI release
 
-Milestone: v1.0 · Status: 🔄 2026-08-16 — Phases 1–3 complete and locally
-verified; weekly CI run 31966606174 in flight; Phase 4 (the staged flip) next
+Milestone: v1.0 · Status: 🔄 2026-08-16 — Phases 1–3 complete; Phase 4 pre-flip
+sweep + README + protocol packaging landed; blocked on run 31966606174 green
+and the user's skim of the candid files before the flip
 Depends on: every other v1.0 row, all closed. The release-gating half of the
 manual is [1067](1067-user-api-manual.md) § Floor (landed); 1067's remaining
 chapters, the GUI and indexing continue *after* this WP ships, and the freeze
@@ -320,13 +321,18 @@ Phase 3 — packaging metadata:
 Phase 4 — the staged flip (parallel track green first):
 
 - [ ] Pre-flip sweep: move `LITERATURE.md` out + edit its references; CLAUDE.md
-      private-path sweep; user skims the candid files
+      private-path sweep (both done 2026-08-16); **user skims the candid
+      files — outstanding**
 - [ ] Flip: public + branch protection/required checks + CI un-shaping
       (nightly consolidation, matrix regrowth, Windows job, drop the free-tier
       conditionals) as one change
 - [ ] Host the manual + AGENT_PROTOCOL on Pages; point
       `agent._TOOL_DESCRIPTION` at the URL; protocol file into package data
-- [ ] Rewrite README against the hosted manual
+      (URL + package-data halves done 2026-08-16 via `_about.DOCS_URL`;
+      the Pages workflow itself remains)
+- [x] Rewrite README against the hosted manual (front-loaded 2026-08-16;
+      hosted links verified against the built HTML tree, re-verified live
+      once Pages lands)
 - [ ] `pyproject.version` → 1.0.0; build; twine check; upload; fresh-venv
       `pip install rietx==1.0.0` smoke test. **Windows job green is a
       pre-upload gate** — the classifier claim ships only verified
@@ -347,6 +353,69 @@ uv build && uvx twine check dist/*                     # twine is not a dev extr
 
 ## Handover log
 
+- **2026-08-16 (execution, Phase 4 front half; blocked on CI green + user
+  skim)** — four commits on `wp1003-api-freeze-pypi`, all pushed:
+  - **Pre-flip sweep (mechanical half) done**: `docs/LITERATURE.md` moved to
+    the private corpus dir as `rietx-LITERATURE.md` (provenance note stamped;
+    the maintainer memory records the location), references edited in
+    ROADMAP (bullet dropped), CLAUDE.md (rule kept, path gone — the bullet
+    now points at `AGENTS.md`'s maintainer-only split), WP-1056 ×3 and
+    WP-1037. Beyond the register's list: **thirteen** WP files carried
+    absolute or `~` corpus paths (`zotero-linker/derived/<KEY>/`) — all
+    swept to "Corpus item `KEY`", which keeps the maintainer's pointer (the
+    key is the sqlite lookup) and drops the machine path. Tree-wide greps
+    for `/Users/yue`, `zotero`, `mineru` are clean in tracked files. Three
+    benign leftovers left for the skim: a generic playwright cache path
+    (WP-1012), and WP-1066's own record of the checkout-dir move.
+  - **Tool-description stragglers fixed**: 23674ad's flip left
+    `_TOOL_DESCRIPTION` promising an unrequested trajectory — it now says
+    the rungs come with `report_trajectory=true`. Same string gained the
+    protocol's two new pointers.
+  - **Protocol packaging done early** (the non-Pages half of flip step 3):
+    `DOCS_URL` joined `_about.py`'s brand tokens (seven now move on a
+    rename; layout decided: sphinx html at site root, `AGENT_PROTOCOL.md`
+    copied verbatim beside it); the wheel force-includes
+    `docs/AGENT_PROTOCOL.md` as `rietx/data/AGENT_PROTOCOL.md` (absent from
+    an editable install — the repo file serves there); pyproject gained the
+    Documentation URL; the wheel-content test asserts the bundled copy.
+  - **README rewritten** (front-loading flip step 4): 448 → ~200 lines, one
+    headline snippet condensed from `examples/nac_11bm.py` with output the
+    script printed *today*, capability bullets each linking a manual
+    chapter, non-goals before validation, all links absolute (PyPI renders
+    them; every hosted URL checked against `_build/html`). GUI-beta and
+    series-session-scoped sentences carried per the register.
+  - **Verified**: `uv build` + `uvx twine check` pass; wheel carries the
+    protocol; sdist's only `gui/` paths are `src/rietx/gui/static/*` (the
+    committed dist, correct); ruff, `-W` manual build, docs-consistency,
+    no-stale-name, agent-surface, capabilities all green.
+  - **Counts**: fast selection 2402 passed / 117 skipped in 2:42 (`[dev]`,
+    no jax/torch, macOS, main checkout, `-n auto --dist loadgroup`) —
+    passed+skipped moved by exactly 0: no test added or removed, one
+    existing wheel-content test extended in place.
+  - **CI**: run 31966606174 — fast py3.11/py3.14 green; the full job in
+    flight (started 19:06 UTC). The CI-track task closes when it is green.
+  - **Next — the flip, in order, needs two things first**: (1) run
+    31966606174 green; (2) **the user skims the candid files** (docs/wp,
+    milestones, CLAUDE.mds) and says go. Then, as one change: repo public +
+    branch protection (required checks: lint + fast) + CI un-shaping.
+    Un-shaping design, decided this session from the workflows' own
+    comments: `ci.yml` drops the merge-commit skip `if:`s and regrows the
+    per-push matrix (lint + fast on 3.11–3.14 + a `[dev,jax]` fast job);
+    `weekly.yml` + `monthly.yml` collapse into one `nightly.yml` (06:00
+    UTC: Linux full `[dev,jax]` at the 150-min guard, macOS fast+goldens
+    informational, torch agreement matrix, **Windows fast suite** — the
+    pre-upload gate); `docs.yml` stays (it covers the paths-ignore blind
+    spot, which remains). Then Pages (build sphinx `-W`, copy
+    AGENT_PROTOCOL.md into the html root, deploy; verify every README URL),
+    then version → 1.0.0, build, twine, upload, fresh-venv smoke test, close.
+  - **Gotchas**: the corpus file's new home is outside every repo — the
+    `local-paper-corpus` memory is the only pointer, deliberately.
+    `DOCS_URL` has no trailing slash and the agent description appends
+    `/AGENT_PROTOCOL.md` — a hosting-layout change must touch `_about.py`
+    only. The README quotes no test counts (they rot); its validation
+    claims are VALIDATION.md's. `docs/releases/1.0.0.md`'s two links now
+    point at the hosted URLs (swapped this session; nothing scans
+    `docs/releases/`, so they were checked by eye against `_build/html`).
 - **2026-08-16 (execution, Phases 2 + 3 complete; Phase 1 verified; CI track
   re-verifying)** — nine commits on `wp1003-api-freeze-pypi`, all pushed:
   - **Phase 1 verification closed locally**: the full suite ran once on the
