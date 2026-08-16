@@ -95,10 +95,14 @@ class DataRef(Base):
     options: dict[str, str] = Field(default_factory=dict)
     n_points: int
     two_theta_range: tuple[float, float]
-    #: whether the file supplied per-point esds — i.e. whether the weights are
-    #: the file's or the Poisson fallback's.  Recorded because it is a
-    #: correctness property of the fit that is invisible once the data are read
-    #: (CLAUDE.md, Weights), and a GUI should be able to say which it is.
+    #: whether σ was *measured* — a file esd column, or a σ the reader derived
+    #: from the format's own convention (a counting time, an attenuator) —
+    #: rather than the Poisson fallback.  σ measured, not σ present in the
+    #: file (WP-1003 documents the wider reading): reader-derived σ counts.
+    #: Recorded because it is a correctness property of the fit that is
+    #: invisible once the data are read (CLAUDE.md, Weights), it is what every
+    #: renderer's ``weighted`` flag quotes, and a GUI should be able to say
+    #: which it is.
     has_sigma: bool
 
 

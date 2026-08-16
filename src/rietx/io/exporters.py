@@ -468,7 +468,11 @@ def write_refinement_cif(result: RefinementResult, structure: Structure,
     ``structure`` must carry the refined values and their ``stderr`` (a fit
     leaves them on ``Refinement.fitted_structure``).  The pattern loop uses the
     pdCIF tags :func:`rietx.read_pdcif` reads and the structure block the tags
-    :func:`rietx.Structure.from_cif` reads, so the file round-trips through the
-    package's own readers.
+    :func:`rietx.Structure.from_cif` reads, so a **single-phase** file
+    round-trips through the package's own readers — the claim is narrowed to
+    single-phase on purpose (WP-1003, ratifying 0309): a multi-phase export
+    writes one block per phase and each re-reads as a structure, but the
+    pattern loop and refinement scalars live on the first block only, and
+    nothing reassembles N blocks into one refinement.
     """
     refinement_cif_doc(result, structure, instrument).write_file(str(path))

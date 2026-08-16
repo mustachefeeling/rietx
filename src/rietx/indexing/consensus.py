@@ -453,6 +453,15 @@ def grade(caveats: Sequence[str], found_by: Sequence[str],
     because two capping caveats (an assumed tolerance and an unvalidated
     candidate) are the ordinary state of a peaks-only run and would otherwise
     make every answer ``low`` — which would empty the vocabulary of meaning.
+
+    **A prior corroborates but does not confirm** (WP-1003, recording 1046
+    §4): agreement means independent *searches*, and a stated cell is not
+    one.  ``found_by`` currently counts :data:`~.engines.PRIOR_FINDER` toward
+    ``MIN_AGREEMENT``, so a prior one engine also found can reach ``medium``
+    partly on the strength of its own statement; the ruled fix — count
+    engines the way ``engines.corroborated`` does, prior excluded — is
+    deferred into the post-1003 indexing work, where the acceptance suite
+    runs.  Deferred on the record, not silently frozen.
     """
     # MIN_AGREEMENT rather than a literal 2 since WP-1046: this floor and
     # ``engines.corroborated`` — the ranking's first key — are one boundary, so

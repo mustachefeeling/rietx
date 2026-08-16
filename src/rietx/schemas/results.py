@@ -11,6 +11,21 @@ from .common import Base, Diagnostic, Mode, Provenance
 
 
 class RefinedParameter(Base):
+    """One row of :attr:`RefinementResult.parameters`.
+
+    The membership filter **is the contract** (WP-1003, ratifying 1053): a row
+    appears iff the entry varied or was tied — a fixed parameter is *absent*,
+    not present with ``vary=False``.  The full table, held rows and their
+    reasons included, is :meth:`rietx.Refinement.parameters`, which also
+    merges these esds back in.
+
+    ``initial`` is never populated by the fit path: a result reports where the
+    fit ended, and the start lives one node up in the history tree.  It exists
+    for a caller assembling a result by hand (a comparison runner recording
+    its own start state); ``None`` means "not recorded", not "started at
+    zero".
+    """
+
     path: str
     value: float
     stderr: float | None = None
@@ -481,7 +496,10 @@ class GeometryDistance(Base):
     (the ``qpa.weight_fractions`` precedent), and it is never the answer.
     Both are ``None`` when no covariance was estimated, and also when nothing
     the row depends on was refined — an all-zero block is absence of
-    information, not σ = 0.
+    information, not σ = 0.  The two causes deliberately share one ``None``
+    (WP-1003): a consumer never needs σ's *reason* to use the number, and if
+    one ever does, a per-row cause field is the additive fix — never a
+    reinterpreted zero.
     """
 
     phase_index: int
@@ -668,7 +686,10 @@ class RefinementResult(Base):
 
     # Degeneracy evidence measured on the final Jacobian, which is never
     # serialized — see :class:`Identifiability`.  None when the result did not
-    # come from a fit that ran the guards.
+    # come from a fit that ran the guards.  It follows that a *stored* result
+    # can carry this but never recompute it (WP-1003, recording 1055): a
+    # report built from a deserialized result quotes what fit time measured
+    # or shows the section absent, and nothing re-derives it from the curves.
     identifiability: Identifiability | None = None
 
     # Per-histogram slices of a multi-histogram joint refinement (WP-0308);

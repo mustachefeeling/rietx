@@ -258,6 +258,15 @@ class Atom(Base):
     When ``aniso`` is present it alone drives the Debye-Waller factor and
     ``biso`` becomes an inert record of the starting estimate — refining it
     would be a silently dead parameter, so that is rejected.
+
+    ``species`` is validated at *compile*, not here (WP-1003, ratifying
+    1014): an unknown symbol is a crystallography question the schema cannot
+    answer, so the compile error is the authoritative refusal and the GUI's
+    stricter up-front check is a deliberately earlier error on the human
+    path, not a second contract.  Schema validation was declined **and is not
+    cheap later** — refusing a previously-storable value is a breaking change
+    under the hybrid rule, so any future tightening is a read-time diagnostic
+    or a better compile error, never schema refusal.
     """
 
     label: str

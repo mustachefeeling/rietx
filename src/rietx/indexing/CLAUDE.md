@@ -1,11 +1,11 @@
 # CLAUDE.md — src/rietx/indexing/
 
-Scope: the indexing subsystem — the dossier that lived in the root CLAUDE.md
-until WP-1060. Auto-loads with this subtree; the root keeps only clauses that
-govern behavior outside it. Measured stories: `docs/milestones/v1.0.md`
-§ Appendix ("the CLAUDE.md indexing dossier"); constants live in this
-package. **A new indexing rule lands here; it earns a clause at root only if
-it changes behavior outside `indexing/`.**
+Scope: the indexing dossier (split from root, WP-1060). Auto-loads with this
+subtree; the root keeps only clauses that govern behavior outside it.
+Measured stories: `docs/milestones/v1.0.md` § Appendix ("the CLAUDE.md
+indexing dossier"); constants live in this package. **A new indexing rule
+lands here; it earns a clause at root only if it changes behavior outside
+`indexing/`.**
 
 ## The governing rule
 
@@ -92,13 +92,15 @@ On real data with no measured shift, `high` is *unreachable* by design
   apart); `search_volume_ceiling` is the one pruning authority (declared
   `max_volume` verbatim, else `VOLUME_ENVELOPE_SLACK ×` Smith's mean line,
   which raw excludes truth below p = 0.71 completeness).
-- **A prior steers, never gates** (`priors.py`): its system jumps the
-  queue, its metric seeds svd's basin (outside the N_c/N_o gate; the box
-  still binds), and the stated cell is checked the engines' own way,
-  entering as finder `"prior"` — merged when an engine found the lattice,
-  else appended **after** the ranked list, never in the Borda ranking (IIA —
-  what makes "a wrong prior changes no rank" structural); absent from
-  `engines_run`, so the agreement caveat grades it with no new vocabulary.
+- **A prior steers, never gates** (`priors.py`): its system jumps the queue,
+  its metric seeds svd's basin (outside the N_c/N_o gate; the box still
+  binds), and the stated cell is checked the engines' own way, entering as
+  finder `"prior"` — merged when an engine found the lattice, else appended
+  **after** the ranked list, never in the Borda ranking (IIA — what makes "a
+  wrong prior changes no rank" structural); absent from `engines_run`, so the
+  agreement caveat grades it with no new vocabulary — though `grade` still
+  counts it toward `MIN_AGREEMENT`: **a prior corroborates but does not
+  confirm**; fix deferred post-1003, stated in `consensus.grade` (1046 §4).
   Traps met: `PRIOR_DRIFT_MAX`, `same_lattice`-never-cell-tuples (WP-1045).
 
 ## Engines and the FoM panel
@@ -191,8 +193,6 @@ declines), and `refine_with_shift` runs after survival because the shift's
 *shape* needs reference positions, which a candidate cell supplies.
 
 ## Thirteen more rules, each learned the hard way
-
-The measured stories are in the v1.0 record's appendix; constants in this package:
 
 - **A filter inside a search fails with a wrong *answer*, so a silence indicts the
   filters before the tolerance.** `engines.solution_key` is the one dedup authority —
