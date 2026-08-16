@@ -165,17 +165,20 @@ def test_the_reader_option_allowlist_is_exactly_what_the_formats_take(caps):
 
 
 def test_every_versioned_contract_is_a_live_value(caps):
-    """Five of them since WP-1009 — and the count is why they live in the arm.
+    """Six of them since WP-1003 — and the count is why they live in the arm.
 
     A contract named only in prose is a contract someone forgets to add; this
     test fails on a ``*_version`` field whose value is not the constant it
-    claims to quote, and the field list below is checked against the model, so a
-    sixth contract cannot arrive unnoticed either.
+    claims to quote, and the field list below is checked against the model, so
+    a seventh contract cannot arrive unnoticed either.  The sixth is the
+    proof: ``INDEXING_THRESHOLDS_VERSION`` rode on every ``IndexingResult``
+    for four WPs before the WP-1003 review noticed the arm did not quote it.
     """
     from rietx.gui.textdoc import FORMAT_VERSION as TEXTDOC_FORMAT_VERSION
     from rietx.history.events import EVENT_SCHEMA_VERSION
     from rietx.report.schemas import THRESHOLDS_VERSION
     from rietx.schemas.common import SCHEMA_VERSION
+    from rietx.schemas.indexing import INDEXING_THRESHOLDS_VERSION
     from rietx.schemas.project import PROJECT_FORMAT_VERSION
 
     live = {
@@ -184,6 +187,7 @@ def test_every_versioned_contract_is_a_live_value(caps):
         "event_schema_version": EVENT_SCHEMA_VERSION,
         "project_format_version": PROJECT_FORMAT_VERSION,
         "textdoc_format_version": TEXTDOC_FORMAT_VERSION,
+        "indexing_thresholds_version": INDEXING_THRESHOLDS_VERSION,
     }
     declared = {name for name in type(caps).model_fields
                 if name.endswith("_version") and name != "package_version"}

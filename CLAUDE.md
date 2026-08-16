@@ -147,10 +147,10 @@ title/description/modes/when-to-use per preset, in bijection with
 `capabilities()` (WP-1007, `capabilities.py`) is the one call that says what this
 build can do — backends *with whether each optional dependency imports here*,
 solvers, plans from `PLAN_INFO`, modes, anodes, the formats `read_pattern` opens,
-and the **five** versioned contracts (schema / report-thresholds / event-schema /
-project-format / textdoc-format — in the arm rather than in prose because a
-client reads the field list, and a meta-test fails on a `*_version` field that
-is not the constant it claims to quote). **Every arm is quoted from a live registry and a meta-test fails
+and the **six** versioned contracts (schema / report-thresholds / event-schema /
+project-format / textdoc-format / indexing-thresholds — in the arm, not prose:
+a client reads the field list, and a meta-test fails on a `*_version` field
+that is not the constant it claims to quote). **Every arm is quoted from a live registry and a meta-test fails
 on a member missing from its arm**; `features` flags are *derived predicates* (a
 schema field's presence, a top-level export's existence), never literal `True`,
 so a flag flips by itself when its feature lands. **A derived flag still rots,

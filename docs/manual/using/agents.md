@@ -135,7 +135,7 @@ been wrong by the following week.
 
 ## Versioned contracts
 
-`Capabilities` reports five version strings. They are separate because they move
+`Capabilities` reports six version strings. They are separate because they move
 independently:
 
 | Field | Versions |
@@ -145,9 +145,10 @@ independently:
 | `Capabilities.event_schema_version` | the streaming event ladder |
 | `Capabilities.project_format_version` | the `.rex` project directory |
 | `Capabilities.textdoc_format_version` | the `.rxt` text document |
+| `Capabilities.indexing_thresholds_version` | the indexing gates, caveat and grade vocabularies |
 
-`Capabilities.package_version` is the sixth string, and the only one that moves
-on every release. Store the contract versions alongside any result you store: a
+`Capabilities.package_version` is the seventh string, and the only one that
+moves on every release. Store the contract versions alongside any result you store: a
 threshold compared across two `report_thresholds_version` values compares two
 different questions.
 

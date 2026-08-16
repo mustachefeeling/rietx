@@ -3,7 +3,7 @@
 One call a client makes once, so it never has to guess: which backends exist and
 which are *installed*, which solvers and plan presets are registered, which
 intensity modes and anodes are known, what ``read_pattern`` actually opens, and
-which of the five versioned contracts it is talking to.
+which of the six versioned contracts it is talking to.
 
 **Every arm is quoted from the live registry, never restated.** The lesson is
 measured rather than stylistic: the fourth backend name arrived two days after
@@ -68,7 +68,7 @@ from .optimize.least_squares import SOLVERS
 from .refine import _VERSION
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import SCHEMA_VERSION, Base, Mode
-from .schemas.indexing import SHIFT_TEMPLATES
+from .schemas.indexing import INDEXING_THRESHOLDS_VERSION, SHIFT_TEMPLATES
 from .schemas.instrument import _KA_DOUBLETS, _RADIATIONS
 from .schemas.project import PROJECT_FORMAT_VERSION
 from .strategy.staged import PLAN_INFO
@@ -182,10 +182,12 @@ class Capabilities(Base):
     """The whole answer.  JSON-serialisable; WP-1008 serves it verbatim."""
 
     package_version: str
-    #: the five versioned contracts a client can be talking to, all live values.
+    #: the six versioned contracts a client can be talking to, all live values.
     #: The count moved from four to five when WP-1009 added the text document,
     #: which is the argument for putting them here rather than in prose: a client
-    #: reads the arm, not a paragraph that has to be remembered.
+    #: reads the arm, not a paragraph that has to be remembered — and from five
+    #: to six when WP-1003's review found the indexing thresholds riding on
+    #: every ``IndexingResult`` without being quoted here.
     schema_version: str
     report_thresholds_version: str
     event_schema_version: str
@@ -193,6 +195,10 @@ class Capabilities(Base):
     #: ``rxt N`` — the line-oriented project document (WP-1009).  A client that
     #: offers a text pane needs it *before* fetching a document
     textdoc_format_version: str
+    #: gates/vocabulary contract of the indexing answer (caveat and grade
+    #: vocabularies, gate thresholds) — ``schemas.indexing``'s peer of
+    #: ``report_thresholds_version``, stamped on every ``IndexingResult``
+    indexing_thresholds_version: str
 
     backends: list[BackendCapability] = Field(default_factory=list)
     solvers: list[str] = Field(default_factory=list)
@@ -232,6 +238,7 @@ def capabilities() -> Capabilities:
         event_schema_version=EVENT_SCHEMA_VERSION,
         project_format_version=PROJECT_FORMAT_VERSION,
         textdoc_format_version=TEXTDOC_FORMAT_VERSION,
+        indexing_thresholds_version=INDEXING_THRESHOLDS_VERSION,
         backends=[_backend(name) for name in BACKEND_NAMES],
         solvers=list(SOLVERS),
         plans=[PlanCapability(name=name, title=info.title,
