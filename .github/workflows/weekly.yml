@@ -35,9 +35,14 @@ jobs:
   full:
     name: full suite (Linux, incl. slow acceptance)
     runs-on: ubuntu-latest
-    # raised from 90 after measured drift 44:21 -> 77:52 (WP-1060); a drift
-    # past 120 should fail loudly here, not get another silent raise
-    timeout-minutes: 120
+    # raised from 90 after measured drift 44:21 -> 77:52 (WP-1060), and from
+    # 120 after the drift past it was investigated rather than silently
+    # raised (WP-1003): the 2026-08-16 run *completed* at 1h57 — no hang, the
+    # suite grew, and 77 min of it is indexing-acceptance fixture setup on
+    # the 2-core runner (top four --durations rows). The durable lever is
+    # narrowing what those fixtures search (the post-1003 indexing work);
+    # this guard stays a runaway guard, calibrated above the measured runtime
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
