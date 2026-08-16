@@ -227,6 +227,18 @@ Three writers turn a result into a file someone else can read:
 | `write_reflection_table` | one row per reflection: hkl, d, 2θ, intensity |
 | `write_qpa_table` | the quantitative phase analysis |
 
+The CIF is the one a journal asks for, so it carries more than the coordinates.
+Per phase it writes the agreement indices of
+[](results.md) — `_refine_ls_R_I_factor` (R_B), `_refine_ls_R_factor_all` (R_F)
+and `_refine_ls_number_reflns` — and the geometry as `_geom_bond_`,
+`_geom_contact_` and `_geom_angle` loops with esds in su notation. Each
+`_geom_*_site_symmetry_*` code indexes a `_space_group_symop_` loop written
+into the same block, because a code that pointed at whatever order the reader's
+own library generated would name a different atom. The loops list each bond
+once, unlike `GeometryTable`, whose audience is a chemist counting neighbours
+rather than a parser. Take `structure` from `Refinement.fitted_structure`, which
+is where the refined values and their esds are.
+
 `viz.html.write_html` writes the interactive plotly page, and
 `RefinementResult.plot` writes the static figure. Both need the `viz` extra.
 

@@ -82,9 +82,14 @@ which would cross-contaminate.
 `FitReport.layer1_available` says whether the layer ran at all.
 
 Above the per-region view, `FitReport.trends` regresses the region coefficients
-against the angular templates a per-region view structurally cannot see:
-position against constant, cos θ, sin 2θ and tan θ; width against 1/cos θ and
-tan θ; intensity against sin²θ/λ², the displacement-parameter signature.
+against the angular templates a per-region view structurally cannot see: width
+against 1/cos θ and tan θ, intensity against sin²θ/λ² — the
+displacement-parameter signature — and position against the shapes **its own
+geometry has**. A Bragg-Brentano fit is tested against constant, cos θ, sin 2θ
+and tan θ; a capillary against constant, sin 2θ, cos 2θ and tan θ, because a
+specimen displacement in the flat-plate sense is not an error a capillary can
+make. Fitting the union would name aberrations the instrument does not have,
+and the parameters behind them are force-fixed in that geometry anyway.
 
 `TrendAnalysis.max_template_collinearity` and `TrendAnalysis.separable` are the
 load-bearing pair. Over a limited angular range two templates can be
@@ -152,13 +157,15 @@ because a fit statistic is blind to it.
   cause. This is the IUCr guidelines' rule that a structure-free fit's Rwp is the
   best profile fit the data allow, and a Rietveld Rwp should approach it
   {cite}`mccusker1999` — measured rather than left to the reader.
-- **`FitReport.restraints`** — what each soft restraint is contributing.
+- **`FitReport.restraints`** — what each soft restraint is contributing, with
+  `RestraintReport.weight_scale` recording the c_w the stage ran at, so a
+  deviation can be read against the weight that was insisting on it.
 - **`FitReport.geometry`** (`GeometryTable`) — the distances and angles, carried
   through from the result. It is the one section here that measures the
   *structure* rather than the fit, which is why it survives an abstention
   unchanged: "are these distances chemically sensible" is the question a reader
   asks first when the profile evidence refuses to speak. Nothing scores it —
-  see [Concepts](concepts.md) for the fields and for what the esds mean.
+  see [](results.md) for the fields and for what the esds mean.
 
 ## Layer 2: suggested actions
 
@@ -170,6 +177,13 @@ it would free), `SuggestedAction.rationale`,
 stake, rather than statistical significance alone. `SuggestedAction.vetoed_by`
 records where the staged-strategy engine overruled an action, and
 `FitReport.action` looks one up by kind.
+
+The action a position trend maps to is chosen by geometry, for the same reason
+the templates are: `refine_sample_displacement` on a flat plate,
+`refine_capillary_offset_along_beam` and `refine_capillary_offset_across_beam`
+on a capillary. A suggestion naming a parameter the geometry force-fixes is one
+a caller cannot act on, and this is where that is prevented rather than
+apologised for afterwards.
 
 Advisory is the design, not a limitation. The package never applies these for
 you.
