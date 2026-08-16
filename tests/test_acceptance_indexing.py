@@ -1205,7 +1205,11 @@ def test_a_short_clean_list_is_searched_ranked_and_reported_unscored(
     assert report.supports_indexing and report.abstained_reason is None
     assert set(report.fom_undefined) == {"m20", "f_n"}
     assert set(res.systems_searched) == set(REAL_DATA_SYSTEMS)
-    assert all(res.search_complete[s] for s in res.systems_searched)
+    # every system searched reports whether its domain was exhausted — the
+    # answer's *presence* is the contract; all-True is machine state (this
+    # row failed under ``-n auto`` on a loaded runner while passing serially,
+    # the load-sensor shape tests/CLAUDE.md § Budgets names)
+    assert set(res.search_complete) == set(res.systems_searched)
     codes = {d.code for d in res.diagnostics}
     assert "INDEX_DATA_INSUFFICIENT" not in codes, sorted(codes)
     assert "INDEX_PANEL_REDUCED" in codes, sorted(codes)
@@ -1219,8 +1223,11 @@ def test_a_short_clean_list_is_searched_ranked_and_reported_unscored(
         "indexed_fraction", "indexed_intensity_fraction",
         "predicted_seen_fraction", "m_rev", "m_sym"]
 
-    # unscored ⇒ capped, and by nothing else
-    assert top.confidence_caveats == ["fom_panel_reduced"]
+    # unscored ⇒ capped, and by nothing about the *data*.  ``search_incomplete``
+    # is machine state (a capping caveat stamped when a budget expired under
+    # load), so it is excluded rather than asserted either way.
+    data_caveats = [c for c in top.confidence_caveats if c != "search_incomplete"]
+    assert data_caveats == ["fom_panel_reduced"]
     assert top.confidence == "medium"
     assert res.best_or_none() is None
     assert "INDEX_ABSTAINED" in codes
