@@ -21,7 +21,7 @@
    */
   import { ApiError, api } from "../api";
   import {
-    actionRows, gateName, headline, predictionNote, worstRegions, zoomWindow,
+    actionRows, headline, predictionNote, worstRegions, zoomWindow,
   } from "../lib/report";
   import { num } from "../lib/table";
 
@@ -295,8 +295,9 @@ mispositioned or absent phase, not an impurity">
                 {/each}
               </span>
               {#if !region.gates_passed}
-                <span class="muted" title={region.gate_failures.join("; ")}>
-                  {region.gate_failures.map(gateName).join(" ")}</span>
+                <span class="muted"
+                      title={region.gate_failures.map((f: any) => f.message).join("; ")}>
+                  {region.gate_failures.map((f: any) => f.code).join(" ")}</span>
               {/if}
             </div>
           {/each}

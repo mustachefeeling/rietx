@@ -112,8 +112,10 @@ not passing:
 | validity radius | {{ VALIDITY_RADIUS_FWHM }}·FWHM on the position coefficient | a peak far enough away that linearising it is meaningless. The answer must be "re-detect this peak", never a confident small offset |
 
 `RegionAttribution.gates_passed` is the verdict, and
-`RegionAttribution.gate_failures` names each failure with its numbers, so a
-rejected reading tells you *why* it was rejected.
+`RegionAttribution.gate_failures` names each failure — a `GateFailure` whose
+`GateFailure.code` is the gate (branch on it) and whose `GateFailure.message`
+carries the measured numbers — so a rejected reading tells you *why* it was
+rejected.
 
 ### When Layer 1 abstains
 

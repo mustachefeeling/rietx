@@ -60,6 +60,7 @@ from .schemas import (
     SEPARABILITY_MIN_SS_RATIO,
     VALIDITY_RADIUS_FWHM,
     BasisCoefficient,
+    GateFailure,
     Region,
     RegionAttribution,
     TrendAnalysis,
@@ -172,20 +173,28 @@ def attribute_region(model: CompiledModel, bases: DerivativeBases,
     chi2_red = ss_tot / max(len(idx), 1)
     has_misfit = chi2_red > MIN_REGION_CHI2_RED
 
-    failures: list[str] = []
+    failures: list[GateFailure] = []
     if not has_misfit:
-        failures.append(f"no_significant_misfit(χ²_red={chi2_red:.2f})")
+        failures.append(GateFailure(
+            code="no_significant_misfit",
+            message=f"no_significant_misfit(χ²_red={chi2_red:.2f})"))
     else:
         if r2 < MIN_REGION_R2:
-            failures.append(f"local_r2={r2:.2f}<{MIN_REGION_R2}")
+            failures.append(GateFailure(
+                code="local_r2", message=f"local_r2={r2:.2f}<{MIN_REGION_R2}"))
         if cond > MAX_GRAM_CONDITION:
-            failures.append(f"gram_condition={cond:.1e}>{MAX_GRAM_CONDITION:.0e}")
+            failures.append(GateFailure(
+                code="gram_condition",
+                message=f"gram_condition={cond:.1e}>{MAX_GRAM_CONDITION:.0e}"))
         shift = next((c.value for c in coefficients if c.kind == "position"), 0.0)
         if mean_fwhm > 0 and abs(shift) > VALIDITY_RADIUS_FWHM * mean_fwhm:
-            failures.append(
-                f"outside_validity_radius(|Δ2θ|={abs(shift):.3f}°>"
-                f"{VALIDITY_RADIUS_FWHM}·FWHM={VALIDITY_RADIUS_FWHM * mean_fwhm:.3f}°)"
-                " — re-detect the peak rather than linearising")
+            failures.append(GateFailure(
+                code="outside_validity_radius",
+                message=(
+                    f"outside_validity_radius(|Δ2θ|={abs(shift):.3f}°>"
+                    f"{VALIDITY_RADIUS_FWHM}·FWHM"
+                    f"={VALIDITY_RADIUS_FWHM * mean_fwhm:.3f}°)"
+                    " — re-detect the peak rather than linearising")))
 
     return RegionAttribution(
         two_theta_lo=region.two_theta_lo, two_theta_hi=region.two_theta_hi,
@@ -267,14 +276,14 @@ def abstention_flavour(rwp: float, attributions: list[RegionAttribution]
     misfitting = [a for a in attributions if a.has_significant_misfit]
     failing = [a for a in misfitting if not a.gates_passed]
     far = [a for a in failing
-           if any("validity_radius" in f for f in a.gate_failures)]
+           if any(f.code == "outside_validity_radius" for f in a.gate_failures)]
     if (len(far) >= REINDEX_MIN_FAR_REGIONS
             and len(far) >= REINDEX_MIN_FAR_FRACTION * len(misfitting)):
         return "unreadable", None    # reindex_action carries this story
     gram = [a for a in failing
-            if any("gram_condition" in f for f in a.gate_failures)]
+            if any(f.code == "gram_condition" for f in a.gate_failures)]
     gram_only = [a for a in failing if a.gate_failures
-                 and all("gram_condition" in f for f in a.gate_failures)]
+                 and all(f.code == "gram_condition" for f in a.gate_failures)]
     if (failing and len(gram) >= RESOLUTION_LIMITED_MIN_FRACTION * len(failing)
             and len(gram_only) >= RESOLUTION_LIMITED_MIN_REGIONS):
         median_r2 = float(np.median([a.r2 for a in gram_only]))

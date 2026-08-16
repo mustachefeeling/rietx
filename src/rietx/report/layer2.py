@@ -233,7 +233,8 @@ def layer0_actions(unmatched: list[UnmatchedPeak],
         if any(c.kind == "position" and c.significant for c in a.coefficients)
     ]
     far_regions = [a for a in atts
-                   if any("validity_radius" in f for f in a.gate_failures)]
+                   if any(f.code == "outside_validity_radius"
+                          for f in a.gate_failures)]
     fwhms = [a.mean_fwhm for a in atts if a.mean_fwhm > 0]
     fwhm_ref = float(np.median(fwhms)) if fwhms else 0.0
     tick_arr = np.sort(np.asarray(ticks, dtype=float)) if ticks else None
@@ -528,7 +529,8 @@ def reindex_action(attributions: list[RegionAttribution]
     (``INDEX_SHIFT_ALLOWANCE``), so a calibration offset does not poison it.
     """
     far = [a for a in attributions
-           if any("validity_radius" in f for f in a.gate_failures)]
+           if any(f.code == "outside_validity_radius"
+                  for f in a.gate_failures)]
     misfitting = [a for a in attributions if a.has_significant_misfit]
     if (len(far) < REINDEX_MIN_FAR_REGIONS
             or len(far) < REINDEX_MIN_FAR_FRACTION * len(misfitting)):

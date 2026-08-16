@@ -267,7 +267,8 @@ def test_large_offset_trips_the_validity_radius_gate(truth):
 
     report = _report_for(perturbed, ins, data)
     tripped = [a for a in report.attribution
-               if any("validity_radius" in f for f in a.gate_failures)]
+               if any(f.code == "outside_validity_radius"
+                      for f in a.gate_failures)]
     assert tripped, "gross peak offsets passed the validity radius unflagged"
     for a in tripped:
         assert not a.gates_passed

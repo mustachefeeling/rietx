@@ -677,7 +677,8 @@ def test_e6_wrong_cell_applies_no_position_action(truth):
     report0 = episode.rounds[0].report
     assert not report0.layer1_available, "expected abstention on a wrong cell"
     tripped = [a for a in report0.attribution
-               if any("validity_radius" in f for f in a.gate_failures)]
+               if any(f.code == "outside_validity_radius"
+                      for f in a.gate_failures)]
     assert tripped, "gross peak offsets did not trip the validity radius"
 
     assert episode.accepted == [], (episode.accepted, episode.stop_reason)

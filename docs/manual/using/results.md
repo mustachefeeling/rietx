@@ -300,8 +300,10 @@ than with an Rwp comparison as its evidence.
 `RefinementResult.diagnostics` is the channel for "your answer is wrong although
 Rwp is fine". Each entry is a `Diagnostic` with a `Diagnostic.code`, a
 `Diagnostic.level`, a human-readable `Diagnostic.message`, a
-`Diagnostic.suggestion`, and `Diagnostic.where` naming the parameter paths
-involved.
+`Diagnostic.suggestion`, `Diagnostic.where` naming the parameter paths
+involved, and `Diagnostic.value` carrying the headline number where the
+diagnostic has one (a correlation's ρ, an absorption's block R²). `None`
+means "no single number", not zero.
 
 The codes are an open vocabulary, deliberately: a new correction ships with the
 diagnostic that states what it changed. Read them before the statistics, every

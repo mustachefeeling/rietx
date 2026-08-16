@@ -337,7 +337,9 @@ const REPORT = {
       { two_theta_lo: 5.6, two_theta_hi: 5.9, n_reflections: 0, chi2_share: 0.02,
         mean_two_theta: 5.7, mean_fwhm: 0.016, r2: 0.2, gram_condition: 1.2e5,
         chi2_reduced: 4, gates_passed: false,
-        gate_failures: ["local_r2=0.20<0.5", "gram_condition=1.2e+05>1e+04"],
+        gate_failures: [
+          { code: "local_r2", message: "local_r2=0.20<0.5" },
+          { code: "gram_condition", message: "gram_condition=1.2e+05>1e+04" }],
         coefficients: [] },
     ],
     trends: [

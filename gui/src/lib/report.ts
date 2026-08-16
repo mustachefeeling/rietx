@@ -37,7 +37,19 @@ export interface Attribution {
   gram_condition: number;
   chi2_reduced: number;
   gates_passed: boolean;
-  gate_failures: string[];
+  gate_failures: GateFailure[];
+}
+
+/** One refused gate: `code` to group on, `message` for the numbers (WP-1003).
+ *
+ * Until the freeze the entries were formatted strings alone and this client
+ * recovered the gate's name by parsing the prefix back out (`gateName`) — the
+ * gap WP-1007 closed for `Diagnostic.where`, one layer up.  The code field
+ * retired that parse.
+ */
+export interface GateFailure {
+  code: string;
+  message: string;
 }
 
 export interface Suggestion {
@@ -152,23 +164,6 @@ export interface Headline {
 }
 
 /**
- * The gate a `gate_failures` entry names, without its measured value.
- *
- * `RegionAttribution.gate_failures` is a list of *formatted* strings —
- * `local_r2=0.31<0.5`, `gram_condition=2.4e+04>1e+04`,
- * `outside_validity_radius(|Δ2θ|=0.030°>0.4·FWHM=0.006°)` — with no code field
- * beside them, so grouping fifteen regions by which gate refused means reading the
- * prefix.  This is the one place this client parses a message, and it is
- * deliberately shallow: the *name* is the part before the value, the value is
- * shown verbatim in the row, and nothing branches on what is parsed.  An additive
- * code field on the model would remove the need (the gap WP-1007 closed for
- * `Diagnostic.where`, one layer up); it is a freeze decision, raised in WP-1003.
- */
-export function gateName(failure: string): string {
-  return String(failure).split(/[(=\s]/)[0];
-}
-
-/**
  * The one-line state of the report, including what it refused to say.
  *
  * `refusedBy` is aggregated from `gate_failures` rather than from a count, because
@@ -189,8 +184,7 @@ export function headline(report: any): Headline {
   const counts = new Map<string, number>();
   for (const region of attribution) {
     for (const failure of region.gate_failures ?? []) {
-      const name = gateName(failure);
-      counts.set(name, (counts.get(name) ?? 0) + 1);
+      counts.set(failure.code, (counts.get(failure.code) ?? 0) + 1);
     }
   }
   const predicted = (report?.suggested_actions ?? [])

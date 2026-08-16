@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import {
   actionRows,
   confidenceTone,
-  gateName,
   headline,
   predictionNote,
   worstRegions,
@@ -91,14 +90,16 @@ describe("the headline", () => {
     unmatched: [{ two_theta: 9.1, height_over_sigma: 12, kind: "unmatched_obs" }],
     attribution: [
       { gates_passed: true, gate_failures: [], chi2_share: 0.4 },
-      { gates_passed: false, gate_failures: ["local_r2=0.31<0.5"], chi2_share: 0.2 },
-      { gates_passed: false, gate_failures: ["local_r2=0.44<0.5",
-        "gram_condition=2.4e+04>1e+04"], chi2_share: 0.1 },
+      { gates_passed: false, chi2_share: 0.2, gate_failures: [
+        { code: "local_r2", message: "local_r2=0.31<0.5" }] },
+      { gates_passed: false, chi2_share: 0.1, gate_failures: [
+        { code: "local_r2", message: "local_r2=0.44<0.5" },
+        { code: "gram_condition", message: "gram_condition=2.4e+04>1e+04" }] },
     ],
     suggested_actions: [suggestion("refine_cell")],
   };
 
-  it("counts the gates that refused, by name, with their values dropped", () => {
+  it("counts the gates that refused, by code, with their values dropped", () => {
     const head = headline(REPORT);
     expect(head.gated).toBe("1/3");
     expect(head.refusedBy).toEqual(["local_r2 ×2", "gram_condition ×1"]);
@@ -136,13 +137,6 @@ describe("the headline", () => {
     expect(predictionNote(headline({ ...REPORT, suggested_actions: [] }))).toBe("");
   });
 
-  it("parses only the gate's name, and nothing branches on it", () => {
-    expect(gateName("no_significant_misfit(χ²_red=1.20)")).toBe("no_significant_misfit");
-    expect(gateName("local_r2=0.31<0.5")).toBe("local_r2");
-    expect(gateName("gram_condition=2.4e+04>1e+04")).toBe("gram_condition");
-    expect(gateName("outside_validity_radius(|Δ2θ|=0.030°>0.4·FWHM=0.006°) — re-detect"))
-      .toBe("outside_validity_radius");
-  });
 });
 
 describe("the worst-region list", () => {

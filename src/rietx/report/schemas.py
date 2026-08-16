@@ -590,6 +590,28 @@ class BasisCoefficient(Base):
     share: float = 0.0
 
 
+#: the per-region gates, closed: significance, explanatory power,
+#: resolvability, linearisation validity.  The global maturity gate abstains
+#: the whole layer and so has no per-region entry.  Adding a gate is a minor
+#: event in ``THRESHOLDS_VERSION`` (the gates/vocabulary contract).
+GateCode = Literal["no_significant_misfit", "local_r2",
+                   "gram_condition", "outside_validity_radius"]
+
+
+class GateFailure(Base):
+    """One refused per-region gate: a stable code beside the formatted evidence.
+
+    ``code`` is what a consumer branches or groups on; ``message`` carries the
+    measured numbers and is display-only.  Until WP-1003 the entries were the
+    formatted strings alone, and every consumer that needed the gate's *name*
+    — the package's own abstention reader included — recovered it by parsing
+    the prefix back out (``Diagnostic.where``'s gap, one layer down).
+    """
+
+    code: GateCode
+    message: str
+
+
 class RegionAttribution(Base):
     """What a locally-linear model says is wrong in one region.
 
@@ -613,7 +635,7 @@ class RegionAttribution(Base):
     chi2_reduced: float = 0.0
     has_significant_misfit: bool = True
     gates_passed: bool
-    gate_failures: list[str] = Field(default_factory=list)
+    gate_failures: list[GateFailure] = Field(default_factory=list)
 
 
 class TrendTemplate(Base):

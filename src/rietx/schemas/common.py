@@ -137,3 +137,9 @@ class Diagnostic(Base):
     message: str
     where: list[str] = Field(default_factory=list)
     suggestion: str | None = None
+    #: the headline number, where the diagnostic has one — ρ for a
+    #: correlation, block R² for an absorption, the worst σ²(M) — so a client
+    #: ranking or thresholding hits never parses ``message``.  ``None`` where
+    #: there is no single number, which is not zero (WP-1003; the same
+    #: absent-for-cause rule as ``GuardFinding.value``, its usual source).
+    value: float | None = None
