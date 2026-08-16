@@ -21,7 +21,7 @@ the esd method completely. Gaps 1 and 8 of the McCusker audit
   has no structure-R tag at all. Nothing in the package computes one —
   `grep -ri r_bragg src` is empty.
 - **The definitions** (McCusker et al. 1999, §11; the paper is at
-  `~/zotero-linker/derived/YWSBLSIS/`):
+  corpus item `YWSBLSIS`):
   - eq (13): R_F = Σ|F(obs) − F(calc)| / Σ|F(obs)| over hkl;
   - eq (14): R_B = Σ|I(obs) − I(calc)| / Σ|I(obs)|, I = m·F² (m the
     multiplicity). A weighted equivalent exists (Cox & Papoular 1996) —

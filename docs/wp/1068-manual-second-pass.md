@@ -62,7 +62,7 @@ find out what is on disk, then wire it into something.
 It was blocked because the paper could not be fetched here —
 `doi.org/10.1107/S0021889898009856` redirects to `journals.iucr.org`, which
 returns 403 to an automated fetch, and it was not in the local Zotero corpus.
-The user supplied it (`~/zotero-linker/derived/YWSBLSIS/`), and reading it found
+The user supplied it (corpus item `YWSBLSIS`), and reading it found
 that `concepts.md` § "The order the presets encode" attributed **three rules the
 paper does not contain** to the paper: `w` before `u,v,x,y`, intensity-scaling
 corrections last, and strain freed inside the sample-broadening stage. All three
@@ -118,8 +118,8 @@ package lacks, listed there with the evidence.
 
 - McCusker, Von Dreele, Cox, Louër & Scardi (1999), *J. Appl. Cryst.* **32**,
   36–50, "Rietveld refinement guidelines", `10.1107/S0021889898009856`. Open
-  access but 403 to an automated fetch; supplied by the user and now at
-  `~/zotero-linker/derived/YWSBLSIS/`. Read 2026-08-15 — see § Resolved.
+  access but 403 to an automated fetch; supplied by the user and now
+  corpus item `YWSBLSIS`. Read 2026-08-15 — see § Resolved.
 - Toby (2006), *Powder Diffraction* **21**, 67, for the agreement indices.
 - Orwell's six rules and ASD-STE100, via the skill the review named:
   `github.com/tamdogood/builder-essential-skills/blob/main/skills/orwell-writing/SKILL.md`.

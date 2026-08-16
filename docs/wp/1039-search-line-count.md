@@ -295,12 +295,12 @@ FAP arms of the rule-vs-rule sweep were killed rather than finished.
 
 - Oishi-Tomiyasu (2014), *J. Appl. Cryst.* **47**, 593 — §2 (q range vs dominant
   zone), §3 (the missing/false asymmetry), Table 1 (defaults).
-  `/Users/yue/zotero-linker/derived/NWFJ8YEB/`
+  Corpus item `NWFJ8YEB`.
 - Werner, Eriksson & Westdahl (1985), *J. Appl. Cryst.* **18**, 367 — TREOR's own
   base-line selection, for the trial-and-error half.
-  `/Users/yue/zotero-linker/derived/PN4KSN9S/`
+  Corpus item `PN4KSN9S`.
 - Visser (1969), *J. Appl. Cryst.* **2**, 89 — ITO; the dominant-zone problem in its
-  original form. `/Users/yue/zotero-linker/derived/GABUYM7L/`
+  original form. Corpus item `GABUYM7L`.
 
 ## Handover log
 

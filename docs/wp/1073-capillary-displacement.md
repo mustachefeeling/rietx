@@ -95,7 +95,7 @@ audit (`../milestones/v1.0.md` § Appendix).
 ## References
 
 - McCusker et al. (1999), §5 eq (4), §12.3. Local copy at
-  `~/zotero-linker/derived/YWSBLSIS/`.
+  corpus item `YWSBLSIS`.
 
 ## Handover log
 

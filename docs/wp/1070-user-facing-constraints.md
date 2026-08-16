@@ -101,7 +101,7 @@ round-trip, and visible in `parameters()`. Gap 2 of the McCusker audit
 ## References
 
 - McCusker et al. (1999), §7, §8, §12.7 (viii)/(ix), §12.8 (v). Local copy at
-  `~/zotero-linker/derived/YWSBLSIS/`.
+  corpus item `YWSBLSIS`.
 - WP-0301 (the affine p = C·θ + d machinery this reuses), WP-1004 (the
   surface contract this extends).
 

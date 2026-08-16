@@ -29,9 +29,9 @@ nothing. Gaps 3 and 9 of the McCusker audit (`../milestones/v1.0.md`
   one observation. Altomare et al. (1995, *J. Appl. Cryst.* **28**, 738)
   estimate effective observations from the fraction of each reflection's
   area not overlapped by another — the paper's own recommendation, with the
-  caveat quoted ("may not have a rigorous basis"). Search the local corpus
-  for the paper first (`sqlite3 ~/zotero-linker/index.sqlite`, table
-  `documents`); if absent, ask the user for it rather than re-deriving or
+  caveat quoted ("may not have a rigorous basis"). Search the maintainer's
+  paper corpus for the paper first (CLAUDE.md § Roadmap names the rule);
+  if absent, ask the user for it rather than re-deriving or
   working around (the standing rule). Ship both numbers: the raw in-range
   unique-reflection count and the overlap-corrected effective count, each
   named for what it is.
@@ -91,7 +91,7 @@ nothing. Gaps 3 and 9 of the McCusker audit (`../milestones/v1.0.md`
 ## References
 
 - McCusker et al. (1999), §2 (step size), §9 (the ratio). Local copy at
-  `~/zotero-linker/derived/YWSBLSIS/`.
+  corpus item `YWSBLSIS`.
 - Altomare, Cascarano, Giacovazzo, Guagliardi, Moliterni, Burla & Polidori
   (1995), *J. Appl. Cryst.* **28**, 738 — the effective-observations
   estimator (obtain before implementing).

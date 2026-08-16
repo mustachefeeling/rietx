@@ -182,14 +182,14 @@ finishes within 60 s plus one granularity unit and names the systems not reached
 ## References
 
 - Boultif & Louër (2004), *J. Appl. Cryst.* **37**, 724 — DICVOL04 timings, §5.
-  `/Users/yue/zotero-linker/derived/I2VA3ZAB/`
+  Corpus item `I2VA3ZAB`.
 - Coelho (2003), *J. Appl. Cryst.* **36**, 86 — TOPAS SVD-Index, §2.1 timing.
-  `/Users/yue/zotero-linker/derived/5RI7CB42/`
+  Corpus item `5RI7CB42`.
 - Le Bail (2004), *Powder Diffr.* **19**, 249 — McMaille; §IV is the 2004
   cooperative-cancel-with-partial-results design this WP reproduces.
-  `/Users/yue/zotero-linker/derived/7AEVVGH6/`
+  Corpus item `7AEVVGH6`.
 - Oishi-Tomiyasu (2014), *J. Appl. Cryst.* **47**, 593 — Conograph ≤5 min.
-  `/Users/yue/zotero-linker/derived/NWFJ8YEB/`
+  Corpus item `NWFJ8YEB`.
 
 ## Handover log
 
@@ -249,7 +249,8 @@ finishes within 60 s plus one granularity unit and names the systems not reached
   expensive after the search loop must read the token or it re-breaks.
 
 - **2026-08-04** — created. Written from the source-literature review that also
-  produced WP-1038…1042 and `docs/LITERATURE.md`. **Nothing here has been run**:
+  produced WP-1038…1042 and the maintainer's literature index (out of tree
+  since WP-1003). **Nothing here has been run**:
   the "30–150 s per real dataset" figure is assembled from WP-1026/1030 handover
   logs, not re-measured, which is exactly what task 0 exists to fix. Scope was
   deliberately cut from a 12-commit draft — everything that changes an answer moved

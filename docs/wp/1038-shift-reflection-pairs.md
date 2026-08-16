@@ -335,15 +335,15 @@ pre-change number.
 ## References
 
 - Dong, Wu & Chen (1999), *J. Appl. Cryst.* **32**, 850-853 — the method.
-  `/Users/yue/zotero-linker/derived/RPSYEN7Y/`
+  Corpus item `RPSYEN7Y`.
 - Boultif & Louër (2004), *J. Appl. Cryst.* **37**, 724 — §3.1(ii) adopts it, and
   supplies the sign-category rule and the 7 s → 3 s demonstration.
-  `/Users/yue/zotero-linker/derived/I2VA3ZAB/`
+  Corpus item `I2VA3ZAB`.
 - Le Bail (2004), *Powder Diffr.* **19**, 249 — §VI–VII: solve the zeropoint before
   indexing; and the bethanechol counter-evidence.
-  `/Users/yue/zotero-linker/derived/7AEVVGH6/`
+  Corpus item `7AEVVGH6`.
 - Dong (1999), *J. Appl. Cryst.* **32**, 838 — PowderX, which implements the pair
-  search. `/Users/yue/zotero-linker/derived/4ZBNLND9/`
+  search. Corpus item `4ZBNLND9`.
 
 ## Handover log
 

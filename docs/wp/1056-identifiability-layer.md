@@ -67,8 +67,8 @@ computed numbers):
   powerful descriptor than R", which compresses to two agent-friendly numbers:
   slope and intercept of sorted Δ/σ against normal quantiles.
 - Prince, *Mathematical Techniques in Crystallography and Materials Science*
-  (3rd ed.) — **read 2026-08-12**, ch. 6–8; location + section map in
-  `docs/LITERATURE.md` § Books. Ch. 8 is the textbook statement of both halves
+  (3rd ed.) — **read 2026-08-12**, ch. 6–8; location + section map in the
+  maintainer's literature index § Books (out of tree since WP-1003). Ch. 8 is the textbook statement of both halves
   of this WP. (a) The E2 mechanism, verbatim: a diagonal element of V is the
   correct *marginal* variance even under high correlation, **but** "if the
   Hessian matrix does not contain rows and columns corresponding to all
@@ -202,8 +202,8 @@ confident-wrong-singleton rule applied to uncertainty statements).
   Abrahams & Keve (1971) Acta Cryst. A27 (δR plot; via Schwarzenbach);
   Bérar & Lelann (1991); Hill & Flack (1987); Andreev (1994) (corpus);
   Prince, *Mathematical Techniques in Crystallography and Materials Science*
-  3rd ed., ch. 6–8 (read; location + section map in `docs/LITERATURE.md`
-  § Books).
+  3rd ed., ch. 6–8 (read; location + section map in the maintainer's
+  literature index § Books, out of tree since WP-1003).
 - `optimize/statistics.py` (normal_covariance guard story, background_absorption
   projection mechanic).
 - WP-1053 pilot grid (E2/E8 rows) — restated in Context; the WP file holds the
@@ -318,7 +318,8 @@ confident-wrong-singleton rule applied to uncertainty statements).
   bumped it to 0.6.
 
 - **2026-08-12** — the Prince book arrived and ch. 6–8 are read (location,
-  section map and OCR caveats: `docs/LITERATURE.md` § Books); findings folded
+  section map and OCR caveats: the maintainer's literature index § Books,
+  out of tree since WP-1003); findings folded
   into Context. The first-session gotcha is resolved: design the soft-mode
   rendering against Prince ch. 8, keep the undamped-final-cycle assertion
   cited to Watkin §3.8 (Prince 3rd ed. carries no Marquardt treatment), and

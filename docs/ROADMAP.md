@@ -10,9 +10,6 @@ a work session loads only what it needs:
   diagnostic code or a correction should add its row there.
 - **[DESIGN.md](DESIGN.md)** — the design record (rationale, locked decisions,
   invariants). Stable; read the specific section a work package links.
-- **[LITERATURE.md](LITERATURE.md)** — the local paper corpus and how to search
-  it, plus which papers back which module and which are still unread. Check it
-  before requesting a paper or re-deriving a published constant.
 - **[milestones/](milestones/)** — shipped-milestone records with the measured
   acceptance blocks (`v0.1.md`, `v0.2.md`, …).
 - **[wp/](wp/)** — one self-contained **work package (WP)** per task. Each has

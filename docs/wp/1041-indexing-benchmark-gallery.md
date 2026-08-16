@@ -182,12 +182,12 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
 ## References
 
 - Coelho (2003), *J. Appl. Cryst.* **36**, 86 — Table 6 impurity success rates.
-  `/Users/yue/zotero-linker/derived/5RI7CB42/`
+  Corpus item `5RI7CB42`.
 - Le Bail (2004), *Powder Diffr.* **19**, 249 — §V impurity and two-phase limits.
-  `/Users/yue/zotero-linker/derived/7AEVVGH6/`
+  Corpus item `7AEVVGH6`.
 - Bergmann, Le Bail, Shirley & Zlokazov (2004), *Z. Kristallogr.* **219**, 783 — the
   only externally graded benchmark in the package.
-  `/Users/yue/zotero-linker/derived/CSGZVXR2/`
+  Corpus item `CSGZVXR2`.
 - `docs/VALIDATION.md` § `tests/test_acceptance_indexing.py` — the benchmark
   inventory as it stands.
 

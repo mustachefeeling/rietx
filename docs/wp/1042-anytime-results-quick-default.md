@@ -260,13 +260,13 @@ corpus expansion is post-v1 — see WP-1043 § corpus and the ROADMAP fence.)
 ## References
 
 - Boultif & Louër (2004), *J. Appl. Cryst.* **37**, 724 — §4.1 the volume-tightening
-  strategy and per-system exploration. `/Users/yue/zotero-linker/derived/I2VA3ZAB/`
+  strategy and per-system exploration. Corpus item `I2VA3ZAB`.
 - Coelho (2003), *J. Appl. Cryst.* **36**, 86 — Tables 3 and 5, the per-system cost
-  gradient. `/Users/yue/zotero-linker/derived/5RI7CB42/`
+  gradient. Corpus item `5RI7CB42`.
 - Le Bail (2004), *Powder Diffr.* **19**, 249 — §IV, on-screen progress and
-  save-on-cancel. `/Users/yue/zotero-linker/derived/7AEVVGH6/`
+  save-on-cancel. Corpus item `7AEVVGH6`.
 - Oishi-Tomiyasu (2014), *J. Appl. Cryst.* **47**, 593 — quick vs regular search as
-  a user-facing mode. `/Users/yue/zotero-linker/derived/NWFJ8YEB/`
+  a user-facing mode. Corpus item `NWFJ8YEB`.
 
 ## Handover log
 

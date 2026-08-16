@@ -609,10 +609,10 @@ them all:
 - `docs/milestones/vX.Y.md` — one record per milestone: measured acceptance
   at ship, plus (while in flight) the running "How vX.Y is getting here"
   narrative and the dated appendices. `v1.0.md` is the live one.
-- `docs/LITERATURE.md` — where the papers physically are, and which are unread.
-  **Search the local corpus before asking for a paper or re-deriving a published
-  constant**: `sqlite3 /Users/yue/zotero-linker/index.sqlite` (table `documents`,
-  columns `title`/`md_path`); the lesson that pinned this rule is in that file.
+- The **paper corpus** — where the papers physically are, and which are still
+  unread — is maintainer-local, outside this repo (`AGENTS.md` names the
+  split; the maintainer's memory holds the location). **Search it before
+  asking for a paper or re-deriving a published constant.**
 - `docs/AGENT_PROTOCOL.md` — consumer-facing operator guide; a WP that adds
   a diagnostic code or a correction adds its row there.
 - `gui/CLAUDE.md`, `tests/CLAUDE.md`, `src/rietx/io/CLAUDE.md`,

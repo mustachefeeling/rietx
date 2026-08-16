@@ -145,13 +145,13 @@ dataset regresses.
 
 - Coelho (2003), *J. Appl. Cryst.* **36**, 86 — the algorithm. Tables 1–3 are the
   implementation; §2.2 the weighting; §2.3 the zero error; Table 6 impurity rates.
-  `/Users/yue/zotero-linker/derived/5RI7CB42/`
+  Corpus item `5RI7CB42`.
 - Le Bail (2004), *Powder Diffr.* **19**, 249 — McMaille; §III tricks (a)–(d) and
   Table I are the independent confirmation that MC needs local refinement.
-  `/Users/yue/zotero-linker/derived/7AEVVGH6/`
+  Corpus item `7AEVVGH6`.
 - Boultif & Louër (2004), *J. Appl. Cryst.* **37**, 724 — Table 3 indexes Coelho's
   own 12 examples with DICVOL04, a ready-made cross-code comparison.
-  `/Users/yue/zotero-linker/derived/I2VA3ZAB/`
+  Corpus item `I2VA3ZAB`.
 - `docs/wp/1023-engine-montecarlo.md` — the superseded no-go and its numbers.
 
 ## Handover log

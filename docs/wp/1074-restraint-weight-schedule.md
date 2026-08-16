@@ -87,7 +87,7 @@ McCusker audit (`../milestones/v1.0.md` § Appendix).
 ## References
 
 - McCusker et al. (1999), §8 eq (7). Local copy at
-  `~/zotero-linker/derived/YWSBLSIS/`.
+  corpus item `YWSBLSIS`.
 - WP-0406 (restraint penalty rows), WP-0407 (the statistics exclusion).
 
 ## Handover log

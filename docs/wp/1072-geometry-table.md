@@ -87,7 +87,7 @@ through the **full** parameter covariance, and the CIF export writes the
 ## References
 
 - McCusker et al. (1999), §10, §11. Local copy at
-  `~/zotero-linker/derived/YWSBLSIS/`.
+  corpus item `YWSBLSIS`.
 - WP-0301 (coordinate DOF machinery), WP-0304 (`qpa.weight_fractions`, the
   full-covariance propagation precedent).
 
