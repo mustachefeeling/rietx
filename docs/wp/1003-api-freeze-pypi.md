@@ -110,8 +110,11 @@ Rulings 2026-08-16 unless noted; grounds in each item's source WP.
   needed) and `DataRef.has_sigma` covering reader-derived σ (the flag means
   "σ not Poisson-fallback").
 - `Atom.species` (1014): the GUI-stricter asymmetry is **documented as
-  deliberate** (earlier error on the human path); schema validation declined
-  for now, cheap to revisit.
+  deliberate** (earlier error on the human path; the compile error is the
+  authoritative one). Schema validation declined — and note it is *not* cheap
+  later: refusing previously-storable values is breaking under the hybrid
+  rule, so any future tightening is a read-time diagnostic or a better
+  compile error, never schema refusal.
 - Declined knobs (1071, 1072): no `fit(geometry=False)`, no per-histogram
   `data_support` — nothing needs either; both additive later.
 - `report.apply.RECIPES` classification **is** part of the report contract
