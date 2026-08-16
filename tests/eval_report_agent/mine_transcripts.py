@@ -151,11 +151,13 @@ def rung_only_fields() -> frozenset[str]:
 
     Derived from the live models, so a field that migrates onto ``FitReport``
     stops being a marker by itself.  Both modules are walked, not just their
-    top-level containers: ``stage`` is a rung field *and* an
-    ``IterationRecord`` field, so it disqualifies itself here rather than
-    needing an exclusion list.  What keeps ``actions`` usable is the JSON form
-    every marker is matched in (:func:`_as_json`) — ``"actions"`` cannot match
-    inside ``"suggested_actions"``.
+    top-level containers — which is also why the set moves with the schemas:
+    ``stage`` was disqualified by being an ``IterationRecord`` field too,
+    until WP-1003 deleted that never-populated class and ``stage`` became
+    rung-only by this same derivation, no exclusion list either way.  What
+    keeps ``actions`` usable is the JSON form every marker is matched in
+    (:func:`_as_json`) — ``"actions"`` cannot match inside
+    ``"suggested_actions"``.
     """
     elsewhere: set[str] = set()
     for module in (report_schemas, result_schemas):

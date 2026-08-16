@@ -558,14 +558,6 @@ class GeometryTable(Base):
         return [d for d in self.distances if not d.bonded]
 
 
-class IterationRecord(Base):
-    stage: str
-    iteration: int
-    cost: float
-    grad_norm: float | None = None
-    step_norm: float | None = None
-
-
 class StageResult(Base):
     name: str
     status: Literal["converged", "max_iter", "diverged", "skipped"]
@@ -622,7 +614,6 @@ class RefinementResult(Base):
     statistics: Statistics
     correlation_warnings: list[str] = Field(default_factory=list)
     stages: list[StageResult] = Field(default_factory=list)
-    history: list[IterationRecord] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
     provenance: Provenance
 

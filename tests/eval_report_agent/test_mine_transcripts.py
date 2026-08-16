@@ -85,9 +85,10 @@ def test_pull_matching_is_call_shaped_for_methods():
 def test_rung_markers_are_rung_only_and_non_empty():
     assert mt.RUNG_MARKERS
     assert mt.RUNG_MARKERS <= set(StageReport.model_fields)
-    # ``stage`` is a rung field *and* an IterationRecord field, so the
-    # derivation must disqualify it without an exclusion list
-    assert "stage" not in mt.RUNG_MARKERS
+    # ``stage`` was disqualified while IterationRecord existed; WP-1003
+    # deleted that dead class, so the same derivation now admits it — the
+    # assertion tracks the schemas, not a frozen list
+    assert "stage" in mt.RUNG_MARKERS
     # ``actions`` survives because delivery is matched in JSON form
     assert "actions" in mt.RUNG_MARKERS
     assert mt._as_json("actions").search('"suggested_actions": []') is None

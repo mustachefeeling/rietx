@@ -371,12 +371,6 @@ Instrument.geometry
 Instrument.profile
 Instrument.source
 Instrument.zero_shift
-IterationRecord
-IterationRecord.cost
-IterationRecord.grad_norm
-IterationRecord.iteration
-IterationRecord.stage
-IterationRecord.step_norm
 LeBailGap.n_cycles
 LeBailGap.rwp_lebail
 LeBailGap.rwp_rietveld
@@ -668,7 +662,6 @@ RefinementResult.absorption
 RefinementResult.correlation_warnings
 RefinementResult.for_histogram
 RefinementResult.histograms
-RefinementResult.history
 RefinementResult.identifiability
 RefinementResult.mode
 RefinementResult.node_id
