@@ -90,12 +90,20 @@ def test_stage_spec_round_trips_strain_seed():
 
 
 def test_plan_spec_is_one_class_everywhere():
-    """History and the agent surface must not re-acquire private copies."""
+    """History and the agent surface must not re-acquire private copies.
+
+    The compat re-exports went pre-freeze (WP-1003): ``StageSpec`` is spelled
+    only ``schemas.plan.StageSpec``, and its *absence* from the two old homes
+    is the guard — a re-acquired private copy would make the attribute exist.
+    ``PlanSpec`` stays imported in both because both use it, and it must be
+    the one class.
+    """
     from rietx import agent
     from rietx.schemas import history, plan
 
-    assert history.StageSpec is plan.StageSpec is agent.StageSpec
     assert history.PlanSpec is plan.PlanSpec is agent.PlanSpec
+    assert not hasattr(history, "StageSpec")
+    assert not hasattr(agent, "StageSpec")
 
 
 def test_plan_spec_reads_a_pre_v1_history_header():

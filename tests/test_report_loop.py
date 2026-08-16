@@ -426,9 +426,11 @@ def test_e2_sample_displacement_baseline(truth):
 
 
 def test_e2_one_json_call_names_the_cause(truth):
-    """WP-1058's acceptance: one ``refine_json`` call on the untouched E2
-    request — the exact request every agent in the 1053 pilot made first —
-    comes back naming the displacement family.
+    """WP-1058's acceptance: one ``refine_json`` call on the E2 request,
+    asking for the trajectory, comes back naming the displacement family.
+    (``report_trajectory`` defaulted on when this landed; WP-1003 flipped it
+    on WP-1064's measured criterion, so the one call now asks explicitly —
+    what is asserted here is the *content*, which the flip does not touch.)
 
     The two halves are what the answer is made of, and neither is the other:
 
@@ -444,7 +446,7 @@ def test_e2_one_json_call_names_the_cause(truth):
       still separable.
 
     In the pilot the second half existed and reached nobody — no agent ever
-    generated a state where the report could say it.  Now the plain request
+    generated a state where the report could say it.  One call that asks
     carries it.
     """
     structure, ins, data = truth
@@ -452,6 +454,7 @@ def test_e2_one_json_call_names_the_cause(truth):
     start.geometry.sample_displacement.value = -0.02
 
     out = refine_json({"task": "refine",
+                       "report_trajectory": True,
                        "structure": structure.model_dump(mode="json"),
                        "instrument": start.model_dump(mode="json"),
                        "pattern": data.model_dump(mode="json")})

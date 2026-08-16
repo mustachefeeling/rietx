@@ -144,10 +144,14 @@ def test_indexing_controls_cover_index_pattern():
 # the bijection: the agent request
 # ----------------------------------------------------------------------
 def test_the_agent_re_exports_the_one_model():
+    """``SearchSpecSpec`` reaches the agent as the one class (it is the
+    ``IndexRequest.search`` annotation); the pure ``IndexingControls``
+    re-export went pre-freeze (WP-1003), and its absence is the guard against
+    a private copy coming back under that name."""
     import rietx.agent as ag
 
     assert ag.SearchSpecSpec is SearchSpecSpec
-    assert ag.IndexingControls is IndexingControls
+    assert not hasattr(ag, "IndexingControls")
 
 
 def test_the_agent_request_carries_every_control():
