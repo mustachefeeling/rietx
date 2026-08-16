@@ -58,26 +58,29 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**The McCusker compliance set is complete, and
-[1003](wp/1003-api-freeze-pypi.md) — API freeze and PyPI — is what is left.**
-The set came out of [1068](wp/1068-manual-second-pass.md)'s reading (✅): nine
-gaps, no correctness defect, six WPs — [1069](wp/1069-structure-r-factors.md),
-[1070](wp/1070-user-facing-constraints.md),
-[1071](wp/1071-data-support-checks.md), [1072](wp/1072-geometry-table.md),
-[1073](wp/1073-capillary-displacement.md) and
-[1074](wp/1074-restraint-weight-schedule.md), all closed. The index table
-carries what each landed; their narratives are in the v1.0 record.
+**v1.0 shipped 2026-08-16** ([record](milestones/v1.0.md)): public, gated,
+hosted, on PyPI. **The freeze is live**, so two rules now bind every session:
+a change to a frozen surface follows the hybrid classification in
+`docs/manual/using/compatibility.md`, and a 1.0.x manual chapter that
+documents a name *promotes it to frozen* — regenerate
+`tests/api_surface_deferred.txt` and earn a release-notes line
+([1067](wp/1067-user-api-manual.md)'s Inherited has the mechanics).
 
-**1003's mailbox is consumed**: the rulings live in its Context register, its
-Phases 1–3 are landed (freeze code changes, the promise in writing, packaging
-metadata), and what remains is Phase 4 — the staged flip to public, hosted and
-on PyPI — gated on the weekly CI verification run being green.
+**No milestone is in flight.** Opening the next one is a planning decision
+(version → `1.x.0.dev0`); the committed post-1.0 work, in rough order:
 
-**Five standing rules landed with the set, one per WP from 1070 on, and they
-are in CLAUDE.md § Invariants** rather than restated here — what a Jacobian
-branch's name claims to reach, what the observation count is and does not gate,
-how a derived esd is propagated and when it is absent, which geometry owns a
-position correction, and where a restraint weight may be applied.
+- **Promised in the 1.0.0 release notes, built in 1.0.x**: `.rex` zip
+  transport (export/open, "the directory, zipped");
+  `RefinementState.excluded_regions` with `replay` honouring the node's
+  regions (1003 §B — decided, not re-opened).
+- **[1067](wp/1067-user-api-manual.md)** — the remaining Part 1 chapters,
+  each promoting its names out of the provisional bucket.
+- **Post-1003 indexing work**: narrow what the acceptance fixtures search
+  (the nightly `full` job's ~77 min of setup — the durable lever the
+  timeout recalibration deferred), and the `grade` prior-counting change
+  (1046 §4, on the record in `consensus.grade`).
+- **[1017](wp/1017-gui-manual-onboarding.md)** — the GUI manual and
+  onboarding, still deferred; the GUI stays beta until it lands.
 
 1066's naming rule stands beside them: package, import, CLI and state dir are
 `rietx` while the on-disk tokens are brand-free (`.rex`, `.rxt` with header
@@ -95,7 +98,7 @@ tokens, blind to a hardcoded new one.
 | v0.4 | Differentiable backends: JAX jacfwd, mixed precision, torch-MPS; true Voigt; restraints | ✅ **shipped 2026-07-27** ([record](milestones/v0.4.md)) | Cross-backend Jacobian agreement (analytic/FD/jax/torch × 8 configs + multi-histogram + stage boundaries) inside the 5e-3 rel-L2 fp64 bar; an all-fp32 Apple-GPU refinement of SRM 676a lands Δa = −3.5e-8 Å from numpy fp64 (bar 3e-5); wall-clock reported, not gated — and it is a *finding*: MPS is 46-182× slower (launch-latency-bound) and jit'd jacfwd is within 2.1× of the analytic assembly at best, so the batched peak loop is a numpy-path win (WP-0605), not GPU enablement |
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ✅ **shipped 2026-07-28** ([record](milestones/v0.5.md)) | capillary absorption validated at **both** levels: the Rouse (1970) cylinder factor against a quadrature of the exact ITC eq. (6.3.3.4) integral across 0 ≤ µR ≤ 1 *and* 0 ≤ sin²θ ≤ 1 (0.0035, the paper's own bound), and on real 11-BM SRM 660a LaB₆ data in a documented 0.81 mm bore — Rwp moves 3e-8, the cell 8e-12 Å, and *both* Biso move by the predicted 0.0166542 Å². Plus the two accuracy wins no fit statistic shows: dispersion takes the round-robin QPA error from RMS 2.26 → 0.69 wt %, and a mis-declared flat-plate thickness biases Biso by up to −1.5 Å² |
 | v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop, theory manual | ✅ **shipped 2026-07-29** ([record](milestones/v0.6.md)) | bounded LM 0.74–1.04× vs scipy TRF (CPU — the expected Amdahl tie), identical minima on 2/3 protocols, ΔBIC −13 on the third, and the Stephens cone enforced as a linear inequality (brucite 12/43 → 0/43 outside, at higher Rwp); FCJ node memo 1.23× bit-identical; agent schema generated from live registries with a registry-membership meta-test; theory manual builds `-W`-clean with every fenced constant injected from the live package and five anti-divergence guards in the fast suite |
-| v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ⬜ | full validation matrix green; GUI end-to-end: `rietx gui` covers import → edit → refine → inspect → branch → export on 11-BM NAC, with Rwp matching the API-driven acceptance for the same protocol (the GUI is a view, not a second implementation); **indexing is graded against the individual program globals of the published bethanechol benchmark** (Bergmann et al. 2004 Table 5: ITO13 −14, DICVOL91 −8, TREOR90 −4, McMaille +5, Crysfire +6 — the former "≥ +9" was that table's `first_4` oracle over four programs, which no single entry reaches; restated by WP-1026) and abstains rather than ranking a cell on the mixture and unidentified-pattern fixtures |
+| v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ✅ **shipped 2026-08-16** ([record](milestones/v1.0.md)) | full suite green at ship: 2509 passed / 126 skipped locally (`[dev]`, macOS) and CI-green on Linux `[dev,jax]` (run 31966606174, full job 1h57); GUI end-to-end and the bethanechol individual-program grading landed by their WPs (record § Acceptance); repo public with six required checks gating `main`; manual + AGENT_PROTOCOL at yue-here.github.io/rietx, all URLs verified; `rietx` 1.0.0 on PyPI, fresh-venv install + `capabilities()` verified from the index; Windows fast suite green as the classifier's pre-upload gate — a gate that caught three real defects (CRLF-unstable checkouts, an SO_REUSEADDR double-bind in the GUI server, cp1252 example pipes) before the irreversible step |
 | v2+ | FPA, neutron/TOF, texture, MCP server | ⬜ fenced | — |
 
 ## Work packages
@@ -185,7 +188,7 @@ Both docs WPs (1017, 1067) are post-v1.0 — see that section below.
 | [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ✅ 2026-08-05 | ~~1036~~ ✅, 1014 (1004 soft) |
 | [1044](wp/1044-gui-view-cursor-theme.md) | GUI defects found by use: the view, the armed cursor, the theme | ✅ 2026-08-06 | 1029, 1032–1033, 1027 |
 | [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | ✅ 2026-07-31 | — |
-| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | 🔄 | 1001, 1002, 1004–1036 **except 1017** (deferred), 1067 § Floor |
+| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ✅ 2026-08-16 — two-strength freeze written and bound; repo public + CI gating + un-shaping as one change; Pages hosting; 1.0.0 uploaded after the Windows gate caught three real portability defects | 1001, 1002, 1004–1036 **except 1017** (deferred), 1067 § Floor |
 
 ### v1.0 — indexing (added 2026-07-29)
 

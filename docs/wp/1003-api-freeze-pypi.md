@@ -1,8 +1,8 @@
 # WP-1003 — API freeze + PyPI release
 
-Milestone: v1.0 · Status: 🔄 2026-08-16 — Phases 1–3 complete; Phase 4 pre-flip
-sweep + README + protocol packaging landed; blocked on run 31966606174 green
-and the user's skim of the candid files before the flip
+Milestone: v1.0 · Status: ✅ 2026-08-16 — shipped: repo public + CI gating +
+un-shaping as one change, manual + protocol hosted, 1.0.0 on PyPI after the
+Windows gate and the fresh-venv smoke test each caught real defects
 Depends on: every other v1.0 row, all closed. The release-gating half of the
 manual is [1067](1067-user-api-manual.md) § Floor (landed); 1067's remaining
 chapters, the GUI and indexing continue *after* this WP ships, and the freeze
@@ -335,10 +335,12 @@ Phase 4 — the staged flip (parallel track green first):
 - [x] Rewrite README against the hosted manual (front-loaded 2026-08-16;
       hosted links verified against the built HTML tree, re-verified live
       once Pages lands)
-- [ ] `pyproject.version` → 1.0.0; build; twine check; upload; fresh-venv
+- [x] `pyproject.version` → 1.0.0; build; twine check; upload; fresh-venv
       `pip install rietx==1.0.0` smoke test. **Windows job green is a
-      pre-upload gate** — the classifier claim ships only verified
-- [ ] Close: measured acceptance into `milestones/v1.0.md`, ROADMAP rows
+      pre-upload gate** — the classifier claim ships only verified (the gate
+      fired: three defects fixed and re-verified green before upload;
+      tag `v1.0.0` + GitHub release cut from the notes)
+- [x] Close: measured acceptance into `milestones/v1.0.md`, ROADMAP rows
       flipped, README claims checked
 
 ## Acceptance
@@ -355,6 +357,47 @@ uv build && uvx twine check dist/*                     # twine is not a dev extr
 
 ## Handover log
 
+- **2026-08-16 (execution, Phase 4 back half — SHIPPED, WP closed)** — the
+  same session as the front half, continued after the user approved the
+  candid files and supplied a PyPI token; run 31966606174 came back fully
+  green (full job 1h57).
+  - **The flip, as one change ~21:05 UTC**: visibility public → Pages
+    enabled (`build_type=workflow`) → `main` fast-forwarded → branch
+    protection (required checks lint + fast 3.11–3.14 + fast jax,
+    `enforce_admins` false). CI un-shaping authored *before* the flip on
+    the branch (all triggers main/schedule/dispatch, so nothing fired
+    early): nightly consolidation, per-push matrix regrowth, the Windows
+    job, path filters dropped (docs.yml retired with them — a filtered job
+    is a required check that never reports on a docs-only PR).
+  - **Both pre-upload gates fired, which is the design working**: the
+    Windows job's first run failed on three real defects (CRLF checkouts →
+    `.gitattributes` `* -text`; win32 `SO_REUSEADDR` = bind over a
+    LISTENING port, so the GUI server's busy-port fallback never engaged →
+    off on win32; cp1252 pipes killed the examples' χ → the runner pins
+    UTF-8 both ends), all fixed at the root, 2393 passed / 126 skipped on
+    the rerun. Earlier, the fresh-venv smoke test run against the dev
+    wheel caught Phase 3's unanchored `"gui"` sdist exclude dropping
+    `src/rietx/gui`'s python modules from every wheel (static survived on
+    a `.gitignore` negation); anchored to `/gui`, wheel test asserts the
+    modules by name.
+  - **Shipped**: 1.0.0 built from the fixed tree, twine-checked, uploaded
+    (https://pypi.org/project/rietx/1.0.0/), tag `v1.0.0` + GitHub release
+    from `docs/releases/1.0.0.md`; fresh 3.12 venv installing from the
+    index answers `capabilities()` and finds the bundled protocol; token
+    file deleted after upload (user advised to rotate). All ten hosted
+    URLs and nine README repo links 200; PyPI badge live.
+  - **Close bookkeeping**: measured acceptance into `milestones/v1.0.md`
+    § Acceptance + the close narrative into its rolling record; ROADMAP
+    v1.0 row ✅, 1003 row ✅, Current focus rewritten for the post-1.0
+    tracks (1.0.x promises, 1067 chapters, indexing narrowing, 1017);
+    CLAUDE.md's milestone paragraph rewritten at exactly the 700 cap.
+  - **Gotchas for successors**: the freeze binds now — the hybrid rule and
+    the promote-on-document mechanics live in `using/compatibility.md` and
+    1067's Inherited. `nightly.yml` runs the full suite *nightly*; the
+    ~77 min of indexing fixture setup is the first thing it will complain
+    about if the suite grows. `enforce_admins` is false by design. The
+    first scheduled nightly fires 06:00 UTC and includes macOS + torch legs
+    this dispatch already exercised.
 - **2026-08-16 (execution, Phase 4 front half; blocked on CI green + user
   skim)** — four commits on `wp1003-api-freeze-pypi`, all pushed:
   - **Pre-flip sweep (mechanical half) done**: `docs/LITERATURE.md` moved to

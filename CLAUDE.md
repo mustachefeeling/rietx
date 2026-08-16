@@ -624,15 +624,15 @@ them all:
 carry everywhere: commit per checklist item prefixed `WP-NNNN:`, and a CLAUDE.md
 takes **rules, not findings**.
 
-Shipped: **v0.1 … v0.6**, one record each in `docs/milestones/`; ROADMAP's table
-carries the acceptance one-liners, restated in neither place.
-
-**In flight: v1.0 — hardening, human GUI, indexing, API freeze, PyPI.**
-`pyproject.version` tracks the milestone *in flight* (1.0.0.dev0), not the last one
-shipped, because that string is stamped into every `RefinementResult.provenance`
-and history node. The GUI (WP-1004…1017) and **indexing** (WP-1018…1027) both land
-*before* the freeze (WP-1003) so it covers an exercised surface; grounds in the
-v1.0 record.
+Shipped: **v0.1 … v1.0**, one record each in `docs/milestones/`; ROADMAP's table
+carries the acceptance one-liners, restated in neither place. **v1.0 shipped
+2026-08-16**: repo public with CI gating `main`, manual + AGENT_PROTOCOL hosted
+at `_about.DOCS_URL`, 1.0.0 on PyPI — so the compatibility promise
+(`docs/manual/using/compatibility.md`) binds: data contracts frozen, documented
+surface frozen, the deferred bucket provisional. `pyproject.version` tracks the
+milestone in flight, or the last shipped when none is (1.0.0 today) — the
+string every `RefinementResult.provenance` and history node stamps. Post-1.0
+tracks: ROADMAP's Current focus; the next milestone opens at `1.x.0.dev0`.
 
 **Indexing — the rules that govern behavior outside `indexing/`.** The full
 dossier is `src/rietx/indexing/CLAUDE.md` (auto-loads when a session works
