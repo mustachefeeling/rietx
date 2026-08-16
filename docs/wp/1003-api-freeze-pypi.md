@@ -311,7 +311,7 @@ Phase 2 — the promise in writing:
 Phase 3 — packaging metadata:
 
 - [x] `authors`, classifiers (3.11–3.14, OS rows), `requires-python` check
-- [ ] Exclude `tests/` + `gui/` from the sdist; bundle third-party licence
+- [x] Exclude `tests/` + `gui/` from the sdist; bundle third-party licence
       texts; verify with `uv build` + `tests/test_gui_dist.py`
 - [ ] `CITATION.cff` + `@software` bib entry (via `_about.py`)
 - [ ] `CONTRIBUTING.md` + `AGENTS.md` + in-repo style essentials;

@@ -251,12 +251,13 @@ under `src/rietx/gui/static` and ships inside the wheel, so this package
 redistributes their compiled bytes. All are MIT, and none is modified — the
 lockfile `gui/package-lock.json` is the version statement, and
 `tests/test_gui_dist.py` is what keeps the shipped bytes tied to the sources
-they were built from.
+they were built from. Their licence texts ship in the wheel and sdist as
+`LICENSE-3RD-PARTY.md` (WP-1003).
 
 | Project | License | Relationship |
 |---|---|---|
 | Svelte | MIT | **Bundled** (WP-1010) — the compiler is a build-time tool, but its runtime is part of `assets/app.js`. |
-| CodeMirror 6 (`@codemirror/*`, `@lezer/highlight`, `style-mod`, `w3c-keyname`, `crelt`) | MIT | **Bundled** (WP-1013) — the text pane's editor, in its own `assets/vendor-cm.js` chunk, fetched when the pane is first opened. Unmodified: the `.rxt` highlighting is a `StreamLanguage` defined in this repo (`gui/src/lib/rxt.ts`), not a patched grammar. |
+| CodeMirror 6 (`@codemirror/*`, `@lezer/highlight`, `@lezer/common`, `style-mod`, `w3c-keyname`, `crelt`) | MIT | **Bundled** (WP-1013) — the text pane's editor, in its own `assets/vendor-cm.js` chunk, fetched when the pane is first opened. Unmodified: the `.rxt` highlighting is a `StreamLanguage` defined in this repo (`gui/src/lib/rxt.ts`), not a patched grammar. |
 | plotly.js | MIT | **Not bundled** — served at runtime from the installed `plotly` Python package (`/plotly.js`), so the dist carries no copy. |
 
 ## Data tables

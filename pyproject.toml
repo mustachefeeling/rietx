@@ -12,6 +12,11 @@ version = "1.0.0.dev0"
 description = "API-first, differentiable Rietveld refinement of powder X-ray diffraction data"
 readme = "README.md"
 license = "MIT"
+# LICENSE-3RD-PARTY.md carries the MIT texts of the JS packages bundled in the
+# committed GUI dist (Svelte's runtime, CodeMirror and its helpers) — the
+# wheel ships their code, so it ships their licences (ATTRIBUTION.md has the
+# provenance table).
+license-files = ["LICENSE", "LICENSE-3RD-PARTY.md"]
 requires-python = ">=3.11"
 authors = [{ name = "Yue Wu" }]
 keywords = ["rietveld", "powder-diffraction", "xrd", "crystallography", "refinement"]
@@ -88,6 +93,15 @@ rietx = "rietx.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rietx"]
+
+[tool.hatch.build.targets.sdist]
+# tests/ stays out: the QARR round-robin patterns are not redistributable
+# outside the IUCr distribution, and the data + darwin-only goldens are
+# ~25 MB nobody installs.  gui/ is the TS workspace; the wheel carries the
+# committed build output under src/rietx/gui/static instead.
+# gui/index.html needs naming twice: .gitignore re-includes it with a `!`
+# rule (vite's entry module), which outranks the directory exclude here.
+exclude = ["tests", "gui", "gui/index.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
