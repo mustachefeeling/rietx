@@ -99,9 +99,13 @@ Rulings 2026-08-16 unless noted; grounds in each item's source WP.
   measured the cost of its absence). `RegionAttribution.gate_failures` is
   restructured to carry a gate code per entry — pre-freeze, so the type change
   is free; `gui/src/lib/report.ts`'s `gateName` parse is retired.
-- Flat-plate-transmission position rows (1073's ratify item): **narrow** — the
-  `cos_theta`/`sin_2theta` rows name parameters `ParameterTable` force-fixes
-  there, the defect class 1073 fixed for capillaries. Extend
+- Flat-plate-transmission position rows (1073's ratify item): **keep the
+  diagnosis, drop the advice** (sharpened by the 2026-08-16 review — "narrow
+  the rows" would have removed evidence). Layer 1's `cos_theta`/`sin_2theta`
+  templates stay: the shape is *right* on a flat plate (a flat specimen off
+  the axis). Layer 2's two actions go, because they name parameters
+  `ParameterTable` force-fixes there — the defect class 1073 fixed for
+  capillaries — so the geometry reports the shape with no action. Extend
   `test_position_templates_and_actions_agree_geometry_by_geometry` to all
   three geometries; emission conditions change, so `THRESHOLDS_VERSION`
   1.0 → 1.1.
@@ -160,6 +164,11 @@ Rulings 2026-08-16 unless noted; grounds in each item's source WP.
   `match_window`" warning (narrowing the signature declined as churn).
 - `IndexingResult` keeps **no** unconditional singleton accessor; the
   API-shape tests stay (1024).
+- `INDEXING_THRESHOLDS_VERSION` (`schemas/indexing.py`, "1.2") is a *sixth*
+  versioned contract the `capabilities()` arm does not quote — found by the
+  2026-08-16 review. It **joins the contracts arm** (additive; the meta-test
+  extends), for the same reason report-thresholds is there despite also
+  riding on every report.
 
 **F. Packaging and publication**
 - sdist/wheel: **exclude `tests/`** (settles the QARR licence blocker — no
@@ -215,7 +224,13 @@ three behaviour changes (`two_theta_range` a window, `weighted=False`,
 `dpi=300`); the series `rung` column position (1051); emission-line weight
 locking; `METADATA_KEYS["wavelength_alpha2"]`'s load-bearing zero (documented);
 the three attenuator diagnostic codes staying three (1047 §8);
-`ReaderCapability` without a `scans` field (1047 §5).
+`ReaderCapability` without a `scans` field (1047 §5); a project's
+`backend`/`solver` staying *arguments* to `Project.open`, never `ProjectDoc`
+fields (1005 — persisting them needs a fallback policy nobody has written);
+the §9 loop contract exactly as `tests/test_report_loop.py` pins it, with
+`VerificationOutcome` carrying no node id confirmed deliberate (1052);
+`series_cold` kept beside `series_rung` on the wire (1051 §4 — dropping it is
+a priced version bump this WP does not take).
 
 **H. Blockers — work, not decisions**
 - **The weekly `full` CI job is dead**: cancelled at exactly 2h00 on
@@ -233,34 +248,65 @@ the three attenuator diagnostic codes staying three (1047 §8);
 
 ## Tasks
 
-Phase 1 — streamline and settled code changes (each its own commit):
+Parallel track — CI health (start beside Phase 1; `weekly.yml` has
+`workflow_dispatch`, so the hang reproduces on demand, and any fix must be in
+before the one full-suite run on the final tree):
+
+- [ ] Diagnose and fix the weekly `full` hang; suite green in CI
+- [ ] Fix the fluorite completion assertion
+
+Phase 1 — streamline and settled code changes (each its own commit; measured
+blast radii from the 2026-08-16 review):
 
 - [x] Expand the stub into this register and plan; consume `### Inherited`
-- [ ] Delete `RefinementResult.history` + `IterationRecord`
-- [ ] Delete the `StageSpec`/`PlanSpec` re-exports and `priors.PRIOR_FINDER`;
-      sweep importers
-- [ ] Make `log_sum_scores` (+ its two constants) private; keep its tests
-- [ ] Flip `RefineRequest.report_trajectory` to `False`
-- [ ] Add `Diagnostic.value`; restructure `gate_failures` with gate codes;
-      retire the frontend `gateName` parse
-- [ ] Narrow the flat-plate-transmission position rows; extend the geometry
-      meta-test to all three geometries; `THRESHOLDS_VERSION` → 1.1
+- [ ] Delete `RefinementResult.history` + `IterationRecord`; update the eval
+      miner's field-collision rule (`mine_transcripts.py` + its test lean on
+      `stage` being an `IterationRecord` field); no stored fixture carries the
+      key (verified)
+- [ ] Delete the moved-house re-exports: `schemas.history`'s
+      `StageSpec`/`PlanSpec` (one importer, `test_extinction.py:155`) and
+      `agent`'s plan *and* WP-1045 indexing blocks (zero in-tree importers,
+      verified); drop `PRIOR_FINDER` from `priors.__all__` only — priors.py
+      uses it internally at three sites and keeps its import
+- [ ] Make `log_sum_scores` (+ its two constants) private: underscore-prefix,
+      drop from `fom.__all__` and `indexing/__init__`, fix the `consensus.py`
+      docstring crossref and the `indexing/CLAUDE.md` mention; tests stay
+- [ ] Flip `RefineRequest.report_trajectory` to `False`; CLAUDE.md's
+      "default-on there" sentence moves in the same commit
+- [ ] Add `Diagnostic.value`; restructure `gate_failures` to carry gate codes —
+      the *package* string-matches gate names in five places (layer1 ×3,
+      layer2 ×2), so internal consumers switch to codes too; retire the
+      frontend `gateName` parse (`App.test.ts` fixtures, vitest +
+      svelte-check, committed dist rebuilt)
+- [ ] Drop the two flat-plate-transmission **Layer 2 actions** (Layer 1
+      templates stay — see the register); extend the geometry meta-test to all
+      three geometries; `THRESHOLDS_VERSION` → 1.1
 - [ ] File the internals (backend, compiled model, geometry, crystallography
-      helpers) in the api-surface exclusions with the internal sentence
+      helpers) in the api-surface exclusions with the internal sentence;
+      regenerate `api_surface_deferred.txt` after the deletions
+- [ ] `INDEXING_THRESHOLDS_VERSION` joins the `capabilities()` contracts arm;
+      extend the contracts meta-test
 - [ ] Docs-sentence batch: vary-or-tie contract + `initial`; `stderr=None`;
       `has_sigma`; species asymmetry; single-phase CIF claim; `q_match`
-      warning; `expected_delta_chi2`; the prior-corroborates rule
+      warning; `expected_delta_chi2`; the prior-corroborates rule;
+      `best_axis` always-populated semantics (1054); absent-for-cause `None`
+      conventions (`lebail_gap`, `abstained_kind`; 1057); a stored result
+      cannot recompute `identifiability` (1055); `ParameterRow` pins
+      `params.vector.Entry` by proxy (1004 c)
 
 Phase 2 — the promise in writing:
 
 - [ ] Compatibility page in manual Part 1: the two tiers, the hybrid rule with
       both clauses, the provisional list, the internal sentence, the JSON
-      dialect, the raw-bytes upload note
+      dialect, the raw-bytes upload note, the brand/format two-promises split
+      (1062/1066), and 1058's stated principle (a library primitive is cheap,
+      a delivery surface is complete)
 - [ ] Label the deferred bucket provisional in the partition and the manual
 - [ ] 1.0.0 release notes: dispersion default flip + exact escape hatch and
       edge-refusal first; beta GUI; provisional wire/`.rxt`; default flips
       (`weighted`, `dpi`, `report_trajectory`); series is session-scoped; zip
-      transport promised; the 1065 placement note
+      transport promised; `PlanSpec.stages` permissiveness (1004 d); the 1065
+      placement note
 
 Phase 3 — packaging metadata:
 
@@ -271,28 +317,29 @@ Phase 3 — packaging metadata:
 - [ ] `CONTRIBUTING.md` + `AGENTS.md` + in-repo style essentials;
       maintainer-only split stated
 
-Phase 4 — CI health, then the staged flip:
+Phase 4 — the staged flip (parallel track green first):
 
-- [ ] Diagnose and fix the weekly `full` hang; suite green in CI
-- [ ] Fix the fluorite completion assertion
 - [ ] Pre-flip sweep: move `LITERATURE.md` out + edit its references; CLAUDE.md
       private-path sweep; user skims the candid files
 - [ ] Flip: public + branch protection/required checks + CI un-shaping
       (nightly consolidation, matrix regrowth, Windows job, drop the free-tier
       conditionals) as one change
 - [ ] Host the manual + AGENT_PROTOCOL on Pages; point
-      `agent._TOOL_DESCRIPTION` at the URL
+      `agent._TOOL_DESCRIPTION` at the URL; protocol file into package data
 - [ ] Rewrite README against the hosted manual
-- [ ] `pyproject.version` → 1.0.0; build; `twine check`; upload; fresh-venv
-      `pip install rietx==1.0.0` smoke test
+- [ ] `pyproject.version` → 1.0.0; build; twine check; upload; fresh-venv
+      `pip install rietx==1.0.0` smoke test. **Windows job green is a
+      pre-upload gate** — the classifier claim ships only verified
 - [ ] Close: measured acceptance into `milestones/v1.0.md`, ROADMAP rows
       flipped, README claims checked
 
 ## Acceptance
 
 ```sh
+.venv/bin/python -m ruff check src tests examples
+.venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html
 .venv/bin/python -m pytest -n auto --dist loadgroup   # full suite, green
-uv build && .venv/bin/python -m twine check dist/*
+uv build && uvx twine check dist/*                     # twine is not a dev extra
 # fresh venv: pip install dist/*.whl && python -c "import rietx as rx; print(rx.capabilities().schema_version)"
 # after the flip: CI green and *gating* on the public repo; the manual URL
 # resolves; pip install rietx==1.0.0 works from a clean environment
@@ -300,6 +347,22 @@ uv build && .venv/bin/python -m twine check dist/*
 
 ## Handover log
 
+- **2026-08-16 (review)** — critical review before execution, verified
+  against the tree. Found and fixed in the plan: the flat-plate task would
+  have removed Layer 1's correct diagnosis along with Layer 2's bad advice
+  (register sharpened to keep-the-shape/drop-the-action); three consumed
+  mailbox rulings had been dropped and are restored to §G (backend/solver as
+  `Project.open` arguments, the 1052 loop-contract confirmation,
+  `series_cold` kept); `INDEXING_THRESHOLDS_VERSION` is a sixth contract
+  absent from the `capabilities()` arm — it joins (§E, new Phase 1 task).
+  Task texts now carry the measured blast radii: the package itself
+  string-matches gate names in five places, the eval miner leans on
+  `IterationRecord`'s field set, CLAUDE.md states the trajectory default,
+  `agent.py` has a second (indexing) moved-house re-export block with zero
+  importers, `priors.py` uses `PRIOR_FINDER` internally. CI health moved to a
+  parallel track (`workflow_dispatch` confirmed on `weekly.yml`); Windows-
+  green made a pre-upload gate; acceptance block corrected (twine is not a
+  dev extra; ruff + the `-W` manual build added).
 - **2026-08-16** — expanded from the stub. The ~1600-line `### Inherited`
   mailbox is fully consumed into the Context register: levers ruled with the
   user (two-strength freeze / hybrid change rule / staged publishing, grounds
