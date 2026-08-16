@@ -211,15 +211,72 @@ without a structure R. Decide, and push the ruling into each affected
 WP's `### Inherited` (their Depends lines carry the recommendation, not a
 ruling).
 
-**From [1068](1068-manual-second-pass.md), 2026-08-14 — one new public keyword
-to freeze.** `viz.plots.plot_result` gained `style: str = "light" | "dark"`,
-reached through `RefinementResult.plot(**kw)`. It exists because the manual's
-figures are committed in light/dark pairs and a plain matplotlib
-`dark_background` context is not enough: it flips the axes and leaves the
-difference curve and the background line at their hard-coded dark hues,
-invisible on black. The light path is unchanged, including its *empty* style
-context, so a caller's own matplotlib style still applies. `PALETTES` is public
-alongside it; `_STYLE` is not. Nothing else in `viz/` moved.
+**From [1068](1068-manual-second-pass.md), 2026-08-14, amended 2026-08-16 by
+[1075](1075-static-panel-conventions.md) — seven new public keywords, two new
+module constants and two default flips to freeze.** `viz.plots.plot_result`
+gained `style: str = "light" | "dark"`, reached through
+`RefinementResult.plot(**kw)`. It exists because the manual's figures are
+committed in light/dark pairs and a plain matplotlib `dark_background` context
+is not enough: it flips the axes and leaves the difference curve, the background
+line and the zero rule at their light-ground hues, invisible on black.
+`PALETTES` is public alongside it; `_STYLE` is gone, and so is the claim that
+the light path changes no rcParam.
+
+The 2026-08-16 restyle (the panel now follows the house figure conventions —
+gutter labels instead of a legend, colour by role, statistics as a corner
+annotation, type-derived row spacing) added three more, all optional and all
+about what the renderer cannot know or must be told:
+
+- `wavelength: float | None = None` — puts λ on the 2θ axis, which is
+  meaningless without it. A parameter rather than a lookup because
+  `RefinementResult` does **not** carry the emission line; only
+  `AbsorptionCorrection`/`MicroabsorptionCorrection` do, and reading it from
+  there would make the axis label depend on whether an unrelated correction
+  ran. If the freeze wants this to be a lookup instead, the field to add is on
+  the result, not on the plotter.
+- `figsize: tuple | None = None` and `font_size: float = BASE` (`BASE = 11.0`,
+  public) — the exposure surface. Defaults are `(7.6, 5.6)` panelled and
+  `(7.6, 4.4)` inline; the two move together, so freezing one without the other
+  would leave a caller able to widen the figure and not the type.
+
+1075 added three more, each a **string enum with a module constant beside it**,
+which is the shape to ratify — a client that wants to offer the choice reads the
+constant rather than hardcoding the members:
+
+- `x_axis: str = "two_theta"`, members in `viz.plots.X_AXES`
+  (`"two_theta" | "q" | "d"`). `"q"` and `"d"` are derived through `wavelength=`
+  and raise `ValueError` without it; they carry no λ in their label, because not
+  depending on it is the whole reason to use them. A *d* axis is drawn
+  **ascending** — the pattern mirrored rather than the axis counting down.
+- `y_scale: str = "linear"`, members in `viz.plots.Y_SCALES`
+  (`"linear" | "sqrt" | "log" | "asinh"`). Anything but `"linear"` moves the
+  raw difference into its own panel, on a linear axis in the intensity's own
+  units, because an offset raw difference is negative by construction.
+- `label_align: str = "bottom"` (`"bottom" | "curve"`) — the gutter's curve
+  names as one block bottom-aligned with the data, or each level with where its
+  own curve ends.
+
+**Three behaviour changes ride with them and are worth ratifying explicitly.**
+
+1. `two_theta_range` is now a **window**, and the intensity scale, the residual
+   offset and the tick rows are built from what it contains. It used to set only
+   `xlim`, leaving matplotlib to autoscale y over the whole pattern, so a zoom
+   into a weak region drew it flat under the full pattern's tallest peak. An
+   empty window now raises `ValueError` instead of drawing an empty frame. It
+   stays in **2θ** whatever `x_axis` is, because it selects channels rather
+   than describing the drawing.
+2. **`weighted` defaults to `False`** in both `plot_result` and
+   `viz.html.write_html` (it was `True` in both): the classic `obs − calc` on
+   the intensity axis, with the reflection rows below it rather than between it
+   and the data. Δ/σ is `weighted=True`. `viz/live.py` passes `sigma`
+   explicitly and is unaffected — a live stage-by-stage view is asking a
+   different question of the same numbers.
+3. **`dpi` defaults to 300** (was 150). A caller pinning file sizes should pass
+   it; a caller wanting no answer at all should pass a `.svg`/`.pdf` path.
+
+`plot_for_vlm` is drawn for a vision model, keeps its own fixed high-contrast
+ground and is exempt by design. `plot_trajectory` is **not** restyled and is the
+one renderer still outside the conventions — a separate pass, not a freeze item.
 
 **From [1017](1017-gui-manual-onboarding.md) and
 [1067](1067-user-api-manual.md), 2026-08-14 — the release ships a GUI marked
