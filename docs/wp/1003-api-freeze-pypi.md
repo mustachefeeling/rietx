@@ -1,7 +1,7 @@
 # WP-1003 — API freeze + PyPI release
 
-Milestone: v1.0 · Status: 🔄 2026-08-16 — expanded from the stub; levers ruled,
-execution starting
+Milestone: v1.0 · Status: 🔄 2026-08-16 — register ruled + reviewed; Phase 1
+5 of 9 landed, CI track diagnosed (weekly verification outstanding)
 Depends on: every other v1.0 row, all closed. The release-gating half of the
 manual is [1067](1067-user-api-manual.md) § Floor (landed); 1067's remaining
 chapters, the GUI and indexing continue *after* this WP ships, and the freeze
@@ -253,25 +253,25 @@ Parallel track — CI health (start beside Phase 1; `weekly.yml` has
 before the one full-suite run on the final tree):
 
 - [ ] Diagnose and fix the weekly `full` hang; suite green in CI
-- [ ] Fix the fluorite completion assertion
+- [x] Fix the fluorite completion assertion
 
 Phase 1 — streamline and settled code changes (each its own commit; measured
 blast radii from the 2026-08-16 review):
 
 - [x] Expand the stub into this register and plan; consume `### Inherited`
-- [ ] Delete `RefinementResult.history` + `IterationRecord`; update the eval
+- [x] Delete `RefinementResult.history` + `IterationRecord`; update the eval
       miner's field-collision rule (`mine_transcripts.py` + its test lean on
       `stage` being an `IterationRecord` field); no stored fixture carries the
       key (verified)
-- [ ] Delete the moved-house re-exports: `schemas.history`'s
+- [x] Delete the moved-house re-exports: `schemas.history`'s
       `StageSpec`/`PlanSpec` (one importer, `test_extinction.py:155`) and
       `agent`'s plan *and* WP-1045 indexing blocks (zero in-tree importers,
       verified); drop `PRIOR_FINDER` from `priors.__all__` only — priors.py
       uses it internally at three sites and keeps its import
-- [ ] Make `log_sum_scores` (+ its two constants) private: underscore-prefix,
+- [x] Make `log_sum_scores` (+ its two constants) private: underscore-prefix,
       drop from `fom.__all__` and `indexing/__init__`, fix the `consensus.py`
       docstring crossref and the `indexing/CLAUDE.md` mention; tests stay
-- [ ] Flip `RefineRequest.report_trajectory` to `False`; CLAUDE.md's
+- [x] Flip `RefineRequest.report_trajectory` to `False`; CLAUDE.md's
       "default-on there" sentence moves in the same commit
 - [ ] Add `Diagnostic.value`; restructure `gate_failures` to carry gate codes —
       the *package* string-matches gate names in five places (layer1 ×3,
@@ -347,6 +347,43 @@ uv build && uvx twine check dist/*                     # twine is not a dev extr
 
 ## Handover log
 
+- **2026-08-16 (execution, Phase 1 first half)** — five of Phase 1's nine
+  tasks landed plus the CI parallel track's diagnosis, all committed on
+  `wp1003-api-freeze-pypi`:
+  - **The weekly "hang" is growth, measured.** The 2026-08-16 scheduled run
+    *completed* at 1h57 (so no hang) with exactly one failure — the fluorite
+    load sensor — and its top four `--durations` rows are indexing-acceptance
+    fixture *setups* totalling ~77 min on the 2-core runner. Fluorite row
+    fixed (asserts the report, not the completion; machine-state
+    `search_incomplete` excluded from the caveat equality; 1 passed serially
+    in 220 s). `timeout-minutes` recalibrated 120 → 150 with the measurement
+    in the workflow comment; the narrowing lever is assigned to post-1003
+    indexing work. **Outstanding**: one verifying run —
+    `gh workflow run weekly.yml --ref wp1003-api-freeze-pypi` (~135 billed
+    min) or Saturday's schedule after merge.
+  - **Landed**: `RefinementResult.history` + `IterationRecord` deleted (the
+    eval miner's `stage` marker flipped to rung-only by its own derivation;
+    deferred surface 1002 → 995); the moved-house re-exports deleted
+    (`StageSpec` off `schemas.history` and `agent`, `IndexingControls` off
+    `agent`, `PRIOR_FINDER` off `priors.__all__` — the one-class guards now
+    assert the *absence*); `_log_sum_scores` private with its two constants;
+    `report_trajectory` default False (agent field text, `using/agents.md`,
+    root CLAUDE.md all follow; the E2 one-call acceptance asks explicitly).
+  - **Counts**: fast selection 2401 passed / 117 skipped (`[dev]`, no
+    jax/torch, macOS, main checkout, `-n auto --dist loadgroup`, 3:22–3:49
+    across two runs). Zero tests added or removed: the three guard rewrites
+    moved 3 failed → 3 passed and nothing else moved. Full suite not run —
+    the ladder fires it once on the final Phase 1 tree.
+  - **Next**: `gate_failures` + `Diagnostic.value` (largest remaining; GUI
+    dist rebuild + vitest ride along), flat-plate Layer 2 narrowing
+    (`THRESHOLDS_VERSION` → 1.1), internals filing + deferred regen,
+    `INDEXING_THRESHOLDS_VERSION` into the contracts arm, the docs-sentence
+    batch. Then the full suite once, and the weekly dispatch.
+  - **Gotchas**: `.pytest_cache/v/cache/lastfailed` is cumulative — read it
+    for failure names instead of rerunning a suite. Root CLAUDE.md sits
+    exactly at its 700-line cap; an addition must be paid for by a removal.
+    The fluorite/E2/one-class docstrings now carry WP-1003 rationale, so
+    reverting any of those decisions must touch them too.
 - **2026-08-16 (review)** — critical review before execution, verified
   against the tree. Found and fixed in the plan: the flat-plate task would
   have removed Layer 1's correct diagnosis along with Layer 2's bad advice
