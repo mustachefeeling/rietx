@@ -46,10 +46,6 @@ AmbiguityPartner.index
 AmbiguityPartner.system
 AmbiguityPartner.transformation
 AmbiguityPartner.volume
-AngleRestraint.atom_i
-AngleRestraint.atom_k
-AngleRestraint.sigma
-AngleRestraint.weight
 AnisoU
 AnisoU.from_values
 AnisoU.isotropic
@@ -742,9 +738,6 @@ RegionAttribution.mean_two_theta
 RegionAttribution.n_reflections
 RegionAttribution.two_theta_hi
 RegionAttribution.two_theta_lo
-RestraintReport
-RestraintRow.sigma
-RestraintRow.weight
 RoughnessPitschke
 RoughnessPitschke.c
 RoughnessPitschke.kind
@@ -1008,9 +1001,6 @@ TrendTemplate.r2
 TrendTemplate.stderr
 UnmatchedPeak
 UnmatchedPeak.two_theta
-ValueRestraint.sigma
-ValueRestraint.target
-ValueRestraint.weight
 determine_extinction_symbol
 estimate_mu_r
 format_su

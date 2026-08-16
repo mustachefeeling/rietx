@@ -260,14 +260,14 @@ validity.
 
 ## What the restraints did
 
-If the fit carried soft restraints, `RefinementResult.restraints` is where they
-report back — and on a restrained refinement it is the first thing to read,
+If the fit carried soft restraints, `RefinementResult.restraints` is a
+`RestraintReport`, and on a restrained refinement it is the first thing to read,
 before Rwp. [](concepts.md) covers declaring them and scheduling their weight;
 this is the object that comes back.
 
 | Field | Is | Reads as |
 |---|---|---|
-| `RestraintReport.rows` | one `RestraintRow` per restraint | `RestraintRow.computed` against `RestraintRow.target`, with `RestraintRow.deviation` and `RestraintRow.deviation_over_sigma` the two ways of reading the gap. `RestraintRow.kind`, `RestraintRow.atoms`, `RestraintRow.path` and `RestraintRow.phase_index` say which restraint it was. |
+| `RestraintReport.rows` | one `RestraintRow` per restraint | `RestraintRow.computed` against `RestraintRow.target`, with `RestraintRow.deviation` and `RestraintRow.deviation_over_sigma` the two ways of reading the gap — the second measured against the `RestraintRow.sigma` you declared, and `RestraintRow.weight` beside it. `RestraintRow.kind`, `RestraintRow.atoms`, `RestraintRow.path` and `RestraintRow.phase_index` say which restraint it was. |
 | `RestraintReport.restraint_chi2` | Σ weight·(deviation/σ)² | the penalty term S_G of {eq}`par-restraint-weight`, at unit weight scale. |
 | `RestraintReport.weight_scale` | the c_w the stage ran at | so the penalty the fit actually minimised is `RestraintReport.weight_scale` × `RestraintReport.restraint_chi2`. |
 | `RestraintReport.n_restraints` | how many rows there were | the rows are in the covariance but out of Rwp, so this is not part of N. |

@@ -212,13 +212,18 @@ occupancy = ValueRestraint(path="phases.0.atoms.1.occ", target=1.0, sigma=0.01)
 structure.phases[0].restraints = [bond, angle, occupancy]
 ```
 
-`BondRestraint.atom_i` and `BondRestraint.atom_j` are positional indices into
-`Phase.atoms`, the same convention the dot-paths use, and `AngleRestraint.atom_j`
-is the **vertex**. `BondRestraint.target` is in ångströms and
-`AngleRestraint.target_deg` in degrees; `ValueRestraint.path` takes any dot-path
-in the model tree. `BondRestraint.sigma` is the uncertainty you are claiming for
-that target, and it is what decides how hard the restraint pulls —
-`BondRestraint.weight` multiplies the row on top of it, and defaults to 1.
+| Restraint | Names the quantity with | Target |
+|---|---|---|
+| `BondRestraint` | `BondRestraint.atom_i` and `BondRestraint.atom_j` | `BondRestraint.target`, in ångströms |
+| `AngleRestraint` | `AngleRestraint.atom_i`, `AngleRestraint.atom_j` — the **vertex** — and `AngleRestraint.atom_k` | `AngleRestraint.target_deg`, in degrees |
+| `ValueRestraint` | `ValueRestraint.path`, any dot-path in the model tree | `ValueRestraint.target`, in that parameter's own unit |
+
+The atom fields are positional indices into `Phase.atoms`, the same convention
+the dot-paths use. All three kinds carry the same two numbers beside the
+target. `BondRestraint.sigma`, `AngleRestraint.sigma` and `ValueRestraint.sigma`
+are the uncertainty you are claiming, and that is what decides how hard the
+restraint pulls; `BondRestraint.weight`, `AngleRestraint.weight` and
+`ValueRestraint.weight` multiply the row on top of it and default to 1.
 
 Each restraint contributes one residual row, √weight·(computed − target)/σ,
 appended after the data rows ({eq}`par-restraint`). The rows land in the
