@@ -71,12 +71,10 @@ gaps, no correctness defect, six WPs — [1069](wp/1069-structure-r-factors.md),
 [1074](wp/1074-restraint-weight-schedule.md), all closed. The index table
 carries what each landed; their narratives are in the v1.0 record.
 
-**What 1003 inherits is in its own `### Inherited`**, and it is now the whole
-list: every field the six added to the frozen surface, the one
-`THRESHOLDS_VERSION` move (0.9 → 1.0, from 1073), and the two asymmetries left
-to ratify — 1073's `flat_plate_transmission` position rows, and the `.rxt`
-stage grammar, which 1074 made a *derivation* of `StageSpec` rather than a
-second listing, so freezing the schema now freezes the document format with it.
+**1003's mailbox is consumed**: the rulings live in its Context register, its
+Phases 1–3 are landed (freeze code changes, the promise in writing, packaging
+metadata), and what remains is Phase 4 — the staged flip to public, hosted and
+on PyPI — gated on the weekly CI verification run being green.
 
 **Five standing rules landed with the set, one per WP from 1070 on, and they
 are in CLAUDE.md § Invariants** rather than restated here — what a Jacobian

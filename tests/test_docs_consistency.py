@@ -136,7 +136,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # expensive one should fire.  Measured occasion: one session's ~80 min of
     # test time against ~43 min earned, the whole difference being a full run
     # launched mid-edit and therefore repeated.
-    "tests/CLAUDE.md": 198,
+    # 198 -> 205 for WP-1003 (2026-08-16): the budget section's numeric twin —
+    # a cross-fit agreement tolerance needs the measured cross-platform
+    # spread.  The section covered wall-clock budgets only, and the weekly CI
+    # failure that taught the rule was numeric.
+    "tests/CLAUDE.md": 205,
     # 250 at the WP-1060 split; raised once, for WP-1046's two standing rules
     # (which layer may apply a cap, and that agreement outranks the panel) —
     # both measured, and every number behind them is in the v1.0 appendix

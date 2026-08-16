@@ -111,6 +111,13 @@ searched reports whether its domain was exhausted".
 time with its declared budget; if the budget is not several times larger,
 the assertion is a load sensor.**
 
+**The numeric twin: a tolerance between two independently-converged fits
+senses solver termination unless it carries the measured cross-platform
+spread** — a TRF stopping point moves with platform libm while the physics
+does not (2.5e-6 on one Linux arm against darwin's 1e-9..1e-8;
+`test_acceptance_srm676a.py` §3 has both numbers). A one-platform pass margin
+under ~10x is the load sensor's smell again.
+
 **The honest-budget rule and the CI budget pull against each other, so expect
 to pay in scope.** Raising a real-data `budget_seconds` from 60 to 300 let
 one search run to completion at 850 s and took the full suite to 15:33; the

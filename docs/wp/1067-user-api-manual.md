@@ -238,6 +238,17 @@ things land here instead: the README **declares the GUI a beta feature**, and
 screenshots. Do not absorb any of 1017's mailbox — it is about panels that are
 still moving, which is why it was deferred.
 
+### Inherited
+
+- **From WP-1003 (2026-08-16): documenting a name now freezes it.** The
+  compatibility chapter (`docs/manual/using/compatibility.md`) promises that
+  a name a Part 1 chapter documents is frozen from the release that documents
+  it, and that the deferred bucket is the provisional tier. So each 1.0.x
+  chapter this WP lands is a compatibility event, not only a docs event:
+  regenerate `api_surface_deferred.txt` in the same change (the partition
+  fails otherwise), and give the promotion a line in that release's notes —
+  the release-notes precedent is `docs/releases/1.0.0.md`.
+
 ## Non-goals
 
 - **No GUI chapters** (WP-1017). One beta-marked line is the whole of it.

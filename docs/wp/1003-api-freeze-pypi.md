@@ -1,7 +1,7 @@
 # WP-1003 — API freeze + PyPI release
 
-Milestone: v1.0 · Status: 🔄 2026-08-16 — Phase 1 complete (9 of 9); full
-suite on the final tree and the weekly CI verification both outstanding
+Milestone: v1.0 · Status: 🔄 2026-08-16 — Phases 1–3 complete and locally
+verified; weekly CI run 31966606174 in flight; Phase 4 (the staged flip) next
 Depends on: every other v1.0 row, all closed. The release-gating half of the
 manual is [1067](1067-user-api-manual.md) § Floor (landed); 1067's remaining
 chapters, the GUI and indexing continue *after* this WP ships, and the freeze
@@ -347,6 +347,74 @@ uv build && uvx twine check dist/*                     # twine is not a dev extr
 
 ## Handover log
 
+- **2026-08-16 (execution, Phases 2 + 3 complete; Phase 1 verified; CI track
+  re-verifying)** — nine commits on `wp1003-api-freeze-pypi`, all pushed:
+  - **Phase 1 verification closed locally**: the full suite ran once on the
+    final Phase 1 tree — **2509 passed, 126 skipped, 0 failed** in 26:49
+    (`[dev]`, no jax/torch, macOS, main checkout, `-n auto --dist
+    loadgroup`).
+  - **The weekly verification run 31960416982 failed with exactly one new
+    failure, and it taught something**: no hang (1:59:10 under the 150-min
+    ceiling — the growth diagnosis stands), fluorite fix held, fast
+    3.11/3.14 green, but `test_acceptance_srm676a.py`'s R-lattice
+    equivalence failed at rel 2.5e-6 against its 1e-6 tolerance. Measured
+    before touching anything: darwin reproduces 2026-08-04's margins to the
+    digit on today's tree (1.4e-9 / 1.2e-8), and in the CI failure the
+    *hexagonal* arm agreed with darwin to 7e-10 — only the rhombohedral
+    arm's TRF stopping point moved. So the tolerance was sensing solver
+    termination, not the lattice; widened to 1e-5 with both measurements in
+    the test comment (the mis-tie it guards is ~3e-3, 300× away), and the
+    rule is now in `tests/CLAUDE.md` § Budgets as the load-sensor's numeric
+    twin. **Verifying run 31966606174 dispatched** against the branch head
+    (the full Phases 1–3 tree + fix); the CI-track task closes when it is
+    green — `gh run watch 31966606174`.
+  - **Phase 2 landed**: `docs/manual/using/compatibility.md` closes Part 1
+    (two tiers, hybrid rule with both clauses, provisional declarations,
+    internal sentence, JSON dialect + raw-bytes note, brand/format split,
+    the 1058 defaults principle) — every name it spells was already
+    documented, so the deferred bucket's 995 names are unmoved; the
+    deferred header and partition docstring now say "provisional tier";
+    `docs/releases/1.0.0.md` holds the release notes with repo-relative
+    links (Phase 4's hosting step swaps them for hosted URLs before the
+    release is cut).
+  - **Phase 3 landed**: authors/classifiers/OS rows (Development Status
+    flipped 2 → 5 in-session — Pre-Alpha on a 1.0.0 upload contradicts the
+    release; revisit if disagreed); sdist excludes `tests` + `gui` **and
+    `gui/index.html` by name** (the `.gitignore` `!gui/index.html`
+    negation outranks hatchling's directory exclude — the `!`-rule family
+    `tests/CLAUDE.md` warns about); wheel + sdist carry
+    `LICENSE-3RD-PARTY.md` via `license-files` (`@lezer/common` was
+    bundled but unlisted — verified by `topNode` literals in
+    `vendor-cm.js`; ATTRIBUTION row corrected); `CITATION.cff` +
+    `@software{rietx2026}` + a Citing section in the manual index, pinned
+    to `_about.DIST_NAME` by a new guard in `test_no_stale_name.py`;
+    `CONTRIBUTING.md` + `AGENTS.md` with the maintainer-only split stated.
+  - **Counts**: fast selection 2402 passed / 117 skipped, 3:37 (`[dev]`,
+    no jax/torch, macOS, main checkout, `-n auto --dist loadgroup`) —
+    passed+skipped moved by exactly +1, the citation-records guard, a pass
+    (not slow-marked, so both selections move by the same 1). ruff clean;
+    `-W` manual build clean; `uv build` + `uvx twine check` pass on
+    1.0.0.dev0; sdist verified to carry zero `tests/` or `gui/` paths;
+    `test_gui_dist` green; vitest untouched.
+  - **Forward reference pushed**: WP-1067 gained an `### Inherited` note —
+    documenting a name now freezes it, so each 1.0.x chapter regenerates
+    the deferred file and earns a release-notes line.
+  - **Next — Phase 4, in order, once 31966606174 is green**: (1) pre-flip
+    sweep (move `LITERATURE.md` out + edit its references in
+    ROADMAP/CLAUDE.md/WP-1056/1037; CLAUDE.md private-path sweep; **user
+    skims the candid files** — a user step); (2) the flip as one change
+    (public + branch protection + CI un-shaping incl. the Windows job);
+    (3) Pages hosting + `agent._TOOL_DESCRIPTION` URL + protocol file into
+    package data; (4) README rewrite; (5) version → 1.0.0, build, upload
+    (Windows green is the pre-upload gate); (6) close.
+  - **Gotchas**: nothing scans `docs/releases/` (link-checking covers
+    `docs/*.md`, `docs/wp`, `docs/milestones` only), so the release notes'
+    cross-links are checked by eye. `license-files` in `[project]` needs
+    the PEP 639-capable hatchling that uv fetches; an environment pinning
+    an old hatchling rejects the field. The citation guard means any
+    future rename must touch `CITATION.cff` + `references.bib` in the same
+    change. The full suite need not run again for this session's tree: the
+    only post-verification changes are docs, tests and packaging metadata.
 - **2026-08-16 (execution, Phase 1 complete)** — the remaining four Phase 1
   tasks landed, one commit each, on `wp1003-api-freeze-pypi`:
   - **Landed**: `Diagnostic.value` (populated from `GuardFinding.value` in
