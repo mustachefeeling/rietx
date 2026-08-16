@@ -27,6 +27,7 @@ import http.server
 import json
 import math
 import socket
+import sys
 import threading
 import time
 from pathlib import Path
@@ -546,6 +547,17 @@ def _handler(session: GuiSession, holder: dict):
 # ----------------------------------------------------------------------
 # serving
 # ----------------------------------------------------------------------
+class _Server(http.server.ThreadingHTTPServer):
+    # http.server sets allow_reuse_address (SO_REUSEADDR), which on POSIX
+    # means "rebind a TIME_WAIT port" — but on Windows it means "bind over a
+    # port another process is actively LISTENING on".  With it set there, a
+    # busy port binds without an OSError, the fallback below never engages,
+    # and two servers silently share :8731 (found by the busy-port test on
+    # the first Windows CI run, WP-1003).  Windows has no TIME_WAIT rebind
+    # problem for this server, so the flag buys nothing there either.
+    allow_reuse_address = sys.platform != "win32"
+
+
 def build_server(session: GuiSession, *, port: int = DEFAULT_PORT):
     """A bound ``ThreadingHTTPServer``, falling back to an ephemeral port.
 
@@ -557,9 +569,9 @@ def build_server(session: GuiSession, *, port: int = DEFAULT_PORT):
     holder: dict = {}
     handler = _handler(session, holder)
     try:
-        httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
+        httpd = _Server(("127.0.0.1", port), handler)
     except OSError:
-        httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        httpd = _Server(("127.0.0.1", 0), handler)
     httpd.daemon_threads = True
     holder["server"] = httpd
     return httpd

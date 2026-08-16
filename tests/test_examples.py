@@ -29,6 +29,7 @@ that the script ran, never what it found — one authority per fact).
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -45,6 +46,13 @@ def _run(script: str) -> subprocess.CompletedProcess[str]:
         [sys.executable, str(EXAMPLES / script)],
         capture_output=True,
         text=True,
+        # The scripts print χ and Å.  A reader's *interactive* console prints
+        # them on every platform (PEP 528 made the Windows console UTF-8);
+        # only a captured pipe falls back to the ANSI code page (cp1252) and
+        # dies encoding χ — so pin the pipe to what the console already does,
+        # on both ends of it.
+        encoding="utf-8",
+        env={**os.environ, "PYTHONUTF8": "1"},
         timeout=900,  # a runaway guard, not a timer (tests/CLAUDE.md): ~250x the measured cost
         cwd=REPO_ROOT,
     )

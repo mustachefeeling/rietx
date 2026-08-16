@@ -1,0 +1,9 @@
+# No end-of-line conversion, anywhere: a checkout is byte-identical to the
+# repository on every platform.  This repo carries byte-level contracts — the
+# frontend source digest (gui/scripts/build_info.py hashes file bytes), the
+# byte-for-byte pattern copy in a .rex project, the reader test data — and
+# Git for Windows ships core.autocrlf=true, which rewrote the GUI sources on
+# the Windows CI runner and failed the digest guard against the committed
+# build-info.json (WP-1003, 2026-08-16).  Everything in the object store is
+# LF; editors on every platform handle LF.
+* -text
