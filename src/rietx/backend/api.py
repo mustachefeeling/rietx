@@ -700,6 +700,11 @@ def set_backend(backend: Backend | str) -> None:
     """Install a backend namespace globally (one backend at a time — see
     docs/DESIGN.md).  Accepts a name (``"numpy"``, ``"jax"``, ``"torch"``,
     ``"torch-mps"``; resolved lazily) or an instance.  The solver flips this per
-    Jacobian call; user code should not need to call it directly."""
+    Jacobian call; user code should not need to call it directly.
+
+    **Process-wide state** (WP-1003): this is a mutable global, not a scoped
+    setting — two threads flipping it interleave, which is why the public
+    route is ``fit(backend=...)`` and this function sits off the frozen
+    surface (internal, like everything in ``rietx.backend``)."""
     global _BACKEND
     _BACKEND = resolve_backend(backend) if isinstance(backend, str) else backend

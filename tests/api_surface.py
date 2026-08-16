@@ -90,6 +90,31 @@ EXCLUDED_TYPES: dict[str, str] = {
 # Individual names, where the *type* is on the surface but one member is not.
 EXCLUSIONS: dict[str, str] = {}
 
+# --- the internal sentence, and what WP-1003 filed under it ---------------
+#
+# **Anything importable outside the derived surface is internal and may
+# change without notice.**  That sentence is normative (the compatibility
+# page states it to users); this note records the families ruled internal at
+# the freeze so a later session exporting one of them knows it is reopening
+# a decision, not filling a gap:
+#
+# - `rietx.backend` (WP-0401): `Backend`, `get_backend`, `set_backend`,
+#   `resolve_backend`, `MixedPrecisionPolicy`, the traced twin.  The public
+#   route is `fit(backend=...)`; `set_backend` is process-wide mutable state
+#   and says so in its docstring.
+# - `rietx.model` helpers (1071, 1072): the compiled model's members are
+#   dropped with the `CompiledModel` exclusion above; `model.geometry`'s
+#   computation (neighbour search, covariance propagation) is internal and
+#   its *output* is the surface (`GeometryTable`, reached from the result).
+# - `rietx.crystallography` (1018 and before): symmetry/wyckoff/stephens
+#   machinery.  Consumed through `ParameterTable` and the schemas; the
+#   authorities named in CLAUDE.md (`cell_constraints`, `adp_basis`, …) are
+#   authorities over *this package's* behaviour, not exports.
+#
+# These names are not entries in the tables above because an exclusion must
+# be live on the unfiltered surface (`test_exclusions_are_live_and_reasoned`)
+# and none of them reaches it — they are internal by the sentence alone.
+
 
 # --- derivation ------------------------------------------------------------
 
