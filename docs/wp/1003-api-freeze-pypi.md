@@ -314,7 +314,7 @@ Phase 3 — packaging metadata:
 - [x] Exclude `tests/` + `gui/` from the sdist; bundle third-party licence
       texts; verify with `uv build` + `tests/test_gui_dist.py`
 - [x] `CITATION.cff` + `@software` bib entry (via `_about.py`)
-- [ ] `CONTRIBUTING.md` + `AGENTS.md` + in-repo style essentials;
+- [x] `CONTRIBUTING.md` + `AGENTS.md` + in-repo style essentials;
       maintainer-only split stated
 
 Phase 4 — the staged flip (parallel track green first):
