@@ -190,7 +190,7 @@ Both docs WPs (1017, 1067) are post-v1.0 — see that section below.
 | [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ✅ 2026-08-05 | ~~1036~~ ✅, 1014 (1004 soft) |
 | [1044](wp/1044-gui-view-cursor-theme.md) | GUI defects found by use: the view, the armed cursor, the theme | ✅ 2026-08-06 | 1029, 1032–1033, 1027 |
 | [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | ✅ 2026-07-31 | — |
-| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1036 **except 1017** (deferred), 1067 § Floor |
+| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | 🔄 | 1001, 1002, 1004–1036 **except 1017** (deferred), 1067 § Floor |
 
 ### v1.0 — indexing (added 2026-07-29)
 
