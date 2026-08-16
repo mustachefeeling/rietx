@@ -101,7 +101,7 @@ def main() -> None:
 
     try:
         result.plot(path=str(Path(__file__).parent / "nac_fit.png"),
-                    two_theta_range=(2.0, 12.0))
+                    two_theta_range=(2.0, 12.0), wavelength=WAVELENGTH)
         print("\nplot written to examples/nac_fit.png")
     except ImportError:
         pass

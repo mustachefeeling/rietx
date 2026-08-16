@@ -87,14 +87,15 @@ def test_write_html_self_contained(tmp_path, synthetic_pattern):
     import re
     assert not re.search(r"<script[^>]+src=", html)
     assert out.stat().st_size > 1_000_000       # plotly.js embedded
-    # the weighted Δ/σ panel is the default (trace name survives either
-    # ensure_ascii choice in plotly's JSON serialization)
-    assert ("Δ/σ" in html) or ("\\u0394" in html)
-    # raw stays available
-    write_html(result, str(tmp_path / "fit_raw.html"), weighted=False,
+    # the raw difference is the default here as it is in the matplotlib panel:
+    # both are a file someone takes away and reads as a figure
+    assert "difference" in html
+    # Δ/σ stays available (the trace name survives either ensure_ascii choice
+    # in plotly's JSON serialization)
+    write_html(result, str(tmp_path / "fit_weighted.html"), weighted=True,
                include_plotlyjs="cdn")
-    raw_html = (tmp_path / "fit_raw.html").read_text(encoding="utf-8")
-    assert "difference" in raw_html
+    weighted_html = (tmp_path / "fit_weighted.html").read_text(encoding="utf-8")
+    assert ("Δ/σ" in weighted_html) or ("\\u0394" in weighted_html)
 
 
 def test_figure_from_arrays_weighted_and_raw():
@@ -114,48 +115,289 @@ def test_figure_from_arrays_weighted_and_raw():
     assert dsig.yaxis == "y2", "Δ/σ must live on its own axis, not intensity"
     assert max(abs(v) for v in dsig.y) < 10     # statistical scale, not counts
     assert len(weighted.layout.shapes) == 1     # the ±3σ band
+    # the rows follow the residual into the lower panel: the reading order is
+    # data, residual, index — the residual is read against the peaks that
+    # caused it, so nothing comes between them
+    row = weighted.data[names.index("hkl: phase 0")]
+    assert row.yaxis == "y2"
+    assert max(row.y) < min(dsig.y), "tick rows must sit below the Δ/σ trace"
 
     raw = figure_from_arrays(tt, y_obs, y_calc, None, ticks)
     names = [t.name for t in raw.data]
     assert "difference" in names and "Δ/σ" not in names
     assert all(t.yaxis in (None, "y") for t in raw.data)
+    assert (max(raw.data[names.index("hkl: phase 0")].y)
+            < min(raw.data[names.index("difference")].y))
 
 
-def test_plot_result_weighted_panels(synthetic_pattern):
+def test_plot_result_default_is_one_panel_with_the_raw_difference(
+        synthetic_pattern):
     structure, ins = perturbed_models()
     ref = rx.Refinement(structure, ins, history=False)
     result = ref.fit(synthetic_pattern)
 
     OUT.mkdir(exist_ok=True)
-    fig = result.plot(path=str(OUT / "viz_weighted_default.png"))
+    fig = result.plot(path=str(OUT / "viz_raw_default.png"))
     axes = fig.get_axes()
-    assert len(axes) == 2
-    assert axes[1].get_ylabel() == r"$\Delta/\sigma$"
+    assert len(axes) == 1, "the raw difference shares the intensity axis"
+    # the caption is the title: fit statistics ride as a corner annotation, so
+    # a panel pasted into a report does not arrive carrying a second one
+    assert axes[0].get_title() == ""
+    assert axes[0].get_legend() is None
+    assert any("Rwp" in t.get_text() or "R_" in t.get_text()
+               for t in axes[0].texts)
 
-    fig_raw = result.plot(path=str(OUT / "viz_raw_optout.png"), weighted=False)
-    assert len(fig_raw.get_axes()) == 1
+    fig_w = result.plot(path=str(OUT / "viz_weighted_optin.png"), weighted=True)
+    assert len(fig_w.get_axes()) == 2
+    assert fig_w.get_axes()[1].get_ylabel() == r"$\Delta/\sigma$"
+
+    # every gutter label lands inside the axes it labels, tick rows or not.
+    # Without rows there is almost nothing below the data floor, and the curve
+    # labels — which converge there on any pattern that ends in background —
+    # spread straight out of the bottom of the panel.  Nothing in matplotlib
+    # warns about that; only looking at it, or this, catches it.
+    bare = result.model_copy(deep=True)
+    bare.ticks = {}
+    for kw in ({}, {"weighted": True}, {"label_align": "curve"}):
+        stem = "_".join(["viz_no_ticks", *(f"{k}-{v}" for k, v in kw.items())])
+        ax = bare.plot(path=str(OUT / f"{stem}.png"), **kw).get_axes()[0]
+        lo, hi = ax.get_ylim()
+        assert all(lo <= t.get_position()[1] <= hi for t in ax.texts), kw
+
+
+def test_the_residual_sits_between_the_data_and_the_tick_rows(
+        synthetic_pattern):
+    """Reading order down the figure: data, residual, index — in both layouts.
+
+    Before this the weighted panel drew the rows on the *intensity* axes, which
+    put the index between the peaks and the residual they explain.  The two
+    layouts reach it differently — one axes with everything offset below the
+    floor, or the rows following the residual into the lower panel — so both
+    are asserted, and asserting only the drawn y values would pass on either
+    while the rows sat in the wrong axes.
+    """
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(synthetic_pattern)
+    OUT.mkdir(exist_ok=True)
+
+    from rietx.viz.plots import PALETTES
+    grey = PALETTES["light"]["diff"]
+    n = len(result.ticks)
+
+    inline = result.plot(path=str(OUT / "viz_order_inline.png")).get_axes()[0]
+    rows = inline.get_lines()[-n:]              # rows are drawn last
+    diff_line = next(ln for ln in inline.get_lines() if ln.get_color() == grey)
+    assert max(max(r.get_ydata()) for r in rows) < min(diff_line.get_ydata())
+
+    panel = result.plot(path=str(OUT / "viz_order_panel.png"),
+                        weighted=True).get_axes()
+    assert len(panel[0].get_lines()) <= 3, "rows left on the intensity axes"
+    assert len(panel[1].get_lines()) == 1 + n
+    rows = panel[1].get_lines()[-n:]
+    assert max(max(r.get_ydata()) for r in rows) < min(panel[1].get_lines()[0].get_ydata())
+
+
+def test_nonlinear_intensity_moves_the_difference_to_its_own_panel(
+        synthetic_pattern):
+    """A raw difference is negative by construction; a log axis cannot draw it.
+
+    So `y_scale` other than linear forces the panel layout — on a *linear*
+    axis, in the intensity's own units, which is a move and not a rescale.  The
+    layout arithmetic is done in the axis's transformed space, and the check
+    that it was is the headroom: on a log axis a fraction of the *data* range
+    would put the ceiling orders of magnitude above the tallest peak.
+    """
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(synthetic_pattern)
+    OUT.mkdir(exist_ok=True)
+    top = float(np.max(result.y_obs))
+
+    def headroom(ax):
+        """Share of the panel's *height* left above the tallest point."""
+        y_top = ax.transData.transform((ax.get_xlim()[0], top))[1]
+        floor_px = ax.transAxes.transform((0.0, 0.0))[1]
+        ceil_px = ax.transAxes.transform((0.0, 1.0))[1]
+        return (ceil_px - y_top) / (ceil_px - floor_px)
+
+    for scale in ("linear", "log", "sqrt", "asinh"):
+        fig = result.plot(path=str(OUT / f"viz_yscale_{scale}.png"),
+                          y_scale=scale, weighted=scale == "linear")
+        axes = fig.get_axes()
+        assert len(axes) == 2, scale
+        assert axes[0].get_yscale() == ("log" if scale == "log" else
+                                        "function" if scale == "sqrt" else
+                                        "linear" if scale == "linear" else scale)
+        assert axes[1].get_yscale() == "linear", scale
+        assert axes[1].get_ylabel() == ("obs $-$ calc" if scale != "linear"
+                                        else r"$\Delta/\sigma$"), scale
+        # the headroom is one fixed share of the panel's *height* on every
+        # scale — which is what "the layout is arithmetic in display distance"
+        # means, and what a fraction of the data range would not give
+        assert headroom(axes[0]) == pytest.approx(1 / 6, abs=0.01), scale
+        # and the spine still stops at the data, not at the ceiling
+        assert axes[0].spines["left"].get_bounds()[1] == pytest.approx(top)
+
+    with pytest.raises(ValueError, match="y_scale must be one of"):
+        result.plot(y_scale="logit")
+
+    # a pattern living inside one decade has no decade to label, and asking a
+    # log axis for the decades *inside its range* then returns none at all —
+    # an axis with no numbers on it, which nothing else here would notice
+    flat = result.model_copy(deep=True)
+    flat.y_obs = list(np.clip(np.asarray(result.y_obs), 300.0, 900.0))
+    ax = flat.plot(path=str(OUT / "viz_yscale_log_sub_decade.png"),
+                   y_scale="log").get_axes()[0]
+    assert len(ax.get_yticks()) >= 3
+
+
+def test_q_and_d_axes_are_the_same_pattern_in_another_coordinate(
+        synthetic_pattern):
+    """Q and d are derived through λ, so both demand it and neither states it.
+
+    A *d* axis is drawn ascending — the pattern mirrored rather than the axis
+    counting down — and the reflection rows have to make the same trip, which
+    is the half a transform on the curves alone would silently get wrong.
+    """
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(synthetic_pattern)
+    lam = ins.source.lines[0].wavelength
+    OUT.mkdir(exist_ok=True)
+
+    tt = np.asarray(result.two_theta)
+    sin_theta = np.sin(np.radians(tt) / 2.0)
+
+    q = result.plot(path=str(OUT / "viz_axis_q.png"), x_axis="q",
+                    wavelength=lam).get_axes()[0]
+    assert "$Q$" in q.get_xlabel() and "lambda" not in q.get_xlabel()
+    assert q.get_xlim()[1] == pytest.approx(4 * np.pi * sin_theta.max() / lam)
+
+    d = result.plot(path=str(OUT / "viz_axis_d.png"), x_axis="d",
+                    wavelength=lam).get_axes()[0]
+    lo, hi = d.get_xlim()
+    assert lo < hi, "a d axis is drawn ascending, never reversed"
+    assert hi == pytest.approx(lam / (2 * sin_theta.min()))
+    row = d.get_lines()[-1]
+    assert lo <= min(row.get_xdata()) and max(row.get_xdata()) <= hi
+
+    with pytest.raises(ValueError, match="wavelength"):
+        result.plot(x_axis="q")
+    with pytest.raises(ValueError, match="x_axis must be one of"):
+        result.plot(x_axis="tof", wavelength=lam)
+
+
+def test_curve_names_are_a_block_bottom_aligned_with_their_data(
+        synthetic_pattern):
+    """One block, one line of type apart, anchored at the foot of the data.
+
+    Levelling each name with where its own curve ends is the prettier rule and
+    the fragile one: observed, calculated and background all converge on the
+    background at the right-hand end of most patterns, so their natural heights
+    collide and the resolved order is whichever curve happened to end higher —
+    it shuffles between datasets and reads as meaning something.  The block is
+    fixed, in series order, and cannot collide with the residual's own label.
+    """
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(synthetic_pattern)
+    OUT.mkdir(exist_ok=True)
+
+    ax = result.plot(path=str(OUT / "viz_labels_block.png")).get_axes()[0]
+    named = {t.get_text(): t.get_position()[1] for t in ax.texts}
+    block = [named["observed"], named["calculated"]]
+    if "background" in named:
+        block.append(named["background"])
+    assert block == sorted(block, reverse=True), "series order, top to bottom"
+    gaps = [a - b for a, b in zip(block[:-1], block[1:], strict=True)]
+    assert max(gaps) - min(gaps) < 1e-9, "one line of type, evenly"
+    assert block[-1] - named["obs $-$ calc"] >= gaps[0] - 1e-9
+
+    with pytest.raises(ValueError, match="label_align must be"):
+        result.plot(label_align="middle")
+
+
+def test_a_zoom_is_a_figure_of_its_own_data(synthetic_pattern):
+    """`two_theta_range` is a window on the pattern, not a crop of the figure.
+
+    Before the panel took the house conventions the y axis autoscaled over the
+    *whole* pattern whatever the window was, so zooming into a weak region drew
+    it as a flat line under the full pattern's tallest peak.  Everything the
+    layout is built from — the intensity scale, the residual offset, the tick
+    rows — now comes from what the window contains.
+    """
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(synthetic_pattern)
+
+    tt = np.asarray(result.two_theta)
+    y = np.asarray(result.y_obs)
+    peak = float(tt[int(np.argmax(y))])
+    # a window that excludes the tallest peak, on whichever side has room
+    lo, hi = ((tt[0], peak - 1.0) if peak - tt[0] > tt[-1] - peak
+              else (peak + 1.0, tt[-1]))
+    window = (y[(tt >= lo) & (tt <= hi)]).max()
+
+    OUT.mkdir(exist_ok=True)
+    zoom = result.plot(path=str(OUT / "viz_zoom_window.png"),
+                       two_theta_range=(float(lo), float(hi)))
+    assert zoom.get_axes()[0].get_ylim()[1] < float(y.max())
+    # the spine spans the window's own data, so no peak escapes the axis and
+    # none of the axis is empty above it
+    assert zoom.get_axes()[0].spines["left"].get_bounds()[1] == pytest.approx(window)
+
+
+def test_one_phase_tick_row_is_neutral_and_two_are_not(synthetic_pattern):
+    """Colour is for telling rows apart, and one row has nothing to tell apart.
+
+    The failure this pins is a renderer that reaches into a phase palette by
+    row index: a single-phase pattern then gets a coloured row that means
+    nothing, and the reader spends attention learning a code with one entry.
+    """
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(synthetic_pattern)
+    assert len(result.ticks) == 1
+
+    from rietx.viz.plots import PALETTES
+
+    OUT.mkdir(exist_ok=True)
+    one = result.plot(path=str(OUT / "viz_ticks_one_phase.png"), weighted=False)
+    # the tick row is the last thing drawn on the intensity axes
+    assert one.get_axes()[0].get_lines()[-1].get_markerfacecolor() == \
+        PALETTES["light"]["tick"]
+
+    two = result.model_copy(deep=True)
+    name, positions = next(iter(result.ticks.items()))
+    two.ticks = {name: positions, "impurity": [p + 0.3 for p in positions]}
+    fig = two.plot(path=str(OUT / "viz_ticks_two_phases.png"), weighted=False)
+    rows = fig.get_axes()[0].get_lines()[-2:]
+    assert [r.get_markerfacecolor() for r in rows] == PALETTES["light"]["phase"][:2]
 
 
 def test_plot_style_dark_flips_the_ground_and_leaves_light_alone(synthetic_pattern):
-    """`style="dark"` exists because the difference curve and the background
-    line are chosen dark (WP-1068, for the manual's dark-mode figures), so a
-    plain `dark_background` context around the call would flip the axes and
-    leave those two invisible.  What matters is that the ground flips, the
-    series colours change with it, and the default path is untouched."""
+    """`style="dark"` exists because the residual, the background line and the
+    zero rule are chosen *per ground* (WP-1068, for the manual's dark-mode
+    figures): subordinate means darker than the text on a white page and dimmer
+    than it on a black one, so a plain `dark_background` context around the call
+    would flip the axes and leave all three at their light-ground hues.  What
+    matters is that the ground flips and the series colours change with it."""
     structure, ins = perturbed_models()
     ref = rx.Refinement(structure, ins, history=False)
     result = ref.fit(synthetic_pattern)
 
     OUT.mkdir(exist_ok=True)
-    light = result.plot(path=str(OUT / "viz_style_light.png"))
-    dark = result.plot(path=str(OUT / "viz_style_dark.png"), style="dark")
+    light = result.plot(path=str(OUT / "viz_style_light.png"), weighted=True)
+    dark = result.plot(path=str(OUT / "viz_style_dark.png"), style="dark",
+                       weighted=True)
 
     assert light.get_facecolor()[:3] == (1.0, 1.0, 1.0)
     assert sum(dark.get_facecolor()[:3]) < 0.3, "dark style did not darken the figure"
     # the difference curve is the one the plain style context would have lost
     light_diff = light.get_axes()[1].get_lines()[0].get_color()
     dark_diff = dark.get_axes()[1].get_lines()[0].get_color()
-    assert light_diff == "#4a4a4a" and dark_diff != light_diff
+    assert light_diff == "#737373" and dark_diff != light_diff
 
     with pytest.raises(ValueError, match="style must be one of"):
         result.plot(style="solarized")

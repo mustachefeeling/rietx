@@ -39,26 +39,46 @@ One more line draws the fit:
 
 <!-- api-doc: no-exec — it needs a result from the reader's own data -->
 ```python
-result.plot(path="my_sample.png", two_theta_range=(2.0, 12.0))
+result.plot(path="my_sample.png", two_theta_range=(2.0, 12.0),
+            wavelength=0.4139090)
 ```
 
 ```{image} figures/nac-fit-light.png
 :class: only-light
-:alt: Observed, calculated and difference curves for the NAC fit, with a delta over sigma panel below
+:alt: Observed points, calculated line, the obs minus calc difference below them and one row of reflection ticks per phase below that
 ```
 
 ```{image} figures/nac-fit-dark.png
 :class: only-dark
-:alt: Observed, calculated and difference curves for the NAC fit, with a delta over sigma panel below
+:alt: Observed points, calculated line, the obs minus calc difference below them and one row of reflection ticks per phase below that
 ```
 
-Observed points, the calculated line, one row of reflection ticks per phase,
-and Δ/σ in the lower panel. The difference is *weighted* by default, because a
-raw difference shares the intensity axis and the eye then reads a small
-deviation on a strong peak as a large error. Δ/σ has expectation 1 under a
-correct model, so the ±3 band is an absolute scale rather than a relative one.
-Pass `weighted=False` for the classic offset raw difference, and `style="dark"`
-for a figure going onto a dark page.
+Reading down: observed points, the calculated line, the `obs − calc` difference
+on the same axis at the same scale, then one row of reflection ticks per phase.
+The residual sits directly under the peaks that caused it, and nothing comes
+between them. Every series is named in the right-hand margin rather than in a
+legend the eye has to look up; the fit statistics sit in the corner, because a
+figure's title is its caption. `two_theta_range` is a *window*, not a crop — the
+intensity scale and the rows below it are built from what the window contains,
+so a zoom into a weak region is a figure of its own data.
+
+`weighted=True` draws Δ/σ instead, in its own panel with a ±3σ band: a raw
+difference shares the intensity axis, so the eye reads a small deviation on a
+strong peak as a large error, while Δ/σ has expectation 1 under a correct model
+and the band is an absolute scale rather than a relative one. It is not the
+default because it costs the one thing the classic layout gives away free — the
+residual and the peak that caused it in a single glance.
+
+`wavelength=` puts λ on the 2θ axis, which is meaningless without it; the result
+does not carry the emission line, so it has to be passed. It is also what
+`x_axis="q"` and `x_axis="d"` are derived through, and those two carry no λ of
+their own — that is the point of them. `y_scale=` takes `"sqrt"` (equal display
+distance for equal counting σ), `"log"` or `"asinh"`; any of them moves the
+difference into its own panel, since an offset raw difference is negative by
+construction and a nonlinear intensity axis cannot draw it. `style="dark"` is
+for a figure going onto a dark page, and `figsize=`/`font_size=` are the
+exposure surface: build the figure at the width it will be read at rather than
+scaling it in the document afterwards.
 
 ## `refine` or a `Refinement` session
 

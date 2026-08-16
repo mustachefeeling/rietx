@@ -53,7 +53,9 @@ LINES = {
 def _save(fig, stem: str, style: str) -> None:
     FIGURES.mkdir(parents=True, exist_ok=True)
     path = FIGURES / f"{stem}-{style}.png"
-    fig.savefig(path, dpi=110, bbox_inches="tight")
+    # 200 rather than the old 110: at 110 the type and the reflection marks
+    # fringe on any retina display, which is where the manual is read
+    fig.savefig(path, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"  {path.relative_to(REPO_ROOT)}")
 
@@ -248,13 +250,14 @@ def refinement_figures():
     """
     print("running examples/nac_11bm.py …")
     sys.path.insert(0, str(REPO_ROOT / "examples"))
-    from nac_11bm import run
+    from nac_11bm import WAVELENGTH, run
 
     data, ref, lebail, result = run()
 
     print("nac-fit / impurity-peak")
     for style in STYLES:
-        fig = result.plot(two_theta_range=(2.0, 12.0), style=style)
+        fig = result.plot(two_theta_range=(2.0, 12.0), style=style,
+                          wavelength=WAVELENGTH)
         _save(fig, "nac-fit", style)
 
         # The CaF2 111 line at 7.5 deg: the Le Bail model does not contain the

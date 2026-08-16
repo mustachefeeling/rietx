@@ -51,6 +51,18 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
     reads on an absolute statistical scale (Toby, 2024, J. Appl. Cryst. 57,
     175); it cannot share the intensity axis. Without ``sigma`` the classic
     offset raw difference is drawn in the single panel.
+
+    Either way the reflection rows go **below the difference**, which in the
+    weighted case means inside the lower panel: the residual is read against
+    the peaks that caused it, so nothing comes between them, and the rows are
+    an index of what the model contains.
+
+    Series colours are quoted from :data:`rietx.viz.plots.PALETTES`, not chosen
+    here: this and the matplotlib panel are two pictures of one fit, and a
+    person who flips between them must not have to relearn which curve is which.
+    The layout is the viewer's own — the legend stays, because in an interactive
+    figure it is a control (click a name to hide its trace) rather than a colour
+    key the eye has to look up.
     """
     try:
         import plotly.graph_objects as go
@@ -58,6 +70,9 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
         raise ImportError(
             f"the HTML viewer needs plotly: pip install '{DIST_NAME}[viz]'") from exc
 
+    from .plots import PALETTES
+
+    hue = PALETTES["light"]
     weighted = sigma is not None
     diff = (y_obs - y_calc) / sigma if weighted else y_obs - y_calc
     curves = [y_obs, y_calc, diff] + ([y_bkg] if y_bkg is not None else [])
@@ -71,44 +86,59 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
     if weighted:
         from plotly.subplots import make_subplots
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                            row_heights=[0.78, 0.22], vertical_spacing=0.03)
-        tick_base = -0.08 * span
+                            row_heights=[0.72, 0.28], vertical_spacing=0.05)
+        # the rows live in the lower panel, under the Δ/σ trace, and are spaced
+        # in its units rather than the intensity's
+        d_lo = min(float(np.min(diff_d)), -3.0)
+        d_hi = max(float(np.max(diff_d)), 3.0)
+        d_span = (d_hi - d_lo) or 1.0
+        tick_base, tick_step = d_lo - 0.14 * d_span, 0.09 * d_span
     else:
         fig = go.Figure()
         offset = -0.15 * span
-        tick_base = offset - 0.08 * span
+        # under the *drawn* difference, not under a fixed fraction of the
+        # intensity span: a noisy residual on a weak pattern reaches further
+        # down than the fraction allows and the rows land inside it
+        tick_base = offset + float(np.min(diff_d)) - 0.06 * span
+        tick_step = 0.05 * span
 
     fig.add_trace(go.Scattergl(x=tt_d, y=y_obs_d, mode="markers",
-                               marker={"size": 3, "color": "#1f5fa8"},
+                               marker={"size": 3, "color": hue["obs"]},
                                name="observed"))
     fig.add_trace(go.Scattergl(x=tt_d, y=y_calc_d, mode="lines",
-                               line={"width": 1.2, "color": "#c23b22"},
+                               line={"width": 1.2, "color": hue["calc"]},
                                name="calculated"))
     if y_bkg_d is not None and np.any(y_bkg_d):
         fig.add_trace(go.Scattergl(x=tt_d, y=y_bkg_d, mode="lines",
                                    line={"width": 1, "dash": "dash",
-                                         "color": "#7a7a7a"},
+                                         "color": hue["bkg"]},
                                    name="background"))
     if weighted:
         fig.add_trace(go.Scattergl(x=tt_d, y=diff_d, mode="lines",
-                                   line={"width": 1, "color": "#4a4a4a"},
+                                   line={"width": 1, "color": hue["diff"]},
                                    name="Δ/σ"), row=2, col=1)
         fig.add_hrect(y0=-3, y1=3, row=2, col=1, line_width=0,
-                      fillcolor="#2a9d2a", opacity=0.15)
+                      fillcolor=hue["band"], opacity=0.15)
     else:
         fig.add_trace(go.Scattergl(x=tt_d, y=diff_d + offset, mode="lines",
-                                   line={"width": 1, "color": "#4a4a4a"},
+                                   line={"width": 1, "color": hue["diff"]},
                                    name="difference"))
 
-    palette = ("#2a9d2a", "#7a1fa8", "#b8860b", "#008b8b")
+    # one row per phase, and the single-phase row stays neutral: colour is for
+    # telling rows apart, so one row has nothing to be told apart from
     for row, (name, positions) in enumerate(ticks.items()):
-        y_row = tick_base - row * 0.05 * span
+        y_row = tick_base - row * tick_step
         pos = np.asarray(positions, dtype=np.float64)
-        fig.add_trace(go.Scattergl(
+        colour = (hue["tick"] if len(ticks) == 1
+                  else hue["phase"][row % len(hue["phase"])])
+        trace = go.Scattergl(
             x=pos, y=np.full_like(pos, y_row), mode="markers",
-            marker={"symbol": "line-ns-open", "size": 7,
-                    "color": palette[row % len(palette)]},
-            name=f"hkl: {name}"))
+            marker={"symbol": "line-ns-open", "size": 7, "color": colour},
+            name=f"hkl: {name}")
+        if weighted:
+            fig.add_trace(trace, row=2, col=1)
+        else:
+            fig.add_trace(trace)
 
     fig.update_layout(
         title=title, template="simple_white",
@@ -125,9 +155,16 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
 
 
 def write_html(result: RefinementResult, path: str, *,
-               weighted: bool = True, include_plotlyjs: bool | str = True,
+               weighted: bool = False, include_plotlyjs: bool | str = True,
                max_points: int = 200_000) -> None:
-    """Render a :class:`RefinementResult` to a self-contained HTML file."""
+    """Render a :class:`RefinementResult` to a self-contained HTML file.
+
+    ``weighted`` defaults off, matching :func:`rietx.viz.plots.plot_result`:
+    both are a file someone takes away and reads as a figure, so they show the
+    same difference.  The *live* view (:mod:`rietx.viz.live`) passes ``sigma``
+    explicitly and keeps Δ/σ, because a stage-by-stage diagnostic is asking a
+    different question — is the model right yet — of the same numbers.
+    """
     s = result.statistics
     y_obs = np.asarray(result.y_obs)
     sigma = result.sig() if weighted else None
