@@ -24,8 +24,17 @@ from rietx.indexing.engines import (
 from rietx.indexing.reduce import NIGGLI_EPS_RELATIVE
 from rietx.model.absorption import CYLINDER_MU_R_MAX
 from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_FWHM_MULT
+from rietx.model.geometry import (
+    ANGLE_LINEARISATION_LIMIT_DEG,
+    VARIANCE_CANCELLATION_FLOOR,
+)
 from rietx.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
 from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
+from rietx.optimize.statistics import (
+    EFFECTIVE_OBS_ALPHA,
+    OBS_PER_PARAMETER_MIN,
+    OBS_PER_PARAMETER_PREFERRED,
+)
 from rietx.report.layer2 import IMPURITY_SIGMA
 from rietx.report.schemas import THRESHOLDS_VERSION, VALIDITY_RADIUS_FWHM
 from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
@@ -58,8 +67,16 @@ bibtex_default_style = "alpha"
 
 myst_enable_extensions = ["dollarmath", "amsmath", "substitution", "colon_fence"]
 myst_substitutions = {
+    # An angle's esd is withheld this close to 0°/180°; the raw value carries
+    # fifteen digits of an arccos clamp, so it is formatted rather than typed —
+    # still derived, and a retuned clamp still moves the printed number.
+    "ANGLE_LINEARISATION_LIMIT_DEG": f"{ANGLE_LINEARISATION_LIMIT_DEG:.1e}",
     "BRINDLEY_MU_R_FENCE": BRINDLEY_MU_R_FENCE,
     "CYLINDER_MU_R_MAX": CYLINDER_MU_R_MAX,
+    "EFFECTIVE_OBS_ALPHA": EFFECTIVE_OBS_ALPHA,
+    "OBS_PER_PARAMETER_MIN": OBS_PER_PARAMETER_MIN,
+    "OBS_PER_PARAMETER_PREFERRED": OBS_PER_PARAMETER_PREFERRED,
+    "VARIANCE_CANCELLATION_FLOOR": VARIANCE_CANCELLATION_FLOOR,
     "DEFAULT_N_UNINDEXED": DEFAULT_N_UNINDEXED,
     "DEFAULT_SEARCH_LINES": DEFAULT_SEARCH_LINES,
     "SEARCH_POOL_MULTIPLE": SEARCH_POOL_MULTIPLE,

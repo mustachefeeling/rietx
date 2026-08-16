@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-14 — floor landed (gates 1003); the 1.0.x chapters remain
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-16 — floor landed (gates 1003); the McCusker set's pass landed; the 1.0.x chapters remain
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -238,74 +238,6 @@ things land here instead: the README **declares the GUI a beta feature**, and
 screenshots. Do not absorb any of 1017's mailbox — it is about panels that are
 still moving, which is why it was deferred.
 
-### Inherited
-
-**From [1072](1072-geometry-table.md), 2026-08-15 — the 1069/1071 trap a third
-time, and this one is the largest single block of prose-carried names in Part
-1.** `concepts.md` § Fit statistics gains "The bonding geometry", the only
-documentation of **thirty-six** public names (counted, not estimated:
-`python -m tests.api_surface` and grep the geometry ones, minus the fourteen
-that belong to the unrelated instrument `Geometry`). They are `GeometryTable`
-and its seven members, `GeometryDistance` and its eleven fields, `GeometryAngle`
-and its thirteen, `RefinementResult.geometry` and `FitReport.geometry`.
-`report.md` adds the bullet for the last of those and points here rather than
-repeating the fields. Same
-consequence as the two entries below — those names sit in the *documented*
-bucket because that prose spells them — so re-run `tests/test_manual_api.py`
-after any move, split or rewrite of § Fit statistics.
-
-Three things a rewrite must keep, none of them editorial. The section says a
-bond between two sites appears **twice**, once from each end, and that the row
-count naming an atom is its coordination number: that is the listing rule, not
-a caveat, and a reader who loses it will read every table as double-counted.
-It says `stderr = None` is *absence*, never zero, and names both routes there
-(no covariance; symmetry-fixed) — the esd being unquotable is the single most
-misreadable thing in the section. And the §10 sentence about the full
-correlation matrix is quoted, not paraphrased, because
-`GeometryDistance.stderr_diagonal` exists only to make that sentence
-measurable. The measured spread behind it (full/diagonal 0.71–1.15 on 11-BM
-NAC) is in WP-1072's handover and deliberately *not* in the chapter; if a pass
-wants a number there, take it from that handover rather than re-deriving one.
-
-**From [1071](1071-data-support-checks.md), 2026-08-15 — the same trap as
-1069's below, twice, plus one name that left the deferred bucket.**
-`concepts.md` § Fit statistics gains two subsections: "How many observations
-there are", which is the only documentation of `DataSupport`, its five fields
-and `RefinementResult.data_support`, and "How finely the peaks were sampled",
-likewise for `PatternDiagnostics.steps_per_fwhm` and `.n_peaks_measured`. Same
-consequence as 1069's paragraph — those names are documented *because that
-prose spells them* — so re-run `tests/test_manual_api.py` after any move.
-
-Two further things a rewrite has to keep. The second subsection is the **only**
-place `diagnose` is named in Part 1, and it was removed from
-`api_surface_deferred.txt` on that basis; dropping the mention without
-regenerating the bucket fails the partition from the *other* side
-(documented-and-deferred). And its python block carries
-`<!-- api-doc: no-exec — it needs the reader's own pattern -->`, because
-`rx.diagnose(data)` has no `data` to run against.
-
-The measured numbers in both subsections — the overlap sweep 22.0 → 3.9, the
-6.5 % α check — are from WP-1071's handover; trim them only against it.
-
-**From [1069](1069-structure-r-factors.md), 2026-08-15 — `concepts.md` gained a
-section, and the coverage partition now leans on its prose.** § Fit statistics
-has a new subsection, "Structure agreement indices", carrying the only
-documentation of seven public names: `PhaseAgreement` and its four fields,
-`RefinementResult.phase_agreement` and `HistogramResult.phase_agreement`. They
-are in the *documented* bucket purely because that prose spells them; there is
-no other chapter and no deferral entry. So if the 1.0.x pass moves, splits or
-rewrites § Fit statistics, re-run `tests/test_manual_api.py` before believing
-the move — `test_derived_surface_is_partitioned` is what fails, and it fails
-with a name list rather than a location, which is the slow way to find out.
-
-The subsection also carries two reading rules that are *measured*, not
-editorial, so trim them only against the numbers behind them (WP-1069's
-handover): both indices are biased towards the model that partitioned them, and
-neither is weighted, so a trace phase's R_B is not comparable with the major
-phase's. The second is repeated in `AGENT_PROTOCOL.md` § 4 step 9 on purpose —
-different audience, same measurement — and that is not duplication to
-consolidate away.
-
 ## Non-goals
 
 - **No GUI chapters** (WP-1017). One beta-marked line is the whole of it.
@@ -376,6 +308,13 @@ consolidate away.
 
 ### After the release (1.0.x)
 
+- [x] **The McCusker set's manual pass** (2026-08-16). Six WPs each appended to
+      one section; this is the pass that reconciles the manual with what they
+      shipped. Part 2 takes the four equations they added
+      (`par-restraint-weight`, `est-structure-r`, `est-mind`, `est-derived`);
+      `concepts.md` § Fit statistics becomes `using/results.md`; restraints get
+      documented at all; three figures; and the geometry-keyed position
+      templates and actions reach `report.md`.
 - [ ] `using/data.md` — `read_pattern` (`diagnostics=[]`, `scan=`, the
       reader's right to repair and its four consequences), `Structure` from
       CIF, `Instrument`, calibrate → save → load → sample.
@@ -430,6 +369,92 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-16 (the McCusker set's manual pass)** — six commits on
+  `wp1067-manual-mccusker-pass`. The set (1069–1074) shipped between 1068 and
+  this session and each WP appended to the manual as it landed; this pass is
+  what those six additions add up to, plus the three things none of them owned.
+  **The mailbox is consumed and deleted** — 1069's, 1071's and 1072's entries
+  all warned about the same move, § Fit statistics, and it has now happened;
+  every rule they asked to keep is in `using/results.md`, and
+  `test_manual_api.py` was re-run after it, which is what those entries were
+  really asking for.
+
+  **Part 2 was the real gap, and no single WP could see it.** Four of the six
+  added physics or statistics that Part 1 then described in prose while Part 2
+  carried nothing — which inverts the tree's own rule that Part 1 links a
+  numbered equation instead of restating one. Part 2 now has
+  `par-restraint-weight` (eq (7)'s c_w and the two seams it must not cross),
+  `est-structure-r` (R_B and R_F, with the partition bias and the unweighted
+  caveat), `est-mind` (Altomare's overlap-corrected count) and `est-derived`
+  (gᵀ·Cov·g, and the four ways a derived esd is absent rather than zero), plus
+  five injected constants. The standing rule went into root CLAUDE.md's manual
+  bullet, since the next correction will hit it too.
+
+  **`using/results.md` is a new chapter, not a new subject.** `concepts.md` had
+  grown to 570 lines with § Fit statistics at 215 of them, covering four
+  different questions because six WPs appended to whichever section was
+  nearest. It splits along the seam the chapter's own opening names: concepts
+  keeps how a refinement works, results takes what comes back. Chapter run is
+  now install → quickstart → concepts → **results** → report → files → agents.
+
+  **Restraints were undocumented.** 1074 documented how to *schedule* c_w in a
+  manual that never said how to declare a bond restraint, which is visible only
+  from outside that WP. `concepts.md` now has the three kinds, their PBC image
+  selection and what a row does to the residual; `results.md` reads
+  `RestraintReport` back. Together with naming every field those sections
+  introduce, the deferred bucket went **1044 → 1002**.
+
+  **Three staleness fixes outside the set's own sections**, all of the same
+  shape — a WP edited the section it was about, and the sentence that had to
+  move was somewhere else: `report.md` still said Layer 1 regresses position
+  against the flat-plate template set (geometry-keyed since 1073, and so are
+  the Layer 2 actions); `files.md` still described the CIF as structure + fit
+  (it now carries R_B/R_F and the `_geom_` loops with their symop list);
+  README described the old chapter run.
+
+  **Three figures, each drawn from a case that is already asserted** —
+  `make_figures.py` imports the fixtures rather than copying them, which is why
+  `test_restraints.py` grew a plain `schedule_inputs()` beside its fixture.
+  Measured while drawing them: the c_w pair lands Zr–O1 at **1.872 Å against
+  4.834 Å** (Rwp 0.0327 against 0.0393) and the difference curves are nearly
+  indistinguishable, which is the figure's whole point; the LaB6 sweep holds
+  **26 reflections while the effective count falls 22.0 → 3.7**; the geometry
+  esd ratio is **0.86–1.41 over 88 distances** at Rwp 0.0818.
+
+  **Numbers** (`[dev]` venv — no jax, no torch; darwin/arm64). Fast selection
+  **2395 passed, 117 skipped in 2:30**, identical to WP-1074's final tree:
+  this session adds no test. The full suite was **not** run — docs-only plus
+  one fixture refactor cannot move a measured number (`tests/CLAUDE.md`
+  § Running, rung 3). `sphinx -W` clean; the five touched pages screenshotted
+  in both themes at 1100 px with `scrollWidth == clientWidth` on every one.
+
+  **In flight: nothing.** Working tree clean.
+
+  **Next (1.0.x).** The seven post-release chapters, unchanged. `results.md`
+  makes two of them smaller than they were: `using/refining.md` no longer owes
+  the statistics, and `using/exports.md` no longer owes the CIF's contents.
+
+  **Gotchas.**
+
+  - **A figure caught a ratio the prose had the wrong way up.** WP-1072
+    measured full/diagonal 0.713–1.152; the manual sentence built from it read
+    as diagonal/full, which is 0.86–1.41. Both directions are defensible and
+    only one matches the number printed beside it. Drawing it is what found it.
+  - **The walkthrough's own fit cannot show that claim at all.** Under
+    `mccusker_default` the only free parameter a cubic distance depends on is
+    `a`, so the quadratic form has one term and full and diagonal agree to the
+    last digit — the figure needs `mccusker_structural`, and "the spread
+    appears only once the coordinates refine" is now a reading rule in the
+    chapter rather than an accident of which plan someone ran.
+  - **Cox & Papoular's weighted R_B was left uncited.** The `structure_r_factors`
+    docstring names it; it is in neither `references.bib` nor the local corpus,
+    and Part 2's guard is every bib entry being cited, not every claim carrying
+    a key. The sentence says no weighted variant is computed here and names
+    nobody.
+  - The manual's figures and `tests/` are now coupled in one direction:
+    `make_figures.py` imports two test modules. It runs by hand, so a rename
+    breaks a regeneration rather than a build — recorded in its docstring.
 
 - **2026-08-14 (review follow-up)** — nine review items on the landed floor,
   five commits on `wp1067-manual-followup`. **2269 passed / 108 skipped in

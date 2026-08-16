@@ -79,8 +79,9 @@ addresses into the parameter table, not attributes of a class.
 ## Part 1 — Using rietx
 
 The chapters run in the order a first session with the package runs: install
-it, get one fit to the end, learn what the fit did, read what came back, find
-out what is on disk, then wire it into something.
+it, get one fit to the end, learn what the fit did, read the numbers it
+returned, read the report on top of them, find out what is on disk, then wire
+it into something.
 
 ```{toctree}
 :caption: Part 1 — Using rietx
@@ -89,6 +90,7 @@ out what is on disk, then wire it into something.
 using/install
 using/quickstart
 using/concepts
+using/results
 using/report
 using/files
 using/agents

@@ -496,9 +496,14 @@ def _sched_instrument() -> Instrument:
     return ins
 
 
-@pytest.fixture(scope="module")
-def schedule_case():
-    """(pattern, [true Zr-O1, true Zr-O2]) for the under-determined P-1 case."""
+def schedule_inputs():
+    """(pattern, [true Zr-O1, true Zr-O2]) for the under-determined P-1 case.
+
+    A plain function beside the fixture so `docs/manual/make_figures.py` draws
+    the manual's c_w figure from *this* case rather than from a second copy of
+    it: the picture in the manual and the assertions below then cannot disagree
+    about what the schedule did.
+    """
     ins = _sched_instrument()
     truth = _sched_structure(_SCHED_TRUE)
     tt = np.arange(12.0, 34.0, 0.02)
@@ -517,6 +522,11 @@ def schedule_case():
     bonds = [r.computed for r in summarise_restraints(
         pm.restraints, pt.decode(pt.x0())).rows]
     return pattern, bonds
+
+
+@pytest.fixture(scope="module")
+def schedule_case():
+    return schedule_inputs()
 
 
 def _sched_run(pattern, bonds, c_w_first, c_w_second):

@@ -107,8 +107,10 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 
 **The manual ([docs/manual/](docs/manual/)) is in two parts.** *Part 1 — Using
 rietx* is the task-ordered guide to the library and its public API: install,
-one fit end to end, reading the report, and driving the package from a program
-or an agent loop. *Part 2 — Theory* is the numbered equations behind it. One
+one fit end to end, what the fit did, the numbers it returned and how to judge
+them, the report on top of them, what is on disk, and driving the package from
+a program or an agent loop. *Part 2 — Theory* is the numbered equations behind
+it. One
 Sphinx tree; build it with
 `python -m sphinx -W -b html docs/manual docs/manual/_build/html` after
 `pip install -e ".[docs]"`.

@@ -572,7 +572,9 @@ recent list, and is therefore not behind the 409 (WP-1044).
   from the live package in `conf.py`, every displayed equation carries a
   `*Source:*` line whose symbol must import, every bib entry is cited — so
   renaming a physics symbol or retuning a fenced constant means touching the
-  manual in the same change. **Part 1 — Using rietx** (`docs/manual/using/`,
+  manual in the same change, and **a WP that adds physics adds its equation
+  there**, never only Part 1 prose (four of the six McCusker WPs did the second
+  only — WP-1067's log). **Part 1 — Using rietx** (`docs/manual/using/`,
   `tests/test_manual_api.py`): a reference manual's failure is a *name*, so
   every dotted name and dot-path must resolve, every python block parses and
   either executes or carries a written reason, and the public call surface is
