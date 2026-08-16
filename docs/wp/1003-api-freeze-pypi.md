@@ -175,7 +175,10 @@ Rulings 2026-08-16 unless noted; grounds in each item's source WP.
   after real fixes, guarded by `tests/test_portability.py`).
 - Docs hosting: **GitHub Pages** off the existing Sphinx `-W` build, manual +
   `AGENT_PROTOCOL.md`; `agent._TOOL_DESCRIPTION`'s pointer becomes the hosted
-  URL (resolves for a pip-only user). No autodoc API reference at 1.0 — the
+  URL, **and** `AGENT_PROTOCOL.md` (one small file) ships as package data with
+  the description naming the installed copy too — an agent in a sandbox may
+  have no network, and the constraint is that the pointer resolves for a
+  pip-only user. No autodoc API reference at 1.0 — the
   provisional bucket needs no docs by design, and the 1.0.x chapters are the
   documentation road (0604's deferral answered).
 - README: rewritten against the hosted manual — one headline snippet plus
