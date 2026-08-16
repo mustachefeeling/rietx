@@ -52,6 +52,71 @@ A recurring result across the shipped corrections is that ΔRwp is a poor
 judge of physical improvements ({ref}`ch-corrections`, {ref}`ch-method`) —
 what these indices measure is agreement, not correctness.
 
+## Structure agreement indices
+
+Those indices compare profiles. The two that compare the *structure* are
+unweighted sums over reflections {cite}`mccusker1999` (their eqs 13 and 14):
+
+```{math}
+:label: est-structure-r
+
+R_B = \frac{\sum_{hkl} \bigl| I_o - I_c \bigr|}{\sum_{hkl} I_o},
+\qquad
+R_F = \frac{\sum_{hkl} \bigl| |F_o| - |F_c| \bigr|}{\sum_{hkl} |F_o|},
+\qquad I_{hkl} = m\,|F_{hkl}|^2,
+```
+
+*Source:* `rietx.optimize.statistics.structure_r_factors`
+
+with $m$ the reflection multiplicity, so $|F| = \sqrt{I/m}$ and $R_F$ is the
+index a single-crystal $R$ is comparable with. Powder data measure neither
+sum directly: $I_o$ is the observed profile partitioned in proportion to
+$I_c$, which is the same partition {ref}`ch-intensities` performs for Le Bail
+extraction, evaluated once on the converged structural model. Two consequences
+are properties of that definition rather than of any implementation. Both
+indices are **biased towards the model being tested** — a wrong model receives
+the intensity it predicted — which is why the paper introduces them for
+monitoring a structure's improvement and not for judging one in isolation. And
+both are **unweighted**, so a reflection the weighted fit barely constrains
+counts as much as one that dominates it — no weighted variant is computed
+here, and a trace phase's $R_B$ is not comparable with the major phase's.
+
+## How many observations a pattern holds
+
+$N$ in {eq}`est-indices` counts profile steps, and the steps across one peak
+are repeated measurements of one number. Only the integrated intensities of
+individual reflections are unique observations {cite}`mccusker1999`, and
+overlap reduces even those: two reflections at one $2\theta$ are one
+observation, and two that partly overlap lie between one and two, because the
+profile shape still says how to split them. Altomare et al.
+{cite}`altomare1995` make that a count,
+
+```{math}
+:label: est-mind
+
+M_{\mathrm{ind}} = \sum_k \frac{I'_k}{I_k},
+\qquad
+I'_k = I_k - \int_{\chi_k} |F_k|^2\, G(\Delta 2\theta_k)\, \mathrm{d}(2\theta),
+```
+
+*Source:* `rietx.optimize.statistics.effective_observations`
+
+where $G$ is the symmetric profile of {ref}`ch-profiles` and $\chi_k$ is the
+part of reflection $k$'s own interval — $\pm${{ EFFECTIVE_OBS_ALPHA }} FWHM —
+on which some overlapping reflection stands higher. An isolated line
+contributes 1 and the weaker of an exactly coincident pair contributes 0, so
+the pair is one observation. The guideline built on it asks for at least
+{{ OBS_PER_PARAMETER_MIN }} and preferably
+{{ OBS_PER_PARAMETER_PREFERRED }} effective observations per *structural*
+parameter — the atomic ones, since peak positions rather than intensities pay
+for the cell, profile and background terms.
+
+The estimate is not a theorem, and both papers say so: the approach "may not
+have a rigorous basis". Its own $\alpha$ is a case in point — the paper's
+check at $\alpha = 4$ lands 6.5 % lower on average, so the value tabulated at
+$\alpha = 2$, and reported here for comparability with it, runs a little
+generous.
+
 ## Esds and the Bérar-Lelann inflation
 
 ```{math}
@@ -78,6 +143,48 @@ matrix, so a genuinely degenerate pair reports $|\rho| \approx 1$ and the
 0.98 high-correlation guard means what it says. Values are quoted with
 two-significant-figure su's per the IUCr convention
 {cite}`schwarzenbach1989`.
+
+## Esds of derived quantities
+
+A bond length, an angle or a weight fraction is a function of the refined
+parameters rather than one of them, and its esd is the quadratic form
+
+```{math}
+:label: est-derived
+
+\sigma_f^2 \;=\; g^\top \mathrm{Cov}\, g,
+\qquad g_i = \frac{\partial f}{\partial \theta_i},
+```
+
+*Source:* `rietx.model.geometry`
+
+over the **whole** covariance of {eq}`est-cov` — "the whole correlation
+matrix, not just the diagonal elements, should be included in the calculation"
+{cite}`mccusker1999`. Dropping the off-diagonal terms is not the conservative
+choice it looks like: measured across the 88 interatomic distances of an 11-BM
+NAC structural refinement, the diagonal-only number runs from 0.86 to 1.41
+times the full one, so it is as often too small as too large. Both are
+reported, which is what makes the difference visible rather than asserted —
+and the difference exists only where the coordinates refine, since a quantity
+depending on one free parameter has no off-diagonal term to drop.
+
+A derived esd is **absent rather than zero** whenever that form cannot be
+evaluated honestly, and there are four such cases: no covariance at all (an
+evaluate-only pass, a replayed history node); no free parameter the quantity
+depends on; a $g^\top \mathrm{Cov}\, g$ that reaches zero by cancellation,
+detected as a variance below {{ VARIANCE_CANCELLATION_FLOOR }} of its own
+form's absolute terms — a symmetry-fixed 90° angle has *exactly* zero variance
+while its partials against $x$, $y$ and $z$ do not vanish, so the quadratic
+form lands on roundoff; and an angle within
+{{ ANGLE_LINEARISATION_LIMIT_DEG }}° of 0° or 180°, where the angle is a
+stationary point of the coordinates and the linearisation the propagation
+rests on does not hold at all. The quantity itself is exact in all four cases;
+only its uncertainty is withheld.
+
+The partials are the restraint derivative chain of {eq}`par-restraint`
+evaluated at $\sigma = w = 1$ — a geometry row *is* a restraint row, so the
+two cannot drift apart, and it is why the weight scale of
+{eq}`par-restraint-weight` is kept out of them.
 
 ## Staged strategy and series
 

@@ -128,3 +128,33 @@ taken at a symmetry image $R\mathbf{x} + \mathbf{t} + \mathbf{n}$ with
 $(R, \mathbf{t}, \mathbf{n})$ **frozen per stage** — the exact analogue of
 the frozen reflection list — so positions move smoothly inside a stage
 while the discrete image choice stays fixed.
+
+## Weighting the restraints
+
+A stage scales every restraint at once. The minimised quantity is then
+eq (7) of the IUCr guidelines {cite}`mccusker1999`,
+
+```{math}
+:label: par-restraint-weight
+
+S \;=\; S_y \;+\; c_w S_G,
+\qquad S_G \;=\; \sum_k w_k \left(
+\frac{\mathrm{computed}_k(\theta) - \mathrm{target}_k}{\sigma_k}\right)^2,
+```
+
+*Source:* `rietx.model.forward.CompiledModel.restraint_residual`
+
+with $S_y$ the data rows of {eq}`est-obj` and $S_G$ the restraint rows of
+{eq}`par-restraint` squared. The guidelines set $c_w$ high while the structural
+model is incomplete or approximate and reduce it as the model improves, which
+makes it a property of the *stage* rather than of the restraint: it is frozen
+onto the compiled model at stage compile, so a schedule can only change it
+between stages, never inside one.
+
+Two seams decide where the scalar may act. $\sqrt{c_w}$ multiplies the
+**assembled** rows, so every backend sees it through one row builder; it never
+reaches the compiled restraints or their partials, whose second consumer
+computes the derived-quantity esds of {eq}`est-derived` at $\sigma = w = 1$ —
+a scale leaking that far would multiply every reported bond esd by
+$\sqrt{c_w}$. And $c_w = 0$ silences the rows without deleting them, so the row
+count the agreement statistics exclude cannot move part-way through a plan.
