@@ -8,7 +8,7 @@ name = "rietx"
 # recorded in docs/milestones/v0.6.md and v1.0 is open.  This string is stamped
 # into every RefinementResult's Provenance and every history node, so a stale
 # value silently mislabels the provenance of real results.
-version = "1.0.0.dev0"
+version = "1.0.0"
 description = "API-first, differentiable Rietveld refinement of powder X-ray diffraction data"
 readme = "README.md"
 license = "MIT"

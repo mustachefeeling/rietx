@@ -253,7 +253,8 @@ Parallel track — CI health (start beside Phase 1; `weekly.yml` has
 `workflow_dispatch`, so the hang reproduces on demand, and any fix must be in
 before the one full-suite run on the final tree):
 
-- [ ] Diagnose and fix the weekly `full` hang; suite green in CI
+- [x] Diagnose and fix the weekly `full` hang; suite green in CI (growth,
+      not a hang; run 31966606174 fully green 2026-08-16, 1h57 full job)
 - [x] Fix the fluorite completion assertion
 
 Phase 1 — streamline and settled code changes (each its own commit; measured
@@ -320,16 +321,17 @@ Phase 3 — packaging metadata:
 
 Phase 4 — the staged flip (parallel track green first):
 
-- [ ] Pre-flip sweep: move `LITERATURE.md` out + edit its references; CLAUDE.md
-      private-path sweep (both done 2026-08-16); **user skims the candid
-      files — outstanding**
-- [ ] Flip: public + branch protection/required checks + CI un-shaping
+- [x] Pre-flip sweep: move `LITERATURE.md` out + edit its references; CLAUDE.md
+      private-path sweep; user skimmed and approved 2026-08-16
+- [x] Flip: public + branch protection/required checks + CI un-shaping
       (nightly consolidation, matrix regrowth, Windows job, drop the free-tier
-      conditionals) as one change
-- [ ] Host the manual + AGENT_PROTOCOL on Pages; point
+      conditionals) as one change — 2026-08-16 ~21:05 UTC: visibility public,
+      main fast-forwarded, required checks lint + fast 3.11–3.14 + fast jax
+      (`enforce_admins` false so the maintainer's ff flow stands)
+- [x] Host the manual + AGENT_PROTOCOL on Pages; point
       `agent._TOOL_DESCRIPTION` at the URL; protocol file into package data
-      (URL + package-data halves done 2026-08-16 via `_about.DOCS_URL`;
-      the Pages workflow itself remains)
+      (Pages `build_type=workflow`, first deploy green; all ten hosted URLs
+      and all nine README repo links verified 200)
 - [x] Rewrite README against the hosted manual (front-loaded 2026-08-16;
       hosted links verified against the built HTML tree, re-verified live
       once Pages lands)
