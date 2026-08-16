@@ -33,7 +33,7 @@ not mean the fit failed.
 
 **`Statistics.rwp` is a fraction, not a percentage.** 0.0932 is the Rwp of 9.3 %
 you would quote in a paper. Every R-factor in the package is stored this way.
-[](concepts.md) says what each statistic measures.
+[](results.md) says what each statistic measures.
 
 One more line draws the fit:
 
@@ -145,8 +145,8 @@ Six things in it recur in every fit after this one:
 - **`RefinementResult.parameter`** looks one parameter up by path, with its esd:
   `result.parameter("phases.0.cell.a").stderr`.
 - **`RefinementResult.diagnostics`** is the channel for "your answer is wrong
-  although Rwp is fine". Read it every time. [](report.md) says what the codes
-  mean and what they do not.
+  although Rwp is fine". Read it every time. [](results.md) says what a
+  diagnostic carries, beside the statistics it outranks.
 - **`build_report`** turns the result into a `FitReport`: where the misfit is,
   what would fix it, and whether the package is confident enough to say so.
 
@@ -162,6 +162,9 @@ The curves are on the result as `RefinementResult.y_obs`,
 `RefinementResult.y_calc` and `RefinementResult.y_background`, over
 `RefinementResult.two_theta`. `RefinementResult.plot` writes an
 observed/calculated/difference figure with matplotlib (the `viz` extra).
+[](results.md) goes through the rest of the object field by field — the
+structure R-factors, the bonding geometry, and the two counts that say whether
+the pattern supported the model.
 
 **Rwp is not the answer.** It is a fit statistic, and this package can show you a
 fit whose Rwp improved while its displacement parameters and phase fractions
