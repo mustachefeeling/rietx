@@ -9,9 +9,9 @@ Two rules the values below follow, and they point in opposite directions:
 
 * **The brand tokens track the distribution.**  :data:`DIST_NAME` is what
   ``importlib.metadata.version`` is asked for, and :data:`STATE_DIR_NAME`,
-  :data:`STATE_DIR_ENV`, :data:`AGENT_TOOL_NAME`, :data:`DATA_PACKAGE` and
-  :data:`SERVER_TOKEN` are user-visible spellings of the same name.  Renaming
-  the package moves all six together.
+  :data:`STATE_DIR_ENV`, :data:`AGENT_TOOL_NAME`, :data:`DATA_PACKAGE`,
+  :data:`SERVER_TOKEN` and :data:`DOCS_URL` are user-visible spellings of the
+  same name.  Renaming the package moves all seven together.
 * **The format tokens do not.**  :data:`PROJECT_SUFFIX`, :data:`TEXTDOC_MAGIC`
   and :data:`PROFILE_FORMAT_KEY` name *versioned contracts*
   (``schemas.project.PROJECT_FORMAT_VERSION``, ``gui.textdoc.FORMAT_VERSION``,
@@ -70,3 +70,9 @@ DATA_PACKAGE = "rietx.data"
 #: Short token for ephemeral server-side names a person may see in a path or a
 #: stack trace: the upload staging directory and the run thread.
 SERVER_TOKEN = "rietx"
+
+#: Root of the hosted documentation (GitHub Pages, WP-1003), no trailing
+#: slash.  The agent tool description appends ``/AGENT_PROTOCOL.md``; the
+#: README and ``pyproject.urls`` quote it.  A brand token: a rename or a
+#: hosting move changes it here and nowhere else.
+DOCS_URL = "https://yue-here.github.io/rietx"

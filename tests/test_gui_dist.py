@@ -257,6 +257,10 @@ def test_the_dist_is_in_the_wheel(tmp_path):
     # needs it is opened
     wanted += [f"rietx/gui/static/assets/{p.name}"
                for p in sorted((DIST / "assets").glob("*.js"))]
+    # the agent protocol rides the same build (WP-1003): force-included as
+    # package data so the tool description's offline pointer resolves for a
+    # pip-only agent with no network
+    wanted.append("rietx/data/AGENT_PROTOCOL.md")
     for name in wanted:
         assert name in inside, f"{name} is missing from the wheel"
 

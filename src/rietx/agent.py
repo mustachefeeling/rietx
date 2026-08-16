@@ -95,7 +95,7 @@ from typing import Annotated, Literal, Union
 
 from pydantic import Field, TypeAdapter, ValidationError, field_validator, model_validator
 
-from ._about import AGENT_TOOL_NAME, DIST_NAME
+from ._about import AGENT_TOOL_NAME, DATA_PACKAGE, DIST_NAME, DOCS_URL
 from .backend.api import BACKEND_NAMES
 
 # importing the package (not ``.indexing.engines``) is what registers the engines,
@@ -668,8 +668,11 @@ _TOOL_DESCRIPTION = (
     "Jacobian evaluation (no fit, no mutation) — use it between fits to "
     "decide what to free next, and read an unresolved group as 'the data "
     "cannot separate these'. Read diagnostics before any "
-    "statistic — a warning there outranks Rwp (docs/AGENT_PROTOCOL.md is the "
-    "operating protocol). For a run you will reason about, request the "
+    "statistic — a warning there outranks Rwp. The operating protocol is "
+    "AGENT_PROTOCOL.md — hosted at " + DOCS_URL + "/AGENT_PROTOCOL.md, and "
+    "shipped offline in the install as "
+    "importlib.resources.files('" + DATA_PACKAGE + "')/'AGENT_PROTOCOL.md'. "
+    "For a run you will reason about, request the "
     "trajectory (report_trajectory=true) and READ IT, NOT ONLY THE FINAL "
     "REPORT: the converged report is routinely the least informative one in the run, "
     "because a staged fit can absorb a real error into a compensating "

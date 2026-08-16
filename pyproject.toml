@@ -87,12 +87,21 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/yue-here/rietx"
+Documentation = "https://yue-here.github.io/rietx"
 
 [project.scripts]
 rietx = "rietx.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rietx"]
+
+[tool.hatch.build.targets.wheel.force-include]
+# The agent protocol ships inside the wheel (WP-1003): the tool description
+# points at the hosted copy AND this one, because an agent's sandbox may have
+# no network.  docs/AGENT_PROTOCOL.md stays the one authority; this is a
+# build-time copy, absent from an editable install (where the repo file is
+# present instead).
+"docs/AGENT_PROTOCOL.md" = "rietx/data/AGENT_PROTOCOL.md"
 
 [tool.hatch.build.targets.sdist]
 # tests/ stays out: the QARR round-robin patterns are not redistributable
