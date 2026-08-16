@@ -301,7 +301,7 @@ Phase 2 — the promise in writing:
       dialect, the raw-bytes upload note, the brand/format two-promises split
       (1062/1066), and 1058's stated principle (a library primitive is cheap,
       a delivery surface is complete)
-- [ ] Label the deferred bucket provisional in the partition and the manual
+- [x] Label the deferred bucket provisional in the partition and the manual
 - [ ] 1.0.0 release notes: dispersion default flip + exact escape hatch and
       edge-refusal first; beta GUI; provisional wire/`.rxt`; default flips
       (`weighted`, `dpi`, `report_trajectory`); series is session-scoped; zip

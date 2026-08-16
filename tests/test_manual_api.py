@@ -16,7 +16,8 @@ of exactly that bug, so what is checked here is **names**:
   written reason it does not;
 * the derived public surface (`tests/api_surface.py`) is **partitioned**:
   every name is documented in a Part 1 chapter, excluded with a reason, or in
-  the generated `deferred-1.0.x` bucket.
+  the generated `deferred-1.0.x` bucket — the WP-1003 freeze's **provisional**
+  tier, whose names may still change in a 1.0.x release.
 
 The partition is what stops coverage from silently dropping.  A new public
 method is on the derived surface the moment it is written and in none of the
