@@ -1618,7 +1618,7 @@ def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
     #
     # So this row keeps its defect **and its reason**: the margin is comparable
     # within a member, not across members, and no aggregate of these seven
-    # numbers has yet been shown to read both patterns right.  `log_sum_scores`
+    # numbers has yet been shown to read both patterns right.  `_log_sum_scores`
     # is in `fom.py`, tested and unwired, with the measurement in its docstring.
     assert res.candidates[0].centring == "P", (
         "the panel still leads with the centring Le Bail refutes; invert this "

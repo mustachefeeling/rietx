@@ -588,7 +588,7 @@ def test_the_log_sum_reads_the_margin_where_borda_reads_only_the_winner():
     point on a win of any size, so four hairlines outvote a rout.  These are
     those margins, not the NAC values — the acceptance row owns those.
     """
-    from rietx.indexing.fom import log_sum_scores
+    from rietx.indexing.fom import _log_sum_scores
 
     names = ["a", "b", "c", "d", "e"]
     near_wins = [_member(n, v) for n, v in
@@ -599,7 +599,7 @@ def test_the_log_sum_reads_the_margin_where_borda_reads_only_the_winner():
     borda = borda_scores([near_wins, one_rout])
     assert borda[0] > borda[1], "the premise: Borda leads with the near-winner"
 
-    logs = log_sum_scores([near_wins, one_rout])
+    logs = _log_sum_scores([near_wins, one_rout])
     assert logs[1] > logs[0], "the fix: one 516x separation outweighs four hairlines"
 
 
@@ -618,7 +618,7 @@ def test_a_raw_log_sum_weights_each_member_by_its_dynamic_range():
     remember is that the fix is not "use magnitudes": it is that a margin is
     comparable **within** a member and not across members.
     """
-    from rietx.indexing.fom import log_sum_scores
+    from rietx.indexing.fom import _log_sum_scores
 
     names = ["m20", "f_n", "indexed_fraction", "indexed_intensity_fraction",
              "m_rev"]
@@ -631,7 +631,7 @@ def test_a_raw_log_sum_weights_each_member_by_its_dynamic_range():
         borda_scores([four_narrow_wins, broad_range_winner])[1], \
         "Borda counts four wins against one"
 
-    logs = log_sum_scores([four_narrow_wins, broad_range_winner])
+    logs = _log_sum_scores([four_narrow_wins, broad_range_winner])
     assert logs[1] > logs[0], (
         "one 12x win on the widest-ranging member outweighs four wins on "
         "members that cannot move that far — the measured corundum failure")
@@ -645,18 +645,18 @@ def test_the_log_sum_does_not_depend_on_any_members_units():
     quantity and three fractions, and there is no data on which to set weights.
     A log-sum keeps unit-invariance and, unlike a rank, keeps the margin too.
     """
-    from rietx.indexing.fom import log_sum_scores
+    from rietx.indexing.fom import _log_sum_scores
 
     rng = np.random.default_rng(1041)
     names = ["m20", "f_n", "indexed_fraction"]
     panels = [[_member(n, float(v)) for n, v in zip(names, row)]
               for row in rng.uniform(0.1, 40.0, size=(6, 3))]
-    base = log_sum_scores(panels)
+    base = _log_sum_scores(panels)
 
     for k, factor in enumerate((1e-6, 3.5, 2.4e5)):
         scaled = [[_member(f.name, f.value * factor if i == k else f.value)
                    for i, f in enumerate(p)] for p in panels]
-        moved = log_sum_scores(scaled)
+        moved = _log_sum_scores(scaled)
         assert np.argsort(-moved).tolist() == np.argsort(-base).tolist()
         # and the shift is the same constant for every candidate
         assert np.allclose(moved - base, np.log(factor))
@@ -677,15 +677,15 @@ def test_the_aggregate_drops_the_member_that_is_a_product_of_two_others():
     ``m_sym / m_rev`` = 1.15 against an ``m20`` of 1.43).
     """
     from rietx.indexing.fom import (
-        AGGREGATE_EXCLUDES,
+        _AGGREGATE_EXCLUDES,
+        _log_sum_scores,
         lattice_reflections,
-        log_sum_scores,
         n_cal,
         nearest_discrepancy,
         trimmed_mean,
     )
 
-    assert AGGREGATE_EXCLUDES == frozenset({"m_sym"})
+    assert _AGGREGATE_EXCLUDES == frozenset({"m_sym"})
 
     q, q_esd, tt, esd_tt, cell = _panel_inputs()
     panel = fom_panel(q, q_esd, np.ones_like(q), tt, esd_tt, cell, "cubic", "P",
@@ -712,7 +712,7 @@ def test_the_aggregate_drops_the_member_that_is_a_product_of_two_others():
     # and the aggregate acts on that: the member is absent from what it sums
     with_sym = [[*panel]]
     without = [[f for f in panel if f.name != "m_sym"]]
-    assert log_sum_scores(with_sym)[0] == pytest.approx(log_sum_scores(without)[0])
+    assert _log_sum_scores(with_sym)[0] == pytest.approx(_log_sum_scores(without)[0])
 
 
 def test_a_silent_member_does_not_collapse_every_score_to_minus_infinity():
@@ -722,15 +722,15 @@ def test_a_silent_member_does_not_collapse_every_score_to_minus_infinity():
     other members had already decided, so it is skipped.  A zero on a member
     where *someone* scored still floors, and still ranks worst.
     """
-    from rietx.indexing.fom import log_sum_scores
+    from rietx.indexing.fom import _log_sum_scores
 
     silent = [[_member("a", 0.0), _member("b", 2.0)],
               [_member("a", 0.0), _member("b", 1.0)]]
-    scores = log_sum_scores(silent)
+    scores = _log_sum_scores(silent)
     assert np.all(np.isfinite(scores))
     assert scores[0] > scores[1]
 
-    floored = log_sum_scores([[_member("a", 1.0)], [_member("a", 0.0)],
+    floored = _log_sum_scores([[_member("a", 1.0)], [_member("a", 0.0)],
                               [_member("a", float("nan"))]])
     assert floored[0] > floored[1]
     assert floored[1] == pytest.approx(floored[2]), (

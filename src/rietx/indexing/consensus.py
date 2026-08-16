@@ -393,7 +393,7 @@ def caveats_for(cand: CellCandidate, *, engines_run: Sequence[str],
     datasets with enough candidates to rank, against +0.44 pooled across them.
     So it is a comparative instrument, and reading it as a per-candidate verdict
     is the same mistake as scoring the FoM panel absolutely
-    (:func:`~rietx.indexing.fom.log_sum_scores`).
+    (:func:`~rietx.indexing.fom._log_sum_scores`).
     """
     out: list[IndexCaveat] = []
     engines = set(engines_run)

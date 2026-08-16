@@ -686,19 +686,19 @@ def borda_scores(panels: list[list[FigureOfMerit]]) -> np.ndarray:
 #: near-duplicate of the forward figure alongside ``m20``.  A rank aggregation
 #: could not see this — Borda is blind to one member being a monotone function of
 #: others — which is why the exclusion arrives with the log-sum and not before it.
-AGGREGATE_EXCLUDES: frozenset[str] = frozenset({"m_sym"})
+_AGGREGATE_EXCLUDES: frozenset[str] = frozenset({"m_sym"})
 
 #: How far below the best candidate a member's value is floored before its log is
 #: taken.  **Relative** to that best, so the floor rescales with the member and
 #: the aggregate stays invariant to its units; six orders down is past anything
 #: still in contention, so it only compresses hopeless candidates against each
 #: other rather than deciding between them.
-AGGREGATE_FLOOR_RTOL = 1e-6
+_AGGREGATE_FLOOR_RTOL = 1e-6
 
 
-def log_sum_scores(panels: list[list[FigureOfMerit]], *,
-                   exclude: frozenset[str] = AGGREGATE_EXCLUDES,
-                   floor_rtol: float = AGGREGATE_FLOOR_RTOL) -> np.ndarray:
+def _log_sum_scores(panels: list[list[FigureOfMerit]], *,
+                   exclude: frozenset[str] = _AGGREGATE_EXCLUDES,
+                   floor_rtol: float = _AGGREGATE_FLOOR_RTOL) -> np.ndarray:
     """Sum of ``log`` over the panel: magnitude-aware, still unit-invariant.
 
     Higher is better, and ranking on this is ranking on the **product** of the
@@ -822,11 +822,11 @@ def _blind(name: str, n_unindexed: int) -> str:
     return text
 
 
-__all__ = ["AGGREGATE_EXCLUDES", "AGGREGATE_FLOOR_RTOL", "FOM_N",
+__all__ = ["FOM_N",
            "MATCH_SIGMA", "borda_scores", "f_n",
            "fom_panel", "fom_panel_disagrees", "indexed_fraction",
            "lattice_group", "lattice_reflections", "laue_multiplicity",
-           "log_sum_scores", "m20",
+           "m20",
            "match_lines", "n_cal", "nearest_discrepancy", "panel_undefined",
            "predicted_lines",
            "predicted_seen_fraction", "q_of_two_theta", "trimmed_mean"]

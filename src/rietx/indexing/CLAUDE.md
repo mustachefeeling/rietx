@@ -157,7 +157,8 @@ panel decides within a tier. Inert inside an engine, where `found_by` is empty.
 **But the panel ranks; it does not score** (WP-1041) — a margin is comparable within a
 member, not across them, so a raw log-sum merely re-weights the panel by each member's
 dynamic range: 5 of 6 datasets, exactly Borda's, failing on a different one.
-`fom.log_sum_scores` carries the measurement and stays **unwired**. Two things the
+`fom._log_sum_scores` carries the measurement and stays **unwired** — made
+private pre-freeze (WP-1003) so it cannot be mistaken for the ranking. Two things the
 panel needs from its caller (WP-1026): the **matching window** is an argument
 (`fom_panel(..., q_match=)`) separate from the per-line σ, because coverage members
 must ask the same "is this the same line" question the *search* asked while M₂₀ and
