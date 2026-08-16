@@ -1,0 +1,20 @@
+# The title below is _about.DIST_NAME by value; YAML cannot import, so
+# tests/test_no_stale_name.py pins this file to the constant instead (the
+# import-from-_about rule, one medium over).  version/date-released are
+# deliberately absent: both rot between releases, and the package version is
+# read from the installed distribution, never from here.
+cff-version: 1.2.0
+message: If rietx contributed to published work, please cite it.
+type: software
+title: rietx
+abstract: API-first, differentiable Rietveld refinement of powder X-ray diffraction data
+authors:
+  - family-names: Wu
+    given-names: Yue
+license: MIT
+repository-code: https://github.com/yue-here/rietx
+keywords:
+  - rietveld
+  - powder-diffraction
+  - xrd
+  - crystallography

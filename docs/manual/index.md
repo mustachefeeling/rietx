@@ -131,6 +131,12 @@ engines
 method
 ```
 
+## Citing rietx
+
+If rietx contributed to published work, cite {cite}`rietx2026`. The
+repository carries the same record as `CITATION.cff`, which reference
+managers and GitHub's "cite this repository" button read directly.
+
 ## Bibliography
 
 ```{bibliography}

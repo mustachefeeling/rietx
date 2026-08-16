@@ -119,6 +119,25 @@ def test_no_tracked_path_carries_the_old_name():
     assert not named, f"tracked paths still spell the old name: {named}"
 
 
+def test_the_citation_records_quote_the_current_name():
+    """CITATION.cff and the manual's ``@software`` bib entry both carry the
+    distribution name, and neither is code, so neither can import
+    ``_about.DIST_NAME`` — this test is their import (WP-1003).  A future
+    rename that moves the brand tokens fails here instead of shipping a
+    citation record for a package that no longer exists.
+    """
+    from rietx._about import DIST_NAME
+
+    cff = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    assert re.search(rf"^title: {re.escape(DIST_NAME)}\s*$", cff, re.MULTILINE), (
+        "CITATION.cff's title is not the distribution name")
+    bib = (ROOT / "docs" / "manual" / "references.bib").read_text(encoding="utf-8")
+    entry = re.search(r"@software\{.*?\n\}", bib, re.DOTALL)
+    assert entry is not None, "references.bib has no @software entry"
+    assert DIST_NAME in entry.group(0), (
+        "the @software entry does not name the distribution")
+
+
 def test_every_allowlisted_file_still_exists_and_still_needs_it():
     """An allowlist that outlives its reason is an allowlist that hides a bug.
 
