@@ -326,7 +326,7 @@ start.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ deferred 2026-08-14 | 1011–1016, 1029, 1032–1035 (soft) |
-| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-14 — § Floor landed, so 1003 is unblocked; the 1.0.x chapters remain | 0604, 1004–1007, 1047 |
+| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-16 — § Floor landed, so 1003 is unblocked; the McCusker set's pass landed (Part 2 takes its four equations, `using/results.md` splits off, restraints documented, three figures); the 1.0.x chapters remain | 0604, 1004–1007, 1047 |
 | [1068](wp/1068-manual-second-pass.md) | Part 1 second pass: voice, figures, structure | ✅ 2026-08-15 — voice, sectioning, `concepts.md` + `files.md`, four diagrams, three figure pairs; the McCusker read fixed a false attribution and produced the compliance audit | 1067 |
 
 The GUI keeps moving, so it **ships as a beta feature** and is documented once

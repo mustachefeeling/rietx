@@ -134,12 +134,12 @@ degrees.
 
 ```{image} figures/geometry-esd-light.png
 :class: only-light
-:alt: Full-covariance against diagonal-only esds for the NAC bonds and contacts, scattered about the line of equality, with points on both sides of it
+:alt: Diagonal-only esd divided by the full-covariance esd for each NAC distance, scattered from 0.86 to 1.41 on both sides of a dotted line at one
 ```
 
 ```{image} figures/geometry-esd-dark.png
 :class: only-dark
-:alt: Full-covariance against diagonal-only esds for the NAC bonds and contacts, scattered about the line of equality, with points on both sides of it
+:alt: Diagonal-only esd divided by the full-covariance esd for each NAC distance, scattered from 0.86 to 1.41 on both sides of a dotted line at one
 ```
 
 Dropping the correlations is not a conservative approximation, and that is the
@@ -155,12 +155,16 @@ parameter, the quadratic form has one term, and the two esds agree to the last
 digit. Correlation between coordinates is what the guideline is about, which is
 also why a table quoted from a profile-only refinement has nothing to say here.
 
-Both are `None` in two situations that mean the same thing, and neither is
-σ = 0. A result with no covariance behind it — any evaluate-only pass, a replay
-of a history node included — has distances and no esds at all. And a row whose
-value is fixed by symmetry has no variance to report: a fluorite Ca–F distance
-with the cell held, or a rutile O–Ti–O angle, which stays at exactly 90° however
-the one free coordinate degree of freedom moves.
+An esd is `None` when it cannot be measured, and `None` is **absence, never
+σ = 0**. Four routes lead there, and they mean the same thing. A result with no
+covariance behind it — any evaluate-only pass, a replay of a history node
+included — has distances and no esds at all. So does a row nothing free
+reaches. A row whose value is fixed by symmetry has no variance to report: a
+fluorite Ca–F distance with the cell held, or a rutile O–Ti–O angle, which stays
+at exactly 90° however the one free coordinate degree of freedom moves. And an
+angle at 0° or 180° is a stationary point, where the linearisation behind
+{eq}`est-derived` does not hold at all. The distance or angle itself is exact in
+every one of the four; it is the uncertainty that is withheld.
 
 Geometry is Rietveld-only. `RefinementResult.geometry` is `None` in Le Bail and
 Pawley mode, where the dummy atom the mode requires is not a structure to
