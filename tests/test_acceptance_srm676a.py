@@ -171,18 +171,36 @@ def _lattice_only_plan():
     *atomic* coordinates never enter, so they cannot be got wrong and confound
     the comparison.  Stage order follows ``validation_plan``: ``w`` before the
     other width terms, because it is the only one non-zero at 2θ = 0.
+
+    The (profile, cell) round repeats until the descent flattens, and that is
+    load-bearing rather than thorough (measured 2026-08-17, darwin/arm64).  With
+    one round the two arms of the test below stop at Rwp 0.1499524 having agreed
+    to 1.2e-8 in c — but they agree because they are still on a *coincident*
+    path, not because the lattice says so.  The next round splits them
+    (0.146059 against 0.144896) and they settle 7.4e-5 apart at 0.1419093 and
+    0.1419837, flat to ~1e-8 from round six on.  A Linux runner's rhombohedral
+    arm splits a little differently, so the one-round coincidence held on darwin
+    and broke there, and the bar below was widened twice chasing it before
+    anyone plotted the descent (runs 31973603220, 32001934722, 32008985488).
+    Twelve rounds costs 3.4 s per arm and puts both arms at a stationary point,
+    which is the only place "the same lattice, described twice" is a claim about
+    the lattice rather than about where five stages happen to stop.
     """
     from rietx.strategy.staged import RefinementPlan, Stage
 
-    return RefinementPlan(stages=[
+    cell = ["phases.*.cell.*", "instrument.zero_shift"]
+    widths = ["instrument.profile.u", "instrument.profile.v",
+              "instrument.profile.x", "instrument.profile.y",
+              "phases.*.lor_size"]
+    stages = [
         Stage("bkg", ["instrument.background.*"]),
         Stage("profile_w", ["instrument.profile.w"]),
-        Stage("cell", ["phases.*.cell.*", "instrument.zero_shift"], max_iter=80),
-        Stage("profile", ["instrument.profile.u", "instrument.profile.v",
-                          "instrument.profile.x", "instrument.profile.y",
-                          "phases.*.lor_size"]),
-        Stage("cell2", ["phases.*.cell.*", "instrument.zero_shift"], max_iter=80),
-    ])
+        Stage("cell", cell, max_iter=80),
+    ]
+    for i in range(12):
+        stages.append(Stage(f"profile{i + 1}", widths))
+        stages.append(Stage(f"cell{i + 1}", cell, max_iter=80))
+    return RefinementPlan(stages=stages)
 
 
 def _lebail_corundum(symbol: str, cell: tuple[float, ...], data):
@@ -241,53 +259,34 @@ def test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell():
     assert cell_r.alpha.value == pytest.approx(alpha0, abs=0.02)
 
     # 3. the hexagonal image of the rhombohedral answer is the hexagonal
-    #    answer — the same lattice, described two ways, fitted independently.
-    #    Measured 2026-08-04 (darwin/arm64): 1.4e-9 on a and 1.2e-8 on c, Rwp
-    #    equal to 5 dp — re-measured identical 2026-08-16 and 2026-08-17.
+    #    answer — the same lattice, described two ways, fitted independently,
+    #    and compared where the comparison means something: the stationary
+    #    point the plan now runs to, for the reason its docstring gives.
     #
-    #    Linux CI reaches a *different* stopping point for (a_R, α),
-    #    deterministically — runs 31973603220 and 32001934722, on different
-    #    trees, agree to the last float64 bit — while its hexagonal arm lands
-    #    within 7.6e-9 of darwin's.  The conversion amplifies that stopping
-    #    point ~7x more into c than into a (2.5e-6 on a, weekly run
-    #    31960416982, against 1.72e-5 on c) because ∂c_H/∂α is the steep
-    #    direction at α ≈ 55.3°, which is why a bar sized on a in WP-1003
-    #    fired on c 12 days later.  rel=2e-4 carries the measured 1.72e-5 at
-    #    ~12x (the ~10x floor in tests/CLAUDE.md § Budgets) and still catches
-    #    the mis-tie this guards by 27x: pre-WP-1036 c never left its start,
-    #    5.44e-3 away in c and 1.71e-3 in a (measured 2026-08-17 from this
-    #    test's own start values).
+    #    Measured 2026-08-17 (darwin/arm64) at that point: a agrees to -1.5e-7,
+    #    c to +6.9e-7, c/a to 8.3e-7, both arms -326/-339 ppm from the
+    #    certificate.  rel=1e-5 is ~14x above the looser of those and ~540x
+    #    below the mis-tie this guards: pre-WP-1036 c never left its start,
+    #    which is 5.44e-3 away in c and 1.71e-3 in a.
     #
-    #    **What this comment claimed until 2026-08-17 and what is actually
-    #    true.**  It said both arms met the Rwp equality below on both
-    #    platforms, so the shallow direction was the parameterisation's rather
-    #    than the physics'.  That was inferred from the Rwp assertion not
-    #    appearing in the CI failure — but pytest stops at the *first* failing
-    #    assert, so on Linux it had never run.  Widening the c bar let
-    #    execution reach it, and it fails: R 0.14924216 against H 0.14995255
-    #    (run 32008985488), 7.1e-4 apart against 1e-4.
-    #
-    #    Measured here the same day, and it is not a tolerance problem: this
-    #    plan does not reach a minimum on *either* platform or *either* arm.
-    #    Appending one more (profile, cell) round to it takes both arms from
-    #    Rwp 0.1499524 to 0.1432, and three more to 0.1419 — on darwin, where
-    #    the two arms currently agree to 4e-7.  So 0.1499524 is where five
-    #    stages happen to stop, not a stationary point, and `status ==
-    #    "converged"` is the last stage's least-squares exit, not a statement
-    #    about the Le Bail cycle, whose extracted intensities are documented
-    #    path-dependent (CLAUDE.md).  Linux's rhombohedral arm simply stops a
-    #    little further down the same descent.
-    #
-    #    That makes both assertions below reproducibility-of-a-path claims
-    #    dressed as lattice claims, and the Rwp one is deliberately left at
-    #    1e-4 rather than widened: at 7.1e-4 it would assert nothing, and the
-    #    fix is to decide what this test should compare, not to move a bar
-    #    again.  Until that decision lands, the red row is the messenger.
+    #    What is NOT measured is that agreement on Linux *at stationarity*.
+    #    The 1.72e-5 that fired three nightlies was mid-descent path divergence
+    #    and is not this number, so the first Linux run of this plan either
+    #    confirms 1e-5 or re-sizes it — and this paragraph is the record that
+    #    the bar was sized on one platform.  Do not widen it from a single
+    #    failure without plotting the descent first; that is the mistake this
+    #    test has now cost twice.
     a_h, c_h = hexagonal_from_rhombohedral(cell_r.a.value, cell_r.alpha.value)
     cell_h = ref_h.fitted_structure.phases[0].cell
-    assert a_h == pytest.approx(cell_h.a.value, rel=2e-4)
-    assert c_h == pytest.approx(cell_h.c.value, rel=2e-4)
-    assert res_r.statistics.rwp == pytest.approx(res_h.statistics.rwp, abs=1e-4)
+    assert a_h == pytest.approx(cell_h.a.value, rel=1e-5)
+    assert c_h == pytest.approx(cell_h.c.value, rel=1e-5)
+    # Rwp is deliberately not an equality.  The two settings reach *different*
+    # Le Bail fixed points — 7.44e-5 apart at stationarity, not shrinking with
+    # more rounds, the rhombohedral arm the better of the two — which is a
+    # finding about the extraction, not slack to be absorbed.  abs=1e-3 is ~13x
+    # above it and still catches what this line is now for: an arm that fails
+    # to descend, which the old one-round stopping point would show as 8e-3.
+    assert res_r.statistics.rwp == pytest.approx(res_h.statistics.rwp, abs=1e-3)
 
     # 4. V_H = 3·V_R, the volume relation between the two descriptions
     from rietx.crystallography.lattice import cell_volume
