@@ -85,7 +85,7 @@ globs a stage freed or a `set_vary` changed. `NodeAction.values` is what
 `set_values` was called with. `NodeAction.ties` and `NodeAction.untied` are what
 a tie edit declared and removed.
 
-A stage records its four solver settings as well: `NodeAction.max_iter`,
+A stage records its five solver settings as well: `NodeAction.max_iter`,
 `NodeAction.lebail_cycles`, `NodeAction.seed`, `NodeAction.strain_seed` and
 `NodeAction.restraint_weight_scale`. They are there because
 `Refinement.cherry_pick` rebuilds a `Stage` from this action and runs it
@@ -128,8 +128,8 @@ tie is rederived from the space group on every table build, while a tie you
 declared is not derivable from anything. A node without them would restore a
 model with the constraints silently gone, and the parameter count with them.
 
-`RefinementState.reflections` is a list of `ReflectionState`, one per phase that
-has intensities outside the parameter vector.
+`RefinementState.reflections` is a list of `ReflectionState`, one per phase whose
+intensities are not computed from the structure.
 
 | Field | Holds |
 |---|---|
@@ -155,7 +155,7 @@ mode the structure computes them.
 | Field | Holds |
 |---|---|
 | `NodeMetrics.statistics` | the `Statistics` block, or `None` on a node that ran no fit |
-| `NodeMetrics.status` | `converged`, `max_iter`, `diverged` or `skipped` |
+| `NodeMetrics.status` | `converged`, `max_iter` or `diverged`; `None` where no fit ran |
 | `NodeMetrics.n_iterations` | least-squares iterations taken |
 | `NodeMetrics.cost_initial` | the cost the stage started from |
 | `NodeMetrics.cost_final` | the cost it reached |
@@ -170,6 +170,11 @@ see by how much.
 A large gap is a reading rather than a defect. It says the stage travelled far
 enough that its frozen discreteness went stale, which is an argument for
 splitting the stage.
+
+`NodeMetrics.status` declares a fourth value, `skipped`, and nothing sets it.
+A node that ran no fit carries `None` instead, and a stage whose globs matched
+nothing still runs and converges. `StageResult.status` in [](refining.md)
+carries the same spare value.
 
 ## Reading a tree
 
@@ -341,16 +346,16 @@ current head. The merged node records both parents.
 
 <!-- api-doc: no-exec — it needs two branches over one tree -->
 ```python
-ref.checkout("n0012")
-ref.merge("n0013", prefer="ours", label="cell from the profile-only branch")
+ref.checkout("n0012")                 # the state to merge into
+ref.merge("n0013", prefer="ours", label="keep this model on conflicts")
 ```
 
-**Only values merge.** The model composition, which phases exist, which
-background, which free set and which mode, comes from the preferred side whole.
-Merging a two-phase branch into a one-phase branch with `prefer="theirs"` gives
-you the one-phase model with some of the two-phase branch's values in it, and
-nothing raises. Check `Refinement.structure` after a merge that crosses a model
-edit.
+**Only values merge.** The model composition comes from the preferred side
+whole: which phases exist, which background, which free set, which mode. In the
+walkthrough's tree the CaF₂ impurity arrives in a model edit, so merging the Le
+Bail branch into the final state with `prefer="theirs"` returns a one-phase
+model. Nothing raises. Read `Refinement.structure` back after any merge that
+crosses a model edit.
 
 ## Recomputing a node
 

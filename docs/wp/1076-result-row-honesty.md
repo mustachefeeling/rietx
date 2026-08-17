@@ -133,6 +133,12 @@ provisional bucket by that chapter, so this WP is free to change either.
   of the type infers a skip mechanism that does not exist. It is also the
   cheaper fix, since removing a value from a `Literal` no writer produces
   cannot break a producer, only a consumer that matched on it.
+  **It is declared twice** (found while writing `using/history.md`):
+  `NodeMetrics.status` (`schemas/history.py:195`) carries the same four-value
+  `Literal`, filled from the same `outcome.status`, so whatever this WP decides
+  has to be decided for both. `NodeMetrics.status` is already `| None`, and
+  `None` is what a node that ran no fit carries, so the spare value has no
+  meaning left to take there either.
 
 **From WP-1067's `using/history.md` session (2026-08-17): a third value of the
 same class, and this one already has a consumer.** `NodeKind`

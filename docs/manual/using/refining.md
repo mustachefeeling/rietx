@@ -143,13 +143,13 @@ the fit, it does not constrain it.
 
 ## What a stage carries
 
-A `Stage` is `Stage.name`, a list of globs in `Stage.turn_on`, and four numbers
+A `Stage` is `Stage.name`, a list of globs in `Stage.turn_on`, and five numbers
 that decide how that stage is solved. `Stage.name` is a label, carried through
 to `StageResult.name` and to the event stream; `Stage.turn_on` is what the
 stage frees, matched with `fnmatch` against the dot-paths of [](model.md).
 
 [](concepts.md) covers `Stage.restraint_weight_scale`, the restraint schedule,
-in full; the other three are here.
+in full; the other four are here.
 
 ```python
 import rietx as rx
