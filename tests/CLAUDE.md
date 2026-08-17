@@ -113,10 +113,11 @@ the assertion is a load sensor.**
 
 **The numeric twin: a tolerance between two independently-converged fits
 senses solver termination unless it carries the measured cross-platform
-spread** — a TRF stopping point moves with platform libm while the physics
-does not (2.5e-6 on one Linux arm against darwin's 1e-9..1e-8;
-`test_acceptance_srm676a.py` §3 has both numbers). A one-platform pass margin
-under ~10x is the load sensor's smell again.
+spread** — a TRF stopping point moves with platform libm while the physics does
+not. **Measure that spread on the quantity the assertion names, not on its
+neighbour**: sized on `a` at 2.5e-6, the same bar fired 12 days later on `c`,
+7x wider and bit-identical across two runs, so a re-run proves nothing. Every
+number: `test_acceptance_srm676a.py` §3. A pass margin under ~10x still smells.
 
 **The honest-budget rule and the CI budget pull against each other, so expect
 to pay in scope.** Raising a real-data `budget_seconds` from 60 to 300 let

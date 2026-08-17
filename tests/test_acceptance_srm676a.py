@@ -242,18 +242,35 @@ def test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell():
 
     # 3. the hexagonal image of the rhombohedral answer is the hexagonal
     #    answer — the same lattice, described two ways, fitted independently.
-    #    Measured 2026-08-04 (darwin/arm64): 1.4e-9 and 1.2e-8 relative, Rwp
-    #    equal to 5 dp — and re-measured identical 2026-08-16.  On a Linux CI
-    #    runner the rhombohedral arm's TRF stopping point moved a by 2.5e-6
-    #    while the hexagonal arm agreed with darwin to 7e-10 (weekly run
-    #    31960416982), so rel=1e-6 was a solver-termination sensor, not a
-    #    lattice assertion.  1e-5 carries that measured platform spread and
-    #    still catches the mis-tie this guards by ~300x: pre-WP-1036, c never
-    #    left its start, a ~3e-3 error.
+    #    Measured 2026-08-04 (darwin/arm64): 1.4e-9 on a and 1.2e-8 on c, Rwp
+    #    equal to 5 dp — re-measured identical 2026-08-16 and 2026-08-17.
+    #
+    #    The bar is set by the rhombohedral arm's stopping point, and c is
+    #    the quantity that shows it.  This assertion has now been widened
+    #    twice by the same mechanism, so the mechanism is what is written down
+    #    rather than the number.  Linux CI reaches a *different* stopping
+    #    point for (a_R, α), deterministically — runs 31973603220 and
+    #    32001934722, on different trees, agree to the last float64 bit — and
+    #    the hexagonal arm is not involved: it lands within 7.6e-9 of darwin's
+    #    on the same runs.  What differs is how hard the conversion amplifies
+    #    that stopping point: a came back inside 2.5e-6 (weekly run
+    #    31960416982) while c came back at 1.72e-5, ~7x more, because
+    #    ∂c_H/∂α is the steep direction at α ≈ 55.3°.  Both arms still meet
+    #    the Rwp equality below on both platforms, so the shallow direction
+    #    belongs to the rhombohedral parameterisation and not to the physics —
+    #    which is exactly why a tolerance here can only ever be a lattice
+    #    assertion if it carries the spread.
+    #
+    #    rel=2e-4 is ~12x above the measured 1.72e-5 (the ~10x floor in
+    #    tests/CLAUDE.md § Budgets) and 27x below the mis-tie this guards:
+    #    pre-WP-1036 c never left its start, which is 5.44e-3 away in c and
+    #    1.71e-3 in a (measured 2026-08-17 from this test's own start values).
+    #    One bar for both, sized on the worse arm: two bars would drift apart,
+    #    and the claim is about one lattice.
     a_h, c_h = hexagonal_from_rhombohedral(cell_r.a.value, cell_r.alpha.value)
     cell_h = ref_h.fitted_structure.phases[0].cell
-    assert a_h == pytest.approx(cell_h.a.value, rel=1e-5)
-    assert c_h == pytest.approx(cell_h.c.value, rel=1e-5)
+    assert a_h == pytest.approx(cell_h.a.value, rel=2e-4)
+    assert c_h == pytest.approx(cell_h.c.value, rel=2e-4)
     assert res_r.statistics.rwp == pytest.approx(res_h.statistics.rwp, abs=1e-4)
 
     # 4. V_H = 3·V_R, the volume relation between the two descriptions
