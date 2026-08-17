@@ -238,16 +238,17 @@ things land here instead: the README **declares the GUI a beta feature**, and
 screenshots. Do not absorb any of 1017's mailbox — it is about panels that are
 still moving, which is why it was deferred.
 
-### Inherited
+### Each 1.0.x chapter is a compatibility event
 
-- **From WP-1003 (2026-08-16): documenting a name now freezes it.** The
-  compatibility chapter (`docs/manual/using/compatibility.md`) promises that
-  a name a Part 1 chapter documents is frozen from the release that documents
-  it, and that the deferred bucket is the provisional tier. So each 1.0.x
-  chapter this WP lands is a compatibility event, not only a docs event:
-  regenerate `api_surface_deferred.txt` in the same change (the partition
-  fails otherwise), and give the promotion a line in that release's notes —
-  the release-notes precedent is `docs/releases/1.0.0.md`.
+Folded in from WP-1003's mailbox on 2026-08-17, unchanged and still binding.
+Since v1.0 shipped, `docs/manual/using/compatibility.md` promises that a name a
+Part 1 chapter documents is **frozen from the release that documents it**, and
+that the deferred bucket is the provisional tier. So a chapter is not only a
+docs change: regenerate `api_surface_deferred.txt` in the same commit (the
+partition fails otherwise), and give the promotion a line in that release's
+notes — the precedent is `docs/releases/1.0.0.md`. It follows that a name a
+chapter *cannot* honestly freeze is left in the bucket rather than mentioned in
+passing.
 
 ## Non-goals
 
