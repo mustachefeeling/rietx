@@ -388,7 +388,7 @@ history of". `RefinementTree.header` is that record on a tree you hold.
 | Field | Holds |
 |---|---|
 | `TreeHeader.tree_id` | the tree's id, derived from the data fingerprint |
-| `TreeHeader.data_fingerprint` | sha256 of the parsed 2θ and intensity arrays |
+| `TreeHeader.data_fingerprint` | a sha256 over the parsed float64 2θ and intensity arrays, first 32 hex digits |
 | `TreeHeader.data_source` | the file the pattern was read from, where the reader recorded one |
 | `TreeHeader.n_points` | how many channels that pattern had |
 | `TreeHeader.plan` | the plan the tree was created with, as a `PlanSpec` |

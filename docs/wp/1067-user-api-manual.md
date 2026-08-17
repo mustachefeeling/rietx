@@ -382,6 +382,21 @@ passing.
       `plot_for_vlm`, `write_html`.
 - [ ] `using/cli.md` — `rietx watch`, `rietx compare`, and `rietx gui` in one
       **beta**-marked line.
+- [ ] **The names no remaining chapter claims** — measured 2026-08-17, when the
+      bucket first became small enough to map: of the 661 left, about 276 are
+      indexing's, 73 are the series and multi-histogram types, and the rest are
+      **not** in any remaining task line above. Two blocks account for most of
+      them, and both belong to a chapter that already exists, so this is a
+      second pass rather than a new page: the agent request and response union
+      (`RefineRequest`, `MultiRefineRequest`, `SequentialRefineRequest`,
+      `SuggestRequest`, `IndexRequest`, `AgentSuccess`; 78 names, and
+      `agents.md` documents the *call* rather than the arms), and the report's
+      own evidence types (`StageReport`, `SuggestionResult`, `RegionAttribution`,
+      `TextureAnalysis`, `StrainAnalysis`, `BackgroundEvidence`,
+      `ParameterCandidate`, `ExchangeFinding`, `TrendAnalysis`, all reachable
+      from `FitReport`'s own fields, where `report.md` describes the three
+      layers without naming the types field by field). The bucket cannot empty
+      without both.
 
 ## Acceptance
 
