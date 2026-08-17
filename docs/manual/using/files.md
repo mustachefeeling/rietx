@@ -157,6 +157,29 @@ project.save()
 project = rx.Project.open("my_sample.rex")
 ```
 
+`Project.create` builds the directory around a pattern file and a model.
+`Project.open` reads one back and resumes at the history head. It re-checks
+every binding on the way rather than assuming it: the pattern file is still
+there, its bytes still hash to the recorded digest, this build still parses those
+bytes to the recorded numbers, and the history was recorded against that same
+pattern. Each of the four raises with its own message, because each has a
+different cause and a different fix.
+
+An open project holds the session as six attributes.
+
+| Attribute | Holds |
+|---|---|
+| `Project.path` | the project directory |
+| `Project.doc` | the `ProjectDoc`, which is `project.json` in memory |
+| `Project.data` | the `PatternData` read back from the copied file |
+| `Project.refinement` | the `Refinement`, positioned at the history head |
+| `Project.history` | that refinement's `RefinementTree` |
+| `Project.data_diagnostics` | what the reader repaired or assumed on the last read |
+
+`Project.data_diagnostics` is held in memory and is not a `project.json` field.
+The repairs are a function of the bytes, the reader and its options, and the
+data reference below already records all three.
+
 **One authority per fact.** `project.json` holds the *settings*: the selected
 plan and mode, the 2θ limits, the excluded regions, and the GUI's own `ui` keys.
 `history.jsonl` holds the model state, and its head *is* the working state. No
@@ -167,6 +190,35 @@ commits a history node the moment it runs, so the work is on disk whether or not
 anyone calls `Project.save`. What `save` persists is the half of a session that
 nothing else owns.
 
+`ProjectDoc` is that half, field by field.
+
+| Field | Holds |
+|---|---|
+| `ProjectDoc.patterns` | the data references, one per pattern |
+| `ProjectDoc.plan` | the plan the next run will use, as a `PlanSpec` |
+| `ProjectDoc.mode` | the intensity mode the next run will use |
+| `ProjectDoc.two_theta_limits` | the range the next run will fit |
+| `ProjectDoc.excluded_regions` | 2θ regions masked out of the residual |
+| `ProjectDoc.indexing` | the next indexing run's controls |
+| `ProjectDoc.history_file` | the log's filename inside the directory |
+| `ProjectDoc.format_version` | the version of the `.rex` format |
+| `ProjectDoc.package_version` | the version of rietx that wrote it |
+| `ProjectDoc.created_utc`, `ProjectDoc.updated_utc` | when it was created, and last saved |
+| `ProjectDoc.ui` | keys a front end persists, untyped |
+
+The three settings after the plan are what `fit` and `run_stage` will be
+*called* with. A history node records a mode and limits too, and that is a
+different fact: the node says what a past run used, the document says what the
+next one will use. Before the first run there is no node to ask.
+
+`ProjectDoc.patterns` is a list because stacking several patterns into one joint
+residual is a later milestone's work. A project holds one today, and
+`Project.open` refuses a document carrying more rather than opening the first
+and looking like it worked.
+
+`ProjectDoc.ui` is untyped deliberately. A front end owns those keys, and the
+container only stores them, so a layout change is not a schema change.
+
 The pattern is copied verbatim rather than re-serialised, because the bytes are
 the contract: the reader takes σ from the file's own column and never overrides
 it. `Project.data_ref` returns the `DataRef` that makes those bytes trustworthy
@@ -176,11 +228,21 @@ call itself is part of the reference, because a pdCIF is a different pattern
 depending on the block. Agreeing bytes with a disagreeing fingerprint mean the
 reader changed, not that the project is corrupt.
 
+Four more fields say what the pattern is: `DataRef.filename` names it inside the
+directory, `DataRef.n_points` and `DataRef.two_theta_range` describe it, and
+`DataRef.has_sigma` records whether σ was measured or fell back to Poisson. That
+last one is a correctness property of every fit in the project and is invisible
+once the data are read, which is why it is written down.
+
 `Project.set_excluded_regions` records regions to leave out of the fit. They
 live in the document rather than in a history node because they are protocol
 that is in neither the file nor the model: a node cannot say what was excluded
 when it ran. `Project.fitted_mask` is the one authority for which channels the
 next run fits. An inverted or empty interval is refused rather than reordered.
+
+The two settings compose. On the 11-BM pattern of [](quickstart.md), limits of
+2–24° leave 22 003 of 59 498 channels in the residual, and excluding 7.4–7.6°
+as well leaves 21 803.
 
 `Project.exports_dir` and `Project.live_dir` are where the last two directories
 live, and `Project.parameters`, `Project.fit` and `Project.run_stage` are the
@@ -191,7 +253,8 @@ session verbs, with the same meaning they have on `Refinement`.
 `history.jsonl` is an append-only record of the refinement DAG, one JSON object
 per line. `RefinementTree.save` and `RefinementTree.load` are the file
 interface, `RefinementTree.records` is what gets written, and
-`RefinementTree.summary` prints the tree.
+`RefinementTree.summary` prints the tree. [](history.md) is the DAG itself: what
+a node holds, and the verbs that restore, fork and merge one.
 
 A node stores **state, not curves**. A node is about 10 kB; embedding the
 calculated pattern would make it 1.24 MB. Le Bail extracted intensities are the
