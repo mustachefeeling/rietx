@@ -434,14 +434,24 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   run — docs plus one generated data file cannot move a measured number
   (`tests/CLAUDE.md` § Running, rung 3); the standing Linux figure is still
   **2561 passed / 88 skipped in 1:51:56** (`[dev,jax]`, nightly 32017322140).
-  Partition: **475 documented, 823 deferred** of 1298, from 444/854 at session
-  start, so **31 names froze**. `sphinx -W` clean; `tests/test_examples.py`
+  Partition: **473 documented, 825 deferred** of 1298, from 444/854 at session
+  start, so **29 names froze** (31 before the two `RefinedParameter` fields went
+  back to provisional; see the first gotcha). `sphinx -W` clean; `tests/test_examples.py`
   4 passed; ruff clean. The page was audited at 1100 px in both themes with
   `scrollWidth == clientWidth` on every element in `main`, and all four
   `{eq}` references plus all 22 chapter links resolve to real anchors in the
   built HTML.
 
   **In flight: nothing.** Working tree clean.
+
+  **A cap note for the next session.** `docs/ROADMAP.md` sat at exactly its
+  400-line cap, so adding 1076's index row failed
+  `test_docs_consistency.py`. It was paid for by demoting the 1066 naming
+  paragraph in § Current focus, which was triplicated: root CLAUDE.md carries
+  the rule and `_about.py`'s docstring carries all of it in more detail. The file
+  is now at 400 again, so **the next WP row will fail the same way** and there is
+  no third copy left to trim; the honest fix then is to re-pin the cap in
+  `SIZE_CAPS` with a reason, the way root CLAUDE.md's 600 → 620 was.
 
   **Next (1.0.x).** Five chapters. `using/refining.md` is the natural next one:
   it is the other half of what this chapter set up (a glob names parameters,
@@ -451,18 +461,25 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
 
   **Gotchas.**
 
-  - **`RefinedParameter.at_bound` is declared, public, frozen, and nothing in
-    the package ever sets it.** The fit builds each row with `path`, `value`,
+  - **`RefinedParameter.at_bound` and `.initial` are public and nothing in the
+    package writes either.** The fit builds each row with `path`, `value`,
     `vary` and `stderr` only (`refine.py`, the `e.vary or e.tie is not None`
-    loop), so `at_bound` keeps its `False` default on every result rietx
-    produces; a parameter that refined onto its bound is reported through the
-    `BOUND_HIT` diagnostic, built from a `GuardReport`, which is a different
-    mechanism entirely. The draft table said "the fit stopped against a bound,
-    so the esd understates the truth" — confident, plausible and wrong twice
-    over, since the interpretation is also unsourced. It is documented as what
-    it is. **This is a live surface defect and it now has no mailbox**: 1003 is
-    closed and this is the only open WP, so it is recorded here and raised with
-    the user rather than filed.
+    loop), and nothing reads either field anywhere. The draft table explained
+    `at_bound` as "the fit stopped against a bound, so the esd understates the
+    truth" — confident, plausible and wrong twice over, since the mechanism is
+    the `BOUND_HIT` diagnostic and the esd claim was unsourced. **Both names are
+    left provisional and the chapter documents neither**, which is this WP's own
+    rule (a name a chapter cannot honestly freeze stays in the bucket) applied
+    to the first surface defect a chapter has found. The fix is
+    **[1076](1076-result-row-honesty.md)**, written this session with the design
+    settled by user decision: `at_bound` becomes `bool | None` populated from the
+    guard's single computation, and `initial` is deleted. The reasoning is worth
+    carrying, because it generalises — **the defect was never that the field is
+    unpopulated, it is that its empty state lies.** `initial: null` reads as
+    absent; `at_bound: false` reads as a measurement. Fixing the empty state
+    makes the bug structurally unrepeatable whoever forgets a future code path,
+    which a required field does not, since anyone may pass `False` for
+    convenience. That is WP-1072's rule applied to a boolean.
   - **The dot-path guard truncates at a numeric component, so an indexed
     `instrument.…` path is checked as a prefix that does not exist.** `DOTTED`
     forbids a digit after a dot, so `instrument.source.lines.1.weight` reaches

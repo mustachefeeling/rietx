@@ -506,6 +506,8 @@ RefineRequest.solver
 RefineRequest.structure
 RefineRequest.task
 RefineRequest.two_theta_limits
+RefinedParameter.at_bound
+RefinedParameter.initial
 Refinement.branch
 Refinement.cherry_pick
 Refinement.from_node

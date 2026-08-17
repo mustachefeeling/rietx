@@ -267,18 +267,14 @@ present with `vary=False`.
 | `RefinedParameter.value` | the value the fit ended at |
 | `RefinedParameter.stderr` | the esd, or None if it could not be estimated |
 | `RefinedParameter.vary` | false on the tied rows, which is how to spot them |
-| `RefinedParameter.initial` | where the fit started, if a caller recorded it |
-| `RefinedParameter.at_bound` | whether the value sits on a finite bound |
 
-Two of those fields are not filled in by the fit path, and it is worth knowing
-which. A result reports where the fit ended, and the start lives one node up in
-the history tree, so `initial` exists for a caller assembling a result by hand,
-such as a comparison runner recording its own start state: `None` means "not
-recorded", not "started at zero". `at_bound` is the same shape. It is declared
-and defaults to false, and the refinement path leaves it there; a parameter that
-refined onto its bound is reported as a `BOUND_HIT` diagnostic instead, which is
-the flag to read. The rule behind it is that such a parameter is not a
-measurement, so do not quote one.
+The type carries two more fields, `initial` and `at_bound`, which this chapter
+does not document and which are **provisional**: the refinement path writes
+neither, and both are being reconsidered rather than described as they stand
+([1076](https://github.com/yue-here/rietx/blob/main/docs/wp/1076-result-row-honesty.md)).
+Read a parameter's bound state from the `BOUND_HIT` diagnostic, which is where
+that fact is actually computed and reported. The rule behind it is that a
+parameter sitting on its bound is not a measurement, so do not quote one.
 
 The two views differ in size, and the difference is the point. A single-phase
 NAC refinement over 2 to 24° measured here gives 72 rows from

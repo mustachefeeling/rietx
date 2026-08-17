@@ -75,8 +75,9 @@ documents a name *promotes it to frozen* — regenerate
   transport (export/open, "the directory, zipped");
   `RefinementState.excluded_regions` with `replay` honouring the node's
   regions (1003 §B — decided, not re-opened).
-- **[1067](wp/1067-user-api-manual.md)** — five remaining Part 1 chapters, each
-  promoting its names out of the provisional bucket (823 left).
+- **[1067](wp/1067-user-api-manual.md)** — five Part 1 chapters left, each
+  promoting names out of the provisional bucket (825 left);
+  **[1076](wp/1076-result-row-honesty.md)** is the first defect a chapter found.
 - **Post-1003 indexing work**: narrow what the acceptance fixtures search
   (the nightly `full` job's ~77 min of setup — the durable lever the
   timeout recalibration deferred), and the `grade` prior-counting change
@@ -84,11 +85,9 @@ documents a name *promotes it to frozen* — regenerate
 - **[1017](wp/1017-gui-manual-onboarding.md)** — the GUI manual and
   onboarding, still deferred; the GUI stays beta until it lands.
 
-1066's naming rule stands beside them: package, import, CLI and state dir are
-`rietx` while the on-disk tokens are brand-free (`.rex`, `.rxt` with header
-`rxt N`, `instrument_profile`) and survived both renames unchanged. Never spell
-either kind — import from `_about.py`: `test_no_stale_name.py` greps the **old**
-tokens, blind to a hardcoded new one.
+1066's naming rule stands beside them, as a rule in root CLAUDE.md and in full
+(both directions, the token list, and why no test can catch a hardcoded *new*
+name) in `_about.py`'s docstring.
 
 ## Milestones
 
@@ -322,13 +321,14 @@ start.
 | [1060](wp/1060-docs-ci-consolidation.md) | Docs/CI consolidation: trim what the evidence indicts | ✅ 2026-08-06 | — |
 | [1061](wp/1061-workflow-robustness.md) | Session-workflow robustness: detect the missed handover | ✅ 2026-08-06 | — |
 
-### Post-v1.0 — the two docs WPs (1067 spans the release)
+### Post-v1.0 — the docs WPs (1067 spans the release), and what they found
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ deferred 2026-08-14 | 1011–1016, 1029, 1032–1035 (soft) |
-| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-17 — § Floor landed, so 1003 is unblocked; the McCusker set's pass landed (Part 2 takes its four equations, `using/results.md` splits off, restraints documented, three figures); `using/data.md` and `using/model.md` landed and froze 172 names (823 left), with the promotions accumulating in the written, unreleased `docs/releases/1.0.2.md`; five 1.0.x chapters remain | 0604, 1004–1007, 1047 |
+| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-17 — § Floor landed, so 1003 is unblocked; the McCusker set's pass landed (Part 2 takes its four equations, `using/results.md` splits off, restraints documented, three figures); `using/data.md` and `using/model.md` landed and froze 170 names (825 left), with the promotions accumulating in the written, unreleased `docs/releases/1.0.2.md`; five 1.0.x chapters remain | 0604, 1004–1007, 1047 |
 | [1068](wp/1068-manual-second-pass.md) | Part 1 second pass: voice, figures, structure | ✅ 2026-08-15 — voice, sectioning, `concepts.md` + `files.md`, four diagrams, three figure pairs; the McCusker read fixed a false attribution and produced the compliance audit | 1067 |
+| [1076](wp/1076-result-row-honesty.md) | A result row's unwritten fields: `at_bound` and `initial` | ⬜ | 1067 |
 
 The GUI keeps moving, so it **ships as a beta feature** and is documented once
 the panels settle. 1067 declares that beta status; its **§ Floor gates
