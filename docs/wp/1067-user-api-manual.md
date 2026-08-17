@@ -327,9 +327,17 @@ passing.
       `concepts.md` § Fit statistics becomes `using/results.md`; restraints get
       documented at all; three figures; and the geometry-keyed position
       templates and actions reach `report.md`.
-- [ ] `using/data.md` — `read_pattern` (`diagnostics=[]`, `scan=`, the
-      reader's right to repair and its four consequences), `Structure` from
-      CIF, `Instrument`, calibrate → save → load → sample.
+- [x] `using/data.md` — "Patterns, structures and instruments" (2026-08-17).
+      **Not what this line first asked for**, because WP-1068's `using/files.md`
+      landed the file side in between: `read_pattern` with `scan=`/`block=`, the
+      reader's four consequences, `Structure.from_cif` and the two CIF repairs,
+      and the profile calls are all there, and a second copy would break the
+      one-authority rule. So `files.md` keeps the on-disk map and this chapter
+      takes what was still undocumented — the three objects field by field:
+      `Parameter`, `PatternData` and where σ comes from, `Structure`/`Phase`/
+      `Cell`/`Atom` with the three optional blocks, `Instrument` with its
+      presets, source, geometry-by-kind, width function and backgrounds, then
+      calibrate → freeze → sample stated as what each plan frees.
 - [ ] `using/model.md` — schemas → `ParameterTable` → `parameters()` /
       `set_vary` / `set_values`: dot-paths, cell ties, transforms, the three
       reasons a row is held, the JSON round-trip.
