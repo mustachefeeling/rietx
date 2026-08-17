@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md` and `using/refining.md` landed and 241 names froze with them; four 1.0.x chapters remain, plus [1076](1076-result-row-honesty.md), now holding three unwritten result fields a chapter found
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md`, `using/refining.md` and `using/history.md` landed and 358 names froze with them, half the surface; three 1.0.x chapters remain, plus [1076](1076-result-row-honesty.md), now holding four unwritten fields and values a chapter found
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -361,9 +361,19 @@ passing.
       chapter links rather than restates. It also found the guard's fourth
       derivation rule (see the handover) and two more unwritten result fields,
       filed to [1076](1076-result-row-honesty.md).
-- [ ] `using/history.md` and `using/projects.md` — the DAG (branch, merge,
-      cherry-pick, replay; state not curves) and the `.rex` project (one
-      authority per fact, `fitted_mask`, `DataRef`).
+- [x] `using/history.md` — "The refinement history" (2026-08-17). The DAG as an
+      object: `HistoryNode` and why it stores state and not curves, `NodeAction`
+      and why a stage records its own solver settings, the `RefinementState` a
+      checkout puts back, `ReflectionState`, the as-optimised `NodeMetrics`, the
+      tree's twenty queries, `checkout`/`branch`/`cherry_pick`/`merge`/
+      `from_node`, `replay`, and `TreeHeader`. **`using/projects.md` was not
+      written**, and the reason is measured rather than a scope cut: `files.md`
+      already held the `.rex` layout, the one-authority rule, saving-as-settings,
+      the data reference and nine `Project` members, so a second page would have
+      been a field table plus a copy of that narrative. The remaining 25 names —
+      the session object's six attributes, `ProjectDoc` field by field, four
+      `DataRef` fields — went into `files.md` beside them. Between them the two
+      halves froze 117 names and eleven types in full.
 - [ ] `using/indexing.md` — `pick_peaks` → `index_pattern`, `quick` vs
       `full`, `best_or_none()`, the extinction symbol, and reading "no
       high-confidence entry" as a result rather than a failure.
