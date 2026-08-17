@@ -1,0 +1,108 @@
+name: Release
+
+# Publishes to PyPI when a GitHub release is published, using PyPI trusted
+# publishing: no API token exists anywhere, and nothing needs rotating after an
+# upload.  GitHub mints a short-lived OIDC token for the `publish` job, PyPI
+# checks it against a publisher it was told to trust, and issues an upload
+# credential good for that one upload.
+#
+# WHAT MUST BE CONFIGURED ON PYPI BEFORE THIS FILE DOES ANYTHING (once, by the
+# maintainer, at pypi.org -> rietx -> Manage -> Publishing):
+#
+#   Owner           yue-here
+#   Repository      rietx
+#   Workflow name   release.yml        <- this file's name, matched literally
+#   Environment     pypi               <- must match the `environment:` below
+#
+# Until that exists every run fails at the publish step with an invalid-token
+# error, which is the intended failure: an unconfigured repo cannot publish.
+# Renaming this file breaks the match and needs the PyPI side renamed with it.
+#
+# WHY IT IS SHAPED THIS WAY
+#
+# Three properties this buys that a hand-run `twine upload` cannot:
+#
+#   * The artifacts are built from the *tag*, so what is on PyPI and what the
+#     tag points at cannot disagree.  Doing it by hand, they can and did:
+#     1.0.1 was built, then three more commits landed, and the tag had to be
+#     re-pointed at the tree the files actually came from.
+#   * `pyproject.version` is checked against the tag before anything uploads.
+#     A mismatch is the one packaging mistake that cannot be undone, since PyPI
+#     will not accept a second upload of a version number.
+#   * Only the `publish` job holds `id-token: write`.  The build job, which is
+#     the one running project code, cannot mint a credential.
+#
+# The `pypi` environment is the human gate.  Add yourself as a required
+# reviewer in Settings -> Environments -> pypi, and the run pauses there: that
+# approval is where the project's pre-upload gate (nightly.yml's Windows job
+# green on this commit) is asserted by a person, since no workflow can wait
+# 2 h for a nightly.  The tag-on-main check below is the other half of it —
+# main is branch-protected, so a commit that is on main has already passed
+# lint and the fast suite across 3.11-3.14 plus jax.
+#
+# PEP 740 attestations come free with trusted publishing and are on by default
+# in the publish action, so the files on PyPI carry a verifiable statement of
+# which workflow in which repo built them.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and check the artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # the tag-on-main check needs the graph
+      - uses: astral-sh/setup-uv@v7
+
+      - name: The tag is on main
+        # A release cut from anywhere else has not been through branch
+        # protection, so the "CI already ran on this commit" claim above would
+        # be false.  workflow_dispatch runs skip this: they are for rehearsal.
+        if: github.event_name == 'release'
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::$GITHUB_SHA is not on main"; exit 1; }
+
+      - run: uv build
+
+      - name: The built version is the tag
+        if: github.event_name == 'release'
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          built=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "tag $tag, pyproject $built"
+          test "$tag" = "$built" \
+            || { echo "::error::tag $tag does not match pyproject.version $built"; exit 1; }
+          test -f "dist/rietx-$built.tar.gz" -a -f "dist/rietx-$built-py3-none-any.whl" \
+            || { echo "::error::dist/ does not hold both $built artifacts"; exit 1; }
+
+      - name: twine check
+        run: uvx twine check dist/*
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # Rehearse the build on a dispatch; never publish from one.
+    if: github.event_name == 'release'
+    environment: pypi
+    permissions:
+      id-token: write  # mints the OIDC token; nothing else needs it
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
