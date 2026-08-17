@@ -303,7 +303,8 @@ reverses for the same axis choice. The correction itself is
 geometry-agnostic; the *interpretation of r* is not.
 ```
 
-Spherical-harmonics texture {cite}`vondreele1997` is out of scope (v2).
+Spherical-harmonics texture {cite}`vondreele1997` is not implemented; it is
+planned for v2.
 
 ## Quantitative phase analysis and microabsorption
 

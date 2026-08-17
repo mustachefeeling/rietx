@@ -27,10 +27,10 @@ much of that will the package stand behind?
 Notes about that half carry a marker, so you can see at a glance who a
 paragraph is addressed to:
 
-:::{admonition} For automated callers
+:::{admonition} For agents
 :class: agent
-This style marks the machine-facing half. Read these notes if you are writing
-the caller. Skip them if you are refining a pattern.
+This style marks the machine-facing half. Read these notes if you are an agent,
+or are writing one. Skip them if you are refining a pattern.
 
 If you are an agent reading this manual, read
 [`docs/AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)
@@ -110,7 +110,8 @@ sits beside the equation. Transfer a value by matching the physics — the
 
 **Scope.** Constant-wavelength X-ray powder data. Fundamental-parameters
 profiles, neutron and time-of-flight data, and spherical-harmonics texture are
-out of scope. They are deferred, not planned.
+not implemented today. They are planned for v2, behind seams the forward model
+already carries; nothing in Part 2 describes them.
 
 ```{toctree}
 :caption: Part 2 — Theory
