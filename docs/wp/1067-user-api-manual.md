@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md` landed and 141 names froze with it; six 1.0.x chapters remain
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md` and `using/model.md` landed and 172 names froze with them; five 1.0.x chapters remain
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -338,9 +338,16 @@ passing.
       `Cell`/`Atom` with the three optional blocks, `Instrument` with its
       presets, source, geometry-by-kind, width function and backgrounds, then
       calibrate → freeze → sample stated as what each plan frees.
-- [ ] `using/model.md` — schemas → `ParameterTable` → `parameters()` /
-      `set_vary` / `set_values`: dot-paths, cell ties, transforms, the three
-      reasons a row is held, the JSON round-trip.
+- [x] `using/model.md` — "The parameter table" (2026-08-17). Dot-paths,
+      `parameters()` → `ParameterRow`, the three reasons a row is held,
+      transforms as the physical→internal bound mapping, `set_vary` /
+      `set_values` with their refusals, and the fit's own view of the same
+      table (`RefinedParameter`). **Two items on this line moved elsewhere and
+      one is now redundant**: the cell-tie *settings* are Part 2's
+      `parameterisation.md` and `data.md`'s `Cell` section, so this chapter
+      links them; the JSON round-trip is `Parameter`'s in `data.md`; and
+      `ParameterTable` itself is not on the public surface, so the chapter is
+      written over `Refinement.parameters` rather than over the class.
 - [ ] `using/refining.md` — modes, plans (`PLAN_INFO`), stages, guards,
       `solver=`, `backend=`, `events=` / `cancel=`.
 - [ ] `using/history.md` and `using/projects.md` — the DAG (branch, merge,
@@ -389,6 +396,99 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-17 (`using/model.md`)** — three commits on `wp1067-using-model`.
+  No `### Inherited` to prune: yesterday's session consumed and deleted it, and
+  the two `### Inherited` strings still in this file are prose about *1003's*
+  mailbox, not a section here.
+
+  **The predecessor's advice worked, and it should be followed again.** The task
+  line named four subjects; measuring which names each existing page already
+  spells reassigned three of them before a word was written. `data.md` documents
+  `Parameter` field by field, `transform` and the softplus underflow included,
+  so the transform section here is only the part it does not cover: how physical
+  bounds map into the internal variable. `concepts.md` owns the tie verbs and
+  `TieSpec.user`. Part 2's `parameterisation.md` owns `par-affine`, the
+  cell-tie settings and the DOF bases. What was genuinely undocumented is the
+  **table** between the objects and the solver, so the chapter is the dot-path
+  grammar, `Refinement.parameters` → `ParameterRow`, the three hold reasons,
+  the bound mapping, the two editing verbs, and the fit's own view of the same
+  table. Chapter run is now install → quickstart → data → **model** →
+  concepts → results → report → files → agents.
+
+  **`ParameterTable` is not on the public surface**, which the task line assumed
+  it was. It is neither exported nor reachable through an exported type's
+  fields, so a chapter written over the class would have documented nothing the
+  partition counts and pointed a reader at a private import. The chapter names
+  it once as the mechanism and is written over `Refinement.parameters`.
+
+  **`RefinedParameter` was homeless and is now here.** `results.md` covers
+  statistics, R-factors, geometry, restraints and diagnostics but never the
+  refined values; its docstring pairs it directly against `ParameterRow`
+  ("unlike … which reports what a fit refined"). The two views of one table
+  belong in one chapter, and `results.md` now says so in its opening.
+
+  **Numbers** (`[dev]` venv — no jax, no torch; darwin/arm64). Fast selection
+  **2402 passed / 117 skipped in 2:40**, identical to this session's starting
+  tree: no test was added, no source file changed. The full suite was **not**
+  run — docs plus one generated data file cannot move a measured number
+  (`tests/CLAUDE.md` § Running, rung 3); the standing Linux figure is still
+  **2561 passed / 88 skipped in 1:51:56** (`[dev,jax]`, nightly 32017322140).
+  Partition: **475 documented, 823 deferred** of 1298, from 444/854 at session
+  start, so **31 names froze**. `sphinx -W` clean; `tests/test_examples.py`
+  4 passed; ruff clean. The page was audited at 1100 px in both themes with
+  `scrollWidth == clientWidth` on every element in `main`, and all four
+  `{eq}` references plus all 22 chapter links resolve to real anchors in the
+  built HTML.
+
+  **In flight: nothing.** Working tree clean.
+
+  **Next (1.0.x).** Five chapters. `using/refining.md` is the natural next one:
+  it is the other half of what this chapter set up (a glob names parameters,
+  a stage decides when to free them), and `results.md` already took its
+  statistics. Keep appending promotions to `docs/releases/1.0.2.md`, which is
+  still unreleased.
+
+  **Gotchas.**
+
+  - **`RefinedParameter.at_bound` is declared, public, frozen, and nothing in
+    the package ever sets it.** The fit builds each row with `path`, `value`,
+    `vary` and `stderr` only (`refine.py`, the `e.vary or e.tie is not None`
+    loop), so `at_bound` keeps its `False` default on every result rietx
+    produces; a parameter that refined onto its bound is reported through the
+    `BOUND_HIT` diagnostic, built from a `GuardReport`, which is a different
+    mechanism entirely. The draft table said "the fit stopped against a bound,
+    so the esd understates the truth" — confident, plausible and wrong twice
+    over, since the interpretation is also unsourced. It is documented as what
+    it is. **This is a live surface defect and it now has no mailbox**: 1003 is
+    closed and this is the only open WP, so it is recorded here and raised with
+    the user rather than filed.
+  - **The dot-path guard truncates at a numeric component, so an indexed
+    `instrument.…` path is checked as a prefix that does not exist.** `DOTTED`
+    forbids a digit after a dot, so `instrument.source.lines.1.weight` reaches
+    `test_parameter_dot_paths_resolve` as `instrument.source.lines`, which
+    matches no real path and fails. `phases.0.cell.a` escapes only by accident:
+    it truncates to `phases`, which does not start with a `PATH_ROOTS` prefix
+    and is skipped. Write an indexed instrument path as a glob
+    (`instrument.source.lines.*.weight`) and it both passes and stays honest.
+  - **A resolving `{eq}` reference can still cite the wrong step of a
+    derivation.** The draft cited `est-cov` for the propagation of a tied row's
+    esd. `est-cov` is χ²_red·(JᵀJ)⁻¹, the covariance of the *free* internal
+    parameters; the propagation is σ² = diag(C·Cov·Cᵀ) in
+    `ParameterTable.stderr_physical`, which Part 2 does not label. The chain is
+    now stated in order, and this is the same class as yesterday's
+    `pos-displacement` note.
+  - **The three hold flags do not sum to the held rows, and the chapter says
+    so.** On the LaB6 fixture, asking for the Le Bail listing marks thirteen
+    rows `mode_fixed` while the refinable count falls only 25 → 19, because
+    seven of the thirteen were already locked or tied. That is the argument for
+    `refinable` being one predicate rather than three, and it is measured
+    rather than asserted.
+  - **A coordinate DOF is a displacement; an ADP or Stephens DOF is absolute.**
+    Visible for free in the tie text: `phases.0.atoms.1.x` describes itself as
+    `0.19964 + 1·phases.0.atoms.1.dof.0`, the constant being the stored
+    coordinate. Worth a sentence in any chapter that shows a tie, because the
+    two conventions sit one line apart in the same listing.
 
 - **2026-08-17 (`using/data.md`)** — five commits on `wp1067-using-data`, plus
   one rider that is not this WP's (`da804f3d`, recording that the repaired
