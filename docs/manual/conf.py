@@ -109,3 +109,8 @@ html_theme = "furo"
 html_title = f"rietx {release} — manual"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
+# Without this the pages emit no icon link at all, and a browser then falls
+# back to the *origin* root — https://yue-here.github.io/favicon.ico, which
+# belongs to the user Pages site this project's pages sit under, not to this
+# project.  There is no way to ask for no favicon; the only fix is to name one.
+html_favicon = "_static/favicon.svg"
