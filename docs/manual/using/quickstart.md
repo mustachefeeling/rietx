@@ -161,7 +161,8 @@ Six things in it recur in every fit after this one:
   come back to.
 - **A plan is editable.** `plan.stages.append(rx.Stage("biso", [...]))` adds a
   displacement stage after the preset's, and `Stage` takes fnmatch globs over
-  the parameter dot-paths (`phases.*.atoms.*.biso`).
+  the parameter dot-paths (`phases.*.atoms.*.biso`). [](model.md) is the path
+  grammar and how to see which paths a glob actually reaches.
 - **`RefinementResult.parameter`** looks one parameter up by path, with its esd:
   `result.parameter("phases.0.cell.a").stderr`.
 - **`RefinementResult.diagnostics`** is the channel for "your answer is wrong

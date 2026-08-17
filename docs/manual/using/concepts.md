@@ -16,7 +16,8 @@ or restrain a quantity you know. [](results.md) is the numbers that come back.
 
 Every refinable quantity has a dot-path, and the paths group by what the
 parameter does to the pattern. [](data.md) is the objects the paths address,
-field by field; this section is what each group does and why the groups fight.
+field by field, and [](model.md) is the path grammar and the table itself; this
+section is what each group does and why the groups fight.
 
 | Group | Paths | Changes | Angular signature |
 |---|---|---|---|
@@ -156,7 +157,7 @@ A tie shows up in the parameter listing as a held row: `refinable` is false,
 declared. The ties the space group creates — `b` following `a` in a tetragonal
 cell, a coordinate following its site-symmetry direction — read the same way
 with that flag false, and they cannot be released: symmetry outranks a user tie
-everywhere the two meet.
+everywhere the two meet. [](model.md) reads a held row field by field.
 
 The verbs refuse rather than approximate. A locked parameter, an already-tied
 one, a source that is itself tied (which would make a chain), a target the
