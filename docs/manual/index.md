@@ -90,6 +90,7 @@ it into something. The closing chapter is the 1.0 stability promise.
 using/install
 using/quickstart
 using/data
+using/model
 using/concepts
 using/results
 using/report
