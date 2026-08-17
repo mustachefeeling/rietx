@@ -339,9 +339,10 @@ engines = {engine.name: engine.description for engine in caps.indexing_engines}
 assert engines and all(engines.values())
 ```
 
-`EngineCapability.name` and `EngineCapability.description` are quoted from that
-live registry, so a client's engine checkboxes and the agent schema cannot name
-different sets. [](agents.md) has the rest of `capabilities()`.
+Each row is an `EngineCapability`, and both of its fields —
+`EngineCapability.name` and `EngineCapability.description` — are quoted from
+that live registry, so a client's engine checkboxes and the agent schema cannot
+name different sets. [](agents.md) has the rest of `capabilities()`.
 
 Only one of the three carries an exhaustiveness claim: when the branch-and-bound
 engine finishes a system, "no cell here" is evidence. That claim survives only
@@ -351,7 +352,8 @@ makes that field worth reading before concluding anything from a silence.
 ### Presets, budgets, and the three states of a system
 
 An exhaustive search over seven crystal systems has no natural stopping point,
-so runs are bounded, and the bound is reported rather than hidden.
+so runs are bounded, and the bound is reported rather than hidden. The presets
+come from `Capabilities.search_presets`, one `SearchPresetCapability` each.
 
 | Field | Holds |
 |---|---|
