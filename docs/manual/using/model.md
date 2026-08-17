@@ -8,7 +8,8 @@ dot-path, and records what may be varied and what must follow something else.
 
 This chapter is that table as a caller sees it: how to address a row, how to
 read one, and how to change one. [](concepts.md) is the next question, which
-rows to free and in what order. The table itself takes no view on that.
+rows to free and in what order, and [](refining.md) is how to run the result.
+The table itself takes no view on either.
 
 Two properties make it worth looking at before you refine anything. It contains
 rows you cannot free, and it says why for each one, so "why will this

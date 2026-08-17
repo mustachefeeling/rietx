@@ -215,6 +215,10 @@ run without them. `FitReport.for_stage` projects a report onto one rung
 directly. The flag is off by default in the library, because `fit` is called in
 loops.
 
+A `StageReport` is the report at a stage boundary. The stage's own arithmetic —
+what it freed, how many iterations it took, whether it converged — is a
+`StageResult`, in [](refining.md).
+
 ## Comparing settings with `rietx compare`
 
 "Did that correction help?" is not a question ΔRwp answers. Some corrections

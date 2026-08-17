@@ -301,6 +301,10 @@ result = ref.fit(data, plan=plan)
 `Stage` takes fnmatch globs over the dot-paths, which is why paths carry no
 brackets: fnmatch reads `[..]` as a character class rather than an index.
 
+[](refining.md) is the rest of the machinery: the plan registry a program reads
+instead of hard-coding this list, the other settings a `Stage` carries, and how
+to run, watch or stop a fit.
+
 ### Relaxing the restraints as the model improves
 
 Each restraint carries its own `weight`. A stage can scale all of them at once,
