@@ -1,7 +1,7 @@
 # Files and projects
 
 This chapter is the map of what the package reads off disk and what it writes
-back.
+back. [](data.md) is what the objects it hands you contain.
 
 ```{mermaid}
 graph LR
@@ -27,8 +27,9 @@ graph LR
 
 ## Pattern files
 
-`read_pattern` opens a pattern and returns a `PatternData`. It identifies the
-format from the file itself rather than from the extension:
+`read_pattern` opens a pattern and returns a `PatternData`, whose fields are in
+[](data.md). It identifies the format from the file itself rather than from the
+extension:
 
 ```python
 from rietx import capabilities

@@ -15,7 +15,8 @@ or restrain a quantity you know. [](results.md) is the numbers that come back.
 ## The parameter groups
 
 Every refinable quantity has a dot-path, and the paths group by what the
-parameter does to the pattern.
+parameter does to the pattern. [](data.md) is the objects the paths address,
+field by field; this section is what each group does and why the groups fight.
 
 | Group | Paths | Changes | Angular signature |
 |---|---|---|---|
