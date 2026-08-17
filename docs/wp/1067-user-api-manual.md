@@ -519,9 +519,11 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
     "internal sentence" while a hosted document points users at them. The
     precedent is `rietx.viz.compare.run`, which `report.md` has spelled
     fully-qualified since the floor, so this chapter followed it rather than
-    inventing a rule. **It is a decision someone has to take** (export them, or
-    say in `compatibility.md` that the protocol's helper calls are provisional);
-    it is not this chapter's to take, and no open WP owns it.
+    inventing a rule. **Decided 2026-08-18 (user): indexing is still under
+    active development, so the whole subsystem is declared provisional rather
+    than exported and frozen** — [1078](1078-indexing-provisional.md) carries
+    it, and it also un-freezes the 266 names this chapter froze, so it gates
+    the 1.0.2 release.
   - **The extinction screen refutes corundum's certified class, and the fit
     quality only halves it.** Over the whole 5–150° range with the round-robin
     instrument's declared widths, the shared profile fit reaches Rwp 0.287 and
@@ -535,6 +537,8 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
     chapter states the mechanism and routes the check to §7e rather than
     claiming either way. **Nothing in the suite covers a corundum extinction
     screen** — its rows are the synthetic monoclinic, FAP and NAC.
+    [1077](1077-extinction-refutes-certified-class.md) carries the
+    investigation and the missing acceptance row.
   - **`assess_peak_list` and `index_pattern` disagree on `shift_from_pairs`**
     (`False` against `True`). A reader who assesses a list by hand therefore
     sees `ShiftScreen.source == "unavailable"` and an allowance of zero, while
