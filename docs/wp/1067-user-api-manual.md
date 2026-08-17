@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md` and `using/model.md` landed and 170 names froze with them; five 1.0.x chapters remain, plus [1076](1076-result-row-honesty.md), the first surface defect a chapter found
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md` and `using/refining.md` landed and 241 names froze with them; four 1.0.x chapters remain, plus [1076](1076-result-row-honesty.md), now holding three unwritten result fields a chapter found
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -350,8 +350,17 @@ passing.
       written over `Refinement.parameters` rather than over the class. It
       documents `RefinedParameter` **except** `initial` and `at_bound`, which
       nothing writes and [1076](1076-result-row-honesty.md) is fixing.
-- [ ] `using/refining.md` — modes, plans (`PLAN_INFO`), stages, guards,
-      `solver=`, `backend=`, `events=` / `cancel=`.
+- [x] `using/refining.md` — "Running a refinement" (2026-08-17). Modes, the
+      plan *registry* (`PLAN_INFO`/`PLAN_PRESETS`/`PlanInfo`) and the
+      serializable twins, a stage's four solver settings, `run_stage`,
+      `StageResult`, `GuardFinding`, `events=`/`cancel=` and `Provenance`.
+      **`solver=` and `backend=` are not `fit` arguments** — they are
+      constructor arguments on `Refinement` (and on `refine`), which is the
+      chapter's opening table. Plans themselves stay `concepts.md`'s: it owns
+      the seven presets, the stage diagram and the McCusker order, so this
+      chapter links rather than restates. It also found the guard's fourth
+      derivation rule (see the handover) and two more unwritten result fields,
+      filed to [1076](1076-result-row-honesty.md).
 - [ ] `using/history.md` and `using/projects.md` — the DAG (branch, merge,
       cherry-pick, replay; state not curves) and the `.rex` project (one
       authority per fact, `fitted_mask`, `DataRef`).
@@ -398,6 +407,103 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-17 (`using/refining.md`)** — seven commits on
+  `wp1067-using-refining`, six of content and one of handover. No
+  `### Inherited` to prune (still none on this WP; the two "Inherited" strings
+  in this file are prose about *1003's* mailbox).
+
+  **The measure-first rule paid for the third time, and differently.** The task
+  line named seven subjects; measuring which names each page already spells
+  moved two of them out and revealed one was not what it said. `concepts.md`
+  owns plans — the seven presets, the stage diagram, the globs, the McCusker
+  order and `Stage.restraint_weight_scale` — so this chapter takes only what a
+  *program* cannot get from prose: the registry and the serializable twins.
+  `results.md` owns `Diagnostic` in full (7/7), so guards link there.
+  **And `Refinement.fit` takes no `solver=` or `backend=`**, which the task line
+  assumed: they are `Refinement.__init__` arguments, also on `refine`. That is
+  a coherent design (they decide how every residual in the object is computed,
+  so they are not per-fit) and it is now the chapter's opening table, because a
+  reader who guesses wrong gets a `TypeError`.
+
+  **The chapter found a fourth derivation rule, and it was worth more than the
+  chapter.** `PlanInfo.modes` failed to resolve, and the cause is that **a
+  dataclass field with no default is never assigned on the class** — `dir()`
+  cannot see it, `getattr` returns `None`. Only *defaulted* fields were
+  counted, so `Stage.max_iter` was on the surface while `Stage.name` and
+  `Stage.turn_on` were not. Measured: **24 names** hidden, including all four
+  fields of `GuardFinding` and of `PlanInfo`, eleven of `ReflectionRow`,
+  `RefinementPlan.stages` and `SharingMap`'s two. Absent from the denominator
+  with the partition green — the `_SURFACE_FLAGS` shape this module exists to
+  prevent, and rule 3's failure one container over. Both halves were fixed in
+  one commit because they fail apart: `declared_members` fixes the denominator,
+  `_step` fixes resolution, and a name that resolves but is not counted is the
+  same bug wearing the other hat. `GuardReport`'s ten fields correctly stayed
+  out, being neither exported nor reachable.
+
+  **Numbers** (`[dev]` venv — no jax, no torch; darwin/arm64). Fast selection
+  **2402 passed / 117 skipped in 3:18**, counts identical to this session's
+  starting tree: two test *helpers* changed, no test added. The full suite was
+  **not** run — docs plus two test helpers and one generated file cannot move a
+  measured number (`tests/CLAUDE.md` § Running, rung 3); the standing Linux
+  figure is still **2561 passed / 88 skipped in 1:51:56** (`[dev,jax]`, nightly
+  32017322140). Surface **1298 → 1322** (the 24 above). Partition:
+  **544 documented, 778 deferred**, from 473/849 once the derivation was fixed,
+  so **71 names froze**. `sphinx -W` clean; `test_examples.py` 4 passed; ruff
+  clean. The page was audited at 1100 px in both themes with
+  `scrollWidth == clientWidth` on every element in `main` and no body overflow,
+  and read at both crops rather than only measured.
+
+  **In flight: nothing.** Working tree clean.
+
+  **Next (1.0.x).** Four chapters. `using/history.md` + `using/projects.md` is
+  the natural pair to take next, and this session leaves it better set up than
+  it found it: `Refinement.snapshot` is documented here as returning a
+  `RefinementState`, and `RefinementCancelled.node_id` already introduces a
+  node as the thing a working state stands at. Watch the same overlap the
+  data.md session flagged — `files.md` owns the on-disk `.rex` layout, so those
+  chapters own the *DAG* and the *document*, not the directory. Keep appending
+  promotions to `docs/releases/1.0.2.md`, still unreleased. **`Refinement.suggest`
+  and `Refinement.predict` are unassigned**: `suggest` plausibly belongs to
+  `report.md` (Layer 2 is the same "what next" surface) rather than to any
+  remaining chapter, and something must take both before the bucket empties.
+
+  **Gotchas.**
+
+  - **A false release-notes claim, caught the same way the data.md session
+    caught its own.** The freeze paragraph named eight types as wholly frozen;
+    three-eighths was false, because prose enumeration counts for a reader and
+    not for the guard. `PlanInfo`'s three text fields were shown as attribute
+    access on a variable (`info.title`), `Stage.name`/`turn_on` were described
+    in a sentence, and — the new one — **`rx.PlanSpec.from_plan` does not
+    count**, because the scanner strips `rietx.` and not the `rx.` alias every
+    example uses. Write the bare qualified name in prose at least once. The
+    chapter was fixed rather than the claim, and seven more names froze.
+  - **`ROADMAP.md`'s cap was paid by consolidation, not the predicted raise.**
+    The previous session recorded that raising was the only fix left because
+    the narrative had no second copy. Two paragraphs had one: the
+    `guillemot-study` prior art is in `v1.0.md` § "Indexing joined v1.0" with
+    the `git show` recipe, and the vmap sizing note is in `v0.4.md` twice. Both
+    deleted; the five post-2026-08-05 close narratives moved to `v1.0.md`
+    § "The WP-table narratives, second pass". **400 → 355, cap unchanged.**
+    Removing the prose then exposed what it was hiding: three of the four
+    tables under "### v1.0 — indexing" hold no indexing WPs, and only the
+    paragraphs between them made the splits look deliberate. Before assuming a
+    cap must rise, grep the milestone records for the paragraph.
+  - **CI's only red for a whole afternoon was GitHub's.** A `fast py3.13` job
+    failed in `Set up job` at 56 s, unable to download the `setup-uv` action
+    tarball during a GitHub incident with ~50 % archive-download error rates;
+    `lint` hit the same 502 and recovered on retry. Nothing in the tree was
+    implicated, and the rerun passed. Two operational notes: a job that fails
+    in under a minute has failed before reaching any repo code, and
+    `gh pr checks` reads GraphQL, which was itself 503-ing — `gh run list` goes
+    through REST and kept answering.
+  - **The `"skipped"` status and `correlation_warnings` are the same defect as
+    `at_bound`, from the other direction.** Both filed to 1076's mailbox rather
+    than documented. Worth carrying as a pattern: writing a reference chapter
+    *over a type* is what finds an unwritten field, because documenting a field
+    forces the question "what writes this?", and three of the four found so far
+    came from that question rather than from reading the code.
 
 - **2026-08-17 (`using/model.md`)** — six commits on `wp1067-using-model`, four
   of content and two of handover: the session's shape changed after the first
