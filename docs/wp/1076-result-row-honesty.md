@@ -131,8 +131,13 @@ on robustness alone.
       to its single source; a hand-built result with no guard reports `None`.
 - [ ] `docs/manual/using/model.md` documents both states and the field leaves
       the provisional bucket (regenerate `tests/api_surface_deferred.txt` in the
-      same commit); append the promotion and the breaking change to
-      `docs/releases/1.0.2.md`, which is still unreleased.
+      same commit). **Two existing passages point here and must be rewritten,
+      not appended to**: that chapter's § "What a fit reports back" carries a
+      paragraph naming this WP by URL and telling the reader to use `BOUND_HIT`
+      instead, and `docs/releases/1.0.2.md` § "The freeze" carries a paragraph
+      explaining why these three names were left provisional. Deleting `initial`
+      also means the notes gain a **breaking** entry, which is the first one
+      1.0.2 has had — check whether `SCHEMA_VERSION` moves, once, for the pair.
 - [ ] `docs/AGENT_PROTOCOL.md`: the `BOUND_HIT` row gains the machine-readable
       form of the same rule, since an agent iterating parameters now has a
       per-row flag rather than a path cross-reference.

@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md` and `using/model.md` landed and 172 names froze with them; five 1.0.x chapters remain
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md` and `using/model.md` landed and 170 names froze with them; five 1.0.x chapters remain, plus [1076](1076-result-row-honesty.md), the first surface defect a chapter found
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -347,7 +347,9 @@ passing.
       `parameterisation.md` and `data.md`'s `Cell` section, so this chapter
       links them; the JSON round-trip is `Parameter`'s in `data.md`; and
       `ParameterTable` itself is not on the public surface, so the chapter is
-      written over `Refinement.parameters` rather than over the class.
+      written over `Refinement.parameters` rather than over the class. It
+      documents `RefinedParameter` **except** `initial` and `at_bound`, which
+      nothing writes and [1076](1076-result-row-honesty.md) is fixing.
 - [ ] `using/refining.md` — modes, plans (`PLAN_INFO`), stages, guards,
       `solver=`, `backend=`, `events=` / `cancel=`.
 - [ ] `using/history.md` and `using/projects.md` — the DAG (branch, merge,
@@ -397,7 +399,10 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
 
 ## Handover log
 
-- **2026-08-17 (`using/model.md`)** — three commits on `wp1067-using-model`.
+- **2026-08-17 (`using/model.md`)** — six commits on `wp1067-using-model`, four
+  of content and two of handover: the session's shape changed after the first
+  one, when the user set the freeze aside and asked for the robust fix instead
+  (first gotcha).
   No `### Inherited` to prune: yesterday's session consumed and deleted it, and
   the two `### Inherited` strings still in this file are prose about *1003's*
   mailbox, not a section here.
@@ -429,8 +434,10 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   belong in one chapter, and `results.md` now says so in its opening.
 
   **Numbers** (`[dev]` venv — no jax, no torch; darwin/arm64). Fast selection
-  **2402 passed / 117 skipped in 2:40**, identical to this session's starting
-  tree: no test was added, no source file changed. The full suite was **not**
+  **2402 passed / 117 skipped**, run twice at **2:40 and 3:05** on the same tree,
+  which is the range rule earning its keep on one machine in one session. Counts
+  identical to this session's starting tree: no test was added, no source file
+  changed. The full suite was **not**
   run — docs plus one generated data file cannot move a measured number
   (`tests/CLAUDE.md` § Running, rung 3); the standing Linux figure is still
   **2561 passed / 88 skipped in 1:51:56** (`[dev,jax]`, nightly 32017322140).
