@@ -63,6 +63,19 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 # reader detail went to src/rietx/io/CLAUDE.md (loads under io/) and root
 # kept only the four consequences a caller outside io/ sees.  Landed at 165,
 # capped at 200 — the headroom is the remaining formats' per-format rows.
+# WP-1067 (2026-08-17) is the same move for ROADMAP, and the cap does NOT move:
+# the file was at exactly 400 with 1076's index row still to add, and the
+# session before it recorded that a raise was the only fix left because the
+# narrative had no second copy.  Measured, two paragraphs had one already — the
+# guillemot-study prior art is in v1.0.md § "Indexing joined v1.0" with the
+# `git show` recipe, and the vmap sizing note is in v0.4.md twice — so those
+# were deleted and the five post-2026-08-05 close narratives moved to v1.0.md
+# § "The WP-table narratives, second pass", which is what protocol rule 5 asks
+# for on close and this assertion's own message prescribes.  400 -> 355.
+# The deletions also exposed what the narrative was hiding: three of the four
+# tables under "### v1.0 — indexing" are not indexing WPs, and only the prose
+# between them made the splits look deliberate.  They now carry their own
+# headings, which is why the saving is 45 lines rather than the 64 removed.
 SIZE_CAPS: dict[str, int | None] = {
     # 600 -> 620 for WP-1067 (2026-08-14): the manual became two parts with
     # two different guards, and the operating detail did go down a rank as
