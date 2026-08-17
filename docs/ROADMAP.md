@@ -75,8 +75,9 @@ documents a name *promotes it to frozen* — regenerate
   transport (export/open, "the directory, zipped");
   `RefinementState.excluded_regions` with `replay` honouring the node's
   regions (1003 §B — decided, not re-opened).
-- **[1067](wp/1067-user-api-manual.md)** — three Part 1 chapters left, each
-  promoting names out of the provisional bucket (661 left, half the surface);
+- **[1067](wp/1067-user-api-manual.md)** — two Part 1 chapter lines left plus
+  second passes on `agents.md` and `report.md`, each promoting names out of the
+  provisional bucket (395 left, 30 % of the surface);
   **[1076](wp/1076-result-row-honesty.md)** now holds three unwritten result
   fields, all found by writing a chapter over the type that declares them.
 - **Post-1003 indexing work**: narrow what the acceptance fixtures search

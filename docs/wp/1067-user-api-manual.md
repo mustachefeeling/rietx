@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md`, `using/refining.md` and `using/history.md` landed and 358 names froze with them, half the surface; three 1.0.x chapters remain, plus [1076](1076-result-row-honesty.md), now holding four unwritten fields and values a chapter found
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md`, `using/refining.md`, `using/history.md` and `using/indexing.md` landed and 624 names froze with them, 70 % of the surface; two 1.0.x chapter lines remain plus the second passes on `agents.md`/`report.md`, and [1076](1076-result-row-honesty.md) holds four unwritten fields and values a chapter found
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -374,20 +374,28 @@ passing.
       the session object's six attributes, `ProjectDoc` field by field, four
       `DataRef` fields — went into `files.md` beside them. Between them the two
       halves froze 117 names and eleven types in full.
-- [ ] `using/indexing.md` — `pick_peaks` → `index_pattern`, `quick` vs
-      `full`, `best_or_none()`, the extinction symbol, and reading "no
-      high-confidence entry" as a result rather than a failure.
+- [x] `using/indexing.md` — "Indexing an unknown cell" (2026-08-17). The three
+      calls and the objects they return, written over the schemas because that
+      is where the surface is: `PeakList`/`ObservedPeak` with the twelve flags,
+      `DataQualityReport` with searchable-vs-scorable, the shift screen (where
+      `allowance_deg` is not `sigma_sys_deg`), the controls, `IndexingResult`
+      with `CellCandidate` and its four evidence blocks, the twelve caveats
+      split six refuting / six capping, the evidence view, and the extinction
+      screen. **266 names froze — the largest single chapter on this WP** — and
+      the bucket now holds no indexing name. It also found that
+      `rietx.indexing`'s own helpers are not on the derived surface at all (see
+      the handover).
 - [ ] `using/series.md` and `using/exports.md` — sequential vs multi and
       `direction="both"`; CIF / reflection / QPA exports, plots,
       `plot_for_vlm`, `write_html`.
 - [ ] `using/cli.md` — `rietx watch`, `rietx compare`, and `rietx gui` in one
       **beta**-marked line.
-- [ ] **The names no remaining chapter claims** — measured 2026-08-17, when the
-      bucket first became small enough to map: of the 661 left, about 276 are
-      indexing's, 73 are the series and multi-histogram types, and the rest are
-      **not** in any remaining task line above. Two blocks account for most of
-      them, and both belong to a chapter that already exists, so this is a
-      second pass rather than a new page: the agent request and response union
+- [ ] **The names no remaining chapter claims** — remeasured 2026-08-17 after
+      the indexing chapter took its 266: of the **395** left, 73 are the series
+      and multi-histogram types, and the rest are **not** in any remaining task
+      line above. Two blocks account for most of them, and both belong to a
+      chapter that already exists, so this is a second pass rather than a new
+      page: the agent request and response union
       (`RefineRequest`, `MultiRefineRequest`, `SequentialRefineRequest`,
       `SuggestRequest`, `IndexRequest`, `AgentSuccess`; 78 names, and
       `agents.md` documents the *call* rather than the arms), and the report's
