@@ -140,14 +140,18 @@ and the rest describe what this specimen did to the peaks.
 | `Phase.restraints` | list | `[]` | soft observational restraints, {eq}`par-restraint` |
 
 The four broadening terms are the sample half of the instrument ⊕ sample split.
-Gaussian variances add and Lorentzian widths add, which is why the two pairs
-carry different units, and it is why the instrument's `ProfileTCHZ` terms and a
-phase's four are never refined together on the same pattern.
+Gaussian *variances* add under convolution and Lorentzian *widths* add, which is
+why the two pairs carry different units: deg² for the Gaussian pair and deg for
+the Lorentzian one. Each term stacks on the instrument term with the same
+θ-dependence, so one pattern cannot separate the two halves, and no shipped plan
+frees both. `mccusker_default` frees the instrument widths and none of these
+four; `lab_sample_refine` frees these four and none of the instrument's.
 
-`particle_radius_um` is the one field here that is not obtainable from the
-pattern. Profile broadening measures the coherent domain, which is smaller than
-and unrelated to the particle whose absorption path Brindley's correction
-integrates over. Supply it from a micrograph or a particle-size measurement, or
+`particle_radius_um` cannot be obtained from the pattern at all, which is why it
+is a plain float rather than a `Parameter`. Profile broadening measures the
+coherent domain, which is smaller than and unrelated to the particle whose
+absorption path Brindley's correction integrates over, and conflating the two is
+a standing error. Supply it from a micrograph or a particle-size measurement, or
 leave it `None`.
 
 `Cell` holds six parameters and applies no symmetry itself.
@@ -239,9 +243,9 @@ They multiply the literal monomials, where some other codes fold the symmetry
 multiplicities in, so a coefficient copied from another program has to be matched
 by the width it produces rather than by its name. Symmetry decides which are
 independent, and the space group's own operators derive that set.
-`StephensStrain.isotropic` seeds the block from one strain value and a cell, and
-it is the only legal starting point, because the width goes as a square root
-whose slope is unbounded at zero. `StephensStrain.from_values` and
+`StephensStrain.isotropic` seeds the block from one strain in ppm of ΔM/M and a
+cell, and it is the only legal starting point, because the width goes as a square
+root whose slope is unbounded at zero. `StephensStrain.from_values` and
 `StephensStrain.values` are the tuple interface. Declaring the block locks
 `Phase.lor_strain`, whose column is identically the isotropic direction of the
 subspace.
@@ -258,7 +262,7 @@ with r = 1 the identity.
 |---|---|---|---|
 | `Instrument.source` | `Source` | required | radiation: wavelengths, line weights, polarisation |
 | `Instrument.geometry` | `Geometry` | capillary, no aberrations | how the specimen sits in the beam |
-| `Instrument.zero_shift` | `Parameter` | 0.0 deg, in [−0.5, 0.5] | 2θ offset of the detector circle, {eq}`pos-displacement` |
+| `Instrument.zero_shift` | `Parameter` | 0.0 deg, in [−0.5, 0.5] | a constant 2θ offset, the one position error every geometry has |
 | `Instrument.profile` | `ProfileTCHZ` | see below | the instrumental width function |
 | `Instrument.background` | one of three | `BackgroundChebyshev` | the pedestal under the peaks |
 
@@ -341,7 +345,7 @@ A flat plate, `kind="bragg_brentano"` or `kind="flat_plate_transmission"`:
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `Geometry.sample_displacement` | `Parameter` | 0.0 mm | specimen off the focusing circle, cos θ |
+| `Geometry.sample_displacement` | `Parameter` | 0.0 mm | specimen surface off the goniometer axis, cos θ, {eq}`pos-displacement` |
 | `Geometry.sample_transparency` | `Parameter` | 0.0 | penetration into the specimen, {eq}`pos-transparency` |
 | `Geometry.mu_t` | float or None | `None` | µ·t of the specimen, {eq}`corr-fp2` and {eq}`corr-fp3a` |
 | `Geometry.thickness_mm` | float or None | `None` | specimen thickness in mm, an estimator input for µt |
@@ -389,11 +393,17 @@ parameters, in degrees 2θ throughout.
 | `ProfileTCHZ.y` | `Parameter` | 0.0 deg, softplus | Lorentzian tan θ term |
 | `ProfileTCHZ.shape` | `"tchz_pv"` or `"voigt"` | `"tchz_pv"` | pseudo-Voigt or the exact convolution |
 
-Document the physics, not the letters. GSAS and FullProf swap the X and Y
+Match the physics, not the letters. GSAS and FullProf swap the X and Y
 assignments, so a value copied from another code has to be matched by its
-θ-dependence: size broadening goes as 1/cos θ and strain as tan θ. `u` and `v`
-are allowed to go slightly negative because the Caglioti form is an empirical
-fit to a resolution curve rather than a sum of variances.
+θ-dependence: size broadening goes as 1/cos θ and strain as tan θ. Getting this
+backwards is not a labelling slip, it is a different width function, and this
+manual has made the mistake itself.
+
+`w`, `x` and `y` are softplus-positive; `u` and `v` carry negative lower bounds,
+so the Gaussian polynomial can bend downward. The quantity that has to stay
+positive is the total Γ_G² across the measured range rather than each term, so
+read a negative `u` or `v` as a statement about the fitted resolution curve and
+check the width it produces at both ends of the range.
 
 `shape` is a compile-time choice, not a refinable one, and both shapes consume
 the same five widths, so switching never changes the parameter table.

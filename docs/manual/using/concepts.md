@@ -24,7 +24,7 @@ field by field; this section is what each group does and why the groups fight.
 | background | `instrument.background.*` | the pedestal under the peaks | smooth in 2θ |
 | position corrections | `instrument.zero_shift`, `instrument.geometry.sample_displacement`, `instrument.geometry.capillary_offset_along_beam`, `instrument.geometry.capillary_offset_across_beam` | where every peak sits | constant, cos θ, sin 2θ, cos 2θ |
 | cell | `phases.*.cell.*` | where each peak sits, through its d-spacing | tan θ |
-| instrument profile | `instrument.profile.u`, `.v`, `.w`, `.x`, `.y` | peak widths and shape | Gaussian: `w` constant, `v` tan θ, `u` tan²θ. Lorentzian: `x` tan θ, `y` 1/cos θ |
+| instrument profile | `instrument.profile.u`, `.v`, `.w`, `.x`, `.y` | peak widths and shape | Gaussian: `w` constant, `v` tan θ, `u` tan²θ. Lorentzian: `x` 1/cos θ, `y` tan θ |
 | sample broadening | `phases.*.gauss_size`, `phases.*.lor_size`, `phases.*.gauss_strain`, `phases.*.lor_strain` | the specimen's own width contribution | size 1/cos θ, strain tan θ |
 | anisotropic strain | `phases.*.microstrain.dof.*` | width, per hkl rather than per θ | tan θ, scaled by direction |
 | coordinates | `phases.*.atoms.*.dof.*` | relative peak intensities | none — it is an hkl effect |
