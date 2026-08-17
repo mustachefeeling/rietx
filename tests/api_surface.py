@@ -51,6 +51,7 @@ file is and why it is generated rather than typed).
 from __future__ import annotations
 
 import ast
+import dataclasses
 import inspect
 import textwrap
 import types
@@ -194,9 +195,23 @@ def declared_members(cls: type) -> dict[str, Entry]:
     Rule 1: a member counts iff it is one of the model's fields, or the class
     that defines it lives in a rietx module.  Attribution is to the defining
     class, so an inherited method is one entry.
+
+    Rule 4 (WP-1067, 2026-08-17) is the plain-dataclass half of rule 1, and it
+    is rule 3's failure one container over: **a dataclass field without a
+    default is not a class attribute at all**, so ``dir()`` cannot see it and
+    ``getattr`` returns nothing.  Only the *defaulted* fields were counted,
+    which is why ``Stage.max_iter`` was on the surface and ``Stage.name`` and
+    ``Stage.turn_on`` — the two a caller actually writes — were not, along with
+    every field of ``GuardFinding`` and ``PlanInfo`` and eleven of
+    ``ReflectionRow``.  34 names, absent from the denominator with the
+    partition green, which is the exact shape of the ``_SURFACE_FLAGS`` bug
+    this module exists to prevent.  Found by ``using/refining.md`` naming
+    ``PlanInfo.modes`` and the resolver refusing it.
     """
     out: dict[str, Entry] = {}
     fields = set(getattr(cls, "model_fields", None) or {})
+    if dataclasses.is_dataclass(cls):
+        fields |= {f.name for f in dataclasses.fields(cls)}
     for name in sorted(fields):
         if _public(name):
             out[f"{cls.__name__}.{name}"] = Entry(f"{cls.__name__}.{name}", "field", cls.__name__)
