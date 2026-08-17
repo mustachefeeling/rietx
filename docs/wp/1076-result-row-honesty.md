@@ -133,10 +133,37 @@ provisional bucket by that chapter, so this WP is free to change either.
   of the type infers a skip mechanism that does not exist. It is also the
   cheaper fix, since removing a value from a `Literal` no writer produces
   cannot break a producer, only a consumer that matched on it.
+  **It is declared twice** (found while writing `using/history.md`):
+  `NodeMetrics.status` (`schemas/history.py:195`) carries the same four-value
+  `Literal`, filled from the same `outcome.status`, so whatever this WP decides
+  has to be decided for both. `NodeMetrics.status` is already `| None`, and
+  `None` is what a node that ran no fit carries, so the spare value has no
+  meaning left to take there either.
 
-Both were found by writing the chapter over the type, not by reading the code,
-which is the third time on this WP's subject that the manual's own coverage
-pass has been the thing that noticed.
+**From WP-1067's `using/history.md` session (2026-08-17): a third value of the
+same class, and this one already has a consumer.** `NodeKind`
+(`schemas/history.py:40`) admits `"lebail_update"`, and **no code path commits
+such a node**: grepped across `src/`, every `NodeAction(kind=…)` construction is
+one of the other seven (`root`, `stage`, `set_vary`, `set_value`, `set_tie`,
+`edit_model`, `merge`). A Le Bail stage refreshes its intensities inside itself,
+and the refreshed values are part of the `stage` node's `ReflectionState`, so
+there is nothing left for a node of this kind to record.
+
+It differs from `StageResult.status`'s `"skipped"` in the direction that costs
+more: two consumers are already written against it. `NodeAction.api_call`
+renders `ref.lebail_update(n_cycles=…)`, **a call that does not exist on
+`Refinement`** — the log's "this is the API call that would repeat it" promise
+is false for that branch — and `gui/src/lib/history.ts:133` has a `case
+"lebail_update"` labelling the node `Le Bail ×N` in the history panel. Removing
+the value is therefore a three-file change rather than a one-line one, and it is
+the shape 1076 is about: a vocabulary member whose presence asserts a mechanism
+the package does not have. `using/history.md` documents the field with the
+vocabulary as it stands and says plainly that no verb commits this kind, which
+is the honest reading until this WP decides.
+
+All three were found by writing a chapter over the type, not by reading the
+code, which is the fourth time on this WP's subject that the manual's own
+coverage pass has been the thing that noticed.
 
 ## Non-goals
 

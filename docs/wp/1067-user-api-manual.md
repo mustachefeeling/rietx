@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md` and `using/refining.md` landed and 241 names froze with them; four 1.0.x chapters remain, plus [1076](1076-result-row-honesty.md), now holding three unwritten result fields a chapter found
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md`, `using/refining.md` and `using/history.md` landed and 358 names froze with them, half the surface; three 1.0.x chapters remain, plus [1076](1076-result-row-honesty.md), now holding four unwritten fields and values a chapter found
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -361,9 +361,19 @@ passing.
       chapter links rather than restates. It also found the guard's fourth
       derivation rule (see the handover) and two more unwritten result fields,
       filed to [1076](1076-result-row-honesty.md).
-- [ ] `using/history.md` and `using/projects.md` — the DAG (branch, merge,
-      cherry-pick, replay; state not curves) and the `.rex` project (one
-      authority per fact, `fitted_mask`, `DataRef`).
+- [x] `using/history.md` — "The refinement history" (2026-08-17). The DAG as an
+      object: `HistoryNode` and why it stores state and not curves, `NodeAction`
+      and why a stage records its own solver settings, the `RefinementState` a
+      checkout puts back, `ReflectionState`, the as-optimised `NodeMetrics`, the
+      tree's twenty queries, `checkout`/`branch`/`cherry_pick`/`merge`/
+      `from_node`, `replay`, and `TreeHeader`. **`using/projects.md` was not
+      written**, and the reason is measured rather than a scope cut: `files.md`
+      already held the `.rex` layout, the one-authority rule, saving-as-settings,
+      the data reference and nine `Project` members, so a second page would have
+      been a field table plus a copy of that narrative. The remaining 25 names —
+      the session object's six attributes, `ProjectDoc` field by field, four
+      `DataRef` fields — went into `files.md` beside them. Between them the two
+      halves froze 117 names and eleven types in full.
 - [ ] `using/indexing.md` — `pick_peaks` → `index_pattern`, `quick` vs
       `full`, `best_or_none()`, the extinction symbol, and reading "no
       high-confidence entry" as a result rather than a failure.
@@ -372,6 +382,21 @@ passing.
       `plot_for_vlm`, `write_html`.
 - [ ] `using/cli.md` — `rietx watch`, `rietx compare`, and `rietx gui` in one
       **beta**-marked line.
+- [ ] **The names no remaining chapter claims** — measured 2026-08-17, when the
+      bucket first became small enough to map: of the 661 left, about 276 are
+      indexing's, 73 are the series and multi-histogram types, and the rest are
+      **not** in any remaining task line above. Two blocks account for most of
+      them, and both belong to a chapter that already exists, so this is a
+      second pass rather than a new page: the agent request and response union
+      (`RefineRequest`, `MultiRefineRequest`, `SequentialRefineRequest`,
+      `SuggestRequest`, `IndexRequest`, `AgentSuccess`; 78 names, and
+      `agents.md` documents the *call* rather than the arms), and the report's
+      own evidence types (`StageReport`, `SuggestionResult`, `RegionAttribution`,
+      `TextureAnalysis`, `StrainAnalysis`, `BackgroundEvidence`,
+      `ParameterCandidate`, `ExchangeFinding`, `TrendAnalysis`, all reachable
+      from `FitReport`'s own fields, where `report.md` describes the three
+      layers without naming the types field by field). The bucket cannot empty
+      without both.
 
 ## Acceptance
 
@@ -407,6 +432,113 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-17 (`using/history.md`, and the project half of `files.md`)** — nine
+  commits on `wp1067-using-history`, eight of content and one of handover. No
+  `### Inherited` to prune (still none on this WP; the "Inherited" strings in
+  this file are prose about *1003's* and *1076's* mailboxes).
+
+  **The task line asked for two pages and the measurement deleted one.** Fourth
+  session running, measuring which names each existing page already spells
+  changed the shape of the work before a word was written — and this time it
+  removed a whole planned chapter. `files.md` already held the `.rex` layout,
+  the one-authority rule, saving-as-settings, the data reference, the excluded
+  regions and nine `Project` members, so a `using/projects.md` would have been a
+  field table plus a copy of that narrative. The 25 remaining names went into
+  `files.md` beside their subject: the session object's six attributes,
+  `ProjectDoc` field by field, and the four `DataRef` fields that describe the
+  pattern. **`Project`, `ProjectDoc` and `DataRef` are now frozen in full.**
+
+  **The chapter is the DAG as an object**, since `files.md` owns it as a file:
+  what a node holds and why it stores state and not curves, the `NodeAction`
+  (with the reason a stage records its own five solver settings —
+  `cherry_pick` rebuilds a `Stage` from them), the `RefinementState` a checkout
+  puts back, `ReflectionState`, the as-optimised `NodeMetrics`, twenty tree
+  queries, the four branching verbs, `replay`, and `TreeHeader`.
+
+  **Numbers** (`[dev]` venv — no jax, no torch; darwin/arm64). Fast selection
+  **2402 passed / 117 skipped in 4:11**, counts identical to this session's
+  starting tree: docs only, no test added. The full suite was **not** run — docs
+  plus one generated file cannot move a measured number (`tests/CLAUDE.md`
+  § Running, rung 3); the standing Linux figure is still **2561 passed / 88
+  skipped in 1:51:56** (`[dev,jax]`, nightly 32017322140). Partition:
+  **661 documented, 661 deferred** of 1322, from 544/778 — **117 names froze**,
+  and the surface is now exactly halved. `sphinx -W` clean; `test_examples.py`
+  4 passed; ruff clean. The new page was audited at 1100 px in both themes with
+  `scrollWidth == clientWidth` on every element in `main` and no body overflow,
+  and read at five crops in light and two in dark; `files.md` was re-audited the
+  same way after its two new tables.
+
+  **Measured while writing** (all from the `examples/nac_11bm.py` session, which
+  the fast suite runs): the walkthrough's tree is **13 nodes**, the Le Bail node
+  carries **129 extracted intensities** and the Rietveld nodes none, `replay` of
+  the final node lands **1.6e-7** from the cached Rwp, and **44 paths** differ
+  between the Le Bail node and the final one. On the same pattern, limits of
+  2-24° leave **22 003 of 59 498** channels and excluding 7.4-7.6° as well
+  leaves **21 803**.
+
+  **In flight: nothing.** Working tree clean.
+
+  **Next (1.0.x).** Three chapter lines, plus the fourth this session added,
+  which is the one that decides when the WP can close. The bucket is now small
+  enough to map, and the map is the useful part: of 661 names, **~276 are
+  indexing's**, **73 are the series and multi-histogram types**, **78 are the
+  agent request/response union** and the rest include the report's own evidence
+  types (`StageReport`, `SuggestionResult`, `TextureAnalysis`, `StrainAnalysis`,
+  `RegionAttribution`, `BackgroundEvidence`, `TrendAnalysis`,
+  `ParameterCandidate`, `ExchangeFinding`), all reachable from `FitReport`'s own
+  fields. The last two blocks are second passes on `agents.md` and `report.md`,
+  not new pages. `using/indexing.md` is the largest single chapter left by a
+  wide margin; `src/rietx/indexing/CLAUDE.md` auto-loads for it. Keep appending
+  promotions to `docs/releases/1.0.2.md`, still unreleased. **`Refinement.predict`
+  is still unassigned**, and the export verbs (`Refinement.write_cif`,
+  `.write_reflection_table`, `.write_qpa_table`, `.reflection_table`) want
+  `exports.md`.
+
+  **Gotchas.**
+
+  - **The `rx.` alias trap has a victim, and it had been sitting there since the
+    floor.** `Project.create` and `Project.open` were spelled in `files.md` only
+    inside a fenced block as `rx.Project.create(...)`, and the scanner strips
+    `rietx.` and not `rx.`, so both stayed in the provisional bucket through
+    three releases' worth of chapters while the page looked like it documented
+    them. The previous session recorded this as a rule; this is what it looks
+    like in the wild. Grep a chapter for `` `rx. `` before believing its
+    coverage.
+  - **`RefinementTree.head` is not "where this object is".** Measured:
+    `ref.branch("lebail")` leaves `ref` at n0012 and moves the *tree's* head ref
+    to n0005, because `branch` checks the new refinement out and a checkout
+    writes the shared ref. Each `Refinement` carries its own `_head_id`. Read
+    the tree's head as "where a reopened session resumes"; the chapter now says
+    so, because a reader who assumes otherwise will branch and think the fit
+    moved.
+  - **A merge's `prefer` decides the model, not just the tie-break, and the
+    draft had the direction backwards.** Measured on the walkthrough's tree:
+    merging the Le Bail branch into the final state with `prefer="theirs"`
+    returns a **one-phase** model, because the CaF₂ impurity arrived in a model
+    edit that is not on the preferred side, and nothing raises. Writing the
+    warning from the docstring rather than from a run is what got it wrong.
+  - **Building a tree by hand needs `ref.checkout("head")` after the root node.**
+    `Refinement.__init__` reads `history.head` once, so a `Refinement`
+    constructed over a fresh empty tree keeps `_head_id = None` and its first
+    commit is parentless. `Project.create` does exactly this checkout, which is
+    how the chapter's executable example was made to produce a connected tree.
+  - **Two more unwritten values, both filed to 1076, and one has consumers.**
+    `NodeKind` admits `"lebail_update"` and no code path commits one — yet
+    `NodeAction.api_call` renders `ref.lebail_update(n_cycles=…)`, **a method
+    `Refinement` does not have**, and `gui/src/lib/history.ts` has a case
+    labelling such a node. Separately, `NodeMetrics.status` declares
+    `"skipped"`, which is `StageResult.status`'s spare value in a second
+    container filled from the same `outcome.status`. The chapter documents both
+    fields with the vocabulary as it stands and says plainly what nothing sets.
+  - **Four facts in neighbouring chapters were wrong, and a table is what found
+    each.** `refining.md` said a `Stage` carries four solver settings and then
+    described four *besides* the one it had delegated to `concepts.md` (it is
+    five); `TreeHeader.data_fingerprint` is a sha256 **truncated to 32 hex
+    digits**, not a full one; `ReflectionState` is not "the state outside the
+    parameter vector", since Pawley puts exactly those intensities into it. The
+    fourth is the merge direction above. Transcribing a field into a table is
+    what forces the check that reading the docstring does not.
 
 - **2026-08-17 (`using/refining.md`)** — seven commits on
   `wp1067-using-refining`, six of content and one of handover. No

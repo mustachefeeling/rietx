@@ -36,7 +36,7 @@ it is not arbitrary.
 | Setting | Where it goes | Why there |
 |---|---|---|
 | `backend`, `solver` | the `Refinement` constructor (and `refine`) | they decide how every residual and Jacobian in that object is computed, so they belong to the object rather than to one fit |
-| `history` | the `Refinement` constructor (and `refine`) | a tree spans many fits |
+| `history` | the `Refinement` constructor (and `refine`) | a tree spans many fits ([](history.md)) |
 | `mode`, `plan`, `two_theta_limits` | `Refinement.fit` | one question asked of one pattern |
 | `events`, `cancel` | `Refinement.fit` | they belong to a single run in flight |
 
@@ -143,13 +143,13 @@ the fit, it does not constrain it.
 
 ## What a stage carries
 
-A `Stage` is `Stage.name`, a list of globs in `Stage.turn_on`, and four numbers
+A `Stage` is `Stage.name`, a list of globs in `Stage.turn_on`, and five numbers
 that decide how that stage is solved. `Stage.name` is a label, carried through
 to `StageResult.name` and to the event stream; `Stage.turn_on` is what the
 stage frees, matched with `fnmatch` against the dot-paths of [](model.md).
 
 [](concepts.md) covers `Stage.restraint_weight_scale`, the restraint schedule,
-in full; the other three are here.
+in full; the other four are here.
 
 ```python
 import rietx as rx
@@ -249,7 +249,8 @@ ref.run_stage(data, rx.Stage("cell", ["phases.*.cell.*"]))
 Each call refines, commits a history node and leaves the model at the values it
 reached, so the next call starts from there. This is the same sequence a plan
 performs; running it by hand is how a caller interleaves its own decisions
-between stages. `Refinement.suggest` is built for exactly that moment.
+between stages. `Refinement.suggest` is built for exactly that moment, and
+[](history.md) is how to go back a stage when the decision was wrong.
 
 `run_stage` takes its own `correlation_guard` rather than reading one from a
 plan, because there is no plan involved.
@@ -428,7 +429,8 @@ is empty when the first stage was cancelled. `RefinementCancelled.node_id` is
 `None` with history disabled, or when nothing completed.
 
 A cancelled run is therefore not a lost run: the working state is a real,
-restorable node, and the stages before it are reported in full.
+restorable node ([](history.md)), and the stages before it are reported in
+full.
 
 ## What the result records about the run
 

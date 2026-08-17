@@ -81,8 +81,9 @@ addresses into the parameter table, not attributes of a class.
 The chapters run in the order a first session with the package runs: install
 it, get one fit to the end, learn what the three objects hold, learn how their
 parameters are addressed and edited, learn why a fit is staged, run one and
-control it, read the numbers it returned, read the report on top of them, find
-out what is on disk, then wire it into something. The closing chapter is the
+control it, read the numbers it returned, read the report on top of them, go
+back to any state it passed through, find out what is on disk, then wire it
+into something. The closing chapter is the
 1.0 stability promise.
 
 ```{toctree}
@@ -97,6 +98,7 @@ using/concepts
 using/refining
 using/results
 using/report
+using/history
 using/files
 using/agents
 using/compatibility

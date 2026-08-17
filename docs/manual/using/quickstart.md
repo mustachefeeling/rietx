@@ -103,6 +103,7 @@ the first stopped rather than from the CIF. Three things come with that:
 - `Refinement.history` records every stage as a restorable node, and it is on by
   default here. `Refinement.edit` puts a change to the *model* on the same
   record, so adding a phase is a recorded move rather than a fresh start.
+  [](history.md) is what a node holds and how to go back to one.
 - `Refinement.report` builds the `FitReport` with the compiled model attached,
   which `build_report` on a bare result cannot do.
 
@@ -158,7 +159,7 @@ Six things in it recur in every fit after this one:
   the models carry over.
 - **Every stage commits a node.** `Refinement.history` holds both refinements
   *and* the model edit between them, and `RefinementTree.tag` names a node to
-  come back to.
+  come back to. [](history.md) is the whole record.
 - **A plan is editable.** `plan.stages.append(rx.Stage("biso", [...]))` adds a
   displacement stage after the preset's, and `Stage` takes fnmatch globs over
   the parameter dot-paths (`phases.*.atoms.*.biso`). [](model.md) is the path
