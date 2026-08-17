@@ -36,6 +36,7 @@ from being forgotten.
 from __future__ import annotations
 
 import ast
+import dataclasses
 import importlib
 import re
 import typing
@@ -210,11 +211,26 @@ def _step(obj: object, attr: str) -> tuple[bool, object]:
     A pydantic v2 model does not carry its fields as class attributes, so
     `getattr(Capabilities, "backends")` raises: a field hop reads
     `model_fields` and continues from the annotated type.
+
+    A plain dataclass has the same shape for a different reason: a field with
+    no default is never assigned on the class, so `getattr(PlanInfo, "modes")`
+    is `None` and `Stage.name` and `GuardFinding.code` do not resolve either.
+    Read those from `dataclasses.fields` and continue from the annotation, the
+    same way (WP-1067; `api_surface.declared_members` rule 4 is the half of
+    this that fixes the *denominator*).
     """
     if isinstance(obj, type):
         fields = getattr(obj, "model_fields", None) or {}
         if attr in fields:
             return True, _rietx_class_in(fields[attr].annotation)
+        if dataclasses.is_dataclass(obj) and any(
+            f.name == attr for f in dataclasses.fields(obj)
+        ):
+            try:
+                hint = typing.get_type_hints(obj).get(attr)
+            except Exception:  # a forward reference that only resolves later
+                hint = None
+            return True, _rietx_class_in(hint)
     value = getattr(obj, attr, None)
     return value is not None, value
 

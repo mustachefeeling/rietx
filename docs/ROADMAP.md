@@ -75,9 +75,10 @@ documents a name *promotes it to frozen* — regenerate
   transport (export/open, "the directory, zipped");
   `RefinementState.excluded_regions` with `replay` honouring the node's
   regions (1003 §B — decided, not re-opened).
-- **[1067](wp/1067-user-api-manual.md)** — five Part 1 chapters left, each
-  promoting names out of the provisional bucket (825 left);
-  **[1076](wp/1076-result-row-honesty.md)** is the first defect a chapter found.
+- **[1067](wp/1067-user-api-manual.md)** — four Part 1 chapters left, each
+  promoting names out of the provisional bucket (778 left);
+  **[1076](wp/1076-result-row-honesty.md)** now holds three unwritten result
+  fields, all found by writing a chapter over the type that declares them.
 - **Post-1003 indexing work**: narrow what the acceptance fixtures search
   (the nightly `full` job's ~77 min of setup — the durable lever the
   timeout recalibration deferred), and the `grade` prior-counting change
@@ -284,7 +285,7 @@ docs were ballooning, CI paid twice per merged PR, and the handover was
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ deferred 2026-08-14 | 1011–1016, 1029, 1032–1035 (soft) |
-| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-17 — § Floor landed, so 1003 is unblocked; the McCusker set's pass landed (Part 2 takes its four equations, `using/results.md` splits off, restraints documented, three figures); `using/data.md` and `using/model.md` landed and froze 170 names (825 left), with the promotions accumulating in the written, unreleased `docs/releases/1.0.2.md`; five 1.0.x chapters remain | 0604, 1004–1007, 1047 |
+| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-17 — § Floor landed, so 1003 is unblocked; the McCusker set's pass landed (Part 2 takes its four equations, `using/results.md` splits off, restraints documented, three figures); `using/data.md`, `using/model.md` and `using/refining.md` landed and froze 241 names (778 left, of a surface the refining chapter grew by 24 by finding a derivation blind spot), with the promotions accumulating in the written, unreleased `docs/releases/1.0.2.md`; four 1.0.x chapters remain | 0604, 1004–1007, 1047 |
 | [1068](wp/1068-manual-second-pass.md) | Part 1 second pass: voice, figures, structure | ✅ 2026-08-15 — voice, sectioning, `concepts.md` + `files.md`, four diagrams, three figure pairs; the McCusker read fixed a false attribution and produced the compliance audit | 1067 |
 | [1076](wp/1076-result-row-honesty.md) | A result row's unwritten fields: `at_bound` and `initial` | ⬜ | 1067 |
 

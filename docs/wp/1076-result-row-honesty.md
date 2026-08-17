@@ -104,6 +104,40 @@ on robustness alone.
 - Eight `RefinedParameter(...)` constructions in `tests/` pass neither field, so
   the default keeps them compiling; deleting `initial` breaks nothing there.
 
+### Inherited
+
+**From WP-1067's `using/refining.md` session (2026-08-17): two more fields of
+this exact class, found the same way.** Both are named here rather than fixed
+there, which is what this WP's own § Non-goals asks for ("if this WP notices
+candidates it lists them in its handover"), except that these were noticed from
+outside and so arrive as a mailbox note instead. Both are left in the
+provisional bucket by that chapter, so this WP is free to change either.
+
+- **`RefinementResult.correlation_warnings`** (`schemas/results.py:633`,
+  `list[str]`) — measured: `correlation_warnings` appears in `src/`, `tests/`
+  and `gui/src` in exactly **one** place, its own declaration. Nothing writes
+  it and nothing reads it, so it serializes as `[]` on every result. That is
+  the `at_bound: false` argument word for word: an empty list reads as "no
+  correlations were flagged" when the truth is "this field is not filled in",
+  and the correlations *are* computed and reported (as `HIGH_CORRELATION`
+  diagnostics, and on `Identifiability`). So the honest options are the same
+  pair as `initial`'s: delete it, or populate it from the guard that already
+  has the findings — and if it is populated, from `GuardFinding` rather than a
+  second rendering, since `str(finding)` is the published text.
+- **`StageResult.status`'s fourth value.** The `Literal` admits `"skipped"`,
+  and the solver produces only `converged`, `max_iter` and `diverged`
+  (`optimize/least_squares.py:639` and `:785` are the two constructions, both
+  three-way). Grepped across `src/`: nothing anywhere sets it. This one is a
+  *value* rather than a field, so it costs a reader differently — a consumer
+  writing an exhaustive match handles a branch that cannot occur, and a reader
+  of the type infers a skip mechanism that does not exist. It is also the
+  cheaper fix, since removing a value from a `Literal` no writer produces
+  cannot break a producer, only a consumer that matched on it.
+
+Both were found by writing the chapter over the type, not by reading the code,
+which is the third time on this WP's subject that the manual's own coverage
+pass has been the thing that noticed.
+
 ## Non-goals
 
 - **No new bound-related diagnostic, and no change to `BOUND_HIT`.** The guard
