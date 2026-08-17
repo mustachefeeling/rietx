@@ -147,9 +147,9 @@ documented there rather than tuned away.
 ## Documentation
 
 - [The manual](https://yue-here.github.io/rietx/). Part 1 is the task-ordered
-  guide to the library: install, one fit, what the fit did, the numbers, the
-  report, what is on disk, driving it from a program, and the compatibility
-  promise. Part 2 is the theory, with numbered equations transcribed from the
+  guide to the library: install, one fit, the objects a fit takes, the
+  parameter table over them, what the fit did, the numbers, the report, what is
+  on disk, driving it from a program, and the compatibility promise. Part 2 is the theory, with numbered equations transcribed from the
   physics docstrings and the convention warnings that decide whether a number
   transfers between Rietveld codes.
 - [AGENT_PROTOCOL.md](https://yue-here.github.io/rietx/AGENT_PROTOCOL.md), the

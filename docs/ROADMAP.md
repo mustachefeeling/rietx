@@ -66,7 +66,7 @@ a change to a frozen surface follows the hybrid classification in
 `docs/manual/using/compatibility.md`, and a 1.0.x manual chapter that
 documents a name *promotes it to frozen* — regenerate
 `tests/api_surface_deferred.txt` and earn a release-notes line
-([1067](wp/1067-user-api-manual.md)'s Inherited has the mechanics).
+([1067](wp/1067-user-api-manual.md)'s Context has the mechanics).
 
 **No milestone is in flight.** Opening the next one is a planning decision
 (version → `1.x.0.dev0`); the committed post-1.0 work, in rough order:
@@ -75,8 +75,9 @@ documents a name *promotes it to frozen* — regenerate
   transport (export/open, "the directory, zipped");
   `RefinementState.excluded_regions` with `replay` honouring the node's
   regions (1003 §B — decided, not re-opened).
-- **[1067](wp/1067-user-api-manual.md)** — six remaining Part 1 chapters, each
-  promoting its names out of the provisional bucket (854 left).
+- **[1067](wp/1067-user-api-manual.md)** — five Part 1 chapters left, each
+  promoting names out of the provisional bucket (825 left);
+  **[1076](wp/1076-result-row-honesty.md)** is the first defect a chapter found.
 - **Post-1003 indexing work**: narrow what the acceptance fixtures search
   (the nightly `full` job's ~77 min of setup — the durable lever the
   timeout recalibration deferred), and the `grade` prior-counting change
@@ -84,11 +85,9 @@ documents a name *promotes it to frozen* — regenerate
 - **[1017](wp/1017-gui-manual-onboarding.md)** — the GUI manual and
   onboarding, still deferred; the GUI stays beta until it lands.
 
-1066's naming rule stands beside them: package, import, CLI and state dir are
-`rietx` while the on-disk tokens are brand-free (`.rex`, `.rxt` with header
-`rxt N`, `instrument_profile`) and survived both renames unchanged. Never spell
-either kind — import from `_about.py`: `test_no_stale_name.py` greps the **old**
-tokens, blind to a hardcoded new one.
+1066's naming rule stands beside them, as a rule in root CLAUDE.md and in full
+(both directions, the token list, and why no test can catch a hardcoded *new*
+name) in `_about.py`'s docstring.
 
 ## Milestones
 
@@ -231,6 +230,13 @@ monoclinic search finishes.
 | [1045](wp/1045-indexing-search-controls.md) | Indexing search controls: one surface for the GUI and the agent | ✅ | 1027, 1042 (1043 soft) |
 | [1046](wp/1046-candidate-cap-before-ranking.md) | The per-engine candidate cap decides the ranking | ✅ 2026-08-09 — reported cap applied once by consensus, `corroborated` the first ranking key | 1024 (1026 soft) |
 
+### v1.0 — cross-cutting, found by use
+
+Neither indexing nor GUI: gaps that surfaced from driving the package over
+files, CIFs and figure conventions we did not author. Close narratives, and
+the `guillemot-study` prior art 1028 rests on, are in the
+[v1.0 record](milestones/v1.0.md).
+
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1028](wp/1028-robustness-external-data.md) | Robustness on data and CIFs we did not author | ✅ 2026-08-07 | — (1007 soft) |
@@ -238,33 +244,11 @@ monoclinic search finishes.
 | [1047](wp/1047-vendor-pattern-formats.md) | Vendor pattern formats: read the files labs actually have | ✅ | 1005, 1007, 1014 (1009, 1028 soft) — before 1003 |
 | [1075](wp/1075-static-panel-conventions.md) | The static panel takes the house figure conventions | ✅ 2026-08-16 — layout, palette, axes and scales; the raw difference is the default and the rows moved below it | — (before 1003: four new `plot_result` keywords) |
 
-**1028 came from outside.** Every item in it was hit by driving the package
-end-to-end over nine unfamiliar refinement targets from a third-party paper
-(branch `wpem-benchmark`, pushed and deliberately **not** merged), and none of
-it was found by reading the code: a species-string syntax that rejects 6 of 11
-COD entries, a 2.35 PiB allocation in `generate_reflections`, `status =
-"converged"` at Rwp = 7 225 %, a stage that burns 4 600 solver evaluations and
-still reports success, March-Dollase returning inf/NaN when `r` underflows past
-a bound meant to prevent exactly that, and `compute_qpa` raising where it should
-diagnose. The first was filed as a **reach regression from WP-1001** and, as
-measured on 2026-07-30, is not one: `scattering.normalize_species` carries the
-same regex, has been on the compile path since v0.1, and rejects the same two
-forms — so those CIFs never loaded. Making dispersion the default moved the
-raise up one line and changed its wording; the fix has to satisfy both lookups
-(WP-1028 §(a)). Robustness against strangers' files is not a feature the
-existing suites can test, because they only ever read files we chose — and the
-benchmark that found these measured every *failure* but reasoned one *cause*,
-which is its own lesson about reading a diff for an attribution.
+### v1.0 — report evidence, agent evals, and the rename
 
-Prior art lives at the annotated tag **`guillemot-study`** (commit 97ba88d, also
-on branch `guillemot-example-refinements`): `studies/guillemot/index_hl2.py` is
-engine B in miniature, `audit_tools.py` measured the findings above, and
-`out/HL2-1_peaks.txt` is 74 peaks from a genuinely unidentified pattern — the
-acceptance fixture whose correct answer is "we do not know".
-
-**It is not merged into `main` and does not need to be** — `git show
-guillemot-study:studies/guillemot/<file>` reads any of it without a checkout.
-The tag is what guarantees that stays true if the branch is ever pruned.
+What a report has to say for a caller to act on it, measured against real
+agents rather than asserted — then the two renames, which ran early because
+the freeze covers names that embed the brand.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -284,51 +268,25 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1065](wp/1065-decisive-swap-license.md) | What a decisive swap licenses: the follow-through sentence, measured on the row it failed | ✅ | 1063, 1064 (before 1003) |
 | [1066](wp/1066-rename.md) | Rename the project to `rietx` | ✅ 2026-08-14 — 363 files, zero numbers moved; format tokens survived a second rename; no WP filename may carry a brand token | 1062 (blocked 1003) |
 
-**1062 (2026-08-12) runs EARLY, not last.** It blocks [1003](wp/1003-api-freeze-pypi.md)
-because the freeze covers names that embed the current one, but the ordering
-argument runs the other way too: the name surface grew ~40 % in eleven days, so
-every WP that lands after the rename is born in the new name, and the audit test
-1062 adds makes a reintroduction fail CI rather than depend on a mailbox note.
-The "in-flight branches will conflict" worry was **measured and refuted** — both
-unmerged branches are archived by tag and confined to `studies/`.
+### v1.0 — the repo's own process (added 2026-08-06)
 
-**1054–1059 (2026-08-11) are the successor plan to 1053's pilot + the FitReport
-design review** (evidence over verdicts; non-ideal-data regimes; background and
-correlation blind spots — measurements dated in each WP's Context). 1054–1058
-are additive to the report/agent surface; their ordering against 1003's freeze
-is 1003's call (its `### Inherited` has the note). 1059 re-measured the A/B on
-2026-08-13 and its finding went back into that same mailbox: the exchange
-clause 1056 added is read as an invitation to free the rival. **1063/1064
-(2026-08-13) are the design review's output** — the clause fix with its
-pull-tool, then the re-aligned round; the assessment they act on is in the
-v1.0 record's narrative.
-
-**1052/1053 (2026-08-05) measure the other half of 1050's bargain**: if the report
-and `suggest()` only *inform* a caller (the no-autopilot fence), then whether
-following them actually converges a fit is a measurable claim — 1052 runs the
-AGENT_PROTOCOL §9 loop mechanically in CI, 1053 puts real models behind the shipped
-`refine_json` surface and scores them on the same planted-cause episodes.
-
-**1060/1061 (2026-08-06) came from a measured review of the repo's own
-process**: three surveys found the docs ballooning (docs/src 0.24 → 0.78 since
-v0.3, most-touched directory) while the tests have earned their keep (~13
-documented heavy-layer catches), CI paying twice per merged PR, and the session
-workflow hanging on a *remembered* `/wp-handover`. 1060 trims what the evidence
-indicts; 1061 makes the missed handover self-detecting at the next session
-start.
+From a measured review of how this repo works, not of what it computes: the
+docs were ballooning, CI paid twice per merged PR, and the handover was
+*remembered* rather than enforced.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1060](wp/1060-docs-ci-consolidation.md) | Docs/CI consolidation: trim what the evidence indicts | ✅ 2026-08-06 | — |
 | [1061](wp/1061-workflow-robustness.md) | Session-workflow robustness: detect the missed handover | ✅ 2026-08-06 | — |
 
-### Post-v1.0 — the two docs WPs (1067 spans the release)
+### Post-v1.0 — the docs WPs (1067 spans the release), and what they found
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ deferred 2026-08-14 | 1011–1016, 1029, 1032–1035 (soft) |
-| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-17 — § Floor landed, so 1003 is unblocked; the McCusker set's pass landed (Part 2 takes its four equations, `using/results.md` splits off, restraints documented, three figures); `using/data.md` landed and froze 141 names (854 left), with the promotions accumulating in the written, unreleased `docs/releases/1.0.2.md`; six 1.0.x chapters remain | 0604, 1004–1007, 1047 |
+| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-17 — § Floor landed, so 1003 is unblocked; the McCusker set's pass landed (Part 2 takes its four equations, `using/results.md` splits off, restraints documented, three figures); `using/data.md` and `using/model.md` landed and froze 170 names (825 left), with the promotions accumulating in the written, unreleased `docs/releases/1.0.2.md`; five 1.0.x chapters remain | 0604, 1004–1007, 1047 |
 | [1068](wp/1068-manual-second-pass.md) | Part 1 second pass: voice, figures, structure | ✅ 2026-08-15 — voice, sectioning, `concepts.md` + `files.md`, four diagrams, three figure pairs; the McCusker read fixed a false attribution and produced the compliance audit | 1067 |
+| [1076](wp/1076-result-row-honesty.md) | A result row's unwritten fields: `at_bound` and `initial` | ⬜ | 1067 |
 
 The GUI keeps moving, so it **ships as a beta feature** and is documented once
 the panels settle. 1067 declares that beta status; its **§ Floor gates
@@ -392,9 +350,6 @@ scope creep.
 
 One note against the day that fence is revisited: **`vmap`-batched in-situ series
 is the only accelerator story this package's hardware supports**, and WP-0408
-measured its size. A device breaks even at ≈50-65 k elements per kernel and tops
-out at **≈2.5-3×** — the work is memory-bound, so that ceiling is not a tuning
-problem. One batched pattern is 17-121 k elements, so the plateau needs ≈10
-(synchrotron) to ≈60 (lab) patterns processed together. Worth having for a
-series; worth nobody's time for a single pattern, which is below break-even even
-after batching.
+measured its size — break-even ≈50-65 k elements per kernel, ceiling ≈2.5-3×
+because the work is memory-bound, so a single pattern is below break-even even
+after batching ([v0.4 record](milestones/v0.4.md), [WP-0408](wp/0408-torch-mps-backend.md)).

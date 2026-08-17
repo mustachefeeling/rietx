@@ -3,7 +3,9 @@
 A finished fit hands back a `RefinementResult`. This chapter is what is on it,
 and how to read each part: the agreement indices, the two structure R-factors,
 the distances and angles, what any restraints did, and the two counts that say
-whether the pattern could support the model at all.
+whether the pattern could support the model at all. The refined parameter values
+themselves are the one part covered elsewhere, in [](model.md), because they are
+a view of the parameter table rather than a statistic about the fit.
 
 The guidelines rank that evidence, and the ranking is not the one a table of R
 values suggests. The two most important criteria for judging a refinement are
