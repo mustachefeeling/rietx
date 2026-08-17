@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md`, `using/refining.md` and `using/history.md` landed and 358 names froze with them, half the surface; three 1.0.x chapters remain, plus [1076](1076-result-row-honesty.md), now holding four unwritten fields and values a chapter found
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md`, `using/refining.md`, `using/history.md` and `using/indexing.md` landed and 624 names froze with them, 70 % of the surface; two 1.0.x chapter lines remain plus the second passes on `agents.md`/`report.md`, and [1076](1076-result-row-honesty.md) holds four unwritten fields and values a chapter found
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -374,20 +374,28 @@ passing.
       the session object's six attributes, `ProjectDoc` field by field, four
       `DataRef` fields — went into `files.md` beside them. Between them the two
       halves froze 117 names and eleven types in full.
-- [ ] `using/indexing.md` — `pick_peaks` → `index_pattern`, `quick` vs
-      `full`, `best_or_none()`, the extinction symbol, and reading "no
-      high-confidence entry" as a result rather than a failure.
+- [x] `using/indexing.md` — "Indexing an unknown cell" (2026-08-17). The three
+      calls and the objects they return, written over the schemas because that
+      is where the surface is: `PeakList`/`ObservedPeak` with the twelve flags,
+      `DataQualityReport` with searchable-vs-scorable, the shift screen (where
+      `allowance_deg` is not `sigma_sys_deg`), the controls, `IndexingResult`
+      with `CellCandidate` and its four evidence blocks, the twelve caveats
+      split six refuting / six capping, the evidence view, and the extinction
+      screen. **266 names froze — the largest single chapter on this WP** — and
+      the bucket now holds no indexing name. It also found that
+      `rietx.indexing`'s own helpers are not on the derived surface at all (see
+      the handover).
 - [ ] `using/series.md` and `using/exports.md` — sequential vs multi and
       `direction="both"`; CIF / reflection / QPA exports, plots,
       `plot_for_vlm`, `write_html`.
 - [ ] `using/cli.md` — `rietx watch`, `rietx compare`, and `rietx gui` in one
       **beta**-marked line.
-- [ ] **The names no remaining chapter claims** — measured 2026-08-17, when the
-      bucket first became small enough to map: of the 661 left, about 276 are
-      indexing's, 73 are the series and multi-histogram types, and the rest are
-      **not** in any remaining task line above. Two blocks account for most of
-      them, and both belong to a chapter that already exists, so this is a
-      second pass rather than a new page: the agent request and response union
+- [ ] **The names no remaining chapter claims** — remeasured 2026-08-17 after
+      the indexing chapter took its 266: of the **395** left, 73 are the series
+      and multi-histogram types, and the rest are **not** in any remaining task
+      line above. Two blocks account for most of them, and both belong to a
+      chapter that already exists, so this is a second pass rather than a new
+      page: the agent request and response union
       (`RefineRequest`, `MultiRefineRequest`, `SequentialRefineRequest`,
       `SuggestRequest`, `IndexRequest`, `AgentSuccess`; 78 names, and
       `agents.md` documents the *call* rather than the arms), and the report's
@@ -432,6 +440,116 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-17 (`using/indexing.md`)** — five commits on
+  `wp1067-using-indexing`, four of content and one of handover. No
+  `### Inherited` to prune (still none on this WP; the "Inherited" strings in
+  this file are prose about *1003's* and *1076's* mailboxes).
+
+  **The measure-first rule ran again and this time found nothing to move.**
+  Fifth session running, and the first where no existing page had claimed any of
+  the subject: three pages mention indexing at all — `agents.md`'s `index` task
+  row and its `Capabilities.indexing_engines` bullet, `files.md`'s
+  `ProjectDoc.indexing`, `install.md`'s one-line capability sentence — and
+  between them they documented **zero** indexing types. So the chapter is the
+  whole subject, and at 904 lines it is the longest in Part 1 by a wide margin.
+  What the measurement did decide is the *order*: it sits after `files.md`
+  because it leans on the Le Bail fit, the diagnostics and the confidence
+  vocabulary the earlier chapters establish, even though a session with an
+  unknown specimen runs it before any of them. `index.md`'s chapter-run
+  sentence says so.
+
+  **266 names froze — the largest single chapter on this WP** — and the bucket
+  went **661 → 395**. Every indexing type is frozen in full, and no indexing
+  name is left in the provisional tier.
+
+  **Numbers** (`[dev]` venv — no jax, no torch; darwin/arm64). Fast selection
+  **2402 passed / 117 skipped in 2:29**, counts identical to this session's
+  starting tree: docs only, no test added. The full suite was **not** run —
+  docs plus one generated file cannot move a measured number
+  (`tests/CLAUDE.md` § Running, rung 3); the standing Linux figure is still
+  **2561 passed / 88 skipped in 1:51:56** (`[dev,jax]`, nightly 32017322140).
+  `sphinx -W` clean; `test_examples.py` 4 passed; ruff clean. Audited at 1100 px
+  in both themes: no body overflow, none of the page's **24** tables scrolls
+  inside its wrapper, no code block scrolls, and the 736/744 article delta the
+  probe reports is Furo's own — identical on `history`, `refining` and `data`.
+
+  **Measured while writing**, all on the bundled IUCr round-robin corundum
+  (SRM 676a, Cu Kα, 7251 points, 5–150°), because a chapter about a gate needs
+  a run that fails it. `pick_peaks` 0.24 s → **62 components, 54 usable**.
+  `index_pattern` at its defaults: **120.2 s**, all three engines, **five of
+  seven systems entered**, cubic and hexagonal complete, monoclinic and
+  triclinic never reached, 12 candidates. The certified trigonal *R* lattice
+  ranks **first** (4.75993, 12.99269 against the certificate's 4.759355,
+  12.99231 — +120 ppm), found by two of three engines, Le Bail converged at
+  Rwp 0.282 — and grades `low` on five caveats with 12 `predicted_but_absent`
+  and 49 `unmatched_observed`, so `best_or_none()` is `None`. That is the
+  chapter's worked example and the protocol's §7d claim in one run. Pair screen:
+  16 admitted pairs of 534 candidate triples, 10 clustered, z 8.96,
+  `allowance_deg` **0.0680°** against `sigma_sys_deg` 0.00428°. FAP extinction
+  screen: 2.2 s, 7 classes, `P 63 - -` = {P 63, P 63/m, P 63 2 2} at ΔBIC −21.8,
+  which is what the chapter shows.
+
+  **In flight: nothing.** Working tree clean.
+
+  **Next (1.0.x).** Two chapter lines — `using/series.md` + `using/exports.md`,
+  and `using/cli.md` — plus the two second passes the bucket now needs, on
+  `agents.md` (the request/response union, 78 names) and `report.md` (the
+  evidence types). Of the 395 left, 73 are the series and multi-histogram types,
+  so `series.md` is the next big block. `Refinement.predict` is still
+  unassigned; the export verbs still want `exports.md`. Keep appending
+  promotions to `docs/releases/1.0.2.md`, still unreleased.
+
+  **Gotchas.**
+
+  - **The class-name trap has a second victim, and the release notes caught
+    it.** `EngineCapability` and `SearchPresetCapability` were documented
+    member by member and never spelled bare, so both **class** names stayed
+    provisional under a freeze paragraph that said they were frozen. Checking
+    the claim per name rather than per type is the only thing that finds this;
+    it is the third session in a row where writing the notes corrected the
+    chapter. Two names, and they are why the chapter's count is 266 rather than
+    264.
+  - **`rietx.indexing`'s own helpers are not on the derived surface at all**,
+    and `docs/AGENT_PROTOCOL.md` §7d tells an operator to call five of them:
+    `assess_peak_list`, `structure_from_candidate`, `SearchSpec`,
+    `estimate_ceiling` and `rietx.viz.plot_indexing`. None is in `rietx.__all__`
+    and none is reachable through an exported type, so they are not documented,
+    not deferred and not frozen — they are internal by `api_surface.py`'s
+    "internal sentence" while a hosted document points users at them. The
+    precedent is `rietx.viz.compare.run`, which `report.md` has spelled
+    fully-qualified since the floor, so this chapter followed it rather than
+    inventing a rule. **Decided 2026-08-18 (user): indexing is still under
+    active development, so the whole subsystem is declared provisional rather
+    than exported and frozen** — [1078](1078-indexing-provisional.md) carries
+    it, and it also un-freezes the 266 names this chapter froze, so it gates
+    the 1.0.2 release.
+  - **The extinction screen refutes corundum's certified class, and the fit
+    quality only halves it.** Over the whole 5–150° range with the round-robin
+    instrument's declared widths, the shared profile fit reaches Rwp 0.287 and
+    `R - c -` is refuted on **5 of 15** testable forbidden positions; over
+    20–90° with the widths seeded from the peak list it reaches 0.149 and the
+    count is **2 of 9** — still refuted, while its ΔBIC reads **−251** in its
+    favour, first offending position (2, 0, 5) at 56.919°. Refutation is
+    one-sided by design and outranks ΔBIC, so this is the rule working; whether
+    those two positions are violated absences or the impurity lines the same
+    specimen's indexing run counted (49 unmatched observed) is unmeasured. The
+    chapter states the mechanism and routes the check to §7e rather than
+    claiming either way. **Nothing in the suite covers a corundum extinction
+    screen** — its rows are the synthetic monoclinic, FAP and NAC.
+    [1077](1077-extinction-refutes-certified-class.md) carries the
+    investigation and the missing acceptance row.
+  - **`assess_peak_list` and `index_pattern` disagree on `shift_from_pairs`**
+    (`False` against `True`). A reader who assesses a list by hand therefore
+    sees `ShiftScreen.source == "unavailable"` and an allowance of zero, while
+    the search that follows measures 0.068° on the same list. Not a defect —
+    the standalone call must not run a stochastic screen unasked — but it reads
+    as one, so the chapter says it in the sentence where it bites.
+  - **The dot-path guard fires on a field that is not a table path.**
+    `instrument.profile.shape` looks like a dot-path and is a
+    `ProfileTCHZ.shape` field, so `test_parameter_dot_paths_resolve` rejected
+    it — correctly. Write a non-refinable setting as `Type.field`, the way
+    `data.md` already does.
 
 - **2026-08-17 (`using/history.md`, and the project half of `files.md`)** — nine
   commits on `wp1067-using-history`, eight of content and one of handover. No

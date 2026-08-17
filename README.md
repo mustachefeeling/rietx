@@ -101,7 +101,7 @@ Each clause links to its manual chapter or worked example.
   sequential series for in-situ and parametric runs, with a
   forward-vs-backward path-dependence check, because a chained trajectory is
   path-dependent by construction.
-- [Unit-cell indexing](https://yue-here.github.io/rietx/indexing.html): peak
+- [Unit-cell indexing](https://yue-here.github.io/rietx/using/indexing.html): peak
   picking with esds, three consensus-gated search engines, whole-profile
   Le Bail validation and extinction-symbol ranking, behind an API that cannot
   express a confident wrong singleton.
@@ -149,7 +149,8 @@ documented there rather than tuned away.
 - [The manual](https://yue-here.github.io/rietx/). Part 1 is the task-ordered
   guide to the library: install, one fit, the objects a fit takes, the
   parameter table over them, what the fit did, the numbers, the report, what is
-  on disk, driving it from a program, and the compatibility promise. Part 2 is the theory, with numbered equations transcribed from the
+  on disk, finding the cell when the specimen is unknown, driving it from a
+  program, and the compatibility promise. Part 2 is the theory, with numbered equations transcribed from the
   physics docstrings and the convention warnings that decide whether a number
   transfers between Rietveld codes.
 - [AGENT_PROTOCOL.md](https://yue-here.github.io/rietx/AGENT_PROTOCOL.md), the
