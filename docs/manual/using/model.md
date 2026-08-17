@@ -252,7 +252,7 @@ Both verbs change the working state whether or not a history tree exists, but
 the node is recorded only once it does. The tree is created on the first `fit`
 or `run_stage`, because it is pinned to its pattern by a fingerprint and no
 pattern has been seen before then. A `set_vary` before the first fit is
-therefore not in the log, while the one after it is.
+therefore not in the log, while the one after it is. [](history.md) is that log.
 :::
 
 ## What a fit reports back
