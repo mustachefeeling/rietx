@@ -402,7 +402,7 @@ Three further ordering rules are this package's own rather than the guidelines':
   leave the isotropic width unrefined until fifteen correlated coefficients turn
   on at once.
 
-:::{admonition} For automated callers
+:::{admonition} For agents
 :class: agent
 [`docs/AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)
 §2 and §3 give the same order as an operating discipline, with the measured

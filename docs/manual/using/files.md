@@ -242,7 +242,7 @@ is where the refined values and their esds are.
 `viz.html.write_html` writes the interactive plotly page, and
 `RefinementResult.plot` writes the static figure. Both need the `viz` extra.
 
-:::{admonition} For automated callers
+:::{admonition} For agents
 :class: agent
 `Capabilities.project_format_version` versions the `.rex` directory, and
 `Capabilities.textdoc_format_version` versions `.rxt`, the line-oriented text

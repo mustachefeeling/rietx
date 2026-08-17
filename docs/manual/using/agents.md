@@ -3,7 +3,7 @@
 Two calls carry the whole integration surface. `capabilities()` says what this
 build can do; `agent.refine_json` does it.
 
-:::{admonition} For automated callers
+:::{admonition} For agents
 :class: agent
 This chapter is the machine-facing half of the package, and every shape in it
 was chosen for a caller that branches on a field rather than one that reads a
@@ -80,7 +80,7 @@ backend, solver, plan and indexing-engine names come from the same tuples the
 package dispatches on, and a meta-test fails when a registered member is missing
 from the exported schema. A third engine cannot ship invisible.
 
-:::{admonition} For automated callers
+:::{admonition} For agents
 :class: agent
 That `description` is the first thing a calling agent reads about this package,
 before any schema, any result and any part of this manual. It therefore carries

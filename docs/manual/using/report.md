@@ -4,7 +4,7 @@ A converged fit gives you Rwp. The report gives you *where* the model and the
 data disagree, *what kind* of error would explain it, and — separately — how
 much of that the package is willing to stand behind.
 
-:::{admonition} For automated callers
+:::{admonition} For agents
 :class: agent
 The `FitReport` is built for a program to read: numbers rather than pixels, so
 a caller can close a refinement loop without looking at a plot. That is why the
