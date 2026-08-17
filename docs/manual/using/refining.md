@@ -106,11 +106,15 @@ import rietx as rx
 assert set(rx.PLAN_INFO) == set(rx.PLAN_PRESETS)
 
 info = rx.PLAN_INFO["lab_calibrate"]
-print(info.title)         # a short label
-print(info.description)   # what the stages do, in order
-print(info.modes)         # the modes the plan is meaningful in
-print(info.when_to_use)   # the condition that selects it
+print(info.title, info.description, info.modes, info.when_to_use)
 ```
+
+| Field | Holds |
+|---|---|
+| `PlanInfo.title` | a short label, for a menu |
+| `PlanInfo.description` | what the stages do, in order |
+| `PlanInfo.modes` | the modes the plan is meaningful in |
+| `PlanInfo.when_to_use` | the condition that should select it |
 
 `PlanInfo.modes` is a tuple rather than a single mode because a plan can be
 meaningful in more than one: `profile_only` is both the Le Bail plan and the
@@ -139,9 +143,13 @@ the fit, it does not constrain it.
 
 ## What a stage carries
 
-A `Stage` is a name, a list of globs to free, and four numbers that decide how
-that stage is solved. [](concepts.md) covers `Stage.restraint_weight_scale`,
-the restraint schedule, in full; the other three are here.
+A `Stage` is `Stage.name`, a list of globs in `Stage.turn_on`, and four numbers
+that decide how that stage is solved. `Stage.name` is a label, carried through
+to `StageResult.name` and to the event stream; `Stage.turn_on` is what the
+stage frees, matched with `fnmatch` against the dot-paths of [](model.md).
+
+[](concepts.md) covers `Stage.restraint_weight_scale`, the restraint schedule,
+in full; the other three are here.
 
 ```python
 import rietx as rx
@@ -192,6 +200,7 @@ assert [s.name for s in restored.stages] == [s.name for s in plan.stages]
 assert spec.correlation_guard == plan.correlation_guard
 ```
 
+`PlanSpec.from_plan` and `PlanSpec.to_plan` are the two directions.
 `PlanSpec.stages` is a list of `StageSpec`, with `StageSpec.from_stage` and
 `StageSpec.to_stage` doing the same job one level down. A `StageSpec` mirrors
 `Stage` field for field — `StageSpec.name`, `StageSpec.turn_on`,

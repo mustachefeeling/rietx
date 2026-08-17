@@ -432,11 +432,6 @@ PhaseQuantity.weight_fraction_corrected
 PhaseQuantity.weight_fraction_stderr
 PhaseQuantity.z
 PhaseQuantity.zmv
-PlanInfo.description
-PlanInfo.title
-PlanInfo.when_to_use
-PlanSpec.from_plan
-PlanSpec.to_plan
 Project
 Project.create
 Project.data
@@ -702,8 +697,6 @@ ShiftTemplateFit.residual_ss
 ShiftTemplateFit.stderr
 SoftMode.eigenvalue
 SoftMode.loadings
-Stage.name
-Stage.turn_on
 StageReport.abstained_kind
 StageReport.abstained_reason
 StageReport.gof
