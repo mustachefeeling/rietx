@@ -43,6 +43,13 @@ name: Release
 # PEP 740 attestations come free with trusted publishing and are on by default
 # in the publish action, so the files on PyPI carry a verifiable statement of
 # which workflow in which repo built them.
+#
+# A `workflow_dispatch` run rehearses both halves without publishing anything:
+# it builds and checks the artifacts, and `verify-trust` asks PyPI whether it
+# recognises this workflow, which is the only way to confirm the PyPI side
+# short of a real release (there is no API that reads a project's configured
+# publishers).  Run it after any change to the publisher config, the
+# environment, or this file's name.
 
 on:
   release:
@@ -90,6 +97,58 @@ jobs:
           name: dist
           path: dist/
           if-no-files-found: error
+
+  verify-trust:
+    name: Verify the PyPI trust relationship (uploads nothing)
+    # Dispatch only: a real release proves this by publishing, and minting a
+    # second credential it never uses would be noise.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Same environment as `publish`, because the environment name is one of the
+    # claims PyPI matches — a probe run outside it would answer for a
+    # configuration nobody uses.
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: Ask PyPI whether it recognises this workflow
+        # Two credentials pass through here and neither is ever printed or
+        # written down: the OIDC JWT goes from GitHub's token endpoint straight
+        # into the request body, and the upload token PyPI returns is dropped
+        # with its response body.  The one thing that reaches the log is the
+        # status code, which is all that is being asked: 200 means the
+        # publisher is configured and every claim matched, 422 means it is not.
+        # The minted token is never used and expires in ~15 minutes.
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.error, urllib.request
+
+          url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=pypi"
+          token = os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
+          req = urllib.request.Request(url, headers={"Authorization": f"bearer {token}"})
+          jwt = json.load(urllib.request.urlopen(req))["value"]
+
+          mint = urllib.request.Request(
+              "https://pypi.org/_/oidc/mint-token",
+              data=json.dumps({"token": jwt}).encode(),
+              headers={"Content-Type": "application/json"})
+          try:
+              with urllib.request.urlopen(mint) as response:
+                  code = response.status
+          except urllib.error.HTTPError as exc:
+              code = exc.code
+
+          print(f"pypi.org/_/oidc/mint-token -> {code}")
+          if code == 200:
+              print("Trusted publishing is configured for this workflow.")
+          elif code == 422:
+              print("::error::PyPI does not recognise this workflow. Check "
+                    "owner/repo/workflow-filename/environment on "
+                    "pypi.org -> rietx -> Manage -> Publishing.")
+          else:
+              print(f"::error::Unexpected status {code} from PyPI.")
+          raise SystemExit(0 if code == 200 else 1)
+          PY
 
   publish:
     name: Publish to PyPI
