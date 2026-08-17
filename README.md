@@ -3,14 +3,14 @@
 [![CI](https://github.com/yue-here/rietx/actions/workflows/ci.yml/badge.svg)](https://github.com/yue-here/rietx/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/rietx)](https://pypi.org/project/rietx/)
 
-API-first Rietveld refinement of powder X-ray diffraction data: a typed,
-JSON-round-trippable Python library with staged refinement plans, an analytic
-Jacobian, and a fit report built for programs — including LLM agents — to act
-on. MIT licensed.
+Rietveld refinement of powder X-ray diffraction data, driven from code: a
+typed, JSON-round-trippable Python library with staged refinement plans, an
+analytic Jacobian, and a fit report built for a program to act on. MIT
+licensed.
 
-It is for people who refine powder data from code — a script, a beamline
-pipeline, an autonomous lab, an agent loop — and for interactive users who
-want the same machinery with a local GUI over it.
+It is for people who refine powder data from a script, a beamline pipeline, an
+autonomous lab or an agent loop, and for interactive users who want the same
+machinery with a local GUI over it.
 
 ## Install
 
@@ -19,13 +19,16 @@ pip install rietx            # Python >= 3.11; numpy/scipy core
 pip install "rietx[viz]"     # + matplotlib and plotly rendering
 ```
 
+CI runs the fast suite on Linux for Python 3.11, 3.12, 3.13 and 3.14, and
+nightly on Windows and macOS.
+
 ## One fit, end to end
 
-Condensed from [`examples/nac_11bm.py`](https://github.com/yue-here/rietx/blob/main/examples/nac_11bm.py)
-(APS 11-BM synchrotron data, NAC with a CaF₂ impurity). The walkthroughs have
-one authority and it is the scripts in
-[`examples/`](https://github.com/yue-here/rietx/tree/main/examples): the manual
-includes them verbatim and the test suite executes them.
+Condensed from [`examples/nac_11bm.py`](https://github.com/yue-here/rietx/blob/main/examples/nac_11bm.py),
+which fits APS 11-BM synchrotron data on Na₂Ca₃Al₂F₁₄ with a CaF₂ impurity.
+The scripts in [`examples/`](https://github.com/yue-here/rietx/tree/main/examples)
+are the one authority for a walkthrough: the manual includes them verbatim and
+the test suite executes them.
 
 ```python
 import rietx as rx
@@ -72,52 +75,52 @@ Each clause links to its manual chapter or worked example.
 
 - Rietveld, Le Bail and Pawley modes, multi-phase, with
   [staged plans](https://yue-here.github.io/rietx/using/concepts.html)
-  following the IUCr guidelines, correlation/bound/background guards, and
+  following the IUCr guidelines, correlation, bound and background guards, and
   crystal-system and site-symmetry constraints wired automatically.
 - A [forward model](https://yue-here.github.io/rietx/forward-model.html) with
-  documented physics: TCHZ and true-Voigt profiles, FCJ axial asymmetry,
-  Kα doublets on the NIST SRD 128 scale, anomalous dispersion on by default,
+  documented physics: TCHZ and true-Voigt profiles, FCJ axial asymmetry, Kα
+  doublets on the NIST SRD 128 scale, anomalous dispersion on by default,
   capillary and flat-plate absorption, preferred orientation, extinction,
   surface roughness, anisotropic ADPs and Stephens anisotropic strain. Every
-  physics function cites its reference in the docstring.
+  physics function cites author, year and journal in its docstring.
 - Bounded least squares (scipy TRF, or an LM driver carrying
   linear-inequality constraints) with an analytic Jacobian and
-  Bérar-Lelann-inflated esds —
+  Bérar-Lelann-inflated esds. The manual chapter is
   [how the numbers are estimated](https://yue-here.github.io/rietx/estimation.html).
 - [Pattern readers](https://yue-here.github.io/rietx/using/files.html) for
   `.xy`/`.xye`, GSAS raw, pdCIF, `.chi`, Rigaku `.ras`/`.rasx`, Bruker
-  `.uxd`/`.brml`/`.raw`, PANalytical `.xrdml` — dispatched on content, with
-  structured diagnostics for every repair a reader makes; exporters for
+  `.uxd`/`.brml`/`.raw` and PANalytical `.xrdml`, dispatched on content, with
+  a structured diagnostic for every repair a reader makes. Exporters for
   reflection tables, refinement CIF and QPA tables.
 - A three-layer [`FitReport`](https://yue-here.github.io/rietx/using/report.html):
   model-free diagnostics, misfit attributed to physical causes, and typed
-  suggested actions — every layer gated to abstain rather than guess.
-- A branchable [refinement history](https://yue-here.github.io/rietx/using/files.html):
-  every stage auto-commits a restorable node; checkout, branch, merge,
-  cherry-pick, replay. Multi-histogram joint fits, and warm-started
-  sequential series for in-situ and parametric runs — with a
+  suggested actions. Every layer is gated to abstain rather than guess.
+- A branchable [refinement history](https://yue-here.github.io/rietx/using/files.html)
+  in which every stage auto-commits a restorable node: checkout, branch,
+  merge, cherry-pick, replay. Multi-histogram joint fits, and warm-started
+  sequential series for in-situ and parametric runs, with a
   forward-vs-backward path-dependence check, because a chained trajectory is
   path-dependent by construction.
-- [Unit-cell indexing](https://yue-here.github.io/rietx/indexing.html):
-  peak picking with esds, three consensus-gated search engines, whole-profile
-  Le Bail validation, extinction-symbol ranking — and an API that cannot
+- [Unit-cell indexing](https://yue-here.github.io/rietx/indexing.html): peak
+  picking with esds, three consensus-gated search engines, whole-profile
+  Le Bail validation and extinction-symbol ranking, behind an API that cannot
   express a confident wrong singleton.
-- [Agent surfaces](https://yue-here.github.io/rietx/using/agents.html):
+- [Surfaces for agents](https://yue-here.github.io/rietx/using/agents.html):
   `rietx.agent.refine_json` (one JSON call, schema generated from the live
   registries), `capabilities()`, streaming events, and cooperative
   cancellation.
-- A local refinement GUI, `rietx gui` (import → edit → refine → inspect →
-  branch → export; a Svelte build served by a stdlib server, nothing leaves
-  the machine). The GUI ships as a beta: its panels are still moving, it is
-  deliberately undocumented at 1.0, and the API — not the GUI — carries the
-  stability promise.
+- A local refinement GUI, `rietx gui`: import, edit, refine, inspect, branch,
+  export, as a Svelte build served by a stdlib HTTP server on 127.0.0.1, so
+  nothing leaves the machine. The GUI ships as a beta. Its panels are still
+  moving, it is deliberately undocumented at 1.0, and the API rather than the
+  GUI carries the stability promise.
 
 ## What it does not do
 
 - Constant-wavelength X-ray only, in three geometries (capillary,
   Bragg-Brentano, flat-plate transmission). Fundamental-parameters profiles,
-  neutron and time-of-flight data, and spherical-harmonics texture are
-  deferred, not planned — see the
+  neutron and time-of-flight data, and spherical-harmonics texture are planned
+  for v2 and not implemented today. See the
   [manual's scope statement](https://yue-here.github.io/rietx/).
 - Indexing returns cells and ranked extinction symbols, not solved
   structures.
@@ -128,37 +131,36 @@ Each clause links to its manual chapter or worked example.
 
 ## Validation
 
-Nine real-data acceptance suites run in CI, each tolerance chosen to match
-what its reference actually is — a certified value, another code's converged
-result, a published participant spread, or a pre-registered prediction.
-Highlights: NIST SRM 660c LaB₆ lands +28 ppm from NIST's recomputed cell for
-that dataset; the GSAS-II fluorapatite tutorial agrees with GSAS's own fit
-within 116 ppm on identical channels; the IUCr QPA round robin comes back
-with worst-case 1.4 wt% error once anomalous dispersion is applied — a
-parameter-free correction whose effect was written down before the refits.
+Ten real-data acceptance suites run in CI, each tolerance chosen to match what
+its reference actually is: a certified value, another code's converged result,
+a published participant spread, or a pre-registered prediction. NIST SRM 660c
+LaB₆ lands +28 ppm from NIST's cell recomputed for that dataset. The GSAS-II
+fluorapatite tutorial agrees with GSAS's own fit within 116 ppm on the same
+5750 channels. The IUCr QPA round robin comes back with a worst case of
+1.39 wt% once anomalous dispersion is applied, a parameter-free correction
+whose effect was written down before the refits.
 [docs/VALIDATION.md](https://github.com/yue-here/rietx/blob/main/docs/VALIDATION.md)
-is the full matrix, generated from the test suite so it cannot drift from
-what is actually asserted; the SRM 660c gap to the certificate's ±8×10⁻⁶ Å
-band is documented there rather than tuned away.
+is the full matrix, generated from the test suite so it cannot drift from what
+is actually asserted; the SRM 660c gap to the certificate's ±8×10⁻⁶ Å band is
+documented there rather than tuned away.
 
 ## Documentation
 
-- [The manual](https://yue-here.github.io/rietx/) — Part 1 is the
-  task-ordered guide to the library (install → one fit → what the fit did →
-  the numbers → the report → what is on disk → driving it from a program →
-  the compatibility promise); Part 2 is the theory: numbered equations
-  transcribed from the physics docstrings, with the convention warnings that
-  decide whether a number transfers between Rietveld codes.
-- [AGENT_PROTOCOL.md](https://yue-here.github.io/rietx/AGENT_PROTOCOL.md) —
-  the operating protocol for automated callers: turn-on order, degeneracies,
-  what each diagnostic code forbids you from reporting. Also shipped inside
-  the wheel as `rietx/data/AGENT_PROTOCOL.md`, so it resolves with no
-  network.
+- [The manual](https://yue-here.github.io/rietx/). Part 1 is the task-ordered
+  guide to the library: install, one fit, what the fit did, the numbers, the
+  report, what is on disk, driving it from a program, and the compatibility
+  promise. Part 2 is the theory, with numbered equations transcribed from the
+  physics docstrings and the convention warnings that decide whether a number
+  transfers between Rietveld codes.
+- [AGENT_PROTOCOL.md](https://yue-here.github.io/rietx/AGENT_PROTOCOL.md), the
+  operating protocol for agents: turn-on order, degeneracies, and what each
+  diagnostic code forbids you from reporting. It also ships inside the wheel as
+  `rietx/data/AGENT_PROTOCOL.md`, so it resolves with no network.
 - [Release notes for 1.0.0](https://github.com/yue-here/rietx/blob/main/docs/releases/1.0.0.md)
-  and the [compatibility promise](https://yue-here.github.io/rietx/using/compatibility.html):
-  the data contracts (schemas, the agent envelope, the project format, the
-  event stream) are frozen at 1.0; the Python call surface freezes as the
-  manual documents it, and undocumented public items are provisional until
+  and the [compatibility promise](https://yue-here.github.io/rietx/using/compatibility.html).
+  The data contracts (schemas, the agent envelope, the project format, the
+  event stream) are frozen at 1.0. The Python call surface freezes as the
+  manual documents it, and undocumented public items stay provisional until
   their chapter lands.
 
 ## Development
@@ -171,8 +173,8 @@ uv venv --python 3.12 && uv pip install -e ".[dev]"
 .venv/bin/python -m ruff check src tests examples
 ```
 
-`--dist loadgroup` is not optional — it keeps shared expensive fixtures on
-one worker. Wall clock is quoted as a range on purpose: machine state moves
+`--dist loadgroup` is not optional: it keeps shared expensive fixtures on one
+worker. Wall clock is quoted as a range on purpose, because machine state moves
 it further than most changes do. See
 [CONTRIBUTING.md](https://github.com/yue-here/rietx/blob/main/CONTRIBUTING.md)
 for the test ladder and style, and
@@ -181,13 +183,12 @@ contributor is an agent.
 
 ## License and credits
 
-MIT. Algorithms are independent implementations from the published
-literature — every physics function cites author, year and journal; the
-source and licence map is
+MIT. Algorithms are independent implementations from the published literature,
+and every physics function cites author, year and journal. The source and
+licence map is
 [ATTRIBUTION.md](https://github.com/yue-here/rietx/blob/main/ATTRIBUTION.md),
 and test-data provenance is
 [tests/data/README.md](https://github.com/yue-here/rietx/blob/main/tests/data/README.md).
-GPL codebases (BGMN, Profex, xrayutilities) were studied conceptually only;
-no code was ported. CIF and symmetry handling is
+CIF and symmetry handling is
 [gemmi](https://github.com/project-gemmi/gemmi). To cite the package, use
 [CITATION.cff](https://github.com/yue-here/rietx/blob/main/CITATION.cff).
