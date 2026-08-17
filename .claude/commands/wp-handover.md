@@ -92,7 +92,7 @@ steps below run unchanged.
    flag here means the entry was written in a form it cannot read, or that
    work landed after the WP file was last touched, and either way the
    successor pays for it. Then run
-   `.venv/bin/python -m pytest tests/test_docs_consistency.py -q` and
+   `.venv/bin/python -m pytest tests/test_docs_consistency.py` and
    `.venv/bin/python -m ruff check src tests examples`; confirm the working
    tree is clean and pushed (or say what deliberately is not). **Clean and
    pushed is not the same as landed**: if the branch is already merged, check
