@@ -1,8 +1,11 @@
 name: Release
 
-# Publishes to PyPI when a GitHub release is published, using PyPI trusted
-# publishing: no API token exists anywhere, and nothing needs rotating after an
-# upload.  GitHub mints a short-lived OIDC token for the `publish` job, PyPI
+# Publishes to PyPI when a GitHub release is published.  The procedure around
+# this file — version, notes, gates, tag, approve, verify — is
+# docs/RELEASING.md; what follows is why the file is shaped as it is.
+#
+# It uses PyPI trusted publishing: no API token exists anywhere, and nothing
+# needs rotating after an upload.  GitHub mints a short-lived OIDC token for the `publish` job, PyPI
 # checks it against a publisher it was told to trust, and issues an upload
 # credential good for that one upload.
 #

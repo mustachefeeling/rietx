@@ -600,24 +600,24 @@ recent list, and is therefore not behind the 409 (WP-1044).
 Planning docs are split so a session loads only what it needs — do not read
 them all:
 
-- `docs/ROADMAP.md` — the index: session protocol, a "Current focus" capped
-  within `CURRENT_FOCUS_CAP` (tests/test_docs_consistency.py), milestone
-  table, WP index.
+- `docs/ROADMAP.md` — the index: session protocol, a "Current focus" capped by
+  `CURRENT_FOCUS_CAP` (tests/test_docs_consistency.py), milestones, WP index.
 - `docs/wp/NNNN-*.md` — one **self-contained** WP per task (context, commit-
   sized checklist, acceptance command, handover log).
 - `docs/DESIGN.md` — design record; read only the section a WP links.
 - `docs/milestones/vX.Y.md` — one record per milestone: measured acceptance
   at ship, plus (while in flight) the running "How vX.Y is getting here"
   narrative and the dated appendices. `v1.0.md` is the live one.
-- The **paper corpus** — where the papers physically are, and which are still
-  unread — is maintainer-local, outside this repo (`AGENTS.md` names the
-  split; the maintainer's memory holds the location). **Search it before
-  asking for a paper or re-deriving a published constant.**
+- The **paper corpus** (location and unread list) is maintainer-local, outside
+  this repo; `AGENTS.md` names the split and the maintainer's memory holds it.
+  **Search it before asking for a paper or re-deriving a published constant.**
 - `docs/AGENT_PROTOCOL.md` — consumer-facing operator guide; a WP that adds
   a diagnostic code or a correction adds its row there.
-- `gui/CLAUDE.md`, `tests/CLAUDE.md`, `src/rietx/io/CLAUDE.md`,
-  `src/rietx/indexing/CLAUDE.md` — subsystem rulebooks; they load with their
-  subtrees, so nothing here restates them.
+- `docs/RELEASING.md` — how a version reaches PyPI, and the one rule that
+  governs it: never `twine upload` by hand, because the workflow builds from
+  the tag and a by-hand build cannot be held to it (measured on 1.0.1).
+- `gui/`, `tests/`, `src/rietx/io/`, `src/rietx/indexing/` each hold a
+  `CLAUDE.md`: subsystem rulebooks, loaded with their subtree, never restated.
 
 **Protocol**: `docs/ROADMAP.md` § Session protocol is the one authority
 (`tests/test_docs_consistency.py` enforces the mechanical parts). Two clauses to

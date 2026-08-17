@@ -339,7 +339,12 @@ Phase 4 — the staged flip (parallel track green first):
       `pip install rietx==1.0.0` smoke test. **Windows job green is a
       pre-upload gate** — the classifier claim ships only verified (the gate
       fired: three defects fixed and re-verified green before upload;
-      tag `v1.0.0` + GitHub release cut from the notes)
+      tag `v1.0.0` + GitHub release cut from the notes).
+      **This row is history, not a procedure**: it is the by-hand upload, and
+      1.0.1 showed why it must not be repeated (artifacts built from a tree
+      three commits behind the tag). `docs/RELEASING.md` is the authority, and
+      `.github/workflows/release.yml` does the upload from the tag. The
+      Windows-gate clause survives it and is step 4 there.
 - [x] Close: measured acceptance into `milestones/v1.0.md`, ROADMAP rows
       flipped, README claims checked
 

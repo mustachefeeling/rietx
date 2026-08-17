@@ -15,6 +15,8 @@ a work session loads only what it needs:
 - **[wp/](wp/)** — one self-contained **work package (WP)** per task. Each has
   its own context, commit-sized checklist, acceptance command, and handover
   log. `wp/TEMPLATE.md` defines the format.
+- **[RELEASING.md](RELEASING.md)** — how a version reaches PyPI, and the rule
+  that it never goes by hand. Supersedes WP-1003's by-hand upload checklist.
 
 ## Session protocol
 
