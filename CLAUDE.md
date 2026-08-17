@@ -630,7 +630,7 @@ carries the acceptance one-liners, restated in neither place. **v1.0 shipped
 at `_about.DOCS_URL`, 1.0.0 on PyPI — so the compatibility promise
 (`docs/manual/using/compatibility.md`) binds: data contracts frozen, documented
 surface frozen, the deferred bucket provisional. `pyproject.version` tracks the
-milestone in flight, or the last shipped when none is (1.0.0 today) — the
+milestone in flight, or the last shipped when none is (1.0.1 today) — the
 string every `RefinementResult.provenance` and history node stamps. Post-1.0
 tracks: ROADMAP's Current focus; the next milestone opens at `1.x.0.dev0`.
 

@@ -177,7 +177,7 @@ Rulings 2026-08-16 unless noted; grounds in each item's source WP.
   and the `gui/` TS workspace; wheel keeps the committed static dist. The
   wheel/sdist metadata gains the bundled Svelte + CodeMirror MIT licence
   texts (1013).
-- Metadata: `authors` becomes Yue Wu + email (reconciling LICENSE);
+- Metadata: `authors` becomes Yue Wu (reconciling LICENSE);
   `requires-python >=3.11` (the 0.0.0 placeholder's `>=3.10` is superseded at
   upload); classifiers gain per-version rows 3.11–3.14 and OS rows including
   Windows — **Windows is claimed**, backed by a scheduled fast-suite job that

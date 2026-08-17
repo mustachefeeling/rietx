@@ -156,7 +156,9 @@ documented there rather than tuned away.
   operating protocol for agents: turn-on order, degeneracies, and what each
   diagnostic code forbids you from reporting. It also ships inside the wheel as
   `rietx/data/AGENT_PROTOCOL.md`, so it resolves with no network.
-- [Release notes for 1.0.0](https://github.com/yue-here/rietx/blob/main/docs/releases/1.0.0.md)
+- Release notes for
+  [1.0.1](https://github.com/yue-here/rietx/blob/main/docs/releases/1.0.1.md)
+  and [1.0.0](https://github.com/yue-here/rietx/blob/main/docs/releases/1.0.0.md),
   and the [compatibility promise](https://yue-here.github.io/rietx/using/compatibility.html).
   The data contracts (schemas, the agent envelope, the project format, the
   event stream) are frozen at 1.0. The Python call surface freezes as the
