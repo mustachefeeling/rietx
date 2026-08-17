@@ -269,13 +269,15 @@ def test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell():
     #    below the mis-tie this guards: pre-WP-1036 c never left its start,
     #    which is 5.44e-3 away in c and 1.71e-3 in a.
     #
-    #    What is NOT measured is that agreement on Linux *at stationarity*.
-    #    The 1.72e-5 that fired three nightlies was mid-descent path divergence
-    #    and is not this number, so the first Linux run of this plan either
-    #    confirms 1e-5 or re-sizes it — and this paragraph is the record that
-    #    the bar was sized on one platform.  Do not widen it from a single
-    #    failure without plotting the descent first; that is the mistake this
-    #    test has now cost twice.
+    #    Held on Linux at the first run of this plan (nightly 32017322140,
+    #    2026-08-17, [dev,jax], full suite green in 1:51:56).  That is the bar
+    #    confirmed on a second platform and not the spread re-measured: a pass
+    #    says the disagreement is under 1e-5, not what it is, and nothing here
+    #    prints it.  The 1.72e-5 that fired three nightlies before the repair
+    #    was mid-descent path divergence and is a different quantity, so it is
+    #    not evidence about this one either way.  Do not widen this from a
+    #    single failure without plotting the descent first; that is the mistake
+    #    this test has now cost twice.
     a_h, c_h = hexagonal_from_rhombohedral(cell_r.a.value, cell_r.alpha.value)
     cell_h = ref_h.fitted_structure.phases[0].cell
     assert a_h == pytest.approx(cell_h.a.value, rel=1e-5)

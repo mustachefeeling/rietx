@@ -190,3 +190,13 @@ the pattern supported the model.
 fit whose Rwp improved while its displacement parameters and phase fractions
 moved *away* from the truth. What the package hands you instead is
 [the report](report.md).
+
+## Your own data
+
+The script above builds its structure and instrument in code, which is the
+shortest way to show a whole fit. [](data.md) is the reference for doing that
+with your own experiment: what each field of `PatternData`, `Structure` and
+`Instrument` means, which of the three instrument presets matches your
+diffractometer, and how to calibrate one on a standard and reuse it.
+[](files.md) is the same ground from the file side, for data you already have on
+disk.

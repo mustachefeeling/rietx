@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-16 — floor landed (gates 1003); the McCusker set's pass landed; the 1.0.x chapters remain
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md` landed and 141 names froze with it; six 1.0.x chapters remain
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -238,16 +238,17 @@ things land here instead: the README **declares the GUI a beta feature**, and
 screenshots. Do not absorb any of 1017's mailbox — it is about panels that are
 still moving, which is why it was deferred.
 
-### Inherited
+### Each 1.0.x chapter is a compatibility event
 
-- **From WP-1003 (2026-08-16): documenting a name now freezes it.** The
-  compatibility chapter (`docs/manual/using/compatibility.md`) promises that
-  a name a Part 1 chapter documents is frozen from the release that documents
-  it, and that the deferred bucket is the provisional tier. So each 1.0.x
-  chapter this WP lands is a compatibility event, not only a docs event:
-  regenerate `api_surface_deferred.txt` in the same change (the partition
-  fails otherwise), and give the promotion a line in that release's notes —
-  the release-notes precedent is `docs/releases/1.0.0.md`.
+Folded in from WP-1003's mailbox on 2026-08-17, unchanged and still binding.
+Since v1.0 shipped, `docs/manual/using/compatibility.md` promises that a name a
+Part 1 chapter documents is **frozen from the release that documents it**, and
+that the deferred bucket is the provisional tier. So a chapter is not only a
+docs change: regenerate `api_surface_deferred.txt` in the same commit (the
+partition fails otherwise), and give the promotion a line in that release's
+notes — the precedent is `docs/releases/1.0.0.md`. It follows that a name a
+chapter *cannot* honestly freeze is left in the bucket rather than mentioned in
+passing.
 
 ## Non-goals
 
@@ -326,9 +327,17 @@ still moving, which is why it was deferred.
       `concepts.md` § Fit statistics becomes `using/results.md`; restraints get
       documented at all; three figures; and the geometry-keyed position
       templates and actions reach `report.md`.
-- [ ] `using/data.md` — `read_pattern` (`diagnostics=[]`, `scan=`, the
-      reader's right to repair and its four consequences), `Structure` from
-      CIF, `Instrument`, calibrate → save → load → sample.
+- [x] `using/data.md` — "Patterns, structures and instruments" (2026-08-17).
+      **Not what this line first asked for**, because WP-1068's `using/files.md`
+      landed the file side in between: `read_pattern` with `scan=`/`block=`, the
+      reader's four consequences, `Structure.from_cif` and the two CIF repairs,
+      and the profile calls are all there, and a second copy would break the
+      one-authority rule. So `files.md` keeps the on-disk map and this chapter
+      takes what was still undocumented — the three objects field by field:
+      `Parameter`, `PatternData` and where σ comes from, `Structure`/`Phase`/
+      `Cell`/`Atom` with the three optional blocks, `Instrument` with its
+      presets, source, geometry-by-kind, width function and backgrounds, then
+      calibrate → freeze → sample stated as what each plan frees.
 - [ ] `using/model.md` — schemas → `ParameterTable` → `parameters()` /
       `set_vary` / `set_values`: dot-paths, cell ties, transforms, the three
       reasons a row is held, the JSON round-trip.
@@ -380,6 +389,84 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-17 (`using/data.md`)** — five commits on `wp1067-using-data`, plus
+  one rider that is not this WP's (`da804f3d`, recording that the repaired
+  SRM 676a stationary plan held on Linux in nightly 32017322140 — yesterday's
+  release session owed that measurement).
+
+  **The mailbox is consumed and deleted.** Its one entry, WP-1003's "documenting
+  a name now freezes it", was still true and governs every remaining chapter
+  rather than being news, so it is Context now. One consequence it implied but
+  did not spell is written down there: a name a chapter cannot honestly freeze
+  stays in the bucket instead of getting a passing mention.
+
+  **The task line was stale and the chapter is not what it asked for.** WP-1068's
+  `using/files.md` landed the whole file side in between — `read_pattern` with
+  `scan=`/`block=`, the reader's four consequences, `Structure.from_cif` and the
+  two CIF repairs, `save_instrument_profile`/`load_instrument_profile` — so
+  writing that again would have been a second authority for one fact. The seam
+  now: **`files.md` is what is on disk, `data.md` is what the objects contain,
+  and `using/model.md` is still the parameter table over them.** Whoever takes
+  the next chapter should check the same way, by measuring which names a page
+  already documents rather than reading the task line, because two later
+  chapters (`history.md`/`projects.md`, `exports.md`) have the same overlap with
+  `files.md`.
+
+  **Numbers** (`[dev]` venv — no jax, no torch; darwin/arm64). Fast selection
+  **2402 passed / 117 skipped in 2:44**, identical to this session's starting
+  tree: no test was added. The full suite was **not** run — docs-only plus one
+  generated data file cannot move a measured number (`tests/CLAUDE.md`
+  § Running, rung 3); the standing Linux full-suite figure is **2561 passed /
+  88 skipped in 1:51:56** (`[dev,jax]`, nightly 32017322140). Partition:
+  **444 documented, 854 deferred** of 1298, from 303/995 at session start, so
+  **141 names froze**. `sphinx -W` clean; the new page rendered at 1100 px in
+  both themes with no element overflowing, and all 22 equation
+  cross-references resolve to real anchors in the built HTML.
+
+  **In flight: nothing.** Working tree clean.
+
+  **Next (1.0.x).** Six chapters. `using/model.md` is the one to take next, for
+  a reason this session created: `data.md` now defines the objects its table
+  addresses, so it can be about paths, ties, transforms and the three reasons a
+  row is held without re-introducing the fields. `docs/releases/1.0.2.md`
+  exists and is unreleased — every further chapter appends its promotion there
+  rather than starting a new file, and whoever cuts the release follows
+  `docs/RELEASING.md`.
+
+  **Gotchas.**
+
+  - **The guard counts a name only where a chapter spells it *qualified*, in
+    code.** "Fifteen coefficients `StephensStrain.s400` through
+    `StephensStrain.s004`" documented two of fifteen and left thirteen in the
+    bucket; the same trap took five `kind` discriminators, written as "each has
+    a `kind` field". Prose enumeration counts for a reader and not for the
+    partition, which is the point of the design — but it means a release-notes
+    claim about a *type* being frozen has to be checked per name. Both of mine
+    were false when written, and the chapter was fixed rather than the claim.
+  - **`concepts.md` had the Lorentzian letters swapped** (`x` tan θ, `y`
+    1/cos θ; the model is Γ_L = x/cosθ + y·tanθ). It is the exact letter-swap
+    class every profile docstring in the package warns about, it sat in the
+    table a reader consults to write a plan, and nothing could have caught it:
+    the guard checks that `instrument.profile.x` resolves, not what the sentence
+    claims about it. Writing the same fact into a second table is what found it,
+    which is an argument for reference tables over prose wherever a convention
+    is involved.
+  - **`pos-displacement` is the flat-plate displacement equation, not the zero
+    point.** The zero-point error is prose in `peak-positions.md` with no label,
+    so there is nothing to cite for `Instrument.zero_shift`. A `{eq}` reference
+    that resolves is not a reference to the right equation, and `-W` cannot tell
+    the difference.
+  - **A five-column reference table does not fit.** The geometry table needed
+    898 px in Furo's 742 px content column, so it scrolled inside its own
+    wrapper with the "Meaning" column clipped. Splitting it into shared,
+    capillary and flat-plate is both narrower and better reference structure.
+    Measure it rather than guessing: the check is `scrollWidth` against
+    `clientWidth` per element at 1100 px, in both themes.
+  - **Do not explain a bound you cannot source.** The draft said `u` and `v`
+    carry negative lower bounds "because the Caglioti form is an empirical fit
+    rather than a sum of variances". Nothing in the package says that. The text
+    now states the bounds and what has to stay positive.
 
 - **2026-08-16 (the McCusker set's manual pass)** — six commits on
   `wp1067-manual-mccusker-pass`. The set (1069–1074) shipped between 1068 and
