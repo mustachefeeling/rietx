@@ -245,28 +245,44 @@ def test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell():
     #    Measured 2026-08-04 (darwin/arm64): 1.4e-9 on a and 1.2e-8 on c, Rwp
     #    equal to 5 dp — re-measured identical 2026-08-16 and 2026-08-17.
     #
-    #    The bar is set by the rhombohedral arm's stopping point, and c is
-    #    the quantity that shows it.  This assertion has now been widened
-    #    twice by the same mechanism, so the mechanism is what is written down
-    #    rather than the number.  Linux CI reaches a *different* stopping
-    #    point for (a_R, α), deterministically — runs 31973603220 and
-    #    32001934722, on different trees, agree to the last float64 bit — and
-    #    the hexagonal arm is not involved: it lands within 7.6e-9 of darwin's
-    #    on the same runs.  What differs is how hard the conversion amplifies
-    #    that stopping point: a came back inside 2.5e-6 (weekly run
-    #    31960416982) while c came back at 1.72e-5, ~7x more, because
-    #    ∂c_H/∂α is the steep direction at α ≈ 55.3°.  Both arms still meet
-    #    the Rwp equality below on both platforms, so the shallow direction
-    #    belongs to the rhombohedral parameterisation and not to the physics —
-    #    which is exactly why a tolerance here can only ever be a lattice
-    #    assertion if it carries the spread.
+    #    Linux CI reaches a *different* stopping point for (a_R, α),
+    #    deterministically — runs 31973603220 and 32001934722, on different
+    #    trees, agree to the last float64 bit — while its hexagonal arm lands
+    #    within 7.6e-9 of darwin's.  The conversion amplifies that stopping
+    #    point ~7x more into c than into a (2.5e-6 on a, weekly run
+    #    31960416982, against 1.72e-5 on c) because ∂c_H/∂α is the steep
+    #    direction at α ≈ 55.3°, which is why a bar sized on a in WP-1003
+    #    fired on c 12 days later.  rel=2e-4 carries the measured 1.72e-5 at
+    #    ~12x (the ~10x floor in tests/CLAUDE.md § Budgets) and still catches
+    #    the mis-tie this guards by 27x: pre-WP-1036 c never left its start,
+    #    5.44e-3 away in c and 1.71e-3 in a (measured 2026-08-17 from this
+    #    test's own start values).
     #
-    #    rel=2e-4 is ~12x above the measured 1.72e-5 (the ~10x floor in
-    #    tests/CLAUDE.md § Budgets) and 27x below the mis-tie this guards:
-    #    pre-WP-1036 c never left its start, which is 5.44e-3 away in c and
-    #    1.71e-3 in a (measured 2026-08-17 from this test's own start values).
-    #    One bar for both, sized on the worse arm: two bars would drift apart,
-    #    and the claim is about one lattice.
+    #    **What this comment claimed until 2026-08-17 and what is actually
+    #    true.**  It said both arms met the Rwp equality below on both
+    #    platforms, so the shallow direction was the parameterisation's rather
+    #    than the physics'.  That was inferred from the Rwp assertion not
+    #    appearing in the CI failure — but pytest stops at the *first* failing
+    #    assert, so on Linux it had never run.  Widening the c bar let
+    #    execution reach it, and it fails: R 0.14924216 against H 0.14995255
+    #    (run 32008985488), 7.1e-4 apart against 1e-4.
+    #
+    #    Measured here the same day, and it is not a tolerance problem: this
+    #    plan does not reach a minimum on *either* platform or *either* arm.
+    #    Appending one more (profile, cell) round to it takes both arms from
+    #    Rwp 0.1499524 to 0.1432, and three more to 0.1419 — on darwin, where
+    #    the two arms currently agree to 4e-7.  So 0.1499524 is where five
+    #    stages happen to stop, not a stationary point, and `status ==
+    #    "converged"` is the last stage's least-squares exit, not a statement
+    #    about the Le Bail cycle, whose extracted intensities are documented
+    #    path-dependent (CLAUDE.md).  Linux's rhombohedral arm simply stops a
+    #    little further down the same descent.
+    #
+    #    That makes both assertions below reproducibility-of-a-path claims
+    #    dressed as lattice claims, and the Rwp one is deliberately left at
+    #    1e-4 rather than widened: at 7.1e-4 it would assert nothing, and the
+    #    fix is to decide what this test should compare, not to move a bar
+    #    again.  Until that decision lands, the red row is the messenger.
     a_h, c_h = hexagonal_from_rhombohedral(cell_r.a.value, cell_r.alpha.value)
     cell_h = ref_h.fitted_structure.phases[0].cell
     assert a_h == pytest.approx(cell_h.a.value, rel=2e-4)
