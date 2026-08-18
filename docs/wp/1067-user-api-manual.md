@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-18 — **every task line is ticked**: floor landed (gates 1003), the McCusker set's pass landed, ten 1.0.x chapters landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`, `cli` and the two second passes on `agents` and `report`), and **1318 of the 1322 names are frozen, 99.7 % of the surface**; the WP cannot be ticked ✅ because its acceptance is an *empty* bucket and the last four names are [1076](1076-result-row-honesty.md)'s to repair or retire, so the bucket is now that WP's mailbox; [1077](1077-extinction-refutes-certified-class.md)/[1078](1078-indexing-provisional.md) hold the two findings the indexing chapter left with no owner
+Milestone: v1.0 § Floor, then 1.0.x · Status: ✅ 2026-08-18 — floor landed (gated 1003), the McCusker set's pass landed, and ten 1.0.x chapters landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`, `cli` and the two second passes on `agents` and `report`); the acceptance is an **empty `deferred-1.0.x` bucket** and [1076](1076-result-row-honesty.md) emptied it by repairing or retiring the last four names, so the derived surface is now documented-or-excluded end to end — **1322 of 1322**; [1077](1077-extinction-refutes-certified-class.md)/[1078](1078-indexing-provisional.md) hold the two findings the indexing chapter left with no owner, and 1078 un-freezes what the indexing chapter froze
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -495,6 +495,27 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-18 (closed by [1076](1076-result-row-honesty.md), from that WP's
+  session)** — this WP's last task line was ticked on 2026-08-17 and it stayed
+  🔄 for one reason: its acceptance is an *empty* `deferred-1.0.x` bucket, and
+  four names were in it that no chapter could describe honestly. 1076 settled
+  all four — `RefinedParameter.initial` and
+  `RefinementResult.correlation_warnings` deleted, `TieSpec.from_tie` made
+  private, `RefinedParameter.at_bound` made a real three-state answer and then
+  documented in `using/model.md`. `python -m tests.api_surface --write-deferred`
+  now reports **0 names deferred** and the file is its header alone, so the
+  partition is documented-or-excluded end to end: **1322 of 1322**.
+
+  Acceptance re-run on the closing tree: `sphinx -W` clean, and
+  `test_manual.py` + `test_manual_api.py` + `test_docs_consistency.py` +
+  `test_examples.py` 33 passed, `ruff` clean.
+
+  **Nothing here is left for a successor.** The remaining manual work has its
+  own WPs: [1017](1017-gui-manual-onboarding.md) for the GUI chapter and
+  onboarding, and [1078](1078-indexing-provisional.md), which will *un*-freeze
+  what the indexing chapter froze — a name this WP promoted returning to
+  provisional is 1078's decision, not a defect in this one.
 
 - **2026-08-18 (the `report.md` second pass, the five small groups and
   `cli.md`)** — twelve commits on `wp1067-report-second-pass` (PR #53, merged

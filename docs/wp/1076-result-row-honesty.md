@@ -1,6 +1,6 @@
 # WP-1076 — A result row's unwritten fields
 
-Milestone: 1.0.x · Status: ⬜
+Milestone: 1.0.x · Status: ✅ 2026-08-18 — every task line ticked across all four groups: `at_bound` is three-valued and projected from the one bound test (`staged.bound_findings`, now shared with `multi.py`), `initial` and `RefinementResult.correlation_warnings` deleted, `TieSpec.from_tie` made private, `"skipped"` off both status `Literal`s and `"lebail_update"` off `NodeKind` with its two consumers, `BACKEND_UNAVAILABLE` repaired in **both** directions it was wrong in, and `SeriesResult` given a single `index` column and a reachable `backward` chain; `SCHEMA_VERSION` 0.1 → 0.2, once, for the removals, and 1.0.2 gains the first breaking entry 1.0.x has had. **The `deferred-1.0.x` bucket is empty**, which closes [1067](1067-user-api-manual.md)
 Depends on: WP-1067 (which found it, and left both names provisional)
 
 ## Goal
@@ -265,30 +265,30 @@ writer produces cannot break a producer — only a consumer that matched on it.
 
 **A. The head case — `RefinedParameter`.**
 
-- [ ] `at_bound: bool | None = None` on `RefinedParameter`, with the docstring
+- [x] `at_bound: bool | None = None` on `RefinedParameter`, with the docstring
       saying what each of the three states means and that the source is the
       guard, never a local recomputation.
-- [ ] Populate it in `_build_result` from `guard.at_bounds` (one set of paths,
+- [x] Populate it in `_build_result` from `guard.at_bounds` (one set of paths,
       built once), leaving `None` when no guard was passed. Check all four call
       sites and say in the commit message which ones can supply it. **`multi.py`
       builds its rows itself** (`:338` and `:347`), which is a fifth and sixth
       construction the WP's original count missed, and it already runs its own
       copy of the bound test (`:365-372`, a duplicate of `staged.py:688`) — so
       the single-source rule bites there first.
-- [ ] Delete `initial`, and grep for readers before and after rather than
+- [x] Delete `initial`, and grep for readers before and after rather than
       trusting this file's claim that there are none.
-- [ ] Tests: a real fit's rows carry `True`/`False` and not `None`; a fit with a
+- [x] Tests: a real fit's rows carry `True`/`False` and not `None`; a fit with a
       parameter driven onto a deliberately tight bound reports `True` on
       **exactly** the paths `BOUND_HIT` names, which is what pins the projection
       to its single source; a hand-built result with no guard reports `None`.
 
 **B. The three remaining bucket names — what lets 1067 close.**
 
-- [ ] **Settle `RefinementResult.correlation_warnings`** — delete, or populate
+- [x] **Settle `RefinementResult.correlation_warnings`** — delete, or populate
       from `guard.high_correlations` via `str(finding)`.
-- [ ] **Settle `TieSpec.from_tie`** — delete, export `AffineTie`, or exclude it
+- [x] **Settle `TieSpec.from_tie`** — delete, export `AffineTie`, or exclude it
       in `tests/api_surface.py` with the reason.
-- [ ] `docs/manual/using/model.md` documents `at_bound`'s three states, and
+- [x] `docs/manual/using/model.md` documents `at_bound`'s three states, and
       every settled name leaves the provisional bucket (regenerate
       `tests/api_surface_deferred.txt` in the same commit; the acceptance is an
       **empty** bucket, header only). **Two existing passages point here and
@@ -298,7 +298,7 @@ writer produces cannot break a producer — only a consumer that matched on it.
       carries a paragraph explaining why these names were left provisional.
       Deleting a field also means the notes gain a **breaking** entry, the first
       1.0.2 has had — check whether `SCHEMA_VERSION` moves, once, for the set.
-- [ ] `docs/AGENT_PROTOCOL.md`: the `BOUND_HIT` row gains the machine-readable
+- [x] `docs/AGENT_PROTOCOL.md`: the `BOUND_HIT` row gains the machine-readable
       form of the same rule, since an agent iterating parameters now has a
       per-row flag rather than a path cross-reference.
 
@@ -306,18 +306,18 @@ writer produces cannot break a producer — only a consumer that matched on it.
 each carries a written warning in a manual chapter that has to be rewritten
 with it, and `EVENT_SCHEMA_VERSION` is untouched (no `EventKind` moves).
 
-- [ ] **`"skipped"` on `StageResult.status` and `NodeMetrics.status`** — both,
+- [x] **`"skipped"` on `StageResult.status` and `NodeMetrics.status`** — both,
       or neither.
-- [ ] **`"lebail_update"` on `NodeKind`** — with `NodeAction.api_call` and
+- [x] **`"lebail_update"` on `NodeKind`** — with `NodeAction.api_call` and
       `gui/src/lib/history.ts` if it goes.
-- [ ] **`BACKEND_UNAVAILABLE` in `agent.refine_json`** — a repair, not a
+- [x] **`BACKEND_UNAVAILABLE` in `agent.refine_json`** — a repair, not a
       deletion, plus a test that asserts the *condition* and not the mapping.
 
 **D. `SeriesResult`.** Both are frozen-surface changes; take the decision and
 say which classification it is.
 
-- [ ] **`to_table`'s duplicate `index` column** — rename or document.
-- [ ] **`n_iterations` under `direction="both"`** — document as forward-only, or
+- [x] **`to_table`'s duplicate `index` column** — rename or document.
+- [x] **`n_iterations` under `direction="both"`** — document as forward-only, or
       give the functional API a way to return the backward chain.
 
 ## Acceptance

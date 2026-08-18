@@ -70,26 +70,25 @@ documents a name *promotes it to frozen* — regenerate
 `tests/api_surface_deferred.txt` and earn a release-notes line
 ([1067](wp/1067-user-api-manual.md)'s Context has the mechanics).
 
+**The provisional tier is empty** ([1076](wp/1076-result-row-honesty.md), which
+closed [1067](wp/1067-user-api-manual.md)): all 1322 public names are documented
+or excluded with a reason, so a *new* one now fails the partition on arrival.
+1.0.2 is written but unreleased and now carries a **breaking** entry —
+`SCHEMA_VERSION` 0.1 → 0.2 — which is the first 1.0.x has had.
+
 **No milestone is in flight.** Opening the next one is a planning decision
 (version → `1.x.0.dev0`); the committed post-1.0 work, in rough order:
 
-- **Promised in the 1.0.0 release notes, built in 1.0.x**: `.rex` zip
-  transport (export/open, "the directory, zipped");
-  `RefinementState.excluded_regions` with `replay` honouring the node's
-  regions (1003 §B — decided, not re-opened).
-- **[1076](wp/1076-result-row-honesty.md)** is now the only thing between
-  [1067](wp/1067-user-api-manual.md) and ✅. Every Part 1 chapter has landed and
-  1318 of the 1322 public names are frozen; the four left are that WP's — three
-  fields nothing in the package writes, and a converter for a non-public type —
-  and documenting them would be the passing mention 1067 forbids itself, so the
-  provisional bucket is 1076's mailbox. It also holds an error code that cannot
-  fire.
 - **[1078](wp/1078-indexing-provisional.md)** — indexing is still under active
   development, so the subsystem is declared provisional and every surface says
   so; it un-freezes what 1067's chapter froze and **gates 1.0.2**.
   **[1077](wp/1077-extinction-refutes-certified-class.md)** — the extinction
   screen refutes corundum's certified class, and no acceptance row covers the
   shape.
+- **Promised in the 1.0.0 release notes, built in 1.0.x**: `.rex` zip
+  transport (export/open, "the directory, zipped");
+  `RefinementState.excluded_regions` with `replay` honouring the node's
+  regions (1003 §B — decided, not re-opened).
 - **Post-1003 indexing work**: narrow what the acceptance fixtures search
   (the nightly `full` job's ~77 min of setup — the durable lever the
   timeout recalibration deferred), and the `grade` prior-counting change
@@ -296,9 +295,9 @@ docs were ballooning, CI paid twice per merged PR, and the handover was
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ deferred 2026-08-14 | 1011–1016, 1029, 1032–1035 (soft) |
-| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-18 — **every task line ticked**: § Floor landed, so 1003 is unblocked; the McCusker set's pass landed (Part 2 takes its four equations, `using/results.md` splits off, restraints documented, three figures); ten 1.0.x chapters landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`, `cli`, plus second passes on `agents` and `report`) and froze 1015 names — **1318 of 1322, 99.7 %** of a surface the refining chapter grew by 24 by finding a derivation blind spot — with the promotions accumulating in the written, unreleased `docs/releases/1.0.2.md`; two planned chapters were deleted by measurement and one line grew from three commands to five; it cannot tick ✅ until [1076](wp/1076-result-row-honesty.md) repairs or retires the last four names, since the acceptance is an *empty* bucket | 0604, 1004–1007, 1047 |
+| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | ✅ 2026-08-18 — § Floor landed and unblocked 1003; the McCusker set's pass landed (Part 2 took its four equations, `using/results.md` split off, restraints documented, three figures); ten 1.0.x chapters landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`, `cli`, plus second passes on `agents` and `report`), two planned chapters were deleted by measurement and one line grew from three commands to five; closed when [1076](wp/1076-result-row-honesty.md) emptied the `deferred-1.0.x` bucket — the derived surface is documented-or-excluded end to end, **1322 of 1322** | 0604, 1004–1007, 1047 |
 | [1068](wp/1068-manual-second-pass.md) | Part 1 second pass: voice, figures, structure | ✅ 2026-08-15 — voice, sectioning, `concepts.md` + `files.md`, four diagrams, three figure pairs; the McCusker read fixed a false attribution and produced the compliance audit | 1067 |
-| [1076](wp/1076-result-row-honesty.md) | A result row's unwritten fields: `at_bound` and `initial` | ⬜ | 1067 |
+| [1076](wp/1076-result-row-honesty.md) | A result row's unwritten fields: `at_bound` and `initial` | ✅ 2026-08-18 — the whole class, in four groups: `at_bound` three-valued and projected from one bound test, `initial`/`correlation_warnings` deleted, `TieSpec.from_tie` privatised, `"skipped"` and `"lebail_update"` off their vocabularies, `BACKEND_UNAVAILABLE` repaired in both directions it was wrong in, and `SeriesResult` given one `index` column and a reachable `backward`; SCHEMA_VERSION 0.1 → 0.2 and 1.0.2 gains 1.0.x's first breaking entry | 1067 |
 | [1077](wp/1077-extinction-refutes-certified-class.md) | The extinction screen refutes a certified class (corundum R -3 c), and no row covers the shape | ⬜ | — |
 | [1078](wp/1078-indexing-provisional.md) | Indexing is provisional, and every surface says so — **gates the 1.0.2 release** | ⬜ | 1067 |
 
