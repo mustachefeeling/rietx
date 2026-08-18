@@ -589,8 +589,20 @@ class GeometryTable(Base):
 
 
 class StageResult(Base):
+    """One stage's outcome.
+
+    ``status`` is the solver's, and the vocabulary is **exactly the three
+    terminations the solver produces** — ``optimize/least_squares.py`` builds
+    its outcome three ways and there is no fourth.  It admitted a
+    ``"skipped"`` until WP-1076; nothing anywhere set it, so a consumer writing
+    an exhaustive match handled a branch that could not occur and a reader of
+    the type inferred a skip mechanism the package does not have.  A stage a
+    plan does not run produces no ``StageResult`` at all, which is the honest
+    way to say the same thing.
+    """
+
     name: str
-    status: Literal["converged", "max_iter", "diverged", "skipped"]
+    status: Literal["converged", "max_iter", "diverged"]
     n_iterations: int
     cost_initial: float
     cost_final: float
