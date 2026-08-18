@@ -1,6 +1,10 @@
 # WP-1078 — Indexing is provisional, and every surface says so
 
-Milestone: 1.0.x · Status: ⬜
+Milestone: 1.0.x · Status: ✅ 2026-08-18 — **257 names declared provisional,
+derived from the module that defines each one.** Five guards over the tier,
+each failed on purpose once; the promise is one `{ref}` target the manual, the
+protocol, the release notes and the README all point at rather than restate.
+1.0.2 is unblocked.
 Depends on: WP-1067 (whose chapter froze the surface this WP un-freezes)
 
 ## Goal
@@ -114,16 +118,16 @@ lands here and **this WP gates the 1.0.2 release** (`docs/RELEASING.md`).
 
 ## Tasks
 
-- [ ] `tests/api_surface.py`: a `PROVISIONAL_MODULES` table (module prefix →
+- [x] `tests/api_surface.py`: a `PROVISIONAL_MODULES` table (module prefix →
       written reason) and a `provisional_names()` derivation over the defining
       module of each surface entry. Same shape as `EXCLUDED_TYPES`: an entry
       that matches nothing fails, so a rename cannot leave a dead declaration.
-- [ ] `tests/test_manual_api.py`: the partition is unchanged (a provisional name
+- [x] `tests/test_manual_api.py`: the partition is unchanged (a provisional name
       is still *documented* — coverage must not drop), plus a meta-test that
       every name in `provisional_names()` is documented, that the set is
       non-empty, and that both `using/compatibility.md` and `using/indexing.md`
       carry the marker. Make it fail on purpose once by deleting the banner.
-- [ ] `docs/manual/using/compatibility.md`: a fourth bullet in § Provisional by
+- [x] `docs/manual/using/compatibility.md`: a fourth bullet in § Provisional by
       declaration, and a sentence in § "The Python surface freezes as it is
       documented" so a reader of the three buckets learns that a declaration can
       override the documented tier. State what a user gets in exchange: the
@@ -133,14 +137,14 @@ lands here and **this WP gates the 1.0.2 release** (`docs/RELEASING.md`).
       `rietx.viz` decision above: the freeze covers names **on the derived
       surface**, so a chapter naming an internal helper fully qualified is a
       pointer and not a promotion.
-- [ ] `docs/manual/using/indexing.md`: an admonition at the top pointing at that
+- [x] `docs/manual/using/indexing.md`: an admonition at the top pointing at that
       section, in one or two sentences, naming what it covers (the three entry
       points, the schema types, and the `rietx.indexing` helpers the protocol
       calls).
-- [ ] `docs/AGENT_PROTOCOL.md` §7: one clause, because that file ships inside
+- [x] `docs/AGENT_PROTOCOL.md` §7: one clause, because that file ships inside
       the wheel and is what a calling agent actually reads. Its §7d worked loop
       is where the off-surface helpers appear.
-- [ ] `docs/releases/1.0.2.md`: rewrite the indexing freeze paragraph —
+- [x] `docs/releases/1.0.2.md`: rewrite the indexing freeze paragraph —
       documented, and provisional by declaration — and give the count its honest
       name. Check the closing count with a third state in it (it reads "1322
       names, 1318 frozen and 4 provisional" today, which 1076 already left
@@ -149,7 +153,7 @@ lands here and **this WP gates the 1.0.2 release** (`docs/RELEASING.md`).
       § What changed and § Upgrading now say the extinction screen's answer
       moved — which is the case for the declaration, not an embarrassment beside
       it.
-- [ ] README: § Documentation ends "undocumented public items stay provisional
+- [x] README: § Documentation ends "undocumented public items stay provisional
       until their chapter lands", which is now not the whole rule.
 
 ## Acceptance
