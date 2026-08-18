@@ -17,7 +17,11 @@ of exactly that bug, so what is checked here is **names**:
 * the derived public surface (`tests/api_surface.py`) is **partitioned**:
   every name is documented in a Part 1 chapter, excluded with a reason, or in
   the generated `deferred-1.0.x` bucket — the WP-1003 freeze's **provisional**
-  tier, whose names may still change in a 1.0.x release.
+  tier, whose names may still change in a 1.0.x release;
+* and a name whose subsystem is **declared provisional** (WP-1078's
+  ``PROVISIONAL_MODULES``) is documented all the same, on a page that links the
+  promise.  Documenting a name freezes it, so the declaration is the only way a
+  chapter can cover a subsystem still under development without promising it.
 
 The partition is what stops coverage from silently dropping.  A new public
 method is on the derived surface the moment it is written and in none of the
