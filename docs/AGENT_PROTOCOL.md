@@ -72,7 +72,12 @@ plan="profile_only"          # Le Bail
 plan="pawley_default"        # Pawley
 ```
 
-Three ordering rules that carry more weight than they look like:
+Three ordering rules that carry more weight than they look like. None of the
+three is in the guidelines — each is this package's own measured finding, a
+house rule labeled as one (the audits: [the v1.0 record](milestones/v1.0.md)
+§ Appendix found the manual attributing them to the paper;
+[the v1.1 record](milestones/v1.1.md) § Appendix holds the protocol's own
+grounding grid):
 
 - **Widths last among the profile terms, `W` before `U,V,X,Y`.** `W` is the
   constant term; freeing the tanθ and 1/cosθ terms first lets them absorb a
@@ -239,8 +244,11 @@ Judge a fit in this order:
    beside them.
 5. **The esds, with their inflation.** `statistics.esd_inflation` is the
    Bérar-Lelann factor for serial correlation. Note it has an expected value of
-   ≈1.51 even for perfectly white residuals — treat it as an upper bound on the
-   damage, not a measurement of it. `report.identifiability` quotes the
+   ≈1.51 even for perfectly white residuals — a house derivation, not the
+   paper's (chance same-sign runs give E[χ²′]/χ² = 1 + 4/π;
+   `optimize.statistics.berar_lelann_factor`, simulation-verified) — so treat
+   it as an upper bound on the damage, not a measurement of it.
+   `report.identifiability` quotes the
    qualifying trio side by side — raw χ²_red, the inflation (already in every
    quoted esd, dividable back out), Durbin-Watson — plus the δR line
    (`delta_r_slope`/`delta_r_intercept`: sorted Δ/σ against normal quantiles;
@@ -471,10 +479,12 @@ the operator is an agent.
 
 A human judges a fit by looking at it, especially at peak-shape misfit. A
 vision model cannot do that reliably: frontier VLMs fail precise value
-extraction from dense plots, and one PNG costs ~1000–1600 tokens — about the
-same as 50 regions of exact numbers. All three prior agentic Rietveld systems
-fed plot images to a VLM and all three report the same failure: *locally bad,
-globally fine* fits that the image hides.
+extraction from dense plots (the CharXiv, ChartMuseum and ExChart benchmarks),
+and one PNG costs ~1000–1600 tokens — about the same as 50 regions of exact
+numbers. All three prior agentic Rietveld systems (AgentBuild, Rongzai,
+guillemot — [DESIGN.md](DESIGN.md) § "Outputs & fit assessment" holds the
+survey) fed plot images to a VLM and all three report the same failure:
+*locally bad, globally fine* fits that the image hides.
 
 So:
 
