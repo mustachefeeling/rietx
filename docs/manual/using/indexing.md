@@ -845,7 +845,7 @@ than as a setting.
 | `ExtinctionCandidate.conditions_complete` | whether the derivation named every absence |
 | `ExtinctionCandidate.n_lines` | distinct lines this class predicts in range |
 | `ExtinctionCandidate.n_absent` | lattice lines it forbids |
-| `ExtinctionCandidate.n_testable` | of those, the ones the data can actually check |
+| `ExtinctionCandidate.n_testable` | of those, the ones the data can actually check — `None` until `screened` |
 | `ExtinctionCandidate.n_present` | testable forbidden positions carrying intensity — the refutation |
 | `ExtinctionCandidate.forbidden_hkl`, `ExtinctionCandidate.forbidden_two_theta` | which reflections those are, and where |
 | `ExtinctionCandidate.rwp`, `ExtinctionCandidate.gof`, `ExtinctionCandidate.chi2` | its own Le Bail fit |
@@ -856,9 +856,14 @@ than as a setting.
 | `ExtinctionCandidate.diagnostics` | findings about this class |
 
 `n_absent` and `n_testable` answer different questions and the gap between them
-is usually large. A forbidden position that falls outside the fitted range, or
-that coincides with a line the class still allows, is not an observation — an
-absence hiding under a neighbour is not an absence you saw.
+is usually large. Three kinds of forbidden position are not observations: one
+outside the fitted range, one coinciding with a line the class still allows, and
+one whose window this class's own fit already fills with a neighbour's **tail**.
+An absence hiding under a neighbour is not an absence you saw, and a window
+already carrying a tail measures how well that tail is modelled rather than
+whether the absence holds. The third test is why `n_testable` is `None` until
+`ExtinctionCandidate.screened`: it is a question about the class's own fit, so
+before that fit the count is unknown rather than zero.
 
 **Refutation is one-sided by construction.** A class asserts absences, so
 intensity where it forbids one contradicts it; a class claiming too *few*
@@ -881,25 +886,40 @@ chemistry, not diffraction — any member can be handed to
 `structure_from_candidate` for the fit that follows, because they predict the
 same reflections at the same positions.
 
-**Read `ExtinctionScreen.profile_rwp` before believing a refutation.** Every
-class is fitted with that shared instrument frozen, so a poor shared fit is a
-poor screen, and a badly modelled profile puts intensity exactly where a class
-says there should be none. Measured on the corundum pattern above: over the
-whole 5–150° range with the round-robin instrument's declared widths, the
-shared fit reaches Rwp 0.287 and five forbidden positions read as occupied; run
-over 20–90° with the widths seeded from the peak list, it reaches 0.149 and two
-do. So give the screen a range and a width law its profile fit can actually
-match, and read `ExtinctionScreen.profile_rwp` to check that it did.
+**A forbidden position is evidence only where the class's own fit is quiet
+there.** The absence test integrates the residual over ±½ FWHM and asks whether
+it clears 3σ — so where the window already holds a neighbour's tail, what it
+measures is the accuracy of that tail. Measured on the corundum pattern above,
+over 20–90°: at **sham** positions 1–3 FWHM from an allowed line, carrying no
+reflection of any kind, the same test clears 3σ on 40–50 % of probes and reaches
+24.7σ, and it does so on the low-angle flank only — the unmodelled axial tail.
+So `n_testable` keeps a position only when the class's own model predicts less
+intensity in that window than the test's own threshold, which means no error in
+a neighbour's tail, not even a total one, can manufacture a refutation.
 
-**And refutation outranks ΔBIC, one-sidedly.** On that same better-fitted
-screen the specimen's certified `R - c -` class sits at ΔBIC −251 against the
-absence-free class — strong evidence for it — and is still refuted, on those
-two positions, the first named as (2, 0, 5) at 56.919°. That is the rule
-working as designed rather than an override to be tuned away, but it makes the
-named reflections worth checking: a single flagged position can be an impurity
-line rather than a violated absence, and the same specimen's indexing run
-reported 49 observed lines its own top candidate did not explain. §7e of the
-protocol says how to make that check.
+That is what returns the right answer here. α-Al₂O₃ is certified `R -3 c`, and
+over 20–90° with the widths seeded from the peak list the screen returns
+`R - c -` = {`R 3 c`, `R -3 c`} at ΔBIC −218, with five testable positions all
+absent — the certified group listed, never chosen, beside the
+non-centrosymmetric partner no counting time separates from it.
+
+**Read `ExtinctionScreen.profile_rwp` before believing a refutation anyway.**
+Every class is fitted with the shared instrument frozen, so a poor shared fit is
+a poor screen, and the gate above bounds what a *neighbour* can do, not what a
+wrong profile can. Same specimen, same certified cell, over the whole 5–150°
+range with the round-robin instrument's declared widths: the shared fit reaches
+Rwp 0.270 against 0.149, its fitted peaks come out a third too wide, four
+forbidden positions read as occupied, and the certified class is refuted. So
+give the screen a range and a width law its profile fit can actually match, and
+read `ExtinctionScreen.profile_rwp` to check that it did.
+
+**Refutation still outranks ΔBIC, one-sidedly**, wherever a testable position
+does carry intensity: a class asserts absences, and no amount of evidence *for*
+it buys back a position that contradicts it. It makes the named reflections
+worth checking either way — a single flagged position can be an impurity line
+rather than a violated absence, and this specimen's own indexing run reported 49
+observed lines its top candidate did not explain. §7e of the protocol says how
+to make that check.
 
 ## Further reading
 
