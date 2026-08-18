@@ -53,59 +53,50 @@ The precedent for naming an off-surface helper in a chapter is
 `rietx.viz.compare.run`, which `using/report.md` has spelled fully qualified
 since the floor.
 
-**Make the tier data.** This repo has measured what a hand-written stability
-list costs (`_SURFACE_FLAGS`, WP-1037: the flag and the export drifted apart
-while the test asserted the flag's own expression). So the entry is a table of
-**module prefixes** with a reason, and the provisional set is derived from each
-name's defining module — `rietx.indexing.*`, `rietx.schemas.indexing`, and
-whatever `capabilities()` exposes purely to describe them. A new indexing type
-then arrives provisional by construction.
-
-**Sequencing constraint.** `docs/releases/1.0.2.md` § The freeze currently says
-"The indexing chapter freezes 266 more, and every indexing type is now frozen in
-full". That is true under today's rule and false under this one, so the rewrite
-lands here and **this WP gates the 1.0.2 release** (`docs/RELEASING.md`).
-
-### Inherited
-
-**From WP-1077 (2026-08-18): a worked instance of the case this WP argues, and
-one release-notes fact to carry.** `determine_extinction_symbol` is frozen by
+**The case, worked, from WP-1077.** `determine_extinction_symbol` is frozen by
 1067's chapter, and its *answer* changed in a patch release — the absence test
 was refuting a class on a neighbouring peak's tail, so on certified corundum the
 screen returned a class not containing the specimen's own `R -3 c`. The repair
 narrows `n_testable` and widens its type to `int | None`. Nothing about that was
 avoidable by being more careful at the freeze: the defect was found by writing a
 manual chapter over the call, which is the same route all nine of 1076's took.
-Two consequences for this WP. The 1.0.2 notes now carry an "the extinction
-screen no longer refutes a class on its neighbour's tail" entry under § What
-changed and two entries under § Upgrading, so **the release this gates is no
-longer answer-identical to 1.0.1** and its headline says so — check that the
-provisional declaration reads consistently beside that. And if
-`PROVISIONAL_MODULES` (or whatever the table becomes) is keyed by module, note
-that `determine_extinction_symbol` is re-exported at top level and documented in
-`using/indexing.md`, so the entry has to reach a name, not only
-`rietx.indexing`.
 
-**From WP-1067's `using/series.md`/`exports.md` session (2026-08-18): the same
-finding one subsystem over, and this WP's mechanism is what would answer it.**
-`rietx.viz` is **not on the derived surface at all** — measured, `agent` is the
-only module on it — so `plot_for_vlm`, `plot_result`, `plot_trajectory`,
+**Make the tier data.** This repo has measured what a hand-written stability
+list costs (`_SURFACE_FLAGS`, WP-1037: the flag and the export drifted apart
+while the test asserted the flag's own expression). So the entry is a table of
+**module prefixes** with a reason, and the provisional set is derived from each
+name's **defining** module — `rietx.indexing.*` and `rietx.schemas.indexing`. A
+new indexing type then arrives provisional by construction. Defining, not
+exporting: `determine_extinction_symbol` is re-exported at top level and
+documented in `using/indexing.md`, so a table keyed by module has to reach a
+*name* through the module that defines it, not only through `rietx.indexing`.
+
+**What stays frozen, and it is the exchange.** `capabilities()`'s indexing arms
+(`Capabilities.indexing_thresholds_version`, the engine and preset capability
+types) and the agent envelope's `indexing` arm are **data contracts** with their
+own version strings, so the declaration must not reach them: a consumer that
+parses an answer keeps its hard freeze, and a caller that imports a type is the
+one taking the risk.
+
+**The same shape one subsystem over — `rietx.viz`, and this WP decides it.**
+WP-1067 measured that `rietx.viz` is not on the derived surface at all (`agent`
+is the only module on it), so `plot_for_vlm`, `plot_result`, `plot_trajectory`,
 `plot_candidates` and `viz.html.write_html` are in none of the three buckets and
 are "internal, may change without notice" by `tests/api_surface.py`'s own
-internal sentence. Meanwhile `using/files.md` points a reader at
-`viz.html.write_html`, `using/report.md` has spelled `rietx.viz.compare.run`
-fully qualified since the floor, and `RefinementResult.plot` — which *is*
-frozen — routes into that module.
+sentence — while `using/files.md` points a reader at `viz.html.write_html`,
+`using/report.md` has spelled `rietx.viz.compare.run` fully qualified since the
+floor, and `RefinementResult.plot`, which *is* frozen, routes into that module.
+The decision is to leave it internal, because the mechanism this WP builds
+refuses it: an entry that matches no surface name fails, and `rietx.viz` matches
+none. Internal is the stronger statement, not a weaker one. What is missing is a
+sentence saying that a chapter naming an internal helper fully qualified is a
+pointer rather than a promotion — that goes in the same § as this WP's
+declaration.
 
-This is not covered by § Context above, which reaches `rietx.viz.plot_indexing`
-only as one of AGENT_PROTOCOL §7d's five helpers. The whole module has the
-shape. **It is named here rather than acted on**: whether `rietx.viz` becomes a
-second `PROVISIONAL_MODULES` entry, gets exported, or stays internal with the
-chapters' fully-qualified references treated as the precedent they already are,
-is a decision for whoever builds that table — and building it for one subsystem
-while a second has the identical problem is the kind of thing worth deciding
-once. WP-1067 has no opinion beyond that its chapters could not document those
-names honestly under today's rule.
+**Sequencing constraint.** `docs/releases/1.0.2.md` § The freeze currently says
+"The indexing chapter freezes 266 more, and every indexing type is now frozen in
+full". That is true under today's rule and false under this one, so the rewrite
+lands here and **this WP gates the 1.0.2 release** (`docs/RELEASING.md`).
 
 ## Non-goals
 
@@ -138,7 +129,10 @@ names honestly under today's rule.
       override the documented tier. State what a user gets in exchange: the
       changes are announced in the release notes, and the data contracts
       (`Capabilities.indexing_thresholds_version`, the agent envelope's
-      `indexing` arm) keep their own hard freeze.
+      `indexing` arm) keep their own hard freeze. Second sentence, from the
+      `rietx.viz` decision above: the freeze covers names **on the derived
+      surface**, so a chapter naming an internal helper fully qualified is a
+      pointer and not a promotion.
 - [ ] `docs/manual/using/indexing.md`: an admonition at the top pointing at that
       section, in one or two sentences, naming what it covers (the three entry
       points, the schema types, and the `rietx.indexing` helpers the protocol
@@ -148,8 +142,13 @@ names honestly under today's rule.
       is where the off-surface helpers appear.
 - [ ] `docs/releases/1.0.2.md`: rewrite the indexing freeze paragraph —
       documented, and provisional by declaration — and give the count its honest
-      name. Check whether the release's headline number ("927 frozen, 395
-      provisional") still reads correctly with a third state in it.
+      name. Check the closing count with a third state in it (it reads "1322
+      names, 1318 frozen and 4 provisional" today, which 1076 already left
+      stale). The declaration also has to read consistently beside 1077's
+      entries: this release is **no longer answer-identical to 1.0.1**, and its
+      § What changed and § Upgrading now say the extinction screen's answer
+      moved — which is the case for the declaration, not an embarrassment beside
+      it.
 - [ ] README: § Documentation ends "undocumented public items stay provisional
       until their chapter lands", which is now not the whole rule.
 
