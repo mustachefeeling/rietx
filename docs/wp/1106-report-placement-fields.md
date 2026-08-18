@@ -91,7 +91,15 @@ are resolved — a writer or removal, decided by measurement.
 
 ### Inherited
 
-(1104 forwards structural findings here as it closes.)
+- From 1104 (2026-08-18): **nothing surfaced that needs a schema field** —
+  the audit's amendments were attribution and citation only, and its one
+  open question (a dynamic suggest→fit loop measured against the presets) is
+  an eval question, recorded in `milestones/v1.1.md` § reconciliation. One
+  pointer for the `execution` field's docs: Toby (2024) §4's caveat — the
+  largest-derivative parameter is not always appropriate to vary, his
+  example being an instrument width out-deriving the sample term — is the
+  literature's own statement of the leverage-vs-veto split, and WP-1050's
+  handover records the identical U/V/W example.
 
 ## Non-goals
 

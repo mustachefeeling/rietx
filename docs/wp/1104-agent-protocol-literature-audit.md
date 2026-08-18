@@ -76,23 +76,23 @@ record.
 
 ## Tasks
 
-- [ ] Read Toby 2024; write the reconciliation against §2 and
+- [x] Read Toby 2024; write the reconciliation against §2 and
       `PLAN_PRESETS`/`PLAN_INFO` (adopt / decline-with-reason / open, per
       difference); cite it where it grounds an existing §2/§10 claim.
-- [ ] Classify every normative claim in §§1–10 into the three classes; the
+- [x] Classify every normative claim in §§1–10 into the three classes; the
       grid (section → claim → class → source) goes to the milestone-record
       appendix, dated.
-- [ ] Fix attributions in place: the three §2 house rules labeled as house
+- [x] Fix attributions in place: the three §2 house rules labeled as house
       rules (1068's fix, one document over); any claim whose named source
       does not support it corrected or demoted.
-- [ ] Verify §8's nineteen "measured" pointers resolve to their WP or record;
+- [x] Verify §8's nineteen "measured" pointers resolve to their WP or record;
       fix any that don't.
-- [ ] Read the retrieved papers as the maintainer supplies them; ground or
+- [x] Read the retrieved papers as the maintainer supplies them; ground or
       amend the claims that rest on each (§4 steps 5/8/9, §4b's QPA rows,
       §6's serial-correlation rows). A paper not supplied leaves its claims
       classified "house rule, literature pointer unread" — visible, not
       blocking.
-- [ ] Forward structural findings to 1106's `### Inherited`; handover.
+- [x] Forward structural findings to 1106's `### Inherited`; handover.
 
 ## Acceptance
 

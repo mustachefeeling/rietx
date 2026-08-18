@@ -62,6 +62,16 @@ Verified 2026-08-18 (file:line against the working tree at `6517c914`):
 - Also noticed, fix in passing: the §7 subsection ordering runs
   7 → 7b → 7c → **7e** → **7d** → 7f.
 
+### Inherited
+
+- From 1104 (2026-08-18): a **citation-resolution coverage test** fits this
+  WP's meta-test family — every WP the protocol names inline exists as a
+  file, and every paper it cites by author-year appears in a stated
+  references location. 1104 verified both by hand (all resolve, grid in
+  `milestones/v1.1.md` § Appendix); a test is what stops the next drift.
+  1104 also added ~10 author-year citations to the protocol, so the check
+  has more to protect than when 1105 was planned.
+
 ## Non-goals
 
 - Re-grounding claims in literature (1104) or demoting/promoting Layer 2's
