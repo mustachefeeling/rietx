@@ -41,19 +41,29 @@ new public name cannot slip past it. Every name on it is in exactly one of
 three buckets:
 
 - **Documented.** A name this manual's Part 1 documents is frozen from the
-  release that documents it.
-- **Deferred.** The rest of the surface is **provisional**: it works as it
-  stands today, but a name in this bucket may change in a 1.0.x release.
-  The 1.0.x releases are the documentation road — each chapter that lands
-  promotes its names from provisional to frozen.
+  release that documents it — unless it belongs to a subsystem declared
+  provisional in the next section, which overrides this for that subsystem's
+  names and for nothing else.
+- **Deferred.** The rest of the surface is **provisional until its chapter
+  lands**: it works as it stands today, but a name in this bucket may change
+  in a 1.0.x release. The 1.0.x releases are the documentation road — each
+  chapter that lands promotes its names from provisional to frozen. This is
+  not the same state as *provisional by declaration* below, which a chapter
+  does not promote.
 - **Excluded with a written reason** — documented as a protocol rather than
   as a type (the `cancel=` token), or a compile-stage internal.
 
 In practice: if this manual names it, build on it; if not, it still works,
-but check the release notes before you upgrade.
+but check the release notes before you upgrade. One subsystem is the
+exception, and the next section names it.
 
 **Everything else is internal.** Anything importable outside the derived
-surface is internal and may change without notice.
+surface is internal and may change without notice. The freeze covers the
+derived surface, so a chapter that spells an internal helper fully qualified —
+`rietx.viz.compare.run` and `rietx.viz.html.write_html` are the standing
+examples — is pointing you at something that works, not promoting it.
+
+(provisional-by-declaration)=
 
 ## Provisional by declaration
 
@@ -68,6 +78,19 @@ The rest of the promise is by declaration rather than by bucket:
 - **A series is session-scoped.** `refine_sequential` returns its result and
   writes one history tree per pattern, but the series itself is not a saved
   document at 1.0.
+- **Indexing is provisional as a subsystem.** `pick_peaks`, `index_pattern`
+  and `determine_extinction_symbol`, the answer types they return
+  (`rietx.schemas.indexing`), and the helpers under `rietx.indexing` that the
+  agent protocol's worked loop calls are documented in [](indexing.md) and may
+  still change in a 1.x release. The engines, the gates and the figures of
+  merit are still being measured against real data, and 1.0.2 is what that
+  looks like: `determine_extinction_symbol` stopped refuting an extinction
+  class on a neighbouring peak's tail, so its *answer* moved in a patch
+  release. In exchange, every such change is announced in the release notes,
+  and the data contracts keep their own hard freeze —
+  `Capabilities.indexing_thresholds_version`, the engine and search-preset
+  capability types, and the `indexing` arm of the agent envelope. Parsing an
+  answer is on frozen ground; importing a type is not.
 
 ## How a change is classified
 

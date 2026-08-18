@@ -17,7 +17,11 @@ of exactly that bug, so what is checked here is **names**:
 * the derived public surface (`tests/api_surface.py`) is **partitioned**:
   every name is documented in a Part 1 chapter, excluded with a reason, or in
   the generated `deferred-1.0.x` bucket — the WP-1003 freeze's **provisional**
-  tier, whose names may still change in a 1.0.x release.
+  tier, whose names may still change in a 1.0.x release;
+* and a name whose subsystem is **declared provisional** (WP-1078's
+  ``PROVISIONAL_MODULES``) is documented all the same, on a page that links the
+  promise.  Documenting a name freezes it, so the declaration is the only way a
+  chapter can cover a subsystem still under development without promising it.
 
 The partition is what stops coverage from silently dropping.  A new public
 method is on the derived surface the moment it is written and in none of the
@@ -53,8 +57,11 @@ from rietx.schemas.structure import AnisoU, StephensStrain
 from tests.api_surface import (
     EXCLUDED_TYPES,
     EXCLUSIONS,
+    PROVISIONAL_MODULES,
+    declares,
     derive_surface,
     load_deferred,
+    provisional_names,
     reachable_types,
 )
 from tests.test_coordinates import make_rutile
@@ -76,6 +83,13 @@ NO_EXEC = re.compile(r"<!--\s*api-doc:\s*no-exec\s*[-—]\s*(?P<reason>[^>]+?)\s
 # Roots of a parameter dot-path (`params/vector.py`), as opposed to a dotted
 # python name.  The two look alike in a code span and are checked differently.
 PATH_ROOTS = ("phases.", "instrument.")
+
+# The label the compatibility chapter defines and a provisional subsystem's own
+# chapter refers to (WP-1078).  A cross-reference rather than a second copy of
+# the promise: sphinx `-W` fails on a dangling `{ref}`, so the two halves cannot
+# drift the way two paragraphs saying the same thing would.
+PROVISIONAL_TARGET = "provisional-by-declaration"
+COMPATIBILITY_PAGE = USING_DIR / "compatibility.md"
 
 
 def _pages() -> list[tuple[Path, str]]:
@@ -449,6 +463,99 @@ def test_deferred_bucket_has_no_stale_names():
     surface = set(derive_surface())
     stale = [name for name in load_deferred() if name not in surface]
     assert not stale, f"deferred names no longer on the surface: {stale}"
+
+
+# --- the third tier: documented, and declared provisional -----------------
+
+
+REF_ROLE = re.compile(r"\{ref\}`([^`]*)`")
+
+
+def _referenced_labels(text: str) -> set[str]:
+    """The labels a page's `{ref}` roles point at, plain or `title <label>`."""
+    labels = set()
+    for body in REF_ROLE.findall(text):
+        match = re.search(r"<([^>]+)>", body)
+        labels.add((match.group(1) if match else body).strip())
+    return labels
+
+
+def test_provisional_modules_are_live_and_reasoned():
+    """A declaration that matches no surface name is a module rename with a
+    dead promise attached, and an empty reason is a shrug — the same bar the
+    exclusions carry, for the same reason: the tier is data, so an entry that
+    stopped meaning anything has to fail rather than sit there (WP-1078)."""
+    surface = derive_surface()
+    for prefix, reason in PROVISIONAL_MODULES.items():
+        assert len(reason.split()) >= 5, f"{prefix}: declaration carries no real reason"
+        covered = [name for name, entry in surface.items() if declares(entry.module, prefix)]
+        assert covered, f"{prefix}: declared provisional but defines nothing on the surface"
+
+
+def test_provisional_names_are_documented():
+    """Provisional is a weaker *promise*, never thinner coverage.
+
+    A subsystem under development is exactly the one a reader needs a reference
+    for, so a declared name is still documented — this fails if a chapter drops
+    one, which the partition alone would not catch: an undocumented name can
+    sit in the deferred bucket instead and stay green.
+    """
+    provisional = provisional_names()
+    assert provisional, "no name is provisional — the declaration reaches nothing"
+    undocumented = provisional - documented_names()
+    assert not undocumented, (
+        f"{len(undocumented)} provisional name(s) no chapter documents: "
+        f"{sorted(undocumented)[:20]}"
+    )
+
+
+def test_the_provisional_promise_reaches_the_chapters_that_document_it():
+    """The declaration is in the compatibility chapter, and every provisional
+    name is documented on a page that points at it.
+
+    Derived rather than a list of page names: a chapter that documents a
+    provisional name without linking the promise leaves a reader believing the
+    documented tier applies, which is what it says everywhere else.  The link
+    is a `{ref}` to one label, so the `-W` build fails on a dangling one and
+    this test fails on a missing one — neither is a second copy of the promise,
+    which is how a guard of this shape goes quiet (`tests/CLAUDE.md`).
+    """
+    compatibility = COMPATIBILITY_PAGE.read_text(encoding="utf-8")
+    assert f"({PROVISIONAL_TARGET})=" in compatibility, (
+        f"compatibility.md defines no `{PROVISIONAL_TARGET}` target for the chapters to link"
+    )
+    declared = {
+        token
+        for token in DOTTED.findall(_code_text(COMPATIBILITY_PAGE, compatibility))
+        if token in PROVISIONAL_MODULES
+    }
+    assert declared == set(PROVISIONAL_MODULES), (
+        "compatibility.md does not name every declared-provisional module: "
+        f"missing {sorted(set(PROVISIONAL_MODULES) - declared)}"
+    )
+
+    provisional = provisional_names()
+    told: set[str] = set()
+    for page, text in _pages():
+        if PROVISIONAL_TARGET not in _referenced_labels(text):
+            continue
+        told |= {t.removeprefix("rietx.") for t in DOTTED.findall(_code_text(page, text))}
+    untold = provisional - told
+    assert not untold, (
+        f"{len(untold)} provisional name(s) documented only on pages that never link "
+        f"`{PROVISIONAL_TARGET}`: {sorted(untold)[:20]}"
+    )
+
+
+def test_only_constants_lack_a_defining_module():
+    """`Entry.module` is what the declaration is resolved against, so a kind
+    that quietly stops carrying one would shrink the tier with every test
+    green.  A constant is the one kind that legitimately has none — it is a
+    dict bound in one module and imported into three — and there are two."""
+    unattributed = {name: e.kind for name, e in derive_surface().items() if e.module is None}
+    assert set(unattributed.values()) <= {"constant"}, (
+        f"surface entries with no defining module: {sorted(unattributed)}"
+    )
 
 
 def test_exclusions_are_live_and_reasoned():

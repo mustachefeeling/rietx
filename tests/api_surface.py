@@ -42,6 +42,14 @@ Two derivation rules carry the weight, both measured 2026-08-14:
    the manual's own guard rejected the first of them as a name that does not
    resolve.  Instance attributes are read off the class's source with ``ast``.
 
+**The tier a name is on is data too** (WP-1078).  A documented name is frozen
+from the release that documents it, which is the wrong promise for a subsystem
+still under development, so ``PROVISIONAL_MODULES`` declares one by **module
+prefix** and ``provisional_names()`` resolves it against each name's *defining*
+module.  Declared, derived and one edit wide: a new type in a declared module
+is provisional the moment it is written, and a rename that empties a
+declaration fails rather than leaving a dead promise behind.
+
 Run ``python -m tests.api_surface`` for a summary of the surface, or
 ``python -m tests.api_surface --write-deferred`` to regenerate
 ``api_surface_deferred.txt`` (see `tests/test_manual_api.py` for what that
@@ -91,6 +99,52 @@ EXCLUDED_TYPES: dict[str, str] = {
 # Individual names, where the *type* is on the surface but one member is not.
 EXCLUSIONS: dict[str, str] = {}
 
+
+# --- what is documented but not frozen, and why ---------------------------
+#
+# The third tier (WP-1078).  A name Part 1 documents is frozen from the
+# release that documents it, and for a subsystem still under active
+# development that is the wrong promise: `using/indexing.md` froze the whole
+# indexing surface the day it landed, and WP-1077 then had to change what one
+# of those names *answers* in a patch release.  So a subsystem can be declared
+# provisional, which overrides the documented tier for its names and nothing
+# else.
+#
+# Keyed by **module prefix**, and resolved against each name's *defining*
+# module, for the reason `_SURFACE_FLAGS` exists (WP-1037): a hand-written
+# list of names and the real exports drift apart while the test asserts the
+# list.  Defining rather than exporting is what reaches
+# `determine_extinction_symbol`, which is re-exported at top level and
+# documented under that name.  A new type in one of these modules is
+# provisional the moment it is written.
+#
+# `test_manual_api.py` fails on an entry here that matches nothing, so a
+# module rename cannot leave a dead declaration behind, and on a provisional
+# name that no chapter documents: provisional is a weaker *promise*, never
+# thinner coverage.
+#
+# What is deliberately NOT here: `rietx.capabilities` and `rietx.agent`.
+# `Capabilities.indexing_thresholds_version`, the engine and preset
+# capability types and the agent envelope's `indexing` arm are data
+# contracts with their own version strings, and a consumer that parses an
+# answer keeps its hard freeze.  The risk is the caller's who imports a type,
+# not the reader's of a response.
+
+PROVISIONAL_MODULES: dict[str, str] = {
+    "rietx.indexing": (
+        "the indexing algorithms and the calls over them (pick_peaks, "
+        "index_pattern, determine_extinction_symbol) are under active "
+        "development: engines, gates and figures of merit are still being "
+        "measured against real data, and WP-1077 had to change what the "
+        "extinction screen answers in a patch release."
+    ),
+    "rietx.schemas.indexing": (
+        "the answer types those calls return, which move with them: a "
+        "candidate, its figures of merit, the caveats and the evidence "
+        "projection are the shape of a search that is still changing."
+    ),
+}
+
 # --- the internal sentence, and what WP-1003 filed under it ---------------
 #
 # **Anything importable outside the derived surface is internal and may
@@ -122,11 +176,26 @@ EXCLUSIONS: dict[str, str] = {}
 
 @dataclass(frozen=True)
 class Entry:
-    """One name on the public call surface."""
+    """One name on the public call surface.
+
+    `module` is the rietx module that **defines** the name — the class's own
+    module for a class and for its fields, the defining class's module for an
+    inherited member, the function's `__module__` for a function.  It is what
+    `PROVISIONAL_MODULES` is resolved against, so a name re-exported at top
+    level is attributed where it was written rather than where it is reachable.
+
+    It is `None` for a **constant**, which carries no `__module__` at all: a
+    dict is bound in one module and imported into three, and identity says
+    nothing about which wrote it.  There are two on the surface today and
+    neither is indexing, so the hole is declared rather than guessed at —
+    `test_manual_api.py` asserts that constants are the *only* unattributed
+    kind, which is what would notice a new kind losing its module quietly.
+    """
 
     name: str  # "refine", "RefinementResult.statistics", "agent.refine_json"
     kind: str  # "function" | "class" | "constant" | "field" | "member" | "module"
     owner: str | None = None  # the type or module the member is declared on
+    module: str | None = None  # the rietx module that defines it
 
 
 def is_rietx(obj: object) -> bool:
@@ -139,6 +208,14 @@ def is_rietx(obj: object) -> bool:
 
 def _public(name: str) -> bool:
     return not name.startswith("_")
+
+
+def _module_of(obj: object) -> str | None:
+    """The rietx module an object was defined in, or None if it carries none."""
+    module = getattr(obj, "__module__", None)
+    if isinstance(module, str) and (module == "rietx" or module.startswith("rietx.")):
+        return module
+    return None
 
 
 def _defining_class(cls: type, name: str) -> type | None:
@@ -214,7 +291,8 @@ def declared_members(cls: type) -> dict[str, Entry]:
         fields |= {f.name for f in dataclasses.fields(cls)}
     for name in sorted(fields):
         if _public(name):
-            out[f"{cls.__name__}.{name}"] = Entry(f"{cls.__name__}.{name}", "field", cls.__name__)
+            qualified = f"{cls.__name__}.{name}"
+            out[qualified] = Entry(qualified, "field", cls.__name__, _module_of(cls))
     for name in sorted(dir(cls)):
         if not _public(name) or name in fields or name in _PYDANTIC_CLASS_ATTRS:
             continue
@@ -222,10 +300,10 @@ def declared_members(cls: type) -> dict[str, Entry]:
         if owner is None or not is_rietx(owner):
             continue
         qualified = f"{owner.__name__}.{name}"
-        out.setdefault(qualified, Entry(qualified, "member", owner.__name__))
+        out.setdefault(qualified, Entry(qualified, "member", owner.__name__, _module_of(owner)))
     for name in sorted(_instance_attributes(cls)):
         qualified = f"{cls.__name__}.{name}"
-        out.setdefault(qualified, Entry(qualified, "attribute", cls.__name__))
+        out.setdefault(qualified, Entry(qualified, "attribute", cls.__name__, _module_of(cls)))
     return out
 
 
@@ -342,29 +420,54 @@ def derive_surface(*, apply_exclusions: bool = True) -> dict[str, Entry]:
         if inspect.isclass(obj) or isinstance(obj, types.ModuleType):
             continue
         kind = "function" if callable(obj) else "constant"
-        surface[name] = Entry(name, kind, "rietx")
+        surface[name] = Entry(name, kind, "rietx", _module_of(obj))
 
     for name in rietx.__all__:
         obj = getattr(rietx, name)
         if not isinstance(obj, types.ModuleType):
             continue
-        surface[name] = Entry(name, "module", "rietx")
+        surface[name] = Entry(name, "module", "rietx", obj.__name__)
         for member, value in _module_members(obj):
             if inspect.isclass(value):
                 continue  # a seed type; it enters the surface under its own name
             if not callable(value):
                 continue
             qualified = f"{name}.{member}"
-            surface[qualified] = Entry(qualified, "function", name)
+            surface[qualified] = Entry(qualified, "function", name, _module_of(value))
 
     for name, cls in sorted(reachable_types(apply_exclusions=apply_exclusions).items()):
-        surface[name] = Entry(name, "class", None)
+        surface[name] = Entry(name, "class", None, _module_of(cls))
         surface.update(declared_members(cls))
 
     if apply_exclusions:
         for name in EXCLUSIONS:
             surface.pop(name, None)
     return surface
+
+
+def declares(module: str | None, prefix: str) -> bool:
+    """True if `module` is `prefix` or a submodule of it.
+
+    A prefix match on the raw string would make `rietx.indexing` claim a future
+    `rietx.indexing_legacy`, which is the sort of thing that goes unnoticed
+    because it only ever over-matches.
+    """
+    return module is not None and (module == prefix or module.startswith(f"{prefix}."))
+
+
+def provisional_names(*, apply_exclusions: bool = True) -> set[str]:
+    """Surface names a `PROVISIONAL_MODULES` declaration covers (WP-1078).
+
+    Documented *and* provisional: these names are in the manual, and the manual
+    says they may change in a 1.x release.  That is a third state on top of the
+    partition rather than a fourth bucket in it.
+    """
+    surface = derive_surface(apply_exclusions=apply_exclusions)
+    return {
+        name
+        for name, entry in surface.items()
+        if any(declares(entry.module, prefix) for prefix in PROVISIONAL_MODULES)
+    }
 
 
 def load_deferred() -> list[str]:
@@ -416,6 +519,11 @@ def _main() -> None:
     for kind, count in sorted(kinds.items()):
         print(f"  {kind:>9}: {count}")
     print(f"  deferred: {len(load_deferred())}")
+    provisional = provisional_names()
+    print(f"  provisional by declaration: {len(provisional)}")
+    for prefix in sorted(PROVISIONAL_MODULES):
+        covered = sum(1 for name in provisional if declares(surface[name].module, prefix))
+        print(f"    {prefix}: {covered}")
 
 
 if __name__ == "__main__":
