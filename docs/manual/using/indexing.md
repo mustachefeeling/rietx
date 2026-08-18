@@ -6,6 +6,18 @@ to come out of the pattern itself. Indexing is that step — from the line
 positions alone, find a lattice whose calculated reflections land where the
 observed lines are.
 
+:::{admonition} Provisional
+:class: warning
+Indexing is under active development, so this chapter's names are documented
+but **not frozen**. `pick_peaks`, `index_pattern`,
+`determine_extinction_symbol`, the answer types in `rietx.schemas.indexing` and
+the helpers under `rietx.indexing` may change in a 1.x release — the engines,
+the gates and the figures of merit are still being measured against real data.
+Every change is announced in the release notes, and the data contracts a
+consumer parses do not move with them.
+{ref}`provisional-by-declaration` has the promise in full.
+:::
+
 Three calls do it, and each answers a smaller question than a reader usually
 wants answered.
 
