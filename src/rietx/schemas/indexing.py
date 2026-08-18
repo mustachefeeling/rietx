@@ -338,8 +338,11 @@ Confidence = Literal["high", "medium", "low"]
 #: (Mighell & Santoro 1975); the partner carries the reflections that would
 #: break the tie.  ``fom_panel_disagrees`` — the panel's members put different
 #: candidates first, so at least one blind spot is active.  ``not_validated`` —
-#: no pattern was supplied, so nothing tested the candidate against the whole
-#: profile.  ``predicted_but_absent`` — the Le Bail fit found reflections where
+#: this candidate has no Le Bail fit behind it, either because no pattern was
+#: supplied at all (``IndexingResult.validated`` is then False) or because the
+#: run's ceiling expired part-way down the shortlist, which
+#: ``INDEX_BUDGET_EXHAUSTED`` counts: the run-level flag and this caveat are
+#: therefore not each other's negation.  ``predicted_but_absent`` — the Le Bail fit found reflections where
 #: the pattern has no intensity, the classic oversized-cell false positive M₂₀
 #: cannot see.  ``indexed_fraction_low`` — below
 #: :data:`INDEX_MIN_INDEXED_FRACTION` of the usable lines.  ``search_incomplete``

@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-18 — floor landed (gates 1003); the McCusker set's pass landed; eight 1.0.x chapters have landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`) and the `agents.md` second pass with them, so 1160 of the 1322 names are frozen, 88 % of the surface; one chapter line remains (`cli.md`, which freezes nothing) plus the second pass on `report.md`, and the 162 names left partition two ways with no remainder; [1076](1076-result-row-honesty.md) holds five unwritten fields, values and one unreachable error code that chapters found, and [1077](1077-extinction-refutes-certified-class.md)/[1078](1078-indexing-provisional.md) hold the two findings the indexing chapter left with no owner
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-18 — **every task line is ticked**: floor landed (gates 1003), the McCusker set's pass landed, ten 1.0.x chapters landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`, `cli` and the two second passes on `agents` and `report`), and **1318 of the 1322 names are frozen, 99.7 % of the surface**; the WP cannot be ticked ✅ because its acceptance is an *empty* bucket and the last four names are [1076](1076-result-row-honesty.md)'s to repair or retire, so the bucket is now that WP's mailbox; [1077](1077-extinction-refutes-certified-class.md)/[1078](1078-indexing-provisional.md) hold the two findings the indexing chapter left with no owner
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -412,15 +412,19 @@ passing.
       to fit at 1100 px, because a qualified `SequentialRefineRequest.task` is
       337 px of unbreakable code span; and `BACKEND_UNAVAILABLE` cannot fire
       (see the handover), filed to [1076](1076-result-row-honesty.md).
-- [ ] `using/cli.md` — `rietx watch`, `rietx compare`, and `rietx gui` in one
-      **beta**-marked line. **It freezes nothing** (measured 2026-08-18: no
-      `rietx.cli` name is on the derived surface — the entry point is a
-      `project.scripts` console script), so it is a UX chapter and cannot be
-      sequenced by what it empties from the bucket.
-- [ ] **The names no remaining chapter claims** — remeasured 2026-08-18 after
-      the agent pass took its 101. **No task line above claims any of the 162
-      left**, and they partition two ways with no remainder, so this line plus
-      `cli.md` is the whole of what is left of the WP:
+- [x] `using/cli.md` (2026-08-18). **Five commands, not the three this line
+      named**: `rietx index` and `rietx html` were missed, and `index` is the
+      substantial one — its own option table, `--ceiling`, and an **exit status
+      that is a contract** (0 when a cell reached the gate, 1 when the result
+      abstains), shown on a corundum run where the right cell ranks first and
+      the command still exits 1. It froze nothing, as the line predicted. It
+      also found `not_validated` documented with one cause where it has two
+      (see the handover), corrected in the schema comment and in `indexing.md`.
+- [x] **The names no remaining chapter claims** (2026-08-18) — the
+      `report.md` second pass plus the five small groups. **158 of the 162
+      froze**, and the four left are exactly [1076](1076-result-row-honesty.md)'s,
+      so the bucket is now that WP's mailbox rather than this one's task list.
+      The map this line drew held, with one correction the pass found (below):
 
       - **132 — the report's own evidence types**, a second pass on `report.md`,
         which describes the three layers without naming the types field by
@@ -433,7 +437,13 @@ passing.
         `LeBailGap`, `BasisCoefficient`, `Region`, `SoftMode`,
         `SuggestedAction`, `UnmatchedPeak`, `CandidateGroup`,
         `ContaminationFlag`, `PatternDiagnostics`. The largest single block
-        left, and the one that closes the WP.
+        left, and the one that closes the WP. **The seam moved on three of
+        them**: `PatternDiagnostics` + `ContaminationFlag` are model-free
+        pattern measurements and went to `results.md` beside the `diagnose`
+        call it already spelled, and `ExchangeRow` went there too, with
+        `Identifiability`, because `RefinementResult.identifiability` is that
+        chapter's — which is how the pass found the report was naming the wrong
+        type for its own block.
       - **30 — five small groups, three of them a paragraph in a chapter that
         exists.** `AbsorptionCorrection` + `RefinementResult.absorption` (12) is
         the specimen-absorption record, and `results.md` § "What the statistics
@@ -485,6 +495,160 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-18 (the `report.md` second pass, the five small groups and
+  `cli.md`)** — six commits on `wp1067-report-second-pass`, five of content and
+  one of handover. No `### Inherited` to prune (still none on this WP; the
+  "Inherited" strings in this file are prose about *1003's* and *1076's*
+  mailboxes). The previous session's gotcha was checked before branching:
+  `git log origin/main..HEAD` on the merged branch was empty, so nothing was
+  stranded.
+
+  **Every task line on this WP is now ticked, and the WP still cannot close.**
+  Its acceptance is an empty `deferred-1.0.x` bucket; the bucket holds four
+  names and all four are [1076](1076-result-row-honesty.md)'s — fields nothing
+  writes, and a converter for a non-public type. Documenting them would be the
+  passing mention this WP forbids itself, so the bucket is now 1076's mailbox
+  and the ✅ waits on that WP.
+
+  **158 names froze — the bucket goes 162 → 4**, and twenty-six types are frozen
+  in full: `Region`, `UnmatchedPeak`, `RegionAttribution`, `BasisCoefficient`,
+  `TrendAnalysis`, `TrendTemplate`, `TextureAnalysis`, `StrainAnalysis`,
+  `BackgroundEvidence`, `IdentifiabilityEvidence`, `ExchangeFinding`,
+  `LeBailGap`, `SuggestedAction`, `StageReport`, `SuggestionResult`,
+  `CandidateGroup`, `ParameterCandidate`, `Identifiability`, `CorrelationPair`,
+  `SoftMode`, `ExchangeRow`, `PatternDiagnostics`, `ContaminationFlag`,
+  `AbsorptionCorrection`, `RefinementPlan` and `HistoryRecord`. The surface is
+  **1318/1322 frozen, 99.7 %**.
+
+  **Measuring first changed the work again**, eighth session running and the
+  sixth time it has. Two moves. The 132-name "report block" was not all the
+  report's: `PatternDiagnostics` and `ContaminationFlag` are model-free
+  measurements of a raw pattern and belong beside the `diagnose` call
+  `results.md` already spelled, and `ExchangeRow` + `Identifiability` belong
+  there too because `RefinementResult.identifiability` is that chapter's field.
+  And `cli.md`'s line named three commands where there are five — `rietx index`
+  is the substantial one and no line had claimed it.
+
+  **Numbers** (`[dev]` venv — no jax, no torch; darwin/arm64, Python 3.12.12).
+  Fast selection **2402 passed / 117 skipped in 2:27**, counts identical to this
+  session's starting tree: docs plus one comment, no test added, so
+  passed+skipped moved by exactly 0. The full suite was **not** run — a `#:`
+  comment cannot move a measured number (`tests/CLAUDE.md` § Running, rung 3);
+  the standing Linux figure is still **2561 passed / 88 skipped in 1:51:56**
+  (`[dev,jax]`, nightly 32017322140). `sphinx -W` clean; `test_examples.py`
+  4 passed; `ruff` clean. Audited at 1100 px in both themes: after the table fix
+  below, none of `report.md`'s **21** tables scrolls inside its wrapper, nor any
+  on `results.md` (10), `files.md` (4), `concepts.md` (4), `refining.md` (6),
+  `cli.md` (2) or `indexing.md` (24); no code block scrolls and no page's body
+  overflows. Two article-level deltas are Furo's own and pre-existing: the
+  736/744 seen on every page since the floor, and a 733/739 on `concepts.md`'s
+  admonition, verified identical on a build of the pre-change file.
+
+  **Measured while writing**, on the 11-BM NAC walkthrough unless said
+  otherwise. Reports: 36 kB for the Le Bail, 81 kB for the two-phase Rietveld,
+  against 2.5–3.7 kB for each of the five Le Bail rungs. Layer 0: 52 regions of
+  which 15 reported, carrying 74 % of χ²; 138 unmatched entries over 54 distinct
+  observed peaks. Layer 1 at 12.30°: width coefficient +0.0010° at share 0.46
+  against mixing +0.27 at share 0.38 — the larger number is not the larger
+  share. Trends: the position family comes back `separable=False` at collinearity
+  **1.0000** over 2–24° on a capillary, all four templates fitted and none
+  preferred. Texture: `detected=False` on both phases with best axis (2 1 0) at
+  r² 0.14 and 0.36 and runner-ups at 0.14 and 0.36. Background: Rwp 0.0932
+  against 0.1106 background-subtracted at share 0.25, and χ²_red 2.47 at
+  d = 0.41 over 12 248 off-region channels. Identifiability: esd inflation 9.4 at
+  d = 0.18; softest mode eigenvalue 0.0032 loading +0.80 `instrument.profile.v`
+  against −0.43/−0.41 on `u`/`w`; third mode `instrument.zero_shift` against
+  `phases.0.cell.a` at 0.71 each. Le Bail gap 0.0932/0.0806 = 1.16 over five
+  cycles. `suggest`: 29 candidates in 0.9 s, floor 112.1, five resolved groups,
+  best `phases.0.atoms.4.dof.2` at gain 1.34e4; the two refusals are an
+  occupancy pair at absorption 0.97 and `instrument.polarization` at exactly
+  1.000, and the two skips are `axial_sl`/`axial_hl`, a capillary having no axial
+  divergence. `diagnose`: contamination empty at λ = 0.4139 with *and* without a
+  declared wavelength, three flags (two Kβ, one W Lα) on round-robin corundum at
+  Cu Kα. CLI: `rietx index --ceiling` on corundum reads worst case 1518 s
+  against a measured typical 4–440 s; a 45 s trigonal run indexes the certified
+  cell first at 4.75950 Å and exits **1**.
+
+  **In flight: nothing.** Working tree clean.
+
+  **Next.** No task line is left. The WP ticks ✅ when
+  [1076](1076-result-row-honesty.md) repairs or retires
+  `RefinedParameter.initial`, `RefinedParameter.at_bound`, `TieSpec.from_tie` and
+  `RefinementResult.correlation_warnings`, at which point the bucket is empty and
+  `tests/api_surface_deferred.txt` holds only its header. Keep appending
+  promotions to `docs/releases/1.0.2.md`, still unreleased.
+
+  **Gotchas.**
+
+  - **`FitReport.unmatched` is per channel, and its length is not a peak
+    count.** The first draft said "138 entries covering 54 distinct observed
+    peaks" and both halves were wrong. Measured on the NAC Rietveld fit: 138 is
+    the whole list, **84 `unmatched_calc` + 54 `unmatched_obs`**, and the 54
+    observed entries fall in **four** 2θ clusters (5.08, 12.07, 12.21, 12.44°).
+    `FitReport.summary`'s "54 unmatched observed peak(s)" is the entry count too,
+    not a peak count. Anything reporting this to a person has to cluster the
+    positions first; the chapter now says so and shows the four.
+  - **The manual froze three names against the wrong type, and every guard
+    passed.** `FitReport.identifiability` is an `IdentifiabilityEvidence`; the
+    floor chapter called it an `Identifiability`, which is
+    `RefinementResult.identifiability`'s type. Both carry `top_correlations` and
+    `soft_modes`, so `test_every_dotted_name_resolves` resolved
+    `Identifiability.top_correlations` correctly — against a type the sentence
+    was not about — and the partition counted it documented. **Name resolution
+    cannot catch a mis-attribution between two types that share a member name.**
+    The only thing that would is checking each spelled name against the type the
+    paragraph is describing, which is a reading, not a test. Written into
+    `documented_names`' docstring rather than root CLAUDE.md, with the pairs of
+    this shape named there — the two identifiability blocks, `Statistics`
+    against `BackgroundEvidence`, `StageReport` against `StageResult` — because
+    the cap comment's own test for a CLAUDE.md line is "a clause a session that
+    never opens `docs/manual/` still needs", and this is not one. **Rule 4 cuts
+    both ways**: the first attempt put it in CLAUDE.md and blew the 700-line cap
+    by six, which is the cap doing its job.
+  - **A `no-exec` block hides a wrong attribute, and one had been hiding one.**
+    `refining.md` printed `report.statistics.rwp` over
+    `Refinement.stage_reports_`, which are `StageReport` objects with no
+    `statistics`. The block parses, and the guard checks dotted *names* against
+    the surface, so an expression rooted in a local variable is invisible to it.
+    Every `no-exec` reason is honest and the marker is still right, but the
+    reason string is the only thing standing between a block and being run —
+    grep a chapter's `no-exec` blocks and read them as code, because nothing
+    else will.
+  - **Two docstrings contradicted their own code, and both were the source the
+    chapter was drafted from.** `report.layer1._trends` said "each observable is
+    fitted jointly across its templates"; twelve lines below, its own inline
+    comment says "NOT a joint fit" and gives the measured reason (a 0.02°
+    zero-point error returned as a 1.8° `constant` cancelled by a −1.8°
+    `cos_theta`). Root CLAUDE.md had it right all along — "nested single fits" —
+    so the stale line survived a rule written against it. The `not_validated`
+    comment below is the second. **A chapter written from a docstring inherits
+    the docstring's errors**, and the thing that caught both was reading the
+    code beside the docstring, not the docstring alone.
+  - **`not_validated` was documented with one cause and has two.** The schema
+    comment said "no pattern was supplied"; the assignment is
+    `not validated or cand.lebail is None`, so a run whose ceiling expires
+    part-way down the shortlist marks the rest `not_validated` too —
+    `INDEX_BUDGET_EXHAUSTED` counts them and says so in its own message.
+    Measured under a 45 s ceiling on corundum: `IndexingResult.validated` is
+    `True` and all twelve candidates read `not_validated`. Fixed in the comment
+    and in `indexing.md`, which had transcribed it faithfully. The only thing
+    that found this one was running the command.
+  - **The three-columns rule broke on its first outing, and by growth.** The
+    gate table was written with four columns and scrolled at 762/742; three more
+    tables scrolled because a qualified name was repeated in the *second*
+    column, not the first (`BackgroundEvidence.off_region_chi2_reduced` at 336 px
+    beside `StageReport.off_region_chi2_reduced` at 281 px). So the rule is
+    wider than the agents session stated it: **at 1100 px a three-column table
+    affords about 740 px, and two qualified names in one row is already over.**
+    Name the measurement in the second column, not the field it came from.
+  - **The class-name trap fired for the third session running.** `TextureAnalysis`,
+    `StrainAnalysis` and `UnmatchedPeak` had every member documented and their
+    bare names spelled nowhere, so all three stayed provisional under sections
+    that documented them in full. Checking the partition *per name* after writing
+    is the only thing that finds it; it is now three sessions in a row, and the
+    reliable habit is to regenerate the bucket and read what is left rather than
+    to trust that a full section froze a full type.
 
 - **2026-08-18 (the `agents.md` second pass)** — five commits on
   `wp1067-agents-second-pass`, four of content and one of handover. No

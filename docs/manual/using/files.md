@@ -256,6 +256,21 @@ interface, `RefinementTree.records` is what gets written, and
 `RefinementTree.summary` prints the tree. [](history.md) is the DAG itself: what
 a node holds, and the verbs that restore, fork and merge one.
 
+Each line is a `HistoryRecord`, a tagged union of the three things the log
+carries. The tag is what keeps the file append-only: a reader branches on it
+rather than on the file's shape, so a new line never invalidates the ones before
+it.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `HistoryRecord.record` | `"header"`, `"node"` or `"annotation"` | the tag. Branch on this and read the matching field |
+| `HistoryRecord.header` | a `TreeHeader`, on the first line only | the tree's identity and the fingerprint pinning it to one pattern |
+| `HistoryRecord.node` | a `HistoryNode` | one state, appended when a stage or an edit commits |
+| `HistoryRecord.annotation` | an `Annotation` | a tag or a note attached to a node afterwards, which is why it is a separate line rather than a field on the node |
+
+The other three fields are null on any given line. A tag applied to a node that
+was written an hour ago appends an annotation line; it never rewrites the node.
+
 A node stores **state, not curves**. A node is about 10 kB; embedding the
 calculated pattern would make it 1.24 MB. Le Bail extracted intensities are the
 exception, because they live outside the parameter vector and are

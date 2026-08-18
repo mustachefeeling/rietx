@@ -255,15 +255,15 @@ each stage refines everything released so far.
 `RefinementPlan` carries the presets, named for the job each does:
 
 ```python
-import rietx as rx
+from rietx import RefinementPlan
 
-rx.RefinementPlan.mccusker_default()      # scale+bkg -> zero -> cell -> W -> U,V,X,Y
-rx.RefinementPlan.mccusker_structural()   # ... then coordinates, displacement, PO
-rx.RefinementPlan.lab_bragg_brentano()    # ... with sample displacement, Ka2, FCJ axial
-rx.RefinementPlan.lab_calibrate()         # instrument calibration, certified cell HELD
-rx.RefinementPlan.lab_sample_refine()     # sample against a frozen calibrated instrument
-rx.RefinementPlan.profile_only()          # Le Bail
-rx.RefinementPlan.pawley_default()        # Pawley
+RefinementPlan.mccusker_default()      # scale+bkg -> zero -> cell -> W -> U,V,X,Y
+RefinementPlan.mccusker_structural()   # ... then coordinates, displacement, PO
+RefinementPlan.lab_bragg_brentano()    # ... with sample displacement, Ka2, FCJ axial
+RefinementPlan.lab_calibrate()         # instrument calibration, certified cell HELD
+RefinementPlan.lab_sample_refine()     # sample against a frozen calibrated instrument
+RefinementPlan.profile_only()          # Le Bail
+RefinementPlan.pawley_default()        # Pawley
 ```
 
 The two standard presets are one chain. `mccusker_default` stops after the
@@ -289,7 +289,8 @@ still free.
 `PLAN_INFO` reports each preset's title, description, modes and when to use it,
 so a program can offer the choice without hard-coding a list.
 
-A plan is an ordinary object, so you can edit it:
+A plan is an ordinary object: `RefinementPlan.stages` is a plain list of `Stage`,
+so you can edit it.
 
 <!-- api-doc: no-exec — it needs the reader's own structure and instrument -->
 ```python
