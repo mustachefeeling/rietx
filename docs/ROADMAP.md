@@ -77,13 +77,13 @@ documents a name *promotes it to frozen* — regenerate
   transport (export/open, "the directory, zipped");
   `RefinementState.excluded_regions` with `replay` honouring the node's
   regions (1003 §B — decided, not re-opened).
-- **[1067](wp/1067-user-api-manual.md)** — one Part 1 chapter line left
-  (`cli.md`, which freezes nothing) plus the second pass on `report.md`, which
-  is 132 of the 162 names still provisional; the rest are five small groups
-  with named homes (that WP's last task line has the map).
-  **[1076](wp/1076-result-row-honesty.md)** holds four unwritten result fields
-  and an error code that cannot fire, all found by writing a chapter over the
-  type that declares them.
+- **[1076](wp/1076-result-row-honesty.md)** is now the only thing between
+  [1067](wp/1067-user-api-manual.md) and ✅. Every Part 1 chapter has landed and
+  1318 of the 1322 public names are frozen; the four left are that WP's — three
+  fields nothing in the package writes, and a converter for a non-public type —
+  and documenting them would be the passing mention 1067 forbids itself, so the
+  provisional bucket is 1076's mailbox. It also holds an error code that cannot
+  fire.
 - **[1078](wp/1078-indexing-provisional.md)** — indexing is still under active
   development, so the subsystem is declared provisional and every surface says
   so; it un-freezes what 1067's chapter froze and **gates 1.0.2**.
@@ -296,7 +296,7 @@ docs were ballooning, CI paid twice per merged PR, and the handover was
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ deferred 2026-08-14 | 1011–1016, 1029, 1032–1035 (soft) |
-| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-18 — § Floor landed, so 1003 is unblocked; the McCusker set's pass landed (Part 2 takes its four equations, `using/results.md` splits off, restraints documented, three figures); eight 1.0.x chapters (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`) and the `agents.md` second pass have landed and froze 857 names — 1160 of 1322, 88 % of a surface the refining chapter grew by 24 by finding a derivation blind spot — with the promotions accumulating in the written, unreleased `docs/releases/1.0.2.md`; two planned chapters were deleted by measurement, the project half going into `files.md` rather than a `projects.md` that would have restated it; `cli.md` and the `report.md` second pass remain | 0604, 1004–1007, 1047 |
+| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-18 — **every task line ticked**: § Floor landed, so 1003 is unblocked; the McCusker set's pass landed (Part 2 takes its four equations, `using/results.md` splits off, restraints documented, three figures); ten 1.0.x chapters landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`, `cli`, plus second passes on `agents` and `report`) and froze 1015 names — **1318 of 1322, 99.7 %** of a surface the refining chapter grew by 24 by finding a derivation blind spot — with the promotions accumulating in the written, unreleased `docs/releases/1.0.2.md`; two planned chapters were deleted by measurement and one line grew from three commands to five; it cannot tick ✅ until [1076](wp/1076-result-row-honesty.md) repairs or retires the last four names, since the acceptance is an *empty* bucket | 0604, 1004–1007, 1047 |
 | [1068](wp/1068-manual-second-pass.md) | Part 1 second pass: voice, figures, structure | ✅ 2026-08-15 — voice, sectioning, `concepts.md` + `files.md`, four diagrams, three figure pairs; the McCusker read fixed a false attribution and produced the compliance audit | 1067 |
 | [1076](wp/1076-result-row-honesty.md) | A result row's unwritten fields: `at_bound` and `initial` | ⬜ | 1067 |
 | [1077](wp/1077-extinction-refutes-certified-class.md) | The extinction screen refutes a certified class (corundum R -3 c), and no row covers the shape | ⬜ | — |

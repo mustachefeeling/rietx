@@ -228,6 +228,24 @@ and all three options keep it; what moves is which value a real missing extra
 produces. The chapter documents the vocabulary as declared and carries a warning
 with the measurement, which is the honest reading until this WP decides.
 
+**From WP-1067's closing session (2026-08-18): this WP now holds the whole
+provisional tier, and one name in it has no task line here yet.** 1067's last
+two task lines landed, so 1318 of the 1322 public names are frozen and the
+`deferred-1.0.x` bucket holds exactly four: the three above, and
+**`TieSpec.from_tie`**. 1067 cannot tick ✅ until the bucket is empty, and it
+declines to document a name it cannot describe honestly, so the bucket is this
+WP's mailbox rather than 1067's task list — and 1067's ✅ follows this WP's.
+
+`TieSpec.from_tie` is the odd one and needs a decision of its own rather than a
+chapter paragraph: it is a classmethod converting a `params.vector.Tie`, which
+is **not itself on the public surface**, so documenting it would either name a
+private type in a frozen chapter or describe a converter without saying what it
+converts. The options are the same three shapes as above — delete it, make the
+source type public, or keep it and exclude it in `tests/api_surface.py` with the
+reason (an exclusion is not a freeze, and the exclusion list is the honest home
+for "public by accident of being a classmethod"). Whichever, 1067's acceptance
+counts an exclusion as settled, so any of the three empties the bucket.
+
 - **No new bound-related diagnostic, and no change to `BOUND_HIT`.** The guard
   is correct and stays the reported channel; this WP only projects it.
 - **No second bound computation.** If the flag cannot be sourced from the guard
@@ -263,6 +281,10 @@ with the measurement, which is the honest reading until this WP decides.
 - [ ] `docs/AGENT_PROTOCOL.md`: the `BOUND_HIT` row gains the machine-readable
       form of the same rule, since an agent iterating parameters now has a
       per-row flag rather than a path cross-reference.
+- [ ] **Settle `TieSpec.from_tie`** — delete, export its source type, or exclude
+      it with a reason (see § Inherited). It is the fourth and last name in the
+      provisional bucket, and emptying that bucket is what lets
+      [1067](1067-user-api-manual.md) tick ✅.
 
 ## Acceptance
 
