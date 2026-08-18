@@ -596,9 +596,14 @@ recent list, and is therefore not behind the 409 (WP-1044).
   either executes or carries a written reason, and the public call surface is
   partitioned into documented / excluded-with-a-reason / a generated deferred
   bucket. That surface is **derived** (`tests/api_surface.py`, whose docstring
-  has the three rules), never listed — a curated list cannot notice a new
-  public method, `_SURFACE_FLAGS` one rank up — so **adding a public method or
-  field fails that partition until it is documented or deferred.**
+  has the rules), never listed — a curated list cannot notice a new public
+  method, `_SURFACE_FLAGS` one rank up — so **adding a public method or field
+  fails that partition until it is documented or deferred, and documenting it
+  freezes it**. A subsystem under development says so by declaration (1078):
+  `PROVISIONAL_MODULES` keys a module prefix to a reason and the tier derives
+  from each name's **defining** module, so a new type inherits it and a
+  re-export is reached. Indexing is the one entry; the promise is
+  `using/compatibility.md` § Provisional by declaration, `{ref}`d not restated.
   **A green build is not a rendered page**: `-W` cannot see a paragraph that
   printed its own TeX, so `test_no_unrendered_math_survives_the_build` scans the
   *built* HTML, and a diagram or a themed figure is checked by looking at it.
