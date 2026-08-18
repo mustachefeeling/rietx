@@ -1,6 +1,17 @@
 # WP-1077 — The extinction screen refutes a certified class
 
-Milestone: 1.0.x · Status: ⬜
+Milestone: 1.0.x · Status: ✅ 2026-08-18 — **the evidence was wrong, and the fix
+is in the test.** Both refuting positions sit on the low-angle flank of a strong
+allowed line; at the same offsets, *sham* positions carrying no reflection of any
+kind clear the same 3σ test on 40-50 % of probes (up to 24.7σ, low-angle flank
+only — the unmodelled axial tail), and freeing the FCJ asymmetry improves Rwp
+without removing the refutation. So testability gains a third clause
+(`extinction._model_is_quiet`): a forbidden position counts only where the
+class's **own** fitted pattern leaves the window below the test's own detection
+threshold, which makes even a total failure of a neighbour's tail insufficient to
+refute. The screen now returns `R - c -` = {R 3 c, R -3 c} at ΔBIC −218 with five
+testable positions all absent. `n_testable` is `int | None`, `None` until
+`screened`, because the answer needs that fit
 Depends on: — (found by WP-1067's `using/indexing.md` session, 2026-08-17)
 
 ## Goal
@@ -96,29 +107,28 @@ costs ~2–3 s here plus the profile fit).
 
 ## Tasks
 
-- [ ] Reproduce from a committed script or test and record the numbers, then
-      **look at the pattern** at 56.919° and at the second flagged position:
-      is there a line there, and is it the specimen's, an impurity's, a Kα2
-      residual or an axial tail? Cross-check against the indexing run's
-      `LeBailValidation.unmatched_observed_two_theta` and against
-      `PeakList.peaks` flags. Plot it (tests/output/).
-- [ ] Check the testability half: is each flagged position genuinely separable
-      from every line `R - c -` still allows, at the window
-      `workflow.absent_reflections` uses? A forbidden position hiding under an
-      allowed neighbour is not an observation, and `n_testable` is the field
-      that claims it is not one.
-- [ ] Decide, and say which of the three it is: the evidence is wrong (fix the
-      test), the evidence is right and the intensity is foreign (then the screen
-      needs the impurity cross-check the protocol currently leaves to a human),
-      or the evidence is right and the specimen violates its class (then the
-      chapter's paragraph stands and gains the answer).
-- [ ] Acceptance row in `tests/test_extinction_symbol.py`: corundum, real data,
-      expected answer measured before the grid is read, budget as a runaway
-      guard. Marked `slow` with an `xdist_group` if it costs like the others.
-- [ ] If the behaviour changes: `docs/manual/using/indexing.md`'s measured
-      paragraph (§ The extinction symbol, the two "Read `profile_rwp`" and
-      "refutation outranks ΔBIC" blocks) and `docs/AGENT_PROTOCOL.md` §7e's
-      `EXTINCTION_FORBIDDEN_INTENSITY` row are the two places that quote it.
+- [x] Reproduce and **look at the pattern** — done, and the picture is the
+      answer: both loud positions sit on the *low-angle flank* of a strong
+      allowed line (2.76 and 1.49 FWHM below (1,1,6) and (3,0,0)), where the
+      model's flank is visibly under the data. It is an axial tail, not an
+      impurity: the peak list flags `axial_tail` on 11 components and
+      `asymmetry_unmodelled` on 18, and the picker resolves the tail of each
+      neighbour into its own flagged peaks 0.16-0.39° away.
+- [x] Check the testability half — this is where it fails. `testable_mask` asks
+      a question about *positions* and is blind to what is **in** the window;
+      both flagged positions are separable by `_overlap_groups` and both windows
+      are filled by a neighbour's tail.
+- [x] Decide: **the evidence is wrong, and the fix is in the test** — the first
+      of the three. The refutation is a measurement of the profile model.
+- [x] Acceptance row in `tests/test_extinction_symbol.py`: two rows, the answer
+      and the sham-probe control. **Neither is `slow` and neither carries a
+      budget** — the screen costs 0.32 s here against FAP's 2.30 s setup, so a
+      budget would be the load sensor `tests/CLAUDE.md` warns about. The module's
+      existing `xdist_group("extinction-symbol")` covers them.
+- [x] Docs: the chapter's two measured blocks, `AGENT_PROTOCOL.md` §7e's row and
+      its point 3, `docs/releases/1.0.2.md` (§ What changed and § Upgrading — the
+      headline "computes what 1.0.1 computed" is now true of a refinement and not
+      of this call), and the rule in `src/rietx/indexing/CLAUDE.md`.
 
 ## Acceptance
 
@@ -146,6 +156,72 @@ run the full suite once on the final tree.
   `EXTINCTION_FORBIDDEN_INTENSITY`, including the impurity cross-check.
 
 ## Handover log
+
+- **2026-08-18** — **closed.** All five tasks ticked; the WP's `### Inherited`
+  never existed, so nothing was pruned. Venv `[dev]` only (no jax/torch),
+  Python 3.12.12, macOS/arm64 — every number below is from that.
+
+  **Reproduced first, and the Context table's numbers mostly hold.** Counts
+  match exactly (5 of 15 testable over the whole range, 2 of 9 over 20-90°);
+  `profile_rwp` re-measures at **0.270** for the whole-range arm, not 0.287.
+  The 20-90° arm is 0.1492. Neither arm's answer depended on that.
+
+  **The mechanism, in three measurements.** (1) *Where the loud positions are*:
+  (2,0,5) at 56.919° sits 2.76 FWHM below the allowed (1,1,6) at 57.429°, and
+  (2,0,−7) at 67.840° sits 1.49 FWHM below (3,0,0) at 68.135°. Both on the
+  **low-angle** flank. (2) *The sham-probe control*, the decisive one: probing at
+  fixed offsets from every allowed line, at positions where no reflection of any
+  kind is predicted, the same 3σ test fires on
+
+  | offset | −3.0 | −2.76 | −2.0 | −1.49 | −1.0 | +1.0 | +1.49 | +2.0 | +2.76 | +3.0 |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | median σ | 1.66 | 2.26 | 2.99 | 2.51 | 2.36 | −1.04 | 0.05 | 0.27 | 0.05 | 0.11 |
+  | frac > 3σ | 0.28 | 0.40 | 0.50 | 0.46 | 0.41 | 0.00 | 0.03 | 0.00 | 0.02 | 0.04 |
+  | max σ | 13.2 | 16.8 | 22.2 | 24.7 | 16.5 | 1.5 | 4.6 | 2.8 | 4.2 | 3.6 |
+
+  — loud below a line, silent above it, which names the unmodelled axial tail
+  and nothing else. (3) *The profile is not the repair*: freeing FCJ
+  `axial_sl` takes `profile_rwp` 0.1492 → 0.1440 and leaves one position
+  refuting; freeing both `axial_sl` and `axial_hl` takes it to 0.1391 and both
+  come back.
+
+  **The discriminating statistic** is the class's own predicted intensity in the
+  window, in units of the same propagated σ. Over the ten forbidden lines of
+  `R -3 c` in 20-90°: the two loud ones carry **20.0** and **25.7** σ of
+  neighbour tail; the seven the screen already read as absent carry 0.2, 0.7,
+  2.7, 3.4, 2.0, 8.2 and 1.1; the tenth was already untestable. Requiring that
+  number below `k_sigma` leaves five testable, all absent.
+
+  **After.** 20-90° seeded: `best_or_none()` → `R - c -` = {`R 3 c:H`,
+  `R -3 c:H`}, conditions `0kl: l = 2n` / `h0l: l = 2n` / `h-hl: l = 2n`,
+  n_absent 10, n_testable 5, n_present 0, ΔBIC −218.37, class Rwp 0.1441 against
+  the absence-free 0.1478, 35 lines over 3501 points.
+  `EXTINCTION_GROUPS_NOT_SEPARABLE` names the centro/non-centro pair, which is
+  the doctrine's cleanest real-data instance.
+
+  **What is still wrong, and it is on purpose.** The whole-range declared-width
+  arm still refutes (4 of 13). Its fitted FWHM comes out ~32 % too wide
+  (0.247° at 60° against 0.188°), and at 56.929° the *observed* excess is
+  +26.9σ against 0.27σ of predicted tail — a gross profile mismatch, not a
+  tail. No calibration of the absence test reaches that (inflating σ by the
+  fit's own gof 3.05 still leaves it at 8.8σ), so `profile_rwp` remains the
+  field that separates the two, and both the chapter and §7e now say so with
+  this pair as the measurement.
+
+  **Counts.** `tests/test_extinction_symbol.py` 30 → **32 passed**, both new,
+  no new skips. The fast selection over `-k "index or extinct or schema or docs
+  or manual or agent or gui or capab"`: 697 passed / 2 skipped, ~2:16. vitest
+  407 (one new assertion, no new test). `ruff` clean, sphinx `-W` clean.
+
+  **Two things deliberately not done**, each a candidate for a successor.
+  `determine_extinction_symbol` still only seeds widths when the caller passes
+  `peaks=`; seeding from the data when it can would repair the whole-range arm's
+  real defect, and `seed_widths` is already a no-op on a calibrated instrument,
+  so it looks cheap — but it moves the shared pre-fit under FAP and NAC and is a
+  behaviour change this WP did not scope. And `ExtinctionCandidate.n_present`
+  keeps `int = 0`, so an unscreened class still says "no forbidden position
+  carries intensity" about a question nobody asked; that is WP-1076's rule and
+  1076 passed over it too.
 
 - **2026-08-18** — created, from WP-1067's measurement. Nothing run here yet;
   every number above came from that session's ad-hoc script, so the first task
