@@ -194,7 +194,39 @@ they arrive here rather than being fixed in passing.
   the functional API grows a way to return both; the two are different
   decisions and this WP is the place to take them.
 
-## Non-goals
+**From WP-1067's `using/agents.md` session (2026-08-18): a vocabulary member
+that cannot fire, and unlike the three above the mechanism it names is real.**
+`AgentError.code` (`agent.py:461`) is a three-value `Literal`, and
+`BACKEND_UNAVAILABLE` is documented — in the module docstring, in the tool
+description and now in the chapter's table — as "a valid backend name whose
+optional dependency is not installed". **Measured on a `[dev]` venv with no
+jax**: a valid `task="refine"` request with `backend="jax"` comes back
+`REFINEMENT_FAILED`. `refine_json` maps `NotImplementedError` to
+`BACKEND_UNAVAILABLE` (`agent.py:635`), while `backend.api.resolve_backend`
+raises **`ImportError`** for both jax and the two torch devices
+(`backend/api.py:660` and `:670`), so the request falls through to the generic
+`except Exception`. The install hint survives in `AgentError.message`, but
+`AgentError.suggestion` is the generic engine-raised one, and a consumer
+branching on the code — which is what the code is for — cannot tell a missing
+extra from a model the physics refused.
+
+This is the `"skipped"` shape with the sign flipped: there the value has no
+mechanism, here the mechanism exists and the mapping misses it, so the fix is a
+repair rather than a deletion. Two things make it 1076's rather than a passing
+edit. The only test that covers the code, `test_backend_unavailable_is_its_own_code`,
+**monkeypatches `Refinement.__init__` to raise `NotImplementedError`** and says
+so in its own docstring ("Forced via the constructor's fail-fast path rather
+than uninstalling jax"), so it asserts the mapping and never the condition —
+the `_SURFACE_FLAGS` shape again, in a test rather than in a predicate. And the
+repair is a decision, not a one-liner: catching bare `ImportError` around the
+dispatch would also swallow an unrelated missing import, so the honest options
+are to narrow the raise (`resolve_backend` raising `NotImplementedError`, which
+changes what the *library* raises), to catch the error where the backend is
+resolved, or to answer the question before dispatch from
+`BackendCapability.available`. `AgentError.code` is now frozen as a vocabulary,
+and all three options keep it; what moves is which value a real missing extra
+produces. The chapter documents the vocabulary as declared and carries a warning
+with the measurement, which is the honest reading until this WP decides.
 
 - **No new bound-related diagnostic, and no change to `BOUND_HIT`.** The guard
   is correct and stays the reported channel; this WP only projects it.
