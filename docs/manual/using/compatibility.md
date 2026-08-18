@@ -44,10 +44,12 @@ three buckets:
   release that documents it — unless it belongs to a subsystem declared
   provisional in the next section, which overrides this for that subsystem's
   names and for nothing else.
-- **Deferred.** The rest of the surface is **provisional**: it works as it
-  stands today, but a name in this bucket may change in a 1.0.x release.
-  The 1.0.x releases are the documentation road — each chapter that lands
-  promotes its names from provisional to frozen.
+- **Deferred.** The rest of the surface is **provisional until its chapter
+  lands**: it works as it stands today, but a name in this bucket may change
+  in a 1.0.x release. The 1.0.x releases are the documentation road — each
+  chapter that lands promotes its names from provisional to frozen. This is
+  not the same state as *provisional by declaration* below, which a chapter
+  does not promote.
 - **Excluded with a written reason** — documented as a protocol rather than
   as a type (the `cancel=` token), or a compile-stage internal.
 

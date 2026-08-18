@@ -181,6 +181,83 @@ partition still covers the whole surface.
 
 ## Handover log
 
+- **2026-08-18** — **closed.** All seven tasks ticked. The `### Inherited`
+  mailbox was consumed on arrival: 1077's entry became the worked case in
+  Context plus two constraints it only implied (derive from the *defining*
+  module, and the release notes have to read consistently beside 1077's own
+  entries), and 1067's `rietx.viz` entry was a decision handed here, so it was
+  made rather than carried. Venv `[dev]` only (no jax/torch), Python 3.12.12,
+  macOS/arm64 — every count below is from that.
+
+  **What the tier measures.** 1320 names on the derived surface, of which
+  **257 are provisional by declaration**: 3 under `rietx.indexing`
+  (`pick_peaks`, `index_pattern`, `determine_extinction_symbol` — attributed
+  through the modules that define them, not the top level that re-exports
+  them) and 254 in `rietx.schemas.indexing`. 1063 frozen, deferred bucket 0.
+  The indexing chapter spells 272 surface names: the 257, plus 15 it borrows —
+  the engine and search-preset capability types, `Capabilities.search_presets`,
+  and `Structure` / `Diagnostic` / `capabilities` / `agent.refine_json` /
+  `ProfileTCHZ.shape`, which other chapters own.
+
+  **Two numbers in `docs/releases/1.0.2.md` were stale and are re-measured.**
+  It closed "The surface is 1322 names, of which 1318 are now frozen and 4
+  remain provisional", which contradicted the paragraph above it (that one
+  already said the tier was empty). The surface measures 1320 **at the 1076
+  merge as well as today**, so 1322 was never a measurement of that tree; and
+  "4 remain provisional" described the state before that release's own
+  resolutions. The closing line is now 1320 / 1063 / 257.
+
+  **Every guard was failed on purpose, and the messages are the ones intended.**
+  Deleting the banner from `using/indexing.md`: "257 provisional name(s)
+  documented only on pages that never link `provisional-by-declaration`".
+  Renaming the target in the compatibility chapter: sphinx `-W` fails with
+  "undefined label: 'provisional-by-declaration'" — so the two halves are
+  cross-checked by the build as well as by the test. A dead prefix
+  (`rietx.schemas.indexing_gone`): "declared provisional but defines nothing on
+  the surface". An empty `PROVISIONAL_MODULES`: "no name is provisional".
+  Blanking a class's `module`: 133 names named.
+
+  **The one that earns its keep is `test_provisional_names_are_documented`.**
+  Deleting a name from the chapter fails the coverage partition too — but
+  delete it *and* regenerate the deferred bucket, which is what a session
+  under time pressure would do, and the partition goes green while this one
+  fires alone: "1 provisional name(s) no chapter documents". Measured, on
+  `AmbiguityPartner.discriminating_two_theta`.
+
+  **Two decisions, both recorded in Context rather than left implied.**
+  `rietx.capabilities` and `rietx.agent` are deliberately *not* declared: the
+  indexing thresholds version, the capability types and the envelope's
+  `indexing` arm are data contracts with their own version strings, so parsing
+  an answer keeps its hard freeze and only importing a type carries the risk.
+  That is the exchange the promise states. And `rietx.viz` — 1067's second
+  subsystem with the same shape — **stays internal**, because the mechanism
+  refuses it: an entry matching no surface name fails, and `rietx.viz` is not
+  on the surface at all. Internal is the stronger statement. What was missing
+  was one sentence, now in the compatibility chapter: the freeze covers the
+  *derived* surface, so a chapter spelling `rietx.viz.compare.run` or
+  `rietx.viz.html.write_html` fully qualified is pointing, not promoting.
+
+  **Counts.** `tests/test_manual_api.py` 9 → **13 passed**, all four new, no new
+  skips. Fast suite `-m "not slow"`: **2417 passed / 117 skipped**, ~3 min.
+  `ruff` clean, sphinx `-W` clean. No source file was touched, so the full
+  suite was not run (`tests/CLAUDE.md` § Running, rung 3).
+
+  **Gotchas for the next session.** Both CLAUDE.md files this touched are at
+  their caps with zero headroom: root is 720/720 after paying for its new
+  clause by tightening the sentences around it, and
+  `src/rietx/indexing/CLAUDE.md` is 280/280, which is why the subtree copy of
+  this rule was drafted and dropped — root always loads and already carries
+  both halves, so a second copy would have been a restatement. Anything either
+  file gains next has to be paid for the same way.
+
+  **What is left.** 1.0.2 is unblocked and unreleased; `docs/RELEASING.md` is
+  the whole of it, and the tag builds the wheel. The five off-surface helpers
+  (`assess_peak_list`, `structure_from_candidate`, `engines.SearchSpec`,
+  `engines.estimate_ceiling`, `viz.plot_indexing`) are still unexported, which
+  was this WP's Non-goal and is unchanged by it — the declaration covers them
+  as prose, and exporting any of them is a separate decision that would put
+  them on the surface and require chapters.
+
 - **2026-08-18** — created, from the user's decision that indexing is still
   under active development. Nothing landed yet; the design above (declare the
   subsystem, derive the tier from the defining module, cover the off-surface

@@ -104,10 +104,11 @@ EXCLUSIONS: dict[str, str] = {}
 #
 # The third tier (WP-1078).  A name Part 1 documents is frozen from the
 # release that documents it, and for a subsystem still under active
-# development that is the wrong promise: `using/indexing.md` documented 266
-# names the day it landed, and WP-1077 then had to change what one of them
-# *answers* in a patch release.  So a subsystem can be declared provisional,
-# which overrides the documented tier for its names and nothing else.
+# development that is the wrong promise: `using/indexing.md` froze the whole
+# indexing surface the day it landed, and WP-1077 then had to change what one
+# of those names *answers* in a patch release.  So a subsystem can be declared
+# provisional, which overrides the documented tier for its names and nothing
+# else.
 #
 # Keyed by **module prefix**, and resolved against each name's *defining*
 # module, for the reason `_SURFACE_FLAGS` exists (WP-1037): a hand-written
