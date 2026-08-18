@@ -4,6 +4,8 @@ Milestone: v0.X · Status: ⬜
 Depends on: WP-MMMM (or —)
 
 <!--
+Numbering: milestone-blocked MMNN — the next free number in the block of the
+milestone this WP targets (v1.1 → 11xx). Never recycle a retired number.
 Status values: ⬜ not started · 🔄 in progress · ✅ shipped · 🛑 no-go.
 Format: "Status: <glyph> <YYYY-MM-DD> — <free text>". The date is required
 for every glyph except ⬜; the free text is optional and may wrap.
