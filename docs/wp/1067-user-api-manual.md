@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md`, `using/refining.md`, `using/history.md` and `using/indexing.md` landed and 624 names froze with them, 70 % of the surface; two 1.0.x chapter lines remain plus the second passes on `agents.md`/`report.md`, and [1076](1076-result-row-honesty.md) holds four unwritten fields and values a chapter found
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-18 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md`, `using/refining.md`, `using/history.md` and `using/indexing.md` landed and 624 names froze with them, 70 % of the surface; two 1.0.x chapter lines remain plus the second passes on `agents.md`/`report.md`; [1076](1076-result-row-honesty.md) holds four unwritten fields and values a chapter found, and [1077](1077-extinction-refutes-certified-class.md)/[1078](1078-indexing-provisional.md) hold the two findings the indexing chapter left with no owner
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -440,6 +440,40 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-18 (post-close commits, reconstructed post hoc)** — two commits
+  landed on `wp1067-using-indexing` after the entry below was written, so the
+  session-start hook flagged this WP for repair. Both are recorded here from
+  their diffs; where the diff does not say why, this entry does not guess. No
+  `### Inherited` to prune (still none on this WP).
+
+  **`984650dd` filed the two findings the indexing chapter left with no owner**,
+  and it made PR #50, so it is in `main`: [1078](1078-indexing-provisional.md)
+  takes the freeze question — indexing is under active development, so the
+  subsystem is declared provisional rather than exported and frozen, which
+  un-freezes the 266 names that chapter froze and gates the 1.0.2 release —
+  and [1077](1077-extinction-refutes-certified-class.md) takes the extinction
+  refutation of corundum's certified class plus the missing acceptance row.
+  Both got ROADMAP rows and a Current focus line, and this WP's own gotchas
+  below were amended in the same commit to name them instead of saying no WP
+  owned either.
+
+  **`11ec1cd5` is a process rider, not WP work**: `/wp-handover` ended at
+  "clean and pushed", so every session so far needed a separate instruction to
+  become reviewable. It gains step 10 (open or update the PR — edit an existing
+  one, never duplicate) and step 11 (report the URL, CI named as the gate), and
+  ROADMAP § Session protocol step 3 gains the matching clause so the two do not
+  drift. **It landed three minutes after PR #50 merged and was therefore
+  stranded on a merged branch** — cherry-picked onto
+  `wp1067-using-series-exports` at the start of the 2026-08-18 session, which
+  is the only reason it reaches `main` at all.
+
+  **Nothing was measured** by either commit: both are docs, and no count moved.
+
+  **Gotcha the repair itself found.** A commit that lands *after* the PR merges
+  is invisible to both guards — the merge does not carry it and the hook only
+  compares dates — so the handover's new step 10 is not sufficient on its own:
+  check `git log origin/main..HEAD` is empty before leaving a merged branch.
 
 - **2026-08-17 (`using/indexing.md`)** — five commits on
   `wp1067-using-indexing`, four of content and one of handover. No
