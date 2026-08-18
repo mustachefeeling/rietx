@@ -50,10 +50,17 @@ Free parameters in groups, cumulatively, in a stable order (McCusker, Von
 Dreele, Cox, Louër & Scardi, 1999, *J. Appl. Cryst.* **32**, 36). Each group
 runs to convergence before the next is freed. The reason is not tradition: the
 correlations between groups are severe, and a simultaneous release from a poor
-starting point walks into a local minimum that a staged release avoids.
+starting point walks into a local minimum that a staged release avoids. Toby
+(2024, *J. Appl. Cryst.* **57**, 175 — the "recipe problem") states the
+mechanism plainly: once parameters have refined to unphysical values, adding
+more parameters no longer lets the fit recover.
 
 The plans in `strategy/staged.py` encode this. Use them; do not hand-roll a
-free set unless you have a reason you can state.
+free set unless you have a reason you can state. The staged *discipline* is
+what is not negotiable; the preset *sequence* is a default, because the right
+next group depends on the data and the current values (Toby, 2024) — and
+`task="suggest"` (§9c) answers that question at the current state, one
+analytic-Jacobian evaluation ranking every held parameter by predicted Δχ².
 
 ```python
 plan="mccusker_default"      # scale+bkg → zero → cell → W → U,V,X,Y      (profile only)
@@ -498,7 +505,10 @@ the specimen even when the final report is silent.
 Images are secondary evidence. `plot_for_vlm()` exists and renders what VLMs
 *can* read (annotated multi-panel montage, worst regions auto-zoomed, Δ/σ panel,
 high contrast, never JPEG) — use it to sanity-check a conclusion you already
-reached from numbers, not to reach one.
+reached from numbers, not to reach one. The Δ/σ panel is the literature's own
+recommendation for human plots too (Toby, 2024: the weighted difference shows
+the weighting, stops intense regions dominating with statistically
+insignificant deviations, and sits on an absolute scale with expectation 1).
 
 ---
 
@@ -1467,7 +1477,9 @@ diagnostics are still the first thing to read.
 ## 10. A worked default
 
 If you have a lab pattern, a CIF and no other information, this is the sequence
-to run and the checks to make. Adapt, do not skip the checks.
+to run and the checks to make. Adapt, do not skip the checks — adaptation is
+the literature's own instruction, because the right order depends on the data
+and the starting values (Toby, 2024, the "recipe problem").
 
 ```python
 import rietx as rx
