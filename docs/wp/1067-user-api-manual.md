@@ -603,6 +603,16 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
     reason string is the only thing standing between a block and being run —
     grep a chapter's `no-exec` blocks and read them as code, because nothing
     else will.
+  - **Two docstrings contradicted their own code, and both were the source the
+    chapter was drafted from.** `report.layer1._trends` said "each observable is
+    fitted jointly across its templates"; twelve lines below, its own inline
+    comment says "NOT a joint fit" and gives the measured reason (a 0.02°
+    zero-point error returned as a 1.8° `constant` cancelled by a −1.8°
+    `cos_theta`). Root CLAUDE.md had it right all along — "nested single fits" —
+    so the stale line survived a rule written against it. The `not_validated`
+    comment below is the second. **A chapter written from a docstring inherits
+    the docstring's errors**, and the thing that caught both was reading the
+    code beside the docstring, not the docstring alone.
   - **`not_validated` was documented with one cause and has two.** The schema
     comment said "no pattern was supplied"; the assignment is
     `not validated or cand.lebail is None`, so a run whose ceiling expires
@@ -610,9 +620,8 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
     `INDEX_BUDGET_EXHAUSTED` counts them and says so in its own message.
     Measured under a 45 s ceiling on corundum: `IndexingResult.validated` is
     `True` and all twelve candidates read `not_validated`. Fixed in the comment
-    and in `indexing.md`, which had transcribed it faithfully. **A chapter
-    written from a docstring inherits the docstring's errors**, and the only
-    thing that found this one was running the command.
+    and in `indexing.md`, which had transcribed it faithfully. The only thing
+    that found this one was running the command.
   - **The three-columns rule broke on its first outing, and by growth.** The
     gate table was written with four columns and scrolled at 762/742; three more
     tables scrolled because a qualified name was repeated in the *second*
