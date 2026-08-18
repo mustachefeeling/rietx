@@ -531,7 +531,7 @@ of the models, no history node is recorded, and the working state is untouched.
 | `SuggestionResult.skipped` | dot-paths whose columns have zero norm at this state | no leverage either way — usually a correction the geometry does not have |
 | `SuggestionResult.n_evaluated` | how many candidates were scored in total | what makes "no suggestion" distinguishable from "nothing was looked at" |
 | `SuggestionResult.chi2_red` | the current state's χ²/ν, seeded candidates excluded | the scale the floor is set from |
-| `SuggestionResult.noise_floor` | the gain gate that was applied | {{ SUGGEST_MIN_GAIN }} times that χ²/ν, floored at 1, and stored so the serialized result explains its own gate |
+| `SuggestionResult.noise_floor` | the gain gate that was applied | {{ SUGGEST_MIN_GAIN }} × the larger of that χ²/ν and 1, so a fit already at χ²/ν ≤ 1 does not get a gate below the constant. Stored, so the serialized result explains its own gate |
 | `SuggestionResult.summary` | one sentence of prose | the whole answer for a reader |
 | `SuggestionResult.best_or_none` | the one defensible winner, or null | null rather than a defended tie |
 
