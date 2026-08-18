@@ -497,8 +497,13 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
 ## Handover log
 
 - **2026-08-18 (the `report.md` second pass, the five small groups and
-  `cli.md`)** — six commits on `wp1067-report-second-pass`, five of content and
-  one of handover. No `### Inherited` to prune (still none on this WP; the
+  `cli.md`)** — twelve commits on `wp1067-report-second-pass` (PR #53, merged
+  2026-08-18), ten of content and two of handover. **Six of the twelve landed
+  after the first handover commit**, which is what the last four gotchas below
+  are: a re-read of the rendered pages and of the code beside each docstring
+  kept finding things, so the entry was amended three times rather than written
+  once. Treat "the handover is written" as the start of that pass, not the end
+  of the session. No `### Inherited` to prune (still none on this WP; the
   "Inherited" strings in this file are prose about *1003's* and *1076's*
   mailboxes). The previous session's gotcha was checked before branching:
   `git log origin/main..HEAD` on the merged branch was empty, so nothing was
