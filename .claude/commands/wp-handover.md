@@ -49,7 +49,12 @@ steps below run unchanged.
 9. **Verify**: run
    `.venv/bin/python -m pytest tests/test_docs_consistency.py -q` and
    `.venv/bin/python -m ruff check src tests examples`; confirm the working
-   tree is clean and pushed (or say what deliberately is not).
+   tree is clean and pushed (or say what deliberately is not). **Clean and
+   pushed is not the same as landed**: if the branch is already merged, check
+   `git log origin/main..HEAD` is empty too. A commit made after its own PR
+   merged is stranded on a dead branch — the merge cannot carry it and the
+   session-start hook only compares dates, so nothing detects it (measured
+   2026-08-18: `11ec1cd5` sat there until the next session's repair).
 10. **Open or update the pull request.** A session's work is not handed over
     until it is reviewable, so the PR is part of the ritual rather than a
     follow-up request. Skip it — saying so in one line — when the branch is
