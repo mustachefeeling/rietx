@@ -146,7 +146,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # work: 1067's near-miss rule was about mis-attributing a type in prose and
     # went into a docstring instead, and the cap was what sent it there.
     "CLAUDE.md": 720,
-    "docs/ROADMAP.md": 400,
+    # 400 -> 416 for the agentic-report planning session (2026-08-18): four
+    # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
+    # down a rank — the WP-file/row bijection test in this file requires one
+    # per WP — so the cap grows with the WP count and with nothing else; the
+    # sets' narratives live in the WP files.
+    "docs/ROADMAP.md": 416,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
