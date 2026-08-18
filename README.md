@@ -123,7 +123,9 @@ Each clause links to its manual chapter or worked example.
   for v2 and not implemented today. See the
   [manual's scope statement](https://yue-here.github.io/rietx/).
 - Indexing returns cells and ranked extinction symbols, not solved
-  structures.
+  structures, and it is still under active development: its Python surface is
+  documented in full and declared provisional, so those names may change in a
+  1.x release.
 - A sequential series is session-scoped at 1.0: its trajectories are returned,
   not persisted. The GUI's HTTP routes and its text document are provisional.
   The full list is in the
@@ -163,8 +165,8 @@ documented there rather than tuned away.
   and the [compatibility promise](https://yue-here.github.io/rietx/using/compatibility.html).
   The data contracts (schemas, the agent envelope, the project format, the
   event stream) are frozen at 1.0. The Python call surface freezes as the
-  manual documents it, and undocumented public items stay provisional until
-  their chapter lands.
+  manual documents it, with declared exceptions — indexing is still under
+  active development, so its names are documented and provisional.
 
 ## Development
 
