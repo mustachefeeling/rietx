@@ -50,10 +50,17 @@ Free parameters in groups, cumulatively, in a stable order (McCusker, Von
 Dreele, Cox, Louër & Scardi, 1999, *J. Appl. Cryst.* **32**, 36). Each group
 runs to convergence before the next is freed. The reason is not tradition: the
 correlations between groups are severe, and a simultaneous release from a poor
-starting point walks into a local minimum that a staged release avoids.
+starting point walks into a local minimum that a staged release avoids. Toby
+(2024, *J. Appl. Cryst.* **57**, 175 — the "recipe problem") states the
+mechanism plainly: once parameters have refined to unphysical values, adding
+more parameters no longer lets the fit recover.
 
 The plans in `strategy/staged.py` encode this. Use them; do not hand-roll a
-free set unless you have a reason you can state.
+free set unless you have a reason you can state. The staged *discipline* is
+what is not negotiable; the preset *sequence* is a default, because the right
+next group depends on the data and the current values (Toby, 2024) — and
+`task="suggest"` (§9c) answers that question at the current state, one
+analytic-Jacobian evaluation ranking every held parameter by predicted Δχ².
 
 ```python
 plan="mccusker_default"      # scale+bkg → zero → cell → W → U,V,X,Y      (profile only)
@@ -65,7 +72,12 @@ plan="profile_only"          # Le Bail
 plan="pawley_default"        # Pawley
 ```
 
-Three ordering rules that carry more weight than they look like:
+Three ordering rules that carry more weight than they look like. None of the
+three is in the guidelines — each is this package's own measured finding, a
+house rule labeled as one (the audits: [the v1.0 record](milestones/v1.0.md)
+§ Appendix found the manual attributing them to the paper;
+[the v1.1 record](milestones/v1.1.md) § Appendix holds the protocol's own
+grounding grid):
 
 - **Widths last among the profile terms, `W` before `U,V,X,Y`.** `W` is the
   constant term; freeing the tanθ and 1/cosθ terms first lets them absorb a
@@ -190,7 +202,12 @@ Two practical consequences:
 Rwp compares your model to the *data you have*, weighted by counting
 statistics. It is dominated by the strongest peaks and by the background level.
 It is a useful *relative* number between two fits of the same data over the
-same channels, and a nearly useless absolute one.
+same channels, and a nearly useless absolute one. That is the literature's own
+verdict, stated and then measured: Toby (2006, *Powder Diffr.* **21**, 67) —
+"no simple way to distinguish a good fit from one that is just plain wrong
+based on R factors" — and the IUCr round robin, where 18 refinements of one
+identical PbSO₄ dataset returned Rwp 8.2–20.0 % (Hill, 1992, *J. Appl.
+Cryst.* **25**, 589).
 
 Judge a fit in this order:
 
@@ -232,15 +249,25 @@ Judge a fit in this order:
    beside them.
 5. **The esds, with their inflation.** `statistics.esd_inflation` is the
    Bérar-Lelann factor for serial correlation. Note it has an expected value of
-   ≈1.51 even for perfectly white residuals — treat it as an upper bound on the
-   damage, not a measurement of it. `report.identifiability` quotes the
+   ≈1.51 even for perfectly white residuals — a house derivation, not the
+   paper's (chance same-sign runs give E[χ²′]/χ² = 1 + 4/π;
+   `optimize.statistics.berar_lelann_factor`, simulation-verified) — so treat
+   it as an upper bound on the damage, not a measurement of it.
+   `report.identifiability` quotes the
    qualifying trio side by side — raw χ²_red, the inflation (already in every
    quoted esd, dividable back out), Durbin-Watson — plus the δR line
    (`delta_r_slope`/`delta_r_intercept`: sorted Δ/σ against normal quantiles;
    slope ≈ 1, intercept ≈ 0 on honest σ, slope > 1 when σ is underestimated).
    Report the ingredients with any esd you quote onward; scaling variances by
    GoF² alone is the practice Schwarzenbach et al. (1989) call "highly
-   questionable".
+   questionable". The round robins measured why the ingredients matter: the
+   same data refined under different protocols spread by up to ×17–25 of the
+   quoted esds on cell dimensions (Hill, 1992; Hill & Cranswick, 1994 — whose
+   explanation is §3's first degeneracy row, the cell compensating 2θ-scale
+   errors). Durbin-Watson is in the trio because serial correlation is
+   precisely what makes the raw esds untrustworthy, and d stays discriminating
+   where Rwp and GoF do not (Hill & Flack, 1987, *J. Appl. Cryst.* **20**,
+   356).
 6. **Whether the converged answer is the only one** —
    `report.identifiability.exchanges` and `.soft_modes`, and this outranks
    the statistics because it is about what "converged" *means*. `converged`
@@ -291,15 +318,20 @@ Judge a fit in this order:
    `worst_absorption` (with `worst_absorption_path`) is how much of a
    structural parameter the background column span can reproduce, and
    `off_region_chi2_reduced` with `off_region_durbin_watson` is whether the
-   residual *between* the peak regions is systematic. Layer 0's regions are
-   peak clusters, so that second failure lands in no `report.regions` entry
-   and step 2 cannot see it at all.
+   residual *between* the peak regions is systematic (the Durbin-Watson d of
+   Hill & Flack, 1987, applied off-region — the statistic built to detect
+   exactly this). Layer 0's regions are peak clusters, so that second failure
+   lands in no `report.regions` entry and step 2 cannot see it at all.
 8. **Only then Rwp and GoF** — as a pair with
    `background.rwp_background_subtracted`, never alone. Measured: a sharp
    LaB₆ fit and one under 0.6° of broadening both report Rwp **0.0137**, and
    background-subtracted they read 0.0490 and 0.0766. Raw Rwp is flattered by
    whatever the background carries (89 % of the observed intensity in both),
-   so the number that separates two fits is the subtracted one. It is
+   so the number that separates two fits is the subtracted one. The
+   literature says the same twice: Toby (2006, Fig. 1) shows identical model
+   discrepancies reading Rwp 23 % with no background and 3.5 % with one, and
+   Hill's 1992 round robin recommends quoting the background-subtracted forms
+   for exactly this comparison. It is
    published on every report and deliberately never mentioned in `summary` —
    every background-dominated pattern would trigger it, including converged
    ones.
@@ -309,7 +341,9 @@ Judge a fit in this order:
    al. 1999) and `r_f` (R_F, eq 13). They are last on purpose. A powder
    pattern does not measure individual reflection intensities, so I(obs) is
    the observed pattern *partitioned in proportion to I(calc)*: a wrong model
-   receives the intensity it predicted, and both indices flatter it. They are
+   receives the intensity it predicted, and both indices flatter it. Both
+   papers say so — the guidelines beside eq (13), "biased towards the
+   structural model", and Toby (2006): R_Bragg "has no statistical validity". They are
    for watching R_B fall as you improve a model, and for the publication that
    will ask for one — never for judging a model in isolation, and never as
    evidence that a correction helped. Absent (an empty list) in Le Bail and
@@ -318,7 +352,10 @@ Judge a fit in this order:
 
    **Do not compare a trace phase's R_B with the major phase's.** Neither
    index is weighted, so a reflection the fit barely constrains weighs as much
-   as one that dominates it, and a minor phase's windows sit under the major
+   as one that dominates it — the weighted R_WI of Cox & Papoular (1996,
+   *Mater. Sci. Forum* **228–231**, 233) exists to answer exactly this, and is
+   not computed here (`optimize.statistics`' docstring holds the pointer) —
+   and a minor phase's windows sit under the major
    phase's peaks, where the counts the major phase failed to describe are
    handed out too. Measured on 11-BM NAC with 1.35 wt % CaF₂: 0.052 for the
    major phase against 0.385 for the impurity, all of the latter in four
@@ -344,7 +381,10 @@ excluded regions, then *check the channel count matches* before believing any
 Rwp comparison. Measured: guessing a plausible protocol on the GSAS-II
 fluorapatite tutorial gave Rwp 16 % and a +390 ppm cell; mirroring the
 converged `.EXP` gave 9.73 % against GSAS's 10.05 % on an identical 5750
-channels.
+channels. The round robin measured the same class of error at community
+scale: most of its alarming Rwp spread came not from the algorithms but from
+what each program's sums *included* — background in or out, peak-only regions
+or every channel (Hill, 1992).
 
 ---
 
@@ -401,6 +441,18 @@ inside ±3σ. Stopping criterion: fractions stable under a
 background-flexibility change, `worst_absorption` below its threshold, and no
 unresolved scale-family diagnostic — never "Rwp stopped falling", which here
 points the wrong way.
+
+Two of this deliverable's rules are the QPA round robins' own findings
+(Madsen et al., 2001, *J. Appl. Cryst.* **34**, 409; Scarlett et al., 2002,
+*J. Appl. Cryst.* **35**, 383). A Rietveld σ(W) reflects only the fit's
+mathematical precision and is "not necessarily related to the accuracy" —
+judge a fraction against the published participant spread, never against its
+own esd (the policy `tests/data/README.md` applies to the bundled `qarr/`
+patterns, which are the round robin's own samples). And microabsorption is
+the largest physical obstacle to X-ray QPA — "may prove to be insurmountable
+in some circumstances" — with a Brindley correction applied where none is
+needed *reducing* accuracy (their sample 1 and synthetic bauxite; §7's
+`BRINDLEY_OUTSIDE_REGIME`).
 
 **Structure — "where are the atoms?"** Everything above, plus the
 intensity-model rows themselves: per-region intensity coefficients and their
@@ -464,10 +516,12 @@ the operator is an agent.
 
 A human judges a fit by looking at it, especially at peak-shape misfit. A
 vision model cannot do that reliably: frontier VLMs fail precise value
-extraction from dense plots, and one PNG costs ~1000–1600 tokens — about the
-same as 50 regions of exact numbers. All three prior agentic Rietveld systems
-fed plot images to a VLM and all three report the same failure: *locally bad,
-globally fine* fits that the image hides.
+extraction from dense plots (the CharXiv, ChartMuseum and ExChart benchmarks),
+and one PNG costs ~1000–1600 tokens — about the same as 50 regions of exact
+numbers. All three prior agentic Rietveld systems (AgentBuild, Rongzai,
+guillemot — [DESIGN.md](DESIGN.md) § "Outputs & fit assessment" holds the
+survey) fed plot images to a VLM and all three report the same failure:
+*locally bad, globally fine* fits that the image hides.
 
 So:
 
@@ -498,7 +552,10 @@ the specimen even when the final report is silent.
 Images are secondary evidence. `plot_for_vlm()` exists and renders what VLMs
 *can* read (annotated multi-panel montage, worst regions auto-zoomed, Δ/σ panel,
 high contrast, never JPEG) — use it to sanity-check a conclusion you already
-reached from numbers, not to reach one.
+reached from numbers, not to reach one. The Δ/σ panel is the literature's own
+recommendation for human plots too (Toby, 2024: the weighted difference shows
+the weighting, stops intense regions dominating with statistically
+insignificant deviations, and sits on an absolute scale with expectation 1).
 
 ---
 
@@ -561,7 +618,7 @@ Every code below is a structured `Diagnostic` on `result.diagnostics` with a
 | `ABSORPTION_MU_R_OUT_OF_RANGE` | Trust the magnitude of the correction — µR > 1 extrapolates the Rouse fit |
 | `ABSORPTION_THICKNESS_MATTERS` | Quote displacement parameters without checking the flat specimen's thickness — part of the correction is not absorbable by the scale and ADPs, so a wrong µt lands in both |
 | `ABSORPTION_PLATE_THICKNESS` | (info) Read it as a fit problem — a transmission plate far from µt = 1 costs counts, not accuracy |
-| `BRINDLEY_OUTSIDE_REGIME` | Prefer the corrected fractions; past µR ≈ 0.05 the "correction" can be further from truth than none |
+| `BRINDLEY_OUTSIDE_REGIME` | Prefer the corrected fractions; past µR ≈ 0.05 the "correction" can be further from truth than none — the QPA round robin's community-wide finding (Madsen et al. 2001; Scarlett et al. 2002: over-correction where none was needed cost more accuracy than the effect it corrects) |
 | `MICROABSORPTION_SKIPPED` | Assume microabsorption was handled |
 | `PAWLEY_OVERLAP_UNRESOLVED` | Use an individual reflection intensity from the group |
 | `DATA_SUPPORT_LOW` | Read the esds as the whole story. There are fewer effective observations per structural parameter than the guidelines ask for (at least three, preferably five), and an over-parameterised Rietveld refinement does not fail — it reports large esds while the algorithm's own N, the number of profile *steps*, hides the shortage. `warning` below three, `info` between three and five; the numbers are on `result.data_support` either way, and the message quotes the effective count, the raw reflection count and the parameter count it divided. The remedy is fewer parameters (start from `result.identifiability`), restraints, or a wider 2θ range — never more points across the same peaks, which raises N and nothing else |
@@ -1467,7 +1524,9 @@ diagnostics are still the first thing to read.
 ## 10. A worked default
 
 If you have a lab pattern, a CIF and no other information, this is the sequence
-to run and the checks to make. Adapt, do not skip the checks.
+to run and the checks to make. Adapt, do not skip the checks — adaptation is
+the literature's own instruction, because the right order depends on the data
+and the starting values (Toby, 2024, the "recipe problem").
 
 ```python
 import rietx as rx
