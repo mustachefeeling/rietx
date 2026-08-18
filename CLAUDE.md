@@ -584,6 +584,12 @@ recent list, and is therefore not behind the 409 (WP-1044).
   has the three rules), never listed — a curated list cannot notice a new
   public method, `_SURFACE_FLAGS` one rank up — so **adding a public method or
   field fails that partition until it is documented or deferred.**
+  **But a name that resolves can still be the wrong name**: where two types
+  share a member, a paragraph about one that spells the other's passes every
+  guard and freezes it (WP-1067 shipped `FitReport.identifiability` described as
+  an `Identifiability` for a whole release). So a chapter is checked against the
+  types it is *about*, and against the code beside each docstring — two stale
+  docstrings shipped chapters transcribing them faithfully.
   **A green build is not a rendered page**: `-W` cannot see a paragraph that
   printed its own TeX, so `test_no_unrendered_math_survives_the_build` scans the
   *built* HTML, and a diagram or a themed figure is checked by looking at it.
