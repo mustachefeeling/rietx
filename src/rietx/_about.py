@@ -75,4 +75,4 @@ SERVER_TOKEN = "rietx"
 #: slash.  The agent tool description appends ``/AGENT_PROTOCOL.md``; the
 #: README and ``pyproject.urls`` quote it.  A brand token: a rename or a
 #: hosting move changes it here and nowhere else.
-DOCS_URL = "https://yue-here.github.io/rietx"
+DOCS_URL = "https://rietx.org"

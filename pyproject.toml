@@ -87,7 +87,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/yue-here/rietx"
-Documentation = "https://yue-here.github.io/rietx"
+Documentation = "https://rietx.org"
 
 [project.scripts]
 rietx = "rietx.cli:main"
