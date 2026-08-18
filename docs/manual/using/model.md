@@ -268,20 +268,40 @@ present with `vary=False`.
 | `RefinedParameter.value` | the value the fit ended at |
 | `RefinedParameter.stderr` | the esd, or None if it could not be estimated |
 | `RefinedParameter.vary` | false on the tied rows, which is how to spot them |
+| `RefinedParameter.at_bound` | true, false, or None where the row was not tested |
 
-The type carries two more fields, `initial` and `at_bound`, which this chapter
-does not document and which are **provisional**: the refinement path writes
-neither, and both are being reconsidered rather than described as they stand
-([1076](https://github.com/yue-here/rietx/blob/main/docs/wp/1076-result-row-honesty.md)).
-Read a parameter's bound state from the `BOUND_HIT` diagnostic, which is where
-that fact is actually computed and reported. The rule behind it is that a
-parameter sitting on its bound is not a measurement, so do not quote one.
+**A parameter sitting on its bound is not a measurement, so do not quote one.**
+That is what `at_bound` is for, and it has three states rather than two:
+
+| Value | Meaning |
+|---|---|
+| `True` | the fit stopped against a bound; the same rows the `BOUND_HIT` diagnostic names |
+| `False` | tested, and interior |
+| `None` | not tested — no answer either way |
+
+`None` covers two cases. A **tied** row is never tested: it is not in the free
+vector the fit solves, so nothing looked at it, and its value can sit on its own
+declared bound while every source is interior. And a result built without a fit
+behind it has nothing to report — [`replay`](history.md) recomputes a recorded
+node's curves without running the guard, so every one of its rows is `None`.
+
+Both channels carry the same fact, and by construction rather than by
+agreement: the flag is the `BOUND_HIT` findings projected onto the rows, from
+one bound test. Read whichever suits the shape of your code — the diagnostic
+when you want the list, the flag when you are already iterating rows.
 
 The two views differ in size, and the difference is the point. A single-phase
 NAC refinement over 2 to 24° measured here gives 72 rows from
 `Refinement.parameters` and 32 from `RefinementResult.parameters`: 14 free, 18
 tied, and 40 fixed rows that the result omits entirely. Use the result to
 report a fit and the table to decide what to do next.
+
+That split is the one `at_bound` reports against. In this fit all 14 free rows
+come back `False` and all 18 tied rows come back `None` — `cell.b`, `cell.c`
+and the sixteen symmetry-tied coordinates. Capping `cell.a` at 10.2500, against
+a free optimum of 10.2513, turns exactly one row `True` and takes Rwp from
+0.1403 to 0.2068: the fit spends its other parameters covering for a cell it is
+not allowed to reach, which is why a bound-sitting value is not a measurement.
 
 Esds cross between them. `Refinement.parameters` merges the most recent fit's
 esds onto `ParameterRow.esd`, so one listing carries both the value and its

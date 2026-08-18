@@ -37,8 +37,14 @@ from .plan import PlanSpec
 from .results import Statistics
 from .structure import Structure
 
+#: What produced a node.  **Every member is committed by some verb** — a
+#: vocabulary is a claim about what the package does, and one member is not a
+#: reservation for later.  It carried a ``"lebail_update"`` until WP-1076 that
+#: no code path ever committed: a Le Bail stage refreshes its intensities
+#: inside itself, and the refreshed values ride on the ``"stage"`` node's
+#: ``ReflectionState``, so a node of that kind had nothing left to record.
 NodeKind = Literal["root", "stage", "set_vary", "set_value", "set_tie",
-                   "edit_model", "lebail_update", "merge"]
+                   "edit_model", "merge"]
 
 
 class NodeAction(Base):
@@ -123,8 +129,6 @@ class NodeAction(Base):
             if self.untied:
                 parts.append(f"ref.untie({self.untied!r})")
             return "; ".join(parts)
-        if self.kind == "lebail_update":
-            return f"ref.lebail_update(n_cycles={self.lebail_cycles})"
         if self.kind == "merge":
             return f"ref.merge(...)  # {self.name}"
         return f"# model edited: {self.name or 'structure/instrument replaced'}"
@@ -192,7 +196,12 @@ class NodeMetrics(Base):
     """
 
     statistics: Statistics | None = None
-    status: Literal["converged", "max_iter", "diverged", "skipped"] | None = None
+    #: the solver's termination, copied from the stage's own ``StageResult``,
+    #: so it carries that type's three-value vocabulary and nothing more.
+    #: ``None`` is a node that ran no fit — a ``set_vary``, a ``set_value``, a
+    #: ``root`` — which is the only extra state there is; the spare
+    #: ``"skipped"`` this admitted until WP-1076 had no meaning left to take.
+    status: Literal["converged", "max_iter", "diverged"] | None = None
     n_iterations: int = 0
     cost_initial: float | None = None
     cost_final: float | None = None

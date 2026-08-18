@@ -142,6 +142,14 @@ class SeriesResult(Base):
     #: and the two trajectories compared — the reported entries are the forward
     #: ones, and the comparison is in :attr:`diagnostics`.
     direction: Literal["forward", "backward", "both"] = "forward"
+    #: the reverse chain, present iff ``direction == "both"`` (WP-1076).
+    #: Its own ``backward`` is always ``None``: it is one extra level, not a
+    #: cycle.  Without it a caller of :func:`~rietx.refine_sequential` received
+    #: the ``SEQUENTIAL_PATH_DEPENDENT`` diagnostics and had no way to reach
+    #: the trajectory they are about — the comparison was reachable only from
+    #: ``SequentialRefinement.backward_``, which the one-shot API never
+    #: returns.
+    backward: "SeriesResult | None" = None
     diagnostics: list[Diagnostic] = Field(default_factory=list)
     provenance: Provenance | None = None
 
@@ -170,7 +178,16 @@ class SeriesResult(Base):
 
     @property
     def n_iterations(self) -> int:
-        """Total least-squares iterations over the whole series."""
+        """Least-squares iterations over the chain this result *reports*.
+
+        That is :attr:`entries`, so under ``direction="both"`` it is the
+        forward chain only and **not what the run cost** — the reverse chain is
+        a second complete set of fits, and its own count is
+        ``result.backward.n_iterations`` (WP-1076; the docstring said "over the
+        whole series", which was true of a one-directional run and false of
+        this one).  Measured on the eight-mixture round robin: 816 either way,
+        against a wall clock of 33.7 s forward and 83.7 s for ``"both"``.
+        """
         return sum(e.n_iterations for e in self.entries)
 
     def trajectory(self, path: str) -> Trajectory:
@@ -240,9 +257,20 @@ class SeriesResult(Base):
         much should I trust this point": a rescued point is a good fit whose
         starting values did not come from its neighbour, and a table that hides
         that reads as a continuous trajectory.
+
+        **The axis column takes** :attr:`x_label`, **unless that name is
+        already a column**, in which case it is ``x`` (WP-1076).  ``x_label``
+        defaults to ``"index"`` — it is a human label, and it is the right axis
+        title for a series with no coordinate — so before that rule the default
+        header carried ``index`` twice, and anything keying by name collided
+        (pandas silently renames the second to ``index.1``).  The column count,
+        order and meaning are unchanged, so a consumer keying by position never
+        saw it either way.
         """
         paths = self.paths() if paths is None else list(paths)
-        header = ["index", "label", self.x_label, "status", "rung", "rwp", "gof"]
+        fixed = ["index", "label", "status", "rung", "rwp", "gof"]
+        x_col = "x" if self.x_label in fixed else self.x_label
+        header = ["index", "label", x_col, "status", "rung", "rwp", "gof"]
         for p in paths:
             header += [p, f"{p}_esd"]
         rows: list[list] = []

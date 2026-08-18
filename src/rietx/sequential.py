@@ -549,6 +549,10 @@ class SequentialRefinement:
             else:
                 diagnostics += _path_dependence_diagnostics(series, back)
             self.backward_ = back
+            # …and on the result, so `refine_sequential` — the one-shot API the
+            # manual recommends — hands back the trajectory its
+            # SEQUENTIAL_PATH_DEPENDENT diagnostics are about (WP-1076)
+            series.backward = back
 
         series.diagnostics = diagnostics
         self.results_ = results

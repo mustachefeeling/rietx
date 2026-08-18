@@ -19,19 +19,31 @@ class RefinedParameter(Base):
     reasons included, is :meth:`rietx.Refinement.parameters`, which also
     merges these esds back in.
 
-    ``initial`` is never populated by the fit path: a result reports where the
-    fit ended, and the start lives one node up in the history tree.  It exists
-    for a caller assembling a result by hand (a comparison runner recording
-    its own start state); ``None`` means "not recorded", not "started at
-    zero".
+    **``at_bound`` has three states, and one of them is "nobody looked"**
+    (WP-1076).  ``True``/``False`` are answers about a *measured* row;
+    ``None`` says the question was not asked of this row, which happens two
+    ways: the result was assembled without a guard report (``refine.replay``,
+    which is evaluate-only, and any hand-built result), and a **tied** row,
+    which is not in the free vector and so is never tested — its value
+    follows its sources, and it can sit on its own declared bound while every
+    source is interior.  Before WP-1076 the field was ``bool = False`` and
+    nothing wrote it, so every row of every result asserted "not at a bound"
+    about a parameter no code had looked at.
+
+    **The source is the guard, never a local recomputation.**  The one place
+    the bound test happens is :func:`rietx.strategy.staged.bound_findings`,
+    whose findings become the ``BOUND_HIT`` diagnostics; this flag is a
+    projection of that same list onto the rows, so the two can never
+    disagree.  ``BOUND_HIT`` stays the reported channel — the flag exists so
+    that an agent iterating ``parameters`` does not have to cross-reference
+    ``diagnostics`` by path.
     """
 
     path: str
     value: float
     stderr: float | None = None
-    initial: float | None = None
     vary: bool = True
-    at_bound: bool = False
+    at_bound: bool | None = None
 
 
 class Statistics(Base):
@@ -577,8 +589,20 @@ class GeometryTable(Base):
 
 
 class StageResult(Base):
+    """One stage's outcome.
+
+    ``status`` is the solver's, and the vocabulary is **exactly the three
+    terminations the solver produces** — ``optimize/least_squares.py`` builds
+    its outcome three ways and there is no fourth.  It admitted a
+    ``"skipped"`` until WP-1076; nothing anywhere set it, so a consumer writing
+    an exhaustive match handled a branch that could not occur and a reader of
+    the type inferred a skip mechanism the package does not have.  A stage a
+    plan does not run produces no ``StageResult`` at all, which is the honest
+    way to say the same thing.
+    """
+
     name: str
-    status: Literal["converged", "max_iter", "diverged", "skipped"]
+    status: Literal["converged", "max_iter", "diverged"]
     n_iterations: int
     cost_initial: float
     cost_final: float
@@ -630,7 +654,6 @@ class RefinementResult(Base):
     mode: Mode
     parameters: list[RefinedParameter]
     statistics: Statistics
-    correlation_warnings: list[str] = Field(default_factory=list)
     stages: list[StageResult] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
     provenance: Provenance

@@ -53,6 +53,7 @@ from .strategy.staged import (
     GuardFinding,
     GuardReport,
     RefinementPlan,
+    bound_findings,
     check_adp_positive_definite,
 )
 
@@ -288,8 +289,12 @@ class MultiHistogramRefinement:
             n_free=len(mt.free_paths),
             y_background=np.concatenate(per_ybkg))
 
-        parameters = self._parameters(thetas, stderr, corr)
-        diagnostics = self._top_diagnostics(outcome, correlation_guard, top_bg)
+        # one bound test, two consumers: the rows' at_bound flag and the
+        # BOUND_HIT diagnostics (WP-1076)
+        at_bounds = bound_findings(mt.bounds(), mt.free_paths, outcome.theta)
+        parameters = self._parameters(thetas, stderr, corr, at_bounds)
+        diagnostics = self._top_diagnostics(outcome, correlation_guard, top_bg,
+                                            at_bounds)
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
                 stage_results[-1].name, outcome)
@@ -323,9 +328,15 @@ class MultiHistogramRefinement:
         wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
         return compute_qpa(struct, values, scale_cov, mult, wavelength=wavelength)
 
-    def _parameters(self, thetas, stderr, corr) -> list[RefinedParameter]:
+    def _parameters(self, thetas, stderr, corr, at_bounds) -> list[RefinedParameter]:
         mt = self.mtable
         params: list[RefinedParameter] = []
+        # The row path is the combined path — shared rows unprefixed,
+        # per-histogram rows `hist.h.…` — which is exactly how
+        # `MultiParameterTable.free_paths` spells them, so the projection keys
+        # on the row path and needs no second naming convention (WP-1076).
+        tested = set(mt.free_paths)
+        on_bound = {p for f in at_bounds for p in f.paths}
         # shared parameters reported once, from histogram 0's covariance (its
         # diagonal esd is the true combined marginal — cross-terms with the
         # other histograms' columns do not enter a single path's variance).
@@ -335,8 +346,10 @@ class MultiHistogramRefinement:
                 if stderr is not None else {})
         for e in mt.tables[0].entries:
             if mt.sharing.is_shared(e.path) and (e.vary or e.tie is not None):
-                params.append(RefinedParameter(path=e.path, value=e.value,
-                                               vary=e.vary, stderr=esd0.get(e.path)))
+                params.append(RefinedParameter(
+                    path=e.path, value=e.value, vary=e.vary,
+                    stderr=esd0.get(e.path),
+                    at_bound=(e.path in on_bound) if e.path in tested else None))
         for h, table in enumerate(mt.tables):
             cm = mt.col_map(h)
             esd = (table.stderr_physical(thetas[h], stderr[cm],
@@ -344,12 +357,15 @@ class MultiHistogramRefinement:
                    if stderr is not None else {})
             for e in table.entries:
                 if not mt.sharing.is_shared(e.path) and (e.vary or e.tie is not None):
-                    params.append(RefinedParameter(path=f"hist.{h}.{e.path}",
-                                                   value=e.value, vary=e.vary,
-                                                   stderr=esd.get(e.path)))
+                    row = f"hist.{h}.{e.path}"
+                    params.append(RefinedParameter(
+                        path=row, value=e.value, vary=e.vary,
+                        stderr=esd.get(e.path),
+                        at_bound=(row in on_bound) if row in tested else None))
         return params
 
-    def _top_diagnostics(self, outcome, correlation_guard, bg_scoped) -> list[Diagnostic]:
+    def _top_diagnostics(self, outcome, correlation_guard, bg_scoped,
+                         at_bounds) -> list[Diagnostic]:
         mt = self.mtable
         free = mt.free_paths
         report = GuardReport(background_correlations=bg_scoped)
@@ -362,14 +378,7 @@ class MultiHistogramRefinement:
                     if abs(c[i, j]) > correlation_guard:
                         report.high_correlations.append(
                             GuardFinding.correlation(free[i], free[j], c[i, j]))
-        lo, hi = mt.bounds()
-        for k, path in enumerate(free):
-            t = outcome.theta[k]
-            span = hi[k] - lo[k]
-            tol = 1e-8 * (span if np.isfinite(span) else 1.0)
-            if ((np.isfinite(lo[k]) and t - lo[k] <= tol)
-                    or (np.isfinite(hi[k]) and hi[k] - t <= tol)):
-                report.at_bounds.append(GuardFinding.at_bound(path))
+        report.at_bounds = at_bounds
         return _guard_diagnostics(report)
 
 

@@ -15,8 +15,10 @@ envelope is deliberate:
   has one vocabulary for "the fit warns" and "the call failed".  Three codes,
   closed: ``INVALID_REQUEST`` (any validation failure, with per-field
   dot-paths in ``details``), ``BACKEND_UNAVAILABLE`` (a valid backend name
-  whose optional dependency is not installed), ``REFINEMENT_FAILED`` (the
-  request was valid but the engine raised).
+  whose optional dependency is not importable here — refused *before*
+  dispatch, from the same answer :func:`~rietx.capabilities.capabilities`
+  publishes), ``REFINEMENT_FAILED`` (the request was valid, this build could
+  run it, and the engine raised anyway).
 
 Two asymmetries are answered here on purpose rather than by accident:
 ``task="refine_multi"`` runs **without** the history DAG (a multi-pattern
@@ -136,7 +138,10 @@ from .strategy.staged import PLAN_PRESETS
 _BACKEND_DESC = (
     "Jacobian backend, validated against the live registry (currently: "
     + ", ".join(BACKEND_NAMES)
-    + "); 'numpy' is the default and the only one a single pattern needs")
+    + "); 'numpy' is the default and the only one a single pattern needs. "
+    "A name the registry has but this build cannot import comes back "
+    "BACKEND_UNAVAILABLE before anything runs — capabilities().backends says "
+    "which, without an attempt")
 _SOLVER_DESC = (
     "least-squares driver (currently: " + ", ".join(SOLVERS)
     + "); 'lm' adds constraint vocabulary scipy does not have — it enforces "
@@ -630,24 +635,58 @@ def refine_json(request: dict) -> dict:
     except ValidationError as exc:
         return _validation_failure(exc)
 
+    missing = _missing_backend(getattr(req, "backend", "numpy"))
+    if missing is not None:
+        return _failure("BACKEND_UNAVAILABLE", missing[0], suggestion=missing[1])
+
     try:
         response = _dispatch(req)
-    except NotImplementedError as exc:
-        # a *valid* backend name whose optional dependency is absent: the
-        # constructors fail fast with the install hint, which we pass along
-        return _failure("BACKEND_UNAVAILABLE", str(exc),
-                        suggestion="install the optional dependency "
-                                   f"(pip install '{DIST_NAME}[jax]' or "
-                                   "'[torch]') or use backend='numpy'")
     except Exception as exc:  # noqa: BLE001 — the envelope IS the error channel
         return _failure(
             "REFINEMENT_FAILED", f"{type(exc).__name__}: {exc}",
             suggestion="the request validated but the engine raised; common "
                        "causes are a model the physics refuses (mu_t = 0 in "
                        "reflection geometry, a wavelength on an absorption "
-                       "edge with dispersion enabled) or a plan freeing "
-                       "parameters this model does not have")
+                       "edge with dispersion enabled), a plan freeing "
+                       "parameters this model does not have, or a combination "
+                       "this build does not support (soft restraints in a "
+                       "joint multi-histogram fit)")
     return response.model_dump(mode="json")
+
+
+def _missing_backend(name: str) -> tuple[str, str] | None:
+    """``(message, suggestion)`` when ``name`` cannot run here, else ``None``.
+
+    **Asked before dispatch, and answered by the same authority
+    :func:`~rietx.capabilities.capabilities` publishes** (WP-1076).  A backend
+    whose optional dependency is not importable is a fact about this *build*,
+    knowable without running anything, so the request is refused rather than
+    started and abandoned — and a client that read ``capabilities().backends``
+    can never be told something different by an attempt.
+
+    It used to be inferred from an exception type, and that was wrong in both
+    directions.  ``resolve_backend`` raises ``ImportError`` for a missing
+    jax/torch, so the condition this code names came back ``REFINEMENT_FAILED``
+    with the generic "the physics refused" advice.  Meanwhile the
+    ``NotImplementedError`` the arm caught is raised by unsupported *features*
+    — measured: a soft-restrained ``refine_multi`` on ``backend="numpy"``
+    returned ``BACKEND_UNAVAILABLE`` advising an install of jax.  An unknown
+    backend *name* never reaches either: ``_BackendBase`` validates it against
+    the live registry, so that is an ``INVALID_REQUEST``.
+    """
+    from .capabilities import capabilities
+
+    for cap in capabilities().backends:
+        if cap.name == name and not cap.available:
+            # `requires` is the extra's name as well as the module's — the two
+            # torch devices both require, and install as, `torch`
+            return (
+                f"backend {name!r} needs the optional {cap.requires} "
+                f"dependency, which is not importable in this build",
+                f"pip install '{DIST_NAME}[{cap.requires}]' or use "
+                "backend='numpy'",
+            )
+    return None
 
 
 # ----------------------------------------------------------------------

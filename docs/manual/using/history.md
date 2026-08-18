@@ -73,10 +73,10 @@ ratio is what makes wide branching affordable.
 | `edit_model` | `Refinement.edit` |
 | `merge` | `Refinement.merge` |
 
-The vocabulary carries an eighth member, `lebail_update`, for an intensity
-refresh recorded as a node of its own. No verb commits one today: a Le Bail
-stage refreshes the intensities inside itself, and the refreshed values are part
-of the `stage` node's state.
+The table is the whole vocabulary, and the second column is why: every member
+is committed by a verb you can call. A Le Bail intensity refresh is not among
+them, because it is not a node — a Le Bail stage refreshes the intensities
+inside itself, and the refreshed values are part of that `stage` node's state.
 
 The other fields are the arguments of the operation, and which of them are set
 depends on the kind. `NodeAction.name` is the stage's name, or the label given
@@ -171,10 +171,11 @@ A large gap is a reading rather than a defect. It says the stage travelled far
 enough that its frozen discreteness went stale, which is an argument for
 splitting the stage.
 
-`NodeMetrics.status` declares a fourth value, `skipped`, and nothing sets it.
-A node that ran no fit carries `None` instead, and a stage whose globs matched
-nothing still runs and converges. `StageResult.status` in [](refining.md)
-carries the same spare value.
+`NodeMetrics.status` is the solver's, copied from the stage's own
+`StageResult`, so it carries that type's three values and nothing more. A node
+that ran no fit — a `set_vary`, a `set_value`, the root — carries `None`
+instead, which is the only extra state there is. A stage whose globs matched
+nothing is not one of them: it still runs, and it converges.
 
 ## Reading a tree
 

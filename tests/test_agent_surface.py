@@ -8,10 +8,12 @@ worker); the validation and schema tests cost nothing.
 
 from __future__ import annotations
 
+import copy
 import json
 
 import pytest
 
+import rietx as rx
 import rietx.agent as ag
 from rietx import Instrument
 from rietx.backend.api import BACKEND_NAMES
@@ -293,30 +295,59 @@ def test_deep_validation_paths_point_into_nested_objects(request_parts):
     assert any(d["where"].startswith("pattern") for d in out["error"]["details"])
 
 
-def test_backend_unavailable_is_its_own_code(request_parts, monkeypatch):
+def test_backend_unavailable_is_its_own_code(request_parts):
     """A valid name whose package is missing must not read as a typo.
 
-    Forced via the constructor's fail-fast path rather than uninstalling
-    jax: what matters is the NotImplementedError → BACKEND_UNAVAILABLE
-    mapping, which is the same whichever backend is absent.
+    **Asserted against the condition, not against a mapping** (WP-1076). The
+    version of this test before that WP monkeypatched `Refinement.__init__` to
+    raise `NotImplementedError` and said so in its own docstring, so it pinned
+    the exception-to-code arm and never the thing the code claims to mean —
+    and the arm was wrong: `resolve_backend` raises `ImportError`, so a real
+    missing jax came back `REFINEMENT_FAILED` for the whole life of the code.
+    That is `_SURFACE_FLAGS` one rank over, in a test rather than a predicate.
+
+    So the request here is a *real* one, made on whichever backend this venv
+    genuinely lacks. On a `[dev,jax,torch]` venv there is none and the test
+    skips, which is the honest outcome: the condition it asserts does not
+    exist here.
     """
-    import sys
+    unavailable = [c for c in rx.capabilities().backends if not c.available]
+    if not unavailable:
+        pytest.skip("every backend's dependency is importable in this venv")
 
-    def unavailable(self, *a, **kw):
-        raise NotImplementedError(
-            "backend 'jax' needs the optional dependency: pip install "
-            "'rietx[jax]'")
-
-    # sys.modules, because the package attribute `rietx.refine` is the
-    # *function* re-exported by __init__, shadowing the module of that name
-    refine_mod = sys.modules["rietx.refine"]
-    monkeypatch.setattr(refine_mod.Refinement, "__init__", unavailable)
     structure, instrument, pattern = request_parts
-    out = ag.refine_json(dict(task="refine", structure=structure,
-                              instrument=instrument, pattern=pattern,
-                              backend="jax"))
-    assert out["error"]["code"] == "BACKEND_UNAVAILABLE"
-    assert "rietx[jax]" in out["error"]["message"]
+    for cap in unavailable:
+        out = ag.refine_json(dict(task="refine", structure=structure,
+                                  instrument=instrument, pattern=pattern,
+                                  backend=cap.name))
+        assert out["error"]["code"] == "BACKEND_UNAVAILABLE", cap.name
+        assert cap.requires in out["error"]["message"]
+        assert "backend='numpy'" in out["error"]["suggestion"]
+
+
+def test_an_unsupported_feature_is_not_a_missing_backend(request_parts):
+    """`NotImplementedError` means the engine refused, never "install jax".
+
+    The other half of the same repair. `refine_json` used to map every
+    `NotImplementedError` to `BACKEND_UNAVAILABLE`; the exception is in fact
+    raised by unsupported *feature* paths, so a soft-restrained joint fit on
+    `backend="numpy"` — a request with no optional dependency anywhere near it
+    — came back advising an install of jax or torch.
+    """
+    from rietx.schemas.structure import ValueRestraint
+
+    structure, instrument, pattern = request_parts
+    restrained = copy.deepcopy(structure)
+    restrained["phases"][0]["restraints"] = [
+        ValueRestraint(path="phases.0.atoms.0.biso", target=0.5,
+                       sigma=0.05).model_dump(mode="json")]
+
+    out = ag.refine_json(dict(task="refine_multi", structure=restrained,
+                              instruments=[instrument] * 2,
+                              patterns=[pattern] * 2))
+    assert out["error"]["code"] == "REFINEMENT_FAILED"
+    assert "soft restraints" in out["error"]["message"]
+    assert "install" not in out["error"]["suggestion"]
 
 
 # ----------------------------------------------------------------------

@@ -287,8 +287,8 @@ vocabulary for "the fit warns" and "the call failed".
 | `AgentError.code` | Means |
 |---|---|
 | `INVALID_REQUEST` | the request did not validate. `AgentError.details` names the fields |
-| `BACKEND_UNAVAILABLE` | a valid backend name whose optional dependency is not installed here |
-| `REFINEMENT_FAILED` | the request was valid and the engine raised |
+| `BACKEND_UNAVAILABLE` | a valid backend name whose optional dependency is not importable here. Refused before dispatch, from the same answer `capabilities()` gives |
+| `REFINEMENT_FAILED` | the request was valid, this build could run it, and the engine raised anyway |
 
 | Key | Type | Meaning |
 |---|---|---|
@@ -313,16 +313,19 @@ envelope = agent.refine_json({"task": "index"})
 envelope["error"]["code"], envelope["error"]["details"][0]["where"]
 ```
 
-:::{warning}
-**Ask `capabilities()` before asking for a backend.** Measured on a build
-without the `jax` extra, `{"task": "refine", …, "backend": "jax"}` comes back
-`REFINEMENT_FAILED` rather than `BACKEND_UNAVAILABLE`. The install hint is in
-`AgentError.message`, but `AgentError.suggestion` is the generic one for an
-engine that raised, and a consumer branching on `AgentError.code` cannot tell a
-missing dependency from a model the physics refused.
-`BackendCapability.available` answers the question directly and before the
-call, which is what it is for.
-:::
+**A backend this build cannot run is refused before anything runs.** The check
+is `BackendCapability.available` — the same answer `capabilities()` publishes,
+so an attempt can never contradict the roster you read. On a build without the
+`jax` extra, `{"task": "refine", …, "backend": "jax"}` comes back
+`BACKEND_UNAVAILABLE` with the install command as its suggestion, and nothing
+is compiled or fitted first.
+
+`REFINEMENT_FAILED` is therefore what it says: the request was valid, this
+build could run it, and the engine still refused. That covers a model the
+physics rejects and a combination this build does not support — soft restraints
+in a joint multi-histogram fit, for one — and in both cases
+`AgentError.message` carries the engine's own sentence, which usually names the
+way out.
 
 ## Registering rietx as a tool
 

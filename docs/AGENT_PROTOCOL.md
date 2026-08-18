@@ -550,7 +550,7 @@ Every code below is a structured `Diagnostic` on `result.diagnostics` with a
 | Code | What it means you must not do |
 |---|---|
 | `HIGH_CORRELATION` | Quote both members of the pair as independently measured |
-| `BOUND_HIT` | Quote a parameter sitting on its bound as a measurement |
+| `BOUND_HIT` | Quote a parameter sitting on its bound as a measurement. Iterating `result.parameters` instead of cross-referencing this code by path? `RefinedParameter.at_bound` is the same finding on the row — but it is three-valued, so test `is True`, never truthiness: `None` means the row was not tested (it is tied, or the result came from `replay`), and that is not `False` |
 | `BACKGROUND_ABSORPTION` | Quote ADPs, scales or QPA fractions from this fit — the background can imitate them, and Rwp *improved* while they biased. Read the number, not the bit: `report.background.absorption` is the same measurement for **every** screened parameter, fired or not, and `result.identifiability.background_absorption` carries it on the result |
 | `ROUGHNESS_ABSORPTION` | Quote roughness and the displacement parameters as two separate results |
 | `ROUGHNESS_UNCONSTRAINED` / `ROUGHNESS_OUTSIDE_REGIME` | Interpret the roughness parameters physically |
@@ -1432,9 +1432,10 @@ The envelope never raises: `{"ok": true, "result"|"series"|"indexing"|"suggestio
 on success, else `{"ok": false, "error": {code, message, suggestion,
 details}}` with `error.code` one of `INVALID_REQUEST` (per-field dot-paths in
 `details[]` — the schemas are strict, unknown keys are errors),
-`BACKEND_UNAVAILABLE` (a real backend whose optional dependency is missing;
-the install hint is the suggestion), or `REFINEMENT_FAILED` (the engine's own
-message, preserved).  Everything else in this document applies unchanged: the
+`BACKEND_UNAVAILABLE` (a real backend whose optional dependency is not
+importable here — checked before dispatch, so nothing ran; the install command
+is the suggestion), or `REFINEMENT_FAILED` (the engine's own message,
+preserved — the request was valid *and* runnable here, so read the message).  Everything else in this document applies unchanged: the
 `result` inside the envelope is the same `RefinementResult`, and §7's
 diagnostics are still the first thing to read.
 

@@ -289,6 +289,21 @@ recent list, and is therefore not behind the 409 (WP-1044).
   one derivative chain; and a neighbour search is proved complete by **orbit
   counting** (|A_ij|·m_i = |A_ji|·m_j), never by the distances looking right —
   a wrong deduplication passed every distance-value test in the file.
+- **A declared name is a claim, and an absent writer fails no test** (WP-1076,
+  the rule above one rank up). Two shapes: a field whose empty state reads as
+  an *answer* (`RefinedParameter.at_bound` was `bool = False`, so every row of
+  every result said "not at a bound" about a parameter nothing had checked),
+  and a `Literal` member no code produces (`StageResult.status`'s `"skipped"`;
+  `NodeKind`'s `"lebail_update"`, whose `api_call` rendered a method that does
+  not exist). Nothing raises and nothing goes red, so a new field's **default**
+  and a new vocabulary member each need their writer named at review. Where the
+  fact already has a computing authority the second surface is a *projection*
+  of it — `staged.bound_findings` is one bound test feeding both the `BOUND_HIT`
+  diagnostics and `at_bound`, and a test pins them **set-equal** rather than
+  re-deriving, which is what a second opinion would pass. Where it has none the
+  honest empty state is `None`, which cannot regress into a lie the way a
+  defaulted `False` can. All nine of 1076's were found by writing a manual
+  chapter over the type, never by reading the code.
 - **A position correction belongs to a geometry, and so does the action that
   names it** (WP-1073, McCusker §5 eq 3/4). `sin 2θ` is flat-plate
   transparency on a plate and the along-beam capillary offset on a capillary,

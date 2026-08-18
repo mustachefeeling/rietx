@@ -149,6 +149,34 @@ def test_bad_histogram_shows_in_its_own_rwp(two_patterns):
         result.for_histogram(h).plot(OUT / f"multihist_bad_h{h}.png")
 
 
+def test_every_row_carries_a_bound_answer_or_says_it_has_none(two_patterns):
+    """`multi.py` builds its own rows, so it needs its own at_bound pin.
+
+    The WP-1076 rules are asserted on the single-histogram path in
+    `test_result_rows.py`; this is the second builder, and the thing it can get
+    wrong that the first cannot is the *key*.  A row's path is the combined
+    path — shared rows unprefixed, per-histogram rows `hist.h.…` — and that is
+    also how `MultiParameterTable.free_paths` spells them, so a projection
+    keyed on anything else would silently mark every per-histogram row
+    unmeasured while every assertion about counts still passed.
+    """
+    structure, instruments = perturbed_inputs()
+    ref = MultiHistogramRefinement(structure, instruments)
+    result = ref.fit(two_patterns, plan="mccusker_default")
+
+    named = {p for d in result.diagnostics if d.code == "BOUND_HIT" for p in d.where}
+    assert {p.path for p in result.parameters if p.at_bound is True} == named
+
+    measured = {p.path for p in result.parameters if p.at_bound is not None}
+    assert measured == set(ref.mtable.free_paths) & {p.path for p in result.parameters}
+    # both halves of the key are exercised: shared rows and per-histogram rows
+    assert any(p.startswith("hist.") for p in measured)
+    assert any(not p.startswith("hist.") for p in measured)
+    # the unmeasured rows are the tied ones (cubic b←a, c←a), not an empty set
+    unmeasured = {p.path for p in result.parameters if p.at_bound is None}
+    assert {"phases.0.cell.b", "phases.0.cell.c"} <= unmeasured
+
+
 def test_rietveld_only():
     structure, instruments = perturbed_inputs()
     ref = MultiHistogramRefinement(structure, instruments)

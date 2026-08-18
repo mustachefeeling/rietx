@@ -140,7 +140,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # and not in the shared partials function — the geometry esds are built
     # from that function's output at unit weight, and no distance-value test
     # in the package would notice them all moving by a constant factor.
-    "CLAUDE.md": 700,
+    # 700 -> 720 for WP-1076 (2026-08-18): a declared name is a claim, and an
+    # absent writer fails no test.  It earns a clause because it governs core
+    # work — adding a schema field or a Literal member — rather than manual
+    # work: 1067's near-miss rule was about mis-attributing a type in prose and
+    # went into a docstring instead, and the cap was what sent it there.
+    "CLAUDE.md": 720,
     "docs/ROADMAP.md": 400,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule

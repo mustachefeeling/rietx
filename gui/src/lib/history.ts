@@ -130,8 +130,6 @@ export function nodeLabel(node: HistoryNode): string {
     }
     case "edit_model":
       return node.name || node.label || "model edited";
-    case "lebail_update":
-      return `Le Bail ×${action.lebail_cycles ?? 0}`;
     default:
       return node.kind;
   }

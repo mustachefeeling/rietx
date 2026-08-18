@@ -635,6 +635,47 @@ def check_stephens_positive(table, model) -> list[GuardFinding]:
     return out
 
 
+#: a free column counts as "on its bound" within this fraction of the bound
+#: span.  Relative, because the free vector is *internal*: a softplus width and
+#: an identity-transform cell edge share no scale, and an absolute tolerance
+#: would mean something different on each.  An infinite span (the usual case
+#: for a one-sided bound) falls back to an absolute 1e-8.
+BOUND_HIT_REL_TOL = 1e-8
+
+
+def bound_findings(bounds, free: list[str], theta) -> list[GuardFinding]:
+    """Free paths sitting on a bound — **the one place this test happens**.
+
+    ``bounds`` is the ``(lo, hi)`` pair from a
+    :class:`~rietx.params.vector.ParameterTable` or a
+    :class:`~rietx.params.multi.MultiParameterTable`, ``free`` its free paths
+    in column order, ``theta`` the solved internal vector.
+
+    Two consumers, and they must not be able to disagree: the ``BOUND_HIT``
+    diagnostics built from these findings, and
+    :attr:`~rietx.schemas.results.RefinedParameter.at_bound`, which is the same
+    list projected onto the result rows (WP-1076).  Before that WP the loop was
+    written out twice — here and in ``multi.py`` — which is a duplicate a joint
+    refinement would have had to keep in step by hand.
+
+    Only *free* paths are testable.  A tied path is not in ``theta`` and is
+    never seen here, so a consumer must report it as unmeasured rather than as
+    not-at-a-bound; that is what the flag's third state is for.
+    """
+    import numpy as np
+
+    lo, hi = bounds
+    out: list[GuardFinding] = []
+    for k, path in enumerate(free):
+        t = theta[k]
+        span = hi[k] - lo[k]
+        tol = BOUND_HIT_REL_TOL * (span if np.isfinite(span) else 1.0)
+        if ((np.isfinite(lo[k]) and t - lo[k] <= tol)
+                or (np.isfinite(hi[k]) and hi[k] - t <= tol)):
+            out.append(GuardFinding.at_bound(path))
+    return out
+
+
 def check_guards(table, outcome, threshold: float,
                  background_threshold: float = BACKGROUND_ABSORPTION_GUARD,
                  roughness_threshold: float = ROUGHNESS_ABSORPTION_GUARD,
@@ -685,11 +726,5 @@ def check_guards(table, outcome, threshold: float,
                 report.roughness_correlations.append(
                     GuardFinding.roughness_absorption(path, r2))
 
-    lo, hi = table.bounds()
-    for k, path in enumerate(free):
-        t = outcome.theta[k]
-        span = hi[k] - lo[k]
-        tol = 1e-8 * (span if np.isfinite(span) else 1.0)
-        if (np.isfinite(lo[k]) and t - lo[k] <= tol) or (np.isfinite(hi[k]) and hi[k] - t <= tol):
-            report.at_bounds.append(GuardFinding.at_bound(path))
+    report.at_bounds = bound_findings(table.bounds(), free, outcome.theta)
     return report
