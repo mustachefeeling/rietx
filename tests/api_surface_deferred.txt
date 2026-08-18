@@ -10,20 +10,7 @@
 # excluded with a reason, or deliberately deferred by regenerating this file —
 # which shows up as a diff in review.  WP-1067 closes when this file has no
 # names left.
-HistoryRecord
-HistoryRecord.annotation
-HistoryRecord.header
-HistoryRecord.node
-HistoryRecord.record
 RefinedParameter.at_bound
 RefinedParameter.initial
-RefinementPlan.lab_bragg_brentano
-RefinementPlan.lab_calibrate
-RefinementPlan.lab_sample_refine
-RefinementPlan.mccusker_default
-RefinementPlan.mccusker_structural
-RefinementPlan.pawley_default
-RefinementPlan.profile_only
-RefinementPlan.stages
 RefinementResult.correlation_warnings
 TieSpec.from_tie
