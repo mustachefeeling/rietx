@@ -385,26 +385,61 @@ passing.
       the bucket now holds no indexing name. It also found that
       `rietx.indexing`'s own helpers are not on the derived surface at all (see
       the handover).
-- [ ] `using/series.md` and `using/exports.md` — sequential vs multi and
-      `direction="both"`; CIF / reflection / QPA exports, plots,
-      `plot_for_vlm`, `write_html`.
+- [x] `using/series.md`, `using/qpa.md` and `using/exports.md` (2026-08-18).
+      **Three pages where the line asked for two**, and the measurement moved
+      the seam. `series.md` is the whole sequential-vs-joint subject, which no
+      page had touched: the chain, `carry`/`prepare`, `SeriesResult`/
+      `SeriesEntry`/`Trajectory`, the ladder and quarantine, the four
+      `SEQUENTIAL_*` fences, `direction="both"`, then `MultiHistogramRefinement`,
+      `SharingMap`/`SharingSpec` and `HistogramResult`. The rest of the line
+      would not hold together as one page: three of the six things it named are
+      already elsewhere or nowhere (`files.md` owns the writers; `plot_for_vlm`
+      and `write_html` are not on the derived surface at all), and **weight
+      fractions are not an export** — nobody looks for them under one. So QPA
+      took its own chapter, `exports.md` took the derived tables, and
+      `files.md`'s reflection-table row was corrected from "one row per
+      reflection" to one row per (emission line, reflection).
 - [ ] `using/cli.md` — `rietx watch`, `rietx compare`, and `rietx gui` in one
-      **beta**-marked line.
-- [ ] **The names no remaining chapter claims** — remeasured 2026-08-17 after
-      the indexing chapter took its 266: of the **395** left, 73 are the series
-      and multi-histogram types, and the rest are **not** in any remaining task
-      line above. Two blocks account for most of them, and both belong to a
-      chapter that already exists, so this is a second pass rather than a new
-      page: the agent request and response union
-      (`RefineRequest`, `MultiRefineRequest`, `SequentialRefineRequest`,
-      `SuggestRequest`, `IndexRequest`, `AgentSuccess`; 78 names, and
-      `agents.md` documents the *call* rather than the arms), and the report's
-      own evidence types (`StageReport`, `SuggestionResult`, `RegionAttribution`,
-      `TextureAnalysis`, `StrainAnalysis`, `BackgroundEvidence`,
-      `ParameterCandidate`, `ExchangeFinding`, `TrendAnalysis`, all reachable
-      from `FitReport`'s own fields, where `report.md` describes the three
-      layers without naming the types field by field). The bucket cannot empty
-      without both.
+      **beta**-marked line. **It freezes nothing** (measured 2026-08-18: no
+      `rietx.cli` name is on the derived surface — the entry point is a
+      `project.scripts` console script), so it is a UX chapter and cannot be
+      sequenced by what it empties from the bucket.
+- [ ] **The names no remaining chapter claims** — remeasured 2026-08-18 after
+      the series, QPA and exports chapters took their 132. **No task line above
+      claims any of the 263 left**, and they now partition three ways with no
+      remainder, so this line is the whole of what is left of the WP:
+
+      - **85 — the agent request and response union**, a second pass on
+        `agents.md`, which documents the *call* rather than the arms:
+        `RefineRequest`, `MultiRefineRequest`, `SequentialRefineRequest`,
+        `SuggestRequest`, `IndexRequest`, `AgentSuccess`, `AgentFailure`,
+        `AgentError`, `AgentErrorDetail`.
+      - **133 — the report's own evidence types**, a second pass on `report.md`,
+        which describes the three layers without naming the types field by
+        field: `StageReport`, `SuggestionResult`, `RegionAttribution`,
+        `TextureAnalysis`, `StrainAnalysis`, `BackgroundEvidence`,
+        `ParameterCandidate`, `ExchangeFinding`, `ExchangeRow`, `TrendAnalysis`,
+        `TrendTemplate`, `IdentifiabilityEvidence`, `Identifiability`,
+        `CorrelationPair`, `LeBailGap`, `BasisCoefficient`, `Region`,
+        `SoftMode`, `SuggestedAction`, `UnmatchedPeak`, `CandidateGroup`,
+        `ContaminationFlag`, `PatternDiagnostics`. The largest single block
+        left, and the one that closes the WP.
+      - **45 — six small groups, four of them a paragraph in a chapter that
+        exists.** `AbsorptionCorrection` + `RefinementResult.absorption` (12) is
+        the specimen-absorption record, and `results.md` § "What the statistics
+        cannot tell you" already ends on the sentence that sets it up ("a
+        correction ships with a record field … rather than with an Rwp
+        comparison as its evidence") — that is its home. The capability arms
+        (`Capabilities`, `ReaderCapability`, `ReaderOptionCapability`,
+        `BackendCapability`, `AnodeCapability`; 15) go with the agent pass.
+        `RefinementPlan`'s seven preset constructors plus `stages` (8) belong to
+        `concepts.md`, which owns the presets. `HistoryRecord` (5) is the JSONL
+        line type and belongs beside the log in `files.md`.
+        `RefinementResult.identifiability` (1) is the field the report pass's
+        `Identifiability` hangs off, so it travels with that block.
+        `RefinedParameter.initial`/`at_bound`, `TieSpec.from_tie` and
+        `RefinementResult.correlation_warnings` (4) are **not** documentable as
+        they stand and are [1076](1076-result-row-honesty.md)'s.
 
 ## Acceptance
 
