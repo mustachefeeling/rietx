@@ -581,6 +581,14 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
 
   **Gotchas.**
 
+  - **`FitReport.unmatched` is per channel, and its length is not a peak
+    count.** The first draft said "138 entries covering 54 distinct observed
+    peaks" and both halves were wrong. Measured on the NAC Rietveld fit: 138 is
+    the whole list, **84 `unmatched_calc` + 54 `unmatched_obs`**, and the 54
+    observed entries fall in **four** 2θ clusters (5.08, 12.07, 12.21, 12.44°).
+    `FitReport.summary`'s "54 unmatched observed peak(s)" is the entry count too,
+    not a peak count. Anything reporting this to a person has to cluster the
+    positions first; the chapter now says so and shows the four.
   - **The manual froze three names against the wrong type, and every guard
     passed.** `FitReport.identifiability` is an `IdentifiabilityEvidence`; the
     floor chapter called it an `Identifiability`, which is

@@ -112,10 +112,12 @@ about the *data*.
 | `UnmatchedPeak.height_over_sigma` | its height in units of the local noise | how strong the evidence is |
 | `UnmatchedPeak.kind` | `"unmatched_obs"` or `"unmatched_calc"` | which side is missing: an observed peak the model lacks, or a predicted line with no intensity under it |
 
-The list is per **channel**, not per peak, so a single strong impurity line
-contributes several neighbouring entries; the count is a measure of extent, not
-of how many phases are missing. On the NAC Rietveld fit there are 138 entries
-covering 54 distinct observed peaks, which is the CaF₂ the walkthrough adds.
+The list is per **channel**, not per peak, so one strong impurity line
+contributes a run of neighbouring entries. The length of the list is therefore a
+measure of extent, and never of how many peaks or phases are missing. Measured on
+the NAC Rietveld fit: 138 entries, of which 84 are `unmatched_calc` and 54
+`unmatched_obs` — and those 54 sit in **four** clusters, at 5.08°, 12.07°, 12.21°
+and 12.44°. Cluster the positions before counting anything.
 
 ## Layer 1: attributing the misfit
 
@@ -384,7 +386,8 @@ carries `ExchangeRow`, the report carries the richer `ExchangeFinding` below.
 Measured on the NAC Rietveld fit: esd inflation 9.4 at d = 0.18, and the softest
 mode has eigenvalue 0.0032 loading +0.80 on `instrument.profile.v` against −0.43
 and −0.41 on `instrument.profile.u` and `instrument.profile.w` — the Caglioti
-trio, which the pairwise list shows only as three separate ρ near 0.94. The
+trio, which the pairwise list can only show as three separate numbers, −0.94,
+−0.94 and +0.80. The
 third mode is `instrument.zero_shift` against `phases.0.cell.a` at 0.71 each,
 which is [](concepts.md)'s standing degeneracy measured on a real fit.
 
