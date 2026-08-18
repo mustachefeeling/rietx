@@ -1816,12 +1816,19 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
 
     stderr_phys = (table.stderr_physical(theta, stderr_internal, correlation)
                    if stderr_internal is not None else {})
+    # at_bound is the BOUND_HIT findings projected onto the rows, never a
+    # second bound test (WP-1076).  Only the free set was tested, so a tied
+    # row — in `parameters`, absent from the free vector — reports None, and
+    # so does every row when no guard ran at all (`replay`).
+    tested = set(table.free_paths) if guard is not None else set()
+    on_bound = {p for f in guard.at_bounds for p in f.paths} if guard is not None else set()
     params = []
     for e in table.entries:
         if e.vary or e.tie is not None:
             params.append(RefinedParameter(
                 path=e.path, value=e.value, vary=e.vary,
                 stderr=stderr_phys.get(e.path),
+                at_bound=(e.path in on_bound) if e.path in tested else None,
             ))
 
     # Tick positions cover **every** emission line, not just the primary one.
