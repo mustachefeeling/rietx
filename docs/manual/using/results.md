@@ -235,9 +235,44 @@ the reported figure is a little generous.
 rather than as a gate on it, and a ratio below three is a reason to hold
 parameters rather than a reason the fit is wrong. The sharper question — *which*
 parameter is unsupported, rather than how many the pattern can carry — is the
-identifiability evidence in [the report](report.md). A ratio below five raises
-the `DATA_SUPPORT_LOW` diagnostic, as a warning below three and as information
-between three and five.
+next section. A ratio below five raises the `DATA_SUPPORT_LOW` diagnostic, as a
+warning below three and as information between three and five.
+
+## Which parameters the data could not separate
+
+`RefinementResult.identifiability` is an `Identifiability`, and it exists because
+these statistics cannot be recovered afterwards. They are read off the **final
+Jacobian**, an N × P array nothing serializes — a history node stores state, not
+curves — so they are screened at fit time or lost. Rwp and the residual, which
+any consumer can recompute from the arrays already on the result, are the
+contrast.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `Identifiability.background_absorption` | dot-path → the block projection R² of that structural column onto the background column span | how much of a parameter the background could imitate. Every screened path is here, not only the ones over the guard threshold: a fired/not-fired bit is a verdict, 0.46 against 0.08 is evidence — and these are the *same* numbers the `BACKGROUND_ABSORPTION` diagnostic decided on, never a second measurement |
+| `Identifiability.top_correlations` | the worst-\|ρ\| pairs, each a `CorrelationPair`, worst first | which two refined parameters moved together |
+| `Identifiability.soft_modes` | the softest directions of the scale-normalised normal matrix, each a `SoftMode` | the same problem where it involves three parameters or more, which no pairwise list can show |
+| `Identifiability.exchangeability` | one `ExchangeRow` per held parameter screened | whether a parameter you held could have been absorbed by the ones you refined |
+
+| Field | Is |
+|---|---|
+| `CorrelationPair.path_a`, `CorrelationPair.path_b` | the two dot-paths |
+| `CorrelationPair.rho` | their signed correlation, from the same final Jacobian the `HIGH_CORRELATION` guard read, so the two can never disagree |
+| `SoftMode.eigenvalue` | of ĴᵀĴ with every column normalised to unit length, so it is dimensionless: for a single pair with correlation ρ it is 1 − \|ρ\|, and 0 is exact degeneracy |
+| `SoftMode.loadings` | dot-path → component of the unit eigenvector, kept above 0.1 and signed so the largest is positive |
+| `ExchangeRow.held` | the held parameter's dot-path |
+| `ExchangeRow.r2` | the block projection R² of its column onto the span of the free ones, evaluated at the converged values with the candidate freed on a *copy* of the vary set, never refined |
+| `ExchangeRow.partners` | dot-path → signed loading of the reconstruction, kept above 0.05: which fitted values absorb the held parameter's signature |
+
+The softest modes are carried whatever their eigenvalues, because the number is
+the evidence and deciding where comment starts is the report's job. **Read
+`ExchangeRow.r2` alone with care**: it is a property of the design matrix over
+the sampled range and fires on clean fits too — measured at 0.999945 on both a
+degenerate fixture and its clean reference. The discriminating half, whether
+anything significant is riding the exchange, is in [the report](report.md), whose
+`ExchangeFinding` carries the fitted partner's value and esd beside the same R².
+That chapter's `FitReport.identifiability` is a different type from this one, and
+the warning there says how they differ.
 
 ## How finely the peaks were sampled
 
@@ -263,6 +298,46 @@ A refinement reports the same measurement on its fitted channels, as the
 `PATTERN_UNDERSAMPLED` diagnostic, and only when it falls below five. There is
 no code for the upper end of the band: oversampling costs beam time, not
 validity.
+
+### Everything else `diagnose` measures
+
+The object that call returns is a `PatternDiagnostics`, and the two sampling
+fields above are two of its fourteen. The rest describe the pattern itself, with
+no model involved, and they are what the background chapter's defaults are chosen
+from.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `PatternDiagnostics.n_points` | channels in the file | |
+| `PatternDiagnostics.two_theta_min`, `PatternDiagnostics.two_theta_max` | the range, in degrees | |
+| `PatternDiagnostics.noise_sigma_median` | the median channel noise | the scale a peak height is significant against |
+| `PatternDiagnostics.peak_fraction` | share of channels more than 3σ above the background envelope | how much of the pattern is peak rather than background |
+| `PatternDiagnostics.n_peaks` | resolved peaks found | |
+| `PatternDiagnostics.peak_density_per_deg` | those per degree 2θ | above roughly 2/deg the pattern is dense, which favours a stiff baseline and a low background order |
+| `PatternDiagnostics.signal_to_background` | near-maximum net signal over the median background level | |
+| `PatternDiagnostics.air_scatter_gain` | how much of the envelope's cubic-fit residual variance a 1/(2θ) column explains | a nested-model test for the low-angle air-scatter rise; a high value is what turns the 1/x background term on |
+| `PatternDiagnostics.amorphous_hump_score` | RMS of the envelope residual after *both* the cubic and the 1/x term, over the median level | what is left is genuinely broad non-polynomial structure — amorphous content, capillary glass — and calls for a more flexible background |
+| `PatternDiagnostics.baseline_lambda` | the arPLS stiffness the whiteness rule picked for this pattern | |
+| `PatternDiagnostics.steps_per_fwhm`, `PatternDiagnostics.n_peaks_measured` | the sampling pair above | null when no peak was measurable |
+| `PatternDiagnostics.contamination` | Kβ and W Lα ghost candidates, each a `ContaminationFlag` | see the warning below |
+
+| Field | Is |
+|---|---|
+| `ContaminationFlag.kind` | which ghost line it is consistent with |
+| `ContaminationFlag.two_theta` | the weak peak's position |
+| `ContaminationFlag.parent_two_theta` | the strong peak it would be a ghost of |
+| `ContaminationFlag.intensity_ratio` | the weak peak's height over the parent's |
+
+:::{warning}
+An empty `PatternDiagnostics.contamination` means "nothing was flagged **or**
+nothing was checked". The Kβ position is anode-specific, so the screen needs
+`wavelength=`, and a wavelength matching no tabulated Kα1 is skipped silently.
+Measured on the 11-BM pattern, `diagnose(data)` and
+`diagnose(data, wavelength=0.4139090)` both return an empty list — the first
+because nothing was asked, the second because a synchrotron wavelength has no
+anode. On the round-robin corundum pattern at Cu Kα the same call returns three
+flags, two Kβ ghosts and one tungsten Lα.
+:::
 
 ## What the restraints did
 
@@ -296,6 +371,39 @@ wins are invisible in it.
 That is what [the report](report.md) is for, and why a correction in this
 package ships with a record field or a diagnostic saying what it changed, rather
 than with an Rwp comparison as its evidence.
+
+## What the absorption correction did
+
+`RefinementResult.absorption` is the worked example of that rule.
+Specimen absorption is one seam with three geometries behind it, and one of them
+**provably cannot move Rwp**: the capillary factor is exactly a constant times
+exp(c·sin²θ), so applying it is an exact reparameterisation of the phase scale
+and the displacement parameters. A comparison of fits would show nothing. The
+`AbsorptionCorrection` record is where the correction says what it changed.
+
+It is present only for a Rietveld fit that carried a specimen dimension, and
+`None` otherwise — including for a fit that declared none, which is not the same
+as a specimen of no thickness. [](data.md) covers declaring it.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `AbsorptionCorrection.method` | `rouse_cylinder`, `flat_plate_reflection` or `flat_plate_transmission` | which geometry's expression ran |
+| `AbsorptionCorrection.mu_r` | the dimensionless µ·(length) | the capillary radius for the cylinder, the specimen thickness for the two plates |
+| `AbsorptionCorrection.mu_r_source` | `given` or `estimated` | estimated means composition × packing × that length, so it inherits their uncertainty |
+| `AbsorptionCorrection.wavelength` | the λ it was computed at | µ is wavelength-dependent, so the number is not portable between sources |
+| `AbsorptionCorrection.equivalent_delta_biso` | the Biso bias, in Å², that refining **without** this correction would have absorbed | positive means add this to recover the unbiased value. For the cylinder this is the entire content of the correction |
+| `AbsorptionCorrection.unabsorbed_fraction` | the share of ln A that a free scale and a free Biso cannot reproduce | zero for the cylinder to rounding, a few to tens of per cent for a plate — and hence how far to trust the ΔBiso above |
+| `AbsorptionCorrection.identifiable_fraction` | the same measure applied to ∂lnA/∂µt | the number behind the decision not to make the thickness refinable |
+| `AbsorptionCorrection.intensity_fraction_of_optimal` | µt·exp(1 − µt), transmission only | the counts this specimen delivered as a fraction of the best it could have. A specimen-preparation number no fit statistic can express: a badly chosen thickness costs counting statistics, not accuracy |
+| `AbsorptionCorrection.out_of_range` | whether µR left the expression's validated range | |
+| `AbsorptionCorrection.skipped` | why no correction ran, or null | absence with a reason attached |
+
+The flat-plate cases are **not** exactly reparameterisable, which makes their
+`AbsorptionCorrection.equivalent_delta_biso` a lower bound rather than the
+answer: the projection behind it is unweighted while a refinement finds a
+weighted compromise, and measured against synthetic refits the bias a fit really
+absorbs runs 1.06 to 1.5× the predicted one, tracking
+`AbsorptionCorrection.unabsorbed_fraction`.
 
 ## Diagnostics
 
