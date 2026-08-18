@@ -97,6 +97,10 @@ it is `docs/RELEASING.md`, and nothing gates it now.
   (1046 §4, on the record in `consensus.grade`).
 - **[1017](wp/1017-gui-manual-onboarding.md)** — the GUI manual and
   onboarding, still deferred; the GUI stays beta until it lands.
+- **The free-standing peaks set (added 2026-08-18)**: standalone `fit_peaks`
+  ([1101](wp/1101-standalone-peak-fitting.md)) and the extra-components seam
+  with humps ([1102](wp/1102-component-seam-humps.md)) and sharp peaks
+  ([1103](wp/1103-peak-components.md)) — the recommended v1.1 openers.
 
 1066's naming rule stands beside them, as a rule in root CLAUDE.md and in full
 (both directions, the token list, and why no test can catch a hardcoded *new*
@@ -116,6 +120,11 @@ name) in `_about.py`'s docstring.
 | v2+ | FPA, neutron/TOF, texture, MCP server | ⬜ fenced | — |
 
 ## Work packages
+
+WP numbers are milestone-blocked (MMNN): a new WP takes the next number in
+the block of the milestone it targets — v1.1 → 11xx. The v1.0 block ran past
+its milestone (1069–1078 are post-1.0 work); rule written down 2026-08-18.
+A retired number is never recycled.
 
 ### v0.3 — multi-phase workflows (detailed, ready to start)
 
@@ -324,6 +333,20 @@ the freeze decides.
 | [1072](wp/1072-geometry-table.md) | Interatomic geometry, esds from the full covariance | ✅ 2026-08-15 — distances and angles over the frozen orbits, J·Cov·Jᵀ with the diagonal-only twin beside it, `_geom_` CIF loops | — (landed before 1003) |
 | [1073](wp/1073-capillary-displacement.md) | Capillary sample displacement, eq (4) | ✅ 2026-08-15 — eq (4) with derived signs, position templates and actions keyed by geometry (THRESHOLDS 1.0); measured: 11-BM is where it must *not* be refined | — (1.0.x) |
 | [1074](wp/1074-restraint-weight-schedule.md) | Restraint weight schedule (c_w) | ✅ 2026-08-16 — eq (7)'s c_w per stage, identity default bit-identical; measured: a flat c_w = 1 converges to a 4.834 Å bond at Rwp 0.0393, the schedule to 1.872 Å at 0.0327 | 0406 (1.0.x) |
+
+### v1.1 — free-standing peaks (added 2026-08-18)
+
+Peaks without a structure, at three ranks: fitted standalone (1101), and the
+`Instrument.extra_components` union seam — the serializable answer to TOPAS's
+fit_obj — with broad humps (1102) and sharp peaks (1103) as its first members.
+Recommended v1.1 openers; the first implementing session executes the opening
+(version → `1.1.0.dev0`, `milestones/v1.1.md` started, a Milestones row).
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1101](wp/1101-standalone-peak-fitting.md) | fit_peaks: standalone peak fitting at named positions | ⬜ | — |
+| [1102](wp/1102-component-seam-humps.md) | The additive component seam + broad humps | ⬜ | — |
+| [1103](wp/1103-peak-components.md) | Sharp extra peaks: the second component member | ⬜ | 1102 (the seam) |
 
 ## v2+ (seams pre-built, implementations fenced out)
 
