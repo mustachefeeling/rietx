@@ -238,9 +238,13 @@ partition still covers the whole surface.
   `rietx.viz.html.write_html` fully qualified is pointing, not promoting.
 
   **Counts.** `tests/test_manual_api.py` 9 → **13 passed**, all four new, no new
-  skips. Fast suite `-m "not slow"`: **2417 passed / 117 skipped**, ~3 min.
-  `ruff` clean, sphinx `-W` clean. No source file was touched, so the full
-  suite was not run (`tests/CLAUDE.md` § Running, rung 3).
+  skips — measured on both trees in this session, and it is the only test file
+  whose count moved, so the fast selection's passed+skipped moves by exactly 4
+  and every one is a pass. Fast suite `-m "not slow"`: **2417 passed / 117
+  skipped**, 3:00 and 4:47 on two runs of the same tree minutes apart (quote
+  the range, not either figure). `ruff` clean, sphinx `-W` clean. No source
+  file was touched, so the full suite was not run (`tests/CLAUDE.md` § Running,
+  rung 3) and `main` was not re-measured for a baseline (rung 4).
 
   **Gotchas for the next session.** Both CLAUDE.md files this touched are at
   their caps with zero headroom: root is 720/720 after paying for its new
