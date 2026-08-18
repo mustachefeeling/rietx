@@ -333,6 +333,128 @@ The full suite is not optional here: this WP edits `schemas/results.py` and
 `refine.py`, so it can move a measured number, and `--durations` plus the
 passed/skipped delta are what show it did not.
 
+## Handover log
+
+- **2026-08-18 (the whole WP, one session)** — thirteen task lines across four
+  groups, on `wp1076-result-row-honesty`. **`### Inherited` pruned on arrival**
+  and every one of its seven claims re-verified against the tree before folding,
+  so nothing was deleted as stale; the mailbox became § "The same shape,
+  elsewhere in the package", split into the fields and the vocabulary members,
+  and the "arrived from chapter X" framing dropped. Two defects in the WP file
+  itself came out of that read: **`## Non-goals` had lost its heading** and its
+  three bullets were sitting inside `### Inherited` (the file cites its own
+  § Non-goals two hundred lines up), and the Context code block called
+  `refine.py:1822` "the only place these rows are built" when `multi.py:338`
+  and `:347` build them too.
+
+  **Done.** *A* — `at_bound` is `bool | None`, projected from `guard.at_bounds`
+  at both row builders; `staged.bound_findings` is now the one bound test, with
+  `multi.py`'s duplicate copy of the loop deleted. *B* — `initial` and
+  `RefinementResult.correlation_warnings` deleted, `TieSpec.from_tie` →
+  `_from_tie`, `using/model.md` documents the three states, and **the
+  `deferred-1.0.x` bucket is empty**, which closed
+  [1067](1067-user-api-manual.md). *C* — `"skipped"` off `StageResult.status`
+  and `NodeMetrics.status`, `"lebail_update"` off `NodeKind` with both its
+  consumers and a GUI dist rebuild, and `BACKEND_UNAVAILABLE` repaired. *D* —
+  `SeriesResult.to_table` emits one `index`, and `SeriesResult.backward` makes
+  the reverse chain reachable from `refine_sequential`.
+
+  **The scope grew on arrival and that was the right call.** § Goal was written
+  about two fields on `RefinedParameter`; the mailbox had collected seven more
+  findings, from five Part 1 chapters, all the same defect in one of two
+  directions. Settling four and leaving five would have left the WP's own rule
+  half-applied. Nine defects, and **every one was found by writing a manual
+  chapter over the type** — none by reading the code, which is now the standing
+  rule in root CLAUDE.md (cap 700 → 720, with the reason at the cap entry).
+
+  **Numbers** (`[dev]` venv — no jax, no torch; darwin/arm64, Python 3.12.12).
+  Fast selection **2408 passed / 117 skipped**, against a **2402 / 117**
+  baseline measured on this session's starting tree — +6, exactly the six tests
+  added at that point, and passed+skipped moved by 6 with no new skip. Three
+  more landed after that measurement (two agent, one series), and one existing
+  test was rewritten rather than added. Wall clock is not comparable run to run:
+  the same 2402/117 baseline took 3:46 here and 2:27 in the previous session.
+  Full-suite figures are in the closing measurement below. vitest **407 passed**
+  (19 files), `svelte-check` 372 files 0 errors, `sphinx -W` clean, `ruff`
+  clean.
+
+  **Measured while working**, all on real data unless said otherwise.
+  11-BM NAC Le Bail 2–24°: 31 rows, 13 measured `False`, 18 `None`, and the 18
+  are exactly the symmetry-tied rows (`cell.b`, `cell.c`, 16 coordinates).
+  Same protocol in Rietveld: 72 table rows / 32 result rows, 14 free + 18 tied,
+  Rwp 0.1403. Capping `cell.a` at 10.2500 against a free optimum of 10.2513:
+  one `True`, set-equal to `BOUND_HIT`, Rwp 0.2068 Rietveld and 0.2194 Le Bail.
+  `replay` of the same node: 31 rows, all `None`. Joint two-histogram: 45 rows,
+  27 measured, 18 `None`. Agent envelope on this `[dev]` venv, before the
+  repair: `backend="jax"` and `backend="torch"` both `REFINEMENT_FAILED`; a
+  soft-restrained `refine_multi` on `backend="numpy"` `BACKEND_UNAVAILABLE`
+  advising `pip install 'rietx[jax]'`. After: `BACKEND_UNAVAILABLE` with the
+  right extra, and `REFINEMENT_FAILED` naming soft restraints.
+
+  **In flight: nothing.** Working tree clean.
+
+  **Next.** Nothing on this WP. It carried no forward references into another
+  WP's `### Inherited`, because it emptied its own mailbox rather than filling
+  someone else's, and § Non-goals' "no audit of other schemas' defaults" was
+  not attempted — the nine settled here all arrived by measurement from a
+  chapter, and a systematic sweep for the same shape in the ~90 remaining
+  schema types is a separate WP if anyone wants it. The one thing a successor
+  should know is that **[1078](1078-indexing-provisional.md) will un-freeze
+  part of what 1067 froze**, which is a decision and not a regression against
+  this WP's empty bucket: names will re-enter the provisional tier by
+  declaration.
+
+  **Gotchas.**
+
+  - **The third state has two causes, and the WP's own analysis had one.** The
+    file argued `None` from `replay` having no guard. The other is a **tied**
+    row: `ParameterTable._free_idx` is `e.vary and e.tie is None` while the row
+    filter is `e.vary or e.tie is not None`, so a tied row is in `parameters`
+    and was never in the free vector the guard tested. Its value follows its
+    sources and can sit on its own declared bound while every source is
+    interior. Reporting `False` there would have been the original defect with
+    a new cause, and it is the *common* case — 18 of 31 rows on the walkthrough
+    fit, against 0 for `replay` in an ordinary session.
+  - **The WP said "all four call sites" and there are six.** `_build_result`
+    has four; `multi.py` builds `RefinedParameter` rows itself at `:338` and
+    `:347`, and carried its own copy of the bound-test loop. A count in a WP's
+    Context is a claim someone made once — re-grep it. Same lesson as the
+    `initial` task line, which explicitly says to grep for readers rather than
+    trust the file, and that one was written by the author who had already got
+    the sibling count wrong.
+  - **`BACKEND_UNAVAILABLE` was wrong in the direction nobody was looking.**
+    The inherited finding was that the code could not fire. Measuring it found
+    the arm *also* firing on the wrong thing: `NotImplementedError` is raised
+    by unsupported feature paths, so a soft-restrained joint fit — no optional
+    dependency anywhere near it — was told to install jax. The inherited half
+    would have been fixed by narrowing the raise; only measuring what the arm
+    actually catches finds the other half.
+  - **A test can pin a mapping and never the claim, and stay green for the
+    code's whole life.** `test_backend_unavailable_is_its_own_code`
+    monkeypatched `Refinement.__init__` to raise `NotImplementedError` and said
+    so in its own docstring. It asserted the arm, the arm was wrong, and no
+    real request could ever produce the code. That is `_SURFACE_FLAGS` one rank
+    over (WP-1037), in a test rather than in a predicate. The rewrite makes a
+    real request on whichever backend the venv genuinely lacks, and **skips**
+    on `[dev,jax,torch]` — a skip is the honest outcome when the condition does
+    not exist locally, and a monkeypatch is how that skip gets hidden.
+  - **The obvious assertion would have passed against the bug.** "The flagged
+    parameter really is at its bound" is true of a *second* bound test in
+    `_build_result` — the exact thing the WP forbids. Only set equality against
+    the `BOUND_HIT` diagnostics pins the flag to its single source.
+  - **A CSV header is a set of keys and `x_label` is a label.** `to_table`
+    named its axis column after `x_label`, which defaults to `"index"` — the
+    name column 1 already had. The tempting fix, renaming the default to `"x"`,
+    pays for a header collision with a worse plot axis title. The column falls
+    back to `x` only when its label is already taken.
+  - **The full suite was launched once on a tree that was not final, and
+    killed.** A diff review afterwards found a provably dead ternary in
+    `_missing_backend` and a rule that belonged in CLAUDE.md. Restarting cost
+    ~5 minutes of machine time; finishing would have produced a number about a
+    tree that no longer existed. `tests/CLAUDE.md` § Running names this exact
+    failure as the whole of one session's ~80-minute overspend, and the trap is
+    that "the tree is final" feels true before the diff has been read.
+
 ## References
 
 - WP-1067's 2026-08-17 (`using/model.md`) handover entry — where this was found,

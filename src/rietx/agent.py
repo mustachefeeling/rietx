@@ -678,11 +678,13 @@ def _missing_backend(name: str) -> tuple[str, str] | None:
 
     for cap in capabilities().backends:
         if cap.name == name and not cap.available:
-            extra = "torch" if cap.requires == "torch" else cap.requires
+            # `requires` is the extra's name as well as the module's — the two
+            # torch devices both require, and install as, `torch`
             return (
                 f"backend {name!r} needs the optional {cap.requires} "
                 f"dependency, which is not importable in this build",
-                f"pip install '{DIST_NAME}[{extra}]' or use backend='numpy'",
+                f"pip install '{DIST_NAME}[{cap.requires}]' or use "
+                "backend='numpy'",
             )
     return None
 
