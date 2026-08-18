@@ -1,6 +1,6 @@
 # WP-1104 — Literature-grounding audit of AGENT_PROTOCOL.md
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-18 — audit landed; grid + reconciliation in milestones/v1.1.md § Appendix
 Depends on: — (first of the agentic-report set; docs-only, may run before the
 v1.1 version flip)
 
@@ -118,6 +118,37 @@ paper whose read text does not support it; every §8 pointer resolves.
 
 ## Handover log
 
+- **2026-08-18 — audit complete, WP closed** (six commits, one per checklist
+  item). Toby 2024 read — the first WP to read it — and reconciled against
+  §2 and `PLAN_PRESETS`/`task="suggest"`: two adopt-by-citation (the
+  worst-fit mechanism is WP-1050's Gauss-Newton gain; the Δ/σ plot is
+  WP-1029's invariant), two declines with reasons on record (the two-sided δ
+  test answers a finite-difference problem the analytic Jacobian does not
+  have; cell-before-scale loses to cumulative stages + the frozen-window
+  precondition), one open question (a dynamic suggest→fit loop measured
+  against the presets — for whoever follows 1107). All of it, the 79-row
+  claim grid (44 rows carry an in-repo measurement, 34 a read paper, 23 a
+  house label; per-section counts measured by script, recount if rows are
+  added) and the §8 pointer table (all nineteen resolve, zero fixes) are in
+  `milestones/v1.1.md` § Appendix — created appendix-only; the version flip
+  stays with the first code WP. Every requested paper was supplied via the
+  corpus and read (Toby 2006, Hill & Flack 1987, Bérar & Lelann 1991,
+  Hill 1992, Hill & Cranswick 1994, Madsen 2001, Scarlett 2002; McCusker and
+  Schwarzenbach re-verified at the quoted passages); Cox & Papoular is not
+  in the corpus, so any claim resting on it stays "pointer unread". **Zero
+  claims were attributed to a paper whose read text does not support them**
+  — the defect found was *absent* attribution, fixed in place: §2's three
+  rules labeled house, the ≈1.51 floor labeled a house derivation
+  (√(1+4/π), absent from Bérar & Lelann), §5's benchmarks and three prior
+  systems named with DESIGN.md the authority, and ~10 author-year citations
+  added where claims already rested on read papers (§4 steps 5/8/9, the
+  channel-count rule, §4b's QPA rules, §7's Brindley row, §2/§5/§10 for
+  Toby 2024). Forwarded: a citation-resolution coverage test to 1105's
+  `### Inherited`; nothing schema-shaped to 1106 (stated there, with the
+  Toby-2024 leverage-vs-veto pointer for the `execution` field's docs). No
+  `### Inherited` existed here on arrival — nothing to prune. Acceptance
+  green: `tests/test_docs_consistency.py` 14 passed, ruff clean (`.venv`,
+  `[dev]`, macOS).
 - **2026-08-18** — created from the agentic-report planning session, with
   [1105](1105-agent-protocol-hygiene.md)/[1106](1106-report-placement-fields.md)/[1107](1107-eval-placement-round.md).
   The maintainer asked for this pass explicitly: check the protocol is built
