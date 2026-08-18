@@ -11,6 +11,3 @@
 # which shows up as a diff in review.  WP-1067 closes when this file has no
 # names left.
 RefinedParameter.at_bound
-RefinedParameter.initial
-RefinementResult.correlation_warnings
-TieSpec.from_tie

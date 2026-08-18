@@ -53,7 +53,16 @@ class TieSpec(Base):
     user: bool = False
 
     @classmethod
-    def from_tie(cls, tie: Any, *, user: bool = False) -> "TieSpec":
+    def _from_tie(cls, tie: Any, *, user: bool = False) -> "TieSpec":
+        """Convert a :class:`rietx.params.vector.AffineTie` — **internal**.
+
+        Private because its argument is (WP-1076).  ``AffineTie`` is not on the
+        public surface and has no reason to be: it is what ``ParameterTable``
+        holds, a caller only ever sees the ``TieSpec`` this returns.  As a
+        public classmethod it was a converter that could not name what it
+        converts, so it sat in the manual's provisional bucket with nothing
+        honest to say about it.
+        """
         return cls(terms=[(p, float(c)) for p, c in tie.terms], const=float(tie.const),
                    user=user)
 

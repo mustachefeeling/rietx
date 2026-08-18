@@ -396,7 +396,7 @@ class Refinement:
             rows.append(ParameterRow(
                 path=e.path, value=e.value, vary=e.vary, lo=e.lo, hi=e.hi,
                 transform=e.transform,
-                tie=(TieSpec.from_tie(e.tie, user=e.path in self._applied_ties)
+                tie=(TieSpec._from_tie(e.tie, user=e.path in self._applied_ties)
                      if e.tie is not None else None),
                 locked=e.locked,
                 esd=esd.get(e.path),

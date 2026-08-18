@@ -19,12 +19,6 @@ class RefinedParameter(Base):
     reasons included, is :meth:`rietx.Refinement.parameters`, which also
     merges these esds back in.
 
-    ``initial`` is never populated by the fit path: a result reports where the
-    fit ended, and the start lives one node up in the history tree.  It exists
-    for a caller assembling a result by hand (a comparison runner recording
-    its own start state); ``None`` means "not recorded", not "started at
-    zero".
-
     **``at_bound`` has three states, and one of them is "nobody looked"**
     (WP-1076).  ``True``/``False`` are answers about a *measured* row;
     ``None`` says the question was not asked of this row, which happens two
@@ -48,7 +42,6 @@ class RefinedParameter(Base):
     path: str
     value: float
     stderr: float | None = None
-    initial: float | None = None
     vary: bool = True
     at_bound: bool | None = None
 
@@ -649,7 +642,6 @@ class RefinementResult(Base):
     mode: Mode
     parameters: list[RefinedParameter]
     statistics: Statistics
-    correlation_warnings: list[str] = Field(default_factory=list)
     stages: list[StageResult] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
     provenance: Provenance

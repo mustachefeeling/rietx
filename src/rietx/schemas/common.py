@@ -12,7 +12,13 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-SCHEMA_VERSION = "0.1"
+#: Data-contract version of the pydantic schemas (``Capabilities.schema_version``).
+#: Moves on a **breaking** event only — a rename, a removal or a threshold move
+#: (``docs/manual/using/compatibility.md`` § How a change is classified); a new
+#: field with a default is a safe addition and leaves it alone.  0.1 → 0.2 at
+#: WP-1076, for one event: ``RefinedParameter.initial`` and
+#: ``RefinementResult.correlation_warnings`` removed, both fields nothing wrote.
+SCHEMA_VERSION = "0.2"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
