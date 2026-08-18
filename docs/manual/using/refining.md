@@ -258,13 +258,14 @@ plan, because there is no plan involved.
 `Refinement.snapshot` returns a `RefinementState`: the full state needed to
 reconstruct the refinement exactly, taken without refining anything.
 `Refinement.stage_reports_` holds the per-stage reports from the last `fit`,
-when it was asked for them:
+when it was asked for them. Each is a `StageReport`, which carries its own
+statistics rather than a `Statistics` object:
 
 <!-- api-doc: no-exec — it needs a refinement that has run -->
 ```python
 ref.fit(data, stage_reports=True)
-for report in ref.stage_reports_:
-    print(report.statistics.rwp)
+for rung in ref.stage_reports_:
+    print(rung.stage, rung.rwp, rung.gof)
 ```
 
 That is off by default and worth asking for deliberately: a converged run's

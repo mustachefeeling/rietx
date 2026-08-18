@@ -172,12 +172,12 @@ None of Layer 1 is trustworthy unconditionally, which is what the gates are for.
 There are four, and every statement passes all four or the region is reported as
 not passing:
 
-| Gate | `GateFailure.code` | Field | What it rejects |
-|---|---|---|---|
-| local significance | `no_significant_misfit` | `RegionAttribution.chi2_reduced`, `RegionAttribution.has_significant_misfit` | a region whose "misfit" is noise |
-| explanatory power | `local_r2` | `RegionAttribution.r2` | a residual this basis does not explain at all |
-| resolvability | `gram_condition` | `RegionAttribution.gram_condition` | columns too collinear here to be told apart |
-| validity radius | `outside_validity_radius` | {{ VALIDITY_RADIUS_FWHM }}·FWHM on the position coefficient | a peak far enough away that linearising it is meaningless. The answer must be "re-detect this peak", never a confident small offset |
+| Gate | `GateFailure.code` | What it rejects, and what it reads |
+|---|---|---|
+| local significance | `no_significant_misfit` | a region whose "misfit" is noise, from `RegionAttribution.chi2_reduced` and `RegionAttribution.has_significant_misfit` |
+| explanatory power | `local_r2` | a residual this basis does not explain at all, from `RegionAttribution.r2` |
+| resolvability | `gram_condition` | columns too collinear here to be told apart, from `RegionAttribution.gram_condition` |
+| validity radius | `outside_validity_radius` | a peak more than {{ VALIDITY_RADIUS_FWHM }}·FWHM from where the position coefficient would put it, so that linearising it is meaningless. The answer must be "re-detect this peak", never a confident small offset |
 
 `RegionAttribution.gates_passed` is the verdict, and
 `RegionAttribution.gate_failures` names each failure — a `GateFailure` whose
@@ -449,15 +449,26 @@ both objects' fields and for what the esds mean.
 
 | Field | Is | Reads as |
 |---|---|---|
-| `SuggestedAction.kind` | the action, from a closed vocabulary | branch on it. `refine_zero_shift`, `refine_sample_displacement`, `refine_sample_transparency`, `refine_capillary_offset_along_beam`, `refine_capillary_offset_across_beam`, `refine_cell`, `refine_profile_widths`, `refine_sample_size_broadening`, `refine_sample_strain_broadening`, `refine_axial_asymmetry`, `refine_biso`, `refine_preferred_orientation`, `refine_scale`, `add_impurity_phase`, `increase_background_flexibility`, `decrease_background_flexibility`, `reindex_or_recheck_cell`, `collect_better_data` |
+| `SuggestedAction.kind` | the action, from the closed vocabulary below | the field to branch on |
 | `SuggestedAction.parameter_paths` | the dot-paths it would free | **empty for the actions that are not parameter moves**: adding a phase, changing the background model or re-collecting data are edits to the model or the experiment, not to the table |
 | `SuggestedAction.rationale` | a paragraph of prose | written to be read, and it names the competing readings where there are any |
 | `SuggestedAction.confidence` | 0 to 1 | weights *importance*, the share of χ² at stake, rather than statistical significance alone |
-| `SuggestedAction.alternatives` | other kinds that would explain the same evidence | present exactly when the evidence does not separate them |
-| `SuggestedAction.expected_delta_chi2` | the predicted χ² reduction from the linear model | see the two caveats below, or null |
+| `SuggestedAction.alternatives` | other kinds explaining the same evidence | present exactly when the evidence does not separate them |
+| `SuggestedAction.expected_delta_chi2` | the linear model's predicted Δχ², or null | see the two caveats below |
 | `SuggestedAction.two_theta_range` | where the evidence is, in degrees | null when the evidence is the whole pattern |
-| `SuggestedAction.vetoed_by` | where the staged-strategy engine overruled it | set when the plan already refines the parameter, or when a guard forbids it |
-| `SuggestedAction.active` | `SuggestedAction.vetoed_by is None` | the convenience predicate the trajectory filters on |
+| `SuggestedAction.vetoed_by` | where the strategy engine overruled it | set when the plan already refines the parameter, or a guard forbids it |
+| `SuggestedAction.active` | true when nothing vetoed it | the predicate a trajectory filters on |
+
+The vocabulary is closed. Thirteen actions free parameters —
+`refine_zero_shift`, `refine_sample_displacement`, `refine_sample_transparency`,
+`refine_capillary_offset_along_beam`, `refine_capillary_offset_across_beam`,
+`refine_cell`, `refine_profile_widths`, `refine_sample_size_broadening`,
+`refine_sample_strain_broadening`, `refine_axial_asymmetry`, `refine_biso`,
+`refine_preferred_orientation` and `refine_scale` — and five ask for something
+else: `add_impurity_phase`, `increase_background_flexibility`,
+`decrease_background_flexibility`, `reindex_or_recheck_cell` and
+`collect_better_data`. Only the first thirteen carry
+`SuggestedAction.parameter_paths`.
 
 `SuggestedAction.expected_delta_chi2` has two properties that matter to anything
 rendering it. It is **one number per report, not per action**: it is computed
@@ -510,7 +521,7 @@ of the models, no history node is recorded, and the working state is untouched.
 | `SuggestionResult.skipped` | dot-paths whose columns have zero norm at this state | no leverage either way — usually a correction the geometry does not have |
 | `SuggestionResult.n_evaluated` | how many candidates were scored in total | what makes "no suggestion" distinguishable from "nothing was looked at" |
 | `SuggestionResult.chi2_red` | the current state's χ²/ν, seeded candidates excluded | the scale the floor is set from |
-| `SuggestionResult.noise_floor` | the applied gate: {{ SUGGEST_MIN_GAIN }} · max(`SuggestionResult.chi2_red`, 1) | stored so the serialized result explains its own gate |
+| `SuggestionResult.noise_floor` | the gain gate that was applied | {{ SUGGEST_MIN_GAIN }} times that χ²/ν, floored at 1, and stored so the serialized result explains its own gate |
 | `SuggestionResult.summary` | one sentence of prose | the whole answer for a reader |
 | `SuggestionResult.best_or_none` | the one defensible winner, or null | null rather than a defended tie |
 
@@ -576,9 +587,9 @@ costs what that implies: measured on the NAC Le Bail plan, the five rungs are
 | `StageReport.n_actions_omitted` | how many the cap dropped | nothing is dropped silently |
 | `StageReport.n_actions_vetoed` | how many the strategy veto removed | so the count survives even though the actions do not |
 | `StageReport.n_unmatched_obs`, `StageReport.n_unmatched_calc` | the two Layer 0 counts | a phase arriving or leaving shows here first |
-| `StageReport.lebail_gap_ratio` | `LeBailGap.ratio` at that rung, or null | |
-| `StageReport.off_region_chi2_reduced` | `BackgroundEvidence.off_region_chi2_reduced` at that rung, or null | |
-| `StageReport.worst_absorption`, `StageReport.worst_absorption_path` | the background-absorption headline pair, or null | |
+| `StageReport.lebail_gap_ratio` | the Le Bail gap's ratio at that rung, or null | the triage statistic, carried forward |
+| `StageReport.off_region_chi2_reduced` | the between-peak χ²/ν at that rung, or null | the too-stiff background signal |
+| `StageReport.worst_absorption`, `StageReport.worst_absorption_path` | the background-absorption pair, or null | the too-flexible one |
 
 `FitReport.for_stage` builds one of these from a report. Note what it does: it
 projects **this** report — the state it was built from — and stamps the name you
