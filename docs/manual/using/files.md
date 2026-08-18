@@ -288,8 +288,11 @@ Three writers turn a result into a file someone else can read:
 | Call | Writes |
 |---|---|
 | `write_refinement_cif` | the refined structure and fit as a CIF |
-| `write_reflection_table` | one row per reflection: hkl, d, 2θ, intensity |
+| `write_reflection_table` | one row per **(emission line, reflection)**: hkl, d, 2θ, \|F\|², intensity |
 | `write_qpa_table` | the quantitative phase analysis |
+
+[](exports.md) has the rows those last two are made of, and the same three
+writers as methods on `Refinement`.
 
 The CIF is the one a journal asks for, so it carries more than the coordinates.
 Per phase it writes the agreement indices of

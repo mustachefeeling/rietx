@@ -36,7 +36,9 @@ a work session loads only what it needs:
    synced, forward references pushed into the `### Inherited` of any affected
    WP that is not closed and not yours (a handover log reaches only your own
    successor on the same WP), rule 4 applied to anything this session wrote
-   into a CLAUDE.md, working tree clean and pushed. A missed handover is
+   into a CLAUDE.md, working tree clean and pushed, and the branch's pull
+   request opened or updated — a session is not handed over until its work is
+   reviewable, and merging stays the maintainer's. A missed handover is
    detected at the next session start (`.claude/hooks/session_start.py`) and
    repaired before new work.
 4. **A CLAUDE.md takes rules, not findings.** A line enters a CLAUDE.md
@@ -75,11 +77,12 @@ documents a name *promotes it to frozen* — regenerate
   transport (export/open, "the directory, zipped");
   `RefinementState.excluded_regions` with `replay` honouring the node's
   regions (1003 §B — decided, not re-opened).
-- **[1067](wp/1067-user-api-manual.md)** — two Part 1 chapter lines left plus
-  second passes on `agents.md` and `report.md`, each promoting names out of the
-  provisional bucket (395 left, 30 % of the surface);
-  **[1076](wp/1076-result-row-honesty.md)** now holds three unwritten result
-  fields, all found by writing a chapter over the type that declares them.
+- **[1067](wp/1067-user-api-manual.md)** — one Part 1 chapter line left
+  (`cli.md`, which freezes nothing) plus the second passes on `agents.md` and
+  `report.md`; the 263 names left now partition three ways with no remainder,
+  so every one has a named home (that WP's last task line has the map).
+  **[1076](wp/1076-result-row-honesty.md)** holds four unwritten result fields,
+  all found by writing a chapter over the type that declares them.
 - **[1078](wp/1078-indexing-provisional.md)** — indexing is still under active
   development, so the subsystem is declared provisional and every surface says
   so; it un-freezes what 1067's chapter froze and **gates 1.0.2**.

@@ -66,6 +66,29 @@ then arrives provisional by construction.
 full". That is true under today's rule and false under this one, so the rewrite
 lands here and **this WP gates the 1.0.2 release** (`docs/RELEASING.md`).
 
+### Inherited
+
+**From WP-1067's `using/series.md`/`exports.md` session (2026-08-18): the same
+finding one subsystem over, and this WP's mechanism is what would answer it.**
+`rietx.viz` is **not on the derived surface at all** — measured, `agent` is the
+only module on it — so `plot_for_vlm`, `plot_result`, `plot_trajectory`,
+`plot_candidates` and `viz.html.write_html` are in none of the three buckets and
+are "internal, may change without notice" by `tests/api_surface.py`'s own
+internal sentence. Meanwhile `using/files.md` points a reader at
+`viz.html.write_html`, `using/report.md` has spelled `rietx.viz.compare.run`
+fully qualified since the floor, and `RefinementResult.plot` — which *is*
+frozen — routes into that module.
+
+This is not covered by § Context above, which reaches `rietx.viz.plot_indexing`
+only as one of AGENT_PROTOCOL §7d's five helpers. The whole module has the
+shape. **It is named here rather than acted on**: whether `rietx.viz` becomes a
+second `PROVISIONAL_MODULES` entry, gets exported, or stays internal with the
+chapters' fully-qualified references treated as the precedent they already are,
+is a decision for whoever builds that table — and building it for one subsystem
+while a second has the identical problem is the kind of thing worth deciding
+once. WP-1067 has no opinion beyond that its chapters could not document those
+names honestly under today's rule.
+
 ## Non-goals
 
 - **No new exports.** Adding the five helpers to `rietx.__all__` is a separate

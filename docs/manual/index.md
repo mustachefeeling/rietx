@@ -83,8 +83,9 @@ it, get one fit to the end, learn what the three objects hold, learn how their
 parameters are addressed and edited, learn why a fit is staged, run one and
 control it, read the numbers it returned, read the report on top of them, go
 back to any state it passed through, find out what is on disk, find the cell
-when the specimen is unknown, then wire it into something. The closing chapter
-is the 1.0 stability promise.
+when the specimen is unknown, refine a whole set of patterns rather than one,
+find out how much of each phase there is, take the tables away, then wire it
+into something. The closing chapter is the 1.0 stability promise.
 
 ```{toctree}
 :caption: Part 1 — Using rietx
@@ -101,6 +102,9 @@ using/report
 using/history
 using/files
 using/indexing
+using/series
+using/qpa
+using/exports
 using/agents
 using/compatibility
 ```

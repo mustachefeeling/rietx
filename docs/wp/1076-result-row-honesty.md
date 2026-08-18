@@ -165,6 +165,35 @@ All three were found by writing a chapter over the type, not by reading the
 code, which is the fourth time on this WP's subject that the manual's own
 coverage pass has been the thing that noticed.
 
+**From WP-1067's `using/series.md` session (2026-08-18): two on `SeriesResult`,
+and the second is a gap rather than a dishonest field.** Both were found by
+running the eight-mixture round-robin series and reading what came back, so both
+are measured rather than inferred. Neither is in the provisional bucket any
+more — that chapter froze `SeriesResult` in full — so a change to either is now
+a compatibility event under `using/compatibility.md`, and that is the reason
+they arrive here rather than being fixed in passing.
+
+- **`SeriesResult.to_table` emits two columns called `index`.** The header is
+  `index, label, <x_label>, status, rung, rwp, gof, …` and `x_label` defaults to
+  `"index"`, so a series run without a coordinate — the default — produces a
+  duplicate column name. Measured: `['index', 'label', 'index', 'status', …]`.
+  Anything keying by name collides (pandas silently renames the second to
+  `index.1`); anything keying by position is fine. The chapter states it as a
+  warning rather than working around it, because the fix changes a written
+  file's header and `write_csv` is the same header.
+- **`SeriesResult.n_iterations` does not count what `direction="both"` cost.**
+  It sums over `entries`, and with `direction="both"` the entries are the
+  forward chain only — measured 816 for both a forward run and a `"both"` run
+  whose wall clock was 83.7 s against 33.7 s. The docstring says "Total
+  least-squares iterations over the whole series", which is true of a
+  one-directional run and false of this one. **The related gap:** the backward
+  `SeriesResult` exists only as `SequentialRefinement.backward_`, so a caller
+  using `refine_sequential` — the one-shot API the chapter recommends — receives
+  the `SEQUENTIAL_PATH_DEPENDENT` diagnostics and has no way to reach the
+  trajectory they are about. Either the count is documented as forward-only, or
+  the functional API grows a way to return both; the two are different
+  decisions and this WP is the place to take them.
+
 ## Non-goals
 
 - **No new bound-related diagnostic, and no change to `BOUND_HIT`.** The guard

@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-17 — floor landed (gates 1003); the McCusker set's pass landed; `using/data.md`, `using/model.md`, `using/refining.md`, `using/history.md` and `using/indexing.md` landed and 624 names froze with them, 70 % of the surface; two 1.0.x chapter lines remain plus the second passes on `agents.md`/`report.md`, and [1076](1076-result-row-honesty.md) holds four unwritten fields and values a chapter found
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-18 — floor landed (gates 1003); the McCusker set's pass landed; eight 1.0.x chapters have landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`) and 1059 of the 1322 names are frozen, 80 % of the surface; one chapter line remains (`cli.md`, which freezes nothing) plus the second passes on `agents.md`/`report.md`, and the 263 names left partition three ways with no remainder; [1076](1076-result-row-honesty.md) holds four unwritten fields and values a chapter found, and [1077](1077-extinction-refutes-certified-class.md)/[1078](1078-indexing-provisional.md) hold the two findings the indexing chapter left with no owner
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -385,26 +385,61 @@ passing.
       the bucket now holds no indexing name. It also found that
       `rietx.indexing`'s own helpers are not on the derived surface at all (see
       the handover).
-- [ ] `using/series.md` and `using/exports.md` — sequential vs multi and
-      `direction="both"`; CIF / reflection / QPA exports, plots,
-      `plot_for_vlm`, `write_html`.
+- [x] `using/series.md`, `using/qpa.md` and `using/exports.md` (2026-08-18).
+      **Three pages where the line asked for two**, and the measurement moved
+      the seam. `series.md` is the whole sequential-vs-joint subject, which no
+      page had touched: the chain, `carry`/`prepare`, `SeriesResult`/
+      `SeriesEntry`/`Trajectory`, the ladder and quarantine, the four
+      `SEQUENTIAL_*` fences, `direction="both"`, then `MultiHistogramRefinement`,
+      `SharingMap`/`SharingSpec` and `HistogramResult`. The rest of the line
+      would not hold together as one page: three of the six things it named are
+      already elsewhere or nowhere (`files.md` owns the writers; `plot_for_vlm`
+      and `write_html` are not on the derived surface at all), and **weight
+      fractions are not an export** — nobody looks for them under one. So QPA
+      took its own chapter, `exports.md` took the derived tables, and
+      `files.md`'s reflection-table row was corrected from "one row per
+      reflection" to one row per (emission line, reflection).
 - [ ] `using/cli.md` — `rietx watch`, `rietx compare`, and `rietx gui` in one
-      **beta**-marked line.
-- [ ] **The names no remaining chapter claims** — remeasured 2026-08-17 after
-      the indexing chapter took its 266: of the **395** left, 73 are the series
-      and multi-histogram types, and the rest are **not** in any remaining task
-      line above. Two blocks account for most of them, and both belong to a
-      chapter that already exists, so this is a second pass rather than a new
-      page: the agent request and response union
-      (`RefineRequest`, `MultiRefineRequest`, `SequentialRefineRequest`,
-      `SuggestRequest`, `IndexRequest`, `AgentSuccess`; 78 names, and
-      `agents.md` documents the *call* rather than the arms), and the report's
-      own evidence types (`StageReport`, `SuggestionResult`, `RegionAttribution`,
-      `TextureAnalysis`, `StrainAnalysis`, `BackgroundEvidence`,
-      `ParameterCandidate`, `ExchangeFinding`, `TrendAnalysis`, all reachable
-      from `FitReport`'s own fields, where `report.md` describes the three
-      layers without naming the types field by field). The bucket cannot empty
-      without both.
+      **beta**-marked line. **It freezes nothing** (measured 2026-08-18: no
+      `rietx.cli` name is on the derived surface — the entry point is a
+      `project.scripts` console script), so it is a UX chapter and cannot be
+      sequenced by what it empties from the bucket.
+- [ ] **The names no remaining chapter claims** — remeasured 2026-08-18 after
+      the series, QPA and exports chapters took their 132. **No task line above
+      claims any of the 263 left**, and they now partition three ways with no
+      remainder, so this line is the whole of what is left of the WP:
+
+      - **85 — the agent request and response union**, a second pass on
+        `agents.md`, which documents the *call* rather than the arms:
+        `RefineRequest`, `MultiRefineRequest`, `SequentialRefineRequest`,
+        `SuggestRequest`, `IndexRequest`, `AgentSuccess`, `AgentFailure`,
+        `AgentError`, `AgentErrorDetail`.
+      - **133 — the report's own evidence types**, a second pass on `report.md`,
+        which describes the three layers without naming the types field by
+        field: `StageReport`, `SuggestionResult`, `RegionAttribution`,
+        `TextureAnalysis`, `StrainAnalysis`, `BackgroundEvidence`,
+        `ParameterCandidate`, `ExchangeFinding`, `ExchangeRow`, `TrendAnalysis`,
+        `TrendTemplate`, `IdentifiabilityEvidence`, `Identifiability`,
+        `CorrelationPair`, `LeBailGap`, `BasisCoefficient`, `Region`,
+        `SoftMode`, `SuggestedAction`, `UnmatchedPeak`, `CandidateGroup`,
+        `ContaminationFlag`, `PatternDiagnostics`. The largest single block
+        left, and the one that closes the WP.
+      - **45 — six small groups, four of them a paragraph in a chapter that
+        exists.** `AbsorptionCorrection` + `RefinementResult.absorption` (12) is
+        the specimen-absorption record, and `results.md` § "What the statistics
+        cannot tell you" already ends on the sentence that sets it up ("a
+        correction ships with a record field … rather than with an Rwp
+        comparison as its evidence") — that is its home. The capability arms
+        (`Capabilities`, `ReaderCapability`, `ReaderOptionCapability`,
+        `BackendCapability`, `AnodeCapability`; 15) go with the agent pass.
+        `RefinementPlan`'s seven preset constructors plus `stages` (8) belong to
+        `concepts.md`, which owns the presets. `HistoryRecord` (5) is the JSONL
+        line type and belongs beside the log in `files.md`.
+        `RefinementResult.identifiability` (1) is the field the report pass's
+        `Identifiability` hangs off, so it travels with that block.
+        `RefinedParameter.initial`/`at_bound`, `TieSpec.from_tie` and
+        `RefinementResult.correlation_warnings` (4) are **not** documentable as
+        they stand and are [1076](1076-result-row-honesty.md)'s.
 
 ## Acceptance
 
@@ -440,6 +475,152 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-18 (`using/series.md`, `using/qpa.md`, `using/exports.md`)** — six
+  commits on `wp1067-using-series-exports`: one repairing the previous
+  session's handover, four of content, one of handover. No `### Inherited` to
+  prune (still none on this WP; the "Inherited" strings in this file are prose
+  about *1003's* and *1076's* mailboxes).
+
+  **The session opened with a repair, and the repair found the gap that caused
+  it.** The hook flagged commits dated 2026-08-18 against a 2026-08-17 entry.
+  One of the two (`984650dd`, filing 1077 and 1078) was inside PR #50 and
+  already reflected in the entry below; the other (`11ec1cd5`, the process rider
+  that made `/wp-handover` open the PR) landed **three minutes after the PR
+  merged** and was stranded on a merged branch — invisible to the merge, and
+  invisible to a hook that compares dates. It was cherry-picked onto this branch,
+  which is the only reason it reaches `main`. Its own new step 10 does not catch
+  this: **check `git log origin/main..HEAD` is empty before leaving a merged
+  branch.**
+
+  **The task line asked for two pages and the measurement made three.** Sixth
+  session running, and the fifth where measuring first changed the work.
+  `series.md` was straightforward — the whole sequential-vs-joint subject was
+  documented nowhere, 81 deferred names and not one spelled by any existing
+  page. The other half of the line did not survive: of the six things it named
+  for `exports.md`, `files.md` already owned the three writers, and
+  `plot_for_vlm`/`write_html` are **not on the derived surface at all** (see the
+  gotcha). What was left split at a seam the line did not see — **weight
+  fractions are not an export**, and a reader looking for "how much of each
+  phase" would never open a chapter called one. So QPA took `using/qpa.md` and
+  the derived tables took `using/exports.md`.
+
+  **132 names froze — the bucket goes 395 → 263**, and twelve types are frozen
+  in full: `SeriesResult`, `SeriesEntry`, `Trajectory`, `SequentialRefinement`,
+  `MultiHistogramRefinement`, `HistogramResult`, `SharingMap`, `SharingSpec`,
+  `QuantitativePhaseAnalysis`, `PhaseQuantity`, `MicroabsorptionCorrection` and
+  `ReflectionRow`. The surface is 1059/1322 frozen, 80 %.
+
+  **Numbers** (`[dev]` venv — no jax, no torch; darwin/arm64, Python 3.12.12).
+  Fast selection **2402 passed / 117 skipped in 2:25**, counts identical to this
+  session's starting tree: docs only, no test added, so passed+skipped moved by
+  exactly 0. The full suite was **not** run — docs plus one generated file
+  cannot move a measured number (`tests/CLAUDE.md` § Running, rung 3); the
+  standing Linux figure is still **2561 passed / 88 skipped in 1:51:56**
+  (`[dev,jax]`, nightly 32017322140). `sphinx -W` clean; `test_examples.py`
+  4 passed; `ruff` clean. Audited at 1100 px in both themes: no body overflow on
+  any of the three pages, none of their 13 tables scrolls inside its wrapper, no
+  code block scrolls, and the 736/744 article delta is Furo's own, identical to
+  the four pages measured before.
+
+  **Measured while writing.** Series, on the eight IUCr round-robin sample-1
+  mixtures (7251 points each, 5–150°, composition 1.8 → 94.2 wt %, protocol
+  imported from the acceptance suite): the forward chain **816** iterations in
+  33.7 s against **2789** in 73.8 s independent — 3.4× — every pattern
+  converging on its first rung, three `SEQUENTIAL_DISCONTINUITY` at info.
+  `direction="both"` costs 83.7 s and raises **nine**
+  `SEQUENTIAL_PATH_DEPENDENT`, every one a broadening term (`lor_size`,
+  `gauss_size`, `gauss_strain`, `lor_strain`, `profile.x`, `axial_sl`) and not
+  one cell parameter or scale. Joint, on the WP-0308 two-wavelength LaB₆ fixture:
+  pooled Rwp 0.0516 against per-histogram 0.0414 and 0.0613, shared
+  a = 4.156604 Å (+1.0 ppm) identical in both `fitted_structures`, per-histogram
+  zeros 0.006019°/−0.009974° against 0.006/−0.010 in, esd 3.26e-6 against
+  6.36e-6 and 3.80e-6 singly (1.95× and 1.16×). QPA, on `cpd-1e`: Rwp 0.126,
+  fractions summing to 1.0 to nine decimals, errors +2.21/−2.32/+0.12 wt % with
+  esds 0.52/0.27/0.45. QPA failure case, `cpd-4` with radii 0.5/5.0/1.5 µm:
+  Rwp 0.279, uncorrected +24.23/−15.07/−9.16, corrected +20.58/−11.21/−9.37,
+  µR 0.006/0.567/0.057, τ 1.009/0.520/0.969, `BRINDLEY_OUTSIDE_REGIME` on two
+  of three.
+
+  **In flight: nothing.** Working tree clean.
+
+  **Next (1.0.x).** The bucket's 263 now partition **three ways with no
+  remainder** and the map is in the last task line above: 85 agent (a second
+  pass on `agents.md`), 133 report (a second pass on `report.md` — the largest
+  block and the one that closes the WP), 45 in six small groups of which four
+  are a paragraph in a chapter that already exists. `cli.md` is the only chapter
+  line left and it freezes nothing, so it cannot be sequenced by the bucket.
+  Keep appending promotions to `docs/releases/1.0.2.md`, still unreleased.
+
+  **Gotchas.**
+
+  - **`rietx.viz` is not on the derived surface at all** — the same shape as
+    1078's indexing finding, one subsystem over. `agent` is the *only* module on
+    the surface, so `plot_for_vlm`, `plot_result`, `plot_trajectory`,
+    `plot_candidates` and `viz.html.write_html` are in none of the three buckets
+    and are "internal, may change without notice" by `api_surface.py`'s own
+    internal sentence — while `files.md` points a reader at `write_html` and
+    `report.md` at `viz.compare.run`. This is **not** covered by 1078, which
+    declares the *indexing* subsystem provisional and names only
+    `rietx.viz.plot_indexing` among its five helpers. Filed forward into 1078's
+    `### Inherited`, because the tier table it builds is the mechanism that
+    would answer this too.
+  - **`SeriesResult.to_table` names two columns `index`.** The third column is
+    named after `x_label`, which defaults to `"index"`, and the first is already
+    `index` — so a CSV read by column name collides. Stated in the chapter as a
+    warning admonition rather than fixed, because fixing it changes a written
+    file's header. Filed to [1076](1076-result-row-honesty.md).
+  - **`SeriesResult.n_iterations` under-reports `direction="both"`.** It sums
+    over `entries`, and the entries are the forward chain, so the backward pass
+    costs roughly another 1.5× wall clock and appears nowhere in the count. The
+    backward `SeriesResult` is reachable only as
+    `SequentialRefinement.backward_`, which means a run made through
+    `refine_sequential` gets the path-dependence diagnostics but cannot see the
+    second trajectory at all. Both are in the chapter; the second is arguably a
+    real gap in the functional API. Filed to
+    [1076](1076-result-row-honesty.md).
+  - **A σ multiple in a `SEQUENTIAL_PATH_DEPENDENT` message is not a scale.**
+    Measured multiples ran to 14 757 504σ, because the ratio is to a *fitted*
+    esd and a parameter sitting near zero has an esd near zero. The two values
+    the message quotes are the readable part, and the chapter says so.
+  - **`files.md` said "one row per reflection"** for `write_reflection_table`
+    and it is one row per **(emission line, reflection)** — a Kα doublet gives
+    two rows per hkl. Corrected, and it earned a release-notes line: the manual
+    was wrong, the code was not.
+
+- **2026-08-18 (post-close commits, reconstructed post hoc)** — two commits
+  landed on `wp1067-using-indexing` after the entry below was written, so the
+  session-start hook flagged this WP for repair. Both are recorded here from
+  their diffs; where the diff does not say why, this entry does not guess. No
+  `### Inherited` to prune (still none on this WP).
+
+  **`984650dd` filed the two findings the indexing chapter left with no owner**,
+  and it made PR #50, so it is in `main`: [1078](1078-indexing-provisional.md)
+  takes the freeze question — indexing is under active development, so the
+  subsystem is declared provisional rather than exported and frozen, which
+  un-freezes the 266 names that chapter froze and gates the 1.0.2 release —
+  and [1077](1077-extinction-refutes-certified-class.md) takes the extinction
+  refutation of corundum's certified class plus the missing acceptance row.
+  Both got ROADMAP rows and a Current focus line, and this WP's own gotchas
+  below were amended in the same commit to name them instead of saying no WP
+  owned either.
+
+  **`11ec1cd5` is a process rider, not WP work**: `/wp-handover` ended at
+  "clean and pushed", so every session so far needed a separate instruction to
+  become reviewable. It gains step 10 (open or update the PR — edit an existing
+  one, never duplicate) and step 11 (report the URL, CI named as the gate), and
+  ROADMAP § Session protocol step 3 gains the matching clause so the two do not
+  drift. **It landed three minutes after PR #50 merged and was therefore
+  stranded on a merged branch** — cherry-picked onto
+  `wp1067-using-series-exports` at the start of the 2026-08-18 session, which
+  is the only reason it reaches `main` at all.
+
+  **Nothing was measured** by either commit: both are docs, and no count moved.
+
+  **Gotcha the repair itself found.** A commit that lands *after* the PR merges
+  is invisible to both guards — the merge does not carry it and the hook only
+  compares dates — so the handover's new step 10 is not sufficient on its own:
+  check `git log origin/main..HEAD` is empty before leaving a merged branch.
 
 - **2026-08-17 (`using/indexing.md`)** — five commits on
   `wp1067-using-indexing`, four of content and one of handover. No
