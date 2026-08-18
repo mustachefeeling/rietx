@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-18 — floor landed (gates 1003); the McCusker set's pass landed; eight 1.0.x chapters have landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`) and 1059 of the 1322 names are frozen, 80 % of the surface; one chapter line remains (`cli.md`, which freezes nothing) plus the second passes on `agents.md`/`report.md`, and the 263 names left partition three ways with no remainder; [1076](1076-result-row-honesty.md) holds four unwritten fields and values a chapter found, and [1077](1077-extinction-refutes-certified-class.md)/[1078](1078-indexing-provisional.md) hold the two findings the indexing chapter left with no owner
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-18 — floor landed (gates 1003); the McCusker set's pass landed; eight 1.0.x chapters have landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`) and the `agents.md` second pass with them, so 1160 of the 1322 names are frozen, 88 % of the surface; one chapter line remains (`cli.md`, which freezes nothing) plus the second pass on `report.md`, and the 162 names left partition two ways with no remainder; [1076](1076-result-row-honesty.md) holds five unwritten fields, values and one unreachable error code that chapters found, and [1077](1077-extinction-refutes-certified-class.md)/[1078](1078-indexing-provisional.md) hold the two findings the indexing chapter left with no owner
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -399,39 +399,47 @@ passing.
       took its own chapter, `exports.md` took the derived tables, and
       `files.md`'s reflection-table row was corrected from "one row per
       reflection" to one row per (emission line, reflection).
+- [x] **The `agents.md` second pass** (2026-08-18). The chapter documented the
+      *call* and neither of the two types it moves, so the pass is the request
+      union branch by branch and the response envelope: the five request types
+      with every key's type and default, `AgentSuccess` with its four arms and
+      two companions, `AgentFailure`/`AgentError`/`AgentErrorDetail`, and the
+      capability arms the floor named only in part. **101 names froze** — the
+      planned 100 plus `SuggestionResult`, the one arm type no page had spelled,
+      whose own fields stay with the report block. Two corrections and one
+      finding: the packaging admonition was telling integrators to work around a
+      defect 1003 had fixed both ways; the request tables had to lose a column
+      to fit at 1100 px, because a qualified `SequentialRefineRequest.task` is
+      337 px of unbreakable code span; and `BACKEND_UNAVAILABLE` cannot fire
+      (see the handover), filed to [1076](1076-result-row-honesty.md).
 - [ ] `using/cli.md` — `rietx watch`, `rietx compare`, and `rietx gui` in one
       **beta**-marked line. **It freezes nothing** (measured 2026-08-18: no
       `rietx.cli` name is on the derived surface — the entry point is a
       `project.scripts` console script), so it is a UX chapter and cannot be
       sequenced by what it empties from the bucket.
 - [ ] **The names no remaining chapter claims** — remeasured 2026-08-18 after
-      the series, QPA and exports chapters took their 132. **No task line above
-      claims any of the 263 left**, and they now partition three ways with no
-      remainder, so this line is the whole of what is left of the WP:
+      the agent pass took its 101. **No task line above claims any of the 162
+      left**, and they partition two ways with no remainder, so this line plus
+      `cli.md` is the whole of what is left of the WP:
 
-      - **85 — the agent request and response union**, a second pass on
-        `agents.md`, which documents the *call* rather than the arms:
-        `RefineRequest`, `MultiRefineRequest`, `SequentialRefineRequest`,
-        `SuggestRequest`, `IndexRequest`, `AgentSuccess`, `AgentFailure`,
-        `AgentError`, `AgentErrorDetail`.
-      - **133 — the report's own evidence types**, a second pass on `report.md`,
+      - **132 — the report's own evidence types**, a second pass on `report.md`,
         which describes the three layers without naming the types field by
-        field: `StageReport`, `SuggestionResult`, `RegionAttribution`,
-        `TextureAnalysis`, `StrainAnalysis`, `BackgroundEvidence`,
-        `ParameterCandidate`, `ExchangeFinding`, `ExchangeRow`, `TrendAnalysis`,
-        `TrendTemplate`, `IdentifiabilityEvidence`, `Identifiability`,
-        `CorrelationPair`, `LeBailGap`, `BasisCoefficient`, `Region`,
-        `SoftMode`, `SuggestedAction`, `UnmatchedPeak`, `CandidateGroup`,
+        field: `StageReport`, `SuggestionResult` (its fields; the class name
+        froze with the agent pass, as the type of the `suggestion` arm),
+        `RegionAttribution`, `TextureAnalysis`, `StrainAnalysis`,
+        `BackgroundEvidence`, `ParameterCandidate`, `ExchangeFinding`,
+        `ExchangeRow`, `TrendAnalysis`, `TrendTemplate`,
+        `IdentifiabilityEvidence`, `Identifiability`, `CorrelationPair`,
+        `LeBailGap`, `BasisCoefficient`, `Region`, `SoftMode`,
+        `SuggestedAction`, `UnmatchedPeak`, `CandidateGroup`,
         `ContaminationFlag`, `PatternDiagnostics`. The largest single block
         left, and the one that closes the WP.
-      - **45 — six small groups, four of them a paragraph in a chapter that
+      - **30 — five small groups, three of them a paragraph in a chapter that
         exists.** `AbsorptionCorrection` + `RefinementResult.absorption` (12) is
         the specimen-absorption record, and `results.md` § "What the statistics
         cannot tell you" already ends on the sentence that sets it up ("a
         correction ships with a record field … rather than with an Rwp
-        comparison as its evidence") — that is its home. The capability arms
-        (`Capabilities`, `ReaderCapability`, `ReaderOptionCapability`,
-        `BackendCapability`, `AnodeCapability`; 15) go with the agent pass.
+        comparison as its evidence") — that is its home.
         `RefinementPlan`'s seven preset constructors plus `stages` (8) belong to
         `concepts.md`, which owns the presets. `HistoryRecord` (5) is the JSONL
         line type and belongs beside the log in `files.md`.
@@ -439,7 +447,9 @@ passing.
         `Identifiability` hangs off, so it travels with that block.
         `RefinedParameter.initial`/`at_bound`, `TieSpec.from_tie` and
         `RefinementResult.correlation_warnings` (4) are **not** documentable as
-        they stand and are [1076](1076-result-row-honesty.md)'s.
+        they stand and are [1076](1076-result-row-honesty.md)'s — which now also
+        holds `AgentError.code`'s unreachable `BACKEND_UNAVAILABLE`, a
+        vocabulary member this WP froze and that WP has to repair.
 
 ## Acceptance
 
@@ -475,6 +485,113 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-18 (the `agents.md` second pass)** — five commits on
+  `wp1067-agents-second-pass`, four of content and one of handover. No
+  `### Inherited` to prune (still none on this WP; the "Inherited" strings in
+  this file are prose about *1003's* and *1076's* mailboxes). The previous
+  session's own gotcha was checked before branching: `git log origin/main..HEAD`
+  was empty, so nothing was stranded on the merged branch this time.
+
+  **The first session where measuring first changed nothing.** Seventh running,
+  and the check that has moved the work five times came back flat: of the 100
+  names the task line assigned to this pass, **not one is spelled anywhere in
+  Part 1**, including in `agents.md` itself. So the pass is exactly what the
+  line said, and the only surprise is the scale of the omission — the chapter
+  documented `agent.refine_json` in full and neither the dict it takes nor the
+  dict it returns.
+
+  **The framing that made it writable**: a request is a dict, and the five
+  request types are the *schema of that dict* rather than a construction API.
+  Nobody instantiates a `RefineRequest`; its fields are the wire keys, which is
+  why the chapter names them field by field and links the semantics to the
+  library chapter that owns each one. Same for the response.
+
+  **101 names froze — the bucket goes 263 → 162**, and thirteen types are frozen
+  in full: the five request types, `AgentSuccess`, `AgentFailure`, `AgentError`,
+  `AgentErrorDetail`, `BackendCapability`, `AnodeCapability`,
+  `ReaderCapability`, `ReaderOptionCapability`, and `Capabilities` itself. The
+  hundred-and-first is `SuggestionResult`, whose bare class name no page had
+  spelled; the chapter names it as the type of the `suggestion` arm, which is an
+  honest freeze of the name while its own eight fields stay with the report
+  block. The surface is 1160/1322 frozen, 88 %.
+
+  **Numbers** (`[dev]` venv — no jax, no torch; darwin/arm64, Python 3.12.12).
+  Fast selection **2402 passed / 117 skipped in 2:25**, counts identical to this
+  session's starting tree: docs only, no test added, so passed+skipped moved by
+  exactly 0. The full suite was **not** run — docs plus one generated file
+  cannot move a measured number (`tests/CLAUDE.md` § Running, rung 3); the
+  standing Linux figure is still **2561 passed / 88 skipped in 1:51:56**
+  (`[dev,jax]`, nightly 32017322140). `sphinx -W` clean; `test_examples.py`
+  4 passed; `ruff` clean. Audited at 1100 px in both themes: after the table fix
+  below, none of the page's **13** tables scrolls inside its wrapper, no code
+  block scrolls, no element in `main` overflows, and the 736/744 article delta
+  is Furo's own, identical to the eleven pages measured before.
+
+  **Measured while writing**, all through `refine_json` on the 4200-point
+  synthetic LaB₆ fixture the agent-surface tests already use.
+  `report_trajectory` costs **2.8×** the fit's wall clock (0.29 s → 0.80 s) and
+  **3598 bytes**, which is 3 % of the report's own 114 kB — not the ~26 % the
+  module docstring quotes, which was measured on 59.5k channels, so the ratio is
+  a property of the pattern and the chapter says the fixture. Rwp came back
+  bit-identical with the rungs on and off (0.041526623872266515 both ways), and
+  `include_report=false` zeroed both the report and the trajectory, as declared.
+  The envelope is 556 kB with the report and 442 kB without. A `refine_multi`
+  over two copies returned `report: null` and `node_id`/`tree_id` null, and a
+  two-pattern `refine_sequential` returned the `series` arm alone with ids on
+  each entry. Error envelopes: a missing `task` and an unknown one both read as
+  one `INVALID_REQUEST` detail with an **empty** `where`; so does
+  `IndexRequest`'s cross-field rule; `solver` on a `suggest` task reads
+  `extra_forbidden` at `where: "solver"`; and a deep failure reads
+  `structure.phases`, with the branch tag stripped. `request_schema()` has 35
+  `$defs` and `response_schema()` 60; the tool description is 2231 characters.
+
+  **In flight: nothing.** Working tree clean.
+
+  **Next (1.0.x).** Two lines left. The `report.md` second pass is **132 of the
+  162** names and is the one that closes the WP; the other 30 are five small
+  groups whose homes are named in the last task line, four of them a paragraph
+  in a chapter that already exists. `cli.md` freezes nothing and cannot be
+  sequenced by the bucket. Keep appending promotions to
+  `docs/releases/1.0.2.md`, still unreleased.
+
+  **Gotchas.**
+
+  - **`BACKEND_UNAVAILABLE` cannot fire.** Measured on this venv, which has no
+    jax: a valid `task="refine"` request with `backend="jax"` answers
+    `REFINEMENT_FAILED`. `refine_json` maps `NotImplementedError` to that code
+    and `backend.api.resolve_backend` raises **`ImportError`**, for jax and for
+    both torch devices, so a real missing extra falls through to the generic
+    handler. The one test covering the code **monkeypatches
+    `Refinement.__init__` to raise `NotImplementedError`** and says so in its
+    docstring, so it asserts the mapping and never the condition — the
+    `_SURFACE_FLAGS` shape in a test rather than in a predicate. The chapter
+    documents the vocabulary as declared and carries the measurement as a
+    warning; the repair is a decision (narrow the raise, catch at the resolve
+    site, or answer from `BackendCapability.available`) and is filed to
+    [1076](1076-result-row-honesty.md).
+  - **A qualified name is 337 px of unbreakable code span, and four columns do
+    not fit.** Two of the thirteen tables scrolled inside their wrapper at
+    1100 px (753 and 847 against 742), and the driver was the Field column:
+    `SequentialRefineRequest.task` cannot break at the dot. The fix is
+    structural rather than cosmetic — the five request tables became
+    `Key | Type and default | Meaning`. **The rule for any future chapter over a
+    long-named type: three columns, or the class name goes in the heading.**
+  - **The packaging admonition was telling readers to work around a fixed
+    defect.** It said the tool description names the protocol by repository
+    path and asked an integrator to paste the file in by hand "until that is
+    resolved at release". WP-1003 resolved it both ways: `_TOOL_DESCRIPTION`
+    quotes `DOCS_URL` *and* an in-wheel copy, force-included by `pyproject` as
+    `rietx/data/AGENT_PROTOCOL.md`. Third session running where a page's
+    forward-looking sentence outlived the thing it was waiting for; grep a
+    chapter for "until" before believing its caveats.
+  - **`SuggestionResult` froze by being a type in a table.** The arm table has
+    to name what each arm carries, and naming a type is what promotes it. This
+    is the `EngineCapability` trap from the indexing session with the sign
+    flipped — there the members were documented and the bare name was not, here
+    the bare name is documented and the members are not — and both are only
+    visible by checking the partition per name. Neither reading is wrong, but
+    the release notes have to say which half moved.
 
 - **2026-08-18 (`using/series.md`, `using/qpa.md`, `using/exports.md`)** — six
   commits on `wp1067-using-series-exports`: one repairing the previous
