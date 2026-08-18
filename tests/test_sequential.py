@@ -174,6 +174,30 @@ def test_series_axis_defaults_to_the_pattern_index(thermal_patterns):
     assert series.labels == ["p000", "p001"]
 
 
+def test_the_table_header_has_no_duplicate_column(thermal_series):
+    """`x_label` is a label; a header is a set of keys, and they collided.
+
+    `to_table` names the axis column after `x_label`, which defaults to
+    `"index"` — the name the first column already has. The default header was
+    `['index', 'label', 'index', …]`, so anything keying by name collided
+    (pandas silently renames the second to `index.1`) while anything keying by
+    position was fine. The axis column now falls back to `x` when its label is
+    already taken, and the column count, order and meaning are unchanged
+    (WP-1076).
+    """
+    plain = SeriesResult(entries=list(thermal_series.entries))
+    assert plain.x_label == "index"
+    header, rows = plain.to_table(paths=["phases.0.cell.a"])
+    assert len(set(header)) == len(header), header
+    assert header[:7] == ["index", "label", "x", "status", "rung", "rwp", "gof"]
+    assert [r[0] for r in rows] == [e.index for e in plain.entries]
+    assert [r[2] for r in rows] == plain.x
+
+    # a real coordinate is used verbatim, which is the whole point of the field
+    named = SeriesResult(entries=list(thermal_series.entries), x_label="T (K)")
+    assert named.to_table(paths=[])[0][2] == "T (K)"
+
+
 def test_labels_are_made_unique():
     """Labels become history file names, so duplicates cannot be tolerated."""
     blank = [rx.PatternData(two_theta=[1.0, 2.0], intensity=[1.0, 1.0])
@@ -622,6 +646,24 @@ def test_forward_and_backward_chains_agree_on_a_clean_series(thermal_patterns):
             if d.code == "SEQUENTIAL_PATH_DEPENDENT"] == []
     # the backward chain is kept, and reported in series order
     assert [e.index for e in series.entries] == [0, 1, 2, 3, 4]
+
+    # …and the one-shot API hands it back, so the trajectory the
+    # path-dependence diagnostics are about is reachable (WP-1076).  Before
+    # that WP it lived only on `SequentialRefinement.backward_`, which
+    # `refine_sequential` never returns.
+    assert series.backward is not None
+    assert series.backward.direction == "backward"
+    assert series.backward.labels == series.labels
+    assert series.backward.backward is None, "one extra level, not a cycle"
+    # n_iterations counts the reported chain, and the reverse chain cost more
+    # than nothing — the number is not the run's total and does not claim to be
+    assert series.backward.n_iterations > 0
+    assert series.model_dump_json()  # the extra level round-trips
+
+
+def test_a_one_directional_series_carries_no_backward(thermal_series):
+    assert thermal_series.direction != "both"
+    assert thermal_series.backward is None
 
 
 # -- reporting surfaces ---------------------------------------------------

@@ -122,13 +122,14 @@ a few kB. The curves stay reachable on `SequentialRefinement.results_`.
 | `SeriesResult.entries` | one `SeriesEntry` per pattern, in series order |
 | `SeriesResult.mode` | the mode the series was fitted in |
 | `SeriesResult.direction` | `"forward"`, `"backward"` or `"both"` |
+| `SeriesResult.backward` | the reverse chain's own `SeriesResult` under `"both"`, else None |
 | `SeriesResult.x_label` | the axis name |
 | `SeriesResult.diagnostics` | the series-level fences below |
 | `SeriesResult.provenance` | package version, timestamp and settings, as for a single fit |
 | `SeriesResult.x` | the axis: the coordinate given, or the pattern index |
 | `SeriesResult.labels` | one label per entry |
 | `SeriesResult.rwp` | one Rwp per entry |
-| `SeriesResult.n_iterations` | least-squares iterations summed over the entries |
+| `SeriesResult.n_iterations` | least-squares iterations summed over the entries — the reported chain, not the run |
 
 It iterates, indexes and has a length, so `for entry in result` walks the
 patterns in order.
@@ -199,15 +200,13 @@ of "how much should I trust this point": a rescued point is a good fit whose
 starting values did not come from its neighbour, and a table that hides that
 reads as a continuous trajectory.
 
-`SeriesResult.plot` plots one or more trajectories against the series axis.
+The axis column takes `SeriesResult.x_label`, unless that name is already one
+of the fixed columns, in which case it is `x`. That is what the default hits:
+`x_label` is a human label and defaults to `"index"`, which reads correctly as
+an axis title for a series with no coordinate but would be the header's second
+`index`. The column count, order and meaning do not change either way.
 
-:::{admonition} Two columns can be called `index`
-:class: warning
-`to_table` names the third column after `SeriesResult.x_label`, which defaults
-to `"index"` when no coordinate was given — and the first column is already
-called `index`. A reader that keys columns by name will collide. Pass
-`x_label`, or key by position.
-:::
+`SeriesResult.plot` plots one or more trajectories against the series axis.
 
 ## The four fences
 
@@ -276,12 +275,18 @@ were order-independent, and the widths were not.
 Two things to know before reading the σ multiples in those messages. They are
 ratios to a *fitted* esd, so a parameter sitting near zero with an esd near zero
 reports a spread of thousands of σ that is not a physical scale — read the two
-values the message quotes, not the multiple. And the backward chain's own
-`SeriesResult` is reachable only as `SequentialRefinement.backward_`, so a run
-made through `refine_sequential` gets the diagnostics but not the second
-trajectory. `SeriesResult.n_iterations` counts the reported chain only, so it
-does not include what the backward pass cost; the wall clock does, at roughly
-2.5× the one-directional run.
+values the message quotes, not the multiple. And the trajectory the messages
+compare against is `SeriesResult.backward` — the reverse chain's own
+`SeriesResult`, set whenever `direction="both"` completed, so a run made
+through `refine_sequential` can read the second trajectory and not only the
+verdict about it. Its own `backward` is `None`: one extra level, not a cycle,
+and `SequentialRefinement.backward_` is the same object.
+
+`SeriesResult.n_iterations` counts the chain the result *reports*, which under
+`direction="both"` is the forward one. It is not what the run cost:
+`result.backward.n_iterations` is the rest. On the round-robin series both
+chains come to 816, against a wall clock of 33.7 s forward and 83.7 s for
+`"both"`.
 
 ## Telemetry, history and cancellation
 
