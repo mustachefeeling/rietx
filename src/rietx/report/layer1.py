@@ -420,9 +420,13 @@ def analyse_trends(attributions: list[RegionAttribution], wavelength: float,
     """Fit the angular templates to the per-region coefficients.
 
     Only regions that passed their local gates contribute — a coefficient the
-    gates rejected is not evidence.  Each observable is fitted jointly across
-    its templates (they are correlated by construction), and the collinearity
-    actually present over the sampled angles decides ``separable``.
+    gates rejected is not evidence.  Each template is fitted **alone**, as a
+    through-origin nested model, and *not* jointly with the others: they are
+    correlated by construction, and a joint fit of collinear templates returns
+    physically absurd amplitudes (the inline comment below has the measured
+    case).  The ambiguity is expressed instead by how close the runners-up
+    come, and the collinearity actually present over the sampled angles
+    decides ``separable``.
 
     ``geometry`` narrows the *position* candidates to the causes that exist on
     that instrument (:data:`POSITION_TEMPLATES`); ``None`` offers them all,

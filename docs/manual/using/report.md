@@ -200,14 +200,21 @@ specimen displacement in the flat-plate sense is not an error a capillary can
 make. Fitting the union would name aberrations the instrument does not have,
 and the parameters behind them are force-fixed in that geometry anyway.
 
+Each template is fitted **alone**, through the origin, and never jointly with
+the others. The templates are correlated by construction, and a joint fit of
+collinear ones returns physically absurd amplitudes: measured, a 0.02° zero-point
+error came back as a 1.8° `constant` cancelled by a −1.8° `cos_theta`. So the
+templates are compared rather than combined, and the ambiguity is reported as
+how close the runner-up came.
+
 | Field | Is | Reads as |
 |---|---|---|
 | `TrendAnalysis.observable` | `position`, `width` or `intensity` | which family of coefficients was regressed |
-| `TrendAnalysis.n_regions_used` | regions that passed the gates and contributed | a trend over two regions is arithmetic, not evidence |
-| `TrendAnalysis.templates` | one `TrendTemplate` per candidate shape | the fits themselves |
+| `TrendAnalysis.n_regions_used` | regions that passed their local gates and carried a coefficient of this kind | a coefficient the gates rejected is not evidence, and below three points no trend is fitted at all |
+| `TrendAnalysis.templates` | one `TrendTemplate` per candidate shape | each fitted alone, so they are rivals rather than terms |
 | `TrendAnalysis.max_template_collinearity` | largest \|correlation\| between two templates over the range actually sampled | near 1 means the range cannot separate them |
-| `TrendAnalysis.separability_ratio` | how much better the best template is than its nearest rival | 1.0 is a tie |
-| `TrendAnalysis.separable` | the verdict from those two | **the field to branch on** |
+| `TrendAnalysis.separability_ratio` | the runner-up's unexplained variance over the winner's | how much more the second-best template leaves behind. 1.0 is an exact tie, and large is a clean win |
+| `TrendAnalysis.separable` | the verdict from that ratio | **the field to branch on** |
 | `TrendAnalysis.misfit_share` | share of total χ² the regressed regions carry | the weight to give the whole statement |
 
 | Field | Is | Reads as |
@@ -215,7 +222,7 @@ and the parameters behind them are force-fixed in that geometry anyway.
 | `TrendTemplate.name` | the template's physics | position: `constant` → zero shift, `tan_theta` → cell error, `cos_theta` → specimen displacement and `sin_2theta` → transparency on a flat plate, `sin_2theta` → along-beam and `cos_2theta` → across-beam offset on a capillary. Width: `inv_cos_theta` → size, `tan_theta` → strain. Intensity: `sin2_over_lambda2` → displacement parameters |
 | `TrendTemplate.coefficient` | the fitted amplitude | in the observable's units |
 | `TrendTemplate.stderr` | its standard error | |
-| `TrendTemplate.r2` | how much of the across-region variation it explains | compare the templates against each other, not against an absolute bar |
+| `TrendTemplate.r2` | how much of the observed trend this one physical cause accounts for | measured against the **uncentred** total, because the fit goes through the origin. Compare the templates against each other, not against an absolute bar |
 
 `TrendAnalysis.max_template_collinearity` and `TrendAnalysis.separable` are the
 load-bearing pair. Over a limited angular range two templates can be
