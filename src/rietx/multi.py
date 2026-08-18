@@ -53,6 +53,7 @@ from .strategy.staged import (
     GuardFinding,
     GuardReport,
     RefinementPlan,
+    bound_findings,
     check_adp_positive_definite,
 )
 
@@ -362,14 +363,7 @@ class MultiHistogramRefinement:
                     if abs(c[i, j]) > correlation_guard:
                         report.high_correlations.append(
                             GuardFinding.correlation(free[i], free[j], c[i, j]))
-        lo, hi = mt.bounds()
-        for k, path in enumerate(free):
-            t = outcome.theta[k]
-            span = hi[k] - lo[k]
-            tol = 1e-8 * (span if np.isfinite(span) else 1.0)
-            if ((np.isfinite(lo[k]) and t - lo[k] <= tol)
-                    or (np.isfinite(hi[k]) and hi[k] - t <= tol)):
-                report.at_bounds.append(GuardFinding.at_bound(path))
+        report.at_bounds = bound_findings(mt.bounds(), free, outcome.theta)
         return _guard_diagnostics(report)
 
 

@@ -24,6 +24,25 @@ class RefinedParameter(Base):
     for a caller assembling a result by hand (a comparison runner recording
     its own start state); ``None`` means "not recorded", not "started at
     zero".
+
+    **``at_bound`` has three states, and one of them is "nobody looked"**
+    (WP-1076).  ``True``/``False`` are answers about a *measured* row;
+    ``None`` says the question was not asked of this row, which happens two
+    ways: the result was assembled without a guard report (``refine.replay``,
+    which is evaluate-only, and any hand-built result), and a **tied** row,
+    which is not in the free vector and so is never tested — its value
+    follows its sources, and it can sit on its own declared bound while every
+    source is interior.  Before WP-1076 the field was ``bool = False`` and
+    nothing wrote it, so every row of every result asserted "not at a bound"
+    about a parameter no code had looked at.
+
+    **The source is the guard, never a local recomputation.**  The one place
+    the bound test happens is :func:`rietx.strategy.staged.bound_findings`,
+    whose findings become the ``BOUND_HIT`` diagnostics; this flag is a
+    projection of that same list onto the rows, so the two can never
+    disagree.  ``BOUND_HIT`` stays the reported channel — the flag exists so
+    that an agent iterating ``parameters`` does not have to cross-reference
+    ``diagnostics`` by path.
     """
 
     path: str
@@ -31,7 +50,7 @@ class RefinedParameter(Base):
     stderr: float | None = None
     initial: float | None = None
     vary: bool = True
-    at_bound: bool = False
+    at_bound: bool | None = None
 
 
 class Statistics(Base):
