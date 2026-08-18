@@ -78,20 +78,20 @@ silently ignoring it.
 One pattern, one staged fit. The library equivalent is `Refinement.fit`, and
 [](refining.md) is where the settings below are argued for.
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `RefineRequest.task` | `"refine"` | required | the discriminator |
-| `RefineRequest.structure` | `Structure` | required | the starting model |
-| `RefineRequest.instrument` | `Instrument` | required | wavelength, profile, geometry, background |
-| `RefineRequest.pattern` | `PatternData` | required | the data, carrying its own σ when the file had one |
-| `RefineRequest.mode` | `"rietveld"`, `"lebail"`, `"pawley"` | `"rietveld"` | how peak intensities are decided |
-| `RefineRequest.two_theta_limits` | [float, float] | null | the fitted range |
-| `RefineRequest.backend` | str | `"numpy"` | Jacobian backend |
-| `RefineRequest.solver` | str | `"trf"` | least-squares driver |
-| `RefineRequest.plan` | str or `PlanSpec` | `"mccusker_default"` | a preset name, or an explicit stage list |
-| `RefineRequest.history_path` | str | null | JSONL file for the history DAG. Without it the call keeps no history and `RefinementResult.node_id` and `RefinementResult.tree_id` are null |
-| `RefineRequest.include_report` | bool | true | attach `AgentSuccess.report` |
-| `RefineRequest.report_trajectory` | bool | false | attach `AgentSuccess.trajectory` |
+| Key | Type and default | Meaning |
+|---|---|---|
+| `RefineRequest.task` | `"refine"`, required | the discriminator |
+| `RefineRequest.structure` | `Structure`, required | the starting model |
+| `RefineRequest.instrument` | `Instrument`, required | wavelength, profile, geometry, background |
+| `RefineRequest.pattern` | `PatternData`, required | the data, carrying its own σ when the file had one |
+| `RefineRequest.mode` | `"rietveld"` (default), `"lebail"`, `"pawley"` | how peak intensities are decided |
+| `RefineRequest.two_theta_limits` | pair of floats, default null | the fitted range |
+| `RefineRequest.backend` | str, default `"numpy"` | Jacobian backend |
+| `RefineRequest.solver` | str, default `"trf"` | least-squares driver |
+| `RefineRequest.plan` | str or `PlanSpec`, default `"mccusker_default"` | a preset name, or an explicit stage list |
+| `RefineRequest.history_path` | str, default null | JSONL file for the history DAG. Without it the call keeps no history and `RefinementResult.node_id` and `RefinementResult.tree_id` are null |
+| `RefineRequest.include_report` | bool, default true | attach `AgentSuccess.report` |
+| `RefineRequest.report_trajectory` | bool, default false | attach `AgentSuccess.trajectory` |
 
 `RefineRequest.include_report` is the master switch for report **content**:
 with it false, `RefineRequest.report_trajectory` is overridden and the envelope
@@ -104,19 +104,19 @@ N patterns as one stacked residual, sharing the parameters that describe the
 specimen. This is not a series; [](series.md) is the chapter that separates the
 two, and it owns `SharingSpec`.
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `MultiRefineRequest.task` | `"refine_multi"` | required | the discriminator |
-| `MultiRefineRequest.structure` | `Structure` | required | one model for every histogram |
-| `MultiRefineRequest.instruments` | list[`Instrument`] | required | one per pattern, at least one |
-| `MultiRefineRequest.patterns` | list[`PatternData`] | required | at least one |
-| `MultiRefineRequest.mode` | `"rietveld"` | `"rietveld"` | Rietveld only, and the type says so |
-| `MultiRefineRequest.two_theta_limits` | [float, float], or one per histogram | null | the fitted range |
-| `MultiRefineRequest.weights` | list[float] | null | inter-histogram residual weights; the default is unit, so each point's own esd governs |
-| `MultiRefineRequest.sharing` | `SharingSpec` | null | overrides the default per-histogram rule |
-| `MultiRefineRequest.backend` | str | `"numpy"` | Jacobian backend |
-| `MultiRefineRequest.solver` | str | `"trf"` | least-squares driver |
-| `MultiRefineRequest.plan` | str or `PlanSpec` | `"mccusker_default"` | a preset name, or an explicit stage list |
+| Key | Type and default | Meaning |
+|---|---|---|
+| `MultiRefineRequest.task` | `"refine_multi"`, required | the discriminator |
+| `MultiRefineRequest.structure` | `Structure`, required | one model for every histogram |
+| `MultiRefineRequest.instruments` | list of `Instrument`, required | one per pattern, at least one |
+| `MultiRefineRequest.patterns` | list of `PatternData`, required | at least one |
+| `MultiRefineRequest.mode` | `"rietveld"` | Rietveld only, and the type says so |
+| `MultiRefineRequest.two_theta_limits` | one pair of floats, or one per histogram; default null | the fitted range |
+| `MultiRefineRequest.weights` | list of floats, default null | inter-histogram residual weights; the default is unit, so each point's own esd governs |
+| `MultiRefineRequest.sharing` | `SharingSpec`, default null | overrides the default per-histogram rule |
+| `MultiRefineRequest.backend` | str, default `"numpy"` | Jacobian backend |
+| `MultiRefineRequest.solver` | str, default `"trf"` | least-squares driver |
+| `MultiRefineRequest.plan` | str or `PlanSpec`, default `"mccusker_default"` | a preset name, or an explicit stage list |
 
 Two lengths are checked before anything runs: one instrument per pattern, and
 one weight per pattern if weights are given. Both come back as
@@ -133,25 +133,25 @@ so the python route builds one from `RefinementResult.for_histogram`.
 N separate refinements chained by a warm start. [](series.md) owns the
 behaviour; these are the keys.
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `SequentialRefineRequest.task` | `"refine_sequential"` | required | the discriminator |
-| `SequentialRefineRequest.structure` | `Structure` | required | the starting model for the first pattern |
-| `SequentialRefineRequest.instrument` | `Instrument` | required | one instrument for the whole series |
-| `SequentialRefineRequest.patterns` | list[`PatternData`] | required | the series, in order |
-| `SequentialRefineRequest.mode` | `"rietveld"`, `"lebail"`, `"pawley"` | `"rietveld"` | as for a single fit |
-| `SequentialRefineRequest.two_theta_limits` | [float, float] | null | applied to every pattern |
-| `SequentialRefineRequest.x` | list[float] | null | the series coordinate; the pattern index is the axis without one |
-| `SequentialRefineRequest.x_label` | str | `"index"` | what that coordinate is called |
-| `SequentialRefineRequest.labels` | list[str] | null | a name per pattern, used in messages and history filenames |
-| `SequentialRefineRequest.refit` | `"single"`, `"stages"` | `"single"` | collapse the plan into one stage for a warm pattern, or re-walk it |
-| `SequentialRefineRequest.direction` | `"forward"`, `"backward"`, `"both"` | `"forward"` | which way the chain runs |
-| `SequentialRefineRequest.carry` | list[str] | `["*"]` | dot-path globs that cross a pattern boundary |
-| `SequentialRefineRequest.reseed` | bool | true | let a rejected warm start fall back to the cold models |
-| `SequentialRefineRequest.history_dir` | str | null | directory for the per-pattern trees, `<dir>/<label>.jsonl` |
-| `SequentialRefineRequest.backend` | str | `"numpy"` | Jacobian backend |
-| `SequentialRefineRequest.solver` | str | `"trf"` | least-squares driver |
-| `SequentialRefineRequest.plan` | str or `PlanSpec` | `"mccusker_default"` | run on the first pattern and on any reseeded one |
+| Key | Type and default | Meaning |
+|---|---|---|
+| `SequentialRefineRequest.task` | `"refine_sequential"`, required | the discriminator |
+| `SequentialRefineRequest.structure` | `Structure`, required | the starting model for the first pattern |
+| `SequentialRefineRequest.instrument` | `Instrument`, required | one instrument for the whole series |
+| `SequentialRefineRequest.patterns` | list of `PatternData`, required | the series, in order |
+| `SequentialRefineRequest.mode` | `"rietveld"` (default), `"lebail"`, `"pawley"` | as for a single fit |
+| `SequentialRefineRequest.two_theta_limits` | pair of floats, default null | applied to every pattern |
+| `SequentialRefineRequest.x` | list of floats, default null | the series coordinate; the pattern index is the axis without one |
+| `SequentialRefineRequest.x_label` | str, default `"index"` | what that coordinate is called |
+| `SequentialRefineRequest.labels` | list of str, default null | a name per pattern, used in messages and history filenames |
+| `SequentialRefineRequest.refit` | `"single"` (default), `"stages"` | collapse the plan into one stage for a warm pattern, or re-walk it |
+| `SequentialRefineRequest.direction` | `"forward"` (default), `"backward"`, `"both"` | which way the chain runs |
+| `SequentialRefineRequest.carry` | list of str, default `["*"]` | dot-path globs that cross a pattern boundary |
+| `SequentialRefineRequest.reseed` | bool, default true | let a rejected warm start fall back to the cold models |
+| `SequentialRefineRequest.history_dir` | str, default null | directory for the per-pattern trees, one JSONL file per label |
+| `SequentialRefineRequest.backend` | str, default `"numpy"` | Jacobian backend |
+| `SequentialRefineRequest.solver` | str, default `"trf"` | least-squares driver |
+| `SequentialRefineRequest.plan` | str or `PlanSpec`, default `"mccusker_default"` | run on the first pattern and on any reseeded one |
 
 `SequentialRefineRequest.x` and `SequentialRefineRequest.labels` are checked for
 length against the patterns before the run starts.
@@ -174,17 +174,17 @@ trajectory.
 Not a refinement, so it carries no backend, solver or plan. [](indexing.md) is
 the chapter; this is the request.
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `IndexRequest.task` | `"index"` | required | the discriminator |
-| `IndexRequest.peaks` | `PeakList` | null | a fitted peak list, or positions from a publication |
-| `IndexRequest.pattern` | `PatternData` | null | the profile; supplying it is what enables whole-profile validation |
-| `IndexRequest.instrument` | `Instrument` | null | required with a pattern, and what makes the cell's geometric systematic quantifiable |
-| `IndexRequest.engines` | list[str] | null | which search engines to run; the default is all of them |
-| `IndexRequest.search` | `SearchSpecSpec` | its own defaults | bounds, budgets and the search preset |
-| `IndexRequest.two_theta_limits` | [float, float] | null | the range peaks are picked and validated over |
-| `IndexRequest.validate_candidates` | bool | true | run the Le Bail validation when a pattern is available |
-| `IndexRequest.check_top` | int | null | how many candidates get the expensive per-candidate checks |
+| Key | Type and default | Meaning |
+|---|---|---|
+| `IndexRequest.task` | `"index"`, required | the discriminator |
+| `IndexRequest.peaks` | `PeakList`, default null | a fitted peak list, or positions from a publication |
+| `IndexRequest.pattern` | `PatternData`, default null | the profile; supplying it is what enables whole-profile validation |
+| `IndexRequest.instrument` | `Instrument`, default null | required with a pattern, and what makes the cell's geometric systematic quantifiable |
+| `IndexRequest.engines` | list of str, default null | which search engines to run; the default is all of them |
+| `IndexRequest.search` | `SearchSpecSpec`, its own defaults | bounds, budgets and the search preset |
+| `IndexRequest.two_theta_limits` | pair of floats, default null | the range peaks are picked and validated over |
+| `IndexRequest.validate_candidates` | bool, default true | run the Le Bail validation when a pattern is available |
+| `IndexRequest.check_top` | int, default null | how many candidates get the expensive per-candidate checks |
 
 A request with neither `IndexRequest.peaks` nor a
 `IndexRequest.pattern` + `IndexRequest.instrument` pair is refused before any
@@ -200,18 +200,18 @@ answer is able to say rather than what it costs.
 Which parameter to free next, from one Jacobian evaluation. No least squares, no
 history, no mutation, which is what makes it safe to call between fits.
 
-| Field | Type | Default | Meaning |
-|---|---|---|---|
-| `SuggestRequest.task` | `"suggest"` | required | the discriminator |
-| `SuggestRequest.structure` | `Structure` | required | the model at the state to be judged |
-| `SuggestRequest.instrument` | `Instrument` | required | the same |
-| `SuggestRequest.pattern` | `PatternData` | required | the data |
-| `SuggestRequest.mode` | `"rietveld"`, `"lebail"`, `"pawley"` | `"rietveld"` | as for a fit |
-| `SuggestRequest.two_theta_limits` | [float, float] | null | the evaluated range |
-| `SuggestRequest.backend` | str | `"numpy"` | Jacobian backend |
-| `SuggestRequest.top_n` | int | 5 | ranked groups to return |
-| `SuggestRequest.include` | str or list[str] | `"*"` | dot-path globs a candidate must match, with a stage's `turn_on` semantics |
-| `SuggestRequest.exclude` | list[str] | `[]` | dot-path globs to leave out |
+| Key | Type and default | Meaning |
+|---|---|---|
+| `SuggestRequest.task` | `"suggest"`, required | the discriminator |
+| `SuggestRequest.structure` | `Structure`, required | the model at the state to be judged |
+| `SuggestRequest.instrument` | `Instrument`, required | the same |
+| `SuggestRequest.pattern` | `PatternData`, required | the data |
+| `SuggestRequest.mode` | `"rietveld"` (default), `"lebail"`, `"pawley"` | as for a fit |
+| `SuggestRequest.two_theta_limits` | pair of floats, default null | the evaluated range |
+| `SuggestRequest.backend` | str, default `"numpy"` | Jacobian backend |
+| `SuggestRequest.top_n` | int, default 5 | ranked groups to return |
+| `SuggestRequest.include` | str or list of str, default `"*"` | dot-path globs a candidate must match, with a stage's `turn_on` semantics |
+| `SuggestRequest.exclude` | list of str, default `[]` | dot-path globs to leave out |
 
 The models' own `vary` flags are the currently-free set, so this task asks "what
 next" about the state you send it.
@@ -227,7 +227,7 @@ The envelope is one of two types, and `ok` says which: `AgentSuccess` or
 
 ### Success
 
-| Field | Type | Meaning |
+| Key | Type | Meaning |
 |---|---|---|
 | `AgentSuccess.ok` | `true` | always, and it is the field to branch on first |
 | `AgentSuccess.result` | `RefinementResult` | set by `refine` and `refine_multi` |
@@ -235,7 +235,7 @@ The envelope is one of two types, and `ok` says which: `AgentSuccess` or
 | `AgentSuccess.indexing` | `IndexingResult` | set by `index` |
 | `AgentSuccess.suggestion` | `SuggestionResult` | set by `suggest` |
 | `AgentSuccess.report` | `FitReport` | the three-layer report, for `refine` only |
-| `AgentSuccess.trajectory` | list[`StageReport`] | that report at every stage boundary, in the order the stages ran |
+| `AgentSuccess.trajectory` | list of `StageReport` | that report at every stage boundary, in the order the stages ran |
 | `AgentSuccess.evidence` | `IndexingEvidence` | the indexing answer projected for a consumer that reasons |
 
 **Every field is serialized, including the arms that are null.** A `refine`
@@ -269,7 +269,7 @@ off.
 
 ### Failure
 
-| Field | Type | Meaning |
+| Key | Type | Meaning |
 |---|---|---|
 | `AgentFailure.ok` | `false` | always |
 | `AgentFailure.error` | `AgentError` | the whole of what went wrong |
@@ -277,12 +277,12 @@ off.
 `AgentError` is the grammar of a `Diagnostic`, so a consumer keeps one
 vocabulary for "the fit warns" and "the call failed".
 
-| Field | Type | Meaning |
+| Key | Type | Meaning |
 |---|---|---|
 | `AgentError.code` | one of three strings | what to branch on |
 | `AgentError.message` | str | what happened, for a person |
 | `AgentError.suggestion` | str | what to do about it, when the package knows |
-| `AgentError.details` | list[`AgentErrorDetail`] | one entry per field-level failure |
+| `AgentError.details` | list of `AgentErrorDetail` | one entry per field-level failure |
 
 | `AgentError.code` | Means |
 |---|---|
@@ -290,7 +290,7 @@ vocabulary for "the fit warns" and "the call failed".
 | `BACKEND_UNAVAILABLE` | a valid backend name whose optional dependency is not installed here |
 | `REFINEMENT_FAILED` | the request was valid and the engine raised |
 
-| Field | Type | Meaning |
+| Key | Type | Meaning |
 |---|---|---|
 | `AgentErrorDetail.where` | str | a dot-path into the request as you wrote it |
 | `AgentErrorDetail.message` | str | what is wrong with that field |
