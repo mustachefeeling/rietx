@@ -84,8 +84,9 @@ parameters are addressed and edited, learn why a fit is staged, run one and
 control it, read the numbers it returned, read the report on top of them, go
 back to any state it passed through, find out what is on disk, find the cell
 when the specimen is unknown, refine a whole set of patterns rather than one,
-find out how much of each phase there is, take the tables away, then wire it
-into something. The closing chapter is the 1.0 stability promise.
+find out how much of each phase there is, take the tables away, reach the few
+jobs that belong in a terminal, then wire it into something. The closing chapter
+is the 1.0 stability promise.
 
 ```{toctree}
 :caption: Part 1 — Using rietx
@@ -105,6 +106,7 @@ using/indexing
 using/series
 using/qpa
 using/exports
+using/cli
 using/agents
 using/compatibility
 ```

@@ -647,7 +647,7 @@ choose — and drop it to `low`. The other six *cap* it at `medium`.
 | `volume_unphysical` | the volume is outside what the data can support | refutes |
 | `validation_failed` | the Le Bail fit raised or diverged | refutes |
 | `engines_disagree` | fewer than every engine that ran found this lattice | caps |
-| `not_validated` | no pattern was supplied, so nothing tested it against the profile | caps |
+| `not_validated` | this candidate has no Le Bail fit behind it | caps |
 | `search_incomplete` | a budget expired, so a negative result elsewhere means nothing | caps |
 | `shift_allowance_assumed` | the matching window was widened by an assumed systematic | caps |
 | `fom_panel_reduced` | the list is too short for the classical figures | caps |
@@ -656,6 +656,16 @@ choose — and drop it to `low`. The other six *cap* it at `medium`.
 `not_validated` and `validation_failed` are separate on purpose: the absence of
 a test and a failed test are different statements, and only the second is
 evidence about the cell.
+
+**`not_validated` has two causes, and they are not the same news.** No pattern
+was supplied, so no candidate could be validated — which is what
+`IndexingResult.validated` reports at run level. Or a pattern *was* supplied and
+this candidate's fit did not run, because the shortlist is validated top-down and
+`SearchSpec.total_budget_seconds` expired partway. `INDEX_BUDGET_EXHAUSTED` names
+the second, counting the candidates it cost. Measured on the round-robin
+corundum pattern under a 45 s ceiling: `IndexingResult.validated` is `True` and
+all twelve candidates carry `not_validated`, so reading the run-level flag as the
+per-candidate one inverts the answer.
 
 `IndexingResult.best_or_none` returns a candidate only when exactly one is
 `high` and it has no ambiguity partners. Everything else — nothing found, two
