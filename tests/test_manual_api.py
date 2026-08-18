@@ -139,6 +139,27 @@ def documented_names() -> set[str]:
     type without inferring one, and a reference chapter names the type anyway.
     A leading ``rietx.`` is stripped, so ``rietx.read_pattern`` and
     ``read_pattern`` are one name.
+
+    **The blind spot, and it is not fixable here.**  This counts a name as
+    documented wherever it is *spelled*, and
+    :func:`test_every_dotted_name_resolves` checks the same name against the
+    package — so a paragraph describing type A that spells type B's member
+    passes both and freezes B's name.  Measured: ``report.md`` documented
+    ``FitReport.identifiability`` as an ``Identifiability`` for the whole of
+    v1.0.0-1.0.1, when it is an ``IdentifiabilityEvidence``; the two share
+    ``top_correlations`` and ``soft_modes``, so every check was green and three
+    names froze against the wrong type (WP-1067's closing handover).  Catching
+    it needs a reading — check each spelled name against the type the paragraph
+    is *about* — which is why it is written here rather than asserted.  Pairs of
+    this shape today: the two identifiability blocks, ``Statistics`` against
+    ``BackgroundEvidence`` (both carry ``rwp``), and ``StageReport`` against
+    ``StageResult``.
+
+    The same session found the other half of it: two docstrings that
+    contradicted their own code (``report.layer1._trends`` claiming a joint fit,
+    ``schemas.indexing``'s ``not_validated`` claiming one cause of two), each
+    faithfully transcribed into a chapter.  A chapter is drafted from a
+    docstring, so **read the code beside it**; nothing in this file can.
     """
     surface = derive_surface()
     found: set[str] = set()

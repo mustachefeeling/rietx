@@ -598,10 +598,14 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
     was not about — and the partition counted it documented. **Name resolution
     cannot catch a mis-attribution between two types that share a member name.**
     The only thing that would is checking each spelled name against the type the
-    paragraph is describing, which is a reading, not a test. Worth knowing for
-    every future pass: the two identifiability blocks, the two `rwp`-carrying
-    evidence types, and `StageReport` against `StageResult` are all pairs of this
-    shape.
+    paragraph is describing, which is a reading, not a test. Written into
+    `documented_names`' docstring rather than root CLAUDE.md, with the pairs of
+    this shape named there — the two identifiability blocks, `Statistics`
+    against `BackgroundEvidence`, `StageReport` against `StageResult` — because
+    the cap comment's own test for a CLAUDE.md line is "a clause a session that
+    never opens `docs/manual/` still needs", and this is not one. **Rule 4 cuts
+    both ways**: the first attempt put it in CLAUDE.md and blew the 700-line cap
+    by six, which is the cap doing its job.
   - **A `no-exec` block hides a wrong attribute, and one had been hiding one.**
     `refining.md` printed `report.statistics.rwp` over
     `Refinement.stage_reports_`, which are `StageReport` objects with no
