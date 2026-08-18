@@ -118,6 +118,13 @@ paper whose read text does not support it; every §8 pointer resolves.
 
 ## Handover log
 
+- **2026-08-19 — Cox & Papoular addendum.** The maintainer pointed out the
+  paper *is* in the corpus (`derived/V8RPPS5L`; the 2026-08-18 title search
+  missed it). Read in full: the weighted R_WI / S_I claim the repo rested on
+  is verified, §4 step 9 now cites it, and the one emphasis tension (R_I
+  ranked above R_wp, on nearly-overlap-free synchrotron data) is recorded in
+  the v1.1 appendix's addendum rather than resolved. Grid: the trace-phase
+  row gains class (ii); counts 34 → 35. No claim needed demotion.
 - **2026-08-18 — audit complete, WP closed** (six commits, one per checklist
   item). Toby 2024 read — the first WP to read it — and reconciled against
   §2 and `PLAN_PRESETS`/`task="suggest"`: two adopt-by-citation (the

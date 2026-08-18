@@ -352,7 +352,10 @@ Judge a fit in this order:
 
    **Do not compare a trace phase's R_B with the major phase's.** Neither
    index is weighted, so a reflection the fit barely constrains weighs as much
-   as one that dominates it, and a minor phase's windows sit under the major
+   as one that dominates it — the weighted R_WI of Cox & Papoular (1996,
+   *Mater. Sci. Forum* **228–231**, 233) exists to answer exactly this, and is
+   not computed here (`optimize.statistics`' docstring holds the pointer) —
+   and a minor phase's windows sit under the major
    phase's peaks, where the counts the major phase failed to describe are
    handed out too. Measured on 11-BM NAC with 1.35 wt % CaF₂: 0.052 for the
    major phase against 0.385 for the impurity, all of the latter in four
