@@ -24,7 +24,12 @@ line (trial_error), bad starting basin (svd). One step further: the
 **extinction symbol**, not the space group, is what a powder measures —
 `determine_extinction_symbol` answers with ranked classes, each carrying a
 *list* of space groups; there the singleton is not unsupported but
-unmeasurable.
+unmeasurable. Its absence test can only speak where its own null model is
+silent — a σ threshold is counting noise, not model error, and a forbidden
+position inside a neighbour's tail measures the *profile*, which refuted
+certified corundum's own `R -3 c` (WP-1077; `_model_is_quiet` and the sham-probe
+measurement are in `extinction.py`'s docstring, and `n_testable` is `None` until
+`screened` because it needs that class's fit).
 
 ## The pipeline
 
@@ -70,14 +75,13 @@ On real data with no measured shift, `high` is *unreachable* by design
   `preset="custom"`; `"full"` is unbounded, and **a test asserting a
   complete search declares it** (the acceptance rows all do).
 - **What streams is graded conservatively or not at all.** Facts ride every
-  ladder emission (`elapsed_seconds`, `remaining_seconds` under a ceiling);
-  a finished unit streams ≤3 `provisional` cells with **no confidence
-  field**; a *completed* system streams its cumulative ranked list as a
-  `consensus:<system>` unit through the real gate with validation and
-  ambiguity still open (both capping) — a streamed grade can rise, never
-  fall. Candidate shape: `schemas.indexing.candidate_evidence`, shared with
-  `evidence()` — never fork it. All added `data` on existing kinds; a new
-  kind is a version bump.
+  ladder emission (`elapsed_seconds`, `remaining_seconds` under a ceiling); a
+  finished unit streams ≤3 `provisional` cells with **no confidence field**; a
+  *completed* system streams its cumulative ranked list as a
+  `consensus:<system>` unit through the real gate with validation and ambiguity
+  still open (both capping) — a streamed grade can rise, never fall. Candidate
+  shape: `schemas.indexing.candidate_evidence`, shared with `evidence()` — never
+  fork it. All added `data` on existing kinds; a new kind is a version bump.
 
 ## The control surface and the priors (WP-1045)
 
@@ -127,34 +131,30 @@ supercell 64-74× where M₂₀ manages 1.8×). Its `N^cal` is Σ 1/m over
 centring-allowed triples, **never rounded**: a complete orbit sums to
 exactly 1 (the multiplicity self-check) while a box-cut hexagonal orbit
 legitimately contributes a fraction.
-**A cap applied above the layer that ranks *is* a ranking** (WP-1046).
-`max_candidates` is the **reported** cap, applied once, by consensus; a unit
-hands the merge `SearchSpec.engine_pool()` = `ENGINE_POOL_MULTIPLE ×` it, and
-consensus scores the *whole* merge (`shortlist=None` — the cheap pre-rank bounds
-an engine's unbounded harvest and consensus has none, so tying it to the reported
-number was the same defect in a cheaper disguise). Applied lower, Borda's
-rank-sum over the pool being ranked made the cap the ranking, and a **longer**
-search *lost* set F's truth — rank 1 at 5 s, absent at 30 s. Two numbers because
-they buy different things: the pool bounds panel cost, the reported cap bounds
-*validation* and is what `estimate_ceiling` prices. `INDEX_CANDIDATES_TRUNCATED`
-states what the list left out — a count at the merge, a flag at the pool. **The
-known-cell corpus could not have found this**: it is high-symmetry, its truths'
-own units harvest single digits, and the cap binds in the low-symmetry ones.
+**A cap applied above the layer that ranks *is* a ranking** (WP-1046; both
+truncations measured in v1.0.md § Appendix). `max_candidates` is the **reported**
+cap, applied once, by consensus; a unit hands the merge
+`SearchSpec.engine_pool()` = `ENGINE_POOL_MULTIPLE ×` it, and consensus scores
+the *whole* merge (`shortlist=None` — the pre-rank bounds an engine's unbounded
+harvest and consensus has none). Applied lower, Borda's rank-sum over the pool
+made the cap the ranking and a **longer** search *lost* set F's truth. Two
+numbers because they price different things — the pool is panel time, the
+reported cap is validation, which `estimate_ceiling` prices; and
+`INDEX_CANDIDATES_TRUNCATED` says what the list left out, a count at the merge
+and a flag at the pool. **The known-cell corpus could not have found this**: it
+is high-symmetry, and the cap binds in the low-symmetry sets.
 
 **Corroboration outranks every figure of merit — and it is binary, not a count**
-(`engines.corroborated`, WP-1046). The doctrine above applied to the *order* and
-not only to the verdict: `grade` floors a candidate below `MIN_AGREEMENT`
-finders at `low` before a caveat is read, so a list ranked on the panel alone put
-candidates the gate refuses to promote above the one it could. It is **not** an
-aggregation artefact and no re-weighting reaches it (WP-1041 stands): the
-displacing candidate *wins* the panel on the members — what separates it from the
-truth is who found it. **A finder count is not comparable across systems**, and
-that is measured, not feared: the engines' reach differs by system, three of them
-meet in a cheap orthorhombic domain where only two reach an expensive monoclinic
-one, and ranking on the count sent four bethanechol truths from rank 1 to ranks
-5/3/9/8 behind orthorhombic cells all three engines found. The one comparable
-statement is the gate's own boundary, so `MIN_AGREEMENT` is read by both and the
-panel decides within a tier. Inert inside an engine, where `found_by` is empty.
+(`engines.corroborated`, WP-1046). The doctrine above applied to the *order*:
+`grade` floors a candidate below `MIN_AGREEMENT` finders at `low` before a caveat
+is read, so a panel-only ranking put candidates the gate refuses to promote above
+the one it could. Not an aggregation artefact — the displacing candidate *wins*
+the panel on the members, and no re-weighting reaches it (WP-1041 stands).
+**A finder count is not comparable across systems**, measured rather than feared:
+ranking on it sent four bethanechol truths from rank 1 to ranks 5/3/9/8 behind
+orthorhombic cells all three engines found. So the one comparable statement is
+the gate's own boundary — `MIN_AGREEMENT` is read by both, and the panel decides
+within a tier. Inert inside an engine, where `found_by` is empty.
 
 **But the panel ranks; it does not score** (WP-1041) — a margin is comparable within a
 member, not across them, so a raw log-sum merely re-weights the panel by each member's

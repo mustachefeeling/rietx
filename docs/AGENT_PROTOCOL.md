@@ -674,8 +674,8 @@ shows. Same split as §7c: a refutation lives on the class it refutes.
 | Code | What it means you must not do |
 |---|---|
 | `EXTINCTION_GROUPS_NOT_SEPARABLE` | (info) Pick one of the listed space groups and call it the answer. They produce **identical** powder patterns by construction — a centre of symmetry, an enantiomorph or a mirror leaves no absence — so this is not weak data and not a tie to be broken by counting longer. Carry the list; `structure_from_candidate(cand, space_group=…)` accepts any member. The arbiters are chemistry (a polar or optically active compound cannot be centrosymmetric) and, eventually, which one a structure solution works in |
-| `EXTINCTION_SYMBOL_AMBIGUOUS` | Read the ranked first class as the answer. It fires for three different reasons and says which: a runner-up inside the decisive ΔBIC margin, a leading class none of whose absences is **testable** here (each is outside the range or coincides with a line the class still allows), or classes a `max_classes` cap never fitted. Only the first is fixed by better data at the same setting |
-| `EXTINCTION_FORBIDDEN_INTENSITY` | Keep this class. A position it forbids carries intensity its own Le Bail fit cannot account for, and the hkl and 2θ are named so you can look. One flagged position can also be an impurity line — check it against the indexing result's `unmatched_observed` before concluding |
+| `EXTINCTION_SYMBOL_AMBIGUOUS` | Read the ranked first class as the answer. It fires for three different reasons and says which: a runner-up inside the decisive ΔBIC margin, a leading class none of whose absences is **testable** here (each is outside the range, coincides with a line the class still allows, or sits where the class's own fit already puts a neighbour's tail), or classes a `max_classes` cap never fitted. Only the first is fixed by better data at the same setting |
+| `EXTINCTION_FORBIDDEN_INTENSITY` | Keep this class. A position it forbids carries intensity its own Le Bail fit cannot account for, and the hkl and 2θ are named so you can look. Two things it is not: a position under a neighbour's tail, which is no longer testable at all (WP-1077), and necessarily a violated absence — one flagged position can be an impurity line, so check it against the indexing result's `unmatched_observed` before concluding. What it *cannot* be excused by is a good ΔBIC: a class asserts absences, so a testable position carrying intensity refutes it however well it scores |
 | `EXTINCTION_CONDITIONS_PARTIAL` | (info) Read `conditions` as the complete condition list for this class. The screen used the absence set itself, which is unaffected; only the human-readable reduction is short. Read `space_groups` |
 
 Three things about the screen that change how you use its answer:
@@ -690,10 +690,21 @@ Three things about the screen that change how you use its answer:
 2. **`n_added` counts only *testable* absences**, so a class whose extra absences
    all hide under allowed neighbours earns nothing for them. Read `n_testable`
    beside `n_absent`: if it is zero the class is a hypothesis these data cannot
-   address, whatever its Rwp.
+   address, whatever its Rwp; if it is `None` the class was never fitted, so the
+   question was not asked. The third clause of testable — the class's own fit
+   must leave the window below the detection threshold — is what stops a
+   badly-modelled peak tail refuting a true class, and it is measured: on
+   certified corundum, sham positions 1–3 FWHM below an allowed line, carrying no
+   reflection at all, clear the same 3σ test on 40–50 % of probes.
 3. **The absence-free class winning is a result, not a failure.** On NAC (I 2₁3)
    it is the *correct* answer: I-centring already extinguishes the very
    reflections the 2₁ screws would, so those screws are invisible in principle.
+   It is a *wrong* answer when the shared profile fit is bad, and
+   `ExtinctionScreen.profile_rwp` is the field that tells the two apart: on
+   certified corundum the screen returns the certified `R - c -` at Rwp 0.149 and
+   the absence-free `R - - -` at 0.270, from the same cell and the same pattern.
+   Give it a range and a width law its profile fit can match before reading a
+   refutation.
 
 **`where` now names the paths on every guard code, `HIGH_CORRELATION` included**
 (v1.0, WP-1007). It used to be empty on that one — the paths were recovered from

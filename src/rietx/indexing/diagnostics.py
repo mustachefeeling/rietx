@@ -624,13 +624,14 @@ def extinction_class_diagnostics(cand) -> list[Diagnostic]:
                         "impurity line — check it against "
                         "IndexingResult's unmatched_observed before dropping the "
                         "class")))
-    if cand.n_absent and not cand.n_testable:
+    if cand.n_absent and cand.n_testable == 0:
         out.append(Diagnostic(
             level="info", code="EXTINCTION_SYMBOL_AMBIGUOUS",
             message=(f"none of the {cand.n_absent} line(s) this class forbids "
-                     "can be tested by these data: each is either outside the "
-                     "fitted range or coincides with a line the class still "
-                     "allows"),
+                     "can be tested by these data: each is outside the fitted "
+                     "range, coincides with a line the class still allows, or "
+                     "sits where this class's own fit already puts a "
+                     "neighbour's tail"),
             where=where,
             suggestion=("this class is indistinguishable from a less restrictive "
                         "one here, and it is *not* preferred on parsimony — the "
@@ -701,7 +702,7 @@ def extinction_diagnostics(screen) -> list[Diagnostic]:
         reasons.append(f"{alive[1].symbol} is within ΔBIC "
                        f"{alive[1].delta_bic - top.delta_bic:.1f} of it "
                        f"(decisive is {DECISIVE_DELTA_BIC:g})")
-    if top.n_absent and not top.n_testable:
+    if top.n_absent and top.n_testable == 0:
         reasons.append("none of its absences is testable in this range")
     if unscreened:
         reasons.append(f"{len(unscreened)} class(es) were never fitted, so their "

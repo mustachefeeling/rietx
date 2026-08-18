@@ -74,17 +74,18 @@ documents a name *promotes it to frozen* — regenerate
 closed [1067](wp/1067-user-api-manual.md)): all 1322 public names are documented
 or excluded with a reason, so a *new* one now fails the partition on arrival.
 1.0.2 is written but unreleased and now carries a **breaking** entry —
-`SCHEMA_VERSION` 0.1 → 0.2 — which is the first 1.0.x has had.
+`SCHEMA_VERSION` 0.1 → 0.2 — which is the first 1.0.x has had, and after
+[1077](wp/1077-extinction-refutes-certified-class.md) it is also the first 1.0.x
+release whose *answer* moves: `determine_extinction_symbol` no longer refutes a
+class on a neighbouring peak's tail. A refinement still gives 1.0.1's numbers.
 
 **No milestone is in flight.** Opening the next one is a planning decision
 (version → `1.x.0.dev0`); the committed post-1.0 work, in rough order:
 
 - **[1078](wp/1078-indexing-provisional.md)** — indexing is still under active
   development, so the subsystem is declared provisional and every surface says
-  so; it un-freezes what 1067's chapter froze and **gates 1.0.2**.
-  **[1077](wp/1077-extinction-refutes-certified-class.md)** — the extinction
-  screen refutes corundum's certified class, and no acceptance row covers the
-  shape.
+  so; it un-freezes what 1067's chapter froze and **gates 1.0.2**. 1077 is the
+  case for it: a frozen call whose answer had to change in a patch release.
 - **Promised in the 1.0.0 release notes, built in 1.0.x**: `.rex` zip
   transport (export/open, "the directory, zipped");
   `RefinementState.excluded_regions` with `replay` honouring the node's
@@ -298,7 +299,7 @@ docs were ballooning, CI paid twice per merged PR, and the handover was
 | [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | ✅ 2026-08-18 — § Floor landed and unblocked 1003; the McCusker set's pass landed (Part 2 took its four equations, `using/results.md` split off, restraints documented, three figures); ten 1.0.x chapters landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`, `cli`, plus second passes on `agents` and `report`), two planned chapters were deleted by measurement and one line grew from three commands to five; closed when [1076](wp/1076-result-row-honesty.md) emptied the `deferred-1.0.x` bucket — the derived surface is documented-or-excluded end to end, **1322 of 1322** | 0604, 1004–1007, 1047 |
 | [1068](wp/1068-manual-second-pass.md) | Part 1 second pass: voice, figures, structure | ✅ 2026-08-15 — voice, sectioning, `concepts.md` + `files.md`, four diagrams, three figure pairs; the McCusker read fixed a false attribution and produced the compliance audit | 1067 |
 | [1076](wp/1076-result-row-honesty.md) | A result row's unwritten fields: `at_bound` and `initial` | ✅ 2026-08-18 — the whole class, in four groups: `at_bound` three-valued and projected from one bound test, `initial`/`correlation_warnings` deleted, `TieSpec.from_tie` privatised, `"skipped"` and `"lebail_update"` off their vocabularies, `BACKEND_UNAVAILABLE` repaired in both directions it was wrong in, and `SeriesResult` given one `index` column and a reachable `backward`; SCHEMA_VERSION 0.1 → 0.2 and 1.0.2 gains 1.0.x's first breaking entry | 1067 |
-| [1077](wp/1077-extinction-refutes-certified-class.md) | The extinction screen refutes a certified class (corundum R -3 c), and no row covers the shape | ⬜ | — |
+| [1077](wp/1077-extinction-refutes-certified-class.md) | The extinction screen refutes a certified class (corundum R -3 c), and no row covers the shape | ✅ 2026-08-18 — the evidence was wrong: both refuting positions sit on a strong line's low-angle flank, where *sham* positions carrying no reflection clear the same 3σ test on 40-50 % of probes (24.7σ max, that flank only — the axial tail), and freeing the FCJ asymmetry improves Rwp without removing the refutation. `n_testable` gains a third clause — the class's **own** fit must leave the window below the test's own threshold — so a total tail failure cannot refute; the screen returns `R - c -` = {R 3 c, R -3 c} at ΔBIC −218, five testable positions all absent. `n_testable` is `int \| None`. The badly-fitted whole-range arm still refutes, which is `profile_rwp`'s job and is now measured as such | — |
 | [1078](wp/1078-indexing-provisional.md) | Indexing is provisional, and every surface says so — **gates the 1.0.2 release** | ⬜ | 1067 |
 
 The GUI keeps moving, so it **ships as a beta feature** and is documented once

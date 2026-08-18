@@ -3392,9 +3392,12 @@ const EXTINCTION = (best: number | null) => ({
                      refuted_reason: "intensity at 2 forbidden positions",
                      n_present: 2, forbidden_hkl: [[0, 0, 1], [0, 0, 3]],
                      forbidden_two_theta: [10.51, 31.72] }),
-      // unrefuted but never fitted (a max_classes cap): the unasked question
+      // unrefuted but never fitted (a max_classes cap): the unasked question.
+      // `n_testable` is null there because it needs the class's own fit
+      // (WP-1077) — the server cannot know it, so the cell must not print one
       SCREEN_CLASS({ symbol: "P 63/m m c", representative: "P 63/m m c",
-                     space_groups: ["P 63 m c"], screened: false, delta_bic: 0 }),
+                     space_groups: ["P 63 m c"], screened: false, delta_bic: 0,
+                     n_testable: null }),
     ],
     lattice_group: "P 6/m m m", cell: [3, 3, 5, 90, 90, 120], system: "hexagonal",
     centring: "P", wavelength: 1.5406, two_theta_range: [5.0, 90.0],
@@ -3429,6 +3432,10 @@ describe("the extinction screen table (WP-1027)", () => {
     expect(host.textContent).toContain("refuted");
     expect(host.textContent).toContain("(001) 10.51°");
     expect(host.textContent).toContain("not screened");
+    // a screened class shows its measured testable count; an unscreened one
+    // shows a dash, because nobody asked (WP-1077)
+    expect(host.textContent).toContain("4/6");
+    expect(host.textContent).toContain("—/6");
     // both members of the class render — the singleton is unmeasurable…
     expect(host.textContent).toContain("P 63/m");
     expect(host.textContent).toContain("P 63");

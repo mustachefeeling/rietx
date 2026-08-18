@@ -68,6 +68,24 @@ lands here and **this WP gates the 1.0.2 release** (`docs/RELEASING.md`).
 
 ### Inherited
 
+**From WP-1077 (2026-08-18): a worked instance of the case this WP argues, and
+one release-notes fact to carry.** `determine_extinction_symbol` is frozen by
+1067's chapter, and its *answer* changed in a patch release — the absence test
+was refuting a class on a neighbouring peak's tail, so on certified corundum the
+screen returned a class not containing the specimen's own `R -3 c`. The repair
+narrows `n_testable` and widens its type to `int | None`. Nothing about that was
+avoidable by being more careful at the freeze: the defect was found by writing a
+manual chapter over the call, which is the same route all nine of 1076's took.
+Two consequences for this WP. The 1.0.2 notes now carry an "the extinction
+screen no longer refutes a class on its neighbour's tail" entry under § What
+changed and two entries under § Upgrading, so **the release this gates is no
+longer answer-identical to 1.0.1** and its headline says so — check that the
+provisional declaration reads consistently beside that. And if
+`PROVISIONAL_MODULES` (or whatever the table becomes) is keyed by module, note
+that `determine_extinction_symbol` is re-exported at top level and documented in
+`using/indexing.md`, so the entry has to reach a name, not only
+`rietx.indexing`.
+
 **From WP-1067's `using/series.md`/`exports.md` session (2026-08-18): the same
 finding one subsystem over, and this WP's mechanism is what would answer it.**
 `rietx.viz` is **not on the derived surface at all** — measured, `agent` is the

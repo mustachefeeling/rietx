@@ -51,6 +51,12 @@ LAM = 1.5405929
 #: the synthetic monoclinic specimen: P 2₁/c, one atom in a general position.
 MONO_CELL = (8.0, 10.0, 7.0, 90.0, 100.0, 90.0)
 MONO_RANGE = (15.0, 70.0)
+#: NIST SRM 676a α-Al₂O₃, the certified cell (``tests/data/README.md``).
+CORUNDUM_CELL = (4.759355, 4.759355, 12.99231, 90.0, 90.0, 120.0)
+CORUNDUM_RANGE = (20.0, 90.0)
+#: the two forbidden positions that refuted ``R - c -`` before WP-1077 — the
+#: (2,0,5) and (2,0,−7) lines, 2.8 and 1.5 FWHM below (1,1,6) and (3,0,0).
+CORUNDUM_FLAGGED = (56.919, 67.840)
 
 
 def _candidate(cell, system, centring="P") -> CellCandidate:
@@ -631,6 +637,155 @@ def test_nac_returns_the_centred_class_and_claims_nothing_more(nac_screen):
         assert group in note.where[0]
     others = [c for c in nac_screen.candidates if c is not best]
     assert others and all(c.refuted for c in others)
+
+
+@pytest.fixture(scope="module")
+def corundum_inputs():
+    """SRM 676a corundum from the IUCr CPD round robin, on the CPD's own
+    instrument (``tests/test_acceptance_qpa_roundrobin.qarr_instrument`` —
+    Philips Bragg-Brentano, Cu Kα doublet, graphite monochromator, dispersion
+    declined) with the certified cell.
+
+    The dataset this suite was missing (WP-1077): a **rhombohedral glide** — the
+    c of ``R -3 c`` — on **real laboratory data**, in a specimen carrying its own
+    impurity lines and a strong unmodelled axial tail.  The three rows above are
+    a synthetic monoclinic, a hexagonal screw axis and a cubic *I* lattice whose
+    answer is "no absences at all", and none of them can fail this way.
+
+    ``seed_widths`` is applied because the instrument declares the ``ProfileTCHZ``
+    default (a synchrotron line, ~13× too narrow here) and the screen's whole
+    argument rests on a profile fit; the range is trimmed to 20-90° for the same
+    reason, which is the protocol ``docs/manual/using/indexing.md`` prescribes.
+    """
+    import rietx as rx
+    from rietx.indexing.workflow import seed_widths
+    from tests.test_acceptance_qpa_roundrobin import qarr_instrument
+
+    path = DATA / "qarr" / "corundum.prn"
+    if not path.exists():
+        pytest.skip("IUCr round-robin corundum pattern not present")
+    data = rx.read_pattern(path)
+    instrument, seeded = seed_widths(qarr_instrument(), rx.pick_peaks(
+        data, qarr_instrument()))
+    assert seeded, "the declared profile is the one this protocol repairs"
+    return data, _candidate(CORUNDUM_CELL, "trigonal", "R"), instrument
+
+
+@pytest.fixture(scope="module")
+def corundum_screen(corundum_inputs):
+    data, cand, instrument = corundum_inputs
+    return determine_extinction_symbol(data, cand, instrument,
+                                       two_theta_limits=CORUNDUM_RANGE)
+
+
+def test_corundum_returns_the_class_its_certificate_names(corundum_screen):
+    """The acceptance criterion, and it is a **certificate**, not a fit.
+
+    SRM 676a is α-Al₂O₃ in ``R -3 c``, so the c glide is the answer the specimen
+    is certified to have — decided before the screen was ever run on it, which is
+    what ``tests/CLAUDE.md`` asks of a scored row.  What comes back is
+    ``R - c -`` = {R 3 c, R -3 c}: the certified group listed, never chosen, and
+    its partner is the non-centrosymmetric one, so this is the doctrine's
+    cleanest real-data instance — no counting time separates them.
+
+    Before WP-1077 this returned ``R - - -``, whose five members do not include
+    ``R -3 c`` at all.  That was not the package abstaining; it was a wrong
+    answer, reached from the workflow ``docs/AGENT_PROTOCOL.md`` §7d prescribes.
+    """
+    best = corundum_screen.best_or_none()
+    assert best is not None, [(c.symbol, c.refuted_reason)
+                              for c in corundum_screen.candidates]
+    assert best.symbol == "R - c -"
+    assert best.space_groups == ["R 3 c:H", "R -3 c:H"]
+    assert "R -3 c:H" in best.space_groups          # the certificate's group
+    assert best.conditions == ["0kl: l = 2n", "h0l: l = 2n", "h-hl: l = 2n"]
+    assert best.conditions_complete
+    assert not best.refuted and best.n_present == 0
+    assert best.n_absent == 10 and 1 <= best.n_testable < best.n_absent
+    assert best.delta_bic < -DECISIVE_DELTA_BIC
+
+    note = next(d for d in corundum_screen.diagnostics
+                if d.code == "EXTINCTION_GROUPS_NOT_SEPARABLE")
+    assert note.level == "info"
+    for group in best.space_groups:
+        assert group in note.where[0]
+
+
+def test_a_neighbours_tail_is_not_absence_evidence(corundum_screen,
+                                                   corundum_inputs):
+    """Why the certified class survives, measured on the pattern that broke it.
+
+    The two positions that refuted ``R - c -`` before WP-1077 — (2,0,5) and
+    (2,0,−7) — sit 2.8 and 1.5 FWHM below the strong (1,1,6) and (3,0,0), on the
+    **low-angle** flank where the unmodelled axial tail lives.  Each window is
+    already filled by its neighbour, so what the absence test read there was the
+    accuracy of the profile model and not the absence.
+
+    The control is the second half and it is what makes this a measurement rather
+    than an excuse: at the same offset from an allowed line, at positions where
+    **no reflection of any kind** is predicted, the same 3σ test fires on a large
+    fraction of probes — and only below the line, never above it.  A test that
+    fires on nothing cannot be evidence about something.
+    """
+    from rietx.indexing.extinction import _fit_class
+    from rietx.indexing.peaks import predicted_fwhm
+    from rietx.indexing.workflow import structure_from_candidate, validation_plan
+    from rietx.refine import Refinement
+
+    data, cand, instrument = corundum_inputs
+    pre = Refinement(structure_from_candidate(cand), instrument, history=False)
+    pre.fit(data, mode="lebail", plan=validation_plan(cand, instrument),
+            two_theta_limits=CORUNDUM_RANGE)
+    frozen = pre.fitted_instrument
+    fit, result = _fit_class(cand, data, frozen, "R -3 c:H", CORUNDUM_RANGE)
+
+    tt = np.asarray(result.two_theta)
+    y_obs = np.asarray(result.y_obs)
+    y_calc = np.asarray(result.y_calc)
+    y_bkg = np.asarray(result.y_background)
+    sigma = np.asarray(result.sigma)
+
+    def window(position: float, width: float) -> tuple[float, float]:
+        """(observed excess, predicted neighbour tail), both in units of σ."""
+        inside = np.abs(tt - position) <= 0.5 * width
+        noise = float(np.sqrt((sigma[inside] ** 2).sum()))
+        return (float((y_obs[inside] - y_calc[inside]).sum()) / noise,
+                float((y_calc[inside] - y_bkg[inside]).sum()) / noise)
+
+    # the class no longer predicts either position, and both are far enough from
+    # every surviving line for ``testable_mask`` to have called them separable
+    for position in CORUNDUM_FLAGGED:
+        width = float(predicted_fwhm(np.array([position]), frozen)[0])
+        excess, tail = window(position, width)
+        assert excess > 3.0, (position, excess)     # the old refutation
+        assert tail > 10.0, (position, tail)        # and what was in the window
+    assert corundum_screen.best_or_none().n_present == 0, (
+        "the tail is what the gate removes, so neither position may refute")
+
+    # the control: the same test at positions carrying no reflection at all
+    lines = np.array(sorted({round(r.two_theta, 5)
+                             for r in fit.reflection_table()}))
+    lo, hi = CORUNDUM_RANGE
+
+    def probe(offset: float) -> np.ndarray:
+        out = []
+        for line in lines:
+            width = float(predicted_fwhm(np.array([line]), frozen)[0])
+            position = line + offset * width
+            if not lo + 0.3 < position < hi - 0.3:
+                continue
+            if float(np.min(np.abs(lines - position))) <= 0.5 * width:
+                continue                    # a real line sits in the window
+            out.append(window(position, width)[0])
+        return np.array(out)
+
+    below, above = probe(-1.5), probe(+1.5)
+    assert len(below) > 20 and len(above) > 20
+    assert float((below > 3.0).mean()) > 0.25, float((below > 3.0).mean())
+    assert below.max() > 10.0, below.max()
+    # and the asymmetry, which is what names the cause as the axial tail
+    assert float((above > 3.0).mean()) < 0.15, float((above > 3.0).mean())
+    assert np.median(below) > np.median(above) + 1.0
 
 
 def _fap_inputs():

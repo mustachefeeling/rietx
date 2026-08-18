@@ -33,12 +33,15 @@ different hypotheses about *this* cell, and both are enumerated.
    *positions*, which also makes the comparison immune to a class representative
    whose Laue group splits orbits more finely than the holohedry does.
 2. *An absence you cannot see is not evidence.*  ``n_added`` counts only the
-   **testable** forbidden lines: inside the fitted range, and separated from
+   **testable** forbidden lines: inside the fitted range, separated from
    every line the class still allows by ``model.forward._overlap_groups``' own
-   FWHM criterion.  Without this, a class whose extra absences all hide under
-   allowed neighbours wins on parsimony alone — ΔBIC = −n·ln N with no
-   measurement behind it — which is exactly the confident wrong singleton this
-   milestone exists to prevent.
+   FWHM criterion, **and left quiet by the class's own fitted pattern**
+   (:func:`_model_is_quiet`, WP-1077).  Without the first two, a class whose
+   extra absences all hide under allowed neighbours wins on parsimony alone —
+   ΔBIC = −n·ln N with no measurement behind it — which is exactly the confident
+   wrong singleton this milestone exists to prevent.  Without the third, the
+   *refutation* becomes a measurement of the profile model; the story is under
+   point 3.
 3. *Direct absence evidence refutes; the fit only ranks — but it must be read
    against the right null model, and the plan's was wrong.*  The question is
    "does this forbidden position carry intensity nothing else explains?", and
@@ -55,6 +58,25 @@ different hypotheses about *this* cell, and both are enumerated.
    threshold, referenced to the model that has to explain the data.  Where
    nothing is predicted nearby the two are the same test, which is why this is a
    generalisation rather than a second opinion.
+
+   **Where something *is* predicted nearby, swapping the null model is not
+   enough — the position is not evidence at all** (WP-1077).  A window filled by
+   a neighbour's tail measures the accuracy of that tail, and a profile model is
+   wrong there in a way counting statistics do not describe.  Measured on the
+   certified corundum pattern (``tests/data/qarr/corundum.prn``, SRM 676a,
+   R -3 c, 20-90°): at **sham** positions where no reflection of any kind is
+   predicted, placed 1-3 FWHM from an allowed line, the same test clears 3 σ in
+   **40-50 %** of cases, up to 24.7 σ — and it does so on the low-angle flank
+   only (median +2.4 σ below a line against +0.1 σ above it), which names the
+   cause as the unmodelled axial-divergence tail.  Freeing FCJ
+   ``axial_sl``/``axial_hl`` in the shared profile fit takes Rwp 0.149 → 0.139
+   and does **not** remove the refutation, so the repair is not a better
+   profile.  It is :func:`_model_is_quiet`: a forbidden position is testable
+   only where the class's own model predicts **less intensity than the test's
+   own detection threshold**, so no error in a neighbour's tail — not even a
+   total one — can manufacture a refutation.  Corundum's two flagged positions
+   carry 20.0 σ and 25.7 σ of predicted neighbour tail; the seven the screen
+   already read as absent carry 0.2-3.4 σ.
 
 **Scoring is a nested model comparison, not lowest Rwp.**  A class with fewer
 absences has more reflections and always fits at least as well, so Rwp ranks the
@@ -100,7 +122,12 @@ from ..schemas.indexing import (
 from ..schemas.instrument import Instrument
 from ..schemas.pattern import PatternData
 from .fom import LINE_COINCIDENCE_RTOL, lattice_group
-from .workflow import ABSENT_SIGMA, absent_reflections, structure_from_candidate
+from .workflow import (
+    ABSENT_SIGMA,
+    ABSENT_WINDOW_FWHM,
+    absent_reflections,
+    structure_from_candidate,
+)
 
 #: ΔBIC below which two classes are **not** separated.  Kass & Raftery (1995),
 #: *J. Am. Stat. Assoc.* **90**, 773, call a difference above 10 "very strong"
@@ -545,6 +572,52 @@ def testable_mask(forbidden_tt: np.ndarray, allowed_tt: np.ndarray,
     return covered & ~blocked[:len(forbidden_tt)]
 
 
+def _model_is_quiet(two_theta: np.ndarray, y_calc: np.ndarray,
+                    y_background: np.ndarray, sigma: np.ndarray,
+                    positions: np.ndarray, fwhm: np.ndarray, *,
+                    k_sigma: float) -> np.ndarray:
+    """Which forbidden windows the class's **own model** leaves below threshold.
+
+    The other half of testability, and the half :func:`testable_mask` cannot
+    see (WP-1077; the measurement is in the module docstring, point 3).
+    ``testable_mask`` asks a question about *positions* — is this one covered,
+    and is it separable from its neighbours — and a position can pass both while
+    the window it opens is filled by a neighbour's **tail**.  What the absence
+    test then reads there is how well the profile model describes that tail, and
+    it describes it badly: on real laboratory data the residual on a strong
+    line's low-angle flank reaches 25 σ of counting noise at positions where no
+    reflection at all is predicted.
+
+    So the window must be quiet in the *model* at the same significance the
+    observation is required to be quiet at — same ±:data:`ABSENT_WINDOW_FWHM`
+    window, same propagated σ, same ``k_sigma`` as
+    :func:`~rietx.indexing.workflow.absent_reflections`, which is what makes the
+    pair one test rather than two thresholds.  Read the criterion as its
+    consequence: a position survives only when a **total** failure of the
+    neighbour's tail could not by itself clear the detection threshold, so no
+    refutation this screen reports can be manufactured by the profile.
+
+    The scaling is right rather than convenient.  The model's error in a tail is
+    a fraction of that tail's intensity while the noise it is measured against
+    goes as its square root, so the same fractional error is *more* significant
+    on a pattern with more counts — and this gate tightens with counting time in
+    exactly that way, which a fixed intensity ratio would not.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    model = (np.asarray(y_calc, dtype=np.float64)
+             - np.asarray(y_background, dtype=np.float64))
+    sig = np.asarray(sigma, dtype=np.float64)
+    out = np.zeros(len(np.asarray(positions)), dtype=bool)
+    for i, (pos, width) in enumerate(zip(np.asarray(positions, dtype=np.float64),
+                                         np.asarray(fwhm, dtype=np.float64))):
+        inside = np.abs(tt - pos) <= ABSENT_WINDOW_FWHM * max(float(width), 1e-6)
+        if not np.any(inside):
+            continue                     # outside the fitted range: not evidence
+        noise = float(np.sqrt((sig[inside] ** 2).sum()))
+        out[i] = float(model[inside].sum()) < k_sigma * noise
+    return out
+
+
 # ----------------------------------------------------------------------
 # the screen
 # ----------------------------------------------------------------------
@@ -721,7 +794,12 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
             keep = testable_mask(tt_forbidden, tt_all[~is_forbidden_row],
                                  fwhm_forbidden, fwhm_all[~is_forbidden_row],
                                  tt_data)
-            entry.n_testable = int(keep.sum())
+        # ``n_testable`` is deliberately NOT set here.  Its other half asks
+        # whether this class's own fitted pattern leaves the window quiet, so it
+        # is not knowable until the class is fitted — and a geometric count
+        # published in the meantime would be an over-estimate reading as a
+        # measurement.  It stays None until 3b, which is what ``screened``
+        # already says about every other number on the row.
         entries.append(entry)
         evidence.append({"keep": keep, "tt": tt_forbidden, "fwhm": fwhm_forbidden,
                          "first": first_of_line})
@@ -753,6 +831,17 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         entry.rwp = float(result.statistics.rwp)
         entry.gof = float(result.statistics.gof)
         entry.chi2 = _chi2_absolute(result.statistics)
+        # testability is settled here, not in 3a: a position is evidence only
+        # where *this class's* fitted pattern leaves the window below the
+        # detection threshold, so nothing but the absence can trip the test
+        keep = np.asarray(ev["keep"], dtype=bool)
+        if keep.any():
+            keep = keep.copy()
+            keep[keep] = _model_is_quiet(
+                tt_data, np.asarray(result.y_calc),
+                np.asarray(result.y_background), np.asarray(result.sigma),
+                ev["tt"][keep], ev["fwhm"][keep], k_sigma=k_sigma)
+        entry.n_testable = int(keep.sum())
         entry.delta_bic = delta_bic(entry.chi2, screen.reference_chi2,
                                     screen.n_points, entry.n_testable)
         entry.absences_rejected = hamilton_justified(
@@ -764,7 +853,6 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
             continue
         # the absence test, against **this class's own** calculated pattern: the
         # null model has to contain the neighbours, and y_calc is what does
-        keep = ev["keep"]
         pos = ev["tt"][keep]
         absent_tt, _ratio = absent_reflections(
             tt_data, np.asarray(result.y_obs), np.asarray(result.y_calc),

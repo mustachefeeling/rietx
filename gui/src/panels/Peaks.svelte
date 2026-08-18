@@ -739,7 +739,9 @@ classes, and every class lists all its space groups (WP-1025)"
               <th>class</th>
               <th title="BIC(class) − BIC(absence-free reference); negative favours the class">ΔBIC</th>
               <th title="absences the data could test / absences the class asserts —
-an absence outside the range or under a neighbour is not an observation">testable</th>
+an absence outside the range, under a neighbour, or in a window this class's own
+fit already fills with a tail is not an observation.  Needs the fit, so an
+unscreened class shows —">testable</th>
               <th title="testable forbidden positions carrying intensity; each one refutes the class">refuting</th>
               <th title="every space group in the class — a powder cannot
 distinguish them, so a singleton here would be unmeasurable">space groups</th>
@@ -758,7 +760,7 @@ an unasked question, so the gate abstains">not screened</span>
                   {/if}
                 </td>
                 <td>{cls.screened ? cls.delta_bic.toFixed(1) : "—"}</td>
-                <td>{cls.n_testable}/{cls.n_absent}</td>
+                <td>{cls.screened ? cls.n_testable : "—"}/{cls.n_absent}</td>
                 <td>
                   {#if cls.n_present}
                     {cls.n_present}:

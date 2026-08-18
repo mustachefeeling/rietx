@@ -1512,10 +1512,11 @@ class ExtinctionCandidate(Base):
     Two counts carry the evidence and they answer different questions.
     :attr:`n_absent` is how many lines of the absence-free lattice this class
     forbids; :attr:`n_testable` is how many of those the data could actually
-    check — the rest either fall outside the fitted range or coincide with a line
-    the class still allows, and an absence hiding under a neighbour is not an
-    observation.  :attr:`n_present` is the refutation: a forbidden position that
-    carries intensity.
+    check — the rest fall outside the fitted range, coincide with a line the
+    class still allows, or sit in a window this class's own fit already fills
+    with a neighbour's tail, and none of the three is an observation.
+    :attr:`n_present` is the refutation: a forbidden position that carries
+    intensity.
     """
 
     #: IT-style extinction symbol, **derived** from the class members rather than
@@ -1537,11 +1538,19 @@ class ExtinctionCandidate(Base):
     n_lines: int = 0
     #: lattice lines this class forbids
     n_absent: int = 0
-    #: of those, the ones the data can test — inside the range and separable from
-    #: every line the class still allows.  This is ``n_added`` in the nested
-    #: comparison: a forbidden line coinciding with an allowed one never was an
-    #: independently determined intensity, so removing it costs no parameter.
-    n_testable: int = 0
+    #: of those, the ones the data can test — inside the range, separable from
+    #: every line the class still allows, and left **quiet by this class's own
+    #: fitted pattern**.  This is ``n_added`` in the nested comparison: a
+    #: forbidden line coinciding with an allowed one never was an independently
+    #: determined intensity, so removing it costs no parameter.
+    #:
+    #: ``None`` until :attr:`screened`, and that is not bookkeeping.  The third
+    #: clause is a question about the class's *fit* — a window filled by a
+    #: neighbour's tail measures the profile model rather than the absence
+    #: (WP-1077) — so before the fit the count is unknown rather than zero, and
+    #: a geometric count published in the meantime would be an over-estimate
+    #: reading as a measurement.
+    n_testable: int | None = None
     #: testable forbidden positions carrying net intensity above the fitted
     #: background — each one refutes the class
     n_present: int = 0
@@ -1637,7 +1646,7 @@ class ExtinctionScreen(Base):
         if not alive:
             return None
         top = alive[0]
-        if top.n_absent and not top.n_testable:
+        if top.n_absent and top.n_testable == 0:
             return None
         if len(alive) > 1 and alive[1].delta_bic - top.delta_bic < DECISIVE_DELTA_BIC:
             return None
