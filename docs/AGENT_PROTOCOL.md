@@ -1432,9 +1432,10 @@ The envelope never raises: `{"ok": true, "result"|"series"|"indexing"|"suggestio
 on success, else `{"ok": false, "error": {code, message, suggestion,
 details}}` with `error.code` one of `INVALID_REQUEST` (per-field dot-paths in
 `details[]` — the schemas are strict, unknown keys are errors),
-`BACKEND_UNAVAILABLE` (a real backend whose optional dependency is missing;
-the install hint is the suggestion), or `REFINEMENT_FAILED` (the engine's own
-message, preserved).  Everything else in this document applies unchanged: the
+`BACKEND_UNAVAILABLE` (a real backend whose optional dependency is not
+importable here — checked before dispatch, so nothing ran; the install command
+is the suggestion), or `REFINEMENT_FAILED` (the engine's own message,
+preserved — the request was valid *and* runnable here, so read the message).  Everything else in this document applies unchanged: the
 `result` inside the envelope is the same `RefinementResult`, and §7's
 diagnostics are still the first thing to read.
 
