@@ -494,19 +494,21 @@ def test_e2_one_json_call_names_the_cause(truth):
 # E3 — profile.w halved: Voigt compensation, and the emitter gap
 # ----------------------------------------------------------------------
 def test_e3_width_error_loop(truth):
-    """Peaks too narrow (w = 2e-3, truth 4e-3): the loop accepts a
-    width-family action and improves χ², but the planted parameter is never
-    freed — **the emitter gap, documented**.  ``_WIDTH_ACTIONS``
-    (report/layer2.py) maps width trends only onto ``phases.*.lor_size`` /
-    ``phases.*.lor_strain``; no ``refine_profile_widths`` emitter exists, so
-    a pure instrument-Gaussian width error is corrected *by proxy*: the
-    accepted ``refine_sample_size_broadening`` adds Lorentzian sample
-    broadening (Voigt compensation), which measured here takes χ²_red from
-    ≈15.1 to ≈4.3 — a real >2× improvement that stops well short of the ≈1.0
-    truth floor, because a Lorentzian FWHM cannot reproduce a Gaussian
-    variance deficit.  (`suggest()` *does* rank ``instrument.profile.w`` on
-    this state — the two methods' disagreement on instrument widths is real
-    and expected, WP-1050.)  A fix is its own decision, not this WP's.
+    """Peaks too narrow (w = 2e-3, truth 4e-3): the loop recovers the planted
+    instrument Gaussian — the WP-1106 emitter closing the gap this test used
+    to document.  The two rounds are the design working in sequence.  Round
+    one accepts the sample-side reading (``refine_sample_size_broadening``,
+    the Voigt proxy): Lorentzian sample broadening absorbs most of the FWHM
+    deficit, χ²_red ≈15.1 → ≈4.3, and stalls there because a Lorentzian FWHM
+    cannot reproduce a Gaussian variance deficit.  Round two takes the
+    instrument-side peer the same width trend now carries
+    (``refine_profile_widths`` over the Gaussian U/V/W — emitted at half the
+    sample action's confidence, the calibrate-on-a-standard protocol
+    discount), frees the planted parameter, and lands the noise floor:
+    measured 4.30 → 1.0105 against a truth floor of 1.0099, with w back at
+    3.95e-3 and the proxy's ``lor_size`` collapsed to ~1.4e-4.  Before the
+    emitter the loop stopped at 4.3 with the width trend still standing at
+    7σ and nothing left to name it.
     """
     structure, ins, data = truth
     start = ins.model_copy(deep=True)
@@ -519,16 +521,17 @@ def test_e3_width_error_loop(truth):
     assert _actions_in_order(report0)[0] in WIDTH_FAMILY, (
         _actions_in_order(report0))
 
-    assert episode.accepted, (episode.rejected, episode.stop_reason)
-    assert set(episode.accepted) <= WIDTH_FAMILY, episode.accepted
-    # the planted parameter was never freed: byte-identical to the injection
-    assert episode.ref.fitted_instrument.profile.w.value == 2.0e-3
-    # the proxy correction is real but partial (measured 15.1 → 4.3): it must
-    # clearly improve on the bootstrap and clearly miss the noise floor the
-    # truth model sets (≈1.01) — both halves are the finding
-    assert episode.final_chi2 < 0.5 * episode.bootstrap_chi2, (
-        episode.final_chi2, episode.bootstrap_chi2)
-    assert episode.final_chi2 > 2.0 * _truth_chi2(structure, ins, data), (
+    # the sample proxy first (protocol order), then the instrument side
+    assert episode.accepted == ["refine_sample_size_broadening",
+                                "refine_profile_widths"], (
+        episode.accepted, episode.rejected, episode.stop_reason)
+    # the planted parameter is freed and recovered (same bar as the
+    # mccusker_default baseline below)
+    w = episode.ref.fitted_instrument.profile.w.value
+    assert w == pytest.approx(4.0e-3, rel=0.20), w
+    # …and the loop now reaches the noise floor the proxy alone missed by 4×
+    # (measured ratio 1.0006; the 1.05 factor is E4's, margin ~80×)
+    assert episode.final_chi2 <= 1.05 * _truth_chi2(structure, ins, data), (
         episode.final_chi2)
 
     _assert_dag_hygiene(episode)
@@ -537,13 +540,13 @@ def test_e3_width_error_loop(truth):
 
 
 def test_e3_width_error_baseline(truth):
-    """The honest counter-finding, stated where the loop's win is stated:
-    ``mccusker_default`` **beats the loop on recovery** here.  Its
-    ``profile_w`` stage frees the planted parameter itself, so the baseline
-    lands w back at truth while the loop's proxy correction cannot — the
-    report localised the misfit to the width family but its emitters cannot
-    name the instrument Gaussian, and this arm is what keeps that gap from
-    reading as a loop success."""
+    """The reference arm the loop is measured against: ``mccusker_default``'s
+    ``profile_w`` stage frees the planted parameter directly and lands w back
+    at truth in one plan.  Until WP-1106 this arm *beat* the loop — the
+    report localised the misfit to the width family but had no emitter naming
+    the instrument Gaussian, so the loop's proxy correction stalled at
+    χ²_red ≈4.3.  Both routes now recover w; this arm keeps the recovery bar
+    itself independent of the emitter under test."""
     structure, ins, data = truth
     start = ins.model_copy(deep=True)
     start.profile.w.value = 2.0e-3

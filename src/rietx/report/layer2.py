@@ -104,6 +104,17 @@ _WIDTH_ACTIONS: dict[str, tuple[ActionKind, str]] = {
     "tan_theta": ("refine_sample_strain_broadening", "phases.*.lor_strain"),
 }
 
+#: what ``refine_profile_widths`` frees: the instrument's **Gaussian**
+#: polynomial only, and that is physics rather than caution.  Instrument and
+#: sample Lorentzian FWHMs add, so a Lorentzian instrument width error is
+#: column-degenerate with ``phases.*.lor_size``/``…lor_strain`` and the sample
+#: actions absorb it exactly; a Gaussian variance deficit is what they
+#: provably cannot reach (measured on E3, ``tests/test_report_loop.py``: the
+#: accepted sample proxy took χ²_red 15.1 → 4.3 and stalled with the width
+#: trend still standing at 7σ).
+_INSTRUMENT_WIDTH_PATHS = ["instrument.profile.u", "instrument.profile.v",
+                           "instrument.profile.w"]
+
 #: an unmatched observed peak this strong is worth proposing a phase for
 IMPURITY_SIGMA = 8.0
 
@@ -611,6 +622,47 @@ def cap_texture_crosstalk(actions: list[SuggestedAction],
     return actions
 
 
+def _instrument_width_action(trend: TrendAnalysis,
+                             peers: list[SuggestedAction]
+                             ) -> list[SuggestedAction]:
+    """``refine_profile_widths``: the instrument-side reading of a width trend.
+
+    Emitted as a peer alternative whenever a width template is significant
+    (``peers`` non-empty), because the trend evidence cannot separate the two
+    sides: the instrument's Gaussian polynomial U·tan²θ + V·tanθ + W spans the
+    same shapes over any realistic 2θ range, and Toby (2024) §4's example of a
+    misleading largest derivative is exactly an instrument width standing in
+    for the sample term (the U/V/W case WP-1050 measured from the other side).
+    The paths are :data:`_INSTRUMENT_WIDTH_PATHS` — the Gaussian half only,
+    for the reason on that constant.
+
+    Confidence is half the leading sample action's — the same runner-up
+    discount ``_trend_actions`` applies — for a protocol reason: instrument
+    widths belong to a calibration standard (``lab_calibrate``), so on an
+    unknown the sample terms are the first reading, and this is the one to
+    reach for when they leave the trend standing.
+    """
+    if not peers:
+        return []
+    top = max(peers, key=lambda a: a.confidence)
+    for peer in peers:
+        peer.alternatives = list(peer.alternatives) + ["refine_profile_widths"]
+    return [SuggestedAction(
+        kind="refine_profile_widths",
+        confidence=round(0.5 * top.confidence, 3),
+        rationale=(
+            f"the same width trend read from the instrument side "
+            f"({trend.misfit_share:.0%} of χ²): the Gaussian polynomial "
+            "U·tan²θ + V·tanθ + W spans the sample templates' shapes over "
+            "this range, so a width trend alone cannot separate instrument "
+            "from sample broadening. Instrument widths belong to a "
+            "calibration standard, so try the sample terms first — and free "
+            "these when they leave the trend standing: a Lorentzian sample "
+            "FWHM cannot reproduce a Gaussian variance deficit"),
+        parameter_paths=list(_INSTRUMENT_WIDTH_PATHS),
+        alternatives=[a.kind for a in peers])]
+
+
 def suggest_actions(attributions: list[RegionAttribution],
                     trends: list[TrendAnalysis],
                     unmatched: list[UnmatchedPeak],
@@ -635,7 +687,9 @@ def suggest_actions(attributions: list[RegionAttribution],
     if "position" in by_obs:
         actions += _trend_actions(by_obs["position"], position_actions, "deg")
     if "width" in by_obs:
-        actions += _trend_actions(by_obs["width"], _WIDTH_ACTIONS, "deg")
+        width_actions = _trend_actions(by_obs["width"], _WIDTH_ACTIONS, "deg")
+        actions += width_actions
+        actions += _instrument_width_action(by_obs["width"], width_actions)
 
     # intensity trend vs sin²θ/λ² is the ADP signature; its constant term is
     # a scale error
