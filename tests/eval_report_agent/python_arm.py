@@ -144,7 +144,9 @@ the package serialises it:
 `answer.json`:
 
     {{"verdict": "<one of the five below>",
-      "next_action": "<one of the seven below>",
+      "next_action": "<one of the six below>",
+      "caveats": ["<zero or more short statements of limitations you would
+                   attach to the delivered result>"],
       "summary": "<a few sentences: what you concluded and why>"}}
 
 Verdict meanings — pick exactly one:

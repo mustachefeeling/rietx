@@ -58,12 +58,15 @@ from pathlib import Path
 VERDICTS = ("converged", "impurity_suspected", "assumption_wrong",
             "abstain", "ambiguous")
 
-#: the answer's closed next-action vocabulary (v2) — graded by membership in
-#: the truth row's registered *set*, so near-equivalents are a registration
-#: question, never a wording one
+#: the answer's closed next-action vocabulary (v3, PROTOCOL.md 2.2) — graded
+#: by membership in the truth row's registered *set*, so near-equivalents are
+#: a registration question, never a wording one.  ``report_with_caveat``
+#: left at 2.2: the one delivery-stance token in a remedial vocabulary, and
+#: on real data an unfalsifiable hedge sink (the WP-1107 archaeology, 7 of
+#: 10 valid 2.1 cells); the stance moved to the unscored ``caveats`` list
 NEXT_ACTIONS = ("none", "extend_range_or_calibrate", "add_phase",
                 "fix_instrument_model", "collect_better_data",
-                "chemistry_or_contents", "report_with_caveat")
+                "chemistry_or_contents")
 
 #: verdicts that decline to name one confident cause; answering ``converged``
 #: where one of these is expected is an overclaim, and answering one of these
@@ -182,10 +185,19 @@ def score_episode(episode_dir: Path, truth_file: Path) -> dict:
         "next_action": answer.get("next_action") if answer else None,
         "registered_next_actions": truth.get("next_action"),
         "summary": answer.get("summary", "") if answer else "",
+        # v3 (PROTOCOL.md 2.2): recorded, never graded — the delivery stance
+        # the retired ``report_with_caveat`` token used to absorb.  Mining
+        # counts it descriptively; absence reads as empty
+        "caveats": answer.get("caveats") if answer else None,
         "notes": [],
     }
     if answer_problem:
         card["notes"].append(answer_problem)
+    if (card["caveats"] is not None
+            and (not isinstance(card["caveats"], list)
+                 or any(not isinstance(c, str) for c in card["caveats"]))):
+        card["notes"].append(
+            "caveats should be a list of strings; recorded as written")
     if (card["next_action"] is not None
             and card["next_action"] not in NEXT_ACTIONS):
         card["notes"].append(
@@ -202,6 +214,10 @@ def score_episode(episode_dir: Path, truth_file: Path) -> dict:
         # shim, so there is nothing whose delivery could disagree
         card["report_present"] = None
         card["trajectory_rungs"] = None
+        card["license_in_statistics"] = None
+        card["statline_missing_where_fired"] = None
+        card["execution_delivered"] = None
+        card["action_missing_execution"] = None
         if state_problem:
             card["notes"].append(state_problem)
     else:
@@ -234,6 +250,38 @@ def score_episode(episode_dir: Path, truth_file: Path) -> dict:
             card["report_present"] = "report" in response
             if isinstance(response.get("trajectory"), list):
                 card["trajectory_rungs"] = len(response["trajectory"])
+        # the 2.2 delivered-shape facts (PROTOCOL.md 2.2), read over every
+        # ok call — a projection is per-call, so one leak anywhere is the
+        # mismatch.  ``statline_missing_where_fired`` pairs per call: an
+        # exchangeable finding delivered without the statistics key is the
+        # ``"statistics"`` placement silently not applied (the exchange
+        # firing implies the clause, shape-only — no rendering here)
+        card["license_in_statistics"] = None
+        card["statline_missing_where_fired"] = None
+        card["execution_delivered"] = None
+        card["action_missing_execution"] = None
+        if ok_calls:
+            in_stats, missing, has_exec, lacks_exec = [], [], [], []
+            for c in ok_calls:
+                resp = c["response"]
+                stats = (resp.get("result") or {}).get("statistics") or {}
+                has_key = "identifiability_clause" in stats
+                in_stats.append(has_key)
+                report = resp.get("report")
+                report = report if isinstance(report, dict) else {}
+                exchanges = ((report.get("identifiability") or {})
+                             .get("exchanges") or [])
+                fired = any(isinstance(e, dict) and e.get("exchangeable")
+                            for e in exchanges)
+                missing.append(fired and not has_key)
+                actions = [a for a in (report.get("suggested_actions") or [])
+                           if isinstance(a, dict)]
+                has_exec.append(any("execution" in a for a in actions))
+                lacks_exec.append(any("execution" not in a for a in actions))
+            card["license_in_statistics"] = any(in_stats)
+            card["statline_missing_where_fired"] = any(missing)
+            card["execution_delivered"] = any(has_exec)
+            card["action_missing_execution"] = any(lacks_exec)
 
     card["statistics"] = None
     if state is not None:

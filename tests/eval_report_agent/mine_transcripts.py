@@ -85,6 +85,9 @@ FIELD_TOKENS: dict[str, tuple[type[pydantic.BaseModel], str]] = {
     "soft_modes": (IdentifiabilityEvidence, "soft_modes"),
     "worst_absorption": (StageReport, "worst_absorption"),
     "confidence": (SuggestedAction, "confidence"),
+    # 2.2 (WP-1107): did any transcript voice WP-1106's field — the
+    # ``execution`` pair's read-out (d)
+    "execution": (SuggestedAction, "execution"),
 }
 
 #: every citation token: the fields above plus the whole action vocabulary
@@ -127,9 +130,11 @@ WP1059_POSITION_EPISODES = ("E2", "R1")
 
 #: the episode id admits a trailing letter since 2.0 (``E8p``, ``J1P``,
 #: ``J1S``); ``python`` is a condition like any other here — the arm's cells
-#: are named the same way
+#: are named the same way.  A condition name admits single underscores since
+#: 2.2 (``report_stat``, ``report_noexec``) — the cell separator stays the
+#: double underscore, which no condition name may contain
 _CELL_RE = re.compile(
-    r"RUNS/(?P<condition>[a-z]+)__(?P<model>[A-Za-z0-9.\-]+)"
+    r"RUNS/(?P<condition>[a-z]+(?:_[a-z]+)*)__(?P<model>[A-Za-z0-9.\-]+)"
     r"/(?P<episode>[A-Z]\d+[A-Za-z]?)")
 
 #: an agent asking for the trajectory, or a rung's text arriving: the response
@@ -142,6 +147,16 @@ _TRAJECTORY_WORDS = ("trajectory", "rung")
 #: sentence, so a miner that tracked the code would score the old record zero
 #: and call that a finding
 CLAUSE_PHRASE = "exchangeable with the held"
+
+#: the WP-1065 license's anchor as the 2.2 round delivers it (PROTOCOL.md 2.2
+#: read-out (a): *in-context* is this text on the delivered or voiced
+#: surface, never a word-match on ``answer.json`` summaries).  Unlike
+#: :data:`CLAUSE_PHRASE` this one must match the **live** sentence while its
+#: round runs, so ``test_mine_transcripts`` pins it against a rendered
+#: clause — a later WP that rewords the license breaks that pin loudly, and
+#: the successor freezes this phrase for the archived records before quoting
+#: the new sentence
+LICENSE_PHRASE = "the data has chosen"
 
 
 def rung_only_fields() -> frozenset[str]:
@@ -301,6 +316,7 @@ _PROBE_RES = {token: _loose(token) for token in TOKENS}
 _DELIVERED_RES = {token: _as_json(token) for token in TOKENS}
 _RUNG_RES = {marker: _as_json(marker) for marker in RUNG_MARKERS}
 _CLAUSE_RE = re.compile(re.escape(CLAUSE_PHRASE))
+_LICENSE_RE = re.compile(re.escape(LICENSE_PHRASE))
 
 #: a pull as the agent's own code would spell it: methods as attribute calls,
 #: module functions by their (distinctive) names — which also catches the
@@ -600,6 +616,49 @@ def usage_row(cell: Cell) -> dict:
     return row
 
 
+def license_row(cell: Cell) -> dict:
+    """The 2.2 in-context fact (PROTOCOL.md 2.2 read-out (a)): first indices
+    at which the WP-1065 license text entered context (``delivered``) or the
+    agent's own prose (``voiced``).  The 2.1 finding this measures again:
+    delivered-in-the-response is not delivered-to-the-model when the agent
+    pipes the response to a file and greps the statistics back."""
+    return {
+        "delivered_index": first_index(cell.events, "delivered", _LICENSE_RE),
+        "voiced_index": first_index(cell.events, "voiced", _LICENSE_RE),
+    }
+
+
+def swap_rows(cell: Cell) -> list[dict]:
+    """The 2.2 swap-state fact (PROTOCOL.md 2.2 audit): every overlay that
+    frees exactly one rival — the swap shape — and whether it also freed the
+    cell, because a decisive ratio measured cell-held answers a different
+    question than the registered tie (``python__sonnet`` N1, 2.1: 1.277 for
+    the wrong rival on a cell-held state).
+
+    Explicit stage lists only, ``overlay_frees``'s rule — a preset name
+    carries no path list, and the swap the clause teaches is an explicit
+    plan by construction.  A python cell's swaps live in its scripts;
+    ``compare_rivals``' first probe (``usage_row``) is their minable shadow.
+    """
+    groups = ((cell.truth or {}).get("watch") or {})
+    cause = list(groups.get("cause", ()))
+    absorber = list(groups.get("absorber", ()))
+    if not cause or not absorber:
+        return []
+    rows = []
+    for index, overlay in overlay_writes(cell.events):
+        frees_cause = overlay_frees(overlay, cause)
+        frees_absorber = overlay_frees(overlay, absorber)
+        if frees_cause == frees_absorber:
+            continue
+        rows.append({
+            "overlay_index": index,
+            "freed": "cause" if frees_cause else "absorber",
+            "cell_free": overlay_frees(overlay, ["phases.*.cell.*"]),
+        })
+    return rows
+
+
 def audit_row(cell: Cell) -> list[dict]:
     """Audit candidates: probed events matching a forbidden-surface pattern.
 
@@ -634,6 +693,8 @@ def mine(root: Path) -> dict:
             "ridge": ridge_row(cell),
             "rungs": rung_row(cell),
             "usage": usage_row(cell),
+            "license": license_row(cell),
+            "swaps": swap_rows(cell),
             "audit_flags": audit_row(cell),
             "verdict": (cell.card or {}).get("verdict"),
             "passed": (cell.card or {}).get("passed"),
@@ -748,6 +809,24 @@ def render(mined: dict) -> str:
         ])
     out += [_table(["cell", "rungs shipped", "probed", "answered",
                     "rung content", "voiced"], body), ""]
+    out += ["## License in context (2.2) — first index (— = never), and "
+            "swap-shaped overlays as freed(cell held/free)", ""]
+    body = []
+    for row in sorted(rows, key=lambda r: r["cell"]):
+        fmt = {None: "—"}
+        swaps = "; ".join(
+            f"{s['freed']}({'cell free' if s['cell_free'] else 'cell held'})"
+            for s in row["swaps"]) or "—"
+        body.append([
+            row["cell"],
+            fmt.get(row["license"]["delivered_index"],
+                    str(row["license"]["delivered_index"])),
+            fmt.get(row["license"]["voiced_index"],
+                    str(row["license"]["voiced_index"])),
+            swaps,
+        ])
+    out += [_table(["cell", "license delivered", "license voiced", "swaps"],
+                   body), ""]
     python_rows = [row for row in rows if row["condition"] == "python"]
     if python_rows:
         out += ["## Python-arm pulls — first probed index (— = never)", ""]
