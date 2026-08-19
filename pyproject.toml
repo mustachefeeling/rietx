@@ -1,13 +1,22 @@
 [build-system]
-requires = ["hatchling"]
+# The floor is PEP 639: `license = "MIT"` plus a `license-files` *list* are only
+# read as such from hatchling 1.27.  Below it the same two lines still build a
+# wheel, silently, whose metadata carries the deprecated `License: MIT` free
+# text at Metadata-Version 2.3 instead of `License-Expression: MIT` at 2.4+
+# (measured, 1.26.3 vs 1.27.0), so an unpinned backend makes the licence PyPI
+# displays a function of whatever the release runner happened to resolve.
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
 name = "rietx"
-# Tracks the ROADMAP milestone in flight, not the last one shipped: v0.6 is
-# recorded in docs/milestones/v0.6.md and v1.0 is open.  This string is stamped
-# into every RefinementResult's Provenance and every history node, so a stale
-# value silently mislabels the provenance of real results.
+# The milestone in flight, or the last shipped when none is: the convention is
+# CLAUDE.md's, the procedure docs/RELEASING.md's § Cutting a release, step 1.
+# *Which* milestone that is stays out of this comment — naming it is what rotted
+# the note this replaces, which still said v1.0 was open two releases after it
+# shipped.  The value itself is stamped into every RefinementResult's Provenance
+# and every history node, so a stale one mislabels the provenance of real
+# results, and the release workflow refuses a tag that disagrees with it.
 version = "1.0.1"
 description = "API-first, differentiable Rietveld refinement of powder X-ray diffraction data"
 readme = "README.md"
@@ -24,8 +33,8 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Operating System :: MacOS",
-    # The Windows row is a claim with a gate: the scheduled Windows fast-suite
-    # job must be green before any upload that ships this metadata (WP-1003).
+    # The Windows row is a claim with a pre-upload gate, asserted by a person
+    # rather than by a workflow: docs/RELEASING.md step 4 (WP-1003).
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
@@ -70,18 +79,17 @@ docs = [
     "furo>=2024.1",
 ]
 dev = [
-    # the docs extra rides along so tests/test_manual.py actually builds the
-    # theory manual in the standard suite instead of importorskip-ing out
-    "rietx[docs]",
+    # Two user-facing extras ride along rather than being restated here: docs so
+    # tests/test_manual.py builds the theory manual in the standard suite
+    # instead of importorskip-ing out, viz so the renderers' tests have the
+    # matplotlib and plotly they render with, at the floors declared above.
+    "rietx[docs,viz]",
     "pytest>=8",
-    "pytest-cov",
     # `-n auto --dist loadgroup` is how the suite is meant to be run; the
     # expensive shared fixtures are pinned to a worker by xdist_group marks
     # (tests/conftest.py), so this is not an optional accelerator
     "pytest-xdist>=3.6",
     "hypothesis>=6",
-    "matplotlib>=3.8",
-    "plotly>=5.20",
     "ruff",
 ]
 
@@ -119,6 +127,9 @@ exclude = ["/tests", "/gui", "/gui/index.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `-n auto --dist loadgroup` belongs on the command line and deliberately not
+# here (CLAUDE.md § Commands): in addopts it would make a bare
+# `pytest tests/x.py::y` parallel too, and `-s` and pdb stop working.
 addopts = "-q"
 markers = ["slow: long-running acceptance tests on real data"]
 
