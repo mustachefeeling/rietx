@@ -199,7 +199,7 @@ amendment-only.**
       not the prompt, enforces the condition — both directions).
 - [x] Run the grid; audit (payload, forbidden reads, cap, mining); dated
       grids to the milestone appendix, counts not percentages.
-- [ ] Kill/keep decisions recorded; the winning placement (if any) filed as
+- [x] Kill/keep decisions recorded; the winning placement (if any) filed as
       a successor WP or executed here if it is one additive field whose
       writer is already named.
 - [ ] Handover: token totals, cells invalidated (with reasons), and what the

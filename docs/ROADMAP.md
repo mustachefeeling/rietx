@@ -370,6 +370,7 @@ answered by a pre-registered round before any placement ships (1107).
 | [1105](wp/1105-agent-protocol-hygiene.md) | AGENT_PROTOCOL hygiene: stale claims out, vocabularies covered | ✅ | 1104 |
 | [1106](wp/1106-report-placement-fields.md) | Report placement fields: structured where prose was load-bearing | ✅ | — |
 | [1107](wp/1107-eval-placement-round.md) | Eval protocol 2.2: the placement round | ⬜ | 1105, 1106 |
+| [1108](wp/1108-license-statistics-placement.md) | The license beside the numbers: shipping the statistics placement | ⬜ | 1107 |
 
 ## v2+ (seams pre-built, implementations fenced out)
 
