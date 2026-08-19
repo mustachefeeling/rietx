@@ -1174,6 +1174,10 @@ def test_e2_converged_report_names_the_exchange(truth):
     # transparency rides the same fitted zero — honest multiplicity, in the
     # table (measured R² 0.97) while the summary names only the worst row
     assert _exchange(report, "instrument.geometry.sample_transparency").exchangeable
+    # the same sentence beside the numbers (WP-1108): one render, two writes,
+    # pinned as the exact appended substring — the shim projection's needle
+    clause = result.statistics.identifiability_clause
+    assert clause is not None and ("; " + clause) in report.summary
 
 
 def test_clean_reference_stays_quiet_and_delta_r_calibrates(truth):
@@ -1193,6 +1197,8 @@ def test_clean_reference_stays_quiet_and_delta_r_calibrates(truth):
     assert not any(e.exchangeable for e in ev.exchanges)
     assert "exchangeable" not in report.summary
     assert "unconstrained" not in report.summary   # softest mode 1.2e-02
+    # no clause, no license field: None is the honest empty state (WP-1108)
+    assert result.statistics.identifiability_clause is None
     assert min(m.eigenvalue for m in ev.soft_modes) > 3e-3
     # the esd-qualifying trio is quoted together, raw
     assert ev.chi2_reduced == pytest.approx(result.statistics.chi2)
@@ -1265,6 +1271,101 @@ def test_identifiability_carrier_is_additive(truth):
                                      partners={"a": -1.1})])
     again = Identifiability.model_validate_json(full.model_dump_json())
     assert again == full
+
+
+# ----------------------------------------------------------------------
+# WP-1108 — the license beside the numbers: the statistics placement
+# ----------------------------------------------------------------------
+def test_license_rides_statistics_and_summary_from_one_render(truth):
+    """The identifiability clause is delivered twice from one render
+    (WP-1108): ``build_report`` appends it to the summary for that string's
+    readers and writes the same object to
+    ``result.statistics.identifiability_clause`` — the block measured agent
+    consumers grep back out of a piped response (protocol 2.2: in context
+    4/4 there against 3/4 in the summary, the v1.1 appendix).  A copy is
+    legal only as one authority rendering once, so the pair is pinned
+    bit-identical and the field is pinned to the renderer's own answer."""
+    from rietx.report import identifiability_clause
+    from rietx.schemas.results import ExchangeRow, Identifiability, RefinedParameter
+
+    structure, ins, data = truth
+    result, _model, _values = _result_for(structure, ins, data)
+    # a firing exchange, hand-planted the way a fit would have screened it:
+    # the carrier holds the row, the parameters hold the partner's value/esd
+    result.identifiability = Identifiability(exchangeability=[
+        ExchangeRow(held="instrument.geometry.sample_displacement", r2=0.9999,
+                    partners={"instrument.zero_shift": -1.4})])
+    result.parameters = [RefinedParameter(
+        path="instrument.zero_shift", value=0.0317, stderr=0.0005)]
+    assert result.statistics.identifiability_clause is None  # no writer yet
+
+    report = build_report(result)
+    clause = result.statistics.identifiability_clause
+    assert clause is not None
+    assert report.summary.endswith("; " + clause)         # bit-identical pair
+    assert clause == identifiability_clause(report.identifiability)
+    # the license is in the statistics block: the grep an agent runs on the
+    # serialized document returns the sentence itself, not a pointer
+    dumped = result.model_dump(mode="json")
+    assert dumped["statistics"]["identifiability_clause"] == clause
+    assert "data has chosen" in dumped["statistics"]["identifiability_clause"]
+    # idempotent: a second build re-renders the same answer, and its own
+    # fresh summary carries the same appended substring
+    report2 = build_report(result)
+    assert result.statistics.identifiability_clause == clause
+    assert report2.summary.endswith("; " + clause)
+
+
+def test_license_field_stays_none_when_nothing_fires(truth):
+    """``None`` is the honest empty state (WP-1076) and covers both causes —
+    no report built, and nothing crossed a comment threshold — never a
+    verdict about the fit."""
+    structure, ins, data = truth
+    result, model, values = _result_for(structure, ins, data)
+    assert result.statistics.identifiability_clause is None
+    build_report(result, model=model, values=values)
+    assert result.statistics.identifiability_clause is None
+    dumped = result.model_dump(mode="json")
+    assert dumped["statistics"]["identifiability_clause"] is None
+
+
+def test_refine_json_delivers_the_license_beside_the_numbers():
+    """The acceptance pin: a real ``refine_json`` response carries the field
+    inside ``result.statistics``, bit-identical to what the 2.2
+    ``report_stat`` arm delivered — the clause the response's *own* report
+    evidence renders, which is exactly the shim projection's equivalence
+    check (``run_refine._project_license_placement``) satisfied by the
+    package itself.  The summary keeps its copy: the placement decision
+    moved nothing out (the WP-1108 design note)."""
+    import rietx.agent as ag
+    from rietx.report import identifiability_clause
+    from rietx.report.schemas import IdentifiabilityEvidence
+
+    structure, ins, data = _truth(disp=-0.10)      # the R1 shape: a genuinely
+    start = ins.model_copy(deep=True)              # displaced specimen, fitted
+    start.geometry.sample_displacement.value = 0.0  # the lazy way (zero free)
+    response = ag.refine_json({
+        "task": "refine",
+        "structure": structure.model_dump(mode="json"),
+        "instrument": start.model_dump(mode="json"),
+        "pattern": data.model_dump(mode="json"),
+        "plan": {"stages": [
+            {"name": "scale_bkg",
+             "turn_on": ["phases.*.scale", "instrument.background.*"]},
+            {"name": "zero", "turn_on": ["instrument.zero_shift"]},
+            {"name": "cell", "turn_on": ["phases.*.cell.*"]},
+            {"name": "profile_w", "turn_on": ["instrument.profile.w"]},
+        ]},
+    })
+    assert response["ok"], response.get("error")
+    clause = response["result"]["statistics"]["identifiability_clause"]
+    assert clause is not None
+    assert clause == identifiability_clause(IdentifiabilityEvidence
+                                            .model_validate(
+                                                response["report"]
+                                                ["identifiability"]))
+    assert ("; " + clause) in response["report"]["summary"]
+    assert "data has chosen" in clause             # the license, greppable
 
 
 # ----------------------------------------------------------------------

@@ -74,6 +74,22 @@ class Statistics(Base):
     derives it (WP-1076).  ``None`` wherever it cannot be measured: no
     accepted step, no esds, an evaluate-only ``replay``, or the joint
     multi-pattern residual, which carries no writer yet.
+
+    ``identifiability_clause`` is the report's identifiability sentence,
+    verbatim — the same string ``build_report`` appends to
+    ``FitReport.summary``, rendered once by
+    :func:`~rietx.report.identifiability.identifiability_clause` and written
+    to both places in the same build (the pair is pinned bit-identical by
+    test).  ``build_report`` is its **only** writer — a declared
+    cross-document write (WP-1108): the sentence is report contract
+    (``report_thresholds_version``), so no fit-time code writes it and a fit
+    alone leaves it ``None``.  ``None`` covers both "no report was built"
+    and "nothing crossed a comment threshold" — the honest empty state,
+    never a verdict — and per-histogram statistics have no writer (the
+    clause is whole-fit).  It is delivered here, beside the numbers, because
+    measured agent consumers pipe the JSON response to a file and grep the
+    statistics block back, and the summary string is what those greps drop
+    (WP-1065's 2-of-12; the placement round, WP-1107).
     """
 
     rwp: float
@@ -87,6 +103,7 @@ class Statistics(Base):
     n_points: int
     n_free_parameters: int
     max_shift_over_esd: float | None = None
+    identifiability_clause: str | None = None
 
 
 class DataSupport(Base):
