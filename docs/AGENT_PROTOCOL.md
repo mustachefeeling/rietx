@@ -262,7 +262,8 @@ Judge a fit in this order:
    GoF² alone is the practice Schwarzenbach et al. (1989) call "highly
    questionable". The round robins measured why the ingredients matter: the
    same data refined under different protocols spread by up to ×17–25 of the
-   quoted esds on cell dimensions (Hill, 1992; Hill & Cranswick, 1994 — whose
+   quoted esds on cell dimensions (Hill, 1992; Hill & Cranswick, 1994, *J.
+   Appl. Cryst.* **27**, 802 — whose
    explanation is §3's first degeneracy row, the cell compensating 2θ-scale
    errors). Durbin-Watson is in the trio because serial correlation is
    precisely what makes the raw esds untrustworthy, and d stays discriminating
@@ -537,6 +538,37 @@ report = ref.report(plan="lab_bragg_brentano")   # the plan supplies the Layer-2
 - **Layer 2** — typed suggested actions from a closed enum, each with a
   confidence, a rationale, `alternatives`, and `vetoed_by`.
 
+The action vocabulary is closed (`ActionKind`, versioned by
+`report_thresholds_version`), and each kind is carried out one of three ways —
+`how`, quoted from the package's own recipe table (`report/apply.py`), which is
+served to the GUI beside every report but reaches a JSON consumer only here:
+**stage** (one `run_stage` over the action's globs), **index** (a search, not a
+stage), or **advice** (no verb — the note is the deliverable, and
+`parameter_paths` is empty *by design*, not by omission). The table is every
+member; emission conditions are the measured ones as of this writing and their
+moves are logged in the schema version history:
+
+| Kind | How | Emitted when | `parameter_paths` |
+|---|---|---|---|
+| `refine_zero_shift` | stage | the `constant` position template is significant (any geometry) | `instrument.zero_shift` |
+| `refine_sample_displacement` | stage | the `cos_theta` position template is significant — Bragg-Brentano only (a capillary has no such aberration, WP-1073) | `instrument.geometry.sample_displacement` |
+| `refine_sample_transparency` | stage | the `sin_2theta` position template is significant — Bragg-Brentano only | `instrument.geometry.sample_transparency` |
+| `refine_capillary_offset_along_beam` | stage | the `sin_2theta` position template is significant — Debye-Scherrer only | `instrument.geometry.capillary_offset_along_beam` |
+| `refine_capillary_offset_across_beam` | stage | the `cos_2theta` position template is significant — Debye-Scherrer only | `instrument.geometry.capillary_offset_across_beam` |
+| `refine_cell` | stage | the `tan_theta` position template is significant (every geometry) | `phases.*.cell.*` |
+| `refine_profile_widths` | stage | **no emitter** — nothing constructs it, not even as an alternative; resolution in WP-1106 | would be the instrument width paths |
+| `refine_sample_size_broadening` | stage | the `inv_cos_theta` width template is significant | `phases.*.lor_size` |
+| `refine_sample_strain_broadening` | stage | the `tan_theta` width template is significant | `phases.*.lor_strain` |
+| `refine_axial_asymmetry` | stage | a significant asymmetry coefficient in gated regions below 2θ = 40° | `instrument.geometry.axial_sl`, `…axial_hl` |
+| `refine_biso` | stage | the relative intensity error trends with sin²θ/λ² — the ADP signature | `phases.*.atoms.*.biso` |
+| `refine_preferred_orientation` | stage | `TextureAnalysis.detected` with a best axis (both sides of the maturity gate); capped below a coexisting impurity call (§6's caveat row) | `phases.N.preferred_orientation.r` — named even when the phase declares no such block, on purpose: the rationale says which axis to declare first, and freeing nothing rolls back |
+| `refine_scale` | stage | the `constant` intensity template is significant — an angle-independent scale error | `phases.*.scale` |
+| `add_impurity_phase` | advice | strong unmatched observed peaks (> 8σ) not explained by the position-error evidence; when *every* one matches that evidence it is still emitted, capped at 0.3 with `reindex_or_recheck_cell` first among alternatives (§6) | empty **by design** — no phase is named yet, so there is nothing to free; the note says what to do instead |
+| `increase_background_flexibility` | advice | between-peak misfit is systematic (high off-region χ²_red at low Durbin-Watson) — the too-stiff detector; capped at 0.6 however strong the evidence (§7's code block has why) | empty by design — the edit is to the background's *shape*, not to the free set; `instrument.background.*` would read as "free the background", which every plan already does |
+| `decrease_background_flexibility` | advice | the background column span reproduces a notable share of a structural parameter (`report.background.worst_absorption`) — the too-flexible detector | empty by design, same reason |
+| `reindex_or_recheck_cell` | index | validity-radius failures are widespread among the misfitting regions — and it survives abstention, where it matters most (§6) | `phases.*.cell.*`, but the verb is a search over cells, not a stage over parameters |
+| `collect_better_data` | advice | **no emitter** — nothing constructs it, not even as an alternative; resolution in WP-1106 | empty by design — no parameter can be freed when the pattern itself is the limit |
+
 **And read it at more than one state.** A report describes the state it was
 built at, and the state a staged plan finishes in is routinely the least
 informative one in the run: a compensated fit arrives somewhere that looks
@@ -595,6 +627,21 @@ significance, and share-based global maturity. Confidence weights *importance*
 (share of χ²), not only statistical significance — at high counting statistics
 the second-order leakage of a peak shift into the width column is significant
 but carries a per-cent-level share.
+
+The per-region refusals arrive typed — `region.gate_failures` is a list of
+`GateFailure(code, message)` since WP-1003, promoted from formatted strings
+precisely so a consumer can branch on the name; the `message` carries the
+measured numbers and is display-only. The vocabulary (`GateCode`) is closed,
+the global maturity gate has no entry here (it abstains the whole layer,
+`abstained_reason`/`abstained_kind` above), and one member is not a failure at
+all:
+
+| `GateFailure.code` | Meaning | Correct response |
+|---|---|---|
+| `no_significant_misfit` | this region's local χ²_red is at the noise floor — there is nothing to attribute | Nothing. This is a region the model already fits, **not** a failure of the basis and not evidence about the model; a report full of these is what a good fit looks like |
+| `local_r2` | the region's misfit is real but the basis explained too little of it (low local R²) | Do not read the coefficients as causes. The misfit is not position/width/intensity/mixing/asymmetry-shaped — suspect what the basis cannot express: an unmatched peak (Layer 0), background shape, peak-shape misfit |
+| `gram_condition` | the templates' scale-normalised Gram matrix is ill-conditioned here: the edit directions are indistinguishable on these merged peaks | The resolution-limited signature, per region (`abstained_kind="resolution_limited"` is the same statement globally). Do not pick one coefficient — the separation is absent from the data at this resolution, so the fix is a wider range or better resolution, never a preference |
+| `outside_validity_radius` | the fitted offset exceeds the 0.4·FWHM linearisation radius, and a linear fit pushed past it *saturates* | **Re-detect, never shift**: read the fitted offset as a lower bound, not a measurement. Widespread across misfitting regions, this is exactly what emits `reindex_or_recheck_cell` with the calibration candidates in `alternatives` (the abstention table's first row, above) |
 
 ---
 
@@ -716,78 +763,14 @@ result.
 | `INDEX_BRAVAIS_AMBIGUOUS` | Refine in the higher symmetry because it was reported. The stated system is the conservative one; refine there and *test* the higher one, never the reverse. A disagreement between gemmi and spglib is information, not a bug — their tolerances are different kinds of number (a Le Page obliquity in degrees against a `symprec` in Å) and disagreement is what genuine pseudosymmetry looks like |
 | `INDEX_VOLUME_UNPHYSICAL` | Quote the cell. It is outside what these data can support — below a single atom's exclusion volume, or clear of Smith's (1977) envelope for the number of lines observed |
 | `INDEX_NOT_VALIDATED` | Read a `medium` as a near-`high`. No pattern was supplied, so nothing tested any candidate against the whole profile, and the figure-of-merit panel is blind to lines beyond the first twenty, to impurity content and to predicted-but-absent reflections. Pass `data=` and `instrument=` |
+| `INDEX_VALIDATION_FAILED` | (warning — on the candidate's `lebail.diagnostics`) Read this candidate's Le Bail numbers as a judgement, in either direction. The validation *fit* raised (the message names the exception), so `lebail.rwp` is inf and its `status` is `failed`: nothing was measured, which refutes nothing. It is evidence about the candidate, not about the search — but check the instrument before discarding the candidate, because a mis-declared profile or a wavelength on an absorption edge fails every candidate alike, and a run whose validations all fail this way is telling you about the setup, not the cells |
 | `INDEX_BUDGET_EXHAUSTED` | Read the answer as covering the requested search. The ceiling (`quick`'s default, or a declared `total_budget_seconds`) bound, and the result covers what was *reached*: `systems_searched` + `search_complete` distinguish three states — searched (present, `True`), truncated (present, `False`), and not reached (absent; the diagnostic's `where` names them) — and candidates whose validation never ran read `not_validated` (capping), never `validation_failed` (refuting). Units run system-major (WP-1042), so what a binding ceiling cuts is trailing low-symmetry *systems* for every engine equally, never a whole engine — a candidate from a completed system keeps all its finders. The message also distinguishes the slice-only case: the run finished under its ceiling but one or more validation fits exhausted their equal slice of the remaining clock. A user cancellation never writes this code: a stopped run is not a budget statement |
 | `INDEX_SINGLE_ENGINE` | (info) Read `low` as "refuted". One engine ran, and agreement between independent searches is what confidence measures — so every candidate of a one-engine run grades `low` *structurally* (fewer than two finders), which means "unconfirmed by construction". It is a diagnostic rather than a caveat because a capping caveat cannot explain a floor `grade()` produces before caveats are consulted. Re-run with the default engine set for a gradeable answer |
 | `INDEX_CELL_SYSTEMATIC_UNQUANTIFIED` | Quote a Bragg-Brentano cell to its esd. The esd is a *precision* from the line positions; the goniometer radius alone carries **≈ ±85 ppm** that no esd reports, because the data cannot identify it (Rwp moves 0.029 points across 180–320 mm) |
 | `INDEX_CANDIDATES_TRUNCATED` | (info) Read the reported list as everything the search produced. It is the top `max_candidates` of a larger merged set, and the message says how many ranked below it — the cap exists because each reported candidate is priced a Le Bail fit, not because the rest were judged. Its second clause names any (engine × system) unit that returned a **full pool** (five times the reported cap since WP-1046); that clause is a flag rather than a count, because how many distinct lattices sat behind a discarded harvest is not knowable without deduplicating one the search already dropped. Raise `max_candidates` to see further down — it raises the pool with it, and the cost is the validation fits |
 | `INDEX_PRIOR_USED` | (info) Read the answer as unsteered. It *was* steered — this diagnostic names each declared prior and its fate (confirmed by engines / entered unconfirmed / refuted / refused at the box) — but steering changed only *when* things were searched and what seeded the stochastic engine, never a range, a system set, or a rank: prior-only candidates are appended **after** the ranked list and never enter the Borda ranking. A candidate whose `found_by` is `["prior"]` alone is stated-and-unconfirmed — the ordinary agreement caveat grades it down, so treat it as your own hypothesis checked against the lines, not as a finding (WP-1045) |
 
-### 7e. The extinction screen (`ExtinctionScreen.diagnostics`, and each class's)
-
-These arrive from `rietx.determine_extinction_symbol`, which runs *after* a cell
-is in hand and answers the next question — which systematic absences the pattern
-shows. Same split as §7c: a refutation lives on the class it refutes.
-
-| Code | What it means you must not do |
-|---|---|
-| `EXTINCTION_GROUPS_NOT_SEPARABLE` | (info) Pick one of the listed space groups and call it the answer. They produce **identical** powder patterns by construction — a centre of symmetry, an enantiomorph or a mirror leaves no absence — so this is not weak data and not a tie to be broken by counting longer. Carry the list; `structure_from_candidate(cand, space_group=…)` accepts any member. The arbiters are chemistry (a polar or optically active compound cannot be centrosymmetric) and, eventually, which one a structure solution works in |
-| `EXTINCTION_SYMBOL_AMBIGUOUS` | Read the ranked first class as the answer. It fires for three different reasons and says which: a runner-up inside the decisive ΔBIC margin, a leading class none of whose absences is **testable** here (each is outside the range, coincides with a line the class still allows, or sits where the class's own fit already puts a neighbour's tail), or classes a `max_classes` cap never fitted. Only the first is fixed by better data at the same setting |
-| `EXTINCTION_FORBIDDEN_INTENSITY` | Keep this class. A position it forbids carries intensity its own Le Bail fit cannot account for, and the hkl and 2θ are named so you can look. Two things it is not: a position under a neighbour's tail, which is no longer testable at all (WP-1077), and necessarily a violated absence — one flagged position can be an impurity line, so check it against the indexing result's `unmatched_observed` before concluding. What it *cannot* be excused by is a good ΔBIC: a class asserts absences, so a testable position carrying intensity refutes it however well it scores |
-| `EXTINCTION_CONDITIONS_PARTIAL` | (info) Read `conditions` as the complete condition list for this class. The screen used the absence set itself, which is unaffected; only the human-readable reduction is short. Read `space_groups` |
-
-Three things about the screen that change how you use its answer:
-
-1. **The score is a nested comparison, not Rwp.** A class with fewer absences has
-   more reflections and can only fit at least as well, so Rwp ranks the
-   least-constrained class first every time. `delta_bic` is BIC(class) −
-   BIC(absence-free lattice); **negative favours the class**, and the difference
-   between two classes' values is itself a ΔBIC. Measured on a synthetic P 2₁/c
-   specimen: the true class and its screw-free partner differ by 1e-5 in Rwp and
-   by 24 in ΔBIC.
-2. **`n_added` counts only *testable* absences**, so a class whose extra absences
-   all hide under allowed neighbours earns nothing for them. Read `n_testable`
-   beside `n_absent`: if it is zero the class is a hypothesis these data cannot
-   address, whatever its Rwp; if it is `None` the class was never fitted, so the
-   question was not asked. The third clause of testable — the class's own fit
-   must leave the window below the detection threshold — is what stops a
-   badly-modelled peak tail refuting a true class, and it is measured: on
-   certified corundum, sham positions 1–3 FWHM below an allowed line, carrying no
-   reflection at all, clear the same 3σ test on 40–50 % of probes.
-3. **The absence-free class winning is a result, not a failure.** On NAC (I 2₁3)
-   it is the *correct* answer: I-centring already extinguishes the very
-   reflections the 2₁ screws would, so those screws are invisible in principle.
-   It is a *wrong* answer when the shared profile fit is bad, and
-   `ExtinctionScreen.profile_rwp` is the field that tells the two apart: on
-   certified corundum the screen returns the certified `R - c -` at Rwp 0.149 and
-   the absence-free `R - - -` at 0.270, from the same cell and the same pattern.
-   Give it a range and a width law its profile fit can match before reading a
-   refutation.
-
-**`where` now names the paths on every guard code, `HIGH_CORRELATION` included**
-(v1.0, WP-1007). It used to be empty on that one — the paths were recovered from
-the message by taking its first word, which for a *pair* is not a path at all —
-so a consumer had to parse `"a ~ b (ρ=+0.994)"` to learn which two parameters
-were degenerate. Read `d.where`; never split the message.
-
-```python
-for d in result.diagnostics:
-    if d.code == "HIGH_CORRELATION":
-        a, b = d.where          # the degenerate pair, as dot-paths
-```
-
-And ask the package what it can do rather than assuming: `rietx.capabilities()`
-returns the live registries — backends (with whether each optional dependency is
-importable *on this machine*), solvers, plan presets with their `when_to_use`
-text, modes, anodes, the pattern formats `read_pattern` opens, and the six
-versioned contracts (`schema_version`, `report_thresholds_version`,
-`event_schema_version`, `project_format_version`, `textdoc_format_version`,
-`indexing_thresholds_version`). Its `features` map is derived
-from the tree, so `features["indexing"]` tells you whether *this* build has an
-indexer instead of leaving you to try one.
-
----
-
-## 7d. The closed loop: from a pattern of an unknown phase to a refinement
+### 7d. The closed loop: from a pattern of an unknown phase to a refinement
 
 Indexing is the step that used to be missing. Before it, this package could
 refine a structure against a pattern but could not find the cell, so an unknown
@@ -927,7 +910,73 @@ under its own shift allowance.
 
 ---
 
-## 7f. Two consumers, one answer: the gate and the evidence (WP-1043)
+### 7e. The extinction screen (`ExtinctionScreen.diagnostics`, and each class's)
+
+These arrive from `rietx.determine_extinction_symbol`, which runs *after* a cell
+is in hand and answers the next question — which systematic absences the pattern
+shows. Same split as §7c: a refutation lives on the class it refutes.
+
+| Code | What it means you must not do |
+|---|---|
+| `EXTINCTION_GROUPS_NOT_SEPARABLE` | (info) Pick one of the listed space groups and call it the answer. They produce **identical** powder patterns by construction — a centre of symmetry, an enantiomorph or a mirror leaves no absence — so this is not weak data and not a tie to be broken by counting longer. Carry the list; `structure_from_candidate(cand, space_group=…)` accepts any member. The arbiters are chemistry (a polar or optically active compound cannot be centrosymmetric) and, eventually, which one a structure solution works in |
+| `EXTINCTION_SYMBOL_AMBIGUOUS` | Read the ranked first class as the answer. It fires for three different reasons and says which: a runner-up inside the decisive ΔBIC margin, a leading class none of whose absences is **testable** here (each is outside the range, coincides with a line the class still allows, or sits where the class's own fit already puts a neighbour's tail), or classes a `max_classes` cap never fitted. Only the first is fixed by better data at the same setting |
+| `EXTINCTION_FORBIDDEN_INTENSITY` | Keep this class. A position it forbids carries intensity its own Le Bail fit cannot account for, and the hkl and 2θ are named so you can look. Two things it is not: a position under a neighbour's tail, which is no longer testable at all (WP-1077), and necessarily a violated absence — one flagged position can be an impurity line, so check it against the indexing result's `unmatched_observed` before concluding. What it *cannot* be excused by is a good ΔBIC: a class asserts absences, so a testable position carrying intensity refutes it however well it scores |
+| `EXTINCTION_CONDITIONS_PARTIAL` | (info) Read `conditions` as the complete condition list for this class. The screen used the absence set itself, which is unaffected; only the human-readable reduction is short. Read `space_groups` |
+| `EXTINCTION_SCREEN_FAILED` | (error) Read the empty ranking, or any class's absence from it, as evidence about the symmetry. The *reference* Le Bail fit of the absence-free lattice group raised (the message names the exception), so no class was screened at all — `screen.status` is `failed` and there is nothing to rank. This is about the cell, the instrument or the data, never about one class: every class would fail the same way. Validate the cell first (`index_pattern` with `data=`, §7d's sequence) and check the wavelength is not on an absorption edge |
+
+Three things about the screen that change how you use its answer:
+
+1. **The score is a nested comparison, not Rwp.** A class with fewer absences has
+   more reflections and can only fit at least as well, so Rwp ranks the
+   least-constrained class first every time. `delta_bic` is BIC(class) −
+   BIC(absence-free lattice); **negative favours the class**, and the difference
+   between two classes' values is itself a ΔBIC. Measured on a synthetic P 2₁/c
+   specimen: the true class and its screw-free partner differ by 1e-5 in Rwp and
+   by 24 in ΔBIC.
+2. **`n_added` counts only *testable* absences**, so a class whose extra absences
+   all hide under allowed neighbours earns nothing for them. Read `n_testable`
+   beside `n_absent`: if it is zero the class is a hypothesis these data cannot
+   address, whatever its Rwp; if it is `None` the class was never fitted, so the
+   question was not asked. The third clause of testable — the class's own fit
+   must leave the window below the detection threshold — is what stops a
+   badly-modelled peak tail refuting a true class, and it is measured: on
+   certified corundum, sham positions 1–3 FWHM below an allowed line, carrying no
+   reflection at all, clear the same 3σ test on 40–50 % of probes.
+3. **The absence-free class winning is a result, not a failure.** On NAC (I 2₁3)
+   it is the *correct* answer: I-centring already extinguishes the very
+   reflections the 2₁ screws would, so those screws are invisible in principle.
+   It is a *wrong* answer when the shared profile fit is bad, and
+   `ExtinctionScreen.profile_rwp` is the field that tells the two apart: on
+   certified corundum the screen returns the certified `R - c -` at Rwp 0.149 and
+   the absence-free `R - - -` at 0.270, from the same cell and the same pattern.
+   Give it a range and a width law its profile fit can match before reading a
+   refutation.
+
+**`where` now names the paths on every guard code, `HIGH_CORRELATION` included**
+(v1.0, WP-1007). It used to be empty on that one — the paths were recovered from
+the message by taking its first word, which for a *pair* is not a path at all —
+so a consumer had to parse `"a ~ b (ρ=+0.994)"` to learn which two parameters
+were degenerate. Read `d.where`; never split the message.
+
+```python
+for d in result.diagnostics:
+    if d.code == "HIGH_CORRELATION":
+        a, b = d.where          # the degenerate pair, as dot-paths
+```
+
+And ask the package what it can do rather than assuming: `rietx.capabilities()`
+returns the live registries — backends (with whether each optional dependency is
+importable *on this machine*), solvers, plan presets with their `when_to_use`
+text, modes, anodes, the pattern formats `read_pattern` opens, and the six
+versioned contracts (`schema_version`, `report_thresholds_version`,
+`event_schema_version`, `project_format_version`, `textdoc_format_version`,
+`indexing_thresholds_version`). Its `features` map is derived
+from the tree, so `features["indexing"]` tells you whether *this* build has an
+indexer instead of leaving you to try one.
+
+---
+
+### 7f. Two consumers, one answer: the gate and the evidence (WP-1043)
 
 The gate exists for **unattended** use: a machine that cannot weigh evidence
 must never be handed one cell confidently, so `best_or_none()` stays as strict
@@ -1269,7 +1318,9 @@ penalty actually minimised is `weight_scale · restraint_chi2`.
 
 **The first thing to do with a fit is read the report at every stage it passed
 through, and that costs you one flag.** `task="refine"` returns `trajectory[]`
-by default, and in python:
+when the request sets `"report_trajectory": true` — off by default since
+WP-1003, because WP-1064 measured that rungs handed over unasked bought no
+better decisions at more calls — and in python:
 
 ```python
 ref.fit(data, plan="mccusker_default", stage_reports=True)
@@ -1287,11 +1338,17 @@ applied against the whole plan. Two properties make it safe to rely on:
   same fit runs without it (measured: identical Rwp to full float precision on
   the synthetic fixtures, 0.140249 on 11-BM NAC). Nothing is refined to
   produce a rung.
-- **It costs ≈2.5× the fit's wall clock** (1.06 s → 2.70 s on 59.5k channels;
-  0.28 s → 0.87 s on a 1000-channel fixture) and ~26 % of the report's
-  payload — 0.9–2.6 kB a rung. The cost is flat *per stage*, not per
-  iteration, so on a hard or diverging fit it disappears into the noise. Turn
-  it off for a fit you are not going to read.
+- **It costs ≈2.5–2.8× the fit's wall clock** (1.06 s → 2.70 s on 59.5k
+  channels of real 11-BM data; 0.30 s → 0.82 s on the 4200-channel synthetic
+  LaB₆ fixture, re-measured 2026-08-19) and single-digit kB of payload: on
+  that LaB₆ fixture, 0.6–0.8 kB a rung, 3.5 kB for the whole five-rung
+  trajectory, ~3 % of the 111 kB report it ships beside. Quote that share
+  with its fixture — the report's size is dominated by its geometry table
+  (89 kB of the 111), which no rung carries, so beside a geometry-light
+  report the same trajectory reads as ~26 % (the `StageReport` docstring's
+  WP-1058-era episode-fixture measurement). The cost is flat *per stage*, not
+  per iteration, so on a hard or diverging fit it disappears into the noise.
+  Turn it off for a fit you are not going to read.
 
 What to look for, in order:
 
@@ -1459,19 +1516,27 @@ there than excluding the scales.
 tool-calling agent, and `rietx.agent.tool_definition()` returns a
 ready-to-register tool whose schema quotes the backend/solver/plan/**engine**
 vocabularies from the live registries.  Five tasks: `"refine"` (one pattern →
-`result` + the FitReport + the per-stage `trajectory`), `"refine_multi"` (one
-joint residual — its `node_id`/`tree_id` are null **by design**, a joint fit
-keeps no history DAG), `"refine_sequential"` (a warm-started series → `series`
+`result`, with the FitReport beside it and — requested, see below — the
+per-stage `trajectory`), `"refine_multi"` (one joint residual — its
+`node_id`/`tree_id` are null **by design**, a joint fit keeps no history DAG,
+and it returns **no report either**: reports are per-histogram and python-only
+(`result.for_histogram(h)` + `build_report`), so §4's report ladder does not
+run on this task — judge a joint fit from `result.statistics` and §7's
+diagnostics), `"refine_sequential"` (a warm-started series → `series`
 of per-pattern summaries; history ids live per entry, never per run), `"index"`
-(a peak list or a pattern → `indexing`, an `IndexingResult`), and `"suggest"`
-(a model → `suggestion`, one Jacobian evaluation ranking the held parameters by
+(a peak list or a pattern → `indexing`, an `IndexingResult`, with the
+`evidence` companion riding beside it — §7f's projection for a consumer that
+reasons), and `"suggest"` (a model → `suggestion`, one Jacobian evaluation
+ranking the held parameters by
 predicted Δχ² — no fit, no mutation, safe between fits).
 
-The whole of §9a arrives on the plain request, with no extra call and no flag
-to know about:
+The whole of §9 arrives on one request field — `"report_trajectory": true`,
+without which the response's `trajectory` is `[]` (the default is off since
+WP-1003; §9 has the measured reason):
 
 ```json
-{"task": "refine", "structure": {…}, "instrument": {…}, "pattern": {…}}
+{"task": "refine", "structure": {…}, "instrument": {…}, "pattern": {…},
+ "report_trajectory": true}
 ```
 
 ```json
@@ -1493,9 +1558,10 @@ to know about:
 ```
 
 That is the shape to expect from a compensated fit: an empty final action list
-over a first rung that names the cause.  `report_trajectory: false` declines
-the rungs; `include_report: false` declines **both** — a caller who says it
-does not want the report is never handed one a rung at a time.
+over a first rung that names the cause — and the `trajectory` above is there
+only because the request asked for it.  `include_report: false` outranks
+`report_trajectory: true` and declines **both** — a caller who says it does
+not want the report is never handed one a rung at a time.
 
 `"index"` answers in its own arm because its answer is a different *shape*: there
 is no cell in it.  Read the `evidence` arm first (WP-1043, §7f) — every
@@ -1518,6 +1584,13 @@ is the suggestion), or `REFINEMENT_FAILED` (the engine's own message,
 preserved — the request was valid *and* runnable here, so read the message).  Everything else in this document applies unchanged: the
 `result` inside the envelope is the same `RefinementResult`, and §7's
 diagnostics are still the first thing to read.
+
+One namespace note: every code in this document is the **engine's** — a
+`Diagnostic.code` or one of the three envelope codes above. The GUI server's
+session codes (`NOT_FOUND`, `RUN_IN_FLIGHT`, `STALE_REVISION`, …) share the
+same UPPER_SNAKE shape but are a separate vocabulary with no rows here, so a
+code met outside `result.diagnostics` or the error envelope is the server's,
+not the engine's.
 
 ---
 
@@ -1595,3 +1668,7 @@ its protocol is not a measurement.
   usable API on its own: `compare.run("zincite", "dispersion")`). Its
   cumulative-Δχ² panel is the machine-readable form of §8.1's rule — it shows
   *where* a correction acted, not just whether Rwp moved
+
+Papers are cited author-year throughout; each citation resolves in the
+manual's bibliography (`docs/manual/references.bib`) or carries its journal
+reference inline at first mention.

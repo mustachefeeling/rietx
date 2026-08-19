@@ -44,7 +44,8 @@ no history, no mutation, which is why it is safe to call between fits.
 
 ``task="refine"`` answers with a **trajectory** as well as a report (WP-1058):
 the FitReport at every stage boundary, projected to a
-:class:`~rietx.report.StageReport` each, on by default.  This is delivery,
+:class:`~rietx.report.StageReport` each, on ``report_trajectory=true`` (off by
+default since WP-1003, on WP-1064's measured criterion).  This is delivery,
 not content — every statement in it was already computable before — and it
 exists because WP-1053 measured *when* a report is read as the bottleneck, not
 what it says: a default-plan fit lands at a converged-looking state whose
@@ -263,9 +264,11 @@ class RefineRequest(_RequestBase):
         "Turn it on for a run you will actually read: a converged report is "
         "routinely the least informative one in the run — a compensated fit "
         "reads Rwp 0.0137 with an EMPTY action list while the same plan's "
-        "first stage names the cause at confidence 0.997. Costs ~2.5x the "
-        "fit's wall clock (measured 1.06 s -> 2.70 s on 59.5k channels) and "
-        "~26 % of the report's payload; it changes no number the fit "
+        "first stage names the cause at confidence 0.997. Costs ~2.5-2.8x "
+        "the fit's wall clock (measured 1.06 s -> 2.70 s on 59.5k channels; "
+        "0.30 s -> 0.82 s on the 4200-channel synthetic LaB6 fixture) and "
+        "0.6-2.6 kB a rung — a few per cent of a geometry-bearing report's "
+        "payload, ~26 % of a geometry-free one; it changes no number the fit "
         "produces. include_report=false overrides it: that flag means no "
         "report content at all, so a caller who declines the report is never "
         "handed one a rung at a time"))

@@ -91,6 +91,16 @@ are resolved — a writer or removal, decided by measurement.
 
 ### Inherited
 
+- From 1105 (2026-08-19): the protocol's §5 `ActionKind` table marks
+  `refine_profile_widths` and `collect_better_data` **"no emitter —
+  resolution in WP-1106"**; resolving them means updating those two rows in
+  the same change. The coverage is now enforced:
+  `tests/test_docs_consistency.py` fails when any `ActionKind`/`GateCode`
+  member is absent from the protocol (a), or when an emitted engine
+  `code="…"` literal has no row (b) — a code built dynamically goes in its
+  `STATIC_INVISIBLE_CODES` dict with the emitter named. So a new member or
+  emitter this WP adds is red until its protocol row lands, which is the
+  intended workflow, not an obstacle.
 - From 1104 (2026-08-18): **nothing surfaced that needs a schema field** —
   the audit's amendments were attribution and citation only, and its one
   open question (a dynamic suggest→fit loop measured against the presets) is
