@@ -3,9 +3,10 @@
 Two halves, and the split is the point.  The **mapping** is pure: which of the
 eighteen ``ActionKind`` members is a button, what stage a button runs, and why a
 non-button is not one — all answerable without a fit, so they are asserted
-against hand-built :class:`SuggestedAction` objects, including the four kinds no
-report currently emits as a primary suggestion (they exist only in
-``alternatives`` today, and a table that covers them has to be checked somewhere).
+against hand-built :class:`SuggestedAction` objects rather than waiting for a
+state that emits each kind (since WP-1106 every member has a demonstrated
+emitter, but which fixture produces which kind is the emission suites' concern,
+not the mapping's).
 
 The **apply** half is driven over real HTTP against one real refinement, because
 the claims are about what happens to the project: one history node, χ² actually

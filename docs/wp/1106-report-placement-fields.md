@@ -118,23 +118,23 @@ are resolved — a writer or removal, decided by measurement.
 
 ## Tasks
 
-- [ ] `SuggestedAction.execution` stamped from RECIPES in `build_report`;
+- [x] `SuggestedAction.execution` stamped from RECIPES in `build_report`;
       serialization pin + a test that every emitted action carries it;
       version-history comment entry; `using/report.md` and the protocol
       ActionKind table updated.
-- [ ] `max_shift_over_esd` on `Statistics`: computed in
+- [x] `max_shift_over_esd` on `Statistics`: computed in
       `run_least_squares` (external units), copied by `refine`; unit test on
       a converged fit (≪ 0.1) and a `STAGE_MAX_ITER`-stopped fit (large);
       manual Part 2 gets the §7 criterion with its *Source:* line (the "a WP
       that adds physics adds its equation there" rule); §4 step 1 sentence.
-- [ ] Resolve `refine_profile_widths`: build the unattributed-width-trend
+- [x] Resolve `refine_profile_widths`: build the unattributed-width-trend
       emitter and measure it on E3 (the loop frees `w` and reaches the noise
       floor where the proxy stopped at χ²_red ≈4.3) — or drop the member if
       the emitter measures out worse; RECIPES/`missing_kinds()`/tests synced
       either way.
-- [ ] Resolve `collect_better_data`: build the firing measurement, then
+- [x] Resolve `collect_better_data`: build the firing measurement, then
       writer-or-drop; scorer vocabulary synced in the same commit.
-- [ ] Tests wrap-up: fast-suite delta stated; ruff; sphinx `-W` (manual
+- [x] Tests wrap-up: fast-suite delta stated; ruff; sphinx `-W` (manual
       touched).
 
 ## Acceptance
