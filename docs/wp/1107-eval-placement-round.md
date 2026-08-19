@@ -94,6 +94,82 @@ delivered / voiced — never word-matching summaries). The 2.1 runner-
 instruction bug is a standing check: the instruction must not name the repo
 root (a python cell once sys.path-inserted the repo `src`; cell invalidated).
 
+### The `report_with_caveat` migration — the 2.1 archaeology (Task 1)
+
+Read 2026-08-19 from the round record (`eval-runs/2026-08-13-round3p1`:
+answers, scorecards, transcripts; the off-arm and python C1 transcripts
+carry no thinking text, so their `answer.json` summaries are the record).
+**Answer to the question as posed: both, decomposed.** The action-field
+hedge is a real decision pattern — a delivery stance — that the contract
+should admit *structurally*, as an unscored field, never as a scoreable
+token; the verdict shift toward `converged` is not the vocabulary's at all.
+Four mechanisms, separated:
+
+1. **The vocabulary conflates the remedial axis with a delivery stance —
+   real, and worth 2 of the 7 rwc cells.** `report_with_caveat` ("deliver
+   the result with its named limitation attached") is the one
+   delivery-stance token among six remedial ones, and real lab data always
+   supplies a true limitation (the round's landing states carry
+   Durbin-Watson 0.58–0.92), so the token is always available and always
+   honest — an unfalsifiable hedge sink, graded a failure by every
+   registered set except second-tier J2's. Exactly two cells fail *only* on
+   it: `off__sonnet` C1 (verdict right, displacement recovered −0.08010,
+   inside {abs: 0.005}) and `report__sonnet` N1, whose answer states the
+   registered `extend_range_or_calibrate` diagnosis in substance ("this
+   narrow angular window cannot separate a constant zero offset from a cosθ
+   displacement term") and still picks `report_with_caveat` — it read
+   `next_action` as "what I recommend doing with this result".
+2. **The other five rwc cells fail on grounds no vocabulary reaches**:
+   three N1 `converged` overclaims (`off` both models, `python__sonnet`)
+   and two C1 tolerance misses (−0.08661 / −0.08649 against −0.0801 at
+   {abs: 0.005}; the second is the cell-held `lab_calibrate` state).
+3. **The unread-license reading (1065 gotcha iii) is refuted as
+   sufficient**: `python__sonnet` C1 had the license in context (clause
+   delivered at call 42), ran the decisive swap (ratio 1.59), quoted the
+   winner "without further caveat" — and still answered
+   `report_with_caveat`, for a different, true, non-rival caveat (the
+   zero/displacement esd coupling). The license closes the *rival* caveat
+   only; the general hedge has exactly one place to go.
+4. **The `converged` shift tracks the glossary imperative, at N=1** (1065
+   read-out (b); the archaeology adds no counter-evidence and no proof —
+   the off transcripts hold no reasoning). `off` received only the glossary
+   fix, and all four of its verdicts flipped to `converged` (round 3:
+   `impurity_suspected`, `assumption_wrong` ×2, `ambiguous` — including the
+   round-3 N1 pass). The exclusion ends "converge it, or say the data
+   cannot", and every off cell took the first branch. One licensed-but-wrong
+   route rides beside it, for the audit design: `python__sonnet` N1
+   measured a *decisive* 1.277 for the wrong rival on a cell-held state
+   (the registered tie [0.99, 1.01] is a property of the registered
+   protocol) and the license then licensed the overclaim — so **the state a
+   swap ran at becomes a mined fact in 2.2**.
+
+**Decision: amendment *and* cells, one registration — not a re-score, not
+amendment-only.**
+
+- Re-scoring 2.1 is refused (standing discipline), and would move only the
+  2 cells in mechanism 1.
+- **The amendment** (2.2, all arms, harness-side only — the package is
+  untouched): split the axes. `report_with_caveat` leaves the `next_action`
+  vocabulary; a new **unscored `caveats` field** (free text, mined
+  descriptively) takes the delivery stance; `none` re-glossed "no further
+  remedial action is needed". J2's second-tier registration becomes
+  `converged` + {none} with the µR/Brindley citation mined — equal rigor,
+  since token membership never graded caveat *content* anyway. Rejected
+  alternatives: admitting rwc into more sets (every real fit carries a
+  nameable limitation, so the sets stop discriminating — N1's would no
+  longer test that the agent knows the *window* is what is missing);
+  re-glossing rwc (wording against wording, when 2.1 just measured wording
+  redirecting behaviour; structural enforcement is the house rule).
+- **The cells**: no dedicated migration cells. The placement round's C1/N1
+  cells re-ask the verdict-shift question under the amended contract and a
+  revised glossary imperative — the two changes act on different answer
+  fields, so the read-outs stay separable (verdict movement reads against
+  the glossary revision; the action field's validity reads against the
+  amendment). **E8′ joins the guard set as mandatory**, per 1065's
+  pre-commitment ("any wording revision adds the E8′ cells") — 2.2 revises
+  wording twice over. The imperative's revision weights both branches
+  equally; exact wording lands with the Task 2 registration.
+
 ## Non-goals
 
 - Changing report *content* — the content half closed with 1055–1057 and its
@@ -106,7 +182,7 @@ root (a python cell once sys.path-inserted the repo `src`; cell invalidated).
 
 ## Tasks
 
-- [ ] Transcript archaeology on 2.1 for the `report_with_caveat` migration;
+- [x] Transcript archaeology on 2.1 for the `report_with_caveat` migration;
       write the finding into the round design (cells, scoring change, or
       "no cells needed — vocabulary amendment only", each with its reason).
 - [ ] Register PROTOCOL.md 2.2: placement arms (shim-projection design),
