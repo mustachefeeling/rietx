@@ -832,6 +832,41 @@ def test_broad_abstention_is_resolution_limited():
     _plot_state(structure, perturbed, data, "wp1057_broad_resolution_limited")
 
 
+def test_resolution_limited_abstention_emits_collect_better_data():
+    """``collect_better_data``'s one writer, firing (WP-1106).
+
+    On the resolution-limited abstention the data, not the model, is what the
+    report ran out of — so the data-quality reading leads the list, above the
+    shift-capped phantom-impurity call (0.5 against 0.3 measured here), with
+    the instrument-vs-specimen fork stated in its rationale rather than
+    resolved by fiat.  The other candidate writer, a
+    ``PATTERN_UNDERSAMPLED``-conditioned emission, was measured and rejected:
+    every bundled synthetic fixture trips that diagnostic beside converged
+    GoF ≈ 1.01 fits (the E2 loop test's ``suggested_actions == []`` on such a
+    fixture is the standing pin), so it would have stamped this action onto
+    reports whose data supported the whole refinement.
+    """
+    from rietx.report.schemas import COLLECT_DATA_CONFIDENCE, IMPURITY_SHIFT_CAP
+
+    structure, ins, data = _broad_truth(0.6)
+    perturbed = ins.model_copy(deep=True)
+    perturbed.zero_shift.value = 0.05
+
+    report = _report_for(structure, perturbed, data)
+    assert report.abstained_kind == "resolution_limited"
+    top = report.suggested_actions[0]
+    assert top.kind == "collect_better_data"
+    assert top.confidence == COLLECT_DATA_CONFIDENCE > IMPURITY_SHIFT_CAP
+    assert top.execution == "advice" and top.parameter_paths == []
+    assert "no re-measurement sharpens it" in top.rationale
+    assert "narrower receiving slit" in top.rationale
+
+    # the sharp converged reference stays silent — the writer is the
+    # abstention flavour, not the breadth of the peaks
+    sharp = _report_for(*_truth())
+    assert "collect_better_data" not in [a.kind for a in sharp.suggested_actions]
+
+
 def test_sharp_converged_reference_stays_silent(truth):
     """The no-noise control: a converged correct model gets the gap field
     (measured ratio 1.00 — the partition is not a noise-floor estimator, so

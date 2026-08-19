@@ -34,6 +34,7 @@ import numpy as np
 from ..schemas.results import RefinementResult
 from .schemas import (
     BACKGROUND_ABSORPTION_NOTABLE,
+    COLLECT_DATA_CONFIDENCE,
     IMPURITY_SHIFT_CAP,
     MIN_COEF_SIGNIFICANCE,
     REINDEX_MIN_FAR_FRACTION,
@@ -474,6 +475,50 @@ def background_actions(background) -> list[SuggestedAction]:
                 f"the crystalline content you did model"),
             alternatives=["add_impurity_phase"]))
     return out
+
+
+def resolution_limited_action(abstained_kind: str | None
+                              ) -> list[SuggestedAction]:
+    """``collect_better_data``: the one state whose remedy is not a parameter.
+
+    Emitted exactly when the abstention classifier read the fit as
+    **resolution-limited** (WP-1106): Gram-dominated gate failures at high
+    local R², the state where alternative models are indistinguishable *in
+    this pattern* — so the data, not the model, is what the report ran out
+    of.  The evidence tally is already composed in ``abstained_reason``
+    (one authority); the rationale carries the fork that evidence cannot
+    resolve: instrumental breadth means better data exists, specimen breadth
+    (nanocrystalline broadening) means no re-measurement sharpens it and the
+    remedy is fewer free parameters and restraints.  Separating the two
+    takes a standard's instrument profile, which this report does not have —
+    hence :data:`~rietx.report.schemas.COLLECT_DATA_CONFIDENCE` rather than
+    a number pretending to know which side the specimen is on.
+
+    ``PATTERN_UNDERSAMPLED`` was measured for this role and **rejected**:
+    every bundled synthetic fixture trips it beside converged GoF ≈ 1.01
+    fits (2026-08-19, both the report-loop truth and the round-trip
+    fixture), so conditioning on it would stamp this action onto reports
+    whose data supported the whole refinement — and the diagnostic already
+    carries the re-collect advice with the step-size number.  The E2 loop
+    test's ``suggested_actions == []`` on a converged undersampled fixture
+    is the standing pin.
+    """
+    if abstained_kind != "resolution_limited":
+        return []
+    return [SuggestedAction(
+        kind="collect_better_data", confidence=COLLECT_DATA_CONFIDENCE,
+        rationale=(
+            "the report abstained because the data's resolution, not the "
+            "model, is the limit: the gate failures are collinearity on "
+            "merged peaks, with the shape basis explaining the misfit it can "
+            "reach (abstained_reason has the tally). One fork this pattern "
+            "cannot resolve: if the breadth is instrumental, better data "
+            "exists — a narrower receiving slit, finer optics, longer "
+            "counting; if it is the specimen's (nanocrystalline size "
+            "broadening), no re-measurement sharpens it, and the remedy is "
+            "fewer free parameters and restraints. A standard's instrument "
+            "profile (lab_calibrate) is what separates the two"),
+        parameter_paths=[])]
 
 
 def note_background_crosstalk(actions: list[SuggestedAction], background

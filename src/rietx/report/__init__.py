@@ -43,6 +43,7 @@ from .layer2 import (
     note_background_crosstalk,
     predict_then_verify,
     reindex_action,
+    resolution_limited_action,
     suggest_actions,
     texture_actions,
 )
@@ -127,6 +128,7 @@ __all__ = [
     "predict_then_verify",
     "recipe",
     "reindex_action",
+    "resolution_limited_action",
     "stage_for",
     "suggest_actions",
     "texture_actions",
@@ -234,6 +236,9 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         reindex = reindex_action(attributions)
         if reindex is not None:
             actions.append(reindex)
+        # the one action whose remedy is the beamline, emitted exactly on the
+        # abstention flavour that names the data as the limit (WP-1106)
+        actions += resolution_limited_action(report.abstained_kind)
         actions += texture_actions(report.texture)
         # the background hypotheses stand here for the same reason texture
         # does: their evidence never linearised anything, and an over-flexible

@@ -139,6 +139,23 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   response to a file and grep the statistics back), so it now travels as a
 #   field beside the numbers.  Additive and defaulted; the field itself moves
 #   no threshold, gate or emission condition.
+#   In the same change the two ``ActionKind`` members that had never been
+#   emitted anywhere earn their writers, both by measurement (the 0.6
+#   precedent).  ``refine_profile_widths``: whenever a width template is
+#   significant, as the instrument-side peer of the sample action at half its
+#   confidence — a width trend alone cannot separate the instrument's
+#   Gaussian polynomial from sample broadening, and the paths are the
+#   Gaussian U/V/W only because a Lorentzian instrument error is
+#   column-degenerate with the sample terms.  Measured on E3: the sample
+#   proxy stalls at χ²_red 4.3 on a planted Gaussian deficit; this action
+#   takes the same state to the 1.01 noise floor and recovers the planted w.
+#   ``collect_better_data``: on the ``resolution_limited`` abstention, at
+#   COLLECT_DATA_CONFIDENCE, with the instrument-vs-specimen fork stated in
+#   the rationale; the PATTERN_UNDERSAMPLED-conditioned alternative was
+#   measured and rejected (every bundled synthetic fixture trips it beside
+#   converged GoF ≈ 1.01 fits).  No existing gate or threshold moved; a
+#   consumer enumerating the kinds it can actually receive sees two more,
+#   and one new level constant (COLLECT_DATA_CONFIDENCE) joins the table.
 THRESHOLDS_VERSION = "1.2"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
@@ -233,6 +250,15 @@ IMPURITY_SHIFT_CAP = 0.3
 #: injection scored a phantom (1,0,1) axis at R²=0.66, outranking the impurity
 #: call at 0.40), so the detection must never outrank its likely cause.
 TEXTURE_IMPURITY_MARGIN = 0.05
+#: ``collect_better_data`` on a resolution-limited abstention (WP-1106).  A
+#: level, not a measurement: the abstention evidence cannot separate
+#: instrumental breadth (better data exists — finer optics, longer counting)
+#: from specimen breadth (no re-measurement sharpens nanocrystalline
+#: broadening), so the confidence says "the data, not the model, is this
+#: report's limit" without pretending to know which side of that fork the
+#: specimen is on.  Above :data:`IMPURITY_SHIFT_CAP`, because on this state
+#: the data-quality reading must outrank a phantom phase.
+COLLECT_DATA_CONFIDENCE = 0.5
 
 #: Le Bail gap (WP-1057) — the structural-vs-profile triage statistic.
 #: ``LEBAIL_GAP_CYCLES`` partition cycles at the frozen converged state: the
