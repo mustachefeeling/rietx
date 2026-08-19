@@ -60,16 +60,73 @@ questions are open, each with a measured stake.
 Keep the recorded stance: the license is stated, the verdict is not — no
 `decisive` boolean, no verdict token (`report/schemas.py`, the 0.9 entry).
 
-### Inherited
+The reference implementation (from 1107's handover): the shim projection and
+its tests (`run_refine.py`, `test_scorer.py` § the 2.2 projections) define
+the delivered shape — the shipped field must make the projection a no-op or
+replace it, and `test_shim_delivers_exactly_what_the_condition_declares` is
+where the equivalence is pinned. The mined anchor (`LICENSE_PHRASE`,
+`mine_transcripts.py`) is pinned to the live clause by test — reword the
+license and that pin breaks by design; freeze the phrase for the archived
+records before re-quoting.
 
-- From 1107 (2026-08-19): the shim projection and its tests
-  (`run_refine.py`, `test_scorer.py` § the 2.2 projections) are the
-  reference implementation — the shipped field must make the projection a
-  no-op or replace it, and `test_shim_delivers_exactly_what_the_condition_declares`
-  is where the equivalence is pinned. The mined anchor (`LICENSE_PHRASE`,
-  `mine_transcripts.py`) is pinned to the live clause by test — reword the
-  license and that pin breaks by design; freeze the phrase for the archived
-  records before re-quoting.
+## Design note (2026-08-19)
+
+**Copy, not move.** The clause stays in `report.summary` and is *also*
+delivered as `result.statistics.identifiability_clause`. The round measured
+placement, not content (1107's non-goal), so excising the clause from the
+summary would change what every existing summary consumer reads — the GUI
+report panel, `textdoc`, every `StageReport` rung (`for_stage` copies
+`self.summary` verbatim), and any human — on evidence that was never
+collected: the 2.2 `report` arm's failure was *delivery* (the greps drop the
+summary), not content (it added no overclaim). The one-authority rule is
+kept in the strongest form available: `build_report` calls
+`identifiability_clause` **once** and writes the one returned string to both
+places in the same build — one authority rendering once, written twice — and
+a test pins the delivered pair: the summary carries `"; " + clause` exactly
+when the field is set, byte-identical.
+
+**The writer is `build_report`, writing `result.statistics
+.identifiability_clause` — a declared cross-document write.** The
+alternatives lose on measured grounds:
+
+- *A `FitReport`-level field* (beside `report.rwp`/`report.gof`) is a
+  different placement from the one the round measured — `jq
+  .result.statistics` and every statistics-block grep never see it — and
+  shipping an unmeasured variant is what 1107 existed to prevent.
+- *A fit-time stamp* (the optimizer or `refine` writing it) puts a
+  THRESHOLDS_VERSION-governed sentence — reworded at 0.8 and 0.9, each
+  change eval-measured — into every result whether or not a report is ever
+  built. That changes the report-off response shape (an arm 1107 measured
+  as clause-free), couples the two contracts so a thresholds bump moves
+  result bytes, and inverts "a report is derived from a result, so it rides
+  beside one, never inside" (root CLAUDE.md).
+
+`build_report` mutating its input is the honest form of the measured
+conditionality: the clause reaches the statistics exactly when a report was
+built, which is exactly when the 2.2 arm delivered it ("both inert when the
+report is withheld"). The write is declared on the field (WP-1076: a
+declared name is a claim — the docstring names `build_report` as the only
+writer), idempotent (the renderer is deterministic from the evidence), and
+validated (`Base` has `validate_assignment=True`). No agent-layer
+special-casing is needed: `refine_json` builds the report before
+serialization and `Refinement.report()` reads the same `result_` object
+`fit()` returned, so the python surface and the JSON surface get the same
+fact from the same writer.
+
+**The absent state is `None`**, covering both "no clause crossed the
+comment threshold" and "no report was built" — the honest empty state
+(WP-1076), declared on the field; it can never read as a verdict, and no
+verdict token enters (the 0.9 stance). `None` serializes as `null` like
+every other absent-for-cause statistics field (`durbin_watson`,
+`esd_inflation`); a bespoke omit-when-None serializer for one field would
+be a novelty seam. Per-histogram `HistogramResult.statistics` declares the
+field and nothing writes it (the clause is whole-fit — the
+`max_shift_over_esd` precedent); the transient per-stage results in
+`_stage_report` are stamped and thrown away, which keeps each rung's
+summary and its own statistics in agreement. SCHEMA_VERSION stays 0.2: a
+new defaulted field is a safe addition by `schemas/common.py`'s own rule;
+the consumer-visible emission change is the report contract's, so
+`report_thresholds_version` bumps to 1.3.
 
 ## Non-goals
 
