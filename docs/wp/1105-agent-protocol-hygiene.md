@@ -1,6 +1,6 @@
 # WP-1105 — AGENT_PROTOCOL hygiene: stale claims out, vocabularies covered
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-19
 Depends on: 1104 (same document; the audit decides which claims stay before
 the tables document them). Docs + tests only — no contract change, no version
 event; may land before the v1.1 version flip.
@@ -75,23 +75,23 @@ Verified 2026-08-18 (file:line against the working tree at `6517c914`):
 
 ## Tasks
 
-- [ ] Fix §9/§9c: the three stale trajectory claims, the §9a dangling
+- [x] Fix §9/§9c: the three stale trajectory claims, the §9a dangling
       reference, the JSON sample annotated (`trajectory` only with
       `"report_trajectory": true`); renumber or reorder the §7 subsections.
-- [ ] Add the two missing diagnostic rows (`EXTINCTION_SCREEN_FAILED`,
+- [x] Add the two missing diagnostic rows (`EXTINCTION_SCREEN_FAILED`,
       `INDEX_VALIDATION_FAILED`) in the tables where their families live
       (§7e / §7c), remedy included, per the house row format ("what it means
       you must not do").
-- [ ] Add the `GateCode` table to §6 (4 rows: code → meaning → correct
+- [x] Add the `GateCode` table to §6 (4 rows: code → meaning → correct
       response) and the `ActionKind` table to §5 (18 rows: kind → how
       (stage/index/advice, quoted from RECIPES) → emitter condition → why
       `parameter_paths` may be empty).
-- [ ] §9c: `refine_multi` returns no report (and why); add `evidence` to the
+- [x] §9c: `refine_multi` returns no report (and why); add `evidence` to the
       per-task listing; one sentence declaring the engine vs GUI code
       namespaces.
-- [ ] Reconcile the payload numbers with one fresh measurement (state the
+- [x] Reconcile the payload numbers with one fresh measurement (state the
       fixture and channel count beside each figure, in both files).
-- [ ] Meta-tests in `tests/test_docs_consistency.py`: (a) every
+- [x] Meta-tests in `tests/test_docs_consistency.py`: (a) every
       `GateCode`/`ActionKind` Literal member appears in the protocol (import
       the Literals — quoted from the live registry, the `capabilities()`
       idiom); (b) every engine-emitted `Diagnostic` code has a protocol row —
@@ -105,7 +105,7 @@ Verified 2026-08-18 (file:line against the working tree at `6517c914`):
       file, and every author-year citation resolves in the protocol's stated
       references location — 1104 verified both by hand and added ~10
       citations, so the check protects more than when this WP was planned.
-- [ ] Handover: state the fast-suite delta (+N = the new meta-tests, per the
+- [x] Handover: state the fast-suite delta (+N = the new meta-tests, per the
       "say which numbers moved" rule).
 
 ## Acceptance
@@ -129,6 +129,51 @@ makes (b) fail); no stale §9 claim survives a grep for "by default" near
 
 ## Handover log
 
+- **2026-08-19** — **closing ✅.** All six work items landed, one commit each
+  (`d94600a7`…`b77b02da` on `wp1105-agent-protocol-hygiene`).
+  - **§9/§9c**: the three stale trajectory claims fixed, §9a → §9, the §9c
+    sample request now carries `"report_trajectory": true`. A **fourth**
+    sighting of the same stale claim, found this session, fixed in passing:
+    `agent.py`'s *module* docstring still said "on by default" (the Context
+    bullet had checked only the tool description). §7 was physically
+    **reordered** (7d before 7e), not renumbered — `layer2.py`'s reindex
+    rationale string, `using/indexing.md` and `test_extinction_symbol.py`
+    all cite §7d/§7e by number — and the two `##` subsection headings
+    dropped to `###` with the rest of the family (anchors unchanged).
+  - **Meta-test (b) liveness, the required way round**: the AST collector was
+    written and run *before* the rows landed — 79 codes collected, failing on
+    exactly `EXTINCTION_SCREEN_FAILED` + `INDEX_VALIDATION_FAILED` — then the
+    rows landed and it went green; the acceptance revert-demo (delete one new
+    row → (b) fails) was also run. `STATIC_INVISIBLE_CODES` is empty: every
+    engine code is a `code="…"` keyword literal today.
+  - **Payload reconciliation**: one fresh measurement, 2026-08-19, on the
+    4200-channel synthetic LaB₆ (the `test_agent_surface` fixture and
+    `using/agents.md`'s own): report arm 111 kB — **89 kB of it the WP-1072
+    geometry table**, which no rung carries — trajectory 3.5 kB over five
+    rungs (0.6–0.8 kB each, 3 %), wall clock 0.30 → 0.82 s, Rwp
+    bit-identical rungs on/off. That is the whole disagreement: 26–40 kB /
+    +26 % (WP-1058-era episode fixtures, pre-geometry-table) and 114 kB /
+    3 % (LaB₆) were both real, and the share is a property of the *report*.
+    All four claim sites (protocol §9, `using/agents.md`, the `StageReport`
+    docstring, the `report_trajectory` field description) now name their
+    fixture. Script: session scratchpad `measure_payload.py`, method in the
+    commit.
+  - **Citations**: Hill & Cranswick 1994 was the one author-year citation
+    resolving neither in `references.bib` nor inline; its journal is now
+    inline (*J. Appl. Cryst.* **27**, 802, verified against the corpus copy
+    `W94DIGGF`). The See-also states the resolution convention meta-test (c)
+    enforces. Deliberately **not** added to `references.bib`:
+    `test_manual.py` pins every bib entry as cited *in the manual*, so
+    protocol-only papers resolve inline instead.
+  - **Numbers** (`.venv` `[dev]` — jax and torch absent — darwin/arm64):
+    fast suite 2420 passed + 117 skipped (~2:40);
+    `test_docs_consistency.py` 14 → 17, the exact +3 of the new meta-tests,
+    all passes, no new skips. Full suite not run: docs+tests-only WP (the
+    ladder, `tests/CLAUDE.md`).
+  - **Forwarded**: 1106's `### Inherited` now notes the two "no emitter —
+    resolution in WP-1106" table rows it must update, and that meta-tests
+    (a)/(b) will fail on any new vocabulary member or emitted code until the
+    protocol documents it.
 - **2026-08-19** — session start: pruned `### Inherited` — its one entry
   (1104's citation-resolution coverage test) is still true and actionable, so
   it is folded into the meta-test task as item (c) rather than left as
