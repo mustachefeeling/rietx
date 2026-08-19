@@ -276,11 +276,14 @@ written reason it stays open) in the milestone record.
   the synthetic exact tie's first-ever run) — recorded post-hoc, no
   mid-round change, interpretation deferred for lack of any baseline.
 
-  **Numbers moved**: eval fast selection 97 → 113 passed serial (+16:
-  10 scorer/shim tests, 2 new instances of the conditions meta-test's
-  parametrize, 4 miner tests; no new skips); fast suite
-  2424 + 117 → 2440 + 117 expected (verified at close, see the PR body);
-  ruff clean throughout.  No CLAUDE.md was edited this session.
+  **Numbers moved**: fast suite 2424 + 117 → **2444 + 117** measured on
+  the final tree (2:36, `-n auto --dist loadgroup`) — exactly +20: 14 new
+  test functions (10 scorer/shim/grid, 4 miner) plus 6 new parametrize
+  instances (the three condition-parametrized tests × the two new
+  conditions), no new skips.  Eval selection 93 → 113 passed serial — the
+  "97 → 109" in two commit messages counted passed-beside-12-failures
+  mid-implementation, not a baseline; this paragraph is the corrected
+  ledger.  Ruff clean throughout.  No CLAUDE.md was edited this session.
 
   **Gotchas for a successor / what the next round must not repeat**:
   (i) J2's trigger fired (caveats 22/22) but its fixture has never been
