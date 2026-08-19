@@ -104,6 +104,43 @@ def test_fit_report_layer0(synthetic_pattern):
     assert report.summary
 
 
+def test_max_shift_over_esd_measures_convergence(synthetic_pattern):
+    """McCusker §7's quantity on both of its branches (WP-1106).
+
+    The 0.1 band is quoted from the paper and gates nothing; the value's
+    information is which side a solve landed on and by how much.  A converged
+    TRF solve at ftol 1e-9 satisfies the criterion a fortiori (measured here
+    ≈3e-4), while the same stage starved to one iteration stops mid-flight
+    (measured ≈14 — the magnitude, not the status, says *how* unconverged).
+    Margins are >100× on both sides, so neither assertion can turn into a
+    solver-termination sensor.
+    """
+    from rietx import Stage
+    from rietx.optimize.statistics import MAX_SHIFT_CONVERGED
+
+    turn_on = ["phases.*.scale", "instrument.background.*",
+               "phases.*.cell.*", "instrument.zero_shift"]
+
+    structure, ins = perturbed_models()
+    ref = Refinement(structure, ins)
+    converged = ref.run_stage(synthetic_pattern, Stage("all", turn_on=turn_on))
+    assert converged.status == "converged"
+    assert converged.statistics.max_shift_over_esd is not None
+    assert converged.statistics.max_shift_over_esd < MAX_SHIFT_CONVERGED
+
+    structure, ins = perturbed_models()
+    ref = Refinement(structure, ins)
+    starved = ref.run_stage(synthetic_pattern,
+                            Stage("starved", turn_on=turn_on, max_iter=1))
+    assert starved.status == "max_iter"
+    assert starved.statistics.max_shift_over_esd is not None
+    assert starved.statistics.max_shift_over_esd > MAX_SHIFT_CONVERGED
+
+    # the number is a copy of the solver's, and it travels the JSON contract
+    dumped = starved.model_dump(mode="json")["statistics"]["max_shift_over_esd"]
+    assert dumped == pytest.approx(starved.statistics.max_shift_over_esd)
+
+
 def test_impurity_peak_detected(synthetic_pattern):
     # inject an unmodelled peak and check Layer-0 flags it
     tt = np.asarray(synthetic_pattern.two_theta)

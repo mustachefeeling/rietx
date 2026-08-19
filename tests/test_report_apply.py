@@ -3,9 +3,10 @@
 Two halves, and the split is the point.  The **mapping** is pure: which of the
 eighteen ``ActionKind`` members is a button, what stage a button runs, and why a
 non-button is not one — all answerable without a fit, so they are asserted
-against hand-built :class:`SuggestedAction` objects, including the four kinds no
-report currently emits as a primary suggestion (they exist only in
-``alternatives`` today, and a table that covers them has to be checked somewhere).
+against hand-built :class:`SuggestedAction` objects rather than waiting for a
+state that emits each kind (since WP-1106 every member has a demonstrated
+emitter, but which fixture produces which kind is the emission suites' concern,
+not the mapping's).
 
 The **apply** half is driven over real HTTP against one real refinement, because
 the claims are about what happens to the project: one history node, χ² actually
@@ -384,6 +385,33 @@ def test_the_report_says_what_applies_beside_what_it_suggests(narrow):
         assert arm["can_apply"] is False, kind
         assert "every match is held" in arm["refusal"], arm
         assert "structurally fixed" in arm["refusal"], arm
+
+
+def test_every_emitted_action_carries_its_execution_class(narrow):
+    """WP-1106: the recipe table's ``how``, typed on the action itself.
+
+    Over ``refine_json`` an advice kind arrives with ``parameter_paths: []``
+    *by design*, and before this field nothing in the JSON separated that from
+    a bug — the sentence saying so reached agent context in 2 of 12 measured
+    cells (WP-1065), because agents pipe the response to a file and grep the
+    statistics back.  So the classification is stamped on every emitted
+    action, from the same table the GUI's apply arms quote; the two surfaces
+    must agree because neither restates the mapping.
+    """
+    _, client, _ = narrow
+    payload = client.get("/api/report")[1]
+    report, arms = payload["report"], payload["apply"]
+    assert report["suggested_actions"], "fixture must suggest something"
+    for action, arm in zip(report["suggested_actions"], arms):
+        assert action["execution"] == RECIPES[action["kind"]].how, action["kind"]
+        assert action["execution"] == arm["how"]
+    # the pin survives the typed contract's round-trip
+    from rietx.report import FitReport
+
+    parsed = FitReport.model_validate(report)
+    assert all(a.execution is not None for a in parsed.suggested_actions)
+    # and a hand-built action has honestly not been classified
+    assert _action("refine_cell").execution is None
 
 
 def test_the_predicted_delta_chi2_is_one_number_for_the_whole_report(narrow):

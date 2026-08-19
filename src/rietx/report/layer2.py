@@ -34,6 +34,7 @@ import numpy as np
 from ..schemas.results import RefinementResult
 from .schemas import (
     BACKGROUND_ABSORPTION_NOTABLE,
+    COLLECT_DATA_CONFIDENCE,
     IMPURITY_SHIFT_CAP,
     MIN_COEF_SIGNIFICANCE,
     REINDEX_MIN_FAR_FRACTION,
@@ -103,6 +104,17 @@ _WIDTH_ACTIONS: dict[str, tuple[ActionKind, str]] = {
     "inv_cos_theta": ("refine_sample_size_broadening", "phases.*.lor_size"),
     "tan_theta": ("refine_sample_strain_broadening", "phases.*.lor_strain"),
 }
+
+#: what ``refine_profile_widths`` frees: the instrument's **Gaussian**
+#: polynomial only, and that is physics rather than caution.  Instrument and
+#: sample Lorentzian FWHMs add, so a Lorentzian instrument width error is
+#: column-degenerate with ``phases.*.lor_size``/``…lor_strain`` and the sample
+#: actions absorb it exactly; a Gaussian variance deficit is what they
+#: provably cannot reach (measured on E3, ``tests/test_report_loop.py``: the
+#: accepted sample proxy took χ²_red 15.1 → 4.3 and stalled with the width
+#: trend still standing at 7σ).
+_INSTRUMENT_WIDTH_PATHS = ["instrument.profile.u", "instrument.profile.v",
+                           "instrument.profile.w"]
 
 #: an unmatched observed peak this strong is worth proposing a phase for
 IMPURITY_SIGMA = 8.0
@@ -465,6 +477,50 @@ def background_actions(background) -> list[SuggestedAction]:
     return out
 
 
+def resolution_limited_action(abstained_kind: str | None
+                              ) -> list[SuggestedAction]:
+    """``collect_better_data``: the one state whose remedy is not a parameter.
+
+    Emitted exactly when the abstention classifier read the fit as
+    **resolution-limited** (WP-1106): Gram-dominated gate failures at high
+    local R², the state where alternative models are indistinguishable *in
+    this pattern* — so the data, not the model, is what the report ran out
+    of.  The evidence tally is already composed in ``abstained_reason``
+    (one authority); the rationale carries the fork that evidence cannot
+    resolve: instrumental breadth means better data exists, specimen breadth
+    (nanocrystalline broadening) means no re-measurement sharpens it and the
+    remedy is fewer free parameters and restraints.  Separating the two
+    takes a standard's instrument profile, which this report does not have —
+    hence :data:`~rietx.report.schemas.COLLECT_DATA_CONFIDENCE` rather than
+    a number pretending to know which side the specimen is on.
+
+    ``PATTERN_UNDERSAMPLED`` was measured for this role and **rejected**:
+    every bundled synthetic fixture trips it beside converged GoF ≈ 1.01
+    fits (2026-08-19, both the report-loop truth and the round-trip
+    fixture), so conditioning on it would stamp this action onto reports
+    whose data supported the whole refinement — and the diagnostic already
+    carries the re-collect advice with the step-size number.  The E2 loop
+    test's ``suggested_actions == []`` on a converged undersampled fixture
+    is the standing pin.
+    """
+    if abstained_kind != "resolution_limited":
+        return []
+    return [SuggestedAction(
+        kind="collect_better_data", confidence=COLLECT_DATA_CONFIDENCE,
+        rationale=(
+            "the report abstained because the data's resolution, not the "
+            "model, is the limit: the gate failures are collinearity on "
+            "merged peaks, with the shape basis explaining the misfit it can "
+            "reach (abstained_reason has the tally). One fork this pattern "
+            "cannot resolve: if the breadth is instrumental, better data "
+            "exists — a narrower receiving slit, finer optics, longer "
+            "counting; if it is the specimen's (nanocrystalline size "
+            "broadening), no re-measurement sharpens it, and the remedy is "
+            "fewer free parameters and restraints. A standard's instrument "
+            "profile (lab_calibrate) is what separates the two"),
+        parameter_paths=[])]
+
+
 def note_background_crosstalk(actions: list[SuggestedAction], background
                               ) -> list[SuggestedAction]:
     """Name the background as a rival explanation for unmatched peaks.
@@ -611,6 +667,47 @@ def cap_texture_crosstalk(actions: list[SuggestedAction],
     return actions
 
 
+def _instrument_width_action(trend: TrendAnalysis,
+                             peers: list[SuggestedAction]
+                             ) -> list[SuggestedAction]:
+    """``refine_profile_widths``: the instrument-side reading of a width trend.
+
+    Emitted as a peer alternative whenever a width template is significant
+    (``peers`` non-empty), because the trend evidence cannot separate the two
+    sides: the instrument's Gaussian polynomial U·tan²θ + V·tanθ + W spans the
+    same shapes over any realistic 2θ range, and Toby (2024) §4's example of a
+    misleading largest derivative is exactly an instrument width standing in
+    for the sample term (the U/V/W case WP-1050 measured from the other side).
+    The paths are :data:`_INSTRUMENT_WIDTH_PATHS` — the Gaussian half only,
+    for the reason on that constant.
+
+    Confidence is half the leading sample action's — the same runner-up
+    discount ``_trend_actions`` applies — for a protocol reason: instrument
+    widths belong to a calibration standard (``lab_calibrate``), so on an
+    unknown the sample terms are the first reading, and this is the one to
+    reach for when they leave the trend standing.
+    """
+    if not peers:
+        return []
+    top = max(peers, key=lambda a: a.confidence)
+    for peer in peers:
+        peer.alternatives = list(peer.alternatives) + ["refine_profile_widths"]
+    return [SuggestedAction(
+        kind="refine_profile_widths",
+        confidence=round(0.5 * top.confidence, 3),
+        rationale=(
+            f"the same width trend read from the instrument side "
+            f"({trend.misfit_share:.0%} of χ²): the Gaussian polynomial "
+            "U·tan²θ + V·tanθ + W spans the sample templates' shapes over "
+            "this range, so a width trend alone cannot separate instrument "
+            "from sample broadening. Instrument widths belong to a "
+            "calibration standard, so try the sample terms first — and free "
+            "these when they leave the trend standing: a Lorentzian sample "
+            "FWHM cannot reproduce a Gaussian variance deficit"),
+        parameter_paths=list(_INSTRUMENT_WIDTH_PATHS),
+        alternatives=[a.kind for a in peers])]
+
+
 def suggest_actions(attributions: list[RegionAttribution],
                     trends: list[TrendAnalysis],
                     unmatched: list[UnmatchedPeak],
@@ -635,7 +732,9 @@ def suggest_actions(attributions: list[RegionAttribution],
     if "position" in by_obs:
         actions += _trend_actions(by_obs["position"], position_actions, "deg")
     if "width" in by_obs:
-        actions += _trend_actions(by_obs["width"], _WIDTH_ACTIONS, "deg")
+        width_actions = _trend_actions(by_obs["width"], _WIDTH_ACTIONS, "deg")
+        actions += width_actions
+        actions += _instrument_width_action(by_obs["width"], width_actions)
 
     # intensity trend vs sin²θ/λ² is the ADP signature; its constant term is
     # a scale error

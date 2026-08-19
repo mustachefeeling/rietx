@@ -80,6 +80,24 @@ delivered / voiced — never word-matching summaries). The 2.1 runner-
 instruction bug is a standing check: the instruction must not name the repo
 root (a python cell once sys.path-inserted the repo `src`; cell invalidated).
 
+### Inherited
+
+- From 1106 (closed 2026-08-19): the `execution` field landed as this WP
+  assumes (stamped by `build_report` on every emitted action, `None` only on
+  hand-built ones) — but the **episodes moved under the cells**, in three
+  ways the round design must absorb.  (i) A width episode's report now
+  carries `refine_profile_widths` as the instrument-side peer at half the
+  sample action's confidence, and the E3 loop **converges** (proxy 15.1 →
+  4.3, then the peer → the 1.01 noise floor) — any W1-family cell premised
+  on "the loop stalls with nothing left to name" is stale.  (ii) A
+  `resolution_limited` abstention now emits `collect_better_data` at 0.5,
+  leading the phantom-impurity call — broad-peak episodes gain an advice
+  action where they had none.  (iii) Every payload carries
+  `statistics.max_shift_over_esd`, and the protocol's §4 step 1 tells agents
+  to read it — a new number in every cell's context.
+  `report_thresholds_version` is 1.2; re-pin the landing states
+  (`test_landing_states.py`) against the new tree before registering 2.2.
+
 ## Non-goals
 
 - Changing report *content* — the content half closed with 1055–1057 and its

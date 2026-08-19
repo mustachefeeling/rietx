@@ -60,6 +60,20 @@ class Statistics(Base):
     ``optimize.statistics.berar_lelann_factor``); lab data with unmodelled
     profile detail typically lands at 2-4.  Divide it out for raw
     χ²·(JᵀJ)⁻¹ esds.
+
+    ``max_shift_over_esd`` is McCusker et al. (1999) §7's convergence
+    quantity: the largest |Δθᵢ|/esd(θᵢ) over the final accepted step of the
+    answer-producing solve, both sides in external parameter units (the
+    transform chain makes internal-space ratios meaningless at finite step).
+    The paper's band — converged when ≤ 0.1
+    (``optimize.statistics.MAX_SHIFT_CONVERGED``) — is quoted, never tuned,
+    and gates nothing; a TRF solve at ftol 1e-9 satisfies it a fortiori, so
+    the information is on the other branch: a stage that stopped on
+    ``STAGE_MAX_ITER`` reports how far it was still moving, in esd units.
+    ``run_least_squares`` computes it, ``refine`` copies it, nothing else
+    derives it (WP-1076).  ``None`` wherever it cannot be measured: no
+    accepted step, no esds, an evaluate-only ``replay``, or the joint
+    multi-pattern residual, which carries no writer yet.
     """
 
     rwp: float
@@ -72,6 +86,7 @@ class Statistics(Base):
     esd_inflation: float | None = None
     n_points: int
     n_free_parameters: int
+    max_shift_over_esd: float | None = None
 
 
 class DataSupport(Base):

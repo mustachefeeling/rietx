@@ -528,6 +528,14 @@ def count_unique_reflections(model: "CompiledModel",
 OBS_PER_PARAMETER_MIN = 3.0
 OBS_PER_PARAMETER_PREFERRED = 5.0
 
+#: The convergence band of McCusker et al. (1999) §7: a refinement has
+#: converged when the maximum shift/esd in the final cycle is ≤ 0.1.  Quoted,
+#: never tuned, and it gates nothing — it sets the level of one report
+#: sentence, and on a fit that stopped on its iteration budget the measured
+#: quantity (``Statistics.max_shift_over_esd``) says *how far* the solve was
+#: still moving in esd units.
+MAX_SHIFT_CONVERGED = 0.1
+
 #: Half-width of a reflection's interval, in its own FWHMs — Altomare et al.
 #: (1995) §2(b), where α = 2 is the default and the paper's own α = 4 check
 #: lands 6.5 % lower on average (max 13.3 %), so α = 2 "provides a value of

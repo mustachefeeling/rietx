@@ -212,7 +212,13 @@ Cryst.* **25**, 589).
 Judge a fit in this order:
 
 1. **Status and guards.** `result.status`, then `result.diagnostics`. A warning
-   here outranks any statistic.
+   here outranks any statistic. `statistics.max_shift_over_esd` is the measured
+   quantity behind "converged" (McCusker 1999 §7: converged when ≤ 0.1, a band
+   quoted from the paper and gating nothing): a converged solve satisfies it a
+   fortiori, so read it on the other branch — where a stage stopped on
+   `STAGE_MAX_ITER`, its magnitude says *how far* the solve was still moving
+   in esd units, which separates "nearly there" (just over the band) from a
+   fit that stopped mid-flight (measured ≈14 on one starved iteration).
 2. **The shape of the difference curve**, region by region — not its size.
    Layer 0 gives you this as numbers: `report.regions` with per-region local
    Rwp and χ² share, and `cumulative_chi2_breakpoints` locating where the model
@@ -540,8 +546,9 @@ report = ref.report(plan="lab_bragg_brentano")   # the plan supplies the Layer-2
 
 The action vocabulary is closed (`ActionKind`, versioned by
 `report_thresholds_version`), and each kind is carried out one of three ways —
-`how`, quoted from the package's own recipe table (`report/apply.py`), which is
-served to the GUI beside every report but reaches a JSON consumer only here:
+`how`, quoted from the package's own recipe table (`report/apply.py`) and
+stamped on every emitted action as `SuggestedAction.execution` (WP-1106), so a
+JSON consumer reads it beside the numbers rather than from this table alone:
 **stage** (one `run_stage` over the action's globs), **index** (a search, not a
 stage), or **advice** (no verb — the note is the deliverable, and
 `parameter_paths` is empty *by design*, not by omission). The table is every
@@ -556,7 +563,7 @@ moves are logged in the schema version history:
 | `refine_capillary_offset_along_beam` | stage | the `sin_2theta` position template is significant — Debye-Scherrer only | `instrument.geometry.capillary_offset_along_beam` |
 | `refine_capillary_offset_across_beam` | stage | the `cos_2theta` position template is significant — Debye-Scherrer only | `instrument.geometry.capillary_offset_across_beam` |
 | `refine_cell` | stage | the `tan_theta` position template is significant (every geometry) | `phases.*.cell.*` |
-| `refine_profile_widths` | stage | **no emitter** — nothing constructs it, not even as an alternative; resolution in WP-1106 | would be the instrument width paths |
+| `refine_profile_widths` | stage | a width template is significant — always as the instrument-side peer of the sample action, at half its confidence, because a width trend alone cannot separate the two sides (the instrument's Gaussian polynomial spans the same shapes; Toby 2024 §4's U/V/W example). Try the sample terms first; reach for this when they leave the trend standing (measured: the sample proxy stalls at χ²_red 4.3 on a planted Gaussian deficit, this action takes the same state to the 1.01 noise floor — WP-1106) | `instrument.profile.u`, `…v`, `…w` — the Gaussian half only: a *Lorentzian* instrument width error is column-degenerate with `phases.*.lor_size`/`…lor_strain`, so the sample actions absorb it exactly |
 | `refine_sample_size_broadening` | stage | the `inv_cos_theta` width template is significant | `phases.*.lor_size` |
 | `refine_sample_strain_broadening` | stage | the `tan_theta` width template is significant | `phases.*.lor_strain` |
 | `refine_axial_asymmetry` | stage | a significant asymmetry coefficient in gated regions below 2θ = 40° | `instrument.geometry.axial_sl`, `…axial_hl` |
@@ -567,7 +574,7 @@ moves are logged in the schema version history:
 | `increase_background_flexibility` | advice | between-peak misfit is systematic (high off-region χ²_red at low Durbin-Watson) — the too-stiff detector; capped at 0.6 however strong the evidence (§7's code block has why) | empty by design — the edit is to the background's *shape*, not to the free set; `instrument.background.*` would read as "free the background", which every plan already does |
 | `decrease_background_flexibility` | advice | the background column span reproduces a notable share of a structural parameter (`report.background.worst_absorption`) — the too-flexible detector | empty by design, same reason |
 | `reindex_or_recheck_cell` | index | validity-radius failures are widespread among the misfitting regions — and it survives abstention, where it matters most (§6) | `phases.*.cell.*`, but the verb is a search over cells, not a stage over parameters |
-| `collect_better_data` | advice | **no emitter** — nothing constructs it, not even as an alternative; resolution in WP-1106 | empty by design — no parameter can be freed when the pattern itself is the limit |
+| `collect_better_data` | advice | the abstention classifier read the fit as `resolution_limited` (§6) — the one state whose remedy is the beamline, emitted at 0.5 so the data-quality reading outranks a phantom-impurity call. Its rationale carries the fork the evidence cannot resolve: instrumental breadth means better data exists; specimen breadth (nanocrystallites) means no re-measurement helps and the remedy is fewer free parameters and restraints. A `PATTERN_UNDERSAMPLED`-conditioned emission was measured and rejected — every bundled synthetic fixture trips that diagnostic beside converged GoF ≈ 1.01 fits (WP-1106) | empty by design — no parameter can be freed when the pattern itself is the limit |
 
 **And read it at more than one state.** A report describes the state it was
 built at, and the state a staged plan finishes in is routinely the least

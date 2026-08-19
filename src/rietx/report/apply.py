@@ -59,15 +59,13 @@ from __future__ import annotations
 import fnmatch
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal, get_args
+from typing import get_args
 
 from ..schemas.plan import StageSpec
-from .schemas import ActionKind, SuggestedAction
 
-#: ``stage`` — one ``run_stage`` over the action's globs.  ``index`` — a
-#: long-running search, not a stage, and the only kind whose availability is a
-#: build feature.  ``advice`` — no verb; the note says what to do instead.
-How = Literal["stage", "index", "advice"]
+# ``How`` is defined beside ``ActionKind`` (WP-1106) so ``SuggestedAction`` can
+# carry it typed; the kind→How mapping stays here, in ``RECIPES``.
+from .schemas import ActionKind, How, SuggestedAction
 
 
 @dataclass(frozen=True)

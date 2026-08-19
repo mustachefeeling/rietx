@@ -223,6 +223,37 @@ work is Amdahl-bounded at ≈1.25× here. Two places where the Coelho papers
 disagree with their own text, and how the discrepancies were resolved by
 measurement, are worked through in {ref}`ch-method`.
 
+## Convergence
+
+The Rietveld literature judges convergence not by a cost decrement but by
+the final cycle's parameter shifts against their own esds
+{cite}`mccusker1999` (their §7):
+
+```{math}
+:label: est-convergence
+
+\max_i \; \frac{|\Delta \theta_i|}{\mathrm{esd}(\theta_i)}
+\;\le\; \epsilon_{\mathrm{conv}},
+```
+
+*Source:* `rietx.optimize.least_squares.run_least_squares`
+
+with the paper's band $\epsilon_{\mathrm{conv}} =$ {{ MAX_SHIFT_CONVERGED }}
+quoted, never tuned. Both sides are measured in **external** parameter units:
+$\Delta\theta$ is decoded exactly through the transform chain of
+{ref}`ch-parameterisation` and the esd is the chain-ruled physical one of
+{eq}`est-cov`, because at finite step size an internal-space ratio is not the
+same number. The measured value is `Statistics.max_shift_over_esd` — computed
+by the solver from the final accepted step, copied onto the answer-producing
+stage's statistics, derived nowhere else — and it gates nothing: a converged
+Trust Region Reflective solve at `ftol` $10^{-9}$ satisfies the criterion a
+fortiori (measured $\sim 3\times 10^{-4}$ on the synthetic LaB₆ round trip),
+so its information is on the other branch, where a stage stopped on its
+iteration budget reports how far it was still moving in esd units (the same
+stage starved to one iteration measures $\approx 14$). It is absent rather
+than zero wherever it cannot be measured: no accepted step, no esds, an
+evaluate-only replay, or the joint multi-pattern residual.
+
 ## The fp64 floor
 
 The residual used for cost and statistics, and the parameter solve and
