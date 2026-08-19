@@ -195,7 +195,7 @@ amendment-only.**
       the `execution` cell pair, episode selection (C1/N1 for placement;
       W1-family for `execution`; second-tier only where prior effects
       showed), landing states re-pinned (`test_landing_states.py`).
-- [ ] Implement the shim placement projections + their unit tests (the shim,
+- [x] Implement the shim placement projections + their unit tests (the shim,
       not the prompt, enforces the condition — both directions).
 - [ ] Run the grid; audit (payload, forbidden reads, cap, mining); dated
       grids to the milestone appendix, counts not percentages.
