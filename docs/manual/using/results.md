@@ -33,6 +33,7 @@ Toby {cite}`toby2006`, and Part 2 gives them as equation
 | `Statistics.esd_inflation` | the Bérar-Lelann factor | the amount the reported esds were multiplied by to account for that serial correlation. It has **already been applied**. |
 | `Statistics.n_points` , `Statistics.n_free_parameters` | N and P | what makes the rest interpretable. |
 | `Statistics.max_shift_over_esd` | max \|Δθ\|/esd over the last accepted step, external units both sides | the convergence quantity (McCusker 1999 §7: converged when ≤ 0.1, a band quoted and never tuned). A converged fit satisfies it a fortiori; on a stage that stopped on its iteration budget it says **how far** the solve was still moving. `None` when it cannot be measured — no accepted step, no esds, a replay, or a joint multi-pattern fit. |
+| `Statistics.identifiability_clause` | the report's identifiability sentence, verbatim — the exchange finding with the swap experiment and its license, and/or the softest notable mode | the same sentence the report's summary carries, delivered beside the numbers so a consumer that reads only the statistics block still gets it. The evidence behind it is `FitReport.identifiability` ([](report.md)). Written by `build_report`, never by the fit: `None` until a report is built, and `None` when nothing crossed a comment threshold — either way it is not a verdict about the fit. |
 
 **`Statistics.chi2` is the reduced χ², not Σw δ².** The two differ by a factor
 of N − P, which on a real pattern is several thousand.

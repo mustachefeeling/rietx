@@ -163,7 +163,7 @@ the consumer-visible emission change is the report contract's, so
 - [x] The shim's `license_placement="statistics"` projection re-pinned
       against the shipped field (no-op or replaced); eval fast selection
       green.
-- [ ] AGENT_PROTOCOL/manual: the field documented where §4 step 6 names
+- [x] AGENT_PROTOCOL/manual: the field documented where §4 step 6 names
       the decision band (Part 1 name-resolution tests will enforce it).
 
 ## Acceptance

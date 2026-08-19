@@ -311,6 +311,17 @@ Judge a fit in this order:
    calibrant-fixed zero, a wider angular window) or declaring the ambiguity;
    no sentence converts a tie into an answer.
 
+   **The sentence travels beside the numbers too.** The summary's
+   identifiability clause — the finding, the swap and this band's license —
+   is also delivered verbatim as `result.statistics.identifiability_clause`
+   (`report_thresholds_version` 1.3, WP-1108). Measured consumers pipe the
+   JSON response to a file and grep the statistics back, and the summary
+   string is what those greps drop (the license reached agent context in 2
+   of 12 cells from the summary; 4/4 from the statistics block once placed
+   there). So a pipeline that keeps only the statistics still holds the
+   license; `None` there means no report was built or nothing crossed a
+   comment threshold, never a verdict.
+
    What you must **not** do is free the held parameter alongside its partner
    and refit: both free lands on the degenerate ridge of §3, and it reports
    the unconstrained combination at a *better* Rwp, which is the trap. This
