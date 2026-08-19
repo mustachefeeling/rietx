@@ -197,7 +197,7 @@ amendment-only.**
       showed), landing states re-pinned (`test_landing_states.py`).
 - [x] Implement the shim placement projections + their unit tests (the shim,
       not the prompt, enforces the condition — both directions).
-- [ ] Run the grid; audit (payload, forbidden reads, cap, mining); dated
+- [x] Run the grid; audit (payload, forbidden reads, cap, mining); dated
       grids to the milestone appendix, counts not percentages.
 - [ ] Kill/keep decisions recorded; the winning placement (if any) filed as
       a successor WP or executed here if it is one additive field whose
