@@ -212,7 +212,13 @@ Cryst.* **25**, 589).
 Judge a fit in this order:
 
 1. **Status and guards.** `result.status`, then `result.diagnostics`. A warning
-   here outranks any statistic.
+   here outranks any statistic. `statistics.max_shift_over_esd` is the measured
+   quantity behind "converged" (McCusker 1999 §7: converged when ≤ 0.1, a band
+   quoted from the paper and gating nothing): a converged solve satisfies it a
+   fortiori, so read it on the other branch — where a stage stopped on
+   `STAGE_MAX_ITER`, its magnitude says *how far* the solve was still moving
+   in esd units, which separates "nearly there" (just over the band) from a
+   fit that stopped mid-flight (measured ≈14 on one starved iteration).
 2. **The shape of the difference curve**, region by region — not its size.
    Layer 0 gives you this as numbers: `report.regions` with per-region local
    Rwp and χ² share, and `cumulative_chi2_breakpoints` locating where the model

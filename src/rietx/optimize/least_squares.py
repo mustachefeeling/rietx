@@ -84,6 +84,12 @@ class LSQOutcome:
     #: constraint (the Stephens strain cone).  0 under TRF, which has no such
     #: vocabulary — see ``optimize/lm.py``.
     n_constraint_truncations: int = 0
+    #: McCusker et al. (1999) §7's convergence quantity, measured over the
+    #: final accepted step with both sides in external parameter units — see
+    #: :func:`_final_shift_over_esd`.  ``None`` when it cannot be measured (no
+    #: accepted step, or no esds), never zero.  ``refine`` copies this onto
+    #: ``Statistics.max_shift_over_esd``; nothing else derives it (WP-1076).
+    max_shift_over_esd: float | None = None
 
 
 def _lebail_snapshot(model: CompiledModel) -> list[np.ndarray] | None:
@@ -534,26 +540,91 @@ def strain_cone_inequalities(model: CompiledModel, table: ParameterTable,
 
 
 def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_iter, ftol,
-                inequalities, events, stage: str):
+                inequalities, events, stage: str, track=None):
     """Run the bounded-LM driver, adapted to the scipy result shape.
 
     The two drivers are kept interchangeable at exactly this point: everything
     downstream (covariance, guards, history) reads ``x``/``fun``/``jac``/
     ``cost``/``nfev``/``status``, and :class:`~.lm.LMOutcome` carries those with
-    scipy's meanings.
+    scipy's meanings.  ``track`` is a :class:`_StepTracker` fed from the
+    driver's accepted-point callback — the LM half of the final-step record
+    the TRF path reconstructs from its residual closure.
     """
     from . import lm as lm_mod
 
     counter = {"n": 0}
 
     def callback(theta: np.ndarray, cost: float) -> None:
-        counter["n"] += 1
-        events.emit("eval", stage=stage, n_eval=counter["n"], cost=cost)
+        if track is not None:
+            track.accept(theta, cost)
+        if events is not None:
+            counter["n"] += 1
+            events.emit("eval", stage=stage, n_eval=counter["n"], cost=cost)
 
     return lm_mod.minimize(residual, jacobian, x0, lo=lo, hi=hi,
                            max_iter=max_iter, ftol=ftol,
                            inequalities=inequalities,
-                           callback=None if events is None else callback)
+                           callback=None if (events is None and track is None)
+                           else callback)
+
+
+class _StepTracker:
+    """The last two accepted iterates of one solve, full θ vector each.
+
+    scipy TRF exposes no accepted-point hook, so the TRF path reconstructs
+    acceptance from the solver-facing residual closure: TRF accepts a trial
+    exactly when its cost is strictly below the incumbent's, so the strictly
+    cost-decreasing evaluations *are* the accepted iterates.  The jacobian
+    closure never routes through that residual, which is what keeps FD probe
+    points out of the record.  The LM driver reports accepted points through
+    its callback and feeds :meth:`accept` directly.
+    """
+
+    def __init__(self) -> None:
+        self.prev: np.ndarray | None = None
+        self.best: np.ndarray | None = None
+        self.best_cost = np.inf
+
+    def accept(self, x: np.ndarray, cost: float) -> None:
+        if cost < self.best_cost:
+            self.prev, self.best = self.best, np.asarray(x, dtype=np.float64).copy()
+            self.best_cost = cost
+
+    def step(self) -> tuple[np.ndarray, np.ndarray] | None:
+        """(previous, final) accepted iterate, or ``None`` before any step."""
+        return None if self.prev is None else (self.prev, self.best)
+
+
+def _final_shift_over_esd(table: ParameterTable,
+                          step: tuple[np.ndarray, np.ndarray] | None,
+                          stderr_full: np.ndarray | None,
+                          correlation: np.ndarray | None,
+                          n_table: int) -> float | None:
+    """McCusker et al. (1999) §7's convergence quantity, external units.
+
+    max |Δp_i| / esd(p_i) over the solve's final accepted step, with *both*
+    sides in external parameter units: Δp decoded exactly through the
+    transform chain, the esd the chain-ruled physical one every reported
+    parameter carries — an internal-space ratio is meaningless at finite step
+    (softplus/logit curvature).  The appended Pawley intensity block refines
+    on the identity transform, so internal equals external there and its rows
+    join directly.  ``None`` when the quantity cannot be measured — no
+    accepted step, or no esds — never zero (WP-1076's honest empty state).
+    """
+    if step is None or stderr_full is None:
+        return None
+    x_prev, x_final = step
+    vals_prev = table.decode(x_prev[:n_table])
+    vals_final = table.decode(x_final[:n_table])
+    esd = table.stderr_physical(x_final[:n_table], stderr_full[:n_table],
+                                correlation)
+    ratios = [abs(vals_final[p] - vals_prev[p]) / esd[p]
+              for p in table.free_paths
+              if np.isfinite(esd.get(p, np.nan)) and esd[p] > 0.0]
+    ratios += [abs(float(x_final[i]) - float(x_prev[i])) / float(stderr_full[i])
+               for i in range(n_table, len(x_final))
+               if np.isfinite(stderr_full[i]) and stderr_full[i] > 0.0]
+    return max(ratios) if ratios else None
 
 
 def run_least_squares(model: CompiledModel, table: ParameterTable,
@@ -602,6 +673,17 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
             events.emit("eval", stage=stage, n_eval=counter["n"],
                         cost=0.5 * float(r @ r))
             return r
+
+    tracker = _StepTracker()
+    if solver == "trf":
+        # the acceptance reconstruction _StepTracker's docstring describes;
+        # the LM driver feeds the tracker from its callback instead
+        inner_t = residual
+
+        def residual(theta: np.ndarray):
+            r = inner_t(theta)
+            tracker.accept(theta, 0.5 * float(r @ r))
+            return r
     n_table = len(table.free_paths)
     x0 = table.x0()
     lo, hi = table.bounds()
@@ -620,6 +702,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     # checked once per solve, not per iteration
     require_fp64(r0, "least-squares residual")
     cost0 = 0.5 * float(r0 @ r0)
+    tracker.accept(x0, cost0)  # the LM path's seed; a no-op after the TRF wrapper
     if len(x0) == 0:
         return LSQOutcome(x0, cost0, cost0, 0, "converged", None, None, None,
                           solver=solver)
@@ -630,7 +713,8 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         # feasibility is maintained rather than restored (see the builder)
         cone = strain_cone_inequalities(model, table, x0[:n_table])
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_iter=max_iter,
-                          ftol=ftol, inequalities=cone, events=events, stage=stage)
+                          ftol=ftol, inequalities=cone, events=events, stage=stage,
+                          track=tracker)
         n_truncated = res.n_truncated
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
@@ -641,7 +725,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     # esds from the *full* augmented covariance (table ↔ intensity correlation
     # feeds the table esds too), then split: table columns stay in the outcome,
     # the intensity tail lands on the model's Pawley block.
-    stderr = corr = None
+    stderr = corr = stderr_full = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
         stderr_full, corr_full = covariance_estimates(res.jac, res.fun, len(res.x),
                                                        n_data=len(model.tt))
@@ -655,7 +739,9 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     jac_table = np.asarray(res.jac)[:, :n_table] if res.jac is not None else None
     return LSQOutcome(res.x[:n_table], cost0, float(res.cost), int(res.nfev), status,
                       jac_table, stderr, corr, n_aux=n_aux, solver=solver,
-                      n_constraint_truncations=n_truncated)
+                      n_constraint_truncations=n_truncated,
+                      max_shift_over_esd=_final_shift_over_esd(
+                          table, tracker.step(), stderr_full, corr, n_table))
 
 
 def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",

@@ -245,6 +245,7 @@ class Refinement:
         stats = compute_statistics(model.y_obs, y_calc, model.sigma,
                                    n_free=len(table.free_paths) + _pawley_n(model),
                                    y_background=model.background(values))
+        stats.max_shift_over_esd = outcome.max_shift_over_esd  # copied, never derived
         stderr = (table.stderr_physical(outcome.theta, outcome.stderr_internal,
                                         outcome.correlation)
                   if outcome.stderr_internal is not None else {})
@@ -1216,7 +1217,7 @@ class Refinement:
             correlation=outcome.correlation, backend=self._backend,
             solver=self._solver,
             mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
-            guard=guard)
+            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         if stream is not None:
@@ -1306,7 +1307,8 @@ class Refinement:
             structure=self.structure, stderr_internal=outcome.stderr_internal,
             correlation=outcome.correlation, backend=self._backend,
             solver=self._solver, mu_r_source=self._mu_r_source,
-            mu_r_skipped=self._mu_r_skipped, guard=guard)
+            mu_r_skipped=self._mu_r_skipped, guard=guard,
+            max_shift_over_esd=outcome.max_shift_over_esd)
         report = build_report(result, model=model,
                               values=table.decode(outcome.theta), plan=plan,
                               free_paths=list(table.free_paths))
@@ -1376,7 +1378,7 @@ class Refinement:
             correlation=outcome.correlation, backend=self._backend,
             solver=self._solver,
             mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
-            guard=guard)
+            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         return self.result_
@@ -1806,13 +1808,17 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                   backend: str = "numpy", solver: str = "trf",
                   mu_r_source: str = "given",
                   mu_r_skipped: str | None = None,
-                  guard=None) -> RefinementResult:
+                  guard=None,
+                  max_shift_over_esd: float | None = None) -> RefinementResult:
     values = table.decode(theta)
     y_calc = model.evaluate(values)
     y_bkg = model.background(values)
     stats = compute_statistics(model.y_obs, y_calc, model.sigma,
                                n_free=len(table.free_paths) + _pawley_n(model),
                                y_background=y_bkg)
+    # copied from the outcome, never derived here (WP-1076: run_least_squares
+    # is the one writer); an evaluate-only caller leaves the honest None
+    stats.max_shift_over_esd = max_shift_over_esd
 
     stderr_phys = (table.stderr_physical(theta, stderr_internal, correlation)
                    if stderr_internal is not None else {})
