@@ -1,6 +1,6 @@
 # WP-1108 — The license beside the numbers: shipping the statistics placement
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-19 — shipped: `Statistics.identifiability_clause` written by `build_report` beside the summary's copy, `report_thresholds_version` 1.3, shim projection a checked no-op, documented in the manual, the protocol and the 1.0.2 notes
 Depends on: 1107 (the grid that chose the placement)
 
 ## Goal
@@ -60,16 +60,86 @@ questions are open, each with a measured stake.
 Keep the recorded stance: the license is stated, the verdict is not — no
 `decisive` boolean, no verdict token (`report/schemas.py`, the 0.9 entry).
 
-### Inherited
+The reference implementation (from 1107's handover): the shim projection and
+its tests (`run_refine.py`, `test_scorer.py` § the 2.2 projections) define
+the delivered shape — the shipped field must make the projection a no-op or
+replace it, and `test_shim_delivers_exactly_what_the_condition_declares` is
+where the equivalence is pinned. The mined anchor (`LICENSE_PHRASE`,
+`mine_transcripts.py`) is pinned to the live clause by test — reword the
+license and that pin breaks by design; freeze the phrase for the archived
+records before re-quoting.
 
-- From 1107 (2026-08-19): the shim projection and its tests
-  (`run_refine.py`, `test_scorer.py` § the 2.2 projections) are the
-  reference implementation — the shipped field must make the projection a
-  no-op or replace it, and `test_shim_delivers_exactly_what_the_condition_declares`
-  is where the equivalence is pinned. The mined anchor (`LICENSE_PHRASE`,
-  `mine_transcripts.py`) is pinned to the live clause by test — reword the
-  license and that pin breaks by design; freeze the phrase for the archived
-  records before re-quoting.
+## Design note (2026-08-19)
+
+**Copy, not move.** The clause stays in `report.summary` and is *also*
+delivered as `result.statistics.identifiability_clause`. The round measured
+placement, not content (1107's non-goal), so excising the clause from the
+summary would change what every existing summary consumer reads — the GUI
+report panel, `textdoc`, every `StageReport` rung (`for_stage` copies
+`self.summary` verbatim), and any human — on evidence that was never
+collected: the 2.2 `report` arm's failure was *delivery* (the greps drop the
+summary), not content (it added no overclaim). The one-authority rule is
+kept in the strongest form available: `build_report` calls
+`identifiability_clause` **once** and writes the one returned string to both
+places in the same build — one authority rendering once, written twice — and
+a test pins the delivered pair: the summary carries `"; " + clause` exactly
+when the field is set, byte-identical.
+
+**The writer is `build_report`, writing `result.statistics
+.identifiability_clause` — a declared cross-document write.** The
+alternatives lose on measured grounds:
+
+- *A `FitReport`-level field* (beside `report.rwp`/`report.gof`) is a
+  different placement from the one the round measured — `jq
+  .result.statistics` and every statistics-block grep never see it — and
+  shipping an unmeasured variant is what 1107 existed to prevent.
+- *A fit-time stamp* (the optimizer or `refine` writing it) puts a
+  THRESHOLDS_VERSION-governed sentence — reworded at 0.8 and 0.9, each
+  change eval-measured — into every result whether or not a report is ever
+  built. That changes the report-off response shape (an arm 1107 measured
+  as clause-free), couples the two contracts so a thresholds bump moves
+  result bytes, and inverts "a report is derived from a result, so it rides
+  beside one, never inside" (root CLAUDE.md).
+
+`build_report` mutating its input is the honest form of the measured
+conditionality: the clause reaches the statistics exactly when a report was
+built, which is exactly when the 2.2 arm delivered it ("both inert when the
+report is withheld"). The write is declared on the field (WP-1076: a
+declared name is a claim — the docstring names `build_report` as the only
+writer), idempotent (the renderer is deterministic from the evidence), and
+validated (`Base` has `validate_assignment=True`). No agent-layer
+special-casing is needed: `refine_json` builds the report before
+serialization and `Refinement.report()` reads the same `result_` object
+`fit()` returned, so the python surface and the JSON surface get the same
+fact from the same writer.
+
+**Rendering (2026-08-19, task 3).** `textdoc` renders nothing: the `.rxt`
+document is the *editable* view — settings, plan, parameter rows — and
+carries no statistics and no report content, so there is no line for the
+field to join. The GUI renders the sentence exactly once already: the
+Report panel receives `report.model_dump()` and shows `summary`, which
+keeps its copy; the GUI never displays the serialized `Statistics` block
+(its readouts are the rwp/gof headline numbers), so rendering the field
+would put the same sentence twice in one view. The statistics placement
+exists for the pipe-and-grep path, which no GUI window has. History-node
+metrics build their own `Statistics` at commit time, before any report
+exists, so a node honestly carries `None` — "no report built" at that
+state, never a missed write.
+
+**The absent state is `None`**, covering both "no clause crossed the
+comment threshold" and "no report was built" — the honest empty state
+(WP-1076), declared on the field; it can never read as a verdict, and no
+verdict token enters (the 0.9 stance). `None` serializes as `null` like
+every other absent-for-cause statistics field (`durbin_watson`,
+`esd_inflation`); a bespoke omit-when-None serializer for one field would
+be a novelty seam. Per-histogram `HistogramResult.statistics` declares the
+field and nothing writes it (the clause is whole-fit — the
+`max_shift_over_esd` precedent); the transient per-stage results in
+`_stage_report` are stamped and thrown away, which keeps each rung's
+summary and its own statistics in agreement. SCHEMA_VERSION stays 0.2: a
+new defaulted field is a safe addition by `schemas/common.py`'s own rule;
+the consumer-visible emission change is the report contract's, so
+`report_thresholds_version` bumps to 1.3.
 
 ## Non-goals
 
@@ -82,18 +152,18 @@ Keep the recorded stance: the license is stated, the verdict is not — no
 
 ## Tasks
 
-- [ ] Decide move-vs-copy and the writer (design note in this file, with
+- [x] Decide move-vs-copy and the writer (design note in this file, with
       the one-authority argument written out); the schema field lands with
       its writer named and its absent-state honest.
-- [ ] The renderer stays the one authority: whatever ships is produced by
+- [x] The renderer stays the one authority: whatever ships is produced by
       `identifiability_clause`, never a second sentence.
-- [ ] `report_thresholds_version` bump + changelog entry in
+- [x] `report_thresholds_version` bump + changelog entry in
       `report/schemas.py`; `textdoc` and both GUI windows render the field
       (or deliberately do not, with the reason recorded here).
-- [ ] The shim's `license_placement="statistics"` projection re-pinned
+- [x] The shim's `license_placement="statistics"` projection re-pinned
       against the shipped field (no-op or replaced); eval fast selection
       green.
-- [ ] AGENT_PROTOCOL/manual: the field documented where §4 step 6 names
+- [x] AGENT_PROTOCOL/manual: the field documented where §4 step 6 names
       the decision band (Part 1 name-resolution tests will enforce it).
 
 ## Acceptance
@@ -117,6 +187,39 @@ statistics block returns the license.
 
 ## Handover log
 
+- **2026-08-19** — shipped, ✅, one session. **Done**: all five tasks. The
+  design is the note above: copy not move; `build_report` the declared
+  writer of `Statistics.identifiability_clause` (one render, two writes,
+  the write unconditional so the field is always the renderer's current
+  answer); `None` the honest absent state; SCHEMA_VERSION untouched
+  (additive), `report_thresholds_version` 1.2 → 1.3 with the changelog
+  entry. The shim's `"statistics"` projection is now a checked no-op on
+  the shipped field — a shipped value disagreeing with the re-render is
+  refused by the same `PLACEMENT_PROJECTION_MISMATCH` code — and
+  PROTOCOL.md 2.2 carries the shipped postscript (a `"summary"` marker no
+  longer reproduces a field-free arm; a future round needs a strip
+  projection). Documented: `using/results.md` statistics-table row (the
+  name is frozen on arrival, partition green), AGENT_PROTOCOL §4 step 6's
+  placement paragraph, and a 1.0.2 release-notes bullet covering **both**
+  unmentioned report-contract versions — 1106's 1.2 (`execution`, the two
+  new writers) was absent from the written notes too; notes and code merge
+  atomically, so either tag-then-merge order leaves the published notes
+  consistent. **Measured** (`[dev]` venv, darwin/arm64): fast suite 2449
+  passed + 117 skipped in 3:06 — exactly +5 over 1107's close (2444+117)
+  for the 5 tests added (3 in `test_fitreport_layers.py`, 2 in
+  `test_scorer.py`), no new skip; the WP acceptance command green; ruff
+  clean. Full suite not run: the field is written only after
+  `build_report` runs, so no measured acceptance number can move (the
+  ladder's criterion); the nightly full will read +5. **Gotchas**: the
+  v1.1 opening (version → `1.1.0.dev0`) was deliberately *not* executed —
+  `milestones/v1.1.md` assigns it to "the first code WP", but 1106 (also
+  a code WP of this block) did not execute it either, so the operative
+  precedent treats the agentic-report set as 1.0.x-additive and leaves
+  the opening to the free-standing-peaks openers (ROADMAP § v1.1).
+  History nodes always carry `identifiability_clause: null` — node
+  metrics are built at commit time, before any report exists — by design,
+  stated in the field's docstring. **Next**: nothing on this WP; the E8p
+  overclaim question stays with the next eval round (Non-goals).
 - **2026-08-19** — created by WP-1107's Task 5: the grid favoured the
   statistics placement by the pre-registered rule, and the shipped form is
   an open design (writer, move-vs-copy, contract), so it is filed rather

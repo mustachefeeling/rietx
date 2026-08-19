@@ -156,7 +156,21 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   converged GoF ≈ 1.01 fits).  No existing gate or threshold moved; a
 #   consumer enumerating the kinds it can actually receive sees two more,
 #   and one new level constant (COLLECT_DATA_CONFIDENCE) joins the table.
-THRESHOLDS_VERSION = "1.2"
+# 1.3 (WP-1108): the license beside the numbers — the statistics placement.
+#   ``Statistics.identifiability_clause`` lands (schemas/results.py): the
+#   summary's identifiability sentence, verbatim, delivered inside
+#   ``result.statistics`` — the block measured agent consumers grep back out
+#   of a piped response (WP-1065's 2-of-12; eval protocol 2.2 measured the
+#   placement: license in agent context 4/4 there against 3/4 in the
+#   summary, no added overclaim, and one measured decision flip — the v1.1
+#   appendix).  ``build_report`` is the only writer: one render of
+#   ``identifiability_clause``, written to the summary and the field in the
+#   same build, pinned bit-identical — the summary keeps its copy because
+#   the round measured placement, never content.  Additive and defaulted;
+#   ``None`` covers "no report built" and "nothing crossed a comment
+#   threshold".  No threshold, gate or emission condition moved — the same
+#   sentence now also travels where the greps look.
+THRESHOLDS_VERSION = "1.3"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"

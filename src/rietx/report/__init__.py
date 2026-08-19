@@ -188,6 +188,12 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # included.
     report.identifiability = assess_identifiability(result)
     clause = identifiability_clause(report.identifiability)
+    # One render, two writes (WP-1108): the summary keeps the sentence for
+    # its readers, and the statistics block — the one place measured agent
+    # consumers grep back out of a piped response — carries the same string
+    # verbatim.  This is Statistics' declared cross-document write, and it is
+    # unconditional so the field is always the renderer's current answer.
+    result.statistics.identifiability_clause = clause
     if clause is not None:
         report.summary += "; " + clause
     if model is None or values is None:
