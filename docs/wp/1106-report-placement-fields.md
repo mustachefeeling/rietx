@@ -88,25 +88,20 @@ are resolved — a writer or removal, decided by measurement.
   field") is still unmet; re-folding the trajectory into the default
   payload — WP-1064's pre-registered kill stands. Moving the *license's
   placement* is 1107's question, not this WP's change.
-
-### Inherited
-
-- From 1105 (2026-08-19): the protocol's §5 `ActionKind` table marks
+- **Protocol coverage is enforced, and this WP works inside it** (from 1105,
+  merged 2026-08-19): the protocol's §5 `ActionKind` table marks
   `refine_profile_widths` and `collect_better_data` **"no emitter —
   resolution in WP-1106"**; resolving them means updating those two rows in
-  the same change. The coverage is now enforced:
-  `tests/test_docs_consistency.py` fails when any `ActionKind`/`GateCode`
-  member is absent from the protocol (a), or when an emitted engine
-  `code="…"` literal has no row (b) — a code built dynamically goes in its
-  `STATIC_INVISIBLE_CODES` dict with the emitter named. So a new member or
-  emitter this WP adds is red until its protocol row lands, which is the
-  intended workflow, not an obstacle.
-- From 1104 (2026-08-18): **nothing surfaced that needs a schema field** —
-  the audit's amendments were attribution and citation only, and its one
-  open question (a dynamic suggest→fit loop measured against the presets) is
-  an eval question, recorded in `milestones/v1.1.md` § reconciliation. One
-  pointer for the `execution` field's docs: Toby (2024) §4's caveat — the
-  largest-derivative parameter is not always appropriate to vary, his
+  the same change. `tests/test_docs_consistency.py` fails when any
+  `ActionKind`/`GateCode` member is absent from the protocol (a), or when an
+  emitted engine `code="…"` literal has no row (b) — a code built
+  dynamically goes in its `STATIC_INVISIBLE_CODES` dict with the emitter
+  named. So a new member or emitter this WP adds is red until its protocol
+  row lands, which is the intended workflow, not an obstacle. 1105 is
+  merged, so the `execution` field's protocol row lands here as a one-row
+  amendment.
+- **For the `execution` field's docs** (from 1104): Toby (2024) §4's caveat —
+  the largest-derivative parameter is not always appropriate to vary, his
   example being an instrument width out-deriving the sample term — is the
   literature's own statement of the leverage-vs-veto split, and WP-1050's
   handover records the identical U/V/W example.
@@ -118,8 +113,8 @@ are resolved — a writer or removal, decided by measurement.
 - The license sentence's placement (1107 measures the arms first).
 - Per-action `expected_delta_chi2` (today one number per report, documented
   as such in its docstring) — a real computation change, out of scope.
-- Protocol tables (1105); the `execution` field's protocol row lands in
-  1105's table if 1105 is open, else as a one-row amendment here.
+- Protocol tables (1105); the `execution` field's protocol row lands as a
+  one-row amendment here (1105 merged 2026-08-19).
 
 ## Tasks
 
@@ -165,5 +160,14 @@ action in a real report; the two new numbers ship with their writers named.
 
 ## Handover log
 
+- **2026-08-19** — session start: branched `wp1106-report-placement-fields`
+  from main at d67370b6 (1105's merge). Inherited pruned: the 1105 entry
+  (protocol-row enforcement + the two "no emitter" rows) folded into Context
+  because it governs tasks 3-4 and the row-amendment workflow; the 1104
+  entry kept only its still-operational half (the Toby §4 pointer for the
+  `execution` docs) — its "nothing surfaced that needs a schema field"
+  arrival note was context for creating this WP, already reflected in the
+  task list, so deleted. Non-goals' conditional on 1105 being open resolved
+  (it merged).
 - **2026-08-18** — created from the agentic-report planning session, with
   [1104](1104-agent-protocol-literature-audit.md)/[1105](1105-agent-protocol-hygiene.md)/[1107](1107-eval-placement-round.md).
