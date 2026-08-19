@@ -113,6 +113,19 @@ serialization and `Refinement.report()` reads the same `result_` object
 `fit()` returned, so the python surface and the JSON surface get the same
 fact from the same writer.
 
+**Rendering (2026-08-19, task 3).** `textdoc` renders nothing: the `.rxt`
+document is the *editable* view — settings, plan, parameter rows — and
+carries no statistics and no report content, so there is no line for the
+field to join. The GUI renders the sentence exactly once already: the
+Report panel receives `report.model_dump()` and shows `summary`, which
+keeps its copy; the GUI never displays the serialized `Statistics` block
+(its readouts are the rwp/gof headline numbers), so rendering the field
+would put the same sentence twice in one view. The statistics placement
+exists for the pipe-and-grep path, which no GUI window has. History-node
+metrics build their own `Statistics` at commit time, before any report
+exists, so a node honestly carries `None` — "no report built" at that
+state, never a missed write.
+
 **The absent state is `None`**, covering both "no clause crossed the
 comment threshold" and "no report was built" — the honest empty state
 (WP-1076), declared on the field; it can never read as a verdict, and no
@@ -139,12 +152,12 @@ the consumer-visible emission change is the report contract's, so
 
 ## Tasks
 
-- [ ] Decide move-vs-copy and the writer (design note in this file, with
+- [x] Decide move-vs-copy and the writer (design note in this file, with
       the one-authority argument written out); the schema field lands with
       its writer named and its absent-state honest.
-- [ ] The renderer stays the one authority: whatever ships is produced by
+- [x] The renderer stays the one authority: whatever ships is produced by
       `identifiability_clause`, never a second sentence.
-- [ ] `report_thresholds_version` bump + changelog entry in
+- [x] `report_thresholds_version` bump + changelog entry in
       `report/schemas.py`; `textdoc` and both GUI windows render the field
       (or deliberately do not, with the reason recorded here).
 - [ ] The shim's `license_placement="statistics"` projection re-pinned
