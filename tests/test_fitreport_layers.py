@@ -641,6 +641,20 @@ def test_wrong_cell_abstained_leads_with_reindex(truth):
     _plot_state(perturbed, ins, data, "wp1054_cell_wrong_abstained")
 
 
+def test_abstained_branch_actions_carry_execution_too(truth):
+    """The ``execution`` stamp is on both exits of ``build_report`` (WP-1106) —
+    abstention included, where the actions matter most (WP-1054's point)."""
+    from rietx.report.apply import RECIPES
+
+    structure, ins, data = truth
+    perturbed = structure.model_copy(deep=True)
+    perturbed.phases[0].cell = rx.Cell.cubic(4.1568 * 1.004)
+    report = _report_for(perturbed, ins, data)
+    assert report.abstained_reason and report.suggested_actions
+    for action in report.suggested_actions:
+        assert action.execution == RECIPES[action.kind].how, action.kind
+
+
 def test_broad_peak_lobes_cap_impurity_without_reindex():
     """The broad-peak variant: residual lobes of 0.66°-wide peaks under a
     0.05° zero error read as unmatched (the 0.08° matching tolerance is tiny

@@ -540,8 +540,9 @@ report = ref.report(plan="lab_bragg_brentano")   # the plan supplies the Layer-2
 
 The action vocabulary is closed (`ActionKind`, versioned by
 `report_thresholds_version`), and each kind is carried out one of three ways —
-`how`, quoted from the package's own recipe table (`report/apply.py`), which is
-served to the GUI beside every report but reaches a JSON consumer only here:
+`how`, quoted from the package's own recipe table (`report/apply.py`) and
+stamped on every emitted action as `SuggestedAction.execution` (WP-1106), so a
+JSON consumer reads it beside the numbers rather than from this table alone:
 **stage** (one `run_stage` over the action's globs), **index** (a search, not a
 stage), or **advice** (no verb — the note is the deliverable, and
 `parameter_paths` is empty *by design*, not by omission). The table is every

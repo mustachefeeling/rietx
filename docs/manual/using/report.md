@@ -467,6 +467,7 @@ both objects' fields and for what the esds mean.
 | `SuggestedAction.expected_delta_chi2` | the linear model's predicted Δχ², or null | see the two caveats below |
 | `SuggestedAction.two_theta_range` | where the evidence is, in degrees | null when the evidence is the whole pattern |
 | `SuggestedAction.vetoed_by` | where the strategy engine overruled it | set when the plan already refines the parameter, or a guard forbids it |
+| `SuggestedAction.execution` | how the kind is carried out: `"stage"`, `"index"` or `"advice"` | quoted from the package's one recipe table; `"advice"` is what says empty `parameter_paths` is by design. Null only on an action built by hand — never in a report |
 | `SuggestedAction.active` | true when nothing vetoed it | the predicate a trajectory filters on |
 
 The vocabulary is closed. Thirteen actions free parameters —
@@ -478,7 +479,9 @@ The vocabulary is closed. Thirteen actions free parameters —
 else: `add_impurity_phase`, `increase_background_flexibility`,
 `decrease_background_flexibility`, `reindex_or_recheck_cell` and
 `collect_better_data`. Only the first thirteen carry
-`SuggestedAction.parameter_paths`.
+`SuggestedAction.parameter_paths`, and `SuggestedAction.execution` states the
+split on each action without this list: `"stage"` for the thirteen, `"index"`
+for `reindex_or_recheck_cell`, `"advice"` for the other four.
 
 `SuggestedAction.expected_delta_chi2` has two properties that matter to anything
 rendering it. It is **one number per report, not per action**: it is computed
@@ -509,7 +512,11 @@ you.
 Layer 2 reads the residual's *shape*. `Refinement.suggest` asks the same question
 from the other side — which held parameter has the most leverage on χ² at this
 exact state — and the two are independent methods whose agreement is worth more
-than either alone.
+than either alone. Neither ranks by leverage alone, and the literature states
+why not (Toby {cite}`toby2024`, §4): the largest-derivative parameter is not
+always appropriate to vary — his example frees an instrument width where the
+broadening belongs to the sample. That is the reason leverage arrives as a
+ranked list under the same strategy veto, never as an instruction.
 
 <!-- api-doc: no-exec — it needs a refinement that has run -->
 ```python

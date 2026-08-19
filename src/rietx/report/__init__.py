@@ -135,6 +135,20 @@ __all__ = [
 ]
 
 
+def _stamped(actions: list[SuggestedAction]) -> list[SuggestedAction]:
+    """Sort by confidence and stamp each action's ``execution`` class.
+
+    ``execution`` is quoted from ``RECIPES`` — ``report/apply.py`` stays the
+    one authority for how a kind is carried out; the stamp only makes the
+    classification travel on the action itself, where before WP-1106 it
+    reached the GUI's apply arms and no JSON consumer.
+    """
+    for action in actions:
+        action.execution = RECIPES[action.kind].how
+    actions.sort(key=lambda a: -a.confidence)
+    return actions
+
+
 def build_report(result: RefinementResult, *, model=None, values=None,
                  plan=None, free_paths: list[str] | None = None,
                  top_n: int = 15, match_tol_deg: float = 0.08,
@@ -230,8 +244,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         actions = note_background_crosstalk(actions, report.background)
         if plan is not None or free_paths is not None:
             actions = apply_strategy_veto(actions, plan, free_paths=free_paths)
-        actions.sort(key=lambda a: -a.confidence)
-        report.suggested_actions = actions
+        report.suggested_actions = _stamped(actions)
         report.summary += f"; Layer 1 abstained — {reason}"
         return report
 
@@ -266,8 +279,7 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     actions = note_background_crosstalk(actions, report.background)
     if plan is not None or free_paths is not None:
         actions = apply_strategy_veto(actions, plan, free_paths=free_paths)
-    actions.sort(key=lambda a: -a.confidence)
-    report.suggested_actions = actions
+    report.suggested_actions = _stamped(actions)
 
     n_active = sum(1 for a in actions if a.active)
     report.summary += (f"; Layer 1 on {len([a for a in attributions if a.gates_passed])}"
