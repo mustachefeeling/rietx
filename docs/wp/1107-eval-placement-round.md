@@ -68,6 +68,20 @@ abstained report's `add_impurity_phase 0.9` verbatim as grounds for the wrong
 verdict. A W1-family row on {report with `execution`, report without} is the
 cheapest honest cell pair.
 
+**1106 moved the episodes under the cells** (closed 2026-08-19; verified in
+this tree: `execution` stamped by `build_report`, `report_thresholds_version`
+1.2). Three movements the round design must absorb: (i) a width episode's
+report now carries `refine_profile_widths` as the instrument-side peer at
+half the sample action's confidence, and the E3 loop **converges** (proxy
+15.1 → 4.3, then the peer → the 1.01 noise floor) — any W1-family cell
+premised on "the loop stalls with nothing left to name" is stale; (ii) a
+`resolution_limited` abstention now emits `collect_better_data` at 0.5,
+leading the phantom-impurity call — broad-peak episodes gain an advice
+action where they had none; (iii) every payload carries
+`statistics.max_shift_over_esd` and the protocol's §4 step 1 tells agents to
+read it — a new number in every cell's context. Hence Task 2's re-pin of the
+landing states before 2.2 is registered.
+
 **Discipline, unchanged from 2.0/2.1** (`tests/CLAUDE.md` § the eval rules;
 PROTOCOL.md's own version history): measure the landing states → register →
 run, never the reverse; protocol 2.2 dated before any run; deterministic
@@ -79,24 +93,6 @@ reads, the fit-run cap, usage mining (`mine_transcripts.py`: probed /
 delivered / voiced — never word-matching summaries). The 2.1 runner-
 instruction bug is a standing check: the instruction must not name the repo
 root (a python cell once sys.path-inserted the repo `src`; cell invalidated).
-
-### Inherited
-
-- From 1106 (closed 2026-08-19): the `execution` field landed as this WP
-  assumes (stamped by `build_report` on every emitted action, `None` only on
-  hand-built ones) — but the **episodes moved under the cells**, in three
-  ways the round design must absorb.  (i) A width episode's report now
-  carries `refine_profile_widths` as the instrument-side peer at half the
-  sample action's confidence, and the E3 loop **converges** (proxy 15.1 →
-  4.3, then the peer → the 1.01 noise floor) — any W1-family cell premised
-  on "the loop stalls with nothing left to name" is stale.  (ii) A
-  `resolution_limited` abstention now emits `collect_better_data` at 0.5,
-  leading the phantom-impurity call — broad-peak episodes gain an advice
-  action where they had none.  (iii) Every payload carries
-  `statistics.max_shift_over_esd`, and the protocol's §4 step 1 tells agents
-  to read it — a new number in every cell's context.
-  `report_thresholds_version` is 1.2; re-pin the landing states
-  (`test_landing_states.py`) against the new tree before registering 2.2.
 
 ## Non-goals
 
@@ -149,6 +145,12 @@ written reason it stays open) in the milestone record.
 
 ## Handover log
 
+- **2026-08-19** — session start: Inherited pruned. The single entry (from
+  1106) was still-true in full — verified against the tree (`execution` in
+  `report/schemas.py`, `THRESHOLDS_VERSION = "1.2"`) — so it folded into
+  Context as the "1106 moved the episodes under the cells" paragraph; its
+  re-pin instruction was already Task 2's landing-states clause. Nothing was
+  stale, nothing deleted as wrong.
 - **2026-08-18** — created from the agentic-report planning session, with
   [1104](1104-agent-protocol-literature-audit.md)/[1105](1105-agent-protocol-hygiene.md)/[1106](1106-report-placement-fields.md).
   The three questions were recorded as open by 1065/1003 and owned by no WP
