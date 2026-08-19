@@ -232,10 +232,78 @@ def test_round_three_cell_names_parse():
         "off", "haiku", "J1P")
 
 
+def test_projection_condition_cell_names_parse():
+    """2.2 condition names carry single underscores (``report_stat``,
+    ``report_noexec``); the cell separator stays the double underscore, which
+    no condition name may contain."""
+    assert mt.cell_of("RUNS/report_stat__sonnet/N1/prompt.md") == (
+        "report_stat", "sonnet", "N1")
+    assert mt.cell_of("RUNS/report_noexec__haiku/C1/episode.json") == (
+        "report_noexec", "haiku", "C1")
+
+
+def test_license_phrase_quotes_the_live_clause():
+    """The 2.2 in-context anchor must match the sentence the round's package
+    delivers (PROTOCOL.md 2.2 read-out (a)).  A later WP that rewords the
+    license breaks this pin loudly, and the successor freezes the phrase for
+    the archived records before quoting the new sentence — the
+    :data:`~tests.eval_report_agent.mine_transcripts.CLAUSE_PHRASE`
+    life cycle, one round on."""
+    from rietx.report import identifiability_clause
+    from rietx.report.schemas import ExchangeFinding, IdentifiabilityEvidence
+
+    clause = identifiability_clause(IdentifiabilityEvidence(
+        chi2_reduced=3.5, exchanges=[ExchangeFinding(
+            held="instrument.geometry.sample_displacement", r2=0.9977,
+            partner="instrument.zero_shift", partner_null=0.0,
+            partner_value=0.03, partner_esd=0.001,
+            partner_significance=30.0, exchangeable=True)]))
+    assert clause is not None
+    assert mt.LICENSE_PHRASE in clause
+    assert mt._LICENSE_RE.search(clause)
+
+
+def test_license_row_reports_never_on_the_fixture(mined):
+    """The committed fixture predates the license sentence; its cells must
+    read never-delivered, never-voiced — the miner reports the record, not
+    the live package."""
+    assert _row(mined, "report__haiku/E2")["license"] == {
+        "delivered_index": None, "voiced_index": None}
+
+
 def _probe(index, command):
     inputs = {"command": command}
     return mt.Event(index, "probed", "tool_use:Bash", json.dumps(inputs),
                     inputs)
+
+
+def _overlay_probe(index, overlay):
+    return _probe(index, "cat > overlay.json <<'EOF'\n"
+                  + json.dumps(overlay) + "\nEOF")
+
+
+def test_swap_rows_classify_the_shape_and_the_cell_treatment():
+    """A swap frees exactly one rival; both-free and neither-free overlays
+    are not swaps, a preset name claims nothing, and the cell column is the
+    2.1 lesson — a decisive ratio measured cell-held answered a different
+    question than the registered tie (``python__sonnet`` N1: 1.277 for the
+    wrong rival)."""
+    disp = "instrument.geometry.sample_displacement"
+    zero = "instrument.zero_shift"
+    events = [
+        _overlay_probe(0, {"plan": {"stages": [
+            {"turn_on": [disp]}, {"turn_on": ["phases.0.cell.a"]}]}}),
+        _overlay_probe(1, {"plan": {"stages": [{"turn_on": [zero]}]}}),
+        _overlay_probe(2, {"plan": {"stages": [{"turn_on": [disp, zero]}]}}),
+        _overlay_probe(3, {"plan": "lab_calibrate"}),
+    ]
+    cell = mt.Cell("report_stat", "sonnet", "C1", Path("x"), events,
+                   card=None, meta_model=None,
+                   truth={"watch": {"cause": [disp], "absorber": [zero]}})
+    assert mt.swap_rows(cell) == [
+        {"overlay_index": 0, "freed": "cause", "cell_free": True},
+        {"overlay_index": 1, "freed": "absorber", "cell_free": False},
+    ]
 
 
 def test_usage_row_counts_pulls_and_fit_bearing_runs():
