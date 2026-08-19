@@ -537,6 +537,37 @@ report = ref.report(plan="lab_bragg_brentano")   # the plan supplies the Layer-2
 - **Layer 2** — typed suggested actions from a closed enum, each with a
   confidence, a rationale, `alternatives`, and `vetoed_by`.
 
+The action vocabulary is closed (`ActionKind`, versioned by
+`report_thresholds_version`), and each kind is carried out one of three ways —
+`how`, quoted from the package's own recipe table (`report/apply.py`), which is
+served to the GUI beside every report but reaches a JSON consumer only here:
+**stage** (one `run_stage` over the action's globs), **index** (a search, not a
+stage), or **advice** (no verb — the note is the deliverable, and
+`parameter_paths` is empty *by design*, not by omission). The table is every
+member; emission conditions are the measured ones as of this writing and their
+moves are logged in the schema version history:
+
+| Kind | How | Emitted when | `parameter_paths` |
+|---|---|---|---|
+| `refine_zero_shift` | stage | the `constant` position template is significant (any geometry) | `instrument.zero_shift` |
+| `refine_sample_displacement` | stage | the `cos_theta` position template is significant — Bragg-Brentano only (a capillary has no such aberration, WP-1073) | `instrument.geometry.sample_displacement` |
+| `refine_sample_transparency` | stage | the `sin_2theta` position template is significant — Bragg-Brentano only | `instrument.geometry.sample_transparency` |
+| `refine_capillary_offset_along_beam` | stage | the `sin_2theta` position template is significant — Debye-Scherrer only | `instrument.geometry.capillary_offset_along_beam` |
+| `refine_capillary_offset_across_beam` | stage | the `cos_2theta` position template is significant — Debye-Scherrer only | `instrument.geometry.capillary_offset_across_beam` |
+| `refine_cell` | stage | the `tan_theta` position template is significant (every geometry) | `phases.*.cell.*` |
+| `refine_profile_widths` | stage | **no emitter** — nothing constructs it, not even as an alternative; resolution in WP-1106 | would be the instrument width paths |
+| `refine_sample_size_broadening` | stage | the `inv_cos_theta` width template is significant | `phases.*.lor_size` |
+| `refine_sample_strain_broadening` | stage | the `tan_theta` width template is significant | `phases.*.lor_strain` |
+| `refine_axial_asymmetry` | stage | a significant asymmetry coefficient in gated regions below 2θ = 40° | `instrument.geometry.axial_sl`, `…axial_hl` |
+| `refine_biso` | stage | the relative intensity error trends with sin²θ/λ² — the ADP signature | `phases.*.atoms.*.biso` |
+| `refine_preferred_orientation` | stage | `TextureAnalysis.detected` with a best axis (both sides of the maturity gate); capped below a coexisting impurity call (§6's caveat row) | `phases.N.preferred_orientation.r` — named even when the phase declares no such block, on purpose: the rationale says which axis to declare first, and freeing nothing rolls back |
+| `refine_scale` | stage | the `constant` intensity template is significant — an angle-independent scale error | `phases.*.scale` |
+| `add_impurity_phase` | advice | strong unmatched observed peaks (> 8σ) not explained by the position-error evidence; when *every* one matches that evidence it is still emitted, capped at 0.3 with `reindex_or_recheck_cell` first among alternatives (§6) | empty **by design** — no phase is named yet, so there is nothing to free; the note says what to do instead |
+| `increase_background_flexibility` | advice | between-peak misfit is systematic (high off-region χ²_red at low Durbin-Watson) — the too-stiff detector; capped at 0.6 however strong the evidence (§7's code block has why) | empty by design — the edit is to the background's *shape*, not to the free set; `instrument.background.*` would read as "free the background", which every plan already does |
+| `decrease_background_flexibility` | advice | the background column span reproduces a notable share of a structural parameter (`report.background.worst_absorption`) — the too-flexible detector | empty by design, same reason |
+| `reindex_or_recheck_cell` | index | validity-radius failures are widespread among the misfitting regions — and it survives abstention, where it matters most (§6) | `phases.*.cell.*`, but the verb is a search over cells, not a stage over parameters |
+| `collect_better_data` | advice | **no emitter** — nothing constructs it, not even as an alternative; resolution in WP-1106 | empty by design — no parameter can be freed when the pattern itself is the limit |
+
 **And read it at more than one state.** A report describes the state it was
 built at, and the state a staged plan finishes in is routinely the least
 informative one in the run: a compensated fit arrives somewhere that looks
@@ -595,6 +626,21 @@ significance, and share-based global maturity. Confidence weights *importance*
 (share of χ²), not only statistical significance — at high counting statistics
 the second-order leakage of a peak shift into the width column is significant
 but carries a per-cent-level share.
+
+The per-region refusals arrive typed — `region.gate_failures` is a list of
+`GateFailure(code, message)` since WP-1003, promoted from formatted strings
+precisely so a consumer can branch on the name; the `message` carries the
+measured numbers and is display-only. The vocabulary (`GateCode`) is closed,
+the global maturity gate has no entry here (it abstains the whole layer,
+`abstained_reason`/`abstained_kind` above), and one member is not a failure at
+all:
+
+| `GateFailure.code` | Meaning | Correct response |
+|---|---|---|
+| `no_significant_misfit` | this region's local χ²_red is at the noise floor — there is nothing to attribute | Nothing. This is a region the model already fits, **not** a failure of the basis and not evidence about the model; a report full of these is what a good fit looks like |
+| `local_r2` | the region's misfit is real but the basis explained too little of it (low local R²) | Do not read the coefficients as causes. The misfit is not position/width/intensity/mixing/asymmetry-shaped — suspect what the basis cannot express: an unmatched peak (Layer 0), background shape, peak-shape misfit |
+| `gram_condition` | the templates' scale-normalised Gram matrix is ill-conditioned here: the edit directions are indistinguishable on these merged peaks | The resolution-limited signature, per region (`abstained_kind="resolution_limited"` is the same statement globally). Do not pick one coefficient — the separation is absent from the data at this resolution, so the fix is a wider range or better resolution, never a preference |
+| `outside_validity_radius` | the fitted offset exceeds the 0.4·FWHM linearisation radius, and a linear fit pushed past it *saturates* | **Re-detect, never shift**: read the fitted offset as a lower bound, not a measurement. Widespread across misfitting regions, this is exactly what emits `reindex_or_recheck_cell` with the calibration candidates in `alternatives` (the abstention table's first row, above) |
 
 ---
 
