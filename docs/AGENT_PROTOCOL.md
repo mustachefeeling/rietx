@@ -1509,12 +1509,18 @@ there than excluding the scales.
 tool-calling agent, and `rietx.agent.tool_definition()` returns a
 ready-to-register tool whose schema quotes the backend/solver/plan/**engine**
 vocabularies from the live registries.  Five tasks: `"refine"` (one pattern →
-`result` + the FitReport + the per-stage `trajectory`), `"refine_multi"` (one
-joint residual — its `node_id`/`tree_id` are null **by design**, a joint fit
-keeps no history DAG), `"refine_sequential"` (a warm-started series → `series`
+`result`, with the FitReport beside it and — requested, see below — the
+per-stage `trajectory`), `"refine_multi"` (one joint residual — its
+`node_id`/`tree_id` are null **by design**, a joint fit keeps no history DAG,
+and it returns **no report either**: reports are per-histogram and python-only
+(`result.for_histogram(h)` + `build_report`), so §4's report ladder does not
+run on this task — judge a joint fit from `result.statistics` and §7's
+diagnostics), `"refine_sequential"` (a warm-started series → `series`
 of per-pattern summaries; history ids live per entry, never per run), `"index"`
-(a peak list or a pattern → `indexing`, an `IndexingResult`), and `"suggest"`
-(a model → `suggestion`, one Jacobian evaluation ranking the held parameters by
+(a peak list or a pattern → `indexing`, an `IndexingResult`, with the
+`evidence` companion riding beside it — §7f's projection for a consumer that
+reasons), and `"suggest"` (a model → `suggestion`, one Jacobian evaluation
+ranking the held parameters by
 predicted Δχ² — no fit, no mutation, safe between fits).
 
 The whole of §9 arrives on one request field — `"report_trajectory": true`,
@@ -1571,6 +1577,13 @@ is the suggestion), or `REFINEMENT_FAILED` (the engine's own message,
 preserved — the request was valid *and* runnable here, so read the message).  Everything else in this document applies unchanged: the
 `result` inside the envelope is the same `RefinementResult`, and §7's
 diagnostics are still the first thing to read.
+
+One namespace note: every code in this document is the **engine's** — a
+`Diagnostic.code` or one of the three envelope codes above. The GUI server's
+session codes (`NOT_FOUND`, `RUN_IN_FLIGHT`, `STALE_REVISION`, …) share the
+same UPPER_SNAKE shape but are a separate vocabulary with no rows here, so a
+code met outside `result.diagnostics` or the error envelope is the server's,
+not the engine's.
 
 ---
 
