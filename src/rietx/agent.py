@@ -44,7 +44,8 @@ no history, no mutation, which is why it is safe to call between fits.
 
 ``task="refine"`` answers with a **trajectory** as well as a report (WP-1058):
 the FitReport at every stage boundary, projected to a
-:class:`~rietx.report.StageReport` each, on by default.  This is delivery,
+:class:`~rietx.report.StageReport` each, on ``report_trajectory=true`` (off by
+default since WP-1003, on WP-1064's measured criterion).  This is delivery,
 not content — every statement in it was already computable before — and it
 exists because WP-1053 measured *when* a report is read as the bottleneck, not
 what it says: a default-plan fit lands at a converged-looking state whose

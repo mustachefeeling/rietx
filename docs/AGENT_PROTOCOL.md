@@ -722,72 +722,7 @@ result.
 | `INDEX_CANDIDATES_TRUNCATED` | (info) Read the reported list as everything the search produced. It is the top `max_candidates` of a larger merged set, and the message says how many ranked below it — the cap exists because each reported candidate is priced a Le Bail fit, not because the rest were judged. Its second clause names any (engine × system) unit that returned a **full pool** (five times the reported cap since WP-1046); that clause is a flag rather than a count, because how many distinct lattices sat behind a discarded harvest is not knowable without deduplicating one the search already dropped. Raise `max_candidates` to see further down — it raises the pool with it, and the cost is the validation fits |
 | `INDEX_PRIOR_USED` | (info) Read the answer as unsteered. It *was* steered — this diagnostic names each declared prior and its fate (confirmed by engines / entered unconfirmed / refuted / refused at the box) — but steering changed only *when* things were searched and what seeded the stochastic engine, never a range, a system set, or a rank: prior-only candidates are appended **after** the ranked list and never enter the Borda ranking. A candidate whose `found_by` is `["prior"]` alone is stated-and-unconfirmed — the ordinary agreement caveat grades it down, so treat it as your own hypothesis checked against the lines, not as a finding (WP-1045) |
 
-### 7e. The extinction screen (`ExtinctionScreen.diagnostics`, and each class's)
-
-These arrive from `rietx.determine_extinction_symbol`, which runs *after* a cell
-is in hand and answers the next question — which systematic absences the pattern
-shows. Same split as §7c: a refutation lives on the class it refutes.
-
-| Code | What it means you must not do |
-|---|---|
-| `EXTINCTION_GROUPS_NOT_SEPARABLE` | (info) Pick one of the listed space groups and call it the answer. They produce **identical** powder patterns by construction — a centre of symmetry, an enantiomorph or a mirror leaves no absence — so this is not weak data and not a tie to be broken by counting longer. Carry the list; `structure_from_candidate(cand, space_group=…)` accepts any member. The arbiters are chemistry (a polar or optically active compound cannot be centrosymmetric) and, eventually, which one a structure solution works in |
-| `EXTINCTION_SYMBOL_AMBIGUOUS` | Read the ranked first class as the answer. It fires for three different reasons and says which: a runner-up inside the decisive ΔBIC margin, a leading class none of whose absences is **testable** here (each is outside the range, coincides with a line the class still allows, or sits where the class's own fit already puts a neighbour's tail), or classes a `max_classes` cap never fitted. Only the first is fixed by better data at the same setting |
-| `EXTINCTION_FORBIDDEN_INTENSITY` | Keep this class. A position it forbids carries intensity its own Le Bail fit cannot account for, and the hkl and 2θ are named so you can look. Two things it is not: a position under a neighbour's tail, which is no longer testable at all (WP-1077), and necessarily a violated absence — one flagged position can be an impurity line, so check it against the indexing result's `unmatched_observed` before concluding. What it *cannot* be excused by is a good ΔBIC: a class asserts absences, so a testable position carrying intensity refutes it however well it scores |
-| `EXTINCTION_CONDITIONS_PARTIAL` | (info) Read `conditions` as the complete condition list for this class. The screen used the absence set itself, which is unaffected; only the human-readable reduction is short. Read `space_groups` |
-
-Three things about the screen that change how you use its answer:
-
-1. **The score is a nested comparison, not Rwp.** A class with fewer absences has
-   more reflections and can only fit at least as well, so Rwp ranks the
-   least-constrained class first every time. `delta_bic` is BIC(class) −
-   BIC(absence-free lattice); **negative favours the class**, and the difference
-   between two classes' values is itself a ΔBIC. Measured on a synthetic P 2₁/c
-   specimen: the true class and its screw-free partner differ by 1e-5 in Rwp and
-   by 24 in ΔBIC.
-2. **`n_added` counts only *testable* absences**, so a class whose extra absences
-   all hide under allowed neighbours earns nothing for them. Read `n_testable`
-   beside `n_absent`: if it is zero the class is a hypothesis these data cannot
-   address, whatever its Rwp; if it is `None` the class was never fitted, so the
-   question was not asked. The third clause of testable — the class's own fit
-   must leave the window below the detection threshold — is what stops a
-   badly-modelled peak tail refuting a true class, and it is measured: on
-   certified corundum, sham positions 1–3 FWHM below an allowed line, carrying no
-   reflection at all, clear the same 3σ test on 40–50 % of probes.
-3. **The absence-free class winning is a result, not a failure.** On NAC (I 2₁3)
-   it is the *correct* answer: I-centring already extinguishes the very
-   reflections the 2₁ screws would, so those screws are invisible in principle.
-   It is a *wrong* answer when the shared profile fit is bad, and
-   `ExtinctionScreen.profile_rwp` is the field that tells the two apart: on
-   certified corundum the screen returns the certified `R - c -` at Rwp 0.149 and
-   the absence-free `R - - -` at 0.270, from the same cell and the same pattern.
-   Give it a range and a width law its profile fit can match before reading a
-   refutation.
-
-**`where` now names the paths on every guard code, `HIGH_CORRELATION` included**
-(v1.0, WP-1007). It used to be empty on that one — the paths were recovered from
-the message by taking its first word, which for a *pair* is not a path at all —
-so a consumer had to parse `"a ~ b (ρ=+0.994)"` to learn which two parameters
-were degenerate. Read `d.where`; never split the message.
-
-```python
-for d in result.diagnostics:
-    if d.code == "HIGH_CORRELATION":
-        a, b = d.where          # the degenerate pair, as dot-paths
-```
-
-And ask the package what it can do rather than assuming: `rietx.capabilities()`
-returns the live registries — backends (with whether each optional dependency is
-importable *on this machine*), solvers, plan presets with their `when_to_use`
-text, modes, anodes, the pattern formats `read_pattern` opens, and the six
-versioned contracts (`schema_version`, `report_thresholds_version`,
-`event_schema_version`, `project_format_version`, `textdoc_format_version`,
-`indexing_thresholds_version`). Its `features` map is derived
-from the tree, so `features["indexing"]` tells you whether *this* build has an
-indexer instead of leaving you to try one.
-
----
-
-## 7d. The closed loop: from a pattern of an unknown phase to a refinement
+### 7d. The closed loop: from a pattern of an unknown phase to a refinement
 
 Indexing is the step that used to be missing. Before it, this package could
 refine a structure against a pattern but could not find the cell, so an unknown
@@ -927,7 +862,72 @@ under its own shift allowance.
 
 ---
 
-## 7f. Two consumers, one answer: the gate and the evidence (WP-1043)
+### 7e. The extinction screen (`ExtinctionScreen.diagnostics`, and each class's)
+
+These arrive from `rietx.determine_extinction_symbol`, which runs *after* a cell
+is in hand and answers the next question — which systematic absences the pattern
+shows. Same split as §7c: a refutation lives on the class it refutes.
+
+| Code | What it means you must not do |
+|---|---|
+| `EXTINCTION_GROUPS_NOT_SEPARABLE` | (info) Pick one of the listed space groups and call it the answer. They produce **identical** powder patterns by construction — a centre of symmetry, an enantiomorph or a mirror leaves no absence — so this is not weak data and not a tie to be broken by counting longer. Carry the list; `structure_from_candidate(cand, space_group=…)` accepts any member. The arbiters are chemistry (a polar or optically active compound cannot be centrosymmetric) and, eventually, which one a structure solution works in |
+| `EXTINCTION_SYMBOL_AMBIGUOUS` | Read the ranked first class as the answer. It fires for three different reasons and says which: a runner-up inside the decisive ΔBIC margin, a leading class none of whose absences is **testable** here (each is outside the range, coincides with a line the class still allows, or sits where the class's own fit already puts a neighbour's tail), or classes a `max_classes` cap never fitted. Only the first is fixed by better data at the same setting |
+| `EXTINCTION_FORBIDDEN_INTENSITY` | Keep this class. A position it forbids carries intensity its own Le Bail fit cannot account for, and the hkl and 2θ are named so you can look. Two things it is not: a position under a neighbour's tail, which is no longer testable at all (WP-1077), and necessarily a violated absence — one flagged position can be an impurity line, so check it against the indexing result's `unmatched_observed` before concluding. What it *cannot* be excused by is a good ΔBIC: a class asserts absences, so a testable position carrying intensity refutes it however well it scores |
+| `EXTINCTION_CONDITIONS_PARTIAL` | (info) Read `conditions` as the complete condition list for this class. The screen used the absence set itself, which is unaffected; only the human-readable reduction is short. Read `space_groups` |
+
+Three things about the screen that change how you use its answer:
+
+1. **The score is a nested comparison, not Rwp.** A class with fewer absences has
+   more reflections and can only fit at least as well, so Rwp ranks the
+   least-constrained class first every time. `delta_bic` is BIC(class) −
+   BIC(absence-free lattice); **negative favours the class**, and the difference
+   between two classes' values is itself a ΔBIC. Measured on a synthetic P 2₁/c
+   specimen: the true class and its screw-free partner differ by 1e-5 in Rwp and
+   by 24 in ΔBIC.
+2. **`n_added` counts only *testable* absences**, so a class whose extra absences
+   all hide under allowed neighbours earns nothing for them. Read `n_testable`
+   beside `n_absent`: if it is zero the class is a hypothesis these data cannot
+   address, whatever its Rwp; if it is `None` the class was never fitted, so the
+   question was not asked. The third clause of testable — the class's own fit
+   must leave the window below the detection threshold — is what stops a
+   badly-modelled peak tail refuting a true class, and it is measured: on
+   certified corundum, sham positions 1–3 FWHM below an allowed line, carrying no
+   reflection at all, clear the same 3σ test on 40–50 % of probes.
+3. **The absence-free class winning is a result, not a failure.** On NAC (I 2₁3)
+   it is the *correct* answer: I-centring already extinguishes the very
+   reflections the 2₁ screws would, so those screws are invisible in principle.
+   It is a *wrong* answer when the shared profile fit is bad, and
+   `ExtinctionScreen.profile_rwp` is the field that tells the two apart: on
+   certified corundum the screen returns the certified `R - c -` at Rwp 0.149 and
+   the absence-free `R - - -` at 0.270, from the same cell and the same pattern.
+   Give it a range and a width law its profile fit can match before reading a
+   refutation.
+
+**`where` now names the paths on every guard code, `HIGH_CORRELATION` included**
+(v1.0, WP-1007). It used to be empty on that one — the paths were recovered from
+the message by taking its first word, which for a *pair* is not a path at all —
+so a consumer had to parse `"a ~ b (ρ=+0.994)"` to learn which two parameters
+were degenerate. Read `d.where`; never split the message.
+
+```python
+for d in result.diagnostics:
+    if d.code == "HIGH_CORRELATION":
+        a, b = d.where          # the degenerate pair, as dot-paths
+```
+
+And ask the package what it can do rather than assuming: `rietx.capabilities()`
+returns the live registries — backends (with whether each optional dependency is
+importable *on this machine*), solvers, plan presets with their `when_to_use`
+text, modes, anodes, the pattern formats `read_pattern` opens, and the six
+versioned contracts (`schema_version`, `report_thresholds_version`,
+`event_schema_version`, `project_format_version`, `textdoc_format_version`,
+`indexing_thresholds_version`). Its `features` map is derived
+from the tree, so `features["indexing"]` tells you whether *this* build has an
+indexer instead of leaving you to try one.
+
+---
+
+### 7f. Two consumers, one answer: the gate and the evidence (WP-1043)
 
 The gate exists for **unattended** use: a machine that cannot weigh evidence
 must never be handed one cell confidently, so `best_or_none()` stays as strict
@@ -1269,7 +1269,9 @@ penalty actually minimised is `weight_scale · restraint_chi2`.
 
 **The first thing to do with a fit is read the report at every stage it passed
 through, and that costs you one flag.** `task="refine"` returns `trajectory[]`
-by default, and in python:
+when the request sets `"report_trajectory": true` — off by default since
+WP-1003, because WP-1064 measured that rungs handed over unasked bought no
+better decisions at more calls — and in python:
 
 ```python
 ref.fit(data, plan="mccusker_default", stage_reports=True)
@@ -1467,11 +1469,13 @@ of per-pattern summaries; history ids live per entry, never per run), `"index"`
 (a model → `suggestion`, one Jacobian evaluation ranking the held parameters by
 predicted Δχ² — no fit, no mutation, safe between fits).
 
-The whole of §9a arrives on the plain request, with no extra call and no flag
-to know about:
+The whole of §9 arrives on one request field — `"report_trajectory": true`,
+without which the response's `trajectory` is `[]` (the default is off since
+WP-1003; §9 has the measured reason):
 
 ```json
-{"task": "refine", "structure": {…}, "instrument": {…}, "pattern": {…}}
+{"task": "refine", "structure": {…}, "instrument": {…}, "pattern": {…},
+ "report_trajectory": true}
 ```
 
 ```json
@@ -1493,9 +1497,10 @@ to know about:
 ```
 
 That is the shape to expect from a compensated fit: an empty final action list
-over a first rung that names the cause.  `report_trajectory: false` declines
-the rungs; `include_report: false` declines **both** — a caller who says it
-does not want the report is never handed one a rung at a time.
+over a first rung that names the cause — and the `trajectory` above is there
+only because the request asked for it.  `include_report: false` outranks
+`report_trajectory: true` and declines **both** — a caller who says it does
+not want the report is never handed one a rung at a time.
 
 `"index"` answers in its own arm because its answer is a different *shape*: there
 is no cell in it.  Read the `evidence` arm first (WP-1043, §7f) — every
