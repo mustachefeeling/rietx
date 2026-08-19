@@ -101,11 +101,11 @@ it is `docs/RELEASING.md`, and nothing gates it now.
   ([1101](wp/1101-standalone-peak-fitting.md)) and the extra-components seam
   with humps ([1102](wp/1102-component-seam-humps.md)) and sharp peaks
   ([1103](wp/1103-peak-components.md)) — the recommended v1.1 openers.
-- **The agentic-report set (added 2026-08-18)**: 1104–1107 all ✅ (the
-  story: § v1.1 below; the 2.2 grids and read-outs: `milestones/v1.1.md`
-  § Appendix).  Next:
-  [1108](wp/1108-license-statistics-placement.md) — the winning statistics
-  placement, shipped as a package seam.
+- **The agentic-report set (added 2026-08-18)**: 1104–1108 all ✅ — the
+  set is complete (the story: § v1.1 below; the 2.2 grids and read-outs:
+  `milestones/v1.1.md` § Appendix). 1108 shipped the measured placement:
+  `Statistics.identifiability_clause`, written by `build_report` beside
+  the summary's copy, `report_thresholds_version` 1.3.
 
 1066's naming rule stands beside them, as a rule in root CLAUDE.md and in full
 (both directions, the token list, and why no test can catch a hardcoded *new*
@@ -368,7 +368,7 @@ answered by a pre-registered round before any placement ships (1107).
 | [1105](wp/1105-agent-protocol-hygiene.md) | AGENT_PROTOCOL hygiene: stale claims out, vocabularies covered | ✅ | 1104 |
 | [1106](wp/1106-report-placement-fields.md) | Report placement fields: structured where prose was load-bearing | ✅ | — |
 | [1107](wp/1107-eval-placement-round.md) | Eval protocol 2.2: the placement round | ✅ 2026-08-19 | 1105, 1106 |
-| [1108](wp/1108-license-statistics-placement.md) | The license beside the numbers: shipping the statistics placement | ⬜ | 1107 |
+| [1108](wp/1108-license-statistics-placement.md) | The license beside the numbers: shipping the statistics placement | ✅ 2026-08-19 | 1107 |
 
 ## v2+ (seams pre-built, implementations fenced out)
 

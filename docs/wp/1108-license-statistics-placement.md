@@ -1,6 +1,6 @@
 # WP-1108 — The license beside the numbers: shipping the statistics placement
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-19 — shipped: `Statistics.identifiability_clause` written by `build_report` beside the summary's copy, `report_thresholds_version` 1.3, shim projection a checked no-op, documented in the manual, the protocol and the 1.0.2 notes
 Depends on: 1107 (the grid that chose the placement)
 
 ## Goal
@@ -187,6 +187,39 @@ statistics block returns the license.
 
 ## Handover log
 
+- **2026-08-19** — shipped, ✅, one session. **Done**: all five tasks. The
+  design is the note above: copy not move; `build_report` the declared
+  writer of `Statistics.identifiability_clause` (one render, two writes,
+  the write unconditional so the field is always the renderer's current
+  answer); `None` the honest absent state; SCHEMA_VERSION untouched
+  (additive), `report_thresholds_version` 1.2 → 1.3 with the changelog
+  entry. The shim's `"statistics"` projection is now a checked no-op on
+  the shipped field — a shipped value disagreeing with the re-render is
+  refused by the same `PLACEMENT_PROJECTION_MISMATCH` code — and
+  PROTOCOL.md 2.2 carries the shipped postscript (a `"summary"` marker no
+  longer reproduces a field-free arm; a future round needs a strip
+  projection). Documented: `using/results.md` statistics-table row (the
+  name is frozen on arrival, partition green), AGENT_PROTOCOL §4 step 6's
+  placement paragraph, and a 1.0.2 release-notes bullet covering **both**
+  unmentioned report-contract versions — 1106's 1.2 (`execution`, the two
+  new writers) was absent from the written notes too; notes and code merge
+  atomically, so either tag-then-merge order leaves the published notes
+  consistent. **Measured** (`[dev]` venv, darwin/arm64): fast suite 2449
+  passed + 117 skipped in 3:06 — exactly +5 over 1107's close (2444+117)
+  for the 5 tests added (3 in `test_fitreport_layers.py`, 2 in
+  `test_scorer.py`), no new skip; the WP acceptance command green; ruff
+  clean. Full suite not run: the field is written only after
+  `build_report` runs, so no measured acceptance number can move (the
+  ladder's criterion); the nightly full will read +5. **Gotchas**: the
+  v1.1 opening (version → `1.1.0.dev0`) was deliberately *not* executed —
+  `milestones/v1.1.md` assigns it to "the first code WP", but 1106 (also
+  a code WP of this block) did not execute it either, so the operative
+  precedent treats the agentic-report set as 1.0.x-additive and leaves
+  the opening to the free-standing-peaks openers (ROADMAP § v1.1).
+  History nodes always carry `identifiability_clause: null` — node
+  metrics are built at commit time, before any report exists — by design,
+  stated in the field's docstring. **Next**: nothing on this WP; the E8p
+  overclaim question stays with the next eval round (Non-goals).
 - **2026-08-19** — created by WP-1107's Task 5: the grid favoured the
   statistics placement by the pre-registered rule, and the shipped form is
   an open design (writer, move-vs-copy, contract), so it is filed rather
