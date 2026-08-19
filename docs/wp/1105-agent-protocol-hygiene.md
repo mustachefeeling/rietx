@@ -62,16 +62,6 @@ Verified 2026-08-18 (file:line against the working tree at `6517c914`):
 - Also noticed, fix in passing: the §7 subsection ordering runs
   7 → 7b → 7c → **7e** → **7d** → 7f.
 
-### Inherited
-
-- From 1104 (2026-08-18): a **citation-resolution coverage test** fits this
-  WP's meta-test family — every WP the protocol names inline exists as a
-  file, and every paper it cites by author-year appears in a stated
-  references location. 1104 verified both by hand (all resolve, grid in
-  `milestones/v1.1.md` § Appendix); a test is what stops the next drift.
-  1104 also added ~10 author-year citations to the protocol, so the check
-  has more to protect than when 1105 was planned.
-
 ## Non-goals
 
 - Re-grounding claims in literature (1104) or demoting/promoting Layer 2's
@@ -110,7 +100,11 @@ Verified 2026-08-18 (file:line against the working tree at `6517c914`):
       collector first and watch it fail on the two known-missing codes**
       before their rows land — that failure is the proof it sees real
       emissions. A code the walker cannot see statically goes in an explicit
-      exceptions list with a comment naming its emitter.
+      exceptions list with a comment naming its emitter. (c) citation
+      resolution (from 1104): every WP the protocol names inline exists as a
+      file, and every author-year citation resolves in the protocol's stated
+      references location — 1104 verified both by hand and added ~10
+      citations, so the check protects more than when this WP was planned.
 - [ ] Handover: state the fast-suite delta (+N = the new meta-tests, per the
       "say which numbers moved" rule).
 
@@ -135,6 +129,10 @@ makes (b) fail); no stale §9 claim survives a grep for "by default" near
 
 ## Handover log
 
+- **2026-08-19** — session start: pruned `### Inherited` — its one entry
+  (1104's citation-resolution coverage test) is still true and actionable, so
+  it is folded into the meta-test task as item (c) rather than left as
+  arrival context.
 - **2026-08-18** — created from the agentic-report planning session
   (evidence file:lines verified against `6517c914` that day), with
   [1104](1104-agent-protocol-literature-audit.md)/[1106](1106-report-placement-fields.md)/[1107](1107-eval-placement-round.md).
