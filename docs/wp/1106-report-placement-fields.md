@@ -1,6 +1,7 @@
 # WP-1106 — Report placement fields: structured where prose was load-bearing
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-19 — all four fields/writers landed by
+measurement; thresholds 1.2
 Depends on: —
 
 ## Goal
@@ -160,6 +161,48 @@ action in a real report; the two new numbers ship with their writers named.
 
 ## Handover log
 
+- **2026-08-19** — **closed ✅.** All five checklist items landed, one commit
+  each; numbers with their fixtures in `milestones/v1.1.md` § Appendix
+  (WP-1106). For a successor:
+  - **Done**: `SuggestedAction.execution` (stamped in `build_report._stamped`
+    from RECIPES on both exits; `How` now lives in `report/schemas.py`,
+    apply.py imports it); `Statistics.max_shift_over_esd` (computed in
+    `run_least_squares` via `_StepTracker` + `_final_shift_over_esd`,
+    external units both sides, copied by `_build_result`/`_record` — the
+    joint multi residual and `replay` carry the declared `None`);
+    `refine_profile_widths` kept with the instrument-side-peer emitter
+    (`_instrument_width_action`, Gaussian u/v/w only — E3 loop now reaches
+    the 1.01 noise floor where the proxy stalled at 4.3);
+    `collect_better_data` kept with the `resolution_limited`-abstention
+    writer (`resolution_limited_action`, `COLLECT_DATA_CONFIDENCE = 0.5`) —
+    the `PATTERN_UNDERSAMPLED` arm measured and rejected (both bundled
+    synthetic fixtures trip it beside converged fits). Protocol §5 rows,
+    §4 step-1 sentence, `using/report.md`, `using/results.md`, manual
+    Part 2 § Convergence (`est-convergence`, `MAX_SHIFT_CONVERGED`
+    substitution) all synced.
+  - **One deviation from this WP's text, on the record**:
+    `THRESHOLDS_VERSION` moved 1.1 → 1.2 although the Context bullet said it
+    "moves only if a threshold does". The version-history block's own
+    precedent governs: 0.5/0.6/0.7 bumped for additive fields and 1.0/1.1
+    for emission-only changes ("no threshold moved" written in both), and
+    this WP does both plus adds a level constant. Everything quotes the
+    constant, so nothing else moved.
+  - **Numbers** (`.venv` `[dev]`, jax and torch absent, darwin/arm64): fast
+    suite 2424 passed + 117 skipped (~2:40) — exactly +4 over 1105's
+    2420 + 117, the four tests added, no new skips; the acceptance trio
+    64 passed; the two slow SRM 660c report-loop episodes 2 passed against
+    the new emitters; ruff clean; sphinx `-W` green. Full suite left to
+    nightly: the solver tracker is observation-only (residual values
+    untouched) and the emission changes' real-data exposure is the two SRM
+    episodes, which were run.
+  - **Gotcha for anyone touching the tracker**: TRF acceptance is
+    reconstructed from strictly-decreasing cost in the solver-facing
+    residual closure — valid because TRF accepts exactly on cost decrease
+    and the jacobian closure never routes through that residual. A new
+    solver must either have an accepted-point callback (feed
+    `_StepTracker.accept`) or that property.
+  - **Next**: 1107 (the placement round) — its `### Inherited` names what
+    this WP changed under its feet.
 - **2026-08-19** — session start: branched `wp1106-report-placement-fields`
   from main at d67370b6 (1105's merge). Inherited pruned: the 1105 entry
   (protocol-row enforcement + the two "no emitter" rows) folded into Context
