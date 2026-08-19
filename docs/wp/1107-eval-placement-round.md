@@ -1,6 +1,8 @@
 # WP-1107 — Eval protocol 2.2: the placement round
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-19 — 2.2 registered before any run;
+22/22 cells valid; all three questions answered in the v1.1 appendix; the
+winning placement filed as 1108
 Depends on: 1105 (the python arm ships a verbatim AGENT_PROTOCOL copy — it
 must not carry §9's stale claims into the cells), 1106 (the `execution` field
 must exist to be measured)
@@ -202,7 +204,7 @@ amendment-only.**
 - [x] Kill/keep decisions recorded; the winning placement (if any) filed as
       a successor WP or executed here if it is one additive field whose
       writer is already named.
-- [ ] Handover: token totals, cells invalidated (with reasons), and what the
+- [x] Handover: token totals, cells invalidated (with reasons), and what the
       next round should not repeat.
 
 ## Acceptance
@@ -226,6 +228,76 @@ written reason it stays open) in the milestone record.
   record; 2.2 extends it.
 
 ## Handover log
+
+- **2026-08-19 (close)** — the whole WP ran in one session; all counts
+  `[dev]` venv, darwin/arm64.  Nothing in flight; the placement ships as
+  [1108](1108-license-statistics-placement.md) (created ⬜, its Inherited
+  carries the shim-reference note), and the next eval round's obligations
+  are in the gotchas below.
+
+  **Landed** (commits `47758b2a`…`7769c8ab` + this close): the 2.1
+  archaeology (§ Context — the migration decomposed into four mechanisms;
+  the caveats-field decision with its rejected alternatives); PROTOCOL.md
+  2.2 registered and dated before any run (landing states re-measured
+  first: 9 passed, ~10 s, `-n 4 --dist loadgroup`); the implementation —
+  contract v3 (`report_with_caveat` retired, unscored `caveats`, the
+  glossary imperative revised to name both target verdicts, the
+  `fix_instrument_model` parenthetical fixed per 1065 gotcha ii), the two
+  shim projections (`license_placement` moves the identifiability clause
+  byte-exactly via the package's own renderer with a loud
+  `PLACEMENT_PROJECTION_MISMATCH`; `include_execution` pops WP-1106's
+  field), scorer caveats + four delivered-shape facts, grid audit keyed to
+  the marker's own keys (archived rounds regrade byte-identically, tested),
+  miner extensions (`LICENSE_PHRASE` pinned to the live clause by test,
+  `swap_rows` with the cell-held column, the `execution` token,
+  underscore-bearing condition names in `_CELL_RE`); the round + audit;
+  the dated grids and read-outs (a)–(e) in `milestones/v1.1.md` § Appendix;
+  the round-record row in `eval-runs/README.md` (on disk — the dir is
+  gitignored); WP-1108 filed with the ROADMAP row.
+
+  **The round** (2026-08-19, `eval-runs/2026-08-19-round4`): 22/22 cells
+  finished, **0 invalidated** (zero payload mismatches including the
+  four-direction projection audit; every JSON cell ≤ the 8-call cap, max
+  exactly 8; python 4 and 2 fit-bearing runs; zero forbidden-read flags —
+  two cells read back their own harness spill files, a discipline note).
+  1,661,595 subagent tokens against the ~1.4 M registered ceiling (~19 %
+  over), ~16 min wall, effort `medium`, models `sonnet`/`haiku` as the
+  harness reports them.  12/22 passed (2.1: 1/10 valid; sonnet 10/11,
+  haiku 2/11).  The three answers, in the appendix with their counts:
+  **(1) placement** — the pre-registered rule favours `report_stat`
+  (in-context 4/4 vs 3/4, no added overclaim; haiku's C1 trap became a
+  clean pass), ships via 1108; **(2) migration** — the vocabulary half
+  dissolved structurally (caveats written in 22/22 cells, zero rwc-shaped
+  failures, every correct-verdict N1 cell lands the registered eroc) and
+  the verdict half was the wording's (`off__sonnet` N1 restored to a pass;
+  haiku still overclaims N1 — a capacity result now); **(3) execution** —
+  null at N=1 on W2 (haiku trapped in both arms, sonnet passed both,
+  `execution` voiced by nobody).  The E8p guard fired (3/4 converged on
+  the synthetic exact tie's first-ever run) — recorded post-hoc, no
+  mid-round change, interpretation deferred for lack of any baseline.
+
+  **Numbers moved**: eval fast selection 97 → 113 passed serial (+16:
+  10 scorer/shim tests, 2 new instances of the conditions meta-test's
+  parametrize, 4 miner tests; no new skips); fast suite
+  2424 + 117 → 2440 + 117 expected (verified at close, see the PR body);
+  ruff clean throughout.  No CLAUDE.md was edited this session.
+
+  **Gotchas for a successor / what the next round must not repeat**:
+  (i) J2's trigger fired (caveats 22/22) but its fixture has never been
+  built — build, landing measurement and registration come before any J2
+  cell; (ii) E8p has no baseline — do not read its 3/4 `converged` as the
+  wording's overcorrection without one (N1, the real-data tie, moved the
+  *other* way under the same wording); (iii) budget from this round's
+  measured figure: ~75 k tokens per JSON cell average (agents print whole
+  responses more often than they pipe them), not 2.1's 56 k; (iv) both
+  python cells passed **without** `compare_rivals` — the swap is not the
+  only route to the right answer, so a swap-conditioned read-out needs
+  cells that measurably swap; (v) the two harness spill-file reads match
+  no `AUDIT_PATTERNS` entry — benign here (an agent's own stdout), but a
+  `tool-results/` pattern would make the audit's silence explicit;
+  (vi) `pytest … | tail` masks the exit code — a chained commit went
+  through on a red docs-consistency run this session (the ROADMAP cap
+  breach, fixed at close); gate commits on pytest's own status.
 
 - **2026-08-19** — session start: Inherited pruned. The single entry (from
   1106) was still-true in full — verified against the tree (`execution` in

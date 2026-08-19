@@ -101,13 +101,11 @@ it is `docs/RELEASING.md`, and nothing gates it now.
   ([1101](wp/1101-standalone-peak-fitting.md)) and the extra-components seam
   with humps ([1102](wp/1102-component-seam-humps.md)) and sharp peaks
   ([1103](wp/1103-peak-components.md)) — the recommended v1.1 openers.
-- **The agentic-report set (added 2026-08-18)**: ground AGENT_PROTOCOL in
-  read literature ([1104](wp/1104-agent-protocol-literature-audit.md) — ✅,
-  grid in `milestones/v1.1.md` § Appendix), fix its stale claims and cover
-  its vocabularies ([1105](wp/1105-agent-protocol-hygiene.md) — ✅, the
-  protocol-row rule now has meta-test teeth), type the load-bearing prose
-  ([1106](wp/1106-report-placement-fields.md) — ✅, thresholds 1.2), and
-  measure placement ([1107](wp/1107-eval-placement-round.md), next).
+- **The agentic-report set (added 2026-08-18)**: 1104–1107 all ✅ (the
+  story: § v1.1 below; the 2.2 grids and read-outs: `milestones/v1.1.md`
+  § Appendix).  Next:
+  [1108](wp/1108-license-statistics-placement.md) — the winning statistics
+  placement, shipped as a package seam.
 
 1066's naming rule stands beside them, as a rule in root CLAUDE.md and in full
 (both directions, the token list, and why no test can catch a hardcoded *new*
@@ -369,7 +367,7 @@ answered by a pre-registered round before any placement ships (1107).
 | [1104](wp/1104-agent-protocol-literature-audit.md) | Literature-grounding audit of AGENT_PROTOCOL.md | ✅ 2026-08-18 | — |
 | [1105](wp/1105-agent-protocol-hygiene.md) | AGENT_PROTOCOL hygiene: stale claims out, vocabularies covered | ✅ | 1104 |
 | [1106](wp/1106-report-placement-fields.md) | Report placement fields: structured where prose was load-bearing | ✅ | — |
-| [1107](wp/1107-eval-placement-round.md) | Eval protocol 2.2: the placement round | ⬜ | 1105, 1106 |
+| [1107](wp/1107-eval-placement-round.md) | Eval protocol 2.2: the placement round | ✅ 2026-08-19 | 1105, 1106 |
 | [1108](wp/1108-license-statistics-placement.md) | The license beside the numbers: shipping the statistics placement | ⬜ | 1107 |
 
 ## v2+ (seams pre-built, implementations fenced out)
