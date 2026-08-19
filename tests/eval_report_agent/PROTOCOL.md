@@ -171,6 +171,17 @@ condition marker gains `license_placement: "summary" | "statistics"`
   deciding where JSON arms fail, that field is the successor's candidate,
   filed, never shipped on plausibility.
 
+**Shipped 2026-08-19 (WP-1108, after the round).**  The grid favoured the
+statistics placement and the package now delivers
+`result.statistics.identifiability_clause` itself (`build_report` writes the
+summary's clause there in the same build; `report_thresholds_version` 1.3).
+Two consequences for reading this section historically: on a real response
+the `"statistics"` projection's injection is a checked no-op (a shipped
+field disagreeing with the re-render fails the call) and only the excision
+still constructs the round's *moved* shape; and a `"summary"` marker no
+longer reproduces 1.2's field-free arm — a future round wanting one must
+add a strip projection.
+
 ### The `execution` pair (WP-1106's field, measured)
 
 The condition marker gains `include_execution: true | false` (JSON arms;

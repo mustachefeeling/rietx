@@ -825,6 +825,48 @@ def test_shim_placement_mismatch_fails_the_call_loudly(tmp_path, monkeypatch):
     assert logged["response"]["ok"] is False
 
 
+def test_shim_projection_is_a_checked_noop_on_the_shipped_field(
+        tmp_path, monkeypatch):
+    """WP-1108 shipped the placement: ``build_report`` writes the summary's
+    clause into ``result.statistics`` too, so a real response reaches the
+    projection with the field already present and equal.  The injection is a
+    no-op and the excision still constructs the round's *moved* shape — the
+    package ships the copy, the arm delivered one copy in one location.
+    (The package side of this equivalence is pinned by
+    ``test_fitreport_layers.py::
+    test_refine_json_delivers_the_license_beside_the_numbers``.)"""
+    report, clause = _firing_report()
+    edir = _write_shim_episode(tmp_path, include_report=True,
+                               condition="report_stat",
+                               license_placement="statistics")
+    stub = _stub_response()
+    stub["report"] = report
+    stub["result"]["statistics"]["identifiability_clause"] = clause
+    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    response = run_episode(edir)
+    assert response["result"]["statistics"]["identifiability_clause"] == clause
+    assert clause not in response["report"]["summary"]
+
+
+def test_shim_refuses_a_shipped_field_that_disagrees(tmp_path, monkeypatch):
+    """A shipped ``statistics.identifiability_clause`` that is not the
+    re-rendered clause is the render/excise mismatch one surface over: the
+    package and the projection disagreeing about the sentence invalidates
+    the cell by the same named code, never a silent overwrite."""
+    report, _clause = _firing_report()
+    edir = _write_shim_episode(tmp_path, include_report=True,
+                               condition="report_stat",
+                               license_placement="statistics")
+    stub = _stub_response()
+    stub["report"] = report
+    stub["result"]["statistics"]["identifiability_clause"] = "another sentence"
+    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    response = run_episode(edir)
+    assert response["ok"] is False
+    assert response["error"]["code"] == "PLACEMENT_PROJECTION_MISMATCH"
+    assert "WP-1108" in response["error"]["message"]
+
+
 def test_shim_placement_is_inert_without_a_clause(tmp_path, monkeypatch):
     """No firing clause, nothing to move: the ``"statistics"`` arm delivers
     the response unchanged — the key is absent, never null (a writerless

@@ -160,7 +160,7 @@ the consumer-visible emission change is the report contract's, so
 - [x] `report_thresholds_version` bump + changelog entry in
       `report/schemas.py`; `textdoc` and both GUI windows render the field
       (or deliberately do not, with the reason recorded here).
-- [ ] The shim's `license_placement="statistics"` projection re-pinned
+- [x] The shim's `license_placement="statistics"` projection re-pinned
       against the shipped field (no-op or replaced); eval fast selection
       green.
 - [ ] AGENT_PROTOCOL/manual: the field documented where §4 step 6 names

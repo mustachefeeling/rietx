@@ -17,7 +17,14 @@ prompt; it cannot un-strip a response:
   (one renderer, byte-exact excision, loud failure), and
   ``include_execution: false`` pops WP-1106's ``execution`` from every
   delivered action — response *shape*, not withholding, and both inert when
-  the report is withheld;
+  the report is withheld.  Since WP-1108 the *package* delivers the
+  statistics field itself (``build_report``'s declared write), so on a real
+  response the projection's injection half is a checked no-op — a shipped
+  field disagreeing with the re-render fails the call — and the excision is
+  what still constructs the round's *moved* shape (the package ships the
+  copy).  A ``"summary"`` marker on a real response is therefore historical:
+  it delivers 1.2's summary placement *plus* the shipped field, and a future
+  round wanting a field-free arm must add a strip projection;
 - every call is appended to ``calls.jsonl`` (the record the scorer and the
   call count come from, never the agent's self-report), with the bulk curve
   arrays elided — the fit is deterministic from episode + overlay, so the
@@ -109,6 +116,17 @@ def _project_license_placement(response: dict) -> dict | None:
     refusal envelope: the registration invalidates the cell loudly, never a
     silent fallback.  Returns None on success (including the no-clause case,
     where there is nothing to move).
+
+    Since WP-1108 shipped the placement, a real response already carries the
+    field (``build_report`` writes the summary's clause to
+    ``result.statistics.identifiability_clause`` in the same build), so the
+    injection is a **checked no-op**: a shipped field that disagrees with
+    the re-render is the same mismatch one surface over, refused by the same
+    code.  What the projection still constructs is the round's *moved* shape
+    — the package ships the copy, the arm delivered one copy in one
+    location.  The equivalence with a real ``refine_json`` response is
+    pinned from the package side by ``tests/test_fitreport_layers.py::
+    test_refine_json_delivers_the_license_beside_the_numbers``.
     """
     from rietx.report import identifiability_clause
     from rietx.report.schemas import IdentifiabilityEvidence
@@ -129,6 +147,12 @@ def _project_license_placement(response: dict) -> dict | None:
             "PLACEMENT_PROJECTION_MISMATCH",
             "the rendered identifiability clause is not in report.summary; "
             "the cell is invalid (PROTOCOL.md 2.2)")
+    shipped = response["result"]["statistics"].get("identifiability_clause")
+    if shipped is not None and shipped != clause:
+        return _refusal(
+            "PLACEMENT_PROJECTION_MISMATCH",
+            "the shipped statistics.identifiability_clause disagrees with "
+            "the re-rendered clause; the cell is invalid (WP-1108)")
     report["summary"] = summary.replace(needle, "", 1)
     response["result"]["statistics"]["identifiability_clause"] = clause
     return None
