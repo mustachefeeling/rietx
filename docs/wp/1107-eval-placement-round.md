@@ -55,7 +55,13 @@ license where it lives today, in `summary`; (ii) structured — the shim moves
 the license clause (and the threshold constant it quotes) into a field
 adjacent to the statistics keys the miners proved agents grep; (iii) the
 python arm reads it on `compare_rivals`' return, where the agent that ran the
-experiment is certainly reading. Whichever placement the grid favors ships
+experiment is certainly reading. *(Registration note, 2026-08-19: (iii) as
+written needs the additive `RivalComparison` field — a pre-grid package
+change the non-goals forbid — so 2.2 runs the python arm unconstructed, as
+the certainly-reading comparator; the manual-§4b route it tests was measured
+working in 2.1, and the field stays the successor's candidate if the grid
+shows the python route deciding where JSON arms fail.)* Whichever placement
+the grid favors ships
 afterward as its own additive change; nothing ships on plausibility. Keep the
 recorded stance while designing arm (ii): the license is stated, the verdict
 is not — no `decisive` boolean, no verdict token
@@ -185,7 +191,7 @@ amendment-only.**
 - [x] Transcript archaeology on 2.1 for the `report_with_caveat` migration;
       write the finding into the round design (cells, scoring change, or
       "no cells needed — vocabulary amendment only", each with its reason).
-- [ ] Register PROTOCOL.md 2.2: placement arms (shim-projection design),
+- [x] Register PROTOCOL.md 2.2: placement arms (shim-projection design),
       the `execution` cell pair, episode selection (C1/N1 for placement;
       W1-family for `execution`; second-tier only where prior effects
       showed), landing states re-pinned (`test_landing_states.py`).

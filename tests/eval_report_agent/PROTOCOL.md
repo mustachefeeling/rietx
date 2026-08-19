@@ -1,12 +1,15 @@
 # Runner protocol — agent-in-the-loop FitReport eval
 
-**Protocol version: 2.1** (`build_fixtures.PROTOCOL_VERSION`; stamped into
-every condition marker and quoted by every run record).  **2.1 registered
+**Protocol version: 2.2** (`build_fixtures.PROTOCOL_VERSION`; stamped into
+every condition marker and quoted by every run record).  **2.2 registered
+2026-08-19, before any 2.2 run** (WP-1107; § The 2.2 placement round —
+answer contract v3, two shim projections, and the wording revisions; every
+episode fixture and decision band below stands).  **2.1 registered
 2026-08-13, before any 2.1 run** (WP-1065; § The 2.1 targeted round — prompt
-content only; everything else in this file is the 2.0 registration and
-stands).  **2.0 registered 2026-08-13, before any 2.0 run** (WP-1064).  Bump
-the version on any change that alters comparability: the prompt text, the
-overlay contract, the answer schema, the scoring rules, the excerpt policy.
+content only).  **2.0 registered 2026-08-13, before any 2.0 run** (WP-1064).
+Bump the version on any change that alters comparability: the prompt text,
+the overlay contract, the answer schema, the scoring rules, the excerpt
+policy.
 
 **2.0 (WP-1064)** is justified four ways at once — the episode set, the
 answer schema, the scoring rules and the condition axis all move — so a 2.0
@@ -87,6 +90,171 @@ re-run.
 reads, the 8-fit-run cap (which invalidated `python__haiku` C1 at 16 last
 round).  Counts, never percentages; dated grid, no CI; the record to
 `eval-runs/` per its README contract.
+
+## The 2.2 placement round (WP-1107) — registered 2026-08-19, before any 2.2 run
+
+Three questions the prior rounds recorded and left unowned, one round.
+Episode fixtures are **unchanged**; the landing states were re-measured on
+the WP-1107 tree 2026-08-19 against `report_thresholds_version` 1.2
+(`test_landing_states.py`, 9 passed, `[dev]` venv, darwin/arm64,
+`-n 4 --dist loadgroup`) — every 2.0 band holds, no pin moved.  Scorer
+grading identity unchanged (verdict ∧ tolerance ∧ next_action ∈ set);
+what changes is registered here, before any run.
+
+### The contract amendment — answer contract v3, every arm
+
+The WP-1107 archaeology (the WP file § The `report_with_caveat` migration
+carries the numbers) decomposed 2.1's 7-of-10 `report_with_caveat` epidemic:
+two cells failed *only* on the token, five failed on verdict or tolerance
+regardless, and the one cell that read the license and won a decisive swap
+still hedged — on a different, true, non-rival caveat.  The token is the one
+delivery-stance member of an otherwise remedial vocabulary, always available
+and always honest on real data, so it is an unfalsifiable hedge sink.  The
+amendment splits the axes structurally:
+
+- **`next_action` loses `report_with_caveat`** (six tokens remain); grading
+  by membership is unchanged.  Rejected alternatives, each with its reason
+  in the WP file: admitting the token into more sets (the sets stop
+  discriminating), re-glossing it (wording against wording).
+- **`caveats` joins the answer** — a list of short free-text statements of
+  the limitations the agent would attach to the delivered result.  Unscored,
+  optional (absent reads as empty), mined descriptively — never graded, and
+  mining reads `delivered`/`probed`, never word-matches it (the round-2
+  rule).
+- **`none` re-glossed**: "no further remedial action is needed (a limitation
+  you would attach to the delivered result goes in `caveats`)."
+- **J2 re-registered** (second tier): `converged` + {none}; the µR fence
+  naming is mined from `caveats`/summary — equal rigor, since token
+  membership never graded caveat *content*.
+- **Two wording revisions**, frozen for the round: the `assumption_wrong`
+  exclusion's ending becomes "…a **refinable parameter at a wrong starting
+  value** — a zero, a displacement — is never this: that is `converged` when
+  the data chooses its value, and `ambiguous` when this data cannot" (the
+  2.1 imperative "converge it, or say the data cannot" is the N=1 suspect
+  for all four `off` verdicts flipping to `converged`, including the round-3
+  N1 pass; the revision names both target verdicts with equal weight).  And
+  `fix_instrument_model`'s parenthetical becomes "(emission lines, the
+  geometry *type*)" — the refinable-geometry trap wording WP-1065 observed
+  post-run and deliberately left for a successor.
+
+Per WP-1065's pre-commitment ("any wording revision adds the E8′ cells"),
+**E8′ joins the core guard set** for this round.
+
+### The placement arms — projections of one response
+
+The license sentence reached agent context in 2 of 12 cells in 2.1: agents
+pipe the JSON response to a file and grep the statistics back, and the
+summary string is what the greps drop.  The arms move *where* the same
+sentence sits; the shim constructs them, the package does not change.  The
+condition marker gains `license_placement: "summary" | "statistics"`
+(JSON arms; inert when the report is withheld or the clause does not fire).
+
+- **`report`** (status quo): the clause where it lives today, appended to
+  `report.summary`.
+- **`report_stat`**: the shim re-renders the identifiability clause from the
+  *delivered* `report.identifiability` with the package's own renderer
+  (`rietx.report.identifiability_clause` — one authority for the sentence),
+  excises that exact appended substring (`"; " + clause`) from
+  `report.summary`, and injects it as `result.statistics
+  ["identifiability_clause"]` — inside the block the miners proved agents
+  grep.  The moved unit is the whole identifiability clause (the soft-mode
+  sentence rides with the exchange sentence when both fire; same text in
+  both arms, so placement stays the only variable).  A render/excise
+  mismatch fails the call and invalidates the cell — never a silent
+  fallback.  Key absent when the clause does not fire.
+- **`python`**: no construction.  The license already reaches a python agent
+  through the manual §4b and any pulled report, and 2.1 measured that route
+  working (`python__sonnet` C1 quoted the band and applied it).  The arm is
+  the certainly-reading comparator.  The *RivalComparison-field* placement
+  is deliberately **not run**: it needs the additive package field the
+  non-goal forbids before the grid — if this grid shows the python route
+  deciding where JSON arms fail, that field is the successor's candidate,
+  filed, never shipped on plausibility.
+
+### The `execution` pair (WP-1106's field, measured)
+
+The condition marker gains `include_execution: true | false` (JSON arms;
+meaningful only with the report delivered).  **`report_noexec`**: the shim
+pops `execution` from every `report.suggested_actions[*]` in the response;
+`report` delivers it as 1.2 ships it.  **W2 is the row**: its landing report
+serves `add_impurity_phase` at 0.9 with `execution="advice"` where following
+the advice is the *wrong* verdict — the WP-1053 shape (an advice action
+quoted verbatim as grounds).  W1's identical action is the *right* answer,
+so a W1 pair could not separate reading the field from taking the trap
+correctly.  haiku is the signal cell (round 3 baseline: took the trap in
+`off` and `report` alike); sonnet is the guard (round 3: passed — the
+"advice" label must not invite dismissing the report).
+
+### The matrix
+
+N=1 per cell, effort `medium`, model IDs as the harness reports them:
+
+| block | cells | n |
+|---|---|---|
+| placement | {off, report, report_stat} × {C1, N1} × {sonnet, haiku} | 12 |
+| python comparator | python × {C1, N1} × sonnet | 2 |
+| execution pair | {report, report_noexec} × W2 × {sonnet, haiku} | 4 |
+| wording guard | {off, report} × E8′ × {sonnet, haiku} | 4 |
+
+**22 cells: 20 JSON + 2 python.**  `python__haiku` is dropped, recorded:
+invalidated in both prior rounds at the same defect (16 fit-bearing runs
+against the 8 cap; 2.1's runner-instruction fix did not save it) — not
+re-bought at N=1.  `off` runs C1/N1 because it isolates the prompt-only
+changes (the imperative revision + contract v3), exactly as 2.1's `off`
+isolated the glossary fix — it is the migration replication.  Expected
+answers unchanged from their 2.0 registrations (C1 `converged` + tol
+{abs: 0.005} + {none}; N1 `ambiguous` + {extend_range_or_calibrate}; W2
+`assumption_wrong` + {fix_instrument_model}; E8′ `ambiguous`, no
+next_action registered, no tolerance).
+
+**Budget** from the measured figures (~56 k per JSON run, ~100–150 k per
+python run): ~1.4 M ceiling.
+
+### Pre-registered read-outs
+
+- **(a) Placement**: *in-context* is a mined fact — the license anchor (the
+  literal "the data has chosen", or the rendered "≥ 10 %" beside the pair)
+  appearing in a tool result or assistant text of the transcript, never
+  word-matching `answer.json`.  `report_stat` is favored iff its in-context
+  count strictly exceeds `report`'s over the same eight cells **and** it
+  adds no N1/E8′ overclaim `report` lacks.  Only then does the statistics
+  placement ship, afterward, as its own additive change.  C1 pass counts
+  ride beside as the decision-quality read.
+- **(b) Migration**: under the amended contract, N1 `off`/`report` verdicts
+  against 2.1's (both `off` cells overclaimed `converged`): `ambiguous`
+  returning reads as the imperative revision acting; `converged` persisting
+  is a real decision pattern, recorded.  C1 `off` staying `converged` is the
+  non-regression half — the 2.1 glossary win must survive the revision.
+  Caveats usage is counted (which cells wrote any; what they name).
+- **(c) Guard**: any E8′ `converged`, or an N1 overclaim in an arm whose 2.1
+  counterpart declined, means the revised wording overcorrects — recorded
+  post-hoc for a successor, no mid-round change, wording iteration stops
+  for the round.
+- **(d) Execution**: on W2, haiku `report` vs `report_noexec` — the on-arm
+  resisting the trap (`assumption_wrong`) where the off-arm repeats it is
+  the field acting; sonnet must hold its round-3 pass under both.  Mined:
+  whether any transcript voices `execution`/`advice`.
+- **(e) Second tier**: J2 (re-registered above) runs as {report} × {sonnet,
+  haiku} only if at least one valid core cell writes a non-empty `caveats`
+  — a dead channel makes J2 undecidable through it.  E7 and J1P/J1S do not
+  run: no prior effect names them (the standing rule), recorded.
+
+### Audit, extended
+
+The 2.1 audit stands (payload enforcement, forbidden reads, the 8-cap,
+usage mining), plus:
+
+- **Payload**: the delivered shape must match the marker both ways —
+  `license_placement="statistics"` iff the clause sits in
+  `result.statistics` and not in `report.summary`;
+  `include_execution=false` iff no delivered action carries `execution`.
+  Mismatch invalidates the cell (`!`), never explained.
+- **The swap state is mined** (the 2.1 licensed-but-wrong route:
+  `python__sonnet` N1 measured a decisive 1.277 for the wrong rival on a
+  cell-held state): for every swap-shaped stage or `compare_rivals` call,
+  whether the cell parameter was free or held.
+- The runner instruction names the workspace only — the repo root appears
+  nowhere (the 2.1 invalidation's invitation).
 
 One authority per fact: the prompt *text* lives in `build_fixtures._PROMPT`
 (rendered by `render_prompt`), the conditions in `build_fixtures.CONDITIONS`,
