@@ -8,7 +8,10 @@ it, in the same spirit as test_manual.py (the manual cannot drift from the
 code) and test_compare_ui.py (the compare registry cannot drift from the
 acceptance protocols).
 
-Everything here reads documentation files only — no rietx import, no data.
+Everything here reads documentation files only — no data, and no rietx import
+except in the AGENT_PROTOCOL coverage tests (WP-1105), which import the closed
+vocabularies on purpose: quoting the live registry instead of restating it is
+the point (the ``capabilities()`` idiom).
 
 Size caps: SIZE_CAPS pins each always-loaded document to its measured size
 plus headroom.  A cap of None means "not yet pinned" (the consolidation pass
@@ -336,4 +339,156 @@ def test_current_focus_stays_a_focus_not_a_diary():
         f"Current focus is {n_lines} lines (cap {CURRENT_FOCUS_CAP}).  On WP close "
         "it is rewritten, and the outgoing narrative MOVES to the in-flight "
         "milestone record (protocol rule 5) — it does not accumulate here."
+    )
+
+
+# ----------------------------------------------------------------------
+# AGENT_PROTOCOL.md coverage (WP-1105)
+#
+# Root CLAUDE.md's rule — "a WP that adds a diagnostic code or a correction
+# adds its row there" — was enforced by nothing, and the drift it permits is
+# silent: two engine codes shipped without a row and no test went red.  These
+# three tests give the rule teeth.  They deliberately import the closed
+# vocabularies rather than restating them, so a new member fails coverage the
+# day it lands.
+# ----------------------------------------------------------------------
+
+AGENT_PROTOCOL = ROOT / "docs" / "AGENT_PROTOCOL.md"
+SRC = ROOT / "src" / "rietx"
+REFERENCES_BIB = ROOT / "docs" / "manual" / "references.bib"
+
+#: Diagnostic codes the AST walk below cannot see statically, each mapped to a
+#: comment naming its emitter.  Empty today: every engine code is a
+#: ``code="..."`` keyword literal.  A code built dynamically (f-string,
+#: constant indirection) goes here — never silently uncovered.
+STATIC_INVISIBLE_CODES: dict[str, str] = {}
+
+
+def _protocol_text() -> str:
+    return AGENT_PROTOCOL.read_text(encoding="utf-8")
+
+
+def _engine_codes() -> set[str]:
+    """Every UPPER_SNAKE ``code="..."`` keyword literal under src/rietx.
+
+    ``gui/`` is excluded on purpose: the GUI server's session codes
+    (NOT_FOUND, RUN_IN_FLIGHT, ...) share the shape but are a separate
+    namespace with no protocol rows — §9c's namespace note declares the
+    split.  The lowercase ``GateFailure`` codes fall out of the shape filter
+    and are covered by the vocabulary test instead.
+    """
+    import ast
+
+    codes: set[str] = set()
+    for py in sorted(SRC.rglob("*.py")):
+        if "gui" in py.relative_to(SRC).parts:
+            continue
+        tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            for kw in node.keywords:
+                if (kw.arg == "code" and isinstance(kw.value, ast.Constant)
+                        and isinstance(kw.value.value, str)
+                        and re.fullmatch(r"[A-Z][A-Z0-9_]+", kw.value.value)):
+                    codes.add(kw.value.value)
+    return codes
+
+
+def test_every_vocabulary_member_appears_in_the_protocol():
+    """Every ``GateCode`` and ``ActionKind`` member has protocol coverage.
+
+    WP-1003 promoted gate failures to typed codes precisely so a consumer can
+    branch on the name; a member the protocol never names is a branch the
+    consumer cannot learn.  The §6 gate table and the §5 action table are the
+    rows this asserts exist (as backticked mentions, so a passing rename
+    cannot hide in prose).
+    """
+    from typing import get_args
+
+    from rietx.report.schemas import ActionKind, GateCode
+
+    members = (*get_args(GateCode), *get_args(ActionKind))
+    assert len(members) >= 22, "vocabulary import broke — Literals moved?"
+    text = _protocol_text()
+    missing = [m for m in members if f"`{m}`" not in text]
+    assert not missing, (
+        f"vocabulary members with no AGENT_PROTOCOL mention: {missing} — "
+        "add the row to §6's gate table or §5's action table"
+    )
+
+
+def test_every_engine_diagnostic_code_has_a_protocol_row():
+    """Root CLAUDE.md: a WP that adds a diagnostic code adds its row there.
+
+    Collector liveness was proven the required way round (WP-1105): run
+    against the tree before the rows landed, it failed on exactly the two
+    codes known to be missing (EXTINCTION_SCREEN_FAILED,
+    INDEX_VALIDATION_FAILED) out of 79 collected.
+    """
+    from rietx.agent import ERROR_CODES
+
+    codes = _engine_codes() | set(ERROR_CODES) | set(STATIC_INVISIBLE_CODES)
+    assert len(codes) >= 60, (
+        f"only {len(codes)} codes collected — the AST walk broke, it does not "
+        "mean the protocol got shorter"
+    )
+    text = _protocol_text()
+    missing = sorted(c for c in codes if f"`{c}`" not in text)
+    assert not missing, (
+        f"engine diagnostic codes with no AGENT_PROTOCOL row: {missing} — "
+        "add each to the §7 table its family lives in (root CLAUDE.md's rule)"
+    )
+
+
+_WP_REF = re.compile(r"\bWP-(\d{4})\b")
+_CITE_NAME = r"[A-Z][A-Za-zöëüéèçå'-]+"
+# an author chain ("Hill", "Hill & Flack", "Madsen et al.", "Dreele, Cox,
+# Louër & Scardi") followed by a year that is not part of a date
+_CITATION = re.compile(
+    rf"({_CITE_NAME}(?:'s)?(?:,? (?:&|and) {_CITE_NAME}|, {_CITE_NAME}"
+    rf"|,? et al\.?)*),? \(?((?:18|19|20)\d{{2}})(?![-\d])")
+
+
+def test_every_wp_and_citation_the_protocol_names_resolves():
+    """WP-1104 verified both halves by hand; this is what stops the redrift.
+
+    Every ``WP-NNNN`` named inline exists as a WP file, and every author-year
+    citation resolves where the protocol's See-also says it does: in the
+    manual's bibliography, or inline (its journal follows the year at first
+    mention — ``1992, *J. Appl. Cryst.* ...``).  The chain's *whole* author
+    list is consulted against the bib, so a partial regex match ("Scardi,
+    1999" out of the five-author McCusker reference) still resolves to the
+    right entry.
+    """
+    text = _protocol_text()
+
+    missing_wps = sorted({n for n in set(_WP_REF.findall(text))
+                          if not list(WP_DIR.glob(f"{n}-*.md"))})
+    assert not missing_wps, f"WPs named with no docs/wp file: {missing_wps}"
+
+    bib = REFERENCES_BIB.read_text(encoding="utf-8")
+    entries = []  # (author field lowercased, year) per entry
+    for block in bib.split("\n@"):
+        author = re.search(r"author\s*=\s*\{([^}]*)\}", block)
+        year = re.search(r"year\s*=\s*\{(\d{4})\}", block)
+        if author and year:
+            entries.append((author.group(1).lower(), year.group(1)))
+    assert len(entries) > 50, "references.bib parse broke"
+
+    unresolved: list[str] = []
+    for m in _CITATION.finditer(text):
+        chain, year = m.group(1), m.group(2)
+        surnames = [s[:-2] if s.endswith("'s") else s
+                    for s in re.findall(_CITE_NAME, chain) if s != "Von"]
+        in_bib = any(y == year and any(s.lower() in a for s in surnames)
+                     for a, y in entries)
+        inline = any(
+            re.search(rf"{re.escape(s)}[^\n]*?\(?{year}[a-z]?,\s*\*", text)
+            for s in surnames)
+        if not (in_bib or inline):
+            unresolved.append(f"{chain}, {year}")
+    assert not unresolved, (
+        "author-year citations resolving neither in docs/manual/references.bib "
+        f"nor inline: {sorted(set(unresolved))}"
     )

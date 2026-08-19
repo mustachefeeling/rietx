@@ -262,7 +262,8 @@ Judge a fit in this order:
    GoF² alone is the practice Schwarzenbach et al. (1989) call "highly
    questionable". The round robins measured why the ingredients matter: the
    same data refined under different protocols spread by up to ×17–25 of the
-   quoted esds on cell dimensions (Hill, 1992; Hill & Cranswick, 1994 — whose
+   quoted esds on cell dimensions (Hill, 1992; Hill & Cranswick, 1994, *J.
+   Appl. Cryst.* **27**, 802 — whose
    explanation is §3's first degeneracy row, the cell compensating 2θ-scale
    errors). Durbin-Watson is in the trio because serial correlation is
    precisely what makes the raw esds untrustworthy, and d stays discriminating
@@ -1667,3 +1668,7 @@ its protocol is not a measurement.
   usable API on its own: `compare.run("zincite", "dispersion")`). Its
   cumulative-Δχ² panel is the machine-readable form of §8.1's rule — it shows
   *where* a correction acted, not just whether Rwp moved
+
+Papers are cited author-year throughout; each citation resolves in the
+manual's bibliography (`docs/manual/references.bib`) or carries its journal
+reference inline at first mention.
