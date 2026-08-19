@@ -59,8 +59,18 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #: geometry" in the glossary) and gains the explicit exclusion; the package
 #: under test carries THRESHOLDS_VERSION 0.9's license sentence.  Episode
 #: fixtures, answer schema and scorer v2 are unchanged, so landing-state
-#: bands hold — but prompts changed, so a 2.1 cell pools with nothing at 2.0
-PROTOCOL_VERSION = "2.1"
+#: bands hold — but prompts changed, so a 2.1 cell pools with nothing at 2.0.
+#: 2.2 (WP-1107): answer contract v3 — ``report_with_caveat`` leaves
+#: ``next_action`` (the WP-1107 archaeology: the one delivery-stance token in
+#: a remedial vocabulary, an unfalsifiable hedge sink on real data) and the
+#: unscored ``caveats`` list takes the delivery stance; the
+#: ``assumption_wrong`` exclusion names both target verdicts with equal
+#: weight (2.1's "converge it, or say the data cannot" is the N=1 suspect
+#: for all four ``off`` verdicts flipping to ``converged``); two shim
+#: projections land (``license_placement``, ``include_execution``, both
+#: marker-declared).  Episode fixtures unchanged, landing states re-measured
+#: 2026-08-19; contract + prompts changed, so no 2.2 cell pools with 2.1
+PROTOCOL_VERSION = "2.2"
 
 #: shim-enforced hard stop on refinement calls per episode — a runaway guard
 #: (tests/CLAUDE.md), never a timer; the prompt advertises 6
@@ -96,25 +106,44 @@ W2_SAMPLE = "corundum"
 class Condition:
     """One cell of the JSON-arm condition axis.
 
-    Both switches are enforced by the shim rather than by the prompt:
+    Every switch is enforced by the shim rather than by the prompt:
     ``report`` is the converged-state FitReport and ``trajectory`` is
     WP-1058's per-stage delivery of it.  ``sections`` names the
     AGENT_PROTOCOL excerpts the prompt quotes.  The 1.1 instruction axis
     (§9: ``prompt``/``both``) is retired — round 2 measured zero bootstrap
     calls under it, so no 2.0 prompt quotes §9.
+
+    The 2.2 projections (PROTOCOL.md 2.2) are response-shape, not
+    withholding: ``license_placement`` says where the identifiability clause
+    sits (``"summary"`` — the status quo — or ``"statistics"``, injected as
+    ``result.statistics["identifiability_clause"]`` and excised from the
+    summary), and ``execution`` says whether delivered actions keep their
+    ``execution`` field.  Both are inert when the report is withheld.
     """
 
     report: bool
     trajectory: bool
     sections: tuple[str, ...]
+    license_placement: str = "summary"
+    execution: bool = True
 
 
-#: the 2.0 JSON-arm matrix.  The python arm is not a row here: it has no
-#: shim, no condition marker and its own workspace builder (``python_arm``)
+#: the JSON-arm matrix (2.0 base + the 2.2 projection arms).  The python arm
+#: is not a row here: it has no shim, no condition marker and its own
+#: workspace builder (``python_arm``)
 CONDITIONS: dict[str, Condition] = {
     "off": Condition(report=False, trajectory=False, sections=()),
     "report": Condition(report=True, trajectory=False, sections=("5.", "6.")),
     "surface": Condition(report=True, trajectory=True, sections=("5.", "6.")),
+    # 2.2 placement arm: same delivery as ``report``, the clause moved beside
+    # the statistics keys the miners proved agents grep (PROTOCOL.md 2.2)
+    "report_stat": Condition(report=True, trajectory=False,
+                             sections=("5.", "6."),
+                             license_placement="statistics"),
+    # 2.2 execution arm: same delivery as ``report``, the WP-1106
+    # ``execution`` field popped from every delivered action
+    "report_noexec": Condition(report=True, trajectory=False,
+                               sections=("5.", "6."), execution=False),
 }
 
 #: mutually-substitutable cause families (test_report_loop.py's action
@@ -541,8 +570,9 @@ VERDICT_MEANINGS = {
         "more parameters, is the answer.  (This is about the "
         "instrument/measurement description; a missing phase is "
         "`impurity_suspected`, and a **refinable parameter at a wrong "
-        "starting value** — a zero, a displacement — is never this: "
-        "converge it, or say the data cannot.)"),
+        "starting value** — a zero, a displacement — is never this: that is "
+        "`converged` when the data chooses its value, and `ambiguous` when "
+        "this data cannot.)"),
     "abstain": (
         "the starting model is too far from the data for any refinement "
         "reachable from here to be trustworthy; no answer."),
@@ -552,7 +582,9 @@ VERDICT_MEANINGS = {
         "wrong."),
 }
 NEXT_ACTION_MEANINGS = {
-    "none": "nothing further is needed.",
+    "none": (
+        "no further remedial action is needed (a limitation you would "
+        "attach to the delivered result goes in `caveats`)."),
     "extend_range_or_calibrate": (
         "the measured angular window (or a calibration on it) is what "
         "limits the answer: remeasure wider, or fix zero/displacement "
@@ -561,15 +593,13 @@ NEXT_ACTION_MEANINGS = {
         "identify and add a phase for intensity the current phase list "
         "cannot account for."),
     "fix_instrument_model": (
-        "correct the declared instrument (emission lines, geometry) before "
-        "refining further."),
+        "correct the declared instrument (emission lines, the geometry "
+        "*type*) before refining further."),
     "collect_better_data": (
         "counting statistics or resolution are what limits the answer."),
     "chemistry_or_contents": (
         "the question needs chemical/contents information diffraction "
         "alone cannot supply."),
-    "report_with_caveat": (
-        "deliver the result with its named limitation attached."),
 }
 
 
@@ -619,7 +649,9 @@ JSON tool call, `agent.refine_json`.  This directory is your workspace:
 When you are done, write `answer.json` in this directory:
 
     {{"verdict": "<one of the five below>",
-      "next_action": "<one of the seven below>",
+      "next_action": "<one of the six below>",
+      "caveats": ["<zero or more short statements of limitations you would
+                   attach to the delivered result>"],
       "summary": "<a few sentences: what you concluded and why>"}}
 
 Verdict meanings — pick exactly one:
@@ -749,6 +781,8 @@ def write_fixtures(episodes_dir: Path, truth_dir: Path, *, condition: str,
             "condition": condition,
             "include_report": spec.report,
             "include_trajectory": spec.trajectory,
+            "license_placement": spec.license_placement,
+            "include_execution": spec.execution,
             "prompt_sections": list(spec.sections),
             "max_calls": MAX_CALLS,
         }, indent=1) + "\n", encoding="utf-8")

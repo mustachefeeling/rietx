@@ -11,6 +11,13 @@ prompt; it cannot un-strip a response:
   workspace, PROTOCOL.md 2.0), never from the agent: they are set on the
   request (so the package never builds what this condition withholds) **and**
   popped from the response (so a package default can never leak one back in);
+- the 2.2 projections come from the same marker (PROTOCOL.md 2.2):
+  ``license_placement: "statistics"`` moves the identifiability clause from
+  ``report.summary`` into ``result.statistics["identifiability_clause"]``
+  (one renderer, byte-exact excision, loud failure), and
+  ``include_execution: false`` pops WP-1106's ``execution`` from every
+  delivered action — response *shape*, not withholding, and both inert when
+  the report is withheld;
 - every call is appended to ``calls.jsonl`` (the record the scorer and the
   call count come from, never the agent's self-report), with the bulk curve
   arrays elided — the fit is deterministic from episode + overlay, so the
@@ -89,6 +96,61 @@ def _condition_path(episode_dir: Path) -> Path:
     return path.parent / f"{path.name}.condition.json"
 
 
+def _project_license_placement(response: dict) -> dict | None:
+    """The 2.2 ``"statistics"`` placement (PROTOCOL.md 2.2): move the
+    identifiability clause from ``report.summary`` into
+    ``result.statistics["identifiability_clause"]`` — inside the block the
+    miners proved agents grep.
+
+    The clause is re-rendered from the *delivered* evidence by the package's
+    own renderer — one authority for the sentence, so the excision target is
+    the exact appended substring (``"; " + clause``, report/__init__.py) and
+    never string surgery on prose.  A render/excise mismatch returns a
+    refusal envelope: the registration invalidates the cell loudly, never a
+    silent fallback.  Returns None on success (including the no-clause case,
+    where there is nothing to move).
+    """
+    from rietx.report import identifiability_clause
+    from rietx.report.schemas import IdentifiabilityEvidence
+
+    report = response.get("report")
+    if not isinstance(report, dict):
+        return None
+    evidence = report.get("identifiability")
+    clause = (identifiability_clause(
+        IdentifiabilityEvidence.model_validate(evidence))
+        if evidence is not None else None)
+    if clause is None:
+        return None
+    needle = "; " + clause
+    summary = report.get("summary", "")
+    if needle not in summary:
+        return _refusal(
+            "PLACEMENT_PROJECTION_MISMATCH",
+            "the rendered identifiability clause is not in report.summary; "
+            "the cell is invalid (PROTOCOL.md 2.2)")
+    report["summary"] = summary.replace(needle, "", 1)
+    response["result"]["statistics"]["identifiability_clause"] = clause
+    return None
+
+
+def _strip_execution(response: dict) -> None:
+    """The 2.2 ``include_execution: false`` projection: pop WP-1106's
+    ``execution`` field from every delivered action.  The trajectory's rung
+    actions are covered too — no 2.2 cell combines the arms, but the
+    guarantee is the condition's, not the matrix's."""
+    report = response.get("report")
+    if isinstance(report, dict):
+        for action in report.get("suggested_actions") or []:
+            if isinstance(action, dict):
+                action.pop("execution", None)
+    for rung in response.get("trajectory") or []:
+        if isinstance(rung, dict):
+            for action in rung.get("actions") or []:
+                if isinstance(action, dict):
+                    action.pop("execution", None)
+
+
 def run_episode(episode_dir: Path) -> dict:
     """One shim call: merge, enforce, run, log.  Returns what it printed."""
     episode_bytes = (episode_dir / "episode.json").read_bytes()
@@ -138,6 +200,17 @@ def run_episode(episode_dir: Path) -> dict:
         import rietx.agent as agent_mod
 
         response = agent_mod.refine_json(request)
+        # the 2.2 projections (PROTOCOL.md 2.2), applied before the pops so
+        # they see the report; ``.get`` defaults are the pre-2.2 shape, so a
+        # marker without the keys — an archived round's — means status quo
+        if (include_report and response.get("ok")
+                and condition.get("license_placement", "summary")
+                == "statistics"):
+            failure = _project_license_placement(response)
+            if failure is not None:
+                response = failure
+        if include_report and not condition.get("include_execution", True):
+            _strip_execution(response)
         # asked for on the request, popped again here: the shim's guarantee is
         # that *the condition* decides, not a package default that could move
         if not include_report:

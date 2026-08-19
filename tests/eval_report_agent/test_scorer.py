@@ -558,12 +558,15 @@ def test_python_arm_watch_reads_off_the_dump(tmp_path):
 def _write_shim_episode(tmp_path: Path, *, include_report: bool,
                         include_trajectory: bool | None = False,
                         max_calls: int = 8,
-                        condition: str | None = None) -> Path:
+                        condition: str | None = None,
+                        license_placement: str = "summary",
+                        include_execution: bool = True) -> Path:
     """An episode dir plus its **sibling** marker (PROTOCOL.md 2.0: the
     workspace carries no condition bit).  ``include_trajectory=None`` omits
     the key — the malformed-marker case, which the shim must refuse rather
     than guess (the 1.0 single-switch compatibility read died with the
-    relocation)."""
+    relocation).  The 2.2 projection keys default to the status-quo shape,
+    exactly as an archived marker reads through the shim's ``.get``."""
     edir = tmp_path / "ES"
     edir.mkdir(exist_ok=True)
     (edir / "episode.json").write_text(json.dumps({
@@ -575,6 +578,8 @@ def _write_shim_episode(tmp_path: Path, *, include_report: bool,
         "protocol_version": bf.PROTOCOL_VERSION,
         "condition": condition or ("surface" if include_report else "off"),
         "include_report": include_report,
+        "license_placement": license_placement,
+        "include_execution": include_execution,
         "max_calls": max_calls,
     }
     if include_trajectory is not None:
@@ -595,6 +600,32 @@ def _stub_response():
                                     "cost": 1.0}]},
             "report": {"layer1_available": True},
             "trajectory": [{"stage": "scale_bkg", "rwp": 0.2}]}
+
+
+def _firing_report():
+    """A stub report whose identifiability round-trips through the package
+    schema and fires the exchange clause, its summary carrying the exact
+    appended substring (``"; " + clause`` — report/__init__.py) and one
+    execution-stamped action: the delivered shape both 2.2 projections act
+    on.  Returns ``(report, clause)``."""
+    from rietx.report import identifiability_clause
+    from rietx.report.schemas import ExchangeFinding, IdentifiabilityEvidence
+
+    evidence = IdentifiabilityEvidence(chi2_reduced=3.49, exchanges=[
+        ExchangeFinding(
+            held="instrument.geometry.sample_displacement", r2=0.9977,
+            partner="instrument.zero_shift", partner_null=0.0,
+            partner_value=0.0317, partner_esd=0.0005,
+            partner_significance=63.0, exchangeable=True)])
+    clause = identifiability_clause(evidence)
+    assert clause is not None
+    return {
+        "layer1_available": True,
+        "identifiability": evidence.model_dump(mode="json"),
+        "summary": "Rwp=0.0100 GoF=1.00; 3 regions; " + clause,
+        "suggested_actions": [{"kind": "add_impurity_phase",
+                               "confidence": 0.9, "execution": "advice"}],
+    }, clause
 
 
 def test_shim_merges_overlay_and_forces_condition(tmp_path, monkeypatch):
@@ -690,16 +721,23 @@ def test_shim_delivers_exactly_what_the_condition_declares(
     """The round-2 failure mode that would silently make a withheld arm a
     delivered one: the condition sets both halves on the *request* (so the
     package never builds one it withholds) and pops both from the response
-    (so a package default cannot put one back)."""
+    (so a package default cannot put one back).  The 2.2 projections ride
+    the same meta-test: every condition's delivered shape — clause location
+    and ``execution`` presence — must match its declaration, both ways."""
     spec = bf.CONDITIONS[condition]
     edir = _write_shim_episode(tmp_path, include_report=spec.report,
                                include_trajectory=spec.trajectory,
-                               condition=condition)
+                               condition=condition,
+                               license_placement=spec.license_placement,
+                               include_execution=spec.execution)
+    report, clause = _firing_report()
     seen = {}
 
     def stub(request):
         seen.update(request)
-        return _stub_response()          # always offers both halves
+        full = _stub_response()          # always offers both halves...
+        full["report"] = report          # ...with a firing clause and an
+        return full                      # execution-stamped action
 
     monkeypatch.setattr("rietx.agent.refine_json", stub)
     response = run_episode(edir)
@@ -707,11 +745,22 @@ def test_shim_delivers_exactly_what_the_condition_declares(
     assert seen["report_trajectory"] is spec.trajectory
     assert ("report" in response) is spec.report
     assert ("trajectory" in response) is spec.trajectory
+    stats = response["result"]["statistics"]
+    want_statline = spec.report and spec.license_placement == "statistics"
+    assert ("identifiability_clause" in stats) is want_statline
+    if spec.report:
+        assert (clause in response["report"]["summary"]) is not want_statline
+        delivered_exec = any(
+            "execution" in a
+            for a in response["report"]["suggested_actions"])
+        assert delivered_exec is spec.execution
     logged = json.loads(
         (edir / "calls.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert ("report" in logged["response"]) is spec.report
     assert ("trajectory" in logged["response"]) is spec.trajectory
     assert "include_trajectory" not in logged     # no echo (PROTOCOL.md 2.0)
+    assert "license_placement" not in logged      # the 2.2 keys neither
+    assert "include_execution" not in logged
 
 
 def test_shim_requires_both_switches_in_the_marker(tmp_path, monkeypatch):
@@ -728,6 +777,167 @@ def test_shim_requires_both_switches_in_the_marker(tmp_path, monkeypatch):
 
 
 # ----------------------------------------------------------------------
+# shim: the 2.2 projections (PROTOCOL.md 2.2)
+# ----------------------------------------------------------------------
+
+
+def test_shim_moves_the_clause_beside_the_statistics(tmp_path, monkeypatch):
+    """The ``"statistics"`` placement is a *move*, byte-exact: the rendered
+    clause lands as ``result.statistics["identifiability_clause"]`` and its
+    appended substring leaves the summary — one copy, one location, and the
+    log carries the same shape the agent saw."""
+    report, clause = _firing_report()
+    edir = _write_shim_episode(tmp_path, include_report=True,
+                               condition="report_stat",
+                               license_placement="statistics")
+    stub = _stub_response()
+    stub["report"] = report
+    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    response = run_episode(edir)
+    assert response["result"]["statistics"]["identifiability_clause"] == clause
+    assert response["report"]["summary"] == "Rwp=0.0100 GoF=1.00; 3 regions"
+    logged = json.loads(
+        (edir / "calls.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert (logged["response"]["result"]["statistics"]
+            ["identifiability_clause"] == clause)
+    assert clause not in logged["response"]["report"]["summary"]
+
+
+def test_shim_placement_mismatch_fails_the_call_loudly(tmp_path, monkeypatch):
+    """A summary that does not carry the rendered clause's exact substring
+    is a projection the shim cannot apply: the call fails with a named code
+    (the registration invalidates the cell), never a silent fallback — and
+    the record logs the failure as a spent, non-refused call."""
+    report, _clause = _firing_report()
+    report["summary"] = "Rwp=0.0100 GoF=1.00; 3 regions"  # clause absent
+    edir = _write_shim_episode(tmp_path, include_report=True,
+                               condition="report_stat",
+                               license_placement="statistics")
+    stub = _stub_response()
+    stub["report"] = report
+    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    response = run_episode(edir)
+    assert response["ok"] is False
+    assert response["error"]["code"] == "PLACEMENT_PROJECTION_MISMATCH"
+    logged = json.loads(
+        (edir / "calls.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert logged["refused"] is False
+    assert logged["response"]["ok"] is False
+
+
+def test_shim_placement_is_inert_without_a_clause(tmp_path, monkeypatch):
+    """No firing clause, nothing to move: the ``"statistics"`` arm delivers
+    the response unchanged — the key is absent, never null (a writerless
+    claim, the WP-1076 rule)."""
+    edir = _write_shim_episode(tmp_path, include_report=True,
+                               condition="report_stat",
+                               license_placement="statistics")
+    stub = _stub_response()
+    stub["report"] = {"layer1_available": True, "identifiability": None,
+                      "summary": "Rwp=0.0100 GoF=1.00; 3 regions"}
+    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    response = run_episode(edir)
+    assert "identifiability_clause" not in response["result"]["statistics"]
+    assert response["report"]["summary"] == "Rwp=0.0100 GoF=1.00; 3 regions"
+
+
+def test_shim_strips_execution_when_the_condition_says_so(tmp_path,
+                                                          monkeypatch):
+    """``include_execution: false`` pops WP-1106's field from every
+    delivered action — and only that field: the action's kind and confidence
+    survive untouched."""
+    report, _clause = _firing_report()
+    edir = _write_shim_episode(tmp_path, include_report=True,
+                               condition="report_noexec",
+                               include_execution=False)
+    stub = _stub_response()
+    stub["report"] = report
+    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    response = run_episode(edir)
+    actions = response["report"]["suggested_actions"]
+    assert actions == [{"kind": "add_impurity_phase", "confidence": 0.9}]
+
+
+# ----------------------------------------------------------------------
+# scorer: the v3 contract and the 2.2 delivered-shape facts
+# ----------------------------------------------------------------------
+
+
+def test_scorer_records_caveats_and_the_delivered_shape(tmp_path):
+    """``caveats`` is recorded, never graded (the stance the retired
+    ``report_with_caveat`` token used to absorb), and the four 2.2 shape
+    facts read straight off the delivered calls."""
+    truth = _write_truth(tmp_path, planted=None, family=None)
+    report, clause = _firing_report()
+    call = _call(report=report)
+    call["response"]["result"]["statistics"]["identifiability_clause"] = clause
+    edir = _write_episode_dir(tmp_path, [call], {
+        "verdict": "converged", "next_action": "none",
+        "caveats": ["Durbin-Watson 0.66: residual peak-shape misfit"],
+        "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["caveats"] == [
+        "Durbin-Watson 0.66: residual peak-shape misfit"]
+    assert not any("caveats" in n for n in card["notes"])
+    assert card["license_in_statistics"] is True
+    assert card["statline_missing_where_fired"] is False
+    assert card["execution_delivered"] is True
+    assert card["action_missing_execution"] is False
+    assert card["passed"]                     # caveats never touch the grade
+
+
+def test_scorer_reads_the_statline_gap_and_the_stripped_field(tmp_path):
+    """The two mismatch directions the grid audits: an exchangeable finding
+    delivered without the statistics key, and an action missing
+    ``execution`` — both shape-only, no rendering in the scorer."""
+    truth = _write_truth(tmp_path, planted=None, family=None)
+    report, _clause = _firing_report()
+    report["suggested_actions"].append(
+        {"kind": "refine_biso", "confidence": 0.2})   # no execution key
+    edir = _write_episode_dir(tmp_path, [_call(report=report)], {
+        "verdict": "converged", "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["license_in_statistics"] is False
+    assert card["statline_missing_where_fired"] is True
+    assert card["execution_delivered"] is True
+    assert card["action_missing_execution"] is True
+
+
+def test_scorer_tolerates_absent_and_malformed_caveats(tmp_path):
+    """Absent reads as unwritten (``None``), a wrong shape is noted and
+    recorded as written — descriptive either way, never a grade input."""
+    truth = _write_truth(tmp_path, planted=None, family=None)
+    edir = _write_episode_dir(tmp_path, [_call()], {
+        "verdict": "converged", "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["caveats"] is None
+    edir2 = tmp_path / "ET2"
+    edir2.mkdir()
+    (edir2 / "calls.jsonl").write_text(json.dumps(_call()) + "\n",
+                                       encoding="utf-8")
+    (edir2 / "answer.json").write_text(json.dumps({
+        "verdict": "converged", "caveats": "one bare string",
+        "summary": ""}), encoding="utf-8")
+    card2 = score_episode(edir2, truth)
+    assert card2["caveats"] == "one bare string"
+    assert any("caveats" in n for n in card2["notes"])
+
+
+def test_report_with_caveat_is_off_vocabulary_at_v3(tmp_path):
+    """The retired token scores exactly like any off-vocabulary word: the
+    2.1 hedge sink cannot pass a registered set again."""
+    truth = _write_truth(tmp_path, next_action=["none"], planted=None,
+                         family=None)
+    edir = _write_episode_dir(tmp_path, [_call()], {
+        "verdict": "converged", "next_action": "report_with_caveat",
+        "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["next_action_ok"] is False
+    assert not card["passed"]
+    assert any("closed" in n for n in card["notes"])
+
+
+# ----------------------------------------------------------------------
 # fixtures: the condition axis, rendered
 # ----------------------------------------------------------------------
 
@@ -739,13 +949,25 @@ def _prompt(condition: str, tmp_path: Path, **kw) -> str:
 def test_conditions_are_delivery_only_plus_the_baseline():
     """The 2.0 axis is delivery alone: the 1.1 instruction arms
     (``prompt``/``both``) are retired — round 2 measured zero bootstrap
-    calls under §9 — so no condition quotes anything beyond §5/§6."""
+    calls under §9 — so no condition quotes anything beyond §5/§6.  The 2.2
+    projection arms move response *shape*, never delivery: each differs from
+    ``report`` on exactly one projection, and neither touches a withheld or
+    trajectory-bearing arm."""
     axes = {(c.report, c.trajectory) for c in bf.CONDITIONS.values()}
     assert axes == {(False, False),   # off
-                    (True, False),    # report
+                    (True, False),    # report, report_stat, report_noexec
                     (True, True)}     # surface
     assert all(set(c.sections) <= {"5.", "6."}
                for c in bf.CONDITIONS.values())
+    projected = {name: (c.license_placement, c.execution)
+                 for name, c in bf.CONDITIONS.items()
+                 if (c.license_placement, c.execution) != ("summary", True)}
+    assert projected == {"report_stat": ("statistics", True),
+                         "report_noexec": ("summary", False)}
+    for name in projected:
+        spec = bf.CONDITIONS[name]
+        assert spec.report and not spec.trajectory
+        assert spec.sections == bf.CONDITIONS["report"].sections
 
 
 @pytest.mark.parametrize("condition", sorted(bf.CONDITIONS))
@@ -795,15 +1017,18 @@ def test_deliverable_section_renders_only_where_declared(tmp_path):
     assert phase != struct
 
 
-def test_off_carries_the_v2_contract_but_no_report_wording(tmp_path):
-    """``off`` is not the 1.x report-off prompt: the v2 answer contract is
-    in every arm — which is exactly why no 2.0 cell pools with any earlier
-    grid — while report wording stays absent."""
+def test_off_carries_the_answer_contract_but_no_report_wording(tmp_path):
+    """``off`` is not the 1.x report-off prompt: the answer contract (v3 at
+    2.2 — ``caveats`` in, ``report_with_caveat`` out) is in every arm —
+    which is exactly why no 2.x cell pools with any earlier grid — while
+    report wording stays absent."""
     text = _prompt("off", tmp_path)
     assert "## Reading the FitReport" not in text
     assert "FitReport" not in text
     assert "run_refine" in text and "answer.json" in text
     assert '"next_action"' in text
+    assert '"caveats"' in text
+    assert "`report_with_caveat`" not in text
     assert "`assumption_wrong`" in text
 
 
@@ -872,6 +1097,8 @@ def _cell(runs: Path, condition: str, model: str, eid: str, card_calls,
         "condition": marker_condition or condition,
         "include_report": spec.report,
         "include_trajectory": spec.trajectory,
+        "license_placement": spec.license_placement,
+        "include_execution": spec.execution,
         "prompt_sections": list(spec.sections),
         "max_calls": bf.MAX_CALLS,
     }), encoding="utf-8")
@@ -992,3 +1219,72 @@ def test_a_json_cell_without_its_marker_is_invalid(tmp_path):
     rows = grid.collect(tmp_path / "runs", truth)
     assert rows[0]["payload_ok"] is False
     assert "pass,!" in grid.render(rows)
+
+
+def test_grid_audits_the_projections_where_the_marker_declares_them(
+        tmp_path):
+    """The 2.2 payload audit, all four directions: a ``report_stat`` cell
+    whose statline never carried a fired clause, a ``report`` cell that
+    leaked the statline, a ``report_noexec`` cell still delivering
+    ``execution``, and the honest status-quo cell — mismatches are ``!``,
+    never explained."""
+    from tests.eval_report_agent import grid
+
+    truth = tmp_path / "truth"
+    truth.mkdir()
+    (truth / "N1.json").write_text(json.dumps({
+        "episode": "N1", "expected_verdict": "converged",
+        "planted": None, "family": None}), encoding="utf-8")
+    runs = tmp_path / "runs"
+    answer = {"verdict": "converged", "summary": ""}
+
+    # marker says statistics; the delivered calls never carried the key
+    _cell(runs, "report_stat", "sonnet", "N1",
+          [_call(report=_firing_report()[0])], answer)
+    # marker says summary; the statline leaked in anyway
+    leaked_report, leaked_clause = _firing_report()
+    leaked = _call(report=leaked_report)
+    leaked["response"]["result"]["statistics"][
+        "identifiability_clause"] = leaked_clause
+    _cell(runs, "report", "sonnet", "N1", [leaked], answer)
+    # marker says no execution; the field arrived anyway
+    _cell(runs, "report_noexec", "haiku", "N1",
+          [_call(report=_firing_report()[0])], answer)
+    # the honest status quo: clause in the summary, execution delivered
+    _cell(runs, "report", "haiku", "N1",
+          [_call(report=_firing_report()[0])], answer)
+
+    rows = {(r["condition"], r["model"]): r for r in grid.collect(runs, truth)}
+    assert rows[("report_stat", "sonnet")]["payload_ok"] is False
+    assert rows[("report", "sonnet")]["payload_ok"] is False
+    assert rows[("report_noexec", "haiku")]["payload_ok"] is False
+    assert rows[("report", "haiku")]["payload_ok"] is True
+
+
+def test_grid_leaves_archived_markers_unaudited_on_the_new_axes(tmp_path):
+    """A pre-2.2 marker carries neither projection key, and absent means the
+    condition never existed — a 2.1-era record (actions without
+    ``execution``, clause in the summary) re-grades without a ``!``, so the
+    archived rounds' grids regenerate byte-identically."""
+    from tests.eval_report_agent import grid
+
+    truth = tmp_path / "truth"
+    truth.mkdir()
+    (truth / "N1.json").write_text(json.dumps({
+        "episode": "N1", "expected_verdict": "converged",
+        "planted": None, "family": None}), encoding="utf-8")
+    runs = tmp_path / "runs"
+    era_report, _clause = _firing_report()
+    for action in era_report["suggested_actions"]:
+        action.pop("execution", None)          # a thresholds-0.9 response
+    edir = _cell(runs, "report", "sonnet", "N1", [_call(report=era_report)],
+                 {"verdict": "converged", "summary": ""})
+    marker_path = edir.parent / "N1.condition.json"
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    del marker["license_placement"], marker["include_execution"]
+    marker["protocol_version"] = "2.1"
+    marker_path.write_text(json.dumps(marker), encoding="utf-8")
+
+    rows = grid.collect(runs, truth)
+    assert rows[0]["action_missing_execution"] is True   # the fact is read
+    assert rows[0]["payload_ok"] is True                 # but never audited

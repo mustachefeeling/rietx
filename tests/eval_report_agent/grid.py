@@ -69,13 +69,28 @@ def collect(runs_dir: Path, truth_dir: Path) -> list[dict]:
             card = score_episode(edir, truth_file)
             marker_path = edir.parent / f"{edir.name}.condition.json"
             if marker_path.exists():
-                condition = json.loads(
-                    marker_path.read_text(encoding="utf-8"))["condition"]
+                marker = json.loads(marker_path.read_text(encoding="utf-8"))
+                condition = marker["condition"]
                 want_report, want_trajectory = _expected_payload(condition)
                 got_trajectory = (card["trajectory_rungs"] or 0) > 0
                 payload_ok = (card["report_present"] is None
                               or (card["report_present"] == want_report
                                   and got_trajectory == want_trajectory))
+                # the 2.2 projections, audited only where the marker declares
+                # them — an archived pre-2.2 marker carries neither key, and
+                # absent means the condition never existed, not "default"
+                if (payload_ok and "license_placement" in marker
+                        and card["license_in_statistics"] is not None):
+                    payload_ok = (
+                        not card["statline_missing_where_fired"]
+                        if marker["license_placement"] == "statistics"
+                        else not card["license_in_statistics"])
+                if (payload_ok and "include_execution" in marker
+                        and card["execution_delivered"] is not None):
+                    payload_ok = (
+                        not card["action_missing_execution"]
+                        if marker["include_execution"]
+                        else not card["execution_delivered"])
             elif prefix == "python":
                 # no shim, no marker: nothing whose delivery could disagree
                 condition, payload_ok = "python", None
