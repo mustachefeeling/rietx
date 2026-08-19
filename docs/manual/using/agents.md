@@ -261,11 +261,14 @@ rounds found that consumers handed the rungs unasked decided no better at more
 calls. `Refinement.fit(stage_reports=True)` is the library spelling of the same
 switch, off for the same reason plus one more, that `fit` is called in loops.
 
-What it costs, measured on a 4200-point synthetic LaB₆ pattern through a
-five-stage default plan: the fit takes 2.8× the wall clock (0.29 s to 0.80 s)
-and the envelope grows 3.6 kB, about 3 % of the report's own 114 kB. It changes
-no number the fit produces — Rwp came back bit-identical with the rungs on and
-off.
+What it costs, measured 2026-08-19 on a 4200-channel synthetic LaB₆ pattern
+through a five-stage default plan: the fit takes 2.7× the wall clock (0.30 s
+to 0.82 s) and the envelope grows 3.5 kB (0.6–0.8 kB a rung), about 3 % of
+the report's own 111 kB. That share is a property of the report, not of the
+trajectory: 89 of the report's 111 kB is its geometry table, which no rung
+carries, so beside a geometry-light report the same rungs weigh a far larger
+fraction. It changes no number the fit produces — Rwp came back bit-identical
+with the rungs on and off.
 
 ### Failure
 

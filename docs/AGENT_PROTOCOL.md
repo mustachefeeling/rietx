@@ -1337,11 +1337,17 @@ applied against the whole plan. Two properties make it safe to rely on:
   same fit runs without it (measured: identical Rwp to full float precision on
   the synthetic fixtures, 0.140249 on 11-BM NAC). Nothing is refined to
   produce a rung.
-- **It costs ≈2.5× the fit's wall clock** (1.06 s → 2.70 s on 59.5k channels;
-  0.28 s → 0.87 s on a 1000-channel fixture) and ~26 % of the report's
-  payload — 0.9–2.6 kB a rung. The cost is flat *per stage*, not per
-  iteration, so on a hard or diverging fit it disappears into the noise. Turn
-  it off for a fit you are not going to read.
+- **It costs ≈2.5–2.8× the fit's wall clock** (1.06 s → 2.70 s on 59.5k
+  channels of real 11-BM data; 0.30 s → 0.82 s on the 4200-channel synthetic
+  LaB₆ fixture, re-measured 2026-08-19) and single-digit kB of payload: on
+  that LaB₆ fixture, 0.6–0.8 kB a rung, 3.5 kB for the whole five-rung
+  trajectory, ~3 % of the 111 kB report it ships beside. Quote that share
+  with its fixture — the report's size is dominated by its geometry table
+  (89 kB of the 111), which no rung carries, so beside a geometry-light
+  report the same trajectory reads as ~26 % (the `StageReport` docstring's
+  WP-1058-era episode-fixture measurement). The cost is flat *per stage*, not
+  per iteration, so on a hard or diverging fit it disappears into the noise.
+  Turn it off for a fit you are not going to read.
 
 What to look for, in order:
 

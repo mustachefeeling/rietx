@@ -903,11 +903,15 @@ class StageReport(Base):
 
     :class:`FitReport` is what a *consumer that reads one state* needs; this is
     what a consumer reading **five** needs, and the difference is not detail —
-    it is payload.  Measured on the WP-1053 episode fixtures and real 11-BM
-    data, a full FitReport serializes to 26–40 kB, so a five-stage trajectory
-    of them is 130–190 kB against the 26 kB single report it accompanies.  This
-    projection measures 0.9–2.6 kB a rung — 6.6 kB for the whole five-rung E2
-    trajectory, +26 % on the report it ships beside — and carries the numbers
+    it is payload.  Measured at WP-1058 on the WP-1053 episode fixtures and
+    real 11-BM data, a full FitReport serialized to 26–40 kB, so a five-stage
+    trajectory of them was 130–190 kB against the 26 kB single report it
+    accompanies, at 0.9–2.6 kB a rung for this projection (+26 % on that
+    report).  Re-measured 2026-08-19 on the 4200-channel synthetic LaB₆
+    fixture the gap is wider still: the full report is 111 kB — 89 kB of it
+    the WP-1072 geometry table, which no rung carries — against 0.6–0.8 kB a
+    rung, 3.5 kB for the whole five-rung trajectory, ~3 % of the report it
+    ships beside.  It carries the numbers
     AGENT_PROTOCOL §4 judges a fit on, the summary sentence every section's
     headline clause already lands in (by construction — see
     :func:`~rietx.report.build_report`), and the active suggestions
