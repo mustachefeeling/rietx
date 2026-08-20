@@ -77,6 +77,21 @@ Papers (author, year, journal), datasets, cross-code targets.
 ## Handover log
 
 Append-only, newest first. An entry is REQUIRED before ending any session
-that touched this WP — done / in flight / next / gotchas.
+that touched this WP.
+
+**Two entry forms, both dated, both read by
+`.claude/hooks/session_start.py`** (which is why
+`tests/test_docs_consistency.py` pins them): a one-line
+`- **YYYY-MM-DD** — <text>` bullet, or, once a WP takes more than one session
+in a day — the normal cadence here — a `### YYYY-MM-DD [(Nth session)] —
+<title>` heading with the entry below it. Nothing else counts as an entry, and
+an entry the hook cannot see is a handover that did not happen.
+
+**Every entry opens with a plain-language paragraph saying what the work
+*means*** — what a reader who has not seen the diff now knows, or can do, that
+they could not before — and closes by naming the next action. Between them go
+the working details: *Done* / *Measured* / *In flight* / *Next* / *Gotchas*.
+The lede is the part a person reads; the rest is the part a successor reads.
+Write it as the answer to "so what?", never as a list of commits.
 
 - **YYYY-MM-DD** — created.

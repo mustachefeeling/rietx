@@ -166,7 +166,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # v1.1 speed set (1109 moved + five new rows and its intro) and the v1.1
     # Milestones row.  Same rule as the bump above: rows cannot go down a
     # rank, so the cap grows with the WP count and with nothing else.
-    "docs/ROADMAP.md": 438,
+    # 438 -> 439 for WP-1116 (2026-08-20): its own index row, and only that.
+    # The same WP also rewrote § Session protocol's rule 3, which is two lines
+    # longer — prose, so by the rule above it earns no bump and was paid for
+    # by compressing Current focus instead.  That is the rule working: the
+    # cap is a budget on narrative, and a row is not narrative.
+    "docs/ROADMAP.md": 439,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
@@ -288,6 +293,60 @@ def test_inherited_is_h3_and_closed_wps_have_consumed_theirs():
                 "fold what was consumed into Context and delete the section "
                 "(protocol step 1)"
             )
+
+
+# The two entry forms TEMPLATE.md sanctions and .claude/hooks/session_start.py
+# parses.  Kept as literal source here rather than imported from the hook: the
+# point is that the two agree, and a shared constant could not fail.
+_ENTRY_BULLET_RE = re.compile(r"^- \*\*\d{4}-\d{2}-\d{2}", re.M)
+_ENTRY_HEADING_RE = re.compile(r"^#{3,4} \d{4}-\d{2}-\d{2}", re.M)
+
+
+def _handover_log(path: Path) -> str | None:
+    """The `## Handover log` section, bounded at the next H2 — several WPs put
+    `## References` after it."""
+    _, sep, log = path.read_text(encoding="utf-8").partition("\n## Handover log")
+    if not sep:
+        return None
+    return re.split(r"^## ", log, maxsplit=1, flags=re.M)[0]
+
+
+def test_every_handover_entry_is_in_a_form_the_session_hook_can_read():
+    """A handover the SessionStart scan cannot see is a handover that did not
+    happen — it reports the WP as owing one at the next session, and a false
+    alarm teaches the reader to skip the one line that is ever load-bearing.
+
+    Measured 2026-08-20: WP-1109 and WP-1110 had adopted `### YYYY-MM-DD`
+    headings, which multi-session days need and a date bullet cannot express,
+    and the hook read only bullets — so it flagged both as un-handed-over on
+    the morning after three handed-over sessions.
+    """
+    for path in _wp_files():
+        log = _handover_log(path)
+        assert log is not None, f"{path.name}: no '## Handover log' section"
+        assert _ENTRY_BULLET_RE.search(log) or _ENTRY_HEADING_RE.search(log), (
+            f"{path.name}: the handover log has no entry in either sanctioned "
+            "form — '- **YYYY-MM-DD** — …' or '### YYYY-MM-DD — …' "
+            "(docs/wp/TEMPLATE.md § Handover log)"
+        )
+        for line in log.splitlines():
+            if line.startswith("#") and not re.match(r"^#{3,4} \d{4}-\d{2}-\d{2}", line):
+                raise AssertionError(
+                    f"{path.name}: heading in the handover log does not open "
+                    f"with a date, so the scan cannot see it: {line!r}"
+                )
+
+
+def test_template_declares_both_handover_entry_forms():
+    """TEMPLATE.md is where a session learns the format; the hook and this test
+    both depend on it saying the same thing."""
+    text = TEMPLATE.read_text(encoding="utf-8")
+    assert "- **YYYY-MM-DD**" in text
+    assert "### YYYY-MM-DD" in text
+    assert "session_start.py" in text, (
+        "TEMPLATE.md must name the hook that reads these entries — the format "
+        "is a contract with it, not a house style"
+    )
 
 
 _LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")

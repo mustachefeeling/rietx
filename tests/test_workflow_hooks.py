@@ -1,5 +1,9 @@
 """The SessionStart workflow scan (.claude/hooks/session_start.py, WP-1061).
 
+WP-1116 gave it its second coverage rule (commit order, which sees a miss
+inside the same day) and taught it the heading entry form; the tests below
+carry the measurement that shaped each.
+
 The hook is stdlib-only and lives outside the package on purpose (it must not
 depend on the venv it checks), so it is loaded here by file path and its scan
 functions are driven directly against tmp_path git fixtures — no subprocess
@@ -53,7 +57,17 @@ def write_wp(
     (root / "docs" / "wp" / f"{num}-fixture.md").write_text(text, encoding="utf-8")
 
 
-def commit_wp(root: Path, num: str, date: str) -> None:
+def commit_wp(root: Path, num: str, date: str, code: bool = False) -> None:
+    """Commit the tree as one ``WP-NNNN:`` commit.
+
+    ``code=True`` also writes a source file, which is what makes the commit
+    *substantive* — a commit touching only the WP file, docs or ``.claude/`` is
+    ritual and owes no handover of its own (hook ``_is_ritual``).
+    """
+    if code:
+        src = root / "src" / "fixture.py"
+        src.parent.mkdir(exist_ok=True)
+        src.write_text(f"# {num} {date}\n", encoding="utf-8")
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", f"WP-{num}: fixture work", date=date)
 
@@ -108,11 +122,48 @@ def test_closed_wp_with_later_commit_is_soft_note(repo: Path) -> None:
     assert hook.REPAIR_HINT not in out
 
 
-def test_same_day_commit_and_entry_is_invisible(repo: Path) -> None:
-    # The documented blind spot, pinned as such: entries are day-dated, so a
-    # commit followed by a missed handover on the same day cannot be seen.
+def test_same_day_miss_is_caught_by_commit_order(repo: Path) -> None:
+    """The pre-WP-1116 blind spot: three sessions in one day is this repo's
+    normal cadence (WP-1109, 2026-08-20), so a day-dated rule could only catch
+    a miss that survived past midnight.  Order catches it inside the day."""
     write_wp(repo, "9005", "🔄 2026-08-03 — in flight", ["2026-08-03"])
-    commit_wp(repo, "9005", "2026-08-03")
+    commit_wp(repo, "9005", "2026-08-03")  # the handover: touches the WP file
+    commit_wp(repo, "9005", "2026-08-03", code=True)  # then work, un-handed-over
+    (finding,) = hook.handover_findings(repo)
+    assert (finding.severity, finding.basis) == ("repair", "order")
+    assert finding.entry_date == "2026-08-03"  # same day, and still flagged
+    assert "WP file not touched since" in hook.render(repo)
+
+
+def test_ritual_commits_after_the_handover_do_not_flag(repo: Path) -> None:
+    """The handover ritual spans several commits — a CLAUDE.md rule, the
+    ROADMAP sync, a merge — and they land *after* the WP file's own edit.
+    Requiring the WP file to come last flagged three healthy WPs on this
+    repo's history (1016, 1059, 1078)."""
+    write_wp(repo, "9006", "✅ 2026-08-03 — shipped", ["2026-08-03"])
+    commit_wp(repo, "9006", "2026-08-03", code=True)
+    write_wp(repo, "9006", "✅ 2026-08-03 — shipped", ["2026-08-03", "2026-08-03"])
+    commit_wp(repo, "9006", "2026-08-03")  # the handover entry
+    (repo / "CLAUDE.md").write_text("a standing rule.\n", encoding="utf-8")
+    commit_wp(repo, "9006", "2026-08-03")  # protocol step 6, its own commit
+    assert hook.handover_findings(repo) == []
+
+
+def test_heading_entries_count_as_entries(repo: Path) -> None:
+    """A multi-session day needs a per-session heading, which a date bullet
+    cannot express.  Reading only bullets is what made this scan flag WP-1109
+    and WP-1110 on 2026-08-20 when both had been handed over."""
+    path = repo / "docs" / "wp" / "9007-fixture.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "# WP-9007 — fixture\n\nMilestone: v1.1 · Status: 🔄 2026-08-03 — x\n\n"
+        "## Handover log\n\n"
+        "### 2026-08-03 (second session) — more\n\nbody.\n\n"
+        "### 2026-08-03 — first\n\nbody.\n",
+        encoding="utf-8",
+    )
+    commit_wp(repo, "9007", "2026-08-03")
+    assert hook.wp_file_state(repo, "9007")[2] == "2026-08-03"
     assert hook.handover_findings(repo) == []
 
 
