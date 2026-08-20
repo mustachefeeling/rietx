@@ -217,6 +217,24 @@ def test_the_installed_distribution_resolves_under_the_name_we_ask_for(caps):
     assert caps.package_version == _VERSION
 
 
+def test_dunder_version_is_the_same_string_capabilities_reports(caps):
+    """``rietx.__version__`` is the first thing anyone types (WP-1110 item 12).
+
+    It raised ``AttributeError`` until WP-1110, so the only answer to "what am
+    I running" was ``capabilities().package_version`` — reachable by a caller
+    who already knew ``capabilities()`` existed.  Pinned as the *same object*
+    rather than an equal string: a second ``importlib.metadata`` lookup here
+    would be a second authority, free to disagree with the version every
+    ``Provenance``, ``TreeHeader`` and ``project.json`` was stamped from.
+    """
+    import rietx
+    from rietx.refine import _VERSION
+
+    assert rietx.__version__ is _VERSION
+    assert rietx.__version__ == caps.package_version
+    assert "__version__" in rietx.__all__
+
+
 def test_capabilities_survives_json(caps):
     """WP-1008 serves this verbatim, so it has to be JSON all the way down."""
     round_tripped = type(caps).model_validate_json(caps.model_dump_json())

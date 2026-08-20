@@ -54,6 +54,21 @@ stay fp64 on the host.
 
 ## Checking an install
 
+`rietx.__version__` is the version of the installed distribution — the same
+string `capabilities().package_version` reports and every `Provenance`,
+`TreeHeader` and `project.json` is stamped with, so a result and the package
+that produced it can never disagree about it.
+
+```python
+import rietx
+
+rietx.__version__
+```
+
+It reads `0.0.0+dev` when no distribution of that name is installed. That is a
+checkout on `sys.path` ahead of its own install, and it is worth fixing before
+you refine anything: the string travels into the provenance of every result.
+
 Ask the package rather than a table that goes stale. `capabilities()` reports
 the versions, the backends, the plans, the modes, the anodes, the pattern
 formats it can open, and the feature flags. For each backend it reports whether
