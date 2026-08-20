@@ -148,7 +148,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # work — adding a schema field or a Literal member — rather than manual
     # work: 1067's near-miss rule was about mis-attributing a type in prose and
     # went into a docstring instead, and the cap was what sent it there.
-    "CLAUDE.md": 720,
+    # 720 -> 736 for WP-1109 (2026-08-20): the structural-freeze question.
+    # The operating detail went down a rank as this comment requires — the
+    # memo's contract is in `CompiledModel._memo`'s docstring, the profile
+    # numbers and the cumulative before/after in the WP, the narrative in the
+    # v1.1 record.  What cannot go down a rank is the clause a session adding
+    # any compile-time freeze never reads: `free_paths` is the narrower
+    # question and a tie defeats it, so a freeze asks `moving_paths` and then
+    # verifies its own claim where the claim is used.
+    "CLAUDE.md": 736,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one

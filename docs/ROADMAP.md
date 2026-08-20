@@ -88,11 +88,13 @@ it is `docs/RELEASING.md`, and nothing gates it now.
 `1.1.0.dev0`; scope, acceptance targets and the opening narrative:
 [milestones/v1.1.md](milestones/v1.1.md)). Performance is the
 competitiveness priority: the trigger session spent 3 h 20 min in
-refinements TOPAS fits in under a second each. Execution order, one WP per
-session (§ v1.1 — refinement speed below): finish
-[1109](wp/1109-refinement-speed.md)'s exact wins →
-[1111](wp/1111-benchmark-harness.md) harness (records the opening baseline)
-→ [1112](wp/1112-batched-derivative-bases.md) batched Jacobian path →
+refinements TOPAS fits in under a second each.
+**[1109](wp/1109-refinement-speed.md) closed 2026-08-20**: every win available
+without changing an answer is taken (1.42× on `cpd-1a`, 1.11× on
+QPA-acceptance `cpd-2`). Execution order from here, one WP per session:
+[1111](wp/1111-benchmark-harness.md) harness — whose opening baseline must be
+measured on the *current* tree, not on 1109's opening table →
+[1112](wp/1112-batched-derivative-bases.md) batched Jacobian path →
 [1113](wp/1113-evaluation-count.md) evaluation count (may interleave with
 1112) → [1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
 [1115](wp/1115-compiled-kernel-spike.md), which opens only if the harness
@@ -383,7 +385,7 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1109](wp/1109-refinement-speed.md) | Refinement speed: where the time actually goes | 🔄 2026-08-20 | — |
+| [1109](wp/1109-refinement-speed.md) | Refinement speed: where the time actually goes | ✅ 2026-08-20 | — |
 | [1111](wp/1111-benchmark-harness.md) | The refinement benchmark harness, and the trigger-shaped case | ⬜ | — |
 | [1112](wp/1112-batched-derivative-bases.md) | The batched derivative side, and η-aware windows | ⬜ | 1111 |
 | [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | ⬜ | 1111 (soft) |
