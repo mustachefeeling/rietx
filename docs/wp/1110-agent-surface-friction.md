@@ -21,8 +21,20 @@ could not do.
 
 **What it never touched.** Zero calls to `agent.refine_json` or
 `agent.tool_definition` — the entire tool-calling surface WP-0602 exists to
-provide. It never opened `docs/AGENT_PROTOCOL.md`, and never found
-`docs/manual/using/agents.md`, which is the page written for it. It fetched five
+provide. It never opened `docs/AGENT_PROTOCOL.md`, and never reached
+`docs/manual/using/agents.md`, which is the page written for it.
+
+**That page is not missing, which is the uncomfortable part.** It sits in the
+toctree at `docs/manual/index.md:110`, the manual's front page carries a "For
+agents" admonition (`index.md:30`), and the chapter opens on exactly the two
+calls this agent needed: "Two calls carry the whole integration surface.
+`capabilities()` says what this build can do; `agent.refine_json` does it." The
+agent *did* call `capabilities()`, and still never called `refine_json`. So the
+fix is not more documentation. The candidates are that the chapter's title —
+"Calling rietx from a program" — does not read as the machine-facing entry
+point to something scanning an index; that an agent driving a shell prefers
+python it can compose over a JSON envelope it cannot inspect midway; or that
+`refine_json` does not cover the series case it needed. It fetched five
 doc pages (index, install, README, series, and `using/constraints.html`, **which
 404s — there is no `constraints.md`**), then gave up on docs and discovered the
 API by `inspect.signature`, `dir()`, `model_fields` dumps, and reading installed
@@ -110,13 +122,22 @@ decision the maintainer should take first. Candidates, roughly by value:
       `statistics.rwp`), `PLAN_PRESETS` values that behave like plans or are
       documented as factories, and `Parameter.expr` either implemented or
       rejected at validation rather than at use.
-- [ ] **Write `docs/manual/using/constraints.md`** — a page the agent went
-      looking for and that 404s. Its absence sent the agent into the source.
-- [ ] **Decide why `refine_json` was not reached.** The honest possibilities are
-      that it is not discoverable from the docs entry points, that a
-      shell-driving agent prefers python it can compose, or that it does not
-      cover the series case well enough. This is worth answering before building
-      more of it: `docs/manual/using/agents.md` exists and was never found.
+- [ ] **Make a guessed page name land somewhere.** The agent fetched
+      `using/constraints.html` and got a 404 — but constraints *are* documented,
+      in `using/concepts.md:137` (`tie`/`tie_equal`/`untie`, the affine form,
+      the fnmatch globs). Nothing is missing; a plausible guess simply misses,
+      and this one sent the agent into `schemas/common.py`. The cheap fix is a
+      `constraints.md` that is one `{ref}` to the concepts section, and the same
+      for any other name a caller would guess. Same class as the item above:
+      the content exists and is not being reached.
+- [ ] **Decide why `refine_json` was not reached** — the question the others
+      depend on. The chapter exists, is linked from the front page, and names
+      the call in its first two sentences (Context above), so "write more docs"
+      is already refuted. Answer it with a real agent, not by reasoning: give
+      one the same data and watch where it goes. If the answer is that a
+      shell-driving agent will always prefer composable python, then the
+      investment belongs in the python surface's ergonomics and its diagnostics,
+      and `refine_json` is for MCP callers rather than for coding agents.
 
 ## Acceptance
 
