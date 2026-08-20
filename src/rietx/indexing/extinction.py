@@ -743,7 +743,24 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     rows = ref_fit.reflection_table()
     primary = [r for r in rows if r.line == 0]
     if not primary:
+        # Reached when the cell predicts nothing in the measured range.  It used
+        # to be reached by accident instead: ``generate_reflections`` raised an
+        # einsum shape error on the empty hkl set and the ``except`` above dressed
+        # it up as the reason.  Now that an empty range is answered rather than
+        # raised, this branch is the live one — and a "failed" status carrying no
+        # diagnostic is a state with no writer for its reason, so it says why.
         screen.status = "failed"
+        screen.diagnostics = [Diagnostic(
+            level="error", code="EXTINCTION_SCREEN_FAILED",
+            message=(f"the lattice group {symbol} predicts no reflections in "
+                     f"the measured 2θ range, so there is nothing for any "
+                     f"absence class to be screened against"),
+            where=[f"{candidate.system} {candidate.centring}, cell "
+                   f"{tuple(round(v, 4) for v in candidate.cell)}"],
+            suggestion=("this is about the cell and the range, not the classes — "
+                        "every class would fail the same way.  Check the cell is "
+                        "not far too small for the range measured, and that the "
+                        "wavelength is the one the pattern was collected at"))]
         return screen
     tt_ref = np.array([r.two_theta for r in primary], dtype=np.float64)
     hkl_ref = np.array([(r.h, r.k, r.l) for r in primary], dtype=np.int64)

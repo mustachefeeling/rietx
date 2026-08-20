@@ -72,6 +72,30 @@ first-class, served by machinery that already exists.
   (`capabilities.py`) beside `"peak_picking"`; the hand-written expected-key
   set in `tests/test_capabilities.py` grows by one.
 
+### Inherited
+
+**From WP-1109 (2026-08-20), measured on this worktree's `[dev]` venv,
+darwin/arm64 — the cost model for window sizing is not the intuitive one.**
+
+The profile kernel is **dispatch-bound, not point-bound**:
+`model/profiles/pseudovoigt.py:64` `pseudo_voigt_derivs` costs **11.8 µs at a
+25-point window and 13.6 µs at 194 points** — about 11 µs of fixed python/ufunc
+dispatch and ~0.01 µs per point. So a fitter's cost tracks the *number* of
+windows it evaluates, essentially not their width. Two consequences for the
+fresh-window sizing task here: widening a window to be safe is close to free,
+and shaving points off one to be fast buys almost nothing (measured ~13 % on the
+refinement path). Optimise the count, not the width.
+
+For calibration on what the refinement path currently does — this is context,
+not a rule to copy: `model/forward.py:110-111` sets `WINDOW_FWHM_MULT = 30.0`
+and `WINDOW_MIN_DEG = 0.3`, which on the `qarr/cpd-2` protocol gives a median
+window of 185 points against a median FWHM of 3 points (**~69× FWHM**), and
+summed window points of **8.1 × n_points** per residual. That margin is sized
+for a pure Lorentzian and applied unconditionally: truncation at 8 FWHM is
+2.0e-3 of peak height at η = 0.6, and at 4 FWHM 7.8e-3. WP-1109 carries an
+η-aware sizing task against those numbers, so if `PEAK_WINDOW_FWHM_MULT` here
+ends up deriving from `WINDOW_FWHM_MULT`, expect that constant to move.
+
 ## Non-goals
 
 - Exporting `fit_group_at`, `GroupFit`, `Detection`, `PeakGroup`,

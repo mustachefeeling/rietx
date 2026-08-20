@@ -43,6 +43,71 @@ def test_pm3m_multiplicities():
     assert mult[(1, 2, 3)] == 48
 
 
+#: (symbol, cell, 2θ_max) across every crystal system — the orbit action is
+#: vectorised over all hkl at once, and the Rᵀ trap in symmetry.py's docstring
+#: keeps the reflection *count* right in every system while serving the wrong
+#: orbits, so these two tests assert the partition itself rather than a count.
+_ORBIT_SETTINGS = [
+    ("P m -3 m", CUBIC, 26.0),
+    ("I 21 3", (10.25,) * 3 + (90.0,) * 3, 10.0),
+    ("R -3 c", (4.7592, 4.7592, 12.9918, 90.0, 90.0, 120.0), 60.0),
+    ("P 63/m m c", (3.2094, 3.2094, 5.2108, 90.0, 90.0, 120.0), 60.0),
+    ("I 41/a m d", (3.7842, 3.7842, 9.5146, 90.0, 90.0, 90.0), 60.0),
+    ("P n m a", (5.4, 7.6, 5.2, 90.0, 90.0, 90.0), 60.0),
+    ("P 1 21/c 1", (10.0, 12.0, 15.0, 90.0, 103.0, 90.0), 40.0),
+    ("P -1", (8.0, 11.0, 14.0, 88.0, 97.0, 105.0), 30.0),
+]
+
+
+@pytest.mark.parametrize(("symbol", "cell", "tt_max"), _ORBIT_SETTINGS)
+def test_orbits_partition_the_reflection_sphere(symbol, cell, tt_max):
+    """Every allowed hkl in range belongs to exactly one reported orbit.
+
+    Re-derives the orbits from the operators independently of
+    ``generate_reflections``: each representative is expanded under Rᵀ (Friedel
+    mates included) and the images are checked to be distinct across orbits and
+    to number exactly the reported multiplicity.  A transposed-versus-untransposed
+    slip leaves the number of representatives unchanged, so only the images
+    themselves catch it.
+    """
+    refl = generate_reflections(symbol, cell, wavelength=1.5406,
+                                two_theta_max=tt_max, two_theta_min=2.0)
+    sg = get_spacegroup(symbol)
+    # built here from gemmi directly (rotations are stored scaled by Op.DEN)
+    # rather than through the module's own helper, so the check does not inherit
+    # the transpose it is meant to police
+    rot = np.array([np.transpose(np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN)
+                    for op in sg.operations()])
+    rot = np.rint(rot).astype(np.int64)
+
+    seen: set[tuple[int, int, int]] = set()
+    for h, m in zip(refl.hkl, refl.multiplicity):
+        images = np.einsum("mij,j->mi", rot, h)
+        orbit = {tuple(map(int, im)) for im in images}
+        orbit |= {tuple(-np.array(k)) for k in orbit}  # Friedel
+        assert len(orbit) == m, f"{symbol} {h}: orbit {len(orbit)} vs reported {m}"
+        assert not (orbit & seen), f"{symbol} {h}: orbit overlaps an earlier one"
+        seen |= orbit
+    # the representatives are themselves distinct
+    assert len({tuple(map(int, h)) for h in refl.hkl}) == len(refl.hkl)
+
+
+def test_orbit_chunking_is_transparent(monkeypatch):
+    """The image stack is chunked to stay O(1) in memory the way the per-hkl
+    loop was, so the multi-chunk branch must return what one chunk returns."""
+    from rietx.crystallography import symmetry as sym
+
+    cell = (10.0, 12.0, 15.0, 90.0, 103.0, 90.0)
+    whole = generate_reflections("P 1 21/c 1", cell, wavelength=1.5406,
+                                 two_theta_max=40.0, two_theta_min=2.0)
+    monkeypatch.setattr(sym, "_ORBIT_CHUNK_ELEMENTS", 120)
+    chunked = generate_reflections("P 1 21/c 1", cell, wavelength=1.5406,
+                                   two_theta_max=40.0, two_theta_min=2.0)
+    np.testing.assert_array_equal(chunked.hkl, whole.hkl)
+    np.testing.assert_array_equal(chunked.multiplicity, whole.multiplicity)
+    np.testing.assert_array_equal(chunked.d, whole.d)
+
+
 def test_body_centring_absences():
     refl = generate_reflections("I 21 3", (10.25,) * 3 + (90.0,) * 3,
                                 wavelength=0.4139, two_theta_max=8.0)
