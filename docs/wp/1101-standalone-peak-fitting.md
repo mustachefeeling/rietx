@@ -1,6 +1,6 @@
 # WP-1101 — fit_peaks: standalone peak fitting at named positions
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.2 · Status: ⬜
 Depends on: — (first of the free-standing peaks set; opens the 11xx block)
 
 ## Goal
@@ -92,9 +92,11 @@ and `WINDOW_MIN_DEG = 0.3`, which on the `qarr/cpd-2` protocol gives a median
 window of 185 points against a median FWHM of 3 points (**~69× FWHM**), and
 summed window points of **8.1 × n_points** per residual. That margin is sized
 for a pure Lorentzian and applied unconditionally: truncation at 8 FWHM is
-2.0e-3 of peak height at η = 0.6, and at 4 FWHM 7.8e-3. WP-1109 carries an
-η-aware sizing task against those numbers, so if `PEAK_WINDOW_FWHM_MULT` here
-ends up deriving from `WINDOW_FWHM_MULT`, expect that constant to move.
+2.0e-3 of peak height at η = 0.6, and at 4 FWHM 7.8e-3 — though the 1109
+review re-judged truncation by *area* (a ±8 FWHM cut at η = 0.6 loses ≈2.4 %
+of intensity), and the η-aware sizing task moved to WP-1112 with that
+corrected criterion. If `PEAK_WINDOW_FWHM_MULT` here ends up deriving from
+`WINDOW_FWHM_MULT`, expect that constant to move under 1112.
 
 ## Non-goals
 

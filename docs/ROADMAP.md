@@ -337,13 +337,14 @@ the freeze decides.
 | [1073](wp/1073-capillary-displacement.md) | Capillary sample displacement, eq (4) | ✅ 2026-08-15 — eq (4) with derived signs, position templates and actions keyed by geometry (THRESHOLDS 1.0); measured: 11-BM is where it must *not* be refined | — (1.0.x) |
 | [1074](wp/1074-restraint-weight-schedule.md) | Restraint weight schedule (c_w) | ✅ 2026-08-16 — eq (7)'s c_w per stage, identity default bit-identical; measured: a flat c_w = 1 converges to a 4.834 Å bond at Rwp 0.0393, the schedule to 1.872 Å at 0.0327 | 0406 (1.0.x) |
 
-### v1.1 — free-standing peaks (added 2026-08-18)
+### v1.2 — free-standing peaks (shifted 2026-08-20)
 
 Peaks without a structure, at three ranks: fitted standalone (1101), and the
 `Instrument.extra_components` union seam — the serializable answer to TOPAS's
 fit_obj — with broad humps (1102) and sharp peaks (1103) as its first members.
-Recommended v1.1 openers; the first implementing session executes the opening
-(version → `1.1.0.dev0`, `milestones/v1.1.md` started, a Milestones row).
+Shifted from v1.1 when the refinement-speed milestone took that slot
+(2026-08-20); the WPs keep their 11xx numbers per the block rule's
+ran-past precedent above.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -367,8 +368,24 @@ answered by a pre-registered round before any placement ships (1107).
 | [1106](wp/1106-report-placement-fields.md) | Report placement fields: structured where prose was load-bearing | ✅ | — |
 | [1107](wp/1107-eval-placement-round.md) | Eval protocol 2.2: the placement round | ✅ 2026-08-19 | 1105, 1106 |
 | [1108](wp/1108-license-statistics-placement.md) | The license beside the numbers: shipping the statistics placement | ✅ 2026-08-19 | 1107 |
-| [1109](wp/1109-refinement-speed.md) | Refinement speed: where the time actually goes | 🔄 2026-08-20 | — |
 | [1110](wp/1110-agent-surface-friction.md) | The agent surface, measured against an agent that used it | ⬜ | — |
+
+### v1.1 — refinement speed (added 2026-08-20)
+
+The milestone's own series, opened by the 2026-08-20 review of 1109 against
+the two Coelho (2018) papers: measure first (1111), then the exact wins
+(1109), the batched Jacobian path (1112), the evaluation-count front (1113),
+the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
+(1115). Targets and the opening baseline: `milestones/v1.1.md` § Acceptance.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1109](wp/1109-refinement-speed.md) | Refinement speed: where the time actually goes | 🔄 2026-08-20 | — |
+| [1111](wp/1111-benchmark-harness.md) | The refinement benchmark harness, and the trigger-shaped case | ⬜ | — |
+| [1112](wp/1112-batched-derivative-bases.md) | The batched derivative side, and η-aware windows | ⬜ | 1111 |
+| [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | ⬜ | 1111 (soft) |
+| [1114](wp/1114-peaks-buffer-spike.md) | Peaks-buffer spike: shape reuse across 2θ | ⬜ | 1112 |
+| [1115](wp/1115-compiled-kernel-spike.md) | Compiled-kernel spike (gated) | ⬜ | 1112, 1114 |
 
 ## v2+ (seams pre-built, implementations fenced out)
 

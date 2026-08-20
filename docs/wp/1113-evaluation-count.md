@@ -1,0 +1,140 @@
+# WP-1113 — evaluation count: name the mechanism, then attack it
+
+Milestone: v1.1 · Status: ⬜
+Depends on: 1111 (soft — its iteration columns are this WP's before/after)
+
+## Goal
+
+The number of residual/Jacobian evaluations a staged fit spends is explained
+by a *named, measured mechanism* per expensive stage — not accepted as "real
+work" — and whatever reductions survive measurement are landed. Separately,
+the in-tree bounded-LM driver's convergence to a worse minimum on a shipped
+acceptance case is understood and either fixed or fenced with a reason.
+
+## Context
+
+All numbers from WP-1109's 2026-08-20 review (QPA-acceptance `cpd-2`, 4
+phases, 9 cumulative stages, worktree venv `[dev]`, darwin/arm64) unless
+said otherwise.
+
+- **The measured shape.** 534 residual + 425 Jacobian evaluations per fit
+  (nfev/iteration ≈ 1.26 — TRF with the analytic Jacobian, so evaluations ≈
+  iterations). Per-stage: `zero_disp` **93 iterations for its 2 new
+  parameters**, `cell` 131, `profile` 69, `sample_broadening` 82, `biso` 56.
+  The comparison point: Coelho (2018) converges a 550-parameter Pawley
+  refinement in ~34 iterations and treats ~20–60 as normal for hard
+  problems; the whole staged protocol here spends ~950. Whatever WP-1112
+  does to the cost *per* evaluation multiplies this count.
+- **It is not the solver's brand of damping.** The same protocol under
+  `solver="lm"` (`optimize/lm.py` — Coelho's λ_new schedule over the
+  bounded CG of Coelho 2005, WP-0601) also takes ~95 iterations on
+  `zero_disp` and 409 total. So the count is a property of the problem or
+  the staging, and the likely mechanism is worth stating as the hypothesis
+  to test first: sharp lab peaks (FWHM ~0.05°) make the residual violently
+  nonlinear in any parameter that *moves positions* — a step that shifts a
+  peak by more than its width leaves the linear model's validity region — so
+  the trust region/damping crawls at a fraction of a FWHM per iteration.
+  `zero_disp` and `cell` are exactly the position movers, and they are the
+  two worst stages. A mechanism test, not a speed test, decides this:
+  instrument the step-norm and trust-radius trajectory and see whether steps
+  are pinned at ~FWHM-fraction scale (crawl) or collapsing after rejections
+  (ill-conditioning).
+- **The LM basin finding** (measured once, recorded in 1109; do not re-run
+  casually): `solver="lm"` on this protocol lands at Rwp 0.245 vs TRF's
+  0.132, brucite 76.4 vs 38.2 wt %, in fewer iterations and less wall
+  (13.2 vs 17.6 s). Fewer iterations at a worse answer is not a speedup.
+  Candidate causes to separate: the λ schedule interacting with softplus
+  transforms (an internal-θ step that looks small can be huge in physical
+  space near the transform's dead zone), BCCG's bound handling activating
+  differently from TRF's reflective strategy, or an early acceptance the
+  `r_u` schedule permits that TRF's ratio test would reject. `bench_solver.py`
+  (WP-0601's protocol comparison) found identical minima on 2/3 protocols —
+  this is a new third-protocol counterexample and belongs in that bench's
+  case list whatever the outcome.
+- **Instrumentation is cheap by design**: per-iteration events already flow
+  (`history/events.py`; `_StepTracker` in `optimize/least_squares.py`
+  reconstructs accepted TRF steps), and event `data` is an **open dict** —
+  adding step-norm/λ/trust-radius fields to an existing kind is *not* an
+  `EVENT_SCHEMA_VERSION` bump (the rule and its test are in
+  `history/events.py`).
+- **Seeding attacks the count from the other end.** The trigger session's
+  own largest factor was cold vs warm start (138 s pattern 1 vs 7–9 s
+  patterns 6–7, same size — 20×). For `zero_disp` specifically, a 1D scan or
+  cross-correlation of y_obs against a cheap y_calc over a zero-shift grid
+  costs a handful of residual evaluations and could hand the stage a start
+  within a FWHM — turning a 93-iteration crawl into a short polish, if the
+  crawl hypothesis is right. Any seeding must live at the plan/stage level
+  (a seeding stage writes to the models before solving — the cancellation
+  contract in CLAUDE.md already names this shape).
+- **Per-stage budgets**: an intermediate stage's job is to seed the next
+  stage, not to reach publication convergence. 1109's retired-item 3
+  measured global tolerance loosening at only 1.24–1.32× (`cpd-1a`) /
+  1.00× (`cpd-2`) — so the tail is not where the iterations are, and any
+  budget experiment must measure the *whole-plan* effect of capping
+  intermediate stages (does the final stage inherit a good enough seed that
+  total evaluations drop, with the final answer unchanged to shift/esd?).
+  This may well retire as a non-cause; retire it with numbers either way.
+
+## Non-goals
+
+Replacing the staged-plan design with TOPAS-style all-at-once refinement
+(the ladder is a robustness and agent-legibility decision; this WP reduces
+its cost, not its existence); per-evaluation cost (1112); new solver
+algorithms beyond the two in-tree drivers (the solver survey,
+`docs/solver-survey.md`, already retired several — read §0 before proposing
+one); Rwp-judged anything.
+
+## Tasks
+
+- [ ] **Instrument**: step-norm, trust-radius/λ, and accept/reject per
+      iteration onto the existing event stream (open-dict fields, no schema
+      bump); a small analysis helper that plots/prints the trajectory for a
+      named stage.
+- [ ] **Name the mechanism** for `zero_disp` (93) and `cell` (131) on the
+      1111 cases: crawl vs collapse vs something else, written into this
+      file with the trajectories.
+- [ ] **Seeding experiment**: cross-correlation zero/displacement seed
+      before the plan; measure per-stage iterations and total evaluations,
+      answer-identity by shift/esd. Land it (as an opt-in stage or plan
+      preset behaviour) only if the measurement says so.
+- [ ] **Intermediate-budget experiment**: cap non-final stages, measure
+      whole-plan evaluations and final-answer identity; land or retire with
+      numbers.
+- [ ] **LM basin investigation**: reproduce on the QPA protocol, bisect the
+      candidate causes above, add the case to `examples/bench_solver.py`'s
+      protocol list; fix if the cause is a defect, fence with a recorded
+      reason if it is the method (`solver="lm"`'s docstring then names the
+      protocol it loses).
+- [ ] Tests (the instrumentation fields, the seeding stage if landed) +
+      before/after iteration columns from the 1111 harness in the handover
+      entry.
+
+## Acceptance
+
+```sh
+.venv/bin/python examples/bench_refinement.py       # iteration columns before/after
+.venv/bin/python examples/bench_solver.py           # LM vs TRF, now including the QPA protocol
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+.venv/bin/python -m ruff check src tests examples
+```
+
+Judged by evaluations-to-the-same-answer (shift/esd against the reference
+minimum, Coelho's own basin methodology per `docs/solver-survey.md`), never
+by Rwp or by iteration count alone — the LM finding above is the cautionary
+example already in hand.
+
+## References
+
+- Coelho, A. A. (2018). *J. Appl. Cryst.* **51**, 428–435 — the λ_new
+  schedule `optimize/lm.py` implements; its Table 5 iteration counts are the
+  comparison shape.
+- Coelho, A. A. (2005). *J. Appl. Cryst.* **38**, 455–461 — the bounded CG.
+- `docs/solver-survey.md` §0 — the Amdahl ceiling on solve *time* (1.25×)
+  that does **not** bound this WP: reducing the count attacks the whole
+  wall clock, which is why this front is open at all.
+
+## Handover log
+
+- **2026-08-20** — created by the 1109 review session; carries the review's
+  iteration table, the LM basin finding, and the crawl hypothesis as the
+  first thing to test.
