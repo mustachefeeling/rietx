@@ -204,6 +204,20 @@ class CompiledPhase:
     # block.  σ²(M) = monomials @ S is the only hkl-dependent piece; the
     # d-spacings that turn it into a width move with the cell at evaluation.
     strain_monomials: np.ndarray | None = None
+    # Secondary extinction, frozen *out* of this stage: True when the phase's
+    # ``extinction`` is exactly 0 — where Sabine's E is identically 1 — and no
+    # path this stage can move reaches it.  Then E is a multiply by ones, and
+    # the six-term Laue series that builds it is pure cost: measured 1.2 s of
+    # ``sabine_extinction`` plus 0.79 s of ``_laue_and_deriv`` in a 17.5 s fit
+    # where extinction was never freed (WP-1109).
+    #
+    # This is the frozen-per-stage invariant, not a branch on θ: the decision
+    # is taken at compile from a value that provably cannot change before the
+    # next compile, so the residual it produces is exactly the one the
+    # ungated path produces and stays as smooth.  False is the honest default
+    # — "no gate was established" — so a CompiledPhase built without the
+    # analysis simply evaluates the chain as before.
+    skip_extinction: bool = False
     # FCJ node memo (WP-0605 task 0): {(il, k, variant) → (2θ, S/L, H/L,
     # 2φ_q, ω_q)}, each slot reused iff the three inputs compare bit-equal —
     # see ``_cached_fcj_nodes`` for why this is input equality rather than a
@@ -558,10 +572,13 @@ class CompiledModel:
             if P is not None:
                 base = base * P
             # secondary extinction (model/extinction.py): a per-(line,
-            # reflection) intensity multiplier folded in below, evaluated
-            # unconditionally — ext=0 makes E exactly 1 (Sabine's blend is
-            # sin²θ·1 + cos²θ·1, which is exactly 1.0 in fp), so the off
-            # state stays bit-identical without branching on θ (purity (b)).
+            # reflection) intensity multiplier folded in below.  ext=0 makes E
+            # exactly 1 (Sabine's blend is sin²θ·1 + cos²θ·1, which is exactly
+            # 1.0 in fp), so where the stage cannot move ext off zero the
+            # whole chain is skipped rather than evaluated to ones — a
+            # compile-time structural branch (``skip_extinction``), never one
+            # on θ.  Otherwise it is evaluated unconditionally, and the off
+            # state stays bit-identical anyway (purity (b)).
             # V moves with the cell, hence recomputed here rather than cached.
             ext = values[f"phases.{ip}.extinction"]
             vol = cell_volume(*cell)
@@ -590,7 +607,9 @@ class CompiledModel:
                 intensity = base * w_line
             else:
                 intensity = base * w_line * lorentz_polarization(tt_bragg, values["instrument.polarization"])
-                intensity = intensity * sabine_extinction(f2, lam, vol, tt_bragg, ext)
+                if not cp.skip_extinction:
+                    intensity = intensity * sabine_extinction(
+                        f2, lam, vol, tt_bragg, ext)
                 # specimen absorption, model/absorption.py: cylinder, finite
                 # flat reflection or flat transmission by geometry.  The
                 # geometry test is a compile-time structural branch, permitted
@@ -741,11 +760,12 @@ class CompiledModel:
             d_base = d_base * P
         # extinction couples |F|² into the intensity twice (as the prefactor
         # and through x ∝ |F|²), so a coordinate/ADP move chains through the
-        # factor G = E + x·dE/dx (see model/extinction.py), applied
-        # unconditionally — at ext=0, x=0 makes G exactly 1 (purity (b)).
-        # Only these pure-analytic columns need it explicitly; the scale/occ/
-        # biso/cell/extinction columns pick it up from the FD-of-phase_peaks
-        # chain.
+        # factor G = E + x·dE/dx (see model/extinction.py) — at ext=0, x=0
+        # makes G exactly 1 (purity (b)), so the stage that cannot move ext off
+        # zero skips it exactly as ``phase_peaks`` does, and every other stage
+        # applies it unconditionally.  Only these pure-analytic columns need it
+        # explicitly; the scale/occ/biso/cell/extinction columns pick it up
+        # from the FD-of-phase_peaks chain.
         ext = values[f"phases.{ip}.extinction"]
         f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
                                        xyz, occ, biso, uaniso, astar)
@@ -756,8 +776,9 @@ class CompiledModel:
             tt_bragg = two_theta_deg(d, lam)
             col = d_base * w_line * lorentz_polarization(
                 tt_bragg, values["instrument.polarization"])
-            E, dEdx, x = sabine_extinction_and_dx(f2, lam, vol, tt_bragg, ext)
-            col = col * (E + x * dEdx)
+            if not cp.skip_extinction:
+                E, dEdx, x = sabine_extinction_and_dx(f2, lam, vol, tt_bragg, ext)
+                col = col * (E + x * dEdx)
             col = col * self._absorption(tt_bragg)
             # roughness scales the intensity and does not depend on the
             # coordinates/ADPs, so a structural move chains through it
@@ -795,7 +816,8 @@ class CompiledModel:
         _P, dP = march_dollase_and_dr(cp.po_members, cp.po_seg, cp.po_counts,
                                       cp.po_axis, gstar, r)
         d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * f2 * dP
-        # unconditional, like phase_peaks: E ≡ 1 exactly at ext=0 (purity (b))
+        # gated exactly like phase_peaks, and unconditional otherwise: E ≡ 1
+        # exactly at ext=0 either way (purity (b))
         ext = values[f"phases.{ip}.extinction"]
         vol = cell_volume(*cell)
         out = []
@@ -804,7 +826,8 @@ class CompiledModel:
             tt_bragg = two_theta_deg(d, lam)
             col = d_base * w_line * lorentz_polarization(
                 tt_bragg, values["instrument.polarization"])
-            col = col * sabine_extinction(f2, lam, vol, tt_bragg, ext)
+            if not cp.skip_extinction:
+                col = col * sabine_extinction(f2, lam, vol, tt_bragg, ext)
             col = col * self._absorption(tt_bragg)
             rough = self._roughness_factor(tt_bragg, values)
             if rough is not None:
@@ -1288,13 +1311,24 @@ class DerivativeBases:
 def compile_model(structure: Structure, instrument: Instrument, pattern: PatternData,
                   *, mode: Mode = "rietveld",
                   two_theta_limits: tuple[float, float] | None = None,
-                  free_paths: set[str] | None = None,
+                  moving_paths: set[str] | None = None,
                   restraint_weight_scale: float = 1.0) -> CompiledModel:
     """Freeze reflection lists, orbits, windows and FCJ nodes for one stage.
 
-    ``free_paths`` (the parameters the coming stage will refine) only affects
-    *sizing* decisions: when the axial parameters are free, FCJ nodes are
-    allocated even if their current values are still zero.
+    ``moving_paths`` is every parameter the coming stage can move, or ``None``
+    for "no claim made", which gates nothing and sizes as if nothing were free.
+    When given, it is
+    ``ParameterTable.moving_paths``, which is the free set *plus its ties*, not
+    ``free_paths``: a tied parameter is not a column of θ and still changes
+    while θ does, so freezing anything on "this cannot move" must ask the
+    wider question.  It drives two structural decisions and nothing else.
+    *Sizing*: when the axial parameters can move, FCJ nodes are allocated even
+    if their current values are still zero.  *Gating*: a correction sitting
+    exactly at its off state, which nothing this stage can move off it, is
+    skipped rather than evaluated to its identity — see
+    ``CompiledPhase.skip_extinction``.  Both are compile-time structural in the
+    sense the frozen-per-stage invariant means: the decision is taken once, off
+    values that cannot change, and never re-asked from a θ-derived quantity.
 
     ``restraint_weight_scale`` is the coming stage's c_w (McCusker eq 7),
     frozen onto the model like every other discrete choice; 1.0 is the identity
@@ -1318,10 +1352,15 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     zero = instrument.zero_shift.value
     geom = instrument.geometry
 
+    # ``None`` is "the caller made no claim", which is not the same as "nothing
+    # moves": an empty set gates every off-state correction, so a caller that
+    # simply never passed the argument must not silently get that.  Only an
+    # explicit set — even an empty one — licenses the gates.
+    gate_off_states = moving_paths is not None
     # FCJ sizing values (floored when the axial parameters are about to refine)
-    free_paths = free_paths or set()
-    axial_free = ("instrument.geometry.axial_sl" in free_paths
-                  or "instrument.geometry.axial_hl" in free_paths)
+    moving_paths = moving_paths or set()
+    axial_free = ("instrument.geometry.axial_sl" in moving_paths
+                  or "instrument.geometry.axial_hl" in moving_paths)
     sl_eff = geom.axial_sl.value
     hl_eff = geom.axial_hl.value
     if axial_free:
@@ -1426,6 +1465,11 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
 
         cp = CompiledPhase(reflections=refl, sites=sites, win=win, fcj_n=fcj_n,
                            strain_monomials=strain_monomials)
+        # the off-state gate (see the field): ext is exactly its identity and
+        # nothing this stage moves can take it off there
+        cp.skip_extinction = (gate_off_states
+                              and phase.extinction.value == 0.0
+                              and f"phases.{ip}.extinction" not in moving_paths)
         # WP-0605 task 0: the FCJ node memo needs no free-path analysis —
         # correctness rests on input equality alone — so it is allocated
         # whenever any peak has quadrature nodes at all.

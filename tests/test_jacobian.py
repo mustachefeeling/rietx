@@ -65,7 +65,7 @@ def _check_columns(structure, free_paths, ties=(), *, instrument=None):
         assert table.set_vary([path], True), path
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
 
     theta = table.x0()
     J = _make_jacobian(model, table)(theta)
@@ -136,7 +136,7 @@ def test_adp_dof_absent_in_lebail_jacobian():
     table.set_vary(["*"], False)
     table.set_vary(["phases.0.atoms.0.adp.0"], True)
     model = compile_model(structure, ins, pattern, mode="lebail",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     J = _make_jacobian(model, table)(table.x0())
     assert np.allclose(J[:, 0], 0.0)
 
@@ -161,7 +161,7 @@ def test_dof_absent_in_lebail_jacobian():
     table.set_vary(["*"], False)
     table.set_vary(["phases.0.atoms.1.dof.0"], True)
     model = compile_model(structure, ins, pattern, mode="lebail",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     J = _make_jacobian(model, table)(table.x0())
     assert np.allclose(J[:, 0], 0.0)
 
@@ -186,7 +186,7 @@ def _column(structure, free_paths, path, ties=()):
         assert table.set_vary([p], True), p
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     theta = table.x0()
     return _make_jacobian(model, table)(theta)[:, table.free_paths.index(path)]
 
@@ -252,7 +252,7 @@ def test_a_tie_beyond_a_branchs_reach_falls_back_and_stays_exact():
     table.refresh_ties()
     assert table.set_vary(["instrument.background.c0"], True)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     column = _make_jacobian(model, table)(table.x0())[:, 0]
     n0 = list(model.bkg_paths).index("instrument.background.c0")
     n1 = list(model.bkg_paths).index("instrument.background.c1")

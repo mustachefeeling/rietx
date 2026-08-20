@@ -170,7 +170,7 @@ class MultiHistogramRefinement:
             self.mtable.apply_to_models()
             models = [
                 compile_model(s, ins, d, mode="rietveld", two_theta_limits=lim,
-                              free_paths=set(tab.free_paths))
+                              moving_paths=set(tab.moving_paths))
                 for s, ins, d, lim, tab in zip(
                     self.mtable.structures, self.mtable.instruments, data, limits,
                     self.mtable.tables, strict=True)]

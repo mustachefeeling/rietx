@@ -389,7 +389,7 @@ def test_penalty_rows_suppress_absorption():
         table.set_vary(["*"], False)
         table.set_vary(["phases.*.scale", "instrument.background.c*",
                         "phases.*.atoms.*.biso"], True)
-        model = compile_model(structure, ins, data, free_paths=set(table.free_paths))
+        model = compile_model(structure, ins, data, moving_paths=set(table.moving_paths))
         outcome = run_least_squares(model, table)
         return max(background_absorption(outcome.jac, table.free_paths).values())
 

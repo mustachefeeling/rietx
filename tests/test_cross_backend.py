@@ -135,7 +135,7 @@ def _families_state(*, shape: str = "tchz_pv"):
     for path in ANALYTIC_FAMILIES:
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     assert model.shape == shape
     return model, table, {}
 
@@ -178,7 +178,7 @@ def _state_families_tied():
         assert table.set_vary([path], True), path
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table, {}
 
 
@@ -227,7 +227,7 @@ def _state_capillary_offsets():
                   "instrument.geometry.capillary_offset_along_beam",
                   "instrument.geometry.capillary_offset_across_beam"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table, {}
 
 
@@ -468,7 +468,7 @@ def _multi_state():
         assert mtable.set_vary(MULTI_GLOBS, True)
         mtable.apply_to_models()
         models = [compile_model(s, ins, d, mode="rietveld",
-                                free_paths=set(t.free_paths))
+                                moving_paths=set(t.moving_paths))
                   for s, ins, d, t in zip(mtable.structures, mtable.instruments,
                                           data, mtable.tables, strict=True)]
         _MULTI_CACHE["state"] = (models, mtable)
@@ -606,7 +606,7 @@ def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld"):
                     table.set_vary([path], False)
         table.apply_to_models(structure, instrument)
         fresh = compile_model(structure, instrument, data, mode=mode,
-                              free_paths=set(table.free_paths))
+                              moving_paths=set(table.moving_paths))
         carried = False
         if model is not None and mode in ("lebail", "pawley"):
             _carry_lebail(model, fresh)

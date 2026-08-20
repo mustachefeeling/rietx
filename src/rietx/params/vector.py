@@ -566,6 +566,25 @@ class ParameterTable:
     def free_paths(self) -> list[str]:
         return [self.entries[i].path for i in self._free_idx]
 
+    @property
+    def moving_paths(self) -> list[str]:
+        """Every path this table can move — the free entries *and* their ties.
+
+        ``free_paths`` answers "which entries are columns of θ"; this answers
+        "which physical values can change while θ moves", and the two differ by
+        exactly the tied rows: a tie carries its coefficient on the free
+        column it follows (p = C·p_free + d), so a tied entry has a nonzero row
+        of C while a held one lives entirely in ``d``.
+
+        A consumer freezing a *structural* decision on "this cannot change
+        during the stage" — window sizing, or a correction gated at its off
+        state — must ask this rather than ``free_paths``, or a user tie
+        (:meth:`Refinement.tie`) silently invalidates the freeze.  Read in
+        entry order, so the answer does not depend on how θ was assembled.
+        """
+        reach = np.asarray(abs(self._C).sum(axis=1)).ravel()
+        return [e.path for i, e in enumerate(self.entries) if reach[i] > 0.0]
+
     def x0(self) -> np.ndarray:
         return np.array([to_internal(self.entries[i].value, self.entries[i].transform)
                          for i in self._free_idx], dtype=np.float64)

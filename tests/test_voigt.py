@@ -171,7 +171,7 @@ def test_voigt_forward_analytic_jacobian_matches_fd():
     for path in ANALYTIC_FAMILIES:
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     assert model.shape == "voigt"
 
     theta = table.x0()
@@ -228,7 +228,7 @@ def test_voigt_cross_backend_forward_residual():
     for path in ANALYTIC_FAMILIES:
         table.set_vary([path], True)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     theta = table.x0()
     r_np = _make_residual(model, table)(theta)
     set_backend("jax")

@@ -160,7 +160,7 @@ def test_restraint_jacobian_matches_fd_per_kind():
         ValueRestraint(path="phases.0.atoms.1.occ", target=0.9, sigma=0.05),
     ])
     model = compile_model(s, LAB, _blank(20.0, 90.0, 0.1), mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     n_data = len(model.tt)
     kinds = [r.kind for r in summarise_restraints(
         model.restraints, table.decode(table.x0())).rows]
@@ -315,7 +315,7 @@ def _scaled_triclinic(c_w: float):
         ValueRestraint(path="phases.0.atoms.1.occ", target=0.9, sigma=0.05),
     ])
     model = compile_model(s, LAB, _blank(20.0, 90.0, 0.1), mode="rietveld",
-                          free_paths=set(table.free_paths),
+                          moving_paths=set(table.moving_paths),
                           restraint_weight_scale=c_w)
     return model, table
 
@@ -361,7 +361,7 @@ def test_identity_default_is_the_pre_schedule_row():
     ])
     # compiled without the argument at all — the pre-WP-1074 call
     m = compile_model(s, LAB, _blank(20.0, 90.0, 0.1), mode="rietveld",
-                      free_paths=set(table.free_paths))
+                      moving_paths=set(table.moving_paths))
     assert m.restraint_weight_scale == 1.0
     rows = _make_residual(m, table)(table.x0())[len(m.tt):]
     report = summarise_restraints(m.restraints, table.decode(table.x0()))
