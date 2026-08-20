@@ -29,7 +29,8 @@ LOG = os.environ.get(
 _TARGETS = (
     "agent.refine_json", "agent.tool_definition", "agent.request_schema",
     "agent.response_schema",
-    "capabilities", "read_pattern", "structure_from_cif",
+    "capabilities", "read_pattern",
+    "crystallography.cif.structure_from_cif",
     "refine", "refine_sequential", "refine_multi", "replay",
     "index_pattern", "build_report", "diagnose", "auto_background",
     "load_instrument_profile", "save_instrument_profile",
@@ -67,7 +68,17 @@ def _wrap(owner, attr: str, label: str) -> None:
         return
 
     def traced(*args, **kwargs):
-        _emit(event="call", name=label, kwargs=sorted(kwargs), nargs=len(args))
+        # the first positional argument is logged ONLY when it is a path -- it
+        # is what attributes a process to a workspace when an agent runs python
+        # from elsewhere and `python -c` leaves nothing in argv.  No other
+        # argument value is ever recorded.
+        path = None
+        if args and isinstance(args[0], (str, os.PathLike)):
+            candidate = os.fspath(args[0])
+            if os.sep in candidate:
+                path = candidate
+        _emit(event="call", name=label, kwargs=sorted(kwargs), nargs=len(args),
+              path=path)
         return original(*args, **kwargs)
 
     traced._rietx_traced = True
@@ -84,6 +95,7 @@ def _patch(module) -> None:
 
     try:
         importlib.import_module("rietx.agent")
+        importlib.import_module("rietx.crystallography.cif")
     except Exception:
         pass
     for path in _TARGETS:

@@ -120,6 +120,29 @@ workspace when an agent runs python from elsewhere.
 The tracer swallows every exception it can raise: a shim that breaks the run it
 watches has destroyed its own measurement.
 
+### Amendments made during round 1.0, and why they do not bump the version
+
+Both change how a call is **attributed**, never which calls exist, which
+condition a cell is under, or what the package does. No cell's prompt or
+workspace moved, so 1.0 cells stay poolable with each other.
+
+- **The first positional argument is logged when it is a path.** The round
+  opened attributing rows by `cwd`, on the assumption that an agent works in
+  the directory it was given. It does not: a subagent runs python from
+  wherever its shell sits, which here was the session's own cwd, and
+  `python -c` leaves nothing but `-c` in `sys.argv`. The data file is the
+  reliable key — every cell must read *its own copy* of `d8_01612.raw` — so
+  the tracer records that path and `score_round.py` binds a pid to a cell by
+  the first path, cwd or argv naming one. No other argument value is recorded.
+- **Rows written before the amendment stay unattributed** and are reported as
+  such rather than being assigned by guess. The gap costs exploration calls
+  that touch no file (`import rietx; rietx.capabilities()`), never a call that
+  reads data or runs a fit.
+
+**For round 1.1: give each cell its own venv** with its own log path baked in.
+Attribution is then a property of the environment rather than an inference
+from what the process happened to touch, which is what a shim should be.
+
 ## Pre-registered read-outs
 
 Written before any run; scored off the trace log and the agents' own reports.
