@@ -1503,6 +1503,16 @@ series = rx.refine_sequential(patterns, structure, instrument,
 a_of_T = series.trajectory("phases.0.cell.a")     # x, value, stderr
 ```
 
+`x` is the series coordinate, and where it comes from is the file: a reader
+puts a scan's own temperature in `data.metadata["temperature_k"]`, and
+`rx.io.readers.list_scans(path)` reports the same number per scan before any of
+them is read.  Today the Bruker `.raw` v3 range header is the one format here
+with such a field; the others record no specimen temperature and none is
+guessed from an axis named for something else.  A missing key is a file that
+recorded nothing — **refuse rather than substitute an ambient value**, because
+an invented coordinate makes the trajectory a fiction while every fit in it
+stays perfectly good.
+
 Three things an operator must know, all measured:
 
 - **Chaining is worth ~3x in iterations, not in accuracy.**  On the eight
