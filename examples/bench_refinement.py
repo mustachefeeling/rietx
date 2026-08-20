@@ -60,6 +60,22 @@ the candidate explanations.
              and it is *not* the same fit as the 4-phase ``mccusker_default``
              row in that WP's opening table.  Quote them separately.
 
+The last two are the shape none of the shipped baselines covers, and they are
+**simulated**: see the block comment above ``_TRIGGER_TT`` for exactly which
+parts are literature and which are invented, and why nothing they print is a
+structural claim.
+
+``trigger``  4 phases with large low-symmetry cells, Cu Kα doublet + FCJ,
+             4 165 points, 1 188 (line, reflection) pairs — an order of
+             magnitude more peaks than the baselines above, fitted cold.
+``trigger-series``
+             Ten copies of it with a 100 ppm/step cell ramp through
+             ``refine_sequential``: one cold fit then nine warm starts, which
+             is the workflow the milestone's ~1 s/pattern target names.
+
+Runtime: the whole harness at the default three repeats is ~20 minutes, most
+of it the last two cases.  ``--cases`` selects; ``--list`` shows the keys.
+
 Columns
 -------
 ``pairs`` is the (emission line, reflection) pair count summed over phases —
@@ -159,6 +175,10 @@ class Setup:
     limits: tuple[float, float] | None = None
     mode: str = "rietveld"
     notes: str = ""
+    #: a **series** case: N patterns through ``refine_sequential`` instead of
+    #: one ``fit``.  ``data`` is then patterns[0], which is what the shape
+    #: columns are measured on.  None for every ordinary case.
+    patterns: list[rx.PatternData] | None = None
 
 
 @dataclass
@@ -270,11 +290,196 @@ def _cpd_2() -> Setup:
         qpa_plan(biso_globs=biso, texture=True))
 
 
+# -- the trigger-shaped case, simulated ------------------------------------
+#
+# WP-1109's trigger was a 68-pattern in-situ series: 4 phases of ZrMo₂O₈,
+# 4 165 points, ~41 free, Cu Kα, 105-600 s per pattern.  None of the three
+# baselines above is within an order of magnitude of its peak count, and
+# peak-loop cost scales with peaks × window width, so a ranking measured only
+# on them under-weights exactly the term the trigger is dominated by.  No real
+# ZrMo₂O₈ data ships with this repo, so the case below is **simulated** to that
+# shape.
+#
+# WHAT IS REAL AND WHAT IS NOT.  The four **cells** are the literature ones for
+# a plausible ZrMo₂O₈ decomposition series — cubic ZrMo₂O₈ (Pa-3, Lind et al.
+# 1998, Chem. Mater. 10, 2335), trigonal α-ZrMo₂O₈ (P-31c, Auray, Quarton &
+# Tarte 1986, Acta Cryst. C42, 257), baddeleyite ZrO₂ (P2₁/c, Smith & Newkirk
+# 1965, Acta Cryst. 18, 983) and MoO₃ (Pbnm, Kihlborg 1963, Ark. Kemi 21, 357)
+# — quoted to the precision a *peak count* needs and no further.  Every **atom
+# coordinate is invented**: species and rough site counts are chemically
+# sensible, the positions are not refined values and are not read from any CIF.
+# The phase names carry a ``sim-`` prefix for that reason, and nothing this
+# case prints — Rwp, weight fractions, cell esds — is a structural or
+# quantitative claim about any of these materials.  The WP licenses exactly
+# this: for a *performance* benchmark the truth of the answer is irrelevant,
+# and what must be realistic is peak count, overlap and window structure.
+#
+# HOW IT IS BUILT.  The truth model is evaluated on the 2θ grid, Poisson noise
+# is added at a fixed seed (so the pattern is byte-identical between runs and
+# machines), and the fit starts **cold**: cells 500 ppm high, widths at generic
+# starting values, axial parameters low, background at zero, scales seeded by
+# ``seed_scales``.  Rwp lands near 0.02 because the model that made the data is
+# the model being fitted — the residual is pure counting noise.  That is a
+# property of a simulation and it is why Rwp is only ever an identity check
+# here; it does not make the *timing* less real, because the peak loop does the
+# same work whatever the residual.
+
+_TRIGGER_TT = np.arange(5.0, 88.281, 0.02)       # 4 165 points, 0.02° steps
+_TRIGGER_BKG = (900.0, -260.0, 90.0, -30.0, 12.0, -5.0)
+
+
+def _p(v, **kw):
+    return rx.Parameter(value=v, **kw)
+
+
+def _sim_phase(name, sg, cell, atoms, scale, drift):
+    a, b, c, al, be, ga = cell
+    f = 1.0 + drift
+    return rx.Phase(
+        name=name, space_group=sg,
+        cell=rx.Cell(a=_p(a * f, min=1.0), b=_p(b * f, min=1.0),
+                     c=_p(c * f, min=1.0),
+                     alpha=_p(al), beta=_p(be), gamma=_p(ga)),
+        atoms=[rx.Atom(label=lab, species=sp, x=_p(x), y=_p(y), z=_p(z),
+                       biso=_p(bi, min=0.0, max=25.0))
+               for lab, sp, x, y, z, bi in atoms],
+        scale=_p(scale, min=0.0, transform="softplus"),
+        lor_size=_p(0.03, min=0.0, transform="softplus"),
+        lor_strain=_p(0.0, min=0.0, transform="softplus"))
+
+
+def _trigger_phases(drift: float = 0.0) -> list[rx.Phase]:
+    """The four phases, all cells scaled by ``1 + drift`` (the series ramp)."""
+    return [
+        _sim_phase("sim-ZrMo2O8-cubic", "P a -3",
+                   (9.1304, 9.1304, 9.1304, 90, 90, 90),
+                   [("Zr", "Zr", 0.0, 0.0, 0.0, 0.6),
+                    ("Mo", "Mo", 0.3479, 0.3479, 0.3479, 0.7),
+                    ("O1", "O", 0.2081, 0.2081, 0.2081, 1.0),
+                    ("O2", "O", 0.4907, 0.2716, 0.1343, 1.0)], 4e-4, drift),
+        _sim_phase("sim-ZrMo2O8-trigonal", "P -3 1 c",
+                   (10.1391, 10.1391, 11.7091, 90, 90, 120),
+                   [("Zr", "Zr", 1 / 3, 2 / 3, 0.1487, 0.6),
+                    ("Mo", "Mo", 0.3312, 0.0071, 0.1123, 0.7),
+                    ("O1", "O", 0.1837, 0.0264, 0.0741, 1.0),
+                    ("O2", "O", 0.4712, 0.1583, 0.1927, 1.0),
+                    ("O3", "O", 0.3096, 0.4471, 0.0619, 1.0)], 3e-4, drift),
+        _sim_phase("sim-ZrO2-baddeleyite", "P 1 21/c 1",
+                   (5.1505, 5.2116, 5.3173, 90, 99.230, 90),
+                   [("Zr", "Zr", 0.2758, 0.0411, 0.2082, 0.4),
+                    ("O1", "O", 0.0703, 0.3359, 0.3406, 0.6),
+                    ("O2", "O", 0.4423, 0.7549, 0.4789, 0.6)], 2e-4, drift),
+        _sim_phase("sim-MoO3", "P b n m",
+                   (3.9628, 13.855, 3.6964, 90, 90, 90),
+                   [("Mo", "Mo", 0.1016, 0.1026, 0.25, 0.5),
+                    ("O1", "O", 0.2214, 0.0434, 0.25, 0.8),
+                    ("O2", "O", 0.0862, 0.2214, 0.25, 0.8),
+                    ("O3", "O", 0.5000, 0.4353, 0.25, 0.8)], 2e-4, drift),
+    ]
+
+
+def _trigger_instrument(*, truth: bool) -> rx.Instrument:
+    """Cu Kα doublet, Bragg-Brentano, FCJ live (axial S/L and H/L nonzero).
+
+    ``truth=False`` is the cold start: generic widths, low axial terms, an
+    all-zero background.  Dispersion is DECLINED explicitly for the reason
+    every acceptance suite declines it — a benchmark whose numbers move when a
+    package default moves is not measuring the package.
+    """
+    from rietx.schemas.instrument import BackgroundChebyshev
+
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa",
+                                       goniometer_radius_mm=250.0,
+                                       monochromator_two_theta=26.6)
+    ins.background = BackgroundChebyshev.with_terms(6)
+    ins.source.dispersion = None
+    if truth:
+        ins.geometry.axial_sl.value = 0.030
+        ins.geometry.axial_hl.value = 0.030
+        ins.profile.u.value = 0.008
+        ins.profile.v.value = -0.004
+        ins.profile.w.value = 0.006
+        ins.profile.x.value = 0.020
+        for coef, v in zip(ins.background.coefficients, _TRIGGER_BKG):
+            coef.value = v
+    else:
+        ins.geometry.axial_sl.value = 0.020
+        ins.geometry.axial_hl.value = 0.020
+        ins.profile.u.value = 0.0
+        ins.profile.v.value = 0.0
+        ins.profile.w.value = 0.010
+        ins.profile.x.value = 0.010
+    return ins
+
+
+def _trigger_pattern(seed: int, drift: float) -> rx.PatternData:
+    """Evaluate the truth model on the grid and Poisson-sample it."""
+    from rietx.params.vector import ParameterTable
+
+    structure = rx.Structure(phases=_trigger_phases(drift))
+    instrument = _trigger_instrument(truth=True)
+    blank = rx.PatternData(two_theta=_TRIGGER_TT.tolist(),
+                           intensity=np.ones_like(_TRIGGER_TT).tolist())
+    model = compile_model(structure, instrument, blank)
+    table = ParameterTable(structure, instrument)
+    y = np.asarray(model.evaluate(table.decode(table.x0())))
+    counts = np.random.default_rng(seed).poisson(np.clip(y, 1.0, None))
+    return rx.PatternData(two_theta=_TRIGGER_TT.tolist(),
+                          intensity=counts.astype(float).tolist())
+
+
+def _trigger_cold(data: rx.PatternData) -> tuple[rx.Structure, rx.Instrument]:
+    from test_acceptance_qpa_roundrobin import seed_scales
+
+    structure = rx.Structure(phases=_trigger_phases(5e-4))   # 500 ppm high
+    instrument = _trigger_instrument(truth=False)
+    seed_scales(structure, instrument, data)
+    return structure, instrument
+
+
+def _trigger() -> Setup:
+    from test_acceptance_qpa_roundrobin import qpa_plan
+
+    data = _trigger_pattern(seed=1111, drift=0.0)
+    structure, instrument = _trigger_cold(data)
+    return Setup(
+        "trigger-shaped (simulated): 4 phases, large cells, Cu Kα + FCJ",
+        data, structure, instrument, qpa_plan(),
+        notes="simulated — see the block comment above _TRIGGER_TT; Rwp near "
+              "0.02 is counting noise, not a fit quality claim")
+
+
+def _trigger_series() -> Setup:
+    """Ten copies of the trigger case with a 100 ppm/step cell ramp.
+
+    The workflow the milestone's ~1 s/pattern target names: one cold fit, then
+    nine warm starts.  ``direction="both"`` is deliberately off — this is a
+    timing case, not a science case, and the backward pass would double the
+    wall clock to answer a question about path dependence that no speed WP
+    asks.  Each pattern gets its own noise seed, so a warm start is fitting a
+    genuinely different realisation rather than the same array again.
+    """
+    from test_acceptance_qpa_roundrobin import qpa_plan
+
+    patterns = [_trigger_pattern(seed=2000 + i, drift=i * 100e-6)
+                for i in range(10)]
+    structure, instrument = _trigger_cold(patterns[0])
+    return Setup(
+        "trigger-shaped series (simulated): 10 patterns, 100 ppm/step ramp",
+        patterns[0], structure, instrument, qpa_plan(), patterns=patterns,
+        notes="per-pattern wall printed below; pattern 0 is the cold fit and "
+              "1-9 are warm starts")
+
+
 CASES: tuple[Case, ...] = (
     Case("nac-lebail", _nac_lebail, "22 003 pts, 1 phase — the Le Bail seed leg"),
     Case("nac", _nac, "22 003 pts, no FCJ — the dispatch-light case"),
     Case("cpd-1a", _cpd_1a, "7 251 pts, FCJ, 3 phases — the FCJ-heavy small case"),
     Case("cpd-2", _cpd_2, "7 251 pts, FCJ, 4 phases + texture — WP-1109's profile"),
+    Case("trigger", _trigger,
+         "4 165 pts, 1 188 pairs, 4 phases — the trigger-shaped cold fit (~50 s)"),
+    Case("trigger-series", _trigger_series,
+         "10 × trigger, warm-started through refine_sequential (~270 s)"),
 )
 
 
@@ -289,6 +494,9 @@ class Run:
     free: int
     stages: list[tuple[str, int]] = field(default_factory=list)
     status: str = ""
+    #: series cases only: (index, wall, n_iterations, Rwp, rung) per pattern,
+    #: index 0 being the cold fit and the rest warm starts
+    per_pattern: list[tuple[int, float, int, float, str]] = field(default_factory=list)
 
 
 def _shape(setup: Setup) -> tuple[int, int, float]:
@@ -309,6 +517,8 @@ def _shape(setup: Setup) -> tuple[int, int, float]:
 
 
 def _run_once(setup: Setup) -> Run:
+    if setup.patterns is not None:
+        return _run_series(setup)
     counts = _Counts()
     ref = rx.Refinement(setup.structure.model_copy(deep=True),
                         setup.instrument.model_copy(deep=True),
@@ -324,6 +534,51 @@ def _run_once(setup: Setup) -> Run:
     return Run(wall, result.statistics.rwp, counts.nfev, counts.njev,
                len(freed), [(s.name, s.n_iterations) for s in result.stages],
                result.status)
+
+
+def _run_series(setup: Setup) -> Run:
+    """One pass of a series case through ``refine_sequential``.
+
+    Per-pattern wall clock is taken from the **event ladder** rather than by
+    timing calls, because ``refine_sequential`` is one call: every event
+    carries ``series_index`` (WP-1016), so the ``fit_start``/``fit_end`` pair
+    for each index brackets that pattern's own refinement.  A pattern that
+    escalated a rung reports the wall of the whole escalation, which is what a
+    person waiting on the series experiences.
+    """
+    from rietx.sequential import refine_sequential
+
+    marks: dict[int, dict[str, float]] = {}
+
+    def collect(event):
+        index = event.get("data", {}).get("series_index")
+        if index is not None and event["kind"] in ("fit_start", "fit_end"):
+            marks.setdefault(index, {})[event["kind"]] = event["t"]
+
+    counts = _Counts()
+    with _counting(counts):
+        t0 = time.perf_counter()
+        series = refine_sequential(setup.patterns,
+                                   setup.structure.model_copy(deep=True),
+                                   setup.instrument.model_copy(deep=True),
+                                   plan=setup.plan, events=collect)
+        wall = time.perf_counter() - t0
+
+    per: list[tuple[int, float, int, float, str]] = []
+    for entry in series.entries:
+        mark = marks.get(entry.index, {})
+        span = mark.get("fit_end", float("nan")) - mark.get("fit_start", float("nan"))
+        per.append((entry.index, span, entry.n_iterations,
+                    entry.statistics.rwp, entry.rung))
+    last = series.entries[-1] if series.entries else None
+    statuses = {e.status for e in series.entries}
+    status = "converged" if statuses == {"converged"} else "/".join(sorted(statuses))
+    # ``free`` is -1, printed "-": a series entry carries no per-stage freed
+    # list, and ``SeriesEntry.parameters`` is not the same quantity — a row
+    # appears there iff the entry varied *or was tied*.  The count is the
+    # ``trigger`` row's, one line up, because the plan is the same one.
+    return Run(wall, last.statistics.rwp if last else float("nan"),
+               counts.nfev, counts.njev, -1, [], status, per)
 
 
 def _profile(setup: Setup) -> str:
@@ -345,8 +600,8 @@ def _header(repeats: int) -> str:
             f"never compare across machines")
 
 
-HEAD = (f"  {'case':10s} {'pts':>6s} {'pairs':>6s} {'win':>5s} {'free':>5s} "
-        f"{'wall (s)':>13s} {'nfev':>6s} {'njev':>6s} {'Rwp':>8s}  status")
+HEAD = (f"  {'case':14s} {'pts':>6s} {'pairs':>6s} {'win':>5s} {'free':>5s} "
+        f"{'wall (s)':>15s} {'nfev':>6s} {'njev':>6s} {'Rwp':>8s}  status")
 
 
 def _report(case: Case, setup: Setup, runs: list[Run]) -> None:
@@ -355,16 +610,27 @@ def _report(case: Case, setup: Setup, runs: list[Run]) -> None:
     rwps = {round(r.rwp, 6) for r in runs}
     last = runs[-1]
     njev = f"{last.njev}" if last.njev else "-"
+    free = f"{last.free}" if last.free >= 0 else "-"
     rng = f"{min(walls):.2f}-{max(walls):.2f}"
-    print(f"  {case.key:10s} {pts:6d} {pairs:6d} {width:5.0f} {last.free:5d} "
-          f"{rng:>13s} {last.nfev:6d} {njev:>6s} {last.rwp:8.5f}  {last.status}")
+    print(f"  {case.key:14s} {pts:6d} {pairs:6d} {width:5.0f} {free:>5s} "
+          f"{rng:>15s} {last.nfev:6d} {njev:>6s} {last.rwp:8.5f}  {last.status}")
     print(f"    {setup.title}")
     if setup.notes:
         print(f"    ({setup.notes})")
     if len(rwps) > 1:
         print(f"    !! Rwp differs between repeats {sorted(rwps)} — these are "
               f"not the same fit, so the wall-clock range is not one either")
-    print("    per-stage nfev: " + "  ".join(f"{n}={i}" for n, i in last.stages))
+    if last.stages:
+        print("    per-stage nfev: " +
+              "  ".join(f"{n}={i}" for n, i in last.stages))
+    if last.per_pattern:
+        cold = last.per_pattern[0][1]
+        warm = [w for _, w, _, _, _ in last.per_pattern[1:]]
+        print(f"    cold {cold:.2f} s | warm {min(warm):.2f}-{max(warm):.2f} s "
+              f"over {len(warm)} patterns (last repeat)")
+        for i, w, it, rwp, rung in last.per_pattern:
+            print(f"      pattern {i:2d}  {w:7.2f} s  {it:5d} iter  "
+                  f"Rwp {rwp:.5f}  rung {rung}")
 
 
 def main(argv: list[str] | None = None) -> int:
