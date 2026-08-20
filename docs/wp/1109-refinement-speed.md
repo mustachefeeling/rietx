@@ -156,18 +156,49 @@ which CLAUDE.md fences for corrections and which is equally uninformative here.
 
 ### 2026-08-20 — investigation, and the first task
 
-*Done.* The three baselines above; the five retired non-causes; the orbit
-canonicalisation vectorised, verified over all 564 settings on both the
-single-chunk and forced-multi-chunk paths, and landed.
+*Done.* The three baselines in Context; the five retired non-causes, each
+measured rather than argued; and task 1 landed — the orbit canonicalisation in
+`generate_reflections` vectorised, with the empty-range and memory properties
+the per-hkl loop got for free written back in explicitly.
+
+One consequence reached outside `crystallography/`. `determine_extinction_symbol`
+promises that a cell with no reflections in range comes back as a failed screen
+with a reason rather than a traceback, and it was delivering that by **catching
+the einsum shape error** the old loop raised on the empty array. With empty
+answered rather than raised, the live path became the `if not primary` branch,
+which set `status="failed"` and attached no diagnostic — WP-1076's shape, a
+declared state with no writer for its reason. It now names the cell and the
+range. So this commit touches `indexing/extinction.py`, which is why the
+indexing acceptance was run.
+
+*Measured* (worktree `.venv`, `[dev]` only — jax and torch absent — darwin/arm64,
+Python 3.12). Fast suite **2458 passed + 117 skipped**, exactly **+9** over the
+2449+117 baseline for the 9 tests added (8 parametrised orbit-partition rows and
+1 chunking row, both in `test_crystallography.py`), **no new skip**.
+`test_acceptance_indexing.py` passed, exit 0, ~25 min serial. ruff clean. Full
+suite not run: the change is bit-identical by construction and checked as such
+over all 564 gemmi settings, so no measured acceptance number can move — the
+nightly full will read +9.
+
+Wall clock, whole function: 62→16, 29→2.9, 20.8→2.0, 18.7→1.8, 26.8→1.7,
+6.3→0.7, 88.5→7.3 ms across cubic/rhombohedral/hexagonal/monoclinic/triclinic;
+python calls for three monoclinic runs 280 753→1 009. Whole 11-BM NAC fit
+**1.74-1.75 → 1.24-1.25 s**, both best-of-3 on an idle machine.
 
 *In flight.* Nothing.
 
-*Next.* The hkl cache is the cheapest remaining win and the one that pays most
-on a series. The peak-loop re-scope is the largest and needs WP-0605 read first.
+*Next.* The hkl cache is the cheapest remaining win and the one that pays most on
+a series. The peak-loop re-scope is the largest, and its task text is written as
+a re-scope of WP-0605 rather than a reversal — read that WP first, and note it is
+closed 🛑, so its file is the record and there is no `### Inherited` there to
+receive a note.
 
-*Gotchas.* (a) Benchmark on an idle machine — a fit re-timed while the suite ran
-`-n auto` alongside read 4.78 s against 1.5-1.8 s idle, a 2.7× artefact, larger
-than most changes here. (b) `max_iter` is not an iteration count: it multiplies
-by the free-parameter count to make `max_nfev`. (c) The FD hunt and the
-tie-widening hunt are closed — retired items 1 and 2 exist so the next session
-does not repeat them.
+*Gotchas.* (a) **Benchmark on an idle machine.** A fit re-timed while the suite
+ran `-n auto` alongside read 4.78 s against 1.24 s idle — a 3.9× artefact, far
+larger than anything this WP will change. Every number above is best-of-3 with
+nothing else running. (b) `max_iter` is **not** an iteration count: it multiplies
+by the free-parameter count to make `max_nfev`, so `max_iter=100` on 42
+parameters is a 4200-evaluation budget. (c) Retired items 1 and 2 exist so the FD
+and tie-widening hunts are not repeated; both cost measurement to eliminate.
+(d) The bounds-cost claim is recorded as **not reproduced**, deliberately — do
+not quote the log's 138→18 s as evidence for it.

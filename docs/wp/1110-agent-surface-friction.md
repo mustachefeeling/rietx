@@ -156,17 +156,39 @@ ignoring a bound pinned in most patterns.
 
 ### 2026-08-20 — the transcript, read
 
-*Done.* The transcript distilled and analysed; every friction item in the
-Context section re-verified against the current tree rather than taken from the
-reading (the PyPI trap in item 1 was diagnosed here, not in the log — the agent
-only saw that it got an empty package).
+*Done.* The transcript distilled and analysed, and every friction item in
+Context re-verified against this tree rather than carried over from the reading.
+Two of those checks **changed the WP's conclusion**, which is the main reason to
+trust the rest of it:
+
+- `using/agents.md` is not missing and not unlinked. It is in the toctree at
+  `docs/manual/index.md:110`, the front page carries a "For agents" admonition,
+  and the chapter's first two sentences name `capabilities()` and
+  `agent.refine_json`. The agent called `capabilities()` and still never called
+  `refine_json` — so "write more docs" was refuted before any work started.
+- Constraints are documented too, in `using/concepts.md:137`. The 404 was a
+  *guessed* page name missing content that exists.
+
+The PyPI trap (item 1) was diagnosed here, not in the log: the agent only saw
+that it got an empty package. `curl`ing the JSON index showed `0.0.0` declaring
+`requires_python >=3.10` against `>=3.11` on every real release, which is why
+pip resolves to the stub on 3.10 and *succeeds*.
+
+*Measured.* Nothing — this WP landed no code. The session's counts belong to
+WP-1109 and are in that WP's entry.
 
 *In flight.* Nothing.
 
-*Next.* The task list is unordered on purpose; the last item is the one that
-should be answered first, because it decides whether the others are worth doing
-on the JSON surface or on the python one.
+*Next.* The task list is unordered on purpose, and the **last** item should be
+answered first: it decides whether the rest is work on the JSON surface or on
+the python one. Answer it with a real agent given the same data and no help —
+`agent-usefulness means real agents`, and a deterministic proxy cannot see the
+choice this WP is about.
 
-*Gotchas.* The transcript is one agent on one dataset. Everything here is a real
-failure, but the *frequency* of each is unknown, and the last task's question —
-why `refine_json` was never reached — cannot be answered from this sample alone.
+*Gotchas.* (a) The transcript is **one agent on one dataset**. Every item is a
+real failure, but the *frequency* of each is unknown and nothing here should be
+quoted as a rate. (b) Do not act on the friction list by adding documentation
+without reading the two corrections above first — that is the conclusion this
+session started with and had to abandon. (c) The evidence transcript is the
+maintainer's local file, outside this repo; the distilled form was scratch and
+is not preserved, so re-deriving any claim means re-reading the original.
