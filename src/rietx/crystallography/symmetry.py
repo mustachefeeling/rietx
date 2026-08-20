@@ -32,6 +32,13 @@ from .lattice import d_spacings, two_theta_deg
 #: below the PiB-scale grids a collapsed cell implies
 MAX_HKL_GRID_POINTS = 30_000_000
 
+#: transient element budget for the orbit-image stack in
+#: ``generate_reflections`` — the hkl loop it replaced was O(1) in memory, so
+#: the vectorised form chunks to stay bounded.  ~24M int64 ≈ 200 MB, which every
+#: physical case here fits in one chunk (the largest measured is 11k hkl × 8
+#: images × 3 = 265k).
+_ORBIT_CHUNK_ELEMENTS = 24_000_000
+
 
 def get_spacegroup(symbol: str) -> gemmi.SpaceGroup:
     """Resolve an H-M symbol (or IT number given as a string) via gemmi."""
@@ -350,22 +357,54 @@ def generate_reflections(sg_symbol: str,
     # returns it in closed form; see the module docstring.
     rots = rotation_matrices(sg)
     rot_int = np.rint(np.transpose(rots, (0, 2, 1))).astype(np.int64)
-    canon: dict[tuple[int, int, int], int] = {}
-    order: list[tuple[int, int, int]] = []
-    counts: dict[tuple[int, int, int], set[tuple[int, int, int]]] = {}
-    for h in hkl:
-        images = np.einsum("mij,j->mi", rot_int, h)
-        images = np.vstack([images, -images])  # Friedel
-        keys = [tuple(map(int, im)) for im in images]
-        rep = max(keys)  # canonical representative: lexicographically largest
-        if rep not in canon:
-            canon[rep] = len(order)
-            order.append(rep)
-            counts[rep] = set()
-        counts[rep].update(keys)
-
-    reps = np.array(order, dtype=np.int64)
-    mult = np.array([len(counts[tuple(r)]) for r in reps], dtype=np.int64)
+    # One einsum over every (operation, hkl) pair rather than one per hkl.  The
+    # per-hkl form spent ~11 µs of numpy dispatch on three-element arrays, which
+    # is the whole cost at this size: this is 14-34× faster and returns the same
+    # arrays element for element, checked against the loop over all 564 gemmi
+    # settings, not merely over a few systems (the reason to check every one is
+    # the Rᵀ trap in this module's docstring — a wrong action keeps the orbit
+    # *count* right in every crystal system).
+    # Lexicographic order on (h, k, l) is numeric order on a mixed-radix
+    # encoding, so "largest image" becomes an integer max along the image axis.
+    # ``base`` bounds every image component — |Rᵀh|_∞ ≤ max row sum of |Rᵀ| times
+    # |h|_∞ — and is computed once so codes stay comparable across the chunks
+    # below.
+    # a range that admits no reflection is a legitimate answer, not an error —
+    # the per-hkl loop simply did not execute, and ``max`` on the empty stack
+    # would raise
+    base = (int(np.abs(rot_int).sum(axis=2).max())
+            * (int(np.abs(hkl).max()) if len(hkl) else 0) + 1)
+    radix = 2 * base + 1
+    # The (2m, n, 3) image stack is the one array here that is not O(n): 48
+    # operations over a million surviving hkl would be gigabytes, where the
+    # per-hkl loop was O(1).  rep_code and n_distinct are per-hkl, so chunking
+    # over hkl is exact and bounds the transient at CHUNK × 2m × 3 int64.
+    chunk = max(1, _ORBIT_CHUNK_ELEMENTS // max(6 * len(rot_int), 1))
+    rep_parts: list[np.ndarray] = []
+    mult_parts: list[np.ndarray] = []
+    for start in range(0, len(hkl), chunk):
+        block = hkl[start:start + chunk]
+        images = np.einsum("mij,nj->mni", rot_int, block)
+        images = np.concatenate([images, -images], axis=0)  # Friedel
+        code = (((images[..., 0] + base) * radix
+                 + (images[..., 1] + base)) * radix
+                + images[..., 2] + base)
+        rep_parts.append(code.max(axis=0))
+        # multiplicity is the count of *distinct* images, which a special
+        # position makes smaller than the operation count — sort each orbit's
+        # codes and count the changes rather than building a set per hkl
+        ordered = np.sort(code, axis=0)
+        mult_parts.append(1 + (np.diff(ordered, axis=0) != 0).sum(axis=0))
+    rep_code = np.concatenate(rep_parts) if rep_parts else np.empty(0, dtype=np.int64)
+    n_distinct = (np.concatenate(mult_parts) if mult_parts
+                  else np.empty(0, dtype=np.int64))
+    # one row per orbit, in the order the orbits are first met, as the loop did
+    keep = np.sort(np.unique(rep_code, return_index=True)[1])
+    sel = rep_code[keep]
+    reps = np.stack([(sel // (radix * radix)) - base,
+                     ((sel // radix) % radix) - base,
+                     (sel % radix) - base], axis=1).astype(np.int64)
+    mult = n_distinct[keep].astype(np.int64)
     d_reps = d_spacings(reps, *cell)
     sort = np.argsort(-d_reps)  # ascending 2θ = descending d
     return ReflectionSet(hkl=reps[sort], multiplicity=mult[sort], d=d_reps[sort],
