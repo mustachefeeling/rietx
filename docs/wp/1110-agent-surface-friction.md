@@ -1,6 +1,6 @@
 # WP-1110 — the agent surface, measured against an agent that used it
 
-Milestone: v1.1 · Status: 🔄 2026-08-20
+Milestone: v1.1 · Status: 🔄 2026-08-20 — the shaping question answered by a real-agent round; the twenty friction items unstarted
 Depends on: —
 
 ## Goal
@@ -228,14 +228,16 @@ The decision above is taken, so these are now ordered. Candidates, by value:
       `constraints.md` that is one `{ref}` to the concepts section, and the same
       for any other name a caller would guess. Same class as the item above:
       the content exists and is not being reached.
-- [ ] **Decide why `refine_json` was not reached** — the question the others
-      depend on. The chapter exists, is linked from the front page, and names
-      the call in its first two sentences (Context above), so "write more docs"
-      is already refuted. Answer it with a real agent, not by reasoning: give
-      one the same data and watch where it goes. If the answer is that a
-      shell-driving agent will always prefer composable python, then the
-      investment belongs in the python surface's ergonomics and its diagnostics,
-      and `refine_json` is for MCP callers rather than for coding agents.
+- [x] **Decide why `refine_json` was not reached** — **done 2026-08-20**, by
+      the registered six-agent round rather than by reasoning (§ The decision).
+      The question's premise was false. It *is* reached once an agent is told,
+      by one of two `pointed` agents; what has no consumers is the **exported
+      schema** — `tool_definition()`/`request_schema()`/`response_schema()`
+      called zero times in every cell across 235 traced interpreter starts,
+      including both cells required to use `refine_json`. The branch this WP
+      pre-registered is the one taken: **the investment belongs in the python
+      surface's ergonomics and its diagnostics**, and `refine_json` is for MCP
+      callers and process boundaries rather than for coding agents.
 
 ## Acceptance
 
@@ -254,27 +256,37 @@ ignoring a bound pinned in most patterns.
 
 ### 2026-08-20 (second session) — the round run, and the premise corrected
 
-*Done.* The decision item answered with real agents, not by reasoning:
-`tests/eval_agent_surface/PROTOCOL.md` round 1.0 — three conditions, N = 2,
-sonnet, on the trigger dataset itself, registered and committed **before any
-run**. The Results section carries every number; § The decision in Context
-carries what it settled. Also: eight new friction items (13-20), all found by
-an agent doing real work, and two of this WP's own claims corrected.
+*Done.* The decision item answered with real agents rather than by reasoning:
+`tests/eval_agent_surface/PROTOCOL.md` round 1.0 — three conditions
+(`bare`/`pointed`/`mandated`), N = 2, sonnet, on the trigger dataset itself,
+**registered and committed before any run**. Its Results section carries every
+number and § The decision above carries what it settled. Eight new friction
+items (13-20) came out of watching agents work, and **two of this WP's own
+claims were corrected**. Four things landed alongside, each named in its own
+commit: the v3 RAW gate that the round could not start without, the round's
+shim and scorer, the session-start hook's entry-date parser, and a false
+positive in `test_portability`.
 
 *Measured.* R1 = **0 of 2** — neither unaided agent reached `refine_json`,
 replicating the transcript. R2 = **split, 1 of 2**, and it stays split: N = 2
-was declared as a device for making a disagreement visible, not for measuring
-a rate, so no branch of the decision rule is claimed as swept. The result that
-decided the WP is one neither read-out asked for: `agent.tool_definition()` /
-`request_schema()` / `response_schema()` were called **zero times in every
-cell across 235 traced interpreter starts**, including both cells *required*
-to use `refine_json`. All 25 `refine_json` calls were python function calls
-inside python scripts. Test counts: this session ran the fast selection on
-`[dev]` in this worktree; the numbers are in the closing block below.
+was declared as a device for making a disagreement visible, not for measuring a
+rate, so no branch of the decision rule is claimed as swept. The result that
+decided the WP is one neither read-out asked for: `agent.tool_definition()`,
+`request_schema()` and `response_schema()` were called **zero times in every
+cell across 235 traced interpreter starts**, including both cells *required* to
+use `refine_json`; all 25 `refine_json` calls were python function calls inside
+python scripts. Test counts, **this worktree's own venv, `[dev]`,
+darwin/arm64**: fast selection `-m "not slow"` **2562 passed, 72 skipped**,
+from 2559 passed / 72 skipped before this session. Three tests added, three new
+passes, **no new skip**: the RAW zero-pad test, and two on the hook (the real
+corpus, and both entry spellings). **The full suite was not run, deliberately**
+— nothing here can move a number it measures: the RAW gate only *widens*
+acceptance for a zero-padded v3 file and no committed fixture is one (the two
+Bruker fixtures are v4 and `.brml`), and the rest is tests, hooks and docs.
+`sphinx -W` clean, `ruff` clean.
 
-*In flight.* Nothing running. The eight new items and the six original ones
-are unstarted; the Tasks list is now ordered because the decision that ordered
-it is taken.
+*In flight.* Nothing running. Twenty friction items are unstarted; the Tasks
+list is ordered now because the decision that ordered it is taken.
 
 *Next.* Item 13 first — the zero-scale cell runaway, hit independently by two
 agents, refused several stages downstream of its cause, with a fix
@@ -282,23 +294,31 @@ agents, refused several stages downstream of its cause, with a fix
 that needs no third-party number. Then 15 (the two plan types) and 17 (the VT
 temperature), both of which cost every agent real time. **Do not start with the
 JSON surface**: the round says a coding agent's investment is the python one.
+Milestone-wise the maintainer's own ordering still puts **WP-1111 ahead of all
+of these** — it gates 1112-1115.
 
-*Gotchas.* (a) The round's own instrument had two defects, both now recorded
-in PROTOCOL.md and one fixed: the shim wrapped without `functools.wraps`, so
-an agent saw `rietx_surface_trace.py` and went to source (fixed); attribution
-by cwd measured almost nothing and was replaced by binding a pid through the
-data-file path (fixed in `score_round.py`, and round 1.1 should give each cell
-its own venv instead). (b) **The experiment venv had no matplotlib**, so four
-of six agents hand-rolled an SVG plotter. That is a workspace defect of mine,
-not a finding about the package, and nothing is concluded from it. (c) The
-dataset is the maintainer's, fetched from a Durham URL, and is **not committed
-anywhere in this repo** — re-running the round means fetching it again. (d)
-`pointed-1`'s abandoned `refine_sequential` (pattern 2's `refit="single"`
-collapse past 150 s unfinished, `cell` stage 22 s on 4 phases) is a **speed**
-datum on a trigger-shaped model; it is pushed to WP-1111 and does not belong
-here. (e) The reader fix that opened the dataset (`552f3e18`) is real work
-outside this WP's list — the trigger file was refused by `read_pattern` before
-it, so no round was possible without it.
+*Gotchas.* (a) The round's own instrument had two defects, both recorded in
+PROTOCOL.md and both fixed: the shim wrapped without `functools.wraps`, so an
+agent saw `rietx_surface_trace.py` and went to source; and attribution by cwd
+measured almost nothing, because a subagent runs python from wherever its shell
+sits and `python -c` leaves nothing in argv. Round 1.1 should give each cell its
+own venv so attribution is a property of the environment. (b) **The experiment
+venv had no matplotlib**, so four of six agents hand-rolled an SVG plotter. That
+is a workspace defect of mine, not a finding about the package, and nothing is
+concluded from it. (c) The dataset is the maintainer's; its URL and fetch date
+are in PROTOCOL.md § The episode, and it is **committed nowhere in this repo**,
+so re-running the round means fetching it again. (d) `pointed-1`'s abandoned
+`refine_sequential` is a **speed** datum and is pushed to WP-1111's
+`### Inherited`, not kept here. (e) The reader fix (`552f3e18`) is work outside
+this WP's list and was unavoidable: `read_pattern` refused the trigger file, so
+no round was possible without it. (f) The session-start hook fix is likewise
+outside the list, and arrived through the ritual's memory sweep rather than the
+task list: the hook parsed only `TEMPLATE.md`'s `- **date**` bullets while every
+real log writes `### date` headings, so it flagged *every* open WP with recent
+commits as `repair first` — including this one, at this session's own start. Its
+synthetic tests could not see it because they built fixtures in the parser's own
+spelling, so the new guard reads the real `docs/wp/` corpus and was confirmed to
+fail on the old regex before being trusted.
 
 ### 2026-08-20 — the transcript, read
 
