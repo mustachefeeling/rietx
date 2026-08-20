@@ -424,7 +424,7 @@ def test_a_stage_line_round_trips_every_key_stage_spec_has(project):
 # ----------------------------------------------------------------------
 def test_every_error_carries_a_line_number_and_a_path(project):
     text = td.render(project)
-    edited = _edit(text, "cell.b", "  cell.b   4.2  min 0.1  = 1·phases.0.cell.a")
+    edited = _edit(text, "cell.b", "  cell.b   4.2  = 1·phases.0.cell.a")
     edited = _edit(edited, "atoms.0.occ", "  atoms.0.occ  1  min 0  max 9.9")
     edited = _edit(edited, "mode", "mode wandering")
     edited += "  nonsense.path  1\nfoo bar\n"
@@ -489,7 +489,7 @@ def test_comments_parse_and_do_not_survive_a_re_render(project):
     or the history (which would make a comment a refinement move).
     """
     text = td.render(project)
-    annotated = _edit(text, "cell.a", "  cell.a @ 4.1606  min 0.1  # my note")
+    annotated = _edit(text, "cell.a", "  cell.a @ 4.1606  # my note")
     delta, errors = _changes(annotated, project)
     assert (errors, delta.is_empty()) == ([], True)
     assert "my note" not in td.render(project)
@@ -538,7 +538,7 @@ def test_a_stale_base_revision_is_a_conflict_not_a_merge(session, project):
 def test_a_document_with_errors_applies_none_of_itself(session, project):
     doc = session.textdoc()
     edited = _edit(doc["text"], "cell.a", "  cell.a        @ 4.15678")
-    edited = _edit(edited, "cell.b", "  cell.b   9.9  min 0.1  = 1·phases.0.cell.a")
+    edited = _edit(edited, "cell.b", "  cell.b   9.9  = 1·phases.0.cell.a")
     with pytest.raises(rx.gui.GuiError) as excinfo:
         session.textdoc_put({"text": edited})
     error = excinfo.value

@@ -99,7 +99,10 @@ def _phase(name, sg, cell, atoms, **kw):
     a, b, c, al, be, ga = cell
     return rx.Phase(
         name=name, space_group=sg,
-        cell=rx.Cell(a=_p(a, min=1.0), b=_p(b, min=1.0), c=_p(c, min=1.0),
+        # cell bounds left open on purpose: the default per-stage window
+        # (params.vector.cell_window) is anchored on the value each stage
+        # starts from, and a finite bound here would suppress it
+        cell=rx.Cell(a=_p(a), b=_p(b), c=_p(c),
                      alpha=_p(al), beta=_p(be), gamma=_p(ga)),
         atoms=[rx.Atom(label=lab, species=sp, x=_p(x), y=_p(y), z=_p(z),
                        biso=_p(biso, min=0.0, max=25.0))

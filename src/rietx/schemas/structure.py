@@ -54,9 +54,9 @@ class Cell(Base):
     @classmethod
     def cubic(cls, a: float, *, vary: bool = False) -> "Cell":
         return cls(
-            a=Parameter(value=a, vary=vary, min=0.1),
-            b=Parameter(value=a, min=0.1),
-            c=Parameter(value=a, min=0.1),
+            a=Parameter(value=a, vary=vary),
+            b=Parameter(value=a),
+            c=Parameter(value=a),
             alpha=Parameter(value=90.0),
             beta=Parameter(value=90.0),
             gamma=Parameter(value=90.0),

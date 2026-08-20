@@ -1905,6 +1905,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # see the correction at all, and whether it left its derivation's domain.
     diagnostics = diagnostics + _roughness_regime_diagnostics(model, values)
 
+    # A phase the data cannot see, refined anyway (WP-1110).  Named here rather
+    # than left to HIGH_CORRELATION, which reports the ρ≈1 between the phase's
+    # cell and its scale — the symptom — while this reports the cause.
+    diagnostics = diagnostics + _phase_support_diagnostics(
+        model, values, list(table.free_paths), structure)
+
     # The two robustness statements that are about the *run* rather than a
     # parameter, so they are Diagnostics here rather than GuardFindings (which
     # exist to carry paths — these have none).  Both cover the silent-failure
@@ -2340,6 +2346,81 @@ def _max_iter_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
                    "bound hit in the same stage — raising max_iter buys "
                    "solver evaluations, not a different minimum",
     )]
+
+
+#: A phase whose strongest modelled point sits below this many σ of the
+#: observation noise is one the data cannot distinguish from absent.  One σ,
+#: not a tuned fraction: the comparison is against the counting statistics the
+#: phase competes with, the same footing ``indexing.workflow.ABSENT_SIGMA``
+#: puts a missing line on.  Below it every parameter of the phase has a
+#: Jacobian column under the noise floor, which is the definition of
+#: unconstrained rather than an opinion about it.
+PHASE_SUPPORT_SIGMA = 1.0
+
+
+def _phase_support_diagnostics(model: CompiledModel, values: dict[str, float],
+                               free_paths: list[str],
+                               structure: Structure) -> list[Diagnostic]:
+    """``PHASE_UNCONSTRAINED`` — a phase the data cannot see, refining anyway.
+
+    Every structural parameter of a phase reaches the pattern only through
+    ``scale × |F|² × profile``.  So when a phase's scale falls to its floor,
+    the whole phase becomes a **flat direction**: its Jacobian columns go to
+    the noise floor, the fit still reports ``converged`` because those
+    parameters genuinely do not affect Rwp, and whatever the optimiser leaves
+    in them is not a measurement.  Two agents on a real 68-pattern series drove
+    such a phase's cell to a ≈ 39 293 Å and a ≈ 40 000 Å, and the run died
+    hundreds of stages later inside ``generate_reflections`` (WP-1110).
+
+    Measured on the **modelled contribution**, not on ``scale``, for the reason
+    :data:`ROUGHNESS_MIN_DEPRESSION` is measured on the depression: scale is
+    degenerate with |F|², the profile widths and the line weights, so a small
+    scale is not the same statement as a small contribution and only one of
+    them is about what the data can see.
+
+    ``params.vector.cell_window`` bounds the *symptom* — it stops the cell
+    running away — but a windowed cell re-anchors on every stage, so it walks
+    quietly instead of loudly and ``BOUND_HIT`` need never fire.  This names
+    the cause, which is the half a caller can act on.
+    """
+    n_phases = len(model.phases)
+    if n_phases < 2:
+        # a single-phase fit has no "absent phase" reading: if the one phase is
+        # under the noise the pattern is not this material at all, which is
+        # MODEL_FAR_FROM_DATA's statement rather than this one
+        return []
+    sigma = np.asarray(model.sigma, dtype=np.float64)
+    out: list[Diagnostic] = []
+    for ip in range(n_phases):
+        prefix = f"phases.{ip}."
+        # the scale is what makes a phase visible, so a free scale is how a
+        # phase legitimately climbs out of the noise — it is the *other* free
+        # parameters that are being refined against nothing
+        unconstrained = sorted(p for p in free_paths
+                               if p.startswith(prefix) and p != f"{prefix}scale")
+        if not unconstrained:
+            continue
+        y_phase = np.asarray(model.phase_component(ip, values), dtype=np.float64)
+        support = float(np.max(y_phase / sigma)) if len(y_phase) else 0.0
+        if support >= PHASE_SUPPORT_SIGMA:
+            continue
+        name = structure.phases[ip].name
+        out.append(Diagnostic(
+            level="warning", code="PHASE_UNCONSTRAINED",
+            where=unconstrained,
+            value=support,
+            message=(f"phase {ip} ({name}) contributes at most {support:.2g}σ of "
+                     f"the observation noise anywhere in the fitted range, so "
+                     f"the data cannot distinguish it from absent — yet "
+                     f"{len(unconstrained)} of its parameters were refined "
+                     f"against it"),
+            suggestion="treat those values as unmeasured, not as results: they "
+                       "moved in a flat direction. Either the phase is not in "
+                       "this specimen and belongs out of the model, or its "
+                       "scale is stuck at its floor and needs seeding before "
+                       "anything else of it is freed",
+        ))
+    return out
 
 
 #: below this modelled depression at the lowest fitted angle, a refined

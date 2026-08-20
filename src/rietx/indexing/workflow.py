@@ -149,8 +149,8 @@ def structure_from_candidate(candidate: CellCandidate, *,
     a, b, c, alpha, beta, gamma = candidate.cell
     return Structure(phases=[Phase(
         name=name, space_group=symbol,
-        cell=Cell(a=Parameter(value=a, min=0.1), b=Parameter(value=b, min=0.1),
-                  c=Parameter(value=c, min=0.1),
+        cell=Cell(a=Parameter(value=a), b=Parameter(value=b),
+                  c=Parameter(value=c),
                   alpha=Parameter(value=alpha), beta=Parameter(value=beta),
                   gamma=Parameter(value=gamma)),
         atoms=[Atom(label="X", species=DUMMY_SPECIES,

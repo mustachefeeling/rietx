@@ -1790,7 +1790,7 @@ def test_two_text_writers_race_and_the_second_is_refused_whole(
         return "\n".join(out) + "\n"
 
     # both writers rendered the same document and both are editing a different row
-    first = edit(doc["text"], "cell.a", "  cell.a        @ 4.15678  min 0.1")
+    first = edit(doc["text"], "cell.a", "  cell.a        @ 4.15678")
     second = edit(doc["text"], "scale", "  scale         @ 0.00123  min 0  softplus")
 
     status, applied = client.put("/api/textdoc",
