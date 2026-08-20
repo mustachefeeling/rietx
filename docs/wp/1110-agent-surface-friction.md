@@ -408,6 +408,11 @@ bit-identical**, Rwp included. Exact rather than a tolerance, and it is exact
 *because* the window is restricted: neither NAC phase (571σ and 185σ of support)
 is windowed at all, so the bounds handed to TRF are the ones main hands it.
 
+Full suite, same venv and platform: **2645 passed, 126 skipped in 22:33**, zero
+failures. It fired **twice**, deliberately — the ladder says once on the final
+tree, and the first run's tree turned out not to be final. That run is the whole
+reason this WP shipped a correct design.
+
 **The full suite is what made that true.** The first design windowed every
 phase, and it regressed three `test_acceptance_sequential` rows that pass on
 main — chained `cpd-1c` corundum 9.04 wt % against 6.30. § The cell window has
