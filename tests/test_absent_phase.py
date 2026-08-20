@@ -30,7 +30,6 @@ from rietx.params.vector import (
     ParameterTable,
     cell_window,
 )
-from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.schemas.structure import Structure
 from tests.test_refine_synthetic import TRUE_A, synthesize
@@ -231,3 +230,96 @@ def test_the_absent_phase_fit_is_drawn_for_inspection(absent_phase_fit):
 
     plt.close("all")
     assert (OUT / "absent_phase.png").exists()
+
+
+# ----------------------------------------------------------------------
+# the same finding, read across a series (item 8)
+# ----------------------------------------------------------------------
+def _series_with(n: int, fired_in: int, *, code: str = "BOUND_HIT",
+                 path: str = "phases.3.cell.c", level: str = "warning"):
+    """``fired_in`` of ``n`` patterns carry ``code`` on ``path``."""
+    from rietx.schemas.common import Diagnostic
+    from rietx.schemas.sequential import SeriesEntry, SeriesResult
+
+    return SeriesResult(entries=[
+        SeriesEntry(index=i, label=f"p{i}", diagnostics=(
+            [Diagnostic(level=level, code=code, where=[path], message="…")]
+            if i < fired_in else []))
+        for i in range(n)])
+
+
+def test_a_finding_in_most_of_a_series_is_stated_once_with_its_count():
+    """The sentence no per-pattern diagnostic can produce.
+
+    The trigger episode's own numbers: ``phases.3.cell.c`` pinned in 42 of 68
+    patterns, said 425 times per-pattern and never once as "42 of 68".
+    """
+    from rietx.sequential import _persistent_diagnostics
+
+    out = _persistent_diagnostics(_series_with(68, 42))
+    assert len(out) == 1
+    finding = out[0]
+    assert finding.code == "SEQUENTIAL_PERSISTENT_FINDING"
+    assert "42 of 68" in finding.message and "BOUND_HIT" in finding.message
+    assert finding.where == ["phases.3.cell.c"]
+    assert finding.value == pytest.approx(42 / 68)
+
+
+def test_the_threshold_is_a_change_of_subject_at_half_the_patterns():
+    """Below half, the per-entry diagnostics are the whole story.
+
+    Not a tuned sensitivity: above half a finding describes the series rather
+    than some of its members, and a summary that repeated a minority finding
+    would be a second authority on the same fact.
+    """
+    from rietx.sequential import _persistent_diagnostics
+
+    assert _persistent_diagnostics(_series_with(68, 34)) == []   # exactly half
+    assert len(_persistent_diagnostics(_series_with(68, 35))) == 1
+
+
+def test_a_short_series_gets_no_summary_at_all():
+    """A summary of three things is not a summary."""
+    from rietx.sequential import MIN_POINTS_FOR_PERSISTENCE, _persistent_diagnostics
+
+    short = MIN_POINTS_FOR_PERSISTENCE - 1
+    assert _persistent_diagnostics(_series_with(short, short)) == []
+
+
+def test_it_aggregates_whatever_fired_rather_than_a_list_of_codes():
+    """Diagnostic codes are an open vocabulary (root CLAUDE.md).
+
+    A new code must be summarised on the day it lands, with no edit here — so
+    this asserts the *mechanism* is code-agnostic, using one that did not exist
+    when the aggregation was written.
+    """
+    from rietx.sequential import _persistent_diagnostics
+
+    out = _persistent_diagnostics(
+        _series_with(10, 9, code="PHASE_UNCONSTRAINED", path="phases.3.cell.a"))
+    assert len(out) == 1 and "PHASE_UNCONSTRAINED" in out[0].message
+
+
+def test_the_worst_level_survives_the_summary():
+    """A summary must not report an error as a warning."""
+    from rietx.sequential import _persistent_diagnostics
+
+    out = _persistent_diagnostics(_series_with(10, 9, level="error"))
+    assert out[0].level == "error"
+
+
+def test_one_pattern_counts_once_however_many_stages_fired_it():
+    """Otherwise the count measures stages, not patterns."""
+    from rietx.schemas.common import Diagnostic
+    from rietx.schemas.sequential import SeriesEntry, SeriesResult
+    from rietx.sequential import _persistent_diagnostics
+
+    repeated = [Diagnostic(level="warning", code="BOUND_HIT",
+                           where=["phases.0.cell.a"], message=f"stage {s}")
+                for s in range(6)]
+    series = SeriesResult(entries=[
+        SeriesEntry(index=i, label=f"p{i}", diagnostics=list(repeated))
+        for i in range(8)])
+    out = _persistent_diagnostics(series)
+    assert len(out) == 1
+    assert "8 of 8" in out[0].message, out[0].message
