@@ -382,6 +382,26 @@ to the session's opening tree.
 
 Full suite on the final tree: **2609 passed + 126 skipped**, 0 failed, 22:30.
 
+**Then CI's `fast jax` job failed and a second gap opened, in the same shape as
+the first.** Every numpy job passed on 3.11–3.14; the `[dev,jax]` job failed 21
+rows across `test_backend_jax` and `test_cross_backend` with
+`ConcretizationTypeError`. Cause: the memo keys are built by calling `float()`
+on decoded values, and under a trace those are **tracers**, where `float()`
+raises. `_memo` tested the backend correctly, but the key was built *at the
+call site*, before that test — so the traced path died constructing a key it
+would never use. Fixed by making the key a **thunk**: `_memo` takes a callable
+and evaluates it only on the numpy path, so the rule is structural rather than
+remembered. Re-measured with jax installed, `[dev,jax]`: fast suite **2559
+passed + 72 skipped**, and the QPA-acceptance cpd-2 fingerprint still
+bit-identical (14.76–15.11 s).
+
+The gap is the venv, and it is the rule `tests/CLAUDE.md` § Quoting numbers
+already states: a `[dev]`-only worktree **skips every jax row**, so a green
+local run says nothing about the traced path. A session touching
+`model/forward.py`, `backend/traced.py` or anything either reaches should
+install `[dev,jax]` and run `test_backend_jax.py` + `test_cross_backend.py`
+before pushing, not discover it from CI two runs later.
+
 **The full suite is what caught the one regression**, and it is worth saying
 plainly: the *first* closing run came back `1 failed, 2608 passed, 126 skipped`
 on `test_acceptance_stephens.test_corundum_is_reported_isotropic`, which the
@@ -420,8 +440,14 @@ both re-measured and neither holds — the second was the median. (e) `rietx.ref
 re-exported *function*, not the module, so `import rietx.refine as rf;
 rf.compile_model = spy` silently patches nothing — use
 `sys.modules["rietx.refine"]`. This produced a wrong "0 compiles" reading
-before it was caught. (f) Everything in the two earlier sessions' gotchas
-still binds, the idle-machine rule especially.
+before it was caught. (f) **A memo key must be built
+inside a thunk**, never at the call site: the key uses `float()` on decoded
+values, which are tracers under jax, so an eagerly-built key raises on the
+traced path even when the memo itself is correctly skipped there. Pinned by
+`test_scalar_memo.test_the_memo_never_builds_its_key_off_the_numpy_path`, which
+runs on numpy (it fakes a non-numpy backend) so a session without jax still
+catches it. (g) Everything in the two earlier sessions' gotchas still binds,
+the idle-machine rule especially.
 
 ### 2026-08-20 (second session) — the review, the restructure, and the series
 

@@ -478,8 +478,8 @@ class CompiledModel:
         d = d_spacings(cp.reflections.hkl, *cell)
         return d, [two_theta_deg(d, lam) for lam in self.line_wavelengths]
 
-    def _memo(self, cp: "CompiledPhase", slot: str, key: tuple, build):
-        """``build()`` memoised on exact equality of a small scalar ``key``.
+    def _memo(self, cp: "CompiledPhase", slot: str, key_fn, build):
+        """``build()`` memoised on exact equality of a small scalar key.
 
         The generalisation of :func:`_cached_fcj_nodes`, and it keeps that
         function's two rules.  *Input equality, never a dirty flag*: equal
@@ -491,7 +491,18 @@ class CompiledModel:
         would leak into a later numpy call while a cached numpy array would
         constant-fold the block out of the trace.
 
-        ``key`` must hold plain floats.  A numpy array in it would make the
+        **The key arrives as a thunk, and that is the whole reason this takes a
+        callable rather than a tuple.** Every key here is built by calling
+        ``float()`` on decoded values, which under a trace are tracers —
+        ``float(tracer)`` raises ``ConcretizationTypeError``. Passing the key
+        itself would evaluate it at the call site, *before* the numpy test
+        below, so the traced path would die building a key it never uses. It
+        did: the whole jax matrix failed this way, on a change whose numpy runs
+        were green, because a ``[dev]``-only venv skips every jax row. A thunk
+        makes the rule structural instead of remembered — the key cannot be
+        computed off the numpy path.
+
+        The key must hold plain floats.  A numpy array in it would make the
         ``==`` below elementwise and the truth test ambiguous, which is a
         raise rather than a wrong answer, but the caller should not get there.
 
@@ -506,6 +517,7 @@ class CompiledModel:
         cache = cp.scalar_cache
         if cache is None or get_backend().name != "numpy":
             return build()
+        key = key_fn()
         hit = cache.get(slot)
         if hit is not None and hit[0] == key:
             return hit[1]
@@ -718,7 +730,12 @@ class CompiledModel:
         # together because they share one input and are always wanted together
         # — a Jacobian column that perturbs anything but this phase's cell
         # reuses the lot (``CompiledPhase.scalar_cache``).
-        cell_key = tuple(float(c) for c in cell)
+        # every key below is built inside a thunk, never at the call site: on a
+        # traced backend these values are tracers and ``float()`` on one raises
+        # (see ``_memo``)
+        def cell_key():
+            return tuple(float(c) for c in cell)
+
         d, tt_bragg_lines = self._memo(
             cp, "cell", cell_key, lambda: self._cell_block(cp, cell))
 
@@ -731,7 +748,7 @@ class CompiledModel:
             # and a function of the cell and this phase's atoms alone, so a
             # column perturbing a width or the background reuses it
             f2 = self._memo(
-                cp, "f2", (cell_key, self._atom_key(ip, values)),
+                cp, "f2", lambda: (cell_key(), self._atom_key(ip, values)),
                 lambda: structure_factors_squared(
                     cp.reflections.hkl, d, cp.sites,
                     *self._site_values(ip, values, cell)))
@@ -747,8 +764,8 @@ class CompiledModel:
             if cp.po_axis is not None:
                 P = self._memo(
                     cp, "po",
-                    (cell_key,
-                     float(values[f"phases.{ip}.preferred_orientation.r"])),
+                    lambda: (cell_key(),
+                             float(values[f"phases.{ip}.preferred_orientation.r"])),
                     lambda: self._po_factors(ip, values, cell))
                 base = base * P
             # secondary extinction (model/extinction.py): a per-(line,
@@ -765,9 +782,9 @@ class CompiledModel:
 
         # anisotropic strain is line-independent (it depends on hkl and the
         # cell, not on λ), so Λ is computed once and reused across the lines
-        strain_key = self._strain_key(ip, values)
-        aniso = self._memo(cp, "aniso", (cell_key, strain_key),
-                           lambda: self.strain_width(ip, values, d))
+        aniso = self._memo(
+            cp, "aniso", lambda: (cell_key(), self._strain_key(ip, values)),
+            lambda: self.strain_width(ip, values, d))
 
         # The three per-line blocks below were built inside the loop until
         # WP-1109 and are hoisted only so each can carry its own memo key; the
@@ -775,19 +792,22 @@ class CompiledModel:
         # exactly what it depends on, which is what a Jacobian column's
         # perturbation is compared against.
         positions = self._memo(
-            cp, "pos", (cell_key, self._shift_key(values)),
+            cp, "pos", lambda: (cell_key(), self._shift_key(values)),
             lambda: [tt + self._position_shift_deg(0.5 * tt, tt, values)
                      for tt in tt_bragg_lines])
-        width_key = (cell_key, strain_key,
-                     float(values["instrument.profile.u"]),
-                     float(values["instrument.profile.v"]),
-                     float(values["instrument.profile.w"]),
-                     float(values["instrument.profile.x"]),
-                     float(values["instrument.profile.y"]),
-                     float(values[f"phases.{ip}.gauss_size"]),
-                     float(values[f"phases.{ip}.gauss_strain"]),
-                     float(values[f"phases.{ip}.lor_size"]),
-                     float(values[f"phases.{ip}.lor_strain"]))
+
+        def width_key():
+            return (cell_key(), self._strain_key(ip, values),
+                    float(values["instrument.profile.u"]),
+                    float(values["instrument.profile.v"]),
+                    float(values["instrument.profile.w"]),
+                    float(values["instrument.profile.x"]),
+                    float(values["instrument.profile.y"]),
+                    float(values[f"phases.{ip}.gauss_size"]),
+                    float(values[f"phases.{ip}.gauss_strain"]),
+                    float(values[f"phases.{ip}.lor_size"]),
+                    float(values[f"phases.{ip}.lor_strain"]))
+
         widths = self._memo(cp, "widths", width_key,
                             lambda: self._width_block(ip, values, tt_bragg_lines,
                                                       aniso))
@@ -796,7 +816,7 @@ class CompiledModel:
         else:
             lp_lines = self._memo(
                 cp, "lp",
-                (cell_key, float(values["instrument.polarization"])),
+                lambda: (cell_key(), float(values["instrument.polarization"])),
                 lambda: [lorentz_polarization(
                     tt, values["instrument.polarization"])
                     for tt in tt_bragg_lines])

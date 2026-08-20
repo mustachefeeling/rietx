@@ -223,3 +223,60 @@ def test_memoised_arrays_are_read_only(rich):
     assert intensity.flags.writeable
     # and a model without the memo hands back ordinary writeable arrays
     assert plain.phase_peaks(0, values)[0][0].flags.writeable
+
+
+# -- the key is a thunk, and why (WP-1109) --------------------------------
+
+def test_the_memo_never_builds_its_key_off_the_numpy_path(rich, monkeypatch):
+    """Every memo key is built by calling ``float()`` on decoded values, and
+    under a trace those values are tracers where ``float()`` raises.  So the
+    key must be computed **only** when the memo is live — which is why
+    ``_memo`` takes a thunk rather than a tuple.
+
+    Passing the key itself evaluated it at the call site, before the backend
+    test inside ``_memo``, and took the entire jax matrix down (21 rows across
+    ``test_backend_jax`` and ``test_cross_backend``) on a change whose numpy
+    runs were green, because a ``[dev]``-only venv skips every jax row.  Pinned
+    here on numpy so the contract cannot be tidied back into an eager tuple by
+    someone who cannot run the jax rows either.
+    """
+    import rietx.model.forward as fwd
+
+    cached, plain, _table = rich
+
+    def exploding_key():
+        raise AssertionError("memo key built off the numpy path")
+
+    # (a) no cache allocated at all
+    assert plain.phases[0].scalar_cache is None
+    assert plain._memo(plain.phases[0], "cell", exploding_key,
+                       lambda: "built") == "built"
+
+    # (b) cache allocated, but the active backend is not numpy — the case that
+    # broke, reached here without needing jax installed
+    class _NotNumpy:
+        name = "jax"
+
+    monkeypatch.setattr(fwd, "get_backend", lambda: _NotNumpy())
+    assert cached.phases[0].scalar_cache is not None
+    assert cached._memo(cached.phases[0], "cell", exploding_key,
+                        lambda: "built") == "built"
+
+
+def test_the_memo_does_build_its_key_when_it_is_live(rich):
+    """The other side of it: on numpy with a cache, the key is built and used,
+    so the test above cannot pass by the memo simply never running."""
+    cached, _plain, _table = rich
+    built = []
+
+    def counted_key():
+        built.append(1)
+        return (1.0, 2.0)
+
+    assert cached._memo(cached.phases[0], "probe", counted_key,
+                        lambda: "first") == "first"
+    assert len(built) == 1
+    # same key ⇒ a hit, and the thunk is consulted again to find that out
+    assert cached._memo(cached.phases[0], "probe", counted_key,
+                        lambda: "second") == "first"
+    assert len(built) == 2
