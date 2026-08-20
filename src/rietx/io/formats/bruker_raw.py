@@ -578,14 +578,20 @@ def _read_v3(buf: bytes, *, path: Path) -> _File:
 
     # the global gate, and the reason v3 can be shipped without a fixture: the
     # ranges it declares must account for the file.  Alignment padding is real,
-    # a whole misread range is not, so the tolerance is one datum's worth of slack
-    if len(buf) - cursor >= 8:
+    # a whole misread range is not, so the tolerance is one datum's worth of
+    # slack -- and, past that, the leftover's *content* rather than its length.
+    # A range read at the wrong offset leaves counts behind, and counts are not
+    # zeros; a real DIFFRAC file zero-pads its tail (measured: 3280 zero bytes
+    # past 82 ranges of a VT reel, which the length-only gate refused).
+    tail = buf[cursor:]
+    if len(tail) >= 8 and any(tail):
         raise ValueError(
             f"{path.name}: the {n_ranges} range(s) it declares end at offset "
             f"{cursor} and the file is {len(buf)} bytes, leaving "
-            f"{len(buf) - cursor} unaccounted for. The layout is not the one "
-            "this reader knows, and a pattern read from it would be wrong "
-            "rather than short")
+            f"{len(tail)} unaccounted for, the first non-zero byte of them at "
+            f"offset {cursor + next(i for i, b in enumerate(tail) if b)}. The "
+            "layout is not the one this reader knows, and a pattern read from "
+            "it would be wrong rather than short")
     return _File(version=3, ranges=tuple(ranges), anode=_text(buf, 608, 4) or None,
                  keys={"SAMPLEID": _text(buf, 326, 60)},
                  goniometer_radius_mm=radius if 0.0 < radius < 1e4 else None)

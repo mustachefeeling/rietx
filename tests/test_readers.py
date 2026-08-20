@@ -1951,16 +1951,32 @@ def test_a_v3_scan_type_this_reader_has_no_name_for_is_assumed_and_says_so(
 
 def test_v3_refuses_a_file_its_declared_ranges_do_not_account_for(tmp_path):
     """The global gate, and the reason v3 ships without a fixture: if the
-    arithmetic is right the last range ends on EOF, and if it is wrong the
-    pattern would be wrong rather than short."""
+    arithmetic is right the last range ends on EOF or on a pad, and if it is
+    wrong what is left over is counts -- so the gate reads the leftover's
+    content, and says where the first byte of it is."""
     from tests.writers_xrd import write_raw3
 
     p = write_raw3(tmp_path / "extra_tail.raw",
                    [dict(start=10.0, step=0.02, intensity=[100.0] * 40)],
-                   trailing=b"\x00" * 64)
+                   trailing=b"\x00" * 32 + b"\x00\x00\x96\x43" * 8)  # f32 300.0
 
-    with pytest.raises(ValueError, match="unaccounted for"):
+    with pytest.raises(ValueError, match="unaccounted for.*first non-zero"):
         rx.read_pattern(p)
+
+
+def test_v3_reads_a_file_whose_leftover_is_a_zero_pad(tmp_path):
+    """A real DIFFRAC VT reel pads past its last range -- measured: 3280 zero
+    bytes past 82 ranges of a 318-1123 K reel, which the length-only gate
+    refused outright.  A range read at the wrong offset leaves counts behind
+    and counts are not zeros, so the pad is admitted by content while the
+    ranges still have to account for everything before it."""
+    from tests.writers_xrd import write_raw3
+
+    p = write_raw3(tmp_path / "padded.raw",
+                   [dict(start=10.0, step=0.02, intensity=[100.0] * 40)],
+                   trailing=b"\x00" * 3280)
+
+    assert len(rx.read_pattern(p).two_theta) == 40
 
 
 def test_a_v3_range_count_that_is_not_a_count_is_refused(tmp_path):
