@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import Base
 
@@ -53,6 +53,14 @@ class StageSpec(Base):
         "c_w of McCusker eq (7), S = S_y + c_w·S_G: this stage's weight on the "
         "geometric restraints against the diffraction data; high early, "
         "reduced as the model improves.  1.0 = no scaling"))
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_the_dataclass(cls, value: Any) -> Any:
+        """A ``Stage`` read as a ``StageSpec`` — see :meth:`PlanSpec._accept_the_dataclass`."""
+        from ..strategy.staged import Stage
+
+        return cls.from_stage(value).model_dump() if isinstance(value, Stage) else value
 
     @classmethod
     def from_stage(cls, stage: Any) -> "StageSpec":
@@ -82,6 +90,34 @@ class PlanSpec(Base):
 
     stages: list[StageSpec] = Field(default_factory=list)
     correlation_guard: float = 0.98
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_the_dataclass(cls, value: Any) -> Any:
+        """A ``RefinementPlan`` read as a ``PlanSpec`` (WP-1110 item 15).
+
+        The mirror is written once — this module — and it is *crossed* in two
+        places, this one inbound and ``strategy.staged.resolve_plan`` outbound.
+        Before WP-1110 it was crossed nowhere, so a caller had to know which of
+        two same-shaped types each surface wanted: two agents driving the
+        trigger dataset took a preset out of ``PLAN_PRESETS``, were answered
+        ``INVALID_REQUEST`` by ``refine_json``, and rebuilt the plan field by
+        field.  Here rather than in ``agent.py`` because every JSON boundary in
+        the package asks the same question — a request, a ``TreeHeader``, a
+        ``ProjectDoc`` — and one of them answering differently is the
+        duplication ``schemas/plan.py`` exists to end.
+
+        By ``isinstance`` on the real class, never by duck-typing on
+        ``.stages``: the two types share **every** field name, which is what
+        makes one silently usable where the other is meant.  Measured on this
+        tree — ``fit(plan=PlanSpec(...))`` ran to a bit-identical answer through
+        the annotation ``RefinementPlan | str``, so a structural test would have
+        certified an accident.  The import is local; ``strategy.staged`` imports
+        this module.
+        """
+        from ..strategy.staged import RefinementPlan
+
+        return cls.from_plan(value).model_dump() if isinstance(value, RefinementPlan) else value
 
     @classmethod
     def from_plan(cls, plan: Any) -> "PlanSpec":

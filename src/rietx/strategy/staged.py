@@ -11,10 +11,13 @@ invariant — they stay frozen *within* a stage).
 
 from __future__ import annotations
 
+import dataclasses
+import functools
 import re
 from dataclasses import dataclass, field
 
 from ..schemas.common import Mode
+from ..schemas.plan import PlanSpec
 
 #: ``phases.i.atoms.j.u11`` … — the stored anisotropic components, grouped by
 #: site for the positive-definiteness guard.
@@ -27,6 +30,31 @@ _U_ORDER = {"11": 0, "22": 1, "33": 2, "12": 3, "13": 4, "23": 5}
 #: neither can free a parameter that does not reach the model.
 _DISPLACEMENT_GLOBS = ["phases.*.atoms.*.biso", "phases.*.atoms.*.adp.*"]
 
+
+#: pydantic's *instance* surface — what a caller reaches for on any other object
+#: in this package, and the two types here are the exception.
+_PYDANTIC_SURFACE = frozenset({
+    "model_dump", "model_dump_json", "model_validate", "model_validate_json",
+    "model_fields", "model_copy", "model_json_schema", "model_fields_set",
+})
+
+
+def _ask_the_mirror(name: str, owner: str, call: str) -> AttributeError:
+    """The AttributeError a dataclass raises when asked for pydantic (WP-1110).
+
+    ``Stage`` and ``RefinementPlan`` are the only two objects a caller handles
+    here that are **not** pydantic models, so ``stage.model_dump()`` is the
+    natural next keystroke and the bare ``'Stage' object has no attribute
+    'model_dump'`` says nothing about where serialization actually lives.  An
+    error message is the documentation an agent reads: the round behind this WP
+    measured agents discovering this package by ``dir()`` and by reading
+    installed source, not by opening the chapter that already explains it.
+    """
+    return AttributeError(
+        f"{owner} is a dataclass, not a pydantic model, so it has no "
+        f"{name!r} — it is constructed positionally, which is what makes a "
+        f"plan pleasant to write. Its serializable mirror is the pydantic "
+        f"half of the same fact: {call}. See rietx.schemas.plan.")
 
 
 @dataclass
@@ -68,6 +96,12 @@ class Stage:
     #: and the statistics exclusion built on it — does not change mid-plan.
     restraint_weight_scale: float = 1.0
 
+    def __getattr__(self, name: str):
+        if name in _PYDANTIC_SURFACE:
+            raise _ask_the_mirror(name, "Stage",
+                                  "rietx.StageSpec.from_stage(stage)")
+        raise AttributeError(name)
+
 
 #: Surface roughness (WP-0502) goes **last** in every plan that carries it.
 #: It is the most degenerate correction in the package: a low-angle intensity
@@ -94,6 +128,12 @@ _ROUGHNESS_STAGE = (
 class RefinementPlan:
     stages: list[Stage]
     correlation_guard: float = 0.98
+
+    def __getattr__(self, name: str):
+        if name in _PYDANTIC_SURFACE:
+            raise _ask_the_mirror(name, "RefinementPlan",
+                                  "rietx.PlanSpec.from_plan(plan)")
+        raise AttributeError(name)
 
     @classmethod
     def mccusker_default(cls) -> "RefinementPlan":
@@ -254,19 +294,61 @@ class RefinementPlan:
         ])
 
 
+class _PlanFactory:
+    """One entry of :data:`PLAN_PRESETS`: the builder, and ``.stages`` refusing.
+
+    The registry maps a name to the function that *builds* the plan, never to a
+    plan, because :class:`RefinementPlan` is a mutable dataclass meant to be
+    edited — a shared instance in a module-level dict would let one caller's
+    edit reach every later caller.  That is the right trade and it has a cost:
+    ``PLAN_PRESETS["mccusker_default"].stages`` is the obvious keystroke and it
+    answered ``'function' object has no attribute 'stages'``, which names
+    neither the registry nor the call (WP-1110 item 4).
+
+    So the value is a callable that says so.  ``functools.update_wrapper``
+    carries the builder's ``__name__``, ``__doc__``, ``__module__`` and
+    ``__wrapped__``, so ``help()``, ``inspect.signature`` and ``inspect.getdoc``
+    reach the classmethod exactly as before — the round behind this WP had an
+    agent leave for the source because a wrapper *without* ``wraps`` showed it
+    the wrapper instead of the thing.
+    """
+
+    def __init__(self, build):
+        functools.update_wrapper(self, build)
+        self._build = build
+
+    def __call__(self) -> RefinementPlan:
+        return self._build()
+
+    def __repr__(self) -> str:
+        return f"<plan preset {self.__name__!r}: call it to build a RefinementPlan>"
+
+    def __getattr__(self, name: str):
+        if name in {f.name for f in dataclasses.fields(RefinementPlan)}:
+            raise AttributeError(
+                f"PLAN_PRESETS[{self.__name__!r}] is the function that builds "
+                f"the plan, not the plan, so it has no {name!r}: call it — "
+                f"PLAN_PRESETS[{self.__name__!r}]() — and read .{name} off "
+                "what comes back. Each call returns a fresh RefinementPlan, "
+                "because a plan is a mutable dataclass you are meant to edit.")
+        raise AttributeError(name)
+
+
 PLAN_PRESETS = {
-    "mccusker_default": RefinementPlan.mccusker_default,
-    "mccusker_structural": RefinementPlan.mccusker_structural,
-    "lab_bragg_brentano": RefinementPlan.lab_bragg_brentano,
-    "lab_calibrate": RefinementPlan.lab_calibrate,
-    "lab_sample_refine": RefinementPlan.lab_sample_refine,
-    "profile_only": RefinementPlan.profile_only,
-    "pawley_default": RefinementPlan.pawley_default,
+    name: _PlanFactory(build) for name, build in {
+        "mccusker_default": RefinementPlan.mccusker_default,
+        "mccusker_structural": RefinementPlan.mccusker_structural,
+        "lab_bragg_brentano": RefinementPlan.lab_bragg_brentano,
+        "lab_calibrate": RefinementPlan.lab_calibrate,
+        "lab_sample_refine": RefinementPlan.lab_sample_refine,
+        "profile_only": RefinementPlan.profile_only,
+        "pawley_default": RefinementPlan.pawley_default,
+    }.items()
 }
 
 
-def resolve_plan(plan: "RefinementPlan | str", mode: Mode) -> RefinementPlan:
-    """A preset name (or a plan) as a concrete plan, mapped through ``mode``.
+def resolve_plan(plan: "RefinementPlan | PlanSpec | str", mode: Mode) -> RefinementPlan:
+    """A preset name, a plan or its serializable mirror, as a concrete plan.
 
     ``"mccusker_default"`` is the name every caller passes without thinking, and
     it means something different per mode: Le Bail has no structure to refine so
@@ -275,7 +357,21 @@ def resolve_plan(plan: "RefinementPlan | str", mode: Mode) -> RefinementPlan:
     lives here beside the registry rather than in each caller — four now want it
     (``Refinement.fit``, ``sequential``, ``agent``, and the GUI, which must show
     a user the stages that a run *will* have before it starts).
+
+    **A ``PlanSpec`` is converted here rather than tolerated** (WP-1110 item 15).
+    It is what a project file, a history header and an agent request each hold,
+    so a caller reading one back and passing it to ``fit`` is the ordinary
+    thing to do — and until this line it *appeared to work*, because
+    ``PlanSpec``/``StageSpec`` share every field name with the dataclasses and
+    the plan is only ever read.  Measured on this tree: a five-stage
+    ``profile_only`` fit driven by a ``PlanSpec`` returned a bit-identical
+    answer to the same fit driven by the plan.  That is an accident of two
+    types agreeing, not a contract, and it ends the first time a stage grows a
+    field or a consumer calls a method; converting states it instead.
+    ``PlanSpec._accept_the_dataclass`` is this crossing in the other direction.
     """
+    if isinstance(plan, PlanSpec):
+        return plan.to_plan()
     if not isinstance(plan, str):
         return plan
     name = plan

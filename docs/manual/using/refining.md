@@ -98,7 +98,9 @@ hard-coding a list that will rot the next time a preset lands.
 
 `PLAN_PRESETS` maps each preset name to the function that builds it, and
 `PLAN_INFO` maps the same names to a `PlanInfo` describing what the preset is
-for:
+for. The entry is the builder, not the plan — call it, and edit what comes
+back. Each call returns a fresh `RefinementPlan`, so one caller's edit never
+reaches another:
 
 ```python
 import rietx as rx
@@ -202,7 +204,25 @@ assert spec.correlation_guard == plan.correlation_guard
 
 `PlanSpec.from_plan` and `PlanSpec.to_plan` are the two directions.
 `PlanSpec.stages` is a list of `StageSpec`, with `StageSpec.from_stage` and
-`StageSpec.to_stage` doing the same job one level down. A `StageSpec` mirrors
+`StageSpec.to_stage` doing the same job one level down.
+
+You do not have to call them at a boundary. Anything that takes a `PlanSpec`
+also takes a `RefinementPlan`, and anything that takes a `RefinementPlan` also
+takes a `PlanSpec` — a preset goes straight into an agent request, and a plan
+read back off a project or a history header goes straight into `fit`:
+
+```python
+import rietx as rx
+
+plan = rx.PLAN_PRESETS["mccusker_default"]()
+
+assert rx.PlanSpec.model_validate(plan) == rx.PlanSpec.from_plan(plan)
+```
+
+The conversion happens in the two places that own the mirror, so no call site
+carries a copy of it. Write it out yourself when you want the JSON: the
+dataclasses have no `model_dump`, and asking one for it says which mirror
+to use. A `StageSpec` mirrors
 `Stage` field for field — `StageSpec.name`, `StageSpec.turn_on`,
 `StageSpec.max_iter`, `StageSpec.lebail_cycles`, `StageSpec.seed`,
 `StageSpec.strain_seed` and `StageSpec.restraint_weight_scale` — and
