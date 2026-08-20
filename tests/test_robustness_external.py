@@ -267,8 +267,13 @@ def _nacl_pattern(tmp_path, *, cell_error=0.0):
     return start, ins, pattern
 
 
+# max_iter = 1 is what truncates a one-parameter stage now that the budget is
+# max_iter x NFEV_PER_ITERATION rather than max_iter x n_params (WP-1109): the
+# constant multiplier *loosens* the cap below four free parameters and tightens
+# it above, and this stage frees exactly one.  The row is about the status, not
+# the number — either exit must still report MODEL_FAR_FROM_DATA.
 @pytest.mark.parametrize("max_iter, expect_status",
-                         [(5, "max_iter"), (50, "converged")])
+                         [(1, "max_iter"), (50, "converged")])
 def test_a_fit_nowhere_near_the_data_is_reported_however_the_solver_exited(
         tmp_path, max_iter, expect_status):
     # the defect is the *converged* row: the refinement does not error, it

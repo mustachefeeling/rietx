@@ -64,6 +64,35 @@ _STRUCTURAL_PATH = re.compile(r"^phases\.(\d+)\.atoms\.(\d+)\.(dof|adp)\.\d+$")
 #: (``po_intensity_grad``), not the peak-chain FD path.
 _PO_PATH = re.compile(r"^phases\.(\d+)\.preferred_orientation\.r$")
 
+#: Residual evaluations per accepted iteration that TRF's budget must allow
+#: for, so that a run genuinely needing ``max_iter`` iterations is never cut
+#: short.  scipy exposes no iteration cap — only ``max_nfev`` — and an
+#: iteration costs one evaluation plus one per rejected trial point.
+#:
+#: **Measured**, not assumed: 28 stages across four real protocols (the QPA
+#: round-robin cpd-2 texture protocol, cpd-1a, and 11-BM NAC in both Le Bail
+#: and Rietveld) give nfev/njev median 1.11, p90 1.64, worst 3.20.  Rounded up
+#: from the worst case.
+#:
+#: The multiplier this replaced was ``n_params``, which priced a
+#: *finite-difference* Jacobian — n_params evaluations per iteration — and no
+#: finite-difference column is built for any common parameter family any more
+#: (WP-1109 retired-item 1 counted zero across five NAC stages).  At 42 free
+#: parameters that made ``max_iter=100`` a ~4200-evaluation budget, roughly 30x
+#: what its name says, which is what let a diverging pattern spend ten minutes
+#: before giving up.  This is CLAUDE.md's "runaway guard, never a timer": every
+#: converging fit measured stays an order of magnitude inside it.
+NFEV_PER_ITERATION = 4
+
+#: Convergence tolerances handed to TRF alongside ``ftol``.  scipy defaults
+#: both to 1e-8; this package pinned them at 1e-12 before WP-1109, which buys
+#: nothing a fit can use — measured, loosening to 1e-8 moves the QPA cpd-2
+#: answer by at most 0.003 esd over 49 parameters and Rwp by 9e-7, because
+#: nearly every iteration makes far more than 1e-8 relative progress.  The
+#: iteration counts are slow *traversal*, not terminal polish, so this is
+#: hygiene rather than a fix, and it is taken as hygiene.
+XTOL = GTOL = 1e-8
+
 #: Paths whose whole effect on the pattern is a peak's **integrated
 #: intensity**: the peak keeps the position, width and mixing it had, so
 #: ∂pos/∂p, ∂Γ/∂p and ∂η/∂p are identically zero and the three profile
@@ -784,8 +813,8 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         n_truncated = res.n_truncated
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=1e-12, gtol=1e-12,
-                            max_nfev=max_iter * max(len(x0), 1))
+                            ftol=ftol, xtol=XTOL, gtol=GTOL,
+                            max_nfev=max_iter * NFEV_PER_ITERATION)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
 
     # esds from the *full* augmented covariance (table ↔ intensity correlation
@@ -932,8 +961,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                           ftol=ftol, inequalities=[], events=None, stage="")
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=1e-12, gtol=1e-12,
-                            max_nfev=max_iter * max(len(x0), 1))
+                            ftol=ftol, xtol=XTOL, gtol=GTOL,
+                            max_nfev=max_iter * NFEV_PER_ITERATION)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
 
     stderr = corr = None

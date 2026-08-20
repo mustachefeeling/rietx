@@ -181,3 +181,83 @@ def test_lm_emits_eval_events_at_accepted_points_only(pattern):
     for stage, costs in per_stage.items():
         assert all(np.isfinite(c) for c in costs)
         assert costs == sorted(costs, reverse=True), f"{stage} cost went back up"
+
+
+# -- what the iteration budget means (WP-1109) ----------------------------
+
+def _spy_least_squares(monkeypatch):
+    """Record the kwargs every TRF call is made with."""
+    import scipy.optimize as so
+
+    import rietx.optimize.least_squares as ls
+
+    calls = []
+    original = so.least_squares
+
+    def spy(*args, **kwargs):
+        res = original(*args, **kwargs)
+        calls.append({"max_nfev": kwargs.get("max_nfev"),
+                      "xtol": kwargs.get("xtol"), "gtol": kwargs.get("gtol"),
+                      "n_par": len(res.x), "nfev": int(res.nfev),
+                      "njev": int(res.njev or 0), "status": int(res.status)})
+        return res
+
+    monkeypatch.setattr(ls, "least_squares", spy)
+    return calls
+
+
+def test_the_budget_counts_iterations_not_parameters(pattern, monkeypatch):
+    """``max_iter`` prices iterations, and the multiplier that turns it into
+    scipy's evaluation cap is a constant.  It used to be ``n_params``, which
+    priced a finite-difference Jacobian this package does not build: the same
+    stage then got a budget that grew with the model, ~30x looser than the
+    name at 42 free parameters.  The claim under test is that the cap no
+    longer depends on the parameter count at all."""
+    import rietx as rx
+    from rietx.optimize.least_squares import NFEV_PER_ITERATION
+
+    calls = _spy_least_squares(monkeypatch)
+    structure, instrument = perturbed_models()
+    plan = rx.RefinementPlan.mccusker_default()
+    for stage in plan.stages:
+        stage.max_iter = 37
+    refine(pattern, structure, instrument, plan=plan)
+
+    assert calls, "no TRF call observed"
+    assert len({c["n_par"] for c in calls}) > 1, \
+        "fixture must span stages of differing size for this to discriminate"
+    for c in calls:
+        assert c["max_nfev"] == 37 * NFEV_PER_ITERATION
+
+
+def test_a_converging_fit_never_feels_the_budget(pattern, monkeypatch):
+    """CLAUDE.md's rule for a wall-clock budget applies to this one: a runaway
+    guard, never a timer.  Tightening it ~30x is only answer-preserving if no
+    converging stage was relying on the slack, so every stage here must both
+    reach a convergence status and stop well inside its cap."""
+    calls = _spy_least_squares(monkeypatch)
+    structure, instrument = perturbed_models()
+    result = refine(pattern, structure, instrument)
+
+    assert result.status == "converged"
+    for c in calls:
+        assert c["status"] > 0, f"stage stopped on its budget: {c}"
+        assert c["nfev"] < c["max_nfev"], c
+        # and with real headroom, not by one evaluation
+        assert c["nfev"] < 0.5 * c["max_nfev"], c
+
+
+def test_the_trf_tolerances_are_the_module_constants(pattern, monkeypatch):
+    """xtol/gtol were hardcoded at 1e-12 — four orders below scipy's own
+    default — and are now named constants at 1e-8.  Named so the number has
+    one home and its measurement has somewhere to live; pinned so it cannot
+    drift back into a literal."""
+    from rietx.optimize.least_squares import GTOL, XTOL
+
+    assert XTOL == GTOL == 1e-8
+    calls = _spy_least_squares(monkeypatch)
+    structure, instrument = perturbed_models()
+    refine(pattern, structure, instrument)
+    assert calls
+    for c in calls:
+        assert c["xtol"] == XTOL and c["gtol"] == GTOL
