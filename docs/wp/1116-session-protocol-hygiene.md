@@ -84,6 +84,59 @@ python3 .claude/hooks/session_start.py   # must not flag a handed-over WP
 
 ## Handover log
 
+### 2026-08-20 (later) — merged main, and what the ROADMAP cap is actually for
+
+No new behaviour. This branch had gone twelve commits behind while WP-1110 and
+WP-1111 landed, and its pull request was conflicting; it is now merged up,
+green and reviewable again. The one judgement call worth reading is about the
+`docs/ROADMAP.md` line cap, because the next session to hit it will face the
+same choice and the file's own comment already answers it: **the cap grows
+with the WP count and with nothing else.** So this WP's index row earned a
+bump (438 → 439) and its two extra lines of § Session protocol *prose* did
+not — those were paid for by compressing Current focus instead. Reading the
+cap as "raise it by however much I added" would have made it stop meaning
+anything; it is a budget on narrative, and a row is not narrative.
+
+*Done.* Merged `main` (`b3a8d914`) into the branch and resolved both
+conflicts, neither of which was a disagreement about behaviour:
+
+- `.claude/hooks/session_start.py` — both sides had independently added the
+  **same** `_ENTRY_DATE_RE`, character for character, with different comments.
+  WP-1110 reached the fix first through main; this WP reached it through its
+  own task 1. Kept main's comment, which carries the measurement (the WPs it
+  was observed failing on), extended it with the pointer to `TEMPLATE.md` and
+  the test that now pins the format, and kept this WP's `_RITUAL_PREFIXES`.
+  That two sessions converged on the identical regex is the useful part: the
+  entry-format ambiguity was real and visible from two directions.
+- `docs/ROADMAP.md` — both sides rewrote the same v1.1 Current-focus
+  paragraph. Main's is strictly newer (it carries WP-1111's closure and its
+  measured baseline), so it wins outright; the only thing this branch had that
+  main lacked was the mention of 1116 itself, restored and then corrected,
+  since a ✅ WP does not "ride alongside".
+
+*Measured.* `[dev]`, darwin/arm64, Python 3.12.12, this worktree's own venv.
+Fast selection on the merged tree **2517 passed, 117 skipped**. Main at
+`b3a8d914` is 2513 + 117, so passed+skipped is +4 — exactly this WP's four
+tests, all four passes, no new skip, and the merge introduced none of its own.
+`ruff check src tests examples` clean; `test_docs_consistency.py` and
+`test_workflow_hooks.py` green. No full-suite run: the merge resolves two
+files, one a hook and one a doc, and nothing under `src/` differs from the
+union of two already-tested trees.
+
+*Gotchas.* Two.
+
+- **A cap bump is a claim, and the claim is auditable.** The comment block
+  above `SIZE_CAPS` is a running argument, not a changelog — each bump says
+  what earned it. A bump without one, or one that quietly covers prose, breaks
+  the only mechanism stopping this file from sprawling.
+- **The hook's "in flight: WP-1110" line is correct, not stale.** WP-1110 is
+  merged but genuinely 🔄, with its twenty friction items unstarted. A reader
+  seeing an in-flight WP whose PR is closed should check the Status glyph
+  before assuming the scan is wrong — this one is not.
+
+*Next.* Nothing in flight. The WP is closed and PR #72 is mergeable again;
+merging is the maintainer's.
+
 ### 2026-08-20 — the scan that cried wolf
 
 The complaint was that the handover ritual keeps getting skipped. It does not:
