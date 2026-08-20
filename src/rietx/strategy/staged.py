@@ -42,13 +42,15 @@ _PYDANTIC_SURFACE = frozenset({
 def _ask_the_mirror(name: str, owner: str, call: str) -> AttributeError:
     """The AttributeError a dataclass raises when asked for pydantic (WP-1110).
 
-    ``Stage`` and ``RefinementPlan`` are the only two objects a caller handles
-    here that are **not** pydantic models, so ``stage.model_dump()`` is the
-    natural next keystroke and the bare ``'Stage' object has no attribute
-    'model_dump'`` says nothing about where serialization actually lives.  An
-    error message is the documentation an agent reads: the round behind this WP
-    measured agents discovering this package by ``dir()`` and by reading
-    installed source, not by opening the chapter that already explains it.
+    These two are the package's only **schema-shaped** objects that are not
+    pydantic models: unlike ``Refinement`` or ``Project``, which are plainly
+    machines, a plan is a record of fields sitting beside ``PlanSpec``, which
+    mirrors it one for one.  So ``stage.model_dump()`` is the natural next
+    keystroke, and the bare ``'Stage' object has no attribute 'model_dump'``
+    says nothing about where serialization actually lives.  An error message is
+    the documentation an agent reads: the round behind this WP measured agents
+    discovering this package by ``dir()`` and by reading installed source, not
+    by opening the chapter that already explains it.
     """
     return AttributeError(
         f"{owner} is a dataclass, not a pydantic model, so it has no "

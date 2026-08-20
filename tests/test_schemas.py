@@ -168,9 +168,11 @@ def test_a_preset_is_the_builder_and_says_so():
     (rx.Stage("cell", ["phases.*.cell.*"]), "StageSpec.from_stage"),
 ])
 def test_asking_a_plan_dataclass_for_pydantic_names_the_mirror(obj, mirror):
-    """These two are the only non-pydantic objects a caller handles here.
+    """These two are the package's only schema-shaped non-pydantic objects.
 
-    So ``.model_dump()`` is the natural next keystroke, and the bare
+    A plan is a record of fields sitting beside a ``PlanSpec`` that mirrors it
+    one for one, unlike ``Refinement`` or ``Project``, which are plainly
+    machines.  So ``.model_dump()`` is the natural next keystroke, and the bare
     ``'Stage' object has no attribute 'model_dump'`` says nothing about where
     serialization lives.  An error message is the documentation an agent reads.
     """
