@@ -59,8 +59,15 @@ Workspace contents, identical in every cell:
 | `d8_01612.raw` | Bruker RAW v3, **82 scans**, 318 → 1123 K, 4168 points each, 10–70° 2θ, λ = 1.5406 Å (Cu Kα1, Ge(111) mono, Bragg–Brentano) |
 | `d8_01612_vt_reel_02.inp` | the TOPAS input the maintainer refined it with: 4 phases (ZrMo₂O₇(OH)₂·2H₂O, cubic-, trigonal- and LT-ZrMo₂O₈), sites, and the instrument declarations |
 
-Nothing else. No CIFs — the structures are inline in the `.inp`, exactly as the
-transcript agent found them. The helper python scripts shipped in the same zip
+**Provenance.** Both files come from the maintainer's own TOPAS workshop
+dataset, `zrmo2o8_vt.zip`, fetched 2026-08-20 from
+`http://topas.webspace.durham.ac.uk/wp-content/uploads/sites/261/2026/04/zrmo2o8_vt.zip`.
+It is **not committed anywhere in this repo** and is not test data: re-running
+this round means fetching it again. Nothing in the package or the suite depends
+on it, so a dead link costs this protocol its episode and nothing else.
+
+Nothing else in the workspace. No CIFs — the structures are inline in the
+`.inp`, exactly as the transcript agent found them. The helper python scripts shipped in the same zip
 (`plot_all.py`, `to_Reel_v1.py`, `topas_autoClean_Reel.py`, …) are **withheld**:
 they encode the maintainer's intended workflow, and an agent reading them is no
 longer an unaided one.
