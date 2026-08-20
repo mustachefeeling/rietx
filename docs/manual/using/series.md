@@ -213,7 +213,7 @@ an axis title for a series with no coordinate but would be the header's second
 A sequential fit is path-dependent by construction. Every pattern's answer
 depends on its neighbour's, so the method can imprint a trend the data do not
 carry: one bad pattern's error is inherited by all its successors, and the
-result is a smooth-looking curve. Four diagnostics fence that, and **none of
+result is a smooth-looking curve. Five diagnostics fence that, and **none of
 them alters a fitted value**.
 
 | Code | Says |
@@ -222,6 +222,26 @@ them alters a fitted value**.
 | `SEQUENTIAL_UNRECOVERED` | the pattern diverged and stayed diverged after every rung; it seeded no successor and joined no median |
 | `SEQUENTIAL_DISCONTINUITY` | a step much larger than the local trend — the science, or a chain failure, and the diagnostic says both |
 | `SEQUENTIAL_PATH_DEPENDENT` | with `direction="both"`, forward and backward disagree by more than their esds allow |
+| `SEQUENTIAL_PERSISTENT_FINDING` | one of the *per-pattern* codes fired in more than half the patterns — so it is about the model, not about a pattern |
+
+The last one exists because of an arithmetic problem the others do not have. A
+per-pattern diagnostic can only say "this pattern". In a run of 68 it therefore
+cannot say **"42 of 68"** — and that is the sentence you act on, because one
+`BOUND_HIT` is a pattern that hit a bound while a `BOUND_HIT` in most of them is
+a bound that is wrong. It counts each (code, parameter) pair over the entries
+and states the fraction once, in `value`; the per-entry diagnostics still carry
+every occurrence. The threshold is half the series, which is a change of subject
+rather than a sensitivity: above it the finding describes the series, below it
+the per-pattern diagnostics already say everything there is to say.
+
+```{admonition} For agents
+:class: agent
+
+Read `SeriesResult.diagnostics` before any trajectory. A series is where a
+single unread warning multiplies: in the episode this diagnostic comes from,
+425 `BOUND_HIT`s went unread for two hours across a 68-pattern in-situ run, and
+the parameters they named were quoted as a measured trajectory.
+```
 
 What to do about each is [`AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)'s
 diagnostic table, which this chapter does not restate.

@@ -79,39 +79,37 @@ documented or excluded with a reason, so a *new* one fails the partition on
 arrival, and 257 of the 1320 are **provisional by declaration** — the indexing
 subsystem, derived from each name's defining module rather than listed.
 
-**1.0.2 is written, unblocked and unreleased.** It carries the first
-**breaking** entry 1.0.x has had (`SCHEMA_VERSION` 0.1 → 0.2) and, after
+**1.0.2 is written, unblocked and unreleased** (notes:
+[releases/1.0.2.md](releases/1.0.2.md)). It carries 1.0.x's first **breaking**
+entry (`SCHEMA_VERSION` 0.1 → 0.2) and, after
 [1077](wp/1077-extinction-refutes-certified-class.md), the first whose *answer*
-moves: `determine_extinction_symbol` no longer refutes a class on a
-neighbouring peak's tail. A refinement still gives 1.0.1's numbers. Releasing
-it is `docs/RELEASING.md`, and nothing gates it now.
+moves. A refinement still gives 1.0.1's numbers; releasing it is
+`docs/RELEASING.md`.
 
-**v1.1 — refinement speed — is in flight (opened 2026-08-20**, version
-`1.1.0.dev0`; scope, acceptance targets and the opening narrative:
-[milestones/v1.1.md](milestones/v1.1.md)). Performance is the
-competitiveness priority: the trigger session spent 3 h 20 min in
-refinements TOPAS fits in under a second each.
+**v1.1 — refinement speed — is in flight** (opened 2026-08-20, `1.1.0.dev0`;
+scope, targets and narrative: [milestones/v1.1.md](milestones/v1.1.md)). It is the
+competitiveness priority: the trigger session spent 3 h 20 min in refinements
+TOPAS fits in under a second each.
 **[1109](wp/1109-refinement-speed.md) closed 2026-08-20**: every win available
-without changing an answer taken, bit-identical (1.09–1.14× `cpd-1a`, 1.12–1.16×
+without changing an answer, bit-identical (1.09–1.14× `cpd-1a`, 1.12–1.16×
 `cpd-2`). **[1111](wp/1111-benchmark-harness.md) closed 2026-08-20**: seven cases
-in `examples/bench_refinement.py`; opening baseline **50 s** cold (1 188 pairs) vs
-low single digits, **4.5–22.4 s** warm/pattern vs ~1 s — quote it, never a new one.
+in `examples/bench_refinement.py`; opening baseline **50 s** cold (1 188 pairs),
+**4.5–22.4 s** warm/pattern vs ~1 s — quote it, never a new one.
 One WP per session from here: [1112](wp/1112-batched-derivative-bases.md) batched
 Jacobian path → [1113](wp/1113-evaluation-count.md) evaluation count →
 [1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
 [1115](wp/1115-compiled-kernel-spike.md), gated on the harness still missing the
-targets. [1110](wp/1110-agent-surface-friction.md) rides alongside; [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf.
+targets. [1110](wp/1110-agent-surface-friction.md) rides alongside, items 13/8 landed 2026-08-20 — a cell parameter now carries a **default per-stage window** (root CLAUDE.md § Invariants); [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf.
 
-Parked, in rough order, for after v1.1 — none of it blocks a speed session:
-the 1.0.0-release-notes promises (`.rex` zip transport;
-`RefinementState.excluded_regions` with `replay` honouring them — 1003 §B,
-decided); the post-1003 indexing work (narrow the acceptance fixtures'
-search — the nightly `full` job's ~77 min of setup — and the `grade`
-prior-counting change, 1046 §4); [1017](wp/1017-gui-manual-onboarding.md)
-(GUI stays beta until it lands); the v1.2 free-standing peaks set
-(1101–1103, shifted 2026-08-20). The agentic-report set (1104–1108) is ✅
-complete — appendices in `milestones/v1.1.md`. 1066's naming rule stands
-beside all of it, in root CLAUDE.md and in full in `_about.py`'s docstring.
+Parked, in rough order, for after v1.1 — none of it blocks a speed session: the
+1.0.0-release-notes promises (`.rex` zip transport; `RefinementState.excluded_regions`
+with `replay` honouring them — 1003 §B, decided); the post-1003 indexing work
+(narrow the acceptance fixtures' search — the nightly `full` job's ~77 min of
+setup — and the `grade` prior-counting change, 1046 §4);
+[1017](wp/1017-gui-manual-onboarding.md) (GUI stays beta until it lands); the
+v1.2 free-standing peaks set (1101–1103, shifted 2026-08-20). The agentic-report
+set (1104–1108) is ✅ complete — appendices in `milestones/v1.1.md`. 1066's
+naming rule stands beside all of it (root CLAUDE.md, `_about.py`).
 
 ## Milestones
 
