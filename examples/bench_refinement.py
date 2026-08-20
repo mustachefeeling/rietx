@@ -68,13 +68,17 @@ structural claim.
 ``trigger``  4 phases with large low-symmetry cells, Cu Kα doublet + FCJ,
              4 165 points, 1 188 (line, reflection) pairs — an order of
              magnitude more peaks than the baselines above, fitted cold.
-``trigger-series``
+``trigger-series`` and ``trigger-series-stages``
              Ten copies of it with a 100 ppm/step cell ramp through
              ``refine_sequential``: one cold fit then nine warm starts, which
-             is the workflow the milestone's ~1 s/pattern target names.
+             is the workflow the milestone's ~1 s/pattern target names.  Both
+             ``refit`` rungs are measured — see ``_trigger_series`` for why
+             the saving one of them is quoted for was never measured at this
+             width.
 
-Runtime: the whole harness at the default three repeats is ~20 minutes, most
-of it the last two cases.  ``--cases`` selects; ``--list`` shows the keys.
+Runtime: the whole harness at the default three repeats is ~35 minutes, nearly
+all of it the last three cases.  ``--cases`` selects; ``--list`` shows the
+keys.
 
 Columns
 -------
@@ -179,6 +183,8 @@ class Setup:
     #: one ``fit``.  ``data`` is then patterns[0], which is what the shape
     #: columns are measured on.  None for every ordinary case.
     patterns: list[rx.PatternData] | None = None
+    #: series cases only — ``refine_sequential``'s first ladder rung.
+    refit: str = "single"
 
 
 @dataclass
@@ -449,7 +455,7 @@ def _trigger() -> Setup:
               "0.02 is counting noise, not a fit quality claim")
 
 
-def _trigger_series() -> Setup:
+def _trigger_series(refit: str = "single") -> Setup:
     """Ten copies of the trigger case with a 100 ppm/step cell ramp.
 
     The workflow the milestone's ~1 s/pattern target names: one cold fit, then
@@ -458,6 +464,17 @@ def _trigger_series() -> Setup:
     wall clock to answer a question about path dependence that no speed WP
     asks.  Each pattern gets its own noise seed, so a warm start is fitting a
     genuinely different realisation rather than the same array again.
+
+    **Both ``refit`` rungs are cases**, because the saving they are quoted for
+    was never measured at this width.  ``refit="single"`` (the default)
+    collapses the plan into one stage freeing the whole set, which WP-0505
+    measured at 904 iterations against 1623 for the staged refit — on
+    small-cell standards.  WP-1110's agent round hit the other side of that
+    trade on a real trigger-shaped model: the collapse ran one TRF call over
+    ~30 simultaneous free parameters and went past 150 s without finishing on
+    a pattern whose staged neighbour took ~50 s.  Stage count and per-stage
+    Jacobian *width* trade against each other, and which way is a property of
+    the model, so the harness measures both rather than quoting one.
     """
     from test_acceptance_qpa_roundrobin import qpa_plan
 
@@ -465,10 +482,16 @@ def _trigger_series() -> Setup:
                 for i in range(10)]
     structure, instrument = _trigger_cold(patterns[0])
     return Setup(
-        "trigger-shaped series (simulated): 10 patterns, 100 ppm/step ramp",
+        f"trigger-shaped series (simulated): 10 patterns, 100 ppm/step ramp, "
+        f"refit={refit!r}",
         patterns[0], structure, instrument, qpa_plan(), patterns=patterns,
+        refit=refit,
         notes="per-pattern wall printed below; pattern 0 is the cold fit and "
               "1-9 are warm starts")
+
+
+def _trigger_series_stages() -> Setup:
+    return _trigger_series(refit="stages")
 
 
 CASES: tuple[Case, ...] = (
@@ -479,7 +502,9 @@ CASES: tuple[Case, ...] = (
     Case("trigger", _trigger,
          "4 165 pts, 1 188 pairs, 4 phases — the trigger-shaped cold fit (~50 s)"),
     Case("trigger-series", _trigger_series,
-         "10 × trigger, warm-started through refine_sequential (~270 s)"),
+         "10 × trigger, warm-started, refit='single' (the default collapse)"),
+    Case("trigger-series-stages", _trigger_series_stages,
+         "the same series, refit='stages' — the width-vs-stage-count trade"),
 )
 
 
@@ -561,7 +586,8 @@ def _run_series(setup: Setup) -> Run:
         series = refine_sequential(setup.patterns,
                                    setup.structure.model_copy(deep=True),
                                    setup.instrument.model_copy(deep=True),
-                                   plan=setup.plan, events=collect)
+                                   plan=setup.plan, refit=setup.refit,
+                                   events=collect)
         wall = time.perf_counter() - t0
 
     per: list[tuple[int, float, int, float, str]] = []

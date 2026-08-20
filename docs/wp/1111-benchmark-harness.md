@@ -14,29 +14,21 @@ before/after instead of inventing its own measurement.
 
 ## Context
 
-### Inherited
-
-From WP-1110's real-agent round (2026-08-20), a measurement on a
-trigger-shaped model that this harness should keep rather than re-derive. An
-unaided agent built the 4-phase ZrMo₂O₈ model from the `.inp` and abandoned a
-warm-started `refine_sequential`: pattern 1 converged in ~50 s under the full
-`lab_bragg_brentano` plan, and pattern 2's `refit="single"` collapse ran past
-**150 s without finishing**; on the same model the `cell` stage alone cost
-**22 s** on one pattern. Its reading is that the collapse trades stage count
-for per-stage Jacobian *width* — one TRF call over ~30 simultaneous free
-parameters — so the per-iteration cost can outweigh the iteration-count saving
-WP-0505 measured at 904 vs 1623. The same agent cut to 2 phases and the
-5-stage plan then ran in **5.2 s** with Rwp *improving* 0.185 → 0.110.
-
-Two things to take from it: the trigger-shaped case in this harness should
-carry **both** `refit` settings, because "warm start is ≈3× cheaper" is
-currently quoted without the width caveat; and the agent asked for something
-this harness is well placed to give — a cheap callable cost estimate
-(reflections × free parameters) so a caller can size a model before spending
-minutes discovering it is too big. Numbers are one agent on one machine under
-a loaded box: treat them as a shape to reproduce, not a baseline.
-
-
+- **The warm-start saving was never measured at this width** (from WP-1110's
+  real-agent round, 2026-08-20, folded in here on arrival). An unaided agent
+  built the 4-phase ZrMo₂O₈ model from the `.inp` and abandoned a warm-started
+  `refine_sequential`: pattern 1 converged in ~50 s under the full
+  `lab_bragg_brentano` plan, and pattern 2's `refit="single"` collapse ran past
+  **150 s without finishing**; the `cell` stage alone cost **22 s** on one
+  pattern, and cutting to 2 phases and the 5-stage plan ran in **5.2 s** with
+  Rwp *improving* 0.185 → 0.110. Its reading: the collapse trades stage count
+  for per-stage Jacobian *width* — one TRF call over ~30 simultaneous free
+  parameters — so the per-iteration cost can outweigh the iteration-count
+  saving WP-0505 measured at 904 vs 1623 on small-cell standards. Those numbers
+  are one agent on one loaded box: a shape to reproduce, never a baseline. What
+  this WP takes from it is a **case, not a number** — the series case carries
+  *both* `refit` rungs, because "warm start is ≈3× cheaper" is currently quoted
+  without the width caveat.
 - **Why a harness, and why this shape.** WP-1109's candidates were ranked on
   three baselines (11-BM NAC, `cpd-1a`, `cpd-2`) with ≤ ~250 (line,
   reflection) pairs each. The trigger session — 68-pattern in-situ series,
@@ -92,18 +84,22 @@ axes (`bench_torch_mps.py` owns that story).
 
 ## Tasks
 
-- [ ] `examples/bench_refinement.py`: cases 1–3 from the acceptance fixtures,
+- [x] `examples/bench_refinement.py`: cases 1–3 from the acceptance fixtures,
       table printed with venv/platform stamped, `--profile` flag for the
-      top-10.
-- [ ] The trigger-shaped case 4 (ask for real data first; else the simulated
+      top-10. *11-BM NAC became **two** cases: 1109's 1.5–1.8 s row is the Le
+      Bail leg plus the Rietveld leg together.*
+- [x] The trigger-shaped case 4 (ask for real data first; else the simulated
       build, with the simulation parameters recorded in the script docstring)
-      and the series case 5.
+      and the series case 5. *No real data available, so simulated — literature
+      cells, invented coordinates, `sim-` phase names. The series is **two**
+      cases, one per `refit` rung, per the folded-in Inherited.*
 - [ ] Run the full harness idle, best-of-3; record the opening-baseline
       appendix in `docs/milestones/v1.1.md` and cross-link it from the
       milestone Acceptance block.
-- [ ] Tests: a fast smoke test that the script imports and its case registry
+- [x] Tests: a fast smoke test that the script imports and its case registry
       builds compiled models (not that it hits any wall-clock number —
       CLAUDE.md: a budget is a runaway guard, never a timer).
+      *`tests/test_bench_refinement.py`, 7 tests, 1.6 s.*
 
 ## Acceptance
 
