@@ -100,6 +100,12 @@ def test_angles_get_a_degree_window_clipped_inside_the_degenerate_ends():
     assert hi < 180.0 and lo <= 179.5 <= hi
 
 
+def _lab6_table():
+    s = make_lab6()
+    s.phases[0].cell.a.vary = True
+    return s, ParameterTable(s, Instrument.debye_scherrer(wavelength=1.5406))
+
+
 def test_the_window_reaches_the_solver_and_not_the_parameter_surface():
     """The distinction the placement rests on.
 
@@ -108,9 +114,8 @@ def test_the_window_reaches_the_solver_and_not_the_parameter_surface():
     that bounds come from the schema, so a window surfaced there would read as
     a claim the caller never made.
     """
-    s = make_lab6()
-    s.phases[0].cell.a.vary = True
-    table = ParameterTable(s, Instrument.debye_scherrer(wavelength=1.5406))
+    _, table = _lab6_table()
+    table.freeze_cell_windows({0})
 
     entry = next(e for e in table.entries if e.path == "phases.0.cell.a")
     assert (entry.lo, entry.hi) == (-np.inf, np.inf), "the entry keeps the schema's bounds"
@@ -120,6 +125,70 @@ def test_the_window_reaches_the_solver_and_not_the_parameter_surface():
     v = entry.value
     assert lo[i] == pytest.approx(v * (1 - CELL_WINDOW_FRACTION) - CELL_WINDOW_PAD_A)
     assert hi[i] == pytest.approx(v * (1 + CELL_WINDOW_FRACTION) + CELL_WINDOW_PAD_A)
+
+
+def test_a_table_that_was_asked_nothing_windows_nothing():
+    """``None`` is *no claim made*, and an empty set is the claim that no phase
+    needs one — the ``moving_paths`` convention, one rank over."""
+    _, table = _lab6_table()
+    i = table.free_paths.index("phases.0.cell.a")
+
+    for claim in (None, set()):
+        table.freeze_cell_windows(claim)
+        lo, hi = table.bounds()
+        assert (lo[i], hi[i]) == (-np.inf, np.inf), f"claim={claim!r}"
+
+
+def test_the_window_is_spent_only_on_the_phases_named():
+    """Not free, so not universal.
+
+    TRF derives its per-coordinate trust-region scale from the distance to the
+    bounds, so a window changes the *step* taken in a cell even where the bound
+    is never reached. Measured on the chained IUCr ``cpd-1c``, whose cell
+    finishes 0.24 Å inside a ±5 % window and never touches it: windowing every
+    phase took the collapsed warm refit from 82 iterations to its 400-iteration
+    budget and left it at Rwp 0.1501 against 0.1079 — just inside the reseed
+    fence, so the pattern was accepted rather than rescued. That is why the
+    window is restricted rather than applied to everything.
+    """
+    s = make_lab6()
+    s2 = make_lab6()
+    s2.phases[0].name = "second"
+    for n in "abc":
+        getattr(s2.phases[0].cell, n).value = 5.2
+    both = Structure(phases=[s.phases[0], s2.phases[0]])
+    for ph in both.phases:
+        ph.cell.a.vary = True
+    table = ParameterTable(both, Instrument.debye_scherrer(wavelength=1.5406))
+    table.freeze_cell_windows({1})
+
+    lo, hi = table.bounds()
+    healthy = table.free_paths.index("phases.0.cell.a")
+    absent = table.free_paths.index("phases.1.cell.a")
+    assert (lo[healthy], hi[healthy]) == (-np.inf, np.inf)
+    assert np.isfinite(lo[absent]) and np.isfinite(hi[absent])
+
+
+def test_the_bound_and_the_diagnostic_read_one_measurement():
+    """One authority projected twice, never two opinions (WP-1076's rule).
+
+    A second measurement here would pass its own test and still let the solver
+    bound a phase the report calls visible.
+    """
+    from rietx.model.forward import PHASE_SUPPORT_SIGMA, compile_model
+    from rietx.optimize.least_squares import _freeze_cell_windows
+
+    structure, ins = _absent_phase_inputs()
+    pattern = synthesize()
+    model = compile_model(structure, ins, pattern, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    table.set_vary(["phases.*.cell.a"], True)
+
+    support = model.phase_support(table.decode(table.x0()))
+    _freeze_cell_windows(model, table)
+    assert table._cell_window_phases == {
+        ip for ip, v in enumerate(support) if v < PHASE_SUPPORT_SIGMA}
+    assert table._cell_window_phases == {1}, "only the absent phase"
 
 
 # ----------------------------------------------------------------------

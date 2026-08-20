@@ -99,7 +99,7 @@ One WP per session from here: [1112](wp/1112-batched-derivative-bases.md) batche
 Jacobian path → [1113](wp/1113-evaluation-count.md) evaluation count →
 [1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
 [1115](wp/1115-compiled-kernel-spike.md), gated on the harness still missing the
-targets. [1110](wp/1110-agent-surface-friction.md) rides alongside, items 13/8 landed 2026-08-20 — a cell parameter now carries a **default per-stage window** (root CLAUDE.md § Invariants); [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf.
+targets. [1110](wp/1110-agent-surface-friction.md) rides alongside, items 13/8 landed 2026-08-20 — the cell of a phase **the data cannot see** now carries a per-stage window, and a fit of one it can see is bit-identical (root CLAUDE.md § Invariants); [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf.
 
 Parked, in rough order, for after v1.1 — none of it blocks a speed session: the
 1.0.0-release-notes promises (`.rex` zip transport; `RefinementState.excluded_regions`

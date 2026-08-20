@@ -242,17 +242,57 @@ every digit — 0.1 %, 0.3 % and 1 % all still reach err 3.4e-7 with the same
 per-stage moves, and 3 % still fails at Rwp 0.96. The window did not narrow
 what the fit can recover from.
 
+**A window is not free, and applying it to every phase broke a real fit.** This
+is the correction that shaped the final design, and it was caught by the full
+suite rather than by reasoning. Windowing every cell regressed the chained IUCr
+round robin at `cpd-1c`: corundum came back **9.04 wt %** against 6.30
+independent and against the participant spread, failing three acceptance rows
+that pass on main.
+
+The cause is not the bound being reached — `cpd-1c`'s cell finishes at 4.75759,
+a quarter of an ångström inside a ±5 % window it never touches. It is that
+**scipy's TRF takes its per-coordinate trust-region scale from the distance to
+the bounds**, so bounding a cell changes the step taken in it regardless. A
+width sweep on that pattern:
+
+| window | Rwp | corundum wt % | iterations |
+|---|---|---|---|
+| unbounded (main) | 0.1079 | 6.30 | 641 (ladder escalated to the full staged plan) |
+| **±5 %** | **0.1501** | **9.04** | **400, `warm_refit` hit `max_iter`** |
+| ±10 % | 0.1078 | 6.26 | 82 |
+| ±25 % | 0.1078 | 6.26 | 87 |
+| ±50 % | 0.1078 | 6.22 | 100 |
+
+±5 % is a cliff, not a gradient. And the way it failed is this WP's own subject:
+the collapsed warm refit exhausted its budget and stopped at Rwp 0.1501, which
+is *inside* `sequential`'s reseed fence (1.25 × the 0.1519 median of the
+accepted patterns), so the ladder never escalated and the pattern was accepted
+rather than rescued. The fix for a silently unsound trajectory had produced one.
+
+**So the window is spent only where the alternative is a flat direction** — the
+phases `CompiledModel.phase_support` puts below 1σ, the same measurement
+`PHASE_UNCONSTRAINED` reads, frozen onto the table by
+`optimize.least_squares._freeze_cell_windows` at stage compile. A phase the data
+can see is left unbounded, exactly as before.
+
 **What it does and does not change.** The runaway: 5.2 → 25.6 Å unbounded (Rwp
 0.0415, status `converged`), 81.9 Å with the window disabled on the same
-construction, 4.9-5.5 Å with it — and 1.8 s → 0.3 s, because a runaway cell
+construction, ~5.0 Å with it — and 1.8 s → 0.3 s, because a runaway cell
 enumerates reflections (30 at a = 5.2 Å, 1 825 at 25.6, 93 618 at 100, refused
-above ~1 000). An honest fit: **the answer, not the path**. On the 11-BM NAC
-two-phase protocol run both ways in one process, 16 of 44 refined values are
-bit-identical and the rest differ by a trust-region path length — the cell by
-1.7e-16 relative (1 ulp), Rwp by 4e-13, and the worst physically meaningful
-parameter by 1.3e-8 (the single larger figure, 6.6e-7, is a Biso sitting at
-1.5e-23). Changed bounds change the Coleman-Li scaling, so the trajectory moves
-while the minimum does not. Indexing acceptance: 44 passed, no ranking moved.
+above ~1 000). An honest fit is **bit-identical**: on the 11-BM NAC two-phase
+protocol run both ways in one process, all **44 of 44** refined values and Rwp
+agree to the last bit, because neither phase (571σ and 185σ) is windowed at all.
+That is the equivalence bar v1.1 asks for, and it is exact rather than a
+tolerance. Indexing acceptance: 44 passed, no ranking moved. Sequential
+acceptance: 13 passed.
+
+**One finding deliberately not acted on here.** The same sweep shows ±10 % and
+wider *beating* unbounded on `cpd-1c` — 82 iterations against 641, same answer —
+because finite bounds precondition a badly scaled problem (cells sit at ~4.8
+while scales are ~1e-5 and background coefficients ~1e2, and TRF is given
+`x_scale=1.0`). That is a real v1.1 speed lead and it belongs to the harness
+WPs: a correction does not ship on a timing comparison any more than on an Rwp
+one, and this one's evidence is a diagnostic. Pushed to WP-1112's `### Inherited`.
 
 **The window alone would not have saved the trigger run**, and that is why the
 diagnostic is not optional. Re-anchoring means the cell walks ≤5 % per stage
@@ -335,8 +375,8 @@ fit reports `converged` because those parameters genuinely do not move Rwp,
 while the cell walks out of the physical range. Three pieces landed, each
 measured before it was written — § The cell window carries every number.
 
-- `params.vector.cell_window`, a **default per-stage window** on every cell
-  parameter, in TOPAS's shape at stage granularity. Applied in
+- `params.vector.cell_window`, a **per-stage window** on the cell of a phase the
+  data cannot see, in TOPAS's shape at stage granularity. Applied in
   `ParameterTable.bounds` and **not** on the `Entry`: a window is the solver's
   bound for the stage about to run, not a fact about the stored parameter, and
   on the `Entry` it would have surfaced through `ParameterRow` and the `.rxt`
@@ -344,27 +384,37 @@ measured before it was written — § The cell window carries every number.
   `bound_findings` is fed from `bounds()`, so a cell that does reach its window
   is still reported. The four sites passing a nonsense finite `min` (0.1 Å,
   1.0 Å) drop it — it *suppressed* the default, and was never a floor.
+- `CompiledModel.phase_support` and
+  `optimize.least_squares._freeze_cell_windows`, which decide *which* phases —
+  one measurement, two consumers (the bound and the diagnostic), pinned equal by
+  test rather than re-derived.
 - `PHASE_UNCONSTRAINED` (`refine._phase_support_diagnostics`), off the modelled
   contribution against the observation noise rather than off `scale`.
 - `SEQUENTIAL_PERSISTENT_FINDING` (`sequential._persistent_diagnostics`), item
   8: the sentence no per-pattern diagnostic can produce.
 
 *Measured.* Fast selection, **this worktree's own venv, `[dev]` (no jax),
-darwin/arm64**: **2533 passed, 117 skipped**, from **2517 passed, 117 skipped**
-on the same tree before the change. Seventeen tests added, sixteen in the fast
+darwin/arm64**: **2536 passed, 117 skipped**, from **2517 passed, 117 skipped**
+on the same tree before the change. Twenty tests added, nineteen in the fast
 selection (one is `@slow`), **no new skip** — passed moves by exactly the
-sixteen. `tests/test_acceptance_indexing.py`: **44 passed in 20:24**, run
+nineteen. `tests/test_acceptance_indexing.py`: **44 passed in 20:24**, run
 because `indexing/workflow.py` was one of the four sites (CLAUDE.md's rule);
 no ranking moved. `ruff` clean, `sphinx -W` clean.
 
 The equivalence bar, since v1.1 asks every landed WP for one and this is **not**
 an Rwp comparison: the 11-BM NAC two-phase protocol run with the window on and
-disabled **in one process**, diffing all 44 refined values — 16 bit-identical,
-the cell agreeing to **1.7e-16** relative (1 ulp), Rwp to 4e-13, and the worst
-physically meaningful parameter to 1.3e-8. The window changes the **path**, not
-the answer: different bounds change the Coleman-Li scaling, so the trust region
-takes a different route to the same minimum. The one larger figure, 6.6e-7, is a
-Biso sitting at 1.5e-23.
+disabled **in one process**, diffing all 44 refined values — **44 of 44
+bit-identical**, Rwp included. Exact rather than a tolerance, and it is exact
+*because* the window is restricted: neither NAC phase (571σ and 185σ of support)
+is windowed at all, so the bounds handed to TRF are the ones main hands it.
+
+**The full suite is what made that true.** The first design windowed every
+phase, and it regressed three `test_acceptance_sequential` rows that pass on
+main — chained `cpd-1c` corundum 9.04 wt % against 6.30. § The cell window has
+the sweep; the short version is that a window is not free, the failure was
+`warm_refit` exhausting its budget and landing *inside* the reseed fence so
+nothing rescued it, and the fix for a silent unsound trajectory had produced
+one. Sequential acceptance now 13 passed.
 
 *In flight.* Nothing running.
 
@@ -373,8 +423,13 @@ the previous session's ordering, both of which cost every agent in the round
 real time, and neither of which this session touched. Item 12
 (`rietx.__version__`) is a one-liner that belongs with them.
 
-*Gotchas.* (a) The **prior art answered a question I was about to invent a
-number for**, and it is worth checking first next time: TOPAS has published
+*Gotchas.* (a0) **A bound is not free, and that is the lesson to carry.** TRF
+takes its trust-region scale from the distance to the bounds, so *any* new
+default bound changes the step taken in that coordinate even where it is never
+reached — measured here as a 5× iteration blow-up and a wrong QPA answer.
+Anything proposing a default bound owes the same before/after on a chained
+acceptance case, not just on a fit that was already easy. (a) The **prior art
+answered a question I was about to invent a number for**, and it is worth checking first next time: TOPAS has published
 default cell limits (§ 2.17 Table 2-1) and GSAS-II has a published *opposite*
 policy, and between them they fixed the shape, the floor and the reporting
 behaviour. The maintainer asked for this rather than accepting my ±5 % box, and

@@ -92,7 +92,7 @@ listing is the cheapest way to see what is there.
 | `ParameterRow.path` | str | the dot-path |
 | `ParameterRow.value` | float | the current physical value |
 | `ParameterRow.vary` | bool | whether it is free in the next fit |
-| `ParameterRow.lo`, `ParameterRow.hi` | float | inclusive physical bounds as *stored*, ±inf when unbounded — a cell also gets a per-stage default the row does not show (§ "A cell parameter gets a bound you did not set") |
+| `ParameterRow.lo`, `ParameterRow.hi` | float | inclusive physical bounds as *stored*, ±inf when unbounded — a cell the data cannot see also gets a per-stage default the row does not show (§ "A cell the data cannot see gets a bound you did not set") |
 | `ParameterRow.transform` | str | the reparameterisation, {eq}`par-softplus` |
 | `ParameterRow.tie` | `TieSpec` or None | what this value follows, if anything |
 | `ParameterRow.locked` | bool | structurally fixed, `set_vary` can never free it |
@@ -194,29 +194,31 @@ pressing a hard zero. That is why a width or a scale can descend smoothly to
 its off state rather than stalling against a wall, and why [](data.md)'s
 warning about reaching exactly zero is a consequence rather than a bug.
 
-### A cell parameter gets a bound you did not set
+### A cell the data cannot see gets a bound you did not set
 
-One case reverses the direction: a cell parameter whose bounds you left open is
-given a **default window** for each stage, ±5 % of the value that stage starts
-from. So a cell can report `BOUND_HIT` while its `ParameterRow.hi` still reads
-`inf` — the row is the bound *you* stored, and the window is the solver's bound
-for one stage. Set either bound yourself and that side is yours; the default
-fills only a side you left at ±inf.
+One case reverses the direction. Every structural parameter of a phase reaches
+the pattern only through `scale × |F|² × profile`, so a phase whose scale has
+fallen to its floor contributes nothing the fit can see, and its cell is then
+free to wander without changing Rwp at all. Unbounded it leaves the physical
+range entirely, and the run fails much later, when the reflection list for a
+cell that size is refused.
 
-It exists because a cell is the parameter with the most to lose from being
-unbounded. Every structural parameter of a phase reaches the pattern only
-through `scale × |F|² × profile`, so a phase whose scale has fallen to its floor
-contributes nothing the fit can see, and its cell is then free to wander without
-changing Rwp at all. Unbounded it leaves the physical range entirely; the run
-fails much later, when the reflection list for a cell that size is refused. The
-window is re-anchored at every stage, so a cell that legitimately drifts across
-a series is never held back — measured across the 11-BM NAC and SRM 660c
-protocols, the widest honest single-stage move is 2.8e-4 relative, two orders
-inside it.
+So when a stage begins, any phase whose strongest modelled point sits below 1σ
+of the counting noise has its cell bounded to ±5 % of the value that stage
+starts from — on whichever side you left at ±inf; set a bound yourself and that
+side is yours. Such a cell can therefore report `BOUND_HIT` while its
+`ParameterRow.hi` still reads `inf`: the row is the bound *you* stored, and the
+window is the solver's bound for one stage.
+
+**Only that phase's cell.** A bound is not free — the solver takes its step
+scale from the distance to the bounds, so bounding a cell changes how it moves
+even when the bound is never reached. A phase the data can see is left alone,
+and a fit of one gives the identical answer it gave before this existed.
 
 The window bounds the symptom. The cause is reported separately, as
 `PHASE_UNCONSTRAINED`: which phase the data cannot distinguish from absent, and
-which of its parameters were refined against it anyway.
+which of its parameters were refined against it anyway. Both read the same
+measurement, so they can never disagree about which phase is which.
 
 The transform is also in the esd chain. {eq}`est-cov` gives the uncertainty of
 the *internal* variable; multiplying by dp/du at the solution is what makes it

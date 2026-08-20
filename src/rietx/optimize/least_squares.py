@@ -37,7 +37,7 @@ from ..backend.linalg64 import get_precision_policy, require_fp64
 from ..crystallography.adp import U_NAMES
 from ..crystallography.stephens import S_NAMES
 from ..model import rows as row_layout
-from ..model.forward import CompiledModel, DerivativeBases
+from ..model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, DerivativeBases
 from ..model.restraints import restraint_partials
 from ..params.transforms import dphys_dinternal
 from ..params.vector import ParameterTable
@@ -736,6 +736,46 @@ def _final_shift_over_esd(table: ParameterTable,
     return max(ratios) if ratios else None
 
 
+def _freeze_cell_windows(model: CompiledModel, table: ParameterTable) -> None:
+    """Declare which phases' cells take the default window for this stage.
+
+    Only the phases the data cannot see (WP-1110).  A window is not free — TRF
+    derives its per-coordinate trust-region scale from the distance to the
+    bounds, so bounding a cell changes the step taken in it even where the bound
+    is never reached — so it is spent only where the alternative is a flat
+    direction the fit will wander down.  ``phase_support`` is the one authority
+    for that, shared with the ``PHASE_UNCONSTRAINED`` diagnostic.
+
+    Read at the values the stage *starts* from, which is the whole point of
+    doing it here: the same place every other per-stage freeze happens.
+    """
+    values = table.decode(table.x0())
+    support = model.phase_support(values)
+    table.freeze_cell_windows({ip for ip, s in enumerate(support)
+                               if s < PHASE_SUPPORT_SIGMA})
+
+
+def _freeze_cell_windows_multi(models: list[CompiledModel],
+                               mtable: "MultiParameterTable") -> None:
+    """The freeze above for a joint refinement, where a cell can be *shared*.
+
+    A phase invisible in one histogram may be plain in another, and if its cell
+    is shared then the data — jointly, which is what a joint refinement fits —
+    can see it. So a phase is windowed only when it is below support in **every**
+    histogram, and the same set is frozen on every sub-table: the combined bound
+    vectors write shared columns once per histogram and keep the last, which is
+    only harmless while they agree.
+    """
+    per_model = [m.phase_support(t.decode(t.x0()))
+                 for m, t in zip(models, mtable.tables, strict=True)]
+    n_phases = min((len(s) for s in per_model), default=0)
+    windowed = {ip for ip in range(n_phases)
+                if all(s[ip] < PHASE_SUPPORT_SIGMA for s in per_model)}
+    for table in mtable.tables:
+        table.freeze_cell_windows(windowed)
+    mtable.refresh_bounds()
+
+
 def run_least_squares(model: CompiledModel, table: ParameterTable,
                       *, max_iter: int = 100, ftol: float = 1e-9,
                       compute_uncertainties: bool = True,
@@ -749,6 +789,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     and table exactly as the last accepted evaluation found them."""
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
+    _freeze_cell_windows(model, table)
     residual = _make_residual(model, table)
     jacobian = _jacobian_for(model, table, backend)
 
@@ -960,6 +1001,7 @@ def run_multi_least_squares(models: list[CompiledModel],
         models, mtable, weights=weights, backend=backend)
     n_cols = len(mtable.free_paths)
 
+    _freeze_cell_windows_multi(models, mtable)
     x0 = mtable.x0()
     lo, hi = mtable.bounds()
     x0 = np.clip(x0, lo + 1e-12, hi - 1e-12) if len(x0) else x0

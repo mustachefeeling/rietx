@@ -17,15 +17,32 @@ go/no-go gate on the one risk that killed the forward half.
 
 ### Inherited
 
-From WP-1110 (2026-08-20). **WP-1111's opening baseline predates the default
-cell window**, which landed the same day: `params.vector.cell_window` gives every
-cell parameter a per-stage bound, and changed bounds change the trust region's
-Coleman-Li scaling, so the *path* to the minimum moves even though the answer
-does not (11-BM NAC, run both ways in one process: the cell agrees to 1 ulp, Rwp
-to 4e-13, the worst physically meaningful parameter to 1.3e-8). Iteration counts
-can therefore shift slightly. **Re-measure the harness on the current tree before
-comparing against 1111's table** — the same rule ROADMAP already applies to 1111
-against 1109's opening numbers, for the same reason.
+From WP-1110 (2026-08-20). A **speed lead this WP should test, found while
+fixing something else**, and it is free of any answer change.
+
+WP-1110 gave the cell of an unsupported phase a per-stage window and measured
+what that costs elsewhere. The measurement is the interesting part: on the
+chained IUCr `cpd-1c`, bounding *every* cell to ±10 %, ±25 % or ±50 % reached
+the **same answer in 82-100 iterations where unbounded took 641** — an ~7×
+reduction on that pattern, with corundum at 6.26 wt % against 6.30 unbounded.
+±5 % is a cliff in the other direction (400 iterations, hit `max_iter`, Rwp
+0.1501 against 0.1079), so the effect is non-monotonic and has an optimum.
+
+The mechanism is preconditioning, and it is the kind of thing this WP is about.
+`run_least_squares` calls scipy with the default `x_scale=1.0` on a vector whose
+coordinates differ by seven orders — cells ~4.8, scales ~1e-5, background
+coefficients ~1e2 — and TRF derives a per-coordinate scale from the distance to
+the bounds, so finite bounds are acting as a scale hint. **The direct lever is
+`x_scale`, not bounds**: `x_scale='jac'` or an explicit per-parameter vector says
+the same thing without constraining anything. Nobody has measured that here.
+
+Two cautions. It is one pattern, so it is a lead and not a result; and a change
+to `x_scale` moves the trust-region path on **every** fit, so it needs the
+harness's equivalence bar across all seven cases rather than a spot check.
+
+WP-1110 itself is bit-identical (44 of 44 refined values on 11-BM NAC), because
+it windows only phases below 1σ of support and a healthy fit has none — so
+1111's baseline is **not** invalidated by it.
 
 Numbers from WP-1109's 2026-08-20 review (QPA-acceptance `cpd-2`, worktree
 venv `[dev]`, darwin/arm64) unless said otherwise.

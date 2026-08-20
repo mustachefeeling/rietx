@@ -127,8 +127,8 @@ _ANGLE_MIN_DEG = 1.0
 _ANGLE_MAX_DEG = 179.0
 
 
-def _cell_parameter_name(path: str) -> str | None:
-    """``"phases.0.cell.a"`` → ``"a"``; anything else → ``None``.
+def _cell_parameter_name(path: str, *, phases: set[int]) -> str | None:
+    """``"phases.0.cell.a"`` → ``"a"`` when phase 0 is in ``phases``, else None.
 
     Read off the path rather than recorded on the :class:`Entry`, because the
     window is applied at the optimiser interface and the entries there arrive
@@ -136,7 +136,13 @@ def _cell_parameter_name(path: str) -> str | None:
     """
     parts = path.split(".")
     if len(parts) == 4 and parts[0] == "phases" and parts[2] == "cell":
-        return parts[3] if parts[3] in _CELL_NAMES else None
+        if parts[3] not in _CELL_NAMES:
+            return None
+        try:
+            ip = int(parts[1])
+        except ValueError:
+            return None
+        return parts[3] if ip in phases else None
     return None
 
 
@@ -184,6 +190,29 @@ def cell_window(name: str, value: float, lo: float, hi: float) -> tuple[float, f
     :class:`~rietx.schemas.common.Parameter` carries when its bounds were never
     set.  That test is used rather than ``model_fields_set`` because it has to
     survive a JSON round trip, where every field arrives "set".
+
+    **It is applied only to phases the data cannot see** — the set
+    ``run_least_squares`` freezes through
+    :meth:`ParameterTable.freeze_cell_windows`, off
+    :meth:`~rietx.model.forward.CompiledModel.phase_support` — and that
+    restriction is measured, not conservatism.  A window is not free: scipy's
+    TRF derives its per-coordinate trust-region scale from the distance to the
+    bounds, so bounding a cell changes the *step* the solver takes in it even
+    when the bound is never reached.  Measured on the IUCr round robin's
+    chained ``cpd-1c``, whose cell finishes 0.24 Å inside a ±5 % window and
+    never touches it: windowing every phase took the collapsed warm refit from
+    82 iterations to its 400-iteration budget, and it stopped at Rwp 0.1501
+    against 0.1079 — just good enough to clear ``sequential``'s reseed fence, so
+    the pattern was accepted rather than rescued and its corundum fraction came
+    back 9.04 wt % against 6.30. A bound that silently degrades a fit nothing
+    reports is the failure this WP exists to remove, not a cost worth paying on
+    phases that were never going to run away.
+
+    (The same sweep found ±10 % and wider *beating* unbounded on that pattern —
+    82 iterations against 641, same answer — because finite bounds precondition
+    a badly-scaled problem.  That is a speed lead for the v1.1 harness WPs, not
+    something to take here: a correction does not ship on an Rwp comparison, and
+    this one's evidence is a diagnostic.)
     """
     if name in ("alpha", "beta", "gamma"):
         window_lo = max(_ANGLE_MIN_DEG, value - CELL_WINDOW_ANGLE_DEG)
@@ -208,6 +237,9 @@ class ParameterTable:
         #: limit (1 ppm), kept so :meth:`seed_stephens` can put a freed block
         #: on the isotropic ray without rebuilding the symmetry basis
         self._strain_unit: dict[str, np.ndarray] = {}
+        #: phases whose cells take the default window this stage, or None for
+        #: "no claim made" — see :meth:`freeze_cell_windows`
+        self._cell_window_phases: set[int] | None = None
         self._collect(structure, instrument)
         self._rebuild()
 
@@ -682,6 +714,20 @@ class ParameterTable:
         return np.array([to_internal(self.entries[i].value, self.entries[i].transform)
                          for i in self._free_idx], dtype=np.float64)
 
+    def freeze_cell_windows(self, phases: set[int] | None) -> None:
+        """Declare which phases' cells get the default window this stage.
+
+        Frozen at stage compile like every other per-stage decision, and
+        ``None`` means **no claim made** and windows nothing — the
+        ``moving_paths`` convention, where an empty set is the claim that
+        nothing needs one.  Held on the table rather than passed to
+        :meth:`bounds` so that every reader agrees: ``run_least_squares`` solves
+        against these bounds and ``staged.check_guards`` calls ``bounds()``
+        again afterwards to decide ``at_bounds``, and a window the solver used
+        but the guard did not see would be a bound hit nothing could report.
+        """
+        self._cell_window_phases = phases
+
     def bounds(self) -> tuple[np.ndarray, np.ndarray]:
         """Internal-space bounds for the free vector, in ``free_paths`` order.
 
@@ -694,13 +740,15 @@ class ParameterTable:
         the caller never made.  ``bound_findings`` is fed from here, so a cell
         that reaches its window is still reported.
         """
+        windowed = getattr(self, "_cell_window_phases", None)
         lo, hi = [], []
         for i in self._free_idx:
             e = self.entries[i]
             e_lo, e_hi = e.lo, e.hi
-            cell_name = _cell_parameter_name(e.path)
-            if cell_name is not None:
-                e_lo, e_hi = cell_window(cell_name, e.value, e_lo, e_hi)
+            if windowed:
+                cell_name = _cell_parameter_name(e.path, phases=windowed)
+                if cell_name is not None:
+                    e_lo, e_hi = cell_window(cell_name, e.value, e_lo, e_hi)
             low, high = internal_bounds(e_lo, e_hi, e.transform)
             lo.append(low)
             hi.append(high)

@@ -28,7 +28,7 @@ from .model.absorption import (
     mu_t_identifiable_fraction,
     transmission_intensity_fraction,
 )
-from .model.forward import CompiledModel, Mode, compile_model
+from .model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, Mode, compile_model
 from .model.geometry import geometry_table
 from .model.restraints import summarise_restraints
 from .optimize.cancel import RefinementCancelled
@@ -2348,16 +2348,6 @@ def _max_iter_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
     )]
 
 
-#: A phase whose strongest modelled point sits below this many σ of the
-#: observation noise is one the data cannot distinguish from absent.  One σ,
-#: not a tuned fraction: the comparison is against the counting statistics the
-#: phase competes with, the same footing ``indexing.workflow.ABSENT_SIGMA``
-#: puts a missing line on.  Below it every parameter of the phase has a
-#: Jacobian column under the noise floor, which is the definition of
-#: unconstrained rather than an opinion about it.
-PHASE_SUPPORT_SIGMA = 1.0
-
-
 def _phase_support_diagnostics(model: CompiledModel, values: dict[str, float],
                                free_paths: list[str],
                                structure: Structure) -> list[Diagnostic]:
@@ -2389,7 +2379,7 @@ def _phase_support_diagnostics(model: CompiledModel, values: dict[str, float],
         # under the noise the pattern is not this material at all, which is
         # MODEL_FAR_FROM_DATA's statement rather than this one
         return []
-    sigma = np.asarray(model.sigma, dtype=np.float64)
+    support_by_phase = model.phase_support(values)
     out: list[Diagnostic] = []
     for ip in range(n_phases):
         prefix = f"phases.{ip}."
@@ -2400,8 +2390,7 @@ def _phase_support_diagnostics(model: CompiledModel, values: dict[str, float],
                                if p.startswith(prefix) and p != f"{prefix}scale")
         if not unconstrained:
             continue
-        y_phase = np.asarray(model.phase_component(ip, values), dtype=np.float64)
-        support = float(np.max(y_phase / sigma)) if len(y_phase) else 0.0
+        support = float(support_by_phase[ip])
         if support >= PHASE_SUPPORT_SIGMA:
             continue
         name = structure.phases[ip].name
