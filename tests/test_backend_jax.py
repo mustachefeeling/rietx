@@ -175,7 +175,7 @@ def test_jacfwd_matches_analytic_and_fd_on_families():
     for path in ANALYTIC_FAMILIES:
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
 
     theta = table.x0()
     J_an = _make_jacobian(model, table)(theta)

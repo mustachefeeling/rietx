@@ -257,7 +257,7 @@ def test_jacobian_dof_adp_extinction_columns_match_fd_with_extinction_on():
     for p in free:
         assert table.set_vary([p], True), p
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     values = table.decode(table.x0())
 
     # G must genuinely differ from 1 (so the test discriminates) but no
@@ -507,7 +507,7 @@ def test_extinction_correlates_with_scale_and_biso_and_the_guard_fires():
     table.set_vary(["phases.0.extinction", "phases.0.scale",
                     "phases.0.atoms.*.biso"], True)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     outcome = run_least_squares(model, table, max_iter=60)
 
     free = table.free_paths
@@ -524,3 +524,129 @@ def test_extinction_correlates_with_scale_and_biso_and_the_guard_fires():
     guard = check_guards(table, outcome, threshold=0.8)
     assert any({"phases.0.extinction", "phases.0.scale"} == set(c.paths)
                for c in guard.high_correlations), guard.high_correlations
+
+
+# -- the off-state gate (WP-1109) -----------------------------------------
+
+def _gate_case(ext_value: float, free: tuple[str, ...], *,
+               tie_extinction_to: str | None = None,
+               declare_moving: bool = True):
+    """A compiled LaB6 model plus its table, for the gate's truth table."""
+    from rietx import Instrument, PatternData
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import AffineTie, ParameterTable
+    from tests.test_schemas import make_lab6
+
+    structure = make_lab6()
+    structure.phases[0].scale.value = 5e-3
+    structure.phases[0].extinction.value = ext_value
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.profile.w.value = 9e-3
+    tt = np.arange(15.0, 120.0, 0.05)
+    pattern = PatternData(two_theta=tt.tolist(),
+                          intensity=np.full(tt.shape, 100.0).tolist())
+
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for path in free:
+        assert table.set_vary([path], True), path
+    if tie_extinction_to is not None:
+        table.set_tie("phases.0.extinction",
+                      AffineTie(terms=((tie_extinction_to, 1.0),)))
+    model = compile_model(
+        structure, ins, pattern, mode="rietveld",
+        moving_paths=set(table.moving_paths) if declare_moving else None)
+    return model, table
+
+
+def test_moving_paths_is_free_paths_plus_its_ties():
+    """``free_paths`` is the θ columns; ``moving_paths`` is what those columns
+    can change.  The two differ by exactly the tied rows, which is the whole
+    reason a structural gate must not ask the first question."""
+    _model, table = _gate_case(0.0, ("phases.0.scale",),
+                               tie_extinction_to="phases.0.scale")
+    free, moving = set(table.free_paths), set(table.moving_paths)
+    assert free <= moving
+    assert "phases.0.extinction" in moving and "phases.0.extinction" not in free
+    # a genuinely held parameter is in neither: it lives entirely in d
+    assert "instrument.zero_shift" not in moving
+
+
+@pytest.mark.parametrize("ext_value,free,tie,declare,expected", [
+    # the gate's one true case: at its identity, and unreachable this stage
+    (0.0, ("phases.0.scale",), None, True, True),
+    # free ⇒ the column exists and must not be identically zero
+    (0.0, ("phases.0.extinction", "phases.0.scale"), None, True, False),
+    # non-zero ⇒ E is not the identity, whoever refines it
+    (2.0, ("phases.0.scale",), None, True, False),
+    # tied to a free parameter: not a θ column, still moves off zero
+    (0.0, ("phases.0.scale",), "phases.0.scale", True, False),
+    # no claim made about what moves ⇒ nothing is gated
+    (0.0, ("phases.0.scale",), None, False, False),
+])
+def test_extinction_gate_fires_only_when_ext_cannot_move(
+        ext_value, free, tie, declare, expected):
+    model, _table = _gate_case(ext_value, free, tie_extinction_to=tie,
+                               declare_moving=declare)
+    assert model.phases[0].skip_extinction is expected
+
+
+def test_gating_extinction_off_is_bit_identical():
+    """The gate's whole claim: skipping a multiply by ones changes no bit of
+    the residual *or* of any analytic Jacobian column.  Compared with
+    ``array_equal`` rather than ``allclose`` — an approximate check would pass
+    for a gate that quietly dropped a real correction."""
+    from rietx.optimize.least_squares import _make_jacobian, _make_residual
+
+    free = ("phases.0.scale", "phases.0.cell.a", "phases.0.atoms.*.biso",
+            "instrument.profile.w")
+    gated, table = _gate_case(0.0, free)
+    ungated, _ = _gate_case(0.0, free, declare_moving=False)
+    assert gated.phases[0].skip_extinction
+    assert not ungated.phases[0].skip_extinction
+
+    theta = table.x0()
+    r_gated = _make_residual(gated, table)(theta)
+    r_ungated = _make_residual(ungated, table)(theta)
+    assert np.array_equal(r_gated, r_ungated)
+
+    j_gated = _make_jacobian(gated, table)(theta)
+    j_ungated = _make_jacobian(ungated, table)(theta)
+    assert np.array_equal(j_gated, j_ungated)
+
+
+def test_gating_leaves_the_structural_and_po_columns_bit_identical():
+    """The other two sites that fold E in by hand — the coordinate/ADP chain
+    factor G = E + x·dE/dx and the March-Dollase r column.  Both are exactly 1
+    and exactly E at ext = 0, so both gate; a gate applied to ``phase_peaks``
+    alone would leave these columns disagreeing with finite differences, which
+    is the failure mode ``_absorption``'s docstring is written about."""
+    from rietx import Instrument, PatternData
+    from rietx.model.forward import compile_model
+    from rietx.optimize.least_squares import _make_jacobian
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.structure import PreferredOrientation
+    from tests.test_aniso_adp import make_aniso_rutile
+
+    structure = make_aniso_rutile()
+    structure.phases[0].scale.value = 1e-3
+    structure.phases[0].preferred_orientation = PreferredOrientation(axis=(0, 0, 1))
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.profile.w.value = 1e-2
+    tt = np.arange(10.0, 90.0, 0.05)
+    pattern = PatternData(two_theta=tt.tolist(),
+                          intensity=np.full(tt.shape, 100.0).tolist())
+
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for path in ("phases.0.atoms.1.dof.0", "phases.0.atoms.0.adp.0",
+                 "phases.0.preferred_orientation.r"):
+        assert table.set_vary([path], True), path
+
+    gated = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    ungated = compile_model(structure, ins, pattern, mode="rietveld")
+    assert gated.phases[0].skip_extinction
+    theta = table.x0()
+    assert np.array_equal(_make_jacobian(gated, table)(theta),
+                          _make_jacobian(ungated, table)(theta))

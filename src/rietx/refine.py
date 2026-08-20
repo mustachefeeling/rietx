@@ -824,7 +824,7 @@ class Refinement:
             table.apply_to_models(structure, instrument)
             model = compile_model(structure, instrument, data, mode=mode,
                                   two_theta_limits=limits,
-                                  free_paths=set(table.free_paths))
+                                  moving_paths=set(table.moving_paths))
             carried = False
             if (self._model is not None and mode in ("lebail", "pawley")
                     and self._model.mode == mode):
@@ -1080,7 +1080,7 @@ class Refinement:
         new_model = compile_model(
             self.structure, self.instrument, data, mode=mode,
             two_theta_limits=two_theta_limits,
-            free_paths=set(table.free_paths),
+            moving_paths=set(table.moving_paths),
             # eq (7)'s c_w for this stage: frozen onto the model here, with the
             # hkl list and the windows, because a schedule reweights the
             # restraints *between* stages and never inside one (WP-1074)
@@ -1404,7 +1404,7 @@ class Refinement:
         tt = np.asarray(two_theta, dtype=np.float64)
         grid = PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
         model = compile_model(self.structure, self.instrument, grid,
-                              mode=self._mode, free_paths=set(table.free_paths))
+                              mode=self._mode, moving_paths=set(table.moving_paths))
         if self._mode in ("lebail", "pawley"):
             _carry_lebail(self._model, model)
         return model.evaluate(table.decode(table.x0()))
@@ -2314,11 +2314,15 @@ def _max_iter_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
     same models and parameter counts, ran 39 s, 858 s and 2838 s — a 73×
     spread with no difference in the answer (WP-1028 §(d)).
 
-    The default cap is **not** lowered here: ``max_nfev = max_iter × n_par``
-    is what lets a legitimately hard stage finish, and the stages that stall
-    are the degenerate groups AGENT_PROTOCOL §3 already enumerates, so the
-    honest fix is saying which stage hit it rather than cutting everyone's
-    budget.
+    Naming the stage is still the fix, because the stages that stall are the
+    degenerate groups AGENT_PROTOCOL §3 enumerates rather than merely slow
+    ones.  What *has* changed since (WP-1109) is what the cap means: it was
+    ``max_iter × n_par``, a multiplier that priced a finite-difference
+    Jacobian nothing builds any more, so at 42 free parameters a
+    ``max_iter=100`` stage could spend ~4200 evaluations before saying so.  It
+    is now ``max_iter ×`` :data:`~rietx.optimize.least_squares.NFEV_PER_ITERATION`,
+    sized from the measured worst-case rejection rate, so a stage that stalls
+    reports it roughly 30x sooner with its answer unchanged.
     """
     hit = [s.name for s in stage_results if s.status == "max_iter"]
     if not hit:
@@ -2491,7 +2495,7 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
 
     model = compile_model(structure, instrument, data, mode=state.mode,
                           two_theta_limits=state.two_theta_limits,
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     if state.mode in ("lebail", "pawley"):
         _restore_lebail(state.reflections, model)
 

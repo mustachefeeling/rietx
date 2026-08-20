@@ -99,8 +99,19 @@ from .preferred_orientation import (
 )
 from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from .profiles.fcj import fcj_extent_deg, fcj_node_count, fcj_offsets_weights
-from .profiles.pseudovoigt import pseudo_voigt, pseudo_voigt_derivs, tch_gamma_eta
-from .profiles.voigt import GAUSS_FWHM_TO_SIGMA, fwhm_to_voigt_params, voigt, voigt_derivs
+from .profiles.pseudovoigt import (
+    pseudo_voigt,
+    pseudo_voigt_basis,
+    pseudo_voigt_derivs,
+    tch_gamma_eta,
+)
+from .profiles.voigt import (
+    GAUSS_FWHM_TO_SIGMA,
+    fwhm_to_voigt_params,
+    voigt,
+    voigt_basis,
+    voigt_derivs,
+)
 from .restraints import (
     CompiledRestraints,
     resolve_phase_restraints,
@@ -115,6 +126,22 @@ WINDOW_MIN_DEG = 0.3
 #: finite-difference Jacobian sees a live parameter instead of a frozen
 #: zero-node profile
 AXIAL_SIZING_FLOOR = 0.02
+
+def _freeze(value) -> None:
+    """Mark every ndarray inside a memoised block read-only, in place.
+
+    Walks lists and tuples because the blocks are per-emission-line sequences,
+    and ignores anything else — a block may legitimately be a plain float (an
+    absorption factor of exactly 1.0, a zero anisotropic-strain width), and a
+    float cannot be written through anyway.  A view is frozen without touching
+    its base, which is what is wanted: the base may be a caller's own array.
+    """
+    if isinstance(value, np.ndarray):
+        value.setflags(write=False)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _freeze(item)
+
 
 def _cached_fcj_nodes(cp: "CompiledPhase", il: int, k: int, variant: int,
                       two_theta_deg, sl, hl, n_nodes: int):
@@ -204,12 +231,38 @@ class CompiledPhase:
     # block.  σ²(M) = monomials @ S is the only hkl-dependent piece; the
     # d-spacings that turn it into a width move with the cell at evaluation.
     strain_monomials: np.ndarray | None = None
+    # Secondary extinction, frozen *out* of this stage: True when the phase's
+    # ``extinction`` is exactly 0 — where Sabine's E is identically 1 — and no
+    # path this stage can move reaches it.  Then E is a multiply by ones, and
+    # the six-term Laue series that builds it is pure cost: measured 1.2 s of
+    # ``sabine_extinction`` plus 0.79 s of ``_laue_and_deriv`` in a 17.5 s fit
+    # where extinction was never freed (WP-1109).
+    #
+    # This is the frozen-per-stage invariant, not a branch on θ: the decision
+    # is taken at compile from a value that provably cannot change before the
+    # next compile, so the residual it produces is exactly the one the
+    # ungated path produces and stays as smooth.  False is the honest default
+    # — "no gate was established" — so a CompiledPhase built without the
+    # analysis simply evaluates the chain as before.
+    skip_extinction: bool = False
     # FCJ node memo (WP-0605 task 0): {(il, k, variant) → (2θ, S/L, H/L,
     # 2φ_q, ω_q)}, each slot reused iff the three inputs compare bit-equal —
     # see ``_cached_fcj_nodes`` for why this is input equality rather than a
     # stage-scoped dirty flag, and why a hit can never be stale.  None (no FCJ
     # nodes this stage) keeps the hot loop exactly as before; numpy path only.
     fcj_cache: dict[tuple[int, int, int], tuple] | None = None
+    # Scalar-chain memo (WP-1109): {slot → (key, value)}, one slot per block of
+    # ``phase_peaks`` that depends on a small set of decoded scalars, reused iff
+    # the key compares bit-equal.  Same contract as ``fcj_cache`` one rank up —
+    # input equality, never a dirty flag, so a hit cannot be stale and a reuse
+    # is not a reordered accumulation — and it exists for the same reason:
+    # ``_peak_chain_column`` re-runs the whole of ``phase_peaks`` once per
+    # Jacobian column, at a θ where most of those blocks did not move.  A
+    # column perturbing a Biso leaves the cell block alone; one perturbing the
+    # profile width leaves both the cell block and |F|² alone.  ``None`` keeps
+    # the hot loop exactly as it was; numpy path only, for the reason the FCJ
+    # memo is numpy-only.
+    scalar_cache: dict[str, tuple] | None = None
 
 
 @dataclass
@@ -372,6 +425,128 @@ class CompiledModel:
             return 1.0
         return flat_plate_reflection_absorption(tt_bragg, self.mu_t)
 
+    def _strain_key(self, ip: int, values: dict[str, float]) -> tuple:
+        """The Stephens coefficients of phase ip, or ``()`` when it has none."""
+        if self.phases[ip].strain_monomials is None:
+            return ()
+        return tuple(float(values[f"phases.{ip}.microstrain.{n}"])
+                     for n in S_NAMES)
+
+    def _shift_key(self, values: dict[str, float]) -> tuple:
+        """Every scalar :meth:`_position_shift_deg` reads, by geometry.
+
+        Mirrors that method's structural branch rather than listing all the
+        parameters: a key wider than the shift is merely a missed reuse, but a
+        key *narrower* than it would hand back a stale position, so the two
+        must be read together whenever either changes.
+        """
+        key = [float(values["instrument.zero_shift"])]
+        if self.geometry_kind == "bragg_brentano":
+            key.append(float(values["instrument.geometry.sample_displacement"]))
+            key.append(float(values["instrument.geometry.sample_transparency"]))
+        elif self.geometry_kind == "debye_scherrer" and self.radius_mm:
+            key.extend(float(values[f"instrument.geometry.{name}"])
+                       for name in CAPILLARY_OFFSETS)
+        return tuple(key)
+
+    def _width_block(self, ip: int, values: dict[str, float],
+                     tt_bragg_lines: list, aniso):
+        """The (w₁, w₂) pair of every emission line, at the current widths."""
+        out = []
+        for tt_bragg in tt_bragg_lines:
+            theta = 0.5 * tt_bragg  # Bragg angle drives the widths
+            gam_g = gaussian_fwhm(theta, values["instrument.profile.u"],
+                                  values["instrument.profile.v"],
+                                  values["instrument.profile.w"],
+                                  values[f"phases.{ip}.gauss_size"],
+                                  values[f"phases.{ip}.gauss_strain"])
+            gam_l = lorentzian_fwhm(
+                theta,
+                values["instrument.profile.x"] + values[f"phases.{ip}.lor_size"],
+                values["instrument.profile.y"] + values[f"phases.{ip}.lor_strain"],
+                aniso)
+            out.append(self._peak_widths(gam_g, gam_l))
+        return out
+
+    def _cell_block(self, cp: "CompiledPhase", cell: tuple):
+        """(d, [2θ_Bragg per emission line]) — everything the cell alone fixes.
+
+        One block rather than two memo slots because they share their input and
+        every caller wants both: the line positions are ``two_theta_deg(d, λ)``
+        and nothing else enters them.
+        """
+        d = d_spacings(cp.reflections.hkl, *cell)
+        return d, [two_theta_deg(d, lam) for lam in self.line_wavelengths]
+
+    def _memo(self, cp: "CompiledPhase", slot: str, key_fn, build):
+        """``build()`` memoised on exact equality of a small scalar key.
+
+        The generalisation of :func:`_cached_fcj_nodes`, and it keeps that
+        function's two rules.  *Input equality, never a dirty flag*: equal
+        inputs give bit-equal outputs because every block below is
+        deterministic, so a hit can never be stale, and the value handed back
+        is the same array the miss would have built rather than a re-summed
+        one — which is what lets the goldens stay bit-identical.  *Numpy only*:
+        under a trace the decoded values are tracers, and one deposited here
+        would leak into a later numpy call while a cached numpy array would
+        constant-fold the block out of the trace.
+
+        **The key arrives as a thunk, and that is the whole reason this takes a
+        callable rather than a tuple.** Every key here is built by calling
+        ``float()`` on decoded values, which under a trace are tracers —
+        ``float(tracer)`` raises ``ConcretizationTypeError``. Passing the key
+        itself would evaluate it at the call site, *before* the numpy test
+        below, so the traced path would die building a key it never uses. It
+        did: the whole jax matrix failed this way, on a change whose numpy runs
+        were green, because a ``[dev]``-only venv skips every jax row. A thunk
+        makes the rule structural instead of remembered — the key cannot be
+        computed off the numpy path.
+
+        The key must hold plain floats.  A numpy array in it would make the
+        ``==`` below elementwise and the truth test ambiguous, which is a
+        raise rather than a wrong answer, but the caller should not get there.
+
+        What is memoised is handed back **read-only**.  Before this memo every
+        ``phase_peaks`` call allocated its own arrays, so a consumer writing
+        into one hurt nobody; now the same array is shared across calls and an
+        in-place write would poison every later evaluation of that phase
+        silently.  ``phase_peaks`` is public, so that consumer need not be in
+        this repository.  Freezing the arrays costs nothing per call and turns
+        the corruption into a ``ValueError`` naming the write.
+        """
+        cache = cp.scalar_cache
+        if cache is None or get_backend().name != "numpy":
+            return build()
+        key = key_fn()
+        hit = cache.get(slot)
+        if hit is not None and hit[0] == key:
+            return hit[1]
+        value = build()
+        _freeze(value)
+        cache[slot] = (key, value)
+        return value
+
+    def _atom_key(self, ip: int, values: dict[str, float]) -> tuple:
+        """Every decoded scalar |F|² reads for phase ip, in a fixed order.
+
+        Cheaper than the arrays :meth:`_site_values` stacks from them (a few
+        dozen dict lookups against a structure-factor evaluation), which is
+        what makes it worth building on a call that will then hit the memo.
+        """
+        cp = self.phases[ip]
+        n = cp.sites.n_asym
+        out: list[float] = []
+        for j in range(n):
+            base = f"phases.{ip}.atoms.{j}."
+            out.append(float(values[base + "x"]))
+            out.append(float(values[base + "y"]))
+            out.append(float(values[base + "z"]))
+            out.append(float(values[base + "occ"]))
+            out.append(float(values[base + "biso"]))
+            if cp.sites.any_aniso:
+                out.extend(float(values.get(base + u, 0.0)) for u in U_NAMES)
+        return tuple(out)
+
     def _site_values(self, ip: int, values: dict[str, float], cell: tuple
                      ) -> tuple[np.ndarray, np.ndarray, np.ndarray,
                                 np.ndarray | None, np.ndarray | None]:
@@ -515,6 +690,17 @@ class CompiledModel:
             return voigt_derivs(x, w1, w2)
         return pseudo_voigt_derivs(x, w1, w2)
 
+    def _profile_basis(self, x: np.ndarray, w1: float, w2: float) -> np.ndarray:
+        """Ω of the active shape, bit-for-bit as :meth:`_profile_derivs` builds
+        it — which is *not* bit-for-bit :meth:`_profile` (see
+        ``pseudovoigt.pseudo_voigt_basis``).  For ``derivative_bases`` under
+        ``profile_derivs=False``, where the bases must not shift under a
+        caller's decision about which partials it needs.
+        """
+        if self.shape == "voigt":
+            return voigt_basis(x, w1, w2)
+        return pseudo_voigt_basis(x, w1, w2)
+
     def phase_peaks(self, ip: int, values: dict[str, float],
                     hkl_intensity: np.ndarray | None = None
                     ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
@@ -531,20 +717,41 @@ class CompiledModel:
         (purity: never read mutable state mid-solve).  ``None`` falls back to
         the phase's at-rest buffer, for callers outside the hot loop (plots,
         exporters, replay).
+
+        **The position and width arrays may be shared between calls** and are
+        handed back read-only, because the blocks that build them are memoised
+        on the scalars they read (``CompiledPhase.scalar_cache``).  Copy before
+        writing; ``intensity`` is built fresh every call and is not frozen.
         """
         xp = get_backend()
         cp = self.phases[ip]
         cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        d = d_spacings(cp.reflections.hkl, *cell)
+        # the cell block: d, and with it every per-line Bragg angle.  Memoised
+        # together because they share one input and are always wanted together
+        # — a Jacobian column that perturbs anything but this phase's cell
+        # reuses the lot (``CompiledPhase.scalar_cache``).
+        # every key below is built inside a thunk, never at the call site: on a
+        # traced backend these values are tracers and ``float()`` on one raises
+        # (see ``_memo``)
+        def cell_key():
+            return tuple(float(c) for c in cell)
+
+        d, tt_bragg_lines = self._memo(
+            cp, "cell", cell_key, lambda: self._cell_block(cp, cell))
 
         if self.mode in ("lebail", "pawley"):
             # extracted by partitioning (Le Bail) or refined as θ (Pawley) —
             # identical from here on
             base = cp.hkl_intensity if hkl_intensity is None else hkl_intensity
         else:
-            # |F|² samples the form factors at sinθ/λ = 1/2d — line-independent
-            f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
-                                           *self._site_values(ip, values, cell))
+            # |F|² samples the form factors at sinθ/λ = 1/2d — line-independent,
+            # and a function of the cell and this phase's atoms alone, so a
+            # column perturbing a width or the background reuses it
+            f2 = self._memo(
+                cp, "f2", lambda: (cell_key(), self._atom_key(ip, values)),
+                lambda: structure_factors_squared(
+                    cp.reflections.hkl, d, cp.sites,
+                    *self._site_values(ip, values, cell)))
             # multiplicity lifted onto the backend: a frozen numpy factor in a
             # product with traced values (backend/api.py)
             mult = xp.asarray(cp.reflections.multiplicity, dtype=np.float64)
@@ -554,43 +761,84 @@ class CompiledModel:
             # leaves the intensity bit-identical then).  It rides ahead of the
             # extinction multiply — both commute — and the extinction variable x
             # still uses the raw |F|², not this product.
-            P = self._po_factors(ip, values, cell)
-            if P is not None:
+            if cp.po_axis is not None:
+                P = self._memo(
+                    cp, "po",
+                    lambda: (cell_key(),
+                             float(values[f"phases.{ip}.preferred_orientation.r"])),
+                    lambda: self._po_factors(ip, values, cell))
                 base = base * P
             # secondary extinction (model/extinction.py): a per-(line,
-            # reflection) intensity multiplier folded in below, evaluated
-            # unconditionally — ext=0 makes E exactly 1 (Sabine's blend is
-            # sin²θ·1 + cos²θ·1, which is exactly 1.0 in fp), so the off
-            # state stays bit-identical without branching on θ (purity (b)).
+            # reflection) intensity multiplier folded in below.  ext=0 makes E
+            # exactly 1 (Sabine's blend is sin²θ·1 + cos²θ·1, which is exactly
+            # 1.0 in fp), so where the stage cannot move ext off zero the
+            # whole chain is skipped rather than evaluated to ones — a
+            # compile-time structural branch (``skip_extinction``), never one
+            # on θ.  Otherwise it is evaluated unconditionally, and the off
+            # state stays bit-identical anyway (purity (b)).
             # V moves with the cell, hence recomputed here rather than cached.
             ext = values[f"phases.{ip}.extinction"]
             vol = cell_volume(*cell)
 
         # anisotropic strain is line-independent (it depends on hkl and the
         # cell, not on λ), so Λ is computed once and reused across the lines
-        aniso = self.strain_width(ip, values, d)
+        aniso = self._memo(
+            cp, "aniso", lambda: (cell_key(), self._strain_key(ip, values)),
+            lambda: self.strain_width(ip, values, d))
+
+        # The three per-line blocks below were built inside the loop until
+        # WP-1109 and are hoisted only so each can carry its own memo key; the
+        # arithmetic and the order it happens in are unchanged.  Each names
+        # exactly what it depends on, which is what a Jacobian column's
+        # perturbation is compared against.
+        positions = self._memo(
+            cp, "pos", lambda: (cell_key(), self._shift_key(values)),
+            lambda: [tt + self._position_shift_deg(0.5 * tt, tt, values)
+                     for tt in tt_bragg_lines])
+
+        def width_key():
+            return (cell_key(), self._strain_key(ip, values),
+                    float(values["instrument.profile.u"]),
+                    float(values["instrument.profile.v"]),
+                    float(values["instrument.profile.w"]),
+                    float(values["instrument.profile.x"]),
+                    float(values["instrument.profile.y"]),
+                    float(values[f"phases.{ip}.gauss_size"]),
+                    float(values[f"phases.{ip}.gauss_strain"]),
+                    float(values[f"phases.{ip}.lor_size"]),
+                    float(values[f"phases.{ip}.lor_strain"]))
+
+        widths = self._memo(cp, "widths", width_key,
+                            lambda: self._width_block(ip, values, tt_bragg_lines,
+                                                      aniso))
+        if self.mode in ("lebail", "pawley"):
+            lp_lines = absorb_lines = None
+        else:
+            lp_lines = self._memo(
+                cp, "lp",
+                lambda: (cell_key(), float(values["instrument.polarization"])),
+                lambda: [lorentz_polarization(
+                    tt, values["instrument.polarization"])
+                    for tt in tt_bragg_lines])
+            # µR/µt are frozen at compile, so the cell is the whole key
+            absorb_lines = self._memo(
+                cp, "abs", cell_key,
+                lambda: [self._absorption(tt) for tt in tt_bragg_lines])
 
         out = []
         for il, lam in enumerate(self.line_wavelengths):
             w_line = values[f"instrument.source.lines.{il}.weight"]
-            tt_bragg = two_theta_deg(d, lam)
-            theta = 0.5 * tt_bragg  # Bragg angle drives widths and Lp
-            pos = tt_bragg + self._position_shift_deg(theta, tt_bragg, values)
-            gam_g = gaussian_fwhm(theta, values["instrument.profile.u"],
-                                  values["instrument.profile.v"], values["instrument.profile.w"],
-                                  values[f"phases.{ip}.gauss_size"],
-                                  values[f"phases.{ip}.gauss_strain"])
-            gam_l = lorentzian_fwhm(theta,
-                                    values["instrument.profile.x"] + values[f"phases.{ip}.lor_size"],
-                                    values["instrument.profile.y"] + values[f"phases.{ip}.lor_strain"],
-                                    aniso)
-            gamma, eta = self._peak_widths(gam_g, gam_l)
+            tt_bragg = tt_bragg_lines[il]
+            pos = positions[il]
+            gamma, eta = widths[il]
             if self.mode in ("lebail", "pawley"):
                 # extracted/refined intensities already absorb Lp
                 intensity = base * w_line
             else:
-                intensity = base * w_line * lorentz_polarization(tt_bragg, values["instrument.polarization"])
-                intensity = intensity * sabine_extinction(f2, lam, vol, tt_bragg, ext)
+                intensity = base * w_line * lp_lines[il]
+                if not cp.skip_extinction:
+                    intensity = intensity * sabine_extinction(
+                        f2, lam, vol, tt_bragg, ext)
                 # specimen absorption, model/absorption.py: cylinder, finite
                 # flat reflection or flat transmission by geometry.  The
                 # geometry test is a compile-time structural branch, permitted
@@ -598,7 +846,7 @@ class CompiledModel:
                 # no θ-derived value is branched on.  Off returns the scalar
                 # 1.0, which keeps a specimen-shape-free model off the code path
                 # entirely rather than merely multiplying by ones.
-                intensity = intensity * self._absorption(tt_bragg)
+                intensity = intensity * absorb_lines[il]
                 # surface roughness (model/corrections.py): a per-(line,
                 # reflection) depression of the low-angle intensity.  Rides
                 # after extinction — all these multiplies commute — and, unlike
@@ -741,11 +989,12 @@ class CompiledModel:
             d_base = d_base * P
         # extinction couples |F|² into the intensity twice (as the prefactor
         # and through x ∝ |F|²), so a coordinate/ADP move chains through the
-        # factor G = E + x·dE/dx (see model/extinction.py), applied
-        # unconditionally — at ext=0, x=0 makes G exactly 1 (purity (b)).
-        # Only these pure-analytic columns need it explicitly; the scale/occ/
-        # biso/cell/extinction columns pick it up from the FD-of-phase_peaks
-        # chain.
+        # factor G = E + x·dE/dx (see model/extinction.py) — at ext=0, x=0
+        # makes G exactly 1 (purity (b)), so the stage that cannot move ext off
+        # zero skips it exactly as ``phase_peaks`` does, and every other stage
+        # applies it unconditionally.  Only these pure-analytic columns need it
+        # explicitly; the scale/occ/biso/cell/extinction columns pick it up
+        # from the FD-of-phase_peaks chain.
         ext = values[f"phases.{ip}.extinction"]
         f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
                                        xyz, occ, biso, uaniso, astar)
@@ -756,8 +1005,9 @@ class CompiledModel:
             tt_bragg = two_theta_deg(d, lam)
             col = d_base * w_line * lorentz_polarization(
                 tt_bragg, values["instrument.polarization"])
-            E, dEdx, x = sabine_extinction_and_dx(f2, lam, vol, tt_bragg, ext)
-            col = col * (E + x * dEdx)
+            if not cp.skip_extinction:
+                E, dEdx, x = sabine_extinction_and_dx(f2, lam, vol, tt_bragg, ext)
+                col = col * (E + x * dEdx)
             col = col * self._absorption(tt_bragg)
             # roughness scales the intensity and does not depend on the
             # coordinates/ADPs, so a structural move chains through it
@@ -795,7 +1045,8 @@ class CompiledModel:
         _P, dP = march_dollase_and_dr(cp.po_members, cp.po_seg, cp.po_counts,
                                       cp.po_axis, gstar, r)
         d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * f2 * dP
-        # unconditional, like phase_peaks: E ≡ 1 exactly at ext=0 (purity (b))
+        # gated exactly like phase_peaks, and unconditional otherwise: E ≡ 1
+        # exactly at ext=0 either way (purity (b))
         ext = values[f"phases.{ip}.extinction"]
         vol = cell_volume(*cell)
         out = []
@@ -804,7 +1055,8 @@ class CompiledModel:
             tt_bragg = two_theta_deg(d, lam)
             col = d_base * w_line * lorentz_polarization(
                 tt_bragg, values["instrument.polarization"])
-            col = col * sabine_extinction(f2, lam, vol, tt_bragg, ext)
+            if not cp.skip_extinction:
+                col = col * sabine_extinction(f2, lam, vol, tt_bragg, ext)
             col = col * self._absorption(tt_bragg)
             rough = self._roughness_factor(tt_bragg, values)
             if rough is not None:
@@ -844,7 +1096,8 @@ class CompiledModel:
 
     def derivative_bases(self, values: dict[str, float],
                          intensities: list[np.ndarray] | None = None,
-                         axial_derivs: bool = True) -> "DerivativeBases":
+                         axial_derivs: bool = True,
+                         profile_derivs: bool = True) -> "DerivativeBases":
         """Per-(phase, line, reflection) analytic profile-derivative bases.
 
         For each peak on its frozen window this computes Ω and the exact
@@ -873,7 +1126,23 @@ class CompiledModel:
         generations per (line, reflection) per iteration for them.  The
         default keeps the full contract for the FitReport consumers
         (report/layer1.py reads ∂Ω/∂sl unconditionally).
+
+        ``profile_derivs=False`` is the same bargain one term earlier and it is
+        the larger one: it leaves ∂Ω/∂pos, ∂Ω/∂Γ and ∂Ω/∂η ``None`` and takes
+        Ω from the plain profile rather than the derivative form, so a stage
+        whose free parameters move only *intensities* — scale, Biso, the
+        coordinates and ADPs, extinction, the March coefficient, a line weight
+        — stops paying for three partials nothing reads.  The three terms are
+        multiplied by ∂pos/∂p, ∂Γ/∂p and ∂η/∂p, which are then identically
+        zero, so this removes a multiply by zero rather than an approximation.
+        It implies ``axial_derivs=False``: ∂Ω/∂(S/L) is built from ∂Ω/∂x.
+        The caller owns the claim, and ``_peak_chain_column`` **verifies** it
+        against the scalars it finite-differences anyway — a wrong claim raises
+        there and names the path, rather than silently leaving the column
+        short, which is what the whole-model FD fallback exists to prevent.
         """
+        if not profile_derivs:
+            axial_derivs = False
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
         h_pos, h_ax = 1e-5, 1e-7
@@ -893,6 +1162,13 @@ class CompiledModel:
                     x = self.tt[i0:i1]
                     n_fcj = int(cp.fcj_n[il, k])
                     if n_fcj == 0:
+                        if not profile_derivs:
+                            rows.append((il, k, int(i0), int(i1),
+                                         self._profile_basis(
+                                             x - pos[k], float(gamma[k]),
+                                             float(eta[k])),
+                                         None, None, None, None, None))
+                            continue
                         pv, d_dx, d_dg, d_de = self._profile_derivs(
                             x - pos[k], float(gamma[k]), float(eta[k]))
                         rows.append((il, k, int(i0), int(i1),
@@ -902,6 +1178,15 @@ class CompiledModel:
                         axial_ok = False
                     phi, om = _cached_fcj_nodes(cp, il, k, 0,
                                                 float(pos[k]), sl, hl, n_fcj)
+                    if not profile_derivs:
+                        # Ω is the same convolution either way; only the three
+                        # partials are dropped, and with them the node-FD
+                        # evaluations that build ∂Ω/∂pos
+                        pv = self._profile_basis(x[None, :] - phi[:, None],
+                                                 float(gamma[k]), float(eta[k]))
+                        rows.append((il, k, int(i0), int(i1), om @ pv,
+                                     None, None, None, None, None))
+                        continue
                     pv, d_dx, d_dg, d_de = self._profile_derivs(
                         x[None, :] - phi[:, None], float(gamma[k]), float(eta[k]))
                     omega = om @ pv
@@ -1274,10 +1559,16 @@ class DerivativeBases:
     """Analytic profile-derivative bases (see ``CompiledModel.derivative_bases``).
 
     ``entries[ip]`` holds tuples ``(il, k, i0, i1, Ω, ∂Ω/∂pos, ∂Ω/∂Γ, ∂Ω/∂η,
-    ∂Ω/∂sl, ∂Ω/∂hl)`` per visible peak of phase ``ip``; the last two are None
-    for symmetric peaks.  ``peaks[ip]`` caches ``phase_peaks(ip, values)`` at
-    the expansion point.  These bases also feed the FitReport Layer-1 misfit
-    attribution (same expansion, different right-hand side).
+    ∂Ω/∂sl, ∂Ω/∂hl)`` per visible peak of phase ``ip``.  Ω is always present;
+    every partial after it is optional and **every consumer None-checks**.
+    ∂Ω/∂sl and ∂Ω/∂hl are None for a symmetric peak or under
+    ``axial_derivs=False``; the three before them are None under
+    ``profile_derivs=False``, which a caller passes only when it has claimed
+    that nothing it will build moves a peak's position, width or mixing.
+    ``peaks[ip]`` caches ``phase_peaks(ip, values)`` at the expansion point.
+    These bases also feed the FitReport Layer-1 misfit attribution (same
+    expansion, different right-hand side) — which reads the partials, so its
+    callers keep the full default.
     """
 
     entries: list[list[tuple]]
@@ -1288,13 +1579,24 @@ class DerivativeBases:
 def compile_model(structure: Structure, instrument: Instrument, pattern: PatternData,
                   *, mode: Mode = "rietveld",
                   two_theta_limits: tuple[float, float] | None = None,
-                  free_paths: set[str] | None = None,
+                  moving_paths: set[str] | None = None,
                   restraint_weight_scale: float = 1.0) -> CompiledModel:
     """Freeze reflection lists, orbits, windows and FCJ nodes for one stage.
 
-    ``free_paths`` (the parameters the coming stage will refine) only affects
-    *sizing* decisions: when the axial parameters are free, FCJ nodes are
-    allocated even if their current values are still zero.
+    ``moving_paths`` is every parameter the coming stage can move, or ``None``
+    for "no claim made", which gates nothing and sizes as if nothing were free.
+    When given, it is
+    ``ParameterTable.moving_paths``, which is the free set *plus its ties*, not
+    ``free_paths``: a tied parameter is not a column of θ and still changes
+    while θ does, so freezing anything on "this cannot move" must ask the
+    wider question.  It drives two structural decisions and nothing else.
+    *Sizing*: when the axial parameters can move, FCJ nodes are allocated even
+    if their current values are still zero.  *Gating*: a correction sitting
+    exactly at its off state, which nothing this stage can move off it, is
+    skipped rather than evaluated to its identity — see
+    ``CompiledPhase.skip_extinction``.  Both are compile-time structural in the
+    sense the frozen-per-stage invariant means: the decision is taken once, off
+    values that cannot change, and never re-asked from a θ-derived quantity.
 
     ``restraint_weight_scale`` is the coming stage's c_w (McCusker eq 7),
     frozen onto the model like every other discrete choice; 1.0 is the identity
@@ -1318,10 +1620,15 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     zero = instrument.zero_shift.value
     geom = instrument.geometry
 
+    # ``None`` is "the caller made no claim", which is not the same as "nothing
+    # moves": an empty set gates every off-state correction, so a caller that
+    # simply never passed the argument must not silently get that.  Only an
+    # explicit set — even an empty one — licenses the gates.
+    gate_off_states = moving_paths is not None
     # FCJ sizing values (floored when the axial parameters are about to refine)
-    free_paths = free_paths or set()
-    axial_free = ("instrument.geometry.axial_sl" in free_paths
-                  or "instrument.geometry.axial_hl" in free_paths)
+    moving_paths = moving_paths or set()
+    axial_free = ("instrument.geometry.axial_sl" in moving_paths
+                  or "instrument.geometry.axial_hl" in moving_paths)
     sl_eff = geom.axial_sl.value
     hl_eff = geom.axial_hl.value
     if axial_free:
@@ -1426,11 +1733,19 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
 
         cp = CompiledPhase(reflections=refl, sites=sites, win=win, fcj_n=fcj_n,
                            strain_monomials=strain_monomials)
+        # the off-state gate (see the field): ext is exactly its identity and
+        # nothing this stage moves can take it off there
+        cp.skip_extinction = (gate_off_states
+                              and phase.extinction.value == 0.0
+                              and f"phases.{ip}.extinction" not in moving_paths)
         # WP-0605 task 0: the FCJ node memo needs no free-path analysis —
         # correctness rests on input equality alone — so it is allocated
         # whenever any peak has quadrature nodes at all.
         if fcj_on and fcj_n.any():
             cp.fcj_cache = {}
+        # the scalar-chain memo needs no free-path analysis either, for the
+        # same reason: correctness rests on input equality alone
+        cp.scalar_cache = {}
         if mode in ("lebail", "pawley"):
             cp.hkl_intensity = np.full(n, max(float(np.median(y_obs)), 1.0))
         if mode == "pawley":

@@ -134,7 +134,7 @@ def _state_srm660c():
         "phases.0.atoms.*.biso", "phases.0.extinction",
     ])
     model = compile_model(structure, instrument, data, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table, {}
 
 
@@ -176,7 +176,7 @@ def _state_nac():
     ])
     model = compile_model(structure, instrument, data, mode="rietveld",
                           two_theta_limits=(2.0, 24.0),
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table, {}
 
 
@@ -229,7 +229,7 @@ def _state_toy_lebail():
     table = ParameterTable(structure, instrument)
     _free(table, _TOY_WHOLE_PATTERN_FREE)
     model = compile_model(structure, instrument, pattern, mode="lebail",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     model.lebail_update(table.decode(table.x0()), n_cycles=3)
     intens = np.concatenate([cp.hkl_intensity for cp in model.phases])
     return model, table, {"lebail_intensity": intens}
@@ -241,7 +241,7 @@ def _state_toy_pawley():
     table = ParameterTable(structure, instrument)
     _free(table, _TOY_WHOLE_PATTERN_FREE)
     model = compile_model(structure, instrument, pattern, mode="pawley",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     # mirror the staged runner's seeding: one Le Bail partition, then the
     # equal-split restraint on the seeded scale
     model.lebail_update(table.decode(table.x0()), n_cycles=3)
@@ -294,7 +294,7 @@ def _state_toy_rich():
         "instrument.source.lines.1.weight", "instrument.background.*",
     ])
     model = compile_model(structure, instrument, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table, {}
 
 
@@ -329,7 +329,7 @@ def _state_toy_restraints():
         "instrument.zero_shift", "instrument.background.*",
     ])
     model = compile_model(structure, instrument, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table, {}
 
 
@@ -375,7 +375,7 @@ def _state_toy_capillary():
         "instrument.background.*",
     ])
     model = compile_model(structure, instrument, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     assert model.mu_r == 0.8, "absorption must actually be live in this state"
     return model, table, {}
 
@@ -409,7 +409,7 @@ def _state_toy_stephens():
         "instrument.zero_shift", "instrument.background.*",
     ])
     model = compile_model(structure, instrument, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table, {}
 
 
@@ -457,7 +457,7 @@ def _state_toy_anomalous():
         "instrument.background.*",
     ])
     model = compile_model(structure, instrument, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table, {}
 
 
@@ -501,7 +501,7 @@ def _state_toy_roughness():
         "instrument.zero_shift", "instrument.background.*",
     ])
     model = compile_model(structure, instrument, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table, {}
 
 

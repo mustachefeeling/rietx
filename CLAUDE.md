@@ -257,6 +257,19 @@ recent list, and is therefore not behind the 409 (WP-1044).
   and `test_cross_backend.py`'s `families_tied` row is where other backends
   check it (WP-1070 measured an un-gated background column wrong by 49 % of its
   own scale).
+- **"Can this parameter move?" is `moving_paths`, never `free_paths`** — the
+  rule above one rank up, and it governs every *structural* freeze, not just a
+  Jacobian branch. A tied entry is not a column of θ and still changes while θ
+  does, so `ParameterTable.moving_paths` (free ∪ its ties, read off the nonzero
+  rows of C) is what licenses freezing anything on "this cannot change during
+  the stage": `compile_model` takes that set, and `None` means *no claim made*
+  and gates nothing, because an empty set is the claim that nothing moves.
+  Two freezes rest on it — FCJ node sizing and skipping a correction sitting at
+  its off state (`CompiledPhase.skip_extinction`) — and a third rule keeps them
+  honest: **a claim about what a name reaches is verified where it is used**,
+  so `_peak_chain_column` checks the scalars it finite-differences anyway
+  against the bases it was told to skip, and raises naming the path. A wrong
+  claim then costs work, never a short column (WP-1109).
 - **Pydantic knows no crystallography, so a whole-model swap is checked by
   building its table.** Every symmetry refusal is raised in
   `ParameterTable.__init__` and the snapshot `Refinement.edit` commits performs

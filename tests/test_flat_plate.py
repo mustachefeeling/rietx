@@ -308,7 +308,7 @@ def _flat_plate_model(mu_t: float, kind: str):
               "phases.0.extinction"):
         assert table.set_vary([p], True), p
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table
 
 
@@ -428,7 +428,7 @@ def _fit_flat_plate(kind: str, **geometry):
     model = compile_model(structure, ins,
                           rx.PatternData(two_theta=grid.tolist(),
                                          intensity=np.ones_like(grid).tolist()),
-                          mode="rietveld", free_paths=set())
+                          mode="rietveld", moving_paths=set())
     y = np.asarray(model.evaluate(table.decode(table.x0())))
     data = rx.PatternData(two_theta=grid.tolist(),
                           intensity=(y + 1.0).tolist())
@@ -552,7 +552,7 @@ def test_a_neglected_thickness_lands_in_biso_and_the_prediction_is_a_lower_bound
         model = compile_model(truth, ins_true,
                               rx.PatternData(two_theta=grid.tolist(),
                                              intensity=np.ones_like(grid).tolist()),
-                              mode="rietveld", free_paths=set())
+                              mode="rietveld", moving_paths=set())
         y = np.asarray(model.evaluate(table.decode(table.x0())))
         # no background offset: the plan frees only the scale and Biso, so an
         # unmodelled constant would be absorbed by the parameters under test

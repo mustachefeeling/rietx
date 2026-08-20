@@ -9,6 +9,7 @@ moving x and y together) and a general position (P2₁/c, three DOFs).
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from rietx import Instrument, PatternData
 from rietx.model.forward import compile_model
@@ -65,7 +66,7 @@ def _check_columns(structure, free_paths, ties=(), *, instrument=None):
         assert table.set_vary([path], True), path
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
 
     theta = table.x0()
     J = _make_jacobian(model, table)(theta)
@@ -136,7 +137,7 @@ def test_adp_dof_absent_in_lebail_jacobian():
     table.set_vary(["*"], False)
     table.set_vary(["phases.0.atoms.0.adp.0"], True)
     model = compile_model(structure, ins, pattern, mode="lebail",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     J = _make_jacobian(model, table)(table.x0())
     assert np.allclose(J[:, 0], 0.0)
 
@@ -161,7 +162,7 @@ def test_dof_absent_in_lebail_jacobian():
     table.set_vary(["*"], False)
     table.set_vary(["phases.0.atoms.1.dof.0"], True)
     model = compile_model(structure, ins, pattern, mode="lebail",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     J = _make_jacobian(model, table)(table.x0())
     assert np.allclose(J[:, 0], 0.0)
 
@@ -186,7 +187,7 @@ def _column(structure, free_paths, path, ties=()):
         assert table.set_vary([p], True), p
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     theta = table.x0()
     return _make_jacobian(model, table)(theta)[:, table.free_paths.index(path)]
 
@@ -252,7 +253,7 @@ def test_a_tie_beyond_a_branchs_reach_falls_back_and_stays_exact():
     table.refresh_ties()
     assert table.set_vary(["instrument.background.c0"], True)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     column = _make_jacobian(model, table)(table.x0())[:, 0]
     n0 = list(model.bkg_paths).index("instrument.background.c0")
     n1 = list(model.bkg_paths).index("instrument.background.c1")
@@ -310,3 +311,139 @@ def test_p21c_general_site_has_all_six_adp_and_three_coord():
     assert sc.coord_basis.tolist() == np.eye(3, dtype=int).tolist()
     fixed = site_constraints("P21/c", (0.0, 0.0, 0.0))
     assert fixed.coord_basis.shape == (0, 3)
+
+
+# -- the free-set mask on the profile bases (WP-1109) ---------------------
+
+def _masked_pair(free_paths):
+    """(masked J, unmasked J) for a free set, plus the mask's own verdict."""
+    from rietx.optimize.least_squares import _intensity_only
+
+    structure, ins, pattern = _state(make_p21c_toy())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for path in free_paths:
+        assert table.set_vary([path], True), path
+    table.apply_to_models(structure, ins)
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    bkg_cols = {p: n for n, p in enumerate(model.bkg_paths)}
+    claimed = all(_intensity_only(p, bkg_cols) for p in table.free_paths)
+    theta = table.x0()
+    j_masked = _make_jacobian(model, table)(theta)
+    return j_masked, theta, model, table, claimed
+
+
+@pytest.mark.parametrize("path,intensity_only", [
+    ("phases.0.scale", True),
+    ("phases.0.extinction", True),
+    ("phases.2.atoms.3.biso", True),
+    ("phases.0.atoms.1.dof.0", True),
+    ("phases.0.atoms.1.adp.2", True),
+    ("phases.0.atoms.1.occ", True),
+    ("phases.0.preferred_orientation.r", True),
+    ("instrument.source.lines.1.weight", True),
+    ("instrument.polarization", True),
+    ("instrument.background.c3", True),        # never touches a peak at all
+    # the load-bearing half: every one of these moves or reshapes a peak, so
+    # letting one into the allow-list would skip bases its column needs
+    ("phases.0.cell.a", False),
+    ("phases.0.cell.beta", False),
+    ("instrument.zero_shift", False),
+    ("instrument.profile.w", False),
+    ("instrument.profile.x", False),
+    ("phases.0.lor_size", False),
+    ("phases.0.gauss_strain", False),
+    ("phases.0.microstrain.dof.0", False),
+    ("instrument.geometry.sample_displacement", False),
+    ("instrument.geometry.sample_transparency", False),
+    ("instrument.geometry.axial_sl", False),
+    # a name nothing recognises falls through to the full bases, which is the
+    # safe side: this is what makes a *new* parameter cost work, never
+    # correctness
+    ("instrument.something.invented.later", False),
+])
+def test_intensity_only_claim_matches_the_families(path, intensity_only):
+    """The claim ``_INTENSITY_ONLY`` makes, family by family — asked of the
+    predicate directly, because it is a statement about a path's *name* and
+    holds whether or not a given instrument has that parameter to free."""
+    from rietx.optimize.least_squares import _intensity_only
+
+    bkg = {f"instrument.background.c{n}": n for n in range(6)}
+    assert _intensity_only(path, bkg) is intensity_only
+
+
+def test_masked_jacobian_is_bit_identical_on_an_intensity_only_stage():
+    """The mask's claim: with only intensities free, ∂pos/∂p, ∂Γ/∂p and ∂η/∂p
+    are identically zero, so dropping the partials they multiply removes a
+    multiply by zero.  Bit-identical, not close — an ``allclose`` check here
+    would pass for a mask that dropped a term the column needed."""
+    free = ["phases.0.scale", "phases.0.atoms.1.biso",
+            "instrument.background.c0", "instrument.background.c1"]
+    j_masked, theta, model, table, claimed = _masked_pair(free)
+    assert claimed
+    j_full = np.zeros_like(j_masked)
+    # rebuild the same Jacobian with the mask denied: patch the model's own
+    # derivative_bases so the caller's request for lean bases is ignored
+    original = type(model).derivative_bases
+
+    def always_full(self, values, intensities=None, axial_derivs=True,
+                    profile_derivs=True):
+        return original(self, values, intensities, axial_derivs=axial_derivs,
+                        profile_derivs=True)
+
+    type(model).derivative_bases = always_full
+    try:
+        j_full = _make_jacobian(model, table)(theta)
+    finally:
+        type(model).derivative_bases = original
+    assert np.array_equal(j_masked, j_full)
+
+
+def test_a_wrong_intensity_only_claim_raises_and_names_the_path():
+    """The gate on the gate.  ``_INTENSITY_ONLY`` is a claim about what a
+    parameter *name* reaches, and the failure mode of a wrong one is a column
+    that comes back short rather than an error — the same shape the whole-model
+    FD fallback exists to prevent.  So the scalars ``_peak_chain_column``
+    finite-differences anyway are checked against the claim, and a mismatch
+    raises.  Forced here by masking a stage that genuinely moves peaks."""
+    structure, ins, pattern = _state(make_p21c_toy())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    assert table.set_vary(["phases.0.cell.a"], True)
+    table.apply_to_models(structure, ins)
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    original = type(model).derivative_bases
+
+    def always_lean(self, values, intensities=None, axial_derivs=True,
+                    profile_derivs=True):
+        return original(self, values, intensities, axial_derivs=False,
+                        profile_derivs=False)
+
+    type(model).derivative_bases = always_lean
+    try:
+        with pytest.raises(AssertionError, match=r"phases\.0\.cell\.a"):
+            _make_jacobian(model, table)(table.x0())
+    finally:
+        type(model).derivative_bases = original
+
+
+def test_lean_bases_carry_the_same_omega_and_no_partials():
+    """Ω is the same convolution either way; only the partials go missing, and
+    they go missing as ``None`` so a consumer that forgot to check fails
+    loudly rather than reading a zero."""
+    structure, ins, pattern = _state(make_p21c_toy())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, pattern, mode="rietveld")
+    values = table.decode(table.x0())
+    full = model.derivative_bases(values, None, axial_derivs=False)
+    lean = model.derivative_bases(values, None, profile_derivs=False)
+    assert full.entries and lean.entries
+    for rows_f, rows_l in zip(full.entries, lean.entries, strict=True):
+        assert len(rows_f) == len(rows_l)
+        for f, s in zip(rows_f, rows_l, strict=True):
+            assert f[:4] == s[:4]
+            assert np.array_equal(f[4], s[4])          # Ω
+            assert all(p is None for p in s[5:])       # every partial
+            assert all(p is not None for p in f[5:8])  # ∂pos, ∂Γ, ∂η

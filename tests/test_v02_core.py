@@ -149,7 +149,7 @@ def test_collinear_zero_displacement_trips_the_correlation_guard():
     table.set_vary(["instrument.zero_shift",
                     "instrument.geometry.sample_displacement"], True)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     outcome = run_least_squares(model, table, max_iter=80)
 
     corr = np.asarray(outcome.correlation)
@@ -359,7 +359,7 @@ def test_analytic_jacobian_matches_fd():
     for path in ANALYTIC_FAMILIES:
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
 
     theta = table.x0()
     J = _make_jacobian(model, table)(theta)

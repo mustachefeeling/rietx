@@ -471,7 +471,7 @@ def test_every_analytic_column_matches_fd_with_roughness_on(block):
     for p in free:
         assert table.set_vary([p], True), p
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     values = table.decode(table.x0())
 
     # the correction must genuinely bite, or the test cannot discriminate
@@ -599,7 +599,7 @@ def _absorption_at(two_theta_min: float):
               "phases.0.atoms.*.biso", "instrument.geometry.surface_roughness.*"):
         table.set_vary([p], True)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     jac = _make_jacobian(model, table)(table.x0())
     return roughness_absorption(jac, table.free_paths), table, jac
 

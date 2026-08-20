@@ -192,7 +192,7 @@ def test_pawley_intensity_jacobian_matches_fd():
                  "instrument.background.c1"):
         assert table.set_vary([path], True), path
     model = compile_model(s, ins, blank, mode="pawley",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     # realistic intensities + the restraint rows must be live for the check
     model.lebail_update(table.decode(table.x0()), n_cycles=3)
     model.build_pawley_restraint()

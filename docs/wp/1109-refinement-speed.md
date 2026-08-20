@@ -1,8 +1,11 @@
 # WP-1109 — refinement speed: where the time actually goes
 
-Milestone: v1.1 · Status: 🔄 2026-08-20 — orbit canonicalisation landed; the
-2026-08-20 review restructured this WP to the cheap exact wins and spun the
-heavier avenues into WP-1111–1115 (the v1.1 series)
+Milestone: v1.1 · Status: ✅ 2026-08-20 — every exact win taken (orbit
+canonicalisation, extinction gated at its off state, the profile bases masked
+by what a stage can move, the scalar chain memoised, the iteration budget
+repriced), **bit-identical throughout**; the hkl cache and the tolerance
+hygiene both retired on measurement, and the heavier avenues left to
+WP-1111–1115 (the v1.1 series)
 
 Depends on: —
 
@@ -39,6 +42,24 @@ The last row is `test_acceptance_qpa_roundrobin.test_sample2_brucite_march_dolla
 own protocol and is not the same fit as the 4.9 s row above it — quote them
 separately. WP-1111 makes these cases a repeatable harness and adds the
 trigger-shaped one none of them covers (~1000+ (line, reflection) pairs).
+
+**Those are the *opening* numbers and the exact wins have since moved them**
+(2026-08-20, third session; same machine, best of 3 idle, worktree `.venv`
+`[dev]`, darwin/arm64, Python 3.12). Re-measured on the same tree the table
+was taken from, so the pairs are comparable:
+
+| case | before | after | factor |
+|---|---|---|---|
+| IUCr `cpd-1a`, 3 phases, `qpa_plan` (8 stages) | 13.70–13.77 s | 12.12–12.70 s | **1.09–1.14×** |
+| `qarr/cpd-2`, QPA acceptance protocol (9 stages, texture) | 17.06–17.22 s | 14.79–15.47 s | **1.12–1.16×** |
+
+**Both are bit-identical** — Rwp, every refined value and esd, the QPA weight
+fractions and the per-stage iteration table are unchanged to the last bit. That
+is the whole claim of this WP and it is now unqualified, because the one change
+that would have broken it (the tolerance hygiene) was measured and put back.
+Both are still an order of magnitude off the milestone target, which is
+1112/1113/1114's ground — what this WP could take *without changing an answer*
+is now taken.
 
 ### The 2026-08-20 review profile (post-orbit-fix, QPA-acceptance cpd-2)
 
@@ -168,61 +189,132 @@ restated in its own file:
       *Memory:* the image stack is the only non-O(n) array (48 ops × 10⁶ hkl
       would be gigabytes where the loop was O(1)), so it chunks —
       `_ORBIT_CHUNK_ELEMENTS`.
-- [ ] **Cache the hkl list.** Nothing keys it on (space group, cell, λ, range),
-      so a stage boundary that moved the cell by ppm regenerates an identical
-      list, and `sequential.py:680-698` redoes every recompile per pattern:
-      n_patterns × n_stages × `compile_model`. The expensive parts (grid
-      enumeration, absence filtering, orbit canonicalisation) depend on the cell
-      only through `floor(a/d_min)`, so a cache keyed on the index bounds is
-      exact while d-spacings are recomputed cheaply. Vectorising took most of
-      the sting out; on the measured baselines stage compile is now ~5 % of a
-      fit, so the payoff is the *series* case — an estimate until WP-1111's
-      series benchmark measures it. *Bar: bit-identical.*
-- [ ] **Memoise the scalar intensity chain across Jacobian columns.** Per
-      Jacobian call, every `_peak_chain_column` re-runs `phase_peaks` at
-      perturbed θ; for a column that moves no structural or cell value the
-      |F|² block (and everything downstream of it that only depends on
-      unmoved inputs) is bit-equal to the expansion point's. Apply the
-      `_cached_fcj_nodes` pattern (`model/forward.py:119` — input-equality
-      memo, no hashing, numpy-gated so traces neither deposit tracers nor
-      constant-fold): key the |F|²/extinction sub-chain on the values that
-      enter it, reuse iff all compare bit-equal. *Estimated* 15–20 % on the
-      QPA-acceptance fit (the 4.95 s `phase_peaks` cum above), an estimate
-      until measured. *Bar: bit-identical (a hit is a reuse, not a
-      reordering).*
-- [ ] **Gate corrections fixed at their off state, at stage compile.** A
-      parameter that is not free cannot move within a stage, so "extinction
-      is fixed at 0 for this stage" is compile-time structural — the same
-      argument that froze node counts. Skip the Sabine chain when
-      `ext == 0` and the path is unfree (E ≡ 1 exactly, its purity-(b)
-      identity); audit roughness/absorption/PO for the same shape (PO and
-      roughness already gate on `None` — the audit is for value-level off
-      states that don't). ~1.5–2 s of the 17.5 s fit measured above. The gate
-      lives on the numpy analytic path or at compile; the traced twin
-      (`backend/traced.py`) stays branchless. *Bar: bit-identical.*
-- [ ] **Mask `derivative_bases` by the free set.** It builds Ω, ∂Ω/∂pos, ∂Ω/∂Γ,
-      ∂Ω/∂η for every peak on every Jacobian call even in a stage where only
-      background and scale are free and only Ω is read. The `axial_derivs`
-      flag (WP-0605 task 0) is the precedent and the contract shape: optional
-      entries, every consumer None-checks. Estimated ~1.5-2× on early stages,
-      ~15 % on a whole plan — an estimate, not a measurement. *Bar:
-      bit-identical (skipped bases are unread).*
-- [ ] **Fix the `max_nfev` semantics.** `least_squares.py:722` sets
-      `max_nfev = max_iter × max(len(x0), 1)`, pricing FD Jacobians that
-      retired-item 1 shows never run; with the analytic Jacobian an iteration
-      costs ~1.3 evaluations, so the guard permits ~30× more iterations than
-      `max_iter` names. Make the budget ≈ `max_iter` × a small constant
-      (measured headroom for TRF's trial-point rejections, not n_params), on
-      both `run_least_squares` and `run_multi_least_squares`, and state in
-      the docstring that `max_iter` now approximates iterations. This is the
-      trigger log's ~600 s/pattern pathology: those runs would give up ~30×
-      sooner with the answer unchanged (a run that *converges* never feels
-      the guard — assert that on the acceptance protocols). *Bar:
-      answer-identical on every converging case; the guard is CLAUDE.md's
-      "runaway guard, never a timer".*
-- [ ] **Take the tolerance hygiene** from retired-item 3 (`xtol`/`gtol` to 1e-8),
-      with the shift/esd evidence recorded rather than an Rwp comparison.
-      *Bar: answer-identical (worst shift/esd 0.003 measured, re-verify).*
+- [x] **Memoise the scalar intensity chain across Jacobian columns.** Done as
+      a per-block memo rather than one on |F|² alone: `phase_peaks` splits into
+      the cell block (d and the per-line Bragg angles), |F|², March-Dollase P,
+      the Stephens width, and the per-line positions, widths, Lorentz-
+      polarization and absorption, each memoised on the decoded scalars it
+      reads (`CompiledPhase.scalar_cache`, `CompiledModel._memo`).
+      *Measured:* QPA-acceptance cpd-2 17.20–17.65 → 15.29–15.47 s, cpd-1a
+      10.82–10.91 → 9.87–10.45 s; `phase_peaks` 3.69 → 2.16 s cumulative over
+      the same 18 332 calls. Hit rate over a whole cpd-2 fit:
+      cell/abs/lp/aniso 71.4 %, f2 67.2 %, po 70.1 %, positions 45.1 %,
+      widths 35.8 %, **62.2 % overall** — the two low rows are honest, since by
+      the late stages the width and shift parameters are free and those columns
+      really do move the block. Bit-identical.
+      *The failure mode is a key narrower than its block*, which returns a
+      stale array that looks right to any tolerance check, so
+      `tests/test_scalar_memo.py` perturbs all 93 parameters of a model
+      carrying PO, Stephens strain, an anisotropic ADP and a Cu Kα doublet, one
+      at a time, and demands bit-for-bit agreement with an uncached model.
+      *One new hazard, closed rather than documented*: the arrays are now
+      shared between calls and `phase_peaks` is public, so they are handed back
+      **read-only** — an audit of all eleven consumers found no in-place write
+      today, which is exactly the state in which such a rule rots.
+- [x] **Gate corrections fixed at their off state, at stage compile.**
+      `CompiledPhase.skip_extinction`, applied at all three sites that fold E
+      in by hand (`phase_peaks`, the `G = E + x·dE/dx` chain factor, the
+      March-Dollase r column — gating only the first would leave the other two
+      disagreeing with FD). *Measured* 17.06–17.22 → 16.18–16.39 s on the
+      QPA-acceptance fit, bit-identical; that is ~0.85 s, not the 1.5–2 s
+      estimated here, because `sabine_extinction_and_dx` only ran for
+      structural columns.
+      *"Not free" turned out to be the wrong question* and this is the reusable
+      part: a **tied** parameter is not a column of θ and still moves, so
+      `ParameterTable.moving_paths` (free ∪ its ties, read off the nonzero rows
+      of C) is what licenses any freeze, and `compile_model`'s argument is
+      renamed to it — the axial FCJ sizing wanted the same set and had the same
+      hole. `None` stays "no claim made" and gates nothing.
+      *The audit of the others:* PO, roughness and Stephens strain already gate
+      on a declared block being `None`, which is compile-time structural.
+      Their **value-level** off states (r = 1, a = b = 0, S ≡ 0) are
+      deliberately not gated: a declared block exists to be refined, so the
+      gate would fire only in the stages before it is freed, and each is far
+      cheaper than the six-term Laue series. Extinction is the outlier because
+      it is a field on *every* phase, defaulting to its off state, so it ran on
+      every fit that never mentioned it.
+- [x] **Mask `derivative_bases` by the free set.** `profile_derivs=False`
+      drops ∂Ω/∂pos, ∂Ω/∂Γ, ∂Ω/∂η in a stage whose free set moves only
+      intensities, where all three are multiplied by an identically-zero
+      scalar. *Measured:* the call itself 5.6–6.1 → 2.3–2.5 ms (**2.42×**) on
+      cpd-2, Ω bit-identical. **On the whole fit it is worth ~0.1 s, and that
+      is the finding**: the shipped plans free *cumulatively*, so the mask
+      fires on 11 of 425 Jacobian calls — the first stage only. The payoff is
+      bounded by how much of a plan holds parameters, not by the 2.42×; the
+      "~15 % on a whole plan" estimated here was wrong for a cumulative plan.
+      The claim is an **allow**-list of intensity-only families (anything
+      unrecognised takes the full bases) asked over free ∪ ties, and it is
+      *verified where used*: `_peak_chain_column` finite-differences the
+      scalars anyway, and a non-zero one against a missing basis raises and
+      names the path, so a wrong entry costs work rather than a short column.
+      *A trap worth keeping:* the first attempt was not bit-identical, because
+      `pseudo_voigt` and `pseudo_voigt_derivs` spell the same algebra
+      differently — `(x/Γ)**2` against `u*u`, a division against a multiply by
+      a reciprocal — and land 1–2 ulp apart. Taking Ω from the plain forward
+      form moved Rwp in its 9th digit and one stage from 82 iterations to 54.
+      Hence `pseudo_voigt_basis`/`voigt_basis`, sharing one expression with
+      their derivative forms and pinned bitwise against them.
+- [x] **Fix the `max_nfev` semantics.** Now `max_iter × NFEV_PER_ITERATION`.
+      The constant is measured, not assumed: 28 stages across four real
+      protocols (QPA cpd-2 with texture, cpd-1a, 11-BM NAC in both Le Bail and
+      Rietveld) give nfev/njev median 1.11, p90 1.64, **worst 3.20**, so 4
+      covers the worst rejection rate with headroom. Every stage measured
+      converges an order of magnitude inside the new cap and the cpd-2
+      fingerprint is bit-identical. *Note which way it cuts*: a constant
+      multiplier **loosens** the budget below four free parameters and tightens
+      it above — one robustness row parametrised `max_iter=5` against the old
+      one-parameter budget of 5 and now needs 1.
+- 🛑 **Take the tolerance hygiene** — **tried, measured, put back.**
+      `xtol`/`gtol` are still 1e-12; what landed is that they are now the named
+      constants `XTOL`/`GTOL` rather than literals, so the number has one home
+      and the measurement keeping it has somewhere to live.
+      *It is not a speed win*: 1e-8 measured **1.22–1.27× faster on cpd-1a but
+      1.04× slower on the QPA-acceptance cpd-2**, because an earlier stage
+      stops sooner at a worse point and `po` then takes 46 iterations instead
+      of 38. Retired-item 3's "1.00× on cpd-2" does not survive the re-measure.
+      *And it is not answer-preserving*, which is what actually decided it: it
+      takes `test_acceptance_stephens.test_corundum_is_reported_isotropic` past
+      a shipped bar — the isotropic control's reported strain anisotropy 3.64
+      against `< 2.0`, passing on `main` and failing here. The strain still
+      reads undetected at r² = 0.41, so the *conclusion* survives; the
+      quotable ratio does not, and a reader would cite the ratio.
+      *The lesson is about the quantity, not the solver*: a nearly-isotropic
+      strain tensor is the ill-conditioned direction of that fit, so the
+      terminal polish these tolerances buy is exactly what pins it. The
+      "worst shift/esd 0.003" this task quoted was the *median*; the worst
+      identifiable parameter moved 0.18 esd, and a derived ratio built from
+      the ill-conditioned block moved 1.8×.
+      *Caught by the full suite only* — the five acceptance suites run
+      earlier in the session did not include `test_acceptance_stephens.py`,
+      which is why CLAUDE.md's rule that the full suite fires once on the
+      final tree is not optional for a change that can move a number.
+
+### Retired — measured and declined
+
+- 🛑 **Cache the hkl list.** Both premises fail measurement, so this is
+      retired rather than deferred; do not re-hunt it.
+      *There is nothing left to win.* After this WP's own vectorisation,
+      `generate_reflections` costs **0.06 s of a 15.29 s fit (0.41 %)** and
+      **0.07 s of a 22.64 s four-pattern series (0.31 %)**, with 8 of 40 and
+      6 of 36 calls repeating an exact argument tuple. A *perfect* cache saves
+      0.013 s (0.08 %) and 0.012 s (0.05 %). Whole stage compile is 0.12 s
+      (0.80 %) and 0.13 s (0.59 %) — not the "~5 % of a fit" this task
+      assumed, which was an estimate carried over from before the vectorisation
+      landed. The series case, named here as the payoff, is the *smaller* of
+      the two shares.
+      *And the proposed key is not exact.* "The expensive parts depend on the
+      cell only through `floor(a/d_min)`" is false: the survival filter is
+      `d ≥ 0.999·d_min` with `d` from the **whole** cell, so a cell move can
+      carry a reflection across the boundary without changing any index bound.
+      Measured on certified corundum (`R-3c`, Cu Kα, 5–150°), the reflection
+      count moves **63 → 64 at 10 ppm** — well inside what a stage boundary
+      shifts. An index-bounds key would therefore have been silently
+      *not* bit-identical, which is the bar this WP set. A whole-cell key is
+      exact, and buys the 0.08 % above.
+      *Structural note:* the series does **11** compiles for 4 patterns × 8
+      stages, not the `n_patterns × n_stages` = 32 this task assumed
+      (self-consistent: 36 `generate_reflections` calls = 3 seed + 11 × 3
+      phases). Why sequential recompiles that rarely was not chased here.
 
 ## Acceptance
 
@@ -249,6 +341,113 @@ corrections and which is equally uninformative here.
   constant; already implemented in `optimize/lm.py` (WP-0601).
 
 ## Handover log
+
+### 2026-08-20 (third session) — the exact wins taken, and the WP closed
+
+*Done.* Four of the six remaining tasks landed, **every one bit-identical**,
+each with its before/after in the task text above: the extinction off-state
+gate, the `derivative_bases` free-set mask, the scalar-chain memo and the
+`max_nfev` semantics. **Two are retired on measurement** rather than deferred
+(§ Tasks): the hkl cache, whose two premises both fail, and the tolerance
+hygiene, which is a wash on speed and takes the Stephens isotropic control past
+a shipped bar. No `### Inherited` section existed on arrival, so nothing was
+pruned.
+
+Three things are reusable beyond this WP and are written where they belong
+rather than here:
+
+- **`ParameterTable.moving_paths`** (free ∪ its ties) is the question any
+  structural freeze must ask; `free_paths` is a narrower one and the axial FCJ
+  sizing had been asking it. `compile_model`'s argument is renamed to match,
+  with `None` meaning "no claim made" and gating nothing.
+- **A claim about what a parameter *name* reaches gets verified where it is
+  used.** `_INTENSITY_ONLY` is an allow-list (unrecognised falls through to the
+  full bases) *and* `_peak_chain_column` checks it against the scalars it
+  finite-differences anyway, so a wrong entry raises and names the path instead
+  of returning a short column.
+- **A memo makes arrays shared, and `phase_peaks` is public**, so they are
+  handed back read-only. An audit of all eleven consumers found no in-place
+  write today — which is exactly the state in which that stays true only by
+  luck.
+
+*Measured* (worktree `.venv`, `[dev]` only — jax and torch absent —
+darwin/arm64, Python 3.12). Fast suite **2501 passed + 117 skipped**, **+43**
+over this WP's 2458+117 baseline for the 43 tests added, no new skip.
+`test_docs_consistency.py` 17/17; ruff clean. Wall clock, best of 3 on an idle
+machine, both re-measured against the same tree the opening table was taken
+from: cpd-1a **13.70–13.77 → 12.12–12.70 s** (1.09–1.14×), QPA-acceptance
+cpd-2 **17.06–17.22 → 14.79–15.47 s** (1.12–1.16×), and the cpd-2 fingerprint
+— Rwp, 62 values and esds, the QPA fractions, the stage table — bit-identical
+to the session's opening tree.
+
+Full suite on the final tree: **2609 passed + 126 skipped**, 0 failed, 22:30.
+
+**Then CI's `fast jax` job failed and a second gap opened, in the same shape as
+the first.** Every numpy job passed on 3.11–3.14; the `[dev,jax]` job failed 21
+rows across `test_backend_jax` and `test_cross_backend` with
+`ConcretizationTypeError`. Cause: the memo keys are built by calling `float()`
+on decoded values, and under a trace those are **tracers**, where `float()`
+raises. `_memo` tested the backend correctly, but the key was built *at the
+call site*, before that test — so the traced path died constructing a key it
+would never use. Fixed by making the key a **thunk**: `_memo` takes a callable
+and evaluates it only on the numpy path, so the rule is structural rather than
+remembered. Re-measured with jax installed, `[dev,jax]`: fast suite **2559
+passed + 72 skipped**, and the QPA-acceptance cpd-2 fingerprint still
+bit-identical (14.76–15.11 s).
+
+The gap is the venv, and it is the rule `tests/CLAUDE.md` § Quoting numbers
+already states: a `[dev]`-only worktree **skips every jax row**, so a green
+local run says nothing about the traced path. A session touching
+`model/forward.py`, `backend/traced.py` or anything either reaches should
+install `[dev,jax]` and run `test_backend_jax.py` + `test_cross_backend.py`
+before pushing, not discover it from CI two runs later.
+
+**The full suite is what caught the one regression**, and it is worth saying
+plainly: the *first* closing run came back `1 failed, 2608 passed, 126 skipped`
+on `test_acceptance_stephens.test_corundum_is_reported_isotropic`, which the
+five acceptance suites run earlier in the session did not cover. Bisected to
+the tolerance change alone (passes on `main`, passes with `XTOL`/`GTOL` put
+back, fails with them at 1e-8), which is why that task is retired above; the
+2609 figure is the re-run after it was reverted.
+
+*In flight.* Nothing.
+
+*Next.* [1111](1111-benchmark-harness.md), the harness — and it should record
+its opening baseline on *this* tree, not on the numbers in this file's opening
+table, which are now a session stale. Then 1112, whose targets this session's
+profile sharpened: after the memo, `phase_peaks` is down to 2.16 s of an 18.2 s
+profiled fit and the cost is squarely in the profile evaluation —
+`pseudo_voigt` 2.77 s, `pseudo_voigt_derivs` 2.29 s, `fcj_offsets_weights`
+1.20 s, `_reflection_profile` 1.10 s, `window_add` 0.87 s — which is exactly
+1112's ground.
+
+*Gotchas.* (a) **The shipped plans free cumulatively**, and that bounds any
+free-set optimisation: the `derivative_bases` mask is 2.42× on the call and
+0.6 % on the fit because it fires on 11 of 425 Jacobian calls. Do not estimate
+a free-set win from a single stage. (b) **`pseudo_voigt` and
+`pseudo_voigt_derivs` are 1–2 ulp apart**, so Ω for the analytic bases must
+come from `pseudo_voigt_basis`/`voigt_basis`, never the plain forward form;
+substituting it moved Rwp in its 9th digit and a stage from 82 iterations to
+54, and no `allclose` check would have caught it. (c) **A shift/esd table on
+`cpd-2` is dominated by parameters the fit cannot determine** — a `gauss_size`
+parked at 1.1e-8 with an esd of 1.1e-10 "moves by 1e6 esd" — so read the
+median and the identifiable worst, not the maximum. (d) **Do not re-try the
+tolerance hygiene** without new evidence: it is a wash across protocols
+(1.25× on cpd-1a, 1.04× *slower* on cpd-2) and it moves the Stephens
+isotropic control's anisotropy from inside a shipped bar to 3.64 against
+`< 2.0`. Retired-item 3's "1.00× on cpd-2" and "worst shift/esd 0.003" were
+both re-measured and neither holds — the second was the median. (e) `rietx.refine` resolves to the
+re-exported *function*, not the module, so `import rietx.refine as rf;
+rf.compile_model = spy` silently patches nothing — use
+`sys.modules["rietx.refine"]`. This produced a wrong "0 compiles" reading
+before it was caught. (f) **A memo key must be built
+inside a thunk**, never at the call site: the key uses `float()` on decoded
+values, which are tracers under jax, so an eagerly-built key raises on the
+traced path even when the memo itself is correctly skipped there. Pinned by
+`test_scalar_memo.test_the_memo_never_builds_its_key_off_the_numpy_path`, which
+runs on numpy (it fakes a non-numpy backend) so a session without jax still
+catches it. (g) Everything in the two earlier sessions' gotchas still binds,
+the idle-machine rule especially.
 
 ### 2026-08-20 (second session) — the review, the restructure, and the series
 

@@ -38,7 +38,10 @@ class StageSpec(Base):
     turn_on: list[str] = Field(
         default_factory=list,
         description="dot-path globs freed this stage, e.g. 'phases.*.cell.*'")
-    max_iter: int = 100
+    max_iter: int = Field(100, description=(
+        "approximate solver iterations for this stage; TRF caps "
+        "evaluations rather than iterations, so it is scaled by the "
+        "measured worst-case rejection rate (NFEV_PER_ITERATION)"))
     lebail_cycles: int = 3
     seed: float = Field(0.0, description=(
         "lift softplus-floored parameters this stage frees to this value "

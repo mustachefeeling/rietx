@@ -429,7 +429,7 @@ def _capillary_model(mu_r: float, *, kind: str = "debye_scherrer"):
     for p in free:
         assert table.set_vary([p], True), p
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table
 
 
@@ -464,7 +464,7 @@ def test_forward_model_leaves_intensities_untouched_at_mu_r_zero():
     pattern = PatternData(two_theta=grid.tolist(),
                           intensity=np.zeros_like(grid).tolist())
     never = compile_model(structure, unset, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     values = table.decode(table.x0())
     assert never.mu_r == 0.0
     assert np.array_equal(zero.evaluate(values), never.evaluate(values))
@@ -550,7 +550,7 @@ def test_preferred_orientation_column_carries_the_absorption_factor():
     for p in ("phases.0.preferred_orientation.r", "phases.0.scale"):
         assert table.set_vary([p], True), p
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     theta = table.x0()
     assert (1.0 - cylinder_absorption(model.tt, model.mu_r)).max() > 0.5
 

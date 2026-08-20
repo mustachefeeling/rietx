@@ -33,6 +33,13 @@ _DISPLACEMENT_GLOBS = ["phases.*.atoms.*.biso", "phases.*.atoms.*.adp.*"]
 class Stage:
     name: str
     turn_on: list[str]  # path globs, e.g. "phases.*.cell.*"
+    #: solver iterations this stage may take.  Approximate rather than exact:
+    #: scipy's TRF caps *evaluations*, not iterations, so this becomes
+    #: ``max_iter x optimize.least_squares.NFEV_PER_ITERATION`` — sized from
+    #: the measured worst-case trial-point rejection rate so a stage needing
+    #: max_iter genuine iterations is never cut short.  A runaway guard, never
+    #: a timer: every converging fit measured stays an order of magnitude
+    #: inside it, and a stage that hits it reports STAGE_MAX_ITER.
     max_iter: int = 100
     lebail_cycles: int = 3  # intensity-partitioning refreshes (lebail mode)
     #: lift any softplus-bounded parameter this stage frees off the exact-zero

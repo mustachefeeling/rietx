@@ -417,7 +417,7 @@ def test_background_absorption_of_adp_dofs_is_reported_and_low():
     table.set_vary(["phases.0.atoms.*.adp.*", "instrument.background.*",
                     "phases.0.scale"], True)
     model = compile_model(structure, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     outcome = run_least_squares(model, table, max_iter=40)
 
     r2 = background_absorption(outcome.jac, table.free_paths)

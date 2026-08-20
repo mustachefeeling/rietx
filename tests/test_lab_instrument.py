@@ -357,7 +357,7 @@ def test_fcj_windows_and_nodes_allocated_when_axial_free():
     frozen = compile_model(structure, instrument, pattern)
     assert int(frozen.phases[0].fcj_n.max()) == 0
     live = compile_model(structure, instrument, pattern,
-                         free_paths={"instrument.geometry.axial_sl",
+                         moving_paths={"instrument.geometry.axial_sl",
                                      "instrument.geometry.axial_hl"})
     assert int(live.phases[0].fcj_n.max()) > 0
 

@@ -328,7 +328,7 @@ def _compiled(strain: StephensStrain | None, *, free: list[str] | None = None):
     for path in free or []:
         assert table.set_vary([path], True), path
     model = compile_model(structure, inst, _pattern(), mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     return model, table
 
 

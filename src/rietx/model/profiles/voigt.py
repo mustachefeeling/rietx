@@ -62,6 +62,28 @@ def voigt(x: np.ndarray, sigma: np.ndarray, gamma: np.ndarray) -> np.ndarray:
     return get_backend().real(faddeeva_w(z)) / (sigma * _SQRT2PI)
 
 
+def _reduced(x: np.ndarray, sigma: float, gamma: float):
+    """(1/(σ√2), 1/(σ√(2π)), z, w(z)) — the shared front half.
+
+    :func:`voigt_basis` and :func:`voigt_derivs` build the same Ω for the same
+    Jacobian, so they must agree to the last bit and not merely to the last
+    significant figure; writing the reduction once is what makes that true by
+    construction.  :func:`voigt` divides where this multiplies by a reciprocal
+    and so lands ~1 ulp away — see :func:`voigt_basis`.
+    """
+    inv = 1.0 / (sigma * _SQRT2)
+    z = (x + 1j * gamma) * inv
+    return inv, 1.0 / (sigma * _SQRT2PI), z, faddeeva_w(z)
+
+
+def voigt_basis(x: np.ndarray, sigma: float, gamma: float) -> np.ndarray:
+    """V alone, in ``voigt_derivs``' own arithmetic — the Voigt-shape twin of
+    ``pseudovoigt.pseudo_voigt_basis``, and not a synonym for :func:`voigt`.
+    """
+    _inv, p, _z, wz = _reduced(x, sigma, gamma)
+    return get_backend().real(wz) * p
+
+
 def voigt_derivs(x: np.ndarray, sigma: float, gamma: float
                  ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """(V, ∂V/∂x, ∂V/∂σ, ∂V/∂γ) — closed forms for the analytic Jacobian.
@@ -80,11 +102,8 @@ def voigt_derivs(x: np.ndarray, sigma: float, gamma: float
     model's peak-chain Jacobian is shape-agnostic.
     """
     xp = get_backend()
-    inv = 1.0 / (sigma * _SQRT2)
-    z = (x + 1j * gamma) * inv
-    wz = faddeeva_w(z)
+    inv, p, z, wz = _reduced(x, sigma, gamma)
     wp = -2.0 * z * wz + 2j * _INV_SQRT_PI       # w'(z)
-    p = 1.0 / (sigma * _SQRT2PI)
     v = xp.real(wz) * p
     d_dx = xp.real(wp) * (inv * p)
     d_dgamma = -xp.imag(wp) * (inv * p)

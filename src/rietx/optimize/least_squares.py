@@ -64,6 +64,83 @@ _STRUCTURAL_PATH = re.compile(r"^phases\.(\d+)\.atoms\.(\d+)\.(dof|adp)\.\d+$")
 #: (``po_intensity_grad``), not the peak-chain FD path.
 _PO_PATH = re.compile(r"^phases\.(\d+)\.preferred_orientation\.r$")
 
+#: Residual evaluations per accepted iteration that TRF's budget must allow
+#: for, so that a run genuinely needing ``max_iter`` iterations is never cut
+#: short.  scipy exposes no iteration cap — only ``max_nfev`` — and an
+#: iteration costs one evaluation plus one per rejected trial point.
+#:
+#: **Measured**, not assumed: 28 stages across four real protocols (the QPA
+#: round-robin cpd-2 texture protocol, cpd-1a, and 11-BM NAC in both Le Bail
+#: and Rietveld) give nfev/njev median 1.11, p90 1.64, worst 3.20.  Rounded up
+#: from the worst case.
+#:
+#: The multiplier this replaced was ``n_params``, which priced a
+#: *finite-difference* Jacobian — n_params evaluations per iteration — and no
+#: finite-difference column is built for any common parameter family any more
+#: (WP-1109 retired-item 1 counted zero across five NAC stages).  At 42 free
+#: parameters that made ``max_iter=100`` a ~4200-evaluation budget, roughly 30x
+#: what its name says, which is what let a diverging pattern spend ten minutes
+#: before giving up.  This is CLAUDE.md's "runaway guard, never a timer": every
+#: converging fit measured stays an order of magnitude inside it.
+NFEV_PER_ITERATION = 4
+
+#: Convergence tolerances handed to TRF alongside ``ftol``.  Four orders below
+#: scipy's own 1e-8 default, and **deliberately not loosened** — named here so
+#: the number has one home and the measurement that keeps it has somewhere to
+#: live (WP-1109 tried 1e-8 and put it back).
+#:
+#: It is not the free hygiene it looks like.  It is not even a speed win: 1e-8
+#: measured 1.22-1.27x faster on the IUCr cpd-1a protocol but 1.04x *slower* on
+#: the QPA-acceptance cpd-2 one, because an earlier stage stops sooner at a
+#: worse point and a later stage then takes more iterations to recover. And it
+#: is not answer-preserving: it takes ``test_acceptance_stephens``'s isotropic
+#: control past a shipped bar — corundum's reported strain anisotropy 3.64
+#: against a < 2.0 assertion, on a specimen whose whole role is to come back
+#: isotropic so the brucite result beside it means something. The strain still
+#: reads undetected with r2 = 0.41, so the conclusion survives; the quotable
+#: ratio does not, which is the distinction that matters for a number a
+#: reader would cite.
+#:
+#: Read that as a statement about how well determined a nearly-isotropic
+#: strain tensor is, not about TRF. Loosening these is a real change to the
+#: answer on the ill-conditioned directions, so it needs its own evidence,
+#: not a tidy-up.
+XTOL = GTOL = 1e-12
+
+#: Paths whose whole effect on the pattern is a peak's **integrated
+#: intensity**: the peak keeps the position, width and mixing it had, so
+#: ∂pos/∂p, ∂Γ/∂p and ∂η/∂p are identically zero and the three profile
+#: partials they multiply are never read.  A stage that frees only these can
+#: ask ``derivative_bases(profile_derivs=False)`` and skip building them.
+#:
+#: This is a claim about what a parameter *name* reaches, so it is written the
+#: safe way round: an **allow**-list of the intensity-only families, with
+#: everything unrecognised — a new parameter included — falling through to the
+#: full bases.  Getting the inverse list wrong would cost a silently short
+#: column; getting this one wrong costs only the work it was meant to save.
+#: The claim is verified where it is used, in ``_peak_chain_column``.
+_INTENSITY_ONLY = (
+    re.compile(r"^phases\.\d+\.(scale|extinction)$"),
+    # every atom parameter: x/y/z and their Wyckoff DOFs, occupancy, Biso and
+    # the ADP components — all of them enter through |F|² alone
+    re.compile(r"^phases\.\d+\.atoms\.\d+\."),
+    re.compile(r"^phases\.\d+\.preferred_orientation\.r$"),
+    # a line weight and the polarization ratio scale the intensity of a peak
+    # that is already placed; the line's *wavelength* would not, and is not a
+    # table entry
+    re.compile(r"^instrument\.source\.lines\.\d+\.weight$"),
+    re.compile(r"^instrument\.polarization$"),
+)
+
+
+def _intensity_only(path: str, bkg_cols: dict[str, int]) -> bool:
+    """Whether ``path`` can be refined without any peak moving or reshaping.
+
+    Background coefficients qualify trivially — they never touch a peak at all
+    — which is what lets a background-plus-scale stage skip the bases outright.
+    """
+    return path in bkg_cols or any(p.match(path) for p in _INTENSITY_ONLY)
+
 
 @dataclass
 class LSQOutcome:
@@ -184,12 +261,33 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
                 dy = xp.window_add(dy, i0, i1, d_i * omega)
             if int0[k] != 0.0:
                 if d_p != 0.0:
+                    _require_basis(d_pos, path, "position")
                     dy = xp.window_add(dy, i0, i1, (int0[k] * d_p) * d_pos)
                 if d_g != 0.0:
+                    _require_basis(d_gamma, path, "width")
                     dy = xp.window_add(dy, i0, i1, (int0[k] * d_g) * d_gamma)
                 if d_e != 0.0:
+                    _require_basis(d_eta, path, "mixing")
                     dy = xp.window_add(dy, i0, i1, (int0[k] * d_e) * d_eta)
     return dy
+
+
+def _require_basis(basis: np.ndarray | None, path: str, what: str) -> None:
+    """Check the caller's ``profile_derivs=False`` claim against the scalars.
+
+    The claim is that no free column moves a peak's position, width or mixing,
+    and here is where it meets the finite differences that would say otherwise.
+    Both sides recompute from the same decoded values, so an intensity-only
+    parameter leaves these scalars bit-zero; a non-zero one means ``path``
+    belongs to a family ``_INTENSITY_ONLY`` wrongly claims.  Raising names the
+    path — the alternative, using the missing basis as zero, is exactly the
+    silently-short column the FD fallback exists to prevent.
+    """
+    if basis is None:
+        raise AssertionError(
+            f"{path!r} moves a peak's {what}, but the profile-derivative bases "
+            f"were skipped as if it could not — see _INTENSITY_ONLY in "
+            f"optimize/least_squares.py")
 
 
 def _structural_column(model: CompiledModel, table: ParameterTable,
@@ -344,6 +442,11 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
     # rather than fail (WP-1070).  Empty for every untied column, which is why
     # an unconstrained model dispatches exactly as it did before.
     extras = _column_extras(table)
+    # every physical path some column of this Jacobian can move — the free
+    # names plus everything their ties reach.  Any question of the form "can
+    # this stage move X?" must be asked here rather than of ``free``, which is
+    # the same distinction ``ParameterTable.moving_paths`` draws one rank down.
+    reach = set(free).union(*extras) if extras else set(free)
 
     def dpdu_of(c: int, theta: np.ndarray) -> float:
         e = table.entries[table._paths[free[c]]]
@@ -366,13 +469,19 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
         # them only in a stage that will build those columns — two FCJ node
         # generations per (line, reflection) per iteration otherwise wasted
         # (WP-0605 task 0; the FitReport callers keep the full default)
-        need_axial = any(p in axial_paths for p in free)
+        need_axial = any(p in axial_paths for p in reach)
+        # ∂Ω/∂pos, ∂Ω/∂Γ and ∂Ω/∂η are read only through ∂pos/∂p, ∂Γ/∂p and
+        # ∂η/∂p, so a stage refining nothing but intensities multiplies all
+        # three by zero.  Asked over ``reach``, not ``free``: a tie carries a
+        # column onto paths whose names never appear in the free list.
+        need_profile = not all(_intensity_only(p, bkg_cols) for p in reach)
 
         def get_bases() -> DerivativeBases:
             nonlocal bases
             if bases is None:
                 bases = model.derivative_bases(values, intens,
-                                               axial_derivs=need_axial)
+                                               axial_derivs=need_axial,
+                                               profile_derivs=need_profile)
             return bases
 
         for c, path in enumerate(free):
@@ -718,8 +827,8 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         n_truncated = res.n_truncated
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=1e-12, gtol=1e-12,
-                            max_nfev=max_iter * max(len(x0), 1))
+                            ftol=ftol, xtol=XTOL, gtol=GTOL,
+                            max_nfev=max_iter * NFEV_PER_ITERATION)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
 
     # esds from the *full* augmented covariance (table ↔ intensity correlation
@@ -866,8 +975,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                           ftol=ftol, inequalities=[], events=None, stage="")
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                            ftol=ftol, xtol=1e-12, gtol=1e-12,
-                            max_nfev=max_iter * max(len(x0), 1))
+                            ftol=ftol, xtol=XTOL, gtol=GTOL,
+                            max_nfev=max_iter * NFEV_PER_ITERATION)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
 
     stderr = corr = None

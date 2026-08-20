@@ -239,7 +239,7 @@ def test_jacobian_po_column_matches_fd():
     table = ParameterTable(s, ins)
     table.set_vary(["*"], False)
     table.set_vary(["phases.0.preferred_orientation.r"], True)
-    model = compile_model(s, ins, pat, mode="rietveld", free_paths=set(table.free_paths))
+    model = compile_model(s, ins, pat, mode="rietveld", moving_paths=set(table.moving_paths))
 
     theta = table.x0()
     J = _make_jacobian(model, table)(theta)
@@ -277,7 +277,7 @@ def test_jacobian_structural_columns_carry_the_po_factor():
             "phases.0.extinction", "phases.0.scale", "phases.0.cell.a", "phases.0.cell.c"]
     for p in free:
         assert table.set_vary([p], True), p
-    model = compile_model(s, ins, pat, mode="rietveld", free_paths=set(table.free_paths))
+    model = compile_model(s, ins, pat, mode="rietveld", moving_paths=set(table.moving_paths))
 
     theta = table.x0()
     J = _make_jacobian(model, table)(theta)
@@ -371,7 +371,7 @@ def test_po_is_identifiable_from_scale_and_biso():
     table.set_vary(["phases.0.preferred_orientation.r", "phases.0.scale",
                     "phases.0.atoms.*.biso"], True)
     model = compile_model(s, ins, pattern, mode="rietveld",
-                          free_paths=set(table.free_paths))
+                          moving_paths=set(table.moving_paths))
     outcome = run_least_squares(model, table, max_iter=60)
 
     free = table.free_paths
