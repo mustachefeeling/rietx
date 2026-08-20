@@ -111,9 +111,12 @@ naming the next actions — this entry is written to that shape, and
 *Measured.* `[dev]`, darwin/arm64, this worktree's own venv.
 `tests/test_workflow_hooks.py` 6 → 8 (one blind-spot test replaced by three:
 same-day miss caught, ritual commits not flagged, heading entries read);
-`tests/test_docs_consistency.py` 17 → 19. Fast selection passed+skipped moves
-by exactly +4, no new skips. No full-suite run: the change touches
-`.claude/`, `docs/` and two test files, and can move no measured number.
+`tests/test_docs_consistency.py` 17 → 19. Fast selection **2507 passed, 117
+skipped** in ~2 min: passed+skipped is +4 on the four added tests, all four
+passes, no new skip. No full-suite run — the change touches `.claude/`,
+`docs/` and two test files, and can move no measured number (`tests/CLAUDE.md`
+§ Running, rung 3). `ruff check src tests examples` clean, and the scan itself
+returns a single healthy line on the final tree.
 
 *Gotchas.* Two, both paid for here. `docs/ROADMAP.md` sits **exactly** on its
 438-line cap, so adding the index row meant compressing the v1.1 focus
