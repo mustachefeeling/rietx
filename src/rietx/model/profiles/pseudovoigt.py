@@ -61,6 +61,37 @@ def pseudo_voigt(x: np.ndarray, gamma: np.ndarray, eta: np.ndarray) -> np.ndarra
     return eta * lorentz + (1.0 - eta) * gauss
 
 
+def _components(x: np.ndarray, gamma: float):
+    """(u, L, G) — the two normalised components and the reduced offset.
+
+    Written once because :func:`pseudo_voigt_basis` and
+    :func:`pseudo_voigt_derivs` must agree **to the last bit**, not merely to
+    the last significant figure: they build the same Ω for the same Jacobian,
+    and a 1-ulp disagreement between them is a real difference in where a
+    least-squares run lands.  Note that neither agrees bitwise with
+    :func:`pseudo_voigt`, which spells the same algebra as ``(x/Γ)**2`` — see
+    that function.
+    """
+    xp = get_backend()
+    u = x / gamma
+    lor = (2.0 / (xp.pi * gamma)) / (1.0 + 4.0 * u * u)
+    gau = (2.0 / gamma) * _SQRT_LN2_PI * xp.exp(-_4LN2 * u * u)
+    return u, lor, gau
+
+
+def pseudo_voigt_basis(x: np.ndarray, gamma: float, eta: float) -> np.ndarray:
+    """pV alone, in ``pseudo_voigt_derivs``' own arithmetic.
+
+    For a Jacobian caller that wants Ω and none of the partials.  It is *not*
+    a synonym for :func:`pseudo_voigt`: the two spell u² differently and land
+    1-2 ulp apart, and the analytic bases have always been built from this
+    one.  Calling the plain form here would move a converged fit in the last
+    few digits — measured, and the reason this function exists at all.
+    """
+    _u, lor, gau = _components(x, gamma)
+    return eta * lor + (1.0 - eta) * gau
+
+
 def pseudo_voigt_derivs(x: np.ndarray, gamma: float, eta: float
                         ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """(pV, ∂pV/∂x, ∂pV/∂Γ, ∂pV/∂η) — closed forms for the analytic Jacobian.
@@ -71,10 +102,7 @@ def pseudo_voigt_derivs(x: np.ndarray, gamma: float, eta: float
         ∂G/∂x = −G · 8ln2·u/Γ                  ∂G/∂Γ = (G/Γ)·(8ln2·u² − 1)
         ∂pV/∂η = L − G
     """
-    xp = get_backend()
-    u = x / gamma
-    lor = (2.0 / (xp.pi * gamma)) / (1.0 + 4.0 * u * u)
-    gau = (2.0 / gamma) * _SQRT_LN2_PI * xp.exp(-_4LN2 * u * u)
+    u, lor, gau = _components(x, gamma)
     pv = eta * lor + (1.0 - eta) * gau
     dl_dx = -lor * (8.0 * u / gamma) / (1.0 + 4.0 * u * u)
     dg_dx = -gau * (2.0 * _4LN2 * u / gamma)

@@ -64,6 +64,40 @@ _STRUCTURAL_PATH = re.compile(r"^phases\.(\d+)\.atoms\.(\d+)\.(dof|adp)\.\d+$")
 #: (``po_intensity_grad``), not the peak-chain FD path.
 _PO_PATH = re.compile(r"^phases\.(\d+)\.preferred_orientation\.r$")
 
+#: Paths whose whole effect on the pattern is a peak's **integrated
+#: intensity**: the peak keeps the position, width and mixing it had, so
+#: ∂pos/∂p, ∂Γ/∂p and ∂η/∂p are identically zero and the three profile
+#: partials they multiply are never read.  A stage that frees only these can
+#: ask ``derivative_bases(profile_derivs=False)`` and skip building them.
+#:
+#: This is a claim about what a parameter *name* reaches, so it is written the
+#: safe way round: an **allow**-list of the intensity-only families, with
+#: everything unrecognised — a new parameter included — falling through to the
+#: full bases.  Getting the inverse list wrong would cost a silently short
+#: column; getting this one wrong costs only the work it was meant to save.
+#: The claim is verified where it is used, in ``_peak_chain_column``.
+_INTENSITY_ONLY = (
+    re.compile(r"^phases\.\d+\.(scale|extinction)$"),
+    # every atom parameter: x/y/z and their Wyckoff DOFs, occupancy, Biso and
+    # the ADP components — all of them enter through |F|² alone
+    re.compile(r"^phases\.\d+\.atoms\.\d+\."),
+    re.compile(r"^phases\.\d+\.preferred_orientation\.r$"),
+    # a line weight and the polarization ratio scale the intensity of a peak
+    # that is already placed; the line's *wavelength* would not, and is not a
+    # table entry
+    re.compile(r"^instrument\.source\.lines\.\d+\.weight$"),
+    re.compile(r"^instrument\.polarization$"),
+)
+
+
+def _intensity_only(path: str, bkg_cols: dict[str, int]) -> bool:
+    """Whether ``path`` can be refined without any peak moving or reshaping.
+
+    Background coefficients qualify trivially — they never touch a peak at all
+    — which is what lets a background-plus-scale stage skip the bases outright.
+    """
+    return path in bkg_cols or any(p.match(path) for p in _INTENSITY_ONLY)
+
 
 @dataclass
 class LSQOutcome:
@@ -184,12 +218,33 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
                 dy = xp.window_add(dy, i0, i1, d_i * omega)
             if int0[k] != 0.0:
                 if d_p != 0.0:
+                    _require_basis(d_pos, path, "position")
                     dy = xp.window_add(dy, i0, i1, (int0[k] * d_p) * d_pos)
                 if d_g != 0.0:
+                    _require_basis(d_gamma, path, "width")
                     dy = xp.window_add(dy, i0, i1, (int0[k] * d_g) * d_gamma)
                 if d_e != 0.0:
+                    _require_basis(d_eta, path, "mixing")
                     dy = xp.window_add(dy, i0, i1, (int0[k] * d_e) * d_eta)
     return dy
+
+
+def _require_basis(basis: np.ndarray | None, path: str, what: str) -> None:
+    """Check the caller's ``profile_derivs=False`` claim against the scalars.
+
+    The claim is that no free column moves a peak's position, width or mixing,
+    and here is where it meets the finite differences that would say otherwise.
+    Both sides recompute from the same decoded values, so an intensity-only
+    parameter leaves these scalars bit-zero; a non-zero one means ``path``
+    belongs to a family ``_INTENSITY_ONLY`` wrongly claims.  Raising names the
+    path — the alternative, using the missing basis as zero, is exactly the
+    silently-short column the FD fallback exists to prevent.
+    """
+    if basis is None:
+        raise AssertionError(
+            f"{path!r} moves a peak's {what}, but the profile-derivative bases "
+            f"were skipped as if it could not — see _INTENSITY_ONLY in "
+            f"optimize/least_squares.py")
 
 
 def _structural_column(model: CompiledModel, table: ParameterTable,
@@ -344,6 +399,11 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
     # rather than fail (WP-1070).  Empty for every untied column, which is why
     # an unconstrained model dispatches exactly as it did before.
     extras = _column_extras(table)
+    # every physical path some column of this Jacobian can move — the free
+    # names plus everything their ties reach.  Any question of the form "can
+    # this stage move X?" must be asked here rather than of ``free``, which is
+    # the same distinction ``ParameterTable.moving_paths`` draws one rank down.
+    reach = set(free).union(*extras) if extras else set(free)
 
     def dpdu_of(c: int, theta: np.ndarray) -> float:
         e = table.entries[table._paths[free[c]]]
@@ -366,13 +426,19 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
         # them only in a stage that will build those columns — two FCJ node
         # generations per (line, reflection) per iteration otherwise wasted
         # (WP-0605 task 0; the FitReport callers keep the full default)
-        need_axial = any(p in axial_paths for p in free)
+        need_axial = any(p in axial_paths for p in reach)
+        # ∂Ω/∂pos, ∂Ω/∂Γ and ∂Ω/∂η are read only through ∂pos/∂p, ∂Γ/∂p and
+        # ∂η/∂p, so a stage refining nothing but intensities multiplies all
+        # three by zero.  Asked over ``reach``, not ``free``: a tie carries a
+        # column onto paths whose names never appear in the free list.
+        need_profile = not all(_intensity_only(p, bkg_cols) for p in reach)
 
         def get_bases() -> DerivativeBases:
             nonlocal bases
             if bases is None:
                 bases = model.derivative_bases(values, intens,
-                                               axial_derivs=need_axial)
+                                               axial_derivs=need_axial,
+                                               profile_derivs=need_profile)
             return bases
 
         for c, path in enumerate(free):

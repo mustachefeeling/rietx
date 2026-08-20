@@ -99,8 +99,19 @@ from .preferred_orientation import (
 )
 from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from .profiles.fcj import fcj_extent_deg, fcj_node_count, fcj_offsets_weights
-from .profiles.pseudovoigt import pseudo_voigt, pseudo_voigt_derivs, tch_gamma_eta
-from .profiles.voigt import GAUSS_FWHM_TO_SIGMA, fwhm_to_voigt_params, voigt, voigt_derivs
+from .profiles.pseudovoigt import (
+    pseudo_voigt,
+    pseudo_voigt_basis,
+    pseudo_voigt_derivs,
+    tch_gamma_eta,
+)
+from .profiles.voigt import (
+    GAUSS_FWHM_TO_SIGMA,
+    fwhm_to_voigt_params,
+    voigt,
+    voigt_basis,
+    voigt_derivs,
+)
 from .restraints import (
     CompiledRestraints,
     resolve_phase_restraints,
@@ -529,6 +540,17 @@ class CompiledModel:
             return voigt_derivs(x, w1, w2)
         return pseudo_voigt_derivs(x, w1, w2)
 
+    def _profile_basis(self, x: np.ndarray, w1: float, w2: float) -> np.ndarray:
+        """Ω of the active shape, bit-for-bit as :meth:`_profile_derivs` builds
+        it — which is *not* bit-for-bit :meth:`_profile` (see
+        ``pseudovoigt.pseudo_voigt_basis``).  For ``derivative_bases`` under
+        ``profile_derivs=False``, where the bases must not shift under a
+        caller's decision about which partials it needs.
+        """
+        if self.shape == "voigt":
+            return voigt_basis(x, w1, w2)
+        return pseudo_voigt_basis(x, w1, w2)
+
     def phase_peaks(self, ip: int, values: dict[str, float],
                     hkl_intensity: np.ndarray | None = None
                     ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
@@ -867,7 +889,8 @@ class CompiledModel:
 
     def derivative_bases(self, values: dict[str, float],
                          intensities: list[np.ndarray] | None = None,
-                         axial_derivs: bool = True) -> "DerivativeBases":
+                         axial_derivs: bool = True,
+                         profile_derivs: bool = True) -> "DerivativeBases":
         """Per-(phase, line, reflection) analytic profile-derivative bases.
 
         For each peak on its frozen window this computes Ω and the exact
@@ -896,7 +919,23 @@ class CompiledModel:
         generations per (line, reflection) per iteration for them.  The
         default keeps the full contract for the FitReport consumers
         (report/layer1.py reads ∂Ω/∂sl unconditionally).
+
+        ``profile_derivs=False`` is the same bargain one term earlier and it is
+        the larger one: it leaves ∂Ω/∂pos, ∂Ω/∂Γ and ∂Ω/∂η ``None`` and takes
+        Ω from the plain profile rather than the derivative form, so a stage
+        whose free parameters move only *intensities* — scale, Biso, the
+        coordinates and ADPs, extinction, the March coefficient, a line weight
+        — stops paying for three partials nothing reads.  The three terms are
+        multiplied by ∂pos/∂p, ∂Γ/∂p and ∂η/∂p, which are then identically
+        zero, so this removes a multiply by zero rather than an approximation.
+        It implies ``axial_derivs=False``: ∂Ω/∂(S/L) is built from ∂Ω/∂x.
+        The caller owns the claim, and ``_peak_chain_column`` **verifies** it
+        against the scalars it finite-differences anyway — a wrong claim raises
+        there and names the path, rather than silently leaving the column
+        short, which is what the whole-model FD fallback exists to prevent.
         """
+        if not profile_derivs:
+            axial_derivs = False
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
         h_pos, h_ax = 1e-5, 1e-7
@@ -916,6 +955,13 @@ class CompiledModel:
                     x = self.tt[i0:i1]
                     n_fcj = int(cp.fcj_n[il, k])
                     if n_fcj == 0:
+                        if not profile_derivs:
+                            rows.append((il, k, int(i0), int(i1),
+                                         self._profile_basis(
+                                             x - pos[k], float(gamma[k]),
+                                             float(eta[k])),
+                                         None, None, None, None, None))
+                            continue
                         pv, d_dx, d_dg, d_de = self._profile_derivs(
                             x - pos[k], float(gamma[k]), float(eta[k]))
                         rows.append((il, k, int(i0), int(i1),
@@ -925,6 +971,15 @@ class CompiledModel:
                         axial_ok = False
                     phi, om = _cached_fcj_nodes(cp, il, k, 0,
                                                 float(pos[k]), sl, hl, n_fcj)
+                    if not profile_derivs:
+                        # Ω is the same convolution either way; only the three
+                        # partials are dropped, and with them the node-FD
+                        # evaluations that build ∂Ω/∂pos
+                        pv = self._profile_basis(x[None, :] - phi[:, None],
+                                                 float(gamma[k]), float(eta[k]))
+                        rows.append((il, k, int(i0), int(i1), om @ pv,
+                                     None, None, None, None, None))
+                        continue
                     pv, d_dx, d_dg, d_de = self._profile_derivs(
                         x[None, :] - phi[:, None], float(gamma[k]), float(eta[k]))
                     omega = om @ pv
@@ -1297,10 +1352,16 @@ class DerivativeBases:
     """Analytic profile-derivative bases (see ``CompiledModel.derivative_bases``).
 
     ``entries[ip]`` holds tuples ``(il, k, i0, i1, Ω, ∂Ω/∂pos, ∂Ω/∂Γ, ∂Ω/∂η,
-    ∂Ω/∂sl, ∂Ω/∂hl)`` per visible peak of phase ``ip``; the last two are None
-    for symmetric peaks.  ``peaks[ip]`` caches ``phase_peaks(ip, values)`` at
-    the expansion point.  These bases also feed the FitReport Layer-1 misfit
-    attribution (same expansion, different right-hand side).
+    ∂Ω/∂sl, ∂Ω/∂hl)`` per visible peak of phase ``ip``.  Ω is always present;
+    every partial after it is optional and **every consumer None-checks**.
+    ∂Ω/∂sl and ∂Ω/∂hl are None for a symmetric peak or under
+    ``axial_derivs=False``; the three before them are None under
+    ``profile_derivs=False``, which a caller passes only when it has claimed
+    that nothing it will build moves a peak's position, width or mixing.
+    ``peaks[ip]`` caches ``phase_peaks(ip, values)`` at the expansion point.
+    These bases also feed the FitReport Layer-1 misfit attribution (same
+    expansion, different right-hand side) — which reads the partials, so its
+    callers keep the full default.
     """
 
     entries: list[list[tuple]]

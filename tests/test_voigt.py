@@ -283,3 +283,48 @@ def test_voigt_end_to_end_refines_and_plots():
                 two_theta_range=(20.6, 22.2))
     plot_result(result, path=str(OUT / "voigt_lab6_fit_highangle.png"),
                 two_theta_range=(115.0, 125.0))
+
+
+# -- the basis-only twins (WP-1109) ---------------------------------------
+
+def test_basis_forms_match_their_derivative_forms_to_the_last_bit():
+    """``*_basis`` exists so a Jacobian caller can take Ω without the three
+    partials, which means it must produce the **same** Ω — not a Ω agreeing to
+    12 digits.  A 1-ulp difference here is a different converged fit: it was
+    measured, on the QPA round-robin cpd-2 protocol, as an Rwp moving in its
+    9th digit and a stage taking 54 iterations instead of 82."""
+    from rietx.model.profiles.pseudovoigt import (
+        pseudo_voigt_basis,
+        pseudo_voigt_derivs,
+    )
+    from rietx.model.profiles.voigt import voigt_basis, voigt_derivs
+
+    rng = np.random.default_rng(11)
+    x = rng.normal(size=(6, 257)) * 0.4
+    for gamma, eta in [(0.08, 0.3), (0.12, 0.7), (0.05, 0.0), (0.2, 1.0)]:
+        assert np.array_equal(pseudo_voigt_basis(x, gamma, eta),
+                              pseudo_voigt_derivs(x, gamma, eta)[0])
+    for sigma, gamma in [(0.05, 0.03), (0.10, 0.20), (0.02, 0.30)]:
+        assert np.array_equal(voigt_basis(x, sigma, gamma),
+                              voigt_derivs(x, sigma, gamma)[0])
+
+
+def test_basis_is_not_the_plain_profile_and_that_is_the_point():
+    """The plain forward forms spell the same algebra differently — ``(x/Γ)**2``
+    against ``u*u``, a division against a multiply by a reciprocal — and land
+    1-2 ulp away.  Pinned rather than tidied away: substituting the plain form
+    into the analytic bases is the exact mistake this pair of functions was
+    written to prevent, and it is invisible to any ``allclose`` check."""
+    from rietx.model.profiles.pseudovoigt import pseudo_voigt, pseudo_voigt_basis
+    from rietx.model.profiles.voigt import voigt, voigt_basis
+
+    rng = np.random.default_rng(12)
+    x = rng.normal(size=(4, 1024)) * 0.4
+    pv_a = pseudo_voigt_basis(x, 0.08, 0.3)
+    pv_b = pseudo_voigt(x, 0.08, 0.3)
+    assert not np.array_equal(pv_a, pv_b)
+    assert np.allclose(pv_a, pv_b, rtol=0, atol=1e-13 * np.abs(pv_a).max())
+
+    v_a = voigt_basis(x, 0.05, 0.03)
+    v_b = voigt(x, 0.05, 0.03)
+    assert np.allclose(v_a, v_b, rtol=0, atol=1e-13 * np.abs(v_a).max())
