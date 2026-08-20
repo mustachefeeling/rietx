@@ -31,16 +31,18 @@ a work session loads only what it needs:
 2. **During**: land tasks as small commits prefixed `WP-NNNN:`; check items
    off in the WP file as they land.
 3. **End** — or whenever interruption threatens — run `/wp-handover`. The
-   checklist it carries: dated handover entry prepended (newest first: done /
-   in flight / next / gotchas), Status line and the index-row glyph below
-   synced, forward references pushed into the `### Inherited` of any affected
-   WP that is not closed and not yours (a handover log reaches only your own
-   successor on the same WP), rule 4 applied to anything this session wrote
-   into a CLAUDE.md, working tree clean and pushed, and the branch's pull
-   request opened or updated — a session is not handed over until its work is
-   reviewable, and merging stays the maintainer's. A missed handover is
-   detected at the next session start (`.claude/hooks/session_start.py`) and
-   repaired before new work.
+   checklist it carries: dated handover entry prepended (newest first, in one
+   of `wp/TEMPLATE.md`'s two forms, opening with a plain-language paragraph on
+   what the work *means* and closing on the next actions, working detail
+   between), Status line and the index-row glyph below synced, forward
+   references pushed into the `### Inherited` of any affected WP that is not
+   closed and not yours (a handover log reaches only your own successor on the
+   same WP), rule 4 applied to anything this session wrote into a CLAUDE.md,
+   working tree clean and pushed, and the branch's pull request opened or
+   updated — a session is not handed over until its work is reviewable, and
+   merging stays the maintainer's. A missed handover is detected at the next
+   session start (`.claude/hooks/session_start.py`, two rules: the WP file
+   older than the work, or the log older than the commits) and repaired first.
 4. **A CLAUDE.md takes rules, not findings.** A line enters a CLAUDE.md
    (root, `gui/`, `tests/`, `src/rietx/indexing/`) only as a standing rule
    a stranger needs in six months — a few lines, evidence compressed to one
@@ -85,22 +87,19 @@ neighbouring peak's tail. A refinement still gives 1.0.1's numbers. Releasing
 it is `docs/RELEASING.md`, and nothing gates it now.
 
 **v1.1 — refinement speed — is in flight (opened 2026-08-20**, version
-`1.1.0.dev0`; scope, acceptance targets and the opening narrative:
-[milestones/v1.1.md](milestones/v1.1.md)). Performance is the
-competitiveness priority: the trigger session spent 3 h 20 min in
-refinements TOPAS fits in under a second each.
-**[1109](wp/1109-refinement-speed.md) closed 2026-08-20**: every win available
-without changing an answer is taken, bit-identical (1.09–1.14× on `cpd-1a`,
-1.12–1.16× on QPA-acceptance `cpd-2`). Execution order from here, one WP per
-session:
-[1111](wp/1111-benchmark-harness.md) harness — whose opening baseline must be
-measured on the *current* tree, not on 1109's opening table →
+`1.1.0.dev0`; scope and targets: [milestones/v1.1.md](milestones/v1.1.md)).
+Performance is the competitiveness priority: the trigger session spent 3 h
+20 min in refinements TOPAS fits in under a second each. **[1109](wp/1109-refinement-speed.md) closed 2026-08-20**:
+every win available without changing an answer is taken, bit-identical
+(1.09–1.14× on `cpd-1a`, 1.12–1.16× on `cpd-2`). Execution order from here, one
+WP per session: [1111](wp/1111-benchmark-harness.md) harness — whose opening
+baseline must be measured on the *current* tree, not on 1109's opening table →
 [1112](wp/1112-batched-derivative-bases.md) batched Jacobian path →
-[1113](wp/1113-evaluation-count.md) evaluation count (may interleave with
-1112) → [1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
-[1115](wp/1115-compiled-kernel-spike.md), which opens only if the harness
-still misses the targets. [1110](wp/1110-agent-surface-friction.md) rides
-alongside (same trigger session, agent-surface work).
+[1113](wp/1113-evaluation-count.md) evaluation count (may interleave) →
+[1114](wp/1114-peaks-buffer-spike.md) spike →
+[1115](wp/1115-compiled-kernel-spike.md), gated on the harness still missing
+the targets. [1110](wp/1110-agent-surface-friction.md) and
+[1116](wp/1116-session-protocol-hygiene.md) ride alongside.
 
 Parked, in rough order, for after v1.1 — none of it blocks a speed session:
 the 1.0.0-release-notes promises (`.rex` zip transport;
@@ -392,6 +391,7 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 | [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | ⬜ | 1111 (soft) |
 | [1114](wp/1114-peaks-buffer-spike.md) | Peaks-buffer spike: shape reuse across 2θ | ⬜ | 1112 |
 | [1115](wp/1115-compiled-kernel-spike.md) | Compiled-kernel spike (gated) | ⬜ | 1112, 1114 |
+| [1116](wp/1116-session-protocol-hygiene.md) | Session-protocol hygiene: the scan that cried wolf | ✅ 2026-08-20 | — |
 
 ## v2+ (seams pre-built, implementations fenced out)
 

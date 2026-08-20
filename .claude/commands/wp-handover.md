@@ -17,12 +17,34 @@ steps below run unchanged.
 
 1. **Identify the active WP** from this session's `git log` (`WP-NNNN:`
    prefixes). If more than one WP was touched, confirm with the user before
-   proceeding.
+   proceeding. If the session made **no** commit and left no uncommitted work,
+   say so in one line and stop — there is nothing to hand over, and running the
+   rest anyway is what makes this command feel expensive enough to skip.
 2. **Tick landed tasks** in the WP file's checklist — every commit that
    landed should correspond to a checked item.
 3. **Prepend the dated handover entry** to the WP's `## Handover log`
-   (newest first): done / in flight / next / gotchas. Write it for a
-   successor who has read only this WP file and CLAUDE.md.
+   (newest first), in one of the two forms `docs/wp/TEMPLATE.md` sanctions —
+   a `- **YYYY-MM-DD** — …` bullet, or a `### YYYY-MM-DD [(Nth session)] — …`
+   heading once the WP takes more than one session in a day. **Only those two
+   are read by `.claude/hooks/session_start.py`**, and an entry it cannot see
+   is a handover that did not happen: it flags the WP at the next session and
+   spends the successor's first act on a repair that was not needed.
+
+   The entry has two audiences and therefore two registers.
+
+   - **Open with a short plain-language paragraph saying what the work
+     *means*** — what a person who has not read the diff now knows, or can do,
+     that they could not before, and what it cost or ruled out. No dot-paths,
+     no symbol names, no commit list. Two to five sentences. If the honest
+     answer is "nothing yet, but X is now refuted", write that; a negative
+     result stated plainly is worth more than a summary of activity.
+   - **Close by naming the next actions** — the concrete next thing, in order,
+     with whatever decides between them. "Next: answer the last task first,
+     because it decides whether the rest is JSON-surface work or python-surface
+     work" is an entry a successor can act on; "next: continue" is not.
+   - **Between them go the working details** for the successor: *Done* /
+     *Measured* / *In flight* / *Gotchas*, written for someone who has read
+     only this WP file and CLAUDE.md.
 4. **Sync the Status line** (`glyph date — free text`, vocabulary in
    `docs/wp/TEMPLATE.md`) and mirror the glyph in the WP's ROADMAP index
    row.
@@ -46,7 +68,11 @@ steps below run unchanged.
    directory that corrects or extends the repo record gets ported into the
    repo now — a memory note is not a channel to the next session's repo
    state.
-9. **Verify**: run
+9. **Verify**: run `python3 .claude/hooks/session_start.py` — the scan the
+   *next* session starts from. It must come back with no flag for this WP; a
+   flag here means the entry was written in a form it cannot read, or that
+   work landed after the WP file was last touched, and either way the
+   successor pays for it. Then run
    `.venv/bin/python -m pytest tests/test_docs_consistency.py -q` and
    `.venv/bin/python -m ruff check src tests examples`; confirm the working
    tree is clean and pushed (or say what deliberately is not). **Clean and
@@ -71,7 +97,10 @@ steps below run unchanged.
       with the repo's two-line Claude Code footer.
     - **Never merge, and never wait on CI to decide.** Whether green is
       enough, and when to merge, is the maintainer's call.
-11. **Report**: the PR URL, and that CI is the gate — the required checks run
+11. **Report**, to the person and not to the log: **first the same
+    plain-language paragraph the entry opens with** — what this session's work
+    means, in a few sentences someone can read without opening the diff — then
+    the next actions, then the PR URL, and that CI is the gate — the required checks run
     ruff plus the fast suite across the supported Pythons and a `[dev,jax]`
     job. Offer to watch the run rather than assuming; when you do watch, read
     state from `gh run list` (REST) rather than `gh pr checks` (GraphQL, which
