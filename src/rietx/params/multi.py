@@ -195,6 +195,20 @@ class MultiParameterTable:
         self._hi = hi
         self.n_shared = len(shared_order)
 
+    def refresh_bounds(self) -> None:
+        """Re-read the sub-tables' bounds after a per-stage freeze changed them.
+
+        The constructor's "harmless overwrite" of a shared column holds only
+        while every histogram reports the same bound for it, so a caller that
+        freezes cell windows must freeze the **same** set on every sub-table —
+        see ``optimize.least_squares._freeze_cell_windows_multi``, which decides
+        a phase is invisible only when it is invisible in all of them.
+        """
+        for h, table in enumerate(self.tables):
+            loh, hih = table.bounds()
+            self._lo[self._col_map[h]] = loh
+            self._hi[self._col_map[h]] = hih
+
     # -- optimiser interface -------------------------------------------
     @property
     def free_paths(self) -> list[str]:

@@ -153,6 +153,17 @@ PATH_DEPENDENCE_SIGMA = 3.0
 #: (the median absolute step) means anything.
 MIN_POINTS_FOR_DISCONTINUITY = 5
 
+#: A series needs at least this many patterns before "in most of them" is a
+#: statement about the series rather than about two or three fits.  The same
+#: number as :data:`MIN_POINTS_FOR_DISCONTINUITY` and for the same reason: below
+#: it the per-entry diagnostics are the whole story and a summary of three
+#: things is not a summary.
+MIN_POINTS_FOR_PERSISTENCE = 5
+
+#: ``Diagnostic.level`` as an ordering, so a summary of many occurrences can
+#: carry the worst one rather than a fixed level of its own.
+_LEVEL_RANK = {"info": 0, "warning": 1, "error": 2}
+
 #: What ``refit=`` and ``direction=`` accept, as data rather than as two literals
 #: inside :meth:`SequentialRefinement.fit`.  A caller that has to *offer* the
 #: choices (the GUI's series panel, WP-1016) needs the same list this validates
@@ -531,6 +542,8 @@ class SequentialRefinement:
                                   dtype=backend_dtype_note(self._backend),
                                   report_thresholds_version=THRESHOLDS_VERSION))
         diagnostics += _discontinuity_diagnostics(series)
+        # what the per-pattern diagnostics could not say: "42 of 68" (WP-1110)
+        diagnostics += _persistent_diagnostics(series)
 
         # a cancelled forward chain gets no verification pass: the comparison is
         # between two *complete* chains, and half of one says nothing
@@ -891,6 +904,75 @@ def _discontinuity_diagnostics(series: SeriesResult) -> list[Diagnostic]:
                         "transition, a phase appearing) or the chain failed at "
                         "this point and carried the error onward — check this "
                         "pattern's own fit before reading the jump as physics"),
+        ))
+    return out
+
+
+def _persistent_diagnostics(series: SeriesResult) -> list[Diagnostic]:
+    """``SEQUENTIAL_PERSISTENT_FINDING`` — a per-pattern code that is really
+    about the series (WP-1110 item 8).
+
+    A per-pattern diagnostic can only ever say "this pattern". Nothing in a run
+    of 68 says **"42 of 68"**, and that is the sentence a caller acts on: one
+    `BOUND_HIT` is a pattern that hit a bound, a `BOUND_HIT` in most of them is
+    a model whose bound is wrong. The trigger episode is exactly this — 425
+    `BOUND_HIT` diagnostics went unread for two hours while
+    ``phases.3.cell.c`` was pinned in 42 of 68 patterns and
+    ``phases.3.lor_size`` in 44 of 68. The package said so from pattern 1, and
+    per-pattern was the only place it said it.
+
+    **The threshold is a change of subject, not a sensitivity.** Above half the
+    patterns a finding describes the series rather than some of its members, so
+    that is where the series-level line is drawn; below it the per-entry
+    diagnostics already say what there is to say, and repeating them here would
+    be a second authority on the same fact. Counted per (code, path) so the
+    message can name the parameter, and the codes are an open vocabulary — this
+    aggregates whatever fired, and needs no edit when a new one lands.
+    """
+    n = len(series.entries)
+    if n < MIN_POINTS_FOR_PERSISTENCE:
+        return []
+    counts: dict[tuple[str, str], int] = {}
+    # The worst level any occurrence carried, and it travels in *both*
+    # directions.  A summary must not report an error as a warning because most
+    # occurrences were warnings — and it must not promote an `info` either: a
+    # deliberate `dispersion=None` fires `DISPERSION_NEGLECTED` on every pattern
+    # of a series, and "68 of 68" is worth saying without calling a declared
+    # choice a warning.
+    levels: dict[tuple[str, str], str] = {}
+    for entry in series.entries:
+        # once per pattern per (code, path): a code that fires twice in one
+        # pattern is one pattern, or the count would measure stages
+        seen: set[tuple[str, str]] = set()
+        for d in entry.diagnostics:
+            for p in (d.where or [""]):
+                key = (d.code, p)
+                if key not in seen:
+                    seen.add(key)
+                    counts[key] = counts.get(key, 0) + 1
+                # `is None` rather than a default of "info": with a default,
+                # an all-info code never satisfies the comparison and the key
+                # is never written at all
+                worst = levels.get(key)
+                if worst is None or _LEVEL_RANK[d.level] > _LEVEL_RANK[worst]:
+                    levels[key] = d.level
+
+    out: list[Diagnostic] = []
+    for (code, path), count in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
+        if count * 2 <= n:
+            continue
+        where = [path] if path else []
+        subject = path or "the fit"
+        out.append(Diagnostic(
+            level=levels[(code, path)], code="SEQUENTIAL_PERSISTENT_FINDING",
+            where=where, value=count / n,
+            message=(f"{code} fired on {subject} in {count} of {n} patterns "
+                     f"({count / n:.0%} of the series)"),
+            suggestion=(f"read this as a property of the model rather than of "
+                        f"any one pattern: {code} in most of a series is the "
+                        f"same finding repeated, and the thing to change is "
+                        f"the model or the plan, not the individual fits. The "
+                        f"per-pattern diagnostics carry each occurrence"),
         ))
     return out
 

@@ -214,9 +214,14 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
         name=phase_name or (small.name or "phase_1"),
         space_group=sg.xhm(),
         cell=Cell(
-            a=Parameter(value=cell.a, min=0.1),
-            b=Parameter(value=cell.b, min=0.1),
-            c=Parameter(value=cell.c, min=0.1),
+            # bounds deliberately left open: a cell length's default window
+            # is anchored per stage on the value that stage starts from
+            # (params.vector.cell_window), and a finite bound here would read
+            # as a claim by the caller and suppress it.  0.1 Å was never a
+            # meaningful floor anyway — cell_window's is 1.5 Å.
+            a=Parameter(value=cell.a),
+            b=Parameter(value=cell.b),
+            c=Parameter(value=cell.c),
             alpha=Parameter(value=angles["alpha"]),
             beta=Parameter(value=angles["beta"]),
             gamma=Parameter(value=angles["gamma"]),

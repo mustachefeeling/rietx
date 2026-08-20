@@ -270,6 +270,25 @@ recent list, and is therefore not behind the 409 (WP-1044).
   so `_peak_chain_column` checks the scalars it finite-differences anyway
   against the bases it was told to skip, and raises naming the path. A wrong
   claim then costs work, never a short column (WP-1109).
+- **A phase the data cannot see is a flat direction, and a bound on it is not
+  free.** A phase reaches the pattern only through `scale × |F|² × profile`, so
+  one whose scale sits at its floor moves nothing: the fit reports `converged`
+  — those parameters do not move Rwp — while its cell walks out of the physical
+  range and the run dies hundreds of stages later in `generate_reflections`.
+  Such a cell gets a **per-stage window** (`params.vector.cell_window` —
+  TOPAS's shape at stage granularity, since scipy takes one `bounds` pair per
+  stage), applied in `ParameterTable.bounds` and never on the `Entry`, because
+  it is the solver's bound for one stage and not a fact about the stored
+  parameter. **Only that phase's**: TRF takes its trust-region scale from the
+  distance to the bounds, so a window changes the step in a cell that never
+  reaches it — applied to every phase it drove a real chained fit past its
+  iteration budget yet left it inside the reseed fence, unrescued (WP-1110).
+  Which phases is one measurement, `CompiledModel.phase_support`, shared with
+  the `PHASE_UNCONSTRAINED` naming the cause. A finite stored bound is the
+  caller's claim and suppresses the window that side, so a construction site
+  passes **no** floor rather than a nonsense one. One rank up,
+  `SEQUENTIAL_PERSISTENT_FINDING` says what no per-pattern diagnostic can: "42
+  of 68".
 - **Pydantic knows no crystallography, so a whole-model swap is checked by
   building its table.** Every symmetry refusal is raised in
   `ParameterTable.__init__` and the snapshot `Refinement.edit` commits performs

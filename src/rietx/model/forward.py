@@ -186,6 +186,17 @@ def _cached_fcj_nodes(cp: "CompiledPhase", il: int, k: int, variant: int,
     return phi, omega
 
 
+#: A phase whose strongest modelled point sits below this many σ of the
+#: observation noise is one the data cannot distinguish from absent.  One σ,
+#: not a tuned fraction: the comparison is against the counting statistics the
+#: phase competes with, the same footing ``indexing.workflow.ABSENT_SIGMA``
+#: puts a missing line on.  Below it every parameter of the phase has a
+#: Jacobian column under the noise floor, which is the definition of
+#: unconstrained rather than an opinion about it.  Lives here, beside
+#: :meth:`CompiledModel.phase_support`, because the bound and the diagnostic
+#: must read one number.
+PHASE_SUPPORT_SIGMA = 1.0
+
 #: two reflections are treated as "strongly overlapped" for Pawley conditioning
 #: when their primary-line centres sit within this fraction of their mean FWHM
 PAWLEY_OVERLAP_FWHM_FRAC = 0.5
@@ -935,6 +946,33 @@ class CompiledModel:
         phase) is required semantics for the hot loop in lebail/pawley mode;
         at-rest callers omit it and read the buffers."""
         return self.background(values) + self.bragg_component(values, intensities)
+
+    def phase_support(self, values: dict[str, float]) -> np.ndarray:
+        """Each phase's strongest modelled point, in σ of the observation noise.
+
+        The one authority for "can the data see this phase at all", with two
+        consumers that must not disagree: the default cell window
+        (``params.vector.cell_window``, applied by ``run_least_squares`` only to
+        phases below :data:`PHASE_SUPPORT_SIGMA`) and the
+        ``PHASE_UNCONSTRAINED`` diagnostic.  A second opinion here would pass a
+        test and still let the solver bound a phase the report calls visible —
+        the ``staged.bound_findings`` precedent (WP-1076), one measurement
+        projected twice.
+
+        Measured on the **modelled contribution** rather than on ``scale``,
+        because scale is degenerate with |F|², the profile widths and the line
+        weights: a small scale is not the same statement as a small
+        contribution, and only one of them is about what the data can see.
+        Against σ rather than a fraction of the pattern, for the reason
+        ``refine.ROUGHNESS_MIN_DEPRESSION`` is: the competitor is counting
+        statistics.
+        """
+        sigma = np.asarray(self.sigma, dtype=np.float64)
+        out = np.zeros(len(self.phases), dtype=np.float64)
+        for ip in range(len(self.phases)):
+            y = np.asarray(self.phase_component(ip, values), dtype=np.float64)
+            out[ip] = float(np.max(y / sigma)) if len(y) else 0.0
+        return out
 
     # ------------------------------------------------------------------
     # analytic Jacobian support

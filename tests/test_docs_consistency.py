@@ -156,7 +156,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # any compile-time freeze never reads: `free_paths` is the narrower
     # question and a tie defeats it, so a freeze asks `moving_paths` and then
     # verifies its own claim where the claim is used.
-    "CLAUDE.md": 736,
+    # 736 -> 752 for WP-1110 (2026-08-20): the default cell window and the two
+    # diagnostics beside it.  The operating detail went down a rank as this
+    # comment requires — TOPAS's Table 2-1, the per-stage-vs-per-iteration
+    # translation and the 51-stage-transition measurement are all in
+    # `params.vector.cell_window`'s docstring, the episode and the equivalence
+    # numbers in the WP.  What cannot go down a rank is the clause a session
+    # that never opens params/ still needs: a construction site passes no cell
+    # floor rather than a nonsense one, or it silently suppresses the default.
+    "CLAUDE.md": 752,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one

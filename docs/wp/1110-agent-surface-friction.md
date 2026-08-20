@@ -1,6 +1,6 @@
 # WP-1110 — the agent surface, measured against an agent that used it
 
-Milestone: v1.1 · Status: 🔄 2026-08-20 — the shaping question answered by a real-agent round; the twenty friction items unstarted
+Milestone: v1.1 · Status: 🔄 2026-08-20 — shaped by a real-agent round; items 13 and 8 closed (the cell window and the two diagnostics), eighteen friction items open
 Depends on: —
 
 ## Goal
@@ -201,6 +201,108 @@ for `refine_sequential` unprompted rather than hand-rolling a chain. The
 transcript's silent-science failures are not what this surface does to an agent
 by default — which is worth as much as any of the items above.
 
+## The cell window, measured
+
+Item 13's fix needed two numbers the WP did not have: where the bound should
+live, and how wide. Both were settled against prior art and measurement rather
+than picked.
+
+**TOPAS bounds cell parameters by default and rietx did not.** TOPAS-Academic v8
+Technical Reference § 2.17, Table 2-1: `a, b, c` are held to
+`Max(1.5, 0.995·Val − 0.05)` … `1.005·Val + 0.05` and the angles to `Val ± 0.2`,
+with `Val` the **current** value — *"hard limits are avoided where possible;
+instead, parameter values move within a range during an iteration."* It also
+flags parameters that stopped near a limit (`_LIMIT_MIN_#`/`_LIMIT_MAX_#`),
+which is `BOUND_HIT`/`at_bound` under another name, and it floors a cell length
+at 1.5 Å where rietx floored it at 0.1. **GSAS-II is the opposite**: limits are
+optional and user-supplied with no defaults (`Controls['parmMinDict']`), and a
+parameter that passes one is clamped **and frozen** into `Controls['parmFrozen']`,
+per histogram in a sequential run.
+
+**A moving window is not available here**, because a stage hands
+`scipy.optimize.least_squares` one fixed `bounds` pair. So it re-anchors per
+*stage* — the table is rebuilt at stage compile and `apply_to_models` writes back
+only `Parameter.value`, so the window never enters the stored structure and a
+cell that legitimately drifts across a series re-anchors on every stage of every
+pattern. That makes the fraction a stage's worth of TOPAS travel rather than an
+iteration's: 0.5 %/iteration compounds to 5.1 % over ten.
+
+**Measured for the other side of the choice**, on this tree:
+
+| case | worst single-stage relative cell move |
+|---|---|
+| 11-BM NAC + SRM 660c, 51 stage transitions | 2.8e-4 (p90 8.3e-5, p50 9.2e-8) |
+| synthetic LaB₆ started 1 % wrong, recovers to 3.4e-7 | 9.9e-3 — one stage closes the gap |
+| started 3 % wrong | fit fails on its own (Rwp 0.96): the basin, not any bound |
+
+So ±5 % clears the widest legitimate single-stage move by 5× and the
+real-protocol one by 180×, and no fit that can converge at all is inside it.
+Re-measured **after** the window landed, the recovery cases are unchanged to
+every digit — 0.1 %, 0.3 % and 1 % all still reach err 3.4e-7 with the same
+per-stage moves, and 3 % still fails at Rwp 0.96. The window did not narrow
+what the fit can recover from.
+
+**A window is not free, and applying it to every phase broke a real fit.** This
+is the correction that shaped the final design, and it was caught by the full
+suite rather than by reasoning. Windowing every cell regressed the chained IUCr
+round robin at `cpd-1c`: corundum came back **9.04 wt %** against 6.30
+independent and against the participant spread, failing three acceptance rows
+that pass on main.
+
+The cause is not the bound being reached — `cpd-1c`'s cell finishes at 4.75759,
+a quarter of an ångström inside a ±5 % window it never touches. It is that
+**scipy's TRF takes its per-coordinate trust-region scale from the distance to
+the bounds**, so bounding a cell changes the step taken in it regardless. A
+width sweep on that pattern:
+
+| window | Rwp | corundum wt % | iterations |
+|---|---|---|---|
+| unbounded (main) | 0.1079 | 6.30 | 641 (ladder escalated to the full staged plan) |
+| **±5 %** | **0.1501** | **9.04** | **400, `warm_refit` hit `max_iter`** |
+| ±10 % | 0.1078 | 6.26 | 82 |
+| ±25 % | 0.1078 | 6.26 | 87 |
+| ±50 % | 0.1078 | 6.22 | 100 |
+
+±5 % is a cliff, not a gradient. And the way it failed is this WP's own subject:
+the collapsed warm refit exhausted its budget and stopped at Rwp 0.1501, which
+is *inside* `sequential`'s reseed fence (1.25 × the 0.1519 median of the
+accepted patterns), so the ladder never escalated and the pattern was accepted
+rather than rescued. The fix for a silently unsound trajectory had produced one.
+
+**So the window is spent only where the alternative is a flat direction** — the
+phases `CompiledModel.phase_support` puts below 1σ, the same measurement
+`PHASE_UNCONSTRAINED` reads, frozen onto the table by
+`optimize.least_squares._freeze_cell_windows` at stage compile. A phase the data
+can see is left unbounded, exactly as before.
+
+**What it does and does not change.** The runaway: 5.2 → 25.6 Å unbounded (Rwp
+0.0415, status `converged`), 81.9 Å with the window disabled on the same
+construction, ~5.0 Å with it — and 1.8 s → 0.3 s, because a runaway cell
+enumerates reflections (30 at a = 5.2 Å, 1 825 at 25.6, 93 618 at 100, refused
+above ~1 000). An honest fit is **bit-identical**: on the 11-BM NAC two-phase
+protocol run both ways in one process, all **44 of 44** refined values and Rwp
+agree to the last bit, because neither phase (571σ and 185σ) is windowed at all.
+That is the equivalence bar v1.1 asks for, and it is exact rather than a
+tolerance. Indexing acceptance: 44 passed, no ranking moved. Sequential
+acceptance: 13 passed.
+
+**One finding deliberately not acted on here.** The same sweep shows ±10 % and
+wider *beating* unbounded on `cpd-1c` — 82 iterations against 641, same answer —
+because finite bounds precondition a badly scaled problem (cells sit at ~4.8
+while scales are ~1e-5 and background coefficients ~1e2, and TRF is given
+`x_scale=1.0`). That is a real v1.1 speed lead and it belongs to the harness
+WPs: a correction does not ship on a timing comparison any more than on an Rwp
+one, and this one's evidence is a diagnostic. Pushed to WP-1112's `### Inherited`.
+
+**The window alone would not have saved the trigger run**, and that is why the
+diagnostic is not optional. Re-anchoring means the cell walks ≤5 % per stage
+instead of stopping at a wall, so it ends *inside* the final stage's window and
+`BOUND_HIT` need never fire: measured, the drift falls from +393 % to −5.8 %
+across the plan with nothing reporting it. Reaching 39 293 Å from ~10 Å at 5 %
+a stage takes ~170 stages, which a 68-pattern series has. `PHASE_UNCONSTRAINED`
+is what closes that, and `SEQUENTIAL_PERSISTENT_FINDING` is what makes it
+legible across the series rather than 68 times over.
+
 ## Tasks
 
 The decision above is taken, so these are now ordered. Candidates, by value:
@@ -208,11 +310,21 @@ The decision above is taken, so these are now ordered. Candidates, by value:
 - [ ] **Yank `0.0.0` from PyPI** (item 1). One action, removes a silent-failure
       mode for every new user on an older Python. Note `docs/RELEASING.md`'s rule:
       never `twine upload` by hand.
-- [ ] **Make the diagnostics unmissable in a series** (item 8). A `SeriesResult`
-      that carries 425 `BOUND_HIT`s should say so where a caller cannot miss it —
-      a summary on the result, not only per-entry. The design question is whether
-      a bound pinned in >N % of patterns is a *series-level* finding with its own
-      code, since no single entry's diagnostic conveys "42 of 68".
+- [x] **Stop the zero-scale cell runaway, and name it** (item 13) — **done
+      2026-08-20**. `params.vector.cell_window` is a default per-stage window on
+      every cell parameter, in TOPAS's shape and at stage granularity;
+      `PHASE_UNCONSTRAINED` names the phase the data cannot see. § The cell
+      window has the numbers. Not on the task list before this session, because
+      the list predates the round that found the item.
+- [x] **Make the diagnostics unmissable in a series** (item 8) — **done
+      2026-08-20**, and the design question is answered: yes, it is a
+      series-level finding with its own code. `SEQUENTIAL_PERSISTENT_FINDING`
+      counts each (code, path) over the entries and states the fraction once,
+      above **half** the patterns — a change of subject rather than a tuned
+      sensitivity, since above half a finding describes the series rather than
+      some of its members. Verified to reproduce the episode's own numbers.
+      It aggregates whatever fired rather than a list of codes, so a new code
+      is summarised on the day it lands.
 - [ ] **Add the evaluate-only path** (item 6). `Refinement.predict` before a fit,
       or a documented `evaluate(values)`, so redrawing a fit is not a refit.
       Retiring the `AssertionError` on a zero-stage plan belongs here.
@@ -253,6 +365,122 @@ ignoring a bound pinned in most patterns.
 ```
 
 ## Handover log
+
+### 2026-08-20 (third session) — the zero-scale cell runaway, bounded and named
+
+A phase that is not in your specimen can no longer wreck the run. Before this,
+a phase whose scale fell to nothing left its cell free to drift with no effect
+on the fit, so the fit reported success while the cell left the physical range
+entirely and the job died much later with an error about reflection lists — the
+failure two agents hit independently on a 68-pattern series. Now such a cell is
+held near where it started, the package says which phase the data cannot see and
+which of its numbers are therefore not measurements, and on a long run it says
+"42 of 68" once instead of the same warning 425 times. A fit that was already
+working is untouched, to the last bit.
+
+What that cost is worth recording: the first version of the fix bounded *every*
+phase's cell, and that quietly made a real refinement worse — a bound is not
+free, because the solver takes its step size from how far the bounds are. It
+was caught by the full test suite, not by review, and the shipped version spends
+a bound only where the alternative is a parameter the data cannot constrain at
+all.
+
+*Done.* Items **13** and **8**, which the round found and which turned out to be
+one failure seen at two ranks. A phase reaches the pattern only through
+`scale × |F|² × profile`, so a phase at its scale floor is a flat direction: the
+fit reports `converged` because those parameters genuinely do not move Rwp,
+while the cell walks out of the physical range. Three pieces landed, each
+measured before it was written — § The cell window carries every number.
+
+- `params.vector.cell_window`, a **per-stage window** on the cell of a phase the
+  data cannot see, in TOPAS's shape at stage granularity. Applied in
+  `ParameterTable.bounds` and **not** on the `Entry`: a window is the solver's
+  bound for the stage about to run, not a fact about the stored parameter, and
+  on the `Entry` it would have surfaced through `ParameterRow` and the `.rxt`
+  document, both of which tell a reader that bounds come from the schema.
+  `bound_findings` is fed from `bounds()`, so a cell that does reach its window
+  is still reported. The four sites passing a nonsense finite `min` (0.1 Å,
+  1.0 Å) drop it — it *suppressed* the default, and was never a floor.
+- `CompiledModel.phase_support` and
+  `optimize.least_squares._freeze_cell_windows`, which decide *which* phases —
+  one measurement, two consumers (the bound and the diagnostic), pinned equal by
+  test rather than re-derived.
+- `PHASE_UNCONSTRAINED` (`refine._phase_support_diagnostics`), off the modelled
+  contribution against the observation noise rather than off `scale`.
+- `SEQUENTIAL_PERSISTENT_FINDING` (`sequential._persistent_diagnostics`), item
+  8: the sentence no per-pattern diagnostic can produce.
+
+*Measured.* Fast selection, **this worktree's own venv, `[dev]` (no jax),
+darwin/arm64**: **2536 passed, 117 skipped**, from **2517 passed, 117 skipped**
+on the same tree before the change. Twenty tests added, nineteen in the fast
+selection (one is `@slow`), **no new skip** — passed moves by exactly the
+nineteen. `tests/test_acceptance_indexing.py`: **44 passed in 20:24**, run
+because `indexing/workflow.py` was one of the four sites (CLAUDE.md's rule);
+no ranking moved. `ruff` clean, `sphinx -W` clean.
+
+The equivalence bar, since v1.1 asks every landed WP for one and this is **not**
+an Rwp comparison: the 11-BM NAC two-phase protocol run with the window on and
+disabled **in one process**, diffing all 44 refined values — **44 of 44
+bit-identical**, Rwp included. Exact rather than a tolerance, and it is exact
+*because* the window is restricted: neither NAC phase (571σ and 185σ of support)
+is windowed at all, so the bounds handed to TRF are the ones main hands it.
+
+Full suite, same venv and platform: **2645 passed, 126 skipped in 22:33**, zero
+failures. It fired **twice**, deliberately — the ladder says once on the final
+tree, and the first run's tree turned out not to be final. That run is the whole
+reason this WP shipped a correct design.
+
+The count check, both selections. Twenty tests added, all in
+`tests/test_absent_phase.py`, one of them `@slow`. **Fast**: 2517 → 2536
+passed, +19, and nineteen is exactly the non-slow count; skipped unchanged at
+117, so **no new skip and no skip counted as a pass**. **Full**: 2645 passed
+against an implied 2625 on main — +20, the fast delta plus the one `@slow` row,
+which is the consistency `tests/CLAUDE.md` asks for rather than a second
+hour-long baseline run; skipped unchanged at 126. The two full runs bracket it
+independently: the first, on the pre-correction tree, was 2639 passed + 3 failed
+= 2642 non-skipped with seventeen tests present, and 2642 + 3 later tests = 2645.
+
+**The full suite is what made that true.** The first design windowed every
+phase, and it regressed three `test_acceptance_sequential` rows that pass on
+main — chained `cpd-1c` corundum 9.04 wt % against 6.30. § The cell window has
+the sweep; the short version is that a window is not free, the failure was
+`warm_refit` exhausting its budget and landing *inside* the reseed fence so
+nothing rescued it, and the fix for a silent unsound trajectory had produced
+one. Sequential acceptance now 13 passed.
+
+*In flight.* Nothing running.
+
+*Next.* **Item 15 (the two plan types)** and **item 17 (the VT temperature)** —
+the previous session's ordering, both of which cost every agent in the round
+real time, and neither of which this session touched. Item 12
+(`rietx.__version__`) is a one-liner that belongs with them.
+
+*Gotchas.* (a0) **A bound is not free, and that is the lesson to carry.** TRF
+takes its trust-region scale from the distance to the bounds, so *any* new
+default bound changes the step taken in that coordinate even where it is never
+reached — measured here as a 5× iteration blow-up and a wrong QPA answer.
+Anything proposing a default bound owes the same before/after on a chained
+acceptance case, not just on a fit that was already easy. (a) The **prior art
+answered a question I was about to invent a number for**, and it is worth checking first next time: TOPAS has published
+default cell limits (§ 2.17 Table 2-1) and GSAS-II has a published *opposite*
+policy, and between them they fixed the shape, the floor and the reporting
+behaviour. The maintainer asked for this rather than accepting my ±5 % box, and
+the box was the wrong shape. (b) **Two of my own new test assertions were wrong
+before the code was** — the pad does not scale with the cell, and 0.95·2 − 0.05
+clears the 1.5 Å floor. Both were caught only by running them; a constant's
+arithmetic is worth doing on paper. (c) The window was first written onto
+`Entry` and that broke four `test_compare_ui` rows, three `test_textdoc` and one
+`test_gui_server` — **the failures were the design review**: each was a fixture
+carrying the rendered `min 0.1`, which is exactly the parameter surface a solver
+bound must not reach. Moving it to `bounds()` was the fix and the reason. (d) A
+**windowed cell need never fire `BOUND_HIT`**, because it re-anchors each stage;
+anyone tempted to treat the window as the whole fix should read § The cell
+window's last paragraph first. (e) The `PHASE_UNCONSTRAINED` threshold is not a
+knife edge — the 11-BM NAC CaF₂ impurity, a genuine trace phase, carries 185σ
+against the absent phase's 0.088 — but it is **skipped entirely for a
+single-phase fit**, where "the one phase is under the noise" is
+`MODEL_FAR_FROM_DATA`'s statement, not this one. (f) Root CLAUDE.md's cap moved
+736 → 752 in its own commit, per the policy in `tests/test_docs_consistency.py`.
 
 ### 2026-08-20 (second session) — the round run, and the premise corrected
 

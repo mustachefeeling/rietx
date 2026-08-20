@@ -107,6 +107,128 @@ class Entry:
 #: Cell parameter names in table order — lengths first, then angles.
 _CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
 
+#: Fraction of the value a stage *starts from* that a cell length may travel
+#: within that stage, and an additive pad in Å so a small cell is not held
+#: tighter than a large one in absolute terms.
+CELL_WINDOW_FRACTION = 0.05
+CELL_WINDOW_PAD_A = 0.05
+
+#: The same window for a cell angle, in degrees.
+CELL_WINDOW_ANGLE_DEG = 2.0
+
+#: Absolute floor on a cell length (Å).  TOPAS's number; no crystal has a
+#: lattice repeat this short, so it is a floor on nonsense rather than a
+#: refinement bound.
+CELL_MIN_LENGTH_A = 1.5
+
+#: A cell angle is degenerate at 0° and 180° — the metric tensor is singular
+#: there — so the window is clipped inside them.
+_ANGLE_MIN_DEG = 1.0
+_ANGLE_MAX_DEG = 179.0
+
+
+def _cell_parameter_name(path: str, *, phases: set[int]) -> str | None:
+    """``"phases.0.cell.a"`` → ``"a"`` when phase 0 is in ``phases``, else None.
+
+    Read off the path rather than recorded on the :class:`Entry`, because the
+    window is applied at the optimiser interface and the entries there arrive
+    from :meth:`ParameterTable.bounds` with nothing but their paths to go on.
+    """
+    parts = path.split(".")
+    if len(parts) == 4 and parts[0] == "phases" and parts[2] == "cell":
+        if parts[3] not in _CELL_NAMES:
+            return None
+        try:
+            ip = int(parts[1])
+        except ValueError:
+            return None
+        return parts[3] if ip in phases else None
+    return None
+
+
+def cell_window(name: str, value: float, lo: float, hi: float) -> tuple[float, float]:
+    """The default bounds on one cell parameter, anchored at ``value``.
+
+    **Why a cell needs a default bound at all.**  Every structural parameter of
+    a phase reaches the pattern only through ``scale × |F|² × profile``, so a
+    phase whose scale has fallen to its floor contributes a *flat direction*:
+    moving its cell changes the calculated pattern by nothing, the Jacobian
+    column is zero to within noise, and the trust region wanders along it.  The
+    fit still reports ``converged`` — the runaway parameter genuinely does not
+    affect Rwp — while the reflection count grows with the cell volume until
+    :func:`~rietx.crystallography.symmetry.generate_reflections` refuses
+    outright, hundreds of stages downstream of the cause.  Measured in WP-1110:
+    an absent phase went 5.2 → 25.6 Å in one synthetic fit (Rwp 0.0415,
+    ``converged``), and two independent agents drove real phases to a ≈ 39 293 Å
+    and a ≈ 40 000 Å on a 68-pattern series.
+
+    **The shape is TOPAS's** (TOPAS-Academic v8 Technical Reference § 2.17,
+    Table 2-1), which bounds ``a, b, c`` by ``Max(1.5, 0.995·Val − 0.05)`` to
+    ``1.005·Val + 0.05`` and the angles by ``Val ± 0.2``, re-evaluating ``Val``
+    every iteration — *"hard limits are avoided where possible; instead,
+    parameter values move within a range during an iteration."*  A moving
+    window is not available here: a stage hands ``scipy.optimize.least_squares``
+    one fixed ``bounds`` pair.  So the window is re-anchored at every **stage**
+    compile instead — this table is rebuilt there, and ``apply_to_models``
+    writes back only ``Parameter.value``, so the window never enters the stored
+    structure and a cell that legitimately drifts across a series re-anchors on
+    every stage of every pattern.
+
+    That makes the fraction a stage's worth of TOPAS travel rather than an
+    iteration's, and 0.5 % per iteration compounds to 5.1 % over ten.  WP-1110
+    measured the other side of it: across 51 stage transitions of the 11-BM NAC
+    and SRM 660c protocols the widest honest single-stage move was 2.8e-4
+    (median 9.2e-8), a synthetic LaB₆ started 1 % wrong closed the whole gap in
+    one stage at 9.9e-3, and started 3 % wrong the fit failed on its own (Rwp
+    0.96) with the basin, not any bound, as the obstacle.  So
+    :data:`CELL_WINDOW_FRACTION` clears the widest legitimate single-stage move
+    by 5× and the real-protocol one by 180×.
+
+    **A finite stored bound is the caller's claim and is kept**, per side —
+    TOPAS's *"user defined min/max limits override the defaults"*.  Only an
+    infinite side is a side on which nobody made a claim, and ±inf is what a
+    :class:`~rietx.schemas.common.Parameter` carries when its bounds were never
+    set.  That test is used rather than ``model_fields_set`` because it has to
+    survive a JSON round trip, where every field arrives "set".
+
+    **It is applied only to phases the data cannot see** — the set
+    ``run_least_squares`` freezes through
+    :meth:`ParameterTable.freeze_cell_windows`, off
+    :meth:`~rietx.model.forward.CompiledModel.phase_support` — and that
+    restriction is measured, not conservatism.  A window is not free: scipy's
+    TRF derives its per-coordinate trust-region scale from the distance to the
+    bounds, so bounding a cell changes the *step* the solver takes in it even
+    when the bound is never reached.  Measured on the IUCr round robin's
+    chained ``cpd-1c``, whose cell finishes 0.24 Å inside a ±5 % window and
+    never touches it: windowing every phase took the collapsed warm refit from
+    82 iterations to its 400-iteration budget, and it stopped at Rwp 0.1501
+    against 0.1079 — just good enough to clear ``sequential``'s reseed fence, so
+    the pattern was accepted rather than rescued and its corundum fraction came
+    back 9.04 wt % against 6.30. A bound that silently degrades a fit nothing
+    reports is the failure this WP exists to remove, not a cost worth paying on
+    phases that were never going to run away.
+
+    (The same sweep found ±10 % and wider *beating* unbounded on that pattern —
+    82 iterations against 641, same answer — because finite bounds precondition
+    a badly-scaled problem.  That is a speed lead for the v1.1 harness WPs, not
+    something to take here: a correction does not ship on an Rwp comparison, and
+    this one's evidence is a diagnostic.)
+    """
+    if name in ("alpha", "beta", "gamma"):
+        window_lo = max(_ANGLE_MIN_DEG, value - CELL_WINDOW_ANGLE_DEG)
+        window_hi = min(_ANGLE_MAX_DEG, value + CELL_WINDOW_ANGLE_DEG)
+    else:
+        window_lo = max(CELL_MIN_LENGTH_A,
+                        value * (1.0 - CELL_WINDOW_FRACTION) - CELL_WINDOW_PAD_A)
+        window_hi = value * (1.0 + CELL_WINDOW_FRACTION) + CELL_WINDOW_PAD_A
+    # never propose a window that excludes where the parameter already is: a
+    # cell below the floor is a model to refuse elsewhere, not a bound to raise
+    # on here (ParameterTable has no diagnostics channel — the rule in
+    # crystallography.cif one rank up)
+    window_lo, window_hi = min(window_lo, value), max(window_hi, value)
+    return (window_lo if lo == -np.inf else lo,
+            window_hi if hi == np.inf else hi)
+
 
 class ParameterTable:
     def __init__(self, structure: Structure, instrument: Instrument):
@@ -115,6 +237,9 @@ class ParameterTable:
         #: limit (1 ppm), kept so :meth:`seed_stephens` can put a freed block
         #: on the isotropic ray without rebuilding the symmetry basis
         self._strain_unit: dict[str, np.ndarray] = {}
+        #: phases whose cells take the default window this stage, or None for
+        #: "no claim made" — see :meth:`freeze_cell_windows`
+        self._cell_window_phases: set[int] | None = None
         self._collect(structure, instrument)
         self._rebuild()
 
@@ -589,11 +714,42 @@ class ParameterTable:
         return np.array([to_internal(self.entries[i].value, self.entries[i].transform)
                          for i in self._free_idx], dtype=np.float64)
 
+    def freeze_cell_windows(self, phases: set[int] | None) -> None:
+        """Declare which phases' cells get the default window this stage.
+
+        Frozen at stage compile like every other per-stage decision, and
+        ``None`` means **no claim made** and windows nothing — the
+        ``moving_paths`` convention, where an empty set is the claim that
+        nothing needs one.  Held on the table rather than passed to
+        :meth:`bounds` so that every reader agrees: ``run_least_squares`` solves
+        against these bounds and ``staged.check_guards`` calls ``bounds()``
+        again afterwards to decide ``at_bounds``, and a window the solver used
+        but the guard did not see would be a bound hit nothing could report.
+        """
+        self._cell_window_phases = phases
+
     def bounds(self) -> tuple[np.ndarray, np.ndarray]:
+        """Internal-space bounds for the free vector, in ``free_paths`` order.
+
+        This is where :func:`cell_window` is applied, rather than on the
+        :class:`Entry`, and the distinction is the point: a window is a
+        **solver** bound for the stage about to run, not a fact about the
+        stored parameter.  Putting it on the entry would surface it through
+        ``ParameterRow`` and the ``.rxt`` document, both of which tell a reader
+        that bounds come from the schema — and there it would read as a claim
+        the caller never made.  ``bound_findings`` is fed from here, so a cell
+        that reaches its window is still reported.
+        """
+        windowed = getattr(self, "_cell_window_phases", None)
         lo, hi = [], []
         for i in self._free_idx:
             e = self.entries[i]
-            low, high = internal_bounds(e.lo, e.hi, e.transform)
+            e_lo, e_hi = e.lo, e.hi
+            if windowed:
+                cell_name = _cell_parameter_name(e.path, phases=windowed)
+                if cell_name is not None:
+                    e_lo, e_hi = cell_window(cell_name, e.value, e_lo, e_hi)
+            low, high = internal_bounds(e_lo, e_hi, e.transform)
             lo.append(low)
             hi.append(high)
         return np.asarray(lo), np.asarray(hi)
