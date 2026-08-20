@@ -154,7 +154,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # down a rank — the WP-file/row bijection test in this file requires one
     # per WP — so the cap grows with the WP count and with nothing else; the
     # sets' narratives live in the WP files.
-    "docs/ROADMAP.md": 416,
+    # 416 -> 438 for the refinement-speed planning session (2026-08-20): the
+    # v1.1 speed set (1109 moved + five new rows and its intro) and the v1.1
+    # Milestones row.  Same rule as the bump above: rows cannot go down a
+    # rank, so the cap grows with the WP count and with nothing else.
+    "docs/ROADMAP.md": 438,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections

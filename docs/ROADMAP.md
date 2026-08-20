@@ -84,30 +84,31 @@ moves: `determine_extinction_symbol` no longer refutes a class on a
 neighbouring peak's tail. A refinement still gives 1.0.1's numbers. Releasing
 it is `docs/RELEASING.md`, and nothing gates it now.
 
-**No milestone is in flight.** Opening the next one is a planning decision
-(version → `1.x.0.dev0`); the committed post-1.0 work, in rough order:
+**v1.1 — refinement speed — is in flight (opened 2026-08-20**, version
+`1.1.0.dev0`; scope, acceptance targets and the opening narrative:
+[milestones/v1.1.md](milestones/v1.1.md)). Performance is the
+competitiveness priority: the trigger session spent 3 h 20 min in
+refinements TOPAS fits in under a second each. Execution order, one WP per
+session (§ v1.1 — refinement speed below): finish
+[1109](wp/1109-refinement-speed.md)'s exact wins →
+[1111](wp/1111-benchmark-harness.md) harness (records the opening baseline)
+→ [1112](wp/1112-batched-derivative-bases.md) batched Jacobian path →
+[1113](wp/1113-evaluation-count.md) evaluation count (may interleave with
+1112) → [1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
+[1115](wp/1115-compiled-kernel-spike.md), which opens only if the harness
+still misses the targets. [1110](wp/1110-agent-surface-friction.md) rides
+alongside (same trigger session, agent-surface work).
 
-- **Promised in the 1.0.0 release notes, built in 1.0.x**: `.rex` zip
-  transport (export/open, "the directory, zipped");
-  `RefinementState.excluded_regions` with `replay` honouring the node's
-  regions (1003 §B — decided, not re-opened).
-- **Post-1003 indexing work**: narrow what the acceptance fixtures search
-  (the nightly `full` job's ~77 min of setup — the durable lever the
-  timeout recalibration deferred), and the `grade` prior-counting change
-  (1046 §4, on the record in `consensus.grade`).
-- **[1017](wp/1017-gui-manual-onboarding.md)** — the GUI manual and
-  onboarding, still deferred; the GUI stays beta until it lands.
-- **The free-standing peaks set (added 2026-08-18)**: standalone `fit_peaks`
-  ([1101](wp/1101-standalone-peak-fitting.md)) and the extra-components seam
-  with humps ([1102](wp/1102-component-seam-humps.md)) and sharp peaks
-  ([1103](wp/1103-peak-components.md)) — the recommended v1.1 openers.
-- **The agentic-report set (added 2026-08-18)**: 1104–1108 all ✅, set
-  complete — the story is § v1.1 below, the appendices are in
-  `milestones/v1.1.md` (one per WP, 1108's carrying the shipped placement).
-
-1066's naming rule stands beside them, as a rule in root CLAUDE.md and in full
-(both directions, the token list, and why no test can catch a hardcoded *new*
-name) in `_about.py`'s docstring.
+Parked, in rough order, for after v1.1 — none of it blocks a speed session:
+the 1.0.0-release-notes promises (`.rex` zip transport;
+`RefinementState.excluded_regions` with `replay` honouring them — 1003 §B,
+decided); the post-1003 indexing work (narrow the acceptance fixtures'
+search — the nightly `full` job's ~77 min of setup — and the `grade`
+prior-counting change, 1046 §4); [1017](wp/1017-gui-manual-onboarding.md)
+(GUI stays beta until it lands); the v1.2 free-standing peaks set
+(1101–1103, shifted 2026-08-20). The agentic-report set (1104–1108) is ✅
+complete — appendices in `milestones/v1.1.md`. 1066's naming rule stands
+beside all of it, in root CLAUDE.md and in full in `_about.py`'s docstring.
 
 ## Milestones
 
@@ -120,6 +121,8 @@ name) in `_about.py`'s docstring.
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ✅ **shipped 2026-07-28** ([record](milestones/v0.5.md)) | capillary absorption validated at **both** levels: the Rouse (1970) cylinder factor against a quadrature of the exact ITC eq. (6.3.3.4) integral across 0 ≤ µR ≤ 1 *and* 0 ≤ sin²θ ≤ 1 (0.0035, the paper's own bound), and on real 11-BM SRM 660a LaB₆ data in a documented 0.81 mm bore — Rwp moves 3e-8, the cell 8e-12 Å, and *both* Biso move by the predicted 0.0166542 Å². Plus the two accuracy wins no fit statistic shows: dispersion takes the round-robin QPA error from RMS 2.26 → 0.69 wt %, and a mis-declared flat-plate thickness biases Biso by up to −1.5 Å² |
 | v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop, theory manual | ✅ **shipped 2026-07-29** ([record](milestones/v0.6.md)) | bounded LM 0.74–1.04× vs scipy TRF (CPU — the expected Amdahl tie), identical minima on 2/3 protocols, ΔBIC −13 on the third, and the Stephens cone enforced as a linear inequality (brucite 12/43 → 0/43 outside, at higher Rwp); FCJ node memo 1.23× bit-identical; agent schema generated from live registries with a registry-membership meta-test; theory manual builds `-W`-clean with every fenced constant injected from the live package and five anti-divergence guards in the fast suite |
 | v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ✅ **shipped 2026-08-16** ([record](milestones/v1.0.md)) | full suite green at ship: 2509 passed / 126 skipped locally (`[dev]`, macOS) and CI-green on Linux `[dev,jax]` (run 31966606174, full job 1h57); GUI end-to-end and the bethanechol individual-program grading landed by their WPs (record § Acceptance); repo public with six required checks gating `main`; manual + AGENT_PROTOCOL at yue-here.github.io/rietx, all URLs verified; `rietx` 1.0.0 on PyPI, fresh-venv install + `capabilities()` verified from the index; Windows fast suite green as the classifier's pre-upload gate — a gate that caught three real defects (CRLF-unstable checkouts, an SO_REUSEADDR double-bind in the GUI server, cp1252 example pipes) before the irreversible step |
+| v1.1 | Refinement speed: seconds not minutes | 🔄 opened 2026-08-20 | judged on the WP-1111 harness ([targets](milestones/v1.1.md)): warm-started series per-pattern wall in the ~1 s band; cold trigger-shaped 4-phase Cu Kα fit in low single-digit seconds; stretch (tracked, not gating) cold < 1 s tied to 1114's go/no-go; every landed WP with its equivalence bar, never an Rwp comparison |
+| v1.2 | Free-standing peaks: fit_peaks + the extra-components seam | ⬜ next | — |
 | v2+ | FPA, neutron/TOF, texture, MCP server | ⬜ fenced | — |
 
 ## Work packages
@@ -337,13 +340,14 @@ the freeze decides.
 | [1073](wp/1073-capillary-displacement.md) | Capillary sample displacement, eq (4) | ✅ 2026-08-15 — eq (4) with derived signs, position templates and actions keyed by geometry (THRESHOLDS 1.0); measured: 11-BM is where it must *not* be refined | — (1.0.x) |
 | [1074](wp/1074-restraint-weight-schedule.md) | Restraint weight schedule (c_w) | ✅ 2026-08-16 — eq (7)'s c_w per stage, identity default bit-identical; measured: a flat c_w = 1 converges to a 4.834 Å bond at Rwp 0.0393, the schedule to 1.872 Å at 0.0327 | 0406 (1.0.x) |
 
-### v1.1 — free-standing peaks (added 2026-08-18)
+### v1.2 — free-standing peaks (shifted 2026-08-20)
 
 Peaks without a structure, at three ranks: fitted standalone (1101), and the
 `Instrument.extra_components` union seam — the serializable answer to TOPAS's
 fit_obj — with broad humps (1102) and sharp peaks (1103) as its first members.
-Recommended v1.1 openers; the first implementing session executes the opening
-(version → `1.1.0.dev0`, `milestones/v1.1.md` started, a Milestones row).
+Shifted from v1.1 when the refinement-speed milestone took that slot
+(2026-08-20); the WPs keep their 11xx numbers per the block rule's
+ran-past precedent above.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -367,8 +371,24 @@ answered by a pre-registered round before any placement ships (1107).
 | [1106](wp/1106-report-placement-fields.md) | Report placement fields: structured where prose was load-bearing | ✅ | — |
 | [1107](wp/1107-eval-placement-round.md) | Eval protocol 2.2: the placement round | ✅ 2026-08-19 | 1105, 1106 |
 | [1108](wp/1108-license-statistics-placement.md) | The license beside the numbers: shipping the statistics placement | ✅ 2026-08-19 | 1107 |
-| [1109](wp/1109-refinement-speed.md) | Refinement speed: where the time actually goes | 🔄 2026-08-20 | — |
 | [1110](wp/1110-agent-surface-friction.md) | The agent surface, measured against an agent that used it | ⬜ | — |
+
+### v1.1 — refinement speed (added 2026-08-20)
+
+The milestone's own series, opened by the 2026-08-20 review of 1109 against
+the two Coelho (2018) papers: measure first (1111), then the exact wins
+(1109), the batched Jacobian path (1112), the evaluation-count front (1113),
+the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
+(1115). Targets and the opening baseline: `milestones/v1.1.md` § Acceptance.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1109](wp/1109-refinement-speed.md) | Refinement speed: where the time actually goes | 🔄 2026-08-20 | — |
+| [1111](wp/1111-benchmark-harness.md) | The refinement benchmark harness, and the trigger-shaped case | ⬜ | — |
+| [1112](wp/1112-batched-derivative-bases.md) | The batched derivative side, and η-aware windows | ⬜ | 1111 |
+| [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | ⬜ | 1111 (soft) |
+| [1114](wp/1114-peaks-buffer-spike.md) | Peaks-buffer spike: shape reuse across 2θ | ⬜ | 1112 |
+| [1115](wp/1115-compiled-kernel-spike.md) | Compiled-kernel spike (gated) | ⬜ | 1112, 1114 |
 
 ## v2+ (seams pre-built, implementations fenced out)
 
