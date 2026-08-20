@@ -265,7 +265,17 @@ became the v1.1 series: 1111 (harness), 1112 (batched bases + η windows,
 which took this WP's two biggest tasks with their numbers), 1113 (evaluation
 count, which took the solver findings), 1114 (peaks-buffer spike), 1115
 (compiled spike, gated). v1.1 opened as the refinement-speed milestone in the
-same session; the peaks set shifted to v1.2.
+same session (version → 1.1.0.dev0, Milestones row, v1.1.md scope/acceptance);
+the peaks set shifted to v1.2. PR #69.
+
+*Measured* (worktree `.venv`, `[dev]`, darwin/arm64, Python 3.12). Fast suite
+**2458 passed + 117 skipped** — unmoved from this WP's first-session baseline,
+exactly right for a session that added zero tests; docs-consistency 17/17;
+ruff clean. Full suite not run: docs plus the version string, which no
+measured number quotes. The new profile/iteration numbers in Context were
+measured on this machine without an idle guarantee — three TRF runs agreed
+within 0.3 s, but re-baseline from WP-1111's harness before quoting them
+against a future change.
 
 *In flight.* Nothing — the landed orbit task is unchanged.
 
