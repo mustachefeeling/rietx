@@ -380,12 +380,15 @@ cpd-2 **17.06–17.22 → 14.79–15.47 s** (1.12–1.16×), and the cpd-2 finge
 — Rwp, 62 values and esds, the QPA fractions, the stage table — bit-identical
 to the session's opening tree.
 
+Full suite on the final tree: **2609 passed + 126 skipped**, 0 failed, 22:30.
+
 **The full suite is what caught the one regression**, and it is worth saying
-plainly: the first closing run came back `1 failed, 2608 passed, 126 skipped`
+plainly: the *first* closing run came back `1 failed, 2608 passed, 126 skipped`
 on `test_acceptance_stephens.test_corundum_is_reported_isotropic`, which the
 five acceptance suites run earlier in the session did not cover. Bisected to
 the tolerance change alone (passes on `main`, passes with `XTOL`/`GTOL` put
-back, fails with them at 1e-8), which is why that task is retired above.
+back, fails with them at 1e-8), which is why that task is retired above; the
+2609 figure is the re-run after it was reverted.
 
 *In flight.* Nothing.
 
