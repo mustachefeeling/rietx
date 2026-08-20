@@ -1206,13 +1206,19 @@ Four consequences for an agent:
   drives one Biso onto its bound. That is the correction correctly refusing to
   fit a specimen that is not there.
 
-**8.13 A stage that takes minutes is telling you it is degenerate.** The solver
-is given `max_nfev = max_iter × n_par`, and `Stage.max_iter` is 100 — so at 46
-free parameters a single stage may spend **4 600** residual-plus-Jacobian
-evaluations before giving up, and it reports `status="converged"` for the pass
-either way. Measured on three weighed NaCl/Li₂CO₃ mixtures — identical models,
-identical parameter counts, same-sized patterns — wall clock ran **39 s, 858 s
-and 2 838 s**, a 73× spread with no corresponding difference in the answer. The
+**8.13 A stage that takes minutes is telling you it is degenerate.** Measured
+on three weighed NaCl/Li₂CO₃ mixtures — identical models, identical parameter
+counts, same-sized patterns — wall clock ran **39 s, 858 s and 2 838 s**, a 73×
+spread with no corresponding difference in the answer, and the pass reported
+`status="converged"` either way. Until v1.1 the budget made that spread far
+worse than it needed to be: `max_nfev` was `max_iter × n_par`, pricing a
+finite-difference Jacobian the package does not build, so at 46 free parameters
+a single `max_iter=100` stage could spend **4 600** evaluations before giving
+up. It is now `max_iter ×` a small measured constant (the worst
+evaluations-per-iteration ratio over 28 real stages is 3.2), so a stalling
+stage says so roughly 30× sooner and a converging one is untouched — every
+protocol measured stops an order of magnitude inside the cap. That changes when
+you hear about it, not what you should do about it. The
 stages that stall are the degenerate groups of §3, so the signal is available
 *before* you run them: per-phase size/strain freed against a still-free
 instrument U,V,W,X,Y (they model one width curve; the package's own
