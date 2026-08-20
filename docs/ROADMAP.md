@@ -91,10 +91,10 @@ competitiveness priority: the trigger session spent 3 h 20 min in
 refinements TOPAS fits in under a second each.
 **[1109](wp/1109-refinement-speed.md) closed 2026-08-20**: every win available
 without changing an answer is taken, bit-identical (1.09–1.14× on `cpd-1a`,
-1.12–1.16× on QPA-acceptance `cpd-2`). Execution order from here, one WP per
-session:
-[1111](wp/1111-benchmark-harness.md) harness — whose opening baseline must be
-measured on the *current* tree, not on 1109's opening table →
+1.12–1.16× on QPA-acceptance `cpd-2`). One WP per session from here.
+**[1111](wp/1111-benchmark-harness.md) closed 2026-08-20**: seven cases in
+`examples/bench_refinement.py`, opening baseline **50 s** cold (1 188 pairs)
+vs low single digits and **4.5–22.4 s** warm/pattern vs ~1 s — quote it. →
 [1112](wp/1112-batched-derivative-bases.md) batched Jacobian path →
 [1113](wp/1113-evaluation-count.md) evaluation count (may interleave with
 1112) → [1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
@@ -387,7 +387,7 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1109](wp/1109-refinement-speed.md) | Refinement speed: where the time actually goes | ✅ 2026-08-20 | — |
-| [1111](wp/1111-benchmark-harness.md) | The refinement benchmark harness, and the trigger-shaped case | ⬜ | — |
+| [1111](wp/1111-benchmark-harness.md) | The refinement benchmark harness, and the trigger-shaped case | ✅ | — |
 | [1112](wp/1112-batched-derivative-bases.md) | The batched derivative side, and η-aware windows | ⬜ | 1111 |
 | [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | ⬜ | 1111 (soft) |
 | [1114](wp/1114-peaks-buffer-spike.md) | Peaks-buffer spike: shape reuse across 2θ | ⬜ | 1112 |
