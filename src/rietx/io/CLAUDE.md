@@ -183,6 +183,18 @@ authority on wavelengths, and the real fixtures give 1.540598 and 1.540593
 against the package's 1.5405929 — a ~3 ppm spread that is real and far inside
 what the SRM 660c acceptance allows.
 
+The **series coordinate is metadata too, and it is a reader's to surface**
+(WP-1110 item 17): on an in-situ run it is the point of the experiment, so a
+caller with no `x=` for `refine_sequential` has nothing to plot a trajectory
+against. It travels twice, because it is asked at two times — in
+`PatternData.metadata` after a scan is read, and on `ScanInfo` (and in its
+`label`) before one is chosen, since the ranges of a reel scan the same axis
+over the same angles and enumerate as N identical rows without it. Surface only
+a coordinate the **format itself names**: `.raw` v3's range header has a
+temperature field, and Rigaku's `CW_Temperature*` axes are the cooling water.
+Reading a specimen coordinate off an axis named for something else is inventing
+a convention, which is the one repair a reader may never make.
+
 ## Per format
 
 | format | claimed by | σ | notes |

@@ -48,6 +48,12 @@ class ScanInfo:
     #: something else — so the number is the stepped one and :attr:`label` is
     #: what says which axis it is on
     two_theta_range: tuple[float, float]
+    #: the specimen temperature this scan records, where the format has such a
+    #: field and the file filled it (WP-1110 item 17).  It is what distinguishes
+    #: the scans of an in-situ reel from each other: without it an 82-range VT
+    #: file enumerates as 82 identical labels, which is the thing :attr:`label`
+    #: exists not to do.  ``None`` is "the file says nothing", never "ambient"
+    temperature_k: float | None = None
 
 
 @dataclass(frozen=True)
@@ -177,6 +183,13 @@ METADATA_KEYS: dict[str, str] = {
     "intensity_unit": "the intensity unit the file *declares*. A claim, not a "
                       "measurement — see the σ note in the .ras reader",
     "count_time_s": "seconds per step, where the file gives enough to derive it",
+    "temperature_k": "the specimen temperature this scan records, as the file "
+                     "states it — recorded, never used. On an in-situ reel it "
+                     "is the *series coordinate*, which is the point of the "
+                     "experiment: without it a caller has no `x=` to give "
+                     "`refine_sequential` and no axis to plot a trajectory "
+                     "against. A file that records nothing here says nothing, "
+                     "and so does one recording zero",
     "goniometer_radius_mm": "the goniometer radius the file records, in mm — one "
                             "of the four bragg_brentano numbers that need not be "
                             "typed when the file already knows it",

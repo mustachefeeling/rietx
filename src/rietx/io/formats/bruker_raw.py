@@ -680,7 +680,12 @@ def read_bruker_raw(path: str | Path, *, scan: int | None = None,
         wavelength=found.wavelength or None,
         wavelength_alpha2=alpha2,
         goniometer_radius_mm=parsed.goniometer_radius_mm,
-        count_time_s=found.count_time_s)
+        count_time_s=found.count_time_s,
+        # v3 only: v4 range headers carry no such field.  It was parsed and
+        # dropped until WP-1110, so an agent on a 68-pattern in-situ reel read
+        # ``_Range.temperature_k`` off this module's private ``_parse`` to
+        # recover its own series coordinate.
+        temperature_k=found.temperature_k)
 
 
 def list_bruker_raw_scans(path: str | Path) -> list[ScanInfo]:
@@ -690,11 +695,18 @@ def list_bruker_raw_scans(path: str | Path) -> list[ScanInfo]:
         stepped = found.implied_two_theta
         low, high = float(min(stepped[0], stepped[-1])), float(max(stepped[0],
                                                                   stepped[-1]))
+        # the temperature goes in the label as well as the field, because on a
+        # VT reel it is the only thing that differs: every range of the trigger
+        # dataset's 68 scans the same axis over the same angles, so without it
+        # the picker shows 68 identical rows — which is exactly what
+        # ``ScanInfo.label`` says it must not do
+        at = "" if found.temperature_k is None else f" at {found.temperature_k:.4g} K"
         out.append(ScanInfo(
             index=i,
             label=f"{found.axis.stated or found.label or '?'} "
-                  f"{low:.4g}–{high:.4g}°",
-            n_points=found.n_points, two_theta_range=(low, high)))
+                  f"{low:.4g}–{high:.4g}°{at}",
+            n_points=found.n_points, two_theta_range=(low, high),
+            temperature_k=found.temperature_k))
     return out
 
 

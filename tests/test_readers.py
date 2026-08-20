@@ -1918,6 +1918,51 @@ def test_v3_ranges_are_scans_and_the_default_says_so(tmp_path):
     assert [s.n_points for s in list_scans(p)] == [200, 300]
 
 
+def test_a_vt_reel_surfaces_its_own_series_coordinate(tmp_path):
+    """The temperature each range records reaches a caller (WP-1110 item 17).
+
+    v3 has parsed this field since the reader shipped and then dropped it, so
+    an agent refining a 68-pattern in-situ reel read ``_Range.temperature_k``
+    off this module's private ``_parse`` to recover the 318/323/333 K its own
+    trajectory was indexed by.  On an in-situ run the series coordinate *is*
+    the experiment: without it there is no ``x=`` for ``refine_sequential``.
+
+    It reaches two surfaces because two questions are asked at different
+    times — ``list_scans`` before choosing a scan, the pattern's metadata
+    after reading one — and the label carries it as well as the field, since
+    every range of a reel scans the same axis over the same angles and would
+    otherwise enumerate as N identical rows.
+    """
+    from tests.writers_xrd import write_raw3
+
+    p = write_raw3(tmp_path / "ramp.raw", [
+        dict(start=10.0, step=0.02, intensity=[100.0] * 60, temperature=t)
+        for t in (318.0, 323.0, 333.0)
+    ])
+
+    assert [s.temperature_k for s in list_scans(p)] == [318.0, 323.0, 333.0]
+    assert "318 K" in list_scans(p)[0].label
+    assert rx.read_pattern(p, scan=1).metadata["temperature_k"] == "323.0"
+
+
+def test_a_range_recording_no_temperature_says_nothing(tmp_path):
+    """Absent is not ambient.
+
+    The v3 field is zero-filled when the instrument had no temperature to
+    record, and ``metadata()`` drops a ``None``, so the key is missing rather
+    than present with a number nobody measured — the same rule the σ fallback
+    follows one rank up.
+    """
+    from tests.writers_xrd import write_raw3
+
+    p = write_raw3(tmp_path / "ambient.raw",
+                   [dict(start=10.0, step=0.02, intensity=[100.0] * 60)])
+
+    assert "temperature_k" not in rx.read_pattern(p).metadata
+    assert list_scans(p)[0].temperature_k is None
+    assert "K" not in list_scans(p)[0].label
+
+
 @pytest.mark.parametrize("code,what", [
     (3, "rocking curve about θ"), (5, "φ rotation"), (12, "ψ tilt"),
     (14, "reciprocal-space map"),
