@@ -350,10 +350,10 @@ measured before it was written — § The cell window carries every number.
   8: the sentence no per-pattern diagnostic can produce.
 
 *Measured.* Fast selection, **this worktree's own venv, `[dev]` (no jax),
-darwin/arm64**: **2532 passed, 117 skipped**, from **2517 passed, 117 skipped**
-on the same tree before the change. Sixteen tests added, fifteen in the fast
+darwin/arm64**: **2533 passed, 117 skipped**, from **2517 passed, 117 skipped**
+on the same tree before the change. Seventeen tests added, sixteen in the fast
 selection (one is `@slow`), **no new skip** — passed moves by exactly the
-fifteen. `tests/test_acceptance_indexing.py`: **44 passed in 20:24**, run
+sixteen. `tests/test_acceptance_indexing.py`: **44 passed in 20:24**, run
 because `indexing/workflow.py` was one of the four sites (CLAUDE.md's rule);
 no ranking moved. `ruff` clean, `sphinx -W` clean.
 

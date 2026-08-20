@@ -160,6 +160,10 @@ MIN_POINTS_FOR_DISCONTINUITY = 5
 #: things is not a summary.
 MIN_POINTS_FOR_PERSISTENCE = 5
 
+#: ``Diagnostic.level`` as an ordering, so a summary of many occurrences can
+#: carry the worst one rather than a fixed level of its own.
+_LEVEL_RANK = {"info": 0, "warning": 1, "error": 2}
+
 #: What ``refit=`` and ``direction=`` accept, as data rather than as two literals
 #: inside :meth:`SequentialRefinement.fit`.  A caller that has to *offer* the
 #: choices (the GUI's series panel, WP-1016) needs the same list this validates
@@ -929,8 +933,12 @@ def _persistent_diagnostics(series: SeriesResult) -> list[Diagnostic]:
     if n < MIN_POINTS_FOR_PERSISTENCE:
         return []
     counts: dict[tuple[str, str], int] = {}
-    #: the worst level any occurrence carried — a summary must not report an
-    #: error as a warning merely because most occurrences were warnings
+    # The worst level any occurrence carried, and it travels in *both*
+    # directions.  A summary must not report an error as a warning because most
+    # occurrences were warnings — and it must not promote an `info` either: a
+    # deliberate `dispersion=None` fires `DISPERSION_NEGLECTED` on every pattern
+    # of a series, and "68 of 68" is worth saying without calling a declared
+    # choice a warning.
     levels: dict[tuple[str, str], str] = {}
     for entry in series.entries:
         # once per pattern per (code, path): a code that fires twice in one
@@ -942,8 +950,12 @@ def _persistent_diagnostics(series: SeriesResult) -> list[Diagnostic]:
                 if key not in seen:
                     seen.add(key)
                     counts[key] = counts.get(key, 0) + 1
-                if d.level == "error" or levels.get(key) != "error":
-                    levels[key] = "error" if d.level == "error" else "warning"
+                # `is None` rather than a default of "info": with a default,
+                # an all-info code never satisfies the comparison and the key
+                # is never written at all
+                worst = levels.get(key)
+                if worst is None or _LEVEL_RANK[d.level] > _LEVEL_RANK[worst]:
+                    levels[key] = d.level
 
     out: list[Diagnostic] = []
     for (code, path), count in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):

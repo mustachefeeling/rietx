@@ -300,11 +300,35 @@ def test_it_aggregates_whatever_fired_rather_than_a_list_of_codes():
     assert len(out) == 1 and "PHASE_UNCONSTRAINED" in out[0].message
 
 
-def test_the_worst_level_survives_the_summary():
-    """A summary must not report an error as a warning."""
+def test_the_summary_carries_the_worst_level_and_promotes_nothing():
+    """It travels in both directions.
+
+    Up, because a summary must not report an error as a warning. Down, because
+    a deliberate `dispersion=None` fires an **info** `DISPERSION_NEGLECTED` on
+    every pattern of a series — "68 of 68" is worth saying, and calling a
+    declared choice a warning is not.
+    """
     from rietx.sequential import _persistent_diagnostics
 
-    out = _persistent_diagnostics(_series_with(10, 9, level="error"))
+    assert _persistent_diagnostics(_series_with(10, 9, level="error"))[0].level \
+        == "error"
+    assert _persistent_diagnostics(
+        _series_with(10, 10, code="DISPERSION_NEGLECTED",
+                     level="info"))[0].level == "info"
+
+
+def test_one_error_among_warnings_sets_the_summary_level():
+    from rietx.schemas.common import Diagnostic
+    from rietx.schemas.sequential import SeriesEntry, SeriesResult
+    from rietx.sequential import _persistent_diagnostics
+
+    entries = []
+    for i in range(10):
+        level = "error" if i == 3 else "warning"
+        entries.append(SeriesEntry(index=i, label=f"p{i}", diagnostics=[
+            Diagnostic(level=level, code="BOUND_HIT",
+                       where=["phases.0.cell.a"], message="…")]))
+    out = _persistent_diagnostics(SeriesResult(entries=entries))
     assert out[0].level == "error"
 
 
