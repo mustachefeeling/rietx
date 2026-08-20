@@ -15,6 +15,18 @@ go/no-go gate on the one risk that killed the forward half.
 
 ## Context
 
+### Inherited
+
+From WP-1110 (2026-08-20). **WP-1111's opening baseline predates the default
+cell window**, which landed the same day: `params.vector.cell_window` gives every
+cell parameter a per-stage bound, and changed bounds change the trust region's
+Coleman-Li scaling, so the *path* to the minimum moves even though the answer
+does not (11-BM NAC, run both ways in one process: the cell agrees to 1 ulp, Rwp
+to 4e-13, the worst physically meaningful parameter to 1.3e-8). Iteration counts
+can therefore shift slightly. **Re-measure the harness on the current tree before
+comparing against 1111's table** — the same rule ROADMAP already applies to 1111
+against 1109's opening numbers, for the same reason.
+
 Numbers from WP-1109's 2026-08-20 review (QPA-acceptance `cpd-2`, worktree
 venv `[dev]`, darwin/arm64) unless said otherwise.
 

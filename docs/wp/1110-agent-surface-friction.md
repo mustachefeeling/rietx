@@ -237,6 +237,10 @@ iteration's: 0.5 %/iteration compounds to 5.1 % over ten.
 
 So ±5 % clears the widest legitimate single-stage move by 5× and the
 real-protocol one by 180×, and no fit that can converge at all is inside it.
+Re-measured **after** the window landed, the recovery cases are unchanged to
+every digit — 0.1 %, 0.3 % and 1 % all still reach err 3.4e-7 with the same
+per-stage moves, and 3 % still fails at Rwp 0.96. The window did not narrow
+what the fit can recover from.
 
 **What it does and does not change.** The runaway: 5.2 → 25.6 Å unbounded (Rwp
 0.0415, status `converged`), 81.9 Å with the window disabled on the same
