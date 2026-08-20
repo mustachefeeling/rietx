@@ -99,8 +99,8 @@ measured on the *current* tree, not on 1109's opening table →
 [1113](wp/1113-evaluation-count.md) evaluation count (may interleave with
 1112) → [1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
 [1115](wp/1115-compiled-kernel-spike.md), which opens only if the harness
-still misses the targets. [1110](wp/1110-agent-surface-friction.md) rides
-alongside (same trigger session, agent-surface work).
+still misses the targets. [1110](wp/1110-agent-surface-friction.md), **shaped
+2026-08-20** by a six-agent round, rides alongside: the python surface, not JSON.
 
 Parked, in rough order, for after v1.1 — none of it blocks a speed session:
 the 1.0.0-release-notes promises (`.rex` zip transport;
@@ -374,7 +374,7 @@ answered by a pre-registered round before any placement ships (1107).
 | [1106](wp/1106-report-placement-fields.md) | Report placement fields: structured where prose was load-bearing | ✅ | — |
 | [1107](wp/1107-eval-placement-round.md) | Eval protocol 2.2: the placement round | ✅ 2026-08-19 | 1105, 1106 |
 | [1108](wp/1108-license-statistics-placement.md) | The license beside the numbers: shipping the statistics placement | ✅ 2026-08-19 | 1107 |
-| [1110](wp/1110-agent-surface-friction.md) | The agent surface, measured against an agent that used it | ⬜ | — |
+| [1110](wp/1110-agent-surface-friction.md) | The agent surface, measured against an agent that used it | 🔄 2026-08-20 | — |
 
 ### v1.1 — refinement speed (added 2026-08-20)
 

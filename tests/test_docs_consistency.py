@@ -178,7 +178,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # a cross-fit agreement tolerance needs the measured cross-platform
     # spread.  The section covered wall-clock budgets only, and the weekly CI
     # failure that taught the rule was numeric.
-    "tests/CLAUDE.md": 205,
+    # 205 -> 223 for WP-1110 (2026-08-20): a second eval protocol exists
+    # (tests/eval_agent_surface/), and a session under tests/ that does not
+    # know it will either miss it or pool its cells with the first one's.  The
+    # clause is a rule about comparability and about what a shim owes its
+    # subject, not a record of the round — that lives in the WP and the
+    # protocol.  Same rule as the bumps above: this file grows for a rule that
+    # nothing else in it carried.
+    "tests/CLAUDE.md": 223,
     # 250 at the WP-1060 split; raised once, for WP-1046's two standing rules
     # (which layer may apply a cap, and that agreement outranks the panel) —
     # both measured, and every number behind them is in the v1.0 appendix
