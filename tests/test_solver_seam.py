@@ -248,13 +248,18 @@ def test_a_converging_fit_never_feels_the_budget(pattern, monkeypatch):
 
 
 def test_the_trf_tolerances_are_the_module_constants(pattern, monkeypatch):
-    """xtol/gtol were hardcoded at 1e-12 — four orders below scipy's own
-    default — and are now named constants at 1e-8.  Named so the number has
-    one home and its measurement has somewhere to live; pinned so it cannot
-    drift back into a literal."""
+    """xtol/gtol were hardcoded literals at 1e-12 and are now named constants
+    at the same value — named so the number has one home and the measurement
+    that keeps it has somewhere to live, pinned so it cannot drift back into a
+    literal *or* be tidied up to scipy's 1e-8 default.
+
+    WP-1109 tried that tidy-up and put it back: it is a wash on speed (1.25x
+    on one shipped protocol, 1.04x slower on another) and it takes the
+    Stephens isotropic control past a shipped bar.  The constant's docstring
+    carries the numbers."""
     from rietx.optimize.least_squares import GTOL, XTOL
 
-    assert XTOL == GTOL == 1e-8
+    assert XTOL == GTOL == 1e-12
     calls = _spy_least_squares(monkeypatch)
     structure, instrument = perturbed_models()
     refine(pattern, structure, instrument)

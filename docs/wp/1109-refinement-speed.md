@@ -2,9 +2,10 @@
 
 Milestone: v1.1 · Status: ✅ 2026-08-20 — every exact win taken (orbit
 canonicalisation, extinction gated at its off state, the profile bases masked
-by what a stage can move, the scalar chain memoised, the iteration budget and
-the tolerances), the hkl cache retired on measurement, and the heavier avenues
-left to WP-1111–1115 (the v1.1 series)
+by what a stage can move, the scalar chain memoised, the iteration budget
+repriced), **bit-identical throughout**; the hkl cache and the tolerance
+hygiene both retired on measurement, and the heavier avenues left to
+WP-1111–1115 (the v1.1 series)
 
 Depends on: —
 
@@ -49,13 +50,16 @@ was taken from, so the pairs are comparable:
 
 | case | before | after | factor |
 |---|---|---|---|
-| IUCr `cpd-1a`, 3 phases, `qpa_plan` (8 stages) | 13.70–13.77 s | 9.63–9.67 s | **1.42×** |
-| `qarr/cpd-2`, QPA acceptance protocol (9 stages, texture) | 17.06–17.22 s | 15.33–15.38 s | **1.11×** |
+| IUCr `cpd-1a`, 3 phases, `qpa_plan` (8 stages) | 13.70–13.77 s | 12.12–12.70 s | **1.09–1.14×** |
+| `qarr/cpd-2`, QPA acceptance protocol (9 stages, texture) | 17.06–17.22 s | 14.79–15.47 s | **1.12–1.16×** |
 
-The two differ because the tolerance change helps `cpd-1a` and costs `cpd-2`
-(see that task); everything else is bit-identical on both. Both are still an
-order of magnitude off the milestone target, which is 1112/1113/1114's ground
-— what this WP could take without changing an answer is now taken.
+**Both are bit-identical** — Rwp, every refined value and esd, the QPA weight
+fractions and the per-stage iteration table are unchanged to the last bit. That
+is the whole claim of this WP and it is now unqualified, because the one change
+that would have broken it (the tolerance hygiene) was measured and put back.
+Both are still an order of magnitude off the milestone target, which is
+1112/1113/1114's ground — what this WP could take *without changing an answer*
+is now taken.
 
 ### The 2026-08-20 review profile (post-orbit-fix, QPA-acceptance cpd-2)
 
@@ -260,23 +264,30 @@ restated in its own file:
       multiplier **loosens** the budget below four free parameters and tightens
       it above — one robustness row parametrised `max_iter=5` against the old
       one-parameter budget of 5 and now needs 1.
-- [x] **Take the tolerance hygiene** (`xtol`/`gtol` → 1e-8, as `XTOL`/`GTOL`).
-      **The re-verification this asked for changed the picture, so read the
-      numbers rather than the old sentence.** cpd-1a 13.26–13.71 → 10.82–10.91 s
-      (1.22–1.27×, confirming the estimate) but QPA-acceptance cpd-2
-      16.54–17.05 → 17.20–17.65 s, **1.04× slower** — an earlier stage stops
-      sooner at a worse point and `po` then takes 46 iterations instead of 38.
-      So it is not free, and retired-item 3's "1.00× on cpd-2" no longer holds
-      post-gate. Taken on the net across the two protocols and on the answer
-      being equivalent: Rwp moves 3.6e-6, the four QPA fractions by ≤ 0.006 wt %
-      against a 1–3 wt % band, the median parameter by 0.004 esd and the worst
-      *identifiable* one by 0.18 esd. The "worst shift/esd 0.003" quoted here
-      was the median, not the worst.
-      *How to read a shift/esd table on this fit*: the parameters that appear
-      to move by 1e6 esd — a `gauss_size` parked at 1.1e-8 with an esd of
-      1.1e-10 — are ones the fit cannot determine, where the ratio measures
-      unidentifiability rather than a change of answer. All five real-data
-      acceptance suites pass unchanged, SRM 660c and corundum included.
+- 🛑 **Take the tolerance hygiene** — **tried, measured, put back.**
+      `xtol`/`gtol` are still 1e-12; what landed is that they are now the named
+      constants `XTOL`/`GTOL` rather than literals, so the number has one home
+      and the measurement keeping it has somewhere to live.
+      *It is not a speed win*: 1e-8 measured **1.22–1.27× faster on cpd-1a but
+      1.04× slower on the QPA-acceptance cpd-2**, because an earlier stage
+      stops sooner at a worse point and `po` then takes 46 iterations instead
+      of 38. Retired-item 3's "1.00× on cpd-2" does not survive the re-measure.
+      *And it is not answer-preserving*, which is what actually decided it: it
+      takes `test_acceptance_stephens.test_corundum_is_reported_isotropic` past
+      a shipped bar — the isotropic control's reported strain anisotropy 3.64
+      against `< 2.0`, passing on `main` and failing here. The strain still
+      reads undetected at r² = 0.41, so the *conclusion* survives; the
+      quotable ratio does not, and a reader would cite the ratio.
+      *The lesson is about the quantity, not the solver*: a nearly-isotropic
+      strain tensor is the ill-conditioned direction of that fit, so the
+      terminal polish these tolerances buy is exactly what pins it. The
+      "worst shift/esd 0.003" this task quoted was the *median*; the worst
+      identifiable parameter moved 0.18 esd, and a derived ratio built from
+      the ill-conditioned block moved 1.8×.
+      *Caught by the full suite only* — the five acceptance suites run
+      earlier in the session did not include `test_acceptance_stephens.py`,
+      which is why CLAUDE.md's rule that the full suite fires once on the
+      final tree is not optional for a change that can move a number.
 
 ### Retired — measured and declined
 
@@ -333,13 +344,14 @@ corrections and which is equally uninformative here.
 
 ### 2026-08-20 (third session) — the exact wins taken, and the WP closed
 
-*Done.* All five remaining implementable tasks landed, each bit-identical or
-answer-identical and each with its before/after in the task text above: the
-extinction off-state gate, the `derivative_bases` free-set mask, the
-scalar-chain memo, the `max_nfev` semantics and the tolerance constants. The
-sixth, the hkl cache, is **retired on measurement** rather than deferred — both
-its premises fail (§ Tasks, Retired). No `### Inherited` section existed on
-arrival, so nothing was pruned.
+*Done.* Four of the six remaining tasks landed, **every one bit-identical**,
+each with its before/after in the task text above: the extinction off-state
+gate, the `derivative_bases` free-set mask, the scalar-chain memo and the
+`max_nfev` semantics. **Two are retired on measurement** rather than deferred
+(§ Tasks): the hkl cache, whose two premises both fail, and the tolerance
+hygiene, which is a wash on speed and takes the Stephens isotropic control past
+a shipped bar. No `### Inherited` section existed on arrival, so nothing was
+pruned.
 
 Three things are reusable beyond this WP and are written where they belong
 rather than here:
@@ -360,13 +372,20 @@ rather than here:
 
 *Measured* (worktree `.venv`, `[dev]` only — jax and torch absent —
 darwin/arm64, Python 3.12). Fast suite **2501 passed + 117 skipped**, **+43**
-over this WP's 2458+117 baseline for the 43 tests added, no new skip. Full
-suite: see the closing run below. All five real-data acceptance suites
-(`qpa_roundrobin`, `nac`, `srm660c`, `fap`, `capillary`) pass unchanged;
+over this WP's 2458+117 baseline for the 43 tests added, no new skip.
 `test_docs_consistency.py` 17/17; ruff clean. Wall clock, best of 3 on an idle
 machine, both re-measured against the same tree the opening table was taken
-from: cpd-1a **13.70–13.77 → 9.63–9.67 s** (1.42×), QPA-acceptance cpd-2
-**17.06–17.22 → 15.33–15.38 s** (1.11×).
+from: cpd-1a **13.70–13.77 → 12.12–12.70 s** (1.09–1.14×), QPA-acceptance
+cpd-2 **17.06–17.22 → 14.79–15.47 s** (1.12–1.16×), and the cpd-2 fingerprint
+— Rwp, 62 values and esds, the QPA fractions, the stage table — bit-identical
+to the session's opening tree.
+
+**The full suite is what caught the one regression**, and it is worth saying
+plainly: the first closing run came back `1 failed, 2608 passed, 126 skipped`
+on `test_acceptance_stephens.test_corundum_is_reported_isotropic`, which the
+five acceptance suites run earlier in the session did not cover. Bisected to
+the tolerance change alone (passes on `main`, passes with `XTOL`/`GTOL` put
+back, fails with them at 1e-8), which is why that task is retired above.
 
 *In flight.* Nothing.
 
@@ -389,10 +408,12 @@ substituting it moved Rwp in its 9th digit and a stage from 82 iterations to
 54, and no `allclose` check would have caught it. (c) **A shift/esd table on
 `cpd-2` is dominated by parameters the fit cannot determine** — a `gauss_size`
 parked at 1.1e-8 with an esd of 1.1e-10 "moves by 1e6 esd" — so read the
-median and the identifiable worst, not the maximum. (d) The tolerance change
-is a **wash across protocols**, not a win: +1.25× on cpd-1a, −1.04× on cpd-2.
-It was taken on the net and on answer-equivalence, and the old "1.00× on
-cpd-2" in retired-item 3 no longer holds. (e) `rietx.refine` resolves to the
+median and the identifiable worst, not the maximum. (d) **Do not re-try the
+tolerance hygiene** without new evidence: it is a wash across protocols
+(1.25× on cpd-1a, 1.04× *slower* on cpd-2) and it moves the Stephens
+isotropic control's anisotropy from inside a shipped bar to 3.64 against
+`< 2.0`. Retired-item 3's "1.00× on cpd-2" and "worst shift/esd 0.003" were
+both re-measured and neither holds — the second was the median. (e) `rietx.refine` resolves to the
 re-exported *function*, not the module, so `import rietx.refine as rf;
 rf.compile_model = spy` silently patches nothing — use
 `sys.modules["rietx.refine"]`. This produced a wrong "0 compiles" reading

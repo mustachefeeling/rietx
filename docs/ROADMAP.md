@@ -90,8 +90,9 @@ it is `docs/RELEASING.md`, and nothing gates it now.
 competitiveness priority: the trigger session spent 3 h 20 min in
 refinements TOPAS fits in under a second each.
 **[1109](wp/1109-refinement-speed.md) closed 2026-08-20**: every win available
-without changing an answer is taken (1.42× on `cpd-1a`, 1.11× on
-QPA-acceptance `cpd-2`). Execution order from here, one WP per session:
+without changing an answer is taken, bit-identical (1.09–1.14× on `cpd-1a`,
+1.12–1.16× on QPA-acceptance `cpd-2`). Execution order from here, one WP per
+session:
 [1111](wp/1111-benchmark-harness.md) harness — whose opening baseline must be
 measured on the *current* tree, not on 1109's opening table →
 [1112](wp/1112-batched-derivative-bases.md) batched Jacobian path →

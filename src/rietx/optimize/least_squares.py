@@ -84,14 +84,28 @@ _PO_PATH = re.compile(r"^phases\.(\d+)\.preferred_orientation\.r$")
 #: converging fit measured stays an order of magnitude inside it.
 NFEV_PER_ITERATION = 4
 
-#: Convergence tolerances handed to TRF alongside ``ftol``.  scipy defaults
-#: both to 1e-8; this package pinned them at 1e-12 before WP-1109, which buys
-#: nothing a fit can use — measured, loosening to 1e-8 moves the QPA cpd-2
-#: answer by at most 0.003 esd over 49 parameters and Rwp by 9e-7, because
-#: nearly every iteration makes far more than 1e-8 relative progress.  The
-#: iteration counts are slow *traversal*, not terminal polish, so this is
-#: hygiene rather than a fix, and it is taken as hygiene.
-XTOL = GTOL = 1e-8
+#: Convergence tolerances handed to TRF alongside ``ftol``.  Four orders below
+#: scipy's own 1e-8 default, and **deliberately not loosened** — named here so
+#: the number has one home and the measurement that keeps it has somewhere to
+#: live (WP-1109 tried 1e-8 and put it back).
+#:
+#: It is not the free hygiene it looks like.  It is not even a speed win: 1e-8
+#: measured 1.22-1.27x faster on the IUCr cpd-1a protocol but 1.04x *slower* on
+#: the QPA-acceptance cpd-2 one, because an earlier stage stops sooner at a
+#: worse point and a later stage then takes more iterations to recover. And it
+#: is not answer-preserving: it takes ``test_acceptance_stephens``'s isotropic
+#: control past a shipped bar — corundum's reported strain anisotropy 3.64
+#: against a < 2.0 assertion, on a specimen whose whole role is to come back
+#: isotropic so the brucite result beside it means something. The strain still
+#: reads undetected with r2 = 0.41, so the conclusion survives; the quotable
+#: ratio does not, which is the distinction that matters for a number a
+#: reader would cite.
+#:
+#: Read that as a statement about how well determined a nearly-isotropic
+#: strain tensor is, not about TRF. Loosening these is a real change to the
+#: answer on the ill-conditioned directions, so it needs its own evidence,
+#: not a tidy-up.
+XTOL = GTOL = 1e-12
 
 #: Paths whose whole effect on the pattern is a peak's **integrated
 #: intensity**: the peak keeps the position, width and mixing it had, so
