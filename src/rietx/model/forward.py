@@ -127,6 +127,22 @@ WINDOW_MIN_DEG = 0.3
 #: zero-node profile
 AXIAL_SIZING_FLOOR = 0.02
 
+def _freeze(value) -> None:
+    """Mark every ndarray inside a memoised block read-only, in place.
+
+    Walks lists and tuples because the blocks are per-emission-line sequences,
+    and ignores anything else — a block may legitimately be a plain float (an
+    absorption factor of exactly 1.0, a zero anisotropic-strain width), and a
+    float cannot be written through anyway.  A view is frozen without touching
+    its base, which is what is wanted: the base may be a caller's own array.
+    """
+    if isinstance(value, np.ndarray):
+        value.setflags(write=False)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _freeze(item)
+
+
 def _cached_fcj_nodes(cp: "CompiledPhase", il: int, k: int, variant: int,
                       two_theta_deg, sl, hl, n_nodes: int):
     """``fcj_offsets_weights`` memoised per (line, reflection, call variant) on
@@ -235,6 +251,18 @@ class CompiledPhase:
     # stage-scoped dirty flag, and why a hit can never be stale.  None (no FCJ
     # nodes this stage) keeps the hot loop exactly as before; numpy path only.
     fcj_cache: dict[tuple[int, int, int], tuple] | None = None
+    # Scalar-chain memo (WP-1109): {slot → (key, value)}, one slot per block of
+    # ``phase_peaks`` that depends on a small set of decoded scalars, reused iff
+    # the key compares bit-equal.  Same contract as ``fcj_cache`` one rank up —
+    # input equality, never a dirty flag, so a hit cannot be stale and a reuse
+    # is not a reordered accumulation — and it exists for the same reason:
+    # ``_peak_chain_column`` re-runs the whole of ``phase_peaks`` once per
+    # Jacobian column, at a θ where most of those blocks did not move.  A
+    # column perturbing a Biso leaves the cell block alone; one perturbing the
+    # profile width leaves both the cell block and |F|² alone.  ``None`` keeps
+    # the hot loop exactly as it was; numpy path only, for the reason the FCJ
+    # memo is numpy-only.
+    scalar_cache: dict[str, tuple] | None = None
 
 
 @dataclass
@@ -396,6 +424,116 @@ class CompiledModel:
         if self.mu_t is None:
             return 1.0
         return flat_plate_reflection_absorption(tt_bragg, self.mu_t)
+
+    def _strain_key(self, ip: int, values: dict[str, float]) -> tuple:
+        """The Stephens coefficients of phase ip, or ``()`` when it has none."""
+        if self.phases[ip].strain_monomials is None:
+            return ()
+        return tuple(float(values[f"phases.{ip}.microstrain.{n}"])
+                     for n in S_NAMES)
+
+    def _shift_key(self, values: dict[str, float]) -> tuple:
+        """Every scalar :meth:`_position_shift_deg` reads, by geometry.
+
+        Mirrors that method's structural branch rather than listing all the
+        parameters: a key wider than the shift is merely a missed reuse, but a
+        key *narrower* than it would hand back a stale position, so the two
+        must be read together whenever either changes.
+        """
+        key = [float(values["instrument.zero_shift"])]
+        if self.geometry_kind == "bragg_brentano":
+            key.append(float(values["instrument.geometry.sample_displacement"]))
+            key.append(float(values["instrument.geometry.sample_transparency"]))
+        elif self.geometry_kind == "debye_scherrer" and self.radius_mm:
+            key.extend(float(values[f"instrument.geometry.{name}"])
+                       for name in CAPILLARY_OFFSETS)
+        return tuple(key)
+
+    def _width_block(self, ip: int, values: dict[str, float],
+                     tt_bragg_lines: list, aniso):
+        """The (w₁, w₂) pair of every emission line, at the current widths."""
+        out = []
+        for tt_bragg in tt_bragg_lines:
+            theta = 0.5 * tt_bragg  # Bragg angle drives the widths
+            gam_g = gaussian_fwhm(theta, values["instrument.profile.u"],
+                                  values["instrument.profile.v"],
+                                  values["instrument.profile.w"],
+                                  values[f"phases.{ip}.gauss_size"],
+                                  values[f"phases.{ip}.gauss_strain"])
+            gam_l = lorentzian_fwhm(
+                theta,
+                values["instrument.profile.x"] + values[f"phases.{ip}.lor_size"],
+                values["instrument.profile.y"] + values[f"phases.{ip}.lor_strain"],
+                aniso)
+            out.append(self._peak_widths(gam_g, gam_l))
+        return out
+
+    def _cell_block(self, cp: "CompiledPhase", cell: tuple):
+        """(d, [2θ_Bragg per emission line]) — everything the cell alone fixes.
+
+        One block rather than two memo slots because they share their input and
+        every caller wants both: the line positions are ``two_theta_deg(d, λ)``
+        and nothing else enters them.
+        """
+        d = d_spacings(cp.reflections.hkl, *cell)
+        return d, [two_theta_deg(d, lam) for lam in self.line_wavelengths]
+
+    def _memo(self, cp: "CompiledPhase", slot: str, key: tuple, build):
+        """``build()`` memoised on exact equality of a small scalar ``key``.
+
+        The generalisation of :func:`_cached_fcj_nodes`, and it keeps that
+        function's two rules.  *Input equality, never a dirty flag*: equal
+        inputs give bit-equal outputs because every block below is
+        deterministic, so a hit can never be stale, and the value handed back
+        is the same array the miss would have built rather than a re-summed
+        one — which is what lets the goldens stay bit-identical.  *Numpy only*:
+        under a trace the decoded values are tracers, and one deposited here
+        would leak into a later numpy call while a cached numpy array would
+        constant-fold the block out of the trace.
+
+        ``key`` must hold plain floats.  A numpy array in it would make the
+        ``==`` below elementwise and the truth test ambiguous, which is a
+        raise rather than a wrong answer, but the caller should not get there.
+
+        What is memoised is handed back **read-only**.  Before this memo every
+        ``phase_peaks`` call allocated its own arrays, so a consumer writing
+        into one hurt nobody; now the same array is shared across calls and an
+        in-place write would poison every later evaluation of that phase
+        silently.  ``phase_peaks`` is public, so that consumer need not be in
+        this repository.  Freezing the arrays costs nothing per call and turns
+        the corruption into a ``ValueError`` naming the write.
+        """
+        cache = cp.scalar_cache
+        if cache is None or get_backend().name != "numpy":
+            return build()
+        hit = cache.get(slot)
+        if hit is not None and hit[0] == key:
+            return hit[1]
+        value = build()
+        _freeze(value)
+        cache[slot] = (key, value)
+        return value
+
+    def _atom_key(self, ip: int, values: dict[str, float]) -> tuple:
+        """Every decoded scalar |F|² reads for phase ip, in a fixed order.
+
+        Cheaper than the arrays :meth:`_site_values` stacks from them (a few
+        dozen dict lookups against a structure-factor evaluation), which is
+        what makes it worth building on a call that will then hit the memo.
+        """
+        cp = self.phases[ip]
+        n = cp.sites.n_asym
+        out: list[float] = []
+        for j in range(n):
+            base = f"phases.{ip}.atoms.{j}."
+            out.append(float(values[base + "x"]))
+            out.append(float(values[base + "y"]))
+            out.append(float(values[base + "z"]))
+            out.append(float(values[base + "occ"]))
+            out.append(float(values[base + "biso"]))
+            if cp.sites.any_aniso:
+                out.extend(float(values.get(base + u, 0.0)) for u in U_NAMES)
+        return tuple(out)
 
     def _site_values(self, ip: int, values: dict[str, float], cell: tuple
                      ) -> tuple[np.ndarray, np.ndarray, np.ndarray,
@@ -567,20 +705,36 @@ class CompiledModel:
         (purity: never read mutable state mid-solve).  ``None`` falls back to
         the phase's at-rest buffer, for callers outside the hot loop (plots,
         exporters, replay).
+
+        **The position and width arrays may be shared between calls** and are
+        handed back read-only, because the blocks that build them are memoised
+        on the scalars they read (``CompiledPhase.scalar_cache``).  Copy before
+        writing; ``intensity`` is built fresh every call and is not frozen.
         """
         xp = get_backend()
         cp = self.phases[ip]
         cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        d = d_spacings(cp.reflections.hkl, *cell)
+        # the cell block: d, and with it every per-line Bragg angle.  Memoised
+        # together because they share one input and are always wanted together
+        # — a Jacobian column that perturbs anything but this phase's cell
+        # reuses the lot (``CompiledPhase.scalar_cache``).
+        cell_key = tuple(float(c) for c in cell)
+        d, tt_bragg_lines = self._memo(
+            cp, "cell", cell_key, lambda: self._cell_block(cp, cell))
 
         if self.mode in ("lebail", "pawley"):
             # extracted by partitioning (Le Bail) or refined as θ (Pawley) —
             # identical from here on
             base = cp.hkl_intensity if hkl_intensity is None else hkl_intensity
         else:
-            # |F|² samples the form factors at sinθ/λ = 1/2d — line-independent
-            f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
-                                           *self._site_values(ip, values, cell))
+            # |F|² samples the form factors at sinθ/λ = 1/2d — line-independent,
+            # and a function of the cell and this phase's atoms alone, so a
+            # column perturbing a width or the background reuses it
+            f2 = self._memo(
+                cp, "f2", (cell_key, self._atom_key(ip, values)),
+                lambda: structure_factors_squared(
+                    cp.reflections.hkl, d, cp.sites,
+                    *self._site_values(ip, values, cell)))
             # multiplicity lifted onto the backend: a frozen numpy factor in a
             # product with traced values (backend/api.py)
             mult = xp.asarray(cp.reflections.multiplicity, dtype=np.float64)
@@ -590,8 +744,12 @@ class CompiledModel:
             # leaves the intensity bit-identical then).  It rides ahead of the
             # extinction multiply — both commute — and the extinction variable x
             # still uses the raw |F|², not this product.
-            P = self._po_factors(ip, values, cell)
-            if P is not None:
+            if cp.po_axis is not None:
+                P = self._memo(
+                    cp, "po",
+                    (cell_key,
+                     float(values[f"phases.{ip}.preferred_orientation.r"])),
+                    lambda: self._po_factors(ip, values, cell))
                 base = base * P
             # secondary extinction (model/extinction.py): a per-(line,
             # reflection) intensity multiplier folded in below.  ext=0 makes E
@@ -607,28 +765,57 @@ class CompiledModel:
 
         # anisotropic strain is line-independent (it depends on hkl and the
         # cell, not on λ), so Λ is computed once and reused across the lines
-        aniso = self.strain_width(ip, values, d)
+        strain_key = self._strain_key(ip, values)
+        aniso = self._memo(cp, "aniso", (cell_key, strain_key),
+                           lambda: self.strain_width(ip, values, d))
+
+        # The three per-line blocks below were built inside the loop until
+        # WP-1109 and are hoisted only so each can carry its own memo key; the
+        # arithmetic and the order it happens in are unchanged.  Each names
+        # exactly what it depends on, which is what a Jacobian column's
+        # perturbation is compared against.
+        positions = self._memo(
+            cp, "pos", (cell_key, self._shift_key(values)),
+            lambda: [tt + self._position_shift_deg(0.5 * tt, tt, values)
+                     for tt in tt_bragg_lines])
+        width_key = (cell_key, strain_key,
+                     float(values["instrument.profile.u"]),
+                     float(values["instrument.profile.v"]),
+                     float(values["instrument.profile.w"]),
+                     float(values["instrument.profile.x"]),
+                     float(values["instrument.profile.y"]),
+                     float(values[f"phases.{ip}.gauss_size"]),
+                     float(values[f"phases.{ip}.gauss_strain"]),
+                     float(values[f"phases.{ip}.lor_size"]),
+                     float(values[f"phases.{ip}.lor_strain"]))
+        widths = self._memo(cp, "widths", width_key,
+                            lambda: self._width_block(ip, values, tt_bragg_lines,
+                                                      aniso))
+        if self.mode in ("lebail", "pawley"):
+            lp_lines = absorb_lines = None
+        else:
+            lp_lines = self._memo(
+                cp, "lp",
+                (cell_key, float(values["instrument.polarization"])),
+                lambda: [lorentz_polarization(
+                    tt, values["instrument.polarization"])
+                    for tt in tt_bragg_lines])
+            # µR/µt are frozen at compile, so the cell is the whole key
+            absorb_lines = self._memo(
+                cp, "abs", cell_key,
+                lambda: [self._absorption(tt) for tt in tt_bragg_lines])
 
         out = []
         for il, lam in enumerate(self.line_wavelengths):
             w_line = values[f"instrument.source.lines.{il}.weight"]
-            tt_bragg = two_theta_deg(d, lam)
-            theta = 0.5 * tt_bragg  # Bragg angle drives widths and Lp
-            pos = tt_bragg + self._position_shift_deg(theta, tt_bragg, values)
-            gam_g = gaussian_fwhm(theta, values["instrument.profile.u"],
-                                  values["instrument.profile.v"], values["instrument.profile.w"],
-                                  values[f"phases.{ip}.gauss_size"],
-                                  values[f"phases.{ip}.gauss_strain"])
-            gam_l = lorentzian_fwhm(theta,
-                                    values["instrument.profile.x"] + values[f"phases.{ip}.lor_size"],
-                                    values["instrument.profile.y"] + values[f"phases.{ip}.lor_strain"],
-                                    aniso)
-            gamma, eta = self._peak_widths(gam_g, gam_l)
+            tt_bragg = tt_bragg_lines[il]
+            pos = positions[il]
+            gamma, eta = widths[il]
             if self.mode in ("lebail", "pawley"):
                 # extracted/refined intensities already absorb Lp
                 intensity = base * w_line
             else:
-                intensity = base * w_line * lorentz_polarization(tt_bragg, values["instrument.polarization"])
+                intensity = base * w_line * lp_lines[il]
                 if not cp.skip_extinction:
                     intensity = intensity * sabine_extinction(
                         f2, lam, vol, tt_bragg, ext)
@@ -639,7 +826,7 @@ class CompiledModel:
                 # no θ-derived value is branched on.  Off returns the scalar
                 # 1.0, which keeps a specimen-shape-free model off the code path
                 # entirely rather than merely multiplying by ones.
-                intensity = intensity * self._absorption(tt_bragg)
+                intensity = intensity * absorb_lines[il]
                 # surface roughness (model/corrections.py): a per-(line,
                 # reflection) depression of the low-angle intensity.  Rides
                 # after extinction — all these multiplies commute — and, unlike
@@ -1536,6 +1723,9 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         # whenever any peak has quadrature nodes at all.
         if fcj_on and fcj_n.any():
             cp.fcj_cache = {}
+        # the scalar-chain memo needs no free-path analysis either, for the
+        # same reason: correctness rests on input equality alone
+        cp.scalar_cache = {}
         if mode in ("lebail", "pawley"):
             cp.hkl_intensity = np.full(n, max(float(np.median(y_obs)), 1.0))
         if mode == "pawley":
