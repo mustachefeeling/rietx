@@ -13,11 +13,23 @@ per flag — a missed ``/wp-handover`` (two severities, see below), a venv
 whose editable ``rietx`` pointer resolves to a different tree, any WP whose
 Status glyph is in flight.  Healthy output is one or two lines.
 
-Known limitation, by design: handover entries are day-dated
-(``- **YYYY-MM-DD**`` bullets, per docs/wp/TEMPLATE.md), so a commit followed
-by a missed handover *on the same day* is invisible — the newest entry's date
-already covers the commit's date.  The flag is therefore a prompt, never
-proof of health, and its absence is not evidence the log is current.
+**Two independent coverage rules, because each covers the other's hole**
+(WP-1116).  *Order*: the WP file must have been touched at or after the newest
+**substantive** ``WP-NNNN:`` commit — a commit that is not a merge, does not
+touch this WP's own file, and touches something outside ``docs/``,
+``CLAUDE.md`` and ``.claude/``.  Being SHA-ordered it sees a missed handover
+within the same day, which matters because this repo routinely runs three
+sessions in one (WP-1109, 2026-08-20).  *Date*: the newest handover entry must
+be no older than the newest ``WP-NNNN:`` commit — day-dated, so blind to a
+same-day miss, but it is the only rule that sees a session whose every commit
+was ritual (a docs-only WP).
+
+Entry dates are read in **both** sanctioned forms, the ``- **YYYY-MM-DD**``
+bullet and the ``### YYYY-MM-DD`` heading that multi-session days need
+(docs/wp/TEMPLATE.md, pinned by tests/test_docs_consistency.py).  Parsing only
+the first is what made this scan flag two correctly-handed-over WPs on
+2026-08-20, and a false alarm costs more than no alarm: it teaches the reader
+to skip the one line that is ever load-bearing.
 """
 
 from __future__ import annotations
@@ -33,7 +45,12 @@ REPAIR_HINT = "repair first (/wp-handover, repair mode)"
 
 _WP_COMMIT_RE = re.compile(r"^WP-(\d{4}):")
 _STATUS_RE = re.compile(r"Status:\s*(⬜|🔄|✅|🛑)")
-_ENTRY_DATE_RE = re.compile(r"^- \*\*(\d{4}-\d{2}-\d{2})", re.MULTILINE)
+# Both sanctioned entry forms; docs/wp/TEMPLATE.md § Handover log has the rule.
+_ENTRY_DATE_RE = re.compile(
+    r"^(?:- \*\*|#{2,4} )(\d{4}-\d{2}-\d{2})", re.MULTILINE
+)
+# A path that carries no code and so cannot, by itself, owe a handover.
+_RITUAL_PREFIXES = ("docs/", ".claude/")
 _REPAIR_GLYPHS = ("🔄", "⬜")
 
 
@@ -43,6 +60,7 @@ class Finding(NamedTuple):
     commit_date: str  # newest WP-NNNN: commit date (YYYY-MM-DD)
     entry_date: Optional[str]  # newest handover-log entry date, None if none
     severity: str  # "repair" (open WP) or "note" (closed WP / missing file)
+    basis: str  # "order" (WP file older than the work) or "date" (log behind)
 
 
 def _git(root: Path, *args: str) -> Optional[str]:
@@ -107,16 +125,55 @@ def venv_flag(root: Path) -> Optional[str]:
     return f"venv resolves rietx to {targets[0]}, not this tree — fix: {VENV_FIX}"
 
 
-def wp_commits(root: Path, limit: int = 50) -> dict[str, str]:
-    """Newest ``WP-NNNN:``-prefixed commit date per WP, from the last commits."""
-    out = _git(root, "log", f"-{limit}", "--format=%as\t%s")
-    newest: dict[str, str] = {}
-    for line in (out or "").splitlines():
-        date, _, subject = line.partition("\t")
+class Commit(NamedTuple):
+    sha: str
+    date: str  # YYYY-MM-DD, author date
+    wp: str  # four-digit WP number from the ``WP-NNNN:`` subject prefix
+    is_merge: bool
+    files: tuple[str, ...]
+
+
+def wp_commits(root: Path, limit: int = 50) -> list[Commit]:
+    """The recent ``WP-NNNN:``-prefixed commits, newest first, with their files.
+
+    One ``git log`` pass: a per-commit ``git show`` would be a subprocess per
+    commit, and this runs before every session.
+    """
+    out = _git(
+        root, "log", f"-{limit}", "--name-only", "--format=%x00%H\t%as\t%P\t%s"
+    )
+    commits: list[Commit] = []
+    for chunk in (out or "").split("\x00")[1:]:
+        header, _, body = chunk.partition("\n")
+        parts = header.split("\t", 3)
+        if len(parts) != 4:
+            continue
+        sha, date, parents, subject = parts
         m = _WP_COMMIT_RE.match(subject)
-        if m and date > newest.get(m.group(1), ""):
-            newest[m.group(1)] = date
-    return newest
+        if not m:
+            continue
+        files = tuple(f for f in body.split("\n") if f.strip())
+        commits.append(Commit(sha, date, m.group(1), len(parents.split()) > 1, files))
+    return commits
+
+
+def _is_ritual(commit: Commit) -> bool:
+    """True if this commit cannot, by itself, owe a handover entry.
+
+    A merge carries no new work; a commit touching the WP's own file *is* the
+    record being looked for; and a commit confined to docs, a CLAUDE.md or
+    ``.claude/`` is the rest of the ritual (protocol steps 4-7), which lands in
+    its own commits often enough that requiring the WP file to come last would
+    flag three healthy WPs on this repo's own history.
+    """
+    if commit.is_merge:
+        return True
+    own = re.compile(rf"docs/wp/{commit.wp}-.*\.md$")
+    if any(own.match(f) for f in commit.files):
+        return True
+    return all(
+        f.startswith(_RITUAL_PREFIXES) or f.endswith("CLAUDE.md") for f in commit.files
+    )
 
 
 def wp_file_state(root: Path, wp: str) -> tuple[Optional[Path], Optional[str], Optional[str]]:
@@ -127,22 +184,49 @@ def wp_file_state(root: Path, wp: str) -> tuple[Optional[Path], Optional[str], O
     text = matches[0].read_text(encoding="utf-8", errors="replace")
     m = _STATUS_RE.search(text)
     glyph = m.group(1) if m else None
-    _, sep, log = text.partition("## Handover log")
-    dates = _ENTRY_DATE_RE.findall(log) if sep else []
+    _, sep, log = text.partition("\n## Handover log")
+    # bounded at the next H2: several WPs carry ``## References`` after it
+    log = re.split(r"^## ", log, maxsplit=1, flags=re.MULTILINE)[0] if sep else ""
+    dates = _ENTRY_DATE_RE.findall(log)
     return matches[0], glyph, max(dates) if dates else None
 
 
 def handover_findings(root: Path, limit: int = 50) -> list[Finding]:
+    """Every WP whose handover log is behind its commits, by either rule."""
+    commits = wp_commits(root, limit)
+    newest_commit: dict[str, Commit] = {}
+    newest_work: dict[str, Commit] = {}
+    for c in commits:  # newest first
+        newest_commit.setdefault(c.wp, c)
+        if not _is_ritual(c):
+            newest_work.setdefault(c.wp, c)
+    # Position of each sha in the log, so "the WP file was touched at or after
+    # this commit" is a comparison rather than an ancestry walk.  A sha outside
+    # the window ranks as older than everything in it, which is the honest
+    # reading: the file has not been touched in the last ``limit`` commits.
+    log = (_git(root, "log", f"-{limit}", "--format=%H") or "").splitlines()
+    rank = {sha: i for i, sha in enumerate(log)}
+    OLDEST = len(log) + 1
+
     findings = []
-    for wp, commit_date in sorted(wp_commits(root, limit).items()):
+    for wp, commit in sorted(newest_commit.items()):
         path, glyph, entry_date = wp_file_state(root, wp)
-        if path is not None and entry_date is not None and entry_date >= commit_date:
-            continue  # covered — or the same-day blind spot; see module docstring
         if path is None:
-            severity = "note"  # nothing to reconstruct into; likely renumbered
-        else:
-            severity = "repair" if glyph in _REPAIR_GLYPHS else "note"
-        findings.append(Finding(wp, glyph, commit_date, entry_date, severity))
+            findings.append(Finding(wp, None, commit.date, None, "note", "date"))
+            continue
+        basis = None
+        work = newest_work.get(wp)
+        if work is not None:
+            rel = path.relative_to(root).as_posix()
+            touched = _git(root, "log", "-1", "--format=%H", "--", rel) or ""
+            if rank.get(touched, OLDEST) > rank.get(work.sha, OLDEST):
+                basis, commit = "order", work
+        if basis is None:
+            if entry_date is not None and entry_date >= commit.date:
+                continue
+            basis = "date"
+        severity = "repair" if glyph in _REPAIR_GLYPHS else "note"
+        findings.append(Finding(wp, glyph, commit.date, entry_date, severity, basis))
     return findings
 
 
@@ -163,7 +247,12 @@ def render(root: Path) -> str:
     else:
         lines.append(f"⚠ {vflag}")
     for f in handover_findings(root):
-        entry = f"last handover entry {f.entry_date}" if f.entry_date else "no handover entry"
+        if f.basis == "order":
+            entry = "WP file not touched since"
+        elif f.entry_date:
+            entry = f"last handover entry {f.entry_date}"
+        else:
+            entry = "no handover entry"
         if f.glyph is None:
             lines.append(f"note: WP-{f.wp} commits to {f.commit_date} but no docs/wp/{f.wp}-*.md")
         elif f.severity == "repair":
