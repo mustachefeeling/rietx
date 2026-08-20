@@ -13,6 +13,7 @@ workspace when an agent runs python from somewhere else.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import sys
@@ -81,9 +82,12 @@ def _wrap(owner, attr: str, label: str) -> None:
               path=path)
         return original(*args, **kwargs)
 
+    # functools.wraps, not a hand-copied __name__: round 1.0 wrapped without it,
+    # so inspect.signature showed `traced(*args, **kwargs)` and one agent went to
+    # source to recover a signature.  A shim the subject can see is an
+    # observation effect, and this is the cheapest way to close it.
+    functools.update_wrapper(traced, original)
     traced._rietx_traced = True
-    traced.__name__ = getattr(original, "__name__", attr)
-    traced.__doc__ = getattr(original, "__doc__", None)
     try:
         setattr(owner, attr, traced)
     except (AttributeError, TypeError):

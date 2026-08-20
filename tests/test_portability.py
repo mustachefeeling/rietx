@@ -90,6 +90,13 @@ def _text_io_calls(tree: ast.AST, source: str) -> list[tuple[ast.Call, str]]:
             continue
         if name not in _TEXT_IO:
             continue
+        # os.open returns a file descriptor, never a text stream, and rejects
+        # `encoding=` outright -- so flagging it asks for an argument that
+        # cannot be given.  _NOT_FILE_IO cannot express this: it substring-
+        # matches the receiver, and "os" matches any receiver spelling those
+        # letters, so the exemption is an exact-receiver test instead.
+        if name == "open" and receiver == "os":
+            continue
         if any(bad in receiver for bad in _NOT_FILE_IO):
             continue
         if _is_binary_mode(node):

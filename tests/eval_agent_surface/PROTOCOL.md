@@ -185,3 +185,134 @@ Rwp, the phase fractions, the cells, whether the refinement is any good. The
 round measures the route, not the destination, and a cell that reaches a bad
 refinement through `refine_json` still counts as having reached it. Scoring the
 science would make the model's crystallography the confound.
+
+## Results — round 1.0, run 2026-08-20
+
+Six cells, all completed. Wall clock 10.7–26 min each, 73–206 tool uses,
+144–226 k tokens. Every number below is read off the trace log by
+`score_round.py`, except the reasons, which are the agents' own words.
+
+| cell | `refine_json` | surface it drove the fit through |
+| --- | --- | --- |
+| `bare-1` | **no** | `refine_sequential` (python) |
+| `bare-2` | **no** | `Refinement.fit` (python) |
+| `pointed-1` | yes (5) | `refine_json`, called from a python script |
+| `pointed-2` | **no** | `Refinement.fit` (python) |
+| `mandated-1` | yes (12) | `refine_json` (required) |
+| `mandated-2` | yes (8) | `refine_json` (required) |
+
+### R1 — 0 of 2. The transcript replicates.
+
+Neither unaided agent reached `agent.refine_json`, and both reached
+`capabilities()` first, exactly as the transcript agent did. The finding that
+motivated this WP is not an artefact of one agent on one day.
+
+### R2 — split, 1 of 2, and N = 2 cannot resolve it
+
+`pointed-2` was told the call exists, read enough to understand it, and
+**declined**: "I had a live Python process with the `Structure`/`Instrument`/
+`PatternData` objects already in memory … so going through the JSON envelope
+would have meant serialising them out and back for no benefit — the JSON
+surface exists for callers without direct Python access to the objects."
+
+`pointed-1` **adopted** it, for a reason about the *answer* rather than the
+call: "it's the one call that returns a fully-typed, JSON-serializable
+`RefinementResult` (curves included) plus the three-layer `FitReport` in one
+shot."
+
+So neither branch of the pre-registered decision rule fires unanimously. The
+protocol said N = 2 exists to make a disagreement visible rather than to
+measure a rate, and that is what it did. **This split is the honest result and
+is not resolved by argument.**
+
+### The result neither read-out asked for, and the strongest one
+
+`agent.tool_definition()`, `request_schema()` and `response_schema()` were
+called **zero times, in every cell, across 235 traced interpreter starts** —
+including both mandated cells and the pointed cell that adopted the envelope.
+All 25 `refine_json` calls came from agents that had read the contract from
+`using/agents.md` or from source and were calling it as an **ordinary python
+function inside a python script**.
+
+That reframes the WP's question. `refine_json` is reachable, is sometimes
+chosen, and works well when chosen. What has no consumers here is the
+**tool-calling** half: the exported JSON Schema that exists so an LLM loop can
+call this without writing python. Every agent in this round had a shell and
+wrote python; none of them needed a tool definition, and none fetched one.
+
+### R3 — the price, and where it actually falls
+
+Both mandated cells completed, at ~1.7 s and ~4–6 s per call, with no crash;
+`refine_json` never raised, returning `INVALID_REQUEST` envelopes naming the
+offending dot-paths. The cost is **not in the envelope**, and H1's
+serialisation half is **wrong**: `mandated-1` reports the request "accepted
+live `Structure`/`Instrument`/`PatternData` objects directly in the dict, no
+manual `model_dump()` needed."
+
+H1's core survives in a sharper form, stated by `mandated-2`: driving the fit
+through `refine_json` "still required importing `rietx` itself for the plan
+object model, not just the JSON surface." Everything expensive is **upstream**
+of the call — no `.inp` reader, no path to a CIF, a `Structure` built by hand,
+and a `PlanSpec` built in python to patch one stage of a stock preset. Paying
+that cost puts a caller in python, where the envelope adds only its answer
+shape. That is why a mandated agent likes it and an unaided one never reaches
+for it.
+
+### Two hypotheses closed
+
+- **H2 (discoverability) is refuted as the primary cause.** `pointed-2` knew
+  and declined; `pointed-1` knew and adopted. Neither outcome is explained by
+  not being able to find the page.
+- **H4 (no series coverage) stays refuted**, but a real coverage gap in the
+  same family was found: `refine_json` **cannot express a parameter tie**
+  (WP-1070's `tie`/`tie_equal`), so `mandated-2` could not ask for the `.inp`'s
+  single shared `boverall` across 15 atoms.
+
+### Defects in this round's own instrument
+
+- **The shim was visible.** `rietx_surface_trace.py` wraps without
+  `functools.wraps`, so `inspect.signature` showed the wrapper and `pointed-2`
+  went to source to recover a signature. An observation effect, small but real.
+  Fix before 1.1.
+- **The workspace had no plotting library.** `rietx` was installed without
+  extras, so `plot_result`/`write_html` were unusable and **four of six** agents
+  hand-rolled an SVG writer. That is a defect in the workspace, not a finding
+  about the package, and no conclusion is drawn from it — though it is worth
+  noting that four independent agents judged a picture worth writing a plotter
+  for.
+- **Attribution**, per the amendment above. Fix in 1.1 with one venv per cell.
+
+### What the round found about the package
+
+Not read-outs, but the reason a real episode beats a fixture. Each is in the
+WP's friction list with its evidence.
+
+- **The cell of a phase at zero scale runs away.** Two agents independently:
+  a ≈ 39 293 Å and a ≈ 40 000 Å, refused several stages later by
+  `generate_reflections`. `Structure.from_cif` gives cell bounds `(0.1, ∞)`, and
+  a phase with no intensity has no gradient, so TRF steps freely in a near-null
+  direction.
+- **A good fit can return `esd: None` for every parameter** — two parameters
+  legitimately at their softplus zero poison the one whole-vector covariance
+  inversion.
+- **`Parameter.expr` is planned around.** `mandated-1` proposed it as the way to
+  tie `biso` across atoms. It always raises.
+- **The plan types are two.** `PLAN_PRESETS` hands back
+  `strategy.staged.RefinementPlan`/`Stage` (dataclasses); the request wants
+  `schemas.plan.PlanSpec`/`StageSpec` (pydantic).
+- **A VT reel's temperature is not public.** `pointed-1` read
+  `_Range.temperature_k` off the private `bruker_raw._parse()` to get 318/323/333 K.
+- **`bound_findings`' relative tolerance misfires on wide bounds** — scale bounds
+  `[1e-14, 1e14]` read as "at its bound" at every stage.
+- **The wheel ships the maintainer's rulebooks.** `bare-1` read
+  `rietx/io/CLAUDE.md` "shipped inside the package tree, not just the repo".
+
+### For the speed milestone
+
+`pointed-1` abandoned a warm-started `refine_sequential`: pattern 1 converged in
+~50 s, pattern 2's `refit="single"` collapse ran past 150 s unfinished, on a
+4-phase model whose `cell` stage alone cost 22 s. Its reading is that collapsing
+six stages into one runs a single TRF over ~30 free parameters, and the
+per-iteration Jacobian width eats the iteration-count saving WP-0505 measured.
+That is a v1.1 datum on a real trigger-shaped model, and it belongs to the
+harness WP rather than here.
