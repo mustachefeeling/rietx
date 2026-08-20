@@ -368,6 +368,23 @@ ignoring a bound pinned in most patterns.
 
 ### 2026-08-20 (third session) — the zero-scale cell runaway, bounded and named
 
+A phase that is not in your specimen can no longer wreck the run. Before this,
+a phase whose scale fell to nothing left its cell free to drift with no effect
+on the fit, so the fit reported success while the cell left the physical range
+entirely and the job died much later with an error about reflection lists — the
+failure two agents hit independently on a 68-pattern series. Now such a cell is
+held near where it started, the package says which phase the data cannot see and
+which of its numbers are therefore not measurements, and on a long run it says
+"42 of 68" once instead of the same warning 425 times. A fit that was already
+working is untouched, to the last bit.
+
+What that cost is worth recording: the first version of the fix bounded *every*
+phase's cell, and that quietly made a real refinement worse — a bound is not
+free, because the solver takes its step size from how far the bounds are. It
+was caught by the full test suite, not by review, and the shipped version spends
+a bound only where the alternative is a parameter the data cannot constrain at
+all.
+
 *Done.* Items **13** and **8**, which the round found and which turned out to be
 one failure seen at two ranks. A phase reaches the pattern only through
 `scale × |F|² × profile`, so a phase at its scale floor is a flat direction: the
@@ -412,6 +429,16 @@ Full suite, same venv and platform: **2645 passed, 126 skipped in 22:33**, zero
 failures. It fired **twice**, deliberately — the ladder says once on the final
 tree, and the first run's tree turned out not to be final. That run is the whole
 reason this WP shipped a correct design.
+
+The count check, both selections. Twenty tests added, all in
+`tests/test_absent_phase.py`, one of them `@slow`. **Fast**: 2517 → 2536
+passed, +19, and nineteen is exactly the non-slow count; skipped unchanged at
+117, so **no new skip and no skip counted as a pass**. **Full**: 2645 passed
+against an implied 2625 on main — +20, the fast delta plus the one `@slow` row,
+which is the consistency `tests/CLAUDE.md` asks for rather than a second
+hour-long baseline run; skipped unchanged at 126. The two full runs bracket it
+independently: the first, on the pre-correction tree, was 2639 passed + 3 failed
+= 2642 non-skipped with seventeen tests present, and 2642 + 3 later tests = 2645.
 
 **The full suite is what made that true.** The first design windowed every
 phase, and it regressed three `test_acceptance_sequential` rows that pass on
