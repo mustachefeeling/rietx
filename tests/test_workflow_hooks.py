@@ -178,3 +178,61 @@ def test_venv_pointer_resolution(repo: Path, tmp_path: Path) -> None:
         / "_editable_impl_rietx.pth"
     ).write_text(f"{repo / 'src'}\n", encoding="utf-8")
     assert hook.venv_flag(repo) is None
+
+
+# --------------------------------------------------------------------------- #
+# The parser against the REAL corpus.
+#
+# Every test above builds its own WP file, in the one spelling the parser was
+# written for -- so between them they could not notice that no WP in this repo
+# uses it.  TEMPLATE.md writes `- **YYYY-MM-DD**`; every real handover log
+# writes `### YYYY-MM-DD — title`, so the scan read the whole corpus as having
+# no handover entries and flagged every open WP with recent commits as
+# `repair first`.  tests/CLAUDE.md § Guards that go quiet: a guard that pins a
+# copy of a string living somewhere else tests the copy, not the thing.
+# --------------------------------------------------------------------------- #
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _wp_files_with_a_log() -> list[Path]:
+    out = []
+    for path in sorted((REPO_ROOT / "docs" / "wp").glob("[0-9]*.md")):
+        _, sep, log = path.read_text(encoding="utf-8").partition("## Handover log")
+        if sep and log.strip():
+            out.append(path)
+    return out
+
+
+def test_the_parser_reads_every_real_handover_log() -> None:
+    """The scan must find an entry date in every WP that has entries.
+
+    This is the guard the synthetic tests cannot be: it reads the corpus the
+    hook actually runs against, so a WP-file convention that drifts away from
+    the parser fails here instead of going quiet.
+    """
+    files = _wp_files_with_a_log()
+    assert len(files) > 5, f"expected a real corpus, found {len(files)} WP logs"
+    unread = [
+        p.name for p in files
+        if hook.wp_file_state(REPO_ROOT, p.name[:4])[2] is None
+    ]
+    assert not unread, (
+        "handover logs the session-start scan cannot read a date out of "
+        f"(so every open one of them is flagged 'repair first'): {unread}"
+    )
+
+
+def test_both_entry_spellings_parse() -> None:
+    """The template's bullet and the corpus's heading are both entries.
+
+    Pinned together so neither can be dropped in favour of the other without
+    a red test -- the drift above was silent precisely because only one of
+    them was ever exercised.
+    """
+    assert hook._ENTRY_DATE_RE.findall("- **2026-08-20** — an entry.") == ["2026-08-20"]
+    assert hook._ENTRY_DATE_RE.findall("### 2026-08-20 — an entry") == ["2026-08-20"]
+    assert hook._ENTRY_DATE_RE.findall("## 2026-08-20 — an entry") == ["2026-08-20"]
+    # not an entry: prose that merely opens with a date, and an undated heading
+    assert hook._ENTRY_DATE_RE.findall("2026-08-20 was the day") == []
+    assert hook._ENTRY_DATE_RE.findall("### the third session") == []

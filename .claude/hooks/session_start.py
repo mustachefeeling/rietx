@@ -45,7 +45,13 @@ REPAIR_HINT = "repair first (/wp-handover, repair mode)"
 
 _WP_COMMIT_RE = re.compile(r"^WP-(\d{4}):")
 _STATUS_RE = re.compile(r"Status:\s*(⬜|🔄|✅|🛑)")
-# Both sanctioned entry forms; docs/wp/TEMPLATE.md § Handover log has the rule.
+# Two spellings, because the corpus and the template disagree: TEMPLATE.md
+# writes "- **YYYY-MM-DD** — ...", every real WP writes "### YYYY-MM-DD — ...".
+# Matching only the template made this scan report "no handover entry" for
+# every WP in the repo, so an open one was flagged `repair first` however
+# complete its log was (measured 2026-08-20 on WP-1109 and WP-1110).  Both
+# forms are now sanctioned rather than merely tolerated — docs/wp/TEMPLATE.md
+# § Handover log carries the rule and tests/test_docs_consistency.py pins it.
 _ENTRY_DATE_RE = re.compile(
     r"^(?:- \*\*|#{2,4} )(\d{4}-\d{2}-\d{2})", re.MULTILINE
 )

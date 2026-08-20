@@ -87,19 +87,20 @@ neighbouring peak's tail. A refinement still gives 1.0.1's numbers. Releasing
 it is `docs/RELEASING.md`, and nothing gates it now.
 
 **v1.1 — refinement speed — is in flight (opened 2026-08-20**, version
-`1.1.0.dev0`; scope and targets: [milestones/v1.1.md](milestones/v1.1.md)).
-Performance is the competitiveness priority: the trigger session spent 3 h
-20 min in refinements TOPAS fits in under a second each. **[1109](wp/1109-refinement-speed.md) closed 2026-08-20**:
-every win available without changing an answer is taken, bit-identical
-(1.09–1.14× on `cpd-1a`, 1.12–1.16× on `cpd-2`). Execution order from here, one
-WP per session: [1111](wp/1111-benchmark-harness.md) harness — whose opening
-baseline must be measured on the *current* tree, not on 1109's opening table →
-[1112](wp/1112-batched-derivative-bases.md) batched Jacobian path →
-[1113](wp/1113-evaluation-count.md) evaluation count (may interleave) →
-[1114](wp/1114-peaks-buffer-spike.md) spike →
-[1115](wp/1115-compiled-kernel-spike.md), gated on the harness still missing
-the targets. [1110](wp/1110-agent-surface-friction.md) and
-[1116](wp/1116-session-protocol-hygiene.md) ride alongside.
+`1.1.0.dev0`; scope, acceptance targets and the opening narrative:
+[milestones/v1.1.md](milestones/v1.1.md)). Performance is the
+competitiveness priority: the trigger session spent 3 h 20 min in
+refinements TOPAS fits in under a second each.
+**[1109](wp/1109-refinement-speed.md) closed 2026-08-20**: every win available
+without changing an answer taken, bit-identical (1.09–1.14× `cpd-1a`, 1.12–1.16×
+`cpd-2`). **[1111](wp/1111-benchmark-harness.md) closed 2026-08-20**: seven cases
+in `examples/bench_refinement.py`; opening baseline **50 s** cold (1 188 pairs) vs
+low single digits, **4.5–22.4 s** warm/pattern vs ~1 s — quote it, never a new one.
+One WP per session from here: [1112](wp/1112-batched-derivative-bases.md) batched
+Jacobian path → [1113](wp/1113-evaluation-count.md) evaluation count →
+[1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
+[1115](wp/1115-compiled-kernel-spike.md), gated on the harness still missing the
+targets. [1110](wp/1110-agent-surface-friction.md) and [1116](wp/1116-session-protocol-hygiene.md) ride alongside.
 
 Parked, in rough order, for after v1.1 — none of it blocks a speed session:
 the 1.0.0-release-notes promises (`.rex` zip transport;
@@ -373,7 +374,7 @@ answered by a pre-registered round before any placement ships (1107).
 | [1106](wp/1106-report-placement-fields.md) | Report placement fields: structured where prose was load-bearing | ✅ | — |
 | [1107](wp/1107-eval-placement-round.md) | Eval protocol 2.2: the placement round | ✅ 2026-08-19 | 1105, 1106 |
 | [1108](wp/1108-license-statistics-placement.md) | The license beside the numbers: shipping the statistics placement | ✅ 2026-08-19 | 1107 |
-| [1110](wp/1110-agent-surface-friction.md) | The agent surface, measured against an agent that used it | ⬜ | — |
+| [1110](wp/1110-agent-surface-friction.md) | The agent surface, measured against an agent that used it | 🔄 2026-08-20 | — |
 
 ### v1.1 — refinement speed (added 2026-08-20)
 
@@ -386,7 +387,7 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1109](wp/1109-refinement-speed.md) | Refinement speed: where the time actually goes | ✅ 2026-08-20 | — |
-| [1111](wp/1111-benchmark-harness.md) | The refinement benchmark harness, and the trigger-shaped case | ⬜ | — |
+| [1111](wp/1111-benchmark-harness.md) | The refinement benchmark harness, and the trigger-shaped case | ✅ | — |
 | [1112](wp/1112-batched-derivative-bases.md) | The batched derivative side, and η-aware windows | ⬜ | 1111 |
 | [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | ⬜ | 1111 (soft) |
 | [1114](wp/1114-peaks-buffer-spike.md) | Peaks-buffer spike: shape reuse across 2θ | ⬜ | 1112 |

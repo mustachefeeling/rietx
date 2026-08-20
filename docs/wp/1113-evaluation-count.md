@@ -13,6 +13,22 @@ acceptance case is understood and either fixed or fenced with a reason.
 
 ## Context
 
+### Inherited
+
+From WP-1111 (2026-08-20), which inherited it from WP-1110's agent round and
+could not act on it: an agent asked for **a cheap callable cost estimate —
+reflections × free parameters — so a caller can size a model before spending
+minutes discovering it is too big**. It landed nowhere because 1111's
+non-goals forbid production changes outright (a harness that ships with an
+optimisation can no longer measure it), and it belongs here rather than in
+1112 because the quantity being predicted *is* this WP's: cost = per-evaluation
+work × evaluation count, and 1111's `_shape` already computes the first half
+(fitted points, (line, reflection) pairs, mean window width) off a compiled
+model without fitting. Whether it ships is this WP's call — it may equally be
+a v1.2 API item — but it should not be dropped silently. The motivating
+observation is one agent on one loaded box: treat it as a request, not a
+measurement.
+
 All numbers from WP-1109's 2026-08-20 review (QPA-acceptance `cpd-2`, 4
 phases, 9 cumulative stages, worktree venv `[dev]`, darwin/arm64) unless
 said otherwise.

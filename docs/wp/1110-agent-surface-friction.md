@@ -1,6 +1,6 @@
 # WP-1110 — the agent surface, measured against an agent that used it
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: 🔄 2026-08-20 — the shaping question answered by a real-agent round; the twenty friction items unstarted
 Depends on: —
 
 ## Goal
@@ -64,9 +64,14 @@ nobody calls is not a tool surface.
    `PLAN_PRESETS[name].stages` raises `'function' object has no attribute
    'stages'`; then `Stage` is a dataclass, so `.model_dump()` raises too, in a
    package where everything else is pydantic. Verified.
-5. **`Parameter.expr` is an accepted schema field that always raises.**
-   `schemas/common.py:91` refuses it as "not implemented". An agent sets it,
-   validation passes, and the failure arrives later. Verified.
+5. **`Parameter.expr` is a declared field that always raises.**
+   `schemas/common.py`'s `_check_bounds` refuses it as "not implemented".
+   **Corrected 2026-08-20**: the refusal is a `model_validator(mode="after")`,
+   so it fires *at construction*, not later at use — the first reading of this
+   item was wrong, and the message it raises is a good one, naming the affine
+   tie block as the alternative. What survives is narrower and still real: a
+   declared field that can only ever raise advertises a capability the package
+   does not have.
 6. **There is no evaluate-only path.** The agent wanted y_calc at known
    parameters to redraw a fit. A zero-stage plan raised a bare `AssertionError`;
    `Refinement.predict` raised `RuntimeError: call fit() first`. Its workaround
@@ -102,10 +107,103 @@ nobody calls is not a tool surface.
     everywhere and no `Project`. The history DAG, the thing that makes a run
     restorable, was switched off for the whole 3 h.
 
+12. **`rietx.__version__` does not exist.** The universal python convention
+    for "what am I running" raises `AttributeError`. The answer is
+    `capabilities().package_version`, which a caller can only reach by already
+    knowing about `capabilities()`. Found by this session's own first move,
+    not by the transcript — which is the point: it is the first thing anyone
+    types. Verified.
+
+## The decision, taken 2026-08-20 by a real-agent round
+
+The last task below was the one the others depended on, and it is answered:
+six Sonnet agents on this dataset, `tests/eval_agent_surface/PROTOCOL.md`
+round 1.0, registered before any run. Headlines, with the full record there:
+
+- **Neither unaided agent reached `refine_json`** (R1 = 0 of 2), and both
+  called `capabilities()` first. The transcript is not one agent's bad day.
+- **Told about it, one agent adopted it and one declined** (R2 split 1 of 2).
+  N = 2 makes the disagreement visible; it does not resolve it, and nothing
+  here pretends otherwise.
+- **The tool-calling half has no consumers.** `agent.tool_definition()`,
+  `request_schema()` and `response_schema()` were called **zero times in every
+  cell across 235 traced interpreter starts**, including both cells *required*
+  to drive the fit through `refine_json`. All 25 `refine_json` calls came from
+  agents calling it as an ordinary python function inside a python script,
+  having read its contract from the manual or from source.
+
+So the question "why was `refine_json` not reached" had a false premise. It is
+reachable, it is sometimes chosen, and it works when chosen — `mandated-1` fixed
+a real ρ≈1.000 degeneracy off its diagnostics and got its esds back. What no
+coding agent in this round wanted is the **JSON Schema export**: an agent with a
+shell writes python, and a caller in python already holds the objects.
+
+**Two of this WP's own claims were wrong and are corrected**, which is the
+reason to trust the rest. `refine_json` does **not** cost a serialisation round
+trip — it accepts live `Structure`/`Instrument`/`PatternData` objects in the
+dict. And item 5's "validation passes, the failure arrives later" is false;
+`Parameter.expr` raises at construction.
+
+What survives, stated by `mandated-2`: driving a fit through `refine_json`
+"still required importing `rietx` itself for the plan object model, not just the
+JSON surface." **Everything expensive is upstream of the call** — no `.inp`
+reader, no path to a CIF, a `Structure` built by hand, a `PlanSpec` built in
+python to patch one stage of a preset. Paying that puts you in python.
+
+**Therefore the investment belongs in the python surface's ergonomics and its
+diagnostics**, and `refine_json` is for MCP callers and process boundaries
+rather than for coding agents — the branch this WP pre-registered, reached on a
+split rather than a sweep, and reported as such.
+
+### Found by the round, and not in the list above
+
+Each is a real failure of an agent doing real work on the trigger dataset.
+
+13. **A phase at zero scale has its cell freed, and the cell runs away.** Two
+    agents independently: a ≈ 39 293 Å and a ≈ 40 000 Å, refused several stages
+    downstream by `generate_reflections`. `Structure.from_cif` gives cell bounds
+    `(0.1, ∞)`; a phase with no intensity has no gradient there, so TRF steps
+    freely in a near-null direction. The scale is already at its floor when the
+    cell stage turns the cell on. A default cell bound of ~±5 % taken from the
+    CIF's own starting cell needs no third-party number.
+14. **A good fit can return `esd: None` for every parameter.** Rwp 0.081,
+    GoF 1.13, visually clean, not one usable esd: two parameters legitimately at
+    their softplus zero contribute zero-gradient columns that poison the single
+    whole-vector covariance inversion. Dropping them broke convergence and cost
+    15× the wall clock.
+15. **The plan types are two.** `PLAN_PRESETS` and `capabilities().plans` hand
+    back `strategy.staged.RefinementPlan`/`Stage` (dataclasses); a request wants
+    `schemas.plan.PlanSpec`/`StageSpec` (pydantic). Same field names. Passing a
+    preset straight in returns `INVALID_REQUEST`, and both mandated agents had
+    to rebuild it field by field. This is item 4 with teeth.
+16. **`refine_json` cannot express a tie.** WP-1070's `tie`/`tie_equal` has no
+    counterpart in a request, so the `.inp`'s shared `boverall` across 15 atoms
+    was inexpressible through the JSON surface.
+17. **A VT reel's temperature is not public.** `read_pattern` does not surface
+    it, so an agent read `_Range.temperature_k` off the private
+    `bruker_raw._parse()` to recover 318/323/333 K. On an in-situ series the
+    series coordinate is the point of the experiment.
+18. **`bound_findings`' relative tolerance misfires on wide bounds.** With scale
+    bounds `[1e-14, 1e14]` the `1e-8 × span` tolerance is enormous, so the scale
+    read as "at its bound" at every stage. `Parameter.positive()` reproduced an
+    identical Rwp to six figures and cleared it.
+19. **There is no TOPAS `.inp` reader**, so every agent transcribed the model by
+    hand — including inferring that a missing backtick means "fixed". All six
+    named this as the hardest part. A mistyped coordinate stays symmetry-valid
+    and fails silently.
+20. **The wheel ships the maintainer's rulebooks.** An agent read
+    `rietx/io/CLAUDE.md` "shipped inside the package tree, not just the repo".
+    `src/rietx/io/CLAUDE.md` sits under the package directory, so it is packaged.
+
+**Item 8 and item 10 did not reproduce.** Every agent that met a `BOUND_HIT` or
+a `HIGH_CORRELATION` read it and either acted or said why not, and two reached
+for `refine_sequential` unprompted rather than hand-rolling a chain. The
+transcript's silent-science failures are not what this surface does to an agent
+by default — which is worth as much as any of the items above.
+
 ## Tasks
 
-Not yet ordered into commits — this WP is the finding, and its shape is a
-decision the maintainer should take first. Candidates, roughly by value:
+The decision above is taken, so these are now ordered. Candidates, by value:
 
 - [ ] **Yank `0.0.0` from PyPI** (item 1). One action, removes a silent-failure
       mode for every new user on an older Python. Note `docs/RELEASING.md`'s rule:
@@ -130,14 +228,16 @@ decision the maintainer should take first. Candidates, roughly by value:
       `constraints.md` that is one `{ref}` to the concepts section, and the same
       for any other name a caller would guess. Same class as the item above:
       the content exists and is not being reached.
-- [ ] **Decide why `refine_json` was not reached** — the question the others
-      depend on. The chapter exists, is linked from the front page, and names
-      the call in its first two sentences (Context above), so "write more docs"
-      is already refuted. Answer it with a real agent, not by reasoning: give
-      one the same data and watch where it goes. If the answer is that a
-      shell-driving agent will always prefer composable python, then the
-      investment belongs in the python surface's ergonomics and its diagnostics,
-      and `refine_json` is for MCP callers rather than for coding agents.
+- [x] **Decide why `refine_json` was not reached** — **done 2026-08-20**, by
+      the registered six-agent round rather than by reasoning (§ The decision).
+      The question's premise was false. It *is* reached once an agent is told,
+      by one of two `pointed` agents; what has no consumers is the **exported
+      schema** — `tool_definition()`/`request_schema()`/`response_schema()`
+      called zero times in every cell across 235 traced interpreter starts,
+      including both cells required to use `refine_json`. The branch this WP
+      pre-registered is the one taken: **the investment belongs in the python
+      surface's ergonomics and its diagnostics**, and `refine_json` is for MCP
+      callers and process boundaries rather than for coding agents.
 
 ## Acceptance
 
@@ -153,6 +253,72 @@ ignoring a bound pinned in most patterns.
 ```
 
 ## Handover log
+
+### 2026-08-20 (second session) — the round run, and the premise corrected
+
+*Done.* The decision item answered with real agents rather than by reasoning:
+`tests/eval_agent_surface/PROTOCOL.md` round 1.0 — three conditions
+(`bare`/`pointed`/`mandated`), N = 2, sonnet, on the trigger dataset itself,
+**registered and committed before any run**. Its Results section carries every
+number and § The decision above carries what it settled. Eight new friction
+items (13-20) came out of watching agents work, and **two of this WP's own
+claims were corrected**. Four things landed alongside, each named in its own
+commit: the v3 RAW gate that the round could not start without, the round's
+shim and scorer, the session-start hook's entry-date parser, and a false
+positive in `test_portability`.
+
+*Measured.* R1 = **0 of 2** — neither unaided agent reached `refine_json`,
+replicating the transcript. R2 = **split, 1 of 2**, and it stays split: N = 2
+was declared as a device for making a disagreement visible, not for measuring a
+rate, so no branch of the decision rule is claimed as swept. The result that
+decided the WP is one neither read-out asked for: `agent.tool_definition()`,
+`request_schema()` and `response_schema()` were called **zero times in every
+cell across 235 traced interpreter starts**, including both cells *required* to
+use `refine_json`; all 25 `refine_json` calls were python function calls inside
+python scripts. Test counts, **this worktree's own venv, `[dev]`,
+darwin/arm64**: fast selection `-m "not slow"` **2562 passed, 72 skipped**,
+from 2559 passed / 72 skipped before this session. Three tests added, three new
+passes, **no new skip**: the RAW zero-pad test, and two on the hook (the real
+corpus, and both entry spellings). **The full suite was not run, deliberately**
+— nothing here can move a number it measures: the RAW gate only *widens*
+acceptance for a zero-padded v3 file and no committed fixture is one (the two
+Bruker fixtures are v4 and `.brml`), and the rest is tests, hooks and docs.
+`sphinx -W` clean, `ruff` clean.
+
+*In flight.* Nothing running. Twenty friction items are unstarted; the Tasks
+list is ordered now because the decision that ordered it is taken.
+
+*Next.* Item 13 first — the zero-scale cell runaway, hit independently by two
+agents, refused several stages downstream of its cause, with a fix
+(`Structure.from_cif` defaulting cell bounds to ~±5 % of the CIF's own cell)
+that needs no third-party number. Then 15 (the two plan types) and 17 (the VT
+temperature), both of which cost every agent real time. **Do not start with the
+JSON surface**: the round says a coding agent's investment is the python one.
+Milestone-wise the maintainer's own ordering still puts **WP-1111 ahead of all
+of these** — it gates 1112-1115.
+
+*Gotchas.* (a) The round's own instrument had two defects, both recorded in
+PROTOCOL.md and both fixed: the shim wrapped without `functools.wraps`, so an
+agent saw `rietx_surface_trace.py` and went to source; and attribution by cwd
+measured almost nothing, because a subagent runs python from wherever its shell
+sits and `python -c` leaves nothing in argv. Round 1.1 should give each cell its
+own venv so attribution is a property of the environment. (b) **The experiment
+venv had no matplotlib**, so four of six agents hand-rolled an SVG plotter. That
+is a workspace defect of mine, not a finding about the package, and nothing is
+concluded from it. (c) The dataset is the maintainer's; its URL and fetch date
+are in PROTOCOL.md § The episode, and it is **committed nowhere in this repo**,
+so re-running the round means fetching it again. (d) `pointed-1`'s abandoned
+`refine_sequential` is a **speed** datum and is pushed to WP-1111's
+`### Inherited`, not kept here. (e) The reader fix (`552f3e18`) is work outside
+this WP's list and was unavoidable: `read_pattern` refused the trigger file, so
+no round was possible without it. (f) The session-start hook fix is likewise
+outside the list, and arrived through the ritual's memory sweep rather than the
+task list: the hook parsed only `TEMPLATE.md`'s `- **date**` bullets while every
+real log writes `### date` headings, so it flagged *every* open WP with recent
+commits as `repair first` — including this one, at this session's own start. Its
+synthetic tests could not see it because they built fixtures in the parser's own
+spelling, so the new guard reads the real `docs/wp/` corpus and was confirmed to
+fail on the old regex before being trusted.
 
 ### 2026-08-20 — the transcript, read
 

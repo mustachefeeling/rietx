@@ -166,7 +166,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # v1.1 speed set (1109 moved + five new rows and its intro) and the v1.1
     # Milestones row.  Same rule as the bump above: rows cannot go down a
     # rank, so the cap grows with the WP count and with nothing else.
-    "docs/ROADMAP.md": 438,
+    # 438 -> 439 for WP-1116 (2026-08-20): its own index row, and only that.
+    # The same WP also rewrote § Session protocol's rule 3, which is two lines
+    # longer — prose, so by the rule above it earns no bump and was paid for
+    # by compressing Current focus instead.  That is the rule working: the
+    # cap is a budget on narrative, and a row is not narrative.
+    "docs/ROADMAP.md": 439,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
@@ -178,7 +183,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # a cross-fit agreement tolerance needs the measured cross-platform
     # spread.  The section covered wall-clock budgets only, and the weekly CI
     # failure that taught the rule was numeric.
-    "tests/CLAUDE.md": 205,
+    # 205 -> 223 for WP-1110 (2026-08-20): a second eval protocol exists
+    # (tests/eval_agent_surface/), and a session under tests/ that does not
+    # know it will either miss it or pool its cells with the first one's.  The
+    # clause is a rule about comparability and about what a shim owes its
+    # subject, not a record of the round — that lives in the WP and the
+    # protocol.  Same rule as the bumps above: this file grows for a rule that
+    # nothing else in it carried.
+    "tests/CLAUDE.md": 223,
     # 250 at the WP-1060 split; raised once, for WP-1046's two standing rules
     # (which layer may apply a cap, and that agreement outranks the panel) —
     # both measured, and every number behind them is in the v1.0 appendix
