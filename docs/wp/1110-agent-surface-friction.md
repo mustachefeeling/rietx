@@ -303,6 +303,52 @@ a stage takes ~170 stages, which a 68-pattern series has. `PHASE_UNCONSTRAINED`
 is what closes that, and `SEQUENTIAL_PERSISTENT_FINDING` is what makes it
 legible across the series rather than 68 times over.
 
+## The two plan types, and the accident underneath them
+
+Item 15 read as an inconvenience — a request refuses a preset, so rebuild it
+field by field. Reproduced on this tree it is worse than that, and the worse
+half was found by testing the *other* direction.
+
+**Both directions were broken, and only one of them said so.** Passing a
+`RefinementPlan` to `refine_json` adds two validation errors over passing the
+equivalent `PlanSpec` (six against four, with the same empty models) — loud,
+and what both mandated agents hit. Passing a `PlanSpec` to `fit(plan=...)`,
+against an annotation reading `RefinementPlan | str`, **ran**: a five-stage
+`profile_only` fit on the synthetic pattern returned Rwp and all its refined
+values bit-identical to the same fit driven by the dataclass. It works because
+`PlanSpec`/`StageSpec` share *every* field name with the dataclasses and a plan
+is only ever read. That is an accident of two types agreeing, not a contract,
+and it ends the first time a stage grows a field or a consumer calls a method.
+
+So the crossing is by `isinstance` on the real class, never by duck-typing on
+`.stages` — a structural test would have certified exactly the accident above.
+And it lives at the two authorities that already own the mirror rather than at
+any call site: `PlanSpec`/`StageSpec` validate the dataclass inbound,
+`resolve_plan` converts the spec outbound. `agent.py` dropped its own copy of
+the conversion at the same time; the GUI's `_as_plan_argument` keeps its
+`to_plan()`, because that call is *validating a raw JSON dict*, which is a
+different job from crossing between two live objects.
+
+**Two error messages carry the rest of item 4**, on the WP's own thesis that an
+error message is the documentation an agent reads. `PLAN_PRESETS[name].stages`
+said `'function' object has no attribute 'stages'`, naming neither the registry
+nor the call; it now names the call and says why the entry is a builder (a plan
+is a mutable dataclass, so a shared instance would carry one caller's edit to
+the next). `Stage`/`RefinementPlan` are the only two objects a caller handles
+here that are not pydantic models, so `.model_dump()` is the natural next
+keystroke, and it now names the mirror. The factory wrapper carries
+`functools.update_wrapper`, so `help()` and `inspect.signature` still reach the
+builder — round 1.0's own instrument lost an agent to the source over a wrapper
+that did not.
+
+**The other formats hold no specimen temperature** (item 17), checked rather
+than assumed: `.rasx`'s `CW_Temperature1`/`CW_Temperature2` are the cooling
+water and `RE_EnclosureTemp` is the cabinet, and `bruker_absorber.brml` has no
+temperature field at all. The Bruker `.raw` v3 range header is the one field
+here that the format itself names, so it is the one that is surfaced. Reading a
+specimen coordinate off an axis named for something else would be inventing a
+convention — the one repair a reader may never make.
+
 ## Tasks
 
 The decision above is taken, so these are now ordered. Candidates, by value:
@@ -325,13 +371,25 @@ The decision above is taken, so these are now ordered. Candidates, by value:
       some of its members. Verified to reproduce the episode's own numbers.
       It aggregates whatever fired rather than a list of codes, so a new code
       is summarised on the day it lands.
+- [x] **Give a series its own coordinate** (item 17) — **done 2026-08-21**.
+      `read_pattern` and `list_scans` both surface the temperature a `.raw` v3
+      range records; § The two plan types' last paragraph has what the other
+      formats hold. Not on the task list before this session, because the list
+      predates the round that found the item.
+
 - [ ] **Add the evaluate-only path** (item 6). `Refinement.predict` before a fit,
       or a documented `evaluate(values)`, so redrawing a fit is not a refit.
       Retiring the `AssertionError` on a zero-stage plan belongs here.
 - [ ] **Fix the API sharp edges**: `rwp` on the result (or a clear error naming
-      `statistics.rwp`), `PLAN_PRESETS` values that behave like plans or are
-      documented as factories, and `Parameter.expr` either implemented or
-      rejected at validation rather than at use.
+      `statistics.rwp`), and `Parameter.expr` either implemented or rejected at
+      validation rather than at use. **Two of the four are done 2026-08-21** —
+      `PLAN_PRESETS` (items 4/15, § The two plan types) and `rietx.__version__`
+      (item 12, which was in the friction list and on no task line). What is
+      left is `RefinementResult.rwp`, the most expensive single item in the
+      list — its `AttributeError` fires *after* the refinement it loses — and
+      `Parameter.expr`, where item 5's correction leaves only "a declared field
+      that can only ever raise advertises a capability the package does not
+      have", i.e. remove it.
 - [ ] **Make a guessed page name land somewhere.** The agent fetched
       `using/constraints.html` and got a 404 — but constraints *are* documented,
       in `using/concepts.md:137` (`tie`/`tie_equal`/`untie`, the affine form,

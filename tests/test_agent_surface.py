@@ -20,6 +20,7 @@ from rietx.backend.api import BACKEND_NAMES
 from rietx.indexing import SYSTEM_ORDER, engine_descriptions, engine_names
 from rietx.optimize.least_squares import SOLVERS
 from rietx.report.schemas import TRAJECTORY_MAX_ACTIONS
+from rietx.schemas.plan import PlanSpec
 from rietx.strategy.staged import PLAN_PRESETS
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -242,6 +243,53 @@ def test_non_dict_input_is_a_structured_error():
     out = ag.refine_json("refine")  # type: ignore[arg-type]
     assert out["ok"] is False
     assert out["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_a_preset_goes_straight_into_a_request(request_parts):
+    """The friction item 15 actually names, closed end to end (WP-1110).
+
+    ``PLAN_PRESETS`` hands back the dataclass and this request wants the
+    pydantic mirror, and until WP-1110 the two did not cross: both mandated
+    agents of round 1.0 took a preset, were answered ``INVALID_REQUEST``, and
+    rebuilt the plan field by field.  Driven here rather than at the schema
+    seam because the union ``str | PlanSpec`` is its own coercion path — a
+    passing ``PlanSpec.model_validate`` says nothing about what the union
+    does with the same input.
+
+    The three spellings of one plan must give one answer, so the assertion is
+    equality of the fit, not merely that the call was accepted.
+    """
+    structure, instrument, pattern = request_parts
+    plan = PLAN_PRESETS["profile_only"]()
+
+    answers = {}
+    for label, spelling in [("dataclass", plan),
+                            ("spec", PlanSpec.from_plan(plan)),
+                            ("name", "profile_only")]:
+        out = ag.refine_json(dict(task="refine", mode="lebail", plan=spelling,
+                                  structure=structure, instrument=instrument,
+                                  pattern=pattern))
+        assert out["ok"], (label, out["error"])
+        answers[label] = out["result"]["statistics"]["rwp"]
+
+    assert len(set(answers.values())) == 1, answers
+
+
+def test_a_request_holding_a_dataclass_plan_still_refuses_an_empty_one():
+    """The crossing must not smuggle a plan past the request's own check.
+
+    ``PlanSpec`` allows an empty stage list so it can read a history header
+    written before the first stage ran; a request about to spend minutes on a
+    plan that frees nothing is a mistake, and ``_known_plan`` is where that is
+    caught.  A dataclass arriving by the new inbound path has to reach it.
+    """
+    from rietx.strategy.staged import RefinementPlan
+
+    out = ag.refine_json(dict(task="refine", plan=RefinementPlan(stages=[]),
+                              structure={}, instrument={}, pattern={}))
+    assert out["error"]["code"] == "INVALID_REQUEST"
+    detail = next(d for d in out["error"]["details"] if d["where"] == "plan")
+    assert "must not be empty" in detail["message"]
 
 
 @pytest.mark.parametrize("field,bad,registry", [

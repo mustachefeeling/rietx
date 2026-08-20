@@ -149,8 +149,13 @@ def test_a_preset_is_the_builder_and_says_so():
 
     with pytest.raises(AttributeError, match=r"PLAN_PRESETS\['mccusker_default'\]\(\)"):
         factory.stages
-    assert factory() == rx.RefinementPlan.mccusker_default()
     assert factory() is not factory(), "a preset must not hand out a shared plan"
+
+    # every preset, not one: the wrapper is what stands between the registry
+    # and the plan that every fit in the package runs, so the claim it builds
+    # exactly what the classmethod builds is checked across the whole registry
+    for name in rx.PLAN_PRESETS:
+        assert rx.PLAN_PRESETS[name]() == getattr(rx.RefinementPlan, name)()
     # ``functools.update_wrapper``: an agent reading help() must reach the
     # builder, not the wrapper — the round measured one leave for the source
     # over exactly this.
