@@ -41,6 +41,15 @@ Seams and constraints:
   builds its own residual from `phase_peaks` + windows, and
   `fcj_offsets_weights_batch` is numpy-only by intent (its docstring).
   This WP touches the numpy path only.
+- **The Ω the bases build is not the Ω the residual builds** (found
+  2026-08-21, opening this WP).  `derivative_bases` takes Ω from
+  `_profile_basis` and the scalar residual loop from `_profile`; the two
+  spell u² differently and land 1-2 ulp apart *by design*
+  (`model/profiles/pseudovoigt.py`, WP-0605's measurement).  So
+  `batched_exact_evaluate` cannot be lifted verbatim — it would move every
+  converged fit in its last digits.  The batched forward dispatches to
+  `_profile`, and the batched *shape* (layout, buckets, node mix, masking)
+  is what is shared with the bases.
 - **Accumulation order is observable**: `_accumulate`'s bincount is
   bit-identical to the loop's `window_add` order (phase-major, row-major).
   The scatter here must keep that property or every pinned number moves —
@@ -53,15 +62,10 @@ Seams and constraints:
   matter.
 - Le Bail/Pawley hot loops pass `intensities=` explicitly; the batched
   forward must accept them the way `derivative_bases` already does.
-
-### Inherited
-
-From WP-1114 (2026-08-21): the measured table above; the reference
-implementation `batched_exact_evaluate` in `examples/bench_peaks_buffer.py`
-(lift it, do not re-derive); and the warning that `w_max` padding costs ~2×
-on the trigger's gather volume — a width-bucketed scatter is the follow-on
-lever if the harness still wants more, but land the plain version first and
-measure.
+- **`w_max` padding costs ~2× on the trigger's gather volume** (WP-1114's
+  measurement, inherited 2026-08-21).  A width-bucketed scatter is the
+  follow-on lever if the harness still wants more; land the plain version
+  first and measure.
 
 ## Non-goals
 
