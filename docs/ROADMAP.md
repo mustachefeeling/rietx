@@ -97,7 +97,7 @@ path batched (symmetric rows bit-identical; FCJ ≤ ~1e-15, goldens re-based),
 windows by a **measured** discarded-area bound — trigger cold **28.3–28.9 s**,
 warm **2.1–15.0 s**/pattern, QPA fits ~halved at fractions within 0.25 wt %.
 One WP per session from here: [1113](wp/1113-evaluation-count.md) evaluation
-count (its Inherited carries 1112's re-measurements and the `x_scale` lead) →
+count (1112's re-measurements and the `x_scale` lead now in its Context) →
 [1114](wp/1114-peaks-buffer-spike.md) → [1115](wp/1115-compiled-kernel-spike.md),
 gated on the harness still missing the targets.
 **The next session is [1113](wp/1113-evaluation-count.md).**
@@ -389,7 +389,7 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 | [1109](wp/1109-refinement-speed.md) | Refinement speed: where the time actually goes | ✅ 2026-08-20 | — |
 | [1111](wp/1111-benchmark-harness.md) | The refinement benchmark harness, and the trigger-shaped case | ✅ | — |
 | [1112](wp/1112-batched-derivative-bases.md) | The batched derivative side, and η-aware windows | ✅ 2026-08-21 | 1111 |
-| [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | ⬜ | 1111 (soft) |
+| [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | 🔄 | 1111 (soft) |
 | [1114](wp/1114-peaks-buffer-spike.md) | Peaks-buffer spike: shape reuse across 2θ | ⬜ | 1112 |
 | [1115](wp/1115-compiled-kernel-spike.md) | Compiled-kernel spike (gated) | ⬜ | 1112, 1114 |
 | [1116](wp/1116-session-protocol-hygiene.md) | Session-protocol hygiene: the scan that cried wolf | ✅ 2026-08-20 | — |

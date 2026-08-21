@@ -1,6 +1,6 @@
 # WP-1113 — evaluation count: name the mechanism, then attack it
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: 🔄 2026-08-21
 Depends on: 1111 (soft — its iteration columns are this WP's before/after)
 
 ## Goal
@@ -13,69 +13,13 @@ acceptance case is understood and either fixed or fenced with a reason.
 
 ## Context
 
-### Inherited
-
-From WP-1111 (2026-08-20), which inherited it from WP-1110's agent round and
-could not act on it: an agent asked for **a cheap callable cost estimate —
-reflections × free parameters — so a caller can size a model before spending
-minutes discovering it is too big**. It landed nowhere because 1111's
-non-goals forbid production changes outright (a harness that ships with an
-optimisation can no longer measure it), and it belongs here rather than in
-1112 because the quantity being predicted *is* this WP's: cost = per-evaluation
-work × evaluation count, and 1111's `_shape` already computes the first half
-(fitted points, (line, reflection) pairs, mean window width) off a compiled
-model without fitting. Whether it ships is this WP's call — it may equally be
-a v1.2 API item — but it should not be dropped silently. The motivating
-observation is one agent on one loaded box: treat it as a request, not a
-measurement.
-
-From WP-1110 (2026-08-20), moved here by WP-1112's arrival prune (2026-08-21):
-a **speed lead free of any answer change**, and it belongs here rather than in
-1112 because what it moves is the evaluation count — this WP's quantity — not
-the cost per evaluation. WP-1110 gave the cell of an unsupported phase a
-per-stage window and measured what that costs elsewhere. The measurement is
-the interesting part: on the chained IUCr `cpd-1c`, bounding *every* cell to
-±10 %, ±25 % or ±50 % reached the **same answer in 82-100 iterations where
-unbounded took 641** — an ~7× reduction on that pattern, with corundum at
-6.26 wt % against 6.30 unbounded. ±5 % is a cliff in the other direction (400
-iterations, hit `max_iter`, Rwp 0.1501 against 0.1079), so the effect is
-non-monotonic and has an optimum.
-
-The mechanism is preconditioning — a direct lever on the trust-region
-trajectory the crawl hypothesis below is about. `run_least_squares` calls
-scipy with the default `x_scale=1.0` on a vector whose coordinates differ by
-seven orders — cells ~4.8, scales ~1e-5, background coefficients ~1e2 — and
-TRF derives a per-coordinate scale from the distance to the bounds, so finite
-bounds are acting as a scale hint. **The direct lever is `x_scale`, not
-bounds**: `x_scale='jac'` or an explicit per-parameter vector says the same
-thing without constraining anything. Nobody has measured that here.
-
-Two cautions. It is one pattern, so it is a lead and not a result; and a
-change to `x_scale` moves the trust-region path on **every** fit, so it needs
-the 1111 harness's equivalence bar across all seven cases rather than a spot
-check.
-
-From WP-1112 (2026-08-21), which halved the per-evaluation denominator and
-re-measured this WP's ground on the way out:
-
-- **The counts held; the wall behind them halved.** cpd-2's whole-fit
-  540 nfev / 420 njev at the new windows against 1109's 534/425, per-stage
-  `zero_disp` 93 and `cell` 131 unchanged — the count really is a property
-  of the problem, exactly as this WP's hypothesis wants. But the **LM basin
-  numbers** above (Rwp 0.245 vs 0.132, 13.2 vs 17.6 s) were measured at the
-  pre-1112 windows: re-measure before bisecting, since window truncation
-  moves both fits' stopping points.
-- **The trigger's worst stage is `lines_axial` (184 of 363 nfev), not the
-  position movers** — its `zero_disp` and `cell` take 10 each (good seeds),
-  so the crawl hypothesis's stage list is protocol- and start-dependent;
-  instrument before assuming the cpd shape generalises.
-- `Stage.window_slack_deg` exists now (1112's capture/tail split): a seeding
-  experiment that needs deliberate capture headroom has a declared per-stage
-  knob instead of a constant to bend.
-
 All numbers from WP-1109's 2026-08-20 review (QPA-acceptance `cpd-2`, 4
 phases, 9 cumulative stages, worktree venv `[dev]`, darwin/arm64) unless
-said otherwise.
+said otherwise. WP-1112 then halved the per-evaluation cost and re-measured
+this ground on the way out (2026-08-21): the counts held — cpd-2's whole-fit
+540 nfev / 420 njev at the resized windows against 1109's 534/425, per-stage
+`zero_disp` 93 and `cell` 131 unchanged — so the count really is a property
+of the problem, exactly as the hypothesis below wants.
 
 - **The measured shape.** 534 residual + 425 Jacobian evaluations per fit
   (nfev/iteration ≈ 1.26 — TRF with the analytic Jacobian, so evaluations ≈
@@ -98,7 +42,30 @@ said otherwise.
   two worst stages. A mechanism test, not a speed test, decides this:
   instrument the step-norm and trust-radius trajectory and see whether steps
   are pinned at ~FWHM-fraction scale (crawl) or collapsing after rejections
-  (ill-conditioning).
+  (ill-conditioning). One caution from the trigger session (1112): its worst
+  stage was `lines_axial` (184 of 363 nfev), not the position movers — its
+  `zero_disp` and `cell` take 10 each from good seeds — so the crawl
+  hypothesis's stage list is protocol- and start-dependent; instrument
+  before assuming the cpd shape generalises.
+- **Preconditioning is a measured lead on exactly this quantity** (WP-1110,
+  via 1112's arrival prune) — a speed lever free of any answer change.
+  WP-1110 gave the cell of an unsupported phase a per-stage window and
+  measured what that costs elsewhere: on the chained IUCr `cpd-1c`, bounding
+  *every* cell to ±10 %, ±25 % or ±50 % reached the **same answer in 82-100
+  iterations where unbounded took 641** — ~7× on that pattern, corundum at
+  6.26 wt % against 6.30 unbounded. ±5 % is a cliff the other way (400
+  iterations, hit `max_iter`, Rwp 0.1501 against 0.1079), so the effect is
+  non-monotonic and has an optimum. The mechanism is preconditioning:
+  `run_least_squares` calls scipy with the default `x_scale=1.0` on a vector
+  whose coordinates differ by seven orders — cells ~4.8, scales ~1e-5,
+  background coefficients ~1e2 — and TRF derives a per-coordinate scale from
+  the distance to the bounds, so finite bounds are acting as a scale hint.
+  **The direct lever is `x_scale`, not bounds**: `x_scale='jac'` or an
+  explicit per-parameter vector says the same thing without constraining
+  anything; nobody has measured that here. Two cautions: one pattern, so a
+  lead and not a result; and `x_scale` moves the trust-region path on
+  **every** fit, so it needs the 1111 harness's equivalence bar across all
+  seven cases, never a spot check.
 - **The LM basin finding** (measured once, recorded in 1109; do not re-run
   casually): `solver="lm"` on this protocol lands at Rwp 0.245 vs TRF's
   0.132, brucite 76.4 vs 38.2 wt %, in fewer iterations and less wall
@@ -110,7 +77,9 @@ said otherwise.
   `r_u` schedule permits that TRF's ratio test would reject. `bench_solver.py`
   (WP-0601's protocol comparison) found identical minima on 2/3 protocols —
   this is a new third-protocol counterexample and belongs in that bench's
-  case list whatever the outcome.
+  case list whatever the outcome. These basin numbers predate 1112's window
+  resize, which moves both fits' stopping points: **re-measure before
+  bisecting**.
 - **Instrumentation is cheap by design**: per-iteration events already flow
   (`history/events.py`; `_StepTracker` in `optimize/least_squares.py`
   reconstructs accepted TRF steps), and event `data` is an **open dict** —
@@ -125,7 +94,20 @@ said otherwise.
   within a FWHM — turning a 93-iteration crawl into a short polish, if the
   crawl hypothesis is right. Any seeding must live at the plan/stage level
   (a seeding stage writes to the models before solving — the cancellation
-  contract in CLAUDE.md already names this shape).
+  contract in CLAUDE.md already names this shape). A seeding experiment
+  needing deliberate capture headroom has a declared per-stage knob since
+  1112's capture/tail split: `Stage.window_slack_deg`, not a constant to
+  bend.
+- **The cost-estimate request** (an agent in WP-1110's round, via 1111,
+  which could not act on it — its non-goals forbade production changes): a
+  cheap callable estimate, reflections × free parameters, so a caller can
+  size a model before spending minutes discovering it is too big. The
+  quantity predicted is this WP's — cost = per-evaluation work × evaluation
+  count — and 1111's `_shape` already computes the first half (fitted
+  points, (line, reflection) pairs, mean window width) off a compiled model
+  without fitting. One agent on one loaded box motivates it: a request, not
+  a measurement. Whether it ships is this WP's call — it may equally be a
+  v1.2 API item — but it is not dropped silently.
 - **Per-stage budgets**: an intermediate stage's job is to seed the next
   stage, not to reach publication convergence. 1109's retired-item 3
   measured global tolerance loosening at only 1.24–1.32× (`cpd-1a`) /
@@ -153,6 +135,10 @@ one); Rwp-judged anything.
 - [ ] **Name the mechanism** for `zero_disp` (93) and `cell` (131) on the
       1111 cases: crawl vs collapse vs something else, written into this
       file with the trajectories.
+- [ ] **`x_scale` experiment**: `x_scale='jac'` and an explicit
+      per-parameter vector against the default, on all seven 1111 harness
+      cases; equivalence by shift/esd, iteration columns before/after. Land
+      only what the measurement supports.
 - [ ] **Seeding experiment**: cross-correlation zero/displacement seed
       before the plan; measure per-stage iterations and total evaluations,
       answer-identity by shift/esd. Land it (as an opt-in stage or plan
@@ -165,6 +151,8 @@ one); Rwp-judged anything.
       protocol list; fix if the cause is a defect, fence with a recorded
       reason if it is the method (`solver="lm"`'s docstring then names the
       protocol it loses).
+- [ ] **Decide the cost-estimate callable**: land it here or defer it to
+      v1.2 in writing (a ROADMAP/WP note naming it), never a silent drop.
 - [ ] Tests (the instrumentation fields, the seeding stage if landed) +
       before/after iteration columns from the 1111 harness in the handover
       entry.
@@ -198,3 +186,11 @@ example already in hand.
 - **2026-08-20** — created by the 1109 review session; carries the review's
   iteration table, the LM basin finding, and the crawl hypothesis as the
   first thing to test.
+- **2026-08-21** — arrival prune. All three inherited entries were still
+  live, so none was deleted: 1112's re-measurements merged into the numbers
+  they amend (counts-held into the Context intro, the re-measure caveat onto
+  the LM basin bullet, the `lines_axial` caution onto the crawl-hypothesis
+  bullet, `window_slack_deg` onto the seeding bullet); the WP-1110
+  preconditioning lead became a Context bullet plus the `x_scale` task; the
+  WP-1111 cost-estimate request became a Context bullet plus the
+  decide-or-defer task.
