@@ -154,6 +154,67 @@ area, first moment (in FWHM units) and relative central second moment:
   the quadratic's roots, which a production compile gets for free) restores
   the tolerance.
 
+## Design note (task 2)
+
+**Layout.**  One buffer per (stage, distinct width family): phases sharing
+(U, V, W, X, Y, `gauss_*`, `lor_*`, S/L, H/L) share one buffer, and emission
+lines always share it — Γ, η and the FCJ geometry are functions of the
+peak's *position* alone, so a Kα2 reflection reads the same family as its
+Kα1 twin.  Frozen at stage compile (the same class as windows and node
+counts — invariant 1): the anchor positions (greedy probe-and-bisect to the
+stage's tolerance, with the domain split at the Γ_G-clamp roots, which the
+compile knows analytically), per-anchor FCJ node counts, and the stored
+offset grid (step ≈ min(pattern step, Γ_min/4); half-width read off the
+frozen windows plus a drift margin).  The anchor *values* — the sampled
+planes — are recomputed from the current θ on every evaluation, so they
+follow the parameters smoothly between recompiles; only indices and counts
+are discrete.
+
+**FCJ asymmetry enters convolved into the anchor** (anchor-wise node sets,
+evaluated exactly at each anchor's geometry), never as interpolated images:
+§ Findings 2 shows the convolved family interpolates at K ≤ 32, and keeping
+images per reflection would keep the ×7.8-9 element volume the buffer
+exists to remove.
+
+**Interpolation, and what the derivative bases become.**  Each anchor
+stores four planes on the stored grid: S = Ω and its exact partials S_x,
+S_Γ, S_η (`pseudo_voigt_derivs`, FCJ-mixed with the anchor's ω).  A C²
+cubic spline in θ interpolates each plane; a reflection at position p with
+widths (Γ_k, η_k) reconstructs
+
+    Ω = S(p) + (Γ_k − Γ_law(p))·S_Γ(p) + (η_k − η_law(p))·S_η(p)
+
+resampled onto its window by 4-tap Catmull-Rom (C¹) interpolation in Δ.
+The Taylor term keeps Ω first-order exact wherever a reflection's width
+leaves the law — position corrections move p off 2θ_Bragg today, and a
+Stephens Λ(hkl) block is *exactly* this term later.  The Jacobian reuses
+the same anchors (WP-0605's answer 2):
+
+    ∂Ω/∂Γ = S_Γ,   ∂Ω/∂η = S_η,
+    ∂Ω/∂pos = S_θ(p) − S_x(p) − Γ_law′(p)·S_Γ(p) − η_law′(p)·S_η(p)
+
+with S_θ the spline's own θ-derivative — the FCJ geometry motion that the
+shipped path node-FDs comes out of the spline for free, and the two
+law-drift subtractions stop it being counted twice against the scalar
+chain's ∂Γ/∂p, which already carries the width motion.  ∂Ω/∂(S/L) and
+∂Ω/∂(H/L) are anchor-level FDs (two extra anchor sets, K each, still
+trivial).  Everything is C¹ in θ and in every parameter (C² spline over
+anchors that are themselves smooth functions of θ; C¹ resample), so the
+analytic-Jacobian invariant survives — which is the second, independent
+reason the linear blends lose: they are C⁰ at anchors, and a moving cell
+would drag those kinks through the residual.
+
+**Cost model** (§ Findings 1 numbers): per evaluation the buffer pays
+K × images × n_stored exact profile elements (~0.1 M on the trigger,
+against the shipped 1.12 M) plus ~8 fma per (row, window point) for the
+spline combine and resample, where the shipped path pays one pV evaluation
+(exp + division) per element times the FCJ image multiplier.  So the
+expected win is (image multiplier × pV/fma ratio) on FCJ cases and only
+the pV/fma ratio on symmetric ones.  The prototype therefore measures
+**three rungs** — shipped scalar loop, batched exact, buffered — because
+the residual's dispatch win was never taken (WP-1112 batched the bases
+only) and must not be booked to the buffer.
+
 ## Tasks
 
 - [x] **Measure the shape-variation budget**: on 1111's four cases, compute
@@ -161,12 +222,13 @@ area, first moment (in FWHM units) and relative central second moment:
       interpolation meets 1e-3 / 1e-4 on area and moments — the
       anchors-vs-accuracy curve is this WP's central plot.
       *(2026-08-21: § Findings 1-2; `examples/bench_peaks_buffer.py`.)*
-- [ ] **Design note in this file**: buffer layout (per (phase-class, line) or
+- [x] **Design note in this file**: buffer layout (per (phase-class, line) or
       global; how FCJ asymmetry enters — anchor-wise node sets vs
       interpolated images), the interpolation scheme and its
       differentiability argument, and what the derivative bases become under
       the buffer (the Jacobian must reuse the same anchors or the win halves
       — WP-0605's answer 2, same lesson).
+      *(2026-08-21: § Design note above.)*
 - [ ] **Scratch prototype** (`examples/bench_peaks_buffer.py`): forward +
       derivative-bases evaluation through the buffer on the trigger-shaped
       and `cpd-2` states; wall vs the (post-1112) shipped path; max area /
