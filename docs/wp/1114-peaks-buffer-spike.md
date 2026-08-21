@@ -102,12 +102,65 @@ v2+ list; this WP is about *reusing* the existing TCHZ/FCJ shapes, not about
 new physics); touching Le Bail/Pawley partitioning; any accuracy target
 looser than 1e-3 without the user in the loop.
 
+## Findings
+
+All numbers: `examples/bench_peaks_buffer.py` on this worktree's `[dev]`
+venv, darwin/arm64, 2026-08-21 (`--dense 257 --delta 1001`); each case
+measured at its cold-start state **and** its converged state (the trigger's
+"converged" is the truth model that generated its data).
+
+**1. Volume decomposition — where a buffer can and cannot win.**  Profile
+elements per pattern point in one forward evaluation (window points ×
+frozen FCJ images, summed over (line, reflection) pairs):
+
+| study | pairs | win/pts | elem/pts | elem/win |
+|---|---|---|---|---|
+| nac start / converged | 140 | 4.2 / 4.1 | 4.2 / 4.1 | 1.00 |
+| cpd-1a start / converged | 222 | 2.8 / 7.7 | 2.8 / 7.7 | 1.00 |
+| cpd-2 start / converged | 308 | 3.8 / 11.8 | 3.8 / 11.8 | 1.00 |
+| trigger start / truth | 1188 | 34.6 / 40.6 | 269.3 / 367.1 | 7.79 / 9.03 |
+
+The FCJ image multiplier (7.8-9×) exists only on the trigger; the symmetric
+cases evaluate 3-12 elements per point in total.  So shape reuse is an
+FCJ-and-dense-overlap lever — exactly the milestone's cold multi-phase
+target — and worth at most the exp→spline-eval ratio on the lab cases.
+
+**2. Anchors vs accuracy — the central curve**
+(`tests/output/wp1114_anchor_curve.png`).  Reconstructing a dense set of
+exact shapes from K anchors, worst deviation over the range on relative
+area, first moment (in FWHM units) and relative central second moment:
+
+- Scheme is decisive, placement second, stretching third: a C² cubic spline
+  through anchor shapes converges ~h⁴ where linear blending's h² never
+  reaches 1e-4 by K = 64; error-driven greedy placement (start at 4, bisect
+  the worst-probed segment — the loop a production compile would run)
+  beats both uniform-θ and equal-shape-motion quantiles everywhere.
+- **cubic/greedy meets 1e-3 at K ≤ 16 and 1e-4 at K ≤ 32 on every case and
+  every state** (nac 8, cpd-1a/cpd-2 16→32 start→converged, trigger 24/32
+  at 1e-4).  Anchors are per distinct phase-width set and shared across
+  emission lines (Γ, η, FCJ geometry are functions of position alone).
+- Width-stretching (evaluating anchors in FWHM-normalised coordinates with
+  the true Γ(θ), η(θ) — two cheap scalars per reflection) is worth ~40× at
+  fixed K on the lab cases when blending linearly, but under a cubic spline
+  it is mostly subsumed; under FCJ it is irrelevant (Γ varies ×1.08 while
+  the FCJ extent varies ×500).
+- **The shape family is not everywhere smooth, and the buffer design must
+  own that**: at the cpd converged states the fitted Caglioti quadratic goes
+  negative mid-range and `_MIN_GAMMA_G2` clamps Γ_G ≈ 1e-4° across
+  2θ ≈ 92-134° (measured: corundum converges to U = 0.0037, V = −0.0126,
+  W = 0.0089, pure-Lorentzian mid-range, η → 1.000).  The two clamp
+  boundaries are C¹ kinks in shape-vs-θ; every fixed placement plateaus at
+  ~3-5e-4 there and only greedy bisection (or an analytic domain split at
+  the quadratic's roots, which a production compile gets for free) restores
+  the tolerance.
+
 ## Tasks
 
-- [ ] **Measure the shape-variation budget**: on 1111's four cases, compute
+- [x] **Measure the shape-variation budget**: on 1111's four cases, compute
       exact profiles on a dense θ grid and the minimum anchor count whose
       interpolation meets 1e-3 / 1e-4 on area and moments — the
       anchors-vs-accuracy curve is this WP's central plot.
+      *(2026-08-21: § Findings 1-2; `examples/bench_peaks_buffer.py`.)*
 - [ ] **Design note in this file**: buffer layout (per (phase-class, line) or
       global; how FCJ asymmetry enters — anchor-wise node sets vs
       interpolated images), the interpolation scheme and its
