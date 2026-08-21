@@ -15,7 +15,10 @@ Event kinds (closed set, versioned with the schema):
 * ``stage_start`` / ``stage_end`` — one staged-plan stage (freed paths, costs).
   ``stage_start`` carries ``index`` (**1-based**, so it reads "stage 3 of 5"
   directly), ``n_stages``, and since WP-1113 ``free_paths`` — the stage's full
-  ordered free list, which is the alignment key for ``eval.values`` below;
+  ordered free list, which is the alignment key for ``eval.values`` below.
+  ``stage_end`` carries ``termination`` (also WP-1113): *which* criterion
+  ended the solve (``ftol``/``xtol``/``gtol``… — ``LSQOutcome.termination``'s
+  vocabulary), where ``status`` says only whether it converged;
 * ``eval`` — one residual evaluation inside a least-squares driver, on both of
   them since WP-1113.  ``n_eval`` counts every call this driver made the
   residual measure (function + finite-difference), which is exactly the

@@ -142,6 +142,12 @@ def _intensity_only(path: str, bkg_cols: dict[str, int]) -> bool:
     return path in bkg_cols or any(p.match(path) for p in _INTENSITY_ONLY)
 
 
+#: scipy ``least_squares`` termination codes as tokens (its docs, `status`):
+#: which tolerance fired, for :attr:`LSQOutcome.termination`.
+_TRF_TERMINATION = {-1: "invalid_input", 0: "max_nfev", 1: "gtol", 2: "ftol",
+                    3: "xtol", 4: "ftol+xtol"}
+
+
 @dataclass
 class LSQOutcome:
     theta: np.ndarray            # table free vector only (never the aux block)
@@ -167,6 +173,15 @@ class LSQOutcome:
     #: accepted step, or no esds), never zero.  ``refine`` copies this onto
     #: ``Statistics.max_shift_over_esd``; nothing else derives it (WP-1076).
     max_shift_over_esd: float | None = None
+    #: *which* criterion ended the solve (WP-1113) — the ``status`` string
+    #: above says only whether it converged, and the evaluation-count work
+    #: needs the difference between "the cost stopped moving" (ftol), "the
+    #: step stopped moving" (xtol) and "the gradient vanished" (gtol): a
+    #: linear-rate tail rides exactly one of them.  TRF: scipy's status code
+    #: as a token (``ftol``/``xtol``/``gtol``/``ftol+xtol``/``max_nfev``).
+    #: LM: :attr:`~.lm.LMOutcome.termination`.  ``""`` only on the
+    #: zero-parameter early return, where no criterion was ever consulted.
+    termination: str = ""
 
 
 def _lebail_snapshot(model: CompiledModel) -> list[np.ndarray] | None:
@@ -940,6 +955,8 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                             ftol=ftol, xtol=XTOL, gtol=GTOL,
                             max_nfev=max_iter * NFEV_PER_ITERATION)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
+    termination = (res.termination if solver == "lm"
+                   else _TRF_TERMINATION.get(res.status, str(res.status)))
 
     # esds from the *full* augmented covariance (table ↔ intensity correlation
     # feeds the table esds too), then split: table columns stay in the outcome,
@@ -960,7 +977,8 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       jac_table, stderr, corr, n_aux=n_aux, solver=solver,
                       n_constraint_truncations=n_truncated,
                       max_shift_over_esd=_final_shift_over_esd(
-                          table, tracker.step(), stderr_full, corr, n_table))
+                          table, tracker.step(), stderr_full, corr, n_table),
+                      termination=termination)
 
 
 def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
@@ -1089,6 +1107,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                             ftol=ftol, xtol=XTOL, gtol=GTOL,
                             max_nfev=max_iter * NFEV_PER_ITERATION)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
+    termination = (res.termination if solver == "lm"
+                   else _TRF_TERMINATION.get(res.status, str(res.status)))
 
     stderr = corr = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
@@ -1096,7 +1116,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                                             n_data=n_data_total)
     jac_data = np.asarray(res.jac)[:n_data_total] if res.jac is not None else None
     return LSQOutcome(res.x, cost0, float(res.cost), int(res.nfev), status,
-                      jac_data, stderr, corr, solver=solver)
+                      jac_data, stderr, corr, solver=solver,
+                      termination=termination)
 
 
 def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,

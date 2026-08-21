@@ -1132,6 +1132,7 @@ class Refinement:
         if events is not None:
             events.emit("stage_end", stage=stage.name, status=outcome.status,
                         n_iterations=outcome.n_iterations,
+                        termination=outcome.termination,
                         cost_initial=outcome.cost_initial,
                         cost_final=outcome.cost_final)
         return model, outcome, guard, freed

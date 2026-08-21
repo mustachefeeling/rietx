@@ -183,6 +183,12 @@ def test_lm_eval_stream_carries_every_measured_trial(pattern):
         if event["kind"] == "eval":
             per_stage.setdefault(event["data"]["stage"], []).append(event["data"])
     assert per_stage, "no eval events emitted"
+    # the LM driver names its own termination vocabulary (LMOutcome.termination)
+    terminations = [e["data"]["termination"] for e in seen
+                    if e["kind"] == "stage_end"]
+    assert terminations and all(
+        t in {"ftol_runs", "exhausted_fp64", "no_descent", "max_iter"}
+        for t in terminations), terminations
     for stage, evals in per_stage.items():
         assert all(np.isfinite(e["cost"]) for e in evals)
         # WP-1113 trajectory fields, LM flavour: λ on every trial

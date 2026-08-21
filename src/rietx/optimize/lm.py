@@ -206,6 +206,13 @@ class LMOutcome:
     #: inner iterations burned on a point where the linearised model promised
     #: descent the true objective did not deliver (a corner, not a minimum)
     n_stalled: int = 0
+    #: which criterion ended the run (WP-1113), the LM half of
+    #: :data:`~.least_squares._TRF_TERMINATION`'s vocabulary:
+    #: ``ftol_runs`` (relative decrease under ftol for three consecutive outer
+    #: iterations — Coelho's rule), ``exhausted_fp64`` (every remaining step
+    #: promises less than fp64 can measure against S), ``no_descent`` (the
+    #: inner loop found nothing downhill even at large λ), ``max_iter``.
+    termination: str = "max_iter"
 
 
 def _clip_to_bounds(x: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
@@ -275,6 +282,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     n_stalled = 0
     status = 0
     n_outer = 0
+    termination = "max_iter"
 
     for outer in range(max_iter):
         n_outer = outer + 1
@@ -349,9 +357,11 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
             # records it; the correlation guard reports the degeneracy.
             n_stalled = _INNER_MAX if not exhausted else 0
             status = 1 if outer > 0 else -1
+            termination = "exhausted_fp64" if exhausted else "no_descent"
             break
         if small_runs >= _CONVERGED_RUNS:
             status = 1
+            termination = "ftol_runs"
             break
     else:
         status = 0                            # ran out of outer iterations
@@ -367,7 +377,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     return LMOutcome(x=x, fun=r, jac=J, cost=0.5 * s, nfev=n_fev, njev=n_jev,
                      n_outer=n_outer, status=status, lambda_final=lam,
                      n_bound_hits=n_bound_hits, n_truncated=n_truncated,
-                     n_stalled=n_stalled)
+                     n_stalled=n_stalled, termination=termination)
 
 
 def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,

@@ -128,10 +128,16 @@ one); Rwp-judged anything.
 
 ## Tasks
 
-- [ ] **Instrument**: step-norm, trust-radius/λ, and accept/reject per
+- [x] **Instrument**: step-norm, trust-radius/λ, and accept/reject per
       iteration onto the existing event stream (open-dict fields, no schema
       bump); a small analysis helper that plots/prints the trajectory for a
-      named stage.
+      named stage.  Landed as ``eval.accepted``/``step_norm``/``values``
+      (+``lam`` on LM), ``stage_start.free_paths``,
+      ``stage_end.termination`` (which tolerance fired —
+      ``LSQOutcome.termination``), and ``examples/stage_trajectory.py``.
+      TRF's trust radius is scipy-internal; the trial step-norm sequence is
+      its observable shadow, and the LM stream now carries every measured
+      trial rather than accepted points only.
 - [ ] **Name the mechanism** for `zero_disp` (93) and `cell` (131) on the
       1111 cases: crawl vs collapse vs something else, written into this
       file with the trajectories.

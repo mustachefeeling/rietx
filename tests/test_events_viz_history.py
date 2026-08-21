@@ -74,6 +74,15 @@ def test_eval_events_carry_the_trajectory_fields(synthetic_pattern):
             evals.setdefault(event["data"]["stage"], []).append(event["data"])
     assert evals and set(evals) == set(free_paths)
 
+    # stage_end names *which* criterion ended the solve — the writer the
+    # declared field needs (WP-1076's rule; the vocabulary is
+    # LSQOutcome.termination's)
+    terminations = [e["data"]["termination"] for e in seen
+                    if e["kind"] == "stage_end"]
+    assert terminations and all(
+        t in {"ftol", "xtol", "gtol", "ftol+xtol", "max_nfev"}
+        for t in terminations), terminations
+
     for stage, stage_evals in evals.items():
         assert all({"accepted", "cost", "values"} <= e.keys()
                    for e in stage_evals)
