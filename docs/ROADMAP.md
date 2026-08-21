@@ -393,6 +393,17 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 | [1116](wp/1116-session-protocol-hygiene.md) | Session-protocol hygiene: the scan that cried wolf | ✅ 2026-08-20 | — |
 | [1117](wp/1117-compatibility-promise.md) | The compatibility promise, rewritten for the users there are | ✅ 2026-08-21 | — |
 
+### Unscheduled — foreign model files (added 2026-08-21)
+
+Reading a TOPAS/GSAS/FullProf control file and writing one back, for the
+**refine flags** as much as the model: all six agents in 1110's round named
+hand-transcribing a `.inp` as the hardest part of the work. Unscheduled; the
+licence fences and the acceptance are settled in the file.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | ⬜ | — |
+
 ## v2+ (seams pre-built, implementations fenced out)
 
 Fundamental Parameters Approach as a differentiable convolution stack

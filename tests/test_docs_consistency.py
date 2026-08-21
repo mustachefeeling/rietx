@@ -197,7 +197,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # longer — prose, so by the rule above it earns no bump and was paid for
     # by compressing Current focus instead.  That is the rule working: the
     # cap is a budget on narrative, and a row is not narrative.
-    "docs/ROADMAP.md": 439,
+    # 439 -> 450 for WP-1110 (2026-08-21): a section and a row for the work the
+    # agent round found and no milestone owns yet (1118, foreign model files).
+    # The row is not narrative and the prose is four lines, because the fences
+    # and the acceptance live in the WP file; the eleventh line is the heading
+    # a table needs to be findable.  Current focus was rewritten in the same
+    # pass and paid part of it back.
+    "docs/ROADMAP.md": 450,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
