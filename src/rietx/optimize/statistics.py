@@ -74,6 +74,38 @@ def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     whose columns were computed at fp32 is upcast here before JᵀJ, while the
     residual is *required* to have been fp64 all along.
 
+    **The matrix is equilibrated to unit diagonal before the pseudo-inverse,
+    and this is the difference between an esd and a number** (WP-1110 item 14).
+    ``pinv`` discards every eigenvalue below ``rcond × |λ|max``, so the cutoff
+    is set by the *largest* column and applied to all of them.  On a real
+    refinement the column 2-norms span thirteen orders of magnitude — 4.8e-06
+    to 8.5e+06 on the NAC fit that WP measured — so four of seventeen
+    directions were discarded, and a discarded direction reports **zero**
+    variance for a parameter about which the data said nothing at all.  Not
+    ``None``, not a large esd: a small one.  Measured there,
+    ``phases.0.gauss_size`` came back 6.1e-14 ± 9.9e-11, a figure a caller
+    would quote, where the equilibrated inverse says ± 4.3e+08 — undetermined,
+    which is what it is.
+
+    Jacobi scaling is the fix and it is not a tuning choice: van der Sluis
+    (1969), Numer. Math. 14, 14-23, gives that scaling a symmetric positive
+    definite matrix to unit diagonal comes within a factor of its order of the
+    best possible diagonal conditioning.  The property it restores is the one
+    whose absence proves the old form wrong: **an esd must not depend on
+    another parameter's units.**  Rescaling one column by 1e6 moved the other
+    columns' esds by a factor of 2 before and by 4e-16 after (both measured on
+    a synthetic 400×4 problem).  Well-determined parameters are untouched —
+    cell, scale and every background term agree to four figures across the
+    change; only the directions that were being silently zeroed move.
+
+    A column with **no gradient at all** has a zero diagonal, so it cannot be
+    equilibrated and is not merely ill-conditioned: nothing in the data
+    constrains it.  Its variance comes back as ``inf`` rather than 0, because
+    zero is the confident wrong answer and the caller turns ``inf`` into the
+    absent esd WP-1072 requires.  Its off-diagonal covariances are zero, which
+    is correct — a direction the residual does not move is uncorrelated with
+    everything.
+
     This lives here, rather than inside :func:`covariance_estimates`, because
     two surfaces now need it — the whole-pattern fit and the per-peak profile
     fits of :mod:`rietx.indexing.peakfit` — and they must not be able to
@@ -85,7 +117,19 @@ def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
     JTJ = 0.5 * (JTJ + JTJ.T)  # kill the fp asymmetry before the eigensolve
     chi2_red = float(resid @ resid) / max(len(resid) - n_free, 1)
     scale = max(chi2_red, 1.0) if chi2_floor else chi2_red
-    return np.linalg.pinv(JTJ, hermitian=True) * scale, chi2_red
+
+    d = np.sqrt(np.diag(JTJ))
+    live = d > 0.0
+    inv_d = np.where(live, 1.0 / np.where(live, d, 1.0), 0.0)
+    cov = np.linalg.pinv(JTJ * np.outer(inv_d, inv_d), hermitian=True) * scale
+    cov = cov * np.outer(inv_d, inv_d)
+    if not live.all():
+        # a gradient-free column: unmeasured, so infinite variance and no
+        # correlation with anything.  `cov` already holds zeros in its row and
+        # column, which is the right off-diagonal answer and the wrong diagonal
+        # one, so only the diagonal is overwritten.
+        cov[np.flatnonzero(~live), np.flatnonzero(~live)] = np.inf
+    return cov, chi2_red
 
 
 def berar_lelann_factor(delta: np.ndarray) -> float:

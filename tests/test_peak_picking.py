@@ -812,3 +812,68 @@ def test_not_separable_is_unusable_and_the_flag_set_says_so():
     # …and it is *not* one of the "less precise, still evidence" flags
     assert "unresolved_shoulder" not in PEAK_UNUSABLE_FLAGS
     assert "sigma_assumed" not in PEAK_UNUSABLE_FLAGS
+
+
+def test_a_component_at_its_zero_intensity_bound_locates_nothing():
+    """WP-1110 item 14: ``no_intensity`` is unusable, and it is one test.
+
+    A peak reaches its window only through ``intensity × profile``, so a
+    component that refined onto its zero intensity bound has no gradient on its
+    own position — the fitted 2θ is whatever the seed was.  The threshold is not
+    a new one: it is the same ``at its bound`` test the refinement's
+    ``BOUND_HIT`` uses, imported rather than restated.
+
+    Unusable rather than merely reported, unlike the flags below it: those are
+    lines a consumer might still judge real, and there is nothing left to judge
+    here.
+    """
+    from rietx.strategy.staged import BOUND_HIT_RTOL
+
+    assert "no_intensity" in PEAK_UNUSABLE_FLAGS
+    peak = ObservedPeak(
+        two_theta=30.0, two_theta_esd=3.9e49, intensity=2.1e-49,
+        intensity_esd=85.0,
+        q=q_of_two_theta(np.array(30.0), 1.5406).item(), q_esd=1e-4,
+        fwhm=0.1, eta=0.5, group=0, n_in_group=2, chi2_red=1.0,
+        flags=["no_intensity"])
+    assert not peak.usable
+    assert peak.intensity <= BOUND_HIT_RTOL
+
+
+def test_the_phantom_components_of_a_real_pattern_are_flagged_and_excluded():
+    """The corundum pattern that found this, end to end.
+
+    Two of its 62 components refine to intensities of 2.1e-49 and 5.5e-19 with
+    position esds of 1e+49 and 1e+17 degrees.  Before the covariance was
+    equilibrated (WP-1110 item 14) those esds were truncated to 0.06° and both
+    were offered to the engines as ordinary measured lines; the trial index
+    built from them reached 3.1e+25 and the search raised.
+
+    The assertion is that they are *in* the list and *out* of ``usable``, which
+    is the whole point of flagging rather than dropping — a report can still say
+    why each line went.
+    """
+    import rietx as rx
+    from tests.test_acceptance_qpa_roundrobin import DATA as QARR
+    from tests.test_acceptance_qpa_roundrobin import qarr_instrument
+
+    path = QARR / "corundum.prn"
+    if not path.is_file():
+        pytest.skip("IUCr round-robin corundum pattern not present")
+    data = rx.read_pattern(path)
+    peaks = pick_peaks(data, qarr_instrument())
+
+    flagged = [p for p in peaks.peaks if "no_intensity" in p.flags]
+    assert len(flagged) == 2, [(p.two_theta, p.intensity) for p in flagged]
+    assert all(p.intensity < 1e-15 for p in flagged)
+    assert not any("no_intensity" in p.flags for p in peaks.usable())
+    # they are the *only* thing this flag removed — 8 other components are
+    # already unusable here for reasons of their own (ghosts, not_separable)
+    keeps_without_the_flag = [
+        p for p in peaks.peaks
+        if not (set(p.flags) - {"no_intensity"}) & PEAK_UNUSABLE_FLAGS]
+    assert len(keeps_without_the_flag) == len(peaks.usable()) + 2
+
+    # and the point of removing them: every line offered to an engine now has a
+    # position esd a lattice search can use.  The worst was 3.9e+49 degrees.
+    assert max(p.two_theta_esd for p in peaks.usable()) < 1.0

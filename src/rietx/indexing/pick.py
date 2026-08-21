@@ -35,6 +35,7 @@ from ..schemas.indexing import (
 )
 from ..schemas.instrument import Instrument
 from ..schemas.pattern import PatternData
+from ..strategy.staged import BOUND_HIT_RTOL
 from .diagnostics import peak_diagnostics
 from .peakfit import GroupFit, fit_group
 from .peaks import Detection, detect_peaks
@@ -140,6 +141,30 @@ def peaks_of_group(fit: GroupFit, group_index: int, wavelength: float
     The per-group half of :func:`pick_peaks`, public because WP-1027's editor
     refits *one* group and splices the result into a stored list — the flag
     translation must be this one and not a second reading of it.
+
+    **A component sitting at its zero intensity bound is flagged
+    ``no_intensity`` and is unusable** (WP-1110 item 14).  A peak reaches its
+    window only through ``intensity × profile``, so one that refined to no
+    intensity contributes nothing and its own position stops being
+    identifiable — item 13's rule about a phase the data cannot see, one rank
+    down.  "At its bound" is the same test the refinement's ``BOUND_HIT`` uses,
+    and the constant is imported rather than restated because there is one
+    answer to that question.
+
+    Flagged rather than dropped, for ``not_separable``'s reason and one more: a
+    report must be able to say why a line went, and a component a **human**
+    placed through the peak editor is theirs to see and remove — dropping it
+    made the GUI's add verb silently do nothing.  ``_prune`` cannot catch these
+    either, since it tests only *shoulder* seeds by deliberate asymmetry, so a
+    **maximum**-detected component that clears detection and then refines to
+    nothing is never reconsidered.
+
+    It took equilibrating the covariance to see them at all.  On the certified
+    corundum pattern two components refine to intensities of **2.1e-49** and
+    **5.5e-19**; their position esds are ~1e+17 and ~1e+49 degrees, which the
+    pre-WP-1110 pseudo-inverse truncated to 0.06°, so both were published as
+    ordinary measured lines.  ``_max_index`` built from them reached a trial
+    index of **3.1e+25** and the search died there.
     """
     return [ObservedPeak(
         two_theta=(tt := float(fit.two_theta[j])),
@@ -166,6 +191,8 @@ def _flags_for(fit: GroupFit, j: int) -> list[PeakFlag]:
         flags.append("not_separable")
     if _axial_tail(fit, j):
         flags.append("axial_tail")
+    if float(fit.intensity[j]) <= BOUND_HIT_RTOL:
+        flags.append("no_intensity")
     t = fit.asymmetry_t[j]
     if np.isfinite(t) and abs(t) >= PEAK_ASYMMETRY_MIN_SIGMA:
         flags.append("asymmetry_unmodelled")

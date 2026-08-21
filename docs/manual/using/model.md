@@ -296,6 +296,14 @@ present with `vary=False`.
 | `RefinedParameter.vary` | false on the tied rows, which is how to spot them |
 | `RefinedParameter.at_bound` | true, false, or None where the row was not tested |
 
+**A parameter the data said nothing about reports no esd**, rather than a
+small one. A free parameter can end up in a direction the residual does not
+move at all — a width whose peak shape does not need it, a scale for a phase
+that is not in the specimen — and there is no variance to report for it, so
+`stderr` is `None`. It is `None` on the tied rows that draw on such a parameter
+too: a tie whose source measured nothing measured nothing. Read a `None` esd on
+a row you meant to refine as a signal to take that parameter out of the plan.
+
 **A parameter sitting on its bound is not a measurement, so do not quote one.**
 That is what `at_bound` is for, and it has three states rather than two:
 
@@ -310,6 +318,13 @@ vector the fit solves, so nothing looked at it, and its value can sit on its own
 declared bound while every source is interior. And a result built without a fit
 behind it has nothing to report — [`replay`](history.md) recomputes a recorded
 node's curves without running the guard, so every one of its rows is `None`.
+
+**What counts as being on a bound is the solver's own test**, not a second
+one: a value is on a bound when it sits within 1e-10 of *that bound's* own
+magnitude, floored at 1 — the rule `scipy.optimize.least_squares` uses to fill
+its `active_mask`. Relative to the bound it is near, never to the gap between
+the two, so writing `min=1e-14, max=1e14` to mean "leave this alone" does not
+make every value in between read as pinned.
 
 Both channels carry the same fact, and by construction rather than by
 agreement: the flag is the `BOUND_HIT` findings projected onto the rows, from

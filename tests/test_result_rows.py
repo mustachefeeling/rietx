@@ -144,7 +144,82 @@ def test_the_bound_test_lives_in_one_place():
     found = bound_findings((lo, hi), names, np.array([1.0, 5.0, 1.5, 0.0]))
     assert [f.paths for f in found] == [("two_sided",), ("one_sided",)]
     assert {f.code for f in found} == {"BOUND_HIT"}
-    # an infinite span falls back to an absolute tolerance rather than a NaN
-    # comparison that silently answers False for every column
+    # an infinite bound is skipped rather than compared, so it can neither
+    # raise nor answer False for every column through a NaN
     assert bound_findings((lo, hi), names,
                           np.array([0.5, -1e12, 1.5, 1e-3])) == []
+
+
+def test_a_generous_bound_does_not_pin_the_value_it_was_meant_to_free():
+    """WP-1110 item 18: the tolerance is relative to the bound, not the span.
+
+    A caller who writes ``Parameter(value=1.0, min=1e-14, max=1e14)`` is saying
+    "do not constrain this".  Under the pre-WP-1110 span-relative rule that
+    span was 1e14, hence a tolerance of 1e6, and the scale read as ``BOUND_HIT``
+    at every stage of every pattern — 14 orders of magnitude from either bound.
+    Reported by a real agent that had widened its own scale bounds for exactly
+    the reason the rule then punished.
+
+    The two ends still fire, which is the half a looser tolerance gets right by
+    accident and a tighter one has to keep on purpose.
+    """
+    lo, hi = np.array([1e-14]), np.array([1e14])
+    assert bound_findings((lo, hi), ["phases.0.scale"], np.array([1.0])) == []
+    for pinned in (1e-14, 1e14):
+        found = bound_findings((lo, hi), ["phases.0.scale"], np.array([pinned]))
+        assert [f.paths for f in found] == [("phases.0.scale",)]
+
+
+def test_the_bound_test_agrees_with_the_solver_it_reports_on():
+    """``bound_findings`` names exactly the columns TRF calls active.
+
+    The tolerance is quoted from ``scipy.optimize._lsq.common`` rather than
+    chosen (see ``BOUND_HIT_RTOL``), so this is the check that keeps the
+    diagnostic and the solver from holding different opinions about the same
+    column.  It goes through the public ``active_mask``, not the private
+    predicate, so a scipy refactor moves nothing here and a scipy *behaviour*
+    change fails it — which is the way round that is worth being told about.
+
+    The problem is a plain bounded linear least squares whose unconstrained
+    solution is ``[2, -1, 0.5]``: the first two are cut off by their bounds and
+    the third is interior, so the answer is not "all" or "none".
+    """
+    from scipy.optimize import least_squares
+
+    from rietx.strategy.staged import bound_findings as _bf
+
+    a = np.eye(3)
+    b = np.array([2.0, -1.0, 0.5])
+    lo = np.array([0.0, -0.25, -1e14])
+    hi = np.array([1.0, 3.0, 1e14])
+    res = least_squares(lambda x: a @ x - b, np.array([0.5, 0.0, 0.0]),
+                        jac=lambda x: a, bounds=(lo, hi), method="trf")
+    names = ["clipped_high", "clipped_low", "interior_but_widely_bounded"]
+
+    active = {n for n, m in zip(names, res.active_mask, strict=True) if m != 0}
+    flagged = {f.paths[0] for f in _bf((lo, hi), names, res.x)}
+    assert active == {"clipped_high", "clipped_low"}
+    assert flagged == active
+
+
+def test_a_widely_bounded_scale_is_clean_on_a_real_fit():
+    """Item 18 where it did its damage: the rows and the diagnostics of a fit.
+
+    The unit test above pins the predicate; this one pins that nothing between
+    it and a result re-introduces the flag.  The setup is the transcript's — a
+    scale declared ``Parameter(min=1e-14, max=1e14)``, identity transform,
+    which is what an agent writes when it means "do not constrain this" and is
+    *not* what ``Parameter.positive()`` builds (softplus, whose lower bound
+    goes to −∞ internally and so never met the span rule at all).  Measured
+    before the fix: ``phases.0.scale`` flagged in 5 of the 5 stages, refining
+    to 10.25.
+    """
+    data, structure, instrument = _nac()
+    structure.phases[0].scale = rx.Parameter(value=1.0, min=1e-14, max=1e14)
+    ref = rx.Refinement(structure, instrument)
+    result = ref.fit(data, two_theta_limits=LIMITS)
+
+    scale = next(p for p in result.parameters if p.path == "phases.0.scale")
+    assert scale.at_bound is False
+    assert 1e-6 < scale.value < 1e6, scale.value
+    assert "phases.0.scale" not in _bound_hit_paths(result)

@@ -1,6 +1,6 @@
 # WP-1110 — the agent surface, measured against an agent that used it
 
-Milestone: v1.1 · Status: 🔄 2026-08-21 — shaped by a real-agent round; eleven friction items closed or answered, five of the six task lines ticked; item 5 and item 1 are maintainer decisions, not open work
+Milestone: v1.1 · Status: 🔄 2026-08-21 — shaped by a real-agent round; fifteen friction items closed or answered and **all ten task lines ticked, so no code task remains**. Held open, not closed, for the maintainer: item 5 is a `SCHEMA_VERSION` release-home decision, and items 16/19/20 are round findings with no task line. Closing it is a call about milestone ordering (the speed chain 1112 → 1115 is ahead of all of it), which is why this session did not take it
 Depends on: —
 
 ## Goal
@@ -170,7 +170,9 @@ Each is a real failure of an agent doing real work on the trigger dataset.
     GoF 1.13, visually clean, not one usable esd: two parameters legitimately at
     their softplus zero contribute zero-gradient columns that poison the single
     whole-vector covariance inversion. Dropping them broke convergence and cost
-    15× the wall clock.
+    15× the wall clock. **Fixed 2026-08-21, and the symptom was recorded the
+    wrong way round** — the inversion did not withhold esds, it invented small
+    ones. § Item 14 has the mechanism and the numbers.
 15. **The plan types are two.** `PLAN_PRESETS` and `capabilities().plans` hand
     back `strategy.staged.RefinementPlan`/`Stage` (dataclasses); a request wants
     `schemas.plan.PlanSpec`/`StageSpec` (pydantic). Same field names. Passing a
@@ -186,7 +188,10 @@ Each is a real failure of an agent doing real work on the trigger dataset.
 18. **`bound_findings`' relative tolerance misfires on wide bounds.** With scale
     bounds `[1e-14, 1e14]` the `1e-8 × span` tolerance is enormous, so the scale
     read as "at its bound" at every stage. `Parameter.positive()` reproduced an
-    identical Rwp to six figures and cleared it.
+    identical Rwp to six figures and cleared it. **Fixed 2026-08-21**: the
+    tolerance is now relative to the closest bound's own magnitude, quoted from
+    scipy's `active_mask` rule rather than chosen. § Item 18 has the numbers,
+    including why `positive()` cleared it.
 19. **There is no TOPAS `.inp` reader**, so every agent transcribed the model by
     hand — including inferring that a missing backtick means "fixed". All six
     named this as the hardest part. A mistyped coordinate stays symmetry-valid
@@ -351,6 +356,160 @@ here that the format itself names, so it is the one that is surfaced. Reading a
 specimen coordinate off an axis named for something else would be inventing a
 convention — the one repair a reader may never make.
 
+## Item 18 — the denominator was the bug
+
+The tolerance was right to be relative and wrong about what to. `theta` is the
+*internal* vector, where a softplus width and an identity cell edge share no
+scale, so an absolute tolerance means a different thing in every column — that
+much of the original reasoning holds. What does not is dividing by the **span**:
+the span is a statement about how generous the *far* bound was, and it grows
+without limit while the value stays where it is.
+
+**The transcript's numbers.** `Parameter(value=1.0, min=1e-14, max=1e14)` is how
+an agent spells "do not constrain this". Span 1e14, times `1e-8`, is a tolerance
+of 1e6 — so every value below a million read as sitting on the floor. On the
+11-BM NAC rietveld fit with that one declaration changed, `phases.0.scale` was
+flagged in **5 of the 5 stages** while refining to **10.25**, fourteen orders of
+magnitude from either end. After: **0 of 5**. Rwp is **0.15327** both ways,
+because a diagnostic never enters the solve.
+
+**Why `Parameter.positive()` "cleared" it**, which the item recorded as a fact
+without a mechanism. `positive()` builds `min=0.0, max=inf` with a softplus
+transform, and `internal_bounds` maps a lower bound ≤ 1e-12 to −∞. The internal
+span is then infinite, the old rule fell back to its absolute 1e-8, and nothing
+fired. The escape was the *transform*, not the bounds — which is why it looked
+like a fix and was a coincidence: the same wide bounds under the identity
+transform every hand-built `Parameter` gets by default still misfired.
+
+**The replacement is quoted, not chosen.** `BOUND_HIT_RTOL = 1e-10` with the
+threshold `rtol × max(1, |bound|)` against the **closest** bound is
+`scipy.optimize._lsq.common.find_active_constraints` — the predicate TRF itself
+uses to fill `OptimizeResult.active_mask`. Two things follow that picking a
+number would not have bought. The diagnostic and the solver reporting on the
+same column cannot disagree, which is testable through the public `active_mask`
+and is tested. And the value is calibrated to something real: how far
+`make_strictly_feasible` pushes an iterate off a bound it is against, so the
+rtol is not a guess about "close enough". Scipy's *nearer bound wins* clause
+comes across too — on an interval narrow enough for both thresholds to cover it,
+which bound is named is then decided by where the value sits rather than by
+which branch was written first.
+
+**Nothing moved on the package's own defaults**, measured rather than argued:
+old and new rules agree column for column across all five stages of a defaults
+NAC fit. The whole change is the removal of a false positive that only a
+caller's own wide bounds could reach — and reaching it was the reasonable thing
+that caller did.
+
+`BOUND_HIT_REL_TOL` was deleted rather than aliased. It is undocumented,
+unexported and not in the API surface, so an alias kept "for compatibility"
+would have been a declared name with no reader, which is the shape WP-1076
+exists to refuse.
+
+## Item 14 — the esds were not missing, they were small
+
+**The reported symptom cannot happen, and finding that out was the finding.**
+`esd: None` on *every* parameter needs `stderr_internal is None`, which needs no
+Jacobian at all — `compute_uncertainties` is never passed `False` anywhere in
+the package, and a pattern always has more rows than columns. So the transcript
+did not see esds withheld. It saw esds it could not use, and the reason is worse
+than absence.
+
+**What actually happens.** `np.linalg.pinv` discards every eigenvalue below
+`rcond × |λ|max`. The cutoff is therefore set by the *largest* column and
+applied to all of them, and a discarded direction is returned with **zero**
+variance — not infinite. On the NAC fit measured here the column 2-norms ran
+**4.8e-06 to 8.5e+06**, thirteen orders, and **4 of 17** directions were thrown
+away. `phases.0.gauss_size` came back **6.1e-14 ± 9.9e-11**, a figure anyone
+would quote; the equilibrated inverse says **± 4.3e+08**. `instrument.profile.y`
+moved by ×2.2e+17, `lor_size` by ×3.5e+05, `lor_strain` by ×142, `profile.w` by
+×51. Every well-determined parameter — cell, scale, all six background terms —
+agreed to four figures across the change, which is the shape a real fix has.
+
+**The proof needs no dataset.** An esd must not depend on another parameter's
+units: Biso in Å² or in 1e-4 Å² is the same fit. Rescaling one column of a
+synthetic 400×4 problem by 1e6 moved the *other three* esds by a **factor of
+two** under the old inversion and by **4e-16** after. That is
+`test_an_esd_does_not_depend_on_another_parameters_units`, and it is the one
+test here that could not have been written by looking at the output.
+
+**Jacobi scaling is the fix and is not a tuning choice.** van der Sluis (1969),
+Numer. Math. 14, 14-23: scaling a symmetric positive definite matrix to unit
+diagonal comes within a factor of its order of the best possible diagonal
+conditioning. On the NAC matrix it took the discarded directions from 4 of 17
+to 1 of 17.
+
+**Then the honest empty state had to survive being propagated**, which took
+three attempts and is the part worth carrying forward. A gradient-free column
+has infinite variance — true, and the true value is the unusable one. Written
+into `Cov_free` it meets a zero coefficient at every turn: an off-diagonal
+correlation of exactly 0, a `C` row that does not use the column, a geometry
+partial that is zero there. Each is `0 × inf`, a NaN, and one NaN in `Cov_free`
+reaches **every** row of `C @ Cov_free` sharing any source with it. The rutile
+geometry table lost all six Ti-O bond esds to `instrument.profile.y`, a
+parameter no bond depends on. Two dead ends before the right shape: clamping the
+variance to zero reinstates the original lie one layer up, and guarding the
+multiply with `where=corr != 0` fixes only the first of the four places.
+
+**So the column is dropped from the arithmetic and named separately**
+(`ParameterTable.unmeasured_free` / `unmeasured_rows`), and **every consumer
+marks rather than clamps**:
+
+- a **tied** row inherits its source's blindness, through `C` rather than
+  through a second rule — a tie whose source measured nothing measured nothing;
+- a **geometry** row is `None` only when its own partials touch a blind entry,
+  so an unmeasured profile term costs no bond its esd, and `_sigmas` gains a
+  fifth way to have no number beside WP-1072's four;
+- **QPA** drops the *whole* block, not one phase's row: W_i normalises by
+  Σ S_j M_j V_j, so one unmeasured scale makes an unmeasured sum, and every
+  other phase's fraction would otherwise be reported to the precision it would
+  have had if this phase were known. It is the same phase `PHASE_UNCONSTRAINED`
+  names — item 13's runaway and item 14's blind column are one specimen.
+
+**It found a real defect in the peak list, which is the part I did not
+predict.** `normal_covariance` has a second consumer — `indexing.peakfit`, per
+its own docstring — and the equilibrated inverse promptly broke three indexing
+acceptance rows. The cause was not the change: on the certified corundum
+pattern two of 62 components refine to intensities of **2.1e-49** and
+**5.5e-19**, so neither has any gradient on its own position (a peak reaches its
+window only through intensity × profile — item 13's rule again), and their
+position esds are ~1e+17 and ~1e+49 degrees. The old pseudo-inverse truncated
+both to **0.06°** and the pipeline consumed them as ordinary measured lines;
+`_max_index` built from them reached a trial index of **3.1e+25**, where
+`trial_hkl` raised. So the phantom lines were always there and equilibration is
+what made them visible.
+
+`_prune` cannot reach them and says so: it tests only *shoulder* seeds, by
+deliberate asymmetry, because a maximum-detected component already cleared a
+height test on the data. One that clears detection and then refines to nothing
+is never reconsidered. Hence `no_intensity`, a `PeakFlag` that **is** in
+`PEAK_UNUSABLE_FLAGS` — unlike `background_extrapolated` or `axial_tail`, which
+report evidence because a consumer might still judge the line real; there is
+nothing left to judge here. Its test is item 18's `BOUND_HIT_RTOL`, imported
+rather than restated.
+
+**Flagged, not dropped, and the GUI is what settled that.** My first version
+dropped the component, which made the peak editor's add verb silently do nothing
+on a component a human had just placed — caught by `test_gui_peaks`. Flagging
+also gives `not_separable`'s reason: a report must be able to say why a line
+went. A human can still clear the flag, which `gui/peaks.py` already supports.
+A vocabulary member is a contract change even where every prior value still
+means what it did (the 1.1 precedent), so `INDEXING_THRESHOLDS_VERSION` is
+**1.3**, and the GUI highlighter's meta-test failed until `rxt.ts` restated it.
+
+**The indexing row improved.** `test_a_certified_lab_pattern_indexes_and_is_graded_honestly`
+reads **50 of 52** lines where it read 51 of 55 — one fewer indexed, *two*
+fewer unindexed, `indexed_fraction` **0.927 → 0.962**. The certified lattice
+still ranks first with the right centring and both axes stay inside 150 ppm. A
+line that was never a line cannot be indexed, so counting it in the denominator
+only ever depressed that figure of merit.
+
+**Unchanged, checked rather than assumed.** The manual's geometry-esd figure
+reproduces its own printed numbers exactly — `mccusker_structural`, Rwp
+**0.08177**, **88** distances, diagonal/full ratio **0.86-1.41** — so the
+chapter's text and the committed figures stand. The regenerated PNGs differed by
+under 0.2 % of their bytes, including `impurity-peak`, which no esd can reach;
+that is rendering noise and they were restored rather than committed.
+
 ## Three items that are not code changes, and why
 
 Reproduced and costed 2026-08-21. Two of them cannot be fixed at the API level
@@ -398,9 +557,32 @@ such (`using/data.md`). Nothing to do, recorded so it is not re-opened.
 
 The decision above is taken, so these are now ordered. Candidates, by value:
 
-- [ ] **Yank `0.0.0` from PyPI** (item 1). One action, removes a silent-failure
-      mode for every new user on an older Python. Note `docs/RELEASING.md`'s rule:
-      never `twine upload` by hand.
+- [x] **Yank `0.0.0` from PyPI** (item 1) — **done 2026-08-21** by the
+      maintainer, the one action in this WP no session could take. Verified from
+      the index: `0.0.0` is `yanked=True`, and it was the only release declaring
+      `requires_python >=3.10` — 1.0.0 and 1.0.1 both declare `>=3.11`. pip
+      excludes a yanked version from a range, so `pip install rietx` on 3.10
+      now reaches 1.0.1 and reports its own "requires a different Python"
+      rather than resolving the empty stub and succeeding.
+- [x] **Make an esd mean something** (item 14) — **done 2026-08-21**. The
+      normal matrix is Jacobi-equilibrated before the pseudo-inverse, so the
+      rcond cutoff stops being set by the largest column, and a direction the
+      data does not move reports **no** esd rather than a small one. The
+      reported symptom was the wrong way round: the inversion invented tiny
+      esds, it did not withhold them. § Item 14 has the numbers, the
+      units-independence proof, and the three consumers that had to learn to
+      mark rather than clamp. It also **found a defect in the peak list**: two
+      phantom components on the certified corundum pattern that only became
+      visible once the inverse stopped truncating their esds, now flagged
+      `no_intensity` (`INDEXING_THRESHOLDS_VERSION` 1.3). Not on the task list
+      before this session, because the list predates the round that found the
+      item.
+- [x] **Stop the bound diagnostic crying wolf** (item 18) — **done 2026-08-21**.
+      The tolerance was a fraction of the bound *span*, so declaring a
+      parameter unconstrained made it read as pinned; it is now a fraction of
+      the closest bound's own magnitude, quoted from the rule TRF uses to fill
+      `active_mask`. § Item 18 has the 5-of-5-to-0-of-5 measurement. Not on the
+      task list before this session, for the same reason.
 - [x] **Stop the zero-scale cell runaway, and name it** (item 13) — **done
       2026-08-20**. `params.vector.cell_window` is a default per-stage window on
       every cell parameter, in TOPAS's shape and at stage granularity;
@@ -470,6 +652,170 @@ ignoring a bound pinned in most patterns.
 ```
 
 ## Handover log
+
+### 2026-08-21 (second session) — two ways a fit lied about its own reliability
+
+A refinement can now be trusted about what it did *not* measure. Before this,
+a parameter the data said nothing about came back with a small, quotable esd,
+and a parameter you had deliberately left unconstrained came back reported as
+pinned against its bound. Both were failures in the flattering direction: the
+package looked more certain than it was, in exactly the places where a person
+most needs it to say so. Neither was visible in Rwp, in a test, or in a
+warning. The cost of fixing the first is that some esds are now absent where
+they used to be numbers, and one figure of merit in indexing moved — upward,
+because two of the lines it was scored against were never lines.
+
+The last of that is the part worth carrying: fixing the esds **found a defect
+nobody was looking for**. Two components on the certified corundum pattern had
+been published as measured diffraction lines for as long as the peak fitter has
+existed, and could not have been seen until the covariance stopped hiding them.
+
+*Done.* Items **1**, **18** and **14**; all ten task lines are now ticked.
+
+- **Item 1** (yank `0.0.0`) is the maintainer's, done by them, verified from
+  the index rather than taken on trust: `0.0.0` is `yanked=True` and was the
+  only release declaring `requires_python >=3.10`. `pip install rietx` on 3.10
+  now reports its own "requires a different Python" instead of resolving an
+  empty stub and succeeding.
+- **Item 18**: `bound_findings` measured "on its bound" as a fraction of the
+  bound *span*, so `Parameter(min=1e-14, max=1e14)` — how a caller spells "do
+  not constrain this" — bought a tolerance of 1e6. The denominator is now the
+  **closest bound's own magnitude**, quoted from
+  `scipy.optimize._lsq.common.find_active_constraints`, which is the predicate
+  TRF itself uses to fill `active_mask`. Quoting rather than choosing buys two
+  things a number could not: the diagnostic and the solver cannot disagree
+  about a column, and the rtol is calibrated to how far `make_strictly_feasible`
+  pushes an iterate off a bound. § Item 18.
+- **Item 14** was **recorded the wrong way round**, and finding that out was
+  the finding. `esd: None` on every parameter cannot happen — it needs no
+  Jacobian at all, and `compute_uncertainties` is never passed `False` anywhere
+  in the package. The real failure is the opposite and worse: `pinv` cuts
+  eigenvalues at `rcond × |λ|max`, so the largest column sets the cutoff for
+  all of them and a discarded direction returns at **zero** variance. The
+  normal matrix is now Jacobi-equilibrated first (van der Sluis 1969), a
+  gradient-free column carries infinite variance, and every consumer **marks
+  rather than clamps**. § Item 14.
+- **The peakfit consequence** (§ Item 14's second half): `no_intensity` is a
+  new `PeakFlag`, in `PEAK_UNUSABLE_FLAGS`, tested with item 18's own
+  `BOUND_HIT_RTOL`. `INDEXING_THRESHOLDS_VERSION` 1.2 → **1.3**, a vocabulary
+  member being a contract change on the 1.1 precedent.
+
+*Measured.* This checkout's own venv, **`[dev]` (no jax/torch), darwin/arm64**:
+
+- Fast selection **2573 passed, 117 skipped**, from **2558 / 117** at this
+  session's start on `origin/main`. **Fifteen** tests added, fifteen new passes,
+  **no new skip** — 3 (item 18, in `test_result_rows.py`) + 10 (item 14, the
+  new `test_covariance_scaling.py`) + 2 (the flag, in `test_peak_picking.py`).
+- Full suite, same venv and platform: **2682 passed, 126 skipped in 28:37**,
+  zero failures and zero errors, against the previous session's **2667 / 126**
+  — **+15**, the fast delta exactly, since none of the fifteen is `@slow`;
+  skips unchanged. It fired **three** times, and only the last is the record:
+  the first two were on trees that item 14's own consequences then changed.
+- `tests/test_acceptance_indexing.py` alone, **44 passed**, after CLAUDE.md's
+  rule about running it before closing anything near an engine. Earning that
+  took two runs: the first came back 3 errors and is what led to the peak list.
+- GUI: **407 vitest passed**, `svelte-check` 0 errors, dist rebuilt.
+  `ruff` clean over `src tests examples`; `sphinx -W` clean.
+- **Looked at, not only counted** (`tests/output/` is gitignored, so this is a
+  record rather than an artefact): the corundum pattern drawn with the usable
+  lines and the two `no_intensity` ones marked. Both land where there is no
+  peak — **116.71°** in the valley between the 116.1 and 117.85 lines, and
+  **124.91°** on the descending tail of the 124.57 line — while every usable
+  line sits on one. That is the check a count cannot make, and it is what
+  turns "the fit says these have no intensity" into "there is nothing there".
+
+*Equivalence bars, both measured rather than argued.*
+
+- **Item 18 moves nothing on the package's own defaults.** Old and new rules
+  agree column for column across all five stages of a defaults NAC fit. The
+  default scale is `Parameter.positive()`, whose softplus lower bound goes to
+  −∞ internally and so never met the span rule — which is also the mechanism
+  behind the item's note that `positive()` "cleared" the report. The escape was
+  the *transform*, not the bounds, so it was a coincidence.
+- **Item 14 moves nothing that was determined.** Cell, scale and all six
+  background terms agree to four figures. The SRM 660c acceptance row
+  reproduces **byte-for-byte** — `a = 4.156895(25)`, Rwp 8.66 %, GoF 1.87,
+  BL 3.377 — which is the registry's own string. The manual's geometry-esd
+  figure reproduces its printed numbers exactly (Rwp **0.08177**, **88**
+  distances, ratio **0.86-1.41**), so no chapter claim moves.
+
+*In flight.* Nothing running.
+
+*Next.* This WP has **no code task left**. Item 5 remains the maintainer's
+release-home decision for a `SCHEMA_VERSION` 0.2 → 0.3, costed both ways in
+§ Three items that are not code changes. Items **16** (`refine_json` cannot
+express a tie), **19** (no TOPAS `.inp` reader) and **20** (the wheel ships
+`src/rietx/io/CLAUDE.md` and `indexing/CLAUDE.md`) are round findings that still
+have no task line; 20 is minutes, 16 is small and low-value given § The
+decision's conclusion that `refine_json` is for MCP callers, and 19 is a
+feature. Items 9 and 11 are the silent-science group and § The decision's last
+paragraph should be read before working them. Milestone-wise the maintainer's
+ordering still puts the speed chain (1112 → 1115) ahead of all of it, so the
+honest recommendation is to **close this WP and go to 1112** unless item 5 is
+wanted in 1.0.2.
+
+*Filed elsewhere.* One finding belongs to nobody's WP and is recorded here so
+it is not lost: **`docs/VALIDATION.md`'s NAC row records a number the current
+protocol does not produce.** It says `a = 10.251285(12) A, Rwp 9.2 %`; the
+acceptance fixture produces `a = 10.251216(46), Rwp 9.3 %` — a factor of four
+on the quoted precision. **This is not this session's doing**: measured
+identically after `git checkout main -- src/`, and confirmed to be the fixture's
+own path by printing from inside the test rather than from a reconstruction.
+The `measured` strings in `tests/validation_matrix.py` are frozen prose and the
+byte-identity test only compares the doc to the registry, so nothing can catch
+the registry drifting from reality. Whether `measured` is meant as a current
+measurement or a dated snapshot is a documentation-policy call, which is why
+this session did not act on it.
+
+*Gotchas.* (0) **CI found a knife-edge assertion, and the fix is not the bar.**
+`test_e8_short_window_reports_the_collinear_triangle` asserted
+`any(|rho| > 0.99 for c in top_correlations)`. It failed on py3.13 in one run
+and **py3.12 in the next**, which is already the answer: not a version, a
+platform. Measured |rho| for `profile.u ~ profile.v` is **0.992821** on
+darwin/arm64 and **0.983761** on CI's linux x86-64 — 9.1e-3 apart, which is
+where TRF stopped and not physics. Both the old 0.99 and the package's own
+`correlation_guard` default of **0.98** sit inside that spread, so neither is an
+assertion about the fit. It now asserts what does not move: that u~v is the
+worst pair, over a bar of 0.9 that carries the spread — with the quantitative
+claim still made by the soft-mode eigenvalue two lines above, which is computed
+on the unit-column normal matrix and therefore carries no conditioning. On
+darwin every real pair is **bit-identical** before and after this branch
+(u~v 0.992821082, v~w 0.980860785, cell.a~displacement 0.942132007), so this
+branch does not move a real correlation. The one it does move is
+`instrument.profile.y`, whose column here is exactly flat: **0.740707** on main,
+**0.000000** now — at cond 5.9e23 the un-equilibrated `eigh` cannot resolve a
+null direction and manufactures a correlation for it. The most likely reading of
+main's green Linux runs is that an artefact like that one was carrying the
+assertion there, and it is **not proven**: it would need main run on Linux with
+the table printed. The fix does not depend on which is true, because the bar was
+inside the spread either way. (a) **An infinite variance is true and
+unpropagatable.** Every
+`0 × inf` against a zero coefficient is a NaN — an off-diagonal correlation of
+exactly 0, a `C` row that does not use the column, a geometry partial that is
+zero there — and one NaN in `Cov_free` reaches every row of `C @ Cov_free`
+sharing a source with it. A rutile geometry table lost all six Ti-O bond esds
+to `instrument.profile.y`, which no bond depends on. Two dead ends before the
+right shape: clamping the variance to zero reinstates the original lie one layer
+up, and guarding the multiply with `where=corr != 0` fixes only the first of the
+four places. (b) **`np.isfinite` was the wrong predicate for a phantom peak.**
+Those components have intensity 2.1e-49, not 0, so their columns are
+*nearly* flat rather than exactly flat and the variance is huge-but-finite. The
+predicate that works is physical and needs no new constant — the component sits
+at its zero intensity bound. (c) **Dropping a component broke the GUI**, which
+is what settled flag-versus-drop: the peak editor's add verb silently did
+nothing on a component a human had just placed. `test_gui_peaks` caught it.
+(d) A new `PeakFlag` fails `test_textdoc`'s meta-test until `gui/src/lib/rxt.ts`
+restates the vocabulary, and the dist must then be rebuilt. (e) **Self-review
+caught an efficiency regression I had introduced**: folding `stderr_physical`'s
+uncorrelated branch into `_cov_free` removed a duplicated construction but
+routed a vector quantity through a dense n×n — tens of MB on a Pawley table,
+in the speed milestone. The shared piece is now `_sigma_free_measured`, which
+is the part actually shared. (f) `compute_uncertainties` is declared with a
+`True` default on two functions and **no in-tree caller ever overrides it**;
+its `False` path has no test. A WP-1076-shaped observation, not acted on.
+(g) Root CLAUDE.md's cap moved 759 → 771 and `src/rietx/indexing/CLAUDE.md`'s
+280 → 296, each in its own commit with the reason, per the policy in
+`SIZE_CAPS`.
 
 ### 2026-08-21 — the sharp edges an agent meets in its first five minutes
 

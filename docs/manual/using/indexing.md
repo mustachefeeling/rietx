@@ -145,6 +145,7 @@ of `PeakList.usable`; the rest are evidence a consumer weighs.
 | `excluded` | the caller removed it | no |
 | `fit_failed` | the group solve did not converge, so the position is the seed | no |
 | `not_separable` | a component the fitter believes as a shape and disbelieves as a line | no |
+| `no_intensity` | it refined onto its zero intensity bound, so it locates nothing | no |
 | `sigma_assumed` | σ was supplied rather than fitted | yes |
 | `unresolved_shoulder` | it never separated from its neighbour by half a FWHM | yes |
 | `position_at_bound` | the fit pushed to its position bound: detection seeded it in the wrong place | yes |

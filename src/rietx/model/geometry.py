@@ -373,12 +373,21 @@ def _sigmas(items, values, table, ip: int, n_atoms: int, cov) -> list[tuple]:
     ``weight_fractions``' rule — an all-zero block is absence of information,
     never σ = 0 — with the cancelling case counted as the same thing, because
     it is.
+
+    A fifth way to have no number arrived with WP-1110 item 14: a row drawing
+    on an entry that was refined and **measured nothing**.  Its column is
+    zeroed in ``Cov_free`` rather than carried as the infinity it is, since one
+    infinity NaNs every product against a zero coefficient — so without the
+    mask such a row reports the variance of its *other* sources and reads as a
+    measurement.  A row whose partials touch nothing blind is unaffected, which
+    is the case that matters: an unmeasured profile term must not cost a bond
+    length its esd.
     """
     if not items:
         return []
     if cov is None:
         return [(None, None)] * len(items)
-    cov_full, cov_diag = cov
+    cov_full, cov_diag, blind = cov
     rows = restraint_partials(CompiledRestraints(items=items), values, table)
     cols = [table._paths[p] for p in _phase_paths(ip, n_atoms)]
     g = rows[:, cols]
@@ -386,9 +395,12 @@ def _sigmas(items, values, table, ip: int, n_atoms: int, cov) -> list[tuple]:
     var_diag = np.einsum("ra,ab,rb->r", g, cov_diag, g)
     scale = np.einsum("ra,ab,rb->r", np.abs(g), np.abs(cov_full), np.abs(g))
     floor = VARIANCE_CANCELLATION_FLOOR * scale
-    return [(None, None) if f <= max(fl, 0.0) else
+    touches_blind = (np.abs(g[:, blind]) > 0.0).any(axis=1) if blind.any() \
+        else np.zeros(len(items), dtype=bool)
+    return [(None, None) if (b or f <= max(fl, 0.0)) else
             (math.sqrt(f), math.sqrt(max(float(d), 0.0)))
-            for f, d, fl in zip(var_full, var_diag, floor, strict=True)]
+            for f, d, fl, b in zip(var_full, var_diag, floor, touches_blind,
+                                   strict=True)]
 
 
 def geometry_table(model, table, theta: np.ndarray, structure, *,
@@ -425,7 +437,9 @@ def geometry_table(model, table, theta: np.ndarray, structure, *,
             cov = (table.physical_covariance(theta, stderr_internal,
                                              correlation, paths),
                    table.physical_covariance(theta, stderr_internal,
-                                             None, paths))
+                                             None, paths),
+                   table.unmeasured_rows(theta, stderr_internal,
+                                         [table._paths[q] for q in paths]))
         pairs = ([(i, e, True) for i, e in bonds]
                  + [(i, e, False) for i, e in contacts])
         pair_items = [_bond_item(ip, i, e) for i, e, _ in pairs]

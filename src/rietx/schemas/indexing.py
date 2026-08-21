@@ -40,12 +40,16 @@ from .common import Base, Diagnostic, Provenance
 #: when every prior value still means what it did.
 #: 1.2 (WP-1039): the lines a search is *driven* by are now the strongest
 #: ``n_search_lines`` rather than the first N in 2θ order
+#: 1.3 (WP-1110 item 14): ``PeakFlag`` gains ``no_intensity`` and
+#: ``PEAK_UNUSABLE_FLAGS`` gains it too — a component that refined onto its zero
+#: intensity bound, which nothing could see before the covariance was
+#: equilibrated
 #: (:func:`rietx.indexing.engines.search_line_order`).  No field changed and no
 #: threshold here moved — this is bumped because ``workflow._spec_notes`` records
 #: this string beside the spec as the stamp a run is reproducible from, and two
 #: runs with identical spec notes now answer differently.  A position-only list is
 #: unaffected: with no measured intensities the rule is exactly the old one.
-INDEXING_THRESHOLDS_VERSION = "1.2"
+INDEXING_THRESHOLDS_VERSION = "1.3"
 
 # ----------------------------------------------------------------------
 # Detection
@@ -411,6 +415,13 @@ PEAK_ASSUMED_ESD_DEG = 0.02
 #: deliberately **not** in :data:`PEAK_UNUSABLE_FLAGS`, and it is a flag of its
 #: own rather than a reuse of ``position_at_bound``, which means something
 #: else and caught only two of the five cases that motivated this.
+#: ``no_intensity`` — the component refined onto its zero intensity bound, so it
+#: contributes nothing to the window and its own position stops being
+#: identifiable (a peak reaches the data only through ``intensity × profile``).
+#: It **is** unusable: unlike the report-do-not-refuse flags above, there is no
+#: judgement left for a consumer to make.  It stays in ``peaks`` for the same
+#: reason ``not_separable`` does — a report must be able to say why a line went,
+#: and a component a *human* placed is theirs to see and remove.
 PeakFlag = Literal[
     "ghost_kbeta",
     "ghost_tungsten",
@@ -424,6 +435,7 @@ PeakFlag = Literal[
     "background_extrapolated",
     "axial_tail",
     "kalpha2_residual",
+    "no_intensity",
 ]
 
 #: FWHM multiple within which a weak component may be read as a stronger
@@ -455,7 +467,8 @@ PEAK_AXIAL_TAIL_MAX_FWHM = 3.5
 #: so removing it from the *model* would bias the position of the line it sits
 #: on) while never being offered as evidence of a lattice.
 PEAK_UNUSABLE_FLAGS: frozenset[str] = frozenset(
-    {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed", "not_separable"})
+    {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed", "not_separable",
+     "no_intensity"})
 
 #: Standard deviations above χ²_red = 1 at which a group's fit is **refuted**, and
 #: therefore above which a ΔBIC verdict on adding one more component to it cannot

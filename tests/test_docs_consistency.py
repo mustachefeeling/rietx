@@ -172,7 +172,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # rank is the clause a session adding *any* mirror needs before it writes
     # one: two types sharing every field name make a structural test certify an
     # accident, so the crossing tests the class.
-    "CLAUDE.md": 759,
+    # 759 -> 771 for WP-1110 item 14 (2026-08-21): the covariance is
+    # equilibrated, and a direction the data cannot see reports no esd.  The
+    # operating detail went down a rank as this comment requires — the cutoff
+    # arithmetic, the van der Sluis result and the 0 × inf propagation are in
+    # `normal_covariance` and `ParameterTable._cov_free`, the measurements in
+    # the WP.  What cannot go down a rank is the pair a session touching *any*
+    # statistic will otherwise get wrong: a badly-scaled column silently zeroes
+    # a variance rather than raising, and the honest empty state for an
+    # unmeasured direction is absence, which every consumer must mark rather
+    # than clamp.
+    "CLAUDE.md": 771,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one
@@ -210,7 +220,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # 250 at the WP-1060 split; raised once, for WP-1046's two standing rules
     # (which layer may apply a cap, and that agreement outranks the panel) —
     # both measured, and every number behind them is in the v1.0 appendix
-    "src/rietx/indexing/CLAUDE.md": 280,
+    # 280 -> 296 for WP-1110 item 14 (2026-08-21): a component at its zero
+    # intensity bound is not a line.  The operating detail went down a rank as
+    # this comment requires — the flag's semantics are on `PeakFlag` and
+    # `PEAK_UNUSABLE_FLAGS`, the mechanism in `peaks_of_group`, the numbers in
+    # the WP.  What cannot go down a rank is that this class of phantom was
+    # *invisible* until the covariance was equilibrated, so a session reading
+    # the peak list's history will otherwise assume the not_separable fix
+    # cleared it.
+    "src/rietx/indexing/CLAUDE.md": 296,
     # 200 at the .ras/.uxd consolidation; raised once with three container
     # formats still to land, each of which is a row in its per-format table
     "src/rietx/io/CLAUDE.md": 250,

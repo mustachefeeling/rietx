@@ -192,7 +192,23 @@ sit a median 0.060° from truth against a median fitted σ of 0.0056° (the 11σ
 declines), and `refine_with_shift` runs after survival because the shift's
 *shape* needs reference positions, which a candidate cell supplies.
 
-## Thirteen more rules, each learned the hard way
+## Fourteen more rules, each learned the hard way
+
+- **A component that refines onto its zero intensity bound is not a line, and
+  nothing before WP-1110 could see one.** A peak reaches its window only through
+  `intensity × profile`, so such a component has no gradient on its own position;
+  the pre-1110 pseudo-inverse truncated the resulting unmeasurable esd to an
+  ordinary-looking 0.06°, and the certified corundum list published **two** of
+  them (I = 2.1e-49 and 5.5e-19) until the covariance was equilibrated.
+  `_max_index` built from one reached a trial index of **3.1e+25**. `_prune`
+  cannot reach them — it tests only *shoulder* seeds, by the deliberate
+  asymmetry in its docstring — so `no_intensity` is a flag in
+  `PEAK_UNUSABLE_FLAGS`, tested with the refinement's own `BOUND_HIT_RTOL`, and
+  **flagged rather than dropped** because a report must be able to say why a
+  line went and because a component a *human* placed is theirs to remove
+  (dropping made the GUI's add verb silently do nothing). Removing the two took
+  the corundum row to 50 of 52 lines from 51 of 55 — `indexed_fraction`
+  0.927 → 0.962, since a line that was never a line could never be indexed.
 
 - **A filter inside a search fails with a wrong *answer*, so a silence indicts the
   filters before the tolerance.** `engines.solution_key` is the one dedup authority —
