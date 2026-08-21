@@ -1083,8 +1083,14 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
     # reported physical esds effectively raw) and deflated every off-diagonal by
     # BL² (killing the 0.98 high-correlation guard).
     sqrt = np.sqrt(np.maximum(np.diag(cov), 0.0))
-    denom = np.outer(sqrt, sqrt)
+    # the outer product is inside the errstate, not before it: with WP-1110's
+    # infinite variance on a gradient-free column and an exactly-zero one on a
+    # direction the pinv dropped, ``denom`` has a genuine 0 × inf.  The NaN is
+    # then *discarded* correctly — ``nan > 0`` is False, so that pair's
+    # correlation is 0, which is what it should be — but a RuntimeWarning
+    # raised from a covariance path is noise that hides the next real one.
     with np.errstate(invalid="ignore", divide="ignore"):
+        denom = np.outer(sqrt, sqrt)
         corr = np.where(denom > 0, cov / denom, 0.0)
     corr = np.clip(corr, -1.0, 1.0)
     np.fill_diagonal(corr, np.where(sqrt > 0.0, 1.0, 0.0))
