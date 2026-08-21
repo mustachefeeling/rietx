@@ -1,6 +1,6 @@
 # WP-1110 — the agent surface, measured against an agent that used it
 
-Milestone: v1.1 · Status: 🔄 2026-08-21 — shaped by a real-agent round; eleven friction items closed or answered, five of the six task lines ticked; item 5 and item 1 are maintainer decisions, not open work
+Milestone: v1.1 · Status: 🔄 2026-08-21 — shaped by a real-agent round; twelve friction items closed or answered, all six task lines ticked; item 5 is the one maintainer decision left, and items 14/16/18/19/20 are round findings with no task line yet
 Depends on: —
 
 ## Goal
@@ -398,9 +398,13 @@ such (`using/data.md`). Nothing to do, recorded so it is not re-opened.
 
 The decision above is taken, so these are now ordered. Candidates, by value:
 
-- [ ] **Yank `0.0.0` from PyPI** (item 1). One action, removes a silent-failure
-      mode for every new user on an older Python. Note `docs/RELEASING.md`'s rule:
-      never `twine upload` by hand.
+- [x] **Yank `0.0.0` from PyPI** (item 1) — **done 2026-08-21** by the
+      maintainer, the one action in this WP no session could take. Verified from
+      the index: `0.0.0` is `yanked=True`, and it was the only release declaring
+      `requires_python >=3.10` — 1.0.0 and 1.0.1 both declare `>=3.11`. pip
+      excludes a yanked version from a range, so `pip install rietx` on 3.10
+      now reaches 1.0.1 and reports its own "requires a different Python"
+      rather than resolving the empty stub and succeeding.
 - [x] **Stop the zero-scale cell runaway, and name it** (item 13) — **done
       2026-08-20**. `params.vector.cell_window` is a default per-stage window on
       every cell parameter, in TOPAS's shape and at stage granularity;
