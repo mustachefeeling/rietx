@@ -48,6 +48,20 @@ test (``tests/test_lm_solver.py::test_ru_is_one_on_a_linear_model``) and the
 only way to know the schedule is being fed the quantity its constants were
 tuned for.
 
+**Where the two drivers can part company on the answer** (WP-1113): on a
+protocol whose width stages walk a degenerate valley into a stage that opens
+a *new* basin — the QPA cpd-2 protocol, where per-phase size/strain × U,V,W,
+X,Y are near-degenerate and the texture stage's March-Dollase basin is only
+downhill from some points of that valley — the two drivers stop at different,
+locally equivalent valley points, and the LM's can be one from which the
+texture basin is unreachable (Rwp 0.245 against TRF's 0.133, brucite 76
+against 38 wt %).  Measured to be a *genuine local minimum*, not a driver
+defect: a TRF polish from the LM's exact state stays at Rwp 0.244.  Basin
+selection on a shared degeneracy is path luck, not driver quality — but the
+reference protocols were tuned under TRF, so on a texture-bearing staged plan
+prefer the default driver or re-validate the answer (the case lives in
+``examples/bench_solver.py``).
+
 **The cost is always a fresh fp64 residual evaluation**, never an extrapolation
 from the same reduced-precision quantities that built the columns.  That is
 what lets a backend compute Jacobian columns in fp32 and still land on the

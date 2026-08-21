@@ -208,8 +208,30 @@ same venv, same scaffold):
   ``zero_disp`` was already 10).  A seeding stage's machinery is not paid
   for by 6-8 % when the ftol knob buys 50-71 % on the same cases.
 
-The LM basin split is **not** born in ``zero_disp`` (identical endpoints
-there); the bisection should trajectory-diff the later stages.
+**The LM basin, reproduced, bisected and fenced** (2026-08-21).  At the
+resized windows the shipped caps *hide* it — ``solver="lm"`` lands Rwp
+0.1346, brucite 38.25 wt %, because its ``cell`` stage is truncated at
+``max_iter`` before entering the path.  At per-stage ``max_iter`` 400, where
+both drivers stop where their own criteria say, the finding reproduces:
+LM Rwp 0.2452, brucite 76.46 wt %, ΔBIC −8883.  The bisection: the basins
+are identical through ``cell`` (Rwp 0.5299 both, only the flat
+zero/displacement pair differing ~1 %); the drivers then stop at different,
+locally equivalent points of the degenerate width valley
+(``profile``/``sample_broadening``/``biso``, Rwp 0.2440 vs 0.2452, e.g.
+``profile.u`` −0.037 vs +0.0003); and from LM's point the texture stage
+terminates ``ftol_runs`` after 14 evaluations at r = 1.0000, where from
+TRF's the same stage descends to r = 0.67 and Rwp 0.1329.  The decisive
+test: **a TRF polish of the final stage from LM's exact converged state
+stays at Rwp 0.2436** (4 iterations, converged) — the LM endpoint is a
+genuine local minimum, so this is basin selection on a shared degeneracy,
+not a driver defect, and none of 1109's three candidate causes (softplus λ
+interplay, BCCG bound handling, early ``r_u`` acceptance) is the mechanism.
+Fenced with the reason recorded: ``optimize/lm.py``'s docstring names the
+protocol, ``examples/bench_solver.py`` gains ``_cpd2_qpa`` (per-stage cap
+raised to 400 *in the case*, because at the shipped cap the answer depends
+on a runaway guard — the dependence WP-1109's budget rule forbids reading
+as convergence; the guard did fire ``max_iter`` on the run that landed
+well, which is the honest half).
 
 ## Non-goals
 
@@ -253,11 +275,15 @@ one); Rwp-judged anything.
       whole-plan at ≤ 0.02 esd on all three lab-shaped cases; ``max_iter``
       caps are the wrong lever.  Landed as opt-in ``Stage.ftol`` +
       ``StageSpec.ftol`` (SCHEMA_VERSION 0.3 → 0.4), presets untouched.
-- [ ] **LM basin investigation**: reproduce on the QPA protocol, bisect the
+- [x] **LM basin investigation**: reproduce on the QPA protocol, bisect the
       candidate causes above, add the case to `examples/bench_solver.py`'s
       protocol list; fix if the cause is a defect, fence with a recorded
       reason if it is the method (`solver="lm"`'s docstring then names the
-      protocol it loses).
+      protocol it loses).  Done — § Findings: reproduced at raised caps
+      (hidden by truncation at the shipped ones), bisected to basin
+      selection on the degenerate width valley, proven a genuine local
+      minimum by TRF-from-LM's-state, fenced in ``lm.py`` and benched as
+      ``_cpd2_qpa``.
 - [ ] **Decide the cost-estimate callable**: land it here or defer it to
       v1.2 in writing (a ROADMAP/WP note naming it), never a silent drop.
 - [ ] Tests (the instrumentation fields, the seeding stage if landed) +
