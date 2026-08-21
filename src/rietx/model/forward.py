@@ -226,11 +226,27 @@ class BatchLayout:
     w_max: int                # padded window axis
     idx: np.ndarray           # (R, w_max) point indices, clipped into window
     x: np.ndarray             # (R, w_max) = tt[idx], the frozen 2θ gather
+    mask: np.ndarray          # (R, w_max) 1.0 in-window, 0.0 on the pad tail
     fcj: np.ndarray           # (R,) frozen node count per row (0 = symmetric)
     #: frozen node count → row indices; the key 0 is the symmetric block, and
     #: each nonzero key is one batched-quadrature bucket (no node-axis padding
     #: — the pad layout measured 0.8× on the gate's trigger case)
     buckets: dict[int, np.ndarray]
+    #: (n_lines + 1,) prefix pointers into the rows per emission line — rows
+    #: are il-major, so line il occupies rows line_ptr[il]:line_ptr[il + 1]
+    line_ptr: np.ndarray
+
+    def gather(self, peaks: list[tuple], slot: int) -> np.ndarray:
+        """(R,) gather of ``peaks[il][slot][k]`` onto the rows.
+
+        ``peaks`` is a ``phase_peaks`` result (one (pos, w₁, w₂, intensity)
+        tuple per emission line); ``slot`` picks the quantity.
+        """
+        out = np.empty(len(self.i0))
+        for il in range(len(self.line_ptr) - 1):
+            a, b = int(self.line_ptr[il]), int(self.line_ptr[il + 1])
+            out[a:b] = np.asarray(peaks[il][slot])[self.k[a:b]]
+        return out
 
 
 #: rows per chunk of the batched FCJ kernel stage in ``derivative_bases``:
@@ -256,10 +272,13 @@ def _batch_layout(win: np.ndarray, fcj_n: np.ndarray, tt: np.ndarray
     ar = np.arange(w_max, dtype=np.int64)[None, :]
     idx = np.minimum(i0[:, None] + ar, np.maximum(i1 - 1, 0)[:, None])
     x = tt[idx] if len(width) else np.zeros((0, 0), dtype=np.float64)
+    mask = (ar < width[:, None]).astype(np.float64)
     nf = fcj_n[il, k]
     buckets = {int(v): np.nonzero(nf == v)[0] for v in np.unique(nf)}
+    line_ptr = np.searchsorted(il, np.arange(win.shape[0] + 1))
     return BatchLayout(il=il, k=k, i0=i0, i1=i1, width=width, w_max=w_max,
-                       idx=idx, x=x, fcj=nf, buckets=buckets)
+                       idx=idx, x=x, mask=mask, fcj=nf, buckets=buckets,
+                       line_ptr=line_ptr)
 
 
 #: two reflections are treated as "strongly overlapped" for Pawley conditioning
@@ -1277,16 +1296,10 @@ class CompiledModel:
             peaks_all.append(peaks)
             lay = cp.batch
             n_rows, w_max = len(lay.i0), lay.w_max
-            pos = np.empty(n_rows)
-            w1 = np.empty(n_rows)
-            w2 = np.empty(n_rows)
-            for il in range(len(peaks)):
-                a = int(np.searchsorted(lay.il, il))
-                b = int(np.searchsorted(lay.il, il + 1))
-                ks = lay.k[a:b]
-                pos[a:b] = np.asarray(peaks[il][0])[ks]
-                w1[a:b] = np.asarray(peaks[il][1])[ks]
-                w2[a:b] = np.asarray(peaks[il][2])[ks]
+            pos = lay.gather(peaks, 0)
+            w1 = lay.gather(peaks, 1)
+            w2 = lay.gather(peaks, 2)
+            inten = lay.gather(peaks, 3)
             finite = np.isfinite(pos)
             has_fcj = bool(np.any((lay.fcj > 0) & finite))
             if has_fcj and (sl <= 0.0 or hl <= 0.0):
@@ -1357,9 +1370,23 @@ class CompiledModel:
                         dom = (var[1][s] - om) / h_ax
                         planes[rs] = (_node_mix(dom, pv)
                                       - _node_mix(om * dphi, ddx))
+            # Make the planes scatter-safe for the batched accumulators
+            # (optimize/least_squares): zero the pad tail — its garbage points
+            # at a real in-window index through ``lay.idx`` — and the NaN rows
+            # of a non-finite position, which the ragged view never serves but
+            # a whole-plane term would otherwise multiply into NaN.  In-window
+            # finite values are multiplied by 1.0, which preserves their bits,
+            # so the ragged view is unchanged.
+            for pl in (omega, d_pos, d_gamma, d_eta, d_sl, d_hl):
+                if pl is None:
+                    continue
+                np.multiply(pl, lay.mask, out=pl)
+                if not finite.all():
+                    pl[~finite] = 0.0
             planes_all.append(PhasePlanes(
-                layout=lay, finite=finite, omega=omega, d_pos=d_pos,
-                d_gamma=d_gamma, d_eta=d_eta, d_sl=d_sl, d_hl=d_hl))
+                layout=lay, finite=finite, pos=pos, w1=w1, w2=w2, inten=inten,
+                omega=omega, d_pos=d_pos, d_gamma=d_gamma, d_eta=d_eta,
+                d_sl=d_sl, d_hl=d_hl))
         return DerivativeBases(planes=planes_all, peaks=peaks_all,
                                axial_ok=axial_ok)
 
@@ -1700,18 +1727,25 @@ class PhasePlanes:
     """One phase's derivative bases as padded (R, w_max) planes (WP-1112).
 
     Rows align with ``CompiledPhase.batch`` (``layout``); each row is padded
-    past its own window width with values that must never be read — a
-    consumer slices ``[:width[j]]`` (the ragged view does) or masks.
-    ``finite`` marks rows whose position was finite at the expansion point:
-    the others are computed into the planes (a NaN row poisons nothing else)
-    and excluded from the ragged view, exactly as the pre-batch loop skipped
-    them.  ``d_sl``/``d_hl`` hold zeros at symmetric rows — a batched axial
-    accumulation over all rows is then correct by construction — while the
-    ragged view serves ``None`` there.
+    past its own window width.  ``finite`` marks rows whose position was
+    finite at the expansion point: the others are zeroed after the build and
+    excluded from the ragged view, exactly as the pre-batch loop skipped
+    them — and the pad tails are zeroed too, so a batched accumulator may
+    scatter whole planes through ``layout.idx`` without masking (a pad slot
+    aliases a real in-window index; its zero contribution is bitwise
+    neutral).  ``d_sl``/``d_hl`` hold zeros at symmetric rows — a batched
+    axial accumulation over all rows is then correct by construction — while
+    the ragged view serves ``None`` there.  ``pos``/``w1``/``w2``/``inten``
+    are the row-gathered peak scalars at the expansion point, stored so a
+    per-column scalar FD gathers only its perturbed state.
     """
 
     layout: BatchLayout
     finite: np.ndarray
+    pos: np.ndarray
+    w1: np.ndarray
+    w2: np.ndarray
+    inten: np.ndarray
     omega: np.ndarray
     d_pos: np.ndarray | None
     d_gamma: np.ndarray | None

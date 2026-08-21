@@ -190,10 +190,18 @@ approximation (1114).
       (`srm660c`, `toy_rich`) re-baselined at ≤ 7.4e-16 per-column rel,
       every other golden bit-identical un-recaptured.  Landed build: cpd-1a
       3.9 → 1.06 ms, trigger 65.6-88.8 → 45.5 ms (axial-on 137-142 → 48.1).
-- [ ] **Batch the `_peak_chain_column` accumulation**: per-column scalar FDs
+- [x] **Batch the `_peak_chain_column` accumulation**: per-column scalar FDs
       vectorised over reflections, accumulation as `segment_sum` over frozen
       flat indices; keep the per-window accumulation order where bit-identity
-      is claimed.
+      is claimed.  *Landed 2026-08-21*: `_accumulate` scatters (row, term,
+      point) contributions row-major through one `bincount` — the loop's
+      addition order exactly, so it is bit-identical *unconditionally* (the
+      un-recaptured goldens are the proof, `srm660c`'s axial columns
+      included); `_structural_column`, `_po_column` and `_axial_column`
+      ride the same helper, `_require_basis` semantics unchanged.  Full
+      Jacobian call: cpd-1a 10.5 → 8.7 ms, trigger 94.7 → 83.7 ms; the
+      remainder is the bases kernel (39 ms) + `_accumulate` (27 ms), both
+      ∝ window width — the η-window task's target.
 - [ ] **η-aware window sizing** by the area criterion above, after the batch;
       re-baseline per `tests/data/README.md` with the equivalence argument
       (area tolerance) recorded next to each moved golden.  Includes the
