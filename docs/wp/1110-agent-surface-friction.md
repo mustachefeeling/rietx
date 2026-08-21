@@ -1,6 +1,6 @@
 # WP-1110 — the agent surface, measured against an agent that used it
 
-Milestone: v1.1 · Status: 🔄 2026-08-21 — shaped by a real-agent round; twelve friction items closed or answered, all six task lines ticked; item 5 is the one maintainer decision left, and items 14/16/18/19/20 are round findings with no task line yet
+Milestone: v1.1 · Status: 🔄 2026-08-21 — shaped by a real-agent round; fourteen friction items closed or answered, all eight task lines ticked; item 5 is the one maintainer decision left, and items 16/19/20 are round findings with no task line yet
 Depends on: —
 
 ## Goal
@@ -170,7 +170,9 @@ Each is a real failure of an agent doing real work on the trigger dataset.
     GoF 1.13, visually clean, not one usable esd: two parameters legitimately at
     their softplus zero contribute zero-gradient columns that poison the single
     whole-vector covariance inversion. Dropping them broke convergence and cost
-    15× the wall clock.
+    15× the wall clock. **Fixed 2026-08-21, and the symptom was recorded the
+    wrong way round** — the inversion did not withhold esds, it invented small
+    ones. § Item 14 has the mechanism and the numbers.
 15. **The plan types are two.** `PLAN_PRESETS` and `capabilities().plans` hand
     back `strategy.staged.RefinementPlan`/`Stage` (dataclasses); a request wants
     `schemas.plan.PlanSpec`/`StageSpec` (pydantic). Same field names. Passing a
@@ -403,6 +405,73 @@ unexported and not in the API surface, so an alias kept "for compatibility"
 would have been a declared name with no reader, which is the shape WP-1076
 exists to refuse.
 
+## Item 14 — the esds were not missing, they were small
+
+**The reported symptom cannot happen, and finding that out was the finding.**
+`esd: None` on *every* parameter needs `stderr_internal is None`, which needs no
+Jacobian at all — `compute_uncertainties` is never passed `False` anywhere in
+the package, and a pattern always has more rows than columns. So the transcript
+did not see esds withheld. It saw esds it could not use, and the reason is worse
+than absence.
+
+**What actually happens.** `np.linalg.pinv` discards every eigenvalue below
+`rcond × |λ|max`. The cutoff is therefore set by the *largest* column and
+applied to all of them, and a discarded direction is returned with **zero**
+variance — not infinite. On the NAC fit measured here the column 2-norms ran
+**4.8e-06 to 8.5e+06**, thirteen orders, and **4 of 17** directions were thrown
+away. `phases.0.gauss_size` came back **6.1e-14 ± 9.9e-11**, a figure anyone
+would quote; the equilibrated inverse says **± 4.3e+08**. `instrument.profile.y`
+moved by ×2.2e+17, `lor_size` by ×3.5e+05, `lor_strain` by ×142, `profile.w` by
+×51. Every well-determined parameter — cell, scale, all six background terms —
+agreed to four figures across the change, which is the shape a real fix has.
+
+**The proof needs no dataset.** An esd must not depend on another parameter's
+units: Biso in Å² or in 1e-4 Å² is the same fit. Rescaling one column of a
+synthetic 400×4 problem by 1e6 moved the *other three* esds by a **factor of
+two** under the old inversion and by **4e-16** after. That is
+`test_an_esd_does_not_depend_on_another_parameters_units`, and it is the one
+test here that could not have been written by looking at the output.
+
+**Jacobi scaling is the fix and is not a tuning choice.** van der Sluis (1969),
+Numer. Math. 14, 14-23: scaling a symmetric positive definite matrix to unit
+diagonal comes within a factor of its order of the best possible diagonal
+conditioning. On the NAC matrix it took the discarded directions from 4 of 17
+to 1 of 17.
+
+**Then the honest empty state had to survive being propagated**, which took
+three attempts and is the part worth carrying forward. A gradient-free column
+has infinite variance — true, and the true value is the unusable one. Written
+into `Cov_free` it meets a zero coefficient at every turn: an off-diagonal
+correlation of exactly 0, a `C` row that does not use the column, a geometry
+partial that is zero there. Each is `0 × inf`, a NaN, and one NaN in `Cov_free`
+reaches **every** row of `C @ Cov_free` sharing any source with it. The rutile
+geometry table lost all six Ti-O bond esds to `instrument.profile.y`, a
+parameter no bond depends on. Two dead ends before the right shape: clamping the
+variance to zero reinstates the original lie one layer up, and guarding the
+multiply with `where=corr != 0` fixes only the first of the four places.
+
+**So the column is dropped from the arithmetic and named separately**
+(`ParameterTable.unmeasured_free` / `unmeasured_rows`), and **every consumer
+marks rather than clamps**:
+
+- a **tied** row inherits its source's blindness, through `C` rather than
+  through a second rule — a tie whose source measured nothing measured nothing;
+- a **geometry** row is `None` only when its own partials touch a blind entry,
+  so an unmeasured profile term costs no bond its esd, and `_sigmas` gains a
+  fifth way to have no number beside WP-1072's four;
+- **QPA** drops the *whole* block, not one phase's row: W_i normalises by
+  Σ S_j M_j V_j, so one unmeasured scale makes an unmeasured sum, and every
+  other phase's fraction would otherwise be reported to the precision it would
+  have had if this phase were known. It is the same phase `PHASE_UNCONSTRAINED`
+  names — item 13's runaway and item 14's blind column are one specimen.
+
+**Unchanged, checked rather than assumed.** The manual's geometry-esd figure
+reproduces its own printed numbers exactly — `mccusker_structural`, Rwp
+**0.08177**, **88** distances, diagonal/full ratio **0.86-1.41** — so the
+chapter's text and the committed figures stand. The regenerated PNGs differed by
+under 0.2 % of their bytes, including `impurity-peak`, which no esd can reach;
+that is rendering noise and they were restored rather than committed.
+
 ## Three items that are not code changes, and why
 
 Reproduced and costed 2026-08-21. Two of them cannot be fixed at the API level
@@ -457,6 +526,21 @@ The decision above is taken, so these are now ordered. Candidates, by value:
       excludes a yanked version from a range, so `pip install rietx` on 3.10
       now reaches 1.0.1 and reports its own "requires a different Python"
       rather than resolving the empty stub and succeeding.
+- [x] **Make an esd mean something** (item 14) — **done 2026-08-21**. The
+      normal matrix is Jacobi-equilibrated before the pseudo-inverse, so the
+      rcond cutoff stops being set by the largest column, and a direction the
+      data does not move reports **no** esd rather than a small one. The
+      reported symptom was the wrong way round: the inversion invented tiny
+      esds, it did not withhold them. § Item 14 has the numbers, the
+      units-independence proof, and the three consumers that had to learn to
+      mark rather than clamp. Not on the task list before this session, because
+      the list predates the round that found the item.
+- [x] **Stop the bound diagnostic crying wolf** (item 18) — **done 2026-08-21**.
+      The tolerance was a fraction of the bound *span*, so declaring a
+      parameter unconstrained made it read as pinned; it is now a fraction of
+      the closest bound's own magnitude, quoted from the rule TRF uses to fill
+      `active_mask`. § Item 18 has the 5-of-5-to-0-of-5 measurement. Not on the
+      task list before this session, for the same reason.
 - [x] **Stop the zero-scale cell runaway, and name it** (item 13) — **done
       2026-08-20**. `params.vector.cell_window` is a default per-stage window on
       every cell parameter, in TOPAS's shape and at stage granularity;

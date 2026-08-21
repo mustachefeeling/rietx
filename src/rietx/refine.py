@@ -1911,9 +1911,22 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     qpa = None
     if mode == "rietveld":
         scale_paths = [f"phases.{ip}.scale" for ip in range(len(structure.phases))]
-        scale_cov = (table.physical_covariance(theta, stderr_internal, correlation,
-                                                scale_paths)
-                     if stderr_internal is not None else None)
+        scale_cov = None
+        if stderr_internal is not None:
+            # A scale the data carries no gradient in makes *every* fraction
+            # unquotable, not only its own (WP-1110 item 14): W_i normalises by
+            # Σ S_j M_j V_j, so one unmeasured term is an unmeasured sum.  Its
+            # column is zeroed in Cov_free rather than infinite (see
+            # ``ParameterTable._cov_free``), so propagating it anyway would
+            # report each *other* phase's fraction to the precision it would
+            # have had if this phase were known — which is the confident wrong
+            # number.  `None` is the block-level absence `compute_qpa` already
+            # takes, and is the same phase `PHASE_UNCONSTRAINED` names.
+            blind = table.unmeasured_rows(theta, stderr_internal,
+                                          [table._paths[q] for q in scale_paths])
+            if not blind.any():
+                scale_cov = table.physical_covariance(theta, stderr_internal,
+                                                      correlation, scale_paths)
         # Site multiplicities frozen on the compiled model (never re-derived
         # from refined coordinates, which could have drifted near a special
         # position and collapsed an orbit).  The primary emission line feeds

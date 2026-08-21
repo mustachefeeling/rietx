@@ -779,17 +779,25 @@ class ParameterTable:
         (diagonal otherwise — the pre-v0.3 behaviour).  Identity ties
         thereby report exactly the source esd; general rows get full linear
         propagation including cross terms.  Held parameters are omitted.
+
+        **A row drawing on a column that measured nothing is omitted too**, so
+        the caller's ``.get(path)`` gives ``None`` (WP-1110 item 14).  Such a
+        column comes back from the covariance solve with infinite variance, and
+        WP-1072's rule is that a derived quantity which cannot be measured is
+        *absent* rather than zero — this is that rule one rank down, and it
+        reaches the tied rows as well, since a tie whose source measured
+        nothing measured nothing.
         """
-        s = self._phys_sigma_free(theta, stderr_internal)
+        cov = self._cov_free(theta, stderr_internal, correlation)
         if correlation is None:
-            var = self._C.multiply(self._C) @ (s * s)
+            var = np.asarray(self._C.multiply(self._C) @ np.diag(cov)).ravel()
         else:
-            cov = np.asarray(correlation, dtype=np.float64) * np.outer(s, s)
             var = np.asarray(self._C.multiply(self._C @ cov).sum(axis=1)).ravel()
-        var = np.maximum(np.asarray(var).ravel(), 0.0)
+        var = np.maximum(var, 0.0)
         touched = np.diff(self._C.indptr) > 0  # rows with any free source
+        blind = self.unmeasured_rows(theta, stderr_internal)
         return {e.path: float(np.sqrt(var[i]))
-                for i, e in enumerate(self.entries) if touched[i]}
+                for i, e in enumerate(self.entries) if touched[i] and not blind[i]}
 
     def _phys_sigma_free(self, theta: np.ndarray, stderr_internal: np.ndarray
                          ) -> np.ndarray:
@@ -804,14 +812,62 @@ class ParameterTable:
         """Covariance of the *physical* free parameters (Cov_free).
 
         Diagonal from the chain-ruled esds; off-diagonal from ``correlation``
-        when given.  This is the exact construction :meth:`stderr_physical`
-        uses, so any block extracted from it carries the same Bérar-Lelann
-        conditioning as the reported per-parameter esds.
+        when given.  This is the construction :meth:`stderr_physical` uses —
+        it calls this method rather than repeating it — so any block extracted
+        from it carries the same Bérar-Lelann conditioning as the reported
+        per-parameter esds.
+
+        **A column the data carries no gradient in is left out of the matrix,
+        not written into it** (WP-1110 item 14).
+        :func:`~rietx.optimize.statistics.normal_covariance` reports such a
+        direction as infinite variance, which is the true value and an
+        unusable one to propagate with: every product against a zero
+        coefficient — an off-diagonal correlation of exactly 0, a ``C`` row
+        that does not use the column — is ``0 × inf``, a NaN, and one NaN in
+        ``Cov_free`` reaches every row of ``C @ Cov_free`` that shares any
+        source with it.  A rutile geometry table lost all six Ti-O bond esds
+        that way while the offender was ``instrument.profile.y``, a parameter
+        no bond depends on.
+
+        So the infinite entries are zeroed here and reported through
+        :meth:`unmeasured_free`, which names the columns.  A consumer marks the
+        rows that *use* one absent and propagates the rest exactly — a bond
+        length is not made unmeasurable by an unrelated profile term, and it is
+        made unmeasurable by a coordinate that measured nothing.
         """
         s = self._phys_sigma_free(theta, stderr_internal)
+        s = np.where(np.isfinite(s), s, 0.0)
         if correlation is None:
             return np.diag(s * s)
         return np.asarray(correlation, dtype=np.float64) * np.outer(s, s)
+
+    def unmeasured_free(self, theta: np.ndarray, stderr_internal: np.ndarray
+                        ) -> np.ndarray:
+        """Boolean over the free columns: which of them measured nothing.
+
+        A free column with no gradient anywhere in the residual comes back from
+        the covariance solve with infinite variance (WP-1110 item 14).  This is
+        the mask of those, in θ-column order, so a caller propagating through
+        ``C`` can tell "no free source" — the all-zero ``C`` row WP-1072
+        already reports as ``None`` — from "a free source that measured
+        nothing", which needs the same answer for the same reason.
+        """
+        return ~np.isfinite(self._phys_sigma_free(theta, stderr_internal))
+
+    def unmeasured_rows(self, theta: np.ndarray, stderr_internal: np.ndarray,
+                        rows: np.ndarray | None = None) -> np.ndarray:
+        """Boolean over ``C``'s rows (or ``rows`` of it): which are unmeasured.
+
+        A row is unmeasured when it draws on any column
+        :meth:`unmeasured_free` names — the propagated variance would be
+        infinite, and an infinite esd is the absent one, not a large one.
+        """
+        bad = self.unmeasured_free(theta, stderr_internal)
+        if not bad.any():
+            n = self._C.shape[0] if rows is None else len(rows)
+            return np.zeros(n, dtype=bool)
+        c = self._C if rows is None else self._C[rows, :]
+        return np.asarray(abs(c) @ bad.astype(np.float64)).ravel() > 0.0
 
     def physical_covariance(self, theta: np.ndarray, stderr_internal: np.ndarray,
                             correlation: np.ndarray | None,

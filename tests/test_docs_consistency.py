@@ -172,7 +172,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # rank is the clause a session adding *any* mirror needs before it writes
     # one: two types sharing every field name make a structural test certify an
     # accident, so the crossing tests the class.
-    "CLAUDE.md": 759,
+    # 759 -> 771 for WP-1110 item 14 (2026-08-21): the covariance is
+    # equilibrated, and a direction the data cannot see reports no esd.  The
+    # operating detail went down a rank as this comment requires — the cutoff
+    # arithmetic, the van der Sluis result and the 0 × inf propagation are in
+    # `normal_covariance` and `ParameterTable._cov_free`, the measurements in
+    # the WP.  What cannot go down a rank is the pair a session touching *any*
+    # statistic will otherwise get wrong: a badly-scaled column silently zeroes
+    # a variance rather than raising, and the honest empty state for an
+    # unmeasured direction is absence, which every consumer must mark rather
+    # than clamp.
+    "CLAUDE.md": 771,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one
