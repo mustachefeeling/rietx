@@ -109,8 +109,10 @@ clause).
   which is what makes a constraint exact under autodiff. That is
   `Parameter.expr`'s designed-but-unbuilt DSL — AST-whitelisted, emitted as
   backend ops, with asteval and sympy evaluated and rejected (DESIGN.md
-  § Parameter system) — and a separate WP. **This WP must not remove the field
-  that feature would need** (WP-1110 item 5 is that decision).
+  § Parameter system) — and a separate WP. The field it would need is **kept**:
+  the maintainer decided WP-1110 item 5 on 2026-08-21 with this WP as the
+  reason, so `Parameter.expr` stays reserved rather than being removed at
+  `SCHEMA_VERSION` 0.2 → 0.3.
 - **Restraints.** A constraint removes a parameter; a restraint keeps one and
   charges for disagreeing (`docs/manual/using/constraints.md`).
 - **A `.inp` parser.** [1118](1118-foreign-model-files.md) owns reading foreign

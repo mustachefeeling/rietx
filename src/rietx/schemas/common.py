@@ -61,6 +61,15 @@ class Parameter(Base):
         backend ops, because asteval cannot run on autodiff tracers) is in
         DESIGN.md's "Parameter system"; linear/symmetry ties do not need it and
         go through the affine constraint block instead.
+
+        **Kept deliberately** (WP-1110 item 5, decided 2026-08-21).  A declared
+        field that can only ever raise is the shape WP-1076 removes, and this
+        one was costed for removal: ``model_dump`` writes ``"expr": null`` into
+        every persisted parameter, so under ``extra="forbid"`` it needs a
+        ``mode="before"`` migration and ``SCHEMA_VERSION`` 0.2 → 0.3.  It stays
+        because it is the carrier for the nonlinear half of WP-1119's named
+        variables, whose linear half the affine block above already computes —
+        removing it now would buy one bump and cost another to undo.
     transform:
         Reparameterisation used internally.  ``softplus`` maps an unbounded
         internal variable to a strictly positive physical value, which keeps

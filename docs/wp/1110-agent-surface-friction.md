@@ -1,6 +1,6 @@
 # WP-1110 — the agent surface, measured against an agent that used it
 
-Milestone: v1.1 · Status: ✅ 2026-08-21 — shaped by a real-agent round, which found the WP's own premise false: `refine_json` is reached once an agent is told, and it is the **schema export** that has no consumers, so the investment went to the python surface and its diagnostics. Eleven task lines ticked; items 3/5/7 answered as findings rather than code; item 19 left as [1118](1118-foreign-model-files.md). One thing is **not** decided here and is the maintainer's: item 5's `SCHEMA_VERSION` 0.2 → 0.3 release home, costed both ways in § Three items that are not code changes
+Milestone: v1.1 · Status: ✅ 2026-08-21 — shaped by a real-agent round, which found the WP's own premise false: `refine_json` is reached once an agent is told, and it is the **schema export** that has no consumers, so the investment went to the python surface and its diagnostics. Eleven task lines ticked; items 3/5/7 answered as findings rather than code; item 19 left as [1118](1118-foreign-model-files.md). Item 5's one open decision was taken by the maintainer on 2026-08-21: **`Parameter.expr` stays**, because it is the carrier for the nonlinear half of [1119](1119-named-variables.md)
 Depends on: —
 
 ## Goal
@@ -538,6 +538,15 @@ both costed: remove with the migration (≈6 lines, one schema bump, one manual
 row, one new test), or keep the seam — DESIGN.md holds a design for it and the
 `value`/`vary`/`min`/`max`/`expr` shape is the cited lmfit convention.
 
+**Decided 2026-08-21 by the maintainer: the seam stays**, and the reason is one
+the WP did not have when it costed the options. [1119](1119-named-variables.md)
+opened the same day for named variables and equations, whose *linear* half the
+affine constraint block already computes exactly and whose *nonlinear* half is
+precisely what `expr` was reserved for. Removing the field would buy one schema
+bump and cost another to undo. The decision is recorded beside the field itself
+rather than only here, so the next reader of `schemas/common.py` finds it
+without this file.
+
 **Item 3 — `fitted_structure()` is not fixable, and the alternative is worse.**
 `Refinement.fitted_structure` is a one-line alias property returning
 `self.structure`; the `TypeError: 'Structure' object is not callable` is raised
@@ -666,6 +675,8 @@ ignoring a bound pinned in most patterns.
 ```
 
 ## Handover log
+
+- **2026-08-21** — maintainer's decision on the one item this WP left open: **`Parameter.expr` stays.** [1119](1119-named-variables.md), opened the same day, is the reason — the field is the declared carrier for the nonlinear half of named variables, so removing it would buy one `SCHEMA_VERSION` bump and cost another to undo. Recorded in the field's own docstring, in § Three items that are not code changes, and in 1119's non-goals; ROADMAP's Current focus no longer lists it as open. Nothing else about this WP changed and it stays closed.
 
 ### 2026-08-21 (third session) — closed: the rulebooks come out of the wheel, and item 19 gets a file
 
