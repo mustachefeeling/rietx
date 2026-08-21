@@ -1,6 +1,10 @@
 # WP-1114 — peaks-buffer spike: shape reuse across 2θ (spike, then decide)
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-21 — the spike delivered its decision:
+**NO-GO** for a production numpy buffer.  Shapes reuse (K ≤ 32 anchors at
+1e-4, § Findings 2) but the substrate doesn't pay (§ Findings 3-5); the
+salvage is [1120](1120-batched-residual.md), and the design note stands for
+a compiled substrate (1115).
 Depends on: 1112 (batching changes the denominator this spike is judged against)
 
 ## Goal
@@ -355,6 +359,33 @@ comparison.
   WP copies.
 
 ## Handover log
+
+- **2026-08-21** — the buffer question is answered, and the answer has two
+  halves.  Peak shapes really are reusable: a couple of dozen interpolation
+  anchors reproduce every peak shape this package computes, in every test
+  case and at every stage of a fit, to a tolerance far below what any
+  refined number can feel.  But building the fit on that reuse does not make
+  it faster here: the existing batched arithmetic is already close enough to
+  the machine's memory speed that the prototype won about a tenth on the
+  hardest case and made the ordinary lab case twice as slow — so the buffer
+  is a **no-go**, and the idea goes on the shelf with its design worked out
+  rather than into the code.  The consolation is concrete: the spike found
+  an exact, approximation-free speedup nobody had taken (the residual still
+  loops peak by peak), and that is now WP-1120.
+  *Done*: all five tasks; `examples/bench_peaks_buffer.py` (three parts:
+  anchors sweep + figure, evaluation-level prototype, fit-level check),
+  § Findings 1-5, design note synced to measurement, WP-1120 opened,
+  ROADMAP row + focus, narrative to the v1.1 record.  On arrival the
+  `### Inherited` section was folded into Context (both entries still true,
+  both load-bearing for the go/no-go pricing).  *Measured*: this file's
+  § Findings; every number from this worktree's `[dev]` venv, darwin/arm64.
+  Fast suite after the change: 2582 passed, 117 skipped in 2:35 (no tests
+  added, none moved — the spike touches `examples/` and `docs/` only).
+  *Gotchas*: the three accuracy traps and the id-recycling cache bug are
+  written into § Findings 3-4 — any future buffer or per-compile cache
+  re-hits them first.  *Next*: run 1120 (it moves the harness numbers
+  1115's gate reads), then re-read 1115's gate; 1113's priced preset flip
+  stays the remaining exact multiplier.
 
 - **2026-08-20** — created by the 1109 review session as the algorithmic
   tier of the v1.1 series; the anchors-vs-accuracy curve is the question

@@ -92,10 +92,12 @@ competitiveness priority: the trigger session spent 3 h 20 min in refinements
 TOPAS fits in under a second each.
 **[1109](wp/1109-refinement-speed.md)**, **[1111](wp/1111-benchmark-harness.md)** closed 2026-08-20 (bit-identical wins; baseline **50 s** cold, **4.5–22.4 s** warm/pattern — the fixed "before"); **[1112](wp/1112-batched-derivative-bases.md)** closed 2026-08-21 (per-evaluation cost halved: trigger cold **28.3–28.9 s**, warm **2.1–15.0 s**/pattern, QPA fits ~halved at fractions within 0.25 wt %).
 **[1113](wp/1113-evaluation-count.md) closed 2026-08-21**: the count's mechanism is **named** — expensive stages are ftol-bound Gauss-Newton tails on near-degenerate directions (≈ 0.93/iteration; *not* trust-region crawls) — so `Stage.ftol` landed opt-in (intermediate stages at 1e-6: **1.5–1.7×** fewer whole-plan evaluations at ≤ 0.02 esd; presets unflipped, the flip priced in its § Findings), `x_scale` and seeding retired with numbers, and the LM basin split proven a *genuine local minimum* born of the width degeneracy — fenced in `optimize/lm.py`, benched as `bench_solver._cpd2_qpa`.
-**The next session is [1114](wp/1114-peaks-buffer-spike.md)** (peaks-buffer
-spike, the only identified route to the cold stretch target) →
-[1115](wp/1115-compiled-kernel-spike.md), gated on the harness still missing
-the targets.
+**[1114](wp/1114-peaks-buffer-spike.md) closed 2026-08-21 — NO-GO** (narrative in the record): shapes *do* reuse (cubic spline over greedily-placed anchors, K ≤ 32 per width family at 1e-4, every case and state), but the batched numpy kernel is close enough to the memory floor that a full buffered prototype wins only ~10 % on the trigger cold fit and loses 2.4× on the lab protocol; its § Findings hold the anchors-vs-accuracy curve, the design note and the decomposition [1115](wp/1115-compiled-kernel-spike.md)'s gate reads.
+**The next session is [1120](wp/1120-batched-residual.md)** (batch the
+residual — bit-exact, measured 2.2-3.6× on the forward path, the spike's
+salvage) → then re-read [1115](wp/1115-compiled-kernel-spike.md)'s gate
+against the harness 1120 leaves, with 1113's priced preset flip as the
+remaining exact multiplier.
 [1110](wp/1110-agent-surface-friction.md) **closed 2026-08-21** (narrative in the record): two of its fixes change what a fit *says* and a release note must carry them — the covariance is **equilibrated before it is inverted**, so a direction the data does not move reports no esd rather than a small one, and the cell of a phase **the data cannot see** carries a per-stage window (both root CLAUDE.md § Invariants). Its one open item is **decided**: `Parameter.expr` stays (2026-08-21), because it carries the nonlinear half of [1119](wp/1119-named-variables.md) and removing it would buy one `SCHEMA_VERSION` bump and cost another to undo; item 19 is now [1118](wp/1118-foreign-model-files.md), and both are unscheduled. [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf; [1117](wp/1117-compatibility-promise.md) closed 2026-08-21 — the preview promise above.
 
 Parked, in rough order, for after v1.1 — none of it blocks a speed session: the
@@ -387,7 +389,7 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 | [1111](wp/1111-benchmark-harness.md) | The refinement benchmark harness, and the trigger-shaped case | ✅ | — |
 | [1112](wp/1112-batched-derivative-bases.md) | The batched derivative side, and η-aware windows | ✅ 2026-08-21 | 1111 |
 | [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | ✅ 2026-08-21 | 1111 (soft) |
-| [1114](wp/1114-peaks-buffer-spike.md) | Peaks-buffer spike: shape reuse across 2θ | ⬜ | 1112 |
+| [1114](wp/1114-peaks-buffer-spike.md) | Peaks-buffer spike: shape reuse across 2θ | ✅ 2026-08-21 | 1112 |
 | [1115](wp/1115-compiled-kernel-spike.md) | Compiled-kernel spike (gated) | ⬜ | 1112, 1114 |
 | [1120](wp/1120-batched-residual.md) | Batch the residual: the forward's un-taken WP-1112 win | ⬜ | 1112 |
 | [1116](wp/1116-session-protocol-hygiene.md) | Session-protocol hygiene: the scan that cried wolf | ✅ 2026-08-20 | — |
