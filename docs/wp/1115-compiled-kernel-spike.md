@@ -51,6 +51,30 @@ user with the numbers.
   (2.5× slower after 38 s, dynamo specialises per window — 0605);
   `tr_solver='lsmr'` and friends (solver-survey §2 dead ends).
 
+### Inherited
+
+From WP-1114 (2026-08-21), what the gate reads and what a compiled kernel
+could additionally cash:
+
+- **Read the gate against the harness *after* WP-1120** (batch the
+  residual — bit-exact 2.2-3.6× on forward evaluations, opened by 1114's
+  spike): it moves exactly the numbers this gate compares to the targets.
+- **The gap's composition is measured** (1114 § Findings 3): the batched
+  numpy kernel runs at ~8-11 ns/element and its remaining overheads are
+  `w_max` padding (~2× on the trigger's gather volume) and the per-element
+  floor — not python dispatch and not evaluation count.  A compiled loop's
+  headroom over batched numpy is therefore the raggedness/padding factor
+  plus the pV-vs-fma gap, ~2-4× on the trigger's profile work, less
+  elsewhere.
+- **The peaks buffer composes with a compiled substrate and its design is
+  done** (1114's design note + § Findings): K ≤ 32 anchors per width family
+  reproduce every shape at 1e-4, and the buffer's no-go was the numpy
+  per-element floor, not the physics.  If this WP opens and a compiled
+  exact kernel still misses, a compiled *buffer* is the follow-on with the
+  larger algorithmic ceiling (7.8-9× element volume on FCJ-heavy cases) —
+  and 1114 § Findings 3-4 list the three accuracy traps plus the cache
+  keying bug any implementation re-hits first.
+
 ## Non-goals
 
 A rewrite of anything beyond the isolated kernel; a fourth backend; GPU;
