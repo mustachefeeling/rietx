@@ -184,15 +184,32 @@ above prices.  Behaviour is exactly as the mechanism predicts: the final
 stage inherits the ridge walk once (cpd-1a ``biso`` 47 → 49, at 1e-4 → 95)
 instead of every stage polishing it.
 
-**Predictions this hands the attack tasks** (to be measured, not yet
-conclusions): the intermediate-budget experiment is the prime lever — a
-looser per-stage ftol on non-final stages cuts tails the final stage
-re-walks once anyway; seeding ``zero_disp`` attacks the descent (evals
-1–55), not the ridge walk, so expect a partial win only; ``x_scale`` targets
-mechanism B and possibly A's rate through TRF's reflective metric — which
-would also explain WP-1110's bounds-as-scale-hint 7×.  And the LM basin
-split is **not** born in ``zero_disp`` (identical endpoints there); the
-bisection should trajectory-diff the later stages.
+**Both remaining levers measured against those predictions** (2026-08-21,
+same venv, same scaffold):
+
+- **``x_scale='jac'`` retires.**  E2's SRM 660c null (`docs/solver-survey.md`
+  §0.3, which this WP's Context missed — 9 % more iterations, identical
+  answer) generalises and worsens: cpd-1a 397 vs 408 nfev at a 0.76 esd
+  drift, cpd-2 **631 vs 540**, trigger 374 vs 363 with ``lines_axial`` 200
+  vs 184 — worse even on the one trust-region-shaped stage it was predicted
+  to help.  The clinching detail: ``zero_disp``/``cell`` counts are
+  **bit-unchanged** (84/86, 93/131) under it, confirming mechanism A is
+  scale-invariant — the GN step does not change under diagonal column
+  rescaling, and the trust region never binds there.  An explicit vector is
+  not run separately: it is 'jac' without adaptation, and two independent
+  nulls plus a scale-invariance argument already answer it.  WP-1110's
+  bounds-7× on chained cpd-1c therefore acts by *fencing the walk*, not by
+  scaling — consistent with the windows landing only on unsupported phases.
+- **The cross-correlation seed retires.**  The seed it finds is tiny
+  (−0.0072° cpd-1a, −0.0039° cpd-2: the data's net apparent shift, exactly
+  as mechanism A implies — the pair's large converged values are
+  compensating, not compensated).  ``zero_disp`` 84 → 59 / 93 → 83, whole
+  plan 408 → 379 / 540 → 509 (**1.06-1.08×**), trigger unchanged (its
+  ``zero_disp`` was already 10).  A seeding stage's machinery is not paid
+  for by 6-8 % when the ftol knob buys 50-71 % on the same cases.
+
+The LM basin split is **not** born in ``zero_disp`` (identical endpoints
+there); the bisection should trajectory-diff the later stages.
 
 ## Non-goals
 
@@ -221,14 +238,15 @@ one); Rwp-judged anything.
       undamped Gauss-Newton linear tail (rate ≈ 0.93/iteration) along the
       zero↔displacement↔background degeneracy, ftol-terminated; plus a
       genuine trust-region valley wander on the trigger's `lines_axial`.
-- [ ] **`x_scale` experiment**: `x_scale='jac'` and an explicit
-      per-parameter vector against the default, on all seven 1111 harness
-      cases; equivalence by shift/esd, iteration columns before/after. Land
-      only what the measurement supports.
-- [ ] **Seeding experiment**: cross-correlation zero/displacement seed
-      before the plan; measure per-stage iterations and total evaluations,
-      answer-identity by shift/esd. Land it (as an opt-in stage or plan
-      preset behaviour) only if the measurement says so.
+- [x] **`x_scale` experiment**: retired with numbers (§ Findings) — 'jac'
+      is null-to-harmful on all three lab-shaped cases, mechanism-A stage
+      counts bit-unchanged (scale-invariant), and E2's 660c null stands; an
+      explicit vector is 'jac' without adaptation and is answered by the
+      same evidence.
+- [x] **Seeding experiment**: retired with numbers (§ Findings) — the
+      cross-correlation seed is measured at 1.06-1.08× whole-plan because
+      the data's net shift is milli-degrees; the iterations are the ridge
+      walk, which a rigid seed cannot reach.  Nothing lands.
 - [x] **Intermediate-budget experiment**: cap non-final stages, measure
       whole-plan evaluations and final-answer identity; land or retire with
       numbers.  Measured (§ Findings): intermediate ftol 1e-6 buys 1.50-1.71×
