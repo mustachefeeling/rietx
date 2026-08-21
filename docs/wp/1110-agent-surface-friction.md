@@ -767,7 +767,29 @@ the registry drifting from reality. Whether `measured` is meant as a current
 measurement or a dated snapshot is a documentation-policy call, which is why
 this session did not act on it.
 
-*Gotchas.* (a) **An infinite variance is true and unpropagatable.** Every
+*Gotchas.* (0) **CI found a knife-edge assertion, and the fix is not the bar.**
+`test_e8_short_window_reports_the_collinear_triangle` asserted
+`any(|rho| > 0.99 for c in top_correlations)`. It failed on py3.13 in one run
+and **py3.12 in the next**, which is already the answer: not a version, a
+platform. Measured |rho| for `profile.u ~ profile.v` is **0.992821** on
+darwin/arm64 and **0.983761** on CI's linux x86-64 — 9.1e-3 apart, which is
+where TRF stopped and not physics. Both the old 0.99 and the package's own
+`correlation_guard` default of **0.98** sit inside that spread, so neither is an
+assertion about the fit. It now asserts what does not move: that u~v is the
+worst pair, over a bar of 0.9 that carries the spread — with the quantitative
+claim still made by the soft-mode eigenvalue two lines above, which is computed
+on the unit-column normal matrix and therefore carries no conditioning. On
+darwin every real pair is **bit-identical** before and after this branch
+(u~v 0.992821082, v~w 0.980860785, cell.a~displacement 0.942132007), so this
+branch does not move a real correlation. The one it does move is
+`instrument.profile.y`, whose column here is exactly flat: **0.740707** on main,
+**0.000000** now — at cond 5.9e23 the un-equilibrated `eigh` cannot resolve a
+null direction and manufactures a correlation for it. The most likely reading of
+main's green Linux runs is that an artefact like that one was carrying the
+assertion there, and it is **not proven**: it would need main run on Linux with
+the table printed. The fix does not depend on which is true, because the bar was
+inside the spread either way. (a) **An infinite variance is true and
+unpropagatable.** Every
 `0 × inf` against a zero coefficient is a NaN — an off-diagonal correlation of
 exactly 0, a `C` row that does not use the column, a geometry partial that is
 zero there — and one NaN in `Cov_free` reaches every row of `C @ Cov_free`
