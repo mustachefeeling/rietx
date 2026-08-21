@@ -1251,7 +1251,14 @@ def test_e8_short_window_reports_the_collinear_triangle():
     # (measured 6.7e-04 against 1.2e-02 full-range) and earns the sentence
     assert min(m.eigenvalue for m in ev.soft_modes) < 3e-3
     assert "unconstrained at" in report.summary
-    assert any(abs(c.rho) > 0.99 for c in ev.top_correlations)
+    # measured 0.99282 for u~v on darwin/arm64, and bit-identical before and
+    # after WP-1110 equilibrated the covariance — but the margin over the bar is
+    # 2.8e-03, which is the load-sensor smell tests/CLAUDE.md warns about, so the
+    # failure names the table rather than saying `assert False`.
+    assert any(abs(c.rho) > 0.99 for c in ev.top_correlations), (
+        "no pair over 0.99; top_correlations = "
+        + ", ".join(f"{c.path_a}~{c.path_b} {c.rho:+.6f}"
+                    for c in ev.top_correlations))
 
 
 def test_identifiability_carrier_is_additive(truth):
