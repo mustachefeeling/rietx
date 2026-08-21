@@ -250,8 +250,13 @@ approximation (1114).
       self-skip on this `[dev]` venv and run in CI's `[dev,jax]` fast job.
       The stage-boundary continuity bars were re-measured in the window
       task's commit (the one place the matrix moved).
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/`; before/after from the
-      1111 harness in the handover entry.
+- [x] Tests + obs/calc/diff PNGs to `tests/output/`; before/after from the
+      1111 harness in the handover entry.  *2026-08-21*: PNGs written by the
+      full-suite acceptance runs and inspected (`qarr_cpd-2` full +
+      low-angle, `nac_fit`: peaks fully covered, no truncation steps at
+      window edges, residuals the usual profile-mismatch shapes); the
+      harness ranges are in the handover entry below, quoted against 1111's
+      opening baseline.
 
 ## Acceptance
 
