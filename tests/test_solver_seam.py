@@ -213,6 +213,7 @@ def _spy_least_squares(monkeypatch):
     def spy(*args, **kwargs):
         res = original(*args, **kwargs)
         calls.append({"max_nfev": kwargs.get("max_nfev"),
+                      "ftol": kwargs.get("ftol"),
                       "xtol": kwargs.get("xtol"), "gtol": kwargs.get("gtol"),
                       "n_par": len(res.x), "nfev": int(res.nfev),
                       "njev": int(res.njev or 0), "status": int(res.status)})
@@ -244,6 +245,25 @@ def test_the_budget_counts_iterations_not_parameters(pattern, monkeypatch):
         "fixture must span stages of differing size for this to discriminate"
     for c in calls:
         assert c["max_nfev"] == 37 * NFEV_PER_ITERATION
+
+
+def test_stage_ftol_reaches_the_solver_and_only_its_own_stage(pattern, monkeypatch):
+    """``Stage.ftol`` (WP-1113) is per-stage: the stage that declares one is
+    solved at it, every unset stage keeps the runner's default — one authority,
+    so the assertion for the unset stages is "all equal and not the declared
+    value", never a restated 1e-9."""
+    import rietx as rx
+
+    calls = _spy_least_squares(monkeypatch)
+    structure, instrument = perturbed_models()
+    plan = rx.RefinementPlan.mccusker_default()
+    plan.stages[1].ftol = 1e-4
+    refine(pattern, structure, instrument, plan=plan)
+
+    assert len(calls) == len(plan.stages)
+    assert calls[1]["ftol"] == 1e-4
+    defaults = {c["ftol"] for i, c in enumerate(calls) if i != 1}
+    assert len(defaults) == 1 and 1e-4 not in defaults
 
 
 def test_a_converging_fit_never_feels_the_budget(pattern, monkeypatch):

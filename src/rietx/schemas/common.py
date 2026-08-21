@@ -19,7 +19,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: ``RefinementResult.correlation_warnings`` removed, both fields nothing wrote.
 #: 0.2 → 0.3 (WP-1112): ``StageSpec.window_slack_deg`` added — a stage's
 #: declared window capture slack in °2θ (``None`` → the compiled default).
-SCHEMA_VERSION = "0.3"
+#: 0.3 → 0.4 (WP-1113): ``StageSpec.ftol`` added — a stage's own termination
+#: tolerance (``None`` → the solver default 1e-9).
+SCHEMA_VERSION = "0.4"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

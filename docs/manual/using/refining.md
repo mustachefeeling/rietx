@@ -145,13 +145,13 @@ the fit, it does not constrain it.
 
 ## What a stage carries
 
-A `Stage` is `Stage.name`, a list of globs in `Stage.turn_on`, and six numbers
-that decide how that stage is solved. `Stage.name` is a label, carried through
-to `StageResult.name` and to the event stream; `Stage.turn_on` is what the
-stage frees, matched with `fnmatch` against the dot-paths of [](model.md).
+A `Stage` is `Stage.name`, a list of globs in `Stage.turn_on`, and seven
+numbers that decide how that stage is solved. `Stage.name` is a label, carried
+through to `StageResult.name` and to the event stream; `Stage.turn_on` is what
+the stage frees, matched with `fnmatch` against the dot-paths of [](model.md).
 
 [](concepts.md) covers `Stage.restraint_weight_scale`, the restraint schedule,
-in full; the other five are here.
+in full; the other six are here.
 
 ```python
 import rietx as rx
@@ -165,6 +165,15 @@ assert stage.lebail_cycles == 3
 `Stage.max_iter` caps the least-squares iterations for that stage. A stage that
 reaches it is reported with status `max_iter` rather than `converged`, which is
 a result to read rather than an error to catch.
+
+`Stage.ftol` is the stage's own termination tolerance — the relative cost
+decrease below which the solver stops. Unset (`None`), the stage uses the
+solver default of `1e-9`. An intermediate stage's job is to seed the next
+stage, not to reach publication convergence, and most of an expensive stage's
+evaluations are spent polishing digits the next stage discards: setting every
+stage but the last to `1e-6` cut whole-plan evaluations by 1.5–1.7× on the
+lab-shaped benchmark cases, with every non-degenerate parameter within
+0.02 esd of the untouched plan. The final stage should keep the default.
 
 `Stage.seed` and `Stage.strain_seed` both exist to lift a parameter off an
 exact zero that the solver cannot move away from, and they are not
@@ -233,8 +242,9 @@ carries a copy of it. Write it out yourself when you want the JSON: the
 dataclasses have no `model_dump`, and asking one for it says which mirror
 to use. A `StageSpec` mirrors
 `Stage` field for field — `StageSpec.name`, `StageSpec.turn_on`,
-`StageSpec.max_iter`, `StageSpec.lebail_cycles`, `StageSpec.seed`,
-`StageSpec.strain_seed` and `StageSpec.restraint_weight_scale` — and
+`StageSpec.max_iter`, `StageSpec.ftol`, `StageSpec.lebail_cycles`,
+`StageSpec.seed`, `StageSpec.strain_seed`,
+`StageSpec.restraint_weight_scale` and `StageSpec.window_slack_deg` — and
 `PlanSpec.correlation_guard` mirrors the plan's.
 
 What is stored is the **expanded** plan: every stage in full, because that is

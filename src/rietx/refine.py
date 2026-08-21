@@ -1118,10 +1118,13 @@ class Refinement:
                         free_paths=list(table.free_paths),
                         n_points=len(model.tt),
                         index=stage_index, n_stages=n_stages)
+        # ftol is passed only when the stage declares one, so an unset stage
+        # keeps the solver default from one authority (the runner's signature)
+        stage_ftol = {} if stage.ftol is None else {"ftol": stage.ftol}
         outcome = run_least_squares(model, table, max_iter=stage.max_iter,
                                     events=events, stage=stage.name,
                                     backend=self._backend, solver=self._solver,
-                                    cancel=cancel)
+                                    cancel=cancel, **stage_ftol)
         table.commit(outcome.theta)
 
         if mode == "lebail":

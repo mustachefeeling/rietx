@@ -174,10 +174,11 @@ class MultiHistogramRefinement:
                 for s, ins, d, lim, tab in zip(
                     self.mtable.structures, self.mtable.instruments, data, limits,
                     self.mtable.tables, strict=True)]
+            stage_ftol = {} if stage.ftol is None else {"ftol": stage.ftol}
             outcome = run_multi_least_squares(models, self.mtable, weights=weights,
                                               max_iter=stage.max_iter,
                                               backend=self._backend,
-                                              solver=self._solver)
+                                              solver=self._solver, **stage_ftol)
             self.mtable.commit(outcome.theta)
             self.mtable.apply_to_models()
             stage_results.append(StageResult(

@@ -160,6 +160,30 @@ valley (4 × (gauss_size, gauss_strain) + shared axial, near-degenerate over
 the fitted range), with the dead zone inflating internal distances — the
 ``x_scale`` lead's natural target.
 
+**The budget experiment, measured and landed** (2026-08-21, same venv;
+whole-plan totals via the 1111 harness's counting scaffold).  Loosening
+**ftol** on every stage but the last is the right lever; capping ``max_iter``
+is the wrong one (on cpd-2 a 30-iteration cap *raised* the total to 568 nfev
+by pushing work downstream, and moved the answer more).  Intermediate
+ftol = 1e-6 against the untouched baseline:
+
+| case | baseline nfev/njev | intermediate 1e-6 | max shift |
+|---|---|---|---|
+| cpd-1a | 408/343 | 272/221 (**1.50×**) | 8.6e-4 esd |
+| cpd-2 | 540/420 | 315/247 (**1.71×**) | 0.020 esd (a background term); QPA within 0.003 wt % |
+| trigger | 363/289 | 226/185 (**1.61×**) | non-degenerate ≤ 0.001 esd; QPA ≤ 0.001 wt % |
+
+The trigger's nominal 1.2 esd worst shift is entirely the **exactly
+degenerate** instrument-X ↔ per-phase ``lor_size`` family (every phase's
+``lor_size`` moved by the −0.00137 that shared X gained; Lorentzian FWHMs
+add and both are size-like in θ) — the parameterisation moved along a flat
+direction, the answer did not.  1e-5/1e-4 buy 1.9-2.2× at 0.01-0.2 esd; the
+knob landed as opt-in ``Stage.ftol`` (default ``None`` → bit-identical), so
+the presets are unchanged and flipping them is a decision the harness table
+above prices.  Behaviour is exactly as the mechanism predicts: the final
+stage inherits the ridge walk once (cpd-1a ``biso`` 47 → 49, at 1e-4 → 95)
+instead of every stage polishing it.
+
 **Predictions this hands the attack tasks** (to be measured, not yet
 conclusions): the intermediate-budget experiment is the prime lever — a
 looser per-stage ftol on non-final stages cuts tails the final stage
@@ -205,9 +229,12 @@ one); Rwp-judged anything.
       before the plan; measure per-stage iterations and total evaluations,
       answer-identity by shift/esd. Land it (as an opt-in stage or plan
       preset behaviour) only if the measurement says so.
-- [ ] **Intermediate-budget experiment**: cap non-final stages, measure
+- [x] **Intermediate-budget experiment**: cap non-final stages, measure
       whole-plan evaluations and final-answer identity; land or retire with
-      numbers.
+      numbers.  Measured (§ Findings): intermediate ftol 1e-6 buys 1.50-1.71×
+      whole-plan at ≤ 0.02 esd on all three lab-shaped cases; ``max_iter``
+      caps are the wrong lever.  Landed as opt-in ``Stage.ftol`` +
+      ``StageSpec.ftol`` (SCHEMA_VERSION 0.3 → 0.4), presets untouched.
 - [ ] **LM basin investigation**: reproduce on the QPA protocol, bisect the
       candidate causes above, add the case to `examples/bench_solver.py`'s
       protocol list; fix if the cause is a defect, fence with a recorded
