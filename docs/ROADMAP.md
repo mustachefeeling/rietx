@@ -90,24 +90,21 @@ moves. A refinement still gives 1.0.1's numbers; releasing it is
 scope, targets and narrative: [milestones/v1.1.md](milestones/v1.1.md)). It is the
 competitiveness priority: the trigger session spent 3 h 20 min in refinements
 TOPAS fits in under a second each.
-**[1109](wp/1109-refinement-speed.md)**, **[1111](wp/1111-benchmark-harness.md)**
-closed 2026-08-20 (bit-identical wins; baseline **50 s** cold, **4.5–22.4 s** warm/pattern — the fixed "before").
-**[1112](wp/1112-batched-derivative-bases.md) closed 2026-08-21**: the Jacobian
-path batched (symmetric rows bit-identical; FCJ ≤ ~1e-15, goldens re-based),
-windows by a **measured** discarded-area bound — trigger cold **28.3–28.9 s**,
-warm **2.1–15.0 s**/pattern, QPA fits ~halved at fractions within 0.25 wt %.
-One WP per session from here: [1113](wp/1113-evaluation-count.md) evaluation
-count (1112's re-measurements and the `x_scale` lead now in its Context) →
-[1114](wp/1114-peaks-buffer-spike.md) → [1115](wp/1115-compiled-kernel-spike.md),
-gated on the harness still missing the targets.
-**The next session is [1113](wp/1113-evaluation-count.md).**
+**[1109](wp/1109-refinement-speed.md)**, **[1111](wp/1111-benchmark-harness.md)** closed 2026-08-20 (bit-identical wins; baseline **50 s** cold, **4.5–22.4 s** warm/pattern — the fixed "before"); **[1112](wp/1112-batched-derivative-bases.md)** closed 2026-08-21 (per-evaluation cost halved: trigger cold **28.3–28.9 s**, warm **2.1–15.0 s**/pattern, QPA fits ~halved at fractions within 0.25 wt %).
+**[1113](wp/1113-evaluation-count.md) closed 2026-08-21**: the count's mechanism is **named** — expensive stages are ftol-bound Gauss-Newton tails on near-degenerate directions (≈ 0.93/iteration; *not* trust-region crawls) — so `Stage.ftol` landed opt-in (intermediate stages at 1e-6: **1.5–1.7×** fewer whole-plan evaluations at ≤ 0.02 esd; presets unflipped, the flip priced in its § Findings), `x_scale` and seeding retired with numbers, and the LM basin split proven a *genuine local minimum* born of the width degeneracy — fenced in `optimize/lm.py`, benched as `bench_solver._cpd2_qpa`.
+**The next session is [1114](wp/1114-peaks-buffer-spike.md)** (peaks-buffer
+spike, the only identified route to the cold stretch target) →
+[1115](wp/1115-compiled-kernel-spike.md), gated on the harness still missing
+the targets.
 [1110](wp/1110-agent-surface-friction.md) **closed 2026-08-21** (narrative in the record): two of its fixes change what a fit *says* and a release note must carry them — the covariance is **equilibrated before it is inverted**, so a direction the data does not move reports no esd rather than a small one, and the cell of a phase **the data cannot see** carries a per-stage window (both root CLAUDE.md § Invariants). Its one open item is **decided**: `Parameter.expr` stays (2026-08-21), because it carries the nonlinear half of [1119](wp/1119-named-variables.md) and removing it would buy one `SCHEMA_VERSION` bump and cost another to undo; item 19 is now [1118](wp/1118-foreign-model-files.md), and both are unscheduled. [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf; [1117](wp/1117-compatibility-promise.md) closed 2026-08-21 — the preview promise above.
 
 Parked, in rough order, for after v1.1 — none of it blocks a speed session: the
 1.0.0-release-notes promises (`.rex` zip transport; `RefinementState.excluded_regions`
 with `replay` honouring them — 1003 §B, decided); the post-1003 indexing work
 (narrow the acceptance fixtures' search — the nightly `full` job's ~77 min of
-setup — and the `grade` prior-counting change, 1046 §4);
+setup — and the `grade` prior-counting change, 1046 §4); the model-cost
+estimate (1110's agent ask, deferred by 1113 — its § Findings prices both
+halves: 1111's `_shape` has the per-evaluation one, the count is protocol-bound);
 [1017](wp/1017-gui-manual-onboarding.md) (GUI stays beta until it lands); the
 v1.2 free-standing peaks set (1101–1103, shifted 2026-08-20). The agentic-report
 set (1104–1108) is ✅ complete — appendices in `milestones/v1.1.md`. 1066's
@@ -389,7 +386,7 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 | [1109](wp/1109-refinement-speed.md) | Refinement speed: where the time actually goes | ✅ 2026-08-20 | — |
 | [1111](wp/1111-benchmark-harness.md) | The refinement benchmark harness, and the trigger-shaped case | ✅ | — |
 | [1112](wp/1112-batched-derivative-bases.md) | The batched derivative side, and η-aware windows | ✅ 2026-08-21 | 1111 |
-| [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | 🔄 | 1111 (soft) |
+| [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | ✅ 2026-08-21 | 1111 (soft) |
 | [1114](wp/1114-peaks-buffer-spike.md) | Peaks-buffer spike: shape reuse across 2θ | ⬜ | 1112 |
 | [1115](wp/1115-compiled-kernel-spike.md) | Compiled-kernel spike (gated) | ⬜ | 1112, 1114 |
 | [1116](wp/1116-session-protocol-hygiene.md) | Session-protocol hygiene: the scan that cried wolf | ✅ 2026-08-20 | — |

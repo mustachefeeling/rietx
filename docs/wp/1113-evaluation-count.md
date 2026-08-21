@@ -1,6 +1,8 @@
 # WP-1113 — evaluation count: name the mechanism, then attack it
 
-Milestone: v1.1 · Status: 🔄 2026-08-21
+Milestone: v1.1 · Status: ✅ 2026-08-21 — mechanism named (ftol-bound GN
+degeneracy tails, not crawls); `Stage.ftol` landed opt-in; x_scale and
+seeding retired with numbers; LM basin proven a local minimum and fenced
 Depends on: 1111 (soft — its iteration columns are this WP's before/after)
 
 ## Goal
@@ -334,9 +336,58 @@ example already in hand.
 
 ## Handover log
 
-- **2026-08-20** — created by the 1109 review session; carries the review's
-  iteration table, the LM basin finding, and the crawl hypothesis as the
-  first thing to test.
+- **2026-08-21** — closed, one session.  The slow stages were believed to be
+  the trust region crawling over sharp lab peaks; they are not.  Every
+  expensive stage measured spends 37-52 % of its evaluations *after* 99.99 %
+  of its cost decrease is banked, marching a direction the data barely
+  constrains (zero point against specimen displacement, or the width family)
+  at a fixed geometric rate ≈ 0.93/iteration until ftol = 1e-9 is satisfied —
+  pure undamped Gauss-Newton, λ ≡ 0 under the LM driver, one rejection per
+  hundred accepts.  Because the tail belongs to the tolerance and not to the
+  start, seeding and rescaling buy almost nothing (measured, retired), while
+  telling intermediate stages to stop polishing buys 1.5-1.7× whole-plan with
+  no measurable answer change — landed as opt-in `Stage.ftol`.  And the LM
+  driver's bad QPA answer is basin luck on a shared degeneracy, not a driver
+  bug: a TRF polish from LM's exact endpoint stays at Rwp 0.244, so it is a
+  genuine local minimum — fenced, and benched.
+  - *Done*: `eval` events carry `accepted`/`step_norm`/`values` (+`lam` on
+    LM), `stage_start.free_paths`, `stage_end.termination`
+    (`LSQOutcome.termination`, both drivers — the LM driver's own vocabulary
+    on `LMOutcome`); `examples/stage_trajectory.py` (prints/plots any
+    case × stage trajectory off the stream, with the 99.99 %-banked tail
+    metric); `Stage.ftol` + `StageSpec.ftol` (SCHEMA_VERSION 0.3 → 0.4,
+    `.rxt` grammar and highlighter followed, GUI dist rebuilt, manual
+    § "What a stage carries"); `bench_solver._cpd2_qpa`; the fence paragraph
+    in `optimize/lm.py`; cost-estimate request deferred to ROADMAP's parked
+    list with both halves priced (task tick has the reasoning).
+  - *Measured* (this checkout's `.venv` `[dev]`, darwin/arm64; every table
+    in § Findings): mechanism trajectories (cpd-2 `zero_disp` 93+1 ratio
+    0.934, `cell` 131+1 ratio 0.926, cpd-1a 84+1 ratio 0.928, nac controls
+    5/14 evals, trigger `lines_axial` 143+42 radius-quantized); budget
+    (1e-6: 408→272 / 540→315 / 363→226 at ≤ 0.02 esd, QPA ≤ 0.003 wt %);
+    x_scale 'jac' null-to-harmful with mechanism-A counts bit-unchanged;
+    seed 1.06-1.08×; LM bisection (split born in the width stages, po
+    false-converges `ftol_runs` at 14 evals from LM's valley point).
+    Harness columns on the final tree, best-of-3: identical to 1112's
+    handover (cpd-2 540/420 nfev/njev 8.26-8.42 s, trigger 363/289
+    28.29-28.35 s cold) — before == after by construction, everything landed
+    opt-in or additive.  Fast suite 2582 passed / 117 skipped — +2 over the
+    session's own pre-change baseline, exactly the two tests added
+    (trajectory fields; `Stage.ftol` pass-through), the LM stream test
+    rewritten in place.  Full suite not fired: no default-path number can
+    move (the harness columns are the evidence), nightly covers it.
+  - *Gotchas*: the LM counterexample needs per-stage `max_iter` 400 — at the
+    shipped caps the truncation of LM's `cell` stage accidentally fences it
+    into the good basin, so the answer depends on a runaway guard; the
+    trigger's nominal 1.2 esd budget shift is the exactly-degenerate
+    instrument-X ↔ `lor_size` family; `docs/solver-survey.md` §0.3 (E2) had
+    already nulled x_scale on SRM 660c and this WP's Context missed it on
+    arrival.
+  - *Next*: 1114 (peaks-buffer spike) per ROADMAP.  The preset ftol flip is
+    priced but deliberately not flipped — if 1114/1115's per-evaluation wins
+    still miss the cold target, it is the cheapest remaining multiplier, and
+    it needs the 1111 harness equivalence bar, not a spot check (note pushed
+    to 1114's Inherited).
 - **2026-08-21** — arrival prune. All three inherited entries were still
   live, so none was deleted: 1112's re-measurements merged into the numbers
   they amend (counts-held into the Context intro, the re-measure caveat onto
@@ -345,3 +396,6 @@ example already in hand.
   preconditioning lead became a Context bullet plus the `x_scale` task; the
   WP-1111 cost-estimate request became a Context bullet plus the
   decide-or-defer task.
+- **2026-08-20** — created by the 1109 review session; carries the review's
+  iteration table, the LM basin finding, and the crawl hypothesis as the
+  first thing to test.
