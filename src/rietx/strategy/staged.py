@@ -97,6 +97,18 @@ class Stage:
     #: layout at zero magnitude rather than removing them, so the row count —
     #: and the statistics exclusion built on it — does not change mid-plan.
     restraint_weight_scale: float = 1.0
+    #: absolute slack (°2θ) added to every evaluation-window half-width this
+    #: stage compiles, replacing the default ``forward.WINDOW_MIN_DEG``.  The
+    #: window has two jobs the WP-1112 area criterion split apart: tail
+    #: coverage, which k(η)·Γ handles, and **capture range** — a peak must
+    #: stay inside its frozen window wherever the stage's start error puts
+    #: it.  The default slack covers ordinary refinement (a cold zero error
+    #: is ~0.1°); a fit that *tests a hypothesis it must not walk toward* —
+    #: the indexing Le Bail validation, whose candidate may be metrically
+    #: wrong by design — declares the capture range its verdict needs
+    #: (``indexing.workflow.VALIDATION_WINDOW_SLACK_DEG``).  ``None`` = the
+    #: default; frozen at stage compile like every other discrete choice.
+    window_slack_deg: float | None = None
 
     def __getattr__(self, name: str):
         if name in _PYDANTIC_SURFACE:

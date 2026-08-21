@@ -1084,7 +1084,11 @@ class Refinement:
             # eq (7)'s c_w for this stage: frozen onto the model here, with the
             # hkl list and the windows, because a schedule reweights the
             # restraints *between* stages and never inside one (WP-1074)
-            restraint_weight_scale=stage.restraint_weight_scale)
+            restraint_weight_scale=stage.restraint_weight_scale,
+            # the stage's declared window capture slack (WP-1112): the same
+            # frozen-at-compile shape as c_w, and None for every plan that
+            # does not state one
+            window_slack_deg=stage.window_slack_deg)
         carried = False
         if model is not None and mode in ("lebail", "pawley") and model.mode == mode:
             _carry_lebail(model, new_model)

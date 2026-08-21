@@ -112,11 +112,21 @@ def test_replay_is_deterministic(fitted, pattern):
 
 def test_a_node_whose_stage_moved_nothing_discrete_replays_exactly(fitted, pattern):
     """`scale_bkg` refines only scale and background, neither of which enters
-    the frozen reflection list or windows, so its refreeze is a no-op."""
+    the frozen reflection list or windows, so its refreeze is a no-op.
+
+    The bar is machine precision, not bit-equality: the replay round trip
+    re-encodes the committed physical values through the transforms and
+    re-evaluates, and whether that lands on the identical bits is libm luck,
+    not state.  It held by luck until WP-1112's window re-sizing moved the
+    converged values — bit-equal on darwin/arm64, 1 ulp apart on Linux
+    x86-64 (CI, 2026-08-21).  What the pin exists to catch is *state loss*,
+    which moves Rwp through the tolerance of the drift test above by orders
+    of magnitude, never by ulps."""
     ref, _ = fitted
     node = [n for n in ref.history.nodes.values() if n.action.name == "scale_bkg"][0]
     again = replay(ref.history, node.id, pattern)
-    assert again.statistics.rwp == node.metrics.statistics.rwp
+    assert again.statistics.rwp == pytest.approx(
+        node.metrics.statistics.rwp, rel=1e-12)
 
 
 # --------------------------------------------------------------- Le Bail

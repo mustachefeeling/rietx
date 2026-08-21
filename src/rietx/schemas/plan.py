@@ -53,6 +53,11 @@ class StageSpec(Base):
         "c_w of McCusker eq (7), S = S_y + c_w·S_G: this stage's weight on the "
         "geometric restraints against the diffraction data; high early, "
         "reduced as the model improves.  1.0 = no scaling"))
+    window_slack_deg: float | None = Field(None, ge=0.0, description=(
+        "absolute window capture slack in deg 2-theta this stage compiles "
+        "with, replacing the default WINDOW_MIN_DEG — declared by fits whose "
+        "start may sit far from the data (the indexing Le Bail validation); "
+        "null = the default"))
 
     @model_validator(mode="before")
     @classmethod
@@ -67,7 +72,8 @@ class StageSpec(Base):
         return cls(name=stage.name, turn_on=list(stage.turn_on),
                    max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
                    seed=stage.seed, strain_seed=stage.strain_seed,
-                   restraint_weight_scale=stage.restraint_weight_scale)
+                   restraint_weight_scale=stage.restraint_weight_scale,
+                   window_slack_deg=stage.window_slack_deg)
 
     def to_stage(self) -> Any:
         from ..strategy.staged import Stage
@@ -75,7 +81,8 @@ class StageSpec(Base):
         return Stage(name=self.name, turn_on=list(self.turn_on),
                      max_iter=self.max_iter, lebail_cycles=self.lebail_cycles,
                      seed=self.seed, strain_seed=self.strain_seed,
-                     restraint_weight_scale=self.restraint_weight_scale)
+                     restraint_weight_scale=self.restraint_weight_scale,
+                     window_slack_deg=self.window_slack_deg)
 
 
 class PlanSpec(Base):

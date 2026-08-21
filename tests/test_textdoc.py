@@ -406,7 +406,8 @@ def test_a_stage_line_round_trips_every_key_stage_spec_has(project):
 
     assert set(td.STAGE_KEYS) | {"name", "turn_on"} == set(StageSpec.model_fields)
     non_default = {"max_iter": 40, "lebail_cycles": 5, "seed": 0.0001,
-                   "strain_seed": 1e-06, "restraint_weight_scale": 25.0}
+                   "strain_seed": 1e-06, "restraint_weight_scale": 25.0,
+                   "window_slack_deg": 2.5}
     assert set(non_default) == set(td.STAGE_KEYS), "a key has no value to try"
 
     line = "stage every  free phases.*.cell.*   " + "   ".join(

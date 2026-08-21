@@ -364,9 +364,13 @@ def test_the_thick_specimen_default_leaves_the_forward_model_untouched():
 
     model_on, _ = _flat_plate_model(0.4, "bragg_brentano")
     y_thin = model_on.evaluate(values)
-    # the thin specimen has lost high-angle intensity relative to low
+    # the thin specimen has lost high-angle intensity relative to low.  The
+    # low band starts where rutile's first peaks live (27.5°, 36.1°): below
+    # 25° there is no peak, and only the pre-WP-1112 ±30·FWHM windows ever
+    # spilled tail intensity there — the area-criterion windows leave it at
+    # exactly zero, which is not a band this ratio can be measured on.
     top = model_on.tt > 70.0
-    bottom = model_on.tt < 25.0
+    bottom = model_on.tt < 40.0
     assert y_thin[top].max() / y_thick[top].max() \
         < y_thin[bottom].max() / y_thick[bottom].max()
 

@@ -545,14 +545,19 @@ def test_multi_histogram_stacked_layout():
 # stage boundaries: the frozen state, regenerated
 # ----------------------------------------------------------------------
 #: recompile gap at a stage boundary — whole-matrix Frobenius and worst single
-#: column, both relative.  Measured (see the module docstring for the method):
-#: srm660c after the displacement stage moved the specimen 0.08 mm, 5.9e-6 /
-#: 6.9e-5; the toy Le Bail and Pawley cells 1.9e-7 / 7.6e-7.  The bars sit ~15×
-#: above the worst of those — loose enough for a converged stage's parameter
-#: move, far tighter than a discreteness bug (a dropped reflection or an
-#: off-by-one window changes a column by 1e-2 and up).
-BOUNDARY_FROBENIUS_MAX = 1e-4
-BOUNDARY_COLUMN_MAX = 1e-3
+#: column, both relative.  Measured at the WP-1112 area-criterion windows:
+#: srm660c's cell stage 4.4e-4 / 2.6e-3, the toy Le Bail and Pawley cells
+#: 1.3e-4 and 3.6e-4 (at the pre-1112 ±30·FWHM margins the same gaps read
+#: 5.9e-6 / 6.9e-5 — window edges then sat in deep tail, so re-freezing them
+#: after a stage's parameter move shifted almost no weight; an edge now
+#: carries its share of the stated ≤2 % discarded area, and the recompile
+#: gap is honestly larger).  The bars sit ~4×/3× above the worst measured
+#: gap and ~5×/1.3× below the gross-discreteness scale (a dropped
+#: reflection or a stale window at a moved cell changes columns by 1e-2 and
+#: up) — narrower headroom than the fat-window era's 15×, which is the
+#: price of windows that no longer bury their edges.
+BOUNDARY_FROBENIUS_MAX = 2e-3
+BOUNDARY_COLUMN_MAX = 8e-3
 
 
 def _frozen_signature(model) -> list[tuple]:

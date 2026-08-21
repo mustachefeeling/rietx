@@ -132,7 +132,8 @@ PEAK_POSITION_BOUND_FWHM = 0.5
 #: bounds keep the analytic Jacobian in physical units with no chain factor.
 PEAK_WIDTH_BOUND_FACTORS = (1e-4, 5.0)
 #: Half-width of a group's fitting window, in seed FWHM beyond the outermost
-#: seed.  Far narrower than the refinement's ``WINDOW_FWHM_MULT = 30``, and for
+#: seed.  Far narrower than the refinement's area-criterion windows
+#: (``forward.WINDOW_AREA_TOL``; up to tens of FWHM at high η), and for
 #: a different reason: there the whole pattern is modelled and a truncated tail
 #: shows up as missing intensity under its neighbours, whereas here each window
 #: is fitted alone against a frozen background, so a wide window only buys more

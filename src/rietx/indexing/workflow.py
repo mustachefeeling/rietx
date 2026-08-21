@@ -99,6 +99,40 @@ from .fom import lattice_group
 #: why the 2θ of every flagged reflection travels with the count: a caller can
 #: look at the pattern, which no threshold can do for them.
 ABSENT_SIGMA = 3.0
+#: The metric wrongness, as |Δd|/d, whose displacement the Le Bail
+#: validation's windows must *capture* rather than lose (an assumed tolerance
+#: stated as one, like :data:`~rietx.indexing.engines.DEFAULT_UNKNOWN_SHIFT_DEG`
+#: one level down).  The candidate under test may be metrically wrong — that
+#: is what the validation exists to measure — and a wrong metric must read as
+#: *displaced* intensity (high Rwp, unmatched observed lines), never as
+#: *absent*, which is the oversized-cell signal.  1 % is the canonical wrong
+#: metric the separation table grades (``test_indexing_consensus``).
+VALIDATION_METRIC_REL = 0.01
+#: Bounds on the derived slack: the floor keeps a short-range synchrotron
+#: validation from collapsing to tail-only windows (a candidate also carries
+#: zero-shift wrongness), the cap keeps tan θ from exploding near 180°.
+VALIDATION_SLACK_BOUNDS_DEG = (0.3, 6.0)
+
+
+def validation_window_slack_deg(two_theta_max: float) -> float:
+    """The capture slack (°2θ) a validation fit compiles its windows with.
+
+    Δ2θ = 2·tan θ·|Δd|/d is where a ±``VALIDATION_METRIC_REL`` metric error
+    puts a line at the pattern's top angle — a lab pattern to 140° needs
+    ≈ 3.2°, a synchrotron pattern to 24° only the floor — so the slack is
+    derived from the range rather than fixed: a constant wide enough for the
+    lab case makes a synchrotron validation absurdly wide (and measurably
+    flips marginal weak lines of a *correct* cell to "absent" by moving the
+    fitted background).  The refinement default (``forward.WINDOW_MIN_DEG``)
+    is sized for a fit whose start is roughly right and must NOT be widened
+    to serve this case — WP-1112 split the window's tail-coverage and
+    capture-range jobs apart, and ``Stage.window_slack_deg`` is the capture
+    half's declaration.
+    """
+    lo, hi = VALIDATION_SLACK_BOUNDS_DEG
+    slack = np.degrees(2.0 * np.tan(np.radians(two_theta_max / 2.0))
+                       * VALIDATION_METRIC_REL)
+    return float(np.clip(slack, lo, hi))
 #: Half-width of the integration window, in predicted FWHM.  Half a FWHM rather
 #: than a whole one: the question is whether there is intensity *at the position*,
 #: and a wider window on a dense supercell would collect a neighbour's tail and
@@ -234,7 +268,8 @@ def _shift_path(candidate: CellCandidate, instrument: Instrument) -> str:
     return path
 
 
-def validation_plan(candidate: CellCandidate, instrument: Instrument):
+def validation_plan(candidate: CellCandidate, instrument: Instrument,
+                    two_theta_max: float | None = None):
     """The staged plan a Le Bail validation runs, and what it deliberately omits.
 
     **The cell is held.**  ``profile_only`` — the ordinary Le Bail plan — frees
@@ -252,12 +287,18 @@ def validation_plan(candidate: CellCandidate, instrument: Instrument):
     """
     from ..strategy.staged import RefinementPlan, Stage
 
+    # capture slack derived from the fitted range (see the function); a
+    # caller without a range gets the conservative cap
+    slack = (validation_window_slack_deg(two_theta_max)
+             if two_theta_max is not None else VALIDATION_SLACK_BOUNDS_DEG[1])
     return RefinementPlan(stages=[
-        Stage("bkg", ["instrument.background.*"]),
-        Stage("shift", [_shift_path(candidate, instrument)]),
-        Stage("profile_w", ["instrument.profile.w"]),
+        Stage("bkg", ["instrument.background.*"], window_slack_deg=slack),
+        Stage("shift", [_shift_path(candidate, instrument)],
+              window_slack_deg=slack),
+        Stage("profile_w", ["instrument.profile.w"], window_slack_deg=slack),
         Stage("profile", ["instrument.profile.u", "instrument.profile.v",
-                          "instrument.profile.x", "instrument.profile.y"]),
+                          "instrument.profile.x", "instrument.profile.y"],
+              window_slack_deg=slack),
     ])
 
 
@@ -386,7 +427,10 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     ins = instrument
     if peaks is not None:
         ins, _seeded = seed_widths(ins, peaks)
-    plan = validation_plan(candidate, ins)
+    tt_max = float(np.max(np.asarray(data.two_theta)))
+    if two_theta_limits is not None:
+        tt_max = min(tt_max, float(two_theta_limits[1]))
+    plan = validation_plan(candidate, ins, two_theta_max=tt_max)
 
     ref = Refinement(structure, ins, history=False)
     try:

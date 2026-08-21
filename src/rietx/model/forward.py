@@ -98,7 +98,12 @@ from .preferred_orientation import (
     orbit_layout,
 )
 from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
-from .profiles.fcj import fcj_extent_deg, fcj_node_count, fcj_offsets_weights
+from .profiles.fcj import (
+    fcj_extent_deg,
+    fcj_node_count,
+    fcj_offsets_weights,
+    fcj_offsets_weights_batch,
+)
 from .profiles.pseudovoigt import (
     pseudo_voigt,
     pseudo_voigt_basis,
@@ -118,9 +123,73 @@ from .restraints import (
     restraint_residual,
 )
 
-#: windows extend ±(WINDOW_FWHM_MULT · Γ_est + WINDOW_MIN_DEG + FCJ extent)
-WINDOW_FWHM_MULT = 30.0
+#: Evaluation windows extend ±(k(η)·Γ_est + WINDOW_MIN_DEG + FCJ extent),
+#: where k(η) is the smallest half-width in FWHM units at which the
+#: **discarded area** of the unit-area pseudo-Voigt stays at or below this
+#: tolerance (WP-1112; :func:`window_fwhm_mult` has the closed forms).  Area,
+#: not height, is the criterion because reflection intensities are areas: a
+#: pseudo-Voigt cut at ±k·FWHM discards ≈ η/(π·k) of its integral — the
+#: two-sided Lorentzian CDF tail — so the pre-1112 fixed ±30 FWHM carried an
+#: η-dependent intensity bias it never stated (≈ 0.64 % at η = 0.6, ≈ 1.1 %
+#: at η = 1) while spending ~70× FWHM on near-Gaussian lab peaks whose tail
+#: dies at ±2.  The tolerance was **chosen by measurement**, not principle
+#: (WP-1112's task-4 record has the sweep): the Lorentzian tail makes small
+#: tolerances expensive — 1e-3 grows every lab window (k(0.6) ≈ 190) and
+#: even 5e-3 reproduces the old widths (k(0.5) ≈ 32) — while on the IUCr
+#: QPA round-robin the *answers* are flat in the tolerance: from 5e-3 to
+#: 5e-2 the weighed-truth deviations moved < 0.3 wt % (the fits' own
+#: systematics dominate at ~0.6/2.9 wt %, bands ±2/±6) as the protocol
+#: fits ran 1.9-2.4× faster.  2e-2 is the knee: k(0.6) ≈ 9.5, k(1) ≈ 16,
+#: k(0) ≈ 1.05, cpd-1a/cpd-2 1.9×/1.8× faster than the shipped ±30 FWHM at
+#: fractions within 0.25 wt % of it, and the discarded area is a stated
+#: bound instead of an accident of the margin (the old default's own bias
+#: was ≈ 0.64 % at η = 0.6, unstated).  Rwp rises in the third digit as the
+#: truncated tail residue becomes visible — Rwp is an identity check here,
+#: not the metric.
+WINDOW_AREA_TOL = 2e-2
+#: Absolute slack added to every half-width: windows are frozen per stage,
+#: so a peak must stay inside its window while zero-shift, displacement and
+#: the cell move it during the stage — this is movement headroom, not tail
+#: coverage (a cold fit's zero error is instrument-scale, ~0.1°).
 WINDOW_MIN_DEG = 0.3
+
+#: 2·√(ln 2) — the Gaussian tail argument: a unit-area Gaussian of FWHM Γ
+#: has σ = Γ/(2√(2 ln 2)), so the area outside ±k·Γ is erfc(2√(ln 2)·k)
+_GAUSS_TAIL_C = 2.0 * np.sqrt(np.log(2.0))
+
+
+def window_fwhm_mult(eta: np.ndarray) -> np.ndarray:
+    """k(η): FWHM multiples holding all but ``WINDOW_AREA_TOL`` of the area.
+
+    The two-sided discarded area of the unit pseudo-Voigt outside ±k·Γ is
+
+        D(k) = η·(2/π)·arctan(1/(2k)) + (1−η)·erfc(2√(ln 2)·k)
+
+    (Lorentzian CDF tail + Gaussian tail; both components share the FWHM Γ
+    by the TCHZ construction).  D is monotone in k, so k is solved by
+    vectorised bisection to machine-level precision; the Lorentzian term
+    dominates for any η ≳ tol, giving k ≈ η/(π·tol) — the fat tail is the
+    price of a Lorentzian mix and is why the criterion must know η.
+    """
+    from scipy.special import erfc
+
+    eta = np.clip(np.asarray(eta, dtype=np.float64), 0.0, 1.0)
+    tol = WINDOW_AREA_TOL
+
+    def discard(k):
+        with np.errstate(divide="ignore"):
+            lor = np.where(k > 0.0, np.arctan(1.0 / np.maximum(2.0 * k, 1e-300)),
+                           np.pi / 2.0)
+        return eta * (2.0 / np.pi) * lor + (1.0 - eta) * erfc(_GAUSS_TAIL_C * k)
+
+    lo = np.zeros_like(eta)
+    hi = np.full_like(eta, 1.0 / (np.pi * tol) + 3.0)
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        too_wide = discard(mid) <= tol
+        hi = np.where(too_wide, mid, hi)
+        lo = np.where(too_wide, lo, mid)
+    return hi
 #: when the axial S/L, H/L parameters are about to be *refined* from zero,
 #: quadrature nodes are sized as if they were at least this large, so the
 #: finite-difference Jacobian sees a live parameter instead of a frozen
@@ -165,9 +234,11 @@ def _cached_fcj_nodes(cp: "CompiledPhase", il: int, k: int, variant: int,
     perturbations of non-position parameters leave the nodes untouched — which
     input equality captures wherever it occurs, static stage or not.
 
-    ``variant`` separates the four evaluation points ``derivative_bases``
-    needs (0 = base, shared with the forward evaluation; 1 = pos+h;
-    2 = sl+h; 3 = hl+h) so they occupy distinct slots.  The numpy-name gate
+    ``variant`` separates evaluation points so they occupy distinct slots.
+    Since WP-1112 only the forward evaluation reads this memo (variant 0):
+    ``derivative_bases`` generates its nodes batched per frozen count
+    (``fcj_offsets_weights_batch``), where regenerating is cheaper than the
+    per-row cache reads ever were.  The numpy-name gate
     keeps traced (jax/torch) evaluations honest: they run this same code under
     ``backend.traced.active`` with tracer arguments, and a tracer deposited
     here would leak into later numpy calls (while a cached numpy array would
@@ -196,6 +267,83 @@ def _cached_fcj_nodes(cp: "CompiledPhase", il: int, k: int, variant: int,
 #: :meth:`CompiledModel.phase_support`, because the bound and the diagnostic
 #: must read one number.
 PHASE_SUPPORT_SIGMA = 1.0
+
+@dataclass
+class BatchLayout:
+    """Compile-frozen index planes for the batched derivative bases (WP-1112).
+
+    One row per non-empty (emission line, reflection) window, in the
+    (il, k)-major order the pre-batch loop iterated — which is what lets a
+    row-ordered scatter reproduce its accumulation order.  Everything here is
+    an index or a gather of the frozen fit grid, so none of it violates
+    frozen-per-stage discreteness: the planes are compile-time constants,
+    never θ-dependent.  Rows whose window is padded past their own width
+    read a clipped in-window index; the consumer slices ``[:width[j]]`` (the
+    ragged view) or masks (the batched accumulators).
+    """
+
+    il: np.ndarray            # (R,) emission-line index per row
+    k: np.ndarray             # (R,) reflection index per row
+    i0: np.ndarray            # (R,) window start (point index)
+    i1: np.ndarray            # (R,) window stop
+    width: np.ndarray         # (R,) = i1 - i0
+    w_max: int                # padded window axis
+    idx: np.ndarray           # (R, w_max) point indices, clipped into window
+    x: np.ndarray             # (R, w_max) = tt[idx], the frozen 2θ gather
+    mask: np.ndarray          # (R, w_max) 1.0 in-window, 0.0 on the pad tail
+    fcj: np.ndarray           # (R,) frozen node count per row (0 = symmetric)
+    #: frozen node count → row indices; the key 0 is the symmetric block, and
+    #: each nonzero key is one batched-quadrature bucket (no node-axis padding
+    #: — the pad layout measured 0.8× on the gate's trigger case)
+    buckets: dict[int, np.ndarray]
+    #: (n_lines + 1,) prefix pointers into the rows per emission line — rows
+    #: are il-major, so line il occupies rows line_ptr[il]:line_ptr[il + 1]
+    line_ptr: np.ndarray
+
+    def gather(self, peaks: list[tuple], slot: int) -> np.ndarray:
+        """(R,) gather of ``peaks[il][slot][k]`` onto the rows.
+
+        ``peaks`` is a ``phase_peaks`` result (one (pos, w₁, w₂, intensity)
+        tuple per emission line); ``slot`` picks the quantity.
+        """
+        out = np.empty(len(self.i0))
+        for il in range(len(self.line_ptr) - 1):
+            a, b = int(self.line_ptr[il]), int(self.line_ptr[il + 1])
+            out[a:b] = np.asarray(peaks[il][slot])[self.k[a:b]]
+        return out
+
+
+#: rows per chunk of the batched FCJ kernel stage in ``derivative_bases``:
+#: bounds the transient (chunk, nodes, w_max) planes (~7 live at once) to
+#: tens of MB at a 64-node, 400-point worst case, and measured at parity
+#: with unchunked evaluation on the WP-1112 gate cases
+_BASES_CHUNK_ROWS = 128
+
+
+def _node_mix(w: np.ndarray, planes: np.ndarray) -> np.ndarray:
+    """Node-weighted sum: (B, M) weights against (B, M, W) planes → (B, W)."""
+    return np.matmul(w[:, None, :], planes)[:, 0, :]
+
+
+def _batch_layout(win: np.ndarray, fcj_n: np.ndarray, tt: np.ndarray
+                  ) -> BatchLayout:
+    """Build the frozen planes off the just-computed windows (compile time)."""
+    il, k = np.nonzero(win[..., 1] > win[..., 0])  # row-major = (il, k) order
+    i0 = win[il, k, 0]
+    i1 = win[il, k, 1]
+    width = i1 - i0
+    w_max = int(width.max()) if len(width) else 0
+    ar = np.arange(w_max, dtype=np.int64)[None, :]
+    idx = np.minimum(i0[:, None] + ar, np.maximum(i1 - 1, 0)[:, None])
+    x = tt[idx] if len(width) else np.zeros((0, 0), dtype=np.float64)
+    mask = (ar < width[:, None]).astype(np.float64)
+    nf = fcj_n[il, k]
+    buckets = {int(v): np.nonzero(nf == v)[0] for v in np.unique(nf)}
+    line_ptr = np.searchsorted(il, np.arange(win.shape[0] + 1))
+    return BatchLayout(il=il, k=k, i0=i0, i1=i1, width=width, w_max=w_max,
+                       idx=idx, x=x, mask=mask, fcj=nf, buckets=buckets,
+                       line_ptr=line_ptr)
+
 
 #: two reflections are treated as "strongly overlapped" for Pawley conditioning
 #: when their primary-line centres sit within this fraction of their mean FWHM
@@ -262,6 +410,11 @@ class CompiledPhase:
     # stage-scoped dirty flag, and why a hit can never be stale.  None (no FCJ
     # nodes this stage) keeps the hot loop exactly as before; numpy path only.
     fcj_cache: dict[tuple[int, int, int], tuple] | None = None
+    # Compile-frozen index planes for the batched derivative bases (WP-1112).
+    # Always built at compile — the layout is a few index arrays plus one
+    # (R, w_max) gather of the frozen grid, and the batched build is the only
+    # ``derivative_bases`` there is.
+    batch: BatchLayout | None = None
     # Scalar-chain memo (WP-1109): {slot → (key, value)}, one slot per block of
     # ``phase_peaks`` that depends on a small set of decoded scalars, reused iff
     # the key compares bit-equal.  Same contract as ``fcj_cache`` one rank up —
@@ -1178,87 +1331,128 @@ class CompiledModel:
         against the scalars it finite-differences anyway — a wrong claim raises
         there and names the path, rather than silently leaving the column
         short, which is what the whole-model FD fallback exists to prevent.
+
+        Since WP-1112 the build is **batched** over ``CompiledPhase.batch``:
+        one kernel evaluation for a phase's symmetric rows, one per frozen
+        node count for its FCJ rows (node generation vectorised, the
+        node-weighted sums as matmuls, the kernel stage chunked to bound the
+        transient (rows, nodes, w_max) planes).  Symmetric rows reproduce the
+        per-row loop **bit for bit** — same elementwise expressions,
+        broadcast — while an FCJ row's matmul replaces a per-reflection dgemv
+        and agrees to rounding, not to the bit (the WP-1112 gate record has
+        the measured bars).  The ragged ``entries`` view and its None
+        patterns are unchanged.
         """
         if not profile_derivs:
             axial_derivs = False
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
         h_pos, h_ax = 1e-5, 1e-7
+        # d_sl/d_hl exist only while the parameterisation is smooth there; at
+        # either aperture ≤ 0 the axial columns fall back to FD (``axial_ok``)
+        build_axial = axial_derivs and sl > 0.0 and hl > 0.0
         peaks_all: list[list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]] = []
-        entries: list[list[tuple]] = []
+        planes_all: list[PhasePlanes] = []
         axial_ok = True
         for ip, cp in enumerate(self.phases):
             peaks = self.phase_peaks(
                 ip, values, None if intensities is None else intensities[ip])
             peaks_all.append(peaks)
-            rows: list[tuple] = []
-            for il, (pos, gamma, eta, _intensity) in enumerate(peaks):
-                for k in range(len(pos)):
-                    i0, i1 = cp.win[il, k]
-                    if i1 <= i0 or not np.isfinite(pos[k]):
-                        continue
-                    x = self.tt[i0:i1]
-                    n_fcj = int(cp.fcj_n[il, k])
-                    if n_fcj == 0:
-                        if not profile_derivs:
-                            rows.append((il, k, int(i0), int(i1),
-                                         self._profile_basis(
-                                             x - pos[k], float(gamma[k]),
-                                             float(eta[k])),
-                                         None, None, None, None, None))
-                            continue
-                        pv, d_dx, d_dg, d_de = self._profile_derivs(
-                            x - pos[k], float(gamma[k]), float(eta[k]))
-                        rows.append((il, k, int(i0), int(i1),
-                                     pv, -d_dx, d_dg, d_de, None, None))
-                        continue
-                    if sl <= 0.0 or hl <= 0.0:
-                        axial_ok = False
-                    phi, om = _cached_fcj_nodes(cp, il, k, 0,
-                                                float(pos[k]), sl, hl, n_fcj)
+            lay = cp.batch
+            n_rows, w_max = len(lay.i0), lay.w_max
+            pos = lay.gather(peaks, 0)
+            w1 = lay.gather(peaks, 1)
+            w2 = lay.gather(peaks, 2)
+            inten = lay.gather(peaks, 3)
+            finite = np.isfinite(pos)
+            has_fcj = bool(np.any((lay.fcj > 0) & finite))
+            if has_fcj and (sl <= 0.0 or hl <= 0.0):
+                axial_ok = False
+            omega = np.zeros((n_rows, w_max))
+            d_pos = d_gamma = d_eta = d_sl = d_hl = None
+            if profile_derivs:
+                d_pos = np.zeros((n_rows, w_max))
+                d_gamma = np.zeros((n_rows, w_max))
+                d_eta = np.zeros((n_rows, w_max))
+                if build_axial and has_fcj:
+                    d_sl = np.zeros((n_rows, w_max))
+                    d_hl = np.zeros((n_rows, w_max))
+            srows = lay.buckets.get(0, np.zeros(0, dtype=np.int64))
+            if len(srows):
+                xs = lay.x[srows] - pos[srows, None]
+                if profile_derivs:
+                    pv, ddx, ddg, dde = self._profile_derivs(
+                        xs, w1[srows, None], w2[srows, None])
+                    omega[srows] = pv
+                    d_pos[srows] = -ddx
+                    d_gamma[srows] = ddg
+                    d_eta[srows] = dde
+                else:
+                    omega[srows] = self._profile_basis(
+                        xs, w1[srows, None], w2[srows, None])
+            for n, rows_b in lay.buckets.items():
+                if n == 0:
+                    continue
+                nodes = fcj_offsets_weights_batch(pos[rows_b], sl, hl, n)
+                shift = axl = axh = None
+                if profile_derivs:
+                    shift = fcj_offsets_weights_batch(
+                        pos[rows_b] + h_pos, sl, hl, n)
+                    if d_sl is not None:
+                        axl = fcj_offsets_weights_batch(
+                            pos[rows_b], sl + h_ax, hl, n)
+                        axh = fcj_offsets_weights_batch(
+                            pos[rows_b], sl, hl + h_ax, n)
+                for a in range(0, len(rows_b), _BASES_CHUNK_ROWS):
+                    rs = rows_b[a:a + _BASES_CHUNK_ROWS]
+                    s = slice(a, a + _BASES_CHUNK_ROWS)
+                    phi, om = nodes[0][s], nodes[1][s]
+                    x3 = lay.x[rs][:, None, :] - phi[:, :, None]
                     if not profile_derivs:
-                        # Ω is the same convolution either way; only the three
+                        # Ω is the same convolution either way; only the
                         # partials are dropped, and with them the node-FD
-                        # evaluations that build ∂Ω/∂pos
-                        pv = self._profile_basis(x[None, :] - phi[:, None],
-                                                 float(gamma[k]), float(eta[k]))
-                        rows.append((il, k, int(i0), int(i1), om @ pv,
-                                     None, None, None, None, None))
+                        # generations that build ∂Ω/∂pos
+                        pv = self._profile_basis(
+                            x3, w1[rs, None, None], w2[rs, None, None])
+                        omega[rs] = _node_mix(om, pv)
                         continue
-                    pv, d_dx, d_dg, d_de = self._profile_derivs(
-                        x[None, :] - phi[:, None], float(gamma[k]), float(eta[k]))
-                    omega = om @ pv
-                    d_gamma = om @ d_dg
-                    d_eta = om @ d_de
-
-                    def node_diff(phi1, om1):
-                        if len(phi1) != len(phi):
-                            return None  # crossed the symmetric fallback
-                        return (phi1 - phi), (om1 - om)
-
-                    d = node_diff(*_cached_fcj_nodes(
-                        cp, il, k, 1, float(pos[k]) + h_pos, sl, hl, n_fcj))
-                    if d is None:
-                        d_pos = -(om @ d_dx)  # pure-translation approximation
-                    else:
-                        dphi, dom = d[0] / h_pos, d[1] / h_pos
-                        d_pos = (dom @ pv) - ((om * dphi) @ d_dx)
-                    d_sl = d_hl = None
-                    if axial_ok and axial_derivs:
-                        d = node_diff(*_cached_fcj_nodes(
-                            cp, il, k, 2, float(pos[k]), sl + h_ax, hl, n_fcj))
-                        if d is not None:
-                            dphi, dom = d[0] / h_ax, d[1] / h_ax
-                            d_sl = (dom @ pv) - ((om * dphi) @ d_dx)
-                        d = node_diff(*_cached_fcj_nodes(
-                            cp, il, k, 3, float(pos[k]), sl, hl + h_ax, n_fcj))
-                        if d is not None:
-                            dphi, dom = d[0] / h_ax, d[1] / h_ax
-                            d_hl = (dom @ pv) - ((om * dphi) @ d_dx)
-                    rows.append((il, k, int(i0), int(i1),
-                                 omega, d_pos, d_gamma, d_eta, d_sl, d_hl))
-            entries.append(rows)
-        return DerivativeBases(entries=entries, peaks=peaks_all, axial_ok=axial_ok)
+                    pv, ddx, ddg, dde = self._profile_derivs(
+                        x3, w1[rs, None, None], w2[rs, None, None])
+                    omega[rs] = _node_mix(om, pv)
+                    d_gamma[rs] = _node_mix(om, ddg)
+                    d_eta[rs] = _node_mix(om, dde)
+                    # node-FD ∂Ω/∂pos: a frozen count keeps both node sets the
+                    # same shape, so the scalar loop's length-mismatch fallback
+                    # has no batched counterpart
+                    dphi = (shift[0][s] - phi) / h_pos
+                    dom = (shift[1][s] - om) / h_pos
+                    d_pos[rs] = _node_mix(dom, pv) - _node_mix(om * dphi, ddx)
+                    for planes, var in ((d_sl, axl), (d_hl, axh)):
+                        if planes is None:
+                            continue
+                        dphi = (var[0][s] - phi) / h_ax
+                        dom = (var[1][s] - om) / h_ax
+                        planes[rs] = (_node_mix(dom, pv)
+                                      - _node_mix(om * dphi, ddx))
+            # Make the planes scatter-safe for the batched accumulators
+            # (optimize/least_squares): zero the pad tail — its garbage points
+            # at a real in-window index through ``lay.idx`` — and the NaN rows
+            # of a non-finite position, which the ragged view never serves but
+            # a whole-plane term would otherwise multiply into NaN.  In-window
+            # finite values are multiplied by 1.0, which preserves their bits,
+            # so the ragged view is unchanged.
+            for pl in (omega, d_pos, d_gamma, d_eta, d_sl, d_hl):
+                if pl is None:
+                    continue
+                np.multiply(pl, lay.mask, out=pl)
+                if not finite.all():
+                    pl[~finite] = 0.0
+            planes_all.append(PhasePlanes(
+                layout=lay, finite=finite, pos=pos, w1=w1, w2=w2, inten=inten,
+                omega=omega, d_pos=d_pos, d_gamma=d_gamma, d_eta=d_eta,
+                d_sl=d_sl, d_hl=d_hl))
+        return DerivativeBases(planes=planes_all, peaks=peaks_all,
+                               axial_ok=axial_ok)
 
     # ------------------------------------------------------------------
     def lebail_update(self, values: dict[str, float], n_cycles: int = 1) -> None:
@@ -1593,32 +1787,96 @@ class PawleyBlock:
 
 
 @dataclass
+class PhasePlanes:
+    """One phase's derivative bases as padded (R, w_max) planes (WP-1112).
+
+    Rows align with ``CompiledPhase.batch`` (``layout``); each row is padded
+    past its own window width.  ``finite`` marks rows whose position was
+    finite at the expansion point: the others are zeroed after the build and
+    excluded from the ragged view, exactly as the pre-batch loop skipped
+    them — and the pad tails are zeroed too, so a batched accumulator may
+    scatter whole planes through ``layout.idx`` without masking (a pad slot
+    aliases a real in-window index; its zero contribution is bitwise
+    neutral).  ``d_sl``/``d_hl`` hold zeros at symmetric rows — a batched
+    axial accumulation over all rows is then correct by construction — while
+    the ragged view serves ``None`` there.  ``pos``/``w1``/``w2``/``inten``
+    are the row-gathered peak scalars at the expansion point, stored so a
+    per-column scalar FD gathers only its perturbed state.
+    """
+
+    layout: BatchLayout
+    finite: np.ndarray
+    pos: np.ndarray
+    w1: np.ndarray
+    w2: np.ndarray
+    inten: np.ndarray
+    omega: np.ndarray
+    d_pos: np.ndarray | None
+    d_gamma: np.ndarray | None
+    d_eta: np.ndarray | None
+    d_sl: np.ndarray | None
+    d_hl: np.ndarray | None
+
+
+@dataclass
 class DerivativeBases:
     """Analytic profile-derivative bases (see ``CompiledModel.derivative_bases``).
 
-    ``entries[ip]`` holds tuples ``(il, k, i0, i1, Ω, ∂Ω/∂pos, ∂Ω/∂Γ, ∂Ω/∂η,
-    ∂Ω/∂sl, ∂Ω/∂hl)`` per visible peak of phase ``ip``.  Ω is always present;
-    every partial after it is optional and **every consumer None-checks**.
-    ∂Ω/∂sl and ∂Ω/∂hl are None for a symmetric peak or under
-    ``axial_derivs=False``; the three before them are None under
-    ``profile_derivs=False``, which a caller passes only when it has claimed
-    that nothing it will build moves a peak's position, width or mixing.
-    ``peaks[ip]`` caches ``phase_peaks(ip, values)`` at the expansion point.
-    These bases also feed the FitReport Layer-1 misfit attribution (same
-    expansion, different right-hand side) — which reads the partials, so its
-    callers keep the full default.
+    Since WP-1112 the storage is batched: ``planes[ip]`` holds one padded
+    (R, w_max) plane per quantity (:class:`PhasePlanes`), row-aligned with
+    ``CompiledPhase.batch``.  The pre-batch ragged contract survives as a
+    **derived view**: ``entries[ip]`` holds tuples ``(il, k, i0, i1, Ω,
+    ∂Ω/∂pos, ∂Ω/∂Γ, ∂Ω/∂η, ∂Ω/∂sl, ∂Ω/∂hl)`` per visible peak of phase
+    ``ip``, each array a slice of its plane row, built lazily on first read
+    and cached.  Ω is always present; every partial after it is optional and
+    **every consumer None-checks**.  ∂Ω/∂sl and ∂Ω/∂hl are None for a
+    symmetric peak or under ``axial_derivs=False``; the three before them
+    are None under ``profile_derivs=False``, which a caller passes only when
+    it has claimed that nothing it will build moves a peak's position, width
+    or mixing.  ``peaks[ip]`` caches ``phase_peaks(ip, values)`` at the
+    expansion point.  These bases also feed the FitReport Layer-1 misfit
+    attribution (same expansion, different right-hand side) — which reads
+    the partials, so its callers keep the full default.
     """
 
-    entries: list[list[tuple]]
+    planes: list[PhasePlanes]
     peaks: list[list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]]
     axial_ok: bool
+    _entries: list[list[tuple]] | None = field(default=None, repr=False)
+
+    @property
+    def entries(self) -> list[list[tuple]]:
+        if self._entries is None:
+            out: list[list[tuple]] = []
+            for pp in self.planes:
+                lay = pp.layout
+                rows: list[tuple] = []
+                for j in np.nonzero(pp.finite)[0]:
+                    w = int(lay.width[j])
+                    is_fcj = lay.fcj[j] > 0
+                    rows.append((
+                        int(lay.il[j]), int(lay.k[j]),
+                        int(lay.i0[j]), int(lay.i1[j]),
+                        pp.omega[j, :w],
+                        None if pp.d_pos is None else pp.d_pos[j, :w],
+                        None if pp.d_gamma is None else pp.d_gamma[j, :w],
+                        None if pp.d_eta is None else pp.d_eta[j, :w],
+                        pp.d_sl[j, :w] if (is_fcj and pp.d_sl is not None)
+                        else None,
+                        pp.d_hl[j, :w] if (is_fcj and pp.d_hl is not None)
+                        else None,
+                    ))
+                out.append(rows)
+            self._entries = out
+        return self._entries
 
 
 def compile_model(structure: Structure, instrument: Instrument, pattern: PatternData,
                   *, mode: Mode = "rietveld",
                   two_theta_limits: tuple[float, float] | None = None,
                   moving_paths: set[str] | None = None,
-                  restraint_weight_scale: float = 1.0) -> CompiledModel:
+                  restraint_weight_scale: float = 1.0,
+                  window_slack_deg: float | None = None) -> CompiledModel:
     """Freeze reflection lists, orbits, windows and FCJ nodes for one stage.
 
     ``moving_paths`` is every parameter the coming stage can move, or ``None``
@@ -1639,6 +1897,10 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     ``restraint_weight_scale`` is the coming stage's c_w (McCusker eq 7),
     frozen onto the model like every other discrete choice; 1.0 is the identity
     and is what every caller outside the staged runner passes.
+
+    ``window_slack_deg`` overrides ``WINDOW_MIN_DEG`` as the absolute capture
+    slack added to every window half-width (``Stage.window_slack_deg`` has
+    the two-jobs story); ``None`` — every ordinary caller — is the default.
     """
     if restraint_weight_scale < 0.0:
         raise ValueError(
@@ -1663,13 +1925,23 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     # simply never passed the argument must not silently get that.  Only an
     # explicit set — even an empty one — licenses the gates.
     gate_off_states = moving_paths is not None
-    # FCJ sizing values (floored when the axial parameters are about to refine)
+    # FCJ sizing values (floored when the axial parameters are about to
+    # refine).  The aberration's weight is the overlap trapezoid of height
+    # 2·min(S/L, H/L), so it can act this stage only if **both** apertures
+    # can be positive — a value already above zero, or a path the stage can
+    # move.  One aperture pinned at 0 with only the other freed (the QPA
+    # protocol's `lines_axial` stage) previously floored both for sizing and
+    # allocated nodes that evaluated as one-hot symmetric fallbacks — full
+    # node-generation and (nodes × window) kernel cost for an exact identity,
+    # measured 2.5× on the bases build (WP-1112's gate record).
     moving_paths = moving_paths or set()
     axial_free = ("instrument.geometry.axial_sl" in moving_paths
                   or "instrument.geometry.axial_hl" in moving_paths)
+    can_sl = geom.axial_sl.value > 0.0 or "instrument.geometry.axial_sl" in moving_paths
+    can_hl = geom.axial_hl.value > 0.0 or "instrument.geometry.axial_hl" in moving_paths
     sl_eff = geom.axial_sl.value
     hl_eff = geom.axial_hl.value
-    if axial_free:
+    if axial_free and can_sl and can_hl:
         sl_eff = max(sl_eff, AXIAL_SIZING_FLOOR)
         hl_eff = max(hl_eff, AXIAL_SIZING_FLOOR)
     fcj_on = sl_eff > 0.0 and hl_eff > 0.0
@@ -1745,14 +2017,16 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                                     instrument.profile.x.value + phase.lor_size.value,
                                     instrument.profile.y.value + phase.lor_strain.value,
                                     0.0 if aniso_est is None else aniso_est)
-            # TCHZ combined Γ is a compile-time width proxy for window sizing
-            # and FCJ node counts under *both* shapes: it tracks the true Voigt
-            # FWHM to ~1 % (that is what the TCH quintic is fit to), and the
-            # 30·FWHM window margin dwarfs any residual difference.
-            gamma_est, _ = tch_gamma_eta(g_est, l_est)
+            # TCHZ combined (Γ, η) is a compile-time proxy for window sizing
+            # and FCJ node counts under *both* shapes: it tracks the true
+            # Voigt FWHM to ~1 % (that is what the TCH quintic is fit to),
+            # far inside the area criterion's own resolution.
+            gamma_est, eta_est = tch_gamma_eta(g_est, l_est)
             if il == 0:  # primary line drives Pawley overlap grouping
                 tt_primary, fwhm_primary = pos.copy(), gamma_est.copy()
-            half = WINDOW_FWHM_MULT * gamma_est + WINDOW_MIN_DEG
+            slack = (WINDOW_MIN_DEG if window_slack_deg is None
+                     else window_slack_deg)
+            half = window_fwhm_mult(eta_est) * gamma_est + slack
             if fcj_on:
                 half = half + fcj_extent_deg(pos, sl_eff, hl_eff)
             valid = np.isfinite(pos)
@@ -1771,6 +2045,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
 
         cp = CompiledPhase(reflections=refl, sites=sites, win=win, fcj_n=fcj_n,
                            strain_monomials=strain_monomials)
+        cp.batch = _batch_layout(win, fcj_n, tt)
         # the off-state gate (see the field): ext is exactly its identity and
         # nothing this stage moves can take it off there
         cp.skip_extinction = (gate_off_states

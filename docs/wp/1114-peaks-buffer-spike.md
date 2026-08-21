@@ -16,6 +16,27 @@ stretch metric).
 
 ## Context
 
+### Inherited
+
+From WP-1112 (2026-08-21), the denominator this spike is judged against:
+bases build and accumulation are batched (bucket layout; symmetric rows
+bit-identical) and windows are sized by `forward.WINDOW_AREA_TOL = 2e-2`, so
+the trigger's Jacobian is ~36 ms/call and the cold fit 28.25-28.85 s (was
+50 s at 1111's baseline — re-measure your own before/after on the harness,
+never against remembered numbers). Three of its measurements bear directly
+on this spike's premise:
+
+- Even after the window shrink, **Σ window points = 34.6 × n_points on the
+  trigger** (was 114×): the dense-pattern overlap cost is structural, and
+  per-window evaluation cannot remove it — only shape reuse can.
+- The batched kernel runs at **~11 ns/element**, so what remains is
+  arithmetic *volume*, not dispatch — exactly what a peaks buffer removes;
+  1112 already took the dispatch win this spike must not double-count.
+- The area criterion's Lorentzian-tail accounting (k ≈ η/(π·tol),
+  `window_fwhm_mult`'s docstring) is the same mathematics a buffer's
+  interpolation/tail tolerance needs; state the spike's accuracy bound in
+  the same discarded-area currency so the two compose rather than stack.
+
 - **What TOPAS does** (Coelho 2018, §5.1, in the paper's own words): "The
   peaks buffer results in a small number of peaks being calculated across the
   whole 2θ range of a diffraction pattern", with convolution direct for

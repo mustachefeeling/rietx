@@ -17,7 +17,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: the comment says what changed — no classification, no digest (WP-1117).
 #: 0.1 → 0.2 (WP-1076): ``RefinedParameter.initial`` and
 #: ``RefinementResult.correlation_warnings`` removed, both fields nothing wrote.
-SCHEMA_VERSION = "0.2"
+#: 0.2 → 0.3 (WP-1112): ``StageSpec.window_slack_deg`` added — a stage's
+#: declared window capture slack in °2θ (``None`` → the compiled default).
+SCHEMA_VERSION = "0.3"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

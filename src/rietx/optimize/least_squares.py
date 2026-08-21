@@ -215,6 +215,45 @@ def _make_residual(model: CompiledModel, table: ParameterTable):
     return residual
 
 
+def _accumulate(n_points: int, parts) -> np.ndarray:
+    """One ``bincount`` over every (row, term, point) contribution (WP-1112).
+
+    ``parts`` is ``[(layout, [(coef, plane), ...]), ...]`` in the caller's
+    phase order.  Contributions are laid out row-major as (row, term, point)
+    per part, then concatenated, and ``np.bincount`` accumulates its input
+    sequentially from zero — so for any output point the additions arrive in
+    exactly the order the pre-batch loop's per-row ``window_add`` sequence
+    produced them (phase-major, row-major, terms in call order), and the
+    result is **bit-identical** to that loop.  A term whose coefficient
+    vector is all-zero must be omitted by the caller (the loop never added
+    it); a zero coefficient *within* a live term contributes ±0.0, which is
+    neutral under addition.  Planes arrive pad- and NaN-row-zeroed
+    (``PhasePlanes``), which is what licenses scattering whole planes
+    through ``layout.idx`` — a pad slot aliases a real in-window index.
+    """
+    flats_i: list[np.ndarray] = []
+    flats_w: list[np.ndarray] = []
+    for lay, terms in parts:
+        if not terms or not len(lay.i0):
+            continue
+        contrib = np.empty((len(lay.i0), len(terms), lay.w_max))
+        for j, (coef, plane) in enumerate(terms):
+            np.multiply(coef[:, None], plane, out=contrib[:, j])
+        flats_i.append(
+            np.broadcast_to(lay.idx[:, None, :], contrib.shape).ravel())
+        flats_w.append(contrib.ravel())
+    if not flats_w:
+        return np.zeros(n_points)
+    idx = flats_i[0] if len(flats_i) == 1 else np.concatenate(flats_i)
+    w = flats_w[0] if len(flats_w) == 1 else np.concatenate(flats_w)
+    return np.bincount(idx, weights=w, minlength=n_points)
+
+
+def _gather_per_line(lay, arrays) -> np.ndarray:
+    """(R,) row gather of per-line arrays (``arrays[il][k]``)."""
+    return lay.gather([(a,) for a in arrays], 0)
+
+
 def _peak_chain_column(model: CompiledModel, table: ParameterTable,
                        bases: DerivativeBases, theta: np.ndarray,
                        values: dict[str, float], c: int, path: str,
@@ -232,6 +271,12 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
     (WP-1070); the caller passes the union C actually touches.
     ``intensities`` carries the lebail/pawley per-hkl vectors — the perturbed
     ``phase_peaks`` must see the same intensities as the expansion point.
+
+    Since WP-1112 the scalar FDs are vectorised over the rows and the
+    accumulation is one order-preserving scatter (:func:`_accumulate`, bit
+    -identical to the per-row loop); the claim verification is unchanged — a
+    term whose coefficients are nonzero under a ``profile_derivs=False``
+    build still raises through :func:`_require_basis`, naming the path.
     """
     h = 1e-6 * max(1.0, abs(theta[c]))
     tp = theta.copy()
@@ -241,35 +286,35 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
         affected = ([int(path.split(".")[1])] if path.startswith("phases.")
                     else range(len(model.phases)))
 
-    xp = get_backend()
-    dy = xp.zeros_like(model.tt)
+    parts = []
     for ip in affected:
         peaks_p = model.phase_peaks(
             ip, values_p, None if intensities is None else intensities[ip])
-        peaks_0 = bases.peaks[ip]
-        for (il, k, i0, i1, omega, d_pos, d_gamma, d_eta, _dsl, _dhl) in bases.entries[ip]:
-            pos0, gam0, eta0, int0 = peaks_0[il]
-            pos1, gam1, eta1, int1 = peaks_p[il]
-            if not (np.isfinite(pos1[k]) and np.isfinite(pos0[k])):
-                continue
-            d_i = (int1[k] - int0[k]) / h
-            d_p = (pos1[k] - pos0[k]) / h
-            d_g = (gam1[k] - gam0[k]) / h
-            d_e = (eta1[k] - eta0[k]) / h
-            # one window_add per term keeps the pre-shim accumulation order
-            if d_i != 0.0:
-                dy = xp.window_add(dy, i0, i1, d_i * omega)
-            if int0[k] != 0.0:
-                if d_p != 0.0:
-                    _require_basis(d_pos, path, "position")
-                    dy = xp.window_add(dy, i0, i1, (int0[k] * d_p) * d_pos)
-                if d_g != 0.0:
-                    _require_basis(d_gamma, path, "width")
-                    dy = xp.window_add(dy, i0, i1, (int0[k] * d_g) * d_gamma)
-                if d_e != 0.0:
-                    _require_basis(d_eta, path, "mixing")
-                    dy = xp.window_add(dy, i0, i1, (int0[k] * d_e) * d_eta)
-    return dy
+        pp = bases.planes[ip]
+        lay = pp.layout
+        if not len(lay.i0):
+            continue
+        pos1 = lay.gather(peaks_p, 0)
+        w1p = lay.gather(peaks_p, 1)
+        w2p = lay.gather(peaks_p, 2)
+        int1 = lay.gather(peaks_p, 3)
+        pair = pp.finite & np.isfinite(pos1)
+        with np.errstate(invalid="ignore"):
+            d_i = np.where(pair, (int1 - pp.inten) / h, 0.0)
+            c_p = np.where(pair, pp.inten * ((pos1 - pp.pos) / h), 0.0)
+            c_g = np.where(pair, pp.inten * ((w1p - pp.w1) / h), 0.0)
+            c_e = np.where(pair, pp.inten * ((w2p - pp.w2) / h), 0.0)
+        terms = []
+        if np.any(d_i != 0.0):
+            terms.append((d_i, pp.omega))
+        for coef, plane, what in ((c_p, pp.d_pos, "position"),
+                                  (c_g, pp.d_gamma, "width"),
+                                  (c_e, pp.d_eta, "mixing")):
+            if np.any(coef != 0.0):
+                _require_basis(plane, path, what)
+                terms.append((coef, plane))
+        parts.append((lay, terms))
+    return _accumulate(len(model.tt), parts)
 
 
 def _require_basis(basis: np.ndarray | None, path: str, what: str) -> None:
@@ -301,17 +346,14 @@ def _structural_column(model: CompiledModel, table: ParameterTable,
     column follows whatever site-symmetry basis WP-0301 wired — displacement
     directions for x, y, z; U^ij patterns for the six ADP components.
     """
-    xp = get_backend()
     C, _ = table.constraint_block()
     coeffs = np.array([C[table._paths[f"phases.{ip}.atoms.{j}.{name}"], c]
                        for name in rows], dtype=np.float64)
     dint = grad(ip, j, coeffs, values)
-    dy = xp.zeros_like(model.tt)
-    for (il, k, i0, i1, omega, *_rest) in bases.entries[ip]:
-        v = dint[il][k]
-        if v != 0.0:
-            dy = xp.window_add(dy, i0, i1, v * omega)
-    return dy
+    pp = bases.planes[ip]
+    coef = np.where(pp.finite, _gather_per_line(pp.layout, dint), 0.0)
+    terms = [(coef, pp.omega)] if np.any(coef != 0.0) else []
+    return _accumulate(len(model.tt), [(pp.layout, terms)])
 
 
 def _po_column(model: CompiledModel, bases: DerivativeBases,
@@ -323,33 +365,31 @@ def _po_column(model: CompiledModel, bases: DerivativeBases,
     untouched); it is applied to the same frozen profile bases the forward
     model uses.  The softplus chain factor ∂r/∂θ is applied by the caller.
     """
-    xp = get_backend()
-    dy = xp.zeros_like(model.tt)
     dint = model.po_intensity_grad(ip, values)
     if dint is None:
-        return dy
-    for (il, k, i0, i1, omega, *_rest) in bases.entries[ip]:
-        v = dint[il][k]
-        if v != 0.0:
-            dy = xp.window_add(dy, i0, i1, v * omega)
-    return dy
+        return np.zeros(len(model.tt))
+    pp = bases.planes[ip]
+    coef = np.where(pp.finite, _gather_per_line(pp.layout, dint), 0.0)
+    terms = [(coef, pp.omega)] if np.any(coef != 0.0) else []
+    return _accumulate(len(model.tt), [(pp.layout, terms)])
 
 
 def _axial_column(model: CompiledModel, bases: DerivativeBases,
                   which: int, dpdu: float) -> np.ndarray:
-    """∂y/∂θ_c for S/L (which=8) or H/L (which=9) from the node-FD bases."""
-    xp = get_backend()
-    dy = xp.zeros_like(model.tt)
-    for ip, rows in enumerate(bases.entries):
-        for row in rows:
-            il, k, i0, i1 = row[0], row[1], row[2], row[3]
-            d_ax = row[which]
-            if d_ax is None:
-                continue
-            intensity = bases.peaks[ip][il][3][k]
-            if intensity != 0.0:
-                dy = xp.window_add(dy, i0, i1, (intensity * dpdu) * d_ax)
-    return dy
+    """∂y/∂θ_c for S/L (which=8) or H/L (which=9) from the node-FD bases.
+
+    The plane holds zeros at symmetric rows, so one term over all rows is
+    the loop over FCJ rows with ±0 additions interleaved — bitwise neutral.
+    """
+    parts = []
+    for pp in bases.planes:
+        plane = pp.d_sl if which == 8 else pp.d_hl
+        if plane is None:
+            continue
+        coef = np.where(pp.finite, pp.inten * dpdu, 0.0)
+        parts.append((pp.layout,
+                      [(coef, plane)] if np.any(coef != 0.0) else []))
+    return _accumulate(len(model.tt), parts)
 
 
 def _pawley_intensity_columns(model: CompiledModel, bases: DerivativeBases,

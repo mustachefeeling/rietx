@@ -117,10 +117,17 @@ def test_partition_of_its_own_pattern_is_the_identity(march_r):
     tt = np.arange(3.0, 24.0, 0.005)
     r_b, r_f, n, i_obs, i_calc = _partition_r(s, ins, _noiseless(s, ins, tt))
 
-    assert n == 19
+    # 17 of the 19 generated reflections are visible: the last two sit just
+    # above the 24° cut and the WP-1112 area-criterion windows no longer
+    # spill below it, so they carry the documented empty-window NaN in both
+    # arrays instead of entering the sums (the pre-1112 count here was 19
+    # only because ±30·FWHM margins gave them sliver windows in range)
+    assert n == 17
     assert r_b == pytest.approx(0.0, abs=1e-12)
     assert r_f == pytest.approx(0.0, abs=1e-12)
-    assert np.allclose(i_obs, i_calc, rtol=1e-12)
+    visible = np.isfinite(i_calc)
+    assert visible.sum() == 17 and np.array_equal(visible, np.isfinite(i_obs))
+    assert np.allclose(i_obs[visible], i_calc[visible], rtol=1e-12)
 
 
 def test_uniform_scale_error_gives_the_closed_form_r_values():
@@ -169,13 +176,21 @@ def test_i_calc_is_multiplicity_times_f_squared_and_nothing_else():
     rows = [r for r in reflection_table(model, values, s) if r.line == 0]
     assert len(rows) == len(i_calc)
     expected = np.array([r.multiplicity * r.f_squared for r in rows])
-    assert np.allclose(i_calc, expected, rtol=1e-12)
+    # the two reflections above the 24° cut have empty windows and carry the
+    # documented NaN (no observable → no ratio); every visible row must be
+    # exactly m·|F|²
+    visible = np.isfinite(i_calc)
+    empty = [k for k in range(len(rows))
+             if not (model.phases[0].win[:, k, 1]
+                     > model.phases[0].win[:, k, 0]).any()]
+    assert sorted(np.nonzero(~visible)[0].tolist()) == sorted(empty)
+    assert np.allclose(i_calc[visible], expected[visible], rtol=1e-12)
     # and the scale really is out: I(calc) must not move with it
     s2, ins2 = _lab6_at(scale=TRUE_SCALE * 3.0)
     m2 = compile_model(s2, ins2, pattern, mode="rietveld")
     t2 = ParameterTable(s2, ins2)
     _, i_calc2 = m2.structure_intensity_partition(t2.decode(t2.x0()))[0]
-    assert np.allclose(i_calc2, i_calc, rtol=1e-12)
+    assert np.allclose(i_calc2, i_calc, rtol=1e-12, equal_nan=True)
 
 
 def test_emission_doublet_is_one_reflection_not_two():

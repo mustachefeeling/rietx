@@ -1,6 +1,10 @@
 # WP-1112 — the batched derivative side, and η-aware windows
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-21 — bases + accumulation batched
+(symmetric bit-identical, FCJ ≤ ~1e-15 with the golden ritual), windows by a
+measured discarded-area bound; trigger cold 50 → 28.3-28.9 s, warm series
+4.5-22.4 → 2.1-15.0 s/pattern, QPA protocol fits ~halved at fractions within
+0.25 wt % of shipped
 Depends on: 1111 (the FCJ-padding go/no-go is judged on its trigger-shaped case)
 
 ## Goal
@@ -15,34 +19,9 @@ go/no-go gate on the one risk that killed the forward half.
 
 ## Context
 
-### Inherited
-
-From WP-1110 (2026-08-20). A **speed lead this WP should test, found while
-fixing something else**, and it is free of any answer change.
-
-WP-1110 gave the cell of an unsupported phase a per-stage window and measured
-what that costs elsewhere. The measurement is the interesting part: on the
-chained IUCr `cpd-1c`, bounding *every* cell to ±10 %, ±25 % or ±50 % reached
-the **same answer in 82-100 iterations where unbounded took 641** — an ~7×
-reduction on that pattern, with corundum at 6.26 wt % against 6.30 unbounded.
-±5 % is a cliff in the other direction (400 iterations, hit `max_iter`, Rwp
-0.1501 against 0.1079), so the effect is non-monotonic and has an optimum.
-
-The mechanism is preconditioning, and it is the kind of thing this WP is about.
-`run_least_squares` calls scipy with the default `x_scale=1.0` on a vector whose
-coordinates differ by seven orders — cells ~4.8, scales ~1e-5, background
-coefficients ~1e2 — and TRF derives a per-coordinate scale from the distance to
-the bounds, so finite bounds are acting as a scale hint. **The direct lever is
-`x_scale`, not bounds**: `x_scale='jac'` or an explicit per-parameter vector says
-the same thing without constraining anything. Nobody has measured that here.
-
-Two cautions. It is one pattern, so it is a lead and not a result; and a change
-to `x_scale` moves the trust-region path on **every** fit, so it needs the
-harness's equivalence bar across all seven cases rather than a spot check.
-
-WP-1110 itself is bit-identical (44 of 44 refined values on 11-BM NAC), because
-it windows only phases below 1σ of support and a healthy fit has none — so
-1111's baseline is **not** invalidated by it.
+WP-1110's shipped change is bit-identical (44 of 44 refined values on 11-BM
+NAC), because it windows only phases below 1σ of support and a healthy fit
+has none — so 1111's baseline is **not** invalidated by it.
 
 Numbers from WP-1109's 2026-08-20 review (QPA-acceptance `cpd-2`, worktree
 venv `[dev]`, darwin/arm64) unless said otherwise.
@@ -121,6 +100,70 @@ venv `[dev]`, darwin/arm64) unless said otherwise.
   (69× FWHM, 8.1× n_points, `WINDOW_FWHM_MULT` may move) — leave a forward
   note there when the windows change (protocol step 3).
 
+### Gate record (2026-08-21) — GO, both scopes; the FCJ layout is bucket
+
+Measured by `examples/bench_batched_derivative_bases.py` (main-checkout venv
+`[dev]`, darwin/arm64, best of 3, two runs quoted as ranges; the
+narrowed-window rows are a scratch monkeypatch, quoted in that script's
+docstring).  The full bases build — Ω, ∂Ω/∂pos, ∂Ω/∂Γ, ∂Ω/∂η + the pos
+node-FD, axial off — against two loop baselines: **warm** (every FCJ node
+slot hits — a width-moving stage) and **cold** (the pos-FD variants miss —
+a position-moving stage, where `zero_disp` and `cell` live).
+
+- **The premise was half wrong: FCJ *physics* is off at every stage of the
+  QPA protocol, on cpd-1a and on cpd-2** — the case every 1109 profile
+  number came from.  `qarr_instrument` leaves both axial ratios at the
+  preset's 0.0 and `qpa_plan` frees only `axial_sl`, and the FCJ trapezoid
+  height is 2·min(S/L, H/L) — both apertures must be positive.  Stages
+  before `lines_axial` compile no node at all (the state the prototype
+  measured); the freed `axial_sl` is a provably-zero column, reported as
+  unmeasured.  The harness blurbs calling cpd-1a "the FCJ-heavy case" are
+  corrected in this WP; the harness's FCJ case is the **trigger** (93 % of
+  1 188 rows, nodes 8-17, axial 0.020/0.020).  So the 1109 microbenchmarks
+  were symmetric-kernel numbers measured on symmetric stages — consistent.
+- **The floor's one-hot overhead, found and measured while correcting the
+  claim above**: from `lines_axial` on, cumulative freeing puts `axial_sl`
+  in `moving_paths` and `AXIAL_SIZING_FLOOR` floors *both* apertures for
+  sizing, so nodes are allocated (cpd-1a: 215 of 222 rows, counts 8-13+)
+  that evaluate as **one-hot symmetric fallbacks** — `derivative_bases`
+  3.6 → 9.2 ms and the forward 2.0 → 4.3 ms on those stages, pure overhead
+  for an identity, plus one FD residual per Jacobian call for the zero
+  `axial_sl` column (`axial_ok` False at sl = hl = 0).  The fix is a
+  structural gate of the `skip_extinction` kind — allocate only when *both*
+  apertures can be positive this stage (value > 0 or path in
+  `moving_paths`) — but it also removes the floored `fcj_extent_deg` window
+  margin, and y_calc at fixed θ moves 1.2e-4 rel with the window extent, so
+  it is **not** answer-preserving and lands with the η-window task (task
+  4), where the re-baseline is already owed.
+- **Symmetric scope: 4.0× and exactly bit-equal, every layout** (cpd-1a,
+  222 rows, w_max 283: loop 3.9 ms → 0.94-0.98 ms).  This shape is the
+  entire QPA protocol and every synchrotron case.
+- **FCJ scope: GO, bucket layout.**  Trigger: loop 65.6-67.4 ms warm /
+  88.7-88.8 cold → bucket 48.1-48.5 ms (**1.4× warm / 1.8× cold**);
+  axial-on 137-142 → 50-52 ms (2.7-2.8×).  Pad *regresses* (0.8× warm):
+  pad-to-m_max doubles the majority n=8 bucket, so 0605's layout answer
+  holds on the derivative side too — bucket, whose node-axis waste is
+  1.03× measured.
+- **Why the trigger ratio is modest, diagnosed not assumed**: ~86 % of the
+  batched time is kernel arithmetic at ~11 ns/element (the microbenchmark's
+  per-point cost).  The shipped ±30·FWHM windows put m×W ≈ 3 200 points
+  under every FCJ row — Σ window points = **114× n_points** on the trigger,
+  against cpd-2's 8.1× — so the *loop* is point-bound there and batching
+  removes only its dispatch share.  W-axis padding waste is 1.06×; padding
+  is not the limiter anywhere.
+- **The two tasks compose, measured**: at `WINDOW_FWHM_MULT` 15 / 8 the
+  trigger bucket ratio rises to 1.8×/2.7× and 2.0×/3.1× while the absolute
+  build falls 88.7 → 16.3 ms (≈5.4× combined, cold), and cpd-1a rises to
+  5.0×/6.1×.  Shrinking W returns the loop to dispatch-bound, which is
+  batching's territory — so the task order stands: batch first, η-windows
+  second, and the window task realises most of the trigger's win.
+- **Equivalence bars as planned**: symmetric rows bit-equal in every layout
+  on both cases; FCJ rows ≤ 2e-18 rel at shipped windows (≤ 4e-16 in the
+  narrowed-window runs; the axial node-FDs ≤ 3e-14 — an FD of
+  near-cancelling node shifts over h = 1e-7), and *occasionally* exactly
+  bit-equal at BLAS-size-dependent shapes — so the FCJ scope claims
+  ≤ ~1e-15 rel with the re-baseline ritual, never bit-identity.
+
 ## Non-goals
 
 The forward loop's own batching beyond what falls out shared (0605 measured
@@ -131,28 +174,93 @@ approximation (1114).
 
 ## Tasks
 
-- [ ] **Gate: prototype the batched derivative bases on FCJ data first**, in
+- [x] **Gate: prototype the batched derivative bases on FCJ data first**, in
       a scratch example (0605's discipline — shipped path untouched), on
       1111's `cpd-1a` and trigger-shaped states. Measure batched vs loop for
       the full bases build (Ω, ∂Ω/∂pos, ∂Ω/∂Γ, ∂Ω/∂η + node-FD variants)
       under pad / chunk / bucket-by-node-count layouts, plus symmetric-only.
       Record the go/no-go for the FCJ scope in this file before touching the
       contract; the symmetric scope proceeds regardless.
-- [ ] **Batch `derivative_bases`**: entries become padded/bucketed arrays on
+- [x] **Batch `derivative_bases`**: entries become padded/bucketed arrays on
       compile-frozen index planes; update the seven consumers named in
       Context (grep for `bases.entries` to catch drift since 0605).
-- [ ] **Batch the `_peak_chain_column` accumulation**: per-column scalar FDs
+      *Landed 2026-08-21*: storage is `PhasePlanes` on `CompiledPhase.batch`
+      (bucket layout, chunked kernel stage); the ragged `entries` stays as a
+      **lazy derived view**, so all seven consumers run unchanged — the hot
+      five move onto the planes in the accumulation task, the cold two
+      (report/, Pawley) keep the view.  Symmetric rows pinned bit-equal,
+      FCJ ≤ 1e-13 vs the scalar reference kept verbatim in
+      `tests/test_derivative_bases_batched.py`; the two FCJ goldens
+      (`srm660c`, `toy_rich`) re-baselined at ≤ 7.4e-16 per-column rel,
+      every other golden bit-identical un-recaptured.  Landed build: cpd-1a
+      3.9 → 1.06 ms, trigger 65.6-88.8 → 45.5 ms (axial-on 137-142 → 48.1).
+- [x] **Batch the `_peak_chain_column` accumulation**: per-column scalar FDs
       vectorised over reflections, accumulation as `segment_sum` over frozen
       flat indices; keep the per-window accumulation order where bit-identity
-      is claimed.
-- [ ] **η-aware window sizing** by the area criterion above, after the batch;
+      is claimed.  *Landed 2026-08-21*: `_accumulate` scatters (row, term,
+      point) contributions row-major through one `bincount` — the loop's
+      addition order exactly, so it is bit-identical *unconditionally* (the
+      un-recaptured goldens are the proof, `srm660c`'s axial columns
+      included); `_structural_column`, `_po_column` and `_axial_column`
+      ride the same helper, `_require_basis` semantics unchanged.  Full
+      Jacobian call: cpd-1a 10.5 → 8.7 ms, trigger 94.7 → 83.7 ms; the
+      remainder is the bases kernel (39 ms) + `_accumulate` (27 ms), both
+      ∝ window width — the η-window task's target.
+- [x] **η-aware window sizing** by the area criterion above, after the batch;
       re-baseline per `tests/data/README.md` with the equivalence argument
-      (area tolerance) recorded next to each moved golden.
-- [ ] Cross-backend: `tests/test_cross_backend.py` configs grow if any
+      (area tolerance) recorded next to each moved golden.  Includes the
+      one-hot sizing gate from the gate record (allocate FCJ nodes only when
+      both apertures can be positive this stage) — same re-baseline event.
+      *Landed 2026-08-21.*  **The 1e-3 tolerance the context proposed is
+      unreachable**: the Lorentzian tail gives k ≈ η/(π·tol), so 1e-3 means
+      k(0.6) ≈ 190 and every lab window *grows*; even 5e-3 reproduces the
+      shipped widths (k(0.5) ≈ 32 ≈ the old 30) — the old default was,
+      accidentally, about right for lab mixes, and the forecast 4-8× was
+      never available without a stated >1 % area bias.  **Measured sweep**
+      (cpd-1a + cpd-2 protocol fits): QPA fractions are *flat in the
+      tolerance* from 5e-3 to 5e-2 (deviations vs weighed truth 0.61-0.64 /
+      2.83-2.91 wt %, the fits' own systematics; bands ±2/±6) while speed
+      doubles — so `WINDOW_AREA_TOL = 2e-2` (k(0.6) ≈ 9.5), the knee:
+      cpd-1a 9.7 → 5.0 s, cpd-2 15.6 → 8.6 s, fractions within 0.25 wt % of
+      shipped, Rwp +≤0.005 (the truncation residue, visible and stated).
+      Trigger: Σ windows 114× → 34.6× n_points, Jacobian 83.7 → 36.1 ms,
+      residual 30.9 → 17.0 ms.  **The window's two jobs split**: k(η)·Γ is
+      tail coverage; `Stage.window_slack_deg` (new, mirrored on `StageSpec`,
+      `SCHEMA_VERSION` 0.2 → 0.3, textdoc key + GUI highlighter + dist
+      rebuilt) is capture range, declared where a fit must measure a
+      hypothesis it may not walk toward — the indexing Le Bail validation
+      derives it from the pattern range (`validation_window_slack_deg`:
+      2·tanθ_max·1 %, clipped [0.3, 6.0]°), which keeps the wrong-metric
+      case reading as *displaced* (Rwp + unmatched), never *absent*, and
+      keeps a synchrotron validation narrow (a fixed 4° slack flipped 1 of
+      837 lines of the *correct* NAC cell to absent).  Also landed here: the
+      one-hot gate (`can_sl`/`can_hl` in `compile_model`), all ten goldens
+      re-captured (README §backend_goldens), and the collateral
+      recalibrations: aniso round-trip fixture ×4 brighter (its 2σ bar sat
+      at a 2.2σ margin that wobbled ±0.1σ under any window change),
+      flat-plate low band moved onto the first peaks, partition tests
+      honour the documented empty-window NaN, stage-boundary continuity
+      bars re-measured (4.4e-4/2.6e-3 gaps — window edges now carry weight),
+      and the misfit-injection texture tests re-pinned to the *stronger*
+      claim: honest windows cut the extraction leak at its root (phantom
+      texture R² 0.66 → 0.012), with `cap_texture_crosstalk` keeping a
+      direct unit test.
+- [x] Cross-backend: `tests/test_cross_backend.py` configs grow if any
       derivative path's shape changed (CLAUDE.md: the matrix must cover every
-      derivative path); `families_tied` row re-checked.
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/`; before/after from the
-      1111 harness in the handover entry.
+      derivative path); `families_tied` row re-checked.  *2026-08-21*: no
+      config grows — no new derivative *path* exists; the contract change is
+      internal storage, and the ragged view keeps every consumer's shape.
+      `families_tied` re-checked: 9 numpy rows pass, the jax/torch rows
+      self-skip on this `[dev]` venv and run in CI's `[dev,jax]` fast job.
+      The stage-boundary continuity bars were re-measured in the window
+      task's commit (the one place the matrix moved).
+- [x] Tests + obs/calc/diff PNGs to `tests/output/`; before/after from the
+      1111 harness in the handover entry.  *2026-08-21*: PNGs written by the
+      full-suite acceptance runs and inspected (`qarr_cpd-2` full +
+      low-angle, `nac_fit`: peaks fully covered, no truncation steps at
+      window edges, residuals the usual profile-mismatch shapes); the
+      harness ranges are in the handover entry below, quoted against 1111's
+      opening baseline.
 
 ## Acceptance
 
@@ -179,6 +287,88 @@ comparison.
 
 ## Handover log
 
+- **2026-08-21** — post-close CI round: all three Linux fast jobs failed on
+  one test, identically — the no-op-refreeze replay pin demanded *bit-equal*
+  Rwp, which rides the commit → re-encode → re-evaluate round trip's libm
+  luck; at the values the new windows converge to, Linux lands 1 ulp away
+  while darwin lands exactly.  Restated at rel 1e-12 (state loss, the thing
+  it pins, moves Rwp by orders of magnitude, never ulps).
+
+- **2026-08-21** — closed ✅, one session, eight commits.
+
+  A Rietveld iteration in this package now costs a half to a quarter of what
+  it did yesterday, with the answers unmoved where that was promised and
+  moved knowingly where it was not. The Jacobian's derivative bases and
+  their accumulation run as batched array operations — exactly bit-identical
+  on symmetric peaks, to rounding on FCJ ones — and the evaluation windows
+  are sized by a stated discarded-area bound instead of a fixed 30-FWHM
+  margin whose bias nobody had stated. On the harness the trigger-shaped
+  cold fit fell from 50 s to ~28 s, the warm series from 4.5-22.4 to
+  2.1-15.0 s per pattern, and the QPA protocol fits roughly halved — with
+  fractions within a quarter of a weight percent of what they were, against
+  bands of ±2/±6. Two beliefs died on the way: the "FCJ-heavy" cpd cases
+  carry no FCJ physics at any stage, and the 1e-3 area tolerance this WP's
+  own context proposed is mathematically unreachable for lab peaks (the
+  Lorentzian tail gives k ≈ η/(π·tol)).
+
+  **Done** — all six tasks, each with its record in the checklist above and
+  the gate record in Context: the go/no-go prototype
+  (`examples/bench_batched_derivative_bases.py`), the batched
+  `derivative_bases` (planes on `CompiledPhase.batch`, ragged `entries` as a
+  lazy view, all seven consumers untouched in that commit), the
+  order-preserving `_accumulate` scatter (goldens passed **un-recaptured** —
+  that is the bit-identity proof), the η-aware windows
+  (`WINDOW_AREA_TOL = 2e-2`, chosen by the QPA sweep), the capture-slack
+  split (`Stage.window_slack_deg`, `SCHEMA_VERSION` 0.2 → 0.3, textdoc key,
+  GUI highlighter + dist rebuilt; the indexing validation derives its slack
+  from the pattern range), and the one-hot FCJ sizing gate.
+
+  **Measured** (main-checkout `.venv` `[dev]`, darwin/arm64; harness run
+  idle and alone, best of 3, ranges): against 1111's opening baseline —
+  trigger cold **50 s → 28.25-28.85 s**, series warm **4.5-22.4 →
+  2.06-15.04 s**/pattern (`refit="stages"` 10.18-28.99), `cpd-2` protocol
+  **8.20-8.51 s** (15.6 s measured on the pre-WP tree this session, ~17.5 s
+  in 1109), `cpd-1a` **4.73-4.95 s** (9.7 s pre-WP), NAC legs 0.50-0.54 +
+  0.58 s. Rwp identity held (cpd-2 0.13290 in both the sweep and the
+  harness). Fast suite ends at **2580 passed + 117 skipped** with 6 tests
+  added by this session (5 batched-bases pins + 1 crosstalk-cap unit test),
+  no new skips; full suite fired once on the final tree: 27:53 wall,
+  2685 passed + 126 skipped + 4 failed, the 4 recalibrated with measured
+  numbers (commit "four slow-suite bars") and their files re-run green.
+  Erratum: the task-2 commit message says "+6 new tests"; that commit added
+  5 (the 6th came with task 4).
+
+  **Gotchas for whoever touches this next.** Windows are compiled state, so
+  the re-sizing moved every `y_calc`/`residual`/`jacobian`: all ten goldens
+  were re-captured (twice — the ritual's record is in
+  `tests/data/README.md` § backend_goldens) and any branch pinning a
+  compiled number must rebase, not merge blindly. `replay` recompiles at
+  the default slack, like it already recompiles at default c_w — marginal
+  and documented. The FCJ scope claims ≤ ~1e-15 rel, never bit-identity
+  (BLAS-size-dependent: it *sometimes* is, which is why it must not be
+  claimed). The misfit-injection texture tests now pin the stronger
+  no-phantom claim; the cap logic's regression is the direct unit test.
+
+  **Next**: [1113](1113-evaluation-count.md) (evaluation count), whose
+  Inherited now carries this session's re-measurements — start there,
+  because two of its quoted mechanisms moved: the per-stage counts held
+  (cpd-2 540/420 nfev/njev vs 1109's 534/425 — the count really is a
+  property of the problem) but the LM-basin numbers predate the new
+  windows, and the trigger's worst stage is now `lines_axial` (184 of 363
+  nfev), not the position movers. After it,
+  [1114](1114-peaks-buffer-spike.md) — its Inherited now states the
+  denominator this WP set.
+
+- **2026-08-21** — arrival prune: the WP-1110 `x_scale` lead moved to 1113's
+  Inherited — what it moves is the evaluation count (1113's quantity), not
+  the cost per evaluation, and this WP's own Non-goals fence solver work
+  there. The 1109 numbers folded into Context unchanged; the 1110
+  bit-identity note kept, because it is why 1111's baseline stands.
 - **2026-08-20** — created by the 1109 review session; took 1109's two
   largest tasks (the peak-loop re-scope and η windows) with their numbers,
   the truncation criterion corrected from height to area.
+- **2026-08-21** — arrival prune: the WP-1110 `x_scale` lead moved to 1113's
+  Inherited — what it moves is the evaluation count (1113's quantity), not
+  the cost per evaluation, and this WP's own Non-goals fence solver work
+  there. The 1109 numbers folded into Context unchanged; the 1110
+  bit-identity note kept, because it is why 1111's baseline stands.
