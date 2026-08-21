@@ -5,9 +5,9 @@ Depends on: —
 
 ## Goal
 
-Breaking a contract costs one line in a changelog and a version string that
-moves by itself, instead of a classification decision, a doc read and a hunt
-for the meta-tests that fire. The promise in `docs/manual/using/compatibility.md`
+Breaking a contract costs one bump comment and a version component that moves
+by a rule needing no classification, instead of a classification decision, a
+doc read and a hunt for the meta-tests that fire. The promise in `docs/manual/using/compatibility.md`
 says what is actually true of a package whose users are a handful of friends
 testing it, and stops promising a freeze the maintainer cannot afford — without
 dismantling the machinery that would be expensive to rebuild.
@@ -104,38 +104,60 @@ compatibility break — old code, new data — and it is the only direction a
 vocabulary addition breaks at all. Backward compatibility (new code, old data)
 is untouched by adding a member.
 
-### The proposal put to the maintainer, and the part of it withdrawn
+### The proposal put to the maintainer, and the parts of it withdrawn
 
-Recorded so this WP does not re-derive it, and so the withdrawal is visible:
+Recorded so this WP does not re-derive it, and so the withdrawals are visible:
 
 - **Rewrite the promise to match reality.** 1.x is a preview; anything may
   change in any release; pin an exact version for stability; the release notes
   say what moved. Delete § "How a change is classified" entirely, because it is
   the part that costs a decision. Highest friction removed per hour spent, and
   it is a docs edit.
-- **Keep the six version strings, stop treating a bump as a decision.** They are
+- **Keep the six version strings, make the bump rule one sentence.** They are
   still worth having, because a client detects a mismatch cheaply and the
-  friends testing this will hit exactly that. Derive a content digest from each
-  contract's own field and vocabulary set, store it, and let a meta-test fail
-  when it drifts and *tell you to bump*. Adding a flag then moves the version by
-  itself. Same derive-don't-restate idiom as `_SURFACE_FLAGS` and `SIZE_CAPS`.
+  friends testing this will hit exactly that. The rule, stated beside each
+  constant and nowhere else: any change a consumer could observe bumps the
+  last component by one, and the comment says what changed. No classification
+  survives — the relaxed promise makes safe/minor/breaking meaningless, so
+  the only question left is yes/no.
 - **A changelog of intentional breaks**, demoted from governance to record — so
   that when there are users the history already exists rather than needing
-  reconstruction.
+  reconstruction. Resolved at the review: that record already exists — the
+  bump comments carry it — so the task became declaring them the authority
+  rather than copying them.
 - **Withdrawn: making closed vocabularies tolerant on read.** Proposed and then
   retracted the same afternoon. Its value was protecting archives and avoiding
   vocabulary bumps; the first does not exist and the second is better solved by
-  making bumps automatic. What it would cost is real — today an unknown flag
+  the one-sentence bump rule. What it would cost is real — today an unknown flag
   fails loudly, which is how a friend finds out their install is old — and with
   four testers "upgrade" is a fine answer. **Do not reinstate it without a new
   reason**; the reason it was proposed is gone.
+- **Withdrawn: deriving each version from a content digest** (proposed with
+  the version-strings bullet, withdrawn at the 2026-08-21 review). A digest over a
+  contract's field and vocabulary set, with a meta-test failing on drift, was
+  to make a bump a consequence rather than a decision. The bump histories
+  refute it: `INDEXING_THRESHOLDS_VERSION` 1.2 (search driven by the
+  strongest lines rather than the first N) and `THRESHOLDS_VERSION` 1.1
+  (actions withdrawn on one geometry) moved no field, no vocabulary member
+  and no threshold, so a digest catches neither — and a green drift test then
+  reads as "no bump needed" for exactly the class the chapter calls the least
+  visible break there is. Nor are the six uniformly digestible: events digest
+  cleanly (the kinds), indexing and project mostly (fields plus flags), the
+  report contract's emission conditions are code, `SCHEMA_VERSION`'s content
+  is every field of every model (a naive digest bumps on every safe addition;
+  a curated one reintroduces the decision as curation), and the `.rxt`
+  grammar has no digestible representation. The decision is relocated, not
+  removed. **Do not reinstate without evidence that bumps are actually being
+  forgotten** — with every user reachable directly, a forgotten bump costs
+  one message.
 
 ### The constraint that outlives the premises
 
 The two premises above expire. `.rex` archives will exist the first time
 someone runs a real study, and the friends become users. So the deliverable
-must include **what makes the promise tightenable again** — the changelog, the
-derived versions, the partition — rather than only what makes it looser. A
+must include **what makes the promise tightenable again** — the bump-comment
+record, the six version strings, the partition — rather than only what makes
+it looser. A
 promise relaxed with no path back is a different and worse outcome than the one
 being asked for.
 
@@ -157,36 +179,48 @@ being asked for.
 
 - [ ] **Rewrite `docs/manual/using/compatibility.md` around what is actually
       promised.** Delete § "How a change is classified"; state the preview
-      position and how to pin. Keep § "The JSON the package writes" (those two
-      facts are normative regardless) and § "The name and the formats are
-      separate promises". Check every `{ref}` into the chapter still resolves —
-      root CLAUDE.md and `docs/ROADMAP.md` both restate the freeze and will need
-      the same pass.
-- [ ] **Derive each contract version from its own content**, so a bump is a
-      consequence rather than a decision: a digest over the contract's field and
-      vocabulary set, stored beside the constant, with a meta-test that fails on
-      drift and names the constant to move. Extend
-      `test_every_versioned_contract_is_a_live_value` rather than adding a
-      second authority.
-- [ ] **Seed the changelog of intentional breaks**, from the six contracts'
-      existing history (their own bump comments already carry it — e.g.
+      position and how to pin. Three sentences survive the deletion or join
+      it: the meaning clause ("a change to what an existing value means is
+      always a documented event" — the one rule no version string can see,
+      kept in the preview statement); the promise's own expiry trigger (it
+      tightens when the first persistent `.rex` archive exists — a condition,
+      not a date); and the partition re-grounded ("documented" comes to mean
+      documented, not frozen — the partition still gates an undocumented
+      public name, it no longer freezes a documented one). Keep § "The JSON
+      the package writes" (those two facts are normative regardless) and
+      § "The name and the formats are separate promises". Check every `{ref}`
+      into the chapter still resolves — root CLAUDE.md and `docs/ROADMAP.md`
+      both restate the freeze ("documenting it freezes it") and need the same
+      re-grounding, not only a link pass.
+- [ ] **State the bump rule in each of the six constants' comments — one
+      sentence, identical**: any change a consumer could observe bumps the
+      last component by one, and the comment beside the constant says what
+      changed. No classification (the relaxed promise makes safe/minor/
+      breaking meaningless) and no digest — the withdrawn item above records
+      why, and what evidence would reopen it.
+- [ ] **Declare the bump comments the changelog.** They already carry the
+      history this WP would otherwise have seeded (e.g.
       `INDEXING_THRESHOLDS_VERSION`'s 1.0/1.1/1.2/1.3 notes, `SCHEMA_VERSION`'s
-      0.1 → 0.2). One row per break: date, contract, what broke, migration or
-      "none".
+      0.1 → 0.2), and a separate file would be a second authority with no test
+      holding the copies together. The rewritten chapter says where the
+      history lives; promoting it to a user-facing file waits for users to
+      face, and is part of the tightening path rather than of this WP.
 - [ ] **Audit what the relaxation actually freed**, and record it: re-run the
       six-step table above against the new rules and say which steps went. If
       the answer is still "one of six", say so — a WP that measures its own
       result at less than it hoped is worth more than one that does not look.
-- [ ] Tests (the drift meta-test above; the chapter's own link/reference checks
-      via `tests/test_manual_api.py` and `tests/test_docs_consistency.py`). No
-      obs/calc/diff PNGs: this WP touches no refinement.
+- [ ] Tests: the chapter's own link/reference checks via
+      `tests/test_manual_api.py` and `tests/test_docs_consistency.py`, and the
+      `-W` Sphinx build. No new meta-test lands. No obs/calc/diff PNGs: this
+      WP touches no refinement.
 
 ## Acceptance
 
 Adding a vocabulary member to a closed `Literal` — the WP-1110 `no_intensity`
-change, replayed — requires **no** compatibility decision: the drift meta-test
-names the constant, the constant moves, the changelog takes a row, and nothing
-in `compatibility.md` has to be read to know whether that was correct.
+change, replayed on paper — requires **no** compatibility decision: the only
+question left is "did anything a consumer could observe change", the answer is
+yes, the last component moves by one, the bump comment says what changed, and
+nothing in `compatibility.md` has to be read to know whether that was correct.
 
 ```sh
 .venv/bin/python -m pytest tests/test_capabilities.py tests/test_docs_consistency.py tests/test_manual_api.py -q
@@ -215,3 +249,14 @@ in `compatibility.md` has to be read to know whether that was correct.
   tolerate-unknowns rule is not implemented. **Next: the chapter rewrite**, on
   its own, because it is the largest friction reduction, needs no code, and
   makes the other two tasks optional rather than blocking.
+- **2026-08-21 (later)** — critically reviewed at the maintainer's request
+  ("move fast while changes are still cheap"). Three changes. The digest task
+  is withdrawn on measured evidence: two of the historical bumps it was meant
+  to automate moved no shape at all (indexing 1.2, report 1.1), so it would
+  have automated the easy half and false-greened the hard one; its
+  replacement is the one-sentence bump rule. The changelog task resolved to
+  comments-as-authority: seeding a file would have made a second copy of a
+  history the constants already carry. And acceptance no longer depends on
+  the withdrawn meta-test — as written it required task 2 while this log
+  called it optional, and both could not be true. Scope is now one docs
+  session. **Next: the chapter rewrite**, unchanged.
