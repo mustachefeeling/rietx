@@ -1165,6 +1165,22 @@ class Refinement:
         reproduced stage 1's report to three decimals.)
         """
         plan = resolve_plan(plan, mode)
+        if not plan.stages:
+            # Refused here, before a history tree is created or an event is
+            # emitted, because the assertion this replaces fired *after* the
+            # run had built both (WP-1110 item 6).  The message names the verb
+            # rather than only the mistake: a zero-stage plan is what someone
+            # reaches for when they want the model evaluated and not refined,
+            # which is exactly what an agent on the trigger dataset did before
+            # settling on a one-stage refit used as a "replot".
+            raise ValueError(
+                "a plan with no stages refines nothing: every stage is a group "
+                "of parameters to free, so an empty list frees none. To "
+                "evaluate the model as it stands without refining it, call "
+                "ref.predict(pattern) — that needs no prior fit. To run a "
+                "refinement, name a preset "
+                f"({', '.join(sorted(PLAN_PRESETS))}) or list at least one "
+                "stage.")
 
         self._mode = mode
         self._two_theta_limits = two_theta_limits
@@ -1390,22 +1406,59 @@ class Refinement:
 
     # ------------------------------------------------------------------
     def predict(self, two_theta=None) -> np.ndarray:
-        """y_calc at the fitted parameters.
+        """y_calc at the current parameters — **the evaluate-only path**.
 
-        With no argument, evaluates on the fit grid.  With an array of 2θ
-        values, compiles a fresh model on that grid (Le Bail extracted
-        intensities are carried over by hkl).
+        With a grid — an array of 2θ values, or a
+        :class:`~rietx.PatternData` whose 2θ column is used — this compiles a
+        fresh model on it and evaluates.  With no argument it evaluates on the
+        grid the last fit ran on, which is the one form that needs a fit to
+        have happened: nothing else supplies a grid.
+
+        **It does not require a fit** (WP-1110 item 6).  Until then it did, and
+        the refusal was ``RuntimeError: call fit() first`` on both forms, which
+        is why an agent wanting y_calc at known parameters to redraw a figure
+        ended up calling ``set_values(...)`` and then *re-refining* a one-stage
+        plan as a "replot".  Evaluating a model is not refining it; the
+        parameters are read off the structure and instrument as they stand,
+        whether a fit put them there, ``set_values`` did, or they were typed.
+
+        Le Bail and Pawley are the exception that proves it, and they say so:
+        their per-hkl intensities live outside θ and are produced by a fit, so
+        a fresh grid carries them over from the fitted model by hkl and there
+        is nothing to carry before one exists.
+
+        **The two forms are not bit-identical on the same grid, and that is
+        the frozen-per-stage invariant rather than a defect.**  ``predict()``
+        reuses the model compiled for the last stage, whose per-reflection
+        window index ranges were frozen at the values the stage *started*
+        from; a grid argument compiles fresh, so the windows are sized at the
+        values it *ended* on.  Measured on the synthetic five-stage fit: 36 of
+        4200 channels differ at all, by at most 8e-6 of the peak height, every
+        one of them in a peak tail at a window edge.  ``RefinementResult.y_calc``
+        is the first of the two — the curve the fit actually minimised.
         """
-        if self._model is None or self.result_ is None:
-            raise RuntimeError("call fit() first")
         table = ParameterTable(self.structure, self.instrument)
         if two_theta is None:
+            if self._model is None:
+                raise RuntimeError(
+                    "predict() with no grid evaluates on the grid the last fit "
+                    "ran on, and this Refinement has not been fitted. Pass the "
+                    "pattern (or a 2θ array) to evaluate the model as it "
+                    "stands: ref.predict(data).")
             return self._model.evaluate(table.decode(table.x0()))
+        if isinstance(two_theta, PatternData):
+            two_theta = two_theta.two_theta
         tt = np.asarray(two_theta, dtype=np.float64)
         grid = PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+        mode = self._mode
+        if mode in ("lebail", "pawley") and self._model is None:
+            raise RuntimeError(
+                f"{mode} intensities are extracted by a fit, not computed from "
+                "the structure, so there is nothing to evaluate before one has "
+                "run. Fit first, or predict in rietveld mode.")
         model = compile_model(self.structure, self.instrument, grid,
-                              mode=self._mode, moving_paths=set(table.moving_paths))
-        if self._mode in ("lebail", "pawley"):
+                              mode=mode, moving_paths=set(table.moving_paths))
+        if mode in ("lebail", "pawley"):
             _carry_lebail(self._model, model)
         return model.evaluate(table.decode(table.x0()))
 

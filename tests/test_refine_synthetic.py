@@ -155,3 +155,67 @@ def test_impurity_peak_detected(synthetic_pattern):
     hits = [u for u in report.unmatched if u.kind == "unmatched_obs"
             and abs(u.two_theta - 9.7) < 0.1]
     assert hits, "injected impurity peak was not flagged"
+
+
+# ------------------------------------------------------- the evaluate-only path
+def test_predict_needs_no_fit(synthetic_pattern):
+    """Evaluating a model is not refining it (WP-1110 item 6).
+
+    ``predict`` refused both its forms with ``call fit() first`` until
+    WP-1110, so an agent that wanted y_calc at known parameters in order to
+    redraw a figure ended up calling ``set_values`` and then *re-refining* a
+    one-stage plan as a "replot".  The parameters are read off the structure
+    and instrument as they stand, whoever put them there.
+    """
+    structure, ins = perturbed_models()
+    ref = Refinement(structure, ins)
+
+    y = ref.predict(synthetic_pattern)
+    assert y.shape == (len(synthetic_pattern.two_theta),)
+    assert np.all(np.isfinite(y))
+    assert y.max() > 0.0
+    # a PatternData and its own 2θ column are the same request
+    assert np.array_equal(y, ref.predict(np.asarray(synthetic_pattern.two_theta)))
+
+
+def test_predict_at_the_fitted_values_needs_no_fit_either(synthetic_pattern):
+    """The equivalence bar: a fit is a way to *set* the parameters, not to
+    license evaluating them.
+
+    A never-fitted `Refinement` carrying the fitted models must return exactly
+    what the fitted one returns for the same grid — bit-identical, not close,
+    since it is the same compile of the same values.
+    """
+    structure, ins = perturbed_models()
+    fitted = Refinement(structure, ins)
+    fitted.fit(synthetic_pattern, plan="profile_only")
+
+    twin = Refinement(fitted.structure.model_copy(deep=True),
+                      fitted.instrument.model_copy(deep=True))
+    assert np.array_equal(twin.predict(synthetic_pattern),
+                          fitted.predict(synthetic_pattern))
+
+
+def test_predict_with_no_grid_still_needs_one(synthetic_pattern):
+    """The one form that genuinely needs a fit, refusing by naming the other."""
+    structure, ins = perturbed_models()
+    with pytest.raises(RuntimeError, match=r"ref\.predict\(data\)"):
+        Refinement(structure, ins).predict()
+
+
+def test_a_zero_stage_plan_is_refused_before_it_costs_anything(synthetic_pattern,
+                                                               tmp_path):
+    """It raised a bare ``AssertionError`` from the end of the run (WP-1110).
+
+    Refused now at the top of ``fit``, so nothing is created on the way to the
+    failure, and the message names ``predict`` — because wanting the model
+    evaluated rather than refined is what sends someone here.
+    """
+    from rietx import RefinementPlan
+
+    structure, ins = perturbed_models()
+    ref = Refinement(structure, ins, history=tmp_path / "h.jsonl")
+    with pytest.raises(ValueError, match=r"predict\(pattern\)"):
+        ref.fit(synthetic_pattern, plan=RefinementPlan(stages=[]))
+    assert ref.result_ is None
+    assert not (tmp_path / "h.jsonl").exists(), "refused before anything was written"
