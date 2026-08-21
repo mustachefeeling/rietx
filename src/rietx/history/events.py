@@ -14,11 +14,31 @@ Event kinds (closed set, versioned with the schema):
 * ``fit_start`` / ``fit_end`` — one refinement run (mode, plan, statistics);
 * ``stage_start`` / ``stage_end`` — one staged-plan stage (freed paths, costs).
   ``stage_start`` carries ``index`` (**1-based**, so it reads "stage 3 of 5"
-  directly) and ``n_stages``;
-* ``eval`` — one residual evaluation inside scipy TRF (cost, eval counter).
-  scipy exposes no per-iteration callback, so the residual closure itself is
-  the hook; ``n_eval`` counts every call (function + finite-difference), which
-  is exactly the quantity that tracks wall-clock progress;
+  directly), ``n_stages``, and since WP-1113 ``free_paths`` — the stage's full
+  ordered free list, which is the alignment key for ``eval.values`` below.
+  ``stage_end`` carries ``termination`` (also WP-1113): *which* criterion
+  ended the solve (``ftol``/``xtol``/``gtol``… — ``LSQOutcome.termination``'s
+  vocabulary), where ``status`` says only whether it converged;
+* ``eval`` — one residual evaluation inside a least-squares driver, on both of
+  them since WP-1113.  ``n_eval`` counts every call this driver made the
+  residual measure (function + finite-difference), which is exactly the
+  quantity that tracks wall-clock progress.  Since WP-1113 each event also
+  carries the trajectory fields the evaluation-count mechanism analysis reads:
+  ``accepted`` (did this evaluation become the incumbent), ``step_norm``
+  (internal-coordinate L2 distance from the incumbent accepted iterate; absent
+  on a solve's first evaluation), ``values`` (the physical value of every free
+  parameter at this evaluation, in ``stage_start.free_paths`` order — the
+  appended Pawley intensity tail excluded), and on the LM driver ``lam`` (the
+  Marquardt λ that produced the step).  The two drivers hook differently and
+  it shows: scipy TRF has no per-iteration callback, so the residual closure
+  is the hook and ``accepted`` is reconstructed (a trial is accepted exactly
+  when its cost is strictly below the incumbent's), while the trust radius is
+  scipy-internal and the trial ``step_norm`` sequence is its observable shadow;
+  the LM driver reports each *measured trial* through a real callback
+  (``on_trial``), so a trial its linear model discards without evaluating the
+  residual emits nothing — before WP-1113 the LM stream carried accepted
+  points only, an alignment of the emission with this bullet's declared
+  meaning, not a change of it;
 * ``index_start`` / ``index_end`` — one **indexing** run (WP-1024).  A separate
   pair rather than a reuse of ``fit_start``/``fit_end`` because an indexing run
   has none of what a refinement run has: no mode, no Rwp, no history node.  What

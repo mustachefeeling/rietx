@@ -18,6 +18,20 @@ stretch metric).
 
 ### Inherited
 
+From WP-1113 (2026-08-21), the *other* factor's state, so this spike's
+go/no-go can price the whole product: the evaluation count's mechanism is
+named (ftol-bound Gauss-Newton tails on near-degenerate directions — its
+§ Findings) and the count is already attackable by a landed, opt-in knob:
+every intermediate stage at `Stage.ftol = 1e-6` cuts whole-plan evaluations
+**1.5-1.7×** at ≤ 0.02 esd on cpd-1a/cpd-2/trigger.  The presets are
+deliberately unflipped.  If this spike and 1115 still miss the cold target,
+the preset flip is the cheapest remaining multiplier — but it moves every
+fit's path, so it takes the 1111 harness equivalence bar across all seven
+cases, never a spot check.  Also inherited: `examples/stage_trajectory.py`
+reads any case × stage trajectory off the event stream (`--solver lm`
+included), which is the cheap way to check a spike's prototype did not
+change *where* a stage stops, not only how fast it gets there.
+
 From WP-1112 (2026-08-21), the denominator this spike is judged against:
 bases build and accumulation are batched (bucket layout; symmetric rows
 bit-identical) and windows are sized by `forward.WINDOW_AREA_TOL = 2e-2`, so

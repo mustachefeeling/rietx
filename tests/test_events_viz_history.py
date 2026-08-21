@@ -48,6 +48,56 @@ def test_events_written_and_readable(tmp_path, synthetic_pattern):
             assert e.data["cost_final"] <= e.data["cost_initial"] * (1 + 1e-12)
 
 
+def test_eval_events_carry_the_trajectory_fields(synthetic_pattern):
+    """WP-1113: ``accepted``/``step_norm``/``values`` ride every ``eval``.
+
+    Open-dict fields on an existing kind — no ``EVENT_SCHEMA_VERSION`` bump
+    (the rule is the module docstring's).  Three properties, per stage: the
+    accepted subset is cost-monotone (TRF accepts only strictly better
+    trials, and ``accepted`` is that reconstruction made explicit); the first
+    evaluation of a solve has no ``step_norm`` (there is no incumbent yet)
+    while every later one does; and ``values`` aligns element for element
+    with ``stage_start.free_paths``, which is what makes the physical
+    trajectory readable off the stream alone.
+    """
+    structure, ins = perturbed_models()
+    seen: list[dict] = []
+    ref = rx.Refinement(structure, ins, history=False)
+    ref.fit(synthetic_pattern, events=seen.append)
+
+    free_paths: dict[str, list[str]] = {}
+    evals: dict[str, list[dict]] = {}
+    for event in seen:
+        if event["kind"] == "stage_start":
+            free_paths[event["data"]["stage"]] = event["data"]["free_paths"]
+        elif event["kind"] == "eval":
+            evals.setdefault(event["data"]["stage"], []).append(event["data"])
+    assert evals and set(evals) == set(free_paths)
+
+    # stage_end names *which* criterion ended the solve — the writer the
+    # declared field needs (WP-1076's rule; the vocabulary is
+    # LSQOutcome.termination's)
+    terminations = [e["data"]["termination"] for e in seen
+                    if e["kind"] == "stage_end"]
+    assert terminations and all(
+        t in {"ftol", "xtol", "gtol", "ftol+xtol", "max_nfev"}
+        for t in terminations), terminations
+
+    for stage, stage_evals in evals.items():
+        assert all({"accepted", "cost", "values"} <= e.keys()
+                   for e in stage_evals)
+        first, rest = stage_evals[0], stage_evals[1:]
+        assert first["accepted"] and "step_norm" not in first
+        assert all("step_norm" in e and e["step_norm"] >= 0.0 for e in rest)
+        accepted = [e["cost"] for e in stage_evals if e["accepted"]]
+        assert accepted == sorted(accepted, reverse=True), \
+            f"{stage}: an accepted cost went back up"
+        paths = free_paths[stage]
+        assert paths, "a stage with nothing free emits no evals to align"
+        assert all(len(e["values"]) == len(paths) for e in stage_evals)
+        assert all(np.isfinite(v) for e in stage_evals for v in e["values"])
+
+
 def test_events_callback_no_file(synthetic_pattern):
     structure, ins = perturbed_models()
     seen = []

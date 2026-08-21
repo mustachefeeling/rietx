@@ -142,6 +142,12 @@ def _intensity_only(path: str, bkg_cols: dict[str, int]) -> bool:
     return path in bkg_cols or any(p.match(path) for p in _INTENSITY_ONLY)
 
 
+#: scipy ``least_squares`` termination codes as tokens (its docs, `status`):
+#: which tolerance fired, for :attr:`LSQOutcome.termination`.
+_TRF_TERMINATION = {-1: "invalid_input", 0: "max_nfev", 1: "gtol", 2: "ftol",
+                    3: "xtol", 4: "ftol+xtol"}
+
+
 @dataclass
 class LSQOutcome:
     theta: np.ndarray            # table free vector only (never the aux block)
@@ -167,6 +173,15 @@ class LSQOutcome:
     #: accepted step, or no esds), never zero.  ``refine`` copies this onto
     #: ``Statistics.max_shift_over_esd``; nothing else derives it (WP-1076).
     max_shift_over_esd: float | None = None
+    #: *which* criterion ended the solve (WP-1113) — the ``status`` string
+    #: above says only whether it converged, and the evaluation-count work
+    #: needs the difference between "the cost stopped moving" (ftol), "the
+    #: step stopped moving" (xtol) and "the gradient vanished" (gtol): a
+    #: linear-rate tail rides exactly one of them.  TRF: scipy's status code
+    #: as a token (``ftol``/``xtol``/``gtol``/``ftol+xtol``/``max_nfev``).
+    #: LM: :attr:`~.lm.LMOutcome.termination`.  ``""`` only on the
+    #: zero-parameter early return, where no criterion was ever consulted.
+    termination: str = ""
 
 
 def _lebail_snapshot(model: CompiledModel) -> list[np.ndarray] | None:
@@ -688,8 +703,22 @@ def strain_cone_inequalities(model: CompiledModel, table: ParameterTable,
     return out
 
 
+def _free_values(table: ParameterTable, theta: np.ndarray) -> list[float]:
+    """Physical values of the table's free paths at ``theta`` — the ``values``
+    field of an ``eval`` event, in ``free_paths`` order (which ``stage_start``
+    carries as ``free_paths``, so a stream consumer can align them).
+
+    The slice drops the appended Pawley intensity tail: it refines on the
+    identity transform outside the table, and its per-hkl values are
+    serialized per history node (``ReflectionState``), not per evaluation.
+    """
+    values = table.decode(np.asarray(theta[:len(table.free_paths)],
+                                     dtype=np.float64))
+    return [float(values[p]) for p in table.free_paths]
+
+
 def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_iter, ftol,
-                inequalities, events, stage: str, track=None):
+                inequalities, events, stage: str, track=None, table=None):
     """Run the bounded-LM driver, adapted to the scipy result shape.
 
     The two drivers are kept interchangeable at exactly this point: everything
@@ -697,24 +726,35 @@ def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_iter, ftol,
     ``cost``/``nfev``/``status``, and :class:`~.lm.LMOutcome` carries those with
     scipy's meanings.  ``track`` is a :class:`_StepTracker` fed from the
     driver's accepted-point callback — the LM half of the final-step record
-    the TRF path reconstructs from its residual closure.
+    the TRF path reconstructs from its residual closure.  ``events`` gets one
+    ``eval`` per *measured trial* via the driver's ``on_trial`` hook
+    (WP-1113): a rejected step arrives with ``accepted: false`` and the λ that
+    produced it, which is exactly the trajectory the evaluation-count
+    mechanism analysis reads.  Trials the driver's linear model discards
+    without evaluating the residual emit nothing — ``eval`` means one residual
+    evaluation on both drivers.
     """
     from . import lm as lm_mod
 
     counter = {"n": 0}
 
-    def callback(theta: np.ndarray, cost: float) -> None:
-        if track is not None:
-            track.accept(theta, cost)
-        if events is not None:
-            counter["n"] += 1
-            events.emit("eval", stage=stage, n_eval=counter["n"], cost=cost)
+    def accept_cb(theta: np.ndarray, cost: float) -> None:
+        track.accept(theta, cost)
+
+    def trial_cb(theta: np.ndarray, cost: float, accepted: bool,
+                 lam: float, step_norm: float) -> None:
+        counter["n"] += 1
+        data = {"stage": stage, "n_eval": counter["n"], "cost": cost,
+                "accepted": accepted, "step_norm": step_norm, "lam": lam}
+        if table is not None:
+            data["values"] = _free_values(table, theta)
+        events.emit("eval", **data)
 
     return lm_mod.minimize(residual, jacobian, x0, lo=lo, hi=hi,
                            max_iter=max_iter, ftol=ftol,
                            inequalities=inequalities,
-                           callback=None if (events is None and track is None)
-                           else callback)
+                           callback=accept_cb if track is not None else None,
+                           on_trial=trial_cb if events is not None else None)
 
 
 class _StepTracker:
@@ -849,30 +889,34 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                     stage=stage)
             return inner_c(theta)
 
-    if events is not None and solver == "trf":
-        # scipy TRF has no per-iteration callback, so the residual closure is
-        # the hook; the emitted dict is plain floats (no pydantic here).  The
-        # LM driver has a real callback and uses it, so it does not wrap the
-        # residual — which also keeps its event stream to *accepted* points.
-        inner = residual
+    tracker = _StepTracker()
+    if solver == "trf":
+        # One wrapper, two jobs in a fixed order per call: emit the eval event
+        # *measured against the incumbent*, then let the tracker accept.  scipy
+        # TRF exposes no per-iteration callback, so the residual closure is the
+        # hook (the emitted dict is plain floats — no pydantic here), and
+        # acceptance/step fields are reconstructed exactly as _StepTracker's
+        # docstring describes.  TRF's trust radius is scipy-internal: the trial
+        # ``step_norm`` sequence is its observable shadow — a trial step never
+        # exceeds the radius, and rejections shrink it (WP-1113).  The LM
+        # driver reports its trials through a real callback instead
+        # (``_lm_outcome``), so it does not wrap the residual.
+        inner_t = residual
         counter = {"n": 0}
 
         def residual(theta: np.ndarray):
-            r = inner(theta)
-            counter["n"] += 1
-            events.emit("eval", stage=stage, n_eval=counter["n"],
-                        cost=0.5 * float(r @ r))
-            return r
-
-    tracker = _StepTracker()
-    if solver == "trf":
-        # the acceptance reconstruction _StepTracker's docstring describes;
-        # the LM driver feeds the tracker from its callback instead
-        inner_t = residual
-
-        def residual(theta: np.ndarray):
             r = inner_t(theta)
-            tracker.accept(theta, 0.5 * float(r @ r))
+            cost = 0.5 * float(r @ r)
+            if events is not None:
+                counter["n"] += 1
+                data = {"stage": stage, "n_eval": counter["n"], "cost": cost,
+                        "accepted": bool(cost < tracker.best_cost)}
+                if tracker.best is not None:
+                    data["step_norm"] = float(np.linalg.norm(
+                        np.asarray(theta, dtype=np.float64) - tracker.best))
+                data["values"] = _free_values(table, theta)
+                events.emit("eval", **data)
+            tracker.accept(theta, cost)
             return r
     n_table = len(table.free_paths)
     x0 = table.x0()
@@ -904,13 +948,15 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         cone = strain_cone_inequalities(model, table, x0[:n_table])
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_iter=max_iter,
                           ftol=ftol, inequalities=cone, events=events, stage=stage,
-                          track=tracker)
+                          track=tracker, table=table)
         n_truncated = res.n_truncated
     else:
         res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
                             ftol=ftol, xtol=XTOL, gtol=GTOL,
                             max_nfev=max_iter * NFEV_PER_ITERATION)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
+    termination = (res.termination if solver == "lm"
+                   else _TRF_TERMINATION.get(res.status, str(res.status)))
 
     # esds from the *full* augmented covariance (table ↔ intensity correlation
     # feeds the table esds too), then split: table columns stay in the outcome,
@@ -931,7 +977,8 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       jac_table, stderr, corr, n_aux=n_aux, solver=solver,
                       n_constraint_truncations=n_truncated,
                       max_shift_over_esd=_final_shift_over_esd(
-                          table, tracker.step(), stderr_full, corr, n_table))
+                          table, tracker.step(), stderr_full, corr, n_table),
+                      termination=termination)
 
 
 def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
@@ -1060,6 +1107,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                             ftol=ftol, xtol=XTOL, gtol=GTOL,
                             max_nfev=max_iter * NFEV_PER_ITERATION)
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
+    termination = (res.termination if solver == "lm"
+                   else _TRF_TERMINATION.get(res.status, str(res.status)))
 
     stderr = corr = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
@@ -1067,7 +1116,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                                             n_data=n_data_total)
     jac_data = np.asarray(res.jac)[:n_data_total] if res.jac is not None else None
     return LSQOutcome(res.x, cost0, float(res.cost), int(res.nfev), status,
-                      jac_data, stderr, corr, solver=solver)
+                      jac_data, stderr, corr, solver=solver,
+                      termination=termination)
 
 
 def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,

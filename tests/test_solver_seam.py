@@ -161,26 +161,42 @@ def test_outcome_records_which_driver_ran(pattern):
         run_least_squares(model, table, solver="banana")
 
 
-def test_lm_emits_eval_events_at_accepted_points_only(pattern):
-    """The LM has a real callback, so its event stream is monotone per stage.
+def test_lm_eval_stream_carries_every_measured_trial(pattern):
+    """The LM stream carries trials with λ, and its *accepted* run is monotone.
 
-    TRF has none, so its stream hooks the residual and therefore also carries
-    rejected trial points.  A live viewer reads both, and the difference is
-    worth pinning: an LM stage's costs never go back up.
+    Before WP-1113 the LM callback reported accepted points only.  The
+    evaluation-count work needs the rejected trials and the λ that produced
+    them — that is the trajectory distinguishing a crawl from a collapse — so
+    the driver now reports each trial the residual measured, ``accepted``
+    marking which became the incumbent.  ``eval`` then means the same thing on
+    both drivers (one residual evaluation), and the monotonicity pin moves to
+    the accepted subset, where it is a property of the algorithm: LM accepts
+    only strict decreases.
     """
     seen: list[dict] = []
     structure, ins = perturbed_models()
     ref = Refinement(structure, ins, solver="lm", history=False)
     ref.fit(pattern, plan="mccusker_default", events=seen.append)
 
-    per_stage: dict[str, list[float]] = {}
+    per_stage: dict[str, list[dict]] = {}
     for event in seen:
         if event["kind"] == "eval":
-            per_stage.setdefault(event["data"]["stage"], []).append(event["data"]["cost"])
+            per_stage.setdefault(event["data"]["stage"], []).append(event["data"])
     assert per_stage, "no eval events emitted"
-    for stage, costs in per_stage.items():
-        assert all(np.isfinite(c) for c in costs)
-        assert costs == sorted(costs, reverse=True), f"{stage} cost went back up"
+    # the LM driver names its own termination vocabulary (LMOutcome.termination)
+    terminations = [e["data"]["termination"] for e in seen
+                    if e["kind"] == "stage_end"]
+    assert terminations and all(
+        t in {"ftol_runs", "exhausted_fp64", "no_descent", "max_iter"}
+        for t in terminations), terminations
+    for stage, evals in per_stage.items():
+        assert all(np.isfinite(e["cost"]) for e in evals)
+        # WP-1113 trajectory fields, LM flavour: λ on every trial
+        assert all({"accepted", "lam", "step_norm", "values"} <= e.keys()
+                   for e in evals), f"{stage} eval missing trajectory fields"
+        accepted = [e["cost"] for e in evals if e["accepted"]]
+        assert accepted == sorted(accepted, reverse=True), \
+            f"{stage} accepted cost went back up"
 
 
 # -- what the iteration budget means (WP-1109) ----------------------------
@@ -197,6 +213,7 @@ def _spy_least_squares(monkeypatch):
     def spy(*args, **kwargs):
         res = original(*args, **kwargs)
         calls.append({"max_nfev": kwargs.get("max_nfev"),
+                      "ftol": kwargs.get("ftol"),
                       "xtol": kwargs.get("xtol"), "gtol": kwargs.get("gtol"),
                       "n_par": len(res.x), "nfev": int(res.nfev),
                       "njev": int(res.njev or 0), "status": int(res.status)})
@@ -228,6 +245,25 @@ def test_the_budget_counts_iterations_not_parameters(pattern, monkeypatch):
         "fixture must span stages of differing size for this to discriminate"
     for c in calls:
         assert c["max_nfev"] == 37 * NFEV_PER_ITERATION
+
+
+def test_stage_ftol_reaches_the_solver_and_only_its_own_stage(pattern, monkeypatch):
+    """``Stage.ftol`` (WP-1113) is per-stage: the stage that declares one is
+    solved at it, every unset stage keeps the runner's default — one authority,
+    so the assertion for the unset stages is "all equal and not the declared
+    value", never a restated 1e-9."""
+    import rietx as rx
+
+    calls = _spy_least_squares(monkeypatch)
+    structure, instrument = perturbed_models()
+    plan = rx.RefinementPlan.mccusker_default()
+    plan.stages[1].ftol = 1e-4
+    refine(pattern, structure, instrument, plan=plan)
+
+    assert len(calls) == len(plan.stages)
+    assert calls[1]["ftol"] == 1e-4
+    defaults = {c["ftol"] for i, c in enumerate(calls) if i != 1}
+    assert len(defaults) == 1 and 1e-4 not in defaults
 
 
 def test_a_converging_fit_never_feels_the_budget(pattern, monkeypatch):

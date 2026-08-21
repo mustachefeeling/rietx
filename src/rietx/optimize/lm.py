@@ -48,6 +48,20 @@ test (``tests/test_lm_solver.py::test_ru_is_one_on_a_linear_model``) and the
 only way to know the schedule is being fed the quantity its constants were
 tuned for.
 
+**Where the two drivers can part company on the answer** (WP-1113): on a
+protocol whose width stages walk a degenerate valley into a stage that opens
+a *new* basin — the QPA cpd-2 protocol, where per-phase size/strain × U,V,W,
+X,Y are near-degenerate and the texture stage's March-Dollase basin is only
+downhill from some points of that valley — the two drivers stop at different,
+locally equivalent valley points, and the LM's can be one from which the
+texture basin is unreachable (Rwp 0.245 against TRF's 0.133, brucite 76
+against 38 wt %).  Measured to be a *genuine local minimum*, not a driver
+defect: a TRF polish from the LM's exact state stays at Rwp 0.244.  Basin
+selection on a shared degeneracy is path luck, not driver quality — but the
+reference protocols were tuned under TRF, so on a texture-bearing staged plan
+prefer the default driver or re-validate the answer (the case lives in
+``examples/bench_solver.py``).
+
 **The cost is always a fresh fp64 residual evaluation**, never an extrapolation
 from the same reduced-precision quantities that built the columns.  That is
 what lets a backend compute Jacobian columns in fp32 and still land on the
@@ -206,6 +220,13 @@ class LMOutcome:
     #: inner iterations burned on a point where the linearised model promised
     #: descent the true objective did not deliver (a corner, not a minimum)
     n_stalled: int = 0
+    #: which criterion ended the run (WP-1113), the LM half of
+    #: :data:`~.least_squares._TRF_TERMINATION`'s vocabulary:
+    #: ``ftol_runs`` (relative decrease under ftol for three consecutive outer
+    #: iterations — Coelho's rule), ``exhausted_fp64`` (every remaining step
+    #: promises less than fp64 can measure against S), ``no_descent`` (the
+    #: inner loop found nothing downhill even at large λ), ``max_iter``.
+    termination: str = "max_iter"
 
 
 def _clip_to_bounds(x: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
@@ -238,6 +259,8 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
              ftol: float = 1e-9,
              inequalities: list[LinearInequality] | None = None,
              callback: Callable[[np.ndarray, float], None] | None = None,
+             on_trial: Callable[[np.ndarray, float, bool, float, float],
+                                None] | None = None,
              ) -> LMOutcome:
     """Minimise ``S(θ) = r(θ)ᵀr(θ)`` subject to ``lo ≤ θ ≤ hi`` (and ``T·θ+c ≥ 0``).
 
@@ -250,6 +273,14 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     outer iterations (Coelho's own criterion — a single small step is not
     convergence, it is a small step), or an inner loop that cannot find any
     downhill step even at large λ.
+
+    ``callback(x, cost)`` fires on each *accepted* point; ``on_trial(x_try,
+    cost, accepted, lam, step_norm)`` fires once per trial the residual
+    actually measured (WP-1113), with ``cost = ½·rᵀr`` at the trial, the λ
+    that produced the step, and the norm of the *taken* step — after
+    projection, inequality truncation and the box clamp.  A trial the linear
+    model discards unevaluated (no descent promised, or a promise under the
+    fp64 floor) never reaches the residual and never fires it.
     """
     x = _clip_to_bounds(np.asarray(x0, dtype=np.float64).copy(), lo, hi)
     ineqs = list(inequalities or [])
@@ -265,6 +296,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     n_stalled = 0
     status = 0
     n_outer = 0
+    termination = "max_iter"
 
     for outer in range(max_iter):
         n_outer = outer + 1
@@ -311,6 +343,9 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
             n_fev += 1
             s_try = float(r_try @ r_try)
             ds = s_try - s
+            if on_trial is not None:
+                on_trial(x_try, 0.5 * s_try, bool(ds < 0.0), float(lam),
+                         float(np.linalg.norm(step)))
             if ds < 0.0:
                 # ΔS_t = −Δθᵀb (see module docstring — the paper drops this sign)
                 ds_t = -float(step @ b)
@@ -336,9 +371,11 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
             # records it; the correlation guard reports the degeneracy.
             n_stalled = _INNER_MAX if not exhausted else 0
             status = 1 if outer > 0 else -1
+            termination = "exhausted_fp64" if exhausted else "no_descent"
             break
         if small_runs >= _CONVERGED_RUNS:
             status = 1
+            termination = "ftol_runs"
             break
     else:
         status = 0                            # ran out of outer iterations
@@ -354,7 +391,7 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     return LMOutcome(x=x, fun=r, jac=J, cost=0.5 * s, nfev=n_fev, njev=n_jev,
                      n_outer=n_outer, status=status, lambda_final=lam,
                      n_bound_hits=n_bound_hits, n_truncated=n_truncated,
-                     n_stalled=n_stalled)
+                     n_stalled=n_stalled, termination=termination)
 
 
 def _solve_step(A: np.ndarray, b: np.ndarray, lam: float, x: np.ndarray,

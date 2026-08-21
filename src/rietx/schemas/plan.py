@@ -42,6 +42,11 @@ class StageSpec(Base):
         "approximate solver iterations for this stage; TRF caps "
         "evaluations rather than iterations, so it is scaled by the "
         "measured worst-case rejection rate (NFEV_PER_ITERATION)"))
+    ftol: float | None = Field(None, gt=0.0, description=(
+        "this stage's relative cost-decrease termination tolerance; null = "
+        "the solver default (1e-9).  Intermediate stages of a many-stage "
+        "plan tolerate a loose one (WP-1113 measured 1e-6 at 1.5-1.7x fewer "
+        "whole-plan evaluations, answers within 0.02 esd)"))
     lebail_cycles: int = 3
     seed: float = Field(0.0, description=(
         "lift softplus-floored parameters this stage frees to this value "
@@ -70,7 +75,8 @@ class StageSpec(Base):
     @classmethod
     def from_stage(cls, stage: Any) -> "StageSpec":
         return cls(name=stage.name, turn_on=list(stage.turn_on),
-                   max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
+                   max_iter=stage.max_iter, ftol=stage.ftol,
+                   lebail_cycles=stage.lebail_cycles,
                    seed=stage.seed, strain_seed=stage.strain_seed,
                    restraint_weight_scale=stage.restraint_weight_scale,
                    window_slack_deg=stage.window_slack_deg)
@@ -79,7 +85,8 @@ class StageSpec(Base):
         from ..strategy.staged import Stage
 
         return Stage(name=self.name, turn_on=list(self.turn_on),
-                     max_iter=self.max_iter, lebail_cycles=self.lebail_cycles,
+                     max_iter=self.max_iter, ftol=self.ftol,
+                     lebail_cycles=self.lebail_cycles,
                      seed=self.seed, strain_seed=self.strain_seed,
                      restraint_weight_scale=self.restraint_weight_scale,
                      window_slack_deg=self.window_slack_deg)

@@ -1115,12 +1115,16 @@ class Refinement:
         if events is not None:
             events.emit("stage_start", stage=stage.name, turn_on=list(stage.turn_on),
                         freed=freed, n_free=len(table.free_paths),
+                        free_paths=list(table.free_paths),
                         n_points=len(model.tt),
                         index=stage_index, n_stages=n_stages)
+        # ftol is passed only when the stage declares one, so an unset stage
+        # keeps the solver default from one authority (the runner's signature)
+        stage_ftol = {} if stage.ftol is None else {"ftol": stage.ftol}
         outcome = run_least_squares(model, table, max_iter=stage.max_iter,
                                     events=events, stage=stage.name,
                                     backend=self._backend, solver=self._solver,
-                                    cancel=cancel)
+                                    cancel=cancel, **stage_ftol)
         table.commit(outcome.theta)
 
         if mode == "lebail":
@@ -1131,6 +1135,7 @@ class Refinement:
         if events is not None:
             events.emit("stage_end", stage=stage.name, status=outcome.status,
                         n_iterations=outcome.n_iterations,
+                        termination=outcome.termination,
                         cost_initial=outcome.cost_initial,
                         cost_final=outcome.cost_final)
         return model, outcome, guard, freed

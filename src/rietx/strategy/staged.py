@@ -71,6 +71,17 @@ class Stage:
     #: a timer: every converging fit measured stays an order of magnitude
     #: inside it, and a stage that hits it reports STAGE_MAX_ITER.
     max_iter: int = 100
+    #: this stage's ftol (relative cost-decrease termination), ``None`` = the
+    #: solver default (1e-9).  The lever WP-1113's trajectories point at: an
+    #: expensive stage's evaluations are mostly *tail* — undamped Gauss-Newton
+    #: marching a near-degenerate direction at ≈0.93/iteration until ftol —
+    #: and an intermediate stage's job is to seed the next stage, not to
+    #: polish that ridge.  Measured (WP-1113): every intermediate stage at
+    #: 1e-6 cuts whole-plan evaluations 1.5-1.7× on the three lab-shaped
+    #: harness cases, with every non-degenerate parameter within 0.02 esd of
+    #: the untouched plan and QPA fractions within 0.001 wt%.  Opt-in: unset,
+    #: fits are bit-identical to pre-1113.
+    ftol: float | None = None
     lebail_cycles: int = 3  # intensity-partitioning refreshes (lebail mode)
     #: lift any softplus-bounded parameter this stage frees off the exact-zero
     #: floor to this value before solving, so TRF sees a live gradient (the

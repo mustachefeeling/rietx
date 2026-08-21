@@ -93,7 +93,55 @@ def _corundum():
             _plan(texture=False, stephens=False), None)
 
 
-CASES = (_srm660c, _nac_11bm, _corundum)
+def _cpd2_qpa():
+    """cpd-2 under the QPA acceptance protocol — WP-1113's basin counterexample.
+
+    The one shipped protocol measured so far on which the drivers can part
+    company on the *answer*, not merely the corner detail: the width stages
+    walk a degenerate (U,V,W,X,Y × per-phase size/strain) valley, both
+    drivers converge at equivalent Rwp before the texture stage, and whether
+    brucite's March-Dollase basin (r ≈ 0.67, Rwp 0.133 vs 0.245) is downhill
+    from there depends on *which* point of the valley the upstream stages
+    stopped at.  Measured 2026-08-21: from the LM path's biso state, a TRF
+    polish of the same final stage also stays at Rwp 0.244 — a genuine local
+    minimum, so this is basin selection on a degenerate valley, not a driver
+    defect (WP-1113's file has the bisection).
+
+    ``max_iter`` is raised to 400 here because at the shipped per-stage cap
+    the LM's ``cell`` stage happens to be *truncated* out of the path that
+    leads to the bad valley point — the answer then depends on a runaway
+    guard, which is exactly the dependence WP-1109's budget rule forbids
+    reading as convergence.  The raised cap gives both drivers room to stop
+    where their own criteria say, which is the comparison this bench is for.
+    """
+    from test_acceptance_qpa_roundrobin import (
+        DATA,
+        brucite_phase,
+        corundum_phase,
+        fluorite_phase,
+        qarr_instrument,
+        qpa_plan,
+        seed_scales,
+        zincite_phase,
+    )
+
+    data = rx.read_pattern(DATA / "cpd-2.prn")
+    structure = rx.Structure(phases=[corundum_phase(), zincite_phase(),
+                                     fluorite_phase(),
+                                     brucite_phase(textured=True)])
+    instrument = qarr_instrument()
+    seed_scales(structure, instrument, data)
+    biso = ("phases.0.atoms.*.biso", "phases.1.atoms.*.biso",
+            "phases.2.atoms.*.biso", "phases.3.atoms.0.biso",
+            "phases.3.atoms.1.biso")
+    plan = qpa_plan(biso_globs=biso, texture=True)
+    for stage in plan.stages:
+        stage.max_iter = 400
+    return ("cpd-2 QPA protocol (4 phases, texture)", data, structure,
+            instrument, plan, None)
+
+
+CASES = (_srm660c, _nac_11bm, _corundum, _cpd2_qpa)
 
 
 def run(case) -> None:
@@ -144,7 +192,10 @@ def main() -> None:
           "the NIST-certified specimen displacement,\nbecause the two part "
           "company in the ill-conditioned axial corner where the FCJ\nprofile "
           "has a corner at S/L = H/L — which is exactly where the default "
-          "instrument\nstarts both apertures.")
+          "instrument\nstarts both apertures.  On cpd-2 the large negative "
+          "ΔBIC is the real thing: the\nLM path stops at a width-valley point "
+          "from which the texture basin is out of\nreach (see _cpd2_qpa's "
+          "docstring, and WP-1113 for the bisection).")
 
 
 if __name__ == "__main__":
