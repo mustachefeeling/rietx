@@ -325,6 +325,40 @@ def _node_mix(w: np.ndarray, planes: np.ndarray) -> np.ndarray:
     return np.matmul(w[:, None, :], planes)[:, 0, :]
 
 
+def accumulate_planes(n_points: int, parts) -> np.ndarray:
+    """One ``bincount`` over every (row, term, point) contribution (WP-1112).
+
+    ``parts`` is ``[(layout, [(coef, plane), ...]), ...]`` in the caller's
+    phase order.  Contributions are laid out row-major as (row, term, point)
+    per part, then concatenated, and ``np.bincount`` accumulates its input
+    sequentially from zero — so for any output point the additions arrive in
+    exactly the order the pre-batch loop's per-row ``window_add`` sequence
+    produced them (phase-major, row-major, terms in call order), and the
+    result is **bit-identical** to that loop.  A term whose coefficient
+    vector is all-zero must be omitted by the caller (the loop never added
+    it); a zero coefficient *within* a live term contributes ±0.0, which is
+    neutral under addition.  Planes arrive pad- and NaN-row-zeroed
+    (``PhasePlanes``), which is what licenses scattering whole planes
+    through ``layout.idx`` — a pad slot aliases a real in-window index.
+    """
+    flats_i: list[np.ndarray] = []
+    flats_w: list[np.ndarray] = []
+    for lay, terms in parts:
+        if not terms or not len(lay.i0):
+            continue
+        contrib = np.empty((len(lay.i0), len(terms), lay.w_max))
+        for j, (coef, plane) in enumerate(terms):
+            np.multiply(coef[:, None], plane, out=contrib[:, j])
+        flats_i.append(
+            np.broadcast_to(lay.idx[:, None, :], contrib.shape).ravel())
+        flats_w.append(contrib.ravel())
+    if not flats_w:
+        return np.zeros(n_points)
+    idx = flats_i[0] if len(flats_i) == 1 else np.concatenate(flats_i)
+    w = flats_w[0] if len(flats_w) == 1 else np.concatenate(flats_w)
+    return np.bincount(idx, weights=w, minlength=n_points)
+
+
 def _batch_layout(win: np.ndarray, fcj_n: np.ndarray, tt: np.ndarray
                   ) -> BatchLayout:
     """Build the frozen planes off the just-computed windows (compile time)."""
@@ -1064,6 +1098,50 @@ class CompiledModel:
         phi, omega = _cached_fcj_nodes(cp, il, k, 0, pos_safe, sl, hl, n_fcj)
         prof = omega @ self._profile(x[None, :] - phi[:, None], gamma_k, eta_k)
         return xp.where(finite, prof, 0.0)
+
+    def _omega_batch(self, lay: "BatchLayout", pos: np.ndarray,
+                     w1: np.ndarray, w2: np.ndarray, finite: np.ndarray,
+                     sl: float, hl: float, basis) -> np.ndarray:
+        """(R, w_max) Ω planes for one phase's frozen rows — the batched twin
+        of :meth:`_reflection_profile`, with the profile spelling left to the
+        caller.
+
+        ``basis`` is :meth:`_profile` for the **forward** and
+        :meth:`_profile_basis` for the **derivative bases**.  That is a
+        deliberate parameter, not an implementation detail: the two spell u²
+        differently and land 1-2 ulp apart by design
+        (``model/profiles/pseudovoigt``), so a caller is declaring *which* Ω
+        it is reproducing.  Handing the forward the bases' spelling would move
+        every converged fit in its last digits (WP-1120).
+
+        Symmetric rows reproduce the per-row loop **bit for bit** — the same
+        elementwise expressions, broadcast; an FCJ row's node mix is a batched
+        matmul where the loop ran one dgemv, and agrees to rounding rather
+        than to the bit (WP-1112's bar, unchanged here).
+
+        Returned pad- and NaN-row-zeroed, which is what makes it safe to
+        scatter whole planes through ``lay.idx`` (:func:`accumulate_planes`).
+        """
+        omega = np.zeros((len(lay.i0), lay.w_max))
+        srows = lay.buckets.get(0, np.zeros(0, dtype=np.int64))
+        if len(srows):
+            omega[srows] = basis(lay.x[srows] - pos[srows, None],
+                                 w1[srows, None], w2[srows, None])
+        for n, rows_b in lay.buckets.items():
+            if n == 0:
+                continue
+            phi_all, om_all = fcj_offsets_weights_batch(pos[rows_b], sl, hl, n)
+            for a in range(0, len(rows_b), _BASES_CHUNK_ROWS):
+                rs = rows_b[a:a + _BASES_CHUNK_ROWS]
+                s = slice(a, a + _BASES_CHUNK_ROWS)
+                phi, om = phi_all[s], om_all[s]
+                x3 = lay.x[rs][:, None, :] - phi[:, :, None]
+                omega[rs] = _node_mix(
+                    om, basis(x3, w1[rs, None, None], w2[rs, None, None]))
+        np.multiply(omega, lay.mask, out=omega)
+        if not finite.all():
+            omega[~finite] = 0.0
+        return omega
 
     def phase_component(self, ip: int, values: dict[str, float],
                         hkl_intensity: np.ndarray | None = None) -> np.ndarray:

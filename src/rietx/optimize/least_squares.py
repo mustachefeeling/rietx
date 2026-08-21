@@ -38,6 +38,7 @@ from ..crystallography.adp import U_NAMES
 from ..crystallography.stephens import S_NAMES
 from ..model import rows as row_layout
 from ..model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, DerivativeBases
+from ..model.forward import accumulate_planes as _accumulate
 from ..model.restraints import restraint_partials
 from ..params.transforms import dphys_dinternal
 from ..params.vector import ParameterTable
@@ -230,40 +231,6 @@ def _make_residual(model: CompiledModel, table: ParameterTable):
     return residual
 
 
-def _accumulate(n_points: int, parts) -> np.ndarray:
-    """One ``bincount`` over every (row, term, point) contribution (WP-1112).
-
-    ``parts`` is ``[(layout, [(coef, plane), ...]), ...]`` in the caller's
-    phase order.  Contributions are laid out row-major as (row, term, point)
-    per part, then concatenated, and ``np.bincount`` accumulates its input
-    sequentially from zero — so for any output point the additions arrive in
-    exactly the order the pre-batch loop's per-row ``window_add`` sequence
-    produced them (phase-major, row-major, terms in call order), and the
-    result is **bit-identical** to that loop.  A term whose coefficient
-    vector is all-zero must be omitted by the caller (the loop never added
-    it); a zero coefficient *within* a live term contributes ±0.0, which is
-    neutral under addition.  Planes arrive pad- and NaN-row-zeroed
-    (``PhasePlanes``), which is what licenses scattering whole planes
-    through ``layout.idx`` — a pad slot aliases a real in-window index.
-    """
-    flats_i: list[np.ndarray] = []
-    flats_w: list[np.ndarray] = []
-    for lay, terms in parts:
-        if not terms or not len(lay.i0):
-            continue
-        contrib = np.empty((len(lay.i0), len(terms), lay.w_max))
-        for j, (coef, plane) in enumerate(terms):
-            np.multiply(coef[:, None], plane, out=contrib[:, j])
-        flats_i.append(
-            np.broadcast_to(lay.idx[:, None, :], contrib.shape).ravel())
-        flats_w.append(contrib.ravel())
-    if not flats_w:
-        return np.zeros(n_points)
-    idx = flats_i[0] if len(flats_i) == 1 else np.concatenate(flats_i)
-    w = flats_w[0] if len(flats_w) == 1 else np.concatenate(flats_w)
-    return np.bincount(idx, weights=w, minlength=n_points)
-
-
 def _gather_per_line(lay, arrays) -> np.ndarray:
     """(R,) row gather of per-line arrays (``arrays[il][k]``)."""
     return lay.gather([(a,) for a in arrays], 0)
@@ -288,7 +255,7 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
     ``phase_peaks`` must see the same intensities as the expansion point.
 
     Since WP-1112 the scalar FDs are vectorised over the rows and the
-    accumulation is one order-preserving scatter (:func:`_accumulate`, bit
+    accumulation is one order-preserving scatter (:func:`~rietx.model.forward.accumulate_planes`, bit
     -identical to the per-row loop); the claim verification is unchanged — a
     term whose coefficients are nonzero under a ``profile_derivs=False``
     build still raises through :func:`_require_basis`, naming the path.
