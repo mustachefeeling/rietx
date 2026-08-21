@@ -198,7 +198,7 @@ being asked for.
       changed. No classification (the relaxed promise makes safe/minor/
       breaking meaningless) and no digest — the withdrawn item above records
       why, and what evidence would reopen it.
-- [ ] **Declare the bump comments the changelog.** They already carry the
+- [x] **Declare the bump comments the changelog.** They already carry the
       history this WP would otherwise have seeded (e.g.
       `INDEXING_THRESHOLDS_VERSION`'s 1.0/1.1/1.2/1.3 notes, `SCHEMA_VERSION`'s
       0.1 → 0.2), and a separate file would be a second authority with no test

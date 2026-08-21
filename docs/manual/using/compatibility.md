@@ -37,8 +37,12 @@ decision, not a rebuild.
 ## The six version strings
 
 A moved version string means something you could observe changed, and the
-comment beside the constant says what. The strings are the six contracts
-`capabilities()` reports — [](agents.md) has the table:
+comment beside the constant says what. **Those comments are the changelog**:
+each constant carries its own bump history — what moved, in which change, and
+why — and no separate file restates it. Promoting that record to a hosted
+page is part of tightening the promise, when there are users to face it. The
+strings are the six contracts `capabilities()` reports — [](agents.md) has
+the table:
 
 - **The schemas** (`Capabilities.schema_version`) — the pydantic models
   everything else rides on: structure, pattern, instrument, plan, result,
