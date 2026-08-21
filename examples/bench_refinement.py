@@ -50,9 +50,13 @@ the candidate explanations.
              **WP-1109's 1.5-1.8 s NAC row is the two legs together** — split
              here because timing only the Rietveld leg against that row shows a
              2.4× discrepancy that is not a speed change.
-``cpd-1a``   IUCr CPD round-robin sample 1a, 3 phases, Cu Kα doublet + FCJ,
-             ``qpa_plan`` (8 stages), 7 251 points.  The FCJ-heavy small-cell
-             case.
+``cpd-1a``   IUCr CPD round-robin sample 1a, 3 phases, Cu Kα doublet,
+             ``qpa_plan`` (8 stages), 7 251 points.  **No FCJ**, despite the
+             lab optics: ``qarr_instrument`` leaves both axial ratios at 0.0
+             and the plan frees only ``axial_sl``, so no stage of the QPA
+             protocol ever compiles a quadrature node (both apertures must
+             be positive — measured by WP-1112's gate, which corrected this
+             blurb).  The small-cell lab case; the FCJ case is ``trigger``.
 ``cpd-2``    The same instrument on sample 2 under the **QPA acceptance
              protocol** — 4 phases, 9 stages with texture — i.e.
              ``test_sample2_brucite_march_dollase``'s own fit.  This is the
@@ -262,7 +266,7 @@ def _cpd_1a() -> Setup:
                                      fluorite_phase()])
     instrument = qarr_instrument()
     seed_scales(structure, instrument, data)
-    return Setup("IUCr cpd-1a, 3 phases, Cu Kα + FCJ, qpa_plan (8 stages)",
+    return Setup("IUCr cpd-1a, 3 phases, Cu Kα doublet (no FCJ), qpa_plan (8 stages)",
                  data, structure, instrument, qpa_plan())
 
 
@@ -497,8 +501,8 @@ def _trigger_series_stages() -> Setup:
 CASES: tuple[Case, ...] = (
     Case("nac-lebail", _nac_lebail, "22 003 pts, 1 phase — the Le Bail seed leg"),
     Case("nac", _nac, "22 003 pts, no FCJ — the dispatch-light case"),
-    Case("cpd-1a", _cpd_1a, "7 251 pts, FCJ, 3 phases — the FCJ-heavy small case"),
-    Case("cpd-2", _cpd_2, "7 251 pts, FCJ, 4 phases + texture — WP-1109's profile"),
+    Case("cpd-1a", _cpd_1a, "7 251 pts, no FCJ, 3 phases — the small lab case"),
+    Case("cpd-2", _cpd_2, "7 251 pts, no FCJ, 4 phases + texture — WP-1109's profile"),
     Case("trigger", _trigger,
          "4 165 pts, 1 188 pairs, 4 phases — the trigger-shaped cold fit (~50 s)"),
     Case("trigger-series", _trigger_series,

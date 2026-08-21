@@ -96,6 +96,57 @@ venv `[dev]`, darwin/arm64) unless said otherwise.
   (69× FWHM, 8.1× n_points, `WINDOW_FWHM_MULT` may move) — leave a forward
   note there when the windows change (protocol step 3).
 
+### Gate record (2026-08-21) — GO, both scopes; the FCJ layout is bucket
+
+Measured by `examples/bench_batched_derivative_bases.py` (main-checkout venv
+`[dev]`, darwin/arm64, best of 3, two runs quoted as ranges; the
+narrowed-window rows are a scratch monkeypatch, quoted in that script's
+docstring).  The full bases build — Ω, ∂Ω/∂pos, ∂Ω/∂Γ, ∂Ω/∂η + the pos
+node-FD, axial off — against two loop baselines: **warm** (every FCJ node
+slot hits — a width-moving stage) and **cold** (the pos-FD variants miss —
+a position-moving stage, where `zero_disp` and `cell` live).
+
+- **The premise was half wrong: cpd-1a has no FCJ row at any stage, and
+  neither does cpd-2** — the case every 1109 profile number came from.
+  `qarr_instrument` leaves both axial ratios at the preset's 0.0 and
+  `qpa_plan` frees only `axial_sl`, so `fcj_node_count` returns 0 at every
+  stage (the FCJ trapezoid height is 2·min(S/L, H/L) — both apertures must
+  be positive) and the freed `axial_sl` is a provably-zero column, reported
+  as unmeasured.  The harness blurbs calling cpd-1a "the FCJ-heavy case"
+  are corrected in this WP; the harness's FCJ case is the **trigger**
+  (93 % of 1 188 rows, nodes 8-17, axial 0.020/0.020).  So the 1109
+  microbenchmarks were symmetric-kernel numbers measured on an
+  all-symmetric fit — consistent, and now known to describe the whole QPA
+  protocol.
+- **Symmetric scope: 4.0× and exactly bit-equal, every layout** (cpd-1a,
+  222 rows, w_max 283: loop 3.9 ms → 0.94-0.98 ms).  This shape is the
+  entire QPA protocol and every synchrotron case.
+- **FCJ scope: GO, bucket layout.**  Trigger: loop 65.6-67.4 ms warm /
+  88.7-88.8 cold → bucket 48.1-48.5 ms (**1.4× warm / 1.8× cold**);
+  axial-on 137-142 → 50-52 ms (2.7-2.8×).  Pad *regresses* (0.8× warm):
+  pad-to-m_max doubles the majority n=8 bucket, so 0605's layout answer
+  holds on the derivative side too — bucket, whose node-axis waste is
+  1.03× measured.
+- **Why the trigger ratio is modest, diagnosed not assumed**: ~86 % of the
+  batched time is kernel arithmetic at ~11 ns/element (the microbenchmark's
+  per-point cost).  The shipped ±30·FWHM windows put m×W ≈ 3 200 points
+  under every FCJ row — Σ window points = **114× n_points** on the trigger,
+  against cpd-2's 8.1× — so the *loop* is point-bound there and batching
+  removes only its dispatch share.  W-axis padding waste is 1.06×; padding
+  is not the limiter anywhere.
+- **The two tasks compose, measured**: at `WINDOW_FWHM_MULT` 15 / 8 the
+  trigger bucket ratio rises to 1.8×/2.7× and 2.0×/3.1× while the absolute
+  build falls 88.7 → 16.3 ms (≈5.4× combined, cold), and cpd-1a rises to
+  5.0×/6.1×.  Shrinking W returns the loop to dispatch-bound, which is
+  batching's territory — so the task order stands: batch first, η-windows
+  second, and the window task realises most of the trigger's win.
+- **Equivalence bars as planned**: symmetric rows bit-equal in every layout
+  on both cases; FCJ rows ≤ 2e-18 rel at shipped windows (≤ 4e-16 in the
+  narrowed-window runs; the axial node-FDs ≤ 3e-14 — an FD of
+  near-cancelling node shifts over h = 1e-7), and *occasionally* exactly
+  bit-equal at BLAS-size-dependent shapes — so the FCJ scope claims
+  ≤ ~1e-15 rel with the re-baseline ritual, never bit-identity.
+
 ## Non-goals
 
 The forward loop's own batching beyond what falls out shared (0605 measured
@@ -106,7 +157,7 @@ approximation (1114).
 
 ## Tasks
 
-- [ ] **Gate: prototype the batched derivative bases on FCJ data first**, in
+- [x] **Gate: prototype the batched derivative bases on FCJ data first**, in
       a scratch example (0605's discipline — shipped path untouched), on
       1111's `cpd-1a` and trigger-shaped states. Measure batched vs loop for
       the full bases build (Ω, ∂Ω/∂pos, ∂Ω/∂Γ, ∂Ω/∂η + node-FD variants)
