@@ -231,7 +231,7 @@ being asked for.
       six-step table above against the new rules and say which steps went. If
       the answer is still "one of six", say so — a WP that measures its own
       result at less than it hoped is worth more than one that does not look.
-- [ ] Tests: the chapter's own link/reference checks via
+- [x] Tests: the chapter's own link/reference checks via
       `tests/test_manual_api.py` and `tests/test_docs_consistency.py`, and the
       `-W` Sphinx build. No new meta-test lands. No obs/calc/diff PNGs: this
       WP touches no refinement.
