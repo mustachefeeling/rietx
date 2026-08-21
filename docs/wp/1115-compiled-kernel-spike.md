@@ -56,9 +56,18 @@ user with the numbers.
 From WP-1114 (2026-08-21), what the gate reads and what a compiled kernel
 could additionally cash:
 
-- **Read the gate against the harness *after* WP-1120** (batch the
-  residual — bit-exact 2.2-3.6× on forward evaluations, opened by 1114's
-  spike): it moves exactly the numbers this gate compares to the targets.
+- **The harness the gate reads has moved — WP-1120 landed 2026-08-22.**  The
+  numbers to compare against the targets are now: trigger cold **17.07-17.29 s**
+  (was 28.33-28.44), cpd-2 **7.29-7.30**, cpd-1a **4.20-4.27**, nac
+  **0.53-0.54**, nac-lebail **0.44-0.48** (`[dev]` venv, darwin/arm64,
+  best-of-3, idle machine).  The cold trigger is **not** in the "low
+  single-digit seconds" target band, so on wall clock the gate is still open;
+  what 1120 also measured is that the *whole* of its saving was inside
+  `evaluate` (11.19 s of 11.41 s) with time elsewhere unchanged, so the
+  remaining 17 s is now mostly *not* the forward.  Locate it before opening
+  this WP — the gate's second clause asks whether the gap sits in dispatch,
+  and 1120 leaves that question pointing at the Jacobian rather than the
+  residual (njev 289 against nfev 364 on the trigger).
 - **The gap's composition is measured** (1114 § Findings 3): the batched
   numpy kernel runs at ~8-11 ns/element and its remaining overheads are
   `w_max` padding (~2× on the trigger's gather volume) and the per-element

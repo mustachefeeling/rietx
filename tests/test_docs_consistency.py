@@ -182,7 +182,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # a variance rather than raising, and the honest empty state for an
     # unmeasured direction is absence, which every consumer must mark rather
     # than clamp.
-    "CLAUDE.md": 771,
+    # 771 -> 784 for WP-1120 (2026-08-22): the numpy forward moved onto the
+    # batched planes, and three facts about it cannot go down a rank because a
+    # session touching *any* profile or accumulation code will otherwise get
+    # them wrong — Ω has two spellings that differ by design, the scalar loop
+    # is an oracle rather than dead code, and the phase scatter's grouping is
+    # observable.  The operating detail did go down: the ratios and the
+    # equivalence measurements are in the WP's § Findings, the method notes in
+    # the v1.1 record, and the bars are executable in tests/test_batched_forward.py.
+    "CLAUDE.md": 784,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one

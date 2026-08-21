@@ -1,6 +1,6 @@
 # WP-1120 — batch the residual: the forward's un-taken WP-1112 win
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-22 — batched numpy forward, 1.65× on the trigger cold fit and 1.11–1.15× on the four lab/synchrotron cases; bit-identical wherever the rows are symmetric
 Depends on: 1112 (the batched kernel and its bit-identity discipline)
 
 ## Goal
@@ -41,6 +41,15 @@ Seams and constraints:
   builds its own residual from `phase_peaks` + windows, and
   `fcj_offsets_weights_batch` is numpy-only by intent (its docstring).
   This WP touches the numpy path only.
+- **The Ω the bases build is not the Ω the residual builds** (found
+  2026-08-21, opening this WP).  `derivative_bases` takes Ω from
+  `_profile_basis` and the scalar residual loop from `_profile`; the two
+  spell u² differently and land 1-2 ulp apart *by design*
+  (`model/profiles/pseudovoigt.py`, WP-0605's measurement).  So
+  `batched_exact_evaluate` cannot be lifted verbatim — it would move every
+  converged fit in its last digits.  The batched forward dispatches to
+  `_profile`, and the batched *shape* (layout, buckets, node mix, masking)
+  is what is shared with the bases.
 - **Accumulation order is observable**: `_accumulate`'s bincount is
   bit-identical to the loop's `window_add` order (phase-major, row-major).
   The scatter here must keep that property or every pinned number moves —
@@ -53,15 +62,10 @@ Seams and constraints:
   matter.
 - Le Bail/Pawley hot loops pass `intensities=` explicitly; the batched
   forward must accept them the way `derivative_bases` already does.
-
-### Inherited
-
-From WP-1114 (2026-08-21): the measured table above; the reference
-implementation `batched_exact_evaluate` in `examples/bench_peaks_buffer.py`
-(lift it, do not re-derive); and the warning that `w_max` padding costs ~2×
-on the trigger's gather volume — a width-bucketed scatter is the follow-on
-lever if the harness still wants more, but land the plain version first and
-measure.
+- **`w_max` padding costs ~2× on the trigger's gather volume** (WP-1114's
+  measurement, inherited 2026-08-21).  A width-bucketed scatter is the
+  follow-on lever if the harness still wants more; land the plain version
+  first and measure.
 
 ## Non-goals
 
@@ -71,22 +75,27 @@ backends; compiled kernels (WP-1115's gate); changing evaluation counts
 
 ## Tasks
 
-- [ ] Batched forward entry point on `CompiledModel` (omega planes +
+- [x] Batched forward entry point on `CompiledModel` (omega planes +
       ordered scatter), numpy path of the residual wired to it; scalar loop
       kept for the traced backends and as the bit-identity oracle.
-- [ ] Gate tests in 1112's shape: bit-identity on a symmetric case,
+- [x] Gate tests in 1112's shape: bit-identity on a symmetric case,
       to-rounding agreement + esd/parameter identity on an FCJ case.
-- [ ] Harness before/after on the 1111 cases (`bench_refinement.py`), row
+- [x] Harness before/after on the 1111 cases (`bench_refinement.py`), row
       added to `rietx compare` only if a protocol number moves (it must
-      not — this is exact).
+      not — this is exact).  No row owed: Rwp is identical on all five cases.
 
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_forward.py tests/test_row_layout.py -q
+.venv/bin/python -m pytest tests/test_batched_forward.py tests/test_derivative_bases_batched.py
 .venv/bin/python examples/bench_refinement.py --cases trigger,cpd-2
 .venv/bin/python -m ruff check src tests examples
 ```
+
+(The command this WP opened with named `tests/test_forward.py` and
+`tests/test_row_layout.py`; neither exists.  `test_batched_forward.py` is this
+WP's gate, `test_derivative_bases_batched.py` is WP-1112's, and the second is
+here because this WP refactored the build both share.)
 
 The harness shows the residual-evaluation share of the trigger cold fit
 shrinking by roughly the table's ratio; every Rwp identity-checks against
@@ -98,7 +107,127 @@ the pre-change run.
   appendix.
 - WP-1114 § Findings 3 — the measurement this WP exists to cash.
 
+## Findings
+
+**The batched forward is worth 1.65× on the trigger and ~1.12× on everything
+else**, and the split says why: the trigger carries 1 188 (line, reflection)
+pairs against 129-308 for the rest, so it is the case where per-reflection
+*dispatch* dominated.  Measured back to back on an idle machine, `[dev]` venv,
+darwin/arm64, best-of-3, this WP's branch against `dc7f4b79`:
+
+| case | before (s) | after (s) | ratio | nfev | Rwp |
+|---|---|---|---|---|---|
+| nac-lebail | 0.52-0.55 | 0.44-0.48 | 1.15× | 71 → 71 | 0.14348 both |
+| nac | 0.58-0.61 | 0.53-0.54 | 1.11× | 47 → 47 | 0.09317 both |
+| cpd-1a | 4.74-4.75 | 4.20-4.27 | 1.12× | 408 → 408 | 0.17128 both |
+| cpd-2 | 8.26-8.32 | 7.29-7.30 | 1.13× | 540 → 540 | 0.13290 both |
+| trigger | 28.33-28.44 | 17.07-17.29 | **1.65×** | 363 → 364 | 0.01998 both |
+
+**The four no-FCJ cases return identical per-stage nfev and identical Rwp.**
+That is the equivalence bar met end to end rather than at one evaluation: four
+independent protocols, 47 to 540 evaluations each, every one landing on the
+same double.  The trigger is the only FCJ case and the only one whose count
+moves, by one — the ulp reaching a trust-region decision.
+
+**The forward is the whole gain, and the in-fit ratio is larger than the
+starting model shows.**  Timed inside a real trigger fit, one process, both
+paths: 11.19 s of the 11.41 s saved is inside `evaluate`, and the time spent
+*elsewhere* is unchanged (13.59 s batched against 13.81 s scalar).  Per
+evaluation that is **40.23 ms scalar against 10.13 ms batched — 3.97×** over
+373 calls, where the same forward at the plan's *starting* model measures
+2.2-2.4× (per-stage table below).
+
+**That extra factor is not attributed**, and two plausible explanations were
+measured and are wrong.  It is *not* the whole-model FD fallback in
+`_make_jacobian`: instrumenting `evaluate` shows 372 of 373 calls coming from
+`_data_rows`, the residual, and **zero** from the fallback, which fires on no
+trigger column.  It is *not* a warm `_cached_fcj_nodes` flattering the scalar
+path in the probe either: nudging the cell so every peak moves between repeats
+leaves the starting-model ratio at 2.23× against 2.25× fixed.  What is left is
+that the harness compiles a later stage at the values the fit has *reached*,
+while the probe holds every stage at the values it started from — a difference
+this WP did not chase, because the aggregate is measured directly and the sign
+of the finding does not depend on it.
+
+Weighting the starting-model ratio by the harness's per-stage nfev predicts
+only 3.5-3.7 s saved against the 11.26 s measured, which is what exposed the
+gap.  Quoted so a later session does not re-derive the prediction and trust it:
+
+| stage | nfev | scalar ms | batched ms | ratio |
+|---|---|---|---|---|
+| scale_bkg | 21 | 17.2 | 7.5 | 2.30× |
+| sample_broadening | 80 | 16.9 | 7.3 | 2.30× |
+| lines_axial | 182 | 16.9 | 7.4 | 2.29× |
+| biso | 31 | 17.2 | 7.4 | 2.34× |
+
+(all 1 188 rows, w_max 135, identical FCJ node counts — the trigger's structure
+is frozen the same way at every stage when compiled at the starting values)
+
+**The Ω the residual builds is not the Ω the bases build**, and that is the
+finding this WP turned on — it is in Context, and it is why
+`batched_exact_evaluate` could not be lifted.
+
+**`w_max` padding is still on the table** (WP-1114's inherited warning): the
+trigger pads to 121 points against a mean window well under that.  A
+width-bucketed scatter is the next lever if the harness still wants more.
+
 ## Handover log
+
+- **2026-08-22** — A cold four-phase lab-shaped refinement now takes 17
+  seconds where it took 28, and every other benchmark case got 11-15 % faster,
+  with no change to any answer that a fit without axial-divergence physics
+  returns: four of the five cases come back on exactly the same numbers,
+  evaluation for evaluation.  The gain is the whole of the forward model's
+  cost, and it was bought by evaluating a phase's peaks as one array operation
+  instead of one per reflection — arithmetic that was already written for the
+  derivative side a WP earlier and never used for the residual.  What it cost
+  is one ulp on peaks that carry the axial correction, which is enough to move
+  a solver's path by a single evaluation and not enough to move a parameter or
+  an esd.  It also cost the assumption the WP was opened on: the prototype it
+  was told to lift could not be lifted, because it builds its peak shape with
+  arithmetic that is deliberately not the residual's.
+
+  **Done.** All three checklist items.  The ordered scatter moved from
+  `optimize/least_squares.py` to `model/forward.py` as `accumulate_planes`
+  (aliased back at the old name, so no call site moved) — it is about
+  `BatchLayout`'s contract, and `model/` cannot import from `optimize/`.
+  `CompiledModel._omega_batch` is the batched twin of `_reflection_profile`
+  with the **profile spelling as a parameter**; `phase_component` dispatches to
+  `_phase_component_batched` on numpy and `_phase_component_scalar` — the
+  untouched loop — everywhere else; `derivative_bases` folds its
+  `profile_derivs=False` branch onto the same helper.
+  `tests/test_batched_forward.py` is the gate, nine rows.
+
+  **Measured** (`[dev]` venv, darwin/arm64 — no jax/torch).  Fast suite 2591
+  passed / 117 skipped, **+9 passes on 2582/117 and no new skip**, exactly the
+  nine rows added.  Full suite 2700 passed / 126 skipped in 26:45, green,
+  which is what says the ulp does not reach the FCJ acceptance protocols
+  (SRM 660c, FAP, capillary).  Harness before/after, back to back on an idle
+  machine, this branch against `dc7f4b79`: trigger 28.33-28.44 → 17.07-17.29 s
+  (**1.65×**), cpd-2 8.26-8.32 → 7.29-7.30, cpd-1a 4.74-4.75 → 4.20-4.27, nac
+  0.58-0.61 → 0.53-0.54, nac-lebail 0.52-0.55 → 0.44-0.48.  Rwp identical on
+  all five; per-stage nfev identical on the four without FCJ; the trigger's
+  moves 363 → 364.  The § Findings section holds the rest.
+
+  **Gotchas for the successor.**  (1) `_profile` and `_profile_basis` are
+  *deliberately* 1-2 ulp apart and the forward and the bases each own one of
+  them — this is the finding the WP turned on, and it is now a root CLAUDE.md
+  rule.  (2) A guard that reverses the phase order proves nothing about the
+  per-phase scatter: addition is commutative, and with two phases `P0 + P1` is
+  `P1 + P0` bit for bit.  Associativity is the property, so the gate builds the
+  regrouped variant instead.  (3) The forward's cost at a plan's *starting*
+  model under-predicts what a fit pays — weighting the starting-model ratio by
+  per-stage nfev predicts 3.5-3.7 s saved against 11.26 s measured.  Time the
+  fit, not the model.  (4) The WP opened with an acceptance command naming two
+  test files that do not exist; it now names the two that do.
+
+  **Next**, in order: [1115](1115-compiled-kernel-spike.md)'s go/no-go gate,
+  re-read against the harness this WP leaves — it is the one that moved, and
+  1114 wrote the gate to be read against whatever 1120 landed.  Then 1113's
+  priced preset flip, the remaining exact multiplier.  The width-bucketed
+  scatter is *not* next: it is real (the trigger pads every row to 121 points)
+  but it is an optimisation of an optimisation, and 1115 decides whether the
+  numpy path is where the remaining time is at all.
 
 - **2026-08-21** — created by WP-1114's session: the spike measured the
   scalar residual loop at 2.2-3.6× the batched exact kernel and recorded
