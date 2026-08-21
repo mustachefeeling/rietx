@@ -798,16 +798,16 @@ refine a structure against a pattern but could not find the cell, so an unknown
 phase was out of reach entirely. `index_pattern` is a peer of `refine` and the
 loop between them closes:
 
-**These names are provisional, and the answers they return are not.** Indexing
-is under active development, so everything under `rietx.indexing` and every
-answer type in `rietx.schemas.indexing` may change in a 1.x release — the
+**These names are provisional, and the answers they return are versioned.**
+Indexing is under active development, so everything under `rietx.indexing` and
+every answer type in `rietx.schemas.indexing` may change in any release — the
 [compatibility promise](https://yue-here.github.io/rietx/using/compatibility.html#provisional-by-declaration)
 declares the subsystem rather than listing names, and every change is in the
 release notes. Two things do not move with them:
 `capabilities().indexing_thresholds_version`, which is what the gates below are
 versioned by, and the `indexing` arm of `refine_json`'s response (§9c). So a
-tool loop that *reads* an answer is on frozen ground; one that imports these
-types should pin a version.
+tool loop that *reads* an answer sees any observable change as a version bump;
+one that imports these types should pin an exact version.
 
 **How long will this take?** Since WP-1042 the default answers this itself:
 `index_pattern` resolves the **`quick` preset** — every engine, every requested

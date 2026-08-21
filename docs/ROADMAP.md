@@ -65,12 +65,12 @@ size caps on this file and CLAUDE.md.
 ## Current focus
 
 **v1.0 shipped 2026-08-16** ([record](milestones/v1.0.md)): public, gated,
-hosted, on PyPI. **The freeze is live**, so two rules now bind every session:
-a change to a frozen surface follows the hybrid classification in
-`docs/manual/using/compatibility.md`, and a 1.0.x manual chapter that
-documents a name *promotes it to frozen* — regenerate
-`tests/api_surface_deferred.txt` and earn a release-notes line
-([1067](wp/1067-user-api-manual.md)'s Context has the mechanics).
+hosted, on PyPI. **The promise is a preview**
+([1117](wp/1117-compatibility-promise.md), `docs/manual/using/compatibility.md`):
+anything may change in any release; any change a consumer could observe bumps
+its contract's last component by one, the comment beside the constant saying
+what — no classification. Documenting a name still gates arrival (the
+partition); it no longer freezes it.
 
 **The deferred bucket is empty and the live tier is a declared one**
 ([1076](wp/1076-result-row-honesty.md) closed [1067](wp/1067-user-api-manual.md);

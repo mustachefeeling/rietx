@@ -177,7 +177,7 @@ being asked for.
 
 ## Tasks
 
-- [ ] **Rewrite `docs/manual/using/compatibility.md` around what is actually
+- [x] **Rewrite `docs/manual/using/compatibility.md` around what is actually
       promised.** Delete § "How a change is classified"; state the preview
       position and how to pin. Three sentences survive the deletion or join
       it: the meaning clause ("a change to what an existing value means is

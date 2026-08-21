@@ -649,11 +649,11 @@ recent list, and is therefore not behind the 409 (WP-1044).
   bucket. That surface is **derived** (`tests/api_surface.py`, whose docstring
   has the rules), never listed — a curated list cannot notice a new public
   method, `_SURFACE_FLAGS` one rank up — so **adding a public method or field
-  fails that partition until it is documented or deferred, and documenting it
-  freezes it**. A subsystem under development says so by declaration (1078):
-  `PROVISIONAL_MODULES` keys a module prefix to a reason and the tier derives
-  from each name's **defining** module, so a new type inherits it and a
-  re-export is reached. Indexing is the one entry; the promise is
+  fails that partition until it is documented or deferred** — a coverage gate,
+  not a freeze (WP-1117). A subsystem under development says so by declaration
+  (1078): `PROVISIONAL_MODULES` keys a module prefix to a reason and the tier
+  derives from each name's **defining** module, so a new type inherits it and
+  a re-export is reached. Indexing is the one entry; the promise is
   `using/compatibility.md` § Provisional by declaration, `{ref}`d not restated.
   **A green build is not a rendered page**: `-W` cannot see a paragraph that
   printed its own TeX, so `test_no_unrendered_math_survives_the_build` scans the
@@ -698,12 +698,12 @@ takes **rules, not findings**.
 Shipped: **v0.1 … v1.0**, one record each in `docs/milestones/`; ROADMAP's table
 carries the acceptance one-liners, restated in neither place. **v1.0 shipped
 2026-08-16**: repo public with CI gating `main`, manual + AGENT_PROTOCOL hosted
-at `_about.DOCS_URL`, 1.0.0 on PyPI — so the compatibility promise
-(`docs/manual/using/compatibility.md`) binds: data contracts frozen, documented
-surface frozen, the deferred bucket provisional. `pyproject.version` tracks the
-milestone in flight (1.1.0.dev0 today — **v1.1, refinement speed**), or the
-last shipped when none is; a new milestone opens at `1.x.0.dev0`. It is the
-string every `RefinementResult.provenance` and history node stamps.
+at `_about.DOCS_URL`, 1.0.0 on PyPI; since WP-1117 the compatibility promise
+(`docs/manual/using/compatibility.md`) is a **preview** — anything may change
+in any release, versions bumping per observable change. `pyproject.version`
+tracks the milestone in flight (1.1.0.dev0 today — **v1.1, refinement speed**),
+or the last shipped when none is; a new milestone opens at `1.x.0.dev0`. It is
+the string every `RefinementResult.provenance` and history node stamps.
 
 **Indexing — the rules that govern behavior outside `indexing/`.** The full
 dossier is `src/rietx/indexing/CLAUDE.md` (auto-loads when a session works
