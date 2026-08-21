@@ -512,6 +512,19 @@ recent list, and is therefore not behind the 409 (WP-1044).
   adding a name to `backend.api.BACKEND_NAMES` and a row to
   `test_cross_backend.METHODS`; the conformance suite's meta-test fails if you
   do the first without the second.
+- **Two functions build Ω, 1-2 ulp apart on purpose, and each caller owns
+  which one it reproduces**: the residual `_profile`, the derivative bases
+  `_profile_basis` (the derivative form without the partials, so the bases
+  cannot shift under a caller's choice of partials). Code batching or reusing
+  one path for the other passes the spelling **in** (`_omega_batch`) rather
+  than sharing the build — lifting the wrong one moves every converged fit for
+  nothing (WP-1120). So the numpy forward is batched while the per-reflection
+  loop stays as `_phase_component_scalar`: the traced backends' path *and* the
+  oracle every batched claim is measured against. The phase sum scatters **once
+  per phase** — addition is commutative but not associative, so one bincount
+  across all phases regroups each shared point into a different double; a guard
+  for that builds the regrouped variant, never reverses the phase order, which
+  passes whatever the code does.
 - **Traced code runs inside `backend.traced.active(xp)`** — it makes `xp` the
   globally-bound backend *and* opens the backend's `full_precision()` scope.
   jax's fp64 is scoped, so a constant (or a θ vector) materialised outside it

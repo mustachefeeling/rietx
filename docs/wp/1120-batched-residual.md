@@ -1,6 +1,6 @@
 # WP-1120 — batch the residual: the forward's un-taken WP-1112 win
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-22 — batched numpy forward, 1.65× on the trigger cold fit and 1.11–1.15× on the four lab/synchrotron cases; bit-identical wherever the rows are symmetric
 Depends on: 1112 (the batched kernel and its bit-identity discipline)
 
 ## Goal
@@ -172,6 +172,62 @@ trigger pads to 121 points against a mean window well under that.  A
 width-bucketed scatter is the next lever if the harness still wants more.
 
 ## Handover log
+
+- **2026-08-22** — A cold four-phase lab-shaped refinement now takes 17
+  seconds where it took 28, and every other benchmark case got 11-15 % faster,
+  with no change to any answer that a fit without axial-divergence physics
+  returns: four of the five cases come back on exactly the same numbers,
+  evaluation for evaluation.  The gain is the whole of the forward model's
+  cost, and it was bought by evaluating a phase's peaks as one array operation
+  instead of one per reflection — arithmetic that was already written for the
+  derivative side a WP earlier and never used for the residual.  What it cost
+  is one ulp on peaks that carry the axial correction, which is enough to move
+  a solver's path by a single evaluation and not enough to move a parameter or
+  an esd.  It also cost the assumption the WP was opened on: the prototype it
+  was told to lift could not be lifted, because it builds its peak shape with
+  arithmetic that is deliberately not the residual's.
+
+  **Done.** All three checklist items.  The ordered scatter moved from
+  `optimize/least_squares.py` to `model/forward.py` as `accumulate_planes`
+  (aliased back at the old name, so no call site moved) — it is about
+  `BatchLayout`'s contract, and `model/` cannot import from `optimize/`.
+  `CompiledModel._omega_batch` is the batched twin of `_reflection_profile`
+  with the **profile spelling as a parameter**; `phase_component` dispatches to
+  `_phase_component_batched` on numpy and `_phase_component_scalar` — the
+  untouched loop — everywhere else; `derivative_bases` folds its
+  `profile_derivs=False` branch onto the same helper.
+  `tests/test_batched_forward.py` is the gate, nine rows.
+
+  **Measured** (`[dev]` venv, darwin/arm64 — no jax/torch).  Fast suite 2591
+  passed / 117 skipped, **+9 passes on 2582/117 and no new skip**, exactly the
+  nine rows added.  Full suite 2700 passed / 126 skipped in 26:45, green,
+  which is what says the ulp does not reach the FCJ acceptance protocols
+  (SRM 660c, FAP, capillary).  Harness before/after, back to back on an idle
+  machine, this branch against `dc7f4b79`: trigger 28.33-28.44 → 17.07-17.29 s
+  (**1.65×**), cpd-2 8.26-8.32 → 7.29-7.30, cpd-1a 4.74-4.75 → 4.20-4.27, nac
+  0.58-0.61 → 0.53-0.54, nac-lebail 0.52-0.55 → 0.44-0.48.  Rwp identical on
+  all five; per-stage nfev identical on the four without FCJ; the trigger's
+  moves 363 → 364.  The § Findings section holds the rest.
+
+  **Gotchas for the successor.**  (1) `_profile` and `_profile_basis` are
+  *deliberately* 1-2 ulp apart and the forward and the bases each own one of
+  them — this is the finding the WP turned on, and it is now a root CLAUDE.md
+  rule.  (2) A guard that reverses the phase order proves nothing about the
+  per-phase scatter: addition is commutative, and with two phases `P0 + P1` is
+  `P1 + P0` bit for bit.  Associativity is the property, so the gate builds the
+  regrouped variant instead.  (3) The forward's cost at a plan's *starting*
+  model under-predicts what a fit pays — weighting the starting-model ratio by
+  per-stage nfev predicts 3.5-3.7 s saved against 11.26 s measured.  Time the
+  fit, not the model.  (4) The WP opened with an acceptance command naming two
+  test files that do not exist; it now names the two that do.
+
+  **Next**, in order: [1115](1115-compiled-kernel-spike.md)'s go/no-go gate,
+  re-read against the harness this WP leaves — it is the one that moved, and
+  1114 wrote the gate to be read against whatever 1120 landed.  Then 1113's
+  priced preset flip, the remaining exact multiplier.  The width-bucketed
+  scatter is *not* next: it is real (the trigger pads every row to 121 points)
+  but it is an optimisation of an optimisation, and 1115 decides whether the
+  numpy path is where the remaining time is at all.
 
 - **2026-08-21** — created by WP-1114's session: the spike measured the
   scalar residual loop at 2.2-3.6× the batched exact kernel and recorded
