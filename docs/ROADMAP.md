@@ -99,7 +99,7 @@ One WP per session from here: [1112](wp/1112-batched-derivative-bases.md) batche
 Jacobian path → [1113](wp/1113-evaluation-count.md) evaluation count →
 [1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
 [1115](wp/1115-compiled-kernel-spike.md), gated on the harness still missing the
-targets. [1110](wp/1110-agent-surface-friction.md) rides alongside, items 13/8 landed 2026-08-20 and 1/2/4/6/12/14/15/17/18 on 2026-08-21 — the cell of a phase **the data cannot see** carries a per-stage window, the plan mirror is crossed at the two authorities that own it (root CLAUDE.md § Invariants, § Data flow), **evaluating a model no longer needs a fit**, and the covariance is **equilibrated before it is inverted**, so a direction the data does not move reports no esd rather than a small one (root CLAUDE.md § Invariants; the one change here a v1.1 release note must carry). Items 3/5/7 are answered as findings rather than code, 16/19/20 are open round findings; [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf.
+targets. [1110](wp/1110-agent-surface-friction.md) rides alongside, items 13/8 landed 2026-08-20 and 1/2/4/6/12/14/15/17/18 on 2026-08-21 — the cell of a phase **the data cannot see** carries a per-stage window, the plan mirror is crossed at the two authorities that own it (root CLAUDE.md § Invariants, § Data flow), **evaluating a model no longer needs a fit**, and the covariance is **equilibrated before it is inverted**, so a direction the data does not move reports no esd rather than a small one (root CLAUDE.md § Invariants; the one change here a v1.1 release note must carry). Items 3/5/7 are answered as findings rather than code, 16/19/20 are open round findings; [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf; [1117](wp/1117-compatibility-promise.md) closed 2026-08-21 — the preview promise above, the bump comments its changelog.
 
 Parked, in rough order, for after v1.1 — none of it blocks a speed session: the
 1.0.0-release-notes promises (`.rex` zip transport; `RefinementState.excluded_regions`
@@ -391,7 +391,7 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 | [1114](wp/1114-peaks-buffer-spike.md) | Peaks-buffer spike: shape reuse across 2θ | ⬜ | 1112 |
 | [1115](wp/1115-compiled-kernel-spike.md) | Compiled-kernel spike (gated) | ⬜ | 1112, 1114 |
 | [1116](wp/1116-session-protocol-hygiene.md) | Session-protocol hygiene: the scan that cried wolf | ✅ 2026-08-20 | — |
-| [1117](wp/1117-compatibility-promise.md) | The compatibility promise, rewritten for the users there are | ⬜ | — |
+| [1117](wp/1117-compatibility-promise.md) | The compatibility promise, rewritten for the users there are | ✅ 2026-08-21 | — |
 
 ## v2+ (seams pre-built, implementations fenced out)
 
