@@ -55,6 +55,24 @@ change to `x_scale` moves the trust-region path on **every** fit, so it needs
 the 1111 harness's equivalence bar across all seven cases rather than a spot
 check.
 
+From WP-1112 (2026-08-21), which halved the per-evaluation denominator and
+re-measured this WP's ground on the way out:
+
+- **The counts held; the wall behind them halved.** cpd-2's whole-fit
+  540 nfev / 420 njev at the new windows against 1109's 534/425, per-stage
+  `zero_disp` 93 and `cell` 131 unchanged — the count really is a property
+  of the problem, exactly as this WP's hypothesis wants. But the **LM basin
+  numbers** above (Rwp 0.245 vs 0.132, 13.2 vs 17.6 s) were measured at the
+  pre-1112 windows: re-measure before bisecting, since window truncation
+  moves both fits' stopping points.
+- **The trigger's worst stage is `lines_axial` (184 of 363 nfev), not the
+  position movers** — its `zero_disp` and `cell` take 10 each (good seeds),
+  so the crawl hypothesis's stage list is protocol- and start-dependent;
+  instrument before assuming the cpd shape generalises.
+- `Stage.window_slack_deg` exists now (1112's capture/tail split): a seeding
+  experiment that needs deliberate capture headroom has a declared per-stage
+  knob instead of a constant to bend.
+
 All numbers from WP-1109's 2026-08-20 review (QPA-acceptance `cpd-2`, 4
 phases, 9 cumulative stages, worktree venv `[dev]`, darwin/arm64) unless
 said otherwise.

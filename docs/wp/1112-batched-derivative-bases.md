@@ -1,6 +1,10 @@
 # WP-1112 — the batched derivative side, and η-aware windows
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-21 — bases + accumulation batched
+(symmetric bit-identical, FCJ ≤ ~1e-15 with the golden ritual), windows by a
+measured discarded-area bound; trigger cold 50 → 28.3-28.9 s, warm series
+4.5-22.4 → 2.1-15.0 s/pattern, QPA protocol fits ~halved at fractions within
+0.25 wt % of shipped
 Depends on: 1111 (the FCJ-padding go/no-go is judged on its trigger-shaped case)
 
 ## Goal
@@ -283,6 +287,76 @@ comparison.
 
 ## Handover log
 
+- **2026-08-21** — closed ✅, one session, eight commits.
+
+  A Rietveld iteration in this package now costs a half to a quarter of what
+  it did yesterday, with the answers unmoved where that was promised and
+  moved knowingly where it was not. The Jacobian's derivative bases and
+  their accumulation run as batched array operations — exactly bit-identical
+  on symmetric peaks, to rounding on FCJ ones — and the evaluation windows
+  are sized by a stated discarded-area bound instead of a fixed 30-FWHM
+  margin whose bias nobody had stated. On the harness the trigger-shaped
+  cold fit fell from 50 s to ~28 s, the warm series from 4.5-22.4 to
+  2.1-15.0 s per pattern, and the QPA protocol fits roughly halved — with
+  fractions within a quarter of a weight percent of what they were, against
+  bands of ±2/±6. Two beliefs died on the way: the "FCJ-heavy" cpd cases
+  carry no FCJ physics at any stage, and the 1e-3 area tolerance this WP's
+  own context proposed is mathematically unreachable for lab peaks (the
+  Lorentzian tail gives k ≈ η/(π·tol)).
+
+  **Done** — all six tasks, each with its record in the checklist above and
+  the gate record in Context: the go/no-go prototype
+  (`examples/bench_batched_derivative_bases.py`), the batched
+  `derivative_bases` (planes on `CompiledPhase.batch`, ragged `entries` as a
+  lazy view, all seven consumers untouched in that commit), the
+  order-preserving `_accumulate` scatter (goldens passed **un-recaptured** —
+  that is the bit-identity proof), the η-aware windows
+  (`WINDOW_AREA_TOL = 2e-2`, chosen by the QPA sweep), the capture-slack
+  split (`Stage.window_slack_deg`, `SCHEMA_VERSION` 0.2 → 0.3, textdoc key,
+  GUI highlighter + dist rebuilt; the indexing validation derives its slack
+  from the pattern range), and the one-hot FCJ sizing gate.
+
+  **Measured** (main-checkout `.venv` `[dev]`, darwin/arm64; harness run
+  idle and alone, best of 3, ranges): against 1111's opening baseline —
+  trigger cold **50 s → 28.25-28.85 s**, series warm **4.5-22.4 →
+  2.06-15.04 s**/pattern (`refit="stages"` 10.18-28.99), `cpd-2` protocol
+  **8.20-8.51 s** (15.6 s measured on the pre-WP tree this session, ~17.5 s
+  in 1109), `cpd-1a` **4.73-4.95 s** (9.7 s pre-WP), NAC legs 0.50-0.54 +
+  0.58 s. Rwp identity held (cpd-2 0.13290 in both the sweep and the
+  harness). Fast suite ends at **2580 passed + 117 skipped** with 6 tests
+  added by this session (5 batched-bases pins + 1 crosstalk-cap unit test),
+  no new skips; full suite fired once on the final tree: 27:53 wall,
+  2685 passed + 126 skipped + 4 failed, the 4 recalibrated with measured
+  numbers (commit "four slow-suite bars") and their files re-run green.
+  Erratum: the task-2 commit message says "+6 new tests"; that commit added
+  5 (the 6th came with task 4).
+
+  **Gotchas for whoever touches this next.** Windows are compiled state, so
+  the re-sizing moved every `y_calc`/`residual`/`jacobian`: all ten goldens
+  were re-captured (twice — the ritual's record is in
+  `tests/data/README.md` § backend_goldens) and any branch pinning a
+  compiled number must rebase, not merge blindly. `replay` recompiles at
+  the default slack, like it already recompiles at default c_w — marginal
+  and documented. The FCJ scope claims ≤ ~1e-15 rel, never bit-identity
+  (BLAS-size-dependent: it *sometimes* is, which is why it must not be
+  claimed). The misfit-injection texture tests now pin the stronger
+  no-phantom claim; the cap logic's regression is the direct unit test.
+
+  **Next**: [1113](1113-evaluation-count.md) (evaluation count), whose
+  Inherited now carries this session's re-measurements — start there,
+  because two of its quoted mechanisms moved: the per-stage counts held
+  (cpd-2 540/420 nfev/njev vs 1109's 534/425 — the count really is a
+  property of the problem) but the LM-basin numbers predate the new
+  windows, and the trigger's worst stage is now `lines_axial` (184 of 363
+  nfev), not the position movers. After it,
+  [1114](1114-peaks-buffer-spike.md) — its Inherited now states the
+  denominator this WP set.
+
+- **2026-08-21** — arrival prune: the WP-1110 `x_scale` lead moved to 1113's
+  Inherited — what it moves is the evaluation count (1113's quantity), not
+  the cost per evaluation, and this WP's own Non-goals fence solver work
+  there. The 1109 numbers folded into Context unchanged; the 1110
+  bit-identity note kept, because it is why 1111's baseline stands.
 - **2026-08-20** — created by the 1109 review session; took 1109's two
   largest tasks (the peak-loop re-scope and η windows) with their numbers,
   the truncation criterion corrected from height to area.
