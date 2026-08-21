@@ -75,7 +75,7 @@ backends; compiled kernels (WP-1115's gate); changing evaluation counts
 
 ## Tasks
 
-- [ ] Batched forward entry point on `CompiledModel` (omega planes +
+- [x] Batched forward entry point on `CompiledModel` (omega planes +
       ordered scatter), numpy path of the residual wired to it; scalar loop
       kept for the traced backends and as the bit-identity oracle.
 - [ ] Gate tests in 1112's shape: bit-identity on a symmetric case,

@@ -1145,7 +1145,46 @@ class CompiledModel:
 
     def phase_component(self, ip: int, values: dict[str, float],
                         hkl_intensity: np.ndarray | None = None) -> np.ndarray:
-        """Bragg contribution of one phase (used by the analytic scale Jacobian)."""
+        """Bragg contribution of one phase.
+
+        Batched on numpy (WP-1120), the per-reflection loop on every traced
+        backend — which is not a choice about speed but about what each path
+        can express: ``fcj_offsets_weights_batch`` is numpy-only by intent,
+        and ``backend/traced.py`` builds its own residual anyway.  The two
+        agree bit for bit on symmetric rows and to rounding on FCJ rows; the
+        loop is the oracle that says so (``_phase_component_scalar``).
+        """
+        if get_backend().name == "numpy":
+            return self._phase_component_batched(ip, values, hkl_intensity)
+        return self._phase_component_scalar(ip, values, hkl_intensity)
+
+    def _phase_component_batched(self, ip: int, values: dict[str, float],
+                                 hkl_intensity: np.ndarray | None = None
+                                 ) -> np.ndarray:
+        """One phase's Bragg contribution through the WP-1112 batched planes.
+
+        Ω is built with :meth:`_profile` — the loop's own spelling, not the
+        derivative bases' — and scattered by :func:`accumulate_planes`, whose
+        bincount reproduces the loop's ``window_add`` order.  A non-finite
+        position keeps the loop's semantics exactly: Ω is zeroed on that row
+        and the intensity is *not*, so a NaN intensity still reaches the
+        pattern, in both paths and at the same points.
+        """
+        lay = self.phases[ip].batch
+        peaks = self.phase_peaks(ip, values, hkl_intensity)
+        pos = lay.gather(peaks, 0)
+        omega = self._omega_batch(
+            lay, pos, lay.gather(peaks, 1), lay.gather(peaks, 2),
+            np.isfinite(pos), values["instrument.geometry.axial_sl"],
+            values["instrument.geometry.axial_hl"], self._profile)
+        return accumulate_planes(
+            len(self.tt), [(lay, [(lay.gather(peaks, 3), omega)])])
+
+    def _phase_component_scalar(self, ip: int, values: dict[str, float],
+                                hkl_intensity: np.ndarray | None = None
+                                ) -> np.ndarray:
+        """The per-reflection loop: the traced backends' path, and the
+        bit-identity oracle every batched claim is measured against."""
         xp = get_backend()
         y = xp.zeros_like(self.tt)
         grid = xp.asarray(self.tt, dtype=np.float64)  # lifted once, see below
@@ -1398,7 +1437,10 @@ class CompiledModel:
 
         ``profile_derivs=False`` is the same bargain one term earlier and it is
         the larger one: it leaves ∂Ω/∂pos, ∂Ω/∂Γ and ∂Ω/∂η ``None`` and takes
-        Ω from the plain profile rather than the derivative form, so a stage
+        Ω from :meth:`_profile_basis` — the derivative form's own arithmetic
+        with the partials dropped, and deliberately *not* the plain
+        :meth:`_profile` the forward uses, so the bases cannot shift under a
+        caller's decision about which partials it needs — so a stage
         whose free parameters move only *intensities* — scale, Biso, the
         coordinates and ADPs, extinction, the March coefficient, a line weight
         — stops paying for three partials nothing reads.  The three terms are
@@ -1446,54 +1488,50 @@ class CompiledModel:
             has_fcj = bool(np.any((lay.fcj > 0) & finite))
             if has_fcj and (sl <= 0.0 or hl <= 0.0):
                 axial_ok = False
-            omega = np.zeros((n_rows, w_max))
             d_pos = d_gamma = d_eta = d_sl = d_hl = None
-            if profile_derivs:
-                d_pos = np.zeros((n_rows, w_max))
-                d_gamma = np.zeros((n_rows, w_max))
-                d_eta = np.zeros((n_rows, w_max))
-                if build_axial and has_fcj:
-                    d_sl = np.zeros((n_rows, w_max))
-                    d_hl = np.zeros((n_rows, w_max))
+            if not profile_derivs:
+                # Ω alone, through the shared batched builder — in the bases'
+                # own spelling, which the forward's is deliberately not
+                omega = self._omega_batch(lay, pos, w1, w2, finite, sl, hl,
+                                          self._profile_basis)
+                planes_all.append(PhasePlanes(
+                    layout=lay, finite=finite, pos=pos, w1=w1, w2=w2,
+                    inten=inten, omega=omega, d_pos=None, d_gamma=None,
+                    d_eta=None, d_sl=None, d_hl=None))
+                continue
+            omega = np.zeros((n_rows, w_max))
+            d_pos = np.zeros((n_rows, w_max))
+            d_gamma = np.zeros((n_rows, w_max))
+            d_eta = np.zeros((n_rows, w_max))
+            if build_axial and has_fcj:
+                d_sl = np.zeros((n_rows, w_max))
+                d_hl = np.zeros((n_rows, w_max))
             srows = lay.buckets.get(0, np.zeros(0, dtype=np.int64))
             if len(srows):
-                xs = lay.x[srows] - pos[srows, None]
-                if profile_derivs:
-                    pv, ddx, ddg, dde = self._profile_derivs(
-                        xs, w1[srows, None], w2[srows, None])
-                    omega[srows] = pv
-                    d_pos[srows] = -ddx
-                    d_gamma[srows] = ddg
-                    d_eta[srows] = dde
-                else:
-                    omega[srows] = self._profile_basis(
-                        xs, w1[srows, None], w2[srows, None])
+                pv, ddx, ddg, dde = self._profile_derivs(
+                    lay.x[srows] - pos[srows, None],
+                    w1[srows, None], w2[srows, None])
+                omega[srows] = pv
+                d_pos[srows] = -ddx
+                d_gamma[srows] = ddg
+                d_eta[srows] = dde
             for n, rows_b in lay.buckets.items():
                 if n == 0:
                     continue
                 nodes = fcj_offsets_weights_batch(pos[rows_b], sl, hl, n)
-                shift = axl = axh = None
-                if profile_derivs:
-                    shift = fcj_offsets_weights_batch(
-                        pos[rows_b] + h_pos, sl, hl, n)
-                    if d_sl is not None:
-                        axl = fcj_offsets_weights_batch(
-                            pos[rows_b], sl + h_ax, hl, n)
-                        axh = fcj_offsets_weights_batch(
-                            pos[rows_b], sl, hl + h_ax, n)
+                shift = fcj_offsets_weights_batch(
+                    pos[rows_b] + h_pos, sl, hl, n)
+                axl = axh = None
+                if d_sl is not None:
+                    axl = fcj_offsets_weights_batch(
+                        pos[rows_b], sl + h_ax, hl, n)
+                    axh = fcj_offsets_weights_batch(
+                        pos[rows_b], sl, hl + h_ax, n)
                 for a in range(0, len(rows_b), _BASES_CHUNK_ROWS):
                     rs = rows_b[a:a + _BASES_CHUNK_ROWS]
                     s = slice(a, a + _BASES_CHUNK_ROWS)
                     phi, om = nodes[0][s], nodes[1][s]
                     x3 = lay.x[rs][:, None, :] - phi[:, :, None]
-                    if not profile_derivs:
-                        # Ω is the same convolution either way; only the
-                        # partials are dropped, and with them the node-FD
-                        # generations that build ∂Ω/∂pos
-                        pv = self._profile_basis(
-                            x3, w1[rs, None, None], w2[rs, None, None])
-                        omega[rs] = _node_mix(om, pv)
-                        continue
                     pv, ddx, ddg, dde = self._profile_derivs(
                         x3, w1[rs, None, None], w2[rs, None, None])
                     omega[rs] = _node_mix(om, pv)
