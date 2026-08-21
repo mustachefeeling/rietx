@@ -106,18 +106,31 @@ node-FD, axial off — against two loop baselines: **warm** (every FCJ node
 slot hits — a width-moving stage) and **cold** (the pos-FD variants miss —
 a position-moving stage, where `zero_disp` and `cell` live).
 
-- **The premise was half wrong: cpd-1a has no FCJ row at any stage, and
-  neither does cpd-2** — the case every 1109 profile number came from.
-  `qarr_instrument` leaves both axial ratios at the preset's 0.0 and
-  `qpa_plan` frees only `axial_sl`, so `fcj_node_count` returns 0 at every
-  stage (the FCJ trapezoid height is 2·min(S/L, H/L) — both apertures must
-  be positive) and the freed `axial_sl` is a provably-zero column, reported
-  as unmeasured.  The harness blurbs calling cpd-1a "the FCJ-heavy case"
-  are corrected in this WP; the harness's FCJ case is the **trigger**
-  (93 % of 1 188 rows, nodes 8-17, axial 0.020/0.020).  So the 1109
-  microbenchmarks were symmetric-kernel numbers measured on an
-  all-symmetric fit — consistent, and now known to describe the whole QPA
-  protocol.
+- **The premise was half wrong: FCJ *physics* is off at every stage of the
+  QPA protocol, on cpd-1a and on cpd-2** — the case every 1109 profile
+  number came from.  `qarr_instrument` leaves both axial ratios at the
+  preset's 0.0 and `qpa_plan` frees only `axial_sl`, and the FCJ trapezoid
+  height is 2·min(S/L, H/L) — both apertures must be positive.  Stages
+  before `lines_axial` compile no node at all (the state the prototype
+  measured); the freed `axial_sl` is a provably-zero column, reported as
+  unmeasured.  The harness blurbs calling cpd-1a "the FCJ-heavy case" are
+  corrected in this WP; the harness's FCJ case is the **trigger** (93 % of
+  1 188 rows, nodes 8-17, axial 0.020/0.020).  So the 1109 microbenchmarks
+  were symmetric-kernel numbers measured on symmetric stages — consistent.
+- **The floor's one-hot overhead, found and measured while correcting the
+  claim above**: from `lines_axial` on, cumulative freeing puts `axial_sl`
+  in `moving_paths` and `AXIAL_SIZING_FLOOR` floors *both* apertures for
+  sizing, so nodes are allocated (cpd-1a: 215 of 222 rows, counts 8-13+)
+  that evaluate as **one-hot symmetric fallbacks** — `derivative_bases`
+  3.6 → 9.2 ms and the forward 2.0 → 4.3 ms on those stages, pure overhead
+  for an identity, plus one FD residual per Jacobian call for the zero
+  `axial_sl` column (`axial_ok` False at sl = hl = 0).  The fix is a
+  structural gate of the `skip_extinction` kind — allocate only when *both*
+  apertures can be positive this stage (value > 0 or path in
+  `moving_paths`) — but it also removes the floored `fcj_extent_deg` window
+  margin, and y_calc at fixed θ moves 1.2e-4 rel with the window extent, so
+  it is **not** answer-preserving and lands with the η-window task (task
+  4), where the re-baseline is already owed.
 - **Symmetric scope: 4.0× and exactly bit-equal, every layout** (cpd-1a,
   222 rows, w_max 283: loop 3.9 ms → 0.94-0.98 ms).  This shape is the
   entire QPA protocol and every synchrotron case.
@@ -173,7 +186,9 @@ approximation (1114).
       is claimed.
 - [ ] **η-aware window sizing** by the area criterion above, after the batch;
       re-baseline per `tests/data/README.md` with the equivalence argument
-      (area tolerance) recorded next to each moved golden.
+      (area tolerance) recorded next to each moved golden.  Includes the
+      one-hot sizing gate from the gate record (allocate FCJ nodes only when
+      both apertures can be positive this stage) — same re-baseline event.
 - [ ] Cross-backend: `tests/test_cross_backend.py` configs grow if any
       derivative path's shape changed (CLAUDE.md: the matrix must cover every
       derivative path); `families_tied` row re-checked.

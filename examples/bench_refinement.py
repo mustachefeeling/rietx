@@ -51,11 +51,14 @@ the candidate explanations.
              here because timing only the Rietveld leg against that row shows a
              2.4× discrepancy that is not a speed change.
 ``cpd-1a``   IUCr CPD round-robin sample 1a, 3 phases, Cu Kα doublet,
-             ``qpa_plan`` (8 stages), 7 251 points.  **No FCJ**, despite the
-             lab optics: ``qarr_instrument`` leaves both axial ratios at 0.0
-             and the plan frees only ``axial_sl``, so no stage of the QPA
-             protocol ever compiles a quadrature node (both apertures must
-             be positive — measured by WP-1112's gate, which corrected this
+             ``qpa_plan`` (8 stages), 7 251 points.  **FCJ physics is off at
+             every stage**, despite the lab optics: ``qarr_instrument``
+             leaves both axial ratios at 0.0 and the plan frees only
+             ``axial_sl``, and the aberration needs both positive.  Stages
+             before ``lines_axial`` compile no quadrature node; from it on,
+             cumulative freeing plus ``AXIAL_SIZING_FLOOR`` allocate nodes
+             that evaluate as one-hot symmetric fallbacks — overhead, not
+             asymmetry (measured by WP-1112's gate, which corrected this
              blurb).  The small-cell lab case; the FCJ case is ``trigger``.
 ``cpd-2``    The same instrument on sample 2 under the **QPA acceptance
              protocol** — 4 phases, 9 stages with texture — i.e.
