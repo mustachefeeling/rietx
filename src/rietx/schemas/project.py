@@ -30,8 +30,9 @@ from .common import Base, Mode
 from .indexing import IndexingControls
 from .plan import PlanSpec
 
-#: Bumped when a field's *meaning* changes, not when one is added.  ``open``
-#: refuses a newer major than it knows rather than letting pydantic's
+#: Any change a consumer could observe bumps the last component by one, and
+#: the comment says what changed — no classification, no digest (WP-1117).
+#: ``open`` refuses a newer major than it knows rather than letting pydantic's
 #: ``extra="forbid"`` report an unknown field, which is true but unhelpful.
 #:
 #: ``1.1`` (WP-1047): ``DataRef.options`` gained ``scan``, so the vocabulary a

@@ -192,7 +192,7 @@ being asked for.
       into the chapter still resolves — root CLAUDE.md and `docs/ROADMAP.md`
       both restate the freeze ("documenting it freezes it") and need the same
       re-grounding, not only a link pass.
-- [ ] **State the bump rule in each of the six constants' comments — one
+- [x] **State the bump rule in each of the six constants' comments — one
       sentence, identical**: any change a consumer could observe bumps the
       last component by one, and the comment beside the constant says what
       changed. No classification (the relaxed promise makes safe/minor/

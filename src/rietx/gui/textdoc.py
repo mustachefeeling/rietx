@@ -86,10 +86,11 @@ from ..strategy.staged import PLAN_PRESETS
 
 #: The ``<magic> N`` header, where the magic is :data:`.._about.TEXTDOC_MAGIC`
 #: — the token is a format contract and lives with the other name-bearing
-#: literals, deliberately free of the brand (WP-1062).  Bumped when a line's
-#: *meaning* changes, not when a
-#: block is added — WP-1017 injects this into the manual as a fenced constant, so
-#: a bump that misses the manual fails the docs build.
+#: literals, deliberately free of the brand (WP-1062).
+#: Any change a consumer could observe bumps the last component by one, and
+#: the comment says what changed — no classification, no digest (WP-1117).
+#: WP-1017 injects this into the manual as a fenced constant, so a bump that
+#: misses the manual fails the docs build.
 FORMAT_VERSION = "1"
 
 #: Significant digits every value renders at.  See the module docstring: the

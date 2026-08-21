@@ -34,6 +34,8 @@ from pydantic import Field, field_validator, model_validator
 
 from .common import Base, Diagnostic, Provenance
 
+#: Any change a consumer could observe bumps the last component by one, and
+#: the comment says what changed — no classification, no digest (WP-1117).
 #: 1.0 (WP-1018): first release of the peak-list contract.
 #: 1.1 (WP-1038): ``ShiftScreen.source`` gains ``"reflection_pairs"`` and the
 #: screen gains ``allowance_deg`` — a vocabulary member is a contract change even
