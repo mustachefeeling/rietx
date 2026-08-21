@@ -788,10 +788,14 @@ class ParameterTable:
         reaches the tied rows as well, since a tie whose source measured
         nothing measured nothing.
         """
-        cov = self._cov_free(theta, stderr_internal, correlation)
         if correlation is None:
-            var = np.asarray(self._C.multiply(self._C) @ np.diag(cov)).ravel()
+            # stays on the diagonal *vector*: this branch is the cheap one, and
+            # a Pawley table's dense n×n would be tens of MB for a number that
+            # never leaves the diagonal
+            s = self._sigma_free_measured(theta, stderr_internal)
+            var = np.asarray(self._C.multiply(self._C) @ (s * s)).ravel()
         else:
+            cov = self._cov_free(theta, stderr_internal, correlation)
             var = np.asarray(self._C.multiply(self._C @ cov).sum(axis=1)).ravel()
         var = np.maximum(var, 0.0)
         touched = np.diff(self._C.indptr) > 0  # rows with any free source
@@ -835,11 +839,20 @@ class ParameterTable:
         length is not made unmeasurable by an unrelated profile term, and it is
         made unmeasurable by a coordinate that measured nothing.
         """
-        s = self._phys_sigma_free(theta, stderr_internal)
-        s = np.where(np.isfinite(s), s, 0.0)
+        s = self._sigma_free_measured(theta, stderr_internal)
         if correlation is None:
             return np.diag(s * s)
         return np.asarray(correlation, dtype=np.float64) * np.outer(s, s)
+
+    def _sigma_free_measured(self, theta: np.ndarray, stderr_internal: np.ndarray
+                             ) -> np.ndarray:
+        """:meth:`_phys_sigma_free` with the unmeasured columns zeroed.
+
+        The one place the infinities leave the arithmetic, so no consumer can
+        forget: :meth:`unmeasured_free` is where they are *reported*.
+        """
+        s = self._phys_sigma_free(theta, stderr_internal)
+        return np.where(np.isfinite(s), s, 0.0)
 
     def unmeasured_free(self, theta: np.ndarray, stderr_internal: np.ndarray
                         ) -> np.ndarray:
