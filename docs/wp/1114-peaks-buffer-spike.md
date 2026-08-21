@@ -243,9 +243,10 @@ peak's *position* alone, so a Kα2 reflection reads the same family as its
 Kα1 twin.  Frozen at stage compile (the same class as windows and node
 counts — invariant 1): the anchor positions (greedy probe-and-bisect to the
 stage's tolerance, with the domain split at the Γ_G-clamp roots, which the
-compile knows analytically), per-anchor FCJ node counts, and the stored
-offset grid (step ≈ min(pattern step, Γ_min/4); half-width read off the
-frozen windows plus a drift margin).  The anchor *values* — the sampled
+compile knows analytically), per-anchor FCJ node counts (floored, never the
+sub-threshold skip — Findings 3), and the stored offset grid (step
+min(pattern step, Γ_min/16) — Findings 3 has why /4 was 1e-3 wrong;
+half-width read off the frozen windows plus a drift margin).  The anchor *values* — the sampled
 planes — are recomputed from the current θ on every evaluation, so they
 follow the parameters smoothly between recompiles; only indices and counts
 are discrete.
@@ -264,7 +265,9 @@ widths (Γ_k, η_k) reconstructs
 
     Ω = S(p) + (Γ_k − Γ_law(p))·S_Γ(p) + (η_k − η_law(p))·S_η(p)
 
-resampled onto its window by 4-tap Catmull-Rom (C¹) interpolation in Δ.
+resampled onto its window by 4 cubic B-spline taps over Unser-prefiltered
+samples — the exact C² interpolating spline in Δ at 4-tap cost (raw-sample
+Catmull-Rom is O(h³) and measurably not enough — Findings 3).
 The Taylor term keeps Ω first-order exact wherever a reflection's width
 leaves the law — position corrections move p off 2θ_Bragg today, and a
 Stephens Λ(hkl) block is *exactly* this term later.  The Jacobian reuses
@@ -279,7 +282,7 @@ law-drift subtractions stop it being counted twice against the scalar
 chain's ∂Γ/∂p, which already carries the width motion.  ∂Ω/∂(S/L) and
 ∂Ω/∂(H/L) are anchor-level FDs (two extra anchor sets, K each, still
 trivial).  Everything is C¹ in θ and in every parameter (C² spline over
-anchors that are themselves smooth functions of θ; C¹ resample), so the
+anchors that are themselves smooth functions of θ; C² resample), so the
 analytic-Jacobian invariant survives — which is the second, independent
 reason the linear blends lose: they are C⁰ at anchors, and a moving cell
 would drag those kinks through the residual.
