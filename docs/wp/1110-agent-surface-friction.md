@@ -186,7 +186,10 @@ Each is a real failure of an agent doing real work on the trigger dataset.
 18. **`bound_findings`' relative tolerance misfires on wide bounds.** With scale
     bounds `[1e-14, 1e14]` the `1e-8 × span` tolerance is enormous, so the scale
     read as "at its bound" at every stage. `Parameter.positive()` reproduced an
-    identical Rwp to six figures and cleared it.
+    identical Rwp to six figures and cleared it. **Fixed 2026-08-21**: the
+    tolerance is now relative to the closest bound's own magnitude, quoted from
+    scipy's `active_mask` rule rather than chosen. § Item 18 has the numbers,
+    including why `positive()` cleared it.
 19. **There is no TOPAS `.inp` reader**, so every agent transcribed the model by
     hand — including inferring that a missing backtick means "fixed". All six
     named this as the hardest part. A mistyped coordinate stays symmetry-valid

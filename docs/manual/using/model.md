@@ -311,6 +311,13 @@ declared bound while every source is interior. And a result built without a fit
 behind it has nothing to report — [`replay`](history.md) recomputes a recorded
 node's curves without running the guard, so every one of its rows is `None`.
 
+**What counts as being on a bound is the solver's own test**, not a second
+one: a value is on a bound when it sits within 1e-10 of *that bound's* own
+magnitude, floored at 1 — the rule `scipy.optimize.least_squares` uses to fill
+its `active_mask`. Relative to the bound it is near, never to the gap between
+the two, so writing `min=1e-14, max=1e14` to mean "leave this alone" does not
+make every value in between read as pinned.
+
 Both channels carry the same fact, and by construction rather than by
 agreement: the flag is the `BOUND_HIT` findings projected onto the rows, from
 one bound test. Read whichever suits the shape of your code — the diagnostic

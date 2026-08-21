@@ -740,12 +740,23 @@ def check_stephens_positive(table, model) -> list[GuardFinding]:
     return out
 
 
-#: a free column counts as "on its bound" within this fraction of the bound
-#: span.  Relative, because the free vector is *internal*: a softplus width and
-#: an identity-transform cell edge share no scale, and an absolute tolerance
-#: would mean something different on each.  An infinite span (the usual case
-#: for a one-sided bound) falls back to an absolute 1e-8.
-BOUND_HIT_REL_TOL = 1e-8
+#: a free column counts as "on its bound" within this fraction of **the closest
+#: bound's own magnitude**, floored at 1 — scipy's ``rtol`` from
+#: ``optimize._lsq.common.find_active_constraints``, which is the test TRF
+#: itself uses to fill ``OptimizeResult.active_mask``.  Quoted rather than
+#: chosen: the diagnostic and the solver then cannot hold different opinions
+#: about the same column, and the value is calibrated to how far
+#: ``make_strictly_feasible`` pushes an iterate off a bound it is sitting on.
+#:
+#: Relative it must be, because the free vector is *internal*: a softplus width
+#: and an identity-transform cell edge share no scale.  Relative to the **span**
+#: — what this was until WP-1110 — is the version that misfires, and widely: a
+#: caller's ``Parameter(min=1e-14, max=1e14)`` scale gives a span of 1e14, hence
+#: a tolerance of 1e6, so a scale of 1.0 sitting fourteen orders of magnitude
+#: from either bound reports ``BOUND_HIT`` at every stage.  The magnitude of the
+#: bound the value is near is the quantity that does not grow with how generous
+#: the *other* bound was.
+BOUND_HIT_RTOL = 1e-10
 
 
 def bound_findings(bounds, free: list[str], theta) -> list[GuardFinding]:
@@ -766,6 +777,12 @@ def bound_findings(bounds, free: list[str], theta) -> list[GuardFinding]:
     Only *free* paths are testable.  A tied path is not in ``theta`` and is
     never seen here, so a consumer must report it as unmeasured rather than as
     not-at-a-bound; that is what the flag's third state is for.
+
+    The test is scipy's own (see :data:`BOUND_HIT_RTOL`), including the clause
+    that makes a bound active only when it is the **nearer** of the two: on a
+    narrow interval both thresholds can cover the whole span, and without it
+    which bound gets reported is decided by the order the branches are written
+    in rather than by where the value sits.
     """
     import numpy as np
 
@@ -773,10 +790,11 @@ def bound_findings(bounds, free: list[str], theta) -> list[GuardFinding]:
     out: list[GuardFinding] = []
     for k, path in enumerate(free):
         t = theta[k]
-        span = hi[k] - lo[k]
-        tol = BOUND_HIT_REL_TOL * (span if np.isfinite(span) else 1.0)
-        if ((np.isfinite(lo[k]) and t - lo[k] <= tol)
-                or (np.isfinite(hi[k]) and hi[k] - t <= tol)):
+        below, above = t - lo[k], hi[k] - t
+        tol_lo = BOUND_HIT_RTOL * max(1.0, abs(lo[k])) if np.isfinite(lo[k]) else None
+        tol_hi = BOUND_HIT_RTOL * max(1.0, abs(hi[k])) if np.isfinite(hi[k]) else None
+        if ((tol_lo is not None and below <= min(above, tol_lo))
+                or (tol_hi is not None and above <= min(below, tol_hi))):
             out.append(GuardFinding.at_bound(path))
     return out
 
