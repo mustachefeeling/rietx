@@ -78,7 +78,7 @@ backends; compiled kernels (WP-1115's gate); changing evaluation counts
 - [x] Batched forward entry point on `CompiledModel` (omega planes +
       ordered scatter), numpy path of the residual wired to it; scalar loop
       kept for the traced backends and as the bit-identity oracle.
-- [ ] Gate tests in 1112's shape: bit-identity on a symmetric case,
+- [x] Gate tests in 1112's shape: bit-identity on a symmetric case,
       to-rounding agreement + esd/parameter identity on an FCJ case.
 - [ ] Harness before/after on the 1111 cases (`bench_refinement.py`), row
       added to `rietx compare` only if a protocol number moves (it must
@@ -87,10 +87,15 @@ backends; compiled kernels (WP-1115's gate); changing evaluation counts
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_forward.py tests/test_row_layout.py -q
+.venv/bin/python -m pytest tests/test_batched_forward.py tests/test_derivative_bases_batched.py
 .venv/bin/python examples/bench_refinement.py --cases trigger,cpd-2
 .venv/bin/python -m ruff check src tests examples
 ```
+
+(The command this WP opened with named `tests/test_forward.py` and
+`tests/test_row_layout.py`; neither exists.  `test_batched_forward.py` is this
+WP's gate, `test_derivative_bases_batched.py` is WP-1112's, and the second is
+here because this WP refactored the build both share.)
 
 The harness shows the residual-evaluation share of the trigger cold fit
 shrinking by roughly the table's ratio; every Rwp identity-checks against
