@@ -102,6 +102,13 @@ rietx = "rietx.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rietx"]
+# Hatchling takes every non-ignored file under a package directory, so the three
+# subsystem rulebooks (gui/, indexing/, io/) were installing into site-packages
+# and an agent read one there as the package's own documentation (WP-1110 item
+# 20).  They address a session *changing* rietx and cite tests/, docs/wp/ and
+# commands no installed copy has.  The document written for a consumer ships on
+# purpose and is the force-include below.
+exclude = ["**/CLAUDE.md"]
 
 [tool.hatch.build.targets.wheel.force-include]
 # The agent protocol ships inside the wheel (WP-1003): the tool description

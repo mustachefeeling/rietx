@@ -636,6 +636,17 @@ The decision above is taken, so these are now ordered. Candidates, by value:
       keeps one and charges for disagreeing. Any *other* guessable name is
       still open, and there is no way to enumerate them except by watching
       more agents miss.
+- [x] **Stop the wheel shipping the maintainer's rulebooks** (item 20) — **done
+      2026-08-21**. `src/rietx/{gui,indexing,io}/CLAUDE.md` sit beside the code
+      they govern, which puts them under the package directory, so hatchling
+      packaged all three and an agent read one out of site-packages as though it
+      were this package's documentation. The wheel target now excludes
+      `**/CLAUDE.md`: measured, 162 → 159 entries and nothing else moved, with
+      `rietx/data/AGENT_PROTOCOL.md` — the document written for a consumer —
+      still force-included and asserted in the same module. A glob rather than
+      three paths, so a fourth rulebook lands beside its subsystem and not on a
+      list here. Not on the task list before this session, because the list
+      predates the round that found the item.
 - [x] **Decide why `refine_json` was not reached** — **done 2026-08-20**, by
       the registered six-agent round rather than by reasoning (§ The decision).
       The question's premise was false. It *is* reached once an agent is told,
