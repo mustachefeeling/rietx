@@ -80,9 +80,9 @@ backends; compiled kernels (WP-1115's gate); changing evaluation counts
       kept for the traced backends and as the bit-identity oracle.
 - [x] Gate tests in 1112's shape: bit-identity on a symmetric case,
       to-rounding agreement + esd/parameter identity on an FCJ case.
-- [ ] Harness before/after on the 1111 cases (`bench_refinement.py`), row
+- [x] Harness before/after on the 1111 cases (`bench_refinement.py`), row
       added to `rietx compare` only if a protocol number moves (it must
-      not — this is exact).
+      not — this is exact).  No row owed: Rwp is identical on all five cases.
 
 ## Acceptance
 
@@ -106,6 +106,43 @@ the pre-change run.
 - WP-1112's gate record (batched bases, bit-identity bars) — v1.1 milestone
   appendix.
 - WP-1114 § Findings 3 — the measurement this WP exists to cash.
+
+## Findings
+
+**The batched forward is worth 1.65× on the trigger and ~1.12× on everything
+else**, and the split says why: the trigger carries 1 188 (line, reflection)
+pairs against 129-308 for the rest, so it is the case where per-reflection
+*dispatch* dominated.  Measured back to back on an idle machine, `[dev]` venv,
+darwin/arm64, best-of-3, this WP's branch against `dc7f4b79`:
+
+| case | before (s) | after (s) | ratio | nfev | Rwp |
+|---|---|---|---|---|---|
+| nac-lebail | 0.52-0.55 | 0.44-0.48 | 1.15× | 71 → 71 | 0.14348 both |
+| nac | 0.58-0.61 | 0.53-0.54 | 1.11× | 47 → 47 | 0.09317 both |
+| cpd-1a | 4.74-4.75 | 4.20-4.27 | 1.12× | 408 → 408 | 0.17128 both |
+| cpd-2 | 8.26-8.32 | 7.29-7.30 | 1.13× | 540 → 540 | 0.13290 both |
+| trigger | 28.33-28.44 | 17.07-17.29 | **1.65×** | 363 → 364 | 0.01998 both |
+
+**The four no-FCJ cases return identical per-stage nfev and identical Rwp.**
+That is the equivalence bar met end to end rather than at one evaluation: four
+independent protocols, 47 to 540 evaluations each, every one landing on the
+same double.  The trigger is the only FCJ case and the only one whose count
+moves, by one — the ulp reaching a trust-region decision.
+
+**WP-1114's 2.2× on the trigger's *forward* became 1.65× on its *fit*, which
+is more than the residual alone allows.**  The reason is that
+`phase_component` is not only the residual's: the whole-model FD fallback in
+`_column_extras` calls `model.evaluate` twice per column, and those columns are
+what an FCJ stage spends its time on (`lines_axial` is 182 of the trigger's
+364 evaluations).  Batching the forward paid there too.
+
+**The Ω the residual builds is not the Ω the bases build**, and that is the
+finding this WP turned on — it is in Context, and it is why
+`batched_exact_evaluate` could not be lifted.
+
+**`w_max` padding is still on the table** (WP-1114's inherited warning): the
+trigger pads to 121 points against a mean window well under that.  A
+width-bucketed scatter is the next lever if the harness still wants more.
 
 ## Handover log
 
