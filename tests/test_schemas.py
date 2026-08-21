@@ -1,7 +1,10 @@
 import copy
 import dataclasses
 import inspect
+import json
 import math
+import pickle
+import re
 
 import pytest
 from pydantic import ValidationError
@@ -183,6 +186,65 @@ def test_asking_a_plan_dataclass_for_pydantic_names_the_mirror(obj, mirror):
     with pytest.raises(AttributeError):
         obj.no_such_attribute
     assert copy.deepcopy(obj) == obj
+
+
+def _bare_result():
+    """A RefinementResult with nothing but its required fields."""
+    from rietx.schemas.common import Provenance
+    from rietx.schemas.results import RefinementResult, Statistics
+
+    return RefinementResult(
+        status="converged", mode="rietveld", parameters=[],
+        statistics=Statistics(rwp=0.1, rp=0.08, rexp=0.05, chi2=4.0, gof=2.0,
+                              n_points=100, n_free_parameters=5),
+        provenance=Provenance(package_version="0.0.0+test"))
+
+
+@pytest.mark.parametrize("name, path", [
+    ("rwp", "result.statistics.rwp"),
+    ("gof", "result.statistics.gof"),
+    ("chi2", "result.statistics.chi2"),
+    ("esd_inflation", "result.statistics.esd_inflation"),
+    ("backend", "result.provenance.backend"),
+    ("mu_r", "result.absorption.mu_r"),
+    ("soft_modes", "result.identifiability.soft_modes"),
+])
+def test_a_nested_number_is_answered_with_its_path(name, path):
+    """``result.rwp`` is WP-1110's most expensive miss, because of *when*.
+
+    The ``AttributeError`` arrived after a 105 s refinement had completed and
+    took it with it, and the bare ``'RefinementResult' object has no attribute
+    'rwp'`` does not say where the number is.  Parametrised past ``rwp``
+    because the message is **derived** from the live annotations, not from a
+    list of misses already seen: the optional blocks are searched too, so a
+    field added to one of them is covered on the day it lands.
+    """
+    with pytest.raises(AttributeError, match=re.escape(path)):
+        getattr(_bare_result(), name)
+
+
+def test_the_hint_is_a_pointer_and_not_an_alias():
+    """Nothing new is reachable, and nothing new is frozen.
+
+    Forwarding the value would give two spellings of one fact and promote a
+    dozen nested names to public API under the v1.0 freeze.  So the top level
+    still has no ``rwp``: ``hasattr`` is False, ``model_fields`` is unchanged,
+    and the JSON is unchanged.
+    """
+    result = _bare_result()
+
+    assert not hasattr(result, "rwp")
+    assert "rwp" not in type(result).model_fields
+    assert "rwp" not in json.loads(result.model_dump_json())
+    assert result.statistics.rwp == 0.1
+
+    # a name that is nowhere still raises the ordinary way, and the machinery
+    # pydantic and the stdlib probe with is untouched
+    with pytest.raises(AttributeError, match="no attribute 'not_a_field'"):
+        result.not_a_field
+    assert copy.deepcopy(result) == result
+    assert pickle.loads(pickle.dumps(result)) == result
+    assert type(result).model_validate_json(result.model_dump_json()) == result
 
 
 def test_plan_spec_is_one_class_everywhere():
