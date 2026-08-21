@@ -129,12 +129,39 @@ independent protocols, 47 to 540 evaluations each, every one landing on the
 same double.  The trigger is the only FCJ case and the only one whose count
 moves, by one — the ulp reaching a trust-region decision.
 
-**WP-1114's 2.2× on the trigger's *forward* became 1.65× on its *fit*, which
-is more than the residual alone allows.**  The reason is that
-`phase_component` is not only the residual's: the whole-model FD fallback in
-`_column_extras` calls `model.evaluate` twice per column, and those columns are
-what an FCJ stage spends its time on (`lines_axial` is 182 of the trigger's
-364 evaluations).  Batching the forward paid there too.
+**The forward is the whole gain, and the in-fit ratio is larger than the
+starting model shows.**  Timed inside a real trigger fit, one process, both
+paths: 11.19 s of the 11.41 s saved is inside `evaluate`, and the time spent
+*elsewhere* is unchanged (13.59 s batched against 13.81 s scalar).  Per
+evaluation that is **40.23 ms scalar against 10.13 ms batched — 3.97×** over
+373 calls, where the same forward at the plan's *starting* model measures
+2.2-2.4× (per-stage table below).
+
+**That extra factor is not attributed**, and two plausible explanations were
+measured and are wrong.  It is *not* the whole-model FD fallback in
+`_make_jacobian`: instrumenting `evaluate` shows 372 of 373 calls coming from
+`_data_rows`, the residual, and **zero** from the fallback, which fires on no
+trigger column.  It is *not* a warm `_cached_fcj_nodes` flattering the scalar
+path in the probe either: nudging the cell so every peak moves between repeats
+leaves the starting-model ratio at 2.23× against 2.25× fixed.  What is left is
+that the harness compiles a later stage at the values the fit has *reached*,
+while the probe holds every stage at the values it started from — a difference
+this WP did not chase, because the aggregate is measured directly and the sign
+of the finding does not depend on it.
+
+Weighting the starting-model ratio by the harness's per-stage nfev predicts
+only 3.5-3.7 s saved against the 11.26 s measured, which is what exposed the
+gap.  Quoted so a later session does not re-derive the prediction and trust it:
+
+| stage | nfev | scalar ms | batched ms | ratio |
+|---|---|---|---|---|
+| scale_bkg | 21 | 17.2 | 7.5 | 2.30× |
+| sample_broadening | 80 | 16.9 | 7.3 | 2.30× |
+| lines_axial | 182 | 16.9 | 7.4 | 2.29× |
+| biso | 31 | 17.2 | 7.4 | 2.34× |
+
+(all 1 188 rows, w_max 135, identical FCJ node counts — the trigger's structure
+is frozen the same way at every stage when compiled at the starting values)
 
 **The Ω the residual builds is not the Ω the bases build**, and that is the
 finding this WP turned on — it is in Context, and it is why
