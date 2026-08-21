@@ -284,11 +284,29 @@ one); Rwp-judged anything.
       selection on the degenerate width valley, proven a genuine local
       minimum by TRF-from-LM's-state, fenced in ``lm.py`` and benched as
       ``_cpd2_qpa``.
-- [ ] **Decide the cost-estimate callable**: land it here or defer it to
+- [x] **Decide the cost-estimate callable**: land it here or defer it to
       v1.2 in writing (a ROADMAP/WP note naming it), never a silent drop.
-- [ ] Tests (the instrumentation fields, the seeding stage if landed) +
+      **Deferred to the post-v1.1 parked list, with both halves priced.**
+      The per-eval half is ready (1111's `_shape`: fitted points,
+      (line, reflection) pairs, mean window width).  The count half is this
+      WP's central finding *against* a shape-derived estimate: the count is
+      a property of the protocol and its degeneracy structure (5-14 evals
+      for a partner-free stage, 84-131 for a degenerate-pair one, whole
+      plans ~100 clean-synchrotron to ~360-540 lab-QPA), so the honest form
+      is per-eval work × a *protocol band* — an API-design question (where
+      it lives, what it promises), not a measurement one — and 1114/1115
+      may move the per-eval model anyway.  ROADMAP's parked list takes the
+      pointer at this WP's close, when the Current-focus rewrite frees the
+      line-cap headroom.
+- [x] Tests (the instrumentation fields, the seeding stage if landed) +
       before/after iteration columns from the 1111 harness in the handover
-      entry.
+      entry.  Tests: `test_eval_events_carry_the_trajectory_fields`
+      (TRF fields, `stage_start.free_paths` alignment, `stage_end`
+      termination vocabulary), `test_lm_eval_stream_carries_every_measured_trial`
+      (LM trials + λ + its termination vocabulary),
+      `test_stage_ftol_reaches_the_solver_and_only_its_own_stage`.  No
+      seeding stage landed (retired).  Columns: handover entry — identical
+      to 1112's by construction, everything landed being opt-in or additive.
 
 ## Acceptance
 
