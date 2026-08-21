@@ -164,7 +164,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # numbers in the WP.  What cannot go down a rank is the clause a session
     # that never opens params/ still needs: a construction site passes no cell
     # floor rather than a nonsense one, or it silently suppresses the default.
-    "CLAUDE.md": 752,
+    # 752 -> 759 for WP-1110 (2026-08-21): the plan mirror is crossed at the two
+    # authorities that own it.  The operating detail went down a rank as this
+    # comment requires — which validator, which converter and why the crossing
+    # is by isinstance are in `PlanSpec._accept_the_dataclass` and
+    # `resolve_plan`, the friction it closes in the WP.  What cannot go down a
+    # rank is the clause a session adding *any* mirror needs before it writes
+    # one: two types sharing every field name make a structural test certify an
+    # accident, so the crossing tests the class.
+    "CLAUDE.md": 759,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one

@@ -582,9 +582,9 @@ def _dispatch(req: AgentRequest) -> AgentSuccess:
     # pawley), so the plan the veto sees is the plan that actually ran
     from .strategy.staged import resolve_plan
 
-    plan = resolve_plan(
-        req.plan if isinstance(req.plan, str) else req.plan.to_plan(),
-        getattr(req, "mode", "rietveld"))
+    # a name or a PlanSpec, unwrapped by resolve_plan itself since WP-1110: the
+    # mirror is crossed at the two authorities that own it, never at a call site
+    plan = resolve_plan(req.plan, getattr(req, "mode", "rietveld"))
 
     if isinstance(req, RefineRequest):
         from .refine import Refinement

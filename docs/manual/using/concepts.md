@@ -115,6 +115,7 @@ Two rules follow, and they are the reason plans exist:
    until the signatures separate, or — where chemistry says the two quantities
    are the same quantity — constrain them to each other.
 
+(constraining-parameters)=
 ## Constraining parameters to each other
 
 A **constraint** makes two parameters one: the dependent leaves the free vector
@@ -190,6 +191,7 @@ their esds, the atoms are telling you they are not in the same environment, and
 tying them replaces a measurement with an assumption.
 :::
 
+(restraining-a-distance)=
 ## Restraining a distance or an angle
 
 A restraint is the other half of the bargain. Where a constraint removes a

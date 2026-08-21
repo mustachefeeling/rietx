@@ -26,6 +26,16 @@ from .multi import MultiHistogramRefinement, refine_multi
 from .optimize.cancel import CancelToken, RefinementCancelled
 from .params.multi import SharingMap
 from .project import Project
+
+# ``__version__`` is the universal python spelling of "what am I running", and
+# it raised AttributeError here until WP-1110 — the first thing anyone types,
+# answered only by ``capabilities().package_version``, which a caller reaches
+# by already knowing about ``capabilities()``.  Re-exported rather than
+# recomputed: ``refine`` resolves it once from ``importlib.metadata`` at import
+# and every ``Provenance``, ``TreeHeader`` and ``project.json`` is stamped from
+# that same string, so a second lookup here could disagree with what a result
+# says produced it.
+from .refine import _VERSION as __version__
 from .refine import Refinement, estimate_mu_r, refine, replay
 from .report import FitReport, RegionAttribution, SuggestedAction, build_report
 from .schemas import (
@@ -65,6 +75,7 @@ from .strategy.staged import (
 )
 
 __all__ = [
+    "__version__",
     "AnisoU",
     "Atom",
     "agent",

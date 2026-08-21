@@ -33,18 +33,36 @@ calculated pattern really does have a peak at each Kα₂ position, and a tick l
 that omitted them would make the report flag every Kα₂ peak as an unindexed
 impurity — which it once did.
 
-`Refinement.predict` evaluates y_calc at the fitted parameters. With no argument
-it uses the fit grid. Given an array of 2θ values it compiles a fresh model on
-that grid, so it will extrapolate beyond the fitted range or resample inside it;
-in Le Bail mode the extracted intensities are carried over by hkl.
+`Refinement.predict` evaluates y_calc at the parameters as they stand. Given a
+grid — a `PatternData`, or an array of 2θ values — it compiles a fresh model on
+it, so it will extrapolate beyond the fitted range or resample inside it. With
+no argument it uses the grid the last fit ran on.
 
-<!-- api-doc: no-exec — needs a converged refinement -->
+<!-- api-doc: no-exec — needs a structure and an instrument -->
 ```python
 import numpy as np
 
 fine = np.arange(10.0, 90.0, 0.001)
 y = refinement.predict(fine)
+
+y_here = refinement.predict(data)   # the pattern's own grid
 ```
+
+**It does not need a fit.** Evaluating a model is not refining it: the values
+come off the structure and instrument, whether a fit put them there, `set_value`
+did, or you typed them. So drawing the curve a set of parameters implies costs
+no solver time, and a zero-stage plan — which refines nothing and is refused —
+is not the way to ask for it. Le Bail and Pawley are the exception, and say so:
+their per-hkl intensities are extracted *by* a fit, so there is nothing to carry
+over before one has run.
+
+The two forms are not bit-identical on the same grid, and the difference is the
+frozen-per-stage invariant rather than a defect. `predict()` reuses the model
+compiled for the last stage, whose per-reflection evaluation windows were sized
+at the values that stage *started* from; a grid argument sizes them at the
+values it ended on. On the synthetic five-stage fit that is 36 of 4200 channels,
+by at most 8e-6 of the peak height, all of them in peak tails at a window edge.
+`RefinementResult.y_calc` is the first of the two — the curve the fit minimised.
 
 ## The reflection list
 

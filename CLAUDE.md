@@ -142,7 +142,14 @@ already-tied path symmetry-tied after the fact. There is exactly
 **one** `StageSpec`/`PlanSpec`, in `schemas/plan.py`; `schemas/history.py`
 and `agent.py` re-export it, and `PLAN_INFO` in `strategy/staged.py` carries a
 title/description/modes/when-to-use per preset, in bijection with
-`PLAN_PRESETS` by meta-test.
+`PLAN_PRESETS` by meta-test. A **mirror is crossed at the two authorities that
+own it, never at a call site** (WP-1110): `PlanSpec`/`StageSpec` validate the
+`RefinementPlan`/`Stage` dataclass inbound, `resolve_plan` converts the spec
+outbound, so no surface is picky about which of the two it is handed. By
+`isinstance`, never by shape — they share *every* field name, which is what let
+a `PlanSpec` run through `fit(plan=…)` to a bit-identical answer under an
+annotation that does not admit it, and a structural test would have certified
+that accident rather than caught it.
 
 `capabilities()` (WP-1007, `capabilities.py`) is the one call that says what this
 build can do — backends *with whether each optional dependency imports here*,

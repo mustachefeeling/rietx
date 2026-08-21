@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Literal
 
 import numpy as np
@@ -681,6 +682,31 @@ class HistogramResult(Base):
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
 
+@lru_cache(maxsize=None)
+def _nested_field_paths(cls: type, name: str) -> tuple[str, ...]:
+    """``field.name`` for every *singular* nested schema of ``cls`` holding ``name``.
+
+    Derived from the live annotations rather than listed, for the reason
+    ``tests/api_surface.py`` gives one rank up: a hand-written map of "misses
+    people have made" cannot notice a field added tomorrow, and this is a hint
+    whose whole value is being right about where the number actually is.
+
+    Optional blocks are searched too, and are the reason the answer is a tuple:
+    ``n_points`` is on both :class:`Statistics` and :class:`DataSupport`, and
+    naming both is the honest reply — they count different things, which is
+    WP-1071's whole point.  Cached per (class, name) because the miss happens
+    on a hot-ish path: pydantic probes absent attributes during copy and
+    serialization, and a v1.1 session is not the one to add a scan to those.
+    """
+    out: list[str] = []
+    for field, info in cls.model_fields.items():
+        for candidate in getattr(info.annotation, "__args__", (info.annotation,)):
+            if (isinstance(candidate, type) and issubclass(candidate, Base)
+                    and name in candidate.model_fields):
+                out.append(f"{field}.{name}")
+    return tuple(out)
+
+
 class RefinementResult(Base):
     status: Literal["converged", "max_iter", "diverged"]
     mode: Mode
@@ -751,6 +777,47 @@ class RefinementResult(Base):
     # empty for an ordinary single-histogram fit.  ``statistics`` above is then
     # the pooled combined number and ``two_theta``/``y_*`` mirror histogram 0.
     histograms: list[HistogramResult] = Field(default_factory=list)
+
+    def __getattr__(self, name: str):
+        """An attribute that is really a nested one, answered with its path.
+
+        ``result.rwp`` is the single most expensive miss in WP-1110's evidence,
+        because of *when* it fires: the `AttributeError` arrived after a 105 s
+        refinement had completed, and took it with it.  The number is
+        ``result.statistics.rwp``, and nothing in the bare
+        ``'RefinementResult' object has no attribute 'rwp'`` says so.
+
+        A **pointer, not an alias.**  Forwarding the value instead would put
+        every nested field on the top level, giving two spellings of one fact
+        and — under the v1.0 freeze — promoting a dozen names nobody asked for
+        to frozen public API.  Nothing here is a new name: ``model_fields`` is
+        unchanged, the JSON is unchanged, and a caller who was going to succeed
+        still succeeds by the same route.
+
+        It is one lookup wide by design.  ``result.gof``, ``result.chi2``,
+        ``result.esd_inflation``, ``result.backend`` and ``result.solver`` are
+        the same keystroke as ``rwp`` and are answered by the same scan, so the
+        message is derived from the live field annotations rather than from a
+        list of the misses seen so far.  Lists are deliberately not searched:
+        ``result.path`` would have to name every ``RefinedParameter``, and
+        ``result.parameter(path)`` is the verb for that.
+        """
+        try:
+            return super().__getattr__(name)     # model_extra, private attrs
+        except AttributeError:
+            pass
+        # dunder and private probes (copy, pickle, pydantic's own) never reach
+        # the scan — they are the common miss and none of them is a typo
+        where = [] if name.startswith("_") else _nested_field_paths(type(self), name)
+        if not where:
+            raise AttributeError(
+                f"{type(self).__name__!r} object has no attribute {name!r}")
+        raise AttributeError(
+            f"{type(self).__name__} has no {name!r} — it is "
+            + " or ".join(f"result.{path}" for path in where)
+            + ". The top level carries the curves, the parameter rows and the "
+              "blocks; a number computed about the fit lives in the block that "
+              "computed it.")
 
     # -- numpy views -------------------------------------------------------
     def sig(self) -> np.ndarray:

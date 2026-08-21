@@ -41,6 +41,34 @@ result = rx.refine_sequential(patterns, structure, instrument,
                               x=temperatures, x_label="T (K)")
 ```
 
+### Where `x` comes from
+
+`x` is the series coordinate — the quantity the experiment varied, and on an
+in-situ run the point of the experiment. A vendor file records it where its
+format has a field for it, and the reader puts it in the pattern's own
+metadata:
+
+<!-- api-doc: no-exec — reads a vendor reel that is not committed to this repo -->
+```python
+import rietx as rx
+
+patterns = [rx.read_pattern("ramp.raw", scan=i) for i in range(68)]
+temperatures = [float(p.metadata["temperature_k"]) for p in patterns]
+```
+
+`PatternData.metadata` holds strings, so the conversion is yours. Read the key
+with `dict.get` and refuse rather than substitute when it is missing: an absent
+key is a file that recorded nothing, not a specimen at ambient. Today the
+Bruker `.raw` v3 range header is the one format here with such a field; the
+others record no specimen temperature, and a reader will not guess one from an
+axis named for something else.
+
+`rietx.io.readers.list_scans` answers the same question without reading the
+patterns. It returns one `rietx.io.formats.base.ScanInfo` per scan, each
+carrying `index`, `n_points`, the stepped range, and the temperature where the
+file gave one — which is also what its `label` says, since the scans of a reel
+are otherwise indistinguishable from each other.
+
 Both return a `SeriesResult`. The class keeps more: after a fit,
 `SequentialRefinement.results_` holds each pattern's full `RefinementResult`
 with its curves, `SequentialRefinement.trees_` holds the per-pattern histories,
