@@ -163,9 +163,14 @@ def test_capillary_absorption_is_an_exact_reparameterisation(plain, corrected):
     assert res_a.status == "converged" and res_b.status == "converged"
     assert res_a.absorption is None, "absorption applied without a capillary"
 
-    # 1. the fit is untouched
+    # 1. the fit is untouched.  These are two *independently converged* fits,
+    # so the bars sense solver termination as much as the physics
+    # (tests/CLAUDE.md § Budgets): χ² measured rel 1.5e-5 apart at the
+    # WP-1112 windows with Rwp still equal to 1e-6, so the χ² bar carries a
+    # ~6× margin over that stopping-point spread rather than pretending the
+    # two runs stop at the same point
     assert res_b.statistics.rwp == pytest.approx(res_a.statistics.rwp, abs=1e-6)
-    assert res_b.statistics.chi2 == pytest.approx(res_a.statistics.chi2, rel=1e-6)
+    assert res_b.statistics.chi2 == pytest.approx(res_a.statistics.chi2, rel=1e-4)
 
     # 2. the cell is untouched — an absorption correction that moved a lattice
     #    parameter would be modelling an angular *shift*, which it is not

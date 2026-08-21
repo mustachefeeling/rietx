@@ -241,9 +241,15 @@ approximation (1114).
       claim: honest windows cut the extraction leak at its root (phantom
       texture R² 0.66 → 0.012), with `cap_texture_crosstalk` keeping a
       direct unit test.
-- [ ] Cross-backend: `tests/test_cross_backend.py` configs grow if any
+- [x] Cross-backend: `tests/test_cross_backend.py` configs grow if any
       derivative path's shape changed (CLAUDE.md: the matrix must cover every
-      derivative path); `families_tied` row re-checked.
+      derivative path); `families_tied` row re-checked.  *2026-08-21*: no
+      config grows — no new derivative *path* exists; the contract change is
+      internal storage, and the ragged view keeps every consumer's shape.
+      `families_tied` re-checked: 9 numpy rows pass, the jax/torch rows
+      self-skip on this `[dev]` venv and run in CI's `[dev,jax]` fast job.
+      The stage-boundary continuity bars were re-measured in the window
+      task's commit (the one place the matrix moved).
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/`; before/after from the
       1111 harness in the handover entry.
 
