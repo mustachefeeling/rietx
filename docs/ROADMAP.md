@@ -99,7 +99,8 @@ One WP per session from here: [1112](wp/1112-batched-derivative-bases.md) batche
 Jacobian path → [1113](wp/1113-evaluation-count.md) evaluation count →
 [1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
 [1115](wp/1115-compiled-kernel-spike.md), gated on the harness still missing the
-targets. [1110](wp/1110-agent-surface-friction.md) rides alongside, items 13/8 landed 2026-08-20 and 1/2/4/6/12/14/15/17/18 on 2026-08-21 — the cell of a phase **the data cannot see** carries a per-stage window, the plan mirror is crossed at the two authorities that own it (root CLAUDE.md § Invariants, § Data flow), **evaluating a model no longer needs a fit**, and the covariance is **equilibrated before it is inverted**, so a direction the data does not move reports no esd rather than a small one (root CLAUDE.md § Invariants; the one change here a v1.1 release note must carry). Items 3/5/7 are answered as findings rather than code, 16/19/20 are open round findings; [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf; [1117](wp/1117-compatibility-promise.md) closed 2026-08-21 — the preview promise above, the bump comments its changelog.
+targets. **The next session is [1112](wp/1112-batched-derivative-bases.md).**
+[1110](wp/1110-agent-surface-friction.md) **closed 2026-08-21** (narrative in the record): two of its fixes change what a fit *says* and a release note must carry them — the covariance is **equilibrated before it is inverted**, so a direction the data does not move reports no esd rather than a small one, and the cell of a phase **the data cannot see** carries a per-stage window (both root CLAUDE.md § Invariants). Its item 5, removing `Parameter.expr` at `SCHEMA_VERSION` 0.2 → 0.3, is the maintainer's release-home call, costed both ways in the WP file; item 19 is now [1118](wp/1118-foreign-model-files.md), unscheduled. [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf; [1117](wp/1117-compatibility-promise.md) closed 2026-08-21 — the preview promise above.
 
 Parked, in rough order, for after v1.1 — none of it blocks a speed session: the
 1.0.0-release-notes promises (`.rex` zip transport; `RefinementState.excluded_regions`
@@ -372,7 +373,7 @@ answered by a pre-registered round before any placement ships (1107).
 | [1106](wp/1106-report-placement-fields.md) | Report placement fields: structured where prose was load-bearing | ✅ | — |
 | [1107](wp/1107-eval-placement-round.md) | Eval protocol 2.2: the placement round | ✅ 2026-08-19 | 1105, 1106 |
 | [1108](wp/1108-license-statistics-placement.md) | The license beside the numbers: shipping the statistics placement | ✅ 2026-08-19 | 1107 |
-| [1110](wp/1110-agent-surface-friction.md) | The agent surface, measured against an agent that used it | 🔄 2026-08-21 | — |
+| [1110](wp/1110-agent-surface-friction.md) | The agent surface, measured against an agent that used it | ✅ 2026-08-21 — the premise was false (`refine_json` is reached once an agent is told; the *schema export* has no consumers), so the investment went to the python surface: an equilibrated covariance, a bound diagnostic that quotes `active_mask`, a cell window for a phase the data cannot see, `predict` without a fit, the plan mirror crossed at its two authorities, and a wheel that no longer ships the maintainer's rulebooks. Items 3/5/7 answered as findings; 19 left as [1118](wp/1118-foreign-model-files.md) | — |
 
 ### v1.1 — refinement speed (added 2026-08-20)
 

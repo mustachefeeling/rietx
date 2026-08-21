@@ -1,6 +1,6 @@
 # WP-1110 — the agent surface, measured against an agent that used it
 
-Milestone: v1.1 · Status: 🔄 2026-08-21 — shaped by a real-agent round; fifteen friction items closed or answered and **all ten task lines ticked, so no code task remains**. Held open, not closed, for the maintainer: item 5 is a `SCHEMA_VERSION` release-home decision, and items 16/19/20 are round findings with no task line. Closing it is a call about milestone ordering (the speed chain 1112 → 1115 is ahead of all of it), which is why this session did not take it
+Milestone: v1.1 · Status: ✅ 2026-08-21 — shaped by a real-agent round, which found the WP's own premise false: `refine_json` is reached once an agent is told, and it is the **schema export** that has no consumers, so the investment went to the python surface and its diagnostics. Eleven task lines ticked; items 3/5/7 answered as findings rather than code; item 19 left as [1118](1118-foreign-model-files.md). One thing is **not** decided here and is the maintainer's: item 5's `SCHEMA_VERSION` 0.2 → 0.3 release home, costed both ways in § Three items that are not code changes
 Depends on: —
 
 ## Goal
@@ -44,15 +44,6 @@ scripts through 129 Bash calls.
 
 The blunt read: **docs for orientation, source for the API**. A tool surface
 nobody calls is not a tool surface.
-
-### Inherited
-
-- **From WP-1117 (closed 2026-08-21):** breaking `SCHEMA_VERSION` now costs
-  one bump comment — the classification is gone, the identical one-sentence
-  rule sits beside each of the six version constants, and the bump comments
-  are the changelog. Item 5's `Parameter.expr` removal is therefore a
-  0.2 → 0.3 bump with a comment and no chapter read; its release-home
-  decision stays the maintainer's (a WP-1117 non-goal).
 
 ### Friction, each verified against the current tree
 
@@ -536,7 +527,10 @@ parameter — 22 occurrences in one small LaB6 structure — so under
 `extra="forbid"` a removal makes every existing `history.jsonl` and
 `project.json` unreadable. It is doable safely: a `mode="before"` validator that
 drops a legacy `expr` key when it is `None` and raises the current (good)
-message when it is not, plus `SCHEMA_VERSION` 0.2 → 0.3. That is the same class
+message when it is not, plus `SCHEMA_VERSION` 0.2 → 0.3. Since WP-1117 that
+bump costs one comment beside the constant and no chapter read — the promise
+is a preview, and the comments are the changelog — so what is left to decide is
+only the release home. That is the same class
 of change as WP-1076's two removals, which is the precedent. What is **not**
 decidable here is which release carries it: 1.0.2 is written and unreleased and
 already carries 0.1 → 0.2, while `pyproject` is at `1.1.0.dev0`. Two options,
@@ -672,6 +666,89 @@ ignoring a bound pinned in most patterns.
 ```
 
 ## Handover log
+
+### 2026-08-21 (third session) — closed: the rulebooks come out of the wheel, and item 19 gets a file
+
+Two things a stranger can rely on that they could not this morning. Installing
+rietx no longer puts the maintainer's own rulebooks into site-packages: `gui/`,
+`indexing/` and `io/` each keep a `CLAUDE.md` beside the code it governs, all
+three were being packaged, and that is how an agent in this WP's own round came
+to read one as though it were the package's documentation. They address a
+session *changing* rietx and cite `tests/`, `docs/wp/` and commands no installed
+copy has. And the item this WP could never have closed as a fix — there is no
+reader for a TOPAS `.inp`, which all six agents named as the hardest part of
+their work — now has a work package instead of a line on a list.
+
+The WP closes here. Ten task lines were ticked at the end of the second session
+and this one added the eleventh, so nothing is left that a session can do
+without a decision first. The decision is deliberately the maintainer's: whether
+removing `Parameter.expr` rides in 1.0.2, which is written, unreleased and
+already carrying `SCHEMA_VERSION` 0.1 → 0.2, or in v1.1. Both are costed in
+§ Three items that are not code changes; since WP-1117 the bump itself costs one
+comment beside the constant, so only the release home is open.
+
+*Done.*
+
+- **Item 20** — the wheel target excludes `**/CLAUDE.md`. Measured on this tree:
+  162 → 159 entries, exactly the three files, nothing else moved, and the
+  force-included `rietx/data/AGENT_PROTOCOL.md` — the document written for a
+  consumer — still ships. A glob rather than three paths, so a fourth rulebook
+  lands beside its subsystem and never on a list. The wheel build became a
+  module fixture shared by both packaging tests, pinned to one worker by
+  `xdist_group` per `tests/CLAUDE.md`, and the new test was fire-drilled: with
+  the exclude removed it fails naming all three files.
+- **Item 19 → [1118](1118-foreign-model-files.md)**, unscheduled, stub. What a
+  stub can settle cheaply and a later session cannot, it settles: the licence
+  fences per format (TOPAS and FullProf closed, so documentation and real files
+  only; GSAS-II spec-only under its grant-back clause; BGMN/Profex and
+  xrayutilities GPL, so concepts only), the three ways a *model* reader differs
+  from a pattern reader (its own registry beside `PATTERN_FORMATS`; "report or
+  refuse, never drop" for a construct with no model here, because dropping a
+  `prm` or a macro changes the model rather than its presentation; a writer that
+  names what did not cross), and an acceptance the repo can already run —
+  `FAP.EXP`'s protocol reproduced field for field, with
+  `tests/test_acceptance_fap.py` then reading it instead of restating it. That
+  last is the second consumer that makes the WP worth doing at all: this repo
+  transcribes GSAS control files by hand today, exactly as the agents did.
+- **The close** — ROADMAP row flipped with its one-liner, Current focus
+  rewritten so the next session is 1112, the outgoing narrative moved to
+  `milestones/v1.1.md`, and the `### Inherited` mailbox consumed. Its one entry
+  (WP-1117's bump rule) was **folded, not deleted**: item 5's costing needed it,
+  so it is now a sentence in § Three items that are not code changes.
+
+*Measured.* This checkout's own venv, **`[dev]` (no jax/torch), darwin/arm64**:
+
+- Fast selection **2574 passed, 117 skipped in 2:42**, from **2573 / 117** at
+  the second session's close. **One** test added, one new pass, no new skip.
+- `sphinx -W` clean. `ruff` clean over `src tests examples`.
+- **No full-suite run, and that is the claim being made**: this session changed
+  a packaging exclude, one test module and documentation. Nothing here can move
+  a refinement number, and nothing in `tests/` reads a packaged `CLAUDE.md`
+  (checked, not assumed — every hit is prose in a docstring). The second
+  session's full-suite record, **2682 passed / 126 skipped in 28:37**, stands
+  as this WP's.
+
+*In flight.* Nothing running.
+
+*Next.* [1112](1112-batched-derivative-bases.md), the batched Jacobian path.
+This WP is closed; item 5 is the maintainer's release-home call and item 16
+(`refine_json` cannot express a tie) is small and low-value on this WP's own
+conclusion that `refine_json` is for MCP callers and process boundaries — if it
+is wanted, it belongs to whichever WP next touches the request schema, not to a
+reopening of this one.
+
+*Gotchas.* (a) **Nothing entered a CLAUDE.md this session, on purpose.** The
+packaging fact is a rule a stranger could need, but it is enforced by a test
+whose name states it and whose docstring carries the reason, and rule 4 admits a
+line only when a stranger needs it *in six months* with no other way to learn
+it. The root file is also at its cap with zero headroom, which is the rule
+working rather than an obstacle. (b) **The ROADMAP cap moved 439 → 450** and the
+reason sits beside the number, as that comment requires: a heading, four lines
+of prose and a table for 1118. Current focus was rewritten in the same pass and
+paid part of it back; the file landed exactly at 450. (c) **No forward reference
+was pushed into 1102** even though 1118 fences `fit_obj` to it — 1102's own file
+already describes the seam as "the serializable answer to TOPAS's `fit_obj`", so
+a mailbox entry would restate what the WP knows.
 
 ### 2026-08-21 (second session) — two ways a fit lied about its own reliability
 
