@@ -154,3 +154,53 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
     ok = ok & (total > 0.0)
     return (xp.where(ok, phi, two_theta_deg),
             xp.where(ok, omega / xp.where(ok, total, 1.0), fallback_w))
+
+
+def fcj_offsets_weights_batch(two_theta_deg: np.ndarray, sl: float, hl: float,
+                              n_nodes: int) -> tuple[np.ndarray, np.ndarray]:
+    """:func:`fcj_offsets_weights` vectorised over reflections sharing one
+    frozen node count — the batched derivative-bases path (WP-1112).
+
+    The same expressions evaluated on a (B, 1) position column against the
+    (m,) quadrature row; returns (B, 2m) images and normalised weights, row b
+    equal to the scalar routine at ``two_theta_deg[b]`` to fp rounding (the
+    per-row ``sum`` reduces along the contiguous last axis, elementwise ops
+    broadcast — but bit-equality is not claimed, and the batched Jacobian
+    consumers do not claim it either).  The branchless fallback is per row:
+    a row whose aberration vanishes gets its own 2θ image with the one-hot
+    weight, exactly as the scalar's ``where``-select.  numpy-only by intent —
+    the traced backends keep the scalar routine.
+
+    A non-finite position (a reflection the current cell pushes out of
+    range) propagates NaN through its own row and poisons nothing else; the
+    caller excludes such rows exactly as the scalar loop skipped them.
+    """
+    tau, glw = _gauss_legendre_01(max(n_nodes // 2, 4))
+    tt_deg = np.asarray(two_theta_deg, dtype=np.float64)[:, None]
+    tt = np.radians(tt_deg)
+    b, m = tt.shape[0], len(tau)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        cap = np.abs(np.tan(tt))
+    cap = np.where(np.isfinite(cap), cap, np.inf)
+    xi_max = np.minimum(sl + hl, cap)
+    ok = (xi_max > 0.0) & (sl > 0.0) & (hl > 0.0)
+
+    xi_kink = np.minimum(abs(sl - hl), xi_max)
+    xi = np.concatenate([tau * xi_kink, xi_kink + tau * (xi_max - xi_kink)],
+                        axis=1)
+    seg_len = np.concatenate([np.broadcast_to(xi_kink, (b, m)),
+                              np.broadcast_to(xi_max - xi_kink, (b, m))],
+                             axis=1)
+    glw2 = np.concatenate([glw, glw])[None, :]
+
+    with np.errstate(invalid="ignore"):
+        cphi = np.clip(np.cos(tt) * np.sqrt(1.0 + xi * xi), -1.0, 1.0)
+        phi = np.degrees(np.arccos(cphi))
+        w_overlap = np.clip(sl + hl - xi, 0.0, 2.0 * min(sl, hl))
+    omega = glw2 * seg_len * w_overlap
+    total = omega.sum(axis=1, keepdims=True)
+    ok = ok & (total > 0.0)
+    fallback_w = np.zeros((1, 2 * m))
+    fallback_w[0, 0] = 1.0
+    return (np.where(ok, phi, tt_deg),
+            np.where(ok, omega / np.where(ok, total, 1.0), fallback_w))

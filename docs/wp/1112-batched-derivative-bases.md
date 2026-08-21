@@ -177,9 +177,19 @@ approximation (1114).
       under pad / chunk / bucket-by-node-count layouts, plus symmetric-only.
       Record the go/no-go for the FCJ scope in this file before touching the
       contract; the symmetric scope proceeds regardless.
-- [ ] **Batch `derivative_bases`**: entries become padded/bucketed arrays on
+- [x] **Batch `derivative_bases`**: entries become padded/bucketed arrays on
       compile-frozen index planes; update the seven consumers named in
       Context (grep for `bases.entries` to catch drift since 0605).
+      *Landed 2026-08-21*: storage is `PhasePlanes` on `CompiledPhase.batch`
+      (bucket layout, chunked kernel stage); the ragged `entries` stays as a
+      **lazy derived view**, so all seven consumers run unchanged — the hot
+      five move onto the planes in the accumulation task, the cold two
+      (report/, Pawley) keep the view.  Symmetric rows pinned bit-equal,
+      FCJ ≤ 1e-13 vs the scalar reference kept verbatim in
+      `tests/test_derivative_bases_batched.py`; the two FCJ goldens
+      (`srm660c`, `toy_rich`) re-baselined at ≤ 7.4e-16 per-column rel,
+      every other golden bit-identical un-recaptured.  Landed build: cpd-1a
+      3.9 → 1.06 ms, trigger 65.6-88.8 → 45.5 ms (axial-on 137-142 → 48.1).
 - [ ] **Batch the `_peak_chain_column` accumulation**: per-column scalar FDs
       vectorised over reflections, accumulation as `segment_sum` over frozen
       flat indices; keep the per-window accumulation order where bit-identity

@@ -96,6 +96,14 @@ case's old blurb described the instrument's doublet optics, not the
 compiled state; WP-1109's profile numbers are symmetric-kernel numbers,
 which is why the WP's microbenchmarks reproduce them.
 
+**Historical note**: this measurement gated WP-1112's contract change, and
+the change then landed — ``CompiledModel.derivative_bases`` has been the
+batched build (bucket layout) since that WP.  The rows this script labels
+``loop`` therefore no longer measure a loop; the block above is the
+pre-batch record, captured before the shipped path moved.  Landed, the
+shipped build measured 1.06 ms on cpd-1a and 45.5 ms (48.1 axial-on) on the
+trigger — the prototype's bucket numbers, minus its scaffolding.
+
 Usage::
 
     python examples/bench_batched_derivative_bases.py
