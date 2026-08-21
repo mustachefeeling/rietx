@@ -287,6 +287,13 @@ comparison.
 
 ## Handover log
 
+- **2026-08-21** — post-close CI round: all three Linux fast jobs failed on
+  one test, identically — the no-op-refreeze replay pin demanded *bit-equal*
+  Rwp, which rides the commit → re-encode → re-evaluate round trip's libm
+  luck; at the values the new windows converge to, Linux lands 1 ulp away
+  while darwin lands exactly.  Restated at rel 1e-12 (state loss, the thing
+  it pins, moves Rwp by orders of magnitude, never ulps).
+
 - **2026-08-21** — closed ✅, one session, eight commits.
 
   A Rietveld iteration in this package now costs a half to a quarter of what
