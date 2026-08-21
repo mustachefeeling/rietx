@@ -1115,6 +1115,7 @@ class Refinement:
         if events is not None:
             events.emit("stage_start", stage=stage.name, turn_on=list(stage.turn_on),
                         freed=freed, n_free=len(table.free_paths),
+                        free_paths=list(table.free_paths),
                         n_points=len(model.tt),
                         index=stage_index, n_stages=n_stages)
         outcome = run_least_squares(model, table, max_iter=stage.max_iter,

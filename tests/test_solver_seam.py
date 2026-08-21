@@ -161,26 +161,36 @@ def test_outcome_records_which_driver_ran(pattern):
         run_least_squares(model, table, solver="banana")
 
 
-def test_lm_emits_eval_events_at_accepted_points_only(pattern):
-    """The LM has a real callback, so its event stream is monotone per stage.
+def test_lm_eval_stream_carries_every_measured_trial(pattern):
+    """The LM stream carries trials with λ, and its *accepted* run is monotone.
 
-    TRF has none, so its stream hooks the residual and therefore also carries
-    rejected trial points.  A live viewer reads both, and the difference is
-    worth pinning: an LM stage's costs never go back up.
+    Before WP-1113 the LM callback reported accepted points only.  The
+    evaluation-count work needs the rejected trials and the λ that produced
+    them — that is the trajectory distinguishing a crawl from a collapse — so
+    the driver now reports each trial the residual measured, ``accepted``
+    marking which became the incumbent.  ``eval`` then means the same thing on
+    both drivers (one residual evaluation), and the monotonicity pin moves to
+    the accepted subset, where it is a property of the algorithm: LM accepts
+    only strict decreases.
     """
     seen: list[dict] = []
     structure, ins = perturbed_models()
     ref = Refinement(structure, ins, solver="lm", history=False)
     ref.fit(pattern, plan="mccusker_default", events=seen.append)
 
-    per_stage: dict[str, list[float]] = {}
+    per_stage: dict[str, list[dict]] = {}
     for event in seen:
         if event["kind"] == "eval":
-            per_stage.setdefault(event["data"]["stage"], []).append(event["data"]["cost"])
+            per_stage.setdefault(event["data"]["stage"], []).append(event["data"])
     assert per_stage, "no eval events emitted"
-    for stage, costs in per_stage.items():
-        assert all(np.isfinite(c) for c in costs)
-        assert costs == sorted(costs, reverse=True), f"{stage} cost went back up"
+    for stage, evals in per_stage.items():
+        assert all(np.isfinite(e["cost"]) for e in evals)
+        # WP-1113 trajectory fields, LM flavour: λ on every trial
+        assert all({"accepted", "lam", "step_norm", "values"} <= e.keys()
+                   for e in evals), f"{stage} eval missing trajectory fields"
+        accepted = [e["cost"] for e in evals if e["accepted"]]
+        assert accepted == sorted(accepted, reverse=True), \
+            f"{stage} accepted cost went back up"
 
 
 # -- what the iteration budget means (WP-1109) ----------------------------

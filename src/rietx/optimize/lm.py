@@ -238,6 +238,8 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
              ftol: float = 1e-9,
              inequalities: list[LinearInequality] | None = None,
              callback: Callable[[np.ndarray, float], None] | None = None,
+             on_trial: Callable[[np.ndarray, float, bool, float, float],
+                                None] | None = None,
              ) -> LMOutcome:
     """Minimise ``S(θ) = r(θ)ᵀr(θ)`` subject to ``lo ≤ θ ≤ hi`` (and ``T·θ+c ≥ 0``).
 
@@ -250,6 +252,14 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
     outer iterations (Coelho's own criterion — a single small step is not
     convergence, it is a small step), or an inner loop that cannot find any
     downhill step even at large λ.
+
+    ``callback(x, cost)`` fires on each *accepted* point; ``on_trial(x_try,
+    cost, accepted, lam, step_norm)`` fires once per trial the residual
+    actually measured (WP-1113), with ``cost = ½·rᵀr`` at the trial, the λ
+    that produced the step, and the norm of the *taken* step — after
+    projection, inequality truncation and the box clamp.  A trial the linear
+    model discards unevaluated (no descent promised, or a promise under the
+    fp64 floor) never reaches the residual and never fires it.
     """
     x = _clip_to_bounds(np.asarray(x0, dtype=np.float64).copy(), lo, hi)
     ineqs = list(inequalities or [])
@@ -311,6 +321,9 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
             n_fev += 1
             s_try = float(r_try @ r_try)
             ds = s_try - s
+            if on_trial is not None:
+                on_trial(x_try, 0.5 * s_try, bool(ds < 0.0), float(lam),
+                         float(np.linalg.norm(step)))
             if ds < 0.0:
                 # ΔS_t = −Δθᵀb (see module docstring — the paper drops this sign)
                 ds_t = -float(step @ b)
