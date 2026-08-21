@@ -230,13 +230,13 @@ def test_a_fresh_clone_can_rebuild_the_frontend():
         f"the frontend cannot be built from a clean checkout — untracked: {missing}")
 
 
-def test_the_dist_is_in_the_wheel(tmp_path):
-    """"Installing the wheel never needs node" is only true if this holds.
+@pytest.fixture(scope="module")
+def wheel_names(tmp_path_factory):
+    """The built wheel's namelist, built once — every consumer carries the group.
 
-    Hatchling includes a package directory's non-ignored files, so this passes
-    for free today — and would stop the day someone adds an exclude pattern or
-    re-ignores the dist.  Measured rather than assumed, because the whole design
-    (a committed build output) rests on it.
+    Two questions are asked of it (what must be in, what must not), and a wheel
+    build is seconds rather than milliseconds, so the module fixture is pinned
+    to one worker by ``xdist_group`` like every other shared build here.
     """
     import glob
     import subprocess
@@ -245,12 +245,25 @@ def test_the_dist_is_in_the_wheel(tmp_path):
     uv = subprocess.run(["uv", "--version"], capture_output=True)
     if uv.returncode != 0:
         pytest.skip("uv is not installed; wheel packaging is checked in CI")
+    out = tmp_path_factory.mktemp("wheel")
     build = subprocess.run(
-        ["uv", "build", "--wheel", "--out-dir", str(tmp_path)],
+        ["uv", "build", "--wheel", "--out-dir", str(out)],
         cwd=ROOT, capture_output=True, text=True)
     assert build.returncode == 0, build.stderr[-2000:]
-    wheel = glob.glob(str(tmp_path / "*.whl"))[0]
-    inside = set(zipfile.ZipFile(wheel).namelist())
+    wheel = glob.glob(str(out / "*.whl"))[0]
+    return set(zipfile.ZipFile(wheel).namelist())
+
+
+@pytest.mark.xdist_group("wheel-build")
+def test_the_dist_is_in_the_wheel(wheel_names):
+    """"Installing the wheel never needs node" is only true if this holds.
+
+    Hatchling includes a package directory's non-ignored files, so this passed
+    for free until WP-1110 added an exclude pattern — which is the day this test
+    was written for.  Measured rather than assumed, because the whole design
+    (a committed build output) rests on it.
+    """
+    inside = wheel_names
     wanted = ["rietx/gui/static/index.html", "rietx/gui/static/assets/app.css",
               "rietx/gui/static/build-info.json"]
     # every chunk, so a new one cannot ship as a 404 at the moment the pane that
@@ -269,6 +282,24 @@ def test_the_dist_is_in_the_wheel(tmp_path):
     wanted += ["rietx/gui/__init__.py", "rietx/gui/textdoc.py"]
     for name in wanted:
         assert name in inside, f"{name} is missing from the wheel"
+
+
+@pytest.mark.xdist_group("wheel-build")
+def test_the_wheel_ships_no_maintainer_rulebook(wheel_names):
+    """A CLAUDE.md addresses a session changing rietx, not anyone installing it.
+
+    `gui/`, `indexing/` and `io/` keep their rulebooks beside the code they
+    govern, which puts them under the package directory — so all three shipped
+    to site-packages, and an agent driving a real refinement read one there as
+    though it were the package's documentation (WP-1110 item 20).  They cite
+    `tests/`, `docs/wp/` and commands an installed copy does not have.
+
+    The consumer-facing document is the force-included `AGENT_PROTOCOL.md`
+    asserted above, which is why this is an exclusion and not a warning.  The
+    pattern is a glob rather than three paths: a fourth rulebook lands next to
+    its subsystem, never on a list here.
+    """
+    assert not [n for n in wheel_names if Path(n).name == "CLAUDE.md"]
 
 
 def test_a_source_edit_changes_the_digest(build_info, tmp_path):
