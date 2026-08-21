@@ -1,6 +1,6 @@
 # WP-1110 — the agent surface, measured against an agent that used it
 
-Milestone: v1.1 · Status: 🔄 2026-08-21 — shaped by a real-agent round; fourteen friction items closed or answered, all eight task lines ticked; item 5 is the one maintainer decision left, and items 16/19/20 are round findings with no task line yet
+Milestone: v1.1 · Status: 🔄 2026-08-21 — shaped by a real-agent round; fifteen friction items closed or answered and **all ten task lines ticked, so no code task remains**. Held open, not closed, for the maintainer: item 5 is a `SCHEMA_VERSION` release-home decision, and items 16/19/20 are round findings with no task line. Closing it is a call about milestone ordering (the speed chain 1112 → 1115 is ahead of all of it), which is why this session did not take it
 Depends on: —
 
 ## Goal
@@ -571,8 +571,12 @@ The decision above is taken, so these are now ordered. Candidates, by value:
       reported symptom was the wrong way round: the inversion invented tiny
       esds, it did not withhold them. § Item 14 has the numbers, the
       units-independence proof, and the three consumers that had to learn to
-      mark rather than clamp. Not on the task list before this session, because
-      the list predates the round that found the item.
+      mark rather than clamp. It also **found a defect in the peak list**: two
+      phantom components on the certified corundum pattern that only became
+      visible once the inverse stopped truncating their esds, now flagged
+      `no_intensity` (`INDEXING_THRESHOLDS_VERSION` 1.3). Not on the task list
+      before this session, because the list predates the round that found the
+      item.
 - [x] **Stop the bound diagnostic crying wolf** (item 18) — **done 2026-08-21**.
       The tolerance was a fraction of the bound *span*, so declaring a
       parameter unconstrained made it read as pinned; it is now a fraction of
@@ -648,6 +652,148 @@ ignoring a bound pinned in most patterns.
 ```
 
 ## Handover log
+
+### 2026-08-21 (second session) — two ways a fit lied about its own reliability
+
+A refinement can now be trusted about what it did *not* measure. Before this,
+a parameter the data said nothing about came back with a small, quotable esd,
+and a parameter you had deliberately left unconstrained came back reported as
+pinned against its bound. Both were failures in the flattering direction: the
+package looked more certain than it was, in exactly the places where a person
+most needs it to say so. Neither was visible in Rwp, in a test, or in a
+warning. The cost of fixing the first is that some esds are now absent where
+they used to be numbers, and one figure of merit in indexing moved — upward,
+because two of the lines it was scored against were never lines.
+
+The last of that is the part worth carrying: fixing the esds **found a defect
+nobody was looking for**. Two components on the certified corundum pattern had
+been published as measured diffraction lines for as long as the peak fitter has
+existed, and could not have been seen until the covariance stopped hiding them.
+
+*Done.* Items **1**, **18** and **14**; all ten task lines are now ticked.
+
+- **Item 1** (yank `0.0.0`) is the maintainer's, done by them, verified from
+  the index rather than taken on trust: `0.0.0` is `yanked=True` and was the
+  only release declaring `requires_python >=3.10`. `pip install rietx` on 3.10
+  now reports its own "requires a different Python" instead of resolving an
+  empty stub and succeeding.
+- **Item 18**: `bound_findings` measured "on its bound" as a fraction of the
+  bound *span*, so `Parameter(min=1e-14, max=1e14)` — how a caller spells "do
+  not constrain this" — bought a tolerance of 1e6. The denominator is now the
+  **closest bound's own magnitude**, quoted from
+  `scipy.optimize._lsq.common.find_active_constraints`, which is the predicate
+  TRF itself uses to fill `active_mask`. Quoting rather than choosing buys two
+  things a number could not: the diagnostic and the solver cannot disagree
+  about a column, and the rtol is calibrated to how far `make_strictly_feasible`
+  pushes an iterate off a bound. § Item 18.
+- **Item 14** was **recorded the wrong way round**, and finding that out was
+  the finding. `esd: None` on every parameter cannot happen — it needs no
+  Jacobian at all, and `compute_uncertainties` is never passed `False` anywhere
+  in the package. The real failure is the opposite and worse: `pinv` cuts
+  eigenvalues at `rcond × |λ|max`, so the largest column sets the cutoff for
+  all of them and a discarded direction returns at **zero** variance. The
+  normal matrix is now Jacobi-equilibrated first (van der Sluis 1969), a
+  gradient-free column carries infinite variance, and every consumer **marks
+  rather than clamps**. § Item 14.
+- **The peakfit consequence** (§ Item 14's second half): `no_intensity` is a
+  new `PeakFlag`, in `PEAK_UNUSABLE_FLAGS`, tested with item 18's own
+  `BOUND_HIT_RTOL`. `INDEXING_THRESHOLDS_VERSION` 1.2 → **1.3**, a vocabulary
+  member being a contract change on the 1.1 precedent.
+
+*Measured.* This checkout's own venv, **`[dev]` (no jax/torch), darwin/arm64**:
+
+- Fast selection **2573 passed, 117 skipped**, from **2558 / 117** at this
+  session's start on `origin/main`. **Fifteen** tests added, fifteen new passes,
+  **no new skip** — 3 (item 18, in `test_result_rows.py`) + 10 (item 14, the
+  new `test_covariance_scaling.py`) + 2 (the flag, in `test_peak_picking.py`).
+- Full suite, same venv and platform: **2682 passed, 126 skipped in 28:37**,
+  zero failures and zero errors, against the previous session's **2667 / 126**
+  — **+15**, the fast delta exactly, since none of the fifteen is `@slow`;
+  skips unchanged. It fired **three** times, and only the last is the record:
+  the first two were on trees that item 14's own consequences then changed.
+- `tests/test_acceptance_indexing.py` alone, **44 passed**, after CLAUDE.md's
+  rule about running it before closing anything near an engine. Earning that
+  took two runs: the first came back 3 errors and is what led to the peak list.
+- GUI: **407 vitest passed**, `svelte-check` 0 errors, dist rebuilt.
+  `ruff` clean over `src tests examples`; `sphinx -W` clean.
+- **Looked at, not only counted** (`tests/output/` is gitignored, so this is a
+  record rather than an artefact): the corundum pattern drawn with the usable
+  lines and the two `no_intensity` ones marked. Both land where there is no
+  peak — **116.71°** in the valley between the 116.1 and 117.85 lines, and
+  **124.91°** on the descending tail of the 124.57 line — while every usable
+  line sits on one. That is the check a count cannot make, and it is what
+  turns "the fit says these have no intensity" into "there is nothing there".
+
+*Equivalence bars, both measured rather than argued.*
+
+- **Item 18 moves nothing on the package's own defaults.** Old and new rules
+  agree column for column across all five stages of a defaults NAC fit. The
+  default scale is `Parameter.positive()`, whose softplus lower bound goes to
+  −∞ internally and so never met the span rule — which is also the mechanism
+  behind the item's note that `positive()` "cleared" the report. The escape was
+  the *transform*, not the bounds, so it was a coincidence.
+- **Item 14 moves nothing that was determined.** Cell, scale and all six
+  background terms agree to four figures. The SRM 660c acceptance row
+  reproduces **byte-for-byte** — `a = 4.156895(25)`, Rwp 8.66 %, GoF 1.87,
+  BL 3.377 — which is the registry's own string. The manual's geometry-esd
+  figure reproduces its printed numbers exactly (Rwp **0.08177**, **88**
+  distances, ratio **0.86-1.41**), so no chapter claim moves.
+
+*In flight.* Nothing running.
+
+*Next.* This WP has **no code task left**. Item 5 remains the maintainer's
+release-home decision for a `SCHEMA_VERSION` 0.2 → 0.3, costed both ways in
+§ Three items that are not code changes. Items **16** (`refine_json` cannot
+express a tie), **19** (no TOPAS `.inp` reader) and **20** (the wheel ships
+`src/rietx/io/CLAUDE.md` and `indexing/CLAUDE.md`) are round findings that still
+have no task line; 20 is minutes, 16 is small and low-value given § The
+decision's conclusion that `refine_json` is for MCP callers, and 19 is a
+feature. Items 9 and 11 are the silent-science group and § The decision's last
+paragraph should be read before working them. Milestone-wise the maintainer's
+ordering still puts the speed chain (1112 → 1115) ahead of all of it, so the
+honest recommendation is to **close this WP and go to 1112** unless item 5 is
+wanted in 1.0.2.
+
+*Filed elsewhere.* One finding belongs to nobody's WP and is recorded here so
+it is not lost: **`docs/VALIDATION.md`'s NAC row records a number the current
+protocol does not produce.** It says `a = 10.251285(12) A, Rwp 9.2 %`; the
+acceptance fixture produces `a = 10.251216(46), Rwp 9.3 %` — a factor of four
+on the quoted precision. **This is not this session's doing**: measured
+identically after `git checkout main -- src/`, and confirmed to be the fixture's
+own path by printing from inside the test rather than from a reconstruction.
+The `measured` strings in `tests/validation_matrix.py` are frozen prose and the
+byte-identity test only compares the doc to the registry, so nothing can catch
+the registry drifting from reality. Whether `measured` is meant as a current
+measurement or a dated snapshot is a documentation-policy call, which is why
+this session did not act on it.
+
+*Gotchas.* (a) **An infinite variance is true and unpropagatable.** Every
+`0 × inf` against a zero coefficient is a NaN — an off-diagonal correlation of
+exactly 0, a `C` row that does not use the column, a geometry partial that is
+zero there — and one NaN in `Cov_free` reaches every row of `C @ Cov_free`
+sharing a source with it. A rutile geometry table lost all six Ti-O bond esds
+to `instrument.profile.y`, which no bond depends on. Two dead ends before the
+right shape: clamping the variance to zero reinstates the original lie one layer
+up, and guarding the multiply with `where=corr != 0` fixes only the first of the
+four places. (b) **`np.isfinite` was the wrong predicate for a phantom peak.**
+Those components have intensity 2.1e-49, not 0, so their columns are
+*nearly* flat rather than exactly flat and the variance is huge-but-finite. The
+predicate that works is physical and needs no new constant — the component sits
+at its zero intensity bound. (c) **Dropping a component broke the GUI**, which
+is what settled flag-versus-drop: the peak editor's add verb silently did
+nothing on a component a human had just placed. `test_gui_peaks` caught it.
+(d) A new `PeakFlag` fails `test_textdoc`'s meta-test until `gui/src/lib/rxt.ts`
+restates the vocabulary, and the dist must then be rebuilt. (e) **Self-review
+caught an efficiency regression I had introduced**: folding `stderr_physical`'s
+uncorrelated branch into `_cov_free` removed a duplicated construction but
+routed a vector quantity through a dense n×n — tens of MB on a Pawley table,
+in the speed milestone. The shared piece is now `_sigma_free_measured`, which
+is the part actually shared. (f) `compute_uncertainties` is declared with a
+`True` default on two functions and **no in-tree caller ever overrides it**;
+its `False` path has no test. A WP-1076-shaped observation, not acted on.
+(g) Root CLAUDE.md's cap moved 759 → 771 and `src/rietx/indexing/CLAUDE.md`'s
+280 → 296, each in its own commit with the reason, per the policy in
+`SIZE_CAPS`.
 
 ### 2026-08-21 — the sharp edges an agent meets in its first five minutes
 

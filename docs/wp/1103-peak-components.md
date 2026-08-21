@@ -175,6 +175,28 @@ use is the design case.
   [1051](1051-sequential-escalation.md) / [1016](1016-sequential-series-panel.md)
   (sequential carry semantics).
 
+### Inherited
+
+**From WP-1110 item 14 (2026-08-21) — a declared component that is not in the
+specimen has an unidentifiable position, and this is now measurable.**
+
+A `PeakComponent` a user declares for a sharp impurity that turns out not to be
+present will refine to no intensity. A peak reaches the pattern only through
+`intensity × profile`, so at that point nothing constrains its **position**
+either — it is the zero-scale phase of WP-1110 item 13, one rank down. Until
+this session the covariance hid that: `pinv` cut eigenvalues at
+`rcond × |λ|max`, so the flat direction came back at *zero* variance and the
+position read as precisely measured. It is now equilibrated, so such a
+parameter reports **no** esd rather than a small one.
+
+Two things follow for this WP, which says it "recommends through evidence and
+never refuses or gates". The evidence for "this component is not needed" is now
+*available* and is the honest one — an absent esd on its position, not an Rwp
+comparison. And the peak-list side already chose a vocabulary for the same
+fact, `no_intensity` in `PEAK_UNUSABLE_FLAGS`; reuse the wording rather than
+inventing a second one, and reuse `strategy.staged.BOUND_HIT_RTOL` for the "at
+its zero bound" test, which is the one place that question is answered.
+
 ## Handover log
 
 - **2026-08-18** — created from the single-peak planning session; numbering

@@ -74,6 +74,32 @@ first-class, served by machinery that already exists.
 
 ### Inherited
 
+**From WP-1110 item 14 (2026-08-21) — `PeakList` gained a flag, and the case it
+names is exactly the one `fit_peaks(positions=…)` invites.**
+
+`normal_covariance` is now Jacobi-equilibrated before the pseudo-inverse, and
+`indexing/peakfit.py` is its second consumer. The consequence for this WP: a
+component that refines onto its **zero intensity bound** has no gradient on its
+own position, so its fitted 2θ is whatever the seed was. It now comes back
+flagged `no_intensity`, which is in `PEAK_UNUSABLE_FLAGS`
+(`INDEXING_THRESHOLDS_VERSION` 1.3). Before this the pseudo-inverse truncated
+such a component's position esd to an ordinary-looking 0.06°; two of the
+certified corundum pattern's 62 components had been published that way.
+
+**This is the failure mode `positions=` makes routine.** A caller naming
+positions explicitly — Williamson-Hall over a list, a d-spacing lookup — will
+name some where there is no peak, and that is a *correct* request rather than a
+mistake. So `fit_peaks` needs to say what its answer is for one: the flag is
+there and is the right vocabulary, but decide deliberately whether a
+user-named position that fits nothing is returned flagged (the peak editor's
+precedent: a component a human placed is theirs to see and remove) or refused,
+and say so in the chapter. Do **not** drop it silently — that is the version
+this WP tried first and it made the GUI's add verb do nothing.
+
+Related: `PeakList.usable()` is what indexing consumes, so a public `fit_peaks`
+returning `PeakList` inherits a `usable`/`peaks` split its callers must be told
+about.
+
 **From WP-1109 (2026-08-20), measured on this worktree's `[dev]` venv,
 darwin/arm64 — the cost model for window sizing is not the intuitive one.**
 
