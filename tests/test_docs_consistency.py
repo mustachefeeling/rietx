@@ -220,7 +220,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # 250 at the WP-1060 split; raised once, for WP-1046's two standing rules
     # (which layer may apply a cap, and that agreement outranks the panel) —
     # both measured, and every number behind them is in the v1.0 appendix
-    "src/rietx/indexing/CLAUDE.md": 280,
+    # 280 -> 296 for WP-1110 item 14 (2026-08-21): a component at its zero
+    # intensity bound is not a line.  The operating detail went down a rank as
+    # this comment requires — the flag's semantics are on `PeakFlag` and
+    # `PEAK_UNUSABLE_FLAGS`, the mechanism in `peaks_of_group`, the numbers in
+    # the WP.  What cannot go down a rank is that this class of phantom was
+    # *invisible* until the covariance was equilibrated, so a session reading
+    # the peak list's history will otherwise assume the not_separable fix
+    # cleared it.
+    "src/rietx/indexing/CLAUDE.md": 296,
     # 200 at the .ras/.uxd consolidation; raised once with three container
     # formats still to land, each of which is a row in its per-format table
     "src/rietx/io/CLAUDE.md": 250,

@@ -465,6 +465,44 @@ marks rather than clamps**:
   have had if this phase were known. It is the same phase `PHASE_UNCONSTRAINED`
   names — item 13's runaway and item 14's blind column are one specimen.
 
+**It found a real defect in the peak list, which is the part I did not
+predict.** `normal_covariance` has a second consumer — `indexing.peakfit`, per
+its own docstring — and the equilibrated inverse promptly broke three indexing
+acceptance rows. The cause was not the change: on the certified corundum
+pattern two of 62 components refine to intensities of **2.1e-49** and
+**5.5e-19**, so neither has any gradient on its own position (a peak reaches its
+window only through intensity × profile — item 13's rule again), and their
+position esds are ~1e+17 and ~1e+49 degrees. The old pseudo-inverse truncated
+both to **0.06°** and the pipeline consumed them as ordinary measured lines;
+`_max_index` built from them reached a trial index of **3.1e+25**, where
+`trial_hkl` raised. So the phantom lines were always there and equilibration is
+what made them visible.
+
+`_prune` cannot reach them and says so: it tests only *shoulder* seeds, by
+deliberate asymmetry, because a maximum-detected component already cleared a
+height test on the data. One that clears detection and then refines to nothing
+is never reconsidered. Hence `no_intensity`, a `PeakFlag` that **is** in
+`PEAK_UNUSABLE_FLAGS` — unlike `background_extrapolated` or `axial_tail`, which
+report evidence because a consumer might still judge the line real; there is
+nothing left to judge here. Its test is item 18's `BOUND_HIT_RTOL`, imported
+rather than restated.
+
+**Flagged, not dropped, and the GUI is what settled that.** My first version
+dropped the component, which made the peak editor's add verb silently do nothing
+on a component a human had just placed — caught by `test_gui_peaks`. Flagging
+also gives `not_separable`'s reason: a report must be able to say why a line
+went. A human can still clear the flag, which `gui/peaks.py` already supports.
+A vocabulary member is a contract change even where every prior value still
+means what it did (the 1.1 precedent), so `INDEXING_THRESHOLDS_VERSION` is
+**1.3**, and the GUI highlighter's meta-test failed until `rxt.ts` restated it.
+
+**The indexing row improved.** `test_a_certified_lab_pattern_indexes_and_is_graded_honestly`
+reads **50 of 52** lines where it read 51 of 55 — one fewer indexed, *two*
+fewer unindexed, `indexed_fraction` **0.927 → 0.962**. The certified lattice
+still ranks first with the right centring and both axes stay inside 150 ppm. A
+line that was never a line cannot be indexed, so counting it in the denominator
+only ever depressed that figure of merit.
+
 **Unchanged, checked rather than assumed.** The manual's geometry-esd figure
 reproduces its own printed numbers exactly — `mccusker_structural`, Rwp
 **0.08177**, **88** distances, diagonal/full ratio **0.86-1.41** — so the

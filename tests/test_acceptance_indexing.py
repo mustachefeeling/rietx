@@ -1019,6 +1019,16 @@ def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
     out a *constant* must stay at |c| everywhere.  That is the price of measuring
     the magnitude without being able to name the cause, and it is inside the bar.
 
+    **WP-1110 item 14 shrank the denominator, and that is the improvement.** Two
+    of this list's components refine onto their zero intensity bound; until the
+    covariance was equilibrated their position esds were truncated from ~1e+17
+    and ~1e+49 degrees to 0.06°, so both were offered to the engines as measured
+    lines.  They now carry ``no_intensity`` and leave ``usable``.  The row reads
+    **50 of 52** where it read 51 of 55: one fewer indexed, *two* fewer
+    unindexed, and the fraction 0.927 -> 0.962.  A line that was never a line
+    cannot be indexed, so counting it in the denominator only ever depressed
+    this figure of merit.
+
     ``low`` remains the honest grade, on three caveats that each name something
     real: only one engine found it (``engines_disagree``); the Le Bail fit sees 12
     reflections the *lattice* R-3m allows where the pattern has no intensity,
@@ -1038,7 +1048,12 @@ def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
     dc = best.cell[2] / c_cert - 1.0
     assert abs(da) < 1.5e-4, f"a = {best.cell[0]:.5f} ({da*1e6:+.0f} ppm)"
     assert abs(dc) < 1.5e-4, f"c = {best.cell[2]:.5f} ({dc*1e6:+.0f} ppm)"
-    assert best.n_indexed >= 51, f"{best.n_indexed} of {best.n_lines} lines"
+    assert best.n_indexed >= 50, f"{best.n_indexed} of {best.n_lines} lines"
+    # the quantity the bar is really about: lines the search could not place.
+    # Four before WP-1110 item 14, two after — and two of the four were phantoms
+    # rather than misses, so this is asserted beside the fraction below.
+    assert best.n_lines - best.n_indexed <= REAL_DATA_N_UNINDEXED, (
+        f"{best.n_lines - best.n_indexed} unindexed of {best.n_lines}")
     assert best.chi2_red < 1.5, best.chi2_red
 
     # the shift reached the search as a measurement, and said so
