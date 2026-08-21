@@ -56,6 +56,28 @@ step in six — worth doing, and **not** the thing that made that change feel
 heavy. A session that expects more from this WP will be disappointed; the win
 is that the remaining step stops being a *decision*.
 
+### The audit, re-run against the new rules (2026-08-21)
+
+The table above, replayed after tasks 1-3 landed:
+
+| step | before | after |
+|---|---|---|
+| add to the `PeakFlag` `Literal` | the change itself | unchanged |
+| add to `PEAK_UNUSABLE_FLAGS` | the change itself | unchanged |
+| write the test | the change itself | unchanged |
+| bump `INDEXING_THRESHOLDS_VERSION` with its comment | a classification + a chapter read | a rule application: observable? yes → last component +1, comment says what |
+| add to `gui/src/lib/rxt.ts`, rebuild the dist | sync machinery | unchanged (non-goal) |
+| add the row to `using/indexing.md`'s flag table | documentation | unchanged (user-facing) |
+
+**No step went.** Six steps remain six; what the relaxation freed is exactly
+what this Context predicted and no more: the bump stopped being a decision.
+"Safe, minor or breaking, and does the chapter's rule fire?" — with the doc
+read it dragged in — is now "could a consumer observe it?", answered without
+opening anything. The trade runs the other way too and is worth recording: a
+defaulted schema field, which the old rule called safe and left unversioned,
+now bumps — the rule fires more often and decides nothing. The measured
+result of this WP is friction converted, not steps removed.
+
 ### What exists today
 
 **The six versioned contracts**, each a module constant, all quoted into
@@ -205,7 +227,7 @@ being asked for.
       holding the copies together. The rewritten chapter says where the
       history lives; promoting it to a user-facing file waits for users to
       face, and is part of the tightening path rather than of this WP.
-- [ ] **Audit what the relaxation actually freed**, and record it: re-run the
+- [x] **Audit what the relaxation actually freed**, and record it: re-run the
       six-step table above against the new rules and say which steps went. If
       the answer is still "one of six", say so — a WP that measures its own
       result at less than it hoped is worth more than one that does not look.
