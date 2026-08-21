@@ -16,8 +16,6 @@ stretch metric).
 
 ## Context
 
-### Inherited
-
 From WP-1113 (2026-08-21), the *other* factor's state, so this spike's
 go/no-go can price the whole product: the evaluation count's mechanism is
 named (ftol-bound Gauss-Newton tails on near-degenerate directions — its
