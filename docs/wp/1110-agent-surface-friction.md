@@ -354,6 +354,55 @@ here that the format itself names, so it is the one that is surfaced. Reading a
 specimen coordinate off an axis named for something else would be inventing a
 convention — the one repair a reader may never make.
 
+## Item 18 — the denominator was the bug
+
+The tolerance was right to be relative and wrong about what to. `theta` is the
+*internal* vector, where a softplus width and an identity cell edge share no
+scale, so an absolute tolerance means a different thing in every column — that
+much of the original reasoning holds. What does not is dividing by the **span**:
+the span is a statement about how generous the *far* bound was, and it grows
+without limit while the value stays where it is.
+
+**The transcript's numbers.** `Parameter(value=1.0, min=1e-14, max=1e14)` is how
+an agent spells "do not constrain this". Span 1e14, times `1e-8`, is a tolerance
+of 1e6 — so every value below a million read as sitting on the floor. On the
+11-BM NAC rietveld fit with that one declaration changed, `phases.0.scale` was
+flagged in **5 of the 5 stages** while refining to **10.25**, fourteen orders of
+magnitude from either end. After: **0 of 5**. Rwp is **0.15327** both ways,
+because a diagnostic never enters the solve.
+
+**Why `Parameter.positive()` "cleared" it**, which the item recorded as a fact
+without a mechanism. `positive()` builds `min=0.0, max=inf` with a softplus
+transform, and `internal_bounds` maps a lower bound ≤ 1e-12 to −∞. The internal
+span is then infinite, the old rule fell back to its absolute 1e-8, and nothing
+fired. The escape was the *transform*, not the bounds — which is why it looked
+like a fix and was a coincidence: the same wide bounds under the identity
+transform every hand-built `Parameter` gets by default still misfired.
+
+**The replacement is quoted, not chosen.** `BOUND_HIT_RTOL = 1e-10` with the
+threshold `rtol × max(1, |bound|)` against the **closest** bound is
+`scipy.optimize._lsq.common.find_active_constraints` — the predicate TRF itself
+uses to fill `OptimizeResult.active_mask`. Two things follow that picking a
+number would not have bought. The diagnostic and the solver reporting on the
+same column cannot disagree, which is testable through the public `active_mask`
+and is tested. And the value is calibrated to something real: how far
+`make_strictly_feasible` pushes an iterate off a bound it is against, so the
+rtol is not a guess about "close enough". Scipy's *nearer bound wins* clause
+comes across too — on an interval narrow enough for both thresholds to cover it,
+which bound is named is then decided by where the value sits rather than by
+which branch was written first.
+
+**Nothing moved on the package's own defaults**, measured rather than argued:
+old and new rules agree column for column across all five stages of a defaults
+NAC fit. The whole change is the removal of a false positive that only a
+caller's own wide bounds could reach — and reaching it was the reasonable thing
+that caller did.
+
+`BOUND_HIT_REL_TOL` was deleted rather than aliased. It is undocumented,
+unexported and not in the API surface, so an alias kept "for compatibility"
+would have been a declared name with no reader, which is the shape WP-1076
+exists to refuse.
+
 ## Three items that are not code changes, and why
 
 Reproduced and costed 2026-08-21. Two of them cannot be fixed at the API level
