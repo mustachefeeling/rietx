@@ -99,7 +99,7 @@ One WP per session from here: [1112](wp/1112-batched-derivative-bases.md) batche
 Jacobian path → [1113](wp/1113-evaluation-count.md) evaluation count →
 [1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
 [1115](wp/1115-compiled-kernel-spike.md), gated on the harness still missing the
-targets. [1110](wp/1110-agent-surface-friction.md) rides alongside, items 13/8 landed 2026-08-20 and 4/12/15/17 on 2026-08-21 — the cell of a phase **the data cannot see** now carries a per-stage window, and the plan mirror is crossed at the two authorities that own it (root CLAUDE.md § Invariants, § Data flow); [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf.
+targets. [1110](wp/1110-agent-surface-friction.md) rides alongside, items 13/8 landed 2026-08-20 and 2/4/6/12/15/17 on 2026-08-21 — the cell of a phase **the data cannot see** carries a per-stage window, the plan mirror is crossed at the two authorities that own it (root CLAUDE.md § Invariants, § Data flow), and **evaluating a model no longer needs a fit**; items 3/5/7 are answered as findings rather than code; [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf.
 
 Parked, in rough order, for after v1.1 — none of it blocks a speed session: the
 1.0.0-release-notes promises (`.rex` zip transport; `RefinementState.excluded_regions`
@@ -372,7 +372,7 @@ answered by a pre-registered round before any placement ships (1107).
 | [1106](wp/1106-report-placement-fields.md) | Report placement fields: structured where prose was load-bearing | ✅ | — |
 | [1107](wp/1107-eval-placement-round.md) | Eval protocol 2.2: the placement round | ✅ 2026-08-19 | 1105, 1106 |
 | [1108](wp/1108-license-statistics-placement.md) | The license beside the numbers: shipping the statistics placement | ✅ 2026-08-19 | 1107 |
-| [1110](wp/1110-agent-surface-friction.md) | The agent surface, measured against an agent that used it | 🔄 2026-08-20 | — |
+| [1110](wp/1110-agent-surface-friction.md) | The agent surface, measured against an agent that used it | 🔄 2026-08-21 | — |
 
 ### v1.1 — refinement speed (added 2026-08-20)
 

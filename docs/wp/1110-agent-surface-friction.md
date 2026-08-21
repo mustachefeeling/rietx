@@ -1,6 +1,6 @@
 # WP-1110 — the agent surface, measured against an agent that used it
 
-Milestone: v1.1 · Status: 🔄 2026-08-20 — shaped by a real-agent round; items 13 and 8 closed (the cell window and the two diagnostics), eighteen friction items open
+Milestone: v1.1 · Status: 🔄 2026-08-21 — shaped by a real-agent round; eleven friction items closed or answered, five of the six task lines ticked; item 5 and item 1 are maintainer decisions, not open work
 Depends on: —
 
 ## Goal
@@ -334,9 +334,11 @@ error message is the documentation an agent reads. `PLAN_PRESETS[name].stages`
 said `'function' object has no attribute 'stages'`, naming neither the registry
 nor the call; it now names the call and says why the entry is a builder (a plan
 is a mutable dataclass, so a shared instance would carry one caller's edit to
-the next). `Stage`/`RefinementPlan` are the only two objects a caller handles
-here that are not pydantic models, so `.model_dump()` is the natural next
-keystroke, and it now names the mirror. The factory wrapper carries
+the next). `Stage`/`RefinementPlan` are the package's only *schema-shaped*
+objects that are not pydantic models — a record of fields sitting beside a
+`PlanSpec` that mirrors it one for one, unlike `Refinement` or `Project`, which
+are plainly machines — so `.model_dump()` is the natural next keystroke, and it
+now names the mirror. The factory wrapper carries
 `functools.update_wrapper`, so `help()` and `inspect.signature` still reach the
 builder — round 1.0's own instrument lost an agent to the source over a wrapper
 that did not.
@@ -348,6 +350,49 @@ temperature field at all. The Bruker `.raw` v3 range header is the one field
 here that the format itself names, so it is the one that is surfaced. Reading a
 specimen coordinate off an axis named for something else would be inventing a
 convention — the one repair a reader may never make.
+
+## Three items that are not code changes, and why
+
+Reproduced and costed 2026-08-21. Two of them cannot be fixed at the API level
+at all, and saying so is worth more than leaving them on a list as though they
+were pending work.
+
+**Item 5 — removing `Parameter.expr` is a data-contract break, and its release
+home is the maintainer's call.** The item is already satisfied as written
+("rejected at validation rather than at use" — item 5's own correction
+established that). What is left is the narrower judgement that a declared field
+which can only ever raise advertises a capability the package does not have,
+and the trigger agent did dump `model_fields`. Measured cost, which the WP did
+not have: `model_dump()` writes `"expr": null` into **every** persisted
+parameter — 22 occurrences in one small LaB6 structure — so under
+`extra="forbid"` a removal makes every existing `history.jsonl` and
+`project.json` unreadable. It is doable safely: a `mode="before"` validator that
+drops a legacy `expr` key when it is `None` and raises the current (good)
+message when it is not, plus `SCHEMA_VERSION` 0.2 → 0.3. That is the same class
+of change as WP-1076's two removals, which is the precedent. What is **not**
+decidable here is which release carries it: 1.0.2 is written and unreleased and
+already carries 0.1 → 0.2, while `pyproject` is at `1.1.0.dev0`. Two options,
+both costed: remove with the migration (≈6 lines, one schema bump, one manual
+row, one new test), or keep the seam — DESIGN.md holds a design for it and the
+`value`/`vary`/`min`/`max`/`expr` shape is the cited lmfit convention.
+
+**Item 3 — `fitted_structure()` is not fixable, and the alternative is worse.**
+`Refinement.fitted_structure` is a one-line alias property returning
+`self.structure`; the `TypeError: 'Structure' object is not callable` is raised
+by python on the returned model, not by anything this package controls. It
+could be intercepted by giving `Structure` a `__call__` that raises a better
+message — and that would make `callable(structure)` **True**, which is a lie
+any duck-typing consumer would believe. Turning the property into a method
+converts the observed typo into a non-failure and creates its mirror for
+whoever omits the parentheses, on a name the v1.0 freeze covers. A property is
+the right shape for a zero-cost alias, so it stays. What actually cost the
+transcript its 68-pattern run was not the `TypeError` but that nothing had been
+persisted when it fired — which is **item 11**, and is where the fix lives.
+
+**Item 7 — `data.two_theta.min()` is a python error about a list.** The
+`AttributeError` comes from `list`, so there is no rietx hook on the path at
+all. `PatternData.tt`, `.y` and `.sig` are the numpy views and are documented as
+such (`using/data.md`). Nothing to do, recorded so it is not re-opened.
 
 ## Tasks
 
@@ -376,28 +421,30 @@ The decision above is taken, so these are now ordered. Candidates, by value:
       range records; § The two plan types' last paragraph has what the other
       formats hold. Not on the task list before this session, because the list
       predates the round that found the item.
-
-- [ ] **Add the evaluate-only path** (item 6). `Refinement.predict` before a fit,
-      or a documented `evaluate(values)`, so redrawing a fit is not a refit.
-      Retiring the `AssertionError` on a zero-stage plan belongs here.
-- [ ] **Fix the API sharp edges**: `rwp` on the result (or a clear error naming
-      `statistics.rwp`), and `Parameter.expr` either implemented or rejected at
-      validation rather than at use. **Two of the four are done 2026-08-21** —
-      `PLAN_PRESETS` (items 4/15, § The two plan types) and `rietx.__version__`
-      (item 12, which was in the friction list and on no task line). What is
-      left is `RefinementResult.rwp`, the most expensive single item in the
-      list — its `AttributeError` fires *after* the refinement it loses — and
-      `Parameter.expr`, where item 5's correction leaves only "a declared field
-      that can only ever raise advertises a capability the package does not
-      have", i.e. remove it.
-- [ ] **Make a guessed page name land somewhere.** The agent fetched
-      `using/constraints.html` and got a 404 — but constraints *are* documented,
-      in `using/concepts.md:137` (`tie`/`tie_equal`/`untie`, the affine form,
-      the fnmatch globs). Nothing is missing; a plausible guess simply misses,
-      and this one sent the agent into `schemas/common.py`. The cheap fix is a
-      `constraints.md` that is one `{ref}` to the concepts section, and the same
-      for any other name a caller would guess. Same class as the item above:
-      the content exists and is not being reached.
+- [x] **Add the evaluate-only path** (item 6) — **done 2026-08-21**.
+      `Refinement.predict` takes a `PatternData` or a 2θ array and needs no
+      fit; only the no-argument form still does, because only a fit supplies a
+      grid. The zero-stage `AssertionError` is a refusal at the top of `fit`
+      that names `predict`. § Three items that are not code changes has what
+      the two `predict` forms do *not* share, measured.
+- [x] **Fix the API sharp edges** — **done 2026-08-21**, except one item that
+      turns out to be a decision rather than a task. `PLAN_PRESETS` (items 4/15,
+      § The two plan types), `rietx.__version__` (item 12), and
+      `RefinementResult.rwp` (item 2): the nested number is answered with its
+      path, derived from the live annotations, as a **pointer and not an
+      alias** — forwarding the value would promote a dozen nested names to
+      frozen public API. `Parameter.expr` (item 5) is left open on purpose: it
+      is a `SCHEMA_VERSION` break whose release home is the maintainer's, and
+      § Three items that are not code changes carries both options costed.
+- [x] **Make a guessed page name land somewhere** — **done 2026-08-21**.
+      `using/constraints.md` is a signpost, not a third copy: two `{ref}`s to
+      the concepts sections that carry the reference (both now explicit
+      targets, so a heading rewording breaks the build rather than the link),
+      plus the one distinction worth stating where someone arrives not knowing
+      which word they want — a constraint removes a parameter, a restraint
+      keeps one and charges for disagreeing. Any *other* guessable name is
+      still open, and there is no way to enumerate them except by watching
+      more agents miss.
 - [x] **Decide why `refine_json` was not reached** — **done 2026-08-20**, by
       the registered six-agent round rather than by reasoning (§ The decision).
       The question's premise was false. It *is* reached once an agent is told,
@@ -423,6 +470,159 @@ ignoring a bound pinned in most patterns.
 ```
 
 ## Handover log
+
+### 2026-08-21 — the sharp edges an agent meets in its first five minutes
+
+Six things a caller can now do that they could not, and all six were measured
+failures of a real agent rather than guesses about what might be awkward.
+
+Ask the package what version it is, in the spelling every python package uses.
+Hand a plan to any surface without knowing which of two identical-looking types
+that surface wanted. Read an in-situ reel's own temperatures instead of
+reaching into a reader's private parser. Find out where a number lives when you
+ask the wrong object for it, in the moment you ask rather than after losing the
+run. **Draw the curve a set of parameters implies without refining anything** —
+the agent that triggered this WP re-refined a one-stage plan in order to redraw
+a figure, because evaluating a model required a fit that had already happened.
+And land on a page when you guess its name.
+
+Two of the findings are worth more than the fixes.
+
+**Item 15 was half a bug report.** The direction agents complained about — a
+JSON request refusing a preset — is loud. The other direction is silent and
+worse: a `PlanSpec` handed to `fit(plan=...)`, under an annotation reading
+`RefinementPlan | str`, simply *runs*, to a bit-identical answer, because the
+two types share every field name and a plan is only ever read. No fit was ever
+wrong; a whole class of type confusion just could not be seen. That is why the
+crossing tests the class and not the shape — a structural check would have
+certified the accident.
+
+**Three items turned out not to be code.** `fitted_structure()` (item 3) cannot
+be fixed without making `callable(structure)` return True, which is a lie any
+duck-typing consumer would believe; `data.two_theta.min()` (item 7) is a python
+error raised by `list`, with no rietx hook on the path at all; and removing
+`Parameter.expr` (item 5) is a data-contract break whose release home is the
+maintainer's call, not this session's. All three are recorded with their
+reasoning in § Three items that are not code changes, so they are not re-opened
+as though they were pending work.
+
+*Done.* Items **12**, **4/15**, **17**, **2**, **6**, and the guessed-page-name
+task. Five of the six task lines in this WP are now ticked.
+
+- `rietx.__version__` (item 12), re-exported from the string `refine` resolves
+  once at import — not a second `importlib.metadata` lookup, which would be a
+  second authority free to disagree with the version every `Provenance`,
+  `TreeHeader` and `project.json` is stamped with. The test pins it as the
+  *same object*. Documenting it in `using/install.md` promotes it to frozen,
+  which is the freeze working: the partition refused the new name until a
+  chapter took it.
+- The plan mirror is **crossed at the two authorities that own it, never at a
+  call site** (items 4 and 15): `PlanSpec`/`StageSpec` validate the dataclass
+  inbound, `resolve_plan` converts the spec outbound, and `agent.py` dropped its
+  own copy of the conversion. Two error messages carry the rest of item 4 —
+  `PLAN_PRESETS[name].stages` names the call, and `Stage`/`RefinementPlan` name
+  their mirror. The factory wrapper carries `functools.update_wrapper`, so
+  `help()` still reaches the builder; round 1.0's own shim lost an agent to the
+  source over a wrapper that did not.
+- The **series coordinate** (item 17) reaches `PatternData.metadata` and
+  `ScanInfo` — two surfaces because the question is asked at two times, before
+  a scan is chosen and after one is read. `ScanInfo.label` carries it too, since
+  every range of a reel scans the same axis over the same angles and 82 of them
+  otherwise enumerate as 82 identical rows.
+- **A nested number is answered with its path** (item 2), derived from the live
+  annotations rather than from a list of misses already seen — so `gof`,
+  `chi2`, `esd_inflation`, `backend`, `mu_r` and `soft_modes` come free, and a
+  field added to an optional block is covered the day it lands. A **pointer,
+  not an alias**: forwarding the value would give two spellings of one fact and
+  promote a dozen nested names to frozen public API. `model_fields`, the JSON
+  and `hasattr` are all unchanged.
+- **`predict` needs no fit** (item 6), taking a `PatternData` or a 2θ array.
+  Only the no-argument form still does, because only a fit supplies a grid, and
+  it refuses by naming the other form. The zero-stage plan — what someone
+  reaches for when they want evaluate-only — is refused at the *top* of `fit`
+  instead of raising a bare `AssertionError` from the end of the run, and its
+  message names `predict`.
+- `using/constraints.md` (the guessed-page task) is a signpost, not a third
+  copy: two `{ref}`s to explicit targets in `concepts.md`, plus the one
+  distinction worth stating where someone arrives not knowing which word they
+  want.
+
+*Measured.* Fast selection, **this checkout's own venv, `[dev]` (no jax/torch),
+darwin/arm64**: **2558 passed, 117 skipped**, from **2536 passed, 117 skipped**
+measured on `origin/main` at this session's start. **Twenty-two** tests added,
+twenty-two new passes, **no new skip** — passed moves by exactly the
+twenty-two (1 + 5 + 2 + 2 + 8 + 4, by item). `ruff` clean over
+`src tests examples`; `sphinx -W` clean.
+
+Full suite, same venv and platform: **2667 passed, 126 skipped in 24:43**,
+zero failures, against the previous session's **2645 passed, 126 skipped** —
+**+22**, the fast delta exactly, since none of the twenty-two is `@slow`; skips
+unchanged. It fired **twice**, once per batch of source changes, the second
+batch having landed after the first run: `resolve_plan`, `PLAN_PRESETS`,
+`RefinementResult` and `fit` are each on the path of *every* fit in the
+package. Strictly the ladder does not require either run — no forward model,
+solver, statistic or reader output changed, every preset is asserted to build
+what its classmethod builds, and `predict` has no caller inside the package —
+so read both as insurance bought deliberately, on this WP's own record that a
+plan-adjacent change was once caught only here.
+
+Two equivalence bars, both exact rather than to a tolerance, because both
+changes either produce the same thing or do not:
+
+- **The plan**: its three spellings — the `RefinementPlan` the registry hands
+  back, the `PlanSpec` a project holds, and the preset *name* — driven through
+  `refine_json` on the synthetic Le Bail case give **one** Rwp, pinned as a set
+  of size one.
+- **Evaluate-only**: a never-fitted `Refinement` carrying the fitted models
+  returns y_calc **bit-identical** to the fitted one on the same grid. A fit is
+  a way to *set* parameters, not a licence to evaluate them.
+
+The one place `predict`'s two forms do *not* agree is measured and documented
+rather than left to be found: `predict()` reuses windows sized at the values
+its stage started from, a grid argument sizes them at the values it ended on,
+which is **36 of 4200 channels differing by at most 8e-6 of the peak**, all in
+peak tails at a window edge. That is the frozen-per-stage invariant, and
+`RefinementResult.y_calc` is the first of the two — the curve the fit minimised.
+
+*In flight.* Nothing running.
+
+*Next.* **Item 5 is a decision, not a task** — § Three items that are not code
+changes costs both options, and the blocker is which release carries a
+`SCHEMA_VERSION` 0.2 → 0.3 (1.0.2 is written, unreleased and already carries
+0.1 → 0.2; `pyproject` is at `1.1.0.dev0`). **Item 1** (yank `0.0.0` from PyPI)
+is the other one-action item and is likewise the maintainer's, not a session's.
+Of what is left on the friction list, **items 9, 10 and 11** are the
+silent-science group, and the round already found that 8 and 10 **did not
+reproduce** — so before working them, read § The decision's last paragraph:
+what the default surface does to an agent is not what the transcript's agent
+did to itself. Milestone-wise the maintainer's ordering still puts the speed
+chain (1112 → 1115) ahead of all of it.
+
+*Gotchas.* (a) **A pydantic `model_validator(mode="before")` may not return an
+instance of its own class.** Returning `cls.from_plan(value)` is rejected with
+`Input should be a valid dictionary or instance of PlanSpec` — naming, as the
+input, the very object it just built. `.model_dump()` on the way out is what
+works, and it keeps `from_plan` the one authority for the field mapping. (b)
+**`__getattr__` is safe on a dataclass and on a pydantic model only while every
+other name still raises `AttributeError`** — that is what leaves `hasattr`,
+`getattr(..., default)`, `copy.deepcopy`, `pickle` and the JSON round trip
+behaving exactly as before, all checked on both. On the pydantic side it must
+also delegate to `super().__getattr__` first (that is what serves `model_extra`
+and private attributes) and fast-path `_`-prefixed names, because pydantic
+probes absent attributes during copy and serialization and a speed milestone is
+not where you add a scan to that path. (c) **The other formats were checked,
+not assumed**, for item 17: Rigaku's `CW_Temperature1`/`CW_Temperature2` are
+the cooling water and `RE_EnclosureTemp` the cabinet, and the `.brml` fixture
+has no temperature field at all. (d) The GUI's `_as_plan_argument` keeps its
+`to_plan()` on purpose: that call validates a raw JSON dict, a different job
+from crossing between two live objects, and folding it in would have made a GUI
+change out of a library one. (e) Root CLAUDE.md's cap moved 752 → 759 in its
+own commit, per the policy in `SIZE_CAPS`. (f) I wrote "the only two objects a
+caller handles here that are not pydantic models" into a docstring and it was
+false — `Refinement`, `Project` and `RefinementTree` are plain classes too. The
+true claim is *schema-shaped*, and it is the one that makes the message earn
+its place. Corrected in its own commit; worth the habit of checking a
+superlative before writing it.
 
 ### 2026-08-20 (third session) — the zero-scale cell runaway, bounded and named
 
