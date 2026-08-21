@@ -100,7 +100,7 @@ Jacobian path → [1113](wp/1113-evaluation-count.md) evaluation count →
 [1114](wp/1114-peaks-buffer-spike.md) peaks-buffer spike →
 [1115](wp/1115-compiled-kernel-spike.md), gated on the harness still missing the
 targets. **The next session is [1112](wp/1112-batched-derivative-bases.md).**
-[1110](wp/1110-agent-surface-friction.md) **closed 2026-08-21** (narrative in the record): two of its fixes change what a fit *says* and a release note must carry them — the covariance is **equilibrated before it is inverted**, so a direction the data does not move reports no esd rather than a small one, and the cell of a phase **the data cannot see** carries a per-stage window (both root CLAUDE.md § Invariants). Its item 5, removing `Parameter.expr` at `SCHEMA_VERSION` 0.2 → 0.3, is the maintainer's release-home call, costed both ways in the WP file; item 19 is now [1118](wp/1118-foreign-model-files.md), unscheduled. [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf; [1117](wp/1117-compatibility-promise.md) closed 2026-08-21 — the preview promise above.
+[1110](wp/1110-agent-surface-friction.md) **closed 2026-08-21** (narrative in the record): two of its fixes change what a fit *says* and a release note must carry them — the covariance is **equilibrated before it is inverted**, so a direction the data does not move reports no esd rather than a small one, and the cell of a phase **the data cannot see** carries a per-stage window (both root CLAUDE.md § Invariants). Its item 5, removing `Parameter.expr` at `SCHEMA_VERSION` 0.2 → 0.3, is the maintainer's release-home call, costed both ways in the WP file — and [1119](wp/1119-named-variables.md) is a reason to hold rather than take it, since `expr` is the declared carrier for the nonlinear half of that feature; item 19 is now [1118](wp/1118-foreign-model-files.md), unscheduled. [1116](wp/1116-session-protocol-hygiene.md) closed 2026-08-20 — the scan that cried wolf; [1117](wp/1117-compatibility-promise.md) closed 2026-08-21 — the preview promise above.
 
 Parked, in rough order, for after v1.1 — none of it blocks a speed session: the
 1.0.0-release-notes promises (`.rex` zip transport; `RefinementState.excluded_regions`
@@ -394,16 +394,20 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 | [1116](wp/1116-session-protocol-hygiene.md) | Session-protocol hygiene: the scan that cried wolf | ✅ 2026-08-20 | — |
 | [1117](wp/1117-compatibility-promise.md) | The compatibility promise, rewritten for the users there are | ✅ 2026-08-21 | — |
 
-### Unscheduled — foreign model files (added 2026-08-21)
+### Unscheduled — coming from another code (added 2026-08-21)
 
-Reading a TOPAS/GSAS/FullProf control file and writing one back, for the
-**refine flags** as much as the model: all six agents in 1110's round named
-hand-transcribing a `.inp` as the hardest part of the work. Unscheduled; the
-licence fences and the acceptance are settled in the file.
+Two things 1110's round found that no milestone owns. **1118**: reading a
+TOPAS/GSAS/FullProf control file and writing one back, for the **refine flags**
+as much as the model — all six agents named hand-transcribing a `.inp` as the
+hardest part of the work. **1119**: the named variable a `.inp` equation refers
+to. Its linear half already works through `tie`/`tie_equal`, so what is missing
+is a variable with its own name and bounds, multi-term ties and persistence;
+nonlinear stays fenced behind `Parameter.expr`. 1119 lands first if both run.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | ⬜ | — |
+| [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ⬜ | — |
 
 ## v2+ (seams pre-built, implementations fenced out)
 
