@@ -389,6 +389,7 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 | [1113](wp/1113-evaluation-count.md) | Evaluation count: name the mechanism, then attack it | ✅ 2026-08-21 | 1111 (soft) |
 | [1114](wp/1114-peaks-buffer-spike.md) | Peaks-buffer spike: shape reuse across 2θ | ⬜ | 1112 |
 | [1115](wp/1115-compiled-kernel-spike.md) | Compiled-kernel spike (gated) | ⬜ | 1112, 1114 |
+| [1120](wp/1120-batched-residual.md) | Batch the residual: the forward's un-taken WP-1112 win | ⬜ | 1112 |
 | [1116](wp/1116-session-protocol-hygiene.md) | Session-protocol hygiene: the scan that cried wolf | ✅ 2026-08-20 | — |
 | [1117](wp/1117-compatibility-promise.md) | The compatibility promise, rewritten for the users there are | ✅ 2026-08-21 | — |
 
