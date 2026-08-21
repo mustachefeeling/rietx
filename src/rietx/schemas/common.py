@@ -13,10 +13,9 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 #: Data-contract version of the pydantic schemas (``Capabilities.schema_version``).
-#: Moves on a **breaking** event only — a rename, a removal or a threshold move
-#: (``docs/manual/using/compatibility.md`` § How a change is classified); a new
-#: field with a default is a safe addition and leaves it alone.  0.1 → 0.2 at
-#: WP-1076, for one event: ``RefinedParameter.initial`` and
+#: Any change a consumer could observe bumps the last component by one, and
+#: the comment says what changed — no classification, no digest (WP-1117).
+#: 0.1 → 0.2 (WP-1076): ``RefinedParameter.initial`` and
 #: ``RefinementResult.correlation_warnings`` removed, both fields nothing wrote.
 SCHEMA_VERSION = "0.2"
 

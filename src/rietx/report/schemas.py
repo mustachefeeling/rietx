@@ -29,6 +29,8 @@ from ..schemas.results import (
 )
 from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 
+# Any change a consumer could observe bumps the last component by one, and
+# the comment says what changed — no classification, no digest (WP-1117).
 # 0.3 (WP-0602): + refine_preferred_orientation in the action vocabulary
 # 0.4 (WP-1054): abstained-branch honesty.  ``reindex_or_recheck_cell`` is
 #   emitted on validity-failure χ² share (REINDEX_MIN_MISFIT_SHARE — replacing

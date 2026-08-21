@@ -1,20 +1,46 @@
 # Compatibility
 
-This chapter is the 1.0 stability promise: which surfaces are frozen, which
-are still free to move, and how a change is classified when it comes. Read it
-before you build anything that outlives one interactive session — a stored
-result, a parser for the agent envelope, a pipeline pinned to a version.
+This chapter is the 1.x stability position: what a version string tells you,
+which parts move most, and how to build something that outlives one
+interactive session — a stored result, a parser for the agent envelope, a
+pipeline pinned to a version — on a package that is still being reshaped.
 
-The promise has two strengths, because the package has two kinds of consumer.
-A person testing interactively recovers from a renamed argument in a minute.
-An unattended pipeline — or a directory of saved projects — does not recover
-from a changed file format. So the data contracts freeze hard at 1.0, and the
-Python call surface freezes as it is documented.
+## The preview position
 
-## The data contracts are frozen
+**1.x is a preview, and anything may change in any release** — a name, a
+shape, a threshold, an answer, including in a patch release. The package is
+young and its users are few and close to its development, so it trades
+stability for speed on purpose; holding every surface still would protect
+almost nothing and slow everything. Three rules make the preview buildable:
 
-A break in any of these corrupts accumulated work or an unattended pipeline,
-so none of them changes shape without its version string moving. The version
+- **Pin an exact version.** `rietx==1.1.0` in a lockfile is the stability
+  promise. An upgrade is a decision, taken after reading what moved; what
+  the preview does not offer is an upgrade that is safe unread.
+- **Any observable change moves a version string.** Each data contract below
+  carries one, and the rule — stated beside each constant in the source — is
+  one sentence: any change a consumer could observe bumps the last component
+  by one, and the comment beside the constant says what changed. No
+  safe/minor/breaking classification survives; the only question left is
+  whether you could have noticed.
+- **A change to what an existing value means is always a documented event**,
+  even when no shape changes. A field that keeps its name and type but
+  answers a different question is the least visible break there is, so it is
+  never silent.
+
+The position expires by its own terms: **it tightens when the first
+persistent archive of `.rex` projects exists** — a condition, not a date —
+because from that point a format change destroys accumulated work rather
+than a test fixture. The version strings, their bump records and the
+documented-surface partition below are kept current so that tightening is a
+decision, not a rebuild.
+
+## The six version strings
+
+A moved version string means something you could observe changed, and the
+comment beside the constant says what. **Those comments are the changelog**:
+each constant carries its own bump history — what moved, in which change, and
+why — and no separate file restates it. Promoting that record to a hosted
+page is part of tightening the promise, when there are users to face it. The
 strings are the six contracts `capabilities()` reports — [](agents.md) has
 the table:
 
@@ -25,49 +51,41 @@ the table:
   arms, and its error grammar: `ok: false` with a structured error whose
   `code` is one of the three in `agent.ERROR_CODES` — a closed list.
 - **The `.rex` project directory** (`Capabilities.project_format_version`).
-- **The streaming event ladder** (`Capabilities.event_schema_version`).
+- **The streaming event ladder** (`Capabilities.event_schema_version`). An
+  event's `data` dict is declared open on both sides, so a new key in it is
+  the contract working rather than a change to it; a new event kind bumps.
 - **The report gates and thresholds**
   (`Capabilities.report_thresholds_version`) and **the indexing gates**
   (`Capabilities.indexing_thresholds_version`).
-- **The diagnostic and guard code vocabularies**, which are open by design:
-  a new code may appear in any release, and an existing code keeps its
-  meaning. Branch on the codes you know; pass through the ones you do not.
 
-## The Python surface freezes as it is documented
+Two vocabularies carry no version string because they are **open by
+design**: the diagnostic and guard codes. A new code may appear in any
+release, and an existing code keeps its meaning. Branch on the codes you
+know; pass through the ones you do not.
+
+## The Python surface is documented, not frozen
 
 The public call surface — every function, class, method and field a caller
 can reach — is derived from the live package rather than hand-listed, so a
-new public name cannot slip past it. Every name on it is in exactly one of
-three buckets:
-
-- **Documented.** A name this manual's Part 1 documents is frozen from the
-  release that documents it — unless it belongs to a subsystem declared
-  provisional in the next section, which overrides this for that subsystem's
-  names and for nothing else.
-- **Deferred.** The rest of the surface is **provisional until its chapter
-  lands**: it works as it stands today, but a name in this bucket may change
-  in a 1.0.x release. The 1.0.x releases are the documentation road — each
-  chapter that lands promotes its names from provisional to frozen. This is
-  not the same state as *provisional by declaration* below, which a chapter
-  does not promote.
-- **Excluded with a written reason** — documented as a protocol rather than
-  as a type (the `cancel=` token), or a compile-stage internal.
-
-In practice: if this manual names it, build on it; if not, it still works,
-but check the release notes before you upgrade. One subsystem is the
-exception, and the next section names it.
+new public name cannot slip past it: it fails the build until its chapter
+documents it, it is deferred with the chapter still to come, or it is
+excluded with a written reason. That partition gates coverage, not
+stability. "Documented" means documented — the manual describes the name as
+it works in this release — and a documented name may still change in the
+next one, with the release notes saying so.
 
 **Everything else is internal.** Anything importable outside the derived
-surface is internal and may change without notice. The freeze covers the
-derived surface, so a chapter that spells an internal helper fully qualified —
-`rietx.viz.compare.run` and `rietx.viz.html.write_html` are the standing
-examples — is pointing you at something that works, not promoting it.
+surface is internal and may change without notice. A chapter that spells an
+internal helper fully qualified — `rietx.viz.compare.run` and
+`rietx.viz.html.write_html` are the standing examples — is pointing you at
+something that works, not promoting it.
 
 (provisional-by-declaration)=
 
 ## Provisional by declaration
 
-The rest of the promise is by declaration rather than by bucket:
+Even in a preview, some parts move more than others, and the ones expected
+to move are declared rather than left to be inferred:
 
 - **The GUI as a whole ships as beta**, its HTTP routes included. Two things
   about the wire are nevertheless stated normatively below: the JSON dialect,
@@ -77,48 +95,21 @@ The rest of the promise is by declaration rather than by bucket:
   file, its `Capabilities.textdoc_format_version` starts moving.
 - **A series is session-scoped.** `refine_sequential` returns its result and
   writes one history tree per pattern, but the series itself is not a saved
-  document at 1.0.
+  document.
 - **Indexing is provisional as a subsystem.** `pick_peaks`, `index_pattern`
   and `determine_extinction_symbol`, the answer types they return
   (`rietx.schemas.indexing`), and the helpers under `rietx.indexing` that the
-  agent protocol's worked loop calls are documented in [](indexing.md) and may
-  still change in a 1.x release. The engines, the gates and the figures of
-  merit are still being measured against real data, and 1.0.2 is what that
-  looks like: `determine_extinction_symbol` stopped refuting an extinction
-  class on a neighbouring peak's tail, so its *answer* moved in a patch
-  release. In exchange, every such change is announced in the release notes,
-  and the data contracts keep their own hard freeze —
+  agent protocol's worked loop calls are documented in [](indexing.md) and
+  are the names in the package most likely to change: the engines, the gates
+  and the figures of merit are still being measured against real data, and
+  1.0.2 is what that looks like — `determine_extinction_symbol` stopped
+  refuting an extinction class on a neighbouring peak's tail, so its
+  *answer* moved in a patch release. Every such change is announced in the
+  release notes, and the data contracts keep their own version strings —
   `Capabilities.indexing_thresholds_version`, the engine and search-preset
-  capability types, and the `indexing` arm of the agent envelope. Parsing an
-  answer is on frozen ground; importing a type is not.
-
-## How a change is classified
-
-The rule is hybrid: what a change *is* decides which version moves.
-
-**Safe additions move no contract version.** A new field with a default — on
-any schema, in an event's `data` dict, a new key in `capabilities().features`
-— is not a break. The package version and the release notes carry it.
-
-**Closed-vocabulary additions are minor events in their own contract.** A new
-action kind, a new indexing caveat, a new node kind, a new abstention kind, a
-new event kind: each moves the version string of the contract it belongs to.
-The classification of actions in `rietx.report.apply.RECIPES` is part of the
-report contract, so moving a kind between classes is a minor event too.
-
-**Renames, removals and threshold moves are breaking events**, and each moves
-its contract's version as one.
-
-Two clauses complete the rule:
-
-- **A change to what an existing value means is always a documented event**,
-  even when no shape changes. A field that keeps its name and type but
-  answers a different question is the least visible break there is, so it is
-  never silent.
-- **Tolerate unknown fields and flags.** Safe additions arrive without a
-  contract version move, so validating responses against a pinned copy of
-  the schema is unsupported: a pinned-copy validator breaks on exactly the
-  changes this promise calls safe.
+  capability types, and the `indexing` arm of the agent envelope — so a
+  consumer that parses an answer sees a bump when the answer's shape or
+  meaning moves.
 
 ## The JSON the package writes
 

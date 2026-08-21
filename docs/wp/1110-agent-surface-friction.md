@@ -45,6 +45,15 @@ scripts through 129 Bash calls.
 The blunt read: **docs for orientation, source for the API**. A tool surface
 nobody calls is not a tool surface.
 
+### Inherited
+
+- **From WP-1117 (closed 2026-08-21):** breaking `SCHEMA_VERSION` now costs
+  one bump comment — the classification is gone, the identical one-sentence
+  rule sits beside each of the six version constants, and the bump comments
+  are the changelog. Item 5's `Parameter.expr` removal is therefore a
+  0.2 → 0.3 bump with a comment and no chapter read; its release-home
+  decision stays the maintainer's (a WP-1117 non-goal).
+
 ### Friction, each verified against the current tree
 
 1. **`pip install rietx` on Python 3.10 silently installs nothing.** The PyPI

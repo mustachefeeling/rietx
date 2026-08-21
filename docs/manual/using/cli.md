@@ -161,8 +161,8 @@ standard and variant keys.
 :::{admonition} Beta
 :class: warning
 The GUI is **beta**. Its panels are still moving, so it is not documented here
-beyond this section, and its behaviour may change between 1.0.x releases. The
-library API around it is frozen; the interface is not.
+beyond this section, and its behaviour may change between releases even
+more freely than the library API around it does.
 :::
 
 ```console

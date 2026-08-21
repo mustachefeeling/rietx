@@ -1,6 +1,6 @@
 # WP-1117 — the compatibility promise, rewritten for the users there are
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-21 — the promise is a preview; the bump rule is one sentence, six times; the bump comments are the changelog
 Depends on: —
 
 ## Goal
@@ -55,6 +55,28 @@ stays because the flag is user-facing. So relaxing the promise buys back one
 step in six — worth doing, and **not** the thing that made that change feel
 heavy. A session that expects more from this WP will be disappointed; the win
 is that the remaining step stops being a *decision*.
+
+### The audit, re-run against the new rules (2026-08-21)
+
+The table above, replayed after tasks 1-3 landed:
+
+| step | before | after |
+|---|---|---|
+| add to the `PeakFlag` `Literal` | the change itself | unchanged |
+| add to `PEAK_UNUSABLE_FLAGS` | the change itself | unchanged |
+| write the test | the change itself | unchanged |
+| bump `INDEXING_THRESHOLDS_VERSION` with its comment | a classification + a chapter read | a rule application: observable? yes → last component +1, comment says what |
+| add to `gui/src/lib/rxt.ts`, rebuild the dist | sync machinery | unchanged (non-goal) |
+| add the row to `using/indexing.md`'s flag table | documentation | unchanged (user-facing) |
+
+**No step went.** Six steps remain six; what the relaxation freed is exactly
+what this Context predicted and no more: the bump stopped being a decision.
+"Safe, minor or breaking, and does the chapter's rule fire?" — with the doc
+read it dragged in — is now "could a consumer observe it?", answered without
+opening anything. The trade runs the other way too and is worth recording: a
+defaulted schema field, which the old rule called safe and left unversioned,
+now bumps — the rule fires more often and decides nothing. The measured
+result of this WP is friction converted, not steps removed.
 
 ### What exists today
 
@@ -177,7 +199,7 @@ being asked for.
 
 ## Tasks
 
-- [ ] **Rewrite `docs/manual/using/compatibility.md` around what is actually
+- [x] **Rewrite `docs/manual/using/compatibility.md` around what is actually
       promised.** Delete § "How a change is classified"; state the preview
       position and how to pin. Three sentences survive the deletion or join
       it: the meaning clause ("a change to what an existing value means is
@@ -192,24 +214,24 @@ being asked for.
       into the chapter still resolves — root CLAUDE.md and `docs/ROADMAP.md`
       both restate the freeze ("documenting it freezes it") and need the same
       re-grounding, not only a link pass.
-- [ ] **State the bump rule in each of the six constants' comments — one
+- [x] **State the bump rule in each of the six constants' comments — one
       sentence, identical**: any change a consumer could observe bumps the
       last component by one, and the comment beside the constant says what
       changed. No classification (the relaxed promise makes safe/minor/
       breaking meaningless) and no digest — the withdrawn item above records
       why, and what evidence would reopen it.
-- [ ] **Declare the bump comments the changelog.** They already carry the
+- [x] **Declare the bump comments the changelog.** They already carry the
       history this WP would otherwise have seeded (e.g.
       `INDEXING_THRESHOLDS_VERSION`'s 1.0/1.1/1.2/1.3 notes, `SCHEMA_VERSION`'s
       0.1 → 0.2), and a separate file would be a second authority with no test
       holding the copies together. The rewritten chapter says where the
       history lives; promoting it to a user-facing file waits for users to
       face, and is part of the tightening path rather than of this WP.
-- [ ] **Audit what the relaxation actually freed**, and record it: re-run the
+- [x] **Audit what the relaxation actually freed**, and record it: re-run the
       six-step table above against the new rules and say which steps went. If
       the answer is still "one of six", say so — a WP that measures its own
       result at less than it hoped is worth more than one that does not look.
-- [ ] Tests: the chapter's own link/reference checks via
+- [x] Tests: the chapter's own link/reference checks via
       `tests/test_manual_api.py` and `tests/test_docs_consistency.py`, and the
       `-W` Sphinx build. No new meta-test lands. No obs/calc/diff PNGs: this
       WP touches no refinement.
@@ -239,6 +261,35 @@ nothing in `compatibility.md` has to be read to know whether that was correct.
   declaration) — where the machinery came from, for the cost of rebuilding it.
 
 ## Handover log
+
+- **2026-08-21 (implementation session)** — The package no longer promises a
+  freeze its maintainer cannot afford. The compatibility chapter now says what
+  is true: 1.x is a preview, stability comes from pinning an exact version,
+  and the one question a change raises is whether a consumer could observe it
+  — if yes, the contract's version bumps its last component and the comment
+  beside the constant says what changed. Nothing expensive to rebuild was
+  dismantled, and the audit found the trigger change's six steps remain six:
+  what the relaxation freed is the decision, not a step.
+  **Done**: all five tasks, one commit each — fa714ce5 (chapter rewrite +
+  re-grounding of root CLAUDE.md ×2, ROADMAP Current focus, AGENT_PROTOCOL,
+  refining.md, cli.md, all line-neutral with both size-capped files at cap),
+  327de3e2 (the identical sentence heading all six constants' comments,
+  histories kept verbatim), c54affff (the chapter declares the bump comments
+  the changelog), 1570b322 (the audit, in Context above), e1f613c9
+  (acceptance). **Measured**: targeted acceptance 57 passed; sphinx -W clean;
+  ruff clean; fast selection 2573 passed + 117 skipped in ~2:20-2:25 (main
+  checkout .venv, `[dev]` only — jax and torch absent — macOS); no test added,
+  no count moved. **Gotchas**: the events contract's open `data` dict means a
+  new key there is *not* an observable change (the constant's comment says so
+  — do not "fix" it to bump); a defaulted schema field, safe under the old
+  rule, now bumps `SCHEMA_VERSION`; the tolerate-unknowns consumer clause
+  died with the classification section — it was never implemented
+  (`ObservedPeak`, measured above). No `### Inherited` existed on arrival, so
+  nothing was pruned. Forward note pushed to WP-1110's `### Inherited` (its
+  item 5 is now a one-comment break). **Next**: nothing — closed. The
+  tightening path (the trigger, the bump records, the partition) is written
+  into the chapter for whichever session the first real `.rex` archive
+  summons.
 
 - **2026-08-21** — created during WP-1110's second session, at the maintainer's
   request, so the contract question could be taken up fresh rather than

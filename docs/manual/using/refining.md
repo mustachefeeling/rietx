@@ -481,4 +481,4 @@ record of how it was computed, and that record is the only place the answer
 survives once the calling code has moved on.
 
 The four version fields are the same contracts `capabilities()` reports.
-[](compatibility.md) says which are frozen and what a change to one means.
+[](compatibility.md) says what a change to one means.

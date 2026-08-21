@@ -77,9 +77,11 @@ from pydantic import Field
 
 from ..schemas.common import Base
 
-#: "2" since WP-1024 added the ``index_start``/``index_end`` kinds.  Read the
-#: module docstring's additivity rule before changing it: a new kind bumps, an
-#: added ``data`` field does not.
+#: Any change a consumer could observe bumps the last component by one, and
+#: the comment says what changed — no classification, no digest (WP-1117).
+#: ``data`` is an open dict by declaration (module docstring), so a new key in
+#: it is not an observable change of the contract; a new kind is.
+#: "2" since WP-1024 added the ``index_start``/``index_end`` kinds.
 EVENT_SCHEMA_VERSION = "2"
 
 EventKind = Literal["fit_start", "stage_start", "eval", "stage_end", "fit_end",
