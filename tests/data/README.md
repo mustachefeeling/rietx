@@ -256,16 +256,24 @@ factor, the other the flat-plate one.
 tree reproduces each **bit-for-bit** (`np.array_equal`) — the acceptance gate
 for "nothing here may change a single computed number on the numpy path".
 
-**WP-1112 re-baseline (2026-08-21)**: `srm660c` and `toy_rich` — the two
-FCJ-live states — were re-captured after the batched `derivative_bases`
-landed.  Only their `jacobian` key moved, by ≤ 7.4e-16 and ≤ 2.5e-16
-per-column relative respectively: the FCJ node-weighted sums are now batched
-matmuls where the loop ran one dgemv per reflection, and the node
-generation is vectorised (`fcj_offsets_weights_batch`) — reduction-order
-changes, not different mathematics, and inside the WP's declared ≤ ~1e-15
-bar for the FCJ scope.  Every other state and every other key reproduced
-bit-for-bit un-recaptured, which is the measured evidence for the WP's other
-claim: symmetric rows batch **bit-identically**.
+**WP-1112 re-baselines (2026-08-21), two distinct events:**
+
+1. *Batched derivative bases*: `srm660c` and `toy_rich` — the two FCJ-live
+   states — re-captured.  Only their `jacobian` key moved, by ≤ 7.4e-16 and
+   ≤ 2.5e-16 per-column relative: the FCJ node-weighted sums are batched
+   matmuls where the loop ran one dgemv per reflection, and the node
+   generation is vectorised (`fcj_offsets_weights_batch`) — reduction-order
+   changes inside the WP's declared ≤ ~1e-15 bar.  Every other state and key
+   reproduced bit-for-bit un-recaptured, which is the measured evidence for
+   the WP's other claim: symmetric rows batch **bit-identically**.
+2. *Area-criterion windows*: **all ten** states re-captured.  Window extents
+   are compiled state, so every `y_calc`/`residual`/`jacobian` moves with
+   them; the equivalence argument is the recorded tolerance
+   (`forward.WINDOW_AREA_TOL = 2e-2`, the discarded-area bound, chosen by the
+   sweep in the WP file: QPA round-robin fractions flat to < 0.3 wt % from
+   5e-3 to 5e-2 while the protocol fits ran 1.9-2.4× faster) — not an Rwp
+   comparison, which legitimately *rises* in the third digit as the
+   truncated tail residue becomes visible.
 
 These are *environment-pinned* bit patterns, not physical reference values: a
 different BLAS/numpy build may legitimately differ in final bits.  **WP-1002

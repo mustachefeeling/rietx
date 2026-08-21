@@ -94,8 +94,10 @@ restraints ({ref}`ch-parameterisation`).
 
 Everything discrete about the model — the reflection list, per-atom
 symmetry-operator subsets, the per-(line, reflection) evaluation windows
-(which extend ±({{ WINDOW_FWHM_MULT }} · estimated FWHM + a floor + the FCJ
-smear extent)), and the FCJ quadrature node counts — is computed when a
+(which extend ±(k(η) · estimated FWHM + a floor + the FCJ smear extent),
+where k(η) is sized so the discarded pseudo-Voigt area stays at or below
+{{ WINDOW_AREA_TOL }} — `rietx.model.forward.window_fwhm_mult`), and the FCJ
+quadrature node counts — is computed when a
 stage is compiled and never changes during a least-squares run. Only node
 *positions* and weights follow the parameters, smoothly. This is what keeps
 the residual smooth for finite-difference and autodiff Jacobians;

@@ -718,8 +718,12 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     try:
         pre = Refinement(structure_from_candidate(candidate, space_group=symbol),
                          ins, history=False)
+        tt_max = float(np.max(np.asarray(data.two_theta)))
+        if two_theta_limits is not None:
+            tt_max = min(tt_max, float(two_theta_limits[1]))
         profile = pre.fit(data, mode="lebail",
-                          plan=validation_plan(candidate, ins),
+                          plan=validation_plan(candidate, ins,
+                                               two_theta_max=tt_max),
                           two_theta_limits=two_theta_limits)
         screen.profile_rwp = float(profile.statistics.rwp)
         frozen = pre.fitted_instrument

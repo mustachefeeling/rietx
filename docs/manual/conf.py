@@ -23,7 +23,7 @@ from rietx.indexing.engines import (
 )
 from rietx.indexing.reduce import NIGGLI_EPS_RELATIVE
 from rietx.model.absorption import CYLINDER_MU_R_MAX
-from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_FWHM_MULT
+from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_AREA_TOL
 from rietx.model.geometry import (
     ANGLE_LINEARISATION_LIMIT_DEG,
     VARIANCE_CANCELLATION_FLOOR,
@@ -97,7 +97,7 @@ myst_substitutions = {
     "SYMMETRY_ANGLE_TOL_DEG": SYMMETRY_ANGLE_TOL_DEG,
     "THRESHOLDS_VERSION": THRESHOLDS_VERSION,
     "VALIDITY_RADIUS_FWHM": VALIDITY_RADIUS_FWHM,
-    "WINDOW_FWHM_MULT": WINDOW_FWHM_MULT,
+    "WINDOW_AREA_TOL": WINDOW_AREA_TOL,
     "release": release,
 }
 

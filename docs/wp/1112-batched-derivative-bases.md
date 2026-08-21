@@ -202,11 +202,45 @@ approximation (1114).
       Jacobian call: cpd-1a 10.5 → 8.7 ms, trigger 94.7 → 83.7 ms; the
       remainder is the bases kernel (39 ms) + `_accumulate` (27 ms), both
       ∝ window width — the η-window task's target.
-- [ ] **η-aware window sizing** by the area criterion above, after the batch;
+- [x] **η-aware window sizing** by the area criterion above, after the batch;
       re-baseline per `tests/data/README.md` with the equivalence argument
       (area tolerance) recorded next to each moved golden.  Includes the
       one-hot sizing gate from the gate record (allocate FCJ nodes only when
       both apertures can be positive this stage) — same re-baseline event.
+      *Landed 2026-08-21.*  **The 1e-3 tolerance the context proposed is
+      unreachable**: the Lorentzian tail gives k ≈ η/(π·tol), so 1e-3 means
+      k(0.6) ≈ 190 and every lab window *grows*; even 5e-3 reproduces the
+      shipped widths (k(0.5) ≈ 32 ≈ the old 30) — the old default was,
+      accidentally, about right for lab mixes, and the forecast 4-8× was
+      never available without a stated >1 % area bias.  **Measured sweep**
+      (cpd-1a + cpd-2 protocol fits): QPA fractions are *flat in the
+      tolerance* from 5e-3 to 5e-2 (deviations vs weighed truth 0.61-0.64 /
+      2.83-2.91 wt %, the fits' own systematics; bands ±2/±6) while speed
+      doubles — so `WINDOW_AREA_TOL = 2e-2` (k(0.6) ≈ 9.5), the knee:
+      cpd-1a 9.7 → 5.0 s, cpd-2 15.6 → 8.6 s, fractions within 0.25 wt % of
+      shipped, Rwp +≤0.005 (the truncation residue, visible and stated).
+      Trigger: Σ windows 114× → 34.6× n_points, Jacobian 83.7 → 36.1 ms,
+      residual 30.9 → 17.0 ms.  **The window's two jobs split**: k(η)·Γ is
+      tail coverage; `Stage.window_slack_deg` (new, mirrored on `StageSpec`,
+      `SCHEMA_VERSION` 0.2 → 0.3, textdoc key + GUI highlighter + dist
+      rebuilt) is capture range, declared where a fit must measure a
+      hypothesis it may not walk toward — the indexing Le Bail validation
+      derives it from the pattern range (`validation_window_slack_deg`:
+      2·tanθ_max·1 %, clipped [0.3, 6.0]°), which keeps the wrong-metric
+      case reading as *displaced* (Rwp + unmatched), never *absent*, and
+      keeps a synchrotron validation narrow (a fixed 4° slack flipped 1 of
+      837 lines of the *correct* NAC cell to absent).  Also landed here: the
+      one-hot gate (`can_sl`/`can_hl` in `compile_model`), all ten goldens
+      re-captured (README §backend_goldens), and the collateral
+      recalibrations: aniso round-trip fixture ×4 brighter (its 2σ bar sat
+      at a 2.2σ margin that wobbled ±0.1σ under any window change),
+      flat-plate low band moved onto the first peaks, partition tests
+      honour the documented empty-window NaN, stage-boundary continuity
+      bars re-measured (4.4e-4/2.6e-3 gaps — window edges now carry weight),
+      and the misfit-injection texture tests re-pinned to the *stronger*
+      claim: honest windows cut the extraction leak at its root (phantom
+      texture R² 0.66 → 0.012), with `cap_texture_crosstalk` keeping a
+      direct unit test.
 - [ ] Cross-backend: `tests/test_cross_backend.py` configs grow if any
       derivative path's shape changed (CLAUDE.md: the matrix must cover every
       derivative path); `families_tied` row re-checked.

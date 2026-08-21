@@ -124,6 +124,15 @@ of intensity), and the η-aware sizing task moved to WP-1112 with that
 corrected criterion. If `PEAK_WINDOW_FWHM_MULT` here ends up deriving from
 `WINDOW_FWHM_MULT`, expect that constant to move under 1112.
 
+**Forward note (WP-1112, 2026-08-21)**: it moved. `WINDOW_FWHM_MULT` is
+gone; windows are sized per peak by `window_fwhm_mult(η)` against
+`WINDOW_AREA_TOL = 2e-2` (a discarded-*area* bound; the Lorentzian tail
+makes k ≈ η/(π·tol), so a 1e-3 tolerance would have *grown* every lab
+window — the sweep is in 1112's task-4 record). On `qarr/cpd-1a` the summed
+window points fell 8.5 → 2.8 × n_points. `PEAK_WINDOW_FWHM_MULT` here is
+untouched and still independent; the paragraph above stays as the
+pre-1112 calibration snapshot.
+
 ## Non-goals
 
 - Exporting `fit_group_at`, `GroupFit`, `Detection`, `PeakGroup`,

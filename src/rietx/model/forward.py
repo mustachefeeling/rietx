@@ -123,9 +123,73 @@ from .restraints import (
     restraint_residual,
 )
 
-#: windows extend ±(WINDOW_FWHM_MULT · Γ_est + WINDOW_MIN_DEG + FCJ extent)
-WINDOW_FWHM_MULT = 30.0
+#: Evaluation windows extend ±(k(η)·Γ_est + WINDOW_MIN_DEG + FCJ extent),
+#: where k(η) is the smallest half-width in FWHM units at which the
+#: **discarded area** of the unit-area pseudo-Voigt stays at or below this
+#: tolerance (WP-1112; :func:`window_fwhm_mult` has the closed forms).  Area,
+#: not height, is the criterion because reflection intensities are areas: a
+#: pseudo-Voigt cut at ±k·FWHM discards ≈ η/(π·k) of its integral — the
+#: two-sided Lorentzian CDF tail — so the pre-1112 fixed ±30 FWHM carried an
+#: η-dependent intensity bias it never stated (≈ 0.64 % at η = 0.6, ≈ 1.1 %
+#: at η = 1) while spending ~70× FWHM on near-Gaussian lab peaks whose tail
+#: dies at ±2.  The tolerance was **chosen by measurement**, not principle
+#: (WP-1112's task-4 record has the sweep): the Lorentzian tail makes small
+#: tolerances expensive — 1e-3 grows every lab window (k(0.6) ≈ 190) and
+#: even 5e-3 reproduces the old widths (k(0.5) ≈ 32) — while on the IUCr
+#: QPA round-robin the *answers* are flat in the tolerance: from 5e-3 to
+#: 5e-2 the weighed-truth deviations moved < 0.3 wt % (the fits' own
+#: systematics dominate at ~0.6/2.9 wt %, bands ±2/±6) as the protocol
+#: fits ran 1.9-2.4× faster.  2e-2 is the knee: k(0.6) ≈ 9.5, k(1) ≈ 16,
+#: k(0) ≈ 1.05, cpd-1a/cpd-2 1.9×/1.8× faster than the shipped ±30 FWHM at
+#: fractions within 0.25 wt % of it, and the discarded area is a stated
+#: bound instead of an accident of the margin (the old default's own bias
+#: was ≈ 0.64 % at η = 0.6, unstated).  Rwp rises in the third digit as the
+#: truncated tail residue becomes visible — Rwp is an identity check here,
+#: not the metric.
+WINDOW_AREA_TOL = 2e-2
+#: Absolute slack added to every half-width: windows are frozen per stage,
+#: so a peak must stay inside its window while zero-shift, displacement and
+#: the cell move it during the stage — this is movement headroom, not tail
+#: coverage (a cold fit's zero error is instrument-scale, ~0.1°).
 WINDOW_MIN_DEG = 0.3
+
+#: 2·√(ln 2) — the Gaussian tail argument: a unit-area Gaussian of FWHM Γ
+#: has σ = Γ/(2√(2 ln 2)), so the area outside ±k·Γ is erfc(2√(ln 2)·k)
+_GAUSS_TAIL_C = 2.0 * np.sqrt(np.log(2.0))
+
+
+def window_fwhm_mult(eta: np.ndarray) -> np.ndarray:
+    """k(η): FWHM multiples holding all but ``WINDOW_AREA_TOL`` of the area.
+
+    The two-sided discarded area of the unit pseudo-Voigt outside ±k·Γ is
+
+        D(k) = η·(2/π)·arctan(1/(2k)) + (1−η)·erfc(2√(ln 2)·k)
+
+    (Lorentzian CDF tail + Gaussian tail; both components share the FWHM Γ
+    by the TCHZ construction).  D is monotone in k, so k is solved by
+    vectorised bisection to machine-level precision; the Lorentzian term
+    dominates for any η ≳ tol, giving k ≈ η/(π·tol) — the fat tail is the
+    price of a Lorentzian mix and is why the criterion must know η.
+    """
+    from scipy.special import erfc
+
+    eta = np.clip(np.asarray(eta, dtype=np.float64), 0.0, 1.0)
+    tol = WINDOW_AREA_TOL
+
+    def discard(k):
+        with np.errstate(divide="ignore"):
+            lor = np.where(k > 0.0, np.arctan(1.0 / np.maximum(2.0 * k, 1e-300)),
+                           np.pi / 2.0)
+        return eta * (2.0 / np.pi) * lor + (1.0 - eta) * erfc(_GAUSS_TAIL_C * k)
+
+    lo = np.zeros_like(eta)
+    hi = np.full_like(eta, 1.0 / (np.pi * tol) + 3.0)
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        too_wide = discard(mid) <= tol
+        hi = np.where(too_wide, mid, hi)
+        lo = np.where(too_wide, lo, mid)
+    return hi
 #: when the axial S/L, H/L parameters are about to be *refined* from zero,
 #: quadrature nodes are sized as if they were at least this large, so the
 #: finite-difference Jacobian sees a live parameter instead of a frozen
@@ -1811,7 +1875,8 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                   *, mode: Mode = "rietveld",
                   two_theta_limits: tuple[float, float] | None = None,
                   moving_paths: set[str] | None = None,
-                  restraint_weight_scale: float = 1.0) -> CompiledModel:
+                  restraint_weight_scale: float = 1.0,
+                  window_slack_deg: float | None = None) -> CompiledModel:
     """Freeze reflection lists, orbits, windows and FCJ nodes for one stage.
 
     ``moving_paths`` is every parameter the coming stage can move, or ``None``
@@ -1832,6 +1897,10 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     ``restraint_weight_scale`` is the coming stage's c_w (McCusker eq 7),
     frozen onto the model like every other discrete choice; 1.0 is the identity
     and is what every caller outside the staged runner passes.
+
+    ``window_slack_deg`` overrides ``WINDOW_MIN_DEG`` as the absolute capture
+    slack added to every window half-width (``Stage.window_slack_deg`` has
+    the two-jobs story); ``None`` — every ordinary caller — is the default.
     """
     if restraint_weight_scale < 0.0:
         raise ValueError(
@@ -1856,13 +1925,23 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     # simply never passed the argument must not silently get that.  Only an
     # explicit set — even an empty one — licenses the gates.
     gate_off_states = moving_paths is not None
-    # FCJ sizing values (floored when the axial parameters are about to refine)
+    # FCJ sizing values (floored when the axial parameters are about to
+    # refine).  The aberration's weight is the overlap trapezoid of height
+    # 2·min(S/L, H/L), so it can act this stage only if **both** apertures
+    # can be positive — a value already above zero, or a path the stage can
+    # move.  One aperture pinned at 0 with only the other freed (the QPA
+    # protocol's `lines_axial` stage) previously floored both for sizing and
+    # allocated nodes that evaluated as one-hot symmetric fallbacks — full
+    # node-generation and (nodes × window) kernel cost for an exact identity,
+    # measured 2.5× on the bases build (WP-1112's gate record).
     moving_paths = moving_paths or set()
     axial_free = ("instrument.geometry.axial_sl" in moving_paths
                   or "instrument.geometry.axial_hl" in moving_paths)
+    can_sl = geom.axial_sl.value > 0.0 or "instrument.geometry.axial_sl" in moving_paths
+    can_hl = geom.axial_hl.value > 0.0 or "instrument.geometry.axial_hl" in moving_paths
     sl_eff = geom.axial_sl.value
     hl_eff = geom.axial_hl.value
-    if axial_free:
+    if axial_free and can_sl and can_hl:
         sl_eff = max(sl_eff, AXIAL_SIZING_FLOOR)
         hl_eff = max(hl_eff, AXIAL_SIZING_FLOOR)
     fcj_on = sl_eff > 0.0 and hl_eff > 0.0
@@ -1938,14 +2017,16 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                                     instrument.profile.x.value + phase.lor_size.value,
                                     instrument.profile.y.value + phase.lor_strain.value,
                                     0.0 if aniso_est is None else aniso_est)
-            # TCHZ combined Γ is a compile-time width proxy for window sizing
-            # and FCJ node counts under *both* shapes: it tracks the true Voigt
-            # FWHM to ~1 % (that is what the TCH quintic is fit to), and the
-            # 30·FWHM window margin dwarfs any residual difference.
-            gamma_est, _ = tch_gamma_eta(g_est, l_est)
+            # TCHZ combined (Γ, η) is a compile-time proxy for window sizing
+            # and FCJ node counts under *both* shapes: it tracks the true
+            # Voigt FWHM to ~1 % (that is what the TCH quintic is fit to),
+            # far inside the area criterion's own resolution.
+            gamma_est, eta_est = tch_gamma_eta(g_est, l_est)
             if il == 0:  # primary line drives Pawley overlap grouping
                 tt_primary, fwhm_primary = pos.copy(), gamma_est.copy()
-            half = WINDOW_FWHM_MULT * gamma_est + WINDOW_MIN_DEG
+            slack = (WINDOW_MIN_DEG if window_slack_deg is None
+                     else window_slack_deg)
+            half = window_fwhm_mult(eta_est) * gamma_est + slack
             if fcj_on:
                 half = half + fcj_extent_deg(pos, sl_eff, hl_eff)
             valid = np.isfinite(pos)

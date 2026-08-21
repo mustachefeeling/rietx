@@ -323,8 +323,14 @@ TRUE_O = (0.0092, 0.0092, 0.0068, -0.0038, 0.0, 0.0)
 
 
 def synthesize_aniso_rutile(*, noise_seed: int = 7) -> PatternData:
+    # Scale ×4 over the original 8e-3 (WP-1112): the round-trip's 2σ
+    # resolution bar sat at a 2.2σ margin that wobbled ±0.1σ under *any*
+    # window re-sizing — a fit-path sensitivity, measured identical at the
+    # old and new window widths — so the counts were raised until the
+    # separation is a statement about the physics rather than about where
+    # one TRF run stops.
     structure = make_aniso_rutile(TRUE_TI, TRUE_O)
-    structure.phases[0].scale.value = 8.0e-3
+    structure.phases[0].scale.value = 3.2e-2
     ins = Instrument.debye_scherrer(wavelength=1.5406)
     ins.profile.w.value = 8e-3
     tt = np.arange(15.0, 120.0, 0.02)  # out to high Q, where ADPs live
@@ -346,7 +352,7 @@ def test_round_trip_recovers_an_anisotropic_perturbation():
     pattern = synthesize_aniso_rutile()
     structure = make_aniso_rutile(u_ti=(0.005,) * 3 + (0.0,) * 3,
                                   u_o=(0.008,) * 3 + (0.0,) * 3)
-    structure.phases[0].scale.value = 6.0e-3
+    structure.phases[0].scale.value = 2.4e-2
     ins = Instrument.debye_scherrer(wavelength=1.5406)
     ins.source.dispersion = None   # declined, not inherited — see the note below
     ins.profile.w.value = 1.2e-2
@@ -408,7 +414,7 @@ def test_background_absorption_of_adp_dofs_is_reported_and_low():
     pattern = synthesize_aniso_rutile()
     structure = make_aniso_rutile(u_ti=(0.005,) * 3 + (0.0,) * 3,
                                   u_o=(0.008,) * 3 + (0.0,) * 3)
-    structure.phases[0].scale.value = 6.0e-3
+    structure.phases[0].scale.value = 2.4e-2
     ins = Instrument.debye_scherrer(wavelength=1.5406)
     ins.profile.w.value = 1.2e-2
 

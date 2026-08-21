@@ -520,7 +520,9 @@ def test_layer0_unmatched_calc_cannot_serve_as_the_absent_detector(lab6_pattern)
     from rietx.indexing.workflow import validation_plan
 
     result = ref.fit(lab6_pattern, mode="lebail",
-                     plan=validation_plan(cand, _instrument()))
+                     plan=validation_plan(cand, _instrument(),
+                                          two_theta_max=float(
+                                              max(lab6_pattern.two_theta))))
     layer0 = build_layer0(result)
     n_calc = len([u for u in layer0.unmatched if u.kind == "unmatched_calc"])
     n_refl = len([r for r in ref.reflection_table() if r.line == 0])

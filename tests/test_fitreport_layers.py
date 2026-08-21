@@ -686,29 +686,71 @@ def test_broad_peak_lobes_cap_impurity_without_reindex():
 
 
 def test_impurity_no_longer_outranked_by_manufactured_texture(truth):
-    """The pinned inversion: a pure impurity injection leaks into the
-    per-reflection extraction and manufactures a (1,0,1) texture detection at
-    R²=0.66 that outranked the impurity call 0.66 vs 0.40 (measured
-    2026-08-11).  The detection stays — it is a true measurement of the
-    residual — but is capped below the impurity action that likely feeds it,
-    annotated with the mechanism, and its evidence survives untouched."""
+    """A pure impurity injection once leaked into the per-reflection
+    extraction and manufactured a (1,0,1) texture detection at R²=0.66 that
+    outranked the impurity call 0.66 vs 0.40 (measured 2026-08-11; WP-1054
+    then capped the verdict).  WP-1112's area-criterion windows cut the leak
+    at its root — the foreign line at 29.35° no longer falls inside any
+    calculated neighbour's window, and the same injection measures R² ≈ 0.01
+    — so the pin is now the stronger claim: no texture is detected at all
+    and the impurity call stands alone.  The capping verdict layer keeps its
+    own regression in ``test_texture_crosstalk_cap_is_pinned_directly``."""
     structure, ins, data = truth
     doped = _doped(data)
 
     report = _report_for(structure, ins, doped)
     impurity = report.action("add_impurity_phase")
-    po = report.action("refine_preferred_orientation")
-    assert impurity.confidence > po.confidence, (impurity, po)
-    assert po.alternatives[0] == "add_impurity_phase", po
-    assert "manufacture" in po.rationale
+    assert impurity.confidence >= 0.4
+    kinds = [a.kind for a in report.suggested_actions]
+    assert "refine_preferred_orientation" not in kinds
 
     tex = report.texture[0]
-    assert tex.detected                      # the residual measurement stands
-    assert tex.best_axis is not None and tex.r2 > 0.5   # evidence preserved
-    assert tex.caveat and "manufacture" in tex.caveat
-    assert tex.march_coefficient != 1.0
+    assert not tex.detected
+    assert tex.r2 < 0.1        # the manufactured 0.66 is gone at the root
+    assert tex.caveat is None  # nothing to annotate when nothing is detected
 
     _plot_state(structure, ins, doped, "wp1054_impurity_texture")
+
+
+def test_texture_crosstalk_cap_is_pinned_directly():
+    """The verdict layer of WP-1054's third sighting, exercised directly.
+
+    WP-1112's windows cut the end-to-end leak on the injection fixtures
+    around this test, so the coincidence the cap guards — a texture
+    detection beside a strong unmatched observed peak — is constructed here
+    rather than manufactured: the detection cannot outrank the impurity
+    action that likely feeds it, the mechanism is stated in both the action
+    and the analysis, and the evidence itself is preserved untouched."""
+    from rietx.report import cap_texture_crosstalk
+    from rietx.report.layer2 import IMPURITY_SIGMA
+    from rietx.report.schemas import (
+        TEXTURE_IMPURITY_MARGIN,
+        SuggestedAction,
+        TextureAnalysis,
+        UnmatchedPeak,
+    )
+
+    tex = TextureAnalysis(phase_index=0, best_axis=(1, 0, 1),
+                          march_coefficient=0.7, r2=0.66,
+                          n_reflections_used=12, detected=True)
+    actions = [
+        SuggestedAction(kind="add_impurity_phase", confidence=0.4,
+                        rationale="unmatched line at 29.34"),
+        SuggestedAction(kind="refine_preferred_orientation", confidence=0.66,
+                        rationale="texture detected"),
+    ]
+    unmatched = [UnmatchedPeak(two_theta=29.34,
+                               height_over_sigma=IMPURITY_SIGMA + 20.0,
+                               kind="unmatched_obs")]
+    out = cap_texture_crosstalk(actions, [tex], unmatched)
+    po = next(a for a in out if a.kind == "refine_preferred_orientation")
+    imp = next(a for a in out if a.kind == "add_impurity_phase")
+    assert po.confidence == pytest.approx(
+        imp.confidence - TEXTURE_IMPURITY_MARGIN)
+    assert po.alternatives[0] == "add_impurity_phase"
+    assert "manufacture" in po.rationale
+    assert tex.caveat and "manufacture" in tex.caveat
+    assert tex.r2 == 0.66 and tex.best_axis == (1, 0, 1)  # evidence untouched
 
 
 def test_double_injection_keeps_the_impurity_call(truth):
@@ -731,9 +773,9 @@ def test_double_injection_keeps_the_impurity_call(truth):
     assert "29.34" in impurity.rationale     # the genuine line, named
     kinds = [a.kind for a in report.suggested_actions]
     assert "reindex_or_recheck_cell" in kinds
-    # the manufactured texture is capped below the genuine impurity here too
-    po = report.action("refine_preferred_orientation")
-    assert po.confidence < impurity.confidence
+    # no manufactured texture arises to cap: the WP-1112 windows cut the
+    # extraction leak at its root (the test above measures it)
+    assert "refine_preferred_orientation" not in kinds
 
     _plot_state(structure, perturbed, doped, "wp1054_double_injection")
 

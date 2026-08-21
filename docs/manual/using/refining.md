@@ -145,13 +145,13 @@ the fit, it does not constrain it.
 
 ## What a stage carries
 
-A `Stage` is `Stage.name`, a list of globs in `Stage.turn_on`, and five numbers
+A `Stage` is `Stage.name`, a list of globs in `Stage.turn_on`, and six numbers
 that decide how that stage is solved. `Stage.name` is a label, carried through
 to `StageResult.name` and to the event stream; `Stage.turn_on` is what the
 stage frees, matched with `fnmatch` against the dot-paths of [](model.md).
 
 [](concepts.md) covers `Stage.restraint_weight_scale`, the restraint schedule,
-in full; the other four are here.
+in full; the other five are here.
 
 ```python
 import rietx as rx
@@ -183,6 +183,15 @@ Both default to `0.0`, meaning no seed.
 
 `Stage.lebail_cycles` is the number of intensity-partitioning refreshes the
 stage performs, and it applies in Le Bail mode only.
+
+`Stage.window_slack_deg` (and its mirror `StageSpec.window_slack_deg`) is the
+absolute capture slack, in °2θ, added to every evaluation-window half-width
+the stage compiles. The default (`None`) uses the package constant, sized for
+a fit whose starting positions are roughly right; a fit that must *measure*
+a hypothesis it is forbidden to walk toward — the indexing Le Bail
+validation holds its candidate cell fixed, and a wrong candidate displaces
+peaks by whole degrees — declares the wider capture range its verdict needs
+instead of borrowing tail margin. Leave it unset in ordinary plans.
 
 ## Persisting a plan
 
