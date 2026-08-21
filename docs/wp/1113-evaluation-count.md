@@ -29,6 +29,32 @@ a v1.2 API item — but it should not be dropped silently. The motivating
 observation is one agent on one loaded box: treat it as a request, not a
 measurement.
 
+From WP-1110 (2026-08-20), moved here by WP-1112's arrival prune (2026-08-21):
+a **speed lead free of any answer change**, and it belongs here rather than in
+1112 because what it moves is the evaluation count — this WP's quantity — not
+the cost per evaluation. WP-1110 gave the cell of an unsupported phase a
+per-stage window and measured what that costs elsewhere. The measurement is
+the interesting part: on the chained IUCr `cpd-1c`, bounding *every* cell to
+±10 %, ±25 % or ±50 % reached the **same answer in 82-100 iterations where
+unbounded took 641** — an ~7× reduction on that pattern, with corundum at
+6.26 wt % against 6.30 unbounded. ±5 % is a cliff in the other direction (400
+iterations, hit `max_iter`, Rwp 0.1501 against 0.1079), so the effect is
+non-monotonic and has an optimum.
+
+The mechanism is preconditioning — a direct lever on the trust-region
+trajectory the crawl hypothesis below is about. `run_least_squares` calls
+scipy with the default `x_scale=1.0` on a vector whose coordinates differ by
+seven orders — cells ~4.8, scales ~1e-5, background coefficients ~1e2 — and
+TRF derives a per-coordinate scale from the distance to the bounds, so finite
+bounds are acting as a scale hint. **The direct lever is `x_scale`, not
+bounds**: `x_scale='jac'` or an explicit per-parameter vector says the same
+thing without constraining anything. Nobody has measured that here.
+
+Two cautions. It is one pattern, so it is a lead and not a result; and a
+change to `x_scale` moves the trust-region path on **every** fit, so it needs
+the 1111 harness's equivalence bar across all seven cases rather than a spot
+check.
+
 All numbers from WP-1109's 2026-08-20 review (QPA-acceptance `cpd-2`, 4
 phases, 9 cumulative stages, worktree venv `[dev]`, darwin/arm64) unless
 said otherwise.
