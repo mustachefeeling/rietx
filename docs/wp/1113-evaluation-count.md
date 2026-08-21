@@ -117,6 +117,59 @@ of the problem, exactly as the hypothesis below wants.
   total evaluations drop, with the final answer unchanged to shift/esd?).
   This may well retire as a non-cause; retire it with numbers either way.
 
+## Findings — the mechanism, named (2026-08-21)
+
+Measured with ``examples/stage_trajectory.py`` off the new ``eval`` fields
+(this checkout's venv ``[dev]``, darwin/arm64); every trajectory regenerates
+from ``--case X --stage Y [--solver lm] --plot out.png``.  Counts are
+properties of the fit, not wall clock.
+
+**The crawl hypothesis is wrong for the position movers — and so is
+collapse.**  cpd-2 ``zero_disp`` spends 94 evals as 93 accepted + 1 rejected:
+the trust region never binds after eval 2, and the accepted step norms decay
+as one straight line on a log scale across three decades — ratio ≈ 0.93 per
+iteration, fixed direction.  Same shape on ``cell`` (131 + 1, ratio 0.926)
+and on cpd-1a ``zero_disp`` (84 + 1, ratio 0.928).  Under ``solver="lm"`` the
+same stage runs **λ ≡ 0 throughout** — pure Gauss-Newton, 94/94 accepted,
+same endpoints to 5 digits (zero 0.05074°, displacement 0.09567).  So the
+count is **undamped Gauss-Newton converging linearly along a near-degenerate
+direction** — zero ↔ displacement ↔ the low-order background terms, which
+trade against each other over a lab θ range — at a problem-intrinsic rate of
+≈ 0.93/iteration (≈ 14 iterations per decade), run to ftol = 1e-9.  In
+``cell`` the tail direction is the *same* pair walking back (zero 0.0507° →
+0.0093°, displacement 0.0957 → 0.0304 once the cells can absorb the
+position error).  The control: nac ``zero`` — a zero stage with no
+displacement partner (synchrotron) — takes **5 evals**, and nac ``cell``
+takes 14 with a quadratic finish (step norms 6e-1 → 5e-4 → 2e-6).  The
+expensive stages are expensive exactly where the degenerate pair is free.
+
+**The tail is the count.**  99.99 % of the stage's cost decrease is banked by
+accepted eval 55/93 (``zero_disp``), 83/131 (``cell``), 50/84 (cpd-1a); the
+rest moves the fifth-and-beyond digit.  Every expensive stage measured ended
+on **ftol** — never xtol or gtol (both pinned at 1e-12, see
+``optimize/least_squares.py``).
+
+**``lines_axial`` on the trigger is a second mechanism, and it *is*
+trust-region-shaped.**  185 evals = 143 accepted + 42 rejected (runs up to
+7); accepted step norms are quantized in powers of two (0.058 / 0.115 /
+0.231 / 0.462 internal) — steps pinned *at* the radius — through ~5
+grow-then-reject cycles, while the cost is flat at 6 digits from eval ~20
+and 99.99 % is banked by 69/143.  Meanwhile ``phases.2.gauss_strain`` does a
+full excursion to its softplus off state (1.5e-6) and back: a flat width
+valley (4 × (gauss_size, gauss_strain) + shared axial, near-degenerate over
+the fitted range), with the dead zone inflating internal distances — the
+``x_scale`` lead's natural target.
+
+**Predictions this hands the attack tasks** (to be measured, not yet
+conclusions): the intermediate-budget experiment is the prime lever — a
+looser per-stage ftol on non-final stages cuts tails the final stage
+re-walks once anyway; seeding ``zero_disp`` attacks the descent (evals
+1–55), not the ridge walk, so expect a partial win only; ``x_scale`` targets
+mechanism B and possibly A's rate through TRF's reflective metric — which
+would also explain WP-1110's bounds-as-scale-hint 7×.  And the LM basin
+split is **not** born in ``zero_disp`` (identical endpoints there); the
+bisection should trajectory-diff the later stages.
+
 ## Non-goals
 
 Replacing the staged-plan design with TOPAS-style all-at-once refinement
@@ -138,9 +191,12 @@ one); Rwp-judged anything.
       TRF's trust radius is scipy-internal; the trial step-norm sequence is
       its observable shadow, and the LM stream now carries every measured
       trial rather than accepted points only.
-- [ ] **Name the mechanism** for `zero_disp` (93) and `cell` (131) on the
+- [x] **Name the mechanism** for `zero_disp` (93) and `cell` (131) on the
       1111 cases: crawl vs collapse vs something else, written into this
-      file with the trajectories.
+      file with the trajectories.  It is something else — § Findings: an
+      undamped Gauss-Newton linear tail (rate ≈ 0.93/iteration) along the
+      zero↔displacement↔background degeneracy, ftol-terminated; plus a
+      genuine trust-region valley wander on the trigger's `lines_axial`.
 - [ ] **`x_scale` experiment**: `x_scale='jac'` and an explicit
       per-parameter vector against the default, on all seven 1111 harness
       cases; equivalence by shift/esd, iteration columns before/after. Land

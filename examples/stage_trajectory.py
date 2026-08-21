@@ -151,6 +151,15 @@ def _summary(free_paths, rows, picked) -> None:
           f"+ {len(rows) - len(accepted)} rejected; "
           f"rejection runs {sorted(runs, reverse=True)[:12] or 'none'}"
           + (" …" if len(runs) > 12 else ""))
+    # how much of the stage is tail: evals until 99.99 % of the total cost
+    # decrease is banked, vs evals spent after that point
+    costs = np.array([r["cost"] for r in accepted])
+    drop = costs[0] - costs[-1]
+    if drop > 0:
+        done = int(np.argmax(costs <= costs[-1] + 1e-4 * drop)) + 1
+        print(f"  cost decrease 99.99 % banked by accepted eval {done} of "
+              f"{len(accepted)}; the remaining {len(accepted) - done} "
+              f"accepted evals move the last 1e-4 of it")
     if len(norms):
         q = np.percentile(norms, [25, 50, 75])
         print(f"  accepted step_norm (internal): median {q[1]:.2e}, "
