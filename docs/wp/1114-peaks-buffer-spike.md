@@ -154,6 +154,86 @@ area, first moment (in FWHM units) and relative central second moment:
   the quadratic's roots, which a production compile gets for free) restores
   the tolerance.
 
+**3. Prototype, evaluation level** (`--part proto`; the design-note buffer
+at tol 1e-4, trigger and cpd-2 start states).  Accuracy holds through the
+full pipeline: cpd-2 rows deviate ≤ 2.4e-5 from the shipped planes, the
+whole-pattern forward ≤ 1e-5 of the peak; on the trigger the buffered rows
+sit ≤ 8e-5 (m1, FWHM units) from a 128-image reference on exactly the rows
+where buffered-vs-shipped disagree most — where the *shipped* rows sit
+3.3e-3 away, because the shipped path deliberately skips sub-threshold FCJ
+tails (`SKIP_EXTENT_FWHM_RATIO`).  The buffer is more accurate than the
+shipped path there, not less.  Three 1e-3-class accuracy traps were found
+and fixed on the way, each a rule for any future implementation: a 4-tap
+resample of *raw* samples is O(h³) — prefilter (Unser) so the same taps
+evaluate the C² interpolating spline; the stored step must key to Γ/16,
+because the O(h⁴) constant lives in σ = Γ/2.355 units and the flank carries
+f⁗ ~ 10²/σ⁴; and an anchor must never take the sub-threshold FCJ skip
+(node count 0) — its rows keep their small asymmetry, and the spline smears
+the family discontinuity into every neighbour (measured 1.0e-3 FWHM of m1
+against 1.2e-5 with the node count floored).
+
+Wall clock is where the premise fails on this substrate.  Forward, ms/eval
+(min-max over 5): trigger scalar 17.1-17.8 / **batched exact 7.5-7.8** /
+buffered 11.7-11.9; cpd-2 scalar 2.8-3.0 / batched exact 0.8 / buffered
+5.2-5.3.  Bases: trigger shipped 18.6-19.3 / buffered 21.2-30.1; cpd-2
+shipped 1.1-1.2 / buffered 7.2-7.8.  Two readings:
+
+- **The residual still runs the scalar per-reflection loop, and batching
+  it 1112-style is bit-exact and worth 2.2-3.6×** (17.1→7.5 ms trigger,
+  2.9→0.8 ms cpd-2) — the cheapest production win this spike surfaced,
+  opened as WP-1120.
+- The buffer's 7.8-9× element-volume advantage does not cash out against
+  the batched exact path: batched pV runs at ~8-11 ns/element while the
+  buffer's gathers run at ~0.8 ns but carry their own multipliers (7
+  planes vs 4, 4 taps, ~2× `w_max` padding, the θ-spline evaluated over
+  the stored grid), landing at ≈ parity on the trigger bases and a 7-10×
+  *loss* on the symmetric lab cases, whose element volume (3-12 per
+  point) never had room for a win.  The remaining levers (width-bucketed
+  padding, span-restricted spline evaluation) are each ≤ 2× and bounded
+  by the measured gather floor.
+
+**4. Prototype, fit level** (`--part fit`; full protocols, buffer
+substituted for `phase_component` + `derivative_bases`; deterministic —
+two runs bit-identical on every number below):
+
+| case | exact fit | buffered fit | value dev (median / worst) | esd dev (median / rows > 5 %) |
+|---|---|---|---|---|
+| cpd-2 (QPA acceptance, 9 stages) | 8.35-8.36 s | 19.5-19.9 s | 0.018 / 0.215 esd | 3.2 % / 21 rows |
+| trigger (cold, FCJ) | 28.5-28.8 s | 25.5-26.2 s | 0.0020 / 0.107 esd | 0.07 % / 1 row |
+
+Both fits converge (trigger Rwp identical to 5 digits; cpd-2 0.13290 vs
+0.13266 — the buffered fit stops marginally lower).  **Every esd row over
+5 %, on both cases, is a width-decomposition parameter** (u/w/x/y,
+`gauss_*`, `lor_*`) **with esd/|value| between 7e2 and 3e9** — directions
+the data does not measure, whose esd is a covariance-cutoff artifact in
+the exact fit too; `instrument.profile.x` and `phases.*.lor_size` even
+share an *exactly* flat combination (both enter Γ_L as (x + lor_size)/cosθ).
+The measured parameters move ≤ 0.02 esd in the median.  The milestone
+reading: the buffer buys **~10 % on the trigger cold fit** and costs
+~2.4× on the lab protocol.
+
+A cache lesson worth keeping (it cost this spike a non-deterministic
+afternoon): the prototype keyed its per-stage buffers by `id(CompiledModel)`
+without holding a reference — a dead model's id is recycled, so a stale
+buffer served a *different stage's* frozen state, allocator-dependently.
+Any production per-compile cache keys on an owned reference.
+
+**5. Go/no-go: NO-GO** for a production numpy peaks buffer.  The premise
+the spike was sent to test — shapes vary slowly enough to reuse — is
+**true** (Findings 2: K ≤ 32 anchors at 1e-4, every case and state), but
+the win it was meant to buy is not there on the numpy substrate: the
+batched exact kernel is already within ~2× of the memory floor, so
+replacing its arithmetic with interpolation trades compute nobody is
+paying for.  What survives the no-go: (a) WP-1120 — batch the residual,
+bit-exact, measured 2.2-3.6× on the forward path; (b) this file's design
+note and anchor curves stand ready if WP-1115's compiled substrate changes
+the per-element economics — a compiled exact kernel and a compiled buffer
+compose, and 1115's gate should read this spike's decomposition (the gap
+is padding + per-element floor, not evaluation count); (c) the anchor
+machinery (greedy placement, clamp-kink handling) is the sizing loop any
+future buffer starts from.  No default-vs-opt-in question goes to the user
+— nothing lands.
+
 ## Design note (task 2)
 
 **Layout.**  One buffer per (stage, distinct width family): phases sharing
@@ -229,18 +309,23 @@ only) and must not be booked to the buffer.
       the buffer (the Jacobian must reuse the same anchors or the win halves
       — WP-0605's answer 2, same lesson).
       *(2026-08-21: § Design note above.)*
-- [ ] **Scratch prototype** (`examples/bench_peaks_buffer.py`): forward +
+- [x] **Scratch prototype** (`examples/bench_peaks_buffer.py`): forward +
       derivative-bases evaluation through the buffer on the trigger-shaped
       and `cpd-2` states; wall vs the (post-1112) shipped path; max area /
       moment / pointwise deviation vs exact.
-- [ ] **Fit-level check**: one full acceptance protocol run in the prototype
+      *(2026-08-21: § Findings 3; `--part proto`.)*
+- [x] **Fit-level check**: one full acceptance protocol run in the prototype
       harness with the buffer substituted, deviations of every reported
       parameter and esd against the exact fit — the number the go/no-go
       quotes.
-- [ ] **Record the go/no-go** with the anchors-vs-accuracy curve, the wall
+      *(2026-08-21: § Findings 4; `--part fit`, cpd-2's QPA protocol and
+      the trigger cold fit.)*
+- [x] **Record the go/no-go** with the anchors-vs-accuracy curve, the wall
       ranges and the parameter deviations; if go, open the production WP
       (next free 11xx) with the design note as its seed and put the
       default-vs-opt-in question to the user with the numbers.
+      *(2026-08-21: § Findings 5 — NO-GO; the salvage is
+      [1120](1120-batched-residual.md), bit-exact, no user question owed.)*
 
 ## Acceptance
 

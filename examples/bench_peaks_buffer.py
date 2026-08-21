@@ -22,35 +22,42 @@ Part 1 (``--part anchors``, the default) prints three tables per case/state:
 * **shape budget** — how much the shape actually varies across the range:
   Γ(2θ), η(2θ) and the FCJ extent, per phase.  These are the quantities an
   anchor grid must track.
-* **anchors vs accuracy** — the WP's central measurement.  A dense reference
-  set of exact shapes across the range is reconstructed from K anchors under
-  two schemes, and the worst deviation over the range is reported:
-
-  - scheme **plain**: anchor shapes on a common Δ2θ grid, linear blend in θ.
-  - scheme **stretch**: each anchor is stretched to the *true* combined FWHM
-    at the query angle before the same linear blend — Γ(θ) and η(θ) are two
-    cheap scalars per reflection (Caglioti + TCH), so the exact width is
-    always available and only the dimensionless shape is interpolated.
-
-  Deviations are quoted in the same currency WP-1112 used for window
-  truncation: relative area, first moment (in FWHM units — cells and zero
-  ride on positions), relative central second moment, and peak-relative
-  pointwise error.  The reference and the anchors use a 128-image FCJ
-  quadrature so the number measured is interpolation error alone, not
-  quadrature error (which the shipped path owns and sizes separately).
-
-Anchors are uniform in 2θ.  The per-θ table row (``worst @``) says where the
-binding error sits; if it concentrates at low angle the production grid
-should densify there, and the uniform numbers printed here are then an upper
-bound on the anchor count.
+* **anchors vs accuracy** — the WP's central measurement.  A reference set
+  of exact shapes across the range is reconstructed from K anchors under
+  the schemes in :data:`SCHEMES` (linear and cubic, plain and
+  width-stretched) at each placement in :data:`PLACEMENTS` plus a greedy
+  probe-and-bisect placement for the cubic scheme, and the worst deviation
+  over the range is reported.  Deviations are quoted in the same currency
+  WP-1112 used for window truncation: relative area, first moment (in FWHM
+  units — cells and zero ride on positions), relative central second
+  moment, and peak-relative pointwise error.  The reference and the
+  anchors use a 128-image FCJ quadrature so the number measured is
+  interpolation error alone.
 
 States: each case is measured at the state its cold fit *starts* from and at
 the state it converges to (the trigger's "converged" is the truth model that
 generated its data) — a buffer must hold its tolerance along the whole
 trajectory, and widths at convergence are not the widths at the start.
 
-Wall clock: rebuilding the converged states runs one fit per case
-(~30-60 s total); ``--start-only`` skips them during iteration.
+Part 2 (``--part proto``) implements the buffer of the WP's design note
+(:class:`PeaksBuffer`) and measures, on the trigger-shaped and cpd-2 start
+states: the forward evaluation **three ways** — the shipped scalar loop,
+the WP-1112 batched kernel evaluating exact profiles (the fair baseline:
+that dispatch win is bit-exact and must not be booked to the buffer), and
+the buffer — plus the derivative-bases build shipped vs buffered, with
+max area/moment/pointwise deviations and an attribution of the worst FCJ
+rows against a 128-image reference (the shipped path deliberately skips
+sub-threshold FCJ tails, and where the two disagree most the reference
+sides with the buffer).
+
+Part 3 (``--part fit``) runs each protocol end to end with
+``phase_component`` and ``derivative_bases`` monkeypatched to the buffer,
+against the exact fit: wall ranges, and the deviation of every reported
+parameter and esd — the numbers the go/no-go quotes.
+
+Wall clock: the full default run (all three parts) is ~10 minutes, most of
+it fits; ``--start-only`` and ``--part``/``--cases`` narrow it while
+iterating.
 """
 
 from __future__ import annotations
@@ -76,11 +83,17 @@ from rietx import _about  # noqa: E402
 from rietx.model.forward import (  # noqa: E402
     WINDOW_MIN_DEG,
     CompiledModel,
+    DerivativeBases,
+    PhasePlanes,
     compile_model,
     window_fwhm_mult,
 )
 from rietx.model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm  # noqa: E402
-from rietx.model.profiles.fcj import fcj_extent_deg, fcj_offsets_weights  # noqa: E402
+from rietx.model.profiles.fcj import (  # noqa: E402
+    fcj_extent_deg,
+    fcj_node_count,
+    fcj_offsets_weights,
+)
 from rietx.params.vector import ParameterTable  # noqa: E402
 
 #: FCJ quadrature size for reference and anchor shapes: 128 images, ~2× the
@@ -166,8 +179,7 @@ class ShapeFamily:
     pattern, evaluated at offsets ``delta`` from its position.
     """
 
-    def __init__(self, study: Study, ip: int):
-        m, v = study.model, study.values
+    def __init__(self, m: CompiledModel, v: dict[str, float], ip: int):
         self.model = m
         self.sl = v["instrument.geometry.axial_sl"]
         self.hl = v["instrument.geometry.axial_hl"]
@@ -324,7 +336,8 @@ def _anchor_grid(dense: np.ndarray, cum: np.ndarray, k: int,
 def sweep_study(study: Study, n_dense: int, n_delta: int
                 ) -> tuple[list[SweepResult], list[str]]:
     tt = study.model.tt
-    families = [ShapeFamily(study, ip) for ip in range(len(study.model.phases))]
+    families = [ShapeFamily(study.model, study.values, ip)
+                for ip in range(len(study.model.phases))]
     dense = np.linspace(float(tt[0]), float(tt[-1]), n_dense)
 
     # common offset grid: wide enough for the widest window in this study
@@ -505,6 +518,575 @@ def print_sweep(study: Study, results: list[SweepResult],
                       f"on area+moments at {note}")
 
 
+# -- the prototype buffer -----------------------------------------------------
+
+#: the buffer's accuracy target on area + moments, in the sweep's currency
+BUFFER_TOL = 1e-4
+BUFFER_MAX_ANCHORS = 48
+#: FD step for the anchor-level axial partials (matches derivative_bases)
+_H_AX = 1e-7
+
+
+def _bspline_weights(t: np.ndarray) -> tuple[np.ndarray, ...]:
+    """4-tap cubic B-spline weights for taps at offsets (−1, 0, 1, 2).
+
+    Applied to ``spline_filter1d``-prefiltered samples this evaluates the
+    exact C² interpolating cubic spline (Unser 1999, IEEE Signal Process.
+    Mag. 16, 22) — O(h⁴), where the first cut of this prototype used
+    Catmull-Rom taps on raw samples, whose O(h³) error put ~1e-3 pointwise
+    deviations into every symmetric case at the stored step this buffer
+    uses.  The prefilter runs over the (K, planes, n_stored) anchor array —
+    a few thousand values — and commutes with the θ-spline, both linear.
+    """
+    t2, t3 = t * t, t * t * t
+    return ((1.0 - 3.0 * t + 3.0 * t2 - t3) / 6.0,
+            (4.0 - 6.0 * t2 + 3.0 * t3) / 6.0,
+            (1.0 + 3.0 * t + 3.0 * t2 - 3.0 * t3) / 6.0,
+            t3 / 6.0)
+
+
+class PeaksBuffer:
+    """The spike's buffer for one compiled phase (design note in the WP file).
+
+    Frozen at build (= stage compile in production): anchor positions
+    (greedy probe-and-bisect against ``BUFFER_TOL``), per-anchor FCJ node
+    counts (the shipped ``fcj_node_count`` rule), and the stored offset
+    grid.  Everything else — the anchor *planes* — is recomputed from the
+    current parameter values on every evaluation, so the buffered residual
+    follows θ smoothly and only indices are discrete.
+    """
+
+    def __init__(self, model: CompiledModel, ip: int, values: dict[str, float]):
+        cp = model.phases[ip]
+        lay = cp.batch
+        fam = ShapeFamily(model, values, ip)
+        self.fcj = fam.fcj
+        peaks = model.phase_peaks(ip, values)
+        pos = lay.gather(peaks, 0)
+        finite = np.isfinite(pos)
+        pos_f = pos[finite]
+        self.lo = float(pos_f.min()) - 0.15
+        self.hi = float(pos_f.max()) + 0.15
+        # stored offset grid: fine enough that 4-tap resampling sits far
+        # below BUFFER_TOL, wide enough for the widest frozen window + drift.
+        # Γ/16 because the O(h⁴) constant lives in σ = Γ/2.355 units and the
+        # peak's flank carries f⁗ ~ 10²/σ⁴: at Γ/4 (0.59 σ) the measured
+        # flank error was ~1e-3 of the peak — the resample, not the θ-spline,
+        # was this prototype's first accuracy ceiling, twice
+        probe_tt = np.linspace(self.lo, self.hi, 128)
+        gmin = float(np.min(fam.fwhm(probe_tt)))
+        step = float(np.median(np.diff(model.tt)))
+        self.h = min(step, gmin / 16.0)
+        x_last = lay.x[np.arange(len(lay.i0)), lay.width - 1]
+        half = float(max(np.max((pos - lay.x[:, 0])[finite]),
+                         np.max((x_last - pos)[finite]))) + 0.1
+        n_half = int(np.ceil(half / self.h))
+        self.half = n_half * self.h
+        self.grid = np.arange(-n_half, n_half + 1) * self.h
+        self.anchors = self._place(fam)
+        if self.fcj:
+            # never let an anchor fall to the sub-threshold *skip* (node
+            # count 0): a row keeps its small asymmetry while a skipped
+            # anchor loses it, and the spline smears that family
+            # discontinuity into every nearby row — measured 1.0e-3 FWHM of
+            # m1 against 1.2e-5 for a consistently-convolved anchor family
+            from rietx.model.profiles.fcj import MIN_NODES
+
+            g_anchor = np.asarray(fam.fwhm(self.anchors), dtype=np.float64)
+            self.n_nodes = [max(fcj_node_count(float(t), float(g), fam.sl,
+                                               fam.hl), MIN_NODES)
+                            for t, g in zip(self.anchors, g_anchor)]
+        else:
+            self.n_nodes = [0] * len(self.anchors)
+
+    def covers(self, model: CompiledModel, ip: int,
+               values: dict[str, float]) -> bool:
+        """Whether this buffer's frozen domain serves phase ``ip`` too."""
+        lay = model.phases[ip].batch
+        peaks = model.phase_peaks(ip, values)
+        pos = lay.gather(peaks, 0)
+        finite = np.isfinite(pos)
+        if not finite.any():
+            return True
+        x_last = lay.x[np.arange(len(lay.i0)), lay.width - 1]
+        ext = float(max(np.max((pos - lay.x[:, 0])[finite]),
+                        np.max((x_last - pos)[finite])))
+        return (float(pos[finite].min()) >= self.lo
+                and float(pos[finite].max()) <= self.hi
+                and ext <= self.half)
+
+    def _place(self, fam: ShapeFamily) -> np.ndarray:
+        """Greedy probe-and-bisect to ``BUFFER_TOL`` on area + moments."""
+        from scipy.interpolate import CubicSpline
+
+        anchors = list(np.linspace(self.lo, self.hi, 4))
+        cache: dict[float, np.ndarray] = {}
+
+        def exact(t: float) -> np.ndarray:
+            if t not in cache:
+                cache[t] = fam.shape(t, self.grid)
+            return cache[t]
+
+        while True:
+            arr = np.array(sorted(anchors))
+            spline = CubicSpline(arr, np.stack([exact(float(t)) for t in arr]),
+                                 axis=0)
+            seg_err = np.zeros(len(arr) - 1)
+            for seg in range(len(arr) - 1):
+                for frac in SEGMENT_FRACTIONS:
+                    t0 = float(arr[seg] + frac * (arr[seg + 1] - arr[seg]))
+                    m = shape_metrics(spline(t0), exact(t0), self.grid,
+                                      float(fam.fwhm(t0)))
+                    seg_err[seg] = max(seg_err[seg], max(m[:3]))
+            if seg_err.max() <= BUFFER_TOL or len(arr) >= BUFFER_MAX_ANCHORS:
+                return arr
+            j = int(np.argmax(seg_err))
+            anchors.append(float(0.5 * (arr[j] + arr[j + 1])))
+
+    def _anchor_planes(self, model: CompiledModel, fam: ShapeFamily,
+                       axial: bool, n_extra: int) -> np.ndarray:
+        """(K, 4 + n_extra, n_stored): S, S_Γ, S_η, S_x (+ S_sl, S_hl FDs)."""
+        planes = np.zeros((len(self.anchors), 4 + n_extra, len(self.grid)))
+        for a, ta in enumerate(self.anchors):
+            w1a, w2a = (float(w) for w in fam.widths(float(ta)))
+            n = self.n_nodes[a]
+            if n > 0:
+                phi, om = fcj_offsets_weights(float(ta), fam.sl, fam.hl, n)
+                offs = self.grid[None, :] - (np.asarray(phi) - ta)[:, None]
+                pv, dx, dg, de = model._profile_derivs(offs, w1a, w2a)
+                om = np.asarray(om, dtype=np.float64)
+                planes[a, 0] = om @ pv
+                planes[a, 1] = om @ dg
+                planes[a, 2] = om @ de
+                planes[a, 3] = om @ dx
+                if axial:
+                    for j, (dsl, dhl) in enumerate(((_H_AX, 0.0), (0.0, _H_AX))):
+                        phi_p, om_p = fcj_offsets_weights(
+                            float(ta), fam.sl + dsl, fam.hl + dhl, n)
+                        offs_p = (self.grid[None, :]
+                                  - (np.asarray(phi_p) - ta)[:, None])
+                        pv_p = model._profile_basis(offs_p, w1a, w2a)
+                        planes[a, 4 + j] = (np.asarray(om_p) @ pv_p
+                                            - planes[a, 0]) / _H_AX
+            else:
+                pv, dx, dg, de = model._profile_derivs(self.grid, w1a, w2a)
+                planes[a, 0], planes[a, 1] = pv, dg
+                planes[a, 2], planes[a, 3] = de, dx
+        return planes
+
+    def _state(self, model: CompiledModel, fam: ShapeFamily, axial: bool,
+               n_extra: int):
+        """(θ-spline of prefiltered planes, S-only spline) for the current
+        scalars — cached, so phases sharing a family (and the several
+        buffered calls inside one solver iteration) build the anchor planes
+        once.  The cache key is every scalar the planes depend on."""
+        from scipy.interpolate import CubicSpline
+        from scipy.ndimage import spline_filter1d
+
+        key = (fam.uvw, fam.gs, fam.gstr, fam.xl, fam.yl, fam.sl, fam.hl,
+               axial)
+        if getattr(self, "_state_key", None) != key:
+            planes = self._anchor_planes(model, fam, axial, n_extra)
+            planes = spline_filter1d(planes, order=3, axis=2, mode="mirror")
+            self._spline = CubicSpline(self.anchors, planes, axis=0)
+            self._spline_s = CubicSpline(self.anchors, planes[:, :1], axis=0)
+            self._state_key = key
+        return self._spline, self._spline_s
+
+    def planes(self, model: CompiledModel, ip: int, values: dict[str, float],
+               peaks, profile_derivs: bool = True, axial: bool = False
+               ) -> dict[str, np.ndarray | None]:
+        """Buffered (n_rows, w_max) planes in ``derivative_bases``' layout."""
+        lay = model.phases[ip].batch
+        fam = ShapeFamily(model, values, ip)
+        axial = axial and self.fcj and fam.sl > 0.0 and fam.hl > 0.0
+        n_extra = 2 if axial else 0
+        spline, spline_s = self._state(model, fam, axial, n_extra)
+
+        pos = lay.gather(peaks, 0)
+        w1 = lay.gather(peaks, 1)
+        w2 = lay.gather(peaks, 2)
+        finite = np.isfinite(pos)
+        pos_c = np.clip(np.where(finite, pos, 0.5 * (self.lo + self.hi)),
+                        self.lo, self.hi)
+        stack = spline(pos_c)                      # (R, 4 + n_extra, n_stored)
+        if profile_derivs:
+            s_theta = spline_s(pos_c, 1)           # ∂S/∂θ of the S plane only
+            stack = np.concatenate([stack, s_theta], axis=1)
+
+        # 4-tap B-spline resample onto each row's own window offsets
+        u = (lay.x - pos_c[:, None] + self.half) / self.h
+        i = np.clip(np.floor(u).astype(np.int64), 1, len(self.grid) - 3)
+        t = np.clip(u - i, 0.0, 1.0)
+        w_taps = _bspline_weights(t)               # each (R, w_max)
+        out = np.zeros((stack.shape[0], stack.shape[1], lay.x.shape[1]))
+        for tap, wt in zip((-1, 0, 1, 2), w_taps):
+            gathered = np.take_along_axis(stack, (i + tap)[:, None, :], axis=2)
+            out += wt[:, None, :] * gathered
+
+        g_law, e_law = (np.asarray(a, dtype=np.float64)
+                        for a in fam.widths(pos_c))
+        s_r, sg_r, se_r, sx_r = out[:, 0], out[:, 1], out[:, 2], out[:, 3]
+        omega = (s_r + (w1 - g_law)[:, None] * sg_r
+                 + (w2 - e_law)[:, None] * se_r)
+        d_pos = d_gamma = d_eta = d_sl = d_hl = None
+        if profile_derivs:
+            hh = 1e-4
+            gp, ep = fam.widths(pos_c + hh)
+            gm, em = fam.widths(pos_c - hh)
+            dg_law = (np.asarray(gp) - np.asarray(gm)) / (2 * hh)
+            de_law = (np.asarray(ep) - np.asarray(em)) / (2 * hh)
+            d_pos = (out[:, -1] - sx_r - dg_law[:, None] * sg_r
+                     - de_law[:, None] * se_r)
+            d_gamma, d_eta = sg_r, se_r
+            if axial:
+                d_sl, d_hl = out[:, 4], out[:, 5]
+        result = {"omega": omega, "d_pos": d_pos, "d_gamma": d_gamma,
+                  "d_eta": d_eta, "d_sl": d_sl, "d_hl": d_hl}
+        for plane in result.values():
+            if plane is None:
+                continue
+            np.multiply(plane, lay.mask, out=plane)
+            if not finite.all():
+                plane[~finite] = 0.0
+        result.update(pos=pos, w1=w1, w2=w2, finite=finite,
+                      inten=lay.gather(peaks, 3))
+        return result
+
+
+# -- buffered forward / bases entry points ------------------------------------
+
+def _scatter_y(model: CompiledModel, ip: int, omega: np.ndarray,
+               inten: np.ndarray) -> np.ndarray:
+    lay = model.phases[ip].batch
+    return np.bincount(lay.idx.ravel(),
+                       weights=(inten[:, None] * omega).ravel(),
+                       minlength=len(model.tt))
+
+
+class BufferSet:
+    """Lazily built buffers, deduplicated by width family (the design-note
+    layout: one buffer per distinct width set per stage compile).  A family
+    hit whose domain does not cover the new phase's positions or windows is
+    rebuilt wider — at most once per family, before the stage's first solve
+    step, so the frozen-anchor claim still holds for the stage."""
+
+    def __init__(self):
+        self._by_phase: dict[int, PeaksBuffer] = {}
+        self._by_family: dict[tuple, PeaksBuffer] = {}
+        #: strong refs to every keyed object — the caches key by ``id()``,
+        #: and a dead CompiledModel's id is recycled by the allocator, which
+        #: let a stale buffer serve a *different stage's* frozen state and
+        #: made the buffered cpd-2 fit non-deterministic run to run
+        self._refs: list = []
+        self.builds = 0
+        self.build_wall = 0.0
+
+    def get(self, model: CompiledModel, ip: int,
+            values: dict[str, float]) -> PeaksBuffer:
+        key = id(model.phases[ip])
+        if key in self._by_phase:
+            return self._by_phase[key]
+        self._refs.append((model, model.phases[ip]))
+        fam = ShapeFamily(model, values, ip)
+        fkey = (id(model), fam.uvw, fam.gs, fam.gstr, fam.xl, fam.yl,
+                fam.sl, fam.hl)
+        buf = self._by_family.get(fkey)
+        if buf is None or not buf.covers(model, ip, values):
+            t0 = time.perf_counter()
+            buf = PeaksBuffer(model, ip, values)
+            self.build_wall += time.perf_counter() - t0
+            self.builds += 1
+            self._by_family[fkey] = buf
+        self._by_phase[key] = buf
+        return buf
+
+
+def buffered_evaluate(model: CompiledModel, values: dict[str, float],
+                      buffers: BufferSet) -> np.ndarray:
+    y = np.asarray(model.background(values), dtype=np.float64)
+    for ip in range(len(model.phases)):
+        peaks = model.phase_peaks(ip, values)
+        buf = buffers.get(model, ip, values)
+        d = buf.planes(model, ip, values, peaks, profile_derivs=False)
+        y = y + _scatter_y(model, ip, d["omega"], d["inten"])
+    return y
+
+
+def batched_exact_evaluate(model: CompiledModel,
+                           values: dict[str, float]) -> np.ndarray:
+    """The forward through the WP-1112 batched kernel — the fair baseline:
+    the shipped residual still runs the per-reflection scalar loop, and that
+    dispatch win must not be booked to the buffer."""
+    bases = model.derivative_bases(values, profile_derivs=False)
+    y = np.asarray(model.background(values), dtype=np.float64)
+    for ip, ph in enumerate(bases.planes):
+        y = y + _scatter_y(model, ip, ph.omega, ph.inten)
+    return y
+
+
+def buffered_derivative_bases(model: CompiledModel, values: dict[str, float],
+                              buffers: BufferSet,
+                              intensities=None, axial_derivs: bool = True,
+                              profile_derivs: bool = True) -> DerivativeBases:
+    if not profile_derivs:
+        axial_derivs = False
+    sl = values["instrument.geometry.axial_sl"]
+    hl = values["instrument.geometry.axial_hl"]
+    planes_all, peaks_all = [], []
+    axial_ok = True
+    for ip, cp in enumerate(model.phases):
+        peaks = model.phase_peaks(
+            ip, values, None if intensities is None else intensities[ip])
+        peaks_all.append(peaks)
+        lay = cp.batch
+        buf = buffers.get(model, ip, values)
+        pos_r = lay.gather(peaks, 0)
+        has_fcj = bool(np.any((lay.fcj > 0) & np.isfinite(pos_r)))
+        if has_fcj and (sl <= 0.0 or hl <= 0.0):
+            axial_ok = False
+        d = buf.planes(model, ip, values, peaks,
+                       profile_derivs=profile_derivs,
+                       axial=axial_derivs and has_fcj and sl > 0.0 and hl > 0.0)
+        planes_all.append(PhasePlanes(
+            layout=lay, finite=d["finite"], pos=d["pos"], w1=d["w1"],
+            w2=d["w2"], inten=d["inten"], omega=d["omega"], d_pos=d["d_pos"],
+            d_gamma=d["d_gamma"], d_eta=d["d_eta"], d_sl=d["d_sl"],
+            d_hl=d["d_hl"]))
+    return DerivativeBases(planes=planes_all, peaks=peaks_all,
+                           axial_ok=axial_ok)
+
+
+# -- part: proto (evaluation-level wall + deviation) --------------------------
+
+def _time(fn, repeats: int = 5) -> tuple[float, float]:
+    walls = []
+    for _ in range(repeats):
+        t0 = time.perf_counter()
+        fn()
+        walls.append(time.perf_counter() - t0)
+    return min(walls), max(walls)
+
+
+def proto_study(study: Study) -> None:
+    model, values = study.model, study.values
+    print(f"\n  {study.key}")
+
+    buffers = BufferSet()
+    y_exact = np.asarray(model.evaluate(values), dtype=np.float64)
+    y_buf = buffered_evaluate(model, values, buffers)
+    print(f"    buffers: {buffers.builds} built "
+          f"({', '.join(str(len(b.anchors)) for b in buffers._by_phase.values())} anchors), "
+          f"build wall {buffers.build_wall * 1e3:.0f} ms")
+
+    scale = float(np.max(np.abs(y_exact)))
+    print(f"    forward max |Δy|/max y = "
+          f"{float(np.max(np.abs(y_buf - y_exact))) / scale:.2e}")
+
+    # per-row shape deviations vs the shipped batched planes, in the sweep's
+    # currency (the shipped rows carry their own frozen quadrature, so part
+    # of this deviation is the shipped path's quadrature coarseness)
+    bases_exact = model.derivative_bases(values)
+    worst = np.zeros(3)
+    for ip, ph in enumerate(bases_exact.planes):
+        lay = ph.layout
+        d = buffers.get(model, ip, values).planes(
+            model, ip, values, bases_exact.peaks[ip])
+        mine, theirs = d["omega"], ph.omega
+        a_m = (mine * lay.mask).sum(axis=1)
+        a_t = (theirs * lay.mask).sum(axis=1)
+        off = (lay.x - np.where(ph.finite, ph.pos, 0.0)[:, None]) * lay.mask
+        ok = (a_t > 1e-12) & np.isfinite(a_t) & ph.finite
+        m1_m = (off * mine).sum(axis=1)[ok] / a_m[ok]
+        m1_t = (off * theirs).sum(axis=1)[ok] / a_t[ok]
+        worst[0] = max(worst[0], float(np.max(np.abs(a_m[ok] / a_t[ok] - 1.0))))
+        worst[1] = max(worst[1], float(np.max(
+            np.abs(m1_m - m1_t) / np.asarray(ph.w1)[ok])))
+        worst[2] = max(worst[2], float(np.max(
+            np.abs(mine - theirs)) / np.max(np.abs(theirs))))
+    print(f"    omega rows vs shipped: area {worst[0]:.2e}  "
+          f"m1/FWHM {worst[1]:.2e}  pointwise {worst[2]:.2e}")
+    _attribute_fcj_rows(model, values, buffers, bases_exact)
+
+    lo, hi = _time(lambda: model.evaluate(values))
+    print(f"    forward  scalar loop     {lo * 1e3:7.1f}-{hi * 1e3:7.1f} ms")
+    lo, hi = _time(lambda: batched_exact_evaluate(model, values))
+    print(f"    forward  batched exact   {lo * 1e3:7.1f}-{hi * 1e3:7.1f} ms")
+    lo, hi = _time(lambda: buffered_evaluate(model, values, buffers))
+    print(f"    forward  buffered        {lo * 1e3:7.1f}-{hi * 1e3:7.1f} ms")
+    lo, hi = _time(lambda: model.derivative_bases(values))
+    print(f"    bases    shipped         {lo * 1e3:7.1f}-{hi * 1e3:7.1f} ms")
+    lo, hi = _time(lambda: buffered_derivative_bases(model, values, buffers))
+    print(f"    bases    buffered        {lo * 1e3:7.1f}-{hi * 1e3:7.1f} ms")
+
+
+def _attribute_fcj_rows(model: CompiledModel, values: dict[str, float],
+                        buffers: BufferSet, bases_exact) -> None:
+    """Attribute the worst FCJ-row deviations: buffer error vs the shipped
+    rows' own frozen quadrature, judged against a 128-image reference.
+
+    The rows-vs-shipped number above treats the shipped path as truth, but a
+    shipped FCJ row is itself a quadrature at its frozen node count; where
+    the two disagree the go/no-go needs to know which one the reference
+    sides with.
+    """
+    worst_rows = []
+    for ip, ph in enumerate(bases_exact.planes):
+        lay = ph.layout
+        if not np.any(lay.fcj > 0):
+            continue
+        d = buffers.get(model, ip, values).planes(model, ip, values,
+                                                  bases_exact.peaks[ip])
+        off = (lay.x - np.where(ph.finite, ph.pos, 0.0)[:, None]) * lay.mask
+        a_m = (d["omega"] * lay.mask).sum(axis=1)
+        a_t = (ph.omega * lay.mask).sum(axis=1)
+        # every row of an FCJ family — the shipped path *skips* sub-threshold
+        # rows (fcj_n = 0, rendered symmetric), and where the two disagree
+        # most is exactly there, so restricting to fcj_n > 0 would assign the
+        # shipped path's own approximation to the buffer
+        ok = (a_t > 1e-12) & ph.finite
+        m1_m = np.where(ok, (off * d["omega"]).sum(axis=1)
+                        / np.where(ok, a_m, 1.0), 0.0)
+        m1_t = np.where(ok, (off * ph.omega).sum(axis=1)
+                        / np.where(ok, a_t, 1.0), 0.0)
+        dev = np.where(ok, np.abs(m1_m - m1_t) / np.asarray(ph.w1), 0.0)
+        for r in np.argsort(dev)[-8:]:
+            worst_rows.append((float(dev[r]), ip, int(r)))
+    if not worst_rows:
+        return
+    worst_rows.sort(reverse=True)
+    sl = values["instrument.geometry.axial_sl"]
+    hl = values["instrument.geometry.axial_hl"]
+    buf_err = ship_err = 0.0
+    for _, ip, r in worst_rows[:12]:
+        ph = bases_exact.planes[ip]
+        lay = ph.layout
+        d = buffers.get(model, ip, values).planes(model, ip, values,
+                                                  bases_exact.peaks[ip])
+        n = int(lay.width[r])
+        x = lay.x[r, :n]
+        pos, w1, w2 = (float(a[r]) for a in (ph.pos, ph.w1, ph.w2))
+        phi, om = fcj_offsets_weights(pos, sl, hl, N_REF_NODES)
+        ref = np.asarray(om) @ model.profile_at(
+            x[None, :] - np.asarray(phi)[:, None], w1, w2)
+
+        def m1(y, x=x, pos=pos):
+            return float((y * (x - pos)).sum() / y.sum())
+
+        buf_err = max(buf_err, abs(m1(d["omega"][r, :n]) - m1(ref)) / w1)
+        ship_err = max(ship_err, abs(m1(ph.omega[r, :n]) - m1(ref)) / w1)
+    print(f"    worst FCJ rows vs a 128-image reference: buffered m1 dev "
+          f"{buf_err:.2e}, shipped m1 dev {ship_err:.2e} (FWHM units)")
+
+
+# -- part: fit (full protocol through the buffer) -----------------------------
+
+class _buffer_substitution:
+    """Monkeypatch ``phase_component`` and ``derivative_bases`` for one fit.
+
+    Rietveld-mode models only; anything else falls through to the shipped
+    path.  Buffers are keyed by compiled phase, so each stage compile gets
+    its own frozen anchor set — the production shape.
+    """
+
+    def __init__(self):
+        self.buffers = BufferSet()
+
+    def __enter__(self):
+        self._pc = CompiledModel.phase_component
+        self._db = CompiledModel.derivative_bases
+        buffers = self.buffers
+        orig_pc, orig_db = self._pc, self._db
+
+        def phase_component(model, ip, values, hkl_intensity=None):
+            if model.mode != "rietveld" or model.shape == "voigt":
+                return orig_pc(model, ip, values, hkl_intensity)
+            peaks = model.phase_peaks(ip, values, hkl_intensity)
+            buf = buffers.get(model, ip, values)
+            d = buf.planes(model, ip, values, peaks, profile_derivs=False)
+            return _scatter_y(model, ip, d["omega"], d["inten"])
+
+        def derivative_bases(model, values, intensities=None,
+                             axial_derivs=True, profile_derivs=True):
+            if model.mode != "rietveld" or model.shape == "voigt":
+                return orig_db(model, values, intensities=intensities,
+                               axial_derivs=axial_derivs,
+                               profile_derivs=profile_derivs)
+            return buffered_derivative_bases(
+                model, values, buffers, intensities=intensities,
+                axial_derivs=axial_derivs, profile_derivs=profile_derivs)
+
+        CompiledModel.phase_component = phase_component
+        CompiledModel.derivative_bases = derivative_bases
+        return self
+
+    def __exit__(self, *exc):
+        CompiledModel.phase_component = self._pc
+        CompiledModel.derivative_bases = self._db
+
+
+def fit_case(key: str, repeats: int) -> None:
+    setup = {c.key: c for c in bench.CASES}[key].build()
+
+    def run(patched: bool):
+        ref = rx.Refinement(setup.structure.model_copy(deep=True),
+                            setup.instrument.model_copy(deep=True),
+                            history=False)
+        ctx = _buffer_substitution() if patched else None
+        t0 = time.perf_counter()
+        if ctx is None:
+            result = ref.fit(setup.data, plan=setup.plan, mode=setup.mode,
+                             two_theta_limits=setup.limits)
+        else:
+            with ctx:
+                result = ref.fit(setup.data, plan=setup.plan, mode=setup.mode,
+                                 two_theta_limits=setup.limits)
+        wall = time.perf_counter() - t0
+        return result, wall, ctx
+
+    print(f"\n  {key}")
+    exact_walls, buf_walls = [], []
+    result_e = result_b = ctx = None
+    for _ in range(repeats):
+        result_e, w, _ = run(False)
+        exact_walls.append(w)
+        result_b, w, ctx = run(True)
+        buf_walls.append(w)
+    print(f"    exact fit    {min(exact_walls):6.2f}-{max(exact_walls):6.2f} s"
+          f"   Rwp {result_e.statistics.rwp:.5f}  {result_e.status}")
+    print(f"    buffered fit {min(buf_walls):6.2f}-{max(buf_walls):6.2f} s"
+          f"   Rwp {result_b.statistics.rwp:.5f}  {result_b.status}  "
+          f"({ctx.buffers.builds} buffer builds, "
+          f"{ctx.buffers.build_wall:.2f} s)")
+
+    rows_b = {p.path: p for p in result_b.parameters}
+    worst_v = (0.0, "")
+    dvs, des, movers = [], [], []
+    for pe in result_e.parameters:
+        pb = rows_b.get(pe.path)
+        if pb is None or not pe.stderr or pb.stderr is None:
+            continue
+        dv = abs(pb.value - pe.value) / pe.stderr
+        de = abs(pb.stderr - pe.stderr) / pe.stderr
+        dvs.append(dv)
+        des.append(de)
+        if dv > worst_v[0]:
+            worst_v = (dv, pe.path)
+        if de > 0.05:
+            movers.append((de, pe.path, pe.value, pe.stderr, pb.stderr))
+    print(f"    {len(dvs)} params: value dev median "
+          f"{np.median(dvs):.4f} esd, worst {worst_v[0]:.3f} esd "
+          f"({worst_v[1]})")
+    print(f"    esd dev median {np.median(des) * 100:.2f} %, "
+          f"{len(movers)} rows over 5 %:")
+    for de, path, v, se, sb in sorted(movers, reverse=True):
+        # esd/|value|: a ratio ≳ 1 marks a direction the data barely
+        # measures, where the esd itself is the unstable quantity
+        ratio = se / max(abs(v), 1e-30)
+        print(f"      {path}: value {v:.3e}, esd {se:.2e} -> {sb:.2e} "
+              f"({de * 100:.0f} %, esd/|value| {ratio:.2g})")
+
+
 # -- figure ------------------------------------------------------------------
 
 def plot_sweep(all_results: dict[str, list[SweepResult]], out: Path) -> None:
@@ -524,16 +1106,23 @@ def plot_sweep(all_results: dict[str, list[SweepResult]], out: Path) -> None:
              ("cubic", "motion"): "#cc6677", ("cubic", "greedy"): "#882255",
              ("cubicstretch", "motion"): "#117733"}
     for ax, key in zip(axes.ravel(), studies):
+        labels = []
         for (scheme, placement), c in color.items():
             rows = [r for r in all_results[key]
                     if r.scheme == scheme and r.placement == placement]
             ks = [r.n_anchors for r in rows]
             errs = [max(r.worst[:3]) for r in rows]
             ax.loglog(ks, errs, "-", color=c, lw=1.4)
-            if ax is axes.ravel()[0]:
-                ax.annotate(f"{scheme}/{placement}", (ks[-1], errs[-1]),
-                            textcoords="offset points", xytext=(3, 0),
-                            color=c, fontsize=8, ha="left", va="center")
+            labels.append([errs[-1], f"{scheme}/{placement}", c, ks[-1]])
+        if ax is axes.ravel()[0]:
+            # right-margin labels, spread by one line of type in log space
+            labels.sort()
+            for j in range(1, len(labels)):
+                labels[j][0] = max(labels[j][0], labels[j - 1][0] * 2.4)
+            for y, text, c, k_end in labels:
+                ax.annotate(text, (k_end, y), textcoords="offset points",
+                            xytext=(3, 0), color=c, fontsize=8,
+                            ha="left", va="center")
         for tol in TOLS:
             ax.axhline(tol, color="0.6", lw=0.7, ls=":")
         ax.set_title(key, fontsize=9, loc="left")
@@ -556,16 +1145,25 @@ def plot_sweep(all_results: dict[str, list[SweepResult]], out: Path) -> None:
 
 # -- driver ------------------------------------------------------------------
 
+#: the two states the prototype and the fit check run on — the WP names them:
+#: the FCJ-heavy trigger (the milestone's cold target) and cpd-2 (the QPA
+#: acceptance protocol on real lab data)
+PROTO_CASES = ("cpd-2", "trigger")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="WP-1114 peaks-buffer spike")
-    ap.add_argument("--part", default="anchors", choices=("anchors",))
-    ap.add_argument("--cases", default="nac,cpd-1a,cpd-2,trigger")
+    ap.add_argument("--part", default="anchors,proto,fit",
+                    help="comma list of: anchors, proto, fit")
+    ap.add_argument("--cases", default="nac,cpd-1a,cpd-2,trigger",
+                    help="anchors-part case keys")
     ap.add_argument("--start-only", action="store_true",
                     help="skip the converged states (no fits; for iteration)")
     ap.add_argument("--dense", type=int, default=257,
                     help="reference positions across the range")
     ap.add_argument("--delta", type=int, default=1501,
                     help="offset-grid points across the widest window")
+    ap.add_argument("--fit-repeats", type=int, default=2)
     ap.add_argument("--plot", default="tests/output/wp1114_anchor_curve.png")
     args = ap.parse_args(argv)
 
@@ -573,25 +1171,44 @@ def main(argv: list[str] | None = None) -> int:
           f"numpy {np.__version__} · python {platform.python_version()} · "
           f"{platform.system().lower()}/{platform.machine()} · "
           f"venv {Path(sys.prefix)}")
+    parts = {p.strip() for p in args.part.split(",") if p.strip()}
     case_keys = [c.strip() for c in args.cases.split(",") if c.strip()]
-    t0 = time.perf_counter()
-    studies = build_studies(case_keys, args.start_only)
-    print(f"states built in {time.perf_counter() - t0:.0f} s "
-          f"({len(studies)} studies)")
+    by_key = {c.key: c for c in bench.CASES}
 
-    print(f"\n  {'study':22s} {'pts':>6s} {'pairs':>6s} {'fcj':>6s} "
-          f"{'win/pts':>8s} {'elem/pts':>9s} {'elem/win':>7s}")
-    for study in studies:
-        print(volume_row(study))
+    if "anchors" in parts:
+        t0 = time.perf_counter()
+        studies = build_studies(case_keys, args.start_only)
+        print(f"states built in {time.perf_counter() - t0:.0f} s "
+              f"({len(studies)} studies)")
 
-    all_results: dict[str, list[SweepResult]] = {}
-    for study in studies:
-        results, budget = sweep_study(study, args.dense, args.delta)
-        print_sweep(study, results, budget)
-        all_results[study.key] = results
+        print(f"\n  {'study':22s} {'pts':>6s} {'pairs':>6s} {'fcj':>6s} "
+              f"{'win/pts':>8s} {'elem/pts':>9s} {'elem/win':>7s}")
+        for study in studies:
+            print(volume_row(study))
 
-    if args.plot:
-        plot_sweep(all_results, Path(args.plot))
+        all_results: dict[str, list[SweepResult]] = {}
+        for study in studies:
+            results, budget = sweep_study(study, args.dense, args.delta)
+            print_sweep(study, results, budget)
+            all_results[study.key] = results
+
+        if args.plot:
+            plot_sweep(all_results, Path(args.plot))
+
+    if "proto" in parts:
+        print(f"\nproto: evaluation-level wall + deviation "
+              f"(buffer tol {BUFFER_TOL:.0e}, max {BUFFER_MAX_ANCHORS} anchors)")
+        for key in PROTO_CASES:
+            setup = by_key[key].build()
+            study = _study(f"{key} @ start", setup.structure,
+                           setup.instrument, setup.data, setup.mode,
+                           setup.limits)
+            proto_study(study)
+
+    if "fit" in parts:
+        print("\nfit: full protocol through the buffer vs exact")
+        for key in PROTO_CASES:
+            fit_case(key, args.fit_repeats)
     return 0
 
 
