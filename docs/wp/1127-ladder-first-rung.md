@@ -582,6 +582,15 @@ identical to the evaluation, all four `direction="both"` arms free of
 that would have caught it needs no failure: not "does it fire on my cases" but
 *how close does the nearest legitimate case come*, which was 1.06×.
 
+**Suites on this tree**, `[dev]` venv (no jax, no torch; numba 0.67.0, so the
+compiled tier is on), darwin/arm64, python 3.12.12, numpy 2.5.2: fast
+`-m "not slow"` **2626 passed, 117 skipped** (1:58); full **2735 passed, 126
+skipped** (21:48), zero failures. Same counts as the refuted calibration's run,
+which is the point — the recalibration moved evaluations, not results. Seven
+tests added against `origin/main` (six in `test_sequential.py`, one in
+`test_bench_refinement.py`), all passes, no new skips. CI is the gate that
+matters here, not this table.
+
 ### 2026-08-22 — closed ✅: the bet is priced, not chosen
 
 **What this means, in one paragraph.** Fitting a series means fitting each
