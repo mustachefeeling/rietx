@@ -257,6 +257,98 @@ fails (17.22 s). Only the cold fit precedes it, at 252 iterations — which is
 still 1.6× cheaper than the 400 the rung actually spent, and is the one bound
 available at that point.
 
+### 3 — the bound, measured on both cases (2026-08-22)
+
+`first_rung_factor=2.0`, `bench_refinement.py`, all four rows in one process:
+
+| case | wall (s) | nfev | njev | Rwp | escalations | discarded |
+|---|---|---|---|---|---|---|
+| `cpd-series` | 4.70-4.73 | 627 | 449 | 0.12586 | 0 | — |
+| `cpd-series-bounded` | 4.73-4.79 | **627** | **449** | 0.12586 | 0 | — |
+| `trigger-series` | 57.41-57.85 | 1603 | 1315 | 0.01943 | 2 | 33.07 s (57 %) |
+| `trigger-series-bounded` | 42.0-48.1 | **1183** | **924** | 0.01943 | 2 | 19.00 s (40 %) |
+
+**Trigger: 1.36× fewer evaluations (1603 → 1183) and 1.42× fewer Jacobians**,
+for 1.25-1.42× of wall depending on the run — three separate processes measured
+the same pair at 1.42×, 1.42× and 1.25×, which is why the counts lead. Both
+escalations survive; what changed is only what the losing rung was allowed to
+spend. Pattern 1's first rung went 400 → **252** evaluations (the cold bound, no
+accepted first rung behind it yet) and pattern 6's 400 → **128** (2 × the most
+expensive accepted first rung, 64). Every other pattern's iteration count is
+unchanged, to the evaluation.
+
+**And 1183 beats the better fixed mode.** `refit="stages"` on this case is 1253.
+So the bounded collapse is now the cheapest of the three by the deterministic
+read-out, which is the outcome § Findings 2 predicted from the ceiling and did
+not assume.
+
+**`cpd-series` is bit-identical** — same nfev, same njev, same Rwp, same
+per-pattern iteration counts. That is the design working rather than a lucky
+case: the bound is derived from what *working* first rungs cost, so on a chain
+where they all work it is never reached.
+
+### 4 — the four clauses, and what the answer did (2026-08-22)
+
+`examples/bench_ladder_bound.py`, arms in one process:
+
+| read-out | `trigger` | `cpd` |
+|---|---|---|
+| evaluations vs unbounded | 1603 → 1183 (**1.36×**) | 627 → 627 (1.00×) |
+| escalations / quarantined | 2 → 2 / 0 → 0 | 0 → 0 / 0 → 0 |
+| diagnostics added | **none** | **none** |
+| accepted entries not `converged` | **none** | **none** |
+| accepted values that differ at all | **0 of 1030** | **0 of 392** |
+| agreement outside the width family | 0.000 esd | 0.000 esd |
+| `direction="both"` nfev | 3325 → 2433 (1.37×) | 2839 → 2042 (1.39×) |
+| `SEQUENTIAL_PATH_DEPENDENT` | absent → **absent** | absent → **absent** |
+
+**All four clauses are silent, and the equivalence is stronger than clause 3
+asked for: the answers are bit-identical, not merely within 0.25 esd.** Every
+accepted value of every pattern, on both cases.
+
+That is not luck either, and the mechanism is worth stating because it is what
+makes the bound safe: **the bound only ever truncates a rung whose result is
+discarded, and the rung that replaces it starts from the warm state rather than
+from the truncated one.** Both escalated patterns keep `warm_staged` in both
+arms, and that staged refit begins at the predecessor's endpoint, which the
+first rung never touched. Cutting a losing bet short changes how long it lost
+for, not what was bet next.
+
+**`direction="both"` on `cpd` is where the bound turns out not to be inert.**
+The forward chain never escalates, so § Findings 3 reads 1.00×; the *backward*
+chain — 94 wt % down to 1 — does, and the pair goes 2839 → 2042 evaluations.
+Read the "inert on `cpd-series`" result as being about that chain in that
+direction, never about the case.
+
+### 5 — one hazard, found by a test rather than by the measurement
+
+The first version of the bound left the answer reachable, and the two harness
+cases did not show it. `_better` ranks a diverged fit below a finished one and
+then goes on Rwp, so **at equal Rwp it keeps the earlier attempt** — which for a
+bounded chain is the rung the ladder itself cut short. The escalation was
+already forced (clause 2), so the completed rung had run; it was then thrown
+away in favour of the truncated one, and the entry came back `"max_iter"`.
+
+On both harness cases the staged rescue wins on Rwp by a wide margin
+(0.01950 against 0.03235), so this never fired there and the measurement said
+nothing about it. It took `_dictate`ing two rungs to the same Rwp — which is not
+a corner, it is what two rungs from the same warm state can genuinely reach.
+
+`_prefer` now ranks a truncated attempt below any that ran to completion, and
+`_better` decides only between two attempts in the same state. **It cost
+evaluations, and the cost is the honest one**: `cpd` under `direction="both"`
+went 1908 → 2042 (+7 %) when it landed, one commit apart on the same tree, which
+means the backward pass had been keeping a truncated fit. Nothing else changed,
+and `_prefer` is the only thing that can change a rung sequence by changing
+which attempt the fence is asked about. Every forward number above is unmoved.
+
+A first rung that hits the **plan's own** budget is untouched by any of this and
+is still kept if nothing beats it, which is what the shipped ladder has always
+done — pinned by the second half of
+`test_a_bounded_first_rung_that_spends_its_bound_escalates`, so the escalation
+this WP adds is attributable to the bound and not to a change of policy on
+`max_iter`.
+
 ## Tasks
 
 - [x] **A second series case in the harness**: the round-robin sample-1 chain
@@ -283,11 +375,18 @@ available at that point.
       first rung and a failed one do not overlap in cost anywhere, and the
       collapse is still the better rung on seven of the trigger case's nine
       warm patterns — which refutes lever B before it is built.)*
-- [ ] **Lever A — bound the first rung**: budget from the chain's accepted
+- [x] **Lever A — bound the first rung**: budget from the chain's accepted
       history, no control-flow change. Measure both cases, both modes: whole-
       chain nfev/njev, discarded wall, escalation count, per-pattern answer
       agreement in esd. State the budget rule's constants and where they came
       from (measured, never tuned to one case).
+      *(2026-08-22: § Findings 3-5. `first_rung_factor`, default `None`.
+      "No control-flow change" turned out to be wrong twice, and both are in
+      § Findings: hitting the bound must force the next rung, and a truncated
+      attempt must lose to one that completed. The constants are the cold
+      fit's own cost — no constant at all — and `FIRST_RUNG_FACTOR = 2.0`,
+      which is twice the headroom over every accepted first rung measured on
+      either case.)*
 - [ ] **Lever B — learn the rung**: **refuted by § Findings 2 before being
       built**, and the task stays here to record that rather than to run it.
       The trigger case's escalations are sporadic, not systematic — the
@@ -296,8 +395,11 @@ available at that point.
       every pattern that did not need it (~50 s against a bound's predicted
       42.8 s). Build it only if a case turns up whose escalations are the norm;
       none of the harness's two is.
-- [ ] **`direction="both"` on whichever lever survives**, both cases: the
+- [x] **`direction="both"` on whichever lever survives**, both cases: the
       path-dependence read-out that retired B8. Pre-registered clause 4.
+      *(2026-08-22: § Findings 4. `SEQUENTIAL_PATH_DEPENDENT` absent in all
+      four arms, so clause 4 is silent; and the read-out found the one place
+      the bound is not inert on `cpd`, its backward chain.)*
 - [ ] **Land or retire.** On a go: the third `REFIT_MODES` member, a caller's
       explicit mode never overridden, `entry.rung`/`rungs_tried` carrying what
       actually ran, the docstrings in `sequential.py` carrying the measurement,
