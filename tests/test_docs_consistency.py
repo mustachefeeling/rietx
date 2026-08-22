@@ -230,7 +230,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # 1122's no-go.  The measurements went down a rank as rule 4 requires: the
     # break-even table, the Amdahl share and the two ways to mis-measure it are
     # in the WP's § Findings and the v1.1 record's narrative.
-    "CLAUDE.md": 834,
+    # 834 -> 845 for WP-1125 (2026-08-22): a fence, like 1122's, and for the
+    # same reason — the idea behind it is attractive enough to be re-proposed
+    # by anyone who notices that the background is linear.  What cannot go
+    # down a rank is the one sentence that settles it without re-deriving
+    # anything: the profiled Gauss-Newton step IS the joint one, so variable
+    # projection asks this solver for the step it already takes.  The
+    # measurements went down a rank as rule 4 requires: the 70-stage table,
+    # the trust-radius mechanism and the two gates that failed for reasons
+    # unrelated to their names are in the WP's § Findings, the survey's §2.A1
+    # and E5 notes, and the v1.1 record's narrative.
+    "CLAUDE.md": 845,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one

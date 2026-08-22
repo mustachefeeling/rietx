@@ -1,6 +1,6 @@
 # WP-1125 — variable-projection probe: profile the background, measure the tail
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-22
 Depends on: WP-1113 (the mechanism this probe attacks), WP-1111 (counting
 scaffold)
 
@@ -309,6 +309,60 @@ Untouched, and the boundary of the result:
   schedule counts every row here is judged against.
 
 ## Handover log
+
+- **2026-08-22** — **closed ✅ on a clean negative, and the negative is a
+  theorem rather than a bound.** The question was whether solving the
+  background exactly at every evaluation collapses WP-1113's ridge walk. It
+  does not, and it cannot: for an unconstrained linear block the profiled
+  Gauss-Newton step **is** the joint one, so variable projection asks the
+  solver for the vector it was already going to take. Everything else follows
+  from that. Nothing shipped, nothing in `src/` was touched; the deliverable
+  is `examples/probe_varpro.py`, the 70-stage table in § Findings, and a
+  correction to the survey's own reasoning.
+
+  *What was built.* `examples/probe_varpro.py` monkeypatches
+  `rietx.refine.run_least_squares` for the duration of a fit, and at each
+  stage runs a profiled arm beside the shipped joint one from the same start,
+  the same bounds and the same ftol, then delegates to the real runner so the
+  plan proceeds untouched. Checked, not assumed: the joint arm's per-stage
+  (nfev, accepted) is **bit-identical with and without the probe beside it**
+  on all eight cpd-1a stages, and two full runs of the acceptance command are
+  byte-identical.
+
+  *Three things worth carrying, none of them the headline.* (a) The inner
+  solve is **one precomputed pseudo-inverse and one matvec per evaluation**,
+  because frozen-per-stage discreteness makes the design rows constant — which
+  is also why the projector needs no dc*/dθ correction and Kaufman is exactly
+  Golub-Pereyra here. (b) The probe grew a **third gate** the WP did not ask
+  for, comparing the two unconstrained Gauss-Newton steps directly; it is what
+  turned "the counts came out equal" into "the counts are equal because the
+  steps are one vector", and it was the difference between a bound and an
+  explanation. (c) The two gates the WP *did* pre-register both failed, and
+  neither failure means what its name suggests — see § Findings, and the E5
+  note, which now says so where a landing WP will read it.
+
+  *One thing I got wrong mid-probe, recorded because the shape recurs.* I
+  first wrote the step identity as conditional on the background already
+  sitting at its conditional optimum, and built a `start_identity` column to
+  test that precondition. The measurement refuted it — the steps agree at
+  start gaps up to 1.2e+03 — because (I − P)·M = 0 holds whatever the
+  coefficients are. The column stayed in the probe, reporting the thing it
+  disproved.
+
+  *Next actions.* None on this WP. For whoever opens the landing WP: E5 now
+  stands on **claim 3, the coverage study**, and on Pawley dimension; both are
+  unmeasured, and neither can quote this probe's gate 3, because a bounded
+  block leaves the identity the moment a bound goes active. v1.1's open front
+  is unchanged and is still the warm-series ladder rung
+  ([1124](1124-warm-series-continuation.md)'s decomposition), with the
+  per-reflection 19.4 % front unowned.
+
+  *Inherited, pruned on arrival.* All three of WP-1124's entries were still
+  true and were folded rather than dropped: the venv check into the Amdahl
+  paragraph (and acted on — `[dev]`, numba 0.67.0, compiled tier **on**,
+  `rietx.__version__` == `pyproject.version`), "counts survive a busy machine"
+  into the metrics paragraph, and the non-speed kill clause into Acceptance.
+  The mailbox is deleted.
 
 - **2026-08-22** — created, from the solver-survey re-assessment (§5): the
   count mechanism WP-1113 measured runs along the degeneracy's linear leg,
