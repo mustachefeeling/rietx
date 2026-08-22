@@ -162,11 +162,22 @@ def _redirect_cache() -> None:
     imports numba, which is the ordinary case; and if something else imported
     numba first and left the setting empty, the already-parsed config value is
     corrected in place.  A caller who set either one keeps it.
+
+    **The already-imported branch reads a module another thread may still be
+    building**, which is why ``config`` is fetched defensively rather than as
+    an attribute: :func:`warm` puts the numba import on a background thread on
+    purpose, so a first :func:`enabled` on the calling thread lands inside that
+    import often enough to matter, sees ``numba`` in ``sys.modules`` with no
+    ``config`` on it yet, and raised ``AttributeError`` out of a fit.  Skipping
+    the correction there is also the *right* answer, not merely the safe one:
+    the thread doing the importing came through this function first, so the
+    environment variable was already set and the import in flight is reading
+    it.
     """
     os.environ.setdefault("NUMBA_CACHE_DIR", _cache_dir())
-    mod = sys.modules.get("numba")
-    if mod is not None and not getattr(mod.config, "CACHE_DIR", None):
-        mod.config.CACHE_DIR = os.environ["NUMBA_CACHE_DIR"]
+    cfg = getattr(sys.modules.get("numba"), "config", None)
+    if cfg is not None and not getattr(cfg, "CACHE_DIR", None):
+        cfg.CACHE_DIR = os.environ["NUMBA_CACHE_DIR"]
 
 
 def n_threads() -> int:

@@ -58,12 +58,19 @@ reproduces ``pseudo_voigt`` and the bases kernel reproduces ``_components``,
 which are deliberately 1-2 ulp apart (root CLAUDE.md § Conventions).  A
 fused kernel that borrowed the other one would move every converged fit.
 
-**This script switches the shipped tier off** (``compiled.set_enabled(False)``,
-below the imports).  It is the prototype harness the WP-1115 decision was taken
-on, so its "numpy" column has to be numpy; left alone it would now be the
-shipped kernels measuring themselves and every ratio would read 1.0×.  What
-the *shipped* tier is worth is a different measurement and belongs to
-``bench_refinement.py``, run twice with and without ``RIETX_COMPILED=0``.
+**The three kernel modes switch the shipped tier off**
+(``compiled.set_enabled(False)``, in ``main``).  They are the prototype harness
+the WP-1115 decision was taken on, so their "numpy" column has to be numpy;
+left alone it would now be the shipped kernels measuring themselves and every
+ratio would read 1.0×.
+
+``--seams`` does **not**, and that is the WP-1121 correction: the decomposition
+is a question about the fit a user actually gets, so it runs whichever tier the
+environment selects — the shipped one by default, the numpy one under
+``RIETX_COMPILED=0``.  While the disable was script-wide the mode answered the
+pre-1115 question after the tier had shipped, and every share it printed was a
+share of the fallback.  What the tier is worth *end to end* is still
+``bench_refinement.py``, run twice.
 """
 
 from __future__ import annotations
@@ -93,9 +100,6 @@ from rietx.model.profiles.fcj import fcj_offsets_weights_batch  # noqa: E402
 from rietx.model.profiles.pseudovoigt import pseudo_voigt_derivs  # noqa: E402
 from rietx.optimize import least_squares as lsq  # noqa: E402
 from rietx.params.vector import ParameterTable  # noqa: E402
-
-# the "numpy" column must be numpy: see the docstring's last paragraph
-compiled.set_enabled(False)
 
 _SQRT_LN2_PI = math.sqrt(math.log(2.0) / math.pi)
 _4LN2 = 4.0 * math.log(2.0)
@@ -706,8 +710,9 @@ def bench_seams() -> int:
         lsq._accumulate = orig_acc
 
     cols = total["jacobian"] - total["bases"]
+    tier = "compiled" if compiled.enabled() else "numpy"
     print(f"trigger cold fit: {wall:.2f} s   Rwp "
-          f"{result.statistics.rwp:.5f}   {result.status}")
+          f"{result.statistics.rwp:.5f}   {result.status}   [{tier} tier]")
     print(f"{'seam':26s} {'calls':>6s} {'s':>8s} {'ms/call':>9s} {'share':>7s}")
     shown = (("residual (forward)", total["residual"], calls["residual"]),
              ("jacobian: bases", total["bases"], calls["bases"]),
@@ -834,7 +839,11 @@ def main(argv: list[str] | None = None) -> int:
                     help="timed repeats per kernel (default 7)")
     args = ap.parse_args(argv)
     if args.seams:
+        # the one mode that asks about the shipped fit, so it takes the
+        # shipped tier: see the docstring's last paragraph
         return bench_seams()
+    # the "numpy" column of every other mode must be numpy
+    compiled.set_enabled(False)
     if args.accum:
         return bench_accum(args.repeats)
     if args.nogil:
