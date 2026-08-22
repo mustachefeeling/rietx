@@ -30,6 +30,7 @@ from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.schemas.results import RefinedParameter, Statistics
 from rietx.schemas.sequential import SeriesEntry, SeriesResult
 from rietx.sequential import (
+    FIRST_RUNG_FACTOR,
     SequentialRefinement,
     _better,
     _carry_into,
@@ -437,25 +438,23 @@ def test_a_rung_that_came_back_worse_is_not_kept(thermal_patterns):
     assert entry.reseeded is False and entry.rwp_warm == pytest.approx(0.30)
 
 
-def test_the_first_rung_budget_is_the_tighter_of_its_two_bounds():
+def test_the_first_rung_budget_comes_only_from_rungs_that_worked():
     """WP-1127's rule, in the one function that decides it.
 
-    Two bounds, and each says something the other cannot: what the cold fit
-    cost is the only one available to the first warm pattern, and the factor
-    over the accepted first rungs is sharper once the chain has a sample.
+    The sample is the accepted first rungs and nothing else, so a chain bounds
+    nothing until one has worked — the cold fit is **not** evidence about a
+    collapsed warm rung, which `_first_rung_budget`'s docstring measures.
     """
     from rietx.sequential import _first_rung_budget
 
-    # off by default: no factor, no bound, whatever the history says
-    assert _first_rung_budget(400, [50, 60], None) is None
-    # nothing measured yet — the very first pattern of a chain
-    assert _first_rung_budget(0, [], 2.0) is None
-    # only the cold fit behind it: the first warm pattern's one bound
-    assert _first_rung_budget(400, [], 2.0) == 400
-    # the factor bound is sharper as soon as a working rung has been seen
-    assert _first_rung_budget(400, [64, 35], 2.0) == 128
-    # ... and the cold bound wins back when the accepted rungs are expensive
-    assert _first_rung_budget(200, [107, 95], 2.0) == 200
+    # switched off: no factor, no bound, whatever the history says
+    assert _first_rung_budget([50, 60], None) is None
+    # nothing has worked yet — the first warm pattern of a chain
+    assert _first_rung_budget([], 2.0) is None
+    # the bound is headroom over the most expensive accepted rung, not the last
+    assert _first_rung_budget([64, 35], 2.0) == 128
+    assert _first_rung_budget([35, 64], 2.0) == 128
+    assert _first_rung_budget([107, 95], 2.0) == 214
 
 
 def test_the_bound_caps_evaluations_and_never_raises_a_stage():
@@ -493,25 +492,33 @@ def test_a_bounded_first_rung_that_spends_its_bound_escalates(thermal_patterns):
     cheap, it would make a **truncated fit acceptable**, which is the one way
     this could reach an answer.
 
-    The second half is what pins the change to the bound: the identical script
-    without ``first_rung_factor`` keeps the truncated rung, because that is
-    what the shipped ladder has always done and this WP does not change it.
+    The second half is what pins the escalation to the bound rather than to a
+    change of policy on ``max_iter``: the identical script with the bound
+    switched off keeps the truncated rung, because a rung that spends the
+    *plan's* own budget is not this WP's business and the ladder's behaviour
+    there is what it always was.  ``first_rung_factor=None`` is that way back,
+    and what a test pinning a pre-WP-1127 number declares.
+
+    Three patterns rather than two, because the bound needs evidence: p001's
+    converged first rung is what gives p002 a bound at all.
     """
     script = {"p000": [("converged", 0.10)],
-              "p001": [("max_iter", 0.10), ("converged", 0.10)]}
+              "p001": [("converged", 0.10)],
+              "p002": [("max_iter", 0.10), ("converged", 0.10)]}
 
     structure, ins = _start_models()
     runner = _dictate(SequentialRefinement(structure, ins), dict(script))
-    bounded = runner.fit(thermal_patterns[:2], plan=_CHEAP,
-                         first_rung_factor=2.0)
-    assert bounded[1].rungs_tried == ["warm", "warm_staged"]
-    assert bounded[1].status == "converged"
+    bounded = runner.fit(thermal_patterns[:3], plan=_CHEAP,
+                         first_rung_factor=FIRST_RUNG_FACTOR)
+    assert bounded[2].rungs_tried == ["warm", "warm_staged"]
+    assert bounded[2].status == "converged"
 
     structure, ins = _start_models()
     runner = _dictate(SequentialRefinement(structure, ins), dict(script))
-    shipped = runner.fit(thermal_patterns[:2], plan=_CHEAP)
-    assert shipped[1].rungs_tried == ["warm"]
-    assert shipped[1].status == "max_iter"
+    unbounded = runner.fit(thermal_patterns[:3], plan=_CHEAP,
+                           first_rung_factor=None)
+    assert unbounded[2].rungs_tried == ["warm"]
+    assert unbounded[2].status == "max_iter"
 
 
 def test_a_truncated_attempt_loses_to_one_that_ran_to_completion():
@@ -548,35 +555,43 @@ def test_the_bound_is_inert_under_refit_stages(thermal_patterns):
                       {"p000": [("converged", 0.10)],
                        "p001": [("max_iter", 0.10), ("converged", 0.10)]})
     series = runner.fit(thermal_patterns[:2], plan=_CHEAP, refit="stages",
-                        first_rung_factor=2.0)
+                        first_rung_factor=FIRST_RUNG_FACTOR)
     assert series[1].rungs_tried == ["warm_staged"]
 
 
-def test_an_escalated_rung_does_not_widen_the_budget_it_failed(thermal_patterns):
-    """Only *accepted* first rungs are evidence about what a working one costs.
+def test_only_a_converged_first_rung_becomes_evidence(thermal_patterns):
+    """Only *converged* first rungs are evidence about what a working one costs.
 
-    Letting an escalated pattern's first rung into the sample would raise the
-    bound by exactly the failure the bound exists to cut short — so a chain
-    whose second pattern escalates still bounds its third at the cold fit's
-    cost, not at the failure's.
+    "Worked" means it converged, not that it survived. A first rung kept at the
+    *plan's* own cap reports ``"max_iter"``; letting it in at full budget would
+    raise the bound to twice the cap and switch the bound off from then on —
+    and a chain with no evidence at all bounds nothing, so the first warm
+    pattern is never truncated.
+
+    Two chains differing in one dictated status is what separates those.
     """
-    from rietx.sequential import _first_rung_budget
+    def run(p001_status):
+        structure, ins = _start_models()
+        runner = _dictate(SequentialRefinement(structure, ins),
+                          {"p000": [("converged", 0.10)],
+                           "p001": [(p001_status, 0.10), ("converged", 0.10)],
+                           "p002": [("max_iter", 0.10), ("converged", 0.10)]})
+        return runner.fit(thermal_patterns[:3], plan=_CHEAP,
+                          first_rung_factor=FIRST_RUNG_FACTOR)
 
-    structure, ins = _start_models()
-    runner = _dictate(SequentialRefinement(structure, ins),
-                      {"p000": [("converged", 0.10)],
-                       "p001": [("max_iter", 0.10), ("converged", 0.10)],
-                       "p002": [("converged", 0.10)]})
-    series = runner.fit(thermal_patterns[:3], plan=_CHEAP,
-                        first_rung_factor=2.0)
+    # p001 converged on its first rung, so p002 has a bound and its truncated
+    # rung escalates
+    evidence = run("converged")
+    assert evidence[1].rungs_tried == ["warm"]
+    assert evidence[2].rungs_tried == ["warm", "warm_staged"]
 
-    assert series[1].rungs_tried == ["warm", "warm_staged"]
-    # p002 ran one rung, so its own first rung was inside whatever bound it got
-    assert series[2].rungs_tried == ["warm"]
-    # and the rule that produced that bound ignores p001 entirely: p001
-    # escalated, so it contributed no accepted first rung, and p002's only
-    # sample is still the cold fit's cost
-    assert _first_rung_budget(400, [], 2.0) == 400
+    # p001 came back max_iter: kept — there was no bound to force otherwise,
+    # which is the first warm pattern's position by construction — but it is
+    # not evidence, so p002 has no bound either and keeps its own rung exactly
+    # as the unbounded ladder would
+    none = run("max_iter")
+    assert none[1].rungs_tried == ["warm"] and none[1].status == "max_iter"
+    assert none[2].rungs_tried == ["warm"] and none[2].status == "max_iter"
 
 
 def test_an_unrecovered_pattern_seeds_nothing_and_joins_no_median(

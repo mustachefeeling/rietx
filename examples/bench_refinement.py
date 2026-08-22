@@ -193,10 +193,11 @@ class Setup:
     patterns: list[rx.PatternData] | None = None
     #: series cases only — ``refine_sequential``'s first ladder rung.
     refit: str = "single"
-    #: series cases only — WP-1127's first-rung bound.  ``None`` is the shipped
-    #: ladder; a float is the headroom factor over the chain's own accepted
-    #: first-rung cost.
-    first_rung_factor: float | None = None
+    #: series cases only — WP-1127's first-rung bound, **declared** rather than
+    #: inherited so a row says which ladder produced its number (the dispersion
+    #: rule, root CLAUDE.md).  ``None`` is the pre-WP-1127 ladder; the default
+    #: here is the shipped one.
+    first_rung_factor: float | None = FIRST_RUNG_FACTOR
 
 
 @dataclass
@@ -362,10 +363,10 @@ def _cpd_series_stages() -> Setup:
     return _cpd_series(refit="stages")
 
 
-def _cpd_series_bounded() -> Setup:
+def _cpd_series_unbounded() -> Setup:
     setup = _cpd_series()
-    setup.first_rung_factor = FIRST_RUNG_FACTOR
-    setup.title += ", first rung bounded"
+    setup.first_rung_factor = None
+    setup.title += ", first rung unbounded (pre-WP-1127)"
     return setup
 
 
@@ -567,10 +568,10 @@ def _trigger_series_stages() -> Setup:
     return _trigger_series(refit="stages")
 
 
-def _trigger_series_bounded() -> Setup:
+def _trigger_series_unbounded() -> Setup:
     setup = _trigger_series()
-    setup.first_rung_factor = FIRST_RUNG_FACTOR
-    setup.title += ", first rung bounded"
+    setup.first_rung_factor = None
+    setup.title += ", first rung unbounded (pre-WP-1127)"
     return setup
 
 
@@ -583,16 +584,16 @@ CASES: tuple[Case, ...] = (
          "8 × cpd-1, warm-started, refit='single' — WP-0505's counterexample"),
     Case("cpd-series-stages", _cpd_series_stages,
          "the same real chain, refit='stages' — the other side of the trade"),
-    Case("cpd-series-bounded", _cpd_series_bounded,
-         "cpd-series with WP-1127's first-rung bound — expected inert here"),
+    Case("cpd-series-unbounded", _cpd_series_unbounded,
+         "cpd-series without WP-1127's bound — inert here, so identical"),
     Case("trigger", _trigger,
          "4 165 pts, 1 188 pairs, 4 phases — the trigger-shaped cold fit (~50 s)"),
     Case("trigger-series", _trigger_series,
          "10 × trigger, warm-started, refit='single' (the default collapse)"),
     Case("trigger-series-stages", _trigger_series_stages,
          "the same series, refit='stages' — the width-vs-stage-count trade"),
-    Case("trigger-series-bounded", _trigger_series_bounded,
-         "trigger-series with WP-1127's first-rung bound — the arm under test"),
+    Case("trigger-series-unbounded", _trigger_series_unbounded,
+         "trigger-series without WP-1127's bound — the pre-1127 'before'"),
 )
 
 
