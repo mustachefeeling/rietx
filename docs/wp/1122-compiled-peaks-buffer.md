@@ -178,6 +178,50 @@ sin: the exact path already carries `WINDOW_AREA_TOL = 2e-2` and the
 sub-threshold FCJ skip, both declared, both measured. The difference — the
 buffer touches every row — is why it is a *mode*, not a constant.
 
+### Inherited
+
+- **From WP-1121, closed 2026-08-22 — the closing remainder your task 1 is to
+  quote.** The trigger cold fit stands at **8.70–8.72 s** (`bench_refinement.py`,
+  best of three, `[dev]` venv, darwin/arm64, python 3.12.12), against v1.1's
+  "low single-digit seconds". 1121 landed two changes (analytic phase-scale
+  column, depth-2 scalar memo) worth 1.02–1.08× across the four cases, and its
+  § Findings 5 holds the whole decomposition. In shares of that 8.7 s:
+
+  | seam | share | what it is |
+  |---|---|---|
+  | jacobian: bases | 32.8 % | plane work, ~2× off its numpy floor |
+  | residual (forward) | 22.2 % | plane work, same |
+  | perturbed `phase_peaks` | 20.2 % | **per-reflection, dispatch-bound** |
+  | solver + runner | 10.5 % | scipy TRF |
+  | plane accumulation / decode / FD arithmetic | 3.6 / 3.2 / 3.7 % | |
+  | `compile_model` | 2.0 % | |
+
+- **The one mechanism finding that should change your cost model.** 1121
+  § Findings 4: the per-reflection blocks are **dispatch-bound**, which is the
+  opposite of what 1115 measured for the planes. The trigger's phases hold
+  98–282 reflections each (594 total), and a `phase_peaks` call in which *every*
+  memo slot hits still costs **562 ns per reflection** — against 2–4 ns per
+  element on the ~10⁵-element planes. That is why 1115's tier bought 11.0× on
+  the scatter, ~2× on the two profile kernels and **1.03×** on `phase_peaks`.
+  A buffer that reduces *element volume* is priced against the plane seam
+  (55 % of wall, already near its floor); it does nothing for the 20 % that is
+  per-reflection scalars, and the lever there is fewer, larger calls or
+  compiled code that does not dispatch — not a better plane kernel.
+
+- **What 1121 deliberately did not take, with its price.** The per-line
+  intensity assembly inside `phase_peaks` (0.29 s, 3.3 %) runs on every column
+  including those that cannot move an intensity; claiming otherwise is the
+  *inverse* of `_INTENSITY_ONLY` and root CLAUDE.md warns that getting the
+  inverse list wrong costs a silently short column. `table.decode` (0.28 s,
+  3.2 %) rebuilds the whole parameter dict per column for a one-entry change.
+  Neither is a plane question and neither blocks you.
+
+- **Two method rules 1121 paid for.** *Price a removal by removing it*: a
+  per-family timing census over a cache charges each column for whatever its
+  predecessor evicted, and it over-read the scale family by 5×. And an
+  unbounded-cache "would-hit" figure is not headroom — depth 8 built exactly
+  the same blocks as depth 2, to the call.
+
 ## Non-goals
 
 FPA and FFT convolution (v2-fenced — this WP reuses the existing TCHZ/FCJ

@@ -281,6 +281,41 @@ Inside the 1.78 s of `phase_peaks`: **1.36 s block builds, 0.09 s key builds,
 0.29 s the per-line intensity assembly** that runs on every column including
 the ones that cannot move an intensity.
 
+### 6 — the cold target is still missed, and by how much
+
+**8.70–8.72 s against "low single-digit seconds"** — about 3× short, from a
+50 s opening baseline and an 8.86–8.99 s start to this WP. Saying so is the
+result; re-scoping the target quietly would not be.
+
+**What is left, and why none of it is a 3×.** Plane work is 55 % of the fit and
+sits ~2× off its numpy floor by 1115's measurement, so the whole seam is worth
+at most ~27 % of wall *even at zero*. The per-reflection seam is 20 % and
+dispatch-bound (§ Findings 4), so it is the one place a first attempt is not
+competing with an already-compiled one — but a compiled per-reflection chain
+means recompiling d-spacings, structure factors, dispersion, ADPs, PO,
+extinction, absorption, Lp and three width models, which is not a WP-sized
+piece of work and duplicates physics that has one authority today. The
+remaining line items — `table.decode` per column (3.2 %), the intensity
+assembly on columns that cannot move an intensity (3.3 %), the last 8 pp of
+memo hit rate (unreachable without a leak) — sum to under 7 % between them.
+
+**So the two things that could still close it, neither of them this WP's:**
+
+1. **WP-1113's preset flip**, priced and still unflipped: intermediate stages
+   at `ftol=1e-6` gave **1.5–1.7× fewer whole-plan evaluations at ≤ 0.02 esd**
+   of parameter movement. It multiplies with everything here — 8.7 s / 1.6 ≈
+   **5.4 s** — and it is a decision rather than an implementation. Put to the
+   maintainer with this WP's result beside it (task 4); nothing about 1113's
+   own price has changed.
+2. **[1122](1122-compiled-peaks-buffer.md)**, the compiled peaks buffer, which
+   attacks *element volume* rather than cost per element. Its § Inherited now
+   carries this WP's remainder, and one correction to its cost model: the
+   buffer is priced against the plane seam, which is 55 % of wall and near its
+   floor, and buys nothing on the 20 % that is per-reflection.
+
+Together they are the only measured route to the target, and 1.6× × whatever
+1122 returns is what the milestone's cold row now rests on.
+
 ## Tasks
 
 - [x] **Re-measure the decomposition on the shipped tier** — § Findings 1.
@@ -311,12 +346,10 @@ the ones that cannot move an intensity.
       `phases.0.scale`, so the matrix covers the new branch — and its `fd`
       row, which needs no optional backend, passed. `tests/output/wp1121_*.png`
       for all four cases plus zooms, inspected.
-- [ ] If the cold target is still missed after all of it, **say so with the
-      measured remainder** and name what would be needed. A milestone target
-      missed and explained is a result; missed and quietly re-scoped is not.
-      Push that remainder — which seams survive, at what absolute cost per
-      evaluation — into [1122](1122-compiled-peaks-buffer.md)'s `### Inherited`,
-      whose task 1 starts from exactly that.
+- [x] The cold target **is still missed** — § Findings 6 says so with the
+      numbers and names what would be needed. The remainder is in
+      [1122](1122-compiled-peaks-buffer.md)'s `### Inherited`, whose task 1
+      starts from it.
 
 ## Acceptance
 
