@@ -111,6 +111,15 @@ class Profiler:
         self.nl = [i for i, p in enumerate(free) if p not in bkg_index]
         if not self.lin:
             raise Refuse("no background coefficient is free in this stage")
+        if not self.nl:
+            # The one case profiling wins outright, so it is named rather than
+            # swept into the refusals: with nothing nonlinear left, the whole
+            # stage IS the inner solve and VarPro reaches its minimum in one
+            # exact step whatever TRF spends iterating to it.  A Le Bail seed
+            # stage lands here — mode_fixed_path force-fixes the phase scale,
+            # leaving the background alone.
+            raise Refuse("ALL-LINEAR: every free parameter is a background "
+                         "coefficient, so the profiled arm is one exact solve")
         if model.pawley is not None:
             raise Refuse("pawley mode: the intensity block is linear too, and "
                          "non-negative — the landing WP's business")
@@ -316,6 +325,11 @@ class StageProbe:
     #: gate 3 — ‖Δθ_joint − Δθ_profiled‖/‖Δθ_joint‖ for the unconstrained
     #: Gauss-Newton step at the stage start, trust region and bounds removed
     gn_step_rel: float = float("nan")
+    #: ‖x0‖ / ‖x0[nl]‖ — scipy TRF takes its *initial* trust radius from the
+    #: norm of the variable vector (``x_scale=1.0``), and the background
+    #: coefficients carry almost all of it, so this is the factor by which
+    #: profiling shrinks the radius the profiled arm starts inside
+    radius_ratio: float = float("nan")
     worst_esd: float = float("nan")
     worst_path: str = ""
     cost_joint: float = float("nan")
@@ -360,6 +374,25 @@ def gauss_newton_gap(prof: Profiler) -> tuple[float, float]:
     step_p = np.linalg.lstsq(j_p, -r_p, rcond=None)[0]
     denom = float(np.max(np.abs(step_j))) or 1.0
     return start_gap, float(np.max(np.abs(step_j - step_p))) / denom
+
+
+def trust_radius_ratio(prof: Profiler) -> float:
+    """How much smaller a trust region the profiled arm starts inside.
+
+    scipy's TRF sets its initial radius from ‖x0 / x_scale‖, and with the
+    default ``x_scale=1.0`` that is just ‖x0‖.  Background coefficients are
+    counts — order 10²-10³ — while everything else is a cell edge, an angle
+    or a softplus internal of order 1, so the linear block carries nearly the
+    whole norm and removing it shrinks the starting radius by this factor.
+    Not a fact about variable projection; a fact about the globaliser it has
+    to be driven with, and the reason a measured count can land *below* the
+    1.00× the step identity predicts.
+    """
+    lo, hi = prof.table.bounds()
+    x0 = np.clip(np.array(prof.table.x0(), dtype=np.float64),
+                 lo + 1e-12, hi - 1e-12)
+    nl_norm = float(np.linalg.norm(x0[prof.nl]))
+    return float(np.linalg.norm(x0)) / nl_norm if nl_norm else float("nan")
 
 
 def _run_profiled(prof: Profiler, ftol: float, max_iter: int) -> Arm:
@@ -434,6 +467,7 @@ class Probe:
         rec.start_identity, rec.gn_step_rel = gn
         if prof is not None and arm_p is not None:
             rec.cond = prof.cond
+            rec.radius_ratio = trust_radius_ratio(prof)
             rec.cost_profiled = min(arm_p.costs) if arm_p.costs else float("nan")
             self._gates(rec, prof, outcome, arm_p)
         self.results.append(rec)
@@ -497,6 +531,12 @@ def print_table(rows: list[StageProbe]) -> None:
           f"{'decay j':>7s} {'decay p':>7s} {'tail j':>7s} {'tail p':>7s} "
           f"{'nfev j':>7s} {'nfev p':>7s}")
     for r in rows:
+        if r.refused.startswith("ALL-LINEAR"):
+            ja = r.joint.n_accepted
+            print(f"  {r.case:8s} {r.stage:17s} {r.schedule:6s} {r.n_free:5d} "
+                  f"{r.n_free:4d} {ja:7d} {1:7d} {ja:6.2f}   all-linear: one "
+                  f"exact solve against {ja} accepted steps")
+            continue
         if r.refused or r.profiled is None:
             print(f"  {r.case:8s} {r.stage:17s} {r.schedule:6s} {r.n_free:5d} "
                   f"{'—':>4s}   refused: {r.refused}")
@@ -517,19 +557,21 @@ def print_gates(rows: list[StageProbe]) -> None:
           f"claim 1).  2: at the joint\n  endpoint the background coefficients "
           f"ARE the conditional solution, to {IDENTITY_REL:g} rel (claim 2).\n"
           "  3 (the mechanism): the unconstrained Gauss-Newton step in θ_nl is "
-          "the SAME\n  vector in both arms — which it must be wherever 'start "
-          "id' is zero.\n")
-    print(f"  {'case':8s} {'stage':17s} {'sched':6s} {'start id':>9s} "
-          f"{'end id':>9s} {'GN step':>9s} {'worst Δ/esd':>11s}  "
+          "the SAME\n  vector in both arms, at any point.  Δradius is how much "
+          "smaller a trust\n  region the profiled arm starts inside "
+          "(``trust_radius_ratio``).\n")
+    print(f"  {'case':10s} {'stage':17s} {'sched':6s} {'start id':>9s} "
+          f"{'end id':>9s} {'GN step':>9s} {'Δradius':>8s} {'worst Δ/esd':>11s}  "
           f"{'parameter':26s} {'Δcost/cost':>11s}")
     for r in rows:
         if r.refused or r.profiled is None:
             continue
         base = abs(r.cost_joint) or 1.0
         dcost = (r.cost_profiled - r.cost_joint) / base
-        print(f"  {r.case:8s} {r.stage:17s} {r.schedule:6s} "
+        print(f"  {r.case:10s} {r.stage:17s} {r.schedule:6s} "
               f"{r.start_identity:9.2e} {r.identity_rel:9.2e} "
-              f"{r.gn_step_rel:9.2e} {_fmt(r.worst_esd, '11.3f')}  "
+              f"{r.gn_step_rel:9.2e} {_fmt(r.radius_ratio, '8.1f')} "
+              f"{_fmt(r.worst_esd, '11.3f')}  "
               f"{r.worst_path[:26]:26s} {dcost:11.2e}")
 
 
@@ -546,13 +588,26 @@ def print_verdict(rows: list[StageProbe]) -> None:
     bad_id = [r for r in live if not (r.identity_rel <= IDENTITY_REL)]
     bad_agree = [r for r in live
                  if np.isfinite(r.worst_esd) and r.worst_esd > AGREE_ESD]
-    print(f"\n  accepted steps over every probed stage: joint {total_j}, "
-          f"profiled {total_p} ({total_j / total_p if total_p else float('nan'):.2f}×)")
+    print("\n  accepted steps, per case — the count that decides the verdict\n")
+    print(f"  {'case':10s} {'sched':6s} {'joint':>7s} {'profiled':>9s} "
+          f"{'gain':>6s}   stages")
+    seen: list[tuple[str, str]] = []
+    for r in live:
+        if (r.case, r.schedule) not in seen:
+            seen.append((r.case, r.schedule))
+    for case, sched in seen:
+        group = [r for r in live if r.case == case and r.schedule == sched]
+        gj = sum(r.joint.n_accepted for r in group)
+        gp = sum(r.profiled.n_accepted for r in group)
+        print(f"  {case:10s} {sched:6s} {gj:7d} {gp:9d} "
+              f"{_fmt(gj / gp if gp else float('nan'), '6.2f')}   {len(group)}")
+    print(f"\n  every probed stage: joint {total_j}, profiled {total_p} "
+          f"({total_j / total_p if total_p else float('nan'):.2f}×)")
     if gains:
         best, rb = gains[0]
         worst, rw = gains[-1]
-        print(f"  best stage {rb.case}/{rb.stage} {best:.2f}×; "
-              f"worst {rw.case}/{rw.stage} {worst:.2f}×")
+        print(f"  best stage {rb.case}/{rb.stage} ({rb.schedule}) {best:.2f}×; "
+              f"worst {rw.case}/{rw.stage} ({rw.schedule}) {worst:.2f}×")
     print(f"  gate 2 (identity) failures: {len(bad_id)} of {len(live)}"
           + (f" — worst {max(r.identity_rel for r in bad_id):.2e}" if bad_id else ""))
     print(f"  gate 1 (agreement) failures: {len(bad_agree)} of {len(live)}"
@@ -581,12 +636,19 @@ def print_verdict(rows: list[StageProbe]) -> None:
              if r.profiled.n_accepted]
         print(f"  stages where TRF rejected steps: {len(mixed)}, gain spans "
               f"{min(g):.2f}×-{max(g):.2f}×, median {np.median(g):.2f}×")
+    radii = [r.radius_ratio for r in live if np.isfinite(r.radius_ratio)]
+    if radii:
+        print(f"  profiling shrinks TRF's initial trust radius by "
+              f"{min(radii):.1f}×-{max(radii):.1f}× (median "
+              f"{np.median(radii):.1f}×): the background coefficients are "
+              "counts,\n    and carry almost the whole norm the radius is "
+              "taken from")
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="variable projection on the background block (WP-1125)")
-    ap.add_argument("--case", default="cpd-1a,cpd-2",
+    ap.add_argument("--case", default="cpd-1a,cpd-2,nac,nac-lebail,trigger",
                     help=f"comma-separated; one of: "
                          f"{', '.join(c.key for c in bench.CASES)}")
     ap.add_argument("--schedule", default="default,none",
