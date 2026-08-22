@@ -97,6 +97,25 @@ any implementation re-hits first).
 
 ### Inherited
 
+- **From WP-1123 (2026-08-22), the tolerance flip — your baseline moved.**
+  Every staged fit now stops its intermediate stages at ftol 1e-6
+  (`RefinementPlan.intermediate_ftol`), so the harness numbers this WP starts
+  from are **not** the ones in 1115's or 1120's handovers: on this branch's
+  `[dev]` venv, darwin/arm64, cpd-1a 408 → **272** nfev (2.20-2.26 → 1.64-1.75 s),
+  cpd-2 540 → **315** (3.63-3.69 → 2.23-2.25 s), trigger 358 → **232**
+  (8.84-9.14 → **5.71-5.73 s**), nac 47 → 39 (0.40 → 0.35-0.36 s). Re-measure
+  before quoting a "before"; the two effects multiply, so a per-evaluation win
+  is now worth ~1.5× less in absolute seconds than the older tables imply.
+- **What the flip did *not* change**, and it matters for what you attack next:
+  the per-stage *shape* is the same — the trigger's `lines_axial` is still its
+  worst stage (93 of 232 nfev, was 182 of 358) and `sample_broadening` second.
+  The 15 608 perturbed `phase_peaks` this WP is about are unaffected by a
+  tolerance; there are simply fewer evaluations asking for them.
+- **A fit that must not be loosened declares it**, and one already does:
+  `indexing.workflow.validation_plan` names the schedule in its docstring, and
+  a bit-identity golden sets `intermediate_ftol=None`. If a measurement here
+  needs the fully-converged path, that is the switch — not a new flag.
+
 - **From the 2026-08-22 session that opened 1122** (maintainer-directed):
   the compiled peaks buffer this file's fences call "a real option here"
   now has its own WP, [1122](1122-compiled-peaks-buffer.md), gated on this

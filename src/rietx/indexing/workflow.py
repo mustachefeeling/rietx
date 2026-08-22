@@ -284,6 +284,15 @@ def validation_plan(candidate: CellCandidate, instrument: Instrument,
     ``w`` alone before ``u``/``v``/``x``/``y``, because ``w`` is the only width
     term that is non-zero at 2θ = 0 and freeing the four together from a
     mis-declared instrument is what the staged order exists to prevent.
+
+    **The convergence schedule is the package's** (``intermediate_ftol``,
+    WP-1123), named here because a verdict is where inheriting a default is
+    worth a second look.  It survives one: the stage that produces the number
+    a candidate is judged on is the last, which converges at the solver's own
+    tolerance whatever the schedule says, and the earlier three are cumulative
+    — the background and the shift keep refining inside it.  The ranking is
+    what checks this, not the argument: ``tests/test_acceptance_indexing.py``
+    is unchanged across the flip.
     """
     from ..strategy.staged import RefinementPlan, Stage
 
