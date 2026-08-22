@@ -1,6 +1,6 @@
 # WP-1122 — compiled peaks buffer: the declared-tolerance tier
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: 🔄 2026-08-22 — gate passed; task 1 (economics probe) under way
 Depends on: 1115 (the substrate and its rules), 1121 (the gate: its closing
 remainder prices this WP)
 
@@ -18,14 +18,58 @@ taken openly, priced, and put to the user, or not taken at all.
 
 ## Context
 
-**The gate.** [1121](1121-per-reflection-cost.md) owns the exact-arithmetic
-remainder (the per-reflection scalar front, plus the decision on 1113's
-priced ftol flip). Run this WP only after 1121 closes; task 1 reads its
-closing measurement — which seams survive, at what absolute cost — which
-1121's closing session pushes into `### Inherited` here, since a session on
-this WP cannot read another WP's file. If 1121 plus the flip land the cold
-fit low enough that the maintainer no longer wants the stretch, this WP
-closes unstarted, by decision, and says so.
+**The gate is passed, and the stretch is still wanted.** Both blockers
+closed 2026-08-22: [1121](1121-per-reflection-cost.md) took the
+exact-arithmetic remainder and [1123](1123-fast-tolerance-default.md) took
+1113's priced ftol flip. The cold trigger fit stands at **5.67-5.70 s**
+against v1.1's stretch of < 1 s, so the gap is ~5.7× and the WP is live.
+
+**Where the cost stands** (`examples/bench_refinement.py`, best of three,
+worktree `[dev]` venv, darwin/arm64, python 3.12.12, machine idle; measured
+by 1123 on the merged tree it left behind — *re-measure before quoting any
+absolute*): trigger cold 5.67-5.70 s; cpd-1a 270 nfev at 1.52 s; cpd-2 329
+at 2.27-2.28 s; nac 39 at 0.34-0.35 s.
+
+1121's decomposition of the cold trigger fit is still the right one — the
+flip removed *evaluations*, not work per evaluation, so each share below is
+roughly unchanged while the seconds behind it are ~1.5× fewer. Read the
+percentages against 5.7 s, never against the 8.7 s they were taken on:
+
+| seam | share | what it is |
+|---|---|---|
+| jacobian: bases | 32.8 % | plane work, ~2× off its numpy floor |
+| residual (forward) | 22.2 % | plane work, same |
+| perturbed `phase_peaks` | 20.2 % | **per-reflection, dispatch-bound** |
+| solver + runner | 10.5 % | scipy TRF |
+| plane accumulation / decode / FD arithmetic | 3.6 / 3.2 / 3.7 % | |
+| `compile_model` | 2.0 % | |
+
+**The mechanism finding that shapes this WP's cost model** (1121
+§ Findings 4). The per-reflection blocks are **dispatch-bound**, the
+opposite of what 1115 measured for the planes: the trigger's phases hold
+98-282 reflections each (594 total), and a `phase_peaks` call in which
+*every* memo slot hits still costs **562 ns per reflection**, against 2-4 ns
+per element on the ~10⁵-element planes. That is why 1115's tier bought 11.0×
+on the scatter, ~2× on the two profile kernels and **1.03×** on
+`phase_peaks`. So a buffer that removes *element volume* is priced against
+the plane seam — 55 % of wall, already near its floor — and buys nothing on
+the per-reflection 20 %, whose lever is fewer, larger calls or compiled code
+that does not dispatch. The ceiling this WP can reach is bounded by that
+split, and task 1 states it in numbers before any code is written.
+
+**What 1121 left on the table, priced, neither of it blocking.** The
+per-line intensity assembly inside `phase_peaks` (0.29 s, 3.3 %) runs on
+every column including those that cannot move an intensity — claiming
+otherwise is the *inverse* of `_INTENSITY_ONLY`, and root CLAUDE.md warns
+that a wrong inverse list costs a silently short column. `table.decode`
+(0.28 s, 3.2 %) rebuilds the whole parameter dict per column for a one-entry
+change.
+
+**Two method rules 1121 paid for, and this WP's probe re-hits both.**
+*Price a removal by removing it*: a per-family timing census over a cache
+charges each column for whatever its predecessor evicted, and it over-read
+the scale family by 5×. And an unbounded-cache "would-hit" figure is not
+headroom — depth 8 built exactly the same blocks as depth 2, to the call.
 
 **Why volume, and not another cost-per-element win.** The exact plane seam
 is finished: WP-1115 fused the three plane kernels and threads them
@@ -178,77 +222,23 @@ sin: the exact path already carries `WINDOW_AREA_TOL = 2e-2` and the
 sub-threshold FCJ skip, both declared, both measured. The difference — the
 buffer touches every row — is why it is a *mode*, not a constant.
 
-### Inherited
+**There is now a shape to copy, so do not invent one.** The buffer would be
+the first approximate *forward* mode but the package's **second**
+declared-tolerance concession: 1123 shipped
+`RefinementPlan.intermediate_ftol` with exactly the parts (a)-(e) ask for —
+a measured bound in esd currency (≤ 0.03 esd on a single fit), an off switch
+reproducing the old answer bit for bit, a record of what each stage actually
+*ran* at rather than what it declared (`StageResult.ftol`,
+`NodeAction.ftol`), and a line in every acceptance suite naming the setting.
+Its session reports that the switch was cheap and the **recording** was what
+cost time; budget accordingly.
 
-- **From WP-1123, closed 2026-08-22 — the number your task 1 quotes moved.**
-  The tolerance flip landed between 1121's close and you, so the trigger cold
-  fit stands at **5.67–5.70 s**, not the 8.70–8.72 s the note below records
-  (`bench_refinement.py`, best of three, `[dev]` venv, darwin/arm64, python
-  3.12.12, machine idle). Every other harness case moved with it: cpd-1a
-  408 → 270 nfev at 1.52 s, cpd-2 533 → 329 at 2.27–2.28 s, nac 47 → 39 at
-  0.34–0.35 s. The stretch target is < 1 s cold, so the gap is now ~5.7×
-  rather than ~8.7×.
-- **The share table below is still the right decomposition, and it is now a
-  decomposition of less wall.** The flip removed *evaluations*, not work per
-  evaluation, so every seam's share is roughly unchanged while the absolute
-  seconds behind each are ~1.5× smaller. Anything you price against "20.2 % of
-  8.7 s" is really against 20.2 % of 5.7 s — re-measure before quoting an
-  absolute cost per seam, exactly as 1121 asks.
-- **This WP would be the package's second declared-tolerance mode, not its
-  first.** 1123 shipped one: `RefinementPlan.intermediate_ftol` is a declared
-  numerical concession with a measured bound (≤ 0.03 esd on a single fit), an
-  off switch that reproduces the old answer bit for bit, a record of what each
-  stage actually ran at (`StageResult.ftol`, `NodeAction.ftol`), and a line in
-  every acceptance suite naming it. Copy that shape rather than inventing one:
-  the parts that cost time were the *recording*, not the switch.
-- **And 1123's own measurement is the caution this WP most needs.** Its
-  chained-series comparison changed sign between two trees one commit apart —
-  1.04× worse, then 1.12× better, with nothing about the schedule changed —
-  because a warm chain turns a bounded per-fit difference into a rung
-  escalation or a rung avoided. A tolerance mode judged on a series number is
-  judged on an amplifier. Judge it on single fits, and say so.
-
-- **From WP-1121, closed 2026-08-22 — the closing remainder your task 1 is to
-  quote.** The trigger cold fit stands at **8.70–8.72 s** (`bench_refinement.py`,
-  best of three, `[dev]` venv, darwin/arm64, python 3.12.12), against v1.1's
-  "low single-digit seconds". 1121 landed two changes (analytic phase-scale
-  column, depth-2 scalar memo) worth 1.02–1.08× across the four cases, and its
-  § Findings 5 holds the whole decomposition. In shares of that 8.7 s:
-
-  | seam | share | what it is |
-  |---|---|---|
-  | jacobian: bases | 32.8 % | plane work, ~2× off its numpy floor |
-  | residual (forward) | 22.2 % | plane work, same |
-  | perturbed `phase_peaks` | 20.2 % | **per-reflection, dispatch-bound** |
-  | solver + runner | 10.5 % | scipy TRF |
-  | plane accumulation / decode / FD arithmetic | 3.6 / 3.2 / 3.7 % | |
-  | `compile_model` | 2.0 % | |
-
-- **The one mechanism finding that should change your cost model.** 1121
-  § Findings 4: the per-reflection blocks are **dispatch-bound**, which is the
-  opposite of what 1115 measured for the planes. The trigger's phases hold
-  98–282 reflections each (594 total), and a `phase_peaks` call in which *every*
-  memo slot hits still costs **562 ns per reflection** — against 2–4 ns per
-  element on the ~10⁵-element planes. That is why 1115's tier bought 11.0× on
-  the scatter, ~2× on the two profile kernels and **1.03×** on `phase_peaks`.
-  A buffer that reduces *element volume* is priced against the plane seam
-  (55 % of wall, already near its floor); it does nothing for the 20 % that is
-  per-reflection scalars, and the lever there is fewer, larger calls or
-  compiled code that does not dispatch — not a better plane kernel.
-
-- **What 1121 deliberately did not take, with its price.** The per-line
-  intensity assembly inside `phase_peaks` (0.29 s, 3.3 %) runs on every column
-  including those that cannot move an intensity; claiming otherwise is the
-  *inverse* of `_INTENSITY_ONLY` and root CLAUDE.md warns that getting the
-  inverse list wrong costs a silently short column. `table.decode` (0.28 s,
-  3.2 %) rebuilds the whole parameter dict per column for a one-entry change.
-  Neither is a plane question and neither blocks you.
-
-- **Two method rules 1121 paid for.** *Price a removal by removing it*: a
-  per-family timing census over a cache charges each column for whatever its
-  predecessor evicted, and it over-read the scale family by 5×. And an
-  unbounded-cache "would-hit" figure is not headroom — depth 8 built exactly
-  the same blocks as depth 2, to the call.
+**Judge the mode on single fits, and say so.** 1123's chained-series
+comparison changed sign between two trees one commit apart — 1.04× worse,
+then 1.12× better, with nothing about the schedule changed — because a warm
+chain turns a bounded per-fit difference into a rung escalation or a rung
+avoided, an effect unbounded in magnitude and not fixed in sign. A tolerance
+mode judged on a series number is judged on an amplifier.
 
 ## Non-goals
 
@@ -261,8 +251,9 @@ window semantics beyond composing the two tolerance currencies.
 
 ## Tasks
 
-- [ ] **Gate reading + economics probe.** Quote 1121's closing remainder
-      (from `### Inherited` here), then measure the two per-element costs
+- [ ] **Gate reading + economics probe.** Re-measure the harness on this
+      tree (§ Context's figures are 1123's), then measure the two per-element
+      costs
       the cost model needs on the current tree: the compiled exact pV/FCJ
       element against a compiled prefilter + 4-tap resample + spline-combine
       microkernel on trigger-shaped planes (`examples/bench_compiled_buffer.py`).
