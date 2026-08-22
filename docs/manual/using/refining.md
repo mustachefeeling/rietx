@@ -177,29 +177,33 @@ later stage, and the last stage — at `1e-9` — polishes all of them together.
 That is why stopping intermediate stages early moves the answer so little, and
 it holds for any plan this runner runs, not only for the presets.
 
-Measured on the three lab-shaped benchmark cases of `examples/bench_refinement.py`
-(`[dev]` venv, darwin/arm64, 2026-08-22), against the same plans with
-`intermediate_ftol = None`:
+Measured on the benchmark cases of `examples/bench_refinement.py` (`[dev]`
+venv, darwin/arm64, 2026-08-22, best of three runs on an idle machine), against
+the same plans with `intermediate_ftol = None`:
 
 | case | evaluations | wall clock | largest shift | QPA |
 |---|---|---|---|---|
-| cpd-1a | 408 → 272 (1.50×) | 2.20–2.26 s → 1.64–1.75 s | 0.001 esd | within 0.0007 wt % |
-| cpd-2 | 540 → 315 (1.71×) | 3.63–3.69 s → 2.23–2.25 s | 0.020 esd, a background coefficient | within 0.003 wt % |
-| trigger | 358 → 232 (1.54×) | 8.84–9.14 s → 5.71–5.73 s | 0.001 esd, outside one degeneracy | within 0.0001 wt % |
+| nac | 47 → 39 (1.21×) | 0.38 → 0.34–0.35 s | — | — |
+| cpd-1a | 408 → 270 (1.51×) | 2.02–2.04 → 1.52 s | 0.027 esd, a width term | within 0.0014 wt % |
+| cpd-2 | 533 → 329 (1.62×) | 3.37–3.43 → 2.27–2.28 s | 0.001 esd, a background coefficient | within 0.0003 wt % |
+| trigger | 360 → 232 (1.55×) | 8.63–8.65 → 5.67–5.70 s | 0.001 esd, outside one degeneracy | within 0.0001 wt % |
+
+Rwp agrees to five decimals or better in every case.
 
 The degeneracy is the trigger case's instrument `x` against every phase's
-`lor_size`, which moves 2.3 esd. Those parameters are exactly degenerate —
+`lor_size`, which moves 1.4 esd. Those parameters are exactly degenerate —
 Lorentzian FWHMs add, and both terms are size-like in θ — and the measurement
-shows it: `x` gained 0.0014651 while all four `lor_size` values lost
-0.001450–0.001474 each. What moved is the split, not the width they sum to.
+shows it: `x` gained 0.0013165 while all four `lor_size` values lost
+0.0012897–0.0013300 each. What moved is the split, not the width they sum to.
 
-A chained series is the one measured case where the schedule does not pay. Ten
-warm-started patterns took 1705 evaluations against 1634 fully converged, and
-61.7–62.7 s against 54.0–54.6 s. The cold first pattern was still faster
-(6.84 s against 8.45 s); the loss is in the warm ones, where each pattern
-starts from its predecessor's answer, so a small change in one seed changes how
-many recovery rungs the next pattern needs. Fitting a long series is the case
-to measure both ways rather than to assume.
+A **chained series is the case to measure rather than assume**. Ten
+warm-started patterns took 1603 evaluations against 1792 fully converged
+(57.2–57.6 s against 60.4–60.7 s) — but the same comparison one commit earlier
+went the other way, 1705 against 1634. Each pattern starts from its
+predecessor's answer, and a small change in one seed changes how many recovery
+rungs the next pattern needs, so the chain turns a bounded per-fit difference
+into an unbounded one whose sign is not fixed. A single cold fit has no such
+amplifier: that one was faster in both trees.
 
 ### Converging every stage
 

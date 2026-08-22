@@ -296,9 +296,12 @@ recent list, and is therefore not behind the 409 (WP-1044).
   schedule and `stage_ftols()` the one authority that applies it — the plan
   alone knows which stage is last, so no runner reads `Stage.ftol` itself.
   **Cumulative staging is what bounds the cost**: an intermediate stage's
-  parameters keep refining in every later stage, so 1.5-1.7× fewer evaluations
-  costs ≤ 0.02 esd — though a *chained series* is the one measured case where it
-  does not pay, the chain turning a seed change into a rung escalation.
+  parameters keep refining in every later stage, so 1.2-1.6× fewer evaluations
+  costs ≤ 0.03 esd on every non-degenerate parameter — a bound that holds for
+  **one fit** and not for a *chain*, where each pattern seeds the next and the
+  effect is unbounded and not even fixed in sign (measured both ways, 1.12×
+  better and 1.04× worse, one commit apart): a series is measured, never
+  assumed.
   `intermediate_ftol=None` is the bit-identical way back and what a golden
   declares; the record says what a stage **ran** at, never what it declared
   (`StageResult.ftol`, `NodeAction.ftol`), or a cherry-pick replays what never

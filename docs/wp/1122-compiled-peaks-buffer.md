@@ -180,6 +180,34 @@ buffer touches every row — is why it is a *mode*, not a constant.
 
 ### Inherited
 
+- **From WP-1123, closed 2026-08-22 — the number your task 1 quotes moved.**
+  The tolerance flip landed between 1121's close and you, so the trigger cold
+  fit stands at **5.67–5.70 s**, not the 8.70–8.72 s the note below records
+  (`bench_refinement.py`, best of three, `[dev]` venv, darwin/arm64, python
+  3.12.12, machine idle). Every other harness case moved with it: cpd-1a
+  408 → 270 nfev at 1.52 s, cpd-2 533 → 329 at 2.27–2.28 s, nac 47 → 39 at
+  0.34–0.35 s. The stretch target is < 1 s cold, so the gap is now ~5.7×
+  rather than ~8.7×.
+- **The share table below is still the right decomposition, and it is now a
+  decomposition of less wall.** The flip removed *evaluations*, not work per
+  evaluation, so every seam's share is roughly unchanged while the absolute
+  seconds behind each are ~1.5× smaller. Anything you price against "20.2 % of
+  8.7 s" is really against 20.2 % of 5.7 s — re-measure before quoting an
+  absolute cost per seam, exactly as 1121 asks.
+- **This WP would be the package's second declared-tolerance mode, not its
+  first.** 1123 shipped one: `RefinementPlan.intermediate_ftol` is a declared
+  numerical concession with a measured bound (≤ 0.03 esd on a single fit), an
+  off switch that reproduces the old answer bit for bit, a record of what each
+  stage actually ran at (`StageResult.ftol`, `NodeAction.ftol`), and a line in
+  every acceptance suite naming it. Copy that shape rather than inventing one:
+  the parts that cost time were the *recording*, not the switch.
+- **And 1123's own measurement is the caution this WP most needs.** Its
+  chained-series comparison changed sign between two trees one commit apart —
+  1.04× worse, then 1.12× better, with nothing about the schedule changed —
+  because a warm chain turns a bounded per-fit difference into a rung
+  escalation or a rung avoided. A tolerance mode judged on a series number is
+  judged on an amplifier. Judge it on single fits, and say so.
+
 - **From WP-1121, closed 2026-08-22 — the closing remainder your task 1 is to
   quote.** The trigger cold fit stands at **8.70–8.72 s** (`bench_refinement.py`,
   best of three, `[dev]` venv, darwin/arm64, python 3.12.12), against v1.1's

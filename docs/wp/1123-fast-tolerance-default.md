@@ -207,42 +207,54 @@ beside the certified numbers it produced.
   names `dispersion`, `validation_matrix.INTERMEDIATE_FTOL_DEFAULT` records the
   decision beside the numbers, and a new guard fails a suite that rides the
   default silently.
-- One crash fixed on the way in, WP-1115's and not this WP's:
+- One crash hit on the way in, WP-1115's and not this WP's:
   `compiled._redirect_cache` read `sys.modules['numba'].config` while `warm()`
-  was still importing numba on its background thread, killing the first fit
-  after a fresh install. Pinned by building the state a partial import leaves,
-  since the window is the import itself and closes for good once the package
-  files are warm in the page cache.
+  was still importing numba on its background thread, which killed this WP's
+  *first* benchmark run in setup on a fresh venv. Fixed here — and,
+  independently and on the same day, by WP-1121's session on main, which is
+  the version the merge kept (same guard, same deterministic
+  half-built-module test). Two sessions reaching it within hours says the
+  window is wider than "a fresh install" suggests; both records name it.
 
-*Measured* (`[dev]` venv, darwin/arm64, worktree, benchmark run alone):
+*Measured* (`[dev]` venv, darwin/arm64, worktree, best of three, machine idle;
+**re-measured after merging main**, which brought WP-1121's exact scale column
+and moved every count — the pre-merge table is in this file's git history and
+should not be quoted):
 
-| case | nfev/njev exact → fast | wall exact → fast | largest shift |
-|---|---|---|---|
-| nac | 47/44 → 39/36 | 0.40 → 0.35–0.36 s | — |
-| cpd-1a | 408/343 → **272/221** (1.50×) | 2.20–2.26 → 1.64–1.75 s | 0.001 esd; QPA 0.0007 wt % |
-| cpd-2 | 540/420 → **315/247** (1.71×) | 3.63–3.69 → 2.23–2.25 s | 0.020 esd (`background.c0`); QPA 0.003 wt % |
-| trigger | 358/286 → **232/186** (1.54×) | 8.84–9.14 → 5.71–5.73 s | 0.001 esd outside one degeneracy; QPA 0.0001 wt % |
-| trigger-series | 1634/1273 → 1705/1399 | 54.0–54.6 → 61.7–62.7 s | — |
+| case | nfev/njev exact → fast | wall exact → fast | largest shift | QPA |
+|---|---|---|---|---|
+| nac | 47/44 → 39/36 (1.21×) | 0.38 → 0.34–0.35 s | — | — |
+| cpd-1a | 408/339 → **270/215** (1.51×) | 2.02–2.04 → 1.52 s | 0.027 esd (`phases.2.gauss_size`, `profile.w`) | 0.0014 wt % |
+| cpd-2 | 533/408 → **329/254** (1.62×) | 3.37–3.43 → 2.27–2.28 s | 0.001 esd (`background.c0`) | 0.0003 wt % |
+| trigger | 360/287 → **232/190** (1.55×) | 8.63–8.65 → **5.67–5.70 s** | 0.001 esd outside one degeneracy | 0.0000 wt % |
+| trigger-series | 1792/1444 → 1603/1315 (1.12×) | 60.4–60.7 → 57.2–57.6 s | — | — |
 
-cpd-1a's 272/221 and cpd-2's 315/247 are WP-1113's numbers to the evaluation,
-measured a milestone's worth of optimisation later — which is the strongest
-evidence available that the flip does what 1113 priced. Rwp agrees to six
-decimals on cpd-1a and the trigger, five on cpd-2 (0.132902 → 0.132920).
+Rwp agrees to five decimals or better on every case (cpd-1a 0.171273 both,
+cpd-2 0.132673 → 0.132671, trigger 0.019983 both).
 
 The trigger's largest shift is the exactly degenerate family and it moves as
-one: `instrument.profile.x` +0.0014651 against `lor_size` −0.0014653 /
-−0.0014654 / −0.0014497 / −0.0014738 on the four phases. Lorentzian FWHMs add,
-so the width they sum to did not move; 2.3 esd of *parameterisation* did.
+one: `instrument.profile.x` +0.0013165 against `lor_size` −0.0013165 /
+−0.0013165 / −0.0013300 / −0.0012897 on the four phases. Lorentzian FWHMs add,
+so the width they sum to did not move; 1.4 esd of *parameterisation* did.
 
-*The one place it does not pay.* The chained ten-pattern series takes **more**
-evaluations under the schedule, 1705 against 1634, and 14 % more wall. The cold
-first pattern is still faster (6.84 s against 8.45 s); the loss is in the warm
-ones, where a one-stage collapsed refit is unaffected by construction (a lone
-stage is the last one) and what changed is which *rung* each pattern needed —
-patterns 5 and 6 escalated further than they did before. This is path
-dependence, the thing `direction="both"` exists to measure, not a slower fit.
-It is recorded in the manual, in AGENT_PROTOCOL 8.20 and in the v1.1 record
-rather than tuned away.
+**The bound is 0.03 esd, not 1113's 0.02**, and the difference is the tree
+rather than the schedule: on this one cpd-1a's widest non-degenerate move is
+0.027 esd on `phases.2.gauss_size`, where 1113 measured 8.6e-4 on its own tree.
+Quote the bound as a few hundredths of an esd, and re-measure it after anything
+that moves a Jacobian column.
+
+*The series is the case that must be measured, and it taught that by changing
+sign.* Pre-merge, the chained ten-pattern run cost **more** under the schedule
+(1705 evaluations against 1634, 14 % more wall) and this WP was ready to
+document it as the one case where the flip does not pay. Post-merge — one
+commit of 1121's later — it **pays 1.12×** (1603 against 1792, 57.2–57.6 s
+against 60.4–60.7 s). Nothing about the schedule changed between those two
+measurements. The mechanism is that each pattern warm-starts from its
+predecessor, so a bounded per-fit difference becomes a rung escalation or a
+rung avoided, and the chain integrates that: the effect is unbounded in
+magnitude and **not fixed in sign**. That is the finding, and it is stronger
+than either number — a single cold fit has no amplifier and was faster in both
+trees (8.67 → 6.57 s inside the series).
 
 *Gotchas for whoever comes next.*
 
@@ -258,12 +270,23 @@ rather than tuned away.
   this WP spent its time undoing. Worth a WP.
 - The API-surface partition is the gate that catches a new public name: six
   arrived here and the fast suite failed until each was documented. Expect it.
-- The benchmark's "before" cannot be recovered after the change lands — the
-  harness has no exact-mode flag by design (a harness that changes with the
-  optimisation cannot measure it). Measure the baseline first.
+- The harness has no exact-mode flag by design (one that changes with the
+  optimisation cannot measure it), so the *before* is recovered by wrapping
+  each case's `build()` to clear `intermediate_ftol` and calling
+  `bench_refinement.main` — `CASES` is a **tuple**, so rebind the module
+  attribute rather than assigning into it. That wrapper is how both columns of
+  the table above were measured on one tree, and it is worth keeping: measuring
+  the baseline before the change and the change after it compares two trees,
+  which is what made the first series number wrong.
+- **Re-measure after merging main.** This WP measured, merged 1121, and every
+  count moved (cpd-1a 272 → 270, cpd-2 315 → 329, series 1705 → 1603). The
+  merge also brought an independent fix for the same numba race this session
+  hit, which is the second thing a session on a fast-moving branch should
+  expect: check whether the bug you are fixing is already fixed upstream.
 
-*Next.* Nothing on this WP. The v1.1 front is [1121](1121-per-reflection-cost.md)
-(the per-reflection Jacobian cost), which multiplies with this: 1.5× fewer
-evaluations times whatever 1121 takes off each one.
+*Next.* Nothing on this WP. The stretch target
+[1122](1122-compiled-peaks-buffer.md) is the open front, and its
+`### Inherited` now carries the trigger cold number it must quote: **5.67–5.70 s**,
+not the 8.70–8.72 s 1121 left it, because this flip landed in between.
 
 - **2026-08-22** — created.
