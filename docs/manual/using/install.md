@@ -98,11 +98,11 @@ an upper bound on `numpy`, so a very new numpy may have to wait for a `numba`
 that admits it. Per-project virtual environments are the assumption that makes
 both acceptable.
 
-The first refinement in a process pays a compile of a few tenths of a second.
-Most of it runs on a background thread started when the model compiles, so it
-overlaps with reading the file and building the parameter table rather than
-adding to them, and the machine code is cached on disk (under `~/.rietx`, or
-`$RIETX_STATE_DIR`) so later processes reload it instead of rebuilding it.
+The first process on a machine pays a 0.6 s compile; every later one pays 0.12 s
+to load the result from disk. Most of even that overlaps with other work: the
+compile starts on a background thread when the model is compiled, and runs while
+the file is read and the parameter table is built. The machine code is cached
+under `~/.rietx/numba-cache`, or under `$RIETX_STATE_DIR` if that is set.
 
 Numbers, not adjectives: the compiled and numpy paths agree to within one or two
 units in the last place. The accumulation is bit-for-bit identical, symmetric

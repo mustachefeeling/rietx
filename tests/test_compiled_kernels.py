@@ -30,10 +30,16 @@ a suite that runs under ``-n auto`` measures the machine, not the change.
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import numpy as np
 import pytest
 
 from rietx import Instrument, PatternData
+from rietx._about import COMPILED_ENV, STATE_DIR_ENV
 from rietx.model import compiled
 from rietx.model.forward import BatchLayout, accumulate_planes, compile_model
 from rietx.params.vector import ParameterTable
@@ -250,6 +256,39 @@ def test_a_build_with_no_numba_still_fits(monkeypatch):
     assert compiled.accumulate(len(model.tt), []) is None
     got = model.evaluate(values)
     assert _rel(got, want) < 1e-13
+
+
+def test_the_disk_cache_lands_in_the_state_dir_and_not_beside_the_source(
+        tmp_path):
+    """numba reads ``NUMBA_CACHE_DIR`` **when it is imported**, once.
+
+    Setting it later does nothing, and the cache then falls back to
+    ``__pycache__`` beside the source — inside ``site-packages`` for an ordinary
+    install, which is read-only often enough to matter, and where an unwritable
+    cache means recompiling in every process with nothing said.  This was live
+    here for one commit and worked perfectly on a dev checkout, which is exactly
+    where nobody notices; only counting the files caught it.
+
+    A subprocess, because the ordering being asserted is an import ordering and
+    this one has numba loaded already.
+    """
+    env = dict(os.environ)
+    env[STATE_DIR_ENV] = str(tmp_path)
+    env.pop("NUMBA_CACHE_DIR", None)
+    env.pop(COMPILED_ENV, None)
+    script = (
+        "from rietx.model import compiled\n"
+        "compiled.warm(block=True)\n"
+        "assert compiled._kernels() is not None, 'kernels did not build'\n"
+    )
+    out = subprocess.run([sys.executable, "-c", script], env=env,
+                         capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    written = sorted(p.name for p in (tmp_path / "numba-cache").rglob("*.nb[ic]"))
+    assert written, f"nothing cached under {tmp_path}: {out.stderr}"
+    beside = Path(compiled.__file__).parent / "__pycache__"
+    assert not list(beside.glob("*.nb[ic]")), \
+        f"cache leaked beside the source: {sorted(p.name for p in beside.glob('*.nb[ic]'))}"
 
 
 def test_the_thread_count_is_settable_and_never_zero(monkeypatch):

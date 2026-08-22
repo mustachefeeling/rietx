@@ -80,6 +80,7 @@ unwritable cache silently means recompiling in every process.
 from __future__ import annotations
 
 import os
+import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -139,6 +140,29 @@ def _cache_dir() -> str:
     return str(Path(root) / "numba-cache")
 
 
+def _redirect_cache() -> None:
+    """Point numba's disk cache at :func:`_cache_dir`, whichever order wins.
+
+    **numba reads ``NUMBA_CACHE_DIR`` once, when it is imported**, so setting
+    the variable later does nothing and the cache silently falls back to
+    ``__pycache__`` beside the source — inside ``site-packages`` for an
+    ordinary install, which is read-only often enough to matter (system python,
+    containers, Nix) and, when it is not writable, means recompiling in every
+    process with nothing said.  This was live here for one commit and the
+    symptom was mild: it worked on a dev checkout, which is exactly where
+    nobody notices.
+
+    So both halves are covered.  The variable is set before *this* module
+    imports numba, which is the ordinary case; and if something else imported
+    numba first and left the setting empty, the already-parsed config value is
+    corrected in place.  A caller who set either one keeps it.
+    """
+    os.environ.setdefault("NUMBA_CACHE_DIR", _cache_dir())
+    mod = sys.modules.get("numba")
+    if mod is not None and not getattr(mod.config, "CACHE_DIR", None):
+        mod.config.CACHE_DIR = os.environ["NUMBA_CACHE_DIR"]
+
+
 def n_threads() -> int:
     """Worker threads the row-parallel kernels split across.
 
@@ -165,10 +189,13 @@ def available() -> bool:
         return False
     if _KERNELS is not None:
         return True
+    # before the import, never after: see _redirect_cache
+    _redirect_cache()
     try:
         import numba  # noqa: F401
     except Exception:  # pragma: no cover - depends on the install
         return False
+    _redirect_cache()
     return True
 
 
@@ -222,7 +249,7 @@ def _kernels() -> dict | None:
             return _KERNELS
         if _UNAVAILABLE:
             return None
-        os.environ.setdefault("NUMBA_CACHE_DIR", _cache_dir())
+        _redirect_cache()
         try:
             from . import _kernels_numba
 
