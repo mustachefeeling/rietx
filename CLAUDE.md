@@ -290,6 +290,22 @@ recent list, and is therefore not behind the 409 (WP-1044).
   so `_peak_chain_column` checks the scalars it finite-differences anyway
   against the bases it was told to skip, and raises naming the path. A wrong
   claim then costs work, never a short column (WP-1109).
+- **A staged plan does not converge its intermediate stages; the one that does
+  is the last** (WP-1123, flipping what 1113 measured).
+  `RefinementPlan.intermediate_ftol` (1e-6 against the solver's 1e-9) is the
+  schedule and `stage_ftols()` the one authority that applies it — the plan
+  alone knows which stage is last, so no runner reads `Stage.ftol` itself.
+  **Cumulative staging is what bounds the cost**: an intermediate stage's
+  parameters keep refining in every later stage, so 1.2-1.6× fewer evaluations
+  costs ≤ 0.03 esd on every non-degenerate parameter — a bound that holds for
+  **one fit** and not for a *chain*, where each pattern seeds the next and the
+  effect is unbounded and not even fixed in sign (measured both ways, 1.12×
+  better and 1.04× worse, one commit apart): a series is measured, never
+  assumed.
+  `intermediate_ftol=None` is the bit-identical way back and what a golden
+  declares; the record says what a stage **ran** at, never what it declared
+  (`StageResult.ftol`, `NodeAction.ftol`), or a cherry-pick replays what never
+  happened.
 - **A phase the data cannot see is a flat direction, and a bound on it is not
   free.** A phase reaches the pattern only through `scale × |F|² × profile`, so
   one whose scale sits at its floor moves nothing: the fit reports `converged`

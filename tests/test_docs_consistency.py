@@ -210,7 +210,19 @@ SIZE_CAPS: dict[str, int | None] = {
     # detail went down a rank as this comment requires — the step sweep, the
     # per-state golden diff and the seam decomposition are in the WP, the
     # column's own reasoning in `_scale_column`'s docstring.
-    "CLAUDE.md": 817,
+    # 817 -> 833 for WP-1123 (2026-08-22): a staged plan stops its intermediate
+    # stages early by default, which changes what every fit in the package
+    # returns and is not implied by any other line here.  A session that never
+    # opens strategy/ still needs three of its clauses: the schedule is the
+    # plan's and is applied by one authority (a runner reading Stage.ftol
+    # reintroduces the second opinion), cumulative staging is what bounds the
+    # cost so the bound is a property of the runner rather than of the presets,
+    # and a record must say what a stage RAN at or a cherry-pick replays what
+    # never happened.  The measurements went down a rank as this comment
+    # requires: the harness table and the esd shifts are in the WP's handover
+    # and the v1.1 record, the trade in docs/manual/using/refining.md, the
+    # decision beside the numbers it produced in tests/validation_matrix.py.
+    "CLAUDE.md": 833,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one

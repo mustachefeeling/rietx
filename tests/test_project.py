@@ -120,7 +120,7 @@ def test_document_round_trip_including_infinite_bounds(tmp_path, pattern_file):
     project.save()
 
     raw = json.loads((project.path / PROJECT_JSON).read_text(encoding="utf-8"))
-    assert raw["format_version"] == "1.1"   # WP-1047: scan joined the vocabulary
+    assert raw["format_version"] == "1.2"   # WP-1123: the plan grew a schedule
     assert raw["patterns"][0]["reader"] == "xy"
 
     reopened = rx.Project.open(project.path)

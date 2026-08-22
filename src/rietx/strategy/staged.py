@@ -17,7 +17,11 @@ import re
 from dataclasses import dataclass, field
 
 from ..schemas.common import Mode
-from ..schemas.plan import PlanSpec
+
+# INTERMEDIATE_FTOL is defined beside the mirror because the pydantic field
+# needs it at class-definition time and this module is the *upper* layer; it is
+# re-exported here, where plan policy is read.
+from ..schemas.plan import INTERMEDIATE_FTOL, PlanSpec
 
 #: ``phases.i.atoms.j.u11`` … — the stored anisotropic components, grouped by
 #: site for the positive-definiteness guard.
@@ -71,16 +75,14 @@ class Stage:
     #: a timer: every converging fit measured stays an order of magnitude
     #: inside it, and a stage that hits it reports STAGE_MAX_ITER.
     max_iter: int = 100
-    #: this stage's ftol (relative cost-decrease termination), ``None`` = the
-    #: solver default (1e-9).  The lever WP-1113's trajectories point at: an
-    #: expensive stage's evaluations are mostly *tail* — undamped Gauss-Newton
-    #: marching a near-degenerate direction at ≈0.93/iteration until ftol —
-    #: and an intermediate stage's job is to seed the next stage, not to
-    #: polish that ridge.  Measured (WP-1113): every intermediate stage at
-    #: 1e-6 cuts whole-plan evaluations 1.5-1.7× on the three lab-shaped
-    #: harness cases, with every non-degenerate parameter within 0.02 esd of
-    #: the untouched plan and QPA fractions within 0.001 wt%.  Opt-in: unset,
-    #: fits are bit-identical to pre-1113.
+    #: this stage's own ftol (relative cost-decrease termination), overriding
+    #: whatever schedule the plan sets.  ``None`` = take it from the plan
+    #: (:attr:`RefinementPlan.intermediate_ftol` for every stage but the last,
+    #: the solver's 1e-9 for the last) — which is why the two cannot be told
+    #: apart here and a plan is where the schedule is declared.  Set it to say
+    #: that *this* stage is different: an early stage whose seed the next one
+    #: is unusually sensitive to, or a one-stage validation fit that must
+    #: converge as hard as an endpoint.
     ftol: float | None = None
     lebail_cycles: int = 3  # intensity-partitioning refreshes (lebail mode)
     #: lift any softplus-bounded parameter this stage frees off the exact-zero
@@ -153,6 +155,36 @@ _ROUGHNESS_STAGE = (
 class RefinementPlan:
     stages: list[Stage]
     correlation_guard: float = 0.98
+    #: the tolerance every stage but the last runs at, unless that stage
+    #: declares its own :attr:`Stage.ftol`.  ``None`` = the solver default
+    #: (1e-9) everywhere, which is what every fit before WP-1123 did and what
+    #: it still does, bit for bit.  See :meth:`stage_ftols` for the rule and
+    #: :data:`INTERMEDIATE_FTOL` for what the number is and costs.
+    intermediate_ftol: float | None = INTERMEDIATE_FTOL
+
+    def stage_ftols(self) -> list[float | None]:
+        """The tolerance each stage runs at, in order — the one authority.
+
+        Both runners ask this rather than reading ``stage.ftol``
+        (``Refinement._run_stage`` through ``fit``, ``MultiRefinement.fit``),
+        because the answer needs a fact no stage has: **whether it is the
+        last**.  A plan is the only object that knows, so the rule lives here
+        and is applied once per fit instead of restated per call site.
+
+        Three inputs, in precedence order: a stage's own ``ftol`` wins; the
+        last stage takes the solver default, because it is the one that
+        produces the answer; everything else takes
+        :attr:`intermediate_ftol`.
+
+        A single-stage plan is therefore all endpoint and nothing is loosened
+        — which is the right reading of a warm series pattern collapsed to one
+        stage, and of the indexing validation fit, neither of which has a
+        successor to seed.
+        """
+        last = len(self.stages) - 1
+        return [s.ftol if s.ftol is not None
+                else (None if i == last else self.intermediate_ftol)
+                for i, s in enumerate(self.stages)]
 
     def __getattr__(self, name: str):
         if name in _PYDANTIC_SURFACE:

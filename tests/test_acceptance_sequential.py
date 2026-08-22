@@ -114,7 +114,10 @@ def independent(sample1_results):
     """Each mixture fitted from the initial model — the unchained baseline.
 
     These are the *same* eight fits the v0.3 QPA acceptance runs: same phases,
-    same instrument, same ``seed_scales``, same ``qpa_plan()``.  They are
+    same instrument, same ``seed_scales``, same ``qpa_plan()`` — including the
+    convergence schedule that builder declares (``intermediate_ftol``,
+    WP-1123), inherited deliberately, since a chain is only comparable to the
+    unchained baseline if both stop their stages in the same place.  They are
     therefore shared, from ``tests/conftest.py``, rather than re-derived here
     (which cost eight full refinements per run).  Two deliberate semantics
     deltas, neither of which touches a value: the shared fits record history

@@ -248,10 +248,14 @@ def test_the_budget_counts_iterations_not_parameters(pattern, monkeypatch):
 
 
 def test_stage_ftol_reaches_the_solver_and_only_its_own_stage(pattern, monkeypatch):
-    """``Stage.ftol`` (WP-1113) is per-stage: the stage that declares one is
-    solved at it, every unset stage keeps the runner's default — one authority,
-    so the assertion for the unset stages is "all equal and not the declared
-    value", never a restated 1e-9."""
+    """The three tolerance sources arrive at the solver in precedence order.
+
+    ``Stage.ftol`` (WP-1113) is per-stage and beats everything; every other
+    intermediate stage takes the plan's schedule
+    (``RefinementPlan.intermediate_ftol``, WP-1123); the last stage takes the
+    runner's default, because it is the one producing the answer.  Quoted from
+    the plan rather than restated, so the assertion survives the number moving.
+    """
     import rietx as rx
 
     calls = _spy_least_squares(monkeypatch)
@@ -262,8 +266,26 @@ def test_stage_ftol_reaches_the_solver_and_only_its_own_stage(pattern, monkeypat
 
     assert len(calls) == len(plan.stages)
     assert calls[1]["ftol"] == 1e-4
-    defaults = {c["ftol"] for i, c in enumerate(calls) if i != 1}
-    assert len(defaults) == 1 and 1e-4 not in defaults
+    middle = {c["ftol"] for c in calls[:-1] if c["ftol"] != 1e-4}
+    assert middle == {plan.intermediate_ftol}
+    assert calls[-1]["ftol"] not in (1e-4, plan.intermediate_ftol)
+
+
+def test_the_exact_schedule_is_one_field_and_reaches_every_stage(
+        pattern, monkeypatch):
+    """``intermediate_ftol=None`` is the whole way back to the pre-WP-1123
+    schedule: every stage then arrives at the solver's own default, which is
+    what "bit-identical to the fully-converged plan" rests on."""
+    import rietx as rx
+
+    calls = _spy_least_squares(monkeypatch)
+    structure, instrument = perturbed_models()
+    plan = rx.RefinementPlan.mccusker_default()
+    plan.intermediate_ftol = None
+    refine(pattern, structure, instrument, plan=plan)
+
+    assert len(calls) == len(plan.stages)
+    assert len({c["ftol"] for c in calls}) == 1
 
 
 def test_a_converging_fit_never_feels_the_budget(pattern, monkeypatch):

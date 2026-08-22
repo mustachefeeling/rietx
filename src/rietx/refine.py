@@ -981,7 +981,9 @@ class Refinement:
                       max_iter=node.action.max_iter or 100,
                       lebail_cycles=node.action.lebail_cycles or 3,
                       seed=node.action.seed, strain_seed=node.action.strain_seed,
-                      restraint_weight_scale=node.action.restraint_weight_scale)
+                      restraint_weight_scale=node.action.restraint_weight_scale,
+                      ftol=node.action.ftol,
+                      window_slack_deg=node.action.window_slack_deg)
         return self.run_stage(data, stage)
 
     # ------------------------------------------------------------------
@@ -1045,7 +1047,8 @@ class Refinement:
                    table: ParameterTable, model: CompiledModel | None,
                    two_theta_limits: tuple[float, float] | None,
                    correlation_guard: float, events=None, cancel=None,
-                   stage_index: int = 1, n_stages: int = 1):
+                   stage_index: int = 1, n_stages: int = 1,
+                   ftol: float | None = None):
         """One stage: free params, recompile, solve, commit, guard.
 
         The recompile is what keeps the residual smooth *within* the stage —
@@ -1118,9 +1121,12 @@ class Refinement:
                         free_paths=list(table.free_paths),
                         n_points=len(model.tt),
                         index=stage_index, n_stages=n_stages)
-        # ftol is passed only when the stage declares one, so an unset stage
-        # keeps the solver default from one authority (the runner's signature)
-        stage_ftol = {} if stage.ftol is None else {"ftol": stage.ftol}
+        # ftol is passed only when there is one to pass, so a stage with no
+        # schedule keeps the solver default from one authority (the runner's
+        # signature).  *Which* tolerance this is was decided by the caller:
+        # RefinementPlan.stage_ftols for a plan, the stage's own for the
+        # single-stage verb, which has no plan and therefore no notion of last.
+        stage_ftol = {} if ftol is None else {"ftol": ftol}
         outcome = run_least_squares(model, table, max_iter=stage.max_iter,
                                     events=events, stage=stage.name,
                                     backend=self._backend, solver=self._solver,
@@ -1273,12 +1279,14 @@ class Refinement:
         the in-flight stage is abandoned, the ones before it happened.
         """
         model = outcome = guard = None
-        for k, stage in enumerate(plan.stages, start=1):
+        ftols = plan.stage_ftols()
+        for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
+                                          start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
                 model, outcome, guard, freed = self._run_stage(
                     stage, data, mode, table, model, two_theta_limits,
                     plan.correlation_guard, events=stream, cancel=cancel,
-                    stage_index=k, n_stages=len(plan.stages))
+                    stage_index=k, n_stages=len(plan.stages), ftol=ftol)
             stage_diagnostics = _guard_diagnostics(guard)
             diagnostics.extend(stage_diagnostics)
             stage_results.append(StageResult(
@@ -1286,6 +1294,7 @@ class Refinement:
                 cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
+                ftol=ftol,
             ))
             if stage_reports:
                 self.stage_reports_.append(self._stage_report(
@@ -1302,6 +1311,10 @@ class Refinement:
                     max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
                     seed=stage.seed, strain_seed=stage.strain_seed,
                     restraint_weight_scale=stage.restraint_weight_scale,
+                    # the tolerance this stage *ran* at, not the one it declared
+                    # (Stage.ftol is None for every stage taking the plan's
+                    # schedule), because a cherry-pick re-runs what happened
+                    ftol=ftol, window_slack_deg=stage.window_slack_deg,
                 ), model, table, outcome, stage_diagnostics)
         return model, outcome, guard, stage_results, diagnostics
 
@@ -1370,7 +1383,11 @@ class Refinement:
             with self._abandon_on_cancel(cancel, stage.name, [], stream):
                 model, outcome, guard, freed = self._run_stage(
                     stage, data, mode, table, self._model, ttl, correlation_guard,
-                    events=stream, cancel=cancel)
+                    events=stream, cancel=cancel,
+                    # no plan here, so no notion of an intermediate stage: one
+                    # stage run on its own is the state the caller is asking
+                    # for, and it takes its own ftol or the solver default
+                    ftol=stage.ftol)
         finally:
             if stream is not None and stream is not events:
                 stream.close()  # we created it from a path/callable
@@ -1387,13 +1404,15 @@ class Refinement:
             name=stage.name, status=outcome.status, n_iterations=outcome.n_iterations,
             cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
             freed=freed,
-            n_constraint_truncations=outcome.n_constraint_truncations)
+            n_constraint_truncations=outcome.n_constraint_truncations,
+            ftol=stage.ftol)
         if tree is not None:
             self._record(tree, NodeAction(
                 kind="stage", name=stage.name, turn_on=list(stage.turn_on),
                 max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
                 seed=stage.seed, strain_seed=stage.strain_seed,
                 restraint_weight_scale=stage.restraint_weight_scale,
+                ftol=stage.ftol, window_slack_deg=stage.window_slack_deg,
             ), model, table, outcome, diagnostics)
 
         self.result_ = _build_result(

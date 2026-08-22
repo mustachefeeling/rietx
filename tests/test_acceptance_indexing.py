@@ -55,6 +55,12 @@ sets arrive as bare positions, so every one of them is a ``from_positions`` list
 whose σ is *assumed*.  That is the input the benchmark defines, and it is why
 ``PEAK_SIGMA_ASSUMED`` fires on all ten and why none of them may be refused on a
 precision figure computed from that σ (``indexing/quality.py``).
+
+The convergence schedule these rankings were produced under is the package
+default (``intermediate_ftol``, WP-1123), inherited deliberately: the plan the
+validation fit runs is ``indexing.workflow.validation_plan``, which declares it
+there with the reason, and a ranking is only worth pinning if it is the ranking
+a caller actually gets.
 """
 
 from __future__ import annotations

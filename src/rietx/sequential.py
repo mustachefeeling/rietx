@@ -274,7 +274,13 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
                       seed=max((s.seed for s in plan.stages), default=0.0),
                       strain_seed=max((s.strain_seed for s in plan.stages),
                                       default=0.0))],
-        correlation_guard=plan.correlation_guard)
+        correlation_guard=plan.correlation_guard,
+        # inert while the collapse is one stage — a lone stage is the last one
+        # and takes the solver's own tolerance — and carried anyway, because
+        # this is the compressed plan rather than a different protocol, and a
+        # collapse that ever produced two stages would otherwise drop the
+        # schedule silently (WP-1123)
+        intermediate_ftol=plan.intermediate_ftol)
 
 
 def _ladder(base_plan: RefinementPlan, warm_plan: RefinementPlan

@@ -1457,6 +1457,33 @@ CLAIMS: tuple[Claim, ...] = (
 START_DEPENDENCE_RULE = 3
 
 
+#: **The convergence schedule every acceptance number above was produced at**
+#: (WP-1123, flipping what WP-1113 measured and left opt-in).
+#:
+#: A staged plan stops each stage but the last at this relative cost decrease,
+#: and the last at the solver's own 1e-9.  It is a default that moves answers,
+#: so it is recorded here beside them rather than left to be inferred:
+#:
+#: * *What it buys.*  1.50x fewer whole-plan evaluations on cpd-1a, 1.71x on
+#:   cpd-2, 1.61x on the trigger-shaped case (WP-1113's table, re-measured on
+#:   the shipped tree in WP-1123's handover).
+#: * *What it costs.*  Every non-degenerate parameter within 0.02 esd of the
+#:   fully-converged plan, QPA fractions within 0.003 wt %.  The bound rests on
+#:   the plan being cumulative: an intermediate stage's parameters keep
+#:   refining in every later stage, and the last stage polishes all of them at
+#:   1e-9.
+#: * *Why the suites here ride it rather than decline it.*  These rows compare
+#:   against certificates and other codes, and what a reader needs to know is
+#:   whether the *shipped* package reproduces them.  A suite pinned to a
+#:   schedule nobody runs would validate a configuration that does not ship.
+#:   Each names the setting explicitly all the same, for the reason
+#:   ``dispersion`` is named: an inherited default re-baselines silently.
+#: * *Where it is declined.*  ``RefinementPlan.intermediate_ftol = None``
+#:   restores the pre-1.1 schedule bit for bit, and that is what a bit-identity
+#:   golden wants.
+INTERMEDIATE_FTOL_DEFAULT = 1e-6
+
+
 #: **The one default WP-1001 was chartered to decide, and how it went.**
 #: WP-0504 shipped anomalous scattering opt-in so that landing it did not
 #: invalidate the record, and left a note that turning it on was "the right

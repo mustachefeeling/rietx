@@ -27,6 +27,7 @@ from tests.validation_matrix import (
     DATASETS,
     DISPERSION_DEFAULT_ON,
     GAPS,
+    INTERMEDIATE_FTOL_DEFAULT,
     START_DEPENDENCE_RULE,
     TIERS,
     render_markdown,
@@ -224,6 +225,43 @@ def test_the_recorded_dispersion_decision_matches_the_live_schema() -> None:
         f"validation matrix records {'on' if DISPERSION_DEFAULT_ON else 'off'}."
         "  If the default is being changed, update DISPERSION_DEFAULT_ON *and* "
         "the grounds above it — the measured trade is recorded there.")
+
+
+def test_every_acceptance_suite_declares_its_convergence_schedule() -> None:
+    """The ``dispersion`` rule one field along (WP-1123).
+
+    ``RefinementPlan.intermediate_ftol`` decides how hard every stage but the
+    last is converged, and it moves answers — bounded at 0.02 esd, but a
+    certificate comparison is where 0.02 esd is worth stating.  A suite that
+    never names it cannot say whether it wanted the shipped schedule or simply
+    inherited whatever shipped, which is the distinction that made 21 tests
+    ambiguous at once when the dispersion default flipped.
+    """
+    undeclared = []
+    for path in sorted(TESTS.glob("test_acceptance_*.py")):
+        if "intermediate_ftol" not in path.read_text(encoding="utf-8"):
+            undeclared.append(path.name)
+    assert not undeclared, (
+        f"acceptance suites that never name `intermediate_ftol`: {undeclared}."
+        "  Set it on the plan explicitly — to the shipped value to say these "
+        "numbers are what a user's own run produces, or to None to converge "
+        "every stage — and say in a comment which and why.")
+
+
+def test_the_recorded_convergence_schedule_matches_the_live_plan() -> None:
+    """What keeps the record above a fact rather than a memory.
+
+    Moving the default without revisiting the measured trade written beside
+    ``INTERMEDIATE_FTOL_DEFAULT`` fails here.
+    """
+    import rietx as rx
+
+    live = rx.RefinementPlan(stages=[]).intermediate_ftol
+    assert live == INTERMEDIATE_FTOL_DEFAULT, (
+        f"RefinementPlan.intermediate_ftol defaults to {live} but the "
+        f"validation matrix records {INTERMEDIATE_FTOL_DEFAULT}.  If the "
+        "default is being changed, update INTERMEDIATE_FTOL_DEFAULT *and* the "
+        "grounds above it — the measured trade is recorded there.")
 
 
 def test_tier_rules_are_written() -> None:

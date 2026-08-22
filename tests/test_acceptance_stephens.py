@@ -141,7 +141,14 @@ def _plan(*, texture: bool, stephens: bool) -> rx.RefinementPlan:
                                  "instrument.geometry.axial_sl"]),
         rx.Stage("biso", ["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"]),
     ]
-    return rx.RefinementPlan(stages=stages)
+    plan = rx.RefinementPlan(stages=stages)
+    # WP-1123: the shipped convergence schedule, named rather than inherited.
+    # Every stage but the last stops at 1e-6 and the last at the solver's own
+    # 1e-9, which is what a user's own run does — so these numbers are the
+    # ones the package actually produces.  None here would converge every
+    # stage; measured cost of the schedule on this protocol is <= 0.02 esd.
+    plan.intermediate_ftol = 1e-6
+    return plan
 
 
 def _fit(name: str, phase: rx.Phase, plan: rx.RefinementPlan, tag: str):

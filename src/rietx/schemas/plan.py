@@ -30,6 +30,40 @@ from pydantic import Field, model_validator
 
 from .common import Base
 
+#: What :attr:`PlanSpec.intermediate_ftol` and
+#: ``strategy.staged.RefinementPlan.intermediate_ftol`` both default to.
+#:
+#: **Here, at the lower layer, so the two mirrors quote one literal.**
+#: ``strategy.staged`` imports this module and cannot be imported back from it
+#: (every crossing in that direction is deferred inside a function), so a
+#: constant the pydantic field needs at class-definition time cannot live
+#: beside the dataclass.  ``strategy.staged`` re-exports it, which is where a
+#: reader looking for plan policy will look; ``tests/test_schemas.py`` pins the
+#: two names to one object.
+#:
+#: An expensive stage's evaluations are almost all *tail* — undamped
+#: Gauss-Newton walking a near-degenerate direction (zero ↔ sample displacement
+#: ↔ the low-order background terms) at ≈0.93 per iteration, the trust region
+#: never binding — and 99.99 % of the stage's cost decrease is banked by
+#: evaluation 55 of 93.  An intermediate stage's job is to seed its successor,
+#: and the plan is cumulative, so the digits it stops short of are refined
+#: again by every later stage: the *last* stage inherits the ridge walk once
+#: (cpd-1a ``biso`` 47 → 49 evaluations) instead of every stage polishing it.
+#: ``strategy.staged.RefinementPlan.stage_ftols`` is the rule that applies it.
+#:
+#: 1e-6 costs 1.2-1.6× fewer whole-plan evaluations across the WP-1111 harness
+#: cases, for every non-degenerate parameter within 0.03 esd of the
+#: fully-converged plan and QPA fractions within 0.0014 wt % (WP-1113 priced
+#: it, WP-1123 made it the default and re-measured).  Both figures are
+#: properties of the tree as much as of the schedule — 1113 measured 1.5-1.7×
+#: and 0.02 esd before a Jacobian column changed underneath — so re-measure
+#: rather than inherit them.  **The bound is for one fit**: in a warm *chain*
+#: each pattern seeds the next, and the effect there is unbounded and not even
+#: fixed in sign.  Looser is a real choice and not a silly one — 1e-5 and 1e-4
+#: buy 1.9-2.2× at 0.01-0.2 esd — which is why this is a number a plan carries
+#: and not a mode with two positions.
+INTERMEDIATE_FTOL = 1e-6
+
 
 class StageSpec(Base):
     """One stage of a staged plan; the serializable mirror of ``Stage``."""
@@ -43,10 +77,10 @@ class StageSpec(Base):
         "evaluations rather than iterations, so it is scaled by the "
         "measured worst-case rejection rate (NFEV_PER_ITERATION)"))
     ftol: float | None = Field(None, gt=0.0, description=(
-        "this stage's relative cost-decrease termination tolerance; null = "
-        "the solver default (1e-9).  Intermediate stages of a many-stage "
-        "plan tolerate a loose one (WP-1113 measured 1e-6 at 1.5-1.7x fewer "
-        "whole-plan evaluations, answers within 0.02 esd)"))
+        "this stage's own relative cost-decrease termination tolerance, "
+        "overriding the plan's schedule; null = take it from the plan "
+        "(intermediate_ftol for every stage but the last, the solver's 1e-9 "
+        "for the last)"))
     lebail_cycles: int = 3
     seed: float = Field(0.0, description=(
         "lift softplus-floored parameters this stage frees to this value "
@@ -104,6 +138,13 @@ class PlanSpec(Base):
 
     stages: list[StageSpec] = Field(default_factory=list)
     correlation_guard: float = 0.98
+    intermediate_ftol: float | None = Field(
+        INTERMEDIATE_FTOL, gt=0.0, description=(
+            "the tolerance every stage but the last stops at, unless it "
+            "declares its own ftol; null = the solver default (1e-9) "
+            "everywhere, i.e. the fully-converged schedule.  1e-6 is "
+            "1.2-1.6x fewer whole-plan evaluations for answers within "
+            "0.03 esd on a single fit (WP-1113/1123)"))
 
     @model_validator(mode="before")
     @classmethod
@@ -136,13 +177,15 @@ class PlanSpec(Base):
     @classmethod
     def from_plan(cls, plan: Any) -> "PlanSpec":
         return cls(stages=[StageSpec.from_stage(s) for s in plan.stages],
-                   correlation_guard=plan.correlation_guard)
+                   correlation_guard=plan.correlation_guard,
+                   intermediate_ftol=plan.intermediate_ftol)
 
     def to_plan(self) -> Any:
         from ..strategy.staged import RefinementPlan
 
         return RefinementPlan(stages=[s.to_stage() for s in self.stages],
-                              correlation_guard=self.correlation_guard)
+                              correlation_guard=self.correlation_guard,
+                              intermediate_ftol=self.intermediate_ftol)
 
     def preset_name(self) -> str | None:
         """The registered preset this plan equals, or ``None`` if it was edited.

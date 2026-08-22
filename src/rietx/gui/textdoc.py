@@ -108,7 +108,12 @@ VALUE_DIGITS = 12
 #:
 #: An added key is not a :data:`FORMAT_VERSION` bump, for the reason a new field
 #: on an event kind is not an ``EVENT_SCHEMA_VERSION`` bump: no line's *meaning*
-#: changed, and every document a previous build wrote still parses here.
+#: changed, and every document a previous build wrote still parses here.  The
+#: same reading covers a new plan-level *line* (WP-1123's ``tolerance``): the
+#: asymmetry it leaves — a document written here is refused by an older build,
+#: which does not know the keyword — is the one every added key already had,
+#: and a bump would instead refuse every document already stored, since the
+#: parser compares this constant for equality.
 STAGE_KEYS = tuple(k for k in StageSpec.model_fields
                    if k not in ("name", "turn_on"))
 #: The subset that must come back as ``int``.
@@ -141,7 +146,7 @@ RESERVED_BLOCKS: dict[str, str] = {}
 _PEAK_FLAG_WORDS: tuple[str, ...] = get_args(PeakFlag)
 
 _KEYWORDS = (TEXTDOC_MAGIC, "project", "pattern", "mode", "limits", "excluded", "plan",
-             "guard", "stage", "phase", "instrument", "peaks",
+             "guard", "tolerance", "stage", "phase", "instrument", "peaks",
              *RESERVED_BLOCKS)
 
 _FLAG_WORDS = ("locked", "mode-fixed", "softplus", "logit")
@@ -224,6 +229,11 @@ class ParsedDocument:
     has_excluded: bool = False
     plan_name: str | None = None
     guard: float | None = None
+    #: the ``tolerance`` line's value, and whether it appeared at all — the two
+    #: cannot be one field, because ``none`` (converge every stage) is itself a
+    #: value here rather than the absence of one
+    tolerance: float | None = None
+    tolerance_set: bool = False
     stages: list[StageSpec] = field(default_factory=list)
     stage_lines: list[int] = field(default_factory=list)
     phases: dict[int, tuple[int, str | None]] = field(default_factory=dict)
@@ -407,6 +417,13 @@ def _render_plan(doc: ProjectDoc) -> list[str]:
     lines = [f"plan {name or 'custom'}"]
     if spec.correlation_guard != PlanSpec().correlation_guard:
         lines.append(f"guard {_fmt(spec.correlation_guard)}")
+    # rendered always, unlike guard, and the only plan-level line that is: this
+    # one decides what the run costs and how far its intermediate stages are
+    # taken, and a default nobody can see is a default nobody can decline
+    tol = "none" if spec.intermediate_ftol is None else _fmt(spec.intermediate_ftol)
+    lines.append(f"tolerance {tol}".ljust(34)
+                 + "# intermediate_ftol: every stage but the last stops here "
+                   "('none' = converge them all)")
     width = max((len(s.name) for s in spec.stages), default=4)
     default = StageSpec(name="_")
     for stage in spec.stages:
@@ -627,6 +644,16 @@ def parse(text: str) -> ParsedDocument:
                      raw, "guard")
             else:
                 doc.guard = float(rest[0])
+        elif keyword == "tolerance":
+            value = rest[0] if rest else ""
+            if value != "none" and (_number(value) is None or float(value) <= 0.0):
+                fail(n, "tolerance takes one positive number — the ftol every "
+                        "stage but the last stops at — or 'none' to converge "
+                        "every stage to the solver's own default", raw,
+                     "tolerance")
+            else:
+                doc.tolerance = None if value == "none" else float(value)
+                doc.tolerance_set = True
         elif keyword == "stage":
             stage = _parse_stage(n, rest, raw, fail)
             if stage is not None:
@@ -841,7 +868,9 @@ def _plan_changes(parsed: ParsedDocument, doc: ProjectDoc, delta: Delta,
     if parsed.stages:
         spec = PlanSpec(stages=parsed.stages,
                         correlation_guard=(parsed.guard if parsed.guard is not None
-                                           else PlanSpec().correlation_guard))
+                                           else PlanSpec().correlation_guard),
+                        intermediate_ftol=(parsed.tolerance if parsed.tolerance_set
+                                           else PlanSpec().intermediate_ftol))
     stages_changed = spec is not None and spec != current
 
     if name_changed and stages_changed:

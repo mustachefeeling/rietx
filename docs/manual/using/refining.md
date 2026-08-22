@@ -128,7 +128,7 @@ can be told when to use. `Capabilities.plans` carries the same four facts
 through the JSON surface as `PlanCapability`, keyed by `PlanCapability.name`;
 [](agents.md) reads that side.
 
-A plan also carries one setting of its own. `RefinementPlan.correlation_guard`
+A plan also carries two settings of its own. `RefinementPlan.correlation_guard`
 is the |ρ| above which a stage reports a correlated pair, default 0.98:
 
 ```python
@@ -142,6 +142,93 @@ strict = rx.RefinementPlan(stages=plan.stages, correlation_guard=0.9)
 
 Lowering it reports more pairs. It does not change the fit — the guard measures
 the fit, it does not constrain it.
+
+## How hard each stage is converged
+
+`RefinementPlan.intermediate_ftol` is the termination tolerance every stage but
+the last is solved at, and it defaults to `1e-6` against the solver's own
+`1e-9`. `RefinementPlan.stage_ftols` is where that becomes a per-stage answer:
+
+```python
+import rietx as rx
+
+plan = rx.RefinementPlan.lab_bragg_brentano()
+assert plan.intermediate_ftol == 1e-6
+
+ftols = plan.stage_ftols()
+assert set(ftols[:-1]) == {1e-6} and ftols[-1] is None
+```
+
+Three sources decide a stage's tolerance, in this order. A stage that declares
+its own `Stage.ftol` is solved at it. The last stage takes `None`, meaning the
+solver default, because it is the one that produces the answer. Every other
+stage takes `intermediate_ftol`. A one-stage plan is therefore all endpoint and
+nothing is loosened, which is what a warm series pattern collapsed to a single
+stage and the indexing validation fit both want.
+
+`StageResult.ftol` reports what each stage was actually solved at, so a result
+says which schedule produced it without the plan beside it.
+
+### What the loosened schedule costs
+
+Stages are cumulative: each one frees its globs on top of everything already
+free, so a parameter an early stage stopped short on keeps refining in every
+later stage, and the last stage — at `1e-9` — polishes all of them together.
+That is why stopping intermediate stages early moves the answer so little, and
+it holds for any plan this runner runs, not only for the presets.
+
+Measured on the benchmark cases of `examples/bench_refinement.py` (`[dev]`
+venv, darwin/arm64, 2026-08-22, best of three runs on an idle machine), against
+the same plans with `intermediate_ftol = None`:
+
+| case | evaluations | wall clock | largest shift | QPA |
+|---|---|---|---|---|
+| nac | 47 → 39 (1.21×) | 0.38 → 0.34–0.35 s | — | — |
+| cpd-1a | 408 → 270 (1.51×) | 2.02–2.04 → 1.52 s | 0.027 esd, a width term | within 0.0014 wt % |
+| cpd-2 | 533 → 329 (1.62×) | 3.37–3.43 → 2.27–2.28 s | 0.001 esd, a background coefficient | within 0.0003 wt % |
+| trigger | 360 → 232 (1.55×) | 8.63–8.65 → 5.67–5.70 s | 0.001 esd, outside one degeneracy | within 0.0001 wt % |
+
+Rwp agrees to five decimals or better in every case.
+
+The degeneracy is the trigger case's instrument `x` against every phase's
+`lor_size`, which moves 1.4 esd. Those parameters are exactly degenerate —
+Lorentzian FWHMs add, and both terms are size-like in θ — and the measurement
+shows it: `x` gained 0.0013165 while all four `lor_size` values lost
+0.0012897–0.0013300 each. What moved is the split, not the width they sum to.
+
+A **chained series is the case to measure rather than assume**. Ten
+warm-started patterns took 1603 evaluations against 1792 fully converged
+(57.2–57.6 s against 60.4–60.7 s) — but the same comparison one commit earlier
+went the other way, 1705 against 1634. Each pattern starts from its
+predecessor's answer, and a small change in one seed changes how many recovery
+rungs the next pattern needs, so the chain turns a bounded per-fit difference
+into an unbounded one whose sign is not fixed. A single cold fit has no such
+amplifier: that one was faster in both trees.
+
+### Converging every stage
+
+Set `intermediate_ftol` to `None`:
+
+```python
+import rietx as rx
+
+plan = rx.RefinementPlan.lab_bragg_brentano()
+plan.intermediate_ftol = None
+assert plan.stage_ftols() == [None] * len(plan.stages)
+```
+
+Every stage then stops where the solver's own default says, which is what every
+fit before 1.1 did, to the bit. Reach for it when a number is going into a
+paper and you want the plan's own converged answer rather than one within a few
+hundredths of an esd of it, when you are reproducing a number from an earlier
+release, and
+in a test that pins a value — a suite whose numbers move when a default moves
+is not pinning anything.
+
+`PlanSpec.intermediate_ftol` carries the setting through JSON, so a project
+file, a history header and an agent request all record which schedule ran. In
+the GUI's text document it is the `tolerance` line, whose value is a number or
+the word `none`.
 
 ## What a stage carries
 
@@ -166,14 +253,12 @@ assert stage.lebail_cycles == 3
 reaches it is reported with status `max_iter` rather than `converged`, which is
 a result to read rather than an error to catch.
 
-`Stage.ftol` is the stage's own termination tolerance — the relative cost
-decrease below which the solver stops. Unset (`None`), the stage uses the
-solver default of `1e-9`. An intermediate stage's job is to seed the next
-stage, not to reach publication convergence, and most of an expensive stage's
-evaluations are spent polishing digits the next stage discards: setting every
-stage but the last to `1e-6` cut whole-plan evaluations by 1.5–1.7× on the
-lab-shaped benchmark cases, with every non-degenerate parameter within
-0.02 esd of the untouched plan. The final stage should keep the default.
+`Stage.ftol` is this stage's own termination tolerance — the relative cost
+decrease below which the solver stops — and it overrides the plan's schedule
+above. Unset (`None`), the stage takes whatever `RefinementPlan.stage_ftols`
+gives it. Set it to say that one stage is different: an early stage whose seed
+the next one is unusually sensitive to, or a single-stage fit that has to
+converge as hard as an endpoint.
 
 `Stage.seed` and `Stage.strain_seed` both exist to lift a parameter off an
 exact zero that the solver cannot move away from, and they are not
@@ -332,6 +417,7 @@ for stage in result.stages:
 | `StageResult.cost_initial` | the cost the stage started from |
 | `StageResult.cost_final` | the cost it reached |
 | `StageResult.freed` | the paths this stage actually freed, after globbing |
+| `StageResult.ftol` | the tolerance it was solved at; `None` = the solver default |
 | `StageResult.n_constraint_truncations` | steps the bounded-LM driver shortened to stay inside a linear-inequality constraint |
 
 `StageResult.freed` is the field to read when a stage did nothing: a glob that

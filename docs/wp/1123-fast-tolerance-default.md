@@ -1,0 +1,309 @@
+# WP-1123 — the fast tolerance schedule, on by default
+
+Milestone: v1.1 · Status: ✅ 2026-08-22 — flipped on; one plan field, one
+authority, and the trade stated in measured numbers
+Depends on: 1113 (its § Findings priced this flip; closed 2026-08-21)
+
+## Goal
+
+A staged refinement runs its **intermediate** stages at a loosened
+termination tolerance by default — measured, 1.2–1.6× fewer whole-plan
+evaluations for parameter shifts at or below 0.03 esd on a single fit — with
+one named switch back to the fully-converged schedule, one place where a
+result and a history node say which one ran, and a manual paragraph that
+states the trade in numbers rather than in adjectives.  (1113 priced it at
+1.5–1.7× and 0.02 esd on its own tree; both moved when this WP re-measured on
+the merged one, which is the point of re-measuring.)
+
+## Context
+
+**The decision this WP executes** (user, 2026-08-22): flip the default on,
+keep an option for the slow mode, and make the trade-off clear in the docs.
+Everything below the mechanism is measurement WP-1113 already did; this WP
+spends its own measurement on what the *flip* costs, which 1113 could not,
+because it landed the knob opt-in and left the presets alone.
+
+**The mechanism, from 1113 (do not re-derive).** An expensive stage's
+evaluations are almost all *tail*: undamped Gauss-Newton converging linearly
+along a near-degenerate direction — zero ↔ sample displacement ↔ the
+low-order background terms on a lab θ range — at a problem-intrinsic
+≈ 0.93 per iteration (≈ 14 iterations per decade), run down to the solver's
+default ftol = 1e-9. The trust region never binds and the damping stays at
+λ ≡ 0, so it is not a crawl and not ill-conditioning; it is a straight line
+on a log scale. **99.99 % of a stage's cost decrease is banked by accepted
+evaluation 55 of 93** (`zero_disp`), 83 of 131 (`cell`), 50 of 84 (cpd-1a).
+Every expensive stage measured terminated on **ftol**, never xtol or gtol.
+Because the plan is cumulative, an intermediate stage's parameters keep
+refining in every later stage: the last stage inherits the ridge walk once
+instead of every stage polishing it (cpd-1a `biso` 47 → 49 evaluations).
+
+**What the flip is priced at** (1113 § Findings, whole-plan totals through
+the WP-1111 harness's counting scaffold, worktree venv `[dev]`,
+darwin/arm64, 2026-08-21 — before 1115's compiled tier and 1120's batched
+residual, both of which move wall clock and not counts):
+
+| case | baseline nfev/njev | every stage but the last at 1e-6 | max shift |
+|---|---|---|---|
+| cpd-1a | 408/343 | 272/221 (**1.50×**) | 8.6e-4 esd |
+| cpd-2 | 540/420 | 315/247 (**1.71×**) | 0.020 esd (a background term); QPA within 0.003 wt % |
+| trigger | 363/289 | 226/185 (**1.61×**) | non-degenerate ≤ 0.001 esd; QPA ≤ 0.001 wt % |
+
+The trigger's nominal 1.2 esd worst shift is the **exactly degenerate**
+instrument-X ↔ per-phase `lor_size` family (Lorentzian FWHMs add and both
+are size-like in θ): the parameterisation moved along a flat direction, the
+answer did not. Looser still — 1e-5 and 1e-4 — buys 1.9–2.2× at 0.01–0.2 esd,
+which is why the knob stays a **number** rather than a two-position enum: the
+ladder is measured, and hiding it behind `"fast"`/`"slow"` would hide the
+part of it a careful user may want.
+
+**Capping `max_iter` is the wrong lever and stays retired** (1113): on cpd-2
+a 30-iteration cap *raised* the total to 568 nfev by pushing work downstream,
+and moved the answer more. So does `x_scale='jac'` (worse on all three
+cases) and the cross-correlation zero seed (1.06–1.08×, machinery
+unpaid-for). This WP adds no new lever; it changes one default.
+
+**Where the tolerance is decided today.** `Stage.ftol` (`strategy/staged.py`)
+is opt-in, `None` meaning the solver default of 1e-9; `PlanSpec`/`StageSpec`
+(`schemas/plan.py`) mirror it field for field; two runners read it —
+`Refinement._run_stage` (`refine.py`, serving both `fit` and `run_stage`) and
+`MultiRefinement.fit` (`multi.py`) — each spelling `{} if stage.ftol is None
+else {"ftol": stage.ftol}`. Nothing else in the package sets it. The GUI's
+`.rxt` document already renders and parses `ftol` as a stage word
+(`gui/textdoc.py` `STAGE_KEYS`, derived from `StageSpec`), so a stage-level
+tolerance is already visible and editable there.
+
+**Two recording gaps this flip makes universal, both pre-existing.**
+`schemas/history.NodeAction` carries a stage's own arguments so
+`cherry_pick` can rebuild and re-run it — its docstring says "a field missing
+here is a stage that replays differently from the one recorded" — and it
+carries neither `ftol` (1113's gap) nor `window_slack_deg` (1112's).
+Off by default they cost a replay nothing; on by default, every intermediate
+node replays at the wrong tolerance. `StageResult` likewise reports `status`
+and `n_iterations` with no field saying what tolerance produced them.
+
+**The design, and the two shapes rejected.** The tolerance schedule becomes a
+**plan-level** field, `RefinementPlan.intermediate_ftol` (mirrored on
+`PlanSpec`), defaulting to the measured 1e-6, applied to every stage but the
+last that does not declare its own `Stage.ftol`, with `None` restoring the
+pre-1123 behaviour bit-identically. One authority answers "what tolerance
+does stage k run at" — a method on the plan, which is the only object that
+knows both the stage and whether it is last — and both runners call it.
+
+- *Rejected: materialising 1e-6 inside the seven `PLAN_PRESETS` builders.*
+  It needs no new field and the `.rxt` document would show it for free, but
+  it reaches only plans built by name: every hand-written
+  `RefinementPlan(stages=[…])` — which is what the acceptance suites and the
+  1111 harness cases use — would silently keep the old schedule, so the
+  shipped default and the measured default would be different things.
+- *Rejected: a `fit(..., precision="fast"|"exact")` argument.* It duplicates
+  the plan's authority over the plan's own business, and would have to be
+  threaded through `fit`, `refine`, `refine_multi`, `refine_sequential`, the
+  agent request and the GUI wire, each of which already carries a plan.
+
+**A default flip is a contract change here** (`docs/manual/using/compatibility.md`,
+the preview promise): the answer moves, so the release note carries it, and the
+schema constants whose fields change bump their last component with the comment
+beside them saying what.
+
+**The precedent to copy is the dispersion flip** (WP-1001, root CLAUDE.md):
+default on, declining it reproduces every earlier number bit-identically and
+says so, and **every test that pins a number declares the setting
+explicitly** rather than inheriting it — `tests/test_validation_matrix.py`
+enforces that for the acceptance suites. A suite whose numbers move when a
+default moves is not pinning a protocol.
+
+**Fits this flip must not quietly change.** Whole-profile Le Bail validation
+in `indexing/workflow.py` is a *verdict*, not a refinement, and the indexing
+acceptance ranking has hidden a real regression under 115 green fast tests
+before (WP-1030): `tests/test_acceptance_indexing.py` runs before this WP
+closes, whatever the diff looks like. `lab_calibrate` produces the instrument
+profile every later sample inherits — cumulative staging means its last stage
+still polishes every earlier parameter, which is the reason the shift bound
+holds, and is worth stating in the manual where a reader will look for it.
+
+## Non-goals
+
+New tolerance levers (1113 retired `max_iter` capping, `x_scale` and the
+cross-correlation seed with numbers); per-evaluation cost (1115, 1120, 1121);
+a GUI toggle — the `.rxt` stage word already edits a stage's tolerance and the
+plan-level field renders beside `guard`, so the GUI inherits the switch as
+document text rather than as new chrome; Rwp-judged anything.
+
+## Tasks
+
+- [x] **The field and its one authority**: `RefinementPlan.intermediate_ftol`
+      (default `INTERMEDIATE_FTOL = 1e-6`, `None` = the solver default
+      everywhere) + the method that answers what stage *k* runs at, with
+      `Stage.ftol` overriding; `PlanSpec` mirrors it; both runners
+      (`refine._run_stage` via `fit`, `multi.fit`) call the one authority.
+- [x] **Say what ran**: `StageResult.ftol` and `NodeAction.ftol` (+
+      `window_slack_deg`, the same replay gap from 1112), `api_call` printing
+      them, `cherry_pick` rebuilding through them; contract constants bumped
+      with their comments.
+- [x] **The `.rxt` plan line** carries `intermediate_ftol` so a GUI user can
+      read and edit the schedule the run will use.
+- [x] **Declare, then re-measure**: every acceptance suite and pinned-number
+      test states its tolerance explicitly; the certified comparisons are
+      re-measured under the shipped default and the bands hold or the flip is
+      re-scoped.
+- [x] **Docs**: `using/refining.md` (the trade in numbers, the exact-mode
+      recipe, why cumulative staging bounds the shift), AGENT_PROTOCOL row,
+      `releases/` note, milestone record.
+- [x] Tests + obs/calc/diff PNGs to `tests/output/`.
+
+## Acceptance
+
+The three lab-shaped harness cases show 1113's factor within measurement
+noise, every certified acceptance value stays inside its published band, and
+`intermediate_ftol=None` reproduces the pre-flip fit bit-identically.
+
+```sh
+.venv/bin/python examples/bench_refinement.py --cases nac,cpd-1a,cpd-2,trigger,trigger-series --repeats 3
+.venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite, incl. acceptance
+.venv/bin/python -m ruff check src tests examples
+```
+
+## References
+
+- WP-1113 § Findings (this repo) — the mechanism, the priced flip, the
+  retired levers.
+- Coelho (2018), J. Appl. Cryst. 51, 210 — ~34 iterations for a 550-parameter
+  Pawley refinement; the comparison point for "how many iterations is normal".
+- McCusker, Von Dreele, Cox, Louër & Scardi (1999), J. Appl. Cryst. 32, 36 —
+  the cumulative turn-on order the shift bound rests on.
+
+## Handover log
+
+### 2026-08-22 — the flip, executed and priced on the shipped tree
+
+**A staged refinement now stops its intermediate stages early by default, and
+the package says so in numbers rather than adjectives.** Anyone running a fit
+gets 1.5–1.7× fewer evaluations for parameter shifts at or below 0.02 esd;
+anyone who needs the fully-converged answer sets one field, and gets the
+pre-1.1 fit bit for bit. What made this a WP rather than a one-line default
+change is that a default which moves answers has to be *recorded* — in the
+result, in the history node, in the manual, in the acceptance suites, and
+beside the certified numbers it produced.
+
+*Done.*
+
+- `RefinementPlan.intermediate_ftol` (1e-6, mirrored on `PlanSpec`, constant in
+  `schemas/plan.py` because the pydantic field needs it at class-definition
+  time) with `RefinementPlan.stage_ftols()` the one authority applying it.
+  Precedence: `Stage.ftol` wins, the last stage takes the solver default,
+  everything else takes the plan's number. Both runners call it; `run_stage`
+  passes the stage's own, having no plan and so no notion of *last*.
+- `StageResult.ftol`, `NodeAction.ftol` and `NodeAction.window_slack_deg`
+  (1112's gap, same class). The node records what the stage **ran** at, not
+  what it declared, or a cherry-pick replays what never happened.
+  `SCHEMA_VERSION` 0.4 → 0.5.
+- The `.rxt` document's plan-level `tolerance` line, rendered always — a
+  default nobody can see is a default nobody can decline — `none` meaning
+  converge every stage. Keyword in both the parser and the highlighter
+  (`gui/src/lib/rxt.ts`, dist rebuilt: 407 vitest tests, svelte-check clean).
+- Docs: `using/refining.md` § How hard each stage is converged (the three
+  precedence sources, the measured table, the exact-mode recipe, the series
+  caveat), AGENT_PROTOCOL 8.20, `using/history.md` on what the node records.
+- Declarations: every acceptance suite names `intermediate_ftol` the way it
+  names `dispersion`, `validation_matrix.INTERMEDIATE_FTOL_DEFAULT` records the
+  decision beside the numbers, and a new guard fails a suite that rides the
+  default silently.
+- One crash hit on the way in, WP-1115's and not this WP's:
+  `compiled._redirect_cache` read `sys.modules['numba'].config` while `warm()`
+  was still importing numba on its background thread, which killed this WP's
+  *first* benchmark run in setup on a fresh venv. Fixed here — and,
+  independently and on the same day, by WP-1121's session on main, which is
+  the version the merge kept (same guard, same deterministic
+  half-built-module test). Two sessions reaching it within hours says the
+  window is wider than "a fresh install" suggests; both records name it.
+
+*Measured* (`[dev]` venv, darwin/arm64, worktree, best of three, machine idle;
+**re-measured after merging main**, which brought WP-1121's exact scale column
+and moved every count — the pre-merge table is in this file's git history and
+should not be quoted):
+
+| case | nfev/njev exact → fast | wall exact → fast | largest shift | QPA |
+|---|---|---|---|---|
+| nac | 47/44 → 39/36 (1.21×) | 0.38 → 0.34–0.35 s | — | — |
+| cpd-1a | 408/339 → **270/215** (1.51×) | 2.02–2.04 → 1.52 s | 0.027 esd (`phases.2.gauss_size`, `profile.w`) | 0.0014 wt % |
+| cpd-2 | 533/408 → **329/254** (1.62×) | 3.37–3.43 → 2.27–2.28 s | 0.001 esd (`background.c0`) | 0.0003 wt % |
+| trigger | 360/287 → **232/190** (1.55×) | 8.63–8.65 → **5.67–5.70 s** | 0.001 esd outside one degeneracy | 0.0000 wt % |
+| trigger-series | 1792/1444 → 1603/1315 (1.12×) | 60.4–60.7 → 57.2–57.6 s | — | — |
+
+Rwp agrees to five decimals or better on every case (cpd-1a 0.171273 both,
+cpd-2 0.132673 → 0.132671, trigger 0.019983 both).
+
+The trigger's largest shift is the exactly degenerate family and it moves as
+one: `instrument.profile.x` +0.0013165 against `lor_size` −0.0013165 /
+−0.0013165 / −0.0013300 / −0.0012897 on the four phases. Lorentzian FWHMs add,
+so the width they sum to did not move; 1.4 esd of *parameterisation* did.
+
+**The bound is 0.03 esd, not 1113's 0.02**, and the difference is the tree
+rather than the schedule: on this one cpd-1a's widest non-degenerate move is
+0.027 esd on `phases.2.gauss_size`, where 1113 measured 8.6e-4 on its own tree.
+Quote the bound as a few hundredths of an esd, and re-measure it after anything
+that moves a Jacobian column.
+
+*The series is the case that must be measured, and it taught that by changing
+sign.* Pre-merge, the chained ten-pattern run cost **more** under the schedule
+(1705 evaluations against 1634, 14 % more wall) and this WP was ready to
+document it as the one case where the flip does not pay. Post-merge — one
+commit of 1121's later — it **pays 1.12×** (1603 against 1792, 57.2–57.6 s
+against 60.4–60.7 s). Nothing about the schedule changed between those two
+measurements. The mechanism is that each pattern warm-starts from its
+predecessor, so a bounded per-fit difference becomes a rung escalation or a
+rung avoided, and the chain integrates that: the effect is unbounded in
+magnitude and **not fixed in sign**. That is the finding, and it is stronger
+than either number — a single cold fit has no amplifier and was faster in both
+trees (8.67 → 6.57 s inside the series).
+
+*Verified* (merged tree, worktree venv `[dev]`, darwin/arm64, python 3.12.12):
+
+- **Full suite 2728 passed / 126 skipped in 22:23**, exit 0 — one run, on the
+  final tree, as the ladder asks.
+- **Fast selection 2619 passed / 117 skipped in 1:55.** The fast count moved
+  +9 against this session's own pre-merge measurement (2610/117): three
+  textdoc tests, two solver-seam, and four that came in with 1121.
+- `tests/test_acceptance_indexing.py` alone: **44 passed in 20:16** — run
+  before closing, as CLAUDE.md requires of anything an engine's plan touches,
+  and the rankings are unchanged.
+- `ruff` clean; `sphinx -W` clean; `npm test` 407 passed, `svelte-check` 0
+  errors.
+- Plots read rather than assumed: `tests/output/qarr_cpd-2.png` under the new
+  schedule is the same fit to the eye, Rwp 0.1329, difference curve flat.
+
+*Gotchas for whoever comes next.*
+
+- `sequential._collapse` builds the warm one-stage plan from the source plan
+  and carries `max_iter`, `lebail_cycles`, `seed` and `strain_seed` — it now
+  also carries `intermediate_ftol` (inert at one stage, carried so a
+  two-stage collapse could not drop it silently). It still drops
+  **`restraint_weight_scale`** and **`window_slack_deg`**, which is the same
+  defect class this WP fixed in `NodeAction`: a series whose plan declares
+  c_w = 300 early runs its warm refits at 1.0. Left alone deliberately —
+  the right aggregation for a c_w *schedule* is a judgment about physics (the
+  last stage's value, not the max), and guessing it silently is exactly what
+  this WP spent its time undoing. Worth a WP.
+- The API-surface partition is the gate that catches a new public name: six
+  arrived here and the fast suite failed until each was documented. Expect it.
+- The harness has no exact-mode flag by design (one that changes with the
+  optimisation cannot measure it), so the *before* is recovered by wrapping
+  each case's `build()` to clear `intermediate_ftol` and calling
+  `bench_refinement.main` — `CASES` is a **tuple**, so rebind the module
+  attribute rather than assigning into it. That wrapper is how both columns of
+  the table above were measured on one tree, and it is worth keeping: measuring
+  the baseline before the change and the change after it compares two trees,
+  which is what made the first series number wrong.
+- **Re-measure after merging main.** This WP measured, merged 1121, and every
+  count moved (cpd-1a 272 → 270, cpd-2 315 → 329, series 1705 → 1603). The
+  merge also brought an independent fix for the same numba race this session
+  hit, which is the second thing a session on a fast-moving branch should
+  expect: check whether the bug you are fixing is already fixed upstream.
+
+*Next.* Nothing on this WP. The stretch target
+[1122](1122-compiled-peaks-buffer.md) is the open front, and its
+`### Inherited` now carries the trigger cold number it must quote: **5.67–5.70 s**,
+not the 8.70–8.72 s 1121 left it, because this flip landed in between.
+
+- **2026-08-22** — created.

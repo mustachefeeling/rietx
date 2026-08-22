@@ -138,7 +138,10 @@ def test_the_microabsorption_shape_was_mostly_dispersion(sample1_anomalous):
 
     What is left over is small enough that microabsorption — which is real, and
     which the round robin designed sample 1 to be mild in — is no longer the
-    leading term.  Note that ``qpa_plan`` frees Biso, so the refinement can and
+    leading term.  The convergence schedule is ``qpa_plan``'s own
+    (``intermediate_ftol``, WP-1123), which is what keeps this arm comparable
+    to the dispersion-off arm stage for stage.
+    Note that ``qpa_plan`` frees Biso, so the refinement can and
     does re-absorb part of the correction; the improvement below is what
     survives that.
     """
