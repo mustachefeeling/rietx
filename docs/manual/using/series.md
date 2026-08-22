@@ -291,13 +291,13 @@ that had not been shown to be the problem.
 
 The first rung is bounded, because it is a guess rather than the answer. Its
 budget is `first_rung_factor` times the most expensive first rung this chain has
-already converged, so a chain bounds nothing until one has worked, and a chain
-where the collapsed refit always works never reaches the bound. A first rung
+already converged, and it applies only once a few of them have. A chain whose
+collapsed refit always works stays well clear of the bound. A first rung
 that spends its budget escalates rather than being kept, and the rung it
 escalates to starts from the same warm state, so the values a bounded chain
 reports are the values it would have reported without the bound. Measured on the
 benchmark's ten-pattern series: 1603 solver evaluations without the bound and
-1331 with it, both converging to Rwp 0.01943, with every accepted value
+1395 with it, both converging to Rwp 0.01943, with every accepted value
 identical. On the eight-mixture round-robin series the two runs are identical to
 the evaluation. Set `first_rung_factor=None` to reproduce a pre-1.1 run exactly.
 

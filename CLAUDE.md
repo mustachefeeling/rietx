@@ -116,12 +116,14 @@ still diverged after the last rung is **quarantined** (WP-1051): reported with
 `SEQUENTIAL_UNRECOVERED`, but seeding no successor and joining no median.
 **The first rung is a bet, budgeted from what a winning bet costs on this
 chain** (WP-1127): `first_rung_factor` × the dearest *converged* first rung,
-nothing until one has, never another fit's cost — the cold fit is the tempting
+nothing until several have, never another fit's cost — the cold fit is the tempting
 second bound and is false (`_collapse` of a one-stage plan **is** that plan).
 Spending it escalates and `_prefer` ranks a truncated attempt below any that
 completed, because `_reseed_needed` tests neither `max_iter` nor the budget and
 `_better` at equal Rwp keeps the earlier; with both, a bound only shortens work
-already being discarded and every accepted value stays bit-identical.
+already being discarded and every accepted value stays bit-identical.  Set it
+for **margin**: the gap between a winning rung and a losing one is ~6×, and a
+factor calibrated tight enough to matter fired on a clean chain in CI only.
 `events=`/`cancel=` are **per pattern** (WP-1016): every event carries
 `series_index`/`…_label`/`…_n`/`…_pass` (+`…_rung`/`…_cold` on a *restart*) in
 `data`, so no `EventKind` is new, and a cancelled series **returns** what

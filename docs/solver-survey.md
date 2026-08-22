@@ -530,8 +530,8 @@ every pattern that did not need it. What shipped instead prices the *discovery*:
 the first rung is a bet, and `_collapse` sizes it like an answer, so a losing bet
 spends the plan's largest budget on its widest Jacobian before being discarded.
 Bounding it at `FIRST_RUNG_FACTOR` × the dearest **converged** first rung the
-chain has seen takes `trigger-series` from **1603 to 1331** evaluations
-(57.2-57.4 → 46.5-46.7 s) and leaves the small-cell chain identical to the
+chain has seen takes `trigger-series` from **1603 to 1395** evaluations
+(57.3-57.5 → 49.2-49.3 s) and leaves the small-cell chain identical to the
 evaluation, with every accepted value on both cases **bit-identical** — a bound
 only shortens work that was going to be thrown away, because the rung that
 replaces it starts from the same warm state.
@@ -545,11 +545,11 @@ the trigger case ≤ 1.0× to be useful). A **one-parameter toy plan was a sharp
 adversary than either real case**, which had hidden the error behind a
 multi-stage cold fit's own size. And the survey's own habit of comparing against
 "the better fixed setting" mis-fits a rule that improves whichever setting is
-chosen: the WP's pre-registered clause 1 fires on that reading (1331 against
+chosen: the WP's pre-registered clause 1 fires on that reading (1395 against
 `refit="stages"`'s 1253) and is recorded as firing rather than reworded.
 
 **What is still open on this front is the `refit=` choice itself** — 1253 against
-1331 says the mode matters more than the bound on that case, while the small-cell
+1395 says the mode matters more than the bound on that case, while the small-cell
 chain says the opposite (627 against 1041). Unowned, and still adaptive-or-
 nothing for WP-0505's reason.
 
@@ -1299,7 +1299,7 @@ here.
   `_collapse` sizes it like an answer, so a losing bet spends the plan's
   largest budget on its widest Jacobian before being thrown away. Bounded at
   `FIRST_RUNG_FACTOR` × the dearest *converged* first rung so far:
-  **1603 → 1331** evaluations on `trigger-series`, identical to the evaluation
+  **1603 → 1395** evaluations on `trigger-series`, identical to the evaluation
   on the small-cell chain, and **bit-identical answers on both**, because the
   rung replacing a truncated one starts from the same warm state. Default
   flipped on the maintainer's call. The §2.B8 note has the *second* bound,

@@ -125,19 +125,42 @@ from .strategy.staged import RefinementPlan, Stage, resolve_plan
 #: must not be able to ratchet the threshold up and let its successors through.
 RESEED_FACTOR = 1.25
 
-#: Headroom over the most expensive first rung the chain has already **accepted**
-#: — :meth:`SequentialRefinement.fit`'s ``first_rung_factor`` default (WP-1127).
+#: Converged first rungs needed before the chain bounds anything (WP-1127).
+#: One sample is not a spread, and the running maximum of a *short* sample is
+#: set by whichever pattern happened to be cheapest.  The same reasoning as
+#: :data:`MIN_POINTS_FOR_DISCONTINUITY` one fence over, and it was measured the
+#: expensive way: at one sample the bound went 2 × 8 = 16 evaluations on the
+#: thermal-ramp chain and its third pattern legitimately wanted **17**, a
+#: one-evaluation margin that darwin cleared and Linux did not.
+FIRST_RUNG_SAMPLES = 3
+
+#: Headroom over the most expensive first rung the chain has already
+#: **converged** — :meth:`SequentialRefinement.fit`'s ``first_rung_factor``
+#: default (WP-1127).
 #:
-#: The first rung is a *bet* that the collapsed warm refit suffices, and today it
-#: is sized like an answer: :func:`_collapse` takes ``max_iter`` as the maximum
-#: over the plan's stages, so a bet that loses spends the plan's largest budget
-#: on the widest Jacobian in it and is then thrown away.  Measured on both
-#: harness series cases, a winning bet and a losing one do not overlap at all: a
-#: first rung that is kept costs 27-64 evaluations on ``trigger-series`` and
-#: 25-107 on ``cpd-series``, while both losing ones ran to ~400 — the cap itself.
-#: A factor of 2 is therefore twice the headroom over anything measured, and in
-#: neither chain did an accepted first rung ever exceed the running *maximum* of
-#: the ones before it.
+#: The first rung is a *bet* that the collapsed warm refit suffices, and it is
+#: otherwise sized like an answer: :func:`_collapse` takes ``max_iter`` as the
+#: maximum over the plan's stages, so a bet that loses spends the plan's largest
+#: budget on the widest Jacobian in it and is then thrown away.  A winning bet
+#: and a losing one do not overlap: a first rung that is kept costs 27-64
+#: evaluations on ``trigger-series`` and 25-107 on ``cpd-series``, while both
+#: losing ones ran to ~400, the cap itself.  **The bound only has to land in
+#: that gap**, so it is set for margin rather than for tightness.
+#:
+#: Calibrated on the quantity that decides it: how far a *legitimate* first rung
+#: can exceed the running maximum of the converged ones before it.  Measured
+#: across three chains — the two harness series and the thermal ramp — that
+#: ratio reaches **1.29** once :data:`FIRST_RUNG_SAMPLES` samples are in hand,
+#: so 3.0 carries 2.3× margin over the worst case seen anywhere.  It reached
+#: 1.89 at a single sample, which is what the minimum is for.
+#:
+#: Being wrong is cheap and **cannot reach the answer**: a bound that bites
+#: costs one escalation, the rung it escalates to is the full staged plan from
+#: the same warm state, and :func:`_prefer` refuses to keep the truncated
+#: attempt over the completed one.  Measured on both harness cases, every
+#: accepted value is bit-identical to the unbounded chain's, because the bound
+#: only truncates a rung whose result is discarded and its replacement starts
+#: from the warm state rather than from the truncation.
 #:
 #: What licenses a modest factor is that being wrong is cheap **and cannot reach
 #: the answer**: a bound that bites costs one escalation, and the rung it
@@ -147,7 +170,7 @@ RESEED_FACTOR = 1.25
 #: unbounded chain's — 0 of 1030 and 0 of 392 — because the bound only truncates
 #: a rung whose result is discarded, and its replacement starts from the warm
 #: state rather than from the truncation.
-FIRST_RUNG_FACTOR = 2.0
+FIRST_RUNG_FACTOR = 3.0
 
 #: A step is called a discontinuity when it exceeds this multiple of the median
 #: absolute step of the same parameter over the series *and* is significant
@@ -343,9 +366,10 @@ def _first_rung_budget(accepted_first: list[int],
     """Evaluations the collapsed first rung may spend, or ``None`` for no bound.
 
     ``factor`` (:data:`FIRST_RUNG_FACTOR`) times the most expensive first rung
-    **this chain has already converged** — the only evidence there is about what
-    a working first rung on this model costs, which is why a chain bounds
-    nothing until one has worked.
+    **this chain has already converged**, once :data:`FIRST_RUNG_SAMPLES` of
+    them are in hand — the only evidence there is about what a working first
+    rung on this model costs, and a short sample of it is set by whichever
+    pattern happened to be cheapest.
 
     "Worked" is convergence, not survival, and both halves of that earn their
     keep.  A rung that *escalated* says nothing about what a working one costs,
@@ -367,7 +391,7 @@ def _first_rung_budget(accepted_first: list[int],
     multi-stage cold fit sums to several times a collapsed rung (252 against
     25-107), which is a property of those plans and not of the rule.
     """
-    if factor is None or not accepted_first:
+    if factor is None or len(accepted_first) < FIRST_RUNG_SAMPLES:
         return None
     return int(factor * max(accepted_first))
 
@@ -575,9 +599,10 @@ class SequentialRefinement:
             Bound what the *collapsed* first rung may spend before the ladder
             gives up on it, at this multiple of the most expensive first rung
             the chain has already **converged** (:func:`_first_rung_budget`,
-            :data:`FIRST_RUNG_FACTOR`).  A chain bounds nothing until one warm
-            rung has worked, because until then it has no evidence about what
-            a working one costs on this model.  ``None`` is no bound and
+            :data:`FIRST_RUNG_FACTOR`, :data:`FIRST_RUNG_SAMPLES`).  A chain
+            bounds nothing until several warm rungs have worked, because until
+            then it has no usable evidence about what a working one costs on
+            this model.  ``None`` is no bound and
             reproduces every fit before WP-1127 bit for bit — the way back a
             golden declares, as ``intermediate_ftol`` is for WP-1123's
             schedule.

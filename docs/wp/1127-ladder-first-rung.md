@@ -1,7 +1,7 @@
 # WP-1127 — the ladder's first rung: which one a warm pattern starts on
 
-Milestone: v1.1 · Status: ✅ 2026-08-22 — the first rung bounded from what a
-converged one costs: 1603 → 1331 evaluations on the trigger chain, identical on
+Milestone: v1.1 · Status: ✅ 2026-08-23 — the first rung bounded from what
+converged ones cost: 1603 → 1395 evaluations on the trigger chain, identical on
 the small-cell one, answers bit-identical on both; default flipped
 Depends on: WP-1111 (harness + counting scaffold), WP-1124 (the decomposition
 that names this front), WP-1051 (the ladder itself)
@@ -261,28 +261,29 @@ available at that point.
 
 ### 3 — the bound, measured on both cases (2026-08-22)
 
-`first_rung_factor=2.0`, `bench_refinement.py`, all four rows in one process.
-**These are the final-rule numbers**; § Findings 6 has the half of the rule that
-was refuted between the first measurement and this one, and why its figures
-(1183 nfev, 1.36×) do not stand.
+`bench_refinement.py`, all four rows in one process, at the **shipped**
+calibration (`FIRST_RUNG_SAMPLES = 3`, `FIRST_RUNG_FACTOR = 3.0`). Two earlier
+calibrations measured better and are recorded rather than quoted: § Findings 6
+has the refuted second bound (1183 nfev, 1.36×) and § Findings 8 the one CI
+refuted (1331, 1.20×).
 
 | case | wall (s) | nfev | njev | Rwp | escalations | discarded |
 |---|---|---|---|---|---|---|
-| `cpd-series` (bounded, the shipped default) | 4.68-4.83 | **627** | **449** | 0.12586 | 0 | — |
-| `cpd-series-unbounded` (pre-1127) | 4.69-4.73 | 627 | 449 | 0.12586 | 0 | — |
-| `trigger-series` (bounded) | **46.49-46.65** | **1331** | **1072** | 0.01943 | 2 | 21.88 s |
-| `trigger-series-unbounded` (pre-1127) | 57.22-57.42 | 1603 | 1315 | 0.01943 | 2 | 32.84 s |
+| `cpd-series` (bounded, the shipped default) | 4.71-4.72 | **627** | **449** | 0.12586 | 0 | — |
+| `cpd-series-unbounded` (pre-1127) | 4.71-4.73 | 627 | 449 | 0.12586 | 0 | — |
+| `trigger-series` (bounded) | **49.19-49.29** | **1395** | **1128** | 0.01943 | 2 | 24.27 s |
+| `trigger-series-unbounded` (pre-1127) | 57.31-57.45 | 1603 | 1315 | 0.01943 | 2 | 32.52 s |
 
-**Trigger: 1.20× fewer evaluations (1603 → 1331), 1.23× fewer Jacobians, 1.23×
+**Trigger: 1.15× fewer evaluations (1603 → 1395), 1.17× fewer Jacobians, 1.16×
 of wall.** Both escalations survive; what changed is only what the losing rung
-was allowed to spend. Pattern 6's first rung went 400 → **128** evaluations
-(2 × the most expensive accepted first rung, 64); pattern 1's stays at 400,
-because it is the first warm pattern and the chain has no evidence yet about
-what a working first rung costs on this model. Every other pattern's iteration
-count is unchanged, to the evaluation.
+was allowed to spend. Pattern 6's first rung went 400 → **192** evaluations
+(3 × the dearest converged first rung, 64); pattern 1's stays at 400, because it
+is the first warm pattern and the chain has no evidence yet about what a working
+first rung costs on this model. Every other pattern's iteration count is
+unchanged, to the evaluation.
 
-**1331 does not beat the better fixed mode**: `refit="stages"` on this case is
-1253. The bound improves whichever mode it is in — 1603 → 1331 under `"single"`,
+**1395 does not beat the better fixed mode**: `refit="stages"` on this case is
+1253. The bound improves whichever mode it is in — 1603 → 1395 under `"single"`,
 inert under `"stages"` — but it does not close the gap that choosing the mode
 would. See § Findings 7 for what that does to the pre-registered clause 1.
 
@@ -297,14 +298,20 @@ where they all work it is never reached.
 
 | read-out | `trigger` | `cpd` |
 |---|---|---|
-| evaluations vs unbounded | 1603 → 1331 (**1.20×**) | 627 → 627 (1.00×) |
+| evaluations vs unbounded | 1603 → 1395 (**1.15×**) | 627 → 627 (1.00×) |
 | escalations / quarantined | 2 → 2 / 0 → 0 | 0 → 0 / 0 → 0 |
 | diagnostics added | **none** | **none** |
 | accepted entries not `converged` | **none** | **none** |
 | accepted values that differ at all | **0 of 1030** | **0 of 392** |
 | agreement outside the width family | 0.000 esd | 0.000 esd |
-| `direction="both"` nfev | 3325 → 2717 (1.22×) | 2839 → 2042 (**1.39×**) |
+| `direction="both"` nfev | 3325 → 3013 (1.10×) | 2839 → 2839 (1.00×) |
 | `SEQUENTIAL_PATH_DEPENDENT` | absent → **absent** | absent → **absent** |
+
+The `cpd` `direction="both"` row is where the safety margin is visible as a
+price: at the refuted `2.0` calibration its backward chain's escalation *was*
+cut, 2839 → 2042, and at 3.0 it is not. The bound is now above that chain's
+losing rung as well as above its winning ones — which is the same conservatism
+that keeps the thermal ramp intact, paid on a case where it happened to help.
 
 **Clauses 2, 3 and 4 are silent, and the equivalence is stronger than clause 3
 asked for: the answers are bit-identical, not merely within 0.25 esd.** Every
@@ -318,10 +325,10 @@ arms, and that staged refit begins at the predecessor's endpoint, which the
 first rung never touched. Cutting a losing bet short changes how long it lost
 for, not what was bet next.
 
-**`direction="both"` on `cpd` is where the bound turns out not to be inert.**
-The forward chain never escalates, so § Findings 3 reads 1.00×; the *backward*
-chain — 94 wt % down to 1 — does, and the pair goes 2839 → 2042 evaluations.
-Read the "inert on `cpd-series`" result as being about that chain in that
+**`cpd` has an escalation the forward measurement never sees**, and
+`direction="both"` is what found it: the forward chain never escalates, so
+§ Findings 3 reads 1.00× on it, while the *backward* chain — 94 wt % down to 1 —
+does escalate. Read "inert on `cpd-series`" as being about that chain in that
 direction, never about the case.
 
 ### 5 — one hazard, found by a test rather than by the measurement
@@ -340,11 +347,12 @@ a corner, it is what two rungs from the same warm state can genuinely reach.
 
 `_prefer` now ranks a truncated attempt below any that ran to completion, and
 `_better` decides only between two attempts in the same state. **It cost
-evaluations, and the cost is the honest one**: `cpd` under `direction="both"`
-went 1908 → 2042 (+7 %) when it landed, one commit apart, which means the
-backward pass had been keeping a truncated fit. Nothing else changed, and
-`_prefer` is the only thing that can change a rung sequence by changing which
-attempt the fence is asked about. Every forward number was unmoved.
+evaluations, and the cost is the honest one**: measured at the then-current
+`2.0` calibration, `cpd` under `direction="both"` went 1908 → 2042 (+7 %) when
+it landed, one commit apart, which means the backward pass had been keeping a
+truncated fit. Nothing else changed, and `_prefer` is the only thing that can
+change a rung sequence by changing which attempt the fence is asked about.
+Every forward number was unmoved.
 
 A first rung that hits the **plan's own** budget is untouched by any of this and
 is still kept if nothing beats it, which is what the shipped ladder has always
@@ -390,7 +398,7 @@ off from then on. "Worked" is now convergence, not survival.
 ### 7 — clause 1, read as it was written, fires on `trigger`
 
 Pre-registered: *"It costs whole-chain evaluations against the better of the two
-fixed modes on that case."* On `trigger` the bounded chain is **1331** and the
+fixed modes on that case."* On `trigger` the bounded chain is **1395** and the
 better fixed mode, `refit="stages"`, is **1253**. Read literally, the clause
 fires. It is recorded that way rather than reinterpreted, because a criterion
 corrected after the data is in cannot be told from a moved goalpost
@@ -399,10 +407,64 @@ corrected after the data is in cannot be told from a moved goalpost
 What the clause was for, and where it mis-fits: it was written for a rule that
 **chooses** the first rung — lever B's shape, refuted in § Findings 2 — where
 "worse than just picking the right mode" is the failure to guard against. The
-bound chooses nothing. It prices whichever mode the caller picked: 1603 → 1331
+bound chooses nothing. It prices whichever mode the caller picked: 1603 → 1395
 under `"single"`, inert under `"stages"`, bit-identical on both cases' answers.
 So it makes no chain worse, and the gap to 1253 is the *mode* choice, which is
 still unowned and still adaptive-or-nothing for WP-0505's reason.
+
+### 8 — the factor was calibrated on two chains that agreed by accident, and CI caught it
+
+The first version of this WP closed green: fast suite 2626/117, full suite
+2735/126, zero failures, darwin/arm64. **CI failed on Linux, py3.12 and py3.13,
+in `test_a_well_behaved_series_reseeds_nothing`** — a pre-existing test asserting
+that the clean thermal-ramp fixture keeps every warm pattern on its first rung.
+py3.11 and py3.14 passed. A version-and-platform split like that is the
+signature of a *marginal* threshold, not of a broken one.
+
+It was. The thermal ramp's legitimate first rungs cost **8, 9, 17, 14, 22, 15**
+evaluations. At `FIRST_RUNG_FACTOR = 2.0` with a bound armed by a single sample,
+pattern 3 faced a bound of 2 × 9 = 18 and wanted **17**. A one-evaluation
+margin, which darwin cleared and Linux did not.
+
+**The claim that failed was mine, and it was the one the design rested on**:
+"the bound is derived from what working first rungs cost, so a chain where they
+all work never reaches it." True of `cpd-series` and `trigger-series` and false
+in general — and the reason is an ordering accident. Both harness chains have
+their *dearest* legitimate first rung early (107 first on `cpd`, 64 second on
+`trigger`), so the running maximum is high from the start. The thermal ramp is
+the opposite: it starts at 8 and climbs to 22, so its running maximum is set by
+whichever pattern happened to be cheapest.
+
+Calibrating on the quantity that actually decides it — how far a legitimate
+first rung can exceed the running maximum of the converged ones before it —
+across all three chains:
+
+| chain | worst ratio, 1 sample | worst ratio, ≥ 3 samples |
+|---|---|---|
+| `trigger-series` | 0.97 | 0.97 |
+| `cpd-series` | 0.89 | 0.89 |
+| thermal ramp | **1.89** | **1.29** |
+
+So `FIRST_RUNG_SAMPLES = 3` and `FIRST_RUNG_FACTOR = 3.0`: 2.3× margin over the
+worst case seen anywhere, where 2.0 had 1.06× over the case it had never seen.
+The minimum sample is the same reasoning as `MIN_POINTS_FOR_DISCONTINUITY` one
+fence over, and it is what the 1.89 row is for.
+
+**The bound only has to land in the gap, so it is set for margin.** A winning
+first rung is 27-64 evaluations on `trigger-series` and a losing one is ~400:
+the bound at 3 × 64 = 192 sits well inside that, and the cost of the extra
+margin is the whole difference between this WP's two measurements — **1331 →
+1395** evaluations on `trigger-series`, 1.20× → **1.15×**. That is the right
+trade at a 1.06× safety margin, and it is priced here rather than hidden.
+
+Three things a successor should take from this, beyond the constants. **A local
+green full suite did not cover a threshold this marginal** — two of four python
+versions on the other platform did, so a rule with a numeric margin wants CI
+before it is called measured. **Two datasets agreed for a reason neither of them
+states**, which is what made the ordering accident invisible; the third chain
+was already in the repo. And the measurement to make for a threshold is not
+"does it fire on my cases" but **how close the nearest legitimate case comes to
+it** — 1.06× would have been visible without any failure at all.
 
 ## Tasks
 
@@ -465,7 +527,7 @@ still unowned and still adaptive-or-nothing for WP-0505's reason.
       it, so it is orthogonal to `refit=` and belongs beside `reseed_factor`
       as `first_rung_factor`. The default flip was **taken, not deferred** —
       the maintainer's call, twice: once on the 1.36× figure and again on the
-      corrected 1.20× with the fired clause 1 in front of them.
+      corrected 1.15× with the fired clause 1 in front of them.
       `first_rung_factor=None` is the bit-identical way back.)*
 - [x] Tests (`tests/test_sequential.py` for the rule's unit behaviour, the
       harness case asserted in `tests/test_bench_refinement.py`) + obs/calc/diff
@@ -499,6 +561,27 @@ tables, and the reason.
 
 ## Handover log
 
+### 2026-08-23 — CI refuted the factor; recalibrated for margin
+
+`FIRST_RUNG_SAMPLES = 3` and `FIRST_RUNG_FACTOR = 3.0` replace the single-sample
+`2.0` the entry below closed on. **§ Findings 8 is the whole story and is the
+most useful thing in this WP**: the local full suite was green and CI was not,
+on Linux py3.12 and py3.13 only, because the thermal-ramp fixture's third
+pattern legitimately wanted 17 evaluations against a bound of 18. The claim that
+broke was the one the design rested on — "a chain where the collapse works never
+reaches the bound" — and it was true of the two harness chains only because both
+happen to have their dearest legitimate first rung *early*.
+
+Cost of the margin: `trigger-series` 1331 → **1395** evaluations, 1.20× →
+**1.15×**, and `cpd` under `direction="both"` back to 2839 from 2042. Everything
+else in the entry below stands, re-measured on this calibration: `cpd-series`
+identical to the evaluation, all four `direction="both"` arms free of
+`SEQUENTIAL_PATH_DEPENDENT`, and the answers bit-identical on both cases.
+
+**Read § Findings 8 before touching any threshold in this file.** The measurement
+that would have caught it needs no failure: not "does it fire on my cases" but
+*how close does the nearest legitimate case come*, which was 1.06×.
+
 ### 2026-08-22 — closed ✅: the bet is priced, not chosen
 
 **What this means, in one paragraph.** Fitting a series means fitting each
@@ -519,15 +602,17 @@ compiled tier is on — darwin/arm64, python 3.12.12, numpy 2.5.2, `rietx`
 
 | | unbounded | bounded | |
 |---|---|---|---|
-| `trigger-series` nfev / njev | 1603 / 1315 | **1331 / 1072** | 1.20× / 1.23× |
+| `trigger-series` nfev / njev | 1603 / 1315 | **1395 / 1128** | 1.15× / 1.17× |
 | `trigger-series` wall | 57.22-57.42 s | **46.49-46.65 s** | 1.23× |
 | `cpd-series` nfev / njev | 627 / 449 | **627 / 449** | identical |
-| `direction="both"` nfev, trigger | 3325 | 2717 | 1.22× |
-| `direction="both"` nfev, cpd | 2839 | 2042 | 1.39× |
+| `direction="both"` nfev, trigger | 3325 | 3013 | 1.10× |
+| `direction="both"` nfev, cpd | 2839 | 2839 | 1.00× |
 | accepted values that differ | — | **0 of 1030, 0 of 392** | bit-identical |
 
-**Suites**, same venv and platform: fast `-m "not slow"` **2626 passed, 117
-skipped** (1:55); full **2735 passed, 126 skipped** (21:43), zero failures. Seven
+**Suites**, same venv and platform, at the `2.0` calibration this entry closed
+on: fast `-m "not slow"` **2626 passed, 117 skipped** (1:55); full **2735
+passed, 126 skipped** (21:43), zero failures locally — and CI red, see the entry
+above. Seven
 tests added against `origin/main` — six in `test_sequential.py`, one in
 `test_bench_refinement.py` — all passes, no new skips, so passed+skipped moves by
 exactly seven in the fast selection. The full suite fired once, on the final
@@ -555,13 +640,13 @@ the earlier. Both were found by tests, not by the harness — the second cost 7 
 of the `cpd` `direction="both"` arm's evaluations to fix, which is the honest
 price of not letting a bound pick the answer.
 
-*The pre-registered clause 1 fires and is recorded as firing.* 1331 against
+*The pre-registered clause 1 fires and is recorded as firing.* 1395 against
 `refit="stages"`'s 1253. It was written for a rule that *chooses* the rung, and
 the bound chooses nothing, but that judgement is written beside the clause rather
 than into it.
 
 **Next actions, in order of what the evidence points at.** The `refit=` choice is
-now the front: 1253 against 1331 says the mode outweighs the bound on the trigger
+now the front: 1253 against 1395 says the mode outweighs the bound on the trigger
 case and 627 against 1041 says the reverse on the small-cell one, so it is
 adaptive-or-nothing and unowned. Below that, the per-reflection 19.4 % front
 (WP-1121) and the solver's 11.8 % are both still unowned. Lever B is **refuted,
