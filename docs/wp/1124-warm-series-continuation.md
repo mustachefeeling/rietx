@@ -133,13 +133,16 @@ two at 18.8-20.2 s. Delete the two escalations and the same ten patterns cost
 
 **And the shipped default first rung is the slower one on this case.**
 `refit="stages"` runs **1.61×** faster than `refit="single"` — 35.76-35.97 s
-against 57.66-57.96 — with **zero** escalations, every pattern 2.82-3.73 s at
-95-140 iterations. That inverts WP-0505's small-cell measurement (904
-collapsed against 1623 staged) in the direction WP-1110's agent round hit on a
-real trigger-shaped model. `_ladder`'s docstring already says which rung is
-cheaper is a property of the model; the measurement is that on *the milestone's
-own trigger workflow* it is the staged one. Not this WP's to change
-(§ Non-goals), and the largest single number on the table.
+against 57.66-57.96, the two measured back to back in one process — with
+**zero** escalations, every pattern 2.82-3.73 s at 95-140 iterations. The
+machine-independent half of that says the same thing and is the one to quote:
+**1253 nfev against 1603** and **906 njev against 1315**, deterministic and
+reproduced in every run this session made. That inverts WP-0505's small-cell
+measurement (904 collapsed against 1623 staged) in the direction WP-1110's
+agent round hit on a real trigger-shaped model. `_ladder`'s docstring already
+says which rung is cheaper is a property of the model; the measurement is that
+on *the milestone's own trigger workflow* it is the staged one. Not this WP's
+to change (§ Non-goals), and the largest single number on the table.
 
 ### 2 — how the two arms were built, and the one rule that shapes both
 
@@ -324,8 +327,19 @@ speed and the survey note says so with the bound.
 
 **Met, 2026-08-22 — closed ✅ on a negative** (§ Findings 6): clause 3 fires,
 both arms turning `SEQUENTIAL_PATH_DEPENDENT` from absent to reported, and
-clause 1 fires in the `refit="stages"` regime. The probe's own command, which
-reproduces every table in § Findings 3-5:
+clause 1 fires in the `refit="stages"` regime.
+
+*One honest note on the closing run of the first command.* It reproduced every
+**count** exactly — 1603/1315 and 1253/906 nfev/njev, Rwp 0.01943 and 0.01944,
+the same two escalations with `rungs=34.04+5.39` and `30.49+9.48` — and its
+wall clock is **not quotable**: the machine had gone to load average 12.9
+(a browser), and the same fits read 58.96-114.66 s against the 57.66-57.96 s
+recorded in § 1. That is the § 2 caution firing on this WP's own acceptance,
+which is the best evidence for it: **the counts are what survive a busy
+machine, and every wall figure in § Findings comes from an arm comparison made
+inside a single run.** The tables above stand on the idle runs.
+
+The probe's own command, which reproduces every table in § Findings 3-5:
 
 ```sh
 .venv/bin/python examples/bench_refinement.py --cases trigger-series,trigger-series-stages --repeats 3
@@ -347,6 +361,91 @@ reproduces every table in § Findings 3-5:
 - WP-0505/WP-1051 ladder pricing as quoted in `sequential.py`'s docstrings.
 
 ## Handover log
+
+### 2026-08-22 (2nd session) — closed ✅ on a clean negative, and it moved the front
+
+Seeding a chained series by extrapolating along its own trajectory does not
+make the series faster, and this WP now says so with numbers instead of
+leaving it as an open idea. More usefully, it found that the thing being
+optimised was mis-described. The warm-series target had been read as "every
+warm pattern costs about 5.7 seconds"; in fact seven of the nine warm patterns
+already finish in about one to two seconds and two of them take twenty, because
+the ladder's first attempt fails on those two and the work is thrown away. So
+**57 % of the series time is spent on attempts that get discarded**, and the
+number everyone had been quoting was an average of two things, sitting at
+neither. Anyone can now see this directly: the benchmark had been reporting
+only the attempt that *succeeded*, which is by construction the cheap one, and
+it now prints every attempt. The practical consequence is that the way to make
+in-situ series fast is to change which strategy the chain tries first, not what
+it starts that strategy from — and one already-shipped setting (`refit="stages"`)
+does the same ten patterns with a third fewer solver evaluations and none of
+the failed attempts.
+
+*Done*: all four tasks. Task 1 landed with a fix to the harness's per-pattern
+collector (`62df88d4`), tasks 2-4 with the probe and the verdict (`cf22fb13`).
+Nothing shipped in `src/` — both predictor arms are closures over the existing
+`SequentialRefinement.fit(prepare=…)` seam in
+`examples/bench_series_predictor.py`, which is WP-1114's discipline and the
+reason a negative costs nothing to act on. § Findings 1-6 hold every table;
+`docs/solver-survey.md` §2.B8 and §5 carry the dated retirement with the bound,
+and the v1.1 record carries the narrative.
+
+*Measured* — `[dev]` venv only (**no jax, no torch**), darwin/arm64, python
+3.12.12, numpy 2.5.2, `rietx` 1.1.0.dev0:
+
+- Baseline reproduces WP-1123's **1603** nfev exactly, so this is the same tree
+  measuring the same fits.
+- `refit="single"`: copy 1603 nfev / 57.42-58.05 s, secant **1495**, tangent
+  **1287** — and **no arm moves the wall**, all three ranges overlapping.
+- `refit="stages"`: copy 1253 nfev, secant **1458**, tangent **2087**; the
+  tangent additionally broke the chain (Rwp 0.02252 against 0.01950 inherited
+  by four successors, `phases.2.cell.b` **186 esd** out, one
+  `SEQUENTIAL_DISCONTINUITY` and no reseed).
+- `direction="both"`: copy has **no** `SEQUENTIAL_PATH_DEPENDENT`; both arms
+  raise it. This is the kill criterion's clause 3.
+- Endpoint agreement outside the degenerate width family: secant 0.105 esd
+  median / 0.246 max, tangent 0.047 / 0.262. Agreement is *not* what killed it.
+- Fast selection **2619 passed / 117 skipped**, exit 0 — **unmoved** from
+  WP-1122/1123's count, and correctly so: this WP added no tests and touched
+  only `examples/` and `docs/`. Wall 4:29 against their 1:55, on a machine that
+  had gone busy (below). The full suite was **not** run, deliberately: no
+  library code changed, and the slow selection is real-data acceptance
+  refinements that an `examples/` edit cannot reach.
+
+*Gotchas for whoever measures next, both of which cost this session time*:
+
+- **Check the venv is current before quoting any timing.** This one predated
+  WP-1115 and was missing `numba`, so the compiled tier — which is what a
+  default install runs — was **off**, and every number would have been the
+  fallback's. `rietx.model.compiled.enabled()` is the one-line check;
+  `rietx.__version__` reading 1.0.1 against `pyproject`'s 1.1.0.dev0 was the
+  tell.
+- **Counts survive a busy machine; wall clock does not.** The same
+  `refit="stages"` chain measured 35.76-35.97 s and 41.77-42.93 s minutes apart
+  at an identical 1253 nfev, and the closing acceptance run — at load average
+  12.9 — read 58.96-114.66 s for fits whose every count was unchanged. Every
+  wall figure in § Findings is therefore an arm-vs-arm comparison made *inside
+  one run*, and the `refit="stages"` finding is stated in nfev/njev first.
+
+*Next*, in order:
+
+1. **The warm-series front is open and unowned, one rank down from this WP.**
+   It wants a WP on the ladder's *first rung*: `refit="stages"` costs 1253 nfev
+   and 906 njev against `refit="single"`'s 1603 and 1315, with zero escalations
+   against two, on the milestone's own trigger workflow. The answer must be
+   **adaptive, not a flipped default** — WP-0505 measured the opposite on
+   small-cell standards (904 collapsed against 1623 staged), so what is wanted
+   is a rule that reads which regime a model is in. `_ladder`'s docstring
+   already says which rung is cheaper is a property of the model; nothing yet
+   decides it per model.
+2. **[1125](1125-varpro-probe.md) is the other open probe** and inherits this
+   session's two measurement gotchas — filed into its `### Inherited`.
+3. **Do not re-open B8 for speed without new information.** The favourable case
+   was tested: a smooth simulated 100 ppm/step ramp is the best case a predictor
+   gets, and it did not pay there, so the real 68-pattern dataset is not needed
+   to close this and asking the maintainer for it would be wasted. B8's
+   *tangent-as-sensitivity* half is untouched, was never about speed, and stays
+   parked.
 
 - **2026-08-22** — created, from the solver-survey re-assessment (§5): B8
   promoted because the warm-series band is v1.1's one remaining gating
