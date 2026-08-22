@@ -397,6 +397,7 @@ the algorithmic tier (1114, spike-then-decide), and a gated compiled tier
 | [1124](wp/1124-warm-series-continuation.md) | Warm-series continuation probe: seed the chain along its tangent | ✅ 2026-08-22 — negative; the band is discarded ladder rungs | 1111, 1123 |
 | [1125](wp/1125-varpro-probe.md) | Variable-projection probe: profile the background, measure the tail | ✅ | 1113 |
 | [1126](wp/1126-manual-style-pass.md) | Manual Part 1: the style pass the review asked for | ✅ 2026-08-22 — and every NAC number in it re-measured | 1067, 1068 |
+| [1127](wp/1127-ladder-first-rung.md) | The ladder's first rung: which one a warm pattern starts on | ⬜ | 1111, 1124, 1051 |
 
 ### Unscheduled — coming from another code (added 2026-08-21)
 

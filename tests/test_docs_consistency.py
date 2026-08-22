@@ -271,7 +271,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # The manual style pass touches no always-loaded file: the review's rules
     # went into the yue-docs-style skill and the chapters, and the WP file
     # carries the measurements.
-    "docs/ROADMAP.md": 458,
+    # 458 -> 459 for WP-1127 (2026-08-22): its own index row, and only that.
+    # The row is required rather than chosen — test_wp_files_and_roadmap_rows_
+    # are_a_bijection makes an index row the one line a new WP cannot demote —
+    # and Current focus was not touched at the opening, because the front it
+    # takes over is already named there in WP-1124's closing sentence.
+    "docs/ROADMAP.md": 459,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
