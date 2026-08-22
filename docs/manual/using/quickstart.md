@@ -9,12 +9,15 @@ prints back at you, `rietx` is imported as `rx`.
 
 ## The minimal call
 
-<!-- api-doc: no-exec — it reads a pattern file the reader supplies -->
+The files here are the ones the worked example below uses: an APS 11-BM pattern
+of Na₂Ca₃Al₂F₁₄ and the COD structure of that phase.
+
+<!-- api-doc: no-exec — the paths are the walkthrough's data files, which are not on the docs build's path -->
 ```python
 import rietx as rx
 
-data = rx.read_pattern("my_sample.xye")
-structure = rx.Structure.from_cif("my_phase.cif")
+data = rx.read_pattern("11BM_NAC.fxye")
+structure = rx.Structure.from_cif("cod_1000236.cif")
 instrument = rx.Instrument.debye_scherrer(wavelength=0.4139090)
 
 result = rx.refine(data, structure, instrument)
@@ -24,23 +27,22 @@ print(result.status, result.statistics.rwp)
 The print line writes two values:
 
 ```text
-converged 0.0932
+converged 0.0933
 ```
 
 `RefinementResult.status` is a plain string, one of `converged`, `max_iter` and
 `diverged`. The second of those means the solver ran out of iterations. It does
 not mean the fit failed.
 
-**`Statistics.rwp` is a fraction, not a percentage.** 0.0932 is the Rwp of 9.3 %
-you would quote in a paper. Every R-factor in the package is stored this way.
-[](results.md) says what each statistic measures.
+`Statistics.rwp` is a fraction rather than a percentage: 0.0933 is the Rwp of
+9.3 % you would quote in a paper, and every R-factor in the package is stored
+this way. [](results.md) says what each statistic measures.
 
 One more line draws the fit:
 
 <!-- api-doc: no-exec — it needs a result from the reader's own data -->
 ```python
-result.plot(path="my_sample.png", two_theta_range=(2.0, 12.0),
-            wavelength=0.4139090)
+result.plot(path="nac_fit.png", wavelength=0.4139090)
 ```
 
 ```{image} figures/nac-fit-light.png
@@ -58,27 +60,11 @@ on the same axis at the same scale, then one row of reflection ticks per phase.
 The residual sits directly under the peaks that caused it, and nothing comes
 between them. Every series is named in the right-hand margin rather than in a
 legend the eye has to look up; the fit statistics sit in the corner, because a
-figure's title is its caption. `two_theta_range` is a *window*, not a crop — the
-intensity scale and the rows below it are built from what the window contains,
-so a zoom into a weak region is a figure of its own data.
+figure's title is its caption.
 
-`weighted=True` draws Δ/σ instead, in its own panel with a ±3σ band: a raw
-difference shares the intensity axis, so the eye reads a small deviation on a
-strong peak as a large error, while Δ/σ has expectation 1 under a correct model
-and the band is an absolute scale rather than a relative one. It is not the
-default because it costs the one thing the classic layout gives away free — the
-residual and the peak that caused it in a single glance.
-
-`wavelength=` puts λ on the 2θ axis, which is meaningless without it; the result
-does not carry the emission line, so it has to be passed. It is also what
-`x_axis="q"` and `x_axis="d"` are derived through, and those two carry no λ of
-their own — that is the point of them. `y_scale=` takes `"sqrt"` (equal display
-distance for equal counting σ), `"log"` or `"asinh"`; any of them moves the
-difference into its own panel, since an offset raw difference is negative by
-construction and a nonlinear intensity axis cannot draw it. `style="dark"` is
-for a figure going onto a dark page, and `figsize=`/`font_size=` are the
-exposure surface: build the figure at the width it will be read at rather than
-scaling it in the document afterwards.
+`wavelength=` puts λ on the 2θ axis, which is meaningless without it. The other
+arguments window the pattern, change the axes and move the residual into a panel
+of its own; {ref}`plotting-the-fit` takes them one at a time.
 
 ## `refine` or a `Refinement` session
 
@@ -112,8 +98,8 @@ practice is most of the time.
 
 ## Le Bail before Rietveld
 
-One decision matters more than any plan: **get the peaks into the right places
-before you ask a structure to explain their intensities.**
+Get the peaks into the right places before you ask a structure to explain their
+intensities.
 
 A Le Bail fit (`mode="lebail"`) refines the cell, the zero shift and the profile
 with the intensities extracted per reflection instead of computed from the
@@ -125,7 +111,7 @@ uncertain model {cite}`mccusker1999`.
 
 It pays a second time. A Le Bail report flags observed peaks the model does not
 account for, so an impurity phase shows up as unmatched peaks at positions you
-can identify — before it can distort a structural refinement by being absorbed
+can identify, before it can distort a structural refinement by being absorbed
 into a background or a width.
 
 ```{image} figures/impurity-peak-light.png
@@ -138,28 +124,93 @@ into a background or a width.
 :alt: Two zoomed panels near 7.5 degrees; the left has an observed peak with no calculated intensity, the right fits it
 ```
 
-That is the mechanism in one picture, from the worked example below. The Le Bail
-fit knows nothing about CaF₂, so the line at 7.52° is observed intensity the
-model cannot place, and the report says so. Adding the phase accounts for it.
+The Le Bail fit knows nothing about CaF₂, so the line at 7.52° is observed
+intensity the model cannot place, and the report says so. Adding the phase
+accounts for it.
 
 ## Worked example: NAC on 11-BM
 
-This is `examples/nac_11bm.py`, which the test suite runs on every push. It
-refines Na₂Ca₃Al₂F₁₄ against APS 11-BM synchrotron data: Le Bail first, then the
-CaF₂ impurity its report exposes, then Rietveld.
+`examples/nac_11bm.py` refines Na₂Ca₃Al₂F₁₄ against APS 11-BM synchrotron data
+in three moves: a Le Bail fit, then the CaF₂ impurity that its report exposes,
+then Rietveld. The test suite runs it on every push.
+
+```sh
+python examples/nac_11bm.py
+```
+
+```text
+pattern: 59498 points, 0.50-59.99 deg, sigma from file: True
+phase: Na2Ca3Al2F14, I 21 3, a=10.257 A, 6 asymmetric atoms
+
+Le Bail:  status=converged  Rwp=0.1435  GoF=5.44  a=10.251214 A
+Rietveld: status=converged  Rwp=0.0933  GoF=3.54
+          a = 10.251216 +/- 0.000046 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
+          [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound
+```
+
+It goes on to print the report summary, its five worst regions, and the history
+tree below.
+
+The script is three blocks. First, read the pattern, the structure and the
+instrument, and set the profile starting values in the right decade for 11-BM's
+resolution:
 
 ```{literalinclude} ../../../examples/nac_11bm.py
 :language: python
-:caption: examples/nac_11bm.py
+:dedent: 4
+:start-at: data = rx.read_pattern
+:end-before: "# --- Le Bail first"
 ```
 
-Six things in it recur in every fit after this one:
+Then the Le Bail fit, which refines the cell and the profile without the
+structure, and tags the node it reached:
+
+```{literalinclude} ../../../examples/nac_11bm.py
+:language: python
+:dedent: 4
+:start-at: "# --- Le Bail first"
+:end-before: "# --- Rietveld seeded"
+```
+
+Then the impurity its report exposed, added as a recorded model edit, and the
+Rietveld fit that follows with a displacement stage appended to the preset:
+
+```{literalinclude} ../../../examples/nac_11bm.py
+:language: python
+:dedent: 4
+:start-at: "# --- Rietveld seeded"
+:end-before: return data, ref, lebail, result
+```
+
+The imports, and the `main` that builds the report and prints the history, are
+in the file itself.
+
+Six things in it are moves that any later refinement repeats:
 
 - **One `Refinement` is the session.** `Refinement.fit` can be called again, and
   the models carry over.
 - **Every stage commits a node.** `Refinement.history` holds both refinements
   *and* the model edit between them, and `RefinementTree.tag` names a node to
-  come back to. [](history.md) is the whole record.
+  come back to:
+
+  ```text
+  t5544a638  13 nodes  data=11BM_NAC.fxye
+   n0000  root                   —
+  └─  n0001  stage:bkg              Rwp 3.1772
+     └─  n0002  stage:zero             Rwp 1.0407
+        └─  n0003  stage:cell             Rwp 0.1683
+           └─  n0004  stage:profile_w        Rwp 0.1592
+              └─  n0005  stage:profile          Rwp 0.1435  [lebail]
+                 └─  n0006  edit_model:add CaF2 impurity phase —
+                    └─  n0007  stage:scale_bkg        Rwp 0.1199
+                       └─  n0008  stage:zero             Rwp 0.1199
+                          └─  n0009  stage:cell             Rwp 0.0959
+                             └─  n0010  stage:profile_w        Rwp 0.0959
+                                └─  n0011  stage:profile          Rwp 0.0957
+                                   └─ *n0012  stage:biso             Rwp 0.0933
+  ```
+
+  [](history.md) is the whole record.
 - **A plan is editable.** `plan.stages.append(rx.Stage("biso", [...]))` adds a
   displacement stage after the preset's, and `Stage` takes fnmatch globs over
   the parameter dot-paths (`phases.*.atoms.*.biso`). [](model.md) is the path
@@ -184,14 +235,13 @@ The curves are on the result as `RefinementResult.y_obs`,
 `RefinementResult.y_calc` and `RefinementResult.y_background`, over
 `RefinementResult.two_theta`. `RefinementResult.plot` writes an
 observed/calculated/difference figure with matplotlib (the `viz` extra).
-[](results.md) goes through the rest of the object field by field — the
+[](results.md) goes through the rest of the object field by field: the
 structure R-factors, the bonding geometry, and the two counts that say whether
 the pattern supported the model.
 
-**Rwp is not the answer.** It is a fit statistic, and this package can show you a
-fit whose Rwp improved while its displacement parameters and phase fractions
-moved *away* from the truth. What the package hands you instead is
-[the report](report.md).
+Rwp is a fit statistic and not the answer. This package can show you a fit whose
+Rwp improved while its displacement parameters and phase fractions moved *away*
+from the truth. What it hands you instead is [the report](report.md).
 
 ## Your own data
 

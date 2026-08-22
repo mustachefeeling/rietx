@@ -23,6 +23,9 @@ def run() -> tuple[rx.PatternData, rx.Refinement, rx.RefinementResult, rx.Refine
 
     structure = rx.Structure.from_cif(str(DATA / "cod_1000236.cif"))
     phase = structure.phases[0]
+    # the CIF names its block after the COD entry; a phase name is what the
+    # ticks, the diagnostics and the plot gutter are labelled with
+    phase.name = "Na2Ca3Al2F14"
     print(f"phase: {phase.name}, {phase.space_group}, a={phase.cell.a.value} A, "
           f"{len(phase.atoms)} asymmetric atoms")
 
@@ -101,7 +104,7 @@ def main() -> None:
 
     try:
         result.plot(path=str(Path(__file__).parent / "nac_fit.png"),
-                    two_theta_range=(2.0, 12.0), wavelength=WAVELENGTH)
+                    wavelength=WAVELENGTH)
         print("\nplot written to examples/nac_fit.png")
     except ImportError:
         pass

@@ -2,7 +2,7 @@
 
 Every other chapter assumes you know the cell. This one is for when you do not:
 the specimen is unidentified, or a database hit is a guess, and the lattice has
-to come out of the pattern itself. Indexing is that step — from the line
+to come out of the pattern itself. Indexing is that step: from the line
 positions alone, find a lattice whose calculated reflections land where the
 observed lines are.
 
@@ -11,8 +11,9 @@ observed lines are.
 Indexing is under active development, so this chapter's names are documented
 but **not frozen**. `pick_peaks`, `index_pattern`,
 `determine_extinction_symbol`, the answer types in `rietx.schemas.indexing` and
-the helpers under `rietx.indexing` may change in a 1.x release — the engines,
-the gates and the figures of merit are still being measured against real data.
+the helpers under `rietx.indexing` may change in a 1.x release, because the
+engines, the gates and the figures of merit are still being measured against
+real data.
 Every change is announced in the release notes, and the data contracts a
 consumer parses do not move with them.
 {ref}`provisional-by-declaration` has the promise in full.
@@ -23,11 +24,11 @@ wants answered.
 
 | Call | Takes | Returns |
 |---|---|---|
-| `pick_peaks` | a pattern and an instrument | `PeakList` — every resolvable line, with a fitted position and its own esd |
-| `index_pattern` | that list, and the pattern | `IndexingResult` — candidate lattices, ranked and graded |
-| `determine_extinction_symbol` | a candidate, and the pattern | `ExtinctionScreen` — the extinction classes that lattice admits |
+| `pick_peaks` | a pattern and an instrument | `PeakList`: every resolvable line, with a fitted position and its own esd |
+| `index_pattern` | that list, and the pattern | `IndexingResult`: candidate lattices, ranked and graded |
+| `determine_extinction_symbol` | a candidate, and the pattern | `ExtinctionScreen`: the extinction classes that lattice admits |
 
-**None of the three returns a singleton, and that is the design.**
+None of the three returns a single answer, by design.
 `IndexingResult` has no `.cell` and no `.best`; `ExtinctionScreen` has no
 `.symbol` and no `.space_group`. The only route to one answer is
 `IndexingResult.best_or_none` or `ExtinctionScreen.best_or_none`, each of which
@@ -117,13 +118,13 @@ the group it was fitted in.
 | `ObservedPeak.n_in_group` | how many components were fitted simultaneously with it |
 | `ObservedPeak.chi2_red` | reduced χ² of that group's fit |
 | `ObservedPeak.flags` | what the fit or the screens noticed about this line |
-| `ObservedPeak.origin` | `fitted`, `manual` or `edited` — who decided a line is here |
+| `ObservedPeak.origin` | `fitted`, `manual` or `edited`: who decided a line is here |
 
 `ObservedPeak.d` is the d-spacing, and `ObservedPeak.usable` is this line's half
 of `PeakList.usable`.
 
-Two of those fields are the group's rather than the line's. Within a group —
-a fraction of a degree — the widths are not separately identifiable, so `fwhm`
+Two of those fields are the group's rather than the line's. Within a group, a
+fraction of a degree wide, the widths are not separately identifiable, so `fwhm`
 and `eta` are shared, and pretending otherwise is what lets a doublet fit
 absorb an unresolved neighbour.
 
@@ -159,12 +160,12 @@ stripping redistributes the noise and biases what is left. The last three flags
 report evidence rather than refusing a line, because a real reflection can
 coincide with an extrapolated background, with a stronger line's axial tail or
 with a predicted Kα2 position, and one pattern cannot tell which it is. §7b of
-the protocol says which ones are usually worth excluding before a search, and
+the protocol says which ones are usually excluded before a search, and
 what that has been measured to cost.
 
-### A list you were handed
+### A peak list from somewhere else
 
-`PeakList.from_positions` builds a list from bare positions — a publication, a
+`PeakList.from_positions` builds a list from bare positions: a publication, a
 database entry, another program's output.
 
 ```python
@@ -187,10 +188,10 @@ because an assumed σ is *unmeasured*: it must never be quoted as a precision,
 and a gate that weights lines by 1/σ² is being handed a constant rather than
 information. Intensities default to equal weight, which is what a
 position-only list actually says. Pass `two_theta_esd=` if you know better,
-and `intensity=` when the source quotes relative intensities — the search is
-driven by the strongest lines, so intensities change which lines it uses.
+and `intensity=` when the source quotes relative intensities, because the search
+is driven by the strongest lines and intensities change which lines it uses.
 
-## Is this list fit to index?
+## Whether the list can be indexed
 
 `rietx.indexing.assess_peak_list` answers that, and `index_pattern` calls it
 before spending any budget. The answer is a `DataQualityReport`.
@@ -203,7 +204,7 @@ before spending any budget. The answer is a `DataQualityReport`.
 | `DataQualityReport.source` | inherited from the list: `fitted` or `positions` |
 | `DataQualityReport.two_theta_min`, `DataQualityReport.two_theta_max` | the range the lines span |
 | `DataQualityReport.sigma_two_theta_median`, `DataQualityReport.sigma_two_theta_worst` | position precision, ° |
-| `DataQualityReport.relative_sigma_q_median` | median σ(Q)/Q — a resolving power ({eq}`idx-sigma-q`) |
+| `DataQualityReport.relative_sigma_q_median` | median σ(Q)/Q, a resolving power ({eq}`idx-sigma-q`) |
 | `DataQualityReport.sigma_over_spacing` | median σ(Q) over the mean spacing between neighbouring Q |
 | `DataQualityReport.lines_per_dof` | usable lines ÷ metric degrees of freedom, per system |
 | `DataQualityReport.systems_supported` | the systems this list can support a search in |
@@ -221,10 +222,11 @@ another. `DataQualityReport.lines_per_dof` carries the ratio and
 above, 54 usable lines read 54.0 per degree of freedom for cubic and 9.0 for
 triclinic, and every system is supported.
 
-**Searchable and scorable are different questions**, and conflating them once
-refused a pattern this package indexes perfectly. Below twenty usable lines the
-classical figures are undefined — de Wolff's M₂₀ and Smith & Snyder's F₂₀ are
-*defined* on twenty lines ({eq}`idx-m20`, {eq}`idx-fn`) — so the search still
+Whether a list can be searched and whether it can be scored are different
+questions, and conflating them once refused a pattern this package indexes
+perfectly. Below twenty usable lines the
+classical figures are undefined, since de Wolff's M₂₀ and Smith & Snyder's F₂₀
+are *defined* on twenty lines ({eq}`idx-m20`, {eq}`idx-fn`), so the search still
 runs over the supported systems, ranks on the reduced panel, and names each
 missing figure with its reason in `DataQualityReport.fom_undefined`. What that
 costs is the grade: a short list can never reach `high`.
@@ -269,18 +271,18 @@ returns a cell 293 000 ppm from the certificate, graded `high`. This is why the
 allowance is derived rather than guessed, and why an *assumed* one caps the
 grade.
 
-`ShiftScreen.best` names a cause — a zero-point error, a specimen
-displacement, transparency — and `ShiftScreen.separable` says whether the data
-can tell them apart, which over a limited angular range it frequently cannot.
+`ShiftScreen.best` names a cause (a zero-point error, a specimen displacement,
+transparency) and `ShiftScreen.separable` says whether the data can tell them
+apart, which over a limited angular range it frequently cannot.
 The magnitude survives that; the cause does not. Each `ShiftTemplateFit` carries
 `ShiftTemplateFit.name`, `ShiftTemplateFit.coefficient` (the template's
 amplitude in ° 2θ), `ShiftTemplateFit.stderr`, `ShiftTemplateFit.r2` and
-`ShiftTemplateFit.residual_ss` — and the ratio is computed on the residual sum
-of squares rather than on R², because every template scores R² ≈ 0.99 against a
+`ShiftTemplateFit.residual_ss`. The ratio is computed on the residual sum of
+squares rather than on R², because every template scores R² ≈ 0.99 against a
 clean trend.
 
 With no reference positions the shift is still recoverable, from harmonic
-reflection pairs ({eq}`idx-pair`, {eq}`idx-pair-shift`) — pairs of lines whose
+reflection pairs ({eq}`idx-pair`, {eq}`idx-pair-shift`), pairs of lines whose
 sines are in an integer ratio, which for any lattice is one equation in the
 shift and none in the cell. `index_pattern` runs that screen by default
 (`shift_from_pairs=True`); `assess_peak_list` does not, so a report you build
@@ -293,7 +295,7 @@ how much agreement a structureless list of the same size produces.
 |---|---|
 | `ReflectionPairScreen.n_candidate_triples` | line pairs whose sine ratio rounded to an integer |
 | `ReflectionPairScreen.n_pairs` | of those, the ones admitted inside the window |
-| `ReflectionPairScreen.n_clustered` | pairs inside the densest window — the statistic itself |
+| `ReflectionPairScreen.n_clustered` | pairs inside the densest window, the statistic itself |
 | `ReflectionPairScreen.null_k_mean`, `ReflectionPairScreen.null_k_std` | the same statistic on structureless replicates |
 | `ReflectionPairScreen.z`, `ReflectionPairScreen.p_value` | the standardised gap, and the empirical p |
 | `ReflectionPairScreen.null_replicates`, `ReflectionPairScreen.seed` | how many replicates, and the seed that drew them |
@@ -314,7 +316,7 @@ result = rx.index_pattern(peaks, data=data, instrument=ins)
 
 | Argument | Default | Does |
 |---|---|---|
-| `peaks` | — | the `PeakList` to index; omit it and pass `data` + `instrument` to have one picked |
+| `peaks` | required | the `PeakList` to index; omit it and pass `data` + `instrument` to have one picked |
 | `data` | `None` | the pattern. **Supplying it is what turns whole-profile validation on** |
 | `instrument` | `None` | needed with `data`, and by the validation fits |
 | `spec` | `None` | the search bounds, as the frozen `SearchSpec` dataclass that `SearchSpecSpec` mirrors field for field |
@@ -328,7 +330,7 @@ result = rx.index_pattern(peaks, data=data, instrument=ins)
 | `events` | `None` | the streaming event ladder, as everywhere else |
 | `cancel` | `None` | a `CancelToken`; a cancelled search **returns what it has** |
 
-Two of those defaults are worth keeping rather than tuning. Passing `data` is
+Two of those defaults should be kept rather than tuned. Passing `data` is
 what makes validation possible, and without it every candidate caps at
 `medium`. Leaving `engines` alone is what lets `high` mean anything at all, for
 the reason in the next section.
@@ -352,15 +354,15 @@ engines = {engine.name: engine.description for engine in caps.indexing_engines}
 assert engines and all(engines.values())
 ```
 
-Each row is an `EngineCapability`, and both of its fields —
-`EngineCapability.name` and `EngineCapability.description` — are quoted from
+Each row is an `EngineCapability`, and both of its fields,
+`EngineCapability.name` and `EngineCapability.description`, are quoted from
 that live registry, so a client's engine checkboxes and the agent schema cannot
 name different sets. [](agents.md) has the rest of `capabilities()`.
 
 Only one of the three carries an exhaustiveness claim: when the branch-and-bound
 engine finishes a system, "no cell here" is evidence. That claim survives only
 where `IndexingResult.search_complete` is true for the system, which is what
-makes that field worth reading before concluding anything from a silence.
+makes that field one to read before concluding anything from a silence.
 
 ### Presets, budgets, and the three states of a system
 
@@ -377,7 +379,7 @@ come from `Capabilities.search_presets`, one `SearchPresetCapability` each.
 | `SearchPresetCapability.default` | whether `index_pattern` resolves it when the caller names none |
 
 `quick` is the default: every engine, every requested system, and a whole-run
-ceiling covering search, probe and validation. **Nothing is narrowed** — no
+ceiling covering search, probe and validation. **Nothing is narrowed**: no
 engine dropped, no system dropped, no search box shrunk. What a binding ceiling
 cuts is the trailing low-symmetry systems, which is the documented cost of
 running cheapest-first, and it says so with `INDEX_BUDGET_EXHAUSTED`. `full`
@@ -387,9 +389,9 @@ reported that the answer might live in a system it never reached.
 
 There are two budgets and they are per different things.
 `SearchSpecSpec.budget_seconds` is per **(engine × crystal system)** slice;
-`SearchSpecSpec.total_budget_seconds` is the whole run. Units run
-system-major — every engine finishes one system before any engine starts the
-next — so a binding deadline sacrifices trailing systems for every engine
+`SearchSpecSpec.total_budget_seconds` is the whole run. Units run system-major,
+every engine finishing one system before any engine starts the next, so a
+binding deadline sacrifices trailing systems for every engine
 equally, and a completed system holds every engine's answer, which is what the
 agreement gate needs. `rietx.indexing.engines.estimate_ceiling` is the
 arithmetic for choosing a value before starting.
@@ -398,17 +400,17 @@ After a run, three states are distinguishable, and the distinction is the
 answer's honesty:
 
 - the system is in `IndexingResult.systems_searched` with
-  `IndexingResult.search_complete` **true** — searched to exhaustion;
-- in `systems_searched` with `search_complete` **false** — truncated, so a
+  `IndexingResult.search_complete` **true**, searched to exhaustion;
+- in `systems_searched` with `search_complete` **false**, truncated, so a
   negative result there means nothing;
-- **absent** from `systems_searched` — never reached at all.
+- **absent** from `systems_searched`, never reached at all.
 
 Measured on the bundled corundum pattern with everything left at its defaults:
 120.2 s wall clock, all three engines, five of the seven systems entered, of
 which cubic and hexagonal completed, and monoclinic and triclinic never
 started. The answer says all of that.
 
-### Declaring what you know
+### The search specification
 
 `SearchSpecSpec` is the full control surface. It is flat and complete rather
 than a handful of convenience knobs, because the engines' agreement only means
@@ -418,11 +420,11 @@ something if they were given identical bounds.
 |---|---|---|
 | `SearchSpecSpec.systems` | all seven | which crystal systems to search, in decreasing symmetry |
 | `SearchSpecSpec.centrings` | every centring a system admits | per-system Bravais centrings; an empty list is refused |
-| `SearchSpecSpec.min_d_axis`, `SearchSpecSpec.max_d_axis` | 2 Å, 25 Å | the principal d-spacing range — raising the top costs exponentially |
+| `SearchSpecSpec.min_d_axis`, `SearchSpecSpec.max_d_axis` | 2 Å, 25 Å | the principal d-spacing range; raising the top costs exponentially |
 | `SearchSpecSpec.min_volume` | 15 Å³ | volume floor |
 | `SearchSpecSpec.max_volume` | Smith's envelope | volume ceiling, taken verbatim when declared |
 | `SearchSpecSpec.n_unindexed` | 2 | search lines a cell may leave unexplained and still be accepted |
-| `SearchSpecSpec.n_search_lines` | 20 | observed lines the search is **driven** by — the strongest N |
+| `SearchSpecSpec.n_search_lines` | 20 | observed lines the search is **driven** by, the strongest N |
 | `SearchSpecSpec.k_sigma` | 3 | matching window in units of each line's own σ |
 | `SearchSpecSpec.shift_allowance_deg` | 0 | a systematic allowance **you measured** |
 | `SearchSpecSpec.shift_template` | `None` | re-fit a surviving candidate with this shift column |
@@ -462,9 +464,10 @@ neither free nor safe: a cell must index all but `n_unindexed` of *those*
 lines, an absolute budget, so every extra foreign line admitted can refute the
 true cell rather than merely rank it lower.
 
-**A prior steers, never gates.** A declared `prior_cells` entry puts its crystal
-system at the front of the queue, seeds the stochastic engine's starting basin
-with its metric, and is checked against the lines the engines' own way. No
+A prior steers the search rather than gating it. A declared `prior_cells` entry
+puts its crystal system at the front of the queue, seeds the stochastic engine's
+starting basin with its metric, and is checked against the lines the engines'
+own way. No
 system is dropped and no range is changed, so a wrong prior costs time rather
 than truth, and `INDEX_PRIOR_USED` records what was assumed. Declare one
 whenever you have a database hit or an isostructural analogue; §7d of the
@@ -484,7 +487,7 @@ It is what a project document persists ([](files.md)) and what the agent
 request carries ([](agents.md)), so a run can be repeated from a stored
 setting rather than from a call site.
 
-## The answer
+## The result object
 
 `IndexingResult` is a ranked list of hypotheses with the evidence behind each,
 plus what the search covered.
@@ -492,7 +495,7 @@ plus what the search covered.
 | Field | Holds |
 |---|---|
 | `IndexingResult.candidates` | the ranked `CellCandidate` list |
-| `IndexingResult.engines_run` | engines that actually ran — the denominator of the agreement gate |
+| `IndexingResult.engines_run` | engines that actually ran, the denominator of the agreement gate |
 | `IndexingResult.systems_searched` | systems any engine covered |
 | `IndexingResult.search_complete` | per system: did every engine that searched it exhaust its domain |
 | `IndexingResult.engine_stats` | per-engine counters, prefixed with the engine's name |
@@ -507,8 +510,8 @@ plus what the search covered.
 | `IndexingResult.diagnostics` | run-level findings |
 
 Result-level and candidate-level statements are kept apart on purpose.
-`IndexingResult.diagnostics` says things about the run — a truncated budget,
-systems not covered, an assumed allowance — while a statement about one cell
+`IndexingResult.diagnostics` says things about the run (a truncated budget,
+systems not covered, an assumed allowance) while a statement about one cell
 lives in that candidate's own `CellCandidate.diagnostics` and
 `CellCandidate.confidence_caveats`.
 
@@ -544,9 +547,9 @@ established, and hiding them is how an oversized cell passes.
 
 ### The figure-of-merit panel
 
-**The panel ranks; it does not score.** A margin is comparable within one
-member and not across them, so the members vote rather than being summed, and
-each carries what it is blind to.
+The panel ranks candidates rather than scoring them. A margin is comparable
+within one member and not across them, so the members vote rather than being
+summed, and each carries what it is blind to.
 
 | Field | Holds |
 |---|---|
@@ -574,7 +577,7 @@ predicts was actually seen.
 
 ### The lattice symmetry, and its ambiguities
 
-`CellCandidate.bravais` is a `BravaisOpinion` — two independent readings of the
+`CellCandidate.bravais` is a `BravaisOpinion`: two independent readings of the
 same reduced cell, kept apart on purpose, because gemmi's tolerance is an
 obliquity in degrees and spglib's is a distance in Å, so a disagreement between
 them is information about the cell rather than a bug in either.
@@ -627,8 +630,8 @@ test, as a `LeBailValidation`.
 
 The fit **holds the cell**: the candidate is the hypothesis under test, and
 letting it walk would validate a different cell from the one reported. What it
-frees is the background, exactly one peak-position parameter — chosen from the
-candidate's own shift template — and then the widths. It is single-phase, which
+frees is the background, exactly one peak-position parameter chosen from the
+candidate's own shift template, and then the widths. It is single-phase, which
 is a measured constraint rather than a simplification: Le Bail partitioning has
 nothing to arbitrate two phases claiming the same channel.
 
@@ -637,8 +640,8 @@ refinement, so it is computed for a shortlist rather than for every candidate,
 and reading it as a rank would reintroduce the blind spot it exists to close,
 since a bigger cell fits better. Read `predicted_but_absent` as "this cell
 predicts lines the pattern lacks", never as "this cell is too big": it counts
-against the *lattice* group, so a space-group extinction — a glide plane, a
-screw axis — refutes a perfectly correct cell, and only the extinction screen
+against the *lattice* group, so a space-group extinction (a glide plane, a
+screw axis) refutes a perfectly correct cell, and only the extinction screen
 below separates the two.
 
 (the-confidence-gate)=
@@ -647,9 +650,9 @@ below separates the two.
 `CellCandidate.confidence` is `high`, `medium` or `low`. The top level is
 **agreement between independent engines**, not a threshold on any statistic,
 and every reason a candidate falls short is a member of a closed vocabulary in
-`CellCandidate.confidence_caveats`. Six of the twelve *refute* the candidate —
-each is positive evidence against the cell, or evidence that the data cannot
-choose — and drop it to `low`. The other six *cap* it at `medium`.
+`CellCandidate.confidence_caveats`. Six of the twelve *refute* the candidate and
+drop it to `low`: each is positive evidence against the cell, or evidence that
+the data cannot choose. The other six *cap* it at `medium`.
 
 | Caveat | Means | Effect |
 |---|---|---|
@@ -671,7 +674,7 @@ a test and a failed test are different statements, and only the second is
 evidence about the cell.
 
 **`not_validated` has two causes, and they are not the same news.** No pattern
-was supplied, so no candidate could be validated — which is what
+was supplied, so no candidate could be validated, which is what
 `IndexingResult.validated` reports at run level. Or a pattern *was* supplied and
 this candidate's fit did not run, because the shortlist is validated top-down and
 `SearchSpec.total_budget_seconds` expired partway. `INDEX_BUDGET_EXHAUSTED` names
@@ -681,18 +684,18 @@ all twelve candidates carry `not_validated`, so reading the run-level flag as th
 per-candidate one inverts the answer.
 
 `IndexingResult.best_or_none` returns a candidate only when exactly one is
-`high` and it has no ambiguity partners. Everything else — nothing found, two
-cells that both explain the pattern, an unvalidated search, an assumed
-tolerance — returns `None`.
+`high` and it has no ambiguity partners. Everything else returns `None`: nothing
+found, two cells that both explain the pattern, an unvalidated search, or an
+assumed tolerance.
 
 **Never take `candidates[0]` because it is ranked first.** The ranking orders
 the hypotheses and the gate judges them; they are different questions. The
-order leads with corroboration — the candidates at least two engines found —
-and ranks the panel within that, which is closer to the gate's reading than a
+order leads with corroboration, the candidates at least two engines found, and
+ranks the panel within that, which is closer to the gate's reading than a
 panel ranking alone, and still not it.
 
 On the corundum run above, the certified trigonal *R* lattice comes back at
-rank 1, found by two of the three engines, with a Le Bail fit that converged —
+rank 1, found by two of the three engines, with a Le Bail fit that converged,
 and grades `low` on five caveats, so `best_or_none` returns `None`. Two of the
 five carry the reading. `predicted_but_absent` counts 12 reflections, which is
 what a space-group extinction looks like from a lattice group that does not
@@ -723,7 +726,7 @@ disagree.
 
 | Field | Holds |
 |---|---|
-| `CandidateEvidence.index` | position in `IndexingResult.candidates` — the address other calls take |
+| `CandidateEvidence.index` | position in `IndexingResult.candidates`, the address other calls take |
 | `CandidateEvidence.cell`, `CandidateEvidence.cell_esd`, `CandidateEvidence.system`, `CandidateEvidence.centring`, `CandidateEvidence.volume` | the lattice |
 | `CandidateEvidence.confidence` | the grade |
 | `CandidateEvidence.caveats` | every caveat **with its kind** |
@@ -748,8 +751,8 @@ Read `IndexingResult.evidence` rather than the gate alone, and read
 `CandidateEvidence.lebail_rwp` **beside** the two detector counts rather than
 scoring on it. The three together are what let a reader notice that a detector
 has failed: on one measured pair, the correct cell reads
-`predicted_but_absent` 2 and its wrong rival reads 0 — backwards — while Rwp
-reads 0.25 against 0.79. A reasoner given both can see that; the gate, reading
+`predicted_but_absent` 2 and its wrong rival reads 0, which is backwards, while
+Rwp reads 0.25 against 0.79. A reasoner given both can see that; the gate, reading
 one number, cannot. This is an argument for surfacing Rwp, never for ranking on
 it.
 
@@ -778,9 +781,9 @@ phase = structure_from_candidate(candidate)
 lebail = rx.refine(data, phase, ins, mode="lebail", plan="profile_only")
 ```
 
-Two things about it are load-bearing. The dummy atom is mandatory — a phase
-cannot have an empty atom list, and a candidate cell has no structure yet, which
-is the entire point — and in Le Bail mode every atom path is force-fixed, so it
+Two things about it are load-bearing. The dummy atom is mandatory, because a
+phase cannot have an empty atom list and a candidate cell has no structure yet,
+which is the entire point. And in Le Bail mode every atom path is force-fixed, so it
 contributes nothing and shows as `mode_fixed` rather than editable in
 [](model.md)'s listing. And `space_group` defaults to the **absence-free
 lattice group**, for the reason `CellCandidate.lattice_group` exists: a
@@ -788,16 +791,16 @@ plausible-looking space group would hide the very reflections whose absence has
 not been established.
 
 The reverse direction closes too. When a refinement's Layer 2 emits
-`reindex_or_recheck_cell` — peak offsets beyond the linearisation radius across
-most of the misfitting regions — that action has something to call: pick peaks
+`reindex_or_recheck_cell`, on peak offsets beyond the linearisation radius
+across most of the misfitting regions, that action has something to call: pick peaks
 and index the same pattern. [](report.md) has the action, and §7d of the
 protocol has the loop.
 
 ## The extinction symbol
 
 Once a lattice is established, the next question is which reflections are
-systematically absent. `determine_extinction_symbol` answers it — and answers
-it as a **class**, never as a space group.
+systematically absent. `determine_extinction_symbol` answers it, and answers it
+as a **class**, never as a space group.
 
 <!-- api-doc: no-exec — one Le Bail fit per surviving class -->
 ```python
@@ -810,7 +813,7 @@ if klass is not None:
 
 | Argument | Default | Does |
 |---|---|---|
-| `data`, `candidate`, `instrument` | — | the pattern, the lattice under test, and the instrument |
+| `data`, `candidate`, `instrument` | required | the pattern, the lattice under test, and the instrument |
 | `peaks` | `None` | a peak list, used to seed the shared profile fit |
 | `two_theta_limits` | the whole pattern | the range classes are enumerated and judged over |
 | `k_sigma` | 3 | the matching window, in units of each line's σ |
@@ -836,7 +839,7 @@ offer classes the lattice may not have.
 | `ExtinctionScreen.lattice_group` | the absence-free group every class is compared against |
 | `ExtinctionScreen.cell`, `ExtinctionScreen.system`, `ExtinctionScreen.centring` | the lattice screened |
 | `ExtinctionScreen.wavelength` | the primary wavelength, Å |
-| `ExtinctionScreen.two_theta_range` | the range judged over — part of the answer |
+| `ExtinctionScreen.two_theta_range` | the range judged over, which is part of the answer |
 | `ExtinctionScreen.n_classes`, `ExtinctionScreen.n_screened` | classes enumerated, classes actually fitted |
 | `ExtinctionScreen.reference_rwp`, `ExtinctionScreen.reference_chi2`, `ExtinctionScreen.reference_lines` | the absence-free reference fit |
 | `ExtinctionScreen.profile_rwp` | the shared profile fit every class inherits |
@@ -858,8 +861,8 @@ than as a setting.
 | `ExtinctionCandidate.conditions_complete` | whether the derivation named every absence |
 | `ExtinctionCandidate.n_lines` | distinct lines this class predicts in range |
 | `ExtinctionCandidate.n_absent` | lattice lines it forbids |
-| `ExtinctionCandidate.n_testable` | of those, the ones the data can actually check — `None` until `screened` |
-| `ExtinctionCandidate.n_present` | testable forbidden positions carrying intensity — the refutation |
+| `ExtinctionCandidate.n_testable` | of those, the ones the data can actually check; `None` until `screened` |
+| `ExtinctionCandidate.n_present` | testable forbidden positions carrying intensity, the refutation |
 | `ExtinctionCandidate.forbidden_hkl`, `ExtinctionCandidate.forbidden_two_theta` | which reflections those are, and where |
 | `ExtinctionCandidate.rwp`, `ExtinctionCandidate.gof`, `ExtinctionCandidate.chi2` | its own Le Bail fit |
 | `ExtinctionCandidate.delta_bic` | BIC against the absence-free reference; **negative favours this class** |
@@ -878,34 +881,36 @@ whether the absence holds. The third test is why `n_testable` is `None` until
 `ExtinctionCandidate.screened`: it is a question about the class's own fit, so
 before that fit the count is unknown rather than zero.
 
-**Refutation is one-sided by construction.** A class asserts absences, so
+Refutation is one-sided by construction. A class asserts absences, so
 intensity where it forbids one contradicts it; a class claiming too *few*
 absences asserts nothing the data can falsify, and is outranked rather than
 refuted. `ExtinctionScreen.best_or_none` therefore returns a class only when it
 was fitted, is not refuted, rests on at least one absence the data could test
 (or is the absence-free class itself, whose claim is that there is nothing to
 see), is separated from the next surviving class by a decisive ΔBIC margin, and
-**no unrefuted class was left unfitted** — a `max_classes` cap or a cancelled
-run leaves an unasked question, which must not read as a clean answer.
+**no unrefuted class was left unfitted**, because a `max_classes` cap or a
+cancelled run leaves an unasked question, which must not read as a clean
+answer.
 
 On the GSAS-II fluorapatite tutorial pattern the screen enumerates seven
 classes over 15–90° in about two seconds and returns `P 63 - -`, whose members
-are `P 63`, `P 63/m` and `P 63 2 2` — with one condition, `00l: l = 2n`, and
+are `P 63`, `P 63/m` and `P 63 2 2`, with one condition, `00l: l = 2n`, and
 ΔBIC −21.8 against the absence-free class. That is a complete answer rather
 than a hedge: the mirror and the two-folds that separate those three produce no
 absences at all, so no counting time distinguishes them, and
-`EXTINCTION_GROUPS_NOT_SEPARABLE` says so. Choosing inside a class is
-chemistry, not diffraction — any member can be handed to
+`EXTINCTION_GROUPS_NOT_SEPARABLE` says so. Choosing inside a class is chemistry
+rather than diffraction, and any member can be handed to
 `structure_from_candidate` for the fit that follows, because they predict the
 same reflections at the same positions.
 
 **A forbidden position is evidence only where the class's own fit is quiet
 there.** The absence test integrates the residual over ±½ FWHM and asks whether
-it clears 3σ — so where the window already holds a neighbour's tail, what it
+it clears 3σ, so where the window already holds a neighbour's tail, what it
 measures is the accuracy of that tail. Measured on the corundum pattern above,
 over 20–90°: at **sham** positions 1–3 FWHM from an allowed line, carrying no
 reflection of any kind, the same test clears 3σ on 40–50 % of probes and reaches
-24.7σ, and it does so on the low-angle flank only — the unmodelled axial tail.
+24.7σ, and it does so on the low-angle flank only, which is the unmodelled
+axial tail.
 So `n_testable` keeps a position only when the class's own model predicts less
 intensity in that window than the test's own threshold, which means no error in
 a neighbour's tail, not even a total one, can manufacture a refutation.
@@ -913,7 +918,7 @@ a neighbour's tail, not even a total one, can manufacture a refutation.
 That is what returns the right answer here. α-Al₂O₃ is certified `R -3 c`, and
 over 20–90° with the widths seeded from the peak list the screen returns
 `R - c -` = {`R 3 c`, `R -3 c`} at ΔBIC −218, with five testable positions all
-absent — the certified group listed, never chosen, beside the
+absent: the certified group listed, never chosen, beside the
 non-centrosymmetric partner no counting time separates from it.
 
 **Read `ExtinctionScreen.profile_rwp` before believing a refutation anyway.**
@@ -926,22 +931,22 @@ forbidden positions read as occupied, and the certified class is refuted. So
 give the screen a range and a width law its profile fit can actually match, and
 read `ExtinctionScreen.profile_rwp` to check that it did.
 
-**Refutation still outranks ΔBIC, one-sidedly**, wherever a testable position
-does carry intensity: a class asserts absences, and no amount of evidence *for*
+Refutation still outranks ΔBIC wherever a testable position does carry
+intensity: a class asserts absences, and no amount of evidence *for*
 it buys back a position that contradicts it. It makes the named reflections
-worth checking either way — a single flagged position can be an impurity line
-rather than a violated absence, and this specimen's own indexing run reported 49
+ones to check either way, since a single flagged position can be an impurity
+line rather than a violated absence, and this specimen's own indexing run reported 49
 observed lines its top candidate did not explain. §7e of the protocol says how
 to make that check.
 
 ## Further reading
 
-- **What to do about each answer** — the [agent
+- **What to do about each answer**: the [agent
   protocol](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md),
   §7b (peak-picking diagnostics), §7c (the answer's own diagnostics), §7d (the
   closed loop from an unknown pattern to a refinement), §7e (extinction) and
   §7f (the gate against the evidence). This chapter is the surface; that is the
   judgement, and neither restates the other.
-- **The physics** — {ref}`ch-indexing` and {ref}`ch-engines`.
-- **What comes next** — [](refining.md) for the fit the cell feeds, and
+- **The physics**: {ref}`ch-indexing` and {ref}`ch-engines`.
+- **What comes next**: [](refining.md) for the fit the cell feeds, and
   [](report.md) for the report that says whether it holds up.

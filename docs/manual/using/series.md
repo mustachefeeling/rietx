@@ -43,7 +43,7 @@ result = rx.refine_sequential(patterns, structure, instrument,
 
 ### Where `x` comes from
 
-`x` is the series coordinate — the quantity the experiment varied, and on an
+`x` is the series coordinate: the quantity the experiment varied, and on an
 in-situ run the point of the experiment. A vendor file records it where its
 format has a field for it, and the reader puts it in the pattern's own
 metadata:
@@ -66,7 +66,7 @@ axis named for something else.
 `rietx.io.readers.list_scans` answers the same question without reading the
 patterns. It returns one `rietx.io.formats.base.ScanInfo` per scan, each
 carrying `index`, `n_points`, the stepped range, and the temperature where the
-file gave one — which is also what its `label` says, since the scans of a reel
+file gave one, which is also what its `label` says, since the scans of a reel
 are otherwise indistinguishable from each other.
 
 Both return a `SeriesResult`. The class keeps more: after a fit,
@@ -76,7 +76,7 @@ with its curves, `SequentialRefinement.trees_` holds the per-pattern histories,
 `SequentialRefinement.backward_` is the backward chain when one was run.
 `SequentialRefinement.fitted_structures` and
 `SequentialRefinement.fitted_instruments` are each pattern's refined models in
-series order — one per pattern, because nothing here is shared.
+series order, one per pattern, because nothing here is shared.
 `SequentialRefinement.structure` and `SequentialRefinement.instrument` are the
 package's own deep copies of the models you passed, which is why your originals
 are not moved by the fit.
@@ -113,21 +113,21 @@ recorded instead as annotation notes on each tree's root node. The default is
 
 `refit` sets the ladder's *first* rung, not the only plan a pattern can be
 fitted with. The staged order exists to keep early stages well conditioned from
-a poor starting model, and a converged neighbour is not one — so the default
+a poor starting model, and a converged neighbour is not one, so the default
 collapses it. When the neighbour turns out not to be a good starting point
 either, the fence below catches it.
 
 ### What crosses a pattern boundary
 
-`SequentialRefinement.carry` is a list of dot-path globs — fnmatch, the
-`Refinement.set_vary` convention — naming which parameters are carried forward.
+`SequentialRefinement.carry` is a list of dot-path globs (fnmatch, the
+`Refinement.set_vary` convention) naming which parameters are carried forward.
 The default is `["*"]`: everything. A parameter excluded from it restarts from
 the **initial** model on every pattern, not from its neighbour.
 
 Carrying everything is cheap even when it looks reckless. Measured on the eight
-IUCr round-robin sample-1 mixtures — three phases, one goniometer, 7251 points
+IUCr round-robin sample-1 mixtures (three phases, one goniometer, 7251 points
 each over 5–150°, and a composition that swings from 1.8 to 94.2 wt % across the
-set — the chain took **816** least-squares iterations against **2789** for the
+set), the chain took **816** least-squares iterations against **2789** for the
 same eight patterns fitted independently, a factor of 3.4, and every pattern
 converged on its first rung.
 
@@ -157,7 +157,7 @@ a few kB. The curves stay reachable on `SequentialRefinement.results_`.
 | `SeriesResult.x` | the axis: the coordinate given, or the pattern index |
 | `SeriesResult.labels` | one label per entry |
 | `SeriesResult.rwp` | one Rwp per entry |
-| `SeriesResult.n_iterations` | least-squares iterations summed over the entries — the reported chain, not the run |
+| `SeriesResult.n_iterations` | least-squares iterations summed over the entries: the reported chain, not the run |
 
 It iterates, indexes and has a length, so `for entry in result` walks the
 patterns in order.
@@ -207,9 +207,9 @@ parameters and return `None` when it is not there.
 | `Trajectory.arrays` | `(x, value, stderr)` as float arrays, missing esds as NaN |
 
 **Patterns where the path is absent are skipped rather than filled.** A gap in a
-trajectory is a real thing — a phase that was not in the model yet, a stage that
-did not run — and inventing a value for it would be the confident wrong
-singleton the whole package gates against. `len(trajectory)` is therefore the
+trajectory is a real thing, a phase that was not in the model yet or a stage that
+did not run, and inventing a value for it would be the confident wrong singleton
+the whole package gates against. `len(trajectory)` is therefore the
 number of points that have a value, not the number of patterns.
 
 `SeriesResult.qpa_trajectory` does the same for a phase's weight fraction,
@@ -219,8 +219,9 @@ drops the tied paths; the default keeps them, because a hexagonal `cell.b` is
 not free but is every bit as measured as `cell.a`. On the round-robin series
 that is 49 paths, 41 of them varied.
 
-`SeriesResult.to_table` returns `(header, rows)` in the wide form — one row per
-pattern, value and esd per parameter — and `SeriesResult.write_csv` writes it,
+`SeriesResult.to_table` returns `(header, rows)` in the wide form, one row per
+pattern with a value and an esd per parameter, and `SeriesResult.write_csv`
+writes it,
 inferring a tab delimiter from a `.tsv` or `.tab` suffix and a comma otherwise.
 The columns are `index, label, x, status, rung, rwp, gof`, then each path
 followed by its esd. `rung` travels beside `status` because it is the other half
@@ -248,13 +249,13 @@ them alters a fitted value**.
 |---|---|
 | `SEQUENTIAL_RESEED` | the warm start was rejected and the pattern was refitted cold, so the chain was not poisoned silently |
 | `SEQUENTIAL_UNRECOVERED` | the pattern diverged and stayed diverged after every rung; it seeded no successor and joined no median |
-| `SEQUENTIAL_DISCONTINUITY` | a step much larger than the local trend — the science, or a chain failure, and the diagnostic says both |
+| `SEQUENTIAL_DISCONTINUITY` | a step much larger than the local trend: the science, or a chain failure, and the diagnostic says both |
 | `SEQUENTIAL_PATH_DEPENDENT` | with `direction="both"`, forward and backward disagree by more than their esds allow |
-| `SEQUENTIAL_PERSISTENT_FINDING` | one of the *per-pattern* codes fired in more than half the patterns — so it is about the model, not about a pattern |
+| `SEQUENTIAL_PERSISTENT_FINDING` | one of the *per-pattern* codes fired in more than half the patterns, so it is about the model rather than about a pattern |
 
 The last one exists because of an arithmetic problem the others do not have. A
 per-pattern diagnostic can only say "this pattern". In a run of 68 it therefore
-cannot say **"42 of 68"** — and that is the sentence you act on, because one
+cannot say **"42 of 68"**, and that is the sentence you act on, because one
 `BOUND_HIT` is a pattern that hit a bound while a `BOUND_HIT` in most of them is
 a bound that is wrong. It counts each (code, parameter) pair over the entries
 and states the fraction once, in `value`; the per-entry diagnostics still carry
@@ -276,9 +277,9 @@ diagnostic table, which this chapter does not restate.
 
 ### The ladder, and quarantine
 
-A rejected warm fit escalates **one rung at a time** — the collapsed warm refit,
-then the full staged plan from the warm state, then the full staged plan cold —
-each rung run only when the fence still fires on the best attempt so far, and
+A rejected warm fit escalates **one rung at a time**: the collapsed warm refit,
+then the full staged plan from the warm state, then the full staged plan cold.
+Each rung runs only when the fence still fires on the best attempt so far, and
 the best attempt kept whichever rung produced it. `SeriesEntry.rungs_tried`
 names them, so the escalation is auditable, and `SeriesEntry.n_iterations` is
 the sum over exactly those.
@@ -314,7 +315,7 @@ that disagrees.
 
 It is the only check that separates a measured trajectory from an ordering
 artefact, and on real data it is selective. On the round-robin series it flagged
-**nine** parameters, and every one of them was a broadening term —
+**nine** parameters, and every one of them was a broadening term:
 `phases.*.lor_size`, `gauss_size`, `gauss_strain`, `lor_strain`,
 `instrument.profile.x` and `instrument.geometry.axial_sl`. Not one cell
 parameter and not one scale: the trajectories anyone would plot from that series
@@ -322,9 +323,9 @@ were order-independent, and the widths were not.
 
 Two things to know before reading the σ multiples in those messages. They are
 ratios to a *fitted* esd, so a parameter sitting near zero with an esd near zero
-reports a spread of thousands of σ that is not a physical scale — read the two
-values the message quotes, not the multiple. And the trajectory the messages
-compare against is `SeriesResult.backward` — the reverse chain's own
+reports a spread of thousands of σ that is not a physical scale, so read the two
+values the message quotes rather than the multiple. And the trajectory the
+messages compare against is `SeriesResult.backward`, the reverse chain's own
 `SeriesResult`, set whenever `direction="both"` completed, so a run made
 through `refine_sequential` can read the second trajectory and not only the
 verdict about it. Its own `backward` is `None`: one extra level, not a cycle,
@@ -348,7 +349,7 @@ and `series_cold` on a restart. Those are added fields on existing kinds, so no
 Cancelling a series **returns** what completed rather than raising. That is not
 an exception to the cancellation rule but the rule applied one level up: a
 series is N separate refinements, so the pattern in flight is abandoned by
-`Refinement.fit` itself — no node, no commit, models restored — while the
+`Refinement.fit` itself (no node, no commit, models restored) while the
 patterns already walked are finished fits with committed nodes. Raising would
 throw those away. `SEQUENTIAL_CANCELLED` says how many of how many were reached,
 so a short `entries` list is never mistaken for a short series.
@@ -363,15 +364,15 @@ the experiment.
 
 ## Constraining a parameter across the series
 
-Fitting a(T) to a functional form of T across every pattern at once —
-parametric refinement, {cite}`stinton2007` — is a *joint* fit over the
-series, and it is deliberately not implemented. The fences above exist partly so
+Fitting a(T) to a functional form of T across every pattern at once, which is
+parametric refinement {cite}`stinton2007`, is a *joint* fit over the series, and
+it is deliberately not implemented. The fences above exist partly so
 that a sequential trajectory is never mistaken for one.
 
 ## A joint fit shares parameters instead
 
 `MultiHistogramRefinement` refines one `Structure` against several patterns at
-once, each with its own `Instrument` — different wavelength, geometry,
+once, each with its own `Instrument` for a different wavelength, geometry,
 resolution or background. The histograms are stacked into one residual
 {cite}`vondreele1997`: shared structural parameters draw information from
 every pattern, while each pattern keeps its own scale, background, zero and
@@ -390,7 +391,7 @@ instruments given to the constructor, and the two lists must be the same length.
 
 `MultiHistogramRefinement.n_histograms` is how many there are, and
 `MultiHistogramRefinement.mtable` is the multi-histogram parameter table
-underneath — one ordinary table per histogram, threaded by a column map that
+underneath: one ordinary table per histogram, threaded by a column map that
 folds the shared columns onto one. After a fit,
 `MultiHistogramRefinement.fitted_structures` and
 `MultiHistogramRefinement.fitted_instruments` hold the per-histogram refined
@@ -400,13 +401,14 @@ resolution differ.
 
 **Rietveld mode only.** Le Bail and Pawley intensities are per-pattern empirical
 extractions rather than shared quantities, so a multi-histogram fit of them
-would be independent single fits — not the joint-residual point of the module.
+would be independent single fits, which is not the joint-residual point of the
+module.
 
 ### Which parameters are shared
 
 `SharingMap` decides. The default rule is instrument-versus-sample: a path is
 **per-histogram** if it starts with `instrument.` or ends with `.scale`, and
-shared otherwise — one specimen, one crystal.
+shared otherwise: one specimen, one crystal.
 
 ```python
 from rietx.params.multi import SharingMap
@@ -435,8 +437,8 @@ assert per_mount.is_shared("phases.0.cell.a")
 `SharingSpec.per_histogram` and `SharingSpec.shared`, with `SharingSpec.to_map`
 to convert; it is what the JSON surface takes ([](agents.md)).
 
-Per-histogram parameters are named with a `hist.{h}.` scope —
-`hist.0.instrument.zero_shift`, `hist.1.phases.0.scale` — while shared ones keep
+Per-histogram parameters are named with a `hist.{h}.` scope
+(`hist.0.instrument.zero_shift`, `hist.1.phases.0.scale`) while shared ones keep
 their bare path. A turn-on glob matches either form, so an existing
 single-histogram plan frees every histogram's copy unchanged, and a scoped glob
 targets one.
@@ -461,7 +463,7 @@ An empty list means an ordinary single-histogram fit.
 
 **A pooled Rwp is never quoted alone.** Stacking patterns into one residual
 means a single pooled number can hide a badly fitting histogram, which is the
-failure this package's reporting exists to prevent — so each histogram reports
+failure this package's reporting exists to prevent, so each histogram reports
 its own. Measured on two LaB₆ patterns of the same crystal at λ = 0.41390 Å
 (4200 points) and λ = 0.71070 Å (8000 points), the pooled Rwp was 0.0516 while
 the two histograms were at 0.0414 and 0.0613. The pooled figure describes
@@ -479,8 +481,9 @@ per pattern. Reports are per-histogram for the same reason the statistics are.
 ### What the joint fit bought
 
 On those two LaB₆ patterns the shared cell came back identical in both entries
-of `MultiHistogramRefinement.fitted_structures` — a = 4.156604 Å against the
-4.15660 Å the patterns were built from, +1.0 ppm — while the per-histogram zero
+of `MultiHistogramRefinement.fitted_structures`, a = 4.156604 Å against the
+4.15660 Å the patterns were built from and +1.0 ppm out, while the per-histogram
+zero
 shifts separated correctly, 0.006019° and −0.009974° against the 0.006° and
 −0.010° that went in. Its esd was 3.26 × 10⁻⁶ Å, against 6.36 × 10⁻⁶ and
 3.80 × 10⁻⁶ from the two patterns refined singly: 1.95× and 1.16× better than

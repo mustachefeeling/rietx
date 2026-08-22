@@ -352,10 +352,10 @@ A flat plate, `kind="bragg_brentano"` or `kind="flat_plate_transmission"`:
 | `Geometry.thickness_mm` | float or None | `None` | specimen thickness in mm, an estimator input for µt |
 | `Geometry.surface_roughness` | `RoughnessSuortti`, `RoughnessPitschke` or None | `None` | low-angle intensity loss, {eq}`corr-suortti` or {eq}`corr-pitschke`; reflection only |
 
-Two things here are easy to get wrong.
+Two things here catch people out.
 
-**The absorption coefficients are plain floats, not parameters, and their off
-states disagree.** A capillary is off at µR = 0, and a flat plate in reflection
+The absorption coefficients are plain floats rather than parameters, and their
+off states disagree. A capillary is off at µR = 0, and a flat plate in reflection
 is off at µt = ∞, which is what leaving `mu_t` unset means: a specimen thicker
 than the penetration depth needs no correction, since it is exactly degenerate
 with the scale. So `mu_t` absent is not `mu_t = 0`, and `mu_t = 0` under
@@ -460,8 +460,8 @@ reported; [](results.md) has the table.
 
 ## Calibrating an instrument once and reusing it
 
-The instrument ⊕ sample split is only worth anything if the instrument half
-comes from somewhere other than the sample you are measuring. The workflow is
+The instrument ⊕ sample split works only when the instrument half comes from
+somewhere other than the sample you are measuring. The workflow is
 three steps, and the middle one is a file.
 
 1. **Calibrate** on a line-profile standard with its certified cell held fixed.

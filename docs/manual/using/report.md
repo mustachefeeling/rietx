@@ -1,8 +1,8 @@
 # The fit report
 
 A converged fit gives you Rwp. The report gives you *where* the model and the
-data disagree, *what kind* of error would explain it, and — separately — how
-much of that the package is willing to stand behind.
+data disagree, *what kind* of error would explain it, and, separately, how much
+of that the package is willing to stand behind.
 
 :::{admonition} For agents
 :class: agent
@@ -14,8 +14,8 @@ A person gets more out of it than out of Rwp too, and `FitReport.summary` is a
 paragraph of prose written for exactly that reader.
 
 This chapter is the **object model**: what a `FitReport` carries, field by
-field, and how to get one. The **judgement** — what to believe, in what order,
-when to disbelieve Rwp, and how to act on an abstention — is
+field, and how to get one. The judgement (what to believe, in what order, when
+to disbelieve Rwp, and how to act on an abstention) is
 [`docs/AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)
 §4 to §6, and this chapter does not restate a line of it.
 :::
@@ -50,7 +50,7 @@ or absent for a stated reason:
 
 | Field | Is | Section |
 |---|---|---|
-| `FitReport.thresholds_version` | the contract version above | — |
+| `FitReport.thresholds_version` | the contract version above | n/a |
 | `FitReport.rwp`, `FitReport.gof` | the two headline statistics | Layer 0 |
 | `FitReport.regions`, `FitReport.n_regions_total` | the misfit clustered in 2θ | Layer 0 |
 | `FitReport.unmatched` | peaks on one side only | Layer 0 |
@@ -83,16 +83,16 @@ Nothing here depends on the model being right, so nothing here can be wrong
 about the *data*.
 
 - `FitReport.rwp` and `FitReport.gof`, the two headline statistics.
-- `FitReport.regions` — the misfit clustered into 2θ regions, worst first.
+- `FitReport.regions`, the misfit clustered into 2θ regions, worst first.
   `FitReport.n_regions_total` says how many there were before the list was
-  truncated: on the NAC Rietveld fit, 15 regions are reported of 52 found, and
+  truncated: on the NAC Rietveld fit, 15 regions are reported of 53 found, and
   they carry 74 % of χ².
-- `FitReport.unmatched` — one `UnmatchedPeak` per observed peak the model does
+- `FitReport.unmatched`, one `UnmatchedPeak` per observed peak the model does
   not account for, and per calculated peak with no observed intensity. This is
   how an impurity phase announces itself.
-- `FitReport.cumulative_chi2_breakpoints` — where along 2θ the running χ² jumps,
+- `FitReport.cumulative_chi2_breakpoints`, where along 2θ the running χ² jumps,
   which localises a problem that a per-region view spreads thin.
-- `FitReport.summary` — one paragraph of prose assembled from the above.
+- `FitReport.summary`, one paragraph of prose assembled from the above.
 
 ### One misfit region
 
@@ -100,7 +100,7 @@ about the *data*.
 |---|---|---|
 | `Region.two_theta_lo`, `Region.two_theta_hi` | the region's edges, in degrees | cut from the peak clusters, so a region is a group of overlapping peaks and not a fixed window |
 | `Region.local_rwp` | Rwp computed over those channels alone | comparable with the headline number, and usually far worse |
-| `Region.chi2_share` | its share of the total χ² | what makes a region worth attention: a terrible local Rwp on 0.1 % of χ² is not where the fit is failing |
+| `Region.chi2_share` | its share of the total χ² | the field that says whether a region matters: a terrible local Rwp on 0.1 % of χ² is not where the fit is failing |
 | `Region.max_abs_delta_over_sigma` | the largest \|Δ\|/σ inside it | how bad the worst single channel is, in units the data supplied |
 | `Region.n_reflections` | reflections whose centres fall inside | zero means the misfit is not on a peak this model has, which is the impurity signature |
 
@@ -115,8 +115,9 @@ about the *data*.
 The list is per **channel**, not per peak, so one strong impurity line
 contributes a run of neighbouring entries. The length of the list is therefore a
 measure of extent, and never of how many peaks or phases are missing. Measured on
-the NAC Rietveld fit: 138 entries, of which 84 are `unmatched_calc` and 54
-`unmatched_obs` — and those 54 sit in **four** clusters, at 5.08°, 12.07°, 12.21°
+the NAC Rietveld fit: 138 entries, of which 85 are `unmatched_calc` and 53
+`unmatched_obs`, and those 53 sit in four clusters. Forty-eight of them lie
+across 4.87 to 5.30°, and the rest are one or two entries each at 12.03°, 12.20°
 and 12.44°. Cluster the positions before counting anything.
 
 ## Layer 1: attributing the misfit
@@ -124,7 +125,7 @@ and 12.44°. Cluster the positions before counting anything.
 Layer 1 answers a different question: *what kind* of error is this?
 
 The residual in each region is projected onto a shape-derivative basis built
-from the profile itself — intensity, position, width, mixing, axial asymmetry —
+from the profile itself (intensity, position, width, mixing, axial asymmetry),
 so the answer reads "the peaks here are 0.01° low and 5 % too weak", whichever
 parameters happen to be free. The five columns are not orthogonal, so they are
 fitted in one joint weighted solve rather than by independent dot products,
@@ -164,9 +165,9 @@ which would cross-contaminate.
 
 `value` and `share` answer different questions, and reading one for the other is
 the common mistake. Measured on the NAC Rietveld fit at 12.30°: the width
-coefficient is +0.0010° against a mixing coefficient of +0.27, so mixing is the
-larger *number*, while their shares are 0.46 and 0.38 — the width is what the
-region's misfit is mostly made of.
+coefficient is +0.0010° against a mixing coefficient of +0.28, so mixing is the
+larger *number*, while their shares are 0.45 and 0.39, which makes the width
+what the region's misfit is mostly made of.
 
 ### The four gates
 
@@ -182,10 +183,10 @@ not passing:
 | validity radius | `outside_validity_radius` | a peak more than {{ VALIDITY_RADIUS_FWHM }}·FWHM from where the position coefficient would put it, so that linearising it is meaningless. The answer must be "re-detect this peak", never a confident small offset |
 
 `RegionAttribution.gates_passed` is the verdict, and
-`RegionAttribution.gate_failures` names each failure — a `GateFailure` whose
+`RegionAttribution.gate_failures` names each failure, so a rejected reading
+tells you *why* it was rejected. Each is a `GateFailure` whose
 `GateFailure.code` is one of the four above (branch on it) and whose
-`GateFailure.message` carries the measured numbers — so a rejected reading tells
-you *why* it was rejected.
+`GateFailure.message` carries the measured numbers.
 
 A region that fails still reports its coefficients. They are there for
 transparency, not for reading as causes.
@@ -194,9 +195,9 @@ transparency, not for reading as causes.
 
 Above the per-region view, `FitReport.trends` regresses the region coefficients
 against the angular templates a per-region view structurally cannot see: width
-against 1/cos θ and tan θ, intensity against sin²θ/λ² — the
-displacement-parameter signature — and position against the shapes **its own
-geometry has**. A Bragg-Brentano fit is tested against constant, cos θ, sin 2θ
+against 1/cos θ and tan θ, intensity against sin²θ/λ² (the
+displacement-parameter signature), and position against the shapes its own
+geometry has. A Bragg-Brentano fit is tested against constant, cos θ, sin 2θ
 and tan θ; a capillary against constant, sin 2θ, cos 2θ and tan θ, because a
 specimen displacement in the flat-plate sense is not an error a capillary can
 make. Fitting the union would name aberrations the instrument does not have,
@@ -256,14 +257,15 @@ when it is most needed.
 | `TextureAnalysis.runner_up_axis`, `TextureAnalysis.runner_up_r2` | the best non-equivalent alternative and its score | close to `TextureAnalysis.r2` means the axis is not cleanly resolved |
 | `TextureAnalysis.caveat` | evidence elsewhere in the report that manufactures this signature | currently strong unmatched observed peaks: un-modelled intensity leaks into the per-reflection extraction, so an impurity can read as texture. A detection carrying a caveat measures the residual, not the specimen |
 
-Measured on NAC: both phases report `detected=False` while carrying a best axis
-of (2 1 0) at r² 0.14 and 0.36, with runner-up axes at 0.14 and 0.36 — the two
-scores are indistinguishable, which is the state the field exists to report.
+Measured on NAC: both phases report `detected=False` while carrying a best axis,
+(2 1 0) at r² 0.12 for the major phase and (2 0 1) at 0.35 for the impurity. The
+runners-up score 0.11 and 0.34, so neither axis is distinguishable from its
+alternative, which is the state the field exists to report.
 
 | Field | Is | Reads as |
 |---|---|---|
 | `StrainAnalysis.phase_index` | which phase | |
-| `StrainAnalysis.detected` | the verdict | the widths are *directional* — a function of hkl, not of 2θ — and a Stephens block is worth declaring |
+| `StrainAnalysis.detected` | the verdict | the widths are *directional*, a function of hkl rather than of 2θ, and a Stephens block is the model for it |
 | `StrainAnalysis.anisotropy` | the fitted broadest/narrowest Λ ratio | reads as "widths along (0 0 l) are 3.4× those along (h k 0)". Its ceiling value means the fit wants zero strain along the narrowest direction, so the ratio is unbounded rather than measured |
 | `StrainAnalysis.broadest_hkl`, `StrainAnalysis.narrowest_hkl` | the two directions | null when no two reflections contrast enough to name them |
 | `StrainAnalysis.r2` | measured against an **isotropic-strain** baseline | so it answers "how much of the width variation is directional", never "how much of it is strain": a uniformly over-broad specimen scores near zero here and belongs to `instrument.profile.y` and the phase's `lor_strain` instead |
@@ -273,7 +275,7 @@ scores are indistinguishable, which is the state the field exists to report.
 | `StrainAnalysis.separable` | whether the patterns are individually resolved | false leaves the ratio and the directions standing while the per-pattern breakdown does not: refine the block and read the fit, do not quote coefficients |
 
 `StrainAnalysis.detected` measures the **specimen**, not the residual. Refining a
-`Phase.microstrain` block does not turn it False — it makes the two agree,
+`Phase.microstrain` block does not turn it False: it makes the two agree,
 because the anisotropy is still there and is now modelled. Suppressing the
 matching suggestion once the parameters are free is the Layer 2 veto's job, not
 this field's.
@@ -288,20 +290,19 @@ says so in `FitReport.abstained_reason`, and classifies the abstention in
 |---|---|---|
 | `immature` | Rwp is high enough that the residual is dominated by something the shape basis cannot represent at all | a better starting model. Attributing structure to this residual would attribute it to the starting model |
 | `resolution_limited` | the basis explains the misfit but its edit directions are indistinguishable on merged peaks | often nothing. On broad-peak data this is a legitimate stopping point, and the misfit stays readable in aggregate through Rwp and the Le Bail gap |
-| `unreadable` | real misfit the local gates refuse to read, including widespread validity failure | re-detect the peaks, or re-check the cell — the position-family evidence the reindex action carries |
+| `unreadable` | real misfit the local gates refuse to read, including widespread validity failure | re-detect the peaks, or re-check the cell, using the position-family evidence the reindex action carries |
 
 An abstention is information. It says the next move is a better starting model,
 not a better interpretation. Do not convert it into a number.
 
-**And it is not monotone in Rwp.** The gate is share-based: it asks what fraction
-of the misfitting χ² sits in regions the local gates accept, so a fit can improve
-and start abstaining. Measured across the NAC Le Bail plan's five stages, Rwp
-falls 3.17 → 1.04 → 0.184 → 0.163 → 0.146 while the abstention goes
-`immature` → `immature` → none → `unreadable` → `unreadable`. The third stage
-speaks and the fourth, with a better fit, does not:
+It is also not monotone in Rwp. The gate is share-based: it asks what fraction
+of the misfitting χ² sits in regions the local gates accept, and that share can
+fall while the fit improves. Measured across the NAC Le Bail plan's five stages,
+Rwp falls 3.18 → 1.04 → 0.168 → 0.159 → 0.144, and over the last three the
+accepted share falls with it, 32 % → 27 % → 16 %:
 
 ```text
-regions carrying 56% of χ² misfit, but only 32% of that sits in regions
+regions carrying 53% of χ² misfit, but only 16% of that sits in regions
 the local gates accept (need 40%); Layer 1 abstains
 ```
 
@@ -320,7 +321,7 @@ background failure modes are both invisible in every other statistic, and they
 fail in *opposite* directions.
 
 **Too flexible**: the background imitates the peaks, biasing displacement
-parameters up and scales — hence phase fractions — down, *while Rwp improves*.
+parameters up and scales (hence phase fractions) down, *while Rwp improves*.
 It is the one failure mode that makes every number an agent reads look better,
 so it is measured directly rather than inferred.
 
@@ -330,7 +331,7 @@ no region and no attribution can reach it.
 
 | Field | Is | Reads as |
 |---|---|---|
-| `BackgroundEvidence.absorption` | per structural parameter, the block projection R² of its Jacobian column onto the background column span | the too-flexible detector. A pairwise ρ cannot see it: measured ~0.2 per coefficient while the block absorbed ~46 %. Every screened parameter is reported, not only the notable ones, because the number is the evidence. Null — rather than empty — when the fit carried no Jacobian-time measurement |
+| `BackgroundEvidence.absorption` | per structural parameter, the block projection R² of its Jacobian column onto the background column span | the too-flexible detector. A pairwise ρ cannot see it: measured ~0.2 per coefficient while the block absorbed ~46 %. Every screened parameter is reported, not only the notable ones, because the number is the evidence. Null rather than empty when the fit carried no Jacobian-time measurement |
 | `BackgroundEvidence.worst_absorption` | the largest of those | one number to threshold |
 | `BackgroundEvidence.worst_absorption_path` | which parameter | null when nothing was measured |
 | `BackgroundEvidence.off_region_chi2_share` | share of χ² lying outside every region | the too-stiff remainder, made explicit |
@@ -341,16 +342,16 @@ no region and no attribution can reach it.
 | `BackgroundEvidence.rwp_background_subtracted` | Rwp with the background out of the denominator {cite}`toby2006` | how much of the headline number is background rather than fit |
 | `BackgroundEvidence.background_share` | Σy_bkg / Σy_obs | the same question asked of the data |
 
-The last pair is **context and never a finding**, which is why nothing triggers
-on it. Measured on two *converged* LaB₆ controls, a sharp fit and one under 0.6°
-of extra broadening both report Rwp 0.0137 while background-subtracted they read
-0.0490 and 0.0766 at a background share of 0.89 — every background-dominated
+The last pair is context and never a finding, which is why nothing triggers on
+it. Measured on two *converged* LaB₆ controls, a sharp fit and one under 0.6° of
+extra broadening both report Rwp 0.0137 while background-subtracted they read
+0.0490 and 0.0766 at a background share of 0.89. Every background-dominated
 pattern crosses any useful threshold, so a trigger would fire on every lab fit.
 Read it wherever a raw Rwp is about to be quoted.
 
-On the NAC Rietveld fit the pair reads 0.0932 against 0.1106 at a background
-share of 0.25, and the stiff side is the live one: χ²_red 2.47 at d = 0.41 over
-12 248 off-region channels, which is 11 % of χ² that no region entry covers.
+On the NAC Rietveld fit the pair reads 0.0933 against 0.1108 at a background
+share of 0.25, and the stiff side is the live one: χ²_red 2.50 at d = 0.40 over
+12 275 off-region channels, which is 11 % of χ² that no region entry covers.
 
 ### Whether the esds mean what they appear to
 
@@ -383,11 +384,11 @@ carries `ExchangeRow`, the report carries the richer `ExchangeFinding` below.
 | `SoftMode.eigenvalue` | the eigenvalue of the scale-normalised normal matrix; small is soft |
 | `SoftMode.loadings` | dot-path → component, so the mode reads as a combination |
 
-Measured on the NAC Rietveld fit: esd inflation 9.4 at d = 0.18, and the softest
+Measured on the NAC Rietveld fit: esd inflation 9.3 at d = 0.18, and the softest
 mode has eigenvalue 0.0032 loading +0.80 on `instrument.profile.v` against −0.43
-and −0.41 on `instrument.profile.u` and `instrument.profile.w` — the Caglioti
-trio, which the pairwise list can only show as three separate numbers, −0.94,
-−0.94 and +0.80. The
+and −0.41 on `instrument.profile.u` and `instrument.profile.w`. That is the
+Caglioti trio, which the pairwise list can only show as three separate numbers,
+−0.94, −0.94 and +0.80. The
 third mode is `instrument.zero_shift` against `phases.0.cell.a` at 0.71 each,
 which is [](concepts.md)'s standing degeneracy measured on a real fit.
 
@@ -424,7 +425,7 @@ remaining misfit a free-intensity fit could remove.
 | `LeBailGap.n_cycles` | partitioning cycles run | the measurement's own setting |
 
 Read `LeBailGap.ratio` ≫ 1 as: the partition, free to reassign every intensity,
-removes most of the misfit — so every line is indexed and the profile is right,
+removes most of the misfit, so every line is indexed and the profile is right,
 and the *intensity* model (structure, contents, occupancies) is what is wrong.
 Phase identification is then safe at any absolute Rwp. Measured on a pore-proxy
 fixture with a guest scatterer present in the data only, the ratio is 2.38
@@ -433,11 +434,11 @@ displaces the partition's peaks identically, so the gap stays flat and cannot be
 confused with a position error. A ratio near 1 says intensities are not where the
 remaining misfit lives; it never says the fit is good.
 
-It is null outside Rietveld mode, which is absence for cause — a Le Bail fit is
+It is null outside Rietveld mode, which is absence for cause: a Le Bail fit is
 already the free-intensity answer. This is the IUCr guidelines' rule that a
 structure-free fit's Rwp is the best profile fit the data allow, and a Rietveld
 Rwp should approach it {cite}`mccusker1999`, measured rather than left to the
-reader. On the NAC Rietveld fit it reads 0.0932 against 0.0806 over five cycles,
+reader. On the NAC Rietveld fit it reads 0.0933 against 0.0806 over five cycles,
 a ratio of 1.16.
 
 ### Restraints and geometry
@@ -446,11 +447,11 @@ a ratio of 1.16.
 `RestraintReport.weight_scale` recording the c_w the stage ran at, so a deviation
 can be read against the weight that was insisting on it.
 
-`FitReport.geometry` is a `GeometryTable` — the distances and angles, carried
+`FitReport.geometry` is a `GeometryTable`, the distances and angles carried
 through from the result. It is the one section here that measures the *structure*
 rather than the fit, which is why it survives an abstention unchanged: "are these
 distances chemically sensible" is the question a reader asks first when the
-profile evidence refuses to speak. Nothing scores it — see [](results.md) for
+profile evidence refuses to speak. Nothing scores it. See [](results.md) for
 both objects' fields and for what the esds mean.
 
 ## Layer 2: suggested actions
@@ -467,15 +468,15 @@ both objects' fields and for what the esds mean.
 | `SuggestedAction.expected_delta_chi2` | the linear model's predicted Δχ², or null | see the two caveats below |
 | `SuggestedAction.two_theta_range` | where the evidence is, in degrees | null when the evidence is the whole pattern |
 | `SuggestedAction.vetoed_by` | where the strategy engine overruled it | set when the plan already refines the parameter, or a guard forbids it |
-| `SuggestedAction.execution` | how the kind is carried out: `"stage"`, `"index"` or `"advice"` | quoted from the package's one recipe table; `"advice"` is what says empty `parameter_paths` is by design. Null only on an action built by hand — never in a report |
+| `SuggestedAction.execution` | how the kind is carried out: `"stage"`, `"index"` or `"advice"` | quoted from the package's one recipe table; `"advice"` is what says empty `parameter_paths` is by design. Null only on an action built by hand, never in a report |
 | `SuggestedAction.active` | true when nothing vetoed it | the predicate a trajectory filters on |
 
-The vocabulary is closed. Thirteen actions free parameters —
-`refine_zero_shift`, `refine_sample_displacement`, `refine_sample_transparency`,
+The vocabulary is closed. Thirteen actions free parameters
+(`refine_zero_shift`, `refine_sample_displacement`, `refine_sample_transparency`,
 `refine_capillary_offset_along_beam`, `refine_capillary_offset_across_beam`,
 `refine_cell`, `refine_profile_widths`, `refine_sample_size_broadening`,
 `refine_sample_strain_broadening`, `refine_axial_asymmetry`, `refine_biso`,
-`refine_preferred_orientation` and `refine_scale` — and five ask for something
+`refine_preferred_orientation` and `refine_scale`), and five ask for something
 else: `add_impurity_phase`, `increase_background_flexibility`,
 `decrease_background_flexibility`, `reindex_or_recheck_cell` and
 `collect_better_data`. Only the first thirteen carry
@@ -486,8 +487,8 @@ for `reindex_or_recheck_cell`, `"advice"` for the other four.
 `SuggestedAction.expected_delta_chi2` has two properties that matter to anything
 rendering it. It is **one number per report, not per action**: it is computed
 once and stamped on every Layer-1-derived action, so it cannot rank or
-distinguish suggestions, and the texture actions — whose evidence is
-per-reflection — carry null instead. And it is **not a bound on what applying the
+distinguish suggestions, and the texture actions, whose evidence is
+per-reflection, carry null instead. And it is **not a bound on what applying the
 action achieves**: it bounds the misfit the linear model attributes inside the
 *gated* regions, while a refinement also moves regions that failed a gate and
 stretches no region entry covers (measured: 16.19 predicted against 16.33
@@ -510,12 +511,12 @@ you.
 ## Which parameter to free next
 
 Layer 2 reads the residual's *shape*. `Refinement.suggest` asks the same question
-from the other side — which held parameter has the most leverage on χ² at this
-exact state — and the two are independent methods whose agreement is worth more
-than either alone. Neither ranks by leverage alone, and the literature states
-why not (Toby {cite}`toby2024`, §4): the largest-derivative parameter is not
-always appropriate to vary — his example frees an instrument width where the
-broadening belongs to the sample. That is the reason leverage arrives as a
+from the other side: which held parameter has the most leverage on χ² at this
+exact state. They are independent methods, and their agreement is stronger
+evidence than either alone. Neither ranks by leverage alone, and the literature
+states why not (Toby {cite}`toby2024`, §4): the largest-derivative parameter is
+not always appropriate to vary, and his example frees an instrument width where
+the broadening belongs to the sample. That is the reason leverage arrives as a
 ranked list under the same strategy veto, never as an instruction.
 
 <!-- api-doc: no-exec — it needs a refinement that has run -->
@@ -535,7 +536,7 @@ of the models, no history node is recorded, and the working state is untouched.
 |---|---|---|
 | `SuggestionResult.groups` | the ranked answer, each a `CandidateGroup` | descending gain, and carrying only candidates above the noise floor. **A converged fit therefore has an empty list, which is the correct suggestion** |
 | `SuggestionResult.non_separable` | candidates the absorption gate refused | their own `ParameterCandidate.absorption` says why. Reported, not dropped |
-| `SuggestionResult.skipped` | dot-paths whose columns have zero norm at this state | no leverage either way — usually a correction the geometry does not have |
+| `SuggestionResult.skipped` | dot-paths whose columns have zero norm at this state | no leverage either way, usually a correction the geometry does not have |
 | `SuggestionResult.n_evaluated` | how many candidates were scored in total | what makes "no suggestion" distinguishable from "nothing was looked at" |
 | `SuggestionResult.chi2_red` | the current state's χ²/ν, seeded candidates excluded | the scale the floor is set from |
 | `SuggestionResult.noise_floor` | the gain gate that was applied | {{ SUGGEST_MIN_GAIN }} × the larger of that χ²/ν and 1, so a fit already at χ²/ν ≤ 1 does not get a gate below the constant. Stored, so the serialized result explains its own gate |
@@ -559,18 +560,17 @@ of the models, no history node is recorded, and the working state is untouched.
 | `ParameterCandidate.action_kind` | the matching `SuggestedAction.kind`, when the paths agree | the cross-reference: two independent methods naming the same move |
 
 Measured on the NAC Rietveld fit, `ref.suggest(data)` scores 29 candidates in
-0.9 s against a noise floor of 112 and returns five groups, all resolved. The
-two refusals are the informative part: `phases.1.atoms.0.occ` and
-`phases.1.atoms.1.occ` carry the same gain of 7534 and one is held back at an
-absorption of 0.97 — a two-site occupancy pair that sums to one — while
-`instrument.polarization` is refused at an absorption of exactly 1.000. Two more
-are skipped for zero column norm, `instrument.geometry.axial_sl` and
-`instrument.geometry.axial_hl`, which is a synchrotron capillary having no axial
-divergence to refine.
+0.3 s against a noise floor of 112 and returns five groups, all resolved. The
+two refusals are the informative part. `phases.1.atoms.0.occ` is held back at an
+absorption of 0.973 with a gain of 7529, which is the impurity's two-site
+occupancy pair summing to one, and `instrument.polarization` is refused at an
+absorption of exactly 1.000. Two more are skipped for zero column norm,
+`instrument.geometry.axial_sl` and `instrument.geometry.axial_hl`, which is a
+synchrotron capillary having no axial divergence to refine.
 
 ## Reports at every stage
 
-**A converged report is routinely the least informative one in the run.** A plan
+A converged report is routinely the least informative one in the run. A plan
 absorbs an error it cannot free into whatever it can, and arrives converged with
 nothing to suggest, while its own first stage named the cause out loud. So the
 report exists at every stage boundary, not only at the end:
@@ -587,12 +587,12 @@ rungs are read off states the plan already visits, so the answer is
 bit-identical to the run without them.
 
 A rung is a **projection**, not a second report. It carries the numbers a fit is
-judged on, the summary sentence, and the active suggestions themselves — and it
+judged on, the summary sentence, and the active suggestions themselves. It
 deliberately carries no curves, regions or per-region attribution, because those
 are the evidence for statements the summary already makes, and a rung is a
-pointer to a state worth asking about rather than a substitute for asking. It
+pointer to a state you can then ask about rather than a substitute for asking. It
 costs what that implies: measured on the NAC Le Bail plan, the five rungs are
-2.5 to 3.7 kB each against 36 kB for the full report.
+2.5 to 2.6 kB each against 36 kB for the full report.
 
 | Field | Is | Reads as |
 |---|---|---|
@@ -600,7 +600,7 @@ costs what that implies: measured on the NAC Le Bail plan, the five rungs are
 | `StageReport.rwp`, `StageReport.gof` | the two headline statistics at that boundary | |
 | `StageReport.summary` | the same prose paragraph `FitReport.summary` carries | by construction, so a rung and a report cannot describe the same state differently |
 | `StageReport.abstained_reason`, `StageReport.abstained_kind` | the abstention at that rung | this is where the non-monotone reading above is visible |
-| `StageReport.actions` | `SuggestedAction` verbatim, **active only** | not re-typed, so there is one authority for what a suggestion is. A vetoed suggestion at a stage boundary is the plan's own next stage answering it — the least informative thing a trajectory can repeat five times |
+| `StageReport.actions` | `SuggestedAction` verbatim, **active only** | not re-typed, so there is one authority for what a suggestion is. A vetoed suggestion at a stage boundary is the plan's own next stage answering it, the least informative thing a trajectory can repeat five times |
 | `StageReport.n_actions_omitted` | how many the cap dropped | nothing is dropped silently |
 | `StageReport.n_actions_vetoed` | how many the strategy veto removed | so the count survives even though the actions do not |
 | `StageReport.n_unmatched_obs`, `StageReport.n_unmatched_calc` | the two Layer 0 counts | a phase arriving or leaving shows here first |
@@ -609,22 +609,22 @@ costs what that implies: measured on the NAC Le Bail plan, the five rungs are
 | `StageReport.worst_absorption`, `StageReport.worst_absorption_path` | the background-absorption pair, or null | the too-flexible one |
 
 `FitReport.for_stage` builds one of these from a report. Note what it does: it
-projects **this** report — the state it was built from — and stamps the name you
+projects **this** report, the state it was built from, and stamps the name you
 pass on the result. It does not look a past stage up, and passing the name of an
 earlier stage does not recover that stage's numbers. Use `Refinement.stage_reports_`
 for the trajectory, and `FitReport.for_stage` to put a single report into rung
 shape.
 
-A `StageReport` is the report at a stage boundary. The stage's own arithmetic —
-what it freed, how many iterations it took, whether it converged — is a
+A `StageReport` is the report at a stage boundary. The stage's own arithmetic
+(what it freed, how many iterations it took, whether it converged) is a
 `StageResult`, in [](refining.md).
 
 ## Comparing settings with `rietx compare`
 
 "Did that correction help?" is not a question ΔRwp answers. Some corrections
-provably cannot move Rwp — capillary absorption is an exact reparameterisation
-of the scale and the displacement parameters — and others improve it by
-absorbing physics that belongs elsewhere.
+provably cannot move Rwp (capillary absorption is an exact reparameterisation of
+the scale and the displacement parameters), and others improve it by absorbing
+physics that belongs elsewhere.
 
 `rietx.viz.compare` runs a bundled standard under several settings and renders
 the comparison that does settle it:

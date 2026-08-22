@@ -75,7 +75,7 @@ ratio is what makes wide branching affordable.
 
 The table is the whole vocabulary, and the second column is why: every member
 is committed by a verb you can call. A Le Bail intensity refresh is not among
-them, because it is not a node — a Le Bail stage refreshes the intensities
+them, because it is not a node: a Le Bail stage refreshes the intensities
 inside itself, and the refreshed values are part of that `stage` node's state.
 
 The other fields are the arguments of the operation, and which of them are set
@@ -180,8 +180,8 @@ splitting the stage.
 
 `NodeMetrics.status` is the solver's, copied from the stage's own
 `StageResult`, so it carries that type's three values and nothing more. A node
-that ran no fit — a `set_vary`, a `set_value`, the root — carries `None`
-instead, which is the only extra state there is. A stage whose globs matched
+that ran no fit (a `set_vary`, a `set_value`, the root) carries `None` instead,
+which is the only extra state there is. A stage whose globs matched
 nothing is not one of them: it still runs, and it converges.
 
 ## Reading a tree

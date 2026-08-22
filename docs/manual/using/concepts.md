@@ -9,7 +9,7 @@ calculated pattern in nearly the same way, so the data cannot tell them apart,
 and the solver splits the difference between them however the starting point
 happened to lean. This chapter is about which parameters those are and what the
 package does about it: how they are grouped, why the groups fight, and the three
-things you can do about it — order the refinement, tie two parameters together,
+things you can do about it: order the refinement, tie two parameters together,
 or restrain a quantity you know. [](results.md) is the numbers that come back.
 
 ## The parameter groups
@@ -28,7 +28,7 @@ section is what each group does and why the groups fight.
 | instrument profile | `instrument.profile.u`, `.v`, `.w`, `.x`, `.y` | peak widths and shape | Gaussian: `w` constant, `v` tan θ, `u` tan²θ. Lorentzian: `x` 1/cos θ, `y` tan θ |
 | sample broadening | `phases.*.gauss_size`, `phases.*.lor_size`, `phases.*.gauss_strain`, `phases.*.lor_strain` | the specimen's own width contribution | size 1/cos θ, strain tan θ |
 | anisotropic strain | `phases.*.microstrain.dof.*` | width, per hkl rather than per θ | tan θ, scaled by direction |
-| coordinates | `phases.*.atoms.*.dof.*` | relative peak intensities | none — it is an hkl effect |
+| coordinates | `phases.*.atoms.*.dof.*` | relative peak intensities | none; it is an hkl effect |
 | displacement | `phases.*.atoms.*.biso`, `phases.*.atoms.*.adp.*` | intensity falling off with Q | exp(−2B sin²θ/λ²) |
 | occupancy | `phases.*.atoms.*.occ` | relative peak intensities | none |
 | intensity corrections | `phases.*.preferred_orientation.r`, `phases.*.extinction`, `instrument.geometry.surface_roughness.*` | intensity, as a smooth or hkl-selective rescaling | various, all smooth in Q |
@@ -66,8 +66,9 @@ Each curve is normalised to 1 at the middle of its range, because separability
 is a question about *shape* and not about scale: two effects that differ only by
 a constant factor are one parameter, whatever their sizes. On the left, over
 110° of data, the four are plainly different functions. On the right, over 20°,
-three of them are within a few per cent of each other and of a straight line.
-A refinement over that range reports four numbers and measures rather fewer.
+every one of them is a straight line to within 0.8 %, so the four shapes have
+little more than a constant and a slope between them. A refinement over that
+range reports four numbers and measures rather fewer.
 
 | Correlated group | Signatures | What goes wrong |
 |---|---|---|
@@ -79,14 +80,14 @@ A refinement over that range reports four numbers and measures rather fewer.
 | overlapped intensities (Le Bail, Pawley) | identical | the *sum* is determined by the data; the split is not. |
 
 Two of those groups are worse than correlated. Capillary absorption is *exactly*
-a reparameterisation of the scale and the displacement parameters — the fit is
-identical with and without it — so `Geometry.mu_r` is computed from the specimen
+a reparameterisation of the scale and the displacement parameters (the fit is
+identical with and without it), so `Geometry.mu_r` is computed from the specimen
 and never refined. Flat-plate absorption is 60 to 99 % absorbable, so
 `Geometry.mu_t` is also computed rather than refined; the part that is not
 absorbable does move Rwp, and a wrong thickness lands partly in the fit and
 partly in the displacement parameters.
 
-**Which position correction exists depends on the geometry.** `cos θ` is the
+Which position correction exists depends on the geometry. `cos θ` is the
 flat-plate specimen-displacement shape, so `Geometry.sample_displacement` and
 `Geometry.sample_transparency` are held fixed on anything that is not
 `bragg_brentano`. A capillary off the centre of the 2θ circle has its own pair,
@@ -104,16 +105,16 @@ aberration it cannot free.
 
 Two rules follow, and they are the reason plans exist:
 
-1. **Do not free the second member of a group until the first is pinned by
-   something outside the fit.** This is what the `lab_calibrate` workflow is
-   for: refining a certified standard with its **cell held fixed** is what
-   decorrelates zero shift from displacement from cell, because the cell is
-   supplied rather than fitted.
-2. **A correlation above 0.98 means you refined one parameter and reported
-   two.** The package raises `HIGH_CORRELATION` when that happens. The answer is
-   almost never to widen the bounds. Fix one of the pair, extend the data range
-   until the signatures separate, or — where chemistry says the two quantities
-   are the same quantity — constrain them to each other.
+1. Do not free the second member of a group until the first is pinned by
+   something outside the fit. This is what the `lab_calibrate` workflow is for:
+   refining a certified standard with its cell held fixed decorrelates zero
+   shift from displacement from cell, because the cell is supplied rather than
+   fitted.
+2. A correlation above 0.98 means you refined one parameter and reported two.
+   The package raises `HIGH_CORRELATION` when that happens. The answer is almost
+   never to widen the bounds. Fix one of the pair, extend the data range until
+   the signatures separate, or constrain them to each other where chemistry says
+   the two quantities are the same quantity.
 
 (constraining-parameters)=
 ## Constraining parameters to each other
@@ -155,9 +156,9 @@ project reopens with the constraint still in force.
 
 A tie shows up in the parameter listing as a held row: `refinable` is false,
 `held_because` names the sources, and `TieSpec.user` is true for the ones you
-declared. The ties the space group creates — `b` following `a` in a tetragonal
-cell, a coordinate following its site-symmetry direction — read the same way
-with that flag false, and they cannot be released: symmetry outranks a user tie
+declared. The ties the space group creates (`b` following `a` in a tetragonal
+cell, a coordinate following its site-symmetry direction) read the same way with
+that flag false, and they cannot be released: symmetry outranks a user tie
 everywhere the two meet. [](model.md) reads a held row field by field.
 
 The verbs refuse rather than approximate. A locked parameter, an already-tied
@@ -165,11 +166,11 @@ one, a source that is itself tied (which would make a chain), a target the
 current intensity mode force-fixes, and an implied value outside the target's
 own bounds are all refused with the reason and the parameter holding it.
 
-:::{admonition} What a constraint buys, and how to check it was earned
+:::{admonition} Worked example: tying three displacement parameters
 :class: tip
 
-Fluorapatite on a laboratory diffractometer, refined twice under one protocol
-— the second time with the three phosphate oxygens' `biso` tied together:
+Fluorapatite on a laboratory diffractometer, refined twice under one protocol,
+the second time with the three phosphate oxygens' `biso` tied together:
 
 | | free | tied |
 |---|---|---|
@@ -181,7 +182,7 @@ Fluorapatite on a laboratory diffractometer, refined twice under one protocol
 | B(O7) / Å² | 0.4149(1282) | 0.4138(899) |
 
 The return is precision: the constrained esd is smaller than the best of the
-three free ones. Rwp is not the evidence and cannot be — it moved by 0.05 % of
+three free ones. Rwp is not the evidence and cannot be: it moved by 0.05 % of
 itself, which is what "the constraint costs no fit quality" looks like.
 
 The check to run first is in the free column. Each of the three intervals
@@ -219,7 +220,7 @@ structure.phases[0].restraints = [bond, angle, occupancy]
 | Restraint | Names the quantity with | Target |
 |---|---|---|
 | `BondRestraint` | `BondRestraint.atom_i` and `BondRestraint.atom_j` | `BondRestraint.target`, in ångströms |
-| `AngleRestraint` | `AngleRestraint.atom_i`, `AngleRestraint.atom_j` — the **vertex** — and `AngleRestraint.atom_k` | `AngleRestraint.target_deg`, in degrees |
+| `AngleRestraint` | `AngleRestraint.atom_i`, `AngleRestraint.atom_j` (the vertex) and `AngleRestraint.atom_k` | `AngleRestraint.target_deg`, in degrees |
 | `ValueRestraint` | `ValueRestraint.path`, any dot-path in the model tree | `ValueRestraint.target`, in that parameter's own unit |
 
 The atom fields are positional indices into `Phase.atoms`, the same convention
@@ -242,7 +243,7 @@ symmetry image. `BondRestraint.op_index` selects the symmetry operation and
 `AngleRestraint.translation_i`, `AngleRestraint.op_index_k` and
 `AngleRestraint.translation_k` do the same for each arm of an angle. Leave them
 out and the minimum image is resolved once, at the stage's starting
-coordinates, and frozen for that stage — the same discreteness rule the
+coordinates, and frozen for that stage, under the same discreteness rule the
 reflection list follows. Name the image explicitly whenever a coordinate is
 expected to move far enough to change which image is nearest.
 
@@ -272,16 +273,18 @@ The two standard presets are one chain. `mccusker_default` stops after the
 widths; `mccusker_structural` continues into the structure:
 
 ```{mermaid}
-graph TD
+flowchart LR
   subgraph a ["mccusker_default"]
+    direction TB
     A["scale + background"] --> B["zero shift"] --> C["cell"]
     C --> D["W, the constant width"] --> E["U, V, X, Y"]
   end
   subgraph b ["mccusker_structural adds"]
+    direction TB
     F["coordinates"] --> G["displacement"] --> H["preferred orientation"]
     H --> I["extinction"] --> J["surface roughness"]
   end
-  E --> F
+  a --> b
 ```
 
 Each box is a `Stage`. Every stage runs to convergence with everything above it
@@ -334,9 +337,9 @@ the fit statistics exclude does not change part-way through a plan.
 
 What this buys is a *path*. On a synthetic case whose data under-determines two
 oxygen sites, starting from a Zr–O distance of 3.73 Å for a 1.87 Å bond, the
-plan above lands the bond at 1.872 Å with the coordinates 0.001 rms from truth;
-the same three stages left at c_w = 1 throughout converge with that distance at
-4.834 Å — the restraint 148σ in tension, Rwp 0.0393 against 0.0327.
+plan above lands the bond at 1.87 Å with the coordinates 1e-3 rms from truth.
+The same three stages left at c_w = 1 throughout converge with that distance at
+4.84 Å, the restraint 149σ in tension, Rwp 0.0393 against 0.0327.
 
 ```{image} figures/restraint-schedule-light.png
 :class: only-light
@@ -354,8 +357,8 @@ the same curve. Read the restraint deviations instead: the failed fit is a
 slightly worse fit, not an announcement that a bond is 4.8 Å.
 
 A stiff c_w makes a restraint more authoritative, not more correct. Where the
-chemistry assumed is wrong — the guidelines' example is a tetrahedral site that
-is really octahedral — "the refinement will not progress satisfactorily", and a
+chemistry assumed is wrong (the guidelines' example is a tetrahedral site that
+is really octahedral), "the refinement will not progress satisfactorily", and a
 higher weight makes that worse.
 
 `RestraintReport.weight_scale` records the c_w a result was measured under, so a
@@ -370,15 +373,15 @@ IUCr Rietveld refinement guidelines:
 1. **Background and scale first.** The guidelines want good starting values for
    the background before the structure is touched, and the calculated pattern
    scaled to the observed one before anything is read off a difference plot.
-2. **Peak positions before everything else.** The cell and the 2θ correction —
-   the zero shift, plus sample displacement where the geometry has one — refine
+2. **Peak positions before everything else.** The cell and the 2θ correction
+   (the zero shift, plus sample displacement where the geometry has one) refine
    before the widths and before the structure. The guidelines put it flatly:
    unless the observed and calculated peak positions match, a Rietveld
    refinement cannot and will not work.
 3. **Then the widths, then the asymmetry.** `mccusker_default` stops after the
    widths. `lab_bragg_brentano` and `lab_calibrate` continue in the guidelines'
-   order with a `lines_axial` stage — the FCJ axial-divergence ratios and the
-   Kα2 weight — after them.
+   order with a `lines_axial` stage after them, carrying the FCJ
+   axial-divergence ratios and the Kα2 weight.
 4. **Then the structure: coordinates, then displacement parameters.** The
    guidelines note that the scale, the occupancies and the displacement
    parameters are correlated with each other and are the parameters most
@@ -393,7 +396,7 @@ One departure: the guidelines suggest refining the heavier atoms' positions
 before the lighter ones, and `mccusker_structural` frees every coordinate in one
 `coordinates` stage. Nothing here measures what the split would buy. If your
 structure has a large scattering contrast and a poor starting model, split that
-stage yourself — a plan is an ordinary object.
+stage yourself; a plan is an ordinary object.
 
 Three further ordering rules are this package's own rather than the guidelines':
 
@@ -402,7 +405,7 @@ Three further ordering rules are this package's own rather than the guidelines':
   terms first and they absorb a constant offset, then fight it when `w` joins.
 - **Intensity-scaling corrections go last, after the structure has settled.**
   Preferred orientation, extinction and surface roughness all rescale
-  intensities as a function of Q — and so do the scale, the occupancies and the
+  intensities as a function of Q, and so do the scale, the occupancies and the
   displacement parameters. Free a correction early and it eats intensity that
   belongs to the structure.
 - **Anisotropic strain is freed *inside* the sample-broadening stage, not after
@@ -415,6 +418,6 @@ Three further ordering rules are this package's own rather than the guidelines':
 :class: agent
 [`docs/AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)
 §2 and §3 give the same order as an operating discipline, with the measured
-findings behind each rule — including what a Le Bail pass does that one `fit`
+findings behind each rule, including what a Le Bail pass does that one `fit`
 call cannot.
 :::

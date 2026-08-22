@@ -46,7 +46,12 @@ author = "rietx developers"
 release = _dist_version(DIST_NAME)
 version = release
 
-extensions = ["myst_parser", "sphinxcontrib.bibtex", "sphinxcontrib.mermaid"]
+extensions = [
+    "myst_parser",
+    "sphinx_design",
+    "sphinxcontrib.bibtex",
+    "sphinxcontrib.mermaid",
+]
 
 # Diagrams render in the browser (`raw` output needs no mermaid-cli at build
 # time).  The extension detects the active theme from `body[data-theme]`, which
