@@ -526,9 +526,11 @@ class Run:
     free: int
     stages: list[tuple[str, int]] = field(default_factory=list)
     status: str = ""
-    #: series cases only: (index, wall, n_iterations, Rwp, rung) per pattern,
-    #: index 0 being the cold fit and the rest warm starts
-    per_pattern: list[tuple[int, float, int, float, str]] = field(default_factory=list)
+    #: series cases only: (index, wall, n_iterations, Rwp, rung, rung_walls)
+    #: per pattern, index 0 being the cold fit and the rest warm starts.
+    #: ``wall`` sums every rung the pattern ran; ``rung_walls`` breaks it out
+    #: in ladder order, so a discarded first rung is visible (WP-1124)
+    per_pattern: list[tuple[int, float, int, float, str, list[float]]] = field(default_factory=list)
 
 
 def _shape(setup: Setup) -> tuple[int, int, float]:
@@ -577,15 +579,36 @@ def _run_series(setup: Setup) -> Run:
     for each index brackets that pattern's own refinement.  A pattern that
     escalated a rung reports the wall of the whole escalation, which is what a
     person waiting on the series experiences.
+
+    **That last sentence was a claim, not a measurement, until WP-1124.**  A
+    pattern emits one ``fit_start``/``fit_end`` pair *per rung*, so keeping the
+    latest of each reported only the rung that succeeded — and the rung that
+    succeeded is by construction the cheap one, the escalation having been
+    reached because the first was rejected.  On the ``trigger-series`` case
+    that hid 32.8 s of a 57.7 s series in two discarded first rungs: pattern 1
+    read 3.21 s and had spent 20.3 s.  The pairs are therefore accumulated in
+    arrival order and summed, and ``rungs`` prints the breakdown, because a
+    number that omits the expensive half of the expensive patterns is the one
+    number a speed milestone must not print.
     """
     from rietx.sequential import refine_sequential
 
-    marks: dict[int, dict[str, float]] = {}
+    marks: dict[int, list[tuple[str, float]]] = {}
 
     def collect(event):
         index = event.get("data", {}).get("series_index")
         if index is not None and event["kind"] in ("fit_start", "fit_end"):
-            marks.setdefault(index, {})[event["kind"]] = event["t"]
+            marks.setdefault(index, []).append((event["kind"], event["t"]))
+
+    def rung_spans(index: int) -> list[float]:
+        spans, start = [], None
+        for kind, t in marks.get(index, []):
+            if kind == "fit_start":
+                start = t
+            elif start is not None:
+                spans.append(t - start)
+                start = None
+        return spans
 
     counts = _Counts()
     with _counting(counts):
@@ -597,12 +620,11 @@ def _run_series(setup: Setup) -> Run:
                                    events=collect)
         wall = time.perf_counter() - t0
 
-    per: list[tuple[int, float, int, float, str]] = []
+    per: list[tuple[int, float, int, float, str, list[float]]] = []
     for entry in series.entries:
-        mark = marks.get(entry.index, {})
-        span = mark.get("fit_end", float("nan")) - mark.get("fit_start", float("nan"))
-        per.append((entry.index, span, entry.n_iterations,
-                    entry.statistics.rwp, entry.rung))
+        spans = rung_spans(entry.index)
+        per.append((entry.index, sum(spans), entry.n_iterations,
+                    entry.statistics.rwp, entry.rung, spans))
     last = series.entries[-1] if series.entries else None
     statuses = {e.status for e in series.entries}
     status = "converged" if statuses == {"converged"} else "/".join(sorted(statuses))
@@ -658,12 +680,19 @@ def _report(case: Case, setup: Setup, runs: list[Run]) -> None:
               "  ".join(f"{n}={i}" for n, i in last.stages))
     if last.per_pattern:
         cold = last.per_pattern[0][1]
-        warm = [w for _, w, _, _, _ in last.per_pattern[1:]]
+        warm = [w for _, w, _, _, _, _ in last.per_pattern[1:]]
+        wasted = sum(sum(s[:-1]) for _, _, _, _, _, s in last.per_pattern
+                     if len(s) > 1)
         print(f"    cold {cold:.2f} s | warm {min(warm):.2f}-{max(warm):.2f} s "
               f"over {len(warm)} patterns (last repeat)")
-        for i, w, it, rwp, rung in last.per_pattern:
+        if wasted:
+            print(f"    {wasted:.2f} s of that is rungs the ladder discarded "
+                  f"— see rungs= below")
+        for i, w, it, rwp, rung, spans in last.per_pattern:
+            detail = (f"  rungs={'+'.join(f'{s:.2f}' for s in spans)}"
+                      if len(spans) > 1 else "")
             print(f"      pattern {i:2d}  {w:7.2f} s  {it:5d} iter  "
-                  f"Rwp {rwp:.5f}  rung {rung}")
+                  f"Rwp {rwp:.5f}  kept {rung}{detail}")
 
 
 def main(argv: list[str] | None = None) -> int:
