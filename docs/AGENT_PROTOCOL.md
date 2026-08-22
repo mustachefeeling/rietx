@@ -1356,16 +1356,18 @@ walking a near-degenerate direction at ≈0.93 per iteration, and 99.99 % of the
 cost decrease is banked by evaluation 55 of 93 — the rest is digits the next
 stage refines again anyway, because stages are cumulative and the last one
 polishes everything at `1e-9`. Measured over the three lab-shaped benchmark
-cases: 1.50×, 1.71× and 1.54× fewer evaluations, every non-degenerate parameter
-within 0.02 esd of the fully converged plan, QPA within 0.003 wt %.
+cases: 1.51×, 1.62× and 1.55× fewer evaluations, every non-degenerate parameter
+within 0.03 esd of the fully converged plan, QPA within 0.0014 wt %.
 **Corollary for the agent, in three parts.** Do not read a small parameter
 difference between a 1.0.x number and a 1.1 number as a physics change; check
 `StageResult.ftol` first. Set `intermediate_ftol = None` when a number is going
 into a paper, or when you are reproducing an earlier release, and say that you
-did. And do not assume it pays on a **series**: a chained ten-pattern run
-measured 1705 evaluations against 1634 fully converged, because each pattern
-warm-starts from its predecessor and a different seed changes how many recovery
-rungs the next one needs (§9b).
+did. And **measure a series rather than assuming it**: the same chained
+ten-pattern comparison came out 1.04× *worse* on one tree and 1.12× *better* on
+the next, one commit apart, because each pattern warm-starts from its
+predecessor and a different seed changes how many recovery rungs the next one
+needs (§9b). The per-fit bound above does not survive a chain in either
+direction.
 
 ---
 

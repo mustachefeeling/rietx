@@ -51,12 +51,17 @@ from .common import Base
 #: (cpd-1a ``biso`` 47 → 49 evaluations) instead of every stage polishing it.
 #: ``strategy.staged.RefinementPlan.stage_ftols`` is the rule that applies it.
 #:
-#: 1e-6 costs 1.5-1.7× fewer whole-plan evaluations on the three lab-shaped
-#: WP-1111 harness cases, for every non-degenerate parameter within 0.02 esd of
-#: the fully-converged plan and QPA fractions within 0.003 wt % (WP-1113
-#: measured it, WP-1123 made it the default).  Looser is a real choice and not
-#: a silly one — 1e-5 and 1e-4 buy 1.9-2.2× at 0.01-0.2 esd — which is why this
-#: is a number a plan carries and not a mode with two positions.
+#: 1e-6 costs 1.2-1.6× fewer whole-plan evaluations across the WP-1111 harness
+#: cases, for every non-degenerate parameter within 0.03 esd of the
+#: fully-converged plan and QPA fractions within 0.0014 wt % (WP-1113 priced
+#: it, WP-1123 made it the default and re-measured).  Both figures are
+#: properties of the tree as much as of the schedule — 1113 measured 1.5-1.7×
+#: and 0.02 esd before a Jacobian column changed underneath — so re-measure
+#: rather than inherit them.  **The bound is for one fit**: in a warm *chain*
+#: each pattern seeds the next, and the effect there is unbounded and not even
+#: fixed in sign.  Looser is a real choice and not a silly one — 1e-5 and 1e-4
+#: buy 1.9-2.2× at 0.01-0.2 esd — which is why this is a number a plan carries
+#: and not a mode with two positions.
 INTERMEDIATE_FTOL = 1e-6
 
 
@@ -138,8 +143,8 @@ class PlanSpec(Base):
             "the tolerance every stage but the last stops at, unless it "
             "declares its own ftol; null = the solver default (1e-9) "
             "everywhere, i.e. the fully-converged schedule.  1e-6 is "
-            "1.5-1.7x fewer whole-plan evaluations for answers within "
-            "0.02 esd (WP-1113/1123)"))
+            "1.2-1.6x fewer whole-plan evaluations for answers within "
+            "0.03 esd on a single fit (WP-1113/1123)"))
 
     @model_validator(mode="before")
     @classmethod

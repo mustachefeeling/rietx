@@ -26,8 +26,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: stops its intermediate stages earlier than the same document did before;
 #: ``StageResult.ftol`` and ``NodeAction.ftol``/``window_slack_deg`` added,
 #: recording what a stage ran at.  The one entry so far whose default changes
-#: an answer rather than only the field list — bounded at 0.02 esd, and
-#: ``intermediate_ftol=None`` restores the old schedule bit for bit.
+#: an answer rather than only the field list — bounded at 0.03 esd on a single
+#: fit — and ``intermediate_ftol=None`` restores the old schedule bit for bit.
 SCHEMA_VERSION = "0.5"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]

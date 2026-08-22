@@ -7,11 +7,13 @@ Depends on: 1113 (its § Findings priced this flip; closed 2026-08-21)
 ## Goal
 
 A staged refinement runs its **intermediate** stages at a loosened
-termination tolerance by default — 1.5–1.7× fewer whole-plan evaluations for
-parameter shifts at or below 0.02 esd — with one named switch back to the
-fully-converged schedule, one place where a result and a history node say
-which one ran, and a manual paragraph that states the trade in numbers
-rather than in adjectives.
+termination tolerance by default — measured, 1.2–1.6× fewer whole-plan
+evaluations for parameter shifts at or below 0.03 esd on a single fit — with
+one named switch back to the fully-converged schedule, one place where a
+result and a history node say which one ran, and a manual paragraph that
+states the trade in numbers rather than in adjectives.  (1113 priced it at
+1.5–1.7× and 0.02 esd on its own tree; both moved when this WP re-measured on
+the merged one, which is the point of re-measuring.)
 
 ## Context
 

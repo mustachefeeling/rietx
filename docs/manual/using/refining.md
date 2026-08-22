@@ -219,8 +219,9 @@ assert plan.stage_ftols() == [None] * len(plan.stages)
 
 Every stage then stops where the solver's own default says, which is what every
 fit before 1.1 did, to the bit. Reach for it when a number is going into a
-paper and you want the plan's own converged answer rather than one within
-0.02 esd of it, when you are reproducing a number from an earlier release, and
+paper and you want the plan's own converged answer rather than one within a few
+hundredths of an esd of it, when you are reproducing a number from an earlier
+release, and
 in a test that pins a value — a suite whose numbers move when a default moves
 is not pinning anything.
 
