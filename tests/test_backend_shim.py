@@ -69,6 +69,7 @@ import numpy as np
 import pytest
 
 import rietx as rx
+from rietx.model import compiled
 from rietx.model.forward import compile_model
 from rietx.optimize.least_squares import _make_jacobian, _make_residual
 from rietx.params.vector import ParameterTable
@@ -519,8 +520,25 @@ STATES = {
 }
 
 
-def _capture(name: str) -> dict[str, np.ndarray] | None:
-    """Evaluate + residual + Jacobian arrays at the state's expansion point."""
+def _capture(name: str, *, compiled_path: bool = False
+             ) -> dict[str, np.ndarray] | None:
+    """Evaluate + residual + Jacobian arrays at the state's expansion point.
+
+    **The path is declared, never inherited** (CLAUDE.md's rule for a test that
+    pins a number, first written for the dispersion default).  These goldens are
+    pre-shim bit patterns of the *numpy* expressions, so the default here
+    switches the WP-1115 compiled tier off; ``compiled_path=True`` captures the
+    same state through the kernels, which is what
+    :func:`test_the_compiled_path_holds_the_goldens_to_its_own_bar` compares.
+    """
+    was = compiled.set_enabled(bool(compiled_path))
+    try:
+        return _capture_now(name)
+    finally:
+        compiled.set_enabled(was)
+
+
+def _capture_now(name: str) -> dict[str, np.ndarray] | None:
     built = STATES[name]()
     if built is None:
         return None
@@ -647,6 +665,50 @@ def test_numpy_path_bit_identical_to_golden(name):
             assert np.array_equal(a, b), (
                 f"{name}:{key} diverged from the pre-shim golden "
                 f"(max |Δ| = {np.max(np.abs(a - b)) if a.dtype.kind == 'f' else '?'})")
+
+
+@pytest.mark.parametrize("name", ["toy_rich", "toy_capillary", "toy_stephens"])
+def test_the_compiled_path_holds_the_goldens_to_its_own_bar(name):
+    """What the WP-1115 compiled tier moves, measured against the same files.
+
+    The tier is the default install's residual, so "the numpy path still
+    reproduces the goldens" is the *weaker* half of the statement and this is
+    the other one.  Two bars, and which applies is a property of the row rather
+    than of the state:
+
+    * a **symmetric** row is bit-identical — the kernel is a transcription of
+      the same expressions and ``math.exp`` was measured to agree with numpy's
+      ``exp`` bit for bit here;
+    * an **FCJ** row agrees to rounding only, because the node sum runs
+      sequentially in the kernel where ``_node_mix`` runs a matmul.  That is
+      WP-1112's bar one rank on, and 1e-13 relative is the number it set.
+
+    So this asserts the rounding bar for every array and does *not* assert the
+    bit, which would pass or fail on whether the parametrised state happens to
+    carry axial divergence.  ``toy_rich`` does; the guard is that the two paths
+    are compared at all, on states carrying the corrections most likely to
+    amplify a last-digit difference through a Jacobian column.
+    """
+    here = _platform_now()
+    if here != GOLDEN_PLATFORM:
+        pytest.skip(f"goldens are pinned to {'/'.join(GOLDEN_PLATFORM)}")
+    path = GOLDEN_DIR / f"{name}.npz"
+    if not path.exists():
+        pytest.skip(f"golden {path.name} not present")
+    if not compiled.available():
+        pytest.skip("no numba in this venv — the compiled tier cannot run")
+    got = _capture(name, compiled_path=True)
+    if got is None:
+        pytest.skip(f"dataset for state {name!r} not present")
+    with np.load(path) as ref:
+        for key in ref.files:
+            a, b = ref[key], got[key]
+            if a.dtype.kind != "f":
+                assert np.array_equal(a, b), f"{name}:{key} is not a float array"
+                continue
+            scale = float(np.abs(a).max()) or 1.0
+            rel = float(np.abs(a - b).max()) / scale
+            assert rel < 1e-13, f"{name}:{key} past the rounding bar at {rel:.2e}"
 
 
 def test_every_committed_golden_is_gated():

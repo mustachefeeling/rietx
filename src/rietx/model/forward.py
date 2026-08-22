@@ -78,6 +78,7 @@ from ..schemas.instrument import (
 )
 from ..schemas.pattern import PatternData
 from ..schemas.structure import Structure
+from . import compiled
 from .absorption import (
     cylinder_absorption,
     flat_plate_reflection_absorption,
@@ -340,7 +341,18 @@ def accumulate_planes(n_points: int, parts) -> np.ndarray:
     neutral under addition.  Planes arrive pad- and NaN-row-zeroed
     (``PhasePlanes``), which is what licenses scattering whole planes
     through ``layout.idx`` — a pad slot aliases a real in-window index.
+
+    Since WP-1115 a compiled kernel does the same walk without materialising
+    ``contrib`` or the index array, and does it **bit-identically**: no library
+    function enters the sum, so the two produce the same doubles rather than
+    close ones (``model/compiled.py``).  It declines on anything it was not
+    written for and the numpy expression below is what runs then.
     """
+    parts = list(parts)
+    if compiled.enabled():
+        got = compiled.accumulate(n_points, parts)
+        if got is not None:
+            return got
     flats_i: list[np.ndarray] = []
     flats_w: list[np.ndarray] = []
     for lay, terms in parts:
@@ -1101,18 +1113,20 @@ class CompiledModel:
 
     def _omega_batch(self, lay: "BatchLayout", pos: np.ndarray,
                      w1: np.ndarray, w2: np.ndarray, finite: np.ndarray,
-                     sl: float, hl: float, basis) -> np.ndarray:
+                     sl: float, hl: float, spell: int) -> np.ndarray:
         """(R, w_max) Ω planes for one phase's frozen rows — the batched twin
         of :meth:`_reflection_profile`, with the profile spelling left to the
         caller.
 
-        ``basis`` is :meth:`_profile` for the **forward** and
-        :meth:`_profile_basis` for the **derivative bases**.  That is a
-        deliberate parameter, not an implementation detail: the two spell u²
-        differently and land 1-2 ulp apart by design
-        (``model/profiles/pseudovoigt``), so a caller is declaring *which* Ω
-        it is reproducing.  Handing the forward the bases' spelling would move
-        every converged fit in its last digits (WP-1120).
+        ``spell`` is :data:`~rietx.model.compiled.SPELL_FORWARD` for the
+        **forward** and :data:`~rietx.model.compiled.SPELL_BASIS` for the
+        **derivative bases**.  That is a deliberate parameter, not an
+        implementation detail: the two spell the Gaussian exponent differently
+        and land 1-2 ulp apart by design (``model/profiles/pseudovoigt``), so a
+        caller is declaring *which* Ω it is reproducing.  Handing the forward
+        the bases' spelling would move every converged fit in its last digits
+        (WP-1120), and it is the same declaration either path takes — the
+        compiled kernel carries the flag rather than inferring it.
 
         Symmetric rows reproduce the per-row loop **bit for bit** — the same
         elementwise expressions, broadcast; an FCJ row's node mix is a batched
@@ -1123,14 +1137,23 @@ class CompiledModel:
         scatter whole planes through ``lay.idx`` (:func:`accumulate_planes`).
         """
         omega = np.zeros((len(lay.i0), lay.w_max))
+        basis = (self._profile if spell == compiled.SPELL_FORWARD
+                 else self._profile_basis)
+        # the compiled kernels are pseudo-Voigt only; a Voigt model keeps the
+        # numpy expression, which is the shape dispatch one rank down
+        fast = self.shape != "voigt" and compiled.enabled()
         srows = lay.buckets.get(0, np.zeros(0, dtype=np.int64))
-        if len(srows):
+        if len(srows) and not (fast and compiled.omega_symmetric(
+                omega, lay.x, srows, pos, w1, w2, lay.width, spell)):
             omega[srows] = basis(lay.x[srows] - pos[srows, None],
                                  w1[srows, None], w2[srows, None])
         for n, rows_b in lay.buckets.items():
             if n == 0:
                 continue
             phi_all, om_all = fcj_offsets_weights_batch(pos[rows_b], sl, hl, n)
+            if fast and compiled.omega_fcj(omega, lay.x, rows_b, w1, w2,
+                                           lay.width, phi_all, om_all, spell):
+                continue
             for a in range(0, len(rows_b), _BASES_CHUNK_ROWS):
                 rs = rows_b[a:a + _BASES_CHUNK_ROWS]
                 s = slice(a, a + _BASES_CHUNK_ROWS)
@@ -1176,7 +1199,7 @@ class CompiledModel:
         omega = self._omega_batch(
             lay, pos, lay.gather(peaks, 1), lay.gather(peaks, 2),
             np.isfinite(pos), values["instrument.geometry.axial_sl"],
-            values["instrument.geometry.axial_hl"], self._profile)
+            values["instrument.geometry.axial_hl"], compiled.SPELL_FORWARD)
         return accumulate_planes(
             len(self.tt), [(lay, [(lay.gather(peaks, 3), omega)])])
 
@@ -1493,7 +1516,7 @@ class CompiledModel:
                 # Ω alone, through the shared batched builder — in the bases'
                 # own spelling, which the forward's is deliberately not
                 omega = self._omega_batch(lay, pos, w1, w2, finite, sl, hl,
-                                          self._profile_basis)
+                                          compiled.SPELL_BASIS)
                 planes_all.append(PhasePlanes(
                     layout=lay, finite=finite, pos=pos, w1=w1, w2=w2,
                     inten=inten, omega=omega, d_pos=None, d_gamma=None,
@@ -1506,8 +1529,12 @@ class CompiledModel:
             if build_axial and has_fcj:
                 d_sl = np.zeros((n_rows, w_max))
                 d_hl = np.zeros((n_rows, w_max))
+            # pseudo-Voigt only: a Voigt model keeps the numpy expressions
+            fast = self.shape != "voigt" and compiled.enabled()
             srows = lay.buckets.get(0, np.zeros(0, dtype=np.int64))
-            if len(srows):
+            if len(srows) and not (fast and compiled.bases_symmetric(
+                    omega, d_pos, d_gamma, d_eta, lay.x, srows, pos, w1, w2,
+                    lay.width)):
                 pv, ddx, ddg, dde = self._profile_derivs(
                     lay.x[srows] - pos[srows, None],
                     w1[srows, None], w2[srows, None])
@@ -1527,6 +1554,16 @@ class CompiledModel:
                         pos[rows_b], sl + h_ax, hl, n)
                     axh = fcj_offsets_weights_batch(
                         pos[rows_b], sl, hl + h_ax, n)
+                if fast and compiled.bases_fcj(
+                        omega, d_pos, d_gamma, d_eta, d_sl, d_hl, lay.x,
+                        rows_b, w1, w2, lay.width, nodes[0], nodes[1],
+                        (shift[0] - nodes[0]) / h_pos,
+                        (shift[1] - nodes[1]) / h_pos,
+                        None if axl is None else
+                        ((axl[0] - nodes[0]) / h_ax, (axl[1] - nodes[1]) / h_ax,
+                         (axh[0] - nodes[0]) / h_ax,
+                         (axh[1] - nodes[1]) / h_ax)):
+                    continue
                 for a in range(0, len(rows_b), _BASES_CHUNK_ROWS):
                     rs = rows_b[a:a + _BASES_CHUNK_ROWS]
                     s = slice(a, a + _BASES_CHUNK_ROWS)
@@ -2021,6 +2058,12 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     if restraint_weight_scale < 0.0:
         raise ValueError(
             f"restraint_weight_scale must be >= 0 (got {restraint_weight_scale})")
+    # Start the kernel compile here, on a background thread: numba releases the
+    # GIL while it compiles, so the cost hides behind the reflection generation,
+    # symmetry orbits and window sizing below rather than landing on the first
+    # residual.  A no-op on every call after the first, and on a build with no
+    # numba (``model/compiled.py`` § Startup).
+    compiled.warm()
     mask = pattern.in_range_mask()
     tt_all, y_all, s_all = pattern.tt(), pattern.y(), pattern.sig()
     if two_theta_limits is not None:

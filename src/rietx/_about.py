@@ -60,6 +60,19 @@ PROFILE_FORMAT_KEY = "instrument_profile"
 STATE_DIR_NAME = ".rietx"
 STATE_DIR_ENV = "RIETX_STATE_DIR"
 
+#: Switches the compiled kernel tier off (``0``/``off``/``no``/``false``), which
+#: makes every residual take the pure-numpy path.  A *runtime* knob and not a
+#: packaging one on purpose: numba is a required dependency so the fast path is
+#: what a default install gets, and an extra can only ever add a dependency,
+#: never subtract one — so this is what a user who cannot or will not run the
+#: compiled tier reaches for, and what keeps the numpy path exercised
+#: (``model/compiled.py``).
+COMPILED_ENV = "RIETX_COMPILED"
+#: Worker threads the compiled kernels split their rows across; unset means
+#: ``min(8, cpu_count)``.  Set it to ``1`` where the parallelism is already one
+#: rank up — a suite under ``xdist``, a series fanned out over processes.
+COMPILED_THREADS_ENV = "RIETX_COMPILED_THREADS"
+
 #: Default ``name`` of the LLM tool definition wrapping ``refine_json``.
 AGENT_TOOL_NAME = "rietx_refine"
 

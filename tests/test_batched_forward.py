@@ -29,6 +29,7 @@ import numpy as np
 import pytest
 
 from rietx import Instrument, PatternData, Refinement, RefinementPlan, Stage
+from rietx.model.compiled import SPELL_FORWARD
 from rietx.model.forward import CompiledModel, compile_model
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
@@ -140,7 +141,7 @@ def test_the_scatter_is_per_phase_because_regrouping_is_observable():
         omega = model._omega_batch(
             lay, pos, lay.gather(peaks, 1), lay.gather(peaks, 2),
             np.isfinite(pos), values["instrument.geometry.axial_sl"],
-            values["instrument.geometry.axial_hl"], model._profile)
+            values["instrument.geometry.axial_hl"], SPELL_FORWARD)
         idx_all.append(lay.idx.ravel())
         w_all.append((lay.gather(peaks, 3)[:, None] * omega).ravel())
     regrouped = np.bincount(np.concatenate(idx_all),

@@ -99,12 +99,19 @@ making the compiled path the default install.
       § Packaging and § Reducing the JIT cost. The startup objection is
       largely solvable (nogil + thread pool caches *and* beats prange); the
       +157 MB and the `numpy<2.6` ceiling are not.
-- [ ] Packaging decision with the user: `[speed]` extra vs not shipping vs
-      default-on; conformance-suite wiring for whichever lands. Now decidable
-      against a projection with no estimated terms and a priced startup cost.
-- [ ] **If it ships, build it on the `nogil` + thread-pool shape, not
-      `prange`** — measured faster *and* cacheable. Add explicit signatures
-      and a `NUMBA_CACHE_DIR` default; warm on a background thread.
+- [x] **Packaging decision — the user's, 2026-08-22: ship it as the default.**
+      Install weight and the numpy pin are both acceptable ("these should run
+      in venvs"). The requested `rietx[slow]` shape is **not expressible** and
+      the substitute is a runtime knob — § The decision has both.
+- [x] **Build it on the `nogil` + thread-pool shape, not `prange`** — measured
+      faster *and* cacheable. `model/compiled.py` (the tier, the fallback, the
+      switch, the pool, the warm) and `model/_kernels_numba.py` (the
+      arithmetic); dispatch in `accumulate_planes`, `_omega_batch` and
+      `derivative_bases`; `NUMBA_CACHE_DIR` defaulted into the state dir;
+      `compile_model` fires the background warm.
+- [ ] Report the tier through `capabilities()`, and document the knob in the
+      manual and `AGENT_PROTOCOL.md`.
+- [ ] `pyproject`: numba into the core dependencies.
 
 ## Gate reading — 2026-08-22: OPEN
 

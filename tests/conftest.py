@@ -35,6 +35,17 @@ import pytest
 os.environ.setdefault("MPLBACKEND", "Agg")
 os.environ.setdefault("JAX_COMPILATION_CACHE_DIR",
                       str(Path(__file__).parent / ".jax_cache"))
+# The compiled kernels split their rows across threads (WP-1115).  Under
+# ``-n auto`` the suite is already parallel one rank up, so a second layer only
+# oversubscribes: N workers × 8 threads on N cores is slower than N × 1, and it
+# makes every wall-clock budget in the suite a function of the worker count.
+# One thread per worker, unless the run says otherwise.
+if os.environ.get("PYTEST_XDIST_WORKER"):
+    # `_about` imports nothing, so naming the variable through it costs no
+    # import of the package this must run before (CLAUDE.md § Conventions)
+    from rietx._about import COMPILED_THREADS_ENV
+
+    os.environ.setdefault(COMPILED_THREADS_ENV, "1")
 
 
 @pytest.fixture(autouse=True)
