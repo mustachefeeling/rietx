@@ -163,6 +163,15 @@ and never a silent cap.
 - **Quote the extras with any count**: installing `[jax,torch]` converts
   most skips into passes, so a bare "N tests" figure means nothing without
   the venv it was measured in.
+- **A test that pins a number declares which *path* produced it**, not only
+  which settings — the dispersion rule (root CLAUDE.md) one rank wider, because
+  WP-1115 added a second default that changes arithmetic. The compiled kernel
+  tier is on unless switched off, so a golden or a bit-identity assertion says
+  `compiled.set_enabled(False)` (or `True`) rather than inheriting. The
+  signature of getting this wrong is a test that **fails under `-n auto` and
+  passes alone**: the background compile finishes at a different point in each.
+  `conftest.py` also asks for one kernel thread per xdist worker, so a
+  wall-clock budget is not a function of the worker count.
 - **A worktree needs its own venv, and quote which one you used.** The main
   checkout's `.venv` resolves `rietx` to the *main checkout's* `src`, so a
   worktree session running it measures the wrong tree — green, and about code

@@ -263,6 +263,15 @@ def test_features_are_derived_not_asserted(caps):
 
     # the one default whose position changes published numbers (WP-1001)
     assert caps.features["anomalous_dispersion_default_on"] is True
+
+    # the compiled tier (WP-1115), derived from the tier itself rather than
+    # from a literal: two flags, because "numba imports here" and "the next
+    # residual will use it" are different questions and `RIETX_COMPILED=0`
+    # separates them
+    from rietx.model import compiled
+
+    assert caps.features["compiled_kernels"] == compiled.available()
+    assert caps.features["compiled_kernels_active"] == compiled.enabled()
     assert all(isinstance(v, bool) for v in caps.features.values())
 
 
@@ -294,6 +303,7 @@ def test_the_documented_feature_keys_are_present(caps):
         "sequential_series", "project_container", "background_estimation",
         "pattern_diagnostics", "peak_picking", "indexing", "agent_json",
         "cancellation", "report_trajectory",
+        "compiled_kernels", "compiled_kernels_active",
     }
     assert set(caps.features) == expected
 

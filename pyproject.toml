@@ -51,6 +51,29 @@ dependencies = [
     "pydantic>=2.6",
     "gemmi>=0.6.5",
     "spglib>=2.4",
+    # The compiled kernel tier (WP-1115): ~2x on a four-phase Cu Kα refinement
+    # and ~1.35x on a synchrotron one, measured on the WP-1111 harness.  It is
+    # *required* rather than an extra because the default install is what a
+    # user is judged by, and the two costs — +157 MB (llvmlite is 137 MB of it,
+    # on a ~124 MB runtime baseline) and the `numpy<2.6` ceiling numba carries
+    # — were both accepted deliberately, on the reading that this runs in
+    # per-project virtual environments.
+    #
+    # **An extra could not have expressed the opposite choice.**  Extras only
+    # ever add dependencies; there is no `rietx[slow]` that installs fewer, so
+    # "fast by default, numba-free still possible" cannot be a packaging shape
+    # at all.  It is a *code* shape instead, and `model/compiled.py` is where
+    # it lives: the import is soft and every entry point declines rather than
+    # raising, so `--no-deps`, a constraint file or a distro package that omits
+    # numba still yields a working install running the numpy expressions, and
+    # `RIETX_COMPILED=0` (`_about.COMPILED_ENV`) switches the tier off at
+    # runtime with no reinstall.
+    #
+    # The floor is where numba's wheels first cover *every* interpreter the
+    # `requires-python` above admits: cp314 wheels start at 0.63, cp313 at
+    # 0.61.  A lower floor would resolve fine in practice — pip takes the
+    # newest anyway — and strand a 3.14 user who pinned.  Measured on 0.67.0.
+    "numba>=0.63",
 ]
 
 [project.optional-dependencies]

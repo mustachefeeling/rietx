@@ -21,6 +21,15 @@ every refined number rather than in a Jacobian column:
 
 The dispatch is also pinned here, because it is a claim about a backend this
 venv need not have installed: anything that is not numpy takes the loop.
+
+**Every test here runs on the numpy path**, declared by the fixture below and
+not inherited (tests/CLAUDE.md).  The bars above are statements about two numpy
+implementations — the batched builder and the loop — and WP-1115's compiled
+tier is a third, with its own bar, held to it in
+``tests/test_compiled_kernels.py``.  Letting these inherit the default made
+them pass here and fail on Linux CI, which is the measurement that produced
+the rule: numba's ``exp`` matches numpy's bit for bit on darwin/arm64 and
+misses it by ~3e-17 on Linux.
 """
 
 from __future__ import annotations
@@ -29,6 +38,8 @@ import numpy as np
 import pytest
 
 from rietx import Instrument, PatternData, Refinement, RefinementPlan, Stage
+from rietx.model import compiled
+from rietx.model.compiled import SPELL_FORWARD
 from rietx.model.forward import CompiledModel, compile_model
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
@@ -97,6 +108,14 @@ def _has_fcj(model) -> bool:
     return any(np.any(cp.batch.fcj > 0) for cp in model.phases)
 
 
+@pytest.fixture(autouse=True)
+def _numpy_path():
+    """This module's subject is the numpy builder — see the docstring."""
+    was = compiled.set_enabled(False)
+    yield
+    compiled.set_enabled(was)
+
+
 # -- the two bars -------------------------------------------------------------
 
 def test_symmetric_rows_are_bit_equal_to_the_loop():
@@ -140,7 +159,7 @@ def test_the_scatter_is_per_phase_because_regrouping_is_observable():
         omega = model._omega_batch(
             lay, pos, lay.gather(peaks, 1), lay.gather(peaks, 2),
             np.isfinite(pos), values["instrument.geometry.axial_sl"],
-            values["instrument.geometry.axial_hl"], model._profile)
+            values["instrument.geometry.axial_hl"], SPELL_FORWARD)
         idx_all.append(lay.idx.ravel())
         w_all.append((lay.gather(peaks, 3)[:, None] * omega).ravel())
     regrouped = np.bincount(np.concatenate(idx_all),

@@ -515,16 +515,36 @@ recent list, and is therefore not behind the 409 (WP-1044).
 - **Two functions build Ω, 1-2 ulp apart on purpose, and each caller owns
   which one it reproduces**: the residual `_profile`, the derivative bases
   `_profile_basis` (the derivative form without the partials, so the bases
-  cannot shift under a caller's choice of partials). Code batching or reusing
-  one path for the other passes the spelling **in** (`_omega_batch`) rather
-  than sharing the build — lifting the wrong one moves every converged fit for
-  nothing (WP-1120). So the numpy forward is batched while the per-reflection
+  cannot shift under a caller's choice of partials). Code batching, compiling
+  or reusing one path for the other passes the spelling **in**
+  (`_omega_batch`'s `spell`, `compiled.SPELL_*`) rather than sharing the build
+  — lifting the wrong one moves every converged fit for
+  nothing (WP-1120). The whole difference is one association, `-4ln2·(x/Γ)²`
+  against `((-4ln2)·u)·u`; the Lorentzian is common to both, because
+  multiplying by a power of two is exact. So the numpy forward is batched while the per-reflection
   loop stays as `_phase_component_scalar`: the traced backends' path *and* the
   oracle every batched claim is measured against. The phase sum scatters **once
   per phase** — addition is commutative but not associative, so one bincount
   across all phases regroups each shared point into a different double; a guard
   for that builds the regrouped variant, never reverses the phase order, which
   passes whatever the code does.
+- **The numpy path has a compiled tier and it is what a default install runs**
+  (WP-1115; `model/compiled.py` owns the tier, `model/_kernels_numba.py` the
+  arithmetic). *Not* a fourth backend — jax and torch keep the traced twin, and
+  nothing above `compile_model` may branch on whether the kernels ran. Four
+  rules for touching it. The **fallback is mandatory and must stay exercised**:
+  numba is a *required* dependency because an extra can only add one and never
+  subtract, so "installable without the compiler" is a code property — soft
+  import, every entry point declining rather than raising — and
+  `RIETX_COMPILED=0` / `compiled.set_enabled` is the switch the goldens and
+  `test_compiled_kernels.py` run the numpy side through. A **new kernel is
+  serial `njit(cache=True, nogil=True)` over a row range on the shared pool,
+  never `prange`**, which refuses to cache *and* measured slower. Its
+  **equivalence bar is per kernel, stated and asserted**: no library call in it
+  means the bit, an `exp` in it means 1e-13 relative, and the numpy builder
+  stays the bit-identity oracle against `_phase_component_scalar`. And **one
+  path per process** — deciding per call on whether the background compile had
+  finished made the last digits a function of machine speed.
 - **Traced code runs inside `backend.traced.active(xp)`** — it makes `xp` the
   globally-bound backend *and* opens the backend's `full_precision()` scope.
   jax's fp64 is scoped, so a constant (or a θ vector) materialised outside it

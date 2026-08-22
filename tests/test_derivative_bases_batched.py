@@ -17,13 +17,24 @@ derived view.  The equivalence bars are the WP's, pinned here per scope:
 The scalar reference below **is** the pre-WP-1112 loop body, kept verbatim
 as the meaning of the planes; if the batch and this reference ever disagree
 past the bars, the batch is wrong, not the reference.
+
+**Every test here runs on the numpy path**, declared by the fixture below and
+not inherited (tests/CLAUDE.md).  The subject is the batched *numpy* builder
+against the scalar arithmetic, and the bit-equality bar above is a statement
+about two numpy expressions.  WP-1115's compiled tier is the default and is a
+third implementation with its own stated bar — held to it in
+``tests/test_compiled_kernels.py``, which is also where the measurement that
+forced this declaration lives: numba's ``exp`` matches numpy's bit for bit on
+darwin/arm64 and does not on Linux, by ~3e-17.
 """
 
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from rietx import Instrument, PatternData
+from rietx.model import compiled
 from rietx.model.forward import compile_model
 from rietx.model.profiles.fcj import (
     fcj_offsets_weights,
@@ -34,6 +45,14 @@ from rietx.schemas.common import Parameter
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 
 H_POS, H_AX = 1e-5, 1e-7  # the shipped FD steps (derivative_bases)
+
+
+@pytest.fixture(autouse=True)
+def _numpy_path():
+    """This module's subject is the numpy builder — see the docstring."""
+    was = compiled.set_enabled(False)
+    yield
+    compiled.set_enabled(was)
 
 
 def _toy_structure() -> Structure:
