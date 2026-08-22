@@ -331,6 +331,7 @@ def _features() -> dict[str, bool]:
     import rietx as rx
 
     from .agent import AgentSuccess
+    from .model import compiled
     from .schemas.instrument import Geometry, Source
     from .schemas.structure import Atom, Phase
 
@@ -351,6 +352,14 @@ def _features() -> dict[str, bool]:
         # arguments and could run validators — a capability query must not.
         "anomalous_dispersion_default_on": Source.model_fields["dispersion"]
         .get_default(call_default_factory=True) is not None,
+        # execution, asked of the tier itself (WP-1115).  Two flags because
+        # they answer different questions and can disagree: *can* the compiled
+        # kernels be built here — numba is a required dependency, but a
+        # ``--no-deps`` or distro install legitimately has none — and *will*
+        # the next residual use them, which ``RIETX_COMPILED=0`` decides.  A
+        # client reporting "why is this build slow" needs the second.
+        "compiled_kernels": compiled.available(),
+        "compiled_kernels_active": compiled.enabled(),
         # delivery, asked of the envelope a JSON consumer actually receives
         # (WP-1058): whether a refine answer carries the report at every stage
         # boundary as well as at the end

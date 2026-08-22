@@ -74,8 +74,12 @@ numba, measured — behind the same interface, and a packaging decision
 
 ## Non-goals
 
-A rewrite of anything beyond the isolated kernels; a fourth backend; GPU;
-making the compiled path the default install.
+A rewrite of anything beyond the isolated kernels; a fourth backend; GPU.
+
+~~Making the compiled path the default install.~~ **Withdrawn 2026-08-22 by
+the user**, against the priced costs in § Packaging: install weight and the
+numpy pin are both acceptable on the reading that this runs in per-project
+virtual environments. § The decision has what shipped.
 
 ## Tasks
 
@@ -109,9 +113,11 @@ making the compiled path the default install.
       arithmetic); dispatch in `accumulate_planes`, `_omega_batch` and
       `derivative_bases`; `NUMBA_CACHE_DIR` defaulted into the state dir;
       `compile_model` fires the background warm.
-- [ ] Report the tier through `capabilities()`, and document the knob in the
-      manual and `AGENT_PROTOCOL.md`.
-- [ ] `pyproject`: numba into the core dependencies.
+- [x] Report the tier through `capabilities()`, and document the knob in the
+      manual and `AGENT_PROTOCOL.md` — two derived flags
+      (`compiled_kernels` / `…_active`), `using/install.md`
+      § The compiled kernels, AGENT_PROTOCOL § 7e.
+- [x] `pyproject`: numba into the core dependencies, floored at 0.63.
 
 ## Gate reading — 2026-08-22: OPEN
 
@@ -243,6 +249,78 @@ properly (the accumulation drops 0.04 s → 0.00 s). So ~1.0 s of the 1.25 s is
 `parallel=True`, paid per process. The GUI is long-lived and pays it once;
 the CLI one-shot fit and `agent.refine_json` pay it per invocation, which is
 exactly the surface where a sub-second fit is the selling point.
+
+## The decision — 2026-08-22: ship it as the default
+
+The user's call, against § Packaging: **numba is a core dependency**. Install
+weight is acceptable and so is the numpy ceiling, "as these should run in
+venvs". What follows is the shape that decision forced, because the shape the
+question asked for does not exist.
+
+**`rietx[slow]` is not expressible, and no rewording of it is.** An extra only
+ever *adds* to what plain `rietx` installs; Python packaging has no operator
+that removes a dependency, so "fast by default, and installable without the
+compiler" cannot be a packaging choice. The alternatives are all worse: two
+distributions (the `opencv-python` / `-headless` shape) doubles the release
+surface for one dependency, and the additive form — `rietx[speedups]` in
+aiohttp's spelling, `rietx[performance]` in pandas' — is exactly the opt-in
+option this decision rejects. **So the knob is a runtime one**, which is the
+better knob anyway: it needs no reinstall, it can be flipped inside a process,
+and it is what keeps the numpy path exercised on a default install rather than
+turning it into dead code.
+
+| shape | where |
+|---|---|
+| required dependency | `pyproject` `dependencies`, `numba>=0.63` — the floor is where numba's wheels first cover every interpreter `requires-python` admits (cp314 from 0.63, cp313 from 0.61) |
+| soft import | `model/compiled.py`; every entry point declines rather than raising, so `--no-deps`, a constraint file or a distro package still fits |
+| runtime off switch | `RIETX_COMPILED=0` (`_about.COMPILED_ENV`), and `compiled.set_enabled()` inside a process |
+| thread count | `RIETX_COMPILED_THREADS` (`_about.COMPILED_THREADS_ENV`); the suite sets it to 1 under `xdist`, where the parallelism is already one rank up |
+| reported | `capabilities().features` — `compiled_kernels` (can it be built here) and `compiled_kernels_active` (will the next residual use it), which can disagree |
+
+**Measured after landing**, same harness and machine as § Gate reading
+(`[dev]` venv, darwin/arm64, python 3.12.12, numpy 2.5.2, best of 3, idle):
+
+| case | numpy path | compiled | ratio |
+|---|---|---|---|
+| `trigger` | 17.56-17.83 s | **8.86-8.99 s** | 1.98× |
+| `cpd-1a` | 4.22-4.31 s | **2.17-2.21 s** | 1.95× |
+| `nac` | 0.54-0.55 s | **0.40-0.41 s** | 1.34× |
+| `nac-lebail` | 0.45-0.50 s | 0.32-0.63 s | the 0.63 is a cold JIT |
+
+Rwp agrees to five decimals in all four. `trigger` converges in 358 nfev where
+numpy takes 364 — an ulp reaching a trust-region decision, the same thing
+WP-1120 recorded at 363 vs 364, and not something to pin.
+
+The projection in § Gate reading said 8.0 s and the measurement says 8.9 s. The
+gap is the part of each seam that is not plane arithmetic and does not fuse —
+which is the same correction the column seam already forced once, one rank
+lower.
+
+**Three findings from building it that the prototype could not have shown.**
+
+1. **Bit-identity was available and the prototype's few-ulp result was an
+   artefact of my own transcription.** The two Ω spellings differ in exactly
+   one association — the forward computes `-4ln2·(x/Γ)²`, the bases
+   `((-4ln2)·u)·u` — and the Lorentzian is common to both, because `(4·u)·u`
+   and `4·(u·u)` are bit-equal (multiplying by a power of two is exact).
+   Transcribe each faithfully and numba's `math.exp` agrees with numpy's `exp`
+   bit for bit here, so symmetric rows land on the same doubles in window. FCJ
+   rows still differ at ≤ 4e-16 — a sequential node sum against `_node_mix`'s
+   matmul — which is WP-1112's bar, not a new one.
+2. **Declining while the background compile runs is the wrong shape.** It was
+   the first one here: a residual that arrived before the kernels were ready
+   ran numpy, a later one ran the kernels. That makes which path an evaluation
+   took a function of how fast the machine compiled — different last digits on
+   two runs of the same script, and through a trust-region decision an
+   occasional different iteration count. It now blocks. One path per process is
+   worth the few hundred milliseconds, and `warm()` has already overlapped most
+   of them.
+3. **A test that pins a number must declare which path it is on**, exactly as
+   CLAUDE.md already requires for the dispersion default. `test_backend_shim`'s
+   pre-shim goldens are numpy bit patterns and now say so; a new parametrised
+   row captures the same states through the kernels and holds them to the
+   1e-13 rounding bar, so the tier's cost to those numbers is recorded rather
+   than absorbed.
 
 ## Reducing the JIT cost
 
