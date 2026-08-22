@@ -1,16 +1,21 @@
 # WP-1115 — compiled-kernel spike (gated: open only if the floor still binds)
 
-Milestone: v1.1 · Status: 🔄 2026-08-22 — gate read **open**; all three
-kernels prototyped and measured (17.1 → 8.0 s projected), packaging decision
-outstanding
+Milestone: v1.1 · Status: ✅ 2026-08-22 — gate read **open**, tier shipped
+**as the default install** (trigger 17.6 → 8.9 s, cpd-1a 4.2 → 2.2 s); numba
+is a core dependency with a soft import and a runtime switch
 Depends on: 1112, 1114, 1120 (the gate reads their measured outcomes)
 
 ## Goal
 
-**The gate is read and it is open** (§ Gate reading). What remains is the
-decision the spike exists to inform: a compiled version of the peak kernel —
-numba, measured — behind the same interface, and a packaging decision
-(optional extra, never a core dependency) put to the user with the numbers.
+**Done.** The gate was read and it is open (§ Gate reading); the compiled peak
+kernels landed behind the same interface (`model/compiled.py`,
+`model/_kernels_numba.py`) and the packaging question went to the user with
+the numbers and came back "default" (§ The decision).
+
+The gate opened on neither mechanism this WP was written around — dispatch and
+raggedness are both measured small — but on **fusion and threading**, which is
+worth carrying forward: the next person to blame a python-level loop for
+dispatch should check that it still is.
 
 ## Context
 
@@ -377,17 +382,21 @@ those two are the whole case against default-on.
 ## Acceptance
 
 ```sh
-.venv/bin/python examples/bench_refinement.py     # with/without the compiled path
+.venv/bin/python examples/bench_refinement.py                 # the landed tier
+RIETX_COMPILED=0 .venv/bin/python examples/bench_refinement.py   # …and without it
+.venv/bin/python -m pytest tests/test_compiled_kernels.py     # the bars and the contract
 .venv/bin/python examples/bench_compiled_kernel.py            # the profile kernels
 .venv/bin/python examples/bench_compiled_kernel.py --accum    # the column scatter
 .venv/bin/python examples/bench_compiled_kernel.py --nogil    # cache + threads (run TWICE)
 .venv/bin/python examples/bench_compiled_kernel.py --seams    # the shares they sit in
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+.venv/bin/python -m pytest -n auto --dist loadgroup           # full: the tier moves numbers
 .venv/bin/python -m ruff check src tests examples
 ```
 
-A gate reading recorded in this file either way; if opened, before/after
-ranges from the harness and the equivalence bar stated per 1112's pattern.
+The two harness runs are the before/after, quoted as ranges with venv and
+platform (§ The decision). The full suite rather than the fast selection,
+because a change to the residual's arithmetic can move an acceptance number
+and the fast selection would not see it.
 
 ## References
 
@@ -397,6 +406,96 @@ ranges from the harness and the equivalence bar stated per 1112's pattern.
   compiled path's original case, now measured at 1.11× and superseded.
 
 ## Handover log
+
+- **2026-08-22 (closing)** — The tier is built, it is what a default install
+  runs, and a four-phase lab-shaped refinement that took 17.6 seconds this
+  morning takes 8.9. The user answered the question that was blocking: install
+  weight and numba's numpy ceiling are both acceptable, because this runs in
+  per-project virtual environments. They also asked for a `rietx[slow]` for
+  anyone who cannot take the dependency, and that shape does not exist —
+  Python extras only ever *add* to what a plain install brings, so "fast by
+  default, still installable without the compiler" cannot be expressed in
+  packaging at all. It is expressible in code, and better there: the import is
+  soft, every kernel keeps the numpy expression standing behind it, and
+  `RIETX_COMPILED=0` turns the tier off without a reinstall. A real fit in a
+  venv with no numba at all was run to prove it rather than to assert it, and
+  it returns the same Rwp and the same cell, with the esd differing in its last
+  bit.
+
+  What the WP was written to compile is not what got compiled. It was filed
+  against python dispatch and ragged loops; both were measured small by the
+  gate (dispatch gone since 1112/1120, raggedness 1.11×), and the two real
+  levers were fusion and threading. The kernels therefore fuse the plane
+  arithmetic and run it on a shared thread pool, and the whole gain is that
+  numpy writes a dozen full-size temporaries per profile call where a fused
+  loop touches the grid once.
+
+  The most useful correction of the session is about my own prototype rather
+  than about numpy. The spike reported the profile kernels as "a few ulp" from
+  the numpy path, and I carried that into the WP as a re-baseline that would
+  have to be accepted. It was wrong: the deviation was in the prototype's
+  transcription, not in compiling. The two Ω spellings WP-1120 found differ in
+  a single association — the forward `-4ln2·(x/Γ)²`, the bases `((-4ln2)·u)·u`
+  — and the Lorentzian is common to both because multiplying by a power of two
+  is exact. Transcribe each faithfully and numba's `math.exp` matches numpy's
+  bit for bit here, so symmetric rows land on identical doubles in window and
+  the accumulation is bit-identical outright. The lesson generalises past this
+  WP: **a prototype's agreement number measures the prototype**, and quoting
+  one as a property of the technique is how a real re-baseline gets invented.
+
+  Working detail, in the order it will matter to a successor.
+
+  1. **`prange` is the wrong shape twice over** and this is the finding most
+     likely to be re-hit by anyone adding a fourth kernel. It refuses to cache,
+     so ~1 s recompiles in every process, *and* it is slower than the
+     alternative. Serial `njit(cache=True, nogil=True)` over a row range,
+     driven from a shared `ThreadPoolExecutor`, caches (0.60 s cold, 0.12 s
+     reload) and reaches 12.3× where `prange` reached 11.2×. The pool must be
+     shared — one per call costs more than half the win.
+  2. **Declining while the compile runs was the wrong semantics.** The first
+     shape here took the lock non-blockingly so a residual arriving early ran
+     numpy and a later one ran the kernels. That makes the path an evaluation
+     took a function of how fast the machine compiled: different last digits on
+     two runs of the same script, and through a trust-region decision an
+     occasional different iteration count. It blocks now. One path per process.
+  3. **The disk cache landed beside the source for one commit.** numba reads
+     `NUMBA_CACHE_DIR` when it is *imported*, once, and `available()` imports
+     numba to answer its question — before `_kernels()` set the variable. On a
+     dev checkout that works perfectly, which is exactly where nobody notices;
+     in an ordinary install `site-packages` is read-only often enough to matter
+     and an unwritable cache recompiles in every process saying nothing. It was
+     found by counting the cached files, not by timing, and the guard added for
+     it counts them in a subprocess because the property is an import ordering.
+     `_redirect_cache` now covers both orders.
+  4. **A test that pins a number must declare its path.** CLAUDE.md already
+     says this for the dispersion default; the compiled tier is the second
+     default it applies to, and `test_backend_shim`'s goldens were the thing
+     that noticed — they failed under `-n auto` and passed alone, which is the
+     signature of a background compile finishing at different points. They now
+     capture the numpy expressions explicitly, and a new parametrised row holds
+     the kernels to the 1e-13 bar against the same files.
+  5. **The projection over-read by 11 %**: § Gate reading said 8.0 s and the
+     measurement says 8.9. Same correction the column seam already forced once
+     — the part of a seam that is not plane arithmetic does not fuse.
+  6. **Numbers this session, all `[dev]` venv, darwin/arm64, python 3.12.12,
+     numpy 2.5.2, numba 0.67.0.** Fast suite 2607 passed / 117 skipped, up from
+     WP-1120's 2591 by exactly the 16 tests added (3 golden rows, 13 in
+     `test_compiled_kernels.py`); fast wall 1:57–2:06. Harness best-of-3 in
+     § The decision. Cold JIT 0.601 s, cached reload 0.123 s, `import rietx`
+     unchanged at 0.52 s.
+
+  **Next.** The cold target is still missed by about 2×, and the front is no
+  longer a plane kernel: it is the **15 608 perturbed `phase_peaks` calls** a
+  trigger Jacobian asks for (§ Gate reading has the decomposition), which is a
+  per-reflection scalar cost and wants either fewer columns or a cheaper
+  perturbation, not a faster plane. WP-1113's priced preset flip is worth about
+  another 1.5–1.7× on evaluation count and is still unflipped. Three
+  mitigations in § Reducing the JIT cost remain unmeasured — explicit `njit`
+  signatures, size-thresholded dispatch below which a small fit never compiles,
+  and a `rietx warmup` command — none of them blocking, all of them cheap.
+  Anyone adding a kernel: `model/_kernels_numba.py`'s docstring states the one
+  review question, which is not "is this the right formula" but "is this the
+  same rounding as the numpy line it copies".
 
 - **2026-08-22** — The gate this WP was built around is open, but not for
   either of the reasons it was written around. A cold four-phase lab-shaped

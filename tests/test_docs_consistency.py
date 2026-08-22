@@ -190,7 +190,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # observable.  The operating detail did go down: the ratios and the
     # equivalence measurements are in the WP's § Findings, the method notes in
     # the v1.1 record, and the bars are executable in tests/test_batched_forward.py.
-    "CLAUDE.md": 784,
+    # 784 -> 804 for WP-1115 (2026-08-22): the numpy path now has a compiled
+    # tier and it is what a default install runs, which no other line in this
+    # file implies and which a session touching any residual, Jacobian or
+    # packaging code will get wrong without it — that the tier is not a
+    # backend, that its numpy fallback is mandatory *and* must stay exercised
+    # (numba is required because an extra cannot subtract a dependency, so the
+    # way out is a runtime switch), what shape a new kernel takes, and what bar
+    # it is held to.  The measurements, the `prange` comparison and the three
+    # traps stayed down a rank: § The decision in the WP, the v1.1 record's
+    # narrative, and the bars executable in tests/test_compiled_kernels.py.
+    "CLAUDE.md": 804,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one
@@ -230,7 +240,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # subject, not a record of the round — that lives in the WP and the
     # protocol.  Same rule as the bumps above: this file grows for a rule that
     # nothing else in it carried.
-    "tests/CLAUDE.md": 223,
+    # 223 -> 232 for WP-1115 (2026-08-22): a test that pins a number must
+    # declare its *path*, not only its settings.  Nothing else in this file
+    # carried it — the dispersion clause one rank up is about a schema default,
+    # and this is about which implementation computed the double — and the
+    # failure has a signature worth naming, because it is otherwise read as
+    # flakiness: green alone, red under `-n auto`.  The tier itself, its bars
+    # and its measurements are all a rank down (root CLAUDE.md, the WP).
+    "tests/CLAUDE.md": 232,
     # 250 at the WP-1060 split; raised once, for WP-1046's two standing rules
     # (which layer may apply a cap, and that agreement outranks the panel) —
     # both measured, and every number behind them is in the v1.0 appendix
