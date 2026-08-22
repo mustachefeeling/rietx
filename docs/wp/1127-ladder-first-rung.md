@@ -499,6 +499,75 @@ tables, and the reason.
 
 ## Handover log
 
+### 2026-08-22 — closed ✅: the bet is priced, not chosen
+
+**What this means, in one paragraph.** Fitting a series means fitting each
+pattern from the previous one's answer, and for each pattern the ladder tries a
+cheap fit first and escalates if it comes out badly. The cheap first try was
+being given the same budget as a serious fit, so when it was going to fail it
+failed *slowly* — it spent the plan's largest budget on the widest Jacobian in
+it, then got thrown away. That was 57 % of the warm-series wall. It is now
+bounded by what a first rung that *converged* has cost on this same chain, so a
+losing bet is discovered early and a chain where the collapse works is untouched.
+The answers do not move at all: a bound only shortens work that was going to be
+discarded, and the rung that replaces a truncated one starts from the warm state
+the truncation never touched.
+
+**Measured** (`[dev]` venv only — no jax, no torch; numba 0.67.0, so the
+compiled tier is on — darwin/arm64, python 3.12.12, numpy 2.5.2, `rietx`
+1.1.0.dev0, best-of-3, arms in one process):
+
+| | unbounded | bounded | |
+|---|---|---|---|
+| `trigger-series` nfev / njev | 1603 / 1315 | **1331 / 1072** | 1.20× / 1.23× |
+| `trigger-series` wall | 57.22-57.42 s | **46.49-46.65 s** | 1.23× |
+| `cpd-series` nfev / njev | 627 / 449 | **627 / 449** | identical |
+| `direction="both"` nfev, trigger | 3325 | 2717 | 1.22× |
+| `direction="both"` nfev, cpd | 2839 | 2042 | 1.39× |
+| accepted values that differ | — | **0 of 1030, 0 of 392** | bit-identical |
+
+**Suites**, same venv and platform: fast `-m "not slow"` **2626 passed, 117
+skipped** (1:55); full **2735 passed, 126 skipped** (21:43), zero failures. Seven
+tests added against `origin/main` — six in `test_sequential.py`, one in
+`test_bench_refinement.py` — all passes, no new skips, so passed+skipped moves by
+exactly seven in the fast selection. The full suite fired once, on the final
+tree, and it had to: the flip changes what a series does, and
+`test_acceptance_sequential.py` is the WP-0505 chain this rule was measured
+against. It is green with the bound on.
+
+**Three things a successor should carry, none of them the ratio.**
+
+*The attractive bound is the false one.* "A warm refit costing more than the cold
+fit it started from is not a warm refit" needs no constant, is the only bound the
+first warm pattern could have, and reached 1.36× — beating `refit="stages"`. It
+is wrong: `_collapse` of a one-stage plan **is** that plan, and the suite's own
+cheap plan has cold 9 evaluations against warm 14. Both real harness cases hid it
+behind a multi-stage cold fit's size. **A one-parameter toy plan was a sharper
+adversary than either real dataset**, which is why the fast suite ran before the
+flip rather than after it, and it is the reason to keep the surviving bound's
+shape: derive a bound from the quantity it bounds.
+
+*A bound wants two clauses that have nothing to do with the bound.* Spending it
+must force the escalation, because `_reseed_needed` tests neither `max_iter` nor
+the budget and would keep a truncated fit at a good Rwp; and `_prefer` must rank
+a truncated attempt below a completed one, because `_better` at equal Rwp keeps
+the earlier. Both were found by tests, not by the harness — the second cost 7 %
+of the `cpd` `direction="both"` arm's evaluations to fix, which is the honest
+price of not letting a bound pick the answer.
+
+*The pre-registered clause 1 fires and is recorded as firing.* 1331 against
+`refit="stages"`'s 1253. It was written for a rule that *chooses* the rung, and
+the bound chooses nothing, but that judgement is written beside the clause rather
+than into it.
+
+**Next actions, in order of what the evidence points at.** The `refit=` choice is
+now the front: 1253 against 1331 says the mode outweighs the bound on the trigger
+case and 627 against 1041 says the reverse on the small-cell one, so it is
+adaptive-or-nothing and unowned. Below that, the per-reflection 19.4 % front
+(WP-1121) and the solver's 11.8 % are both still unowned. Lever B is **refuted,
+not deferred** — do not re-propose "start later patterns on the rung that worked"
+without a case whose escalations are systematic; neither harness case is one.
+
 - **2026-08-22** — **Opened.** WP-1124 closed the same day on a clean negative
   whose yield was a decomposition: 57 % of the `trigger-series` wall is first
   ladder rungs that get discarded, seven of the nine warm patterns are already
