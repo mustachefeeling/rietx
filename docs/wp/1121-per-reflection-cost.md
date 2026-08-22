@@ -91,26 +91,17 @@ slower, launch-latency-bound, v0.4 record); `torch.compile` (2.5× slower after
 ends; the peaks buffer (WP-1114, **no-go** on the numpy floor — though its
 § Findings note that a compiled *buffer* is the follow-on with the larger
 algorithmic ceiling, 7.8–9× element volume on FCJ-heavy cases, if an exact
-compiled kernel still misses. It does still miss. That is a real option here
-and 1114 § Findings 3–4 list the three accuracy traps and the cache-keying bug
-any implementation re-hits first).
-
-### Inherited
-
-- **From the 2026-08-22 session that opened 1122** (maintainer-directed):
-  the compiled peaks buffer this file's fences call "a real option here"
-  now has its own WP, [1122](1122-compiled-peaks-buffer.md), gated on this
-  WP's closing measurement — do not build the buffer here. If the cold
-  target is still missed after this WP's leads and the preset decision,
-  close by pushing the measured remainder — which seams survive, at what
-  absolute cost per evaluation — into 1122's `### Inherited`; its task 1
-  starts from exactly that.
+compiled kernel still misses. It does still miss, so that option is live — but
+it is **[1122](1122-compiled-peaks-buffer.md)'s**, not this WP's, and 1122 is
+gated on this WP's closing measurement).
 
 ## Non-goals
 
 A fourth backend; GPU; a sixth plane kernel (that seam is done — 1115 § The
-decision); re-opening 1114's no-go on its original numpy terms; anything that
-moves a converged fit without a stated and asserted equivalence bar.
+decision); re-opening 1114's no-go on its original numpy terms; **building the
+compiled peaks buffer**, which is [1122](1122-compiled-peaks-buffer.md)'s and
+is gated on this WP's closing measurement; anything that moves a converged fit
+without a stated and asserted equivalence bar.
 
 ## Tasks
 
@@ -132,6 +123,9 @@ moves a converged fit without a stated and asserted equivalence bar.
 - [ ] If the cold target is still missed after all of it, **say so with the
       measured remainder** and name what would be needed. A milestone target
       missed and explained is a result; missed and quietly re-scoped is not.
+      Push that remainder — which seams survive, at what absolute cost per
+      evaluation — into [1122](1122-compiled-peaks-buffer.md)'s `### Inherited`,
+      whose task 1 starts from exactly that.
 
 ## Acceptance
 
