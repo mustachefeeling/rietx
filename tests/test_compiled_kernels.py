@@ -38,6 +38,7 @@ import os
 import platform
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import numpy as np
@@ -339,3 +340,21 @@ def test_the_thread_count_is_settable_and_never_zero(monkeypatch):
         assert got >= 1
         if want is not None:
             assert got == want, f"{raw!r} gave {got}"
+
+
+def test_a_numba_still_importing_on_another_thread_does_not_kill_the_fit(
+        monkeypatch):
+    """``warm`` imports numba on a background thread (WP-1115), so the main
+    thread can reach ``_redirect_cache`` while ``sys.modules['numba']`` holds a
+    module whose ``.config`` is not bound yet — and an unguarded ``mod.config``
+    then raises ``AttributeError`` out of whatever fit asked ``enabled()``.
+
+    Measured once, on a fresh venv's first run, and never again in that process
+    (WP-1123): the window is the import itself, which is wide only while the
+    package files are cold in the page cache.  So the race is pinned by
+    *building* the state a partial import leaves rather than by racing for it —
+    a timing test here would pass on every machine that has run the suite
+    before.
+    """
+    monkeypatch.setitem(sys.modules, "numba", types.ModuleType("numba"))
+    compiled._redirect_cache()  # must not raise

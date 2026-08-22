@@ -162,11 +162,22 @@ def _redirect_cache() -> None:
     imports numba, which is the ordinary case; and if something else imported
     numba first and left the setting empty, the already-parsed config value is
     corrected in place.  A caller who set either one keeps it.
+
+    **A module in ``sys.modules`` is not a module that finished importing.**
+    :func:`warm` imports numba on a background thread, so a main thread reaching
+    here at the wrong moment finds the entry already published and ``.config``
+    not yet bound — ``mod.config`` then raises ``AttributeError`` out of a fit,
+    which is what a *first* run after install hit (WP-1123, measured on a fresh
+    venv: reproducible only while the numba package files are still cold in the
+    page cache, and never again in that process).  Nothing is owed to a partial
+    module anyway: the variable above is already set, so the import in flight
+    will read it, and :func:`available` calls here a second time once the
+    import has returned.
     """
     os.environ.setdefault("NUMBA_CACHE_DIR", _cache_dir())
-    mod = sys.modules.get("numba")
-    if mod is not None and not getattr(mod.config, "CACHE_DIR", None):
-        mod.config.CACHE_DIR = os.environ["NUMBA_CACHE_DIR"]
+    config = getattr(sys.modules.get("numba"), "config", None)
+    if config is not None and not getattr(config, "CACHE_DIR", None):
+        config.CACHE_DIR = os.environ["NUMBA_CACHE_DIR"]
 
 
 def n_threads() -> int:
