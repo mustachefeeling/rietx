@@ -100,7 +100,7 @@ about the *data*.
 |---|---|---|
 | `Region.two_theta_lo`, `Region.two_theta_hi` | the region's edges, in degrees | cut from the peak clusters, so a region is a group of overlapping peaks and not a fixed window |
 | `Region.local_rwp` | Rwp computed over those channels alone | comparable with the headline number, and usually far worse |
-| `Region.chi2_share` | its share of the total χ² | what makes a region worth attention: a terrible local Rwp on 0.1 % of χ² is not where the fit is failing |
+| `Region.chi2_share` | its share of the total χ² | the field that says whether a region matters: a terrible local Rwp on 0.1 % of χ² is not where the fit is failing |
 | `Region.max_abs_delta_over_sigma` | the largest \|Δ\|/σ inside it | how bad the worst single channel is, in units the data supplied |
 | `Region.n_reflections` | reflections whose centres fall inside | zero means the misfit is not on a peak this model has, which is the impurity signature |
 
@@ -265,7 +265,7 @@ alternative, which is the state the field exists to report.
 | Field | Is | Reads as |
 |---|---|---|
 | `StrainAnalysis.phase_index` | which phase | |
-| `StrainAnalysis.detected` | the verdict | the widths are *directional*, a function of hkl rather than of 2θ, and a Stephens block is worth declaring |
+| `StrainAnalysis.detected` | the verdict | the widths are *directional*, a function of hkl rather than of 2θ, and a Stephens block is the model for it |
 | `StrainAnalysis.anisotropy` | the fitted broadest/narrowest Λ ratio | reads as "widths along (0 0 l) are 3.4× those along (h k 0)". Its ceiling value means the fit wants zero strain along the narrowest direction, so the ratio is unbounded rather than measured |
 | `StrainAnalysis.broadest_hkl`, `StrainAnalysis.narrowest_hkl` | the two directions | null when no two reflections contrast enough to name them |
 | `StrainAnalysis.r2` | measured against an **isotropic-strain** baseline | so it answers "how much of the width variation is directional", never "how much of it is strain": a uniformly over-broad specimen scores near zero here and belongs to `instrument.profile.y` and the phase's `lor_strain` instead |
@@ -590,7 +590,7 @@ A rung is a **projection**, not a second report. It carries the numbers a fit is
 judged on, the summary sentence, and the active suggestions themselves. It
 deliberately carries no curves, regions or per-region attribution, because those
 are the evidence for statements the summary already makes, and a rung is a
-pointer to a state worth asking about rather than a substitute for asking. It
+pointer to a state you can then ask about rather than a substitute for asking. It
 costs what that implies: measured on the NAC Le Bail plan, the five rungs are
 2.5 to 2.6 kB each against 36 kB for the full report.
 

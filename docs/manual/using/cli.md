@@ -102,7 +102,7 @@ $ echo $?
 1
 ```
 
-That run is the honest failure worth showing: the certified corundum cell is
+That run is an honest failure: the certified corundum cell is
 candidate 1 at 4.75950 Å, and the command still exits 1, because six caveats
 stand between it and the gate. Exit 0 is the narrow claim "one candidate reached
 `high` with no ambiguity partner", not "something was printed".

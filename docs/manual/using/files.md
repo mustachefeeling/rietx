@@ -180,14 +180,14 @@ An open project holds the session as six attributes.
 The repairs are a function of the bytes, the reader and its options, and the
 data reference below already records all three.
 
-**One authority per fact.** `project.json` holds the *settings*: the selected
+Each fact has one authority. `project.json` holds the *settings*: the selected
 plan and mode, the 2θ limits, the excluded regions, and the GUI's own `ui` keys.
 `history.jsonl` holds the model state, and its head *is* the working state. No
 parameter value is written in both places.
 
-**Saving is about settings, not durability.** Every verb that changes the model
-commits a history node the moment it runs, so the work is on disk whether or not
-anyone calls `Project.save`. What `save` persists is the half of a session that
+Saving persists settings; it is not what makes the work durable. Every verb that
+changes the model commits a history node the moment it runs, so the work is on
+disk whether or not anyone calls `Project.save`. What `save` persists is the half of a session that
 nothing else owns.
 
 `ProjectDoc` is that half, field by field.

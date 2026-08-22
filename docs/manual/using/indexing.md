@@ -28,7 +28,7 @@ wants answered.
 | `index_pattern` | that list, and the pattern | `IndexingResult`: candidate lattices, ranked and graded |
 | `determine_extinction_symbol` | a candidate, and the pattern | `ExtinctionScreen`: the extinction classes that lattice admits |
 
-**None of the three returns a singleton, and that is the design.**
+None of the three returns a single answer, by design.
 `IndexingResult` has no `.cell` and no `.best`; `ExtinctionScreen` has no
 `.symbol` and no `.space_group`. The only route to one answer is
 `IndexingResult.best_or_none` or `ExtinctionScreen.best_or_none`, each of which
@@ -160,10 +160,10 @@ stripping redistributes the noise and biases what is left. The last three flags
 report evidence rather than refusing a line, because a real reflection can
 coincide with an extrapolated background, with a stronger line's axial tail or
 with a predicted Kα2 position, and one pattern cannot tell which it is. §7b of
-the protocol says which ones are usually worth excluding before a search, and
+the protocol says which ones are usually excluded before a search, and
 what that has been measured to cost.
 
-### A list you were handed
+### A peak list from somewhere else
 
 `PeakList.from_positions` builds a list from bare positions: a publication, a
 database entry, another program's output.
@@ -191,7 +191,7 @@ position-only list actually says. Pass `two_theta_esd=` if you know better,
 and `intensity=` when the source quotes relative intensities, because the search
 is driven by the strongest lines and intensities change which lines it uses.
 
-## Is this list fit to index?
+## Whether the list can be indexed
 
 `rietx.indexing.assess_peak_list` answers that, and `index_pattern` calls it
 before spending any budget. The answer is a `DataQualityReport`.
@@ -222,8 +222,9 @@ another. `DataQualityReport.lines_per_dof` carries the ratio and
 above, 54 usable lines read 54.0 per degree of freedom for cubic and 9.0 for
 triclinic, and every system is supported.
 
-**Searchable and scorable are different questions**, and conflating them once
-refused a pattern this package indexes perfectly. Below twenty usable lines the
+Whether a list can be searched and whether it can be scored are different
+questions, and conflating them once refused a pattern this package indexes
+perfectly. Below twenty usable lines the
 classical figures are undefined, since de Wolff's M₂₀ and Smith & Snyder's F₂₀
 are *defined* on twenty lines ({eq}`idx-m20`, {eq}`idx-fn`), so the search still
 runs over the supported systems, ranks on the reduced panel, and names each
@@ -329,7 +330,7 @@ result = rx.index_pattern(peaks, data=data, instrument=ins)
 | `events` | `None` | the streaming event ladder, as everywhere else |
 | `cancel` | `None` | a `CancelToken`; a cancelled search **returns what it has** |
 
-Two of those defaults are worth keeping rather than tuning. Passing `data` is
+Two of those defaults should be kept rather than tuned. Passing `data` is
 what makes validation possible, and without it every candidate caps at
 `medium`. Leaving `engines` alone is what lets `high` mean anything at all, for
 the reason in the next section.
@@ -361,7 +362,7 @@ name different sets. [](agents.md) has the rest of `capabilities()`.
 Only one of the three carries an exhaustiveness claim: when the branch-and-bound
 engine finishes a system, "no cell here" is evidence. That claim survives only
 where `IndexingResult.search_complete` is true for the system, which is what
-makes that field worth reading before concluding anything from a silence.
+makes that field one to read before concluding anything from a silence.
 
 ### Presets, budgets, and the three states of a system
 
@@ -409,7 +410,7 @@ Measured on the bundled corundum pattern with everything left at its defaults:
 which cubic and hexagonal completed, and monoclinic and triclinic never
 started. The answer says all of that.
 
-### Declaring what you know
+### The search specification
 
 `SearchSpecSpec` is the full control surface. It is flat and complete rather
 than a handful of convenience knobs, because the engines' agreement only means
@@ -463,9 +464,10 @@ neither free nor safe: a cell must index all but `n_unindexed` of *those*
 lines, an absolute budget, so every extra foreign line admitted can refute the
 true cell rather than merely rank it lower.
 
-**A prior steers, never gates.** A declared `prior_cells` entry puts its crystal
-system at the front of the queue, seeds the stochastic engine's starting basin
-with its metric, and is checked against the lines the engines' own way. No
+A prior steers the search rather than gating it. A declared `prior_cells` entry
+puts its crystal system at the front of the queue, seeds the stochastic engine's
+starting basin with its metric, and is checked against the lines the engines'
+own way. No
 system is dropped and no range is changed, so a wrong prior costs time rather
 than truth, and `INDEX_PRIOR_USED` records what was assumed. Declare one
 whenever you have a database hit or an isostructural analogue; §7d of the
@@ -485,7 +487,7 @@ It is what a project document persists ([](files.md)) and what the agent
 request carries ([](agents.md)), so a run can be repeated from a stored
 setting rather than from a call site.
 
-## The answer
+## The result object
 
 `IndexingResult` is a ranked list of hypotheses with the evidence behind each,
 plus what the search covered.
@@ -545,9 +547,9 @@ established, and hiding them is how an oversized cell passes.
 
 ### The figure-of-merit panel
 
-**The panel ranks; it does not score.** A margin is comparable within one
-member and not across them, so the members vote rather than being summed, and
-each carries what it is blind to.
+The panel ranks candidates rather than scoring them. A margin is comparable
+within one member and not across them, so the members vote rather than being
+summed, and each carries what it is blind to.
 
 | Field | Holds |
 |---|---|
@@ -879,7 +881,7 @@ whether the absence holds. The third test is why `n_testable` is `None` until
 `ExtinctionCandidate.screened`: it is a question about the class's own fit, so
 before that fit the count is unknown rather than zero.
 
-**Refutation is one-sided by construction.** A class asserts absences, so
+Refutation is one-sided by construction. A class asserts absences, so
 intensity where it forbids one contradicts it; a class claiming too *few*
 absences asserts nothing the data can falsify, and is outranked rather than
 refuted. `ExtinctionScreen.best_or_none` therefore returns a class only when it
@@ -929,10 +931,10 @@ forbidden positions read as occupied, and the certified class is refuted. So
 give the screen a range and a width law its profile fit can actually match, and
 read `ExtinctionScreen.profile_rwp` to check that it did.
 
-**Refutation still outranks ΔBIC, one-sidedly**, wherever a testable position
-does carry intensity: a class asserts absences, and no amount of evidence *for*
+Refutation still outranks ΔBIC wherever a testable position does carry
+intensity: a class asserts absences, and no amount of evidence *for*
 it buys back a position that contradicts it. It makes the named reflections
-worth checking either way, since a single flagged position can be an impurity
+ones to check either way, since a single flagged position can be an impurity
 line rather than a violated absence, and this specimen's own indexing run reported 49
 observed lines its top candidate did not explain. §7e of the protocol says how
 to make that check.
