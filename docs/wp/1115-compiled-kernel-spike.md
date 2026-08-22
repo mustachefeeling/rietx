@@ -35,7 +35,12 @@ numba, measured — behind the same interface, and a packaging decision
   is 22 % of the trigger cold fit and the **Jacobian is 71 %** — 34 %
   `derivative_bases`, 37 % the column assembly that consumes its planes.
   A compiled tier that stops at the forward buys ~1.1× on the whole fit.
-  The § Gate reading table is the authority on the split.
+  The § Gate reading table is the authority on the split, and it is a split
+  in two senses: the column seam itself is **57 % plane work and 30 %
+  per-reflection scalars** (`phase_peaks` under perturbation), and a plane
+  kernel reaches only the first. Three kernels are addressable and they are
+  63 % of the fit between them; assuming a whole seam is addressable because
+  most of it is, is how this WP's first projection overshot by 1.5×.
 - **The three-backend rule still binds** (CLAUDE.md Conventions): the
   compiled path is a *numpy-path accelerator*, not a fourth backend — jax and
   torch keep the traced twin (`backend/traced.py`), and the compiled kernel
@@ -84,10 +89,14 @@ making the compiled path the default install.
       current numpy without moving it, and it wins 2.1–3.4× serial.
 - [x] Thread-scaling measurement on the kernels — the one axis pure numpy
       cannot reach. 1/2/4/8/10 threads, both kernels (§ Gate reading).
+- [x] **Prototype the column-assembly seam before committing to packaging** —
+      the user's call on 2026-08-22, and it was the right one: the seam is
+      only 57 % plane work, so the first projection (which assumed it fused
+      like the bases) read 3.22× where the measured answer is 2.15×. The
+      fused scatter itself is **bit-identical** at 6.9–7.1×.
 - [ ] Packaging decision with the user: `[speed]` extra vs not shipping;
-      conformance-suite wiring for whichever lands.
-- [ ] If it ships: the column assembly is the largest seam (37 %) and is the
-      only part of the projection this WP did **not** measure.
+      conformance-suite wiring for whichever lands. Now decidable against a
+      projection with no estimated terms left in it.
 
 ## Gate reading — 2026-08-22: OPEN
 
@@ -113,11 +122,20 @@ quotable here and the absolute seconds are taken from the harness band:
 
 | seam | calls | s | ms/call | share |
 |---|---|---|---|---|
-| residual (forward) | 372 | 3.729 | 10.0 | 21.8 % |
-| jacobian: bases | 290 | 5.831 | 20.1 | 34.1 % |
-| jacobian: columns | 289 | 6.312 | 21.8 | 36.9 % |
-| `compile_model` | 8 | 0.174 | 21.8 | 1.0 % |
-| scipy TRF + staged runner | | 1.045 | | 6.1 % |
+| residual (forward) | 372 | 3.721 | 10.0 | 21.8 % |
+| jacobian: bases | 290 | 5.833 | 20.1 | 34.1 % |
+| jacobian: columns | 289 | 6.317 | 21.9 | 37.0 % |
+| — of which plane accumulation | 9 788 | 3.630 | 0.37 | 21.2 % |
+| — of which perturbed `phase_peaks` | 15 608 | 1.911 | 0.12 | 11.2 % |
+| `compile_model` | 8 | 0.175 | 21.9 | 1.0 % |
+| scipy TRF + staged runner | | 1.049 | | 6.1 % |
+
+**The column seam is two unlike things and only 57 % of it is plane work.**
+A column's perturbed `phase_peaks` is per-reflection scalars — positions,
+widths, structure factors under WP-1109's scalar-chain memo — and no plane
+kernel reaches it. Splitting the seam is what stopped this WP promising a
+factor it could not deliver: the first draft of the projection below assumed
+the whole 37 % fused like the bases and read 3.22×.
 
 **93 % of the fit is peak-plane arithmetic**, and after 1120 batched the
 forward the **Jacobian is 71 % of it**. Not evaluation count, not the
@@ -128,48 +146,64 @@ was written around.
 **What a compiled kernel buys, measured** (`examples/bench_compiled_kernel.py`,
 trigger at its starting model, node generation excluded from both paths):
 
-| kernel | numpy | numba 1 thread | serial | best threaded |
-|---|---|---|---|---|
-| forward (Ω + window scatter) | 7.31 ms, 6.5 ns/element | 3.1–3.5 ms, 2.8–3.1 | **2.1–2.4×** | **3.9×** at 4 threads |
-| bases (Ω + 3 partials, node-mixed) | 15.2 ms, 13.5 ns/element | 4.5 ms, 4.0 | **3.2–3.4×** | **11.2×** at 10 threads |
+| kernel | numpy | numba 1 thread | serial | best threaded | agreement |
+|---|---|---|---|---|---|
+| forward (Ω + window scatter) | 7.31 ms, 6.5 ns/el | 3.1–3.5 ms, 2.8–3.1 | **2.1–2.4×** | **3.9×** at 4 threads | ≤ 1.7e-16 |
+| bases (Ω + 3 partials, node-mixed) | 15.2 ms, 13.5 ns/el | 4.5 ms, 4.0 | **3.2–3.4×** | **11.2×** at 10 threads | ≤ 4.2e-16 |
+| column accumulation | 0.372 ms/call, 2.3 ns/el | 0.054 ms, 0.33 | **6.9–7.1×** | not measured | **bit-identical** |
 
-Agreement is **1.3e-16 to 4.2e-16 relative**, in-window. The two scale
-differently for a structural reason worth keeping: forward rows scatter into
-*overlapping* windows, so a threaded version needs private outputs and a
-reduction, and past 4 threads the reduction costs more than the parallelism
-buys (3.92× at 4, 2.64× at 8, 2.21× at 10). Bases rows write *disjoint*
-slices, need no reduction, and scale to 10.
+Three things in that table are worth keeping. The profile kernels agree to a
+few ulp in-window, the bar WP-1112 set for FCJ rows. The **accumulation
+agrees exactly**: `np.bincount` sums its input in order, `accumulate_planes`
+lays that input out row-major as (row, term, point), and a serial loop in the
+same order reproduces every double — so this one needs no re-baseline
+argument at all. And the two profile kernels thread differently for a
+structural reason: forward rows scatter into *overlapping* windows, so a
+threaded version needs private outputs and a reduction that stops paying past
+4 threads (3.92× at 4, 2.64× at 8, 2.21× at 10), while bases rows write
+*disjoint* slices and scale to 10.
 
-**The projection, with its measured and unmeasured halves separated.** The
-two prototyped kernels are 2.72 s + 4.40 s = **7.12 s of the 17.09 s fit
-(41.7 %)**; the rest of each seam is `phase_peaks`, node generation and the
-scalar FD chains.
+The accumulation's 6.9× is the largest ratio here and the reason is visible in
+`accumulate_planes`: it materialises a (rows, terms, w_max) contrib array
+**and** an int64 index array of the same shape (`broadcast_to(...).ravel()`
+copies), roughly 15 MB written per call on the trigger before one output point
+is touched. The fused loop writes only the output.
+
+**The projection — every term now measured.** The three kernels are
+2.72 + 4.41 + 3.63 = **10.76 s of the 17.10 s fit (63 %)**. The rest of each
+seam is `phase_peaks`, FCJ node generation, `decode` and the scalar FD chains.
 
 | tier | trigger cold | vs today |
 |---|---|---|
 | today | 17.1 s | — |
-| the two measured kernels, serial | 12.5 s | 1.36× |
-| the two measured kernels, threaded | 11.1 s | 1.55× |
-| **+ column assembly at the bases' ratio (projected, not measured)** | 8.1 s serial / **5.3 s threaded** | 2.10× / 3.22× |
-| + 1113's priced ftol preset flip (1.5–1.7× fewer evaluations) | **≈ 3.3 s** | ≈ 5.2× |
+| all three kernels, serial | **9.4 s** | 1.81× |
+| all three kernels, profile ones threaded | **8.0 s** | 2.15× |
+| + 1113's priced ftol preset flip (1.5–1.7× fewer evaluations) | **≈ 5.0 s** | ≈ 3.4× |
 
-Two honest caveats on that last column. The 37 % column-assembly seam is
-**projected at the bases kernel's ratio and was not prototyped** — it is the
-largest single seam and the whole difference between 1.55× and 3.22×. And
-the threaded numbers are optimistic in a real fit: the kernel is entered 372
-and 290 times for 1.5–3 ms of work each, and the forward's own scaling
-already shows per-call thread overhead biting at 8.
+**So the milestone's cold target is still missed by about 2×, and its warm
+target is reached.** The same factors put the series' median warm pattern at
+≈ 1.5 s threaded and ≈ 1.0 s with the flip — inside the ~1 s band — while
+"low single-digit seconds" cold needs something this WP does not have.
 
-**So: a compiled tier reaches the milestone's cold target only if it covers
-the column assembly *and* rides 1113's preset flip.** On the warm series the
-same factors put the median pattern at ≈ 1.0 s threaded and ≈ 0.65 s with the
-flip, which does reach the ~1 s band.
+Two caveats on the cold row. The threaded numbers are optimistic in a real
+fit: the kernels are entered 372 and 290 times for 1.5–3 ms of work each, and
+the forward's own ladder already shows per-call thread overhead biting at 8.
+And the accumulation is quoted serial, because its scatter overlaps and a
+threaded version would pay the same reduction the forward does.
+
+**What the compiled tier would leave behind**, in the 8.0 s residue, and
+therefore what the front after it looks like: `phase_peaks` 1.9 s inside the
+columns alone (15 608 perturbed calls, per-reflection scalars), the residual
+and bases remainders 1.0 + 1.4 s, solver and runner 1.0 s, and the compiled
+kernels themselves 1.6 s. The next bottleneck is **not** a plane kernel — it
+is how many perturbed `phase_peaks` a Jacobian asks for.
 
 ## Acceptance
 
 ```sh
 .venv/bin/python examples/bench_refinement.py     # with/without the compiled path
-.venv/bin/python examples/bench_compiled_kernel.py            # the kernel ratios
+.venv/bin/python examples/bench_compiled_kernel.py            # the profile kernels
+.venv/bin/python examples/bench_compiled_kernel.py --accum    # the column scatter
 .venv/bin/python examples/bench_compiled_kernel.py --seams    # the shares they sit in
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m ruff check src tests examples
@@ -204,12 +238,26 @@ ranges from the harness and the equivalence bar stated per 1112's pattern.
   bases, single-threaded, agreeing with the existing code to a few ulp, and
   up to 11× threaded on the half that has no write conflicts.
 
-  **Done.** Tasks 1, 2 and 4; task 3 (a Cython fallback) is resolved as not
-  needed rather than skipped — numba was disqualified on neither count the
-  WP named. `examples/bench_compiled_kernel.py` is the landed evidence: the
-  default run benches both kernels with a thread-scaling ladder, `--seams`
-  decomposes a real cold fit into the shares those ratios must be weighed
-  against. Nothing under `src/` changed, so no answer moved.
+  Asked which way to go, the user chose to measure the third seam before
+  deciding anything about packaging, and that call changed the answer. The
+  column assembly had been projected to fuse like the others; measured, it
+  turns out to be only 57 % plane work — the other 30 % is a perturbed
+  `phase_peaks` per column, per-reflection scalar arithmetic no plane kernel
+  can touch. The part that *is* plane work fuses better than anything else
+  here, 6.9×, and exactly: it reproduces `np.bincount`'s own summation order,
+  so every double comes back identical. Net, a full compiled tier takes the
+  cold fit from 17 s to about 8, and to about 5 alongside the evaluation-count
+  work already priced in WP-1113 — which reaches the milestone's warm-series
+  target and still misses its cold one by roughly a factor of two.
+
+  **Done.** Tasks 1, 2, 4 and the column-seam measurement; task 3 (a Cython
+  fallback) is resolved as not needed rather than skipped — numba was
+  disqualified on neither count the WP named.
+  `examples/bench_compiled_kernel.py` is the landed evidence, three modes:
+  the default benches the two profile kernels with a thread ladder,
+  `--accum` benches the column scatter on `parts` captured from a real fit,
+  and `--seams` decomposes a real cold fit into the shares all of it must be
+  weighed against. Nothing under `src/` changed, so no answer moved.
 
   **Measured** (`[dev]` venv **plus numba 0.67.0 / llvmlite 0.49.0 installed
   for the spike**, darwin/arm64; numpy stayed at 2.5.2). Fast suite 2591
@@ -227,13 +275,22 @@ ranges from the harness and the equivalence bar stated per 1112's pattern.
   that is not one. This cost a wrong-looking result before it was spotted.
   (3) `fcj_offsets_weights_batch` returns `2·max(n//2, 4)` images for a
   bucket keyed `n`, **not** `n`; read the count off the returned array.
-  (4) The 37 % column-assembly seam is the largest and the only part of the
-  projection that was not prototyped — measure it before promising 3.2×.
+  (4) Capture benchmark inputs **evenly across a fit**, never from its head:
+  the first `accumulate_planes` calls come from `scale_bkg`, one phase and
+  one term, and timing those flattered the fused scatter by 5× against the
+  fit's own average before the sampling was fixed. (5) A seam is not
+  addressable just because most of it is — splitting the column seam moved
+  the headline from 3.22× to 2.15×.
 
   **Next**: the packaging decision is the user's and is the one thing
-  blocking. If it is a go, prototype the column assembly first (it is the
-  difference between 1.55× and 3.22×), then wire the tier behind a `[speed]`
-  extra with the conformance suite diffing it against the numpy path.
+  blocking; it is now decidable against a projection with no estimated terms
+  left in it. If it is a go, all three kernels are worth wiring (they are
+  63 % of the fit between them), behind a `[speed]` extra with the
+  conformance suite diffing against the numpy path — and the accumulation
+  can be held to *bit*-identity rather than a re-baseline. If it is a no-go,
+  1115 closes 🛑 with this file's tables. Either way the front after a
+  compiled tier is **not** another plane kernel: it is the 15 608 perturbed
+  `phase_peaks` calls a trigger Jacobian asks for.
 
 - **2026-08-20** — created by the 1109 review session, deliberately gated;
   the gate is the first task, and closing 🛑 because the targets are already

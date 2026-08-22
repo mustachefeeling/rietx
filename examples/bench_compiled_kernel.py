@@ -85,6 +85,29 @@ _SQRT_LN2_PI = math.sqrt(math.log(2.0) / math.pi)
 _4LN2 = 4.0 * math.log(2.0)
 
 
+def _accum_kernel():
+    """The fused twin of :func:`accumulate_planes`, for ``--accum``.
+
+    ``np.bincount`` accumulates sequentially from its input, which
+    ``accumulate_planes`` lays out row-major as (row, term, point).  A serial
+    loop in that same order is therefore **bit-identical** to it, not merely
+    close — which is a stronger equivalence bar than either profile kernel
+    can offer, and the mode checks it rather than asserting it.
+    """
+    from numba import njit
+
+    @njit(cache=True)
+    def fused_accum(y, idx, i0, i1, coefs, planes, n_terms):
+        for r in range(len(i0)):
+            for t in range(n_terms):
+                c = coefs[t, r]
+                for p in range(i1[r] - i0[r]):
+                    y[idx[r, p]] += c * planes[t, r, p]
+        return y
+
+    return fused_accum
+
+
 def _kernels():
     """Compile the two fused kernels, or explain why we cannot.
 
@@ -471,9 +494,40 @@ def bench_seams() -> int:
         with clock("bases"):
             return orig_bases(self, *a, **k)
 
+    # The column seam is two unlike things and only one of them is plane
+    # work, so it is split here rather than quoted whole: a perturbed
+    # ``phase_peaks`` per (column, affected phase) is per-reflection scalars
+    # that no plane kernel can touch.
+    depth = {"col": 0}
+    orig_col = lsq._peak_chain_column
+    orig_peaks = CompiledModel.phase_peaks
+    orig_acc = lsq._accumulate
+
+    def wrapped_col(*a, **k):
+        depth["col"] += 1
+        try:
+            return orig_col(*a, **k)
+        finally:
+            depth["col"] -= 1
+
+    def wrapped_peaks(self, *a, **k):
+        if depth["col"]:
+            with clock("col.peaks"):
+                return orig_peaks(self, *a, **k)
+        return orig_peaks(self, *a, **k)
+
+    def wrapped_acc(*a, **k):
+        if depth["col"]:
+            with clock("col.accum"):
+                return orig_acc(*a, **k)
+        return orig_acc(*a, **k)
+
     refine_mod.compile_model = wrapped_compile
     lsq._make_residual, lsq._jacobian_for = wrapped_res, wrapped_jac
     CompiledModel.derivative_bases = wrapped_bases
+    lsq._peak_chain_column = wrapped_col
+    CompiledModel.phase_peaks = wrapped_peaks
+    lsq._accumulate = wrapped_acc
     try:
         setup = _trigger_setup()
         ref = rx.Refinement(setup.structure.model_copy(deep=True),
@@ -487,21 +541,121 @@ def bench_seams() -> int:
         refine_mod.compile_model = orig_compile
         lsq._make_residual, lsq._jacobian_for = orig_res, orig_jac
         CompiledModel.derivative_bases = orig_bases
+        lsq._peak_chain_column = orig_col
+        CompiledModel.phase_peaks = orig_peaks
+        lsq._accumulate = orig_acc
 
+    cols = total["jacobian"] - total["bases"]
     print(f"trigger cold fit: {wall:.2f} s   Rwp "
           f"{result.statistics.rwp:.5f}   {result.status}")
-    print(f"{'seam':22s} {'calls':>6s} {'s':>8s} {'ms/call':>9s} {'share':>7s}")
+    print(f"{'seam':26s} {'calls':>6s} {'s':>8s} {'ms/call':>9s} {'share':>7s}")
     shown = (("residual (forward)", total["residual"], calls["residual"]),
              ("jacobian: bases", total["bases"], calls["bases"]),
-             ("jacobian: columns", total["jacobian"] - total["bases"],
-              calls["jacobian"]),
+             ("jacobian: columns", cols, calls["jacobian"]),
+             ("  of which accumulate", total["col.accum"], calls["col.accum"]),
+             ("  of which phase_peaks", total["col.peaks"], calls["col.peaks"]),
              ("compile_model", total["compile"], calls["compile"]))
     for name, secs, n in shown:
-        print(f"{name:22s} {n:6d} {secs:8.3f} {1e3 * secs / max(n, 1):9.3f} "
+        print(f"{name:26s} {n:6d} {secs:8.3f} {1e3 * secs / max(n, 1):9.3f} "
               f"{100 * secs / wall:6.1f}%")
     rest = wall - total["residual"] - total["jacobian"] - total["compile"]
-    print(f"{'solver + runner':22s} {'':6s} {rest:8.3f} {'':9s} "
+    print(f"{'solver + runner':26s} {'':6s} {rest:8.3f} {'':9s} "
           f"{100 * rest / wall:6.1f}%")
+    if cols:
+        print(f"\nOnly {100 * total['col.accum'] / cols:.0f}% of the column "
+              f"seam is plane work; {100 * total['col.peaks'] / cols:.0f}% is "
+              f"the perturbed phase_peaks, which is per-reflection scalars "
+              f"and out of a plane kernel's reach.")
+    return 0
+
+
+def bench_accum(reps: int) -> int:
+    """Bench the fused scatter against ``accumulate_planes`` on real inputs.
+
+    The ``parts`` are captured from inside a real trigger fit, sampled
+    **evenly across it** rather than from the head: the first calls come from
+    ``scale_bkg``, where a column touches one phase with one term, and
+    measuring those flatters the kernel by ~5× against the fit's own average.
+    """
+    try:
+        fused = _accum_kernel()
+    except ImportError:
+        print("numba is not installed; this spike needs it "
+              "(`uv pip install numba`).")
+        return 1
+
+    captured: list = []
+    want, stride = 40, 240
+    seen = {"n": 0}
+    orig_acc = lsq._accumulate
+
+    def cap(n_points, parts):
+        seen["n"] += 1
+        if seen["n"] % stride == 0 and len(captured) < want:
+            keep = [(lay, [(c.copy(), p.copy()) for c, p in terms])
+                    for lay, terms in parts if terms and len(lay.i0)]
+            if keep:
+                captured.append((n_points, keep))
+        return orig_acc(n_points, parts)
+
+    lsq._accumulate = cap
+    try:
+        setup = _trigger_setup()
+        ref = rx.Refinement(setup.structure.model_copy(deep=True),
+                            setup.instrument.model_copy(deep=True),
+                            history=False)
+        ref.fit(setup.data, plan=setup.plan, mode=setup.mode,
+                two_theta_limits=setup.limits)
+    finally:
+        lsq._accumulate = orig_acc
+
+    packed = []
+    for n_points, parts in captured:
+        per = []
+        for lay, terms in parts:
+            coefs = np.empty((len(terms), len(lay.i0)))
+            planes = np.empty((len(terms), len(lay.i0), lay.w_max))
+            for t, (c, p) in enumerate(terms):
+                coefs[t], planes[t] = c, p
+            per.append((np.asarray(lay.idx), np.asarray(lay.i0),
+                        np.asarray(lay.i1), coefs, planes, len(terms)))
+        packed.append((n_points, per))
+
+    exact = True
+    worst = 0.0
+    for (n_points, parts), (_, per) in zip(captured, packed):
+        want_y = accumulate_planes(n_points, parts)
+        got = np.zeros(n_points)
+        for idx, i0, i1, coefs, planes, nt in per:
+            fused(got, idx, i0, i1, coefs, planes, nt)
+        if not np.array_equal(want_y, got):
+            exact = False
+            scale = float(np.max(np.abs(want_y))) or 1.0
+            worst = max(worst, float(np.max(np.abs(want_y - got))) / scale)
+
+    def np_run():
+        for n_points, parts in captured:
+            accumulate_planes(n_points, parts)
+
+    def nb_run():
+        for n_points, per in packed:
+            y = np.zeros(n_points)
+            for idx, i0, i1, coefs, planes, nt in per:
+                fused(y, idx, i0, i1, coefs, planes, nt)
+
+    elems = sum(int(nt * len(i0) * planes.shape[2])
+                for _, per in packed for _, i0, _, _, planes, nt in per)
+    a, b = best_of(np_run, reps), best_of(nb_run, reps)
+    n = len(captured)
+    print(f"\ncolumn accumulation, {n} real calls sampled across a trigger "
+          f"fit, {elems} plane elements")
+    print(f"  numpy accumulate_planes {1e3 * a / n:8.3f} ms/call "
+          f"({1e9 * a / elems:5.2f} ns/element)")
+    print(f"  numba fused             {1e3 * b / n:8.3f} ms/call "
+          f"({1e9 * b / elems:5.2f} ns/element)   {a / b:.2f}×")
+    print("  equivalence: " + ("BIT-IDENTICAL on every captured call"
+                               if exact else
+                               f"max rel {worst:.2e} — NOT bit-identical"))
     return 0
 
 
@@ -510,10 +664,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seams", action="store_true",
                     help="decompose a trigger cold fit instead of benching "
                          "the kernels")
+    ap.add_argument("--accum", action="store_true",
+                    help="bench the column seam's plane accumulation on "
+                         "inputs captured from a real fit")
     ap.add_argument("--repeats", type=int, default=7,
                     help="timed repeats per kernel (default 7)")
     args = ap.parse_args(argv)
-    return bench_seams() if args.seams else bench_kernels(args.repeats)
+    if args.seams:
+        return bench_seams()
+    if args.accum:
+        return bench_accum(args.repeats)
+    return bench_kernels(args.repeats)
 
 
 if __name__ == "__main__":
