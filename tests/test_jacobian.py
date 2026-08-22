@@ -447,3 +447,106 @@ def test_lean_bases_carry_the_same_omega_and_no_partials():
             assert np.array_equal(f[4], s[4])          # Ω
             assert all(p is None for p in s[5:])       # every partial
             assert all(p is not None for p in f[5:8])  # ∂pos, ∂Γ, ∂η
+
+
+def _scale_state(free=("phases.0.scale",)):
+    """A compiled rutile state with ``free`` varied, plus its expansion point."""
+    structure, ins, pattern = _state(make_rutile())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for path in free:
+        assert table.set_vary([path], True), path
+    table.apply_to_models(structure, ins)
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    theta = table.x0()
+    return model, table, theta, table.decode(theta)
+
+
+@pytest.mark.parametrize("frac", [1.0, 1e-2, 1e-4])
+def test_the_scale_column_is_exact_and_its_step_size_does_not_matter(frac):
+    """∂y/∂scale is the phase's own contribution over the scale — exactly.
+
+    The scale enters ``phase_peaks`` once, in ``base = scale · mult · |F|²``,
+    and every factor after it — the March multiplier, the line weight, Lp,
+    Sabine extinction (which reads the *raw* ``|F|²``), specimen absorption,
+    surface roughness, the off-the-sphere mask — is independent of it.  So
+    the intensity is linear in the scale and a difference quotient in
+    *physical* space carries no truncation error at any step.
+
+    That is why the step is a parameter here rather than a small constant: a
+    check at one step could be passed by a wrong column whose error happened
+    to sit under an FD tolerance, while agreement at a **100 % step** and at
+    1e-4 together say the function is linear and the coefficient is right.
+    The error grows as the step shrinks, which is cancellation and the
+    signature of exactness, not of a bug.
+
+    The peer of ``test_pawley_intensity_columns_are_exact_across_backends``,
+    and the reason a θ-space FD is *not* the reference: the scale is a
+    softplus of θ, so both the whole-model FD and the peak-chain FD carry the
+    transform's curvature — they agree with each other to 1e-11 and with the
+    truth to 5e-6 (WP-1121 § Findings 3).
+    """
+    from rietx.optimize.least_squares import _scale_column
+
+    model, table, theta, values = _scale_state()
+    bases = model.derivative_bases(values, None)
+    column = _scale_column(model, bases, values, 0)
+
+    s0 = values["phases.0.scale"]
+    y0 = np.asarray(model.evaluate(values))
+    moved = dict(values)
+    moved["phases.0.scale"] = s0 * (1.0 + frac)
+    quotient = (np.asarray(model.evaluate(moved)) - y0) / (s0 * frac)
+
+    err = np.max(np.abs(column - quotient)) / np.max(np.abs(quotient))
+    bar = {1.0: 1e-14, 1e-2: 1e-12, 1e-4: 1e-10}[frac]
+    assert err < bar, f"step {frac:g}: {err:.3e}"
+
+
+def test_a_dead_phase_takes_the_fd_path_rather_than_dividing_by_its_scale():
+    """``scale == 0`` is reachable and the analytic column is 0/0 there.
+
+    A softplus lower bound of 0 maps to −∞ internally and underflows to
+    exactly 0.0 below u ≈ −745 (root CLAUDE.md § Invariants: safe wherever
+    zero is the *off state*, a bug wherever the physics divides).  Here it
+    divides — and unlike a width, a zero scale does **not** make the
+    derivative zero: it is the whole unscaled chain, which is exactly what
+    lets a dead phase come back.  So the dispatcher tests the scale and the
+    finite-difference path, which stays correct there, keeps the column.
+
+    Both halves are asserted, because either alone would pass for the wrong
+    reason.  The fence is shown to be **load-bearing** — the analytic
+    expression really does produce NaN at this state, so it is not being
+    fenced against a hazard that could not arise — and the column the
+    dispatcher actually builds is shown to be the FD's.  Here that column is
+    zeros, and correctly so: at u = −800 the softplus underflows on *both*
+    sides of the step, so no perturbation escapes and the direction is flat
+    in θ.  That is this package's "a phase the data cannot see is a flat
+    direction" one rank down (root CLAUDE.md § Invariants) — the honest
+    answer is zero, and NaN is the only wrong one.
+    """
+    from rietx.optimize.least_squares import _make_jacobian, _scale_column
+
+    model, table, theta, _ = _scale_state()
+    c = table.free_paths.index("phases.0.scale")
+    theta = theta.copy()
+    theta[c] = -800.0                       # softplus underflows to exactly 0
+    values = table.decode(theta)
+    assert values["phases.0.scale"] == 0.0
+
+    with np.errstate(invalid="ignore"):
+        unfenced = _scale_column(model, model.derivative_bases(values, None),
+                                 values, 0)
+    assert np.isnan(unfenced).any(), \
+        "the 0/0 the fence exists for did not arise: check the state, not it"
+
+    column = _make_jacobian(model, table)(theta)[:, c]
+    assert np.all(np.isfinite(column)), "the 0/0 fence let a NaN through"
+
+    residual = _make_residual(model, table)
+    h = 1e-6 * max(1.0, abs(theta[c]))
+    tp = theta.copy()
+    tp[c] += h
+    fd = (residual(tp) - residual(theta)) / h
+    np.testing.assert_array_equal(column, fd)

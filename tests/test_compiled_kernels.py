@@ -342,19 +342,33 @@ def test_the_thread_count_is_settable_and_never_zero(monkeypatch):
             assert got == want, f"{raw!r} gave {got}"
 
 
-def test_a_numba_still_importing_on_another_thread_does_not_kill_the_fit(
+def test_the_cache_redirect_survives_a_numba_another_thread_is_importing(
         monkeypatch):
-    """``warm`` imports numba on a background thread (WP-1115), so the main
-    thread can reach ``_redirect_cache`` while ``sys.modules['numba']`` holds a
-    module whose ``.config`` is not bound yet — and an unguarded ``mod.config``
-    then raises ``AttributeError`` out of whatever fit asked ``enabled()``.
+    """``warm`` imports numba on a *thread*, so the module can be half-built.
 
-    Measured once, on a fresh venv's first run, and never again in that process
-    (WP-1123): the window is the import itself, which is wide only while the
-    package files are cold in the page cache.  So the race is pinned by
-    *building* the state a partial import leaves rather than by racing for it —
-    a timing test here would pass on every machine that has run the suite
-    before.
+    :func:`compiled.warm` deliberately keeps the numba import off the calling
+    thread, which means a first :func:`compiled.enabled` on that thread can run
+    while the background one is inside ``import numba`` — ``sys.modules`` has
+    the module, with no ``config`` attribute on it yet.  Reading ``mod.config``
+    there raised ``AttributeError`` out of an ordinary fit; it surfaced as a
+    crashed benchmark that ran clean on the next attempt, which is how a race
+    announces itself.
+
+    The stand-in *is* the racing state rather than a mock of it, and that is
+    what makes the assertion deterministic: a test that started a thread and
+    hoped to land inside its import would fail to reproduce far more often
+    than it reproduced.
+
+    Skipping the correction is also correct and not merely safe — the thread
+    doing the importing came through ``_redirect_cache`` first, so the
+    environment variable the fresh import reads was already set.
     """
-    monkeypatch.setitem(sys.modules, "numba", types.ModuleType("numba"))
-    compiled._redirect_cache()  # must not raise
+    monkeypatch.setenv("NUMBA_CACHE_DIR", "/tmp/set-by-the-other-thread")
+    half_built = types.ModuleType("numba")     # exactly: no ``config`` yet
+    assert not hasattr(half_built, "config")
+    monkeypatch.setitem(sys.modules, "numba", half_built)
+
+    compiled._redirect_cache()                 # must not raise
+
+    assert os.environ["NUMBA_CACHE_DIR"] == "/tmp/set-by-the-other-thread", \
+        "a caller's (or the other thread's) setting must survive"

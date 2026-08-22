@@ -200,7 +200,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # it is held to.  The measurements, the `prange` comparison and the three
     # traps stayed down a rank: § The decision in the WP, the v1.1 record's
     # narrative, and the bars executable in tests/test_compiled_kernels.py.
-    # 804 -> 820 for WP-1123 (2026-08-22): a staged plan stops its intermediate
+    # 804 -> 817 for WP-1121 (2026-08-22): how to *verify* an analytic Jacobian
+    # branch, which the clause above it only says how to *scope*.  It earns a
+    # clause because the trap is silent and points the wrong way: the
+    # whole-model FD is the branch's own fallback, so a session reaches for it
+    # as the oracle, and on a transformed parameter it certifies the column
+    # being replaced while condemning the exact one that replaces it (measured
+    # at 2e-11 agreement with a column 4.6e-6 from the truth).  The operating
+    # detail went down a rank as this comment requires — the step sweep, the
+    # per-state golden diff and the seam decomposition are in the WP, the
+    # column's own reasoning in `_scale_column`'s docstring.
+    # 817 -> 833 for WP-1123 (2026-08-22): a staged plan stops its intermediate
     # stages early by default, which changes what every fit in the package
     # returns and is not implied by any other line here.  A session that never
     # opens strategy/ still needs three of its clauses: the schedule is the
@@ -212,7 +222,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # requires: the harness table and the esd shifts are in the WP's handover
     # and the v1.1 record, the trade in docs/manual/using/refining.md, the
     # decision beside the numbers it produced in tests/validation_matrix.py.
-    "CLAUDE.md": 820,
+    "CLAUDE.md": 833,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one

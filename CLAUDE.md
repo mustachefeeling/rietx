@@ -264,6 +264,19 @@ recent list, and is therefore not behind the 409 (WP-1044).
   and `test_cross_backend.py`'s `families_tied` row is where other backends
   check it (WP-1070 measured an un-gated background column wrong by 49 % of its
   own scale).
+- **A branch's oracle has to be exact where the branch is, and the whole-model
+  FD is not.** It decodes through C like the residual, which makes it the right
+  *fallback* and the wrong *reference* for an analytic column on a transformed
+  parameter: it perturbs θ, so it carries the transform's O(h) curvature and
+  certifies the FD column it is a copy of. Measured (WP-1121): a phase scale's
+  FD column was 4.6e-6 from the truth and agreed with the whole-model FD to
+  2e-11 — the wrong column, certified. Check where the check is exact instead.
+  Where the model is *linear* in the parameter — a phase scale, a Pawley
+  intensity — a difference quotient in **physical** space has no truncation
+  error at any step, so the bar is agreement at a **100 % step** (3.6e-16
+  there), and the error growing as the step shrinks is cancellation rather than
+  a defect. Such a column's equivalence bar is therefore exactness, not
+  bit-identity, and it moves every converged fit that frees the parameter.
 - **"Can this parameter move?" is `moving_paths`, never `free_paths`** — the
   rule above one rank up, and it governs every *structural* freeze, not just a
   Jacobian branch. A tied entry is not a column of θ and still changes while θ
