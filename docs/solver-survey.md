@@ -296,6 +296,39 @@ claim E5.3) is untouched and remains the deeper prize. **Probe opened:
 [WP-1125](wp/1125-varpro-probe.md)** decides the speed half on the stages
 1113 named, with a pre-registered kill criterion.
 
+**2026-08-22, later — the speed half is DEAD, and the third motivation above
+is wrong** ([WP-1125](wp/1125-varpro-probe.md)'s § Findings has the 70-stage
+table). Profiling the background out does not remove a leg of the ridge walk,
+because **the profiled Gauss-Newton step is the same vector as the joint
+one** — the Schur complement of the joint normal matrix — and the equality
+holds *at every point*, not only at the conditional optimum, since
+(I − P)·M = M − M·M⁺·M = 0. Measured to ≤ 6.6e-07 relative on all 70 stages
+at start-identity gaps spanning 4.5e-15 to 1.2e+03. On the 34 stages where
+TRF never rejected a step the accepted-step counts are identical in 34 of 34,
+including every `zero_disp`/`cell` row at both schedules (12 of 12 at 1.00×,
+decay ratio equal to three decimals), and the WP-1113 baselines 84/86/93/131
+come back exactly.
+
+**The correction this entry needed is above it**: Ruhe & Wedin's "alternation
+converges linearly, VarPro quadratically" compares VarPro to **alternation**,
+and this package does not alternate — the background is an ordinary column of
+θ that TRF solves jointly. Against joint Gauss-Newton, VarPro on an
+unconstrained linear block *is* the same algorithm. The whole-probe count is
+**0.79×** (profiling is worse, not neutral), because scipy's TRF takes its
+initial trust radius from ‖x0‖ and background coefficients are counts that
+carry nearly the whole norm — profiling shrinks the radius 1.0×-59.0×, median
+3.6×. That half is a fact about the driver, not the method, and is not what
+kills the idea; the step identity is, because it caps the gain at exactly
+1.00× however well the globaliser is tuned.
+
+Two claims survive intact and are *not* touched by this: the **correctness**
+half (the VarPro normal matrix is still the Schur complement, so structural
+esds still emerge marginalised over the background), and the **Pawley
+dimension** claim, which is per-step linear algebra over 550 stored columns
+rather than evaluation count over 6 near-free design rows. The identity also
+holds only while no bound is active, so a bounded block (Pawley intensities,
+phase scales) cannot quote it — the NNLS caveat above stands as written.
+
 **A2. Scale-space continuation / graduated non-convexity.** Blake & Zisserman
 (1987); Bunks et al. (1995) *Geophysics* 60, 1457 (multiscale FWI); Yang et al.
 (2020) IEEE RA-L. **Measured in §1.2: 4–12× wider capture range, non-monotone in
@@ -962,6 +995,22 @@ solve; start with Kaufman's approximate derivative.
   WP-1123 schedule on the stages WP-1113 named (see A1's dated note for the
   new motivation). Claims 1-3 above are untouched and unscheduled; the probe
   reuses claims 1 and 2 (background half) as its correctness gates.
+- **2026-08-22, later — probed and the speed half RETIRED**; the dated note
+  in §2.A1 has the mechanism and the numbers. **This entry now stands on
+  correctness alone.** For the unconstrained background block the profiled
+  Gauss-Newton step is identically the joint one, so there is no count to
+  win: 34 of 34 pure-Gauss-Newton stages came back at the same accepted-step
+  count and the whole 70-stage probe at 0.79×. Two of this entry's own
+  verification claims were measured in passing and are worth carrying
+  forward. **Claim 1 (agreement) failed on 10 of 70 stages**, worst 7.85 esd
+  — every failure on a stage where TRF rejected steps, so it measures the two
+  arms' trust regions diverging rather than a disagreement about the minimum,
+  and a landing WP must not read it as a correctness result. **Claim 2
+  (exactness) failed on 34 of 70**, worst 4.0e-03, which is not a defect in
+  the identity but a fact about the joint fit: an ftol-bound stage stops with
+  its background up to 0.4 % from its own conditional optimum. Claim 3, the
+  coverage study, is untouched, unscheduled, and remains the reason to do
+  this at all.
 
 ### E6. Cone-constrained Gauss-Newton for Stephens strain
 
@@ -1207,12 +1256,29 @@ here.
   runs the same chain 1.61× faster than the shipped default. The front stays
   open and moves to the ladder, not the seed. The tangent-as-sensitivity half
   of B8 is untouched and still parked.
-- **A1/E5 speed half → [WP-1125](wp/1125-varpro-probe.md)**. WP-1113's ridge
-  walk runs along the degeneracy's linear leg, which variable projection
-  removes by construction. The probe is background-only, judged against the
-  flipped schedule; the correctness half (Le Bail esds, derived
-  equal-splitting, the E5.3 coverage study) stays unscheduled and is the
-  deeper prize.
+- **A1/E5 speed half → [WP-1125](wp/1125-varpro-probe.md)** — *probed and
+  **retired** the same day, like B8 above; the dated note in §2.A1 has the
+  mechanism.* The premise that opened it was wrong: profiling the background
+  does **not** remove a leg of the ridge walk, because the profiled
+  Gauss-Newton step is identically the joint one — the Schur complement,
+  exact at every point since (I − P)·M = 0. Measured ≤ 6.6e-07 on 70 stages;
+  34 of 34 pure-Gauss-Newton stages identical in accepted steps; every
+  `zero_disp`/`cell` row 1.00× at both schedules with the decay ratio equal
+  to three decimals. Whole probe **0.79×** — worse, because TRF's initial
+  trust radius is ‖x0‖ and the background coefficients carry nearly all of
+  it (shrink 1.0×-59.0×, median 3.6×). Nothing shipped. **The yield is a
+  correction to the survey's own reasoning**: Ruhe & Wedin compare VarPro to
+  *alternation*, and this package never alternates, so the quadratic-vs-linear
+  argument never applied to its background. The correctness half and the
+  Pawley dimension claim are untouched and are what E5 now stands on.
+
+Both promotions were **retired within a day of opening**, and neither on its
+count: B8's arms reduced evaluations and were killed on what they did to the
+answer, A1's could not reduce them at all because the step it computes was
+already being taken. In both the yield was a correction to this page's own
+reasoning rather than a number. Read that as a caution about the speed side
+of §2 specifically — its arguments are borrowed from fields whose solvers
+alternate, and this one has not alternated since v0.1.
 
 **Cheaper, unchanged in standing**: E7/C1 — still the highest-value
 correctness item, now an afternoon's compute; recommended first correctness
