@@ -11,11 +11,11 @@ read one, and how to change one. [](concepts.md) is the next question, which
 rows to free and in what order, and [](refining.md) is how to run the result.
 The table itself takes no view on either.
 
-Two properties make it worth looking at before you refine anything. It contains
-rows you cannot free, and it says why for each one, so "why will this
-parameter not move" is answerable without running a fit. And it is rebuilt from
-the models at every stage boundary, so a row is never stale with respect to the
-objects it came from.
+Two properties matter before you refine anything. The table contains rows you
+cannot free and says why for each one, so "why will this parameter not move" is
+answerable without running a fit. And it is rebuilt from the models at every
+stage boundary, so a row is never stale with respect to the objects it came
+from.
 
 ## A dot-path names one scalar
 
@@ -35,10 +35,9 @@ Numbers in the middle are list indices, in the order the model stores them.
 
 Paths are matched with `fnmatch`, so `*` and `?` work and a set of parameters
 is named by one glob: `phases.*.cell.*` is every cell parameter of every phase,
-`phases.*.atoms.*.biso` every isotropic displacement. This is one grammar used
-in three places, which is why it is worth learning once: `Refinement.set_vary`
-takes globs, a stage's `turn_on` list takes globs, and `Refinement.untie` takes
-globs.
+`phases.*.atoms.*.biso` every isotropic displacement. One grammar serves three
+places: `Refinement.set_vary` takes globs, a stage's `turn_on` list takes globs,
+and `Refinement.untie` takes globs.
 
 Brackets are the one trap. `fnmatch` reads `[0]` as a character class rather
 than an index, so `phases[0].cell.a` matches nothing and raises no error. There
@@ -92,7 +91,7 @@ listing is the cheapest way to see what is there.
 | `ParameterRow.path` | str | the dot-path |
 | `ParameterRow.value` | float | the current physical value |
 | `ParameterRow.vary` | bool | whether it is free in the next fit |
-| `ParameterRow.lo`, `ParameterRow.hi` | float | inclusive physical bounds as *stored*, ±inf when unbounded — a cell the data cannot see also gets a per-stage default the row does not show (§ "A cell the data cannot see gets a bound you did not set") |
+| `ParameterRow.lo`, `ParameterRow.hi` | float | inclusive physical bounds as *stored*, ±inf when unbounded. A cell the data cannot see also gets a per-stage default the row does not show (§ "A cell the data cannot see gets a bound you did not set") |
 | `ParameterRow.transform` | str | the reparameterisation, {eq}`par-softplus` |
 | `ParameterRow.tie` | `TieSpec` or None | what this value follows, if anything |
 | `ParameterRow.locked` | bool | structurally fixed, `set_vary` can never free it |
@@ -205,14 +204,14 @@ cell that size is refused.
 
 So when a stage begins, any phase whose strongest modelled point sits below 1σ
 of the counting noise has its cell bounded to ±5 % of the value that stage
-starts from — on whichever side you left at ±inf; set a bound yourself and that
+starts from, on whichever side you left at ±inf. Set a bound yourself and that
 side is yours. Such a cell can therefore report `BOUND_HIT` while its
 `ParameterRow.hi` still reads `inf`: the row is the bound *you* stored, and the
 window is the solver's bound for one stage.
 
-**Only that phase's cell.** A bound is not free — the solver takes its step
-scale from the distance to the bounds, so bounding a cell changes how it moves
-even when the bound is never reached. A phase the data can see is left alone,
+Only that phase's cell is bounded. A bound is not free: the solver takes its
+step scale from the distance to the bounds, so bounding a cell changes how it
+moves even when the bound is never reached. A phase the data can see is left alone,
 and a fit of one gives the identical answer it gave before this existed.
 
 The window bounds the symptom. The cause is reported separately, as
@@ -296,39 +295,39 @@ present with `vary=False`.
 | `RefinedParameter.vary` | false on the tied rows, which is how to spot them |
 | `RefinedParameter.at_bound` | true, false, or None where the row was not tested |
 
-**A parameter the data said nothing about reports no esd**, rather than a
-small one. A free parameter can end up in a direction the residual does not
-move at all — a width whose peak shape does not need it, a scale for a phase
-that is not in the specimen — and there is no variance to report for it, so
+A parameter the data said nothing about reports no esd rather than a small one.
+A free parameter can end up in a direction the residual does not move at all (a
+width whose peak shape does not need it, a scale for a phase that is not in the
+specimen), and there is no variance to report for it, so
 `stderr` is `None`. It is `None` on the tied rows that draw on such a parameter
 too: a tie whose source measured nothing measured nothing. Read a `None` esd on
 a row you meant to refine as a signal to take that parameter out of the plan.
 
-**A parameter sitting on its bound is not a measurement, so do not quote one.**
+A parameter sitting on its bound is not a measurement, so do not quote one.
 That is what `at_bound` is for, and it has three states rather than two:
 
 | Value | Meaning |
 |---|---|
 | `True` | the fit stopped against a bound; the same rows the `BOUND_HIT` diagnostic names |
 | `False` | tested, and interior |
-| `None` | not tested — no answer either way |
+| `None` | not tested, so no answer either way |
 
 `None` covers two cases. A **tied** row is never tested: it is not in the free
 vector the fit solves, so nothing looked at it, and its value can sit on its own
 declared bound while every source is interior. And a result built without a fit
-behind it has nothing to report — [`replay`](history.md) recomputes a recorded
+behind it has nothing to report: [`replay`](history.md) recomputes a recorded
 node's curves without running the guard, so every one of its rows is `None`.
 
-**What counts as being on a bound is the solver's own test**, not a second
+What counts as being on a bound is the solver's own test rather than a second
 one: a value is on a bound when it sits within 1e-10 of *that bound's* own
-magnitude, floored at 1 — the rule `scipy.optimize.least_squares` uses to fill
-its `active_mask`. Relative to the bound it is near, never to the gap between
+magnitude, floored at 1, which is the rule `scipy.optimize.least_squares` uses
+to fill its `active_mask`. Relative to the bound it is near, never to the gap between
 the two, so writing `min=1e-14, max=1e14` to mean "leave this alone" does not
 make every value in between read as pinned.
 
 Both channels carry the same fact, and by construction rather than by
 agreement: the flag is the `BOUND_HIT` findings projected onto the rows, from
-one bound test. Read whichever suits the shape of your code — the diagnostic
+one bound test. Read whichever suits the shape of your code: the diagnostic
 when you want the list, the flag when you are already iterating rows.
 
 The two views differ in size, and the difference is the point. A single-phase
@@ -338,8 +337,8 @@ tied, and 40 fixed rows that the result omits entirely. Use the result to
 report a fit and the table to decide what to do next.
 
 That split is the one `at_bound` reports against. In this fit all 14 free rows
-come back `False` and all 18 tied rows come back `None` — `cell.b`, `cell.c`
-and the sixteen symmetry-tied coordinates. Capping `cell.a` at 10.2500, against
+come back `False` and all 18 tied rows come back `None`: `cell.b`, `cell.c` and
+the sixteen symmetry-tied coordinates. Capping `cell.a` at 10.2500, against
 a free optimum of 10.2513, turns exactly one row `True` and takes Rwp from
 0.1403 to 0.2068: the fit spends its other parameters covering for a cell it is
 not allowed to reach, which is why a bound-sitting value is not a measurement.

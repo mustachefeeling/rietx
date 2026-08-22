@@ -7,8 +7,8 @@ nowhere.
 
 [](concepts.md) explains *why* a refinement is staged and what order the
 presets encode. Nothing here repeats that argument. What follows is the
-machinery around it — the settings a caller chooses, and the record a run
-leaves behind.
+machinery around it: the settings a caller chooses, and the record a run leaves
+behind.
 
 ## Two entry points, and where the settings live
 
@@ -30,8 +30,9 @@ ref = rx.Refinement(structure, instrument)
 result = ref.fit(data)
 ```
 
-The two take different arguments, and the split is worth reading once because
-it is not arbitrary.
+The two take different arguments, and what goes where follows one rule. A
+setting that decides how every fit in the object is computed belongs to the
+constructor; a question asked of one pattern belongs to the call.
 
 | Setting | Where it goes | Why there |
 |---|---|---|
@@ -98,8 +99,8 @@ hard-coding a list that will rot the next time a preset lands.
 
 `PLAN_PRESETS` maps each preset name to the function that builds it, and
 `PLAN_INFO` maps the same names to a `PlanInfo` describing what the preset is
-for. The entry is the builder, not the plan — call it, and edit what comes
-back. Each call returns a fresh `RefinementPlan`, so one caller's edit never
+for. The entry is the builder rather than the plan: call it, then edit what
+comes back. Each call returns a fresh `RefinementPlan`, so one caller's edit never
 reaches another:
 
 ```python
@@ -140,8 +141,8 @@ assert plan.correlation_guard == 0.98
 strict = rx.RefinementPlan(stages=plan.stages, correlation_guard=0.9)
 ```
 
-Lowering it reports more pairs. It does not change the fit — the guard measures
-the fit, it does not constrain it.
+Lowering it reports more pairs. It does not change the fit: the guard measures
+the fit rather than constraining it.
 
 ## How hard each stage is converged
 
@@ -173,7 +174,7 @@ says which schedule produced it without the plan beside it.
 
 Stages are cumulative: each one frees its globs on top of everything already
 free, so a parameter an early stage stopped short on keeps refining in every
-later stage, and the last stage — at `1e-9` — polishes all of them together.
+later stage, and the last stage, at `1e-9`, polishes all of them together.
 That is why stopping intermediate stages early moves the answer so little, and
 it holds for any plan this runner runs, not only for the presets.
 
@@ -183,7 +184,7 @@ the same plans with `intermediate_ftol = None`:
 
 | case | evaluations | wall clock | largest shift | QPA |
 |---|---|---|---|---|
-| nac | 47 → 39 (1.21×) | 0.38 → 0.34–0.35 s | — | — |
+| nac | 47 → 39 (1.21×) | 0.38 → 0.34–0.35 s | not measured | single phase |
 | cpd-1a | 408 → 270 (1.51×) | 2.02–2.04 → 1.52 s | 0.027 esd, a width term | within 0.0014 wt % |
 | cpd-2 | 533 → 329 (1.62×) | 3.37–3.43 → 2.27–2.28 s | 0.001 esd, a background coefficient | within 0.0003 wt % |
 | trigger | 360 → 232 (1.55×) | 8.63–8.65 → 5.67–5.70 s | 0.001 esd, outside one degeneracy | within 0.0001 wt % |
@@ -191,15 +192,15 @@ the same plans with `intermediate_ftol = None`:
 Rwp agrees to five decimals or better in every case.
 
 The degeneracy is the trigger case's instrument `x` against every phase's
-`lor_size`, which moves 1.4 esd. Those parameters are exactly degenerate —
-Lorentzian FWHMs add, and both terms are size-like in θ — and the measurement
+`lor_size`, which moves 1.4 esd. Those parameters are exactly degenerate
+(Lorentzian FWHMs add, and both terms are size-like in θ), and the measurement
 shows it: `x` gained 0.0013165 while all four `lor_size` values lost
 0.0012897–0.0013300 each. What moved is the split, not the width they sum to.
 
-A **chained series is the case to measure rather than assume**. Ten
-warm-started patterns took 1603 evaluations against 1792 fully converged
-(57.2–57.6 s against 60.4–60.7 s) — but the same comparison one commit earlier
-went the other way, 1705 against 1634. Each pattern starts from its
+A chained series is the case to measure rather than assume. Ten warm-started
+patterns took 1603 evaluations against 1792 fully converged (57.2–57.6 s against
+60.4–60.7 s), but the same comparison one commit earlier went the other way,
+1705 against 1634. Each pattern starts from its
 predecessor's answer, and a small change in one seed changes how many recovery
 rungs the next pattern needs, so the chain turns a bounded per-fit difference
 into an unbounded one whose sign is not fixed. A single cold fit has no such
@@ -221,9 +222,8 @@ Every stage then stops where the solver's own default says, which is what every
 fit before 1.1 did, to the bit. Reach for it when a number is going into a
 paper and you want the plan's own converged answer rather than one within a few
 hundredths of an esd of it, when you are reproducing a number from an earlier
-release, and
-in a test that pins a value — a suite whose numbers move when a default moves
-is not pinning anything.
+release, and in a test that pins a value: a suite whose numbers move when a
+default moves is not pinning anything.
 
 `PlanSpec.intermediate_ftol` carries the setting through JSON, so a project
 file, a history header and an agent request all record which schedule ran. In
@@ -253,8 +253,8 @@ assert stage.lebail_cycles == 3
 reaches it is reported with status `max_iter` rather than `converged`, which is
 a result to read rather than an error to catch.
 
-`Stage.ftol` is this stage's own termination tolerance — the relative cost
-decrease below which the solver stops — and it overrides the plan's schedule
+`Stage.ftol` is this stage's own termination tolerance (the relative cost
+decrease below which the solver stops), and it overrides the plan's schedule
 above. Unset (`None`), the stage takes whatever `RefinementPlan.stage_ftols`
 gives it. Set it to say that one stage is different: an early stage whose seed
 the next one is unusually sensitive to, or a single-stage fit that has to
@@ -280,12 +280,12 @@ stage performs, and it applies in Le Bail mode only.
 
 `Stage.window_slack_deg` (and its mirror `StageSpec.window_slack_deg`) is the
 absolute capture slack, in °2θ, added to every evaluation-window half-width
-the stage compiles. The default (`None`) uses the package constant, sized for
-a fit whose starting positions are roughly right; a fit that must *measure*
-a hypothesis it is forbidden to walk toward — the indexing Le Bail
-validation holds its candidate cell fixed, and a wrong candidate displaces
-peaks by whole degrees — declares the wider capture range its verdict needs
-instead of borrowing tail margin. Leave it unset in ordinary plans.
+the stage compiles. The default (`None`) uses the package constant, sized for a
+fit whose starting positions are roughly right. A fit that must *measure* a
+hypothesis it is forbidden to walk toward declares the wider capture range its
+verdict needs instead of borrowing tail margin: the indexing Le Bail validation
+holds its candidate cell fixed, and a wrong candidate displaces peaks by whole
+degrees. Leave it unset in ordinary plans.
 
 ## Persisting a plan
 
@@ -311,7 +311,7 @@ assert spec.correlation_guard == plan.correlation_guard
 
 You do not have to call them at a boundary. Anything that takes a `PlanSpec`
 also takes a `RefinementPlan`, and anything that takes a `RefinementPlan` also
-takes a `PlanSpec` — a preset goes straight into an agent request, and a plan
+takes a `PlanSpec`: a preset goes straight into an agent request, and a plan
 read back off a project or a history header goes straight into `fit`:
 
 ```python
@@ -325,11 +325,10 @@ assert rx.PlanSpec.model_validate(plan) == rx.PlanSpec.from_plan(plan)
 The conversion happens in the two places that own the mirror, so no call site
 carries a copy of it. Write it out yourself when you want the JSON: the
 dataclasses have no `model_dump`, and asking one for it says which mirror
-to use. A `StageSpec` mirrors
-`Stage` field for field — `StageSpec.name`, `StageSpec.turn_on`,
-`StageSpec.max_iter`, `StageSpec.ftol`, `StageSpec.lebail_cycles`,
-`StageSpec.seed`, `StageSpec.strain_seed`,
-`StageSpec.restraint_weight_scale` and `StageSpec.window_slack_deg` — and
+to use. A `StageSpec` mirrors `Stage` field for field (`StageSpec.name`,
+`StageSpec.turn_on`, `StageSpec.max_iter`, `StageSpec.ftol`,
+`StageSpec.lebail_cycles`, `StageSpec.seed`, `StageSpec.strain_seed`,
+`StageSpec.restraint_weight_scale` and `StageSpec.window_slack_deg`), and
 `PlanSpec.correlation_guard` mirrors the plan's.
 
 What is stored is the **expanded** plan: every stage in full, because that is
@@ -337,7 +336,7 @@ what will run. There is deliberately no field recording which preset it came
 from, since such a field could disagree with the stages beside it.
 
 `PlanSpec.preset_name` is therefore a method rather than a field, and it
-answers the question by comparison — the registered preset this plan *equals*,
+answers the question by comparison: the registered preset this plan *equals*,
 or `None` if it was edited:
 
 ```python
@@ -354,9 +353,8 @@ That is what lets a plan editor label a menu, and the text document print
 `plan mccusker_default` instead of eight stage lines, without either of them
 trusting a stored label.
 
-This is the form a plan takes in a history tree and in a `.rex` project, which
-is why the round trip matters more than it looks: a stored plan is the record
-of what was actually done.
+This is the form a plan takes in a history tree and in a `.rex` project, so the
+round trip is what makes a stored plan a record of what was actually done.
 
 ## Running one stage at a time
 
@@ -392,9 +390,9 @@ for rung in ref.stage_reports_:
     print(rung.stage, rung.rwp, rung.gof)
 ```
 
-That is off by default and worth asking for deliberately: a converged run's
-final report is routinely its least informative, because a plan absorbs an
-error it cannot free into whatever it can. [](report.md) has the argument and
+That is off by default. Ask for it deliberately: a converged run's final report
+is routinely its least informative, because a plan absorbs an error it cannot
+free into whatever it can. [](report.md) has the argument and
 what to read in a trajectory.
 
 ## What each stage reports
@@ -469,7 +467,7 @@ once:
 | `GuardFinding.nonpositive_adp` | an anisotropic displacement tensor is not positive definite |
 | `GuardFinding.nonpositive_strain` | a Stephens block gives a negative σ²(M) for some reflection |
 
-`GuardFinding.value` is the headline number for the kind — the correlation
+`GuardFinding.value` is the headline number for the kind: the correlation
 coefficient, the block R², the minimum eigenvalue, the worst σ²(M). It is
 `None` for `GuardFinding.at_bound`, which has no number to report.
 
@@ -503,9 +501,9 @@ result = ref.fit(data, events=show)
 ```
 
 Each event carries its kind, a Unix timestamp, and an open `data` dictionary.
-The kinds are a closed set — `fit_start` and `fit_end` for the run,
+The kinds are a closed set: `fit_start` and `fit_end` for the run,
 `stage_start` and `stage_end` for each stage, and `eval` for each residual
-evaluation — and `rietx watch` renders a log as a live console.
+evaluation. `rietx watch` renders a log as a live console.
 
 Two rules matter to anyone consuming the stream. Read `data` with `.get` rather
 than by unpacking a fixed shape, because fields are added to a kind without a
@@ -535,8 +533,8 @@ compiled model intact.
 
 The stage in flight is **abandoned**: no history node, no commit, and the
 models restored to the values they held before that stage began. That is not
-tidiness — a seeding stage writes to the models before it solves, so leaving
-them alone would leave a half-seeded model behind.
+tidiness: a seeding stage writes to the models before it solves, so leaving them
+alone would leave a half-seeded model behind.
 
 `RefinementCancelled` is then raised, carrying what did complete:
 
@@ -580,10 +578,10 @@ print(p.package_version, p.backend, p.solver, p.dtype)
 | `Provenance.created_utc` | when the result was assembled, UTC |
 | `Provenance.notes` | free-form string pairs a caller can add |
 
-`Provenance.backend`, `Provenance.dtype` and `Provenance.solver` are worth
-reading back rather than assumed: a result is only as reproducible as its
-record of how it was computed, and that record is the only place the answer
-survives once the calling code has moved on.
+Read `Provenance.backend`, `Provenance.dtype` and `Provenance.solver` back
+rather than assuming them. A result is only as reproducible as its record of how
+it was computed, and that record is the only place the answer survives once the
+calling code has moved on.
 
 The four version fields are the same contracts `capabilities()` reports.
 [](compatibility.md) says what a change to one means.
