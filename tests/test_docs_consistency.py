@@ -240,7 +240,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # the trust-radius mechanism and the two gates that failed for reasons
     # unrelated to their names are in the WP's § Findings, the survey's §2.A1
     # and E5 notes, and the v1.1 record's narrative.
-    "CLAUDE.md": 845,
+    # 845 -> 853 for WP-1127 (2026-08-22): the ladder's first-rung bound, and
+    # like the two fences above it is here because the *wrong* version of it is
+    # the attractive one.  Two clauses cannot go down a rank without being
+    # re-derived by whoever proposes the next bound: what a bound may be
+    # derived from (only a rung that did the same job and converged — the cold
+    # fit reads as free evidence and is false), and the two places a bound
+    # would otherwise reach the answer, neither of which is where it is
+    # applied.  The measurements went down a rank as rule 4 requires: the
+    # cold-9-warm-14 refutation, the per-case tables and the pre-registered
+    # clause that fired are in the WP's § Findings and the v1.1 record.
+    "CLAUDE.md": 853,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one

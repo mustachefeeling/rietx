@@ -1,6 +1,8 @@
 # WP-1127 — the ladder's first rung: which one a warm pattern starts on
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-22 — the first rung bounded from what a
+converged one costs: 1603 → 1331 evaluations on the trigger chain, identical on
+the small-cell one, answers bit-identical on both; default flipped
 Depends on: WP-1111 (harness + counting scaffold), WP-1124 (the decomposition
 that names this front), WP-1051 (the ladder itself)
 
@@ -453,17 +455,33 @@ still unowned and still adaptive-or-nothing for WP-0505's reason.
       *(2026-08-22: § Findings 4. `SEQUENTIAL_PATH_DEPENDENT` absent in all
       four arms, so clause 4 is silent; and the read-out found the one place
       the bound is not inert on `cpd`, its backward chain.)*
-- [ ] **Land or retire.** On a go: the third `REFIT_MODES` member, a caller's
+- [x] **Land or retire.** On a go: the third `REFIT_MODES` member, a caller's
       explicit mode never overridden, `entry.rung`/`rungs_tried` carrying what
       actually ran, the docstrings in `sequential.py` carrying the measurement,
       and the default flip **priced, not taken** (WP-1123's shape). On a no-go:
       § Findings carries the bound and `src/` is untouched.
-- [ ] Tests (`tests/test_sequential.py` for the rule's unit behaviour, the
+      *(2026-08-22: **landed**, and in a shape the plan did not predict. No new
+      `REFIT_MODES` member: the rule prices the first rung rather than choosing
+      it, so it is orthogonal to `refit=` and belongs beside `reseed_factor`
+      as `first_rung_factor`. The default flip was **taken, not deferred** —
+      the maintainer's call, twice: once on the 1.36× figure and again on the
+      corrected 1.20× with the fired clause 1 in front of them.
+      `first_rung_factor=None` is the bit-identical way back.)*
+- [x] Tests (`tests/test_sequential.py` for the rule's unit behaviour, the
       harness case asserted in `tests/test_bench_refinement.py`) + obs/calc/diff
       PNGs for the two chains to `tests/output/`.
-- [ ] Docs: the survey's B8 neighbourhood gains the dated outcome,
+      *(2026-08-22: six in `test_sequential.py`, one in
+      `test_bench_refinement.py`. Two of them found defects the harness could
+      not — § Findings 5 and 6 — which is the reason this row is not a
+      formality. The PNGs are the acceptance suites' own, unchanged, since the
+      chains are bit-identical.)*
+- [x] Docs: the survey's B8 neighbourhood gains the dated outcome,
       `../milestones/v1.1.md` takes the narrative, and any standing rule reaches
       root CLAUDE.md as a rule with a pointer — not a finding.
+      *(2026-08-22: §2.B8's dated note and §5's bullet, the v1.1 narrative and
+      its warm-series acceptance row, root CLAUDE.md's series paragraph
+      (cap 845 → 853), and `using/series.md` — the parameter row plus what a
+      reader needs to reproduce a pre-1.1 run.)*
 
 ## Acceptance
 
