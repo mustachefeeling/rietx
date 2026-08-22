@@ -168,7 +168,7 @@ WP-1124 did. Nothing in `src/` ships on a hunch.
 
 ## Tasks
 
-- [ ] **A second series case in the harness**: the round-robin sample-1 chain
+- [x] **A second series case in the harness**: the round-robin sample-1 chain
       (eight real mixtures, small cells) as `cpd-series` / `cpd-series-stages`,
       importing the protocol wholesale from
       `tests/test_acceptance_qpa_roundrobin` the way `_trigger_series` already
@@ -176,6 +176,11 @@ WP-1124 did. Nothing in `src/` ships on a hunch.
       whose measurement points one way, and WP-0505's counterexample family has
       no seat. Report per-pattern wall / iterations / rung breakdown, both
       `refit` modes.
+      *(2026-08-22: `_cpd_series`/`_cpd_series_stages`, the same chain
+      `test_acceptance_sequential.chained_all` runs — same eight patterns,
+      phases, instrument, `seed_scales`, `qpa_plan()` and default
+      `carry=("*",)` — so only `refit` varies. Pinned by
+      `test_the_real_series_case_is_the_acceptance_chain`.)*
 - [ ] **Baseline both cases on this tree**, both modes, the acceptance command
       verbatim: per-pattern table with the discarded-rung column, whole-chain
       nfev/njev, escalation count, and the fixed-mode winner per case. This is

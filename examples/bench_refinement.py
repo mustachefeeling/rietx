@@ -303,6 +303,60 @@ def _cpd_2() -> Setup:
         qpa_plan(biso_globs=biso, texture=True))
 
 
+def _cpd_series(refit: str = "single") -> Setup:
+    """The IUCr round-robin sample-1 chain: eight real mixtures, one goniometer.
+
+    **The counterexample family, and the reason it is a case** (WP-1127).  The
+    ladder's first rung is set by ``refit=``, and which rung is cheaper is a
+    property of the model rather than a constant: WP-0505 measured this very
+    series at 838-904 iterations warm-collapsed against 1623 warm-staged, and
+    WP-1110's agent round then hit the opposite side of the trade on a real
+    trigger-shaped model — which ``trigger-series`` reproduces, 1253 nfev
+    staged against 1603 collapsed.  A rule chosen on either case alone is
+    tuned to it, so the harness carries both.
+
+    Deliberately the same chain ``tests/test_acceptance_sequential.py``'s
+    ``chained_all`` fixture runs — the same eight patterns, phases, instrument,
+    ``seed_scales`` and ``qpa_plan()``, and the same default ``carry=("*",)``
+    — so the protocol is the acceptance suite's and what varies here is only
+    ``refit``.  It is a **hostile** series on purpose: the composition swings
+    from 1 to 94 wt % across the set, which is where a naive carry was expected
+    to hurt and measured not to.
+
+    Small cells, three phases, no FCJ: the per-pattern shape ``cpd-1a`` already
+    reports one row up, chained.
+    """
+    from test_acceptance_qpa_roundrobin import (
+        DATA,
+        SAMPLE1,
+        corundum_phase,
+        fluorite_phase,
+        qarr_instrument,
+        qpa_plan,
+        seed_scales,
+        zincite_phase,
+    )
+
+    if not DATA.exists():
+        raise FileNotFoundError("IUCr QPA round-robin dataset not present")
+    patterns = [rx.read_pattern(DATA / f"{s}.prn") for s in SAMPLE1]
+    structure = rx.Structure(phases=[corundum_phase(), zincite_phase(),
+                                     fluorite_phase()])
+    instrument = qarr_instrument()
+    seed_scales(structure, instrument, patterns[0])
+    return Setup(
+        f"IUCr round-robin sample-1 series (real): 8 mixtures, 1 to 94 wt % "
+        f"swing, refit={refit!r}",
+        patterns[0], structure, instrument, qpa_plan(), patterns=patterns,
+        refit=refit,
+        notes="per-pattern wall printed below; cpd-1a is the cold fit and "
+              "1b-1h are warm starts")
+
+
+def _cpd_series_stages() -> Setup:
+    return _cpd_series(refit="stages")
+
+
 # -- the trigger-shaped case, simulated ------------------------------------
 #
 # WP-1109's trigger was a 68-pattern in-situ series: 4 phases of ZrMo₂O₈,
@@ -506,6 +560,10 @@ CASES: tuple[Case, ...] = (
     Case("nac", _nac, "22 003 pts, no FCJ — the dispatch-light case"),
     Case("cpd-1a", _cpd_1a, "7 251 pts, no FCJ, 3 phases — the small lab case"),
     Case("cpd-2", _cpd_2, "7 251 pts, no FCJ, 4 phases + texture — WP-1109's profile"),
+    Case("cpd-series", _cpd_series,
+         "8 × cpd-1, warm-started, refit='single' — WP-0505's counterexample"),
+    Case("cpd-series-stages", _cpd_series_stages,
+         "the same real chain, refit='stages' — the other side of the trade"),
     Case("trigger", _trigger,
          "4 165 pts, 1 188 pairs, 4 phases — the trigger-shaped cold fit (~50 s)"),
     Case("trigger-series", _trigger_series,
@@ -708,7 +766,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.list:
         for case in CASES:
-            print(f"  {case.key:10s} {case.blurb}")
+            print(f"  {case.key:{max(len(c.key) for c in CASES)}s} {case.blurb}")
         return 0
 
     wanted = [c.strip() for c in args.cases.split(",") if c.strip()]

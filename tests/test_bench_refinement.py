@@ -119,6 +119,32 @@ def test_a_baseline_case_builds_a_compiled_model(bench):
     assert setup.patterns is None, "cpd-1a is a single fit, not a series"
 
 
+def test_the_real_series_case_is_the_acceptance_chain(bench):
+    """`cpd-series` is WP-1127's counterexample family, and cheap to *build*.
+
+    Unlike `trigger-series`, which simulates ten 4 165-point patterns, this one
+    is eight reads and a scale seeding, so the build is a smoke test rather
+    than a measurement.  What is pinned is that it stayed the acceptance
+    suite's chain: the eight sample-1 mixtures in `SAMPLE1` order, the same
+    7 251-point grid `cpd-1a` reports, and two rows differing in `refit` and
+    nothing else — the trade WP-0505 and WP-1110 measured opposite ways is only
+    readable if the two rows are otherwise the same fit.
+    """
+    try:
+        single = bench._cpd_series()
+        staged = bench._cpd_series_stages()
+    except (FileNotFoundError, OSError) as exc:
+        pytest.skip(str(exc))
+
+    from test_acceptance_qpa_roundrobin import SAMPLE1
+
+    assert single.patterns is not None and len(single.patterns) == len(SAMPLE1)
+    assert len(single.patterns[0].two_theta) == 7251
+    assert single.refit == "single" and staged.refit == "stages"
+    assert [s.name for s in single.plan.stages] == [s.name for s in staged.plan.stages]
+    assert len(single.structure.phases) == 3
+
+
 def test_the_series_case_is_declared_as_one(bench):
     """A series case is recognised by `Setup.patterns`, which is what routes it
     to `refine_sequential` instead of `fit` — so the flag, not the key name, is
