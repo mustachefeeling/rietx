@@ -576,6 +576,29 @@ CASES: tuple[Case, ...] = (
 # -- measurement -----------------------------------------------------------
 
 @dataclass
+class PerPattern:
+    """One pattern of a series case, with its whole escalation (WP-1124/1127).
+
+    ``wall`` sums every rung the pattern ran and ``rung_walls`` breaks it out in
+    ladder order, so a discarded first rung is visible rather than averaged
+    away.  ``rwp_warm`` and ``status`` are what say *why* a pattern escalated:
+    the ladder climbs when the fit diverged or when the best attempt so far sits
+    above ``RESEED_FACTOR`` × the accepted median, and those are different
+    failures with different fixes.  ``rwp_warm`` is ``None`` on a pattern that
+    never escalated — the library records it only then.
+    """
+
+    index: int
+    wall: float
+    iterations: int
+    rwp: float
+    rung: str
+    rung_walls: list[float]
+    rwp_warm: float | None = None
+    status: str = ""
+
+
+@dataclass
 class Run:
     wall: float
     rwp: float
@@ -584,11 +607,9 @@ class Run:
     free: int
     stages: list[tuple[str, int]] = field(default_factory=list)
     status: str = ""
-    #: series cases only: (index, wall, n_iterations, Rwp, rung, rung_walls)
-    #: per pattern, index 0 being the cold fit and the rest warm starts.
-    #: ``wall`` sums every rung the pattern ran; ``rung_walls`` breaks it out
-    #: in ladder order, so a discarded first rung is visible (WP-1124)
-    per_pattern: list[tuple[int, float, int, float, str, list[float]]] = field(default_factory=list)
+    #: series cases only: one :class:`PerPattern` per pattern, index 0 being
+    #: the cold fit and the rest warm starts
+    per_pattern: list[PerPattern] = field(default_factory=list)
 
 
 def _shape(setup: Setup) -> tuple[int, int, float]:
@@ -678,11 +699,12 @@ def _run_series(setup: Setup) -> Run:
                                    events=collect)
         wall = time.perf_counter() - t0
 
-    per: list[tuple[int, float, int, float, str, list[float]]] = []
+    per: list[PerPattern] = []
     for entry in series.entries:
         spans = rung_spans(entry.index)
-        per.append((entry.index, sum(spans), entry.n_iterations,
-                    entry.statistics.rwp, entry.rung, spans))
+        per.append(PerPattern(entry.index, sum(spans), entry.n_iterations,
+                              entry.statistics.rwp, entry.rung, spans,
+                              entry.rwp_warm, entry.status))
     last = series.entries[-1] if series.entries else None
     statuses = {e.status for e in series.entries}
     status = "converged" if statuses == {"converged"} else "/".join(sorted(statuses))
@@ -737,20 +759,25 @@ def _report(case: Case, setup: Setup, runs: list[Run]) -> None:
         print("    per-stage nfev: " +
               "  ".join(f"{n}={i}" for n, i in last.stages))
     if last.per_pattern:
-        cold = last.per_pattern[0][1]
-        warm = [w for _, w, _, _, _, _ in last.per_pattern[1:]]
-        wasted = sum(sum(s[:-1]) for _, _, _, _, _, s in last.per_pattern
-                     if len(s) > 1)
+        cold = last.per_pattern[0].wall
+        warm = [p.wall for p in last.per_pattern[1:]]
+        wasted = sum(sum(p.rung_walls[:-1]) for p in last.per_pattern
+                     if len(p.rung_walls) > 1)
         print(f"    cold {cold:.2f} s | warm {min(warm):.2f}-{max(warm):.2f} s "
               f"over {len(warm)} patterns (last repeat)")
         if wasted:
-            print(f"    {wasted:.2f} s of that is rungs the ladder discarded "
-                  f"— see rungs= below")
-        for i, w, it, rwp, rung, spans in last.per_pattern:
-            detail = (f"  rungs={'+'.join(f'{s:.2f}' for s in spans)}"
-                      if len(spans) > 1 else "")
-            print(f"      pattern {i:2d}  {w:7.2f} s  {it:5d} iter  "
-                  f"Rwp {rwp:.5f}  kept {rung}{detail}")
+            print(f"    {wasted:.2f} s of that ({100 * wasted / last.wall:.0f} %"
+                  f" of the series) is rungs the ladder discarded — rungs= below")
+        for p in last.per_pattern:
+            detail = ""
+            if len(p.rung_walls) > 1:
+                detail = f"  rungs={'+'.join(f'{s:.2f}' for s in p.rung_walls)}"
+                if p.rwp_warm is not None:
+                    detail += f"  warm Rwp {p.rwp_warm:.5f}"
+            if p.status and p.status != "converged":
+                detail += f"  [{p.status}]"
+            print(f"      pattern {p.index:2d}  {p.wall:7.2f} s  "
+                  f"{p.iterations:5d} iter  Rwp {p.rwp:.5f}  kept {p.rung}{detail}")
 
 
 def main(argv: list[str] | None = None) -> int:
