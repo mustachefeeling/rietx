@@ -107,7 +107,7 @@ recorded instead as annotation notes on each tree's root node. The default is
 | `two_theta_limits` | applied to every pattern |
 | `direction` | `"forward"`, `"backward"`, or `"both"` |
 | `reseed`, `reseed_factor` | the fence that rejects a bad warm start, and how far above the median Rwp it fires |
-| `first_rung_factor` | how much the first rung may spend before the ladder gives up on it, as a multiple of the most expensive first rung this chain has accepted. `None` removes the bound |
+| `first_rung_factor` | how much the first rung may spend before the ladder gives up on it, as a multiple of the most expensive first rung this chain has converged. `None` removes the bound |
 | `prepare` | `(index, data, structure, instrument) -> None`, called on the warmed models before each fit |
 | `on_result` | `(index, result) -> None`, called with each pattern's full result as it finishes |
 | `events`, `cancel` | as on `Refinement.fit`, per pattern |
@@ -291,7 +291,7 @@ that had not been shown to be the problem.
 
 The first rung is bounded, because it is a guess rather than the answer. Its
 budget is `first_rung_factor` times the most expensive first rung this chain has
-already accepted, so a chain bounds nothing until one has worked, and a chain
+already converged, so a chain bounds nothing until one has worked, and a chain
 where the collapsed refit always works never reaches the bound. A first rung
 that spends its budget escalates rather than being kept, and the rung it
 escalates to starts from the same warm state, so the values a bounded chain

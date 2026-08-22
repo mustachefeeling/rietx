@@ -343,13 +343,16 @@ def _first_rung_budget(accepted_first: list[int],
     """Evaluations the collapsed first rung may spend, or ``None`` for no bound.
 
     ``factor`` (:data:`FIRST_RUNG_FACTOR`) times the most expensive first rung
-    **this chain has already accepted** — the only evidence there is about what
+    **this chain has already converged** — the only evidence there is about what
     a working first rung on this model costs, which is why a chain bounds
     nothing until one has worked.
 
-    Only *accepted* first rungs count.  A rung that escalated says nothing about
-    what a working one costs, and letting it into the sample would raise the
-    bound by exactly the failure the bound exists to cut short.
+    "Worked" is convergence, not survival, and both halves of that earn their
+    keep.  A rung that *escalated* says nothing about what a working one costs,
+    and letting it in would raise the bound by exactly the failure the bound
+    exists to cut short.  A rung that was *kept* at the plan's own cap reports
+    ``"max_iter"``, and letting it in at full budget would raise the bound to
+    twice that cap and switch the whole thing off from there on.
 
     **The cold fit is not evidence here, and WP-1127 measured that rather than
     assuming it.**  "A warm refit that costs more than the cold fit it started
@@ -571,7 +574,7 @@ class SequentialRefinement:
         first_rung_factor:
             Bound what the *collapsed* first rung may spend before the ladder
             gives up on it, at this multiple of the most expensive first rung
-            the chain has already accepted (:func:`_first_rung_budget`,
+            the chain has already **converged** (:func:`_first_rung_budget`,
             :data:`FIRST_RUNG_FACTOR`).  A chain bounds nothing until one warm
             rung has worked, because until then it has no evidence about what
             a working one costs on this model.  ``None`` is no bound and
