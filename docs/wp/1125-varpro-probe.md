@@ -1,6 +1,6 @@
 # WP-1125 — variable-projection probe: profile the background, measure the tail
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-22
 Depends on: WP-1113 (the mechanism this probe attacks), WP-1111 (counting
 scaffold)
 
@@ -66,7 +66,12 @@ tail fraction — never nfev and never wall clock.** WP-1113's instrumentation
 carries all three (`eval.accepted`/`step_norm`/`values`,
 `stage_end.termination`; `examples/stage_trajectory.py` prints and plots
 them). Wall clock is meaningless on a probe paying FD prices for analytic
-work.
+work. Counts also survive a busy machine where wall clock does not — WP-1124
+read the same chain at 35.8 s and 42.9 s minutes apart at an identical 1253
+nfev — so **both arms run back to back in one process**
+(`examples/bench_series_predictor.py` is the shape), and the WP-1111 counting
+scaffold wraps scipy's entry point, so any evaluation the wrapper spends
+outside it is added by hand or it is invisible.
 
 **Correctness gates before any count is quoted**, both from E5's
 pre-registered verification and both cheap:
@@ -85,34 +90,11 @@ half is dead. Amdahl context for the ceiling: the cold trigger fit is
 5.67-5.70 s at 232 nfev on the current tree, and per-evaluation cost is near
 its floor (WP-1112/1115/1120), so count converts to wall nearly linearly —
 but the count left to win is what the schedule left behind, chiefly the
-final stage.
-
-### Inherited
-
-*From [WP-1124](1124-warm-series-continuation.md), closed 2026-08-22 — two
-measurement gotchas that cost that session time, and one shape for a probe's
-verdict.*
-
-- **Check the venv is current before quoting any timing.** 1124 opened on a
-  venv that predated WP-1115 and was missing `numba`, so the compiled tier —
-  what a default install runs — was **off**, and every number would have been
-  the fallback's. `rietx.model.compiled.enabled()` is the check;
-  `rietx.__version__` disagreeing with `pyproject.version` was the tell. This
-  matters more here than there: A1 is judged on counts *converting to wall*,
-  and the conversion factor is exactly what the tier changes.
-- **Counts survive a busy machine; wall clock does not.** 1124 measured the
-  same chain at 35.76-35.97 s and 41.77-42.93 s minutes apart at an identical
-  1253 nfev, and its closing run read 58.96-114.66 s for bit-identical counts
-  at load average 12.9. So compare arms **inside one process**, and state a
-  count-based version of any wall claim. `examples/bench_series_predictor.py`
-  is the shape that does this — arms run back to back in one process, the
-  predictor's own evaluations added to its totals because the WP-1111 counting
-  scaffold wraps scipy's entry point and does not see work done outside it.
-- **A probe's verdict can be decided by a clause that is not about speed.**
-  1124's two arms both *reduced* evaluations on the default case and were
-  retired anyway, on `direction="both"` disagreement and on a silent chain
-  break whose corrector check had passed. If A1 changes what a fit converges
-  to, that is the finding, whatever the count does.
+final stage. That conversion factor is what the compiled tier changes, so
+**check the venv is current before quoting any timing**:
+`rietx.model.compiled.enabled()` is the check and `rietx.__version__`
+disagreeing with `pyproject.version` is the tell (WP-1124 opened on a venv
+that predated WP-1115, with the tier silently off).
 
 ## Non-goals
 
@@ -124,20 +106,25 @@ subsumed by A1, and out of scope either way); any Rwp-judged claim.
 
 ## Tasks
 
-- [ ] **The wrapper**: profiled residual + weighted ridge inner solve as a
+- [x] **The wrapper**: profiled residual + weighted ridge inner solve as a
       probe script beside `examples/stage_trajectory.py`, gated by the two
       correctness checks above before anything is counted.
-- [ ] **The named stages**: cpd-1a/cpd-2 `zero_disp` and `cell`, profiled
+      `examples/probe_varpro.py`; it grew a third gate (below).
+- [x] **The named stages**: cpd-1a/cpd-2 `zero_disp` and `cell`, profiled
       against joint, at both schedules (`intermediate_ftol` default and
       `None`) — outer iterations, decay ratio, tail fraction per stage.
-- [ ] **The final stage**: does the profiled final stage shed the inherited
+      **All twelve rows are 1.00×**, decay ratio equal to three decimals;
+      widened to nac, nac-lebail and trigger, which say the same.
+- [x] **The final stage**: does the profiled final stage shed the inherited
       ridge walk (cpd-1a `biso` 47 → 49 under the schedule) or inherit it
       through the nonlinear pair anyway? This is the count 1123 could not
-      reach, and the most likely place a real win lives.
-- [ ] **Verdict** in § Findings, and the survey annotated: speed half alive
+      reach, and the most likely place a real win lives. **It inherits it**:
+      the eight `biso` rows span 0.54-1.08×, median 0.94×.
+- [x] **Verdict** in § Findings, and the survey annotated: speed half alive
       — open the landing WP with the measured ceiling — or dead, recorded in
       `docs/solver-survey.md` §2.A1/E5's dated notes, with E5 standing on
-      correctness alone thereafter.
+      correctness alone thereafter. **Dead**, on a mechanism rather than a
+      bound.
 
 ## Acceptance
 
@@ -146,12 +133,166 @@ and platform per root CLAUDE.md § Numbers. Kill criterion, pre-registered:
 if the profiled stages' outer-iteration counts are not materially below the
 `intermediate_ftol = 1e-6` counts on the same stages (beyond run-to-run
 spread), or either correctness gate fails, the speed half of E5 is dead —
-record the bound and the survey note, and close.
+record the bound and the survey note, and close. A probe's verdict can also
+be decided by a clause that is not about speed: WP-1124 retired two arms
+that *did* reduce evaluations, on what they changed about the answer. If
+profiling changes what a fit converges to, that is the finding whatever the
+count does.
 
 ```sh
 .venv/bin/python examples/probe_varpro.py   # the per-stage table § Findings quotes
 .venv/bin/python -m ruff check src tests examples
 ```
+
+## Findings
+
+*Measured 2026-08-22 on `wp1125-varpro-probe` at `c927b7f7`, venv `[dev]`
+only (no jax, no torch), numba 0.67.0 with the compiled tier **on**, numpy
+2.5.2, python 3.12.12, macOS/arm64, 10 cores. 70 stages = 5 cases × 2
+schedules. Counts are deterministic: two full runs of the acceptance command
+are byte-identical.*
+
+### Verdict — the speed half of A1/E5 is dead, and it is dead by identity
+
+**Variable projection cannot reduce this package's evaluation count, because
+the step it computes is the step the package already takes.** For an
+unconstrained linear block the profiled Gauss-Newton step in the nonlinear
+parameters is *the same vector* as the joint one — the Schur complement of
+the joint normal matrix — and the equality holds at every point, not only at
+the conditional optimum, because (I − P)·M = M − M·M⁺·M = 0 is a
+Moore-Penrose identity: the projector annihilates the linear block's
+contribution wherever its coefficients happen to sit.
+
+Measured, as gate 3: the two unconstrained Gauss-Newton steps agree to
+**≤ 6.6e-07 relative on all 70 stages** (most ≤ 1e-13), at start-identity
+gaps spanning 4.5e-15 to 1.2e+03 — so the identity demonstrably does not
+depend on the background being converged first.
+
+The consequence is visible directly in the counts. **On the 34 stages where
+TRF never rejected a step — where it therefore *took* the Gauss-Newton step —
+the joint and profiled accepted-step counts are identical in 34 of 34.** That
+includes every stage WP-1113 named:
+
+| case | stage | sched | free | lin | joint acc | prof acc | gain | decay j | decay p |
+|---|---|---|---|---|---|---|---|---|---|
+| cpd-1a | zero_disp | 1e-6 | 11 | 6 | 39 | 39 | **1.00×** | 0.817 | 0.817 |
+| cpd-1a | zero_disp | none | 11 | 6 | 84 | 84 | **1.00×** | 0.854 | 0.854 |
+| cpd-1a | cell | 1e-6 | 16 | 6 | 45 | 45 | **1.00×** | 0.913 | 0.913 |
+| cpd-1a | cell | none | 16 | 6 | 86 | 86 | **1.00×** | 0.814 | 0.814 |
+| cpd-2 | zero_disp | 1e-6 | 12 | 6 | 41 | 41 | **1.00×** | 0.824 | 0.824 |
+| cpd-2 | zero_disp | none | 12 | 6 | 93 | 93 | **1.00×** | 0.873 | 0.873 |
+| cpd-2 | cell | 1e-6 | 19 | 6 | 86 | 86 | **1.00×** | 0.891 | 0.891 |
+| cpd-2 | cell | none | 19 | 6 | 131 | 131 | **1.00×** | 0.858 | 0.858 |
+| nac | cell | 1e-6 / none | 11 | 6 | 9 / 13 | 9 / 13 | **1.00×** | 0.140 | 0.140 |
+| trigger | zero_disp | 1e-6 / none | 12 | 6 | 8 / 10 | 8 / 10 | **1.00×** | 0.016 | 0.016 |
+| trigger | cell | 1e-6 / none | 22 | 6 | 8 / 10 | 8 / 10 | **1.00×** | 0.099 | 0.098 |
+
+The `none` column reproduces WP-1113's baselines exactly (cpd-1a `zero_disp`
+84 / `cell` 86, cpd-2 93 / 131), which is an independent check that the probe
+measures the fit it claims to. **The ridge walk is untouched — the decay
+ratio is identical to three decimals in every row.** Its linear leg is not
+the background; profiling the background out leaves the walk where it was.
+
+Both pre-registered kill conditions fire, so the criterion is met twice over.
+
+### Per-case counts — profiling is worse, not neutral
+
+| case | sched | joint acc | profiled acc | gain | stages |
+|---|---|---|---|---|---|
+| cpd-1a | 1e-6 | 215 | 217 | 0.99× | 8 |
+| cpd-1a | none | 339 | 341 | 0.99× | 8 |
+| cpd-2 | 1e-6 | 254 | 272 | 0.93× | 9 |
+| cpd-2 | none | 408 | 543 | 0.75× | 9 |
+| nac | 1e-6 | 36 | 39 | 0.92× | 6 |
+| nac | none | 44 | 47 | 0.94× | 6 |
+| nac-lebail | 1e-6 | 44 | 40 | 1.10× | 4 |
+| nac-lebail | none | 52 | 45 | 1.16× | 4 |
+| trigger | 1e-6 | 190 | 138 | 1.38× | 8 |
+| trigger | none | 287 | 683 | 0.42× | 8 |
+| **all** | | **1869** | **2365** | **0.79×** | 70 |
+
+The trigger's 1.38× and 0.42× are the same case one schedule apart, which is
+what scatter looks like. Across the 36 stages where TRF *did* reject steps
+the gain spans 0.03×-2.66× with **median 0.97×**.
+
+### Why below 1.00× and not at it: TRF's radius is a norm over the variables
+
+Where the arms differ at all it is the globaliser, not the method — and the
+globaliser is made worse by profiling. scipy's TRF takes its initial trust
+radius from ‖x0 / x_scale‖, and at the default `x_scale = 1.0` that is ‖x0‖.
+Background coefficients are **counts**, order 10²-10³, while everything else
+is a cell edge, an angle or a softplus internal of order 1, so the linear
+block carries almost the entire norm: on the trigger's `profile` stage
+‖x0‖ = 9.79e+02 of which the background is 9.79e+02, and removing it shrinks
+the starting radius **59×**. Measured across the probe, profiling shrinks the
+radius by 1.0×-59.0×, median 3.6×.
+
+That stage is where the probe's worst row lives: at `intermediate_ftol=None`
+the profiled arm accepted **400** steps against the joint arm's 13 — running
+into `max_iter × NFEV_PER_ITERATION` — and finished **15.1 % higher in cost**,
+7.85 esd from the joint answer, having rejected nothing and crawled at decay
+0.993. Its Gauss-Newton step was still right to 2.5e-09.
+
+This half of the explanation is a fact about the driver, not about variable
+projection, and a landing WP could fight it with `x_scale`. It is recorded
+because it is why the measured number is *below* neutral; it is not what
+kills the idea. **The kill is the step identity, which caps the gain at
+exactly 1.00× however well the globaliser is tuned.**
+
+### The correctness gates
+
+- **Gate 1 (agreement, E5 claim 1, ≤ 0.1 esd): fails on 10 of 70**, worst
+  7.853 esd (trigger `profile`, `none`), then 0.449 (cpd-2 `lines_axial`).
+  Every failure is a stage where TRF rejected steps, i.e. where the two arms'
+  trust regions diverged — not a disagreement about the minimum.
+- **Gate 2 (the conditional-solution identity, E5 claim 2's background half,
+  ≤ 1e-9 relative): fails on 34 of 70**, worst 4.00e-03. This is not a defect
+  in the identity but a measurement of the joint fit: an ftol-bound stage
+  stops with its background up to 0.4 % away from its own conditional
+  optimum. At the stages that converge properly it holds to 1e-12 to 1e-15.
+- **Gate 3 (the mechanism, added by this session): holds on 70 of 70**,
+  ≤ 6.6e-07.
+
+### The one case profiling wins, and why it does not rescue the idea
+
+A Le Bail seed stage frees *only* the background — `mode_fixed_path`
+force-fixes the phase scale — so the nonlinear set is empty and the whole
+stage **is** the inner solve. `nac-lebail/bkg` therefore goes from 9 accepted
+steps to **one exact solve**, at both schedules: a real 9× on that stage,
+worth 8 of the 53-61 accepted steps the Le Bail leg spends. It is reported
+as its own row and **excluded from the per-case totals above**, which is why
+nac-lebail's 1.10-1.16× is not it — that comes entirely from `profile`
+(18 → 14 and 20 → 13), one more sample of the same scatter.
+
+A stage that is all-linear does not need variable projection to exploit it:
+it needs the runner to notice that every free parameter is linear and solve
+it directly. That is a much smaller idea than A1, it is unscheduled, and
+before it is worth anything someone should check how many real plans have
+such a stage — in this harness exactly one of 70 did.
+
+### What this does and does not settle
+
+Dead: **the count half of A1/E5, for any unconstrained linear block solved
+jointly by Gauss-Newton.** Ruhe & Wedin's "alternation converges linearly,
+VarPro quadratically" compares VarPro against **alternation**, and this
+package does not alternate — the background is an ordinary column of θ that
+TRF solves jointly. Against joint Gauss-Newton, VarPro is the same algorithm.
+
+Untouched, and the boundary of the result:
+
+- **The correctness half** (Le Bail esds, derived equal-splitting, the E5.3
+  coverage study). The step identity says nothing about the *covariance*: the
+  VarPro normal matrix is still the Schur complement, so structural esds
+  still emerge marginalised over the background rather than conditional on
+  it. That claim is unmeasured and stays the deeper prize.
+- **The Pawley dimension claim** (550 parameters → ~20). That is per-step
+  *linear algebra*, not evaluation count, and 550 stored columns are not the
+  6 near-free background design rows this probe removed. It survives, and it
+  is a different measurement from this one.
+- **Bounded linear blocks.** The identity holds while no bound is active.
+  Pawley intensities and phase scales are non-negative, so a landing WP
+  building on them cannot quote gate 3 — it needs the active-set argument the
+  survey's own caveat names.
 
 ## References
 
@@ -168,6 +309,68 @@ record the bound and the survey note, and close.
   schedule counts every row here is judged against.
 
 ## Handover log
+
+- **2026-08-22** — **closed ✅ on a clean negative, and the negative is a
+  theorem rather than a bound.** The question was whether solving the
+  background exactly at every evaluation collapses WP-1113's ridge walk. It
+  does not, and it cannot: for an unconstrained linear block the profiled
+  Gauss-Newton step **is** the joint one, so variable projection asks the
+  solver for the vector it was already going to take. Everything else follows
+  from that. Nothing shipped, nothing in `src/` was touched; the deliverable
+  is `examples/probe_varpro.py`, the 70-stage table in § Findings, and a
+  correction to the survey's own reasoning.
+
+  *What was built.* `examples/probe_varpro.py` monkeypatches
+  `rietx.refine.run_least_squares` for the duration of a fit, and at each
+  stage runs a profiled arm beside the shipped joint one from the same start,
+  the same bounds and the same ftol, then delegates to the real runner so the
+  plan proceeds untouched. Checked, not assumed: the joint arm's per-stage
+  (nfev, accepted) is **bit-identical with and without the probe beside it**
+  on all eight cpd-1a stages, and two full runs of the acceptance command are
+  byte-identical.
+
+  *Three things worth carrying, none of them the headline.* (a) The inner
+  solve is **one precomputed pseudo-inverse and one matvec per evaluation**,
+  because frozen-per-stage discreteness makes the design rows constant — which
+  is also why the projector needs no dc*/dθ correction and Kaufman is exactly
+  Golub-Pereyra here. (b) The probe grew a **third gate** the WP did not ask
+  for, comparing the two unconstrained Gauss-Newton steps directly; it is what
+  turned "the counts came out equal" into "the counts are equal because the
+  steps are one vector", and it was the difference between a bound and an
+  explanation. (c) The two gates the WP *did* pre-register both failed, and
+  neither failure means what its name suggests — see § Findings, and the E5
+  note, which now says so where a landing WP will read it.
+
+  *One thing I got wrong mid-probe, recorded because the shape recurs.* I
+  first wrote the step identity as conditional on the background already
+  sitting at its conditional optimum, and built a `start_identity` column to
+  test that precondition. The measurement refuted it — the steps agree at
+  start gaps up to 1.2e+03 — because (I − P)·M = 0 holds whatever the
+  coefficients are. The column stayed in the probe, reporting the thing it
+  disproved.
+
+  *Numbers this session measured.* Fast suite **2619 passed / 117 skipped**
+  (`[dev]` only — no jax, no torch — macOS/arm64, 10 cores, numba 0.67.0);
+  nothing was added to it, so no count moved, and the one test file touched
+  was `test_docs_consistency.py`'s `SIZE_CAPS` entry. CLAUDE.md's cap raised
+  834 → 845 with the justifying comment that file requires: the fence stayed,
+  the measurements went down a rank into § Findings, the survey and the v1.1
+  record. Acceptance ran clean on the final tree; `ruff` clean.
+
+  *Next actions.* None on this WP. For whoever opens the landing WP: E5 now
+  stands on **claim 3, the coverage study**, and on Pawley dimension; both are
+  unmeasured, and neither can quote this probe's gate 3, because a bounded
+  block leaves the identity the moment a bound goes active. v1.1's open front
+  is unchanged and is still the warm-series ladder rung
+  ([1124](1124-warm-series-continuation.md)'s decomposition), with the
+  per-reflection 19.4 % front unowned.
+
+  *Inherited, pruned on arrival.* All three of WP-1124's entries were still
+  true and were folded rather than dropped: the venv check into the Amdahl
+  paragraph (and acted on — `[dev]`, numba 0.67.0, compiled tier **on**,
+  `rietx.__version__` == `pyproject.version`), "counts survive a busy machine"
+  into the metrics paragraph, and the non-speed kill clause into Acceptance.
+  The mailbox is deleted.
 
 - **2026-08-22** — created, from the solver-survey re-assessment (§5): the
   count mechanism WP-1113 measured runs along the degeneracy's linear leg,

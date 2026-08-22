@@ -306,6 +306,17 @@ recent list, and is therefore not behind the 409 (WP-1044).
   declares; the record says what a stage **ran** at, never what it declared
   (`StageResult.ftol`, `NodeAction.ftol`), or a cherry-pick replays what never
   happened.
+- **An unconstrained linear block is already solved jointly, so profiling it
+  out cannot buy an evaluation** (WP-1125, `docs/solver-survey.md` §2.A1).
+  The background is an ordinary column of θ, which makes the
+  variable-projection step *identically* the joint Gauss-Newton step — the
+  Schur complement, exact wherever the block currently sits, since
+  (I − P)·M = 0. So VarPro's textbook advantage is over **alternation**, which
+  this package has never done: measured 1.00× on 34 of 34 pure-Gauss-Newton
+  stages and 0.79× overall. What survives is *correctness* (esds marginalised
+  over the block, not conditional on it) and Pawley **dimension**, a per-step
+  cost and not a count; a **bounded** block (scales, Pawley intensities)
+  leaves the identity the moment a bound goes active.
 - **A phase the data cannot see is a flat direction, and a bound on it is not
   free.** A phase reaches the pattern only through `scale × |F|² × profile`, so
   one whose scale sits at its floor moves nothing: the fit reports `converged`
