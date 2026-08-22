@@ -393,6 +393,44 @@ def test_a_stage_line_carries_its_seeds(project):
     assert (stage["seed"], stage["strain_seed"]) == (0.0001, 1e-06)
 
 
+def test_the_tolerance_line_is_always_shown_and_switches_the_schedule(project):
+    """The plan-level ``tolerance`` line (WP-1123) is the exact-mode switch.
+
+    Rendered whether or not it differs from the default, unlike ``guard``: it
+    decides what a run costs and how far the intermediate stages are taken, and
+    a document that shows a fast schedule nowhere is a document a user cannot
+    decline it in.  ``none`` is a value here rather than the absence of one —
+    deleting the line means "the default", writing ``none`` means "converge
+    every stage" — which is why the parser tracks whether it appeared.
+    """
+    from rietx.schemas.plan import PlanSpec
+
+    text = td.render(project)
+    line = next(ln for ln in text.splitlines() if ln.startswith("tolerance "))
+    assert line.split()[1] == td._fmt(PlanSpec().intermediate_ftol)
+    assert "intermediate_ftol" in line, "the line must name the field it sets"
+
+    delta, errors = _changes(_edit(text, "tolerance", "tolerance none"), project)
+    assert errors == []
+    assert delta.plan["plan"]["intermediate_ftol"] is None
+
+    delta, errors = _changes(_edit(text, "tolerance", "tolerance 1e-4"), project)
+    assert errors == []
+    assert delta.plan["plan"]["intermediate_ftol"] == 1e-4
+
+
+def test_a_tolerance_that_cannot_be_a_tolerance_is_refused(project):
+    """Zero and a negative stop nothing, and a word that is not ``none`` is a
+    typo, not a schedule.  Refused with the line number every other refusal in
+    this document carries."""
+    text = td.render(project)
+    for bad in ("tolerance 0", "tolerance -1e-6", "tolerance exact", "tolerance"):
+        delta, errors = _changes(_edit(text, "tolerance", bad), project)
+        assert errors, bad
+        assert errors[0].line > 1 and errors[0].where == "tolerance", bad
+        assert delta.plan is None, bad
+
+
 def test_a_stage_line_round_trips_every_key_stage_spec_has(project):
     """The keys are derived from ``StageSpec``, so this is the whole set at once.
 

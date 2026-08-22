@@ -63,6 +63,14 @@ class NodeAction(Base):
     weight the *schedule* had already relaxed to.  Additive with a 1.0 default,
     which is the no-scaling behaviour.
 
+    ``ftol``/``window_slack_deg`` (WP-1123) close the same gap for the two
+    fields WP-1113 and WP-1112 added to ``Stage``, and ``ftol`` records the
+    tolerance the stage **ran** at rather than the one it declared: under a
+    plan's schedule an intermediate stage declares nothing and still stops at
+    1e-6, so a node holding ``None`` would replay the one thing the original
+    run did not do.  Additive, both defaulting to the solver/compiler default,
+    so a pre-WP-1123 node replays exactly as it did.
+
     ``ties``/``untied`` (WP-1070) are the ``"set_tie"`` action's own arguments,
     additive under the same rule.  They record what the action *did*, not the
     state it left: the whole tie register lives on
@@ -80,6 +88,8 @@ class NodeAction(Base):
     seed: float = 0.0
     strain_seed: float = 0.0
     restraint_weight_scale: float = 1.0
+    ftol: float | None = None
+    window_slack_deg: float | None = None
     ties: dict[str, TieSpec] = Field(default_factory=dict)
     untied: list[str] = Field(default_factory=list)
 
@@ -98,7 +108,9 @@ class NodeAction(Base):
                 f", {n}={v!r}" for n, v, off in
                 (("seed", self.seed, 0.0),
                  ("strain_seed", self.strain_seed, 0.0),
-                 ("restraint_weight_scale", self.restraint_weight_scale, 1.0))
+                 ("restraint_weight_scale", self.restraint_weight_scale, 1.0),
+                 ("ftol", self.ftol, None),
+                 ("window_slack_deg", self.window_slack_deg, None))
                 if v != off)
             return (f"ref.run_stage(data, rx.Stage({self.name!r}, {self.turn_on!r}, "
                     f"max_iter={self.max_iter}{extras}))")

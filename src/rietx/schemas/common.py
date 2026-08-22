@@ -21,7 +21,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: declared window capture slack in °2θ (``None`` → the compiled default).
 #: 0.3 → 0.4 (WP-1113): ``StageSpec.ftol`` added — a stage's own termination
 #: tolerance (``None`` → the solver default 1e-9).
-SCHEMA_VERSION = "0.4"
+#: 0.4 → 0.5 (WP-1123): ``PlanSpec.intermediate_ftol`` added and **defaulting
+#: to 1e-6**, so a plan validated from a document that does not mention it now
+#: stops its intermediate stages earlier than the same document did before;
+#: ``StageResult.ftol`` and ``NodeAction.ftol``/``window_slack_deg`` added,
+#: recording what a stage ran at.  The one entry so far whose default changes
+#: an answer rather than only the field list — bounded at 0.02 esd, and
+#: ``intermediate_ftol=None`` restores the old schedule bit for bit.
+SCHEMA_VERSION = "0.5"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

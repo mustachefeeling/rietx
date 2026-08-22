@@ -640,6 +640,15 @@ class StageResult(Base):
     cost_initial: float
     cost_final: float
     freed: list[str] = Field(default_factory=list)
+    #: the relative cost-decrease tolerance this stage actually stopped at, or
+    #: ``None`` for the solver default (1e-9) — which is what the answer-
+    #: producing last stage takes, and what every stage of every fit before
+    #: WP-1123 took.  Recorded because it is otherwise unrecoverable from a
+    #: result: the plan's schedule (``RefinementPlan.intermediate_ftol``) and a
+    #: stage's own ``Stage.ftol`` both land here, and a consumer comparing two
+    #: fits' parameter shifts needs to know whether they were converged the
+    #: same way.
+    ftol: float | None = None
     #: steps the bounded-LM driver shortened against a linear-inequality
     #: constraint (the Stephens strain cone) during this stage.  Always 0 under
     #: TRF, which has no such vocabulary.  Nonzero in the *final* stage means

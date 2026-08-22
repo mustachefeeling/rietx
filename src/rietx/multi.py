@@ -163,7 +163,7 @@ class MultiHistogramRefinement:
         stage_results: list[StageResult] = []
         models = None
         outcome = None
-        for stage in plan.stages:
+        for stage, ftol in zip(plan.stages, plan.stage_ftols(), strict=True):
             freed = self.mtable.set_vary(stage.turn_on, True)
             if stage.seed:
                 self.mtable.seed_softplus(freed, stage.seed)
@@ -174,7 +174,7 @@ class MultiHistogramRefinement:
                 for s, ins, d, lim, tab in zip(
                     self.mtable.structures, self.mtable.instruments, data, limits,
                     self.mtable.tables, strict=True)]
-            stage_ftol = {} if stage.ftol is None else {"ftol": stage.ftol}
+            stage_ftol = {} if ftol is None else {"ftol": ftol}
             outcome = run_multi_least_squares(models, self.mtable, weights=weights,
                                               max_iter=stage.max_iter,
                                               backend=self._backend,
@@ -186,7 +186,8 @@ class MultiHistogramRefinement:
                 n_iterations=outcome.n_iterations,
                 cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
                 freed=freed,
-                n_constraint_truncations=outcome.n_constraint_truncations))
+                n_constraint_truncations=outcome.n_constraint_truncations,
+                ftol=ftol))
 
         assert models is not None and outcome is not None
         self._models = models
