@@ -8,8 +8,9 @@ powder-diffraction community has not adopted, and what could they actually buy?*
 **Re-assessed 2026-08-22**, after the v1.1 speed series (WP-1109…1123) — the
 summary and disposition are §5, and every item that moved carries a dated
 **2026-08-22:** note in place. Two probe WPs came out of it:
-[WP-1124](wp/1124-warm-series-continuation.md) (B8) and
-[WP-1125](wp/1125-varpro-probe.md) (A1/E5's speed half).
+[WP-1124](wp/1124-warm-series-continuation.md) (B8, **measured and retired for
+series speed the same day**) and [WP-1125](wp/1125-varpro-probe.md) (A1/E5's
+speed half).
 
 Read with the v0.5 method result in mind — **a change is judged by what it
 provably changed, not by Δ Rwp.** For solver work the analogue is: judge by
@@ -449,6 +450,41 @@ chain's amplifier, which is exactly what a predictor improves. **Probe
 opened: [WP-1124](wp/1124-warm-series-continuation.md)** — secant then
 Gauss-Newton tangent, against the copy seed, judged on chain evaluations and
 escalations with a pre-registered kill criterion.
+
+**2026-08-22, same day: retired for series speed** (WP-1124 measured it and
+closed; its § Findings has every table). Both predictors were built on the
+existing `fit(prepare=…)` seam, so nothing shipped. The bound: the most either
+bought was **1.25× fewer whole-chain evaluations** (Gauss-Newton tangent,
+`refit="single"`, 1287 against 1603) **for no wall-clock reduction at all** —
+the arms' ranges overlap the copy baseline's. Against that, in the
+`refit="stages"` regime both cost *more* (1.16× and 1.67× evaluations, up to
+2.0× wall), and the tangent walked pattern 6 into a different basin that the
+reseed fence did not catch, leaving a cell **186 esd** out and Rwp 0.0225
+inherited by every successor.
+
+Three reasons it failed, each worth more than the verdict:
+
+- **The band it was aimed at is not made of evaluations.** 57 % of the
+  `trigger-series` wall is *discarded* first ladder rungs; seven of the nine
+  warm patterns already sit at 0.89-2.32 s. A predictor changes which pattern's
+  collapsed rung fails, not whether one does, and the cost of one that does is
+  set by `max_iter` on a ~30-parameter TRF call.
+- **A cost-decreasing predictor step is not a safe one.** The tangent's
+  corrector check *passed* on the step that broke the chain: lower residual at
+  the warm state, worse minimum after the refit. Better by cost, worse by
+  basin — WP-1113's width valley reached from a new direction.
+- **The method is asymmetric in the series coordinate by construction.** A
+  first-order predictor needs two converged points, so it cannot seed the first
+  two patterns of a pass; forward is seeded on patterns 2-9 and backward on
+  7-0. Both arms turned `SEQUENTIAL_PATH_DEPENDENT` from absent to reported,
+  which is the kill criterion's third clause and the cleanest of the three.
+
+The tangent-as-sensitivity half of this entry is **untouched** — it was never
+about speed, nothing here bears on it, and it stays parked. The warm-series
+front itself passes to the ladder: `refit="stages"` runs the same chain
+**1.61×** faster than the shipped `refit="single"` default with zero
+escalations, which inverts WP-0505's small-cell measurement and wants its own
+WP (adaptive, not a flipped default).
 
 ### 2.C Statistics & inference — where the field is weakest
 
@@ -1159,9 +1195,18 @@ here.
 
 **Promoted, with probes opened**:
 
-- **B8 → [WP-1124](wp/1124-warm-series-continuation.md)**. The warm-series
-  band is v1.1's one remaining gating target and WP-1123's sign-change
-  finding names warm-start quality as the chain's amplifier.
+- **B8 → [WP-1124](wp/1124-warm-series-continuation.md)** — *probed and
+  **retired** the same day, for series speed; the dated note in §2.B8 has the
+  bound.* Best case 1.25× fewer chain evaluations for **no** wall change;
+  worse than the copy seed in the `refit="stages"` regime, once catastrophically
+  (a silent chain break, 186 esd on a cell); and both arms introduced
+  `SEQUENTIAL_PATH_DEPENDENT`, because a first-order predictor cannot seed the
+  first two patterns of a pass and is therefore asymmetric in the series
+  coordinate by construction. Its real yield is the **decomposition**: 57 % of
+  the warm-series band is discarded first ladder rungs, and `refit="stages"`
+  runs the same chain 1.61× faster than the shipped default. The front stays
+  open and moves to the ladder, not the seed. The tangent-as-sensitivity half
+  of B8 is untouched and still parked.
 - **A1/E5 speed half → [WP-1125](wp/1125-varpro-probe.md)**. WP-1113's ridge
   walk runs along the degeneracy's linear leg, which variable projection
   removes by construction. The probe is background-only, judged against the
