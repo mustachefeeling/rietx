@@ -1,113 +1,302 @@
 # WP-1115 — compiled-kernel spike (gated: open only if the floor still binds)
 
-Milestone: v1.1 · Status: ⬜
-Depends on: 1112, 1114 (the gate below reads their measured outcomes)
+Milestone: v1.1 · Status: 🔄 2026-08-22 — gate read **open**; all three
+kernels prototyped and measured (17.1 → 8.0 s projected), packaging decision
+outstanding
+Depends on: 1112, 1114, 1120 (the gate reads their measured outcomes)
 
 ## Goal
 
-**Gate — read first**: this WP starts only if, with 1112 landed and 1114's
-go/no-go recorded, the 1111 harness still misses the milestone targets
-(warm-series ~1 s/pattern band, cold trigger-shaped fit in low single-digit
-seconds) *and* the remaining gap is measured to sit in python dispatch /
-ragged-loop overhead rather than in evaluation count (1113's territory). If
-the targets are met, close this WP 🛑 with one line and the harness table.
-
-If it opens: a compiled version of the peak loop — numba first, Cython or a
-small C extension as fallback — measured against the batched numpy path, and
-a packaging decision (optional extra, never a core dependency) put to the
-user with the numbers.
+**The gate is read and it is open** (§ Gate reading). What remains is the
+decision the spike exists to inform: a compiled version of the peak kernel —
+numba, measured — behind the same interface, and a packaging decision
+(optional extra, never a core dependency) put to the user with the numbers.
 
 ## Context
 
-- **Why a compiled kernel is the third resort, not the first** (the
-  2026-08-20 review's language-gap decomposition, recorded in 1109/v1.1.md):
-  python's cost is ~0.6 µs dispatch per numpy call plus interpreter overhead
-  per line — huge for the current per-reflection loop (≈11 µs of a 13.6 µs
-  kernel call is dispatch), but 1112's batching removes most of it, and a
-  memory-bound batched numpy kernel runs within ~2–3× of single-threaded
-  C++. What batching *cannot* recover: (a) ragged axes — FCJ node counts
-  vary 0–64 per reflection and padding cost 0605's forward prototype its
-  whole win (0.58×), where a compiled loop handles raggedness for free; and
-  (b) threading — TOPAS gets 2–4× on a laptop (Coelho 2018 §5.2) and the
-  GIL denies numpy-level python loops any of it, while a numba
-  `@njit(parallel=True)`/`prange` kernel or a nogil extension gets it back.
-- **What to compile**: exactly the kernel 1112 will have isolated — the
-  (line, reflection) profile + derivative-bases evaluation with its
-  window scatter — behind the same interface, so the compiled path is a
-  drop-in the conformance suite can diff. Nothing above it (scalar chains,
-  table decode, scipy) is dispatch-bound after 1109/1112.
+- **Why a compiled kernel was the third resort** (the 2026-08-20 review's
+  language-gap decomposition, recorded in 1109/v1.1.md): python's cost is
+  ~0.6 µs dispatch per numpy call plus interpreter overhead per line — huge
+  for the pre-1112 per-reflection loop, where ≈11 µs of a 13.6 µs kernel call
+  was dispatch. **1112 and 1120 removed that**, and this WP's gate measured
+  what is left. Two of the three mechanisms the review named are now
+  measured *small* and must not be re-argued: **dispatch** (the surviving
+  kernel calls are 200–400 µs each on ~10⁵-element planes) and **ragged
+  axes** (`BatchLayout` buckets by node count, so only the window axis pads,
+  at an evaluation-weighted **1.11×** over the whole node × window volume —
+  not the ~2× WP-1114 inherited). The third stands: **threading**, which the
+  GIL denies a numpy-level python loop entirely (Coelho 2018 §5.2).
+- **The mechanism the gate actually found is fusion.** `pseudo_voigt`
+  materialises about a dozen full-size temporaries per call and
+  `pseudo_voigt_derivs` more, each a write and a read of a
+  (rows, nodes, window) plane, and numpy cannot keep any of them in
+  registers. A fused loop touches the grid once. This, not raggedness, is
+  what the measured 2.1–3.4× serial ratios are made of.
+- **What to compile is no longer only the forward.** After 1120 the forward
+  is 22 % of the trigger cold fit and the **Jacobian is 71 %** — 34 %
+  `derivative_bases`, 37 % the column assembly that consumes its planes.
+  A compiled tier that stops at the forward buys ~1.1× on the whole fit.
+  The § Gate reading table is the authority on the split, and it is a split
+  in two senses: the column seam itself is **57 % plane work and 30 %
+  per-reflection scalars** (`phase_peaks` under perturbation), and a plane
+  kernel reaches only the first. Three kernels are addressable and they are
+  63 % of the fit between them; assuming a whole seam is addressable because
+  most of it is, is how this WP's first projection overshot by 1.5×.
 - **The three-backend rule still binds** (CLAUDE.md Conventions): the
-  compiled path is a *numpy-path accelerator*, not a fourth backend — jax
-  and torch keep the traced twin (`backend/traced.py`), and the compiled
-  kernel must reproduce the numpy path bit-identically or carry the
-  re-baseline argument, exactly as 1112's scopes do.
-- **Packaging reality check before writing code**: numba pins numpy versions
-  aggressively and adds ~an LLVM to the install; Cython/C add a build
-  toolchain to source installs. That is why the decision is the user's, with
-  the measured win in hand, and why the default install must keep working
-  without it (`[speed]` extra shape, like `[jax]`/`[torch]`).
+  compiled path is a *numpy-path accelerator*, not a fourth backend — jax and
+  torch keep the traced twin (`backend/traced.py`), and the compiled kernel
+  must reproduce the numpy path bit-identically or carry the re-baseline
+  argument, exactly as 1112's and 1120's scopes do. Measured for both
+  prototypes: **a few ulp** (≤ 4.2e-16 relative), the bar 1112 set for FCJ
+  rows.
+- **The profile spelling is part of the contract** (1120's finding, now a
+  root CLAUDE.md rule): the forward kernel must reproduce `pseudo_voigt` and
+  the bases kernel `_components`, which are deliberately 1–2 ulp apart. A
+  fused kernel that borrowed the other one would move every converged fit.
+- **Packaging reality check, now measured rather than feared**: numba 0.67.0
+  + llvmlite 0.49.0 resolve and install against this tree's numpy 2.5.2 with
+  **no numpy downgrade** (`uv pip install --dry-run numba`), and a cold JIT
+  of the forward kernel is **0.20 s** with `cache=True` writing `.nbi`/`.nbc`
+  beside the source, so later processes reload. The default install must
+  still work without it (`[speed]` extra shape, like `[jax]`/`[torch]`).
+- **The peaks buffer composes with a compiled substrate and its design is
+  done** (WP-1114's design note + § Findings): K ≤ 32 anchors per width
+  family reproduce every shape at 1e-4, and that spike's no-go was the numpy
+  per-element floor, not the physics. If a compiled *exact* kernel lands and
+  still misses, a compiled *buffer* is the follow-on with the larger
+  algorithmic ceiling (7.8–9× element volume on FCJ-heavy cases) — 1114
+  § Findings 3–4 list the three accuracy traps and the cache-keying bug any
+  implementation re-hits first.
 - **Fences already measured elsewhere, do not re-open**: GPU execution
   (46–182× slower, launch-latency-bound — v0.4 record); `torch.compile`
   (2.5× slower after 38 s, dynamo specialises per window — 0605);
   `tr_solver='lsmr'` and friends (solver-survey §2 dead ends).
 
-### Inherited
-
-From WP-1114 (2026-08-21), what the gate reads and what a compiled kernel
-could additionally cash:
-
-- **The harness the gate reads has moved — WP-1120 landed 2026-08-22.**  The
-  numbers to compare against the targets are now: trigger cold **17.07-17.29 s**
-  (was 28.33-28.44), cpd-2 **7.29-7.30**, cpd-1a **4.20-4.27**, nac
-  **0.53-0.54**, nac-lebail **0.44-0.48** (`[dev]` venv, darwin/arm64,
-  best-of-3, idle machine).  The cold trigger is **not** in the "low
-  single-digit seconds" target band, so on wall clock the gate is still open;
-  what 1120 also measured is that the *whole* of its saving was inside
-  `evaluate` (11.19 s of 11.41 s) with time elsewhere unchanged, so the
-  remaining 17 s is now mostly *not* the forward.  Locate it before opening
-  this WP — the gate's second clause asks whether the gap sits in dispatch,
-  and 1120 leaves that question pointing at the Jacobian rather than the
-  residual (njev 289 against nfev 364 on the trigger).
-- **The gap's composition is measured** (1114 § Findings 3): the batched
-  numpy kernel runs at ~8-11 ns/element and its remaining overheads are
-  `w_max` padding (~2× on the trigger's gather volume) and the per-element
-  floor — not python dispatch and not evaluation count.  A compiled loop's
-  headroom over batched numpy is therefore the raggedness/padding factor
-  plus the pV-vs-fma gap, ~2-4× on the trigger's profile work, less
-  elsewhere.
-- **The peaks buffer composes with a compiled substrate and its design is
-  done** (1114's design note + § Findings): K ≤ 32 anchors per width family
-  reproduce every shape at 1e-4, and the buffer's no-go was the numpy
-  per-element floor, not the physics.  If this WP opens and a compiled
-  exact kernel still misses, a compiled *buffer* is the follow-on with the
-  larger algorithmic ceiling (7.8-9× element volume on FCJ-heavy cases) —
-  and 1114 § Findings 3-4 list the three accuracy traps plus the cache
-  keying bug any implementation re-hits first.
-
 ## Non-goals
 
-A rewrite of anything beyond the isolated kernel; a fourth backend; GPU;
-making the compiled path the default install; opening before the gate says
-so.
+A rewrite of anything beyond the isolated kernels; a fourth backend; GPU;
+making the compiled path the default install.
 
 ## Tasks
 
-- [ ] **Check the gate** against the 1111 harness with 1112/1114 outcomes in
-      hand; record the reading here (open, or close 🛑 with the table).
-- [ ] numba prototype of the ragged kernel (serial first, then `prange`);
+- [x] **Check the gate** against the 1111 harness with 1112/1114/1120
+      outcomes in hand; record the reading here (§ Gate reading — **open**).
+- [x] numba prototype of the ragged kernel (serial first, then `prange`);
       bit-identity or recorded deviation vs the numpy path; wall on the
-      trigger-shaped and series cases.
-- [ ] Fallback prototype (Cython or C extension) only if numba's numbers or
-      packaging disqualify it.
-- [ ] Thread-scaling measurement (1/2/4/8 threads) on the series case — the
-      one axis pure numpy cannot reach.
-- [ ] Packaging decision with the user: `[speed]` extra vs not shipping;
-      conformance-suite wiring for whichever lands.
+      trigger-shaped case. `examples/bench_compiled_kernel.py`, both the
+      forward and the derivative-bases kernel, agreeing to a few ulp.
+- [x] Fallback prototype (Cython or C extension) — **not needed**: numba is
+      not disqualified on either count the WP named. It installs against the
+      current numpy without moving it, and it wins 2.1–3.4× serial.
+- [x] Thread-scaling measurement on the kernels — the one axis pure numpy
+      cannot reach. 1/2/4/8/10 threads, both kernels (§ Gate reading).
+- [x] **Prototype the column-assembly seam before committing to packaging** —
+      the user's call on 2026-08-22, and it was the right one: the seam is
+      only 57 % plane work, so the first projection (which assumed it fused
+      like the bases) read 3.22× where the measured answer is 2.15×. The
+      fused scatter itself is **bit-identical** at 6.9–7.1×.
+- [x] **Price shipping it by default, and the ways to cut the JIT cost** —
+      § Packaging and § Reducing the JIT cost. The startup objection is
+      largely solvable (nogil + thread pool caches *and* beats prange); the
+      +157 MB and the `numpy<2.6` ceiling are not.
+- [ ] Packaging decision with the user: `[speed]` extra vs not shipping vs
+      default-on; conformance-suite wiring for whichever lands. Now decidable
+      against a projection with no estimated terms and a priced startup cost.
+- [ ] **If it ships, build it on the `nogil` + thread-pool shape, not
+      `prange`** — measured faster *and* cacheable. Add explicit signatures
+      and a `NUMBA_CACHE_DIR` default; warm on a background thread.
+
+## Gate reading — 2026-08-22: OPEN
+
+**Clause 1 — the harness still misses the targets.** Measured on this
+branch, `[dev]` venv, darwin/arm64, `examples/bench_refinement.py`:
+
+| target | measured | verdict |
+|---|---|---|
+| cold trigger-shaped fit in low single-digit seconds | **17.51–17.68 s** (best-of-3; nfev 364, njev 289) | miss |
+| warm series ~1 s/pattern | **1.39–9.52 s/pattern**, median ≈ 3.3 s (cold 16.21 s; whole 10-pattern series 95.9–106.6 s) | miss |
+
+The two slowest warm patterns (9.52 s, 7.43 s) are the two that escalated to
+`warm_staged` — 581 and 305 iterations against 22–57 for the rest. That is
+an evaluation-count effect and belongs to 1113's front, not this one.
+
+**Clause 2 — where the remaining time is.** One trigger cold fit,
+decomposed at the seams by `examples/bench_compiled_kernel.py --seams`
+(wrappers, not cProfile, which inflates exactly the small-array calls this
+question is about). Across three runs whose absolute totals differed by 44 %
+(17.1, 21.6 and 24.6 s for the same fit, on a machine that was not idle
+throughout) every share held to within 0.8 pp — which is why the shares are
+quotable here and the absolute seconds are taken from the harness band:
+
+| seam | calls | s | ms/call | share |
+|---|---|---|---|---|
+| residual (forward) | 372 | 3.721 | 10.0 | 21.8 % |
+| jacobian: bases | 290 | 5.833 | 20.1 | 34.1 % |
+| jacobian: columns | 289 | 6.317 | 21.9 | 37.0 % |
+| — of which plane accumulation | 9 788 | 3.630 | 0.37 | 21.2 % |
+| — of which perturbed `phase_peaks` | 15 608 | 1.911 | 0.12 | 11.2 % |
+| `compile_model` | 8 | 0.175 | 21.9 | 1.0 % |
+| scipy TRF + staged runner | | 1.049 | | 6.1 % |
+
+**The column seam is two unlike things and only 57 % of it is plane work.**
+A column's perturbed `phase_peaks` is per-reflection scalars — positions,
+widths, structure factors under WP-1109's scalar-chain memo — and no plane
+kernel reaches it. Splitting the seam is what stopped this WP promising a
+factor it could not deliver: the first draft of the projection below assumed
+the whole 37 % fused like the bases and read 3.22×.
+
+**93 % of the fit is peak-plane arithmetic**, and after 1120 batched the
+forward the **Jacobian is 71 % of it**. Not evaluation count, not the
+solver's linear algebra (scipy's `_svd` is 0.64 s of a profiled 19.8 s run),
+not compile. So the gate opens — but on a mechanism neither of the two it
+was written around.
+
+**What a compiled kernel buys, measured** (`examples/bench_compiled_kernel.py`,
+trigger at its starting model, node generation excluded from both paths):
+
+| kernel | numpy | numba 1 thread | serial | best threaded | agreement |
+|---|---|---|---|---|---|
+| forward (Ω + window scatter) | 7.31 ms, 6.5 ns/el | 3.1–3.5 ms, 2.8–3.1 | **2.1–2.4×** | **3.9×** at 4 threads | ≤ 1.7e-16 |
+| bases (Ω + 3 partials, node-mixed) | 15.2 ms, 13.5 ns/el | 4.5 ms, 4.0 | **3.2–3.4×** | **11.2×** at 10 threads | ≤ 4.2e-16 |
+| column accumulation | 0.372 ms/call, 2.3 ns/el | 0.054 ms, 0.33 | **6.9–7.1×** | not measured | **bit-identical** |
+
+Three things in that table are worth keeping. The profile kernels agree to a
+few ulp in-window, the bar WP-1112 set for FCJ rows. The **accumulation
+agrees exactly**: `np.bincount` sums its input in order, `accumulate_planes`
+lays that input out row-major as (row, term, point), and a serial loop in the
+same order reproduces every double — so this one needs no re-baseline
+argument at all. And the two profile kernels thread differently for a
+structural reason: forward rows scatter into *overlapping* windows, so a
+threaded version needs private outputs and a reduction that stops paying past
+4 threads (3.92× at 4, 2.64× at 8, 2.21× at 10), while bases rows write
+*disjoint* slices and scale to 10.
+
+The accumulation's 6.9× is the largest ratio here and the reason is visible in
+`accumulate_planes`: it materialises a (rows, terms, w_max) contrib array
+**and** an int64 index array of the same shape (`broadcast_to(...).ravel()`
+copies), roughly 15 MB written per call on the trigger before one output point
+is touched. The fused loop writes only the output.
+
+**The projection — every term now measured.** The three kernels are
+2.72 + 4.41 + 3.63 = **10.76 s of the 17.10 s fit (63 %)**. The rest of each
+seam is `phase_peaks`, FCJ node generation, `decode` and the scalar FD chains.
+
+| tier | trigger cold | vs today |
+|---|---|---|
+| today | 17.1 s | — |
+| all three kernels, serial | **9.4 s** | 1.81× |
+| all three kernels, profile ones threaded | **8.0 s** | 2.15× |
+| + 1113's priced ftol preset flip (1.5–1.7× fewer evaluations) | **≈ 5.0 s** | ≈ 3.4× |
+
+**So the milestone's cold target is still missed by about 2×, and its warm
+target is reached.** The same factors put the series' median warm pattern at
+≈ 1.5 s threaded and ≈ 1.0 s with the flip — inside the ~1 s band — while
+"low single-digit seconds" cold needs something this WP does not have.
+
+Two caveats on the cold row. The threaded numbers are optimistic in a real
+fit: the kernels are entered 372 and 290 times for 1.5–3 ms of work each, and
+the forward's own ladder already shows per-call thread overhead biting at 8.
+And the accumulation is quoted serial, because its scatter overlaps and a
+threaded version would pay the same reduction the forward does.
+
+**What the compiled tier would leave behind**, in the 8.0 s residue, and
+therefore what the front after it looks like: `phase_peaks` 1.9 s inside the
+columns alone (15 608 perturbed calls, per-reflection scalars), the residual
+and bases remainders 1.0 + 1.4 s, solver and runner 1.0 s, and the compiled
+kernels themselves 1.6 s. The next bottleneck is **not** a plane kernel — it
+is how many perturbed `phase_peaks` a Jacobian asks for.
+
+## Packaging — what shipping it *by default* costs a user
+
+Asked on 2026-08-22 and measured rather than estimated (`[dev]` venv,
+darwin/arm64). This prices the option the WP's own Non-goals reject; it is
+recorded because the rejection should rest on numbers.
+
+| cost | measured |
+|---|---|
+| install weight | llvmlite **137 MB** + numba **20 MB** = **+157 MB** on a ~124 MB runtime baseline (scipy 83, numpy 25, gemmi 6.6, spglib 6.0, pydantic 3.0) — **2.3× the install** |
+| numpy ceiling | numba 0.67.0 requires **`numpy<2.6`** (and `>=1.22`) |
+| startup | **1.52 s** cold JIT for the four kernels, **1.25 s** with a populated disk cache |
+| short fits | `nac` 0.53 s and `nac-lebail` 0.44–0.48 s today; with a compiled tier plus ~1.2 s startup they become ≈ 1.6 s, i.e. **~3× slower** |
+| Python versions | **not a cost**: numba 0.67 resolves on 3.11, 3.12, 3.13 and 3.14, the whole CI matrix, with no numpy downgrade |
+| import time | **not a cost**: 0.09–0.28 s against rietx's own 0.79 s |
+
+Two of those deserve their mechanism written down.
+
+**The numpy ceiling is the sharp one and it is permanent.** Today numpy is
+2.5.2 so `<2.6` binds nothing, but on the day numpy 2.6 ships, rietx becomes
+the package holding a user's environment back until numba catches up. numba
+has always carried an upper bound; this is not a version to wait out.
+
+**The disk cache does not remove the startup cost**, which is the part that
+was not anticipated. The two `parallel=True` kernels recompile in **every
+process** — 0.62 s and 0.38 s, unchanged across three consecutive warm runs,
+writing fresh cache entries each time — while the serial kernels cache
+properly (the accumulation drops 0.04 s → 0.00 s). So ~1.0 s of the 1.25 s is
+`parallel=True`, paid per process. The GUI is long-lived and pays it once;
+the CLI one-shot fit and `agent.refine_json` pay it per invocation, which is
+exactly the surface where a sub-second fit is the selling point.
+
+## Reducing the JIT cost
+
+Four strategies measured, three of them effective, and together they change
+the startup arithmetic enough to matter to the decision above.
+
+1. **Replace `parallel=True` with a serial `nogil` kernel on a Python thread
+   pool** (`bench_compiled_kernel.py --nogil`). This is the large one and it
+   costs nothing: the kernel **caches** (0.28 s first process → **0.06 s**
+   thereafter) *and* it is **faster** than the prange twin — 1.23 ms at 8
+   threads against prange's best 1.36 ms, i.e. **12.3× vs numpy's 15.2 ms**
+   where prange managed 11.2×. `nogil=True` releases the GIL for the call, so
+   a shared `ThreadPoolExecutor` over row ranges gets the parallelism that
+   numba's parfor machinery was being compiled for. Use a **shared** pool: a
+   fresh `ThreadPoolExecutor` per call costs 6.0 → 2.8 ms of the win.
+2. **Warm the kernels on a background thread at import or session start.**
+   numba compilation **releases the GIL and overlaps essentially completely**
+   with numpy work: measured across separate processes, serial 0.96–0.97 s
+   against threaded 0.63–0.66 s, hiding the whole 0.33 s payload. So whatever
+   JIT survives (1) can hide behind the file read, CIF parse, `ParameterTable`
+   build and `compile_model` a fit does anyway.
+3. **Redirect the cache to somewhere writable.** numba honours
+   `NUMBA_CACHE_DIR` (verified: entries land in the redirected directory).
+   The default location is beside the source, i.e. inside `site-packages`,
+   which is read-only in plenty of real installs (system Python, containers,
+   Nix) — and an unwritable cache silently means recompiling every process.
+   A shipped tier should point this at a user cache directory itself.
+4. **numba's own AOT is not the answer.** `numba.pycc` still exists in 0.67
+   but is legacy and raises without setuptools present at runtime. Genuine
+   AOT means a Cython or C extension compiled into the wheel: zero startup,
+   threading via OpenMP, at the price of per-platform wheels in CI and a
+   toolchain for sdist installs. **This reverses task 3's conclusion for the
+   default-dependency option specifically** — "Cython not needed" was reached
+   against the *opt-in* option, where a long job amortises the JIT.
+
+Not yet measured, and worth trying before any decision is final:
+
+- **Explicit signatures** on each `njit`, which make cache hits deterministic
+  and stop per-layout respecialisation. There is a symptom pointing at churn:
+  `.nbc` entries accumulated on every run of the prange kernels rather than
+  being reused.
+- **Size-thresholded dispatch** — run numpy below a work threshold so a small
+  fit never triggers a compile at all. `nac` at 0.53 s is precisely the case
+  that regresses, and the harness already says where the crossover is.
+- **UI**: say what the pause is ("compiling accelerated kernels, first run
+  only"), and/or a `rietx warmup` command and a GUI first-launch warm, so the
+  cost is paid once, visibly, at a moment nobody is waiting on a fit.
+
+Taken together, (1) + (2) + (3) take warm startup from ~1.25 s to ~0.06 s
+with most of the remainder hideable, which removes the short-fit regression
+entirely. They do **not** touch the +157 MB or the `numpy<2.6` ceiling, and
+those two are the whole case against default-on.
 
 ## Acceptance
 
 ```sh
 .venv/bin/python examples/bench_refinement.py     # with/without the compiled path
+.venv/bin/python examples/bench_compiled_kernel.py            # the profile kernels
+.venv/bin/python examples/bench_compiled_kernel.py --accum    # the column scatter
+.venv/bin/python examples/bench_compiled_kernel.py --nogil    # cache + threads (run TWICE)
+.venv/bin/python examples/bench_compiled_kernel.py --seams    # the shares they sit in
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m ruff check src tests examples
 ```
@@ -119,10 +308,107 @@ ranges from the harness and the equivalence bar stated per 1112's pattern.
 
 - Coelho, A. A. (2018). *J. Appl. Cryst.* **51**, 210–218 §5.2 — the
   threading numbers the GIL currently denies.
-- WP-0605's file — the padding measurements that make raggedness the
-  compiled path's case.
+- WP-0605's file — the padding measurements that made raggedness the
+  compiled path's original case, now measured at 1.11× and superseded.
 
 ## Handover log
+
+- **2026-08-22** — The gate this WP was built around is open, but not for
+  either of the reasons it was written around. A cold four-phase lab-shaped
+  refinement still takes 17 seconds where the milestone wants low single
+  digits, and a warm series pattern takes between 1.4 and 9.5 seconds where
+  it wants about one, so on wall clock there was never any doubt. The
+  interesting half is *where* those seconds are. Two WPs ago the forward
+  model was the expensive thing; WP-1120 made it four times faster, and the
+  measurement here says the forward is now 22 % of the fit and the Jacobian
+  71 %. Inside that, the two mechanisms a compiled kernel was expected to
+  cash are both small: the ragged axis costs 11 %, not the ~2× that was
+  inherited, and python dispatch is gone. What remains is that numpy cannot
+  fuse — every line of the profile function writes a full array to memory and
+  reads it back — and that numpy cannot thread. A prototype of both kernels
+  in numba confirms it: 2.1–2.4× on the forward, 3.2–3.4× on the derivative
+  bases, single-threaded, agreeing with the existing code to a few ulp, and
+  up to 11× threaded on the half that has no write conflicts.
+
+  Asked which way to go, the user chose to measure the third seam before
+  deciding anything about packaging, and that call changed the answer. The
+  column assembly had been projected to fuse like the others; measured, it
+  turns out to be only 57 % plane work — the other 30 % is a perturbed
+  `phase_peaks` per column, per-reflection scalar arithmetic no plane kernel
+  can touch. The part that *is* plane work fuses better than anything else
+  here, 6.9×, and exactly: it reproduces `np.bincount`'s own summation order,
+  so every double comes back identical. Net, a full compiled tier takes the
+  cold fit from 17 s to about 8, and to about 5 alongside the evaluation-count
+  work already priced in WP-1113 — which reaches the milestone's warm-series
+  target and still misses its cold one by roughly a factor of two.
+
+  **Done.** Tasks 1, 2, 4 and the column-seam measurement; task 3 (a Cython
+  fallback) is resolved as not needed rather than skipped — numba was
+  disqualified on neither count the WP named.
+  `examples/bench_compiled_kernel.py` is the landed evidence, three modes:
+  the default benches the two profile kernels with a thread ladder,
+  `--accum` benches the column scatter on `parts` captured from a real fit,
+  and `--seams` decomposes a real cold fit into the shares all of it must be
+  weighed against. Nothing under `src/` changed, so no answer moved.
+
+  **Measured** (`[dev]` venv **plus numba 0.67.0 / llvmlite 0.49.0 installed
+  for the spike**, darwin/arm64; numpy stayed at 2.5.2). Fast suite 2591
+  passed / 117 skipped — unmoved, which is the point: this session added a
+  benchmark, not a code path. Harness: trigger 17.51–17.68 s, trigger-series
+  1.39–9.52 s/pattern. Everything else is in § Gate reading.
+
+  **Gotchas for the successor.** (1) The machine was not idle for part of
+  this session and single-run totals wandered between 17.1 s and 29.8 s for
+  the *same* fit; the seam **shares** held to within 0.8 pp throughout, so
+  quote shares, and take absolute wall clock only from a tight harness band.
+  (1b) Compile timings must be compared **across processes**: compiling the
+  same kernel twice in one process is cheaper the second time because LLVM is
+  already initialised, and an in-process A/B silently reports a 43 % "overlap"
+  that is nothing of the kind. The GIL-overlap number above was re-measured
+  as two separate runs for exactly this reason. (2) A
+  fused kernel and the numpy planes must be compared **in-window only** —
+  numpy's padded tail carries the clipped duplicate that `BatchLayout.mask`
+  zeroes downstream, and comparing it reports a 0.9 relative "disagreement"
+  that is not one. This cost a wrong-looking result before it was spotted.
+  (3) `fcj_offsets_weights_batch` returns `2·max(n//2, 4)` images for a
+  bucket keyed `n`, **not** `n`; read the count off the returned array.
+  (4) Capture benchmark inputs **evenly across a fit**, never from its head:
+  the first `accumulate_planes` calls come from `scale_bkg`, one phase and
+  one term, and timing those flattered the fused scatter by 5× against the
+  fit's own average before the sampling was fixed. (5) A seam is not
+  addressable just because most of it is — splitting the column seam moved
+  the headline from 3.22× to 2.15×.
+
+  **Then the packaging question was priced** (§ Packaging, § Reducing the JIT
+  cost), because the decision should not rest on an estimate either. Shipping
+  the tier as a default dependency costs a user +157 MB — llvmlite alone is
+  137 MB against a ~124 MB runtime baseline — a permanent `numpy<2.6`
+  ceiling, and about 1.2 s of startup per process. The startup was the
+  surprise: it does **not** go away with the disk cache, because the two
+  `parallel=True` kernels recompile in every process while the serial ones
+  cache properly. At that cost the small cases go backwards: `nac` fits in
+  0.53 s today and would take about 1.6 s.
+  
+  That objection then turned out to be mostly self-inflicted. Rewriting the
+  bases kernel as a *serial* `nogil` kernel driven from a shared
+  `ThreadPoolExecutor` caches (0.28 s once, 0.06 s thereafter) and is
+  **faster** than the `prange` version it replaces — 12.3× against numpy
+  where prange managed 11.2×. Compilation also releases the GIL, so whatever
+  remains hides behind the file read and model compile a fit does anyway
+  (measured: 0.96 s serial against 0.63 s overlapped). What none of that
+  touches is the install weight and the numpy ceiling, and those are the
+  whole case against default-on.
+
+  **Next**: the packaging decision is the user's and is the one thing
+  blocking; it is now decidable against a projection with no estimated terms
+  and a priced startup cost. If it is a go, all three kernels are worth
+  wiring (63 % of the fit between them) — behind a `[speed]` extra, on the
+  **`nogil` + thread-pool shape rather than `prange`**, with the conformance
+  suite diffing against the numpy path and the accumulation held to
+  *bit*-identity rather than a re-baseline. If it is a no-go, 1115 closes 🛑
+  with this file's tables. Either way the front after a compiled tier is
+  **not** another plane kernel: it is the 15 608 perturbed `phase_peaks`
+  calls a trigger Jacobian asks for.
 
 - **2026-08-20** — created by the 1109 review session, deliberately gated;
   the gate is the first task, and closing 🛑 because the targets are already
