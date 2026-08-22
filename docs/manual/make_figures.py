@@ -48,14 +48,34 @@ LINES = {
     "light": ("#1f5fa8", "#c23b22", "#2a7f3f", "#8a5cc4"),
     "dark": ("#6fb1ff", "#ff8a72", "#6ede8a", "#c9a6ff"),
 }
+#: The exposure surface (yue-figure-style): the manual is read on a screen at
+#: roughly 800 px of content width, so a figure is built at that width and its
+#: type sized for it.  A 10-inch figure displayed at 7.4 has had its type
+#: divided by 1.4, which is where the review's "text too small" came from.
+WIDTH = 7.4
+FONT = 10.5
+
+
+def _rc(style: str):
+    """Type at one size for every figure drawn here, in one sans face."""
+    rc = {"font.size": FONT, "axes.labelsize": FONT, "axes.titlesize": FONT,
+          "xtick.labelsize": FONT - 1, "ytick.labelsize": FONT - 1,
+          "legend.fontsize": FONT - 1, "axes.spines.top": False,
+          "axes.spines.right": False}
+    return plt.style.context(([] if style == "light" else ["dark_background"])
+                             + [rc])
 
 
 def _save(fig, stem: str, style: str) -> None:
     FIGURES.mkdir(parents=True, exist_ok=True)
     path = FIGURES / f"{stem}-{style}.png"
     # 200 rather than the old 110: at 110 the type and the reflection marks
-    # fringe on any retina display, which is where the manual is read
-    fig.savefig(path, dpi=200, bbox_inches="tight")
+    # fringe on any retina display, which is where the manual is read.
+    # The dark twin is saved on a transparent ground: furo's dark page is
+    # #131416, not black, so an opaque figure sits on the page as a rectangle.
+    # The light twin keeps its white ground, because its type is dark and a
+    # transparent PNG opened anywhere dark would be unreadable.
+    fig.savefig(path, dpi=200, bbox_inches="tight", transparent=style == "dark")
     plt.close(fig)
     print(f"  {path.relative_to(REPO_ROOT)}")
 
@@ -76,24 +96,43 @@ def angular_signatures() -> None:
         ("cell: tan θ", np.tan(theta)),
         ("size: 1/cos θ", 1.0 / np.cos(theta)),
     ]
+    # The narrow panel's claim, measured rather than asserted: over 20-40° each
+    # of the four is a straight line to within this much, so four parameters
+    # have a constant and a slope between them and the fit reports four numbers
+    # it did not measure.  Deviation from the chord through the curve's own
+    # ends, in the same normalised units the panel is drawn in.
+    keep = (two_theta >= 20.0) & (two_theta <= 40.0)
+    anchor = np.argmin(abs(two_theta - 30.0))
+    spread = 0.0
+    for _, y in curves:
+        z = (y / y[anchor])[keep]
+        line = np.interp(two_theta[keep], two_theta[keep][[0, -1]], z[[0, -1]])
+        spread = max(spread, float(abs(z - line).max()))
+    print(f"  over 20-40°, every shape is a straight line to {spread:.1%}")
+
     for style in STYLES:
-        with plt.style.context([] if style == "light" else ["dark_background"]):
-            fig, (wide, narrow) = plt.subplots(1, 2, figsize=(10, 3.6), sharey=True)
+        with _rc(style):
+            fig, (wide, narrow) = plt.subplots(1, 2, figsize=(WIDTH, 3.0),
+                                               sharey=True)
             for ax, lo, hi, title in (
                 (wide, 10.0, 120.0, "over 110° of data the shapes separate"),
                 (narrow, 20.0, 40.0, "over 20° they are one parameter"),
             ):
-                keep = (two_theta >= lo) & (two_theta <= hi)
-                anchor = np.argmin(abs(two_theta - 0.5 * (lo + hi)))
+                window = (two_theta >= lo) & (two_theta <= hi)
+                mid = np.argmin(abs(two_theta - 0.5 * (lo + hi)))
                 for (label, y), colour in zip(curves, LINES[style], strict=True):
-                    ax.plot(two_theta[keep], (y / y[anchor])[keep], lw=1.6,
+                    ax.plot(two_theta[window], (y / y[mid])[window], lw=1.6,
                             color=colour, label=label)
                 ax.set_xlabel("2θ (deg)")
-                ax.set_title(title, fontsize=9, color=FG[style])
+                ax.set_title(title, color=FG[style])
                 ax.axhline(1.0, lw=0.5, ls=":", color=FG[style], alpha=0.5)
+                ax.set_xlim(lo, hi)
+            narrow.annotate(f"every shape here is a straight\nline to within {spread:.1%}",
+                            xy=(0.5, 0.88), xycoords="axes fraction",
+                            ha="center", va="top", color=FG[style])
             wide.set_ylabel("effect, normalised at mid-range")
-            wide.set_ylim(0.0, 3.0)
-            wide.legend(fontsize=8, frameon=False, loc="upper left")
+            wide.set_ylim(0.0, 2.8)
+            wide.legend(frameon=False, loc="upper left")
             fig.tight_layout()
             _save(fig, "angular-signatures", style)
 
@@ -127,7 +166,7 @@ def geometry_esds(data, ref) -> None:
           f"{max(r for _, r in bonded + contacts):.2f}")
 
     for style in STYLES:
-        with plt.style.context([] if style == "light" else ["dark_background"]):
+        with _rc(style):
             fig, ax = plt.subplots(figsize=(7.0, 3.4))
             hue = rx.viz.plots.PALETTES[style]
             ax.axhline(1.0, lw=0.8, ls=":", color=FG[style])
@@ -174,7 +213,7 @@ def effective_observations() -> None:
     print(f"  {raw[0]} reflections throughout; {eff[0]:.1f} -> {eff[-1]:.1f} effective")
 
     for style in STYLES:
-        with plt.style.context([] if style == "light" else ["dark_background"]):
+        with _rc(style):
             fig, ax = plt.subplots(figsize=(7.0, 3.4))
             hue = rx.viz.plots.PALETTES[style]
             ax.plot(widths, raw, "-", lw=1.6, color=hue["bkg"])
@@ -218,7 +257,7 @@ def restraint_schedule() -> None:
               f"Rwp {result.statistics.rwp:.4f}, restraint {worst:.0f} sigma")
 
     for style in STYLES:
-        with plt.style.context([] if style == "light" else ["dark_background"]):
+        with _rc(style):
             fig, axes = plt.subplots(2, 1, figsize=(7.0, 4.4), sharex=True, sharey=True)
             hue = rx.viz.plots.PALETTES[style]
             for ax, (label, result, distance, worst) in zip(axes, runs, strict=True):
@@ -256,32 +295,44 @@ def refinement_figures():
 
     print("nac-fit / impurity-peak")
     for style in STYLES:
-        fig = result.plot(two_theta_range=(2.0, 12.0), style=style,
-                          wavelength=WAVELENGTH)
+        # The whole fitted range, not the 2-12° window the figure carried
+        # before: a window that stops at the strong low-angle peaks reads as a
+        # simulation.  What says "real data" is the weak high-angle half, where
+        # the counting statistics show and the difference curve has structure.
+        fig = result.plot(style=style, wavelength=WAVELENGTH)
         _save(fig, "nac-fit", style)
 
-        # The CaF2 111 line at 7.5 deg: the Le Bail model does not contain the
+        # The CaF2 111 line at 7.52 deg: the Le Bail model does not contain the
         # impurity, so the report flags an unmatched observed peak there.  This
         # is the concrete version of "Le Bail first" in the quickstart.
         hue = rx.viz.plots.PALETTES[style]
-        with plt.style.context([] if style == "light" else ["dark_background"]):
-            fig, axes = plt.subplots(1, 2, figsize=(10, 3.4), sharey=True)
+        with _rc(style):
+            fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 2.8), sharey=True,
+                                     sharex=True)
             for ax, res, name in zip(axes, (lebail, result),
-                                     ("Le Bail, impurity not in the model",
-                                      "Rietveld, CaF₂ added"), strict=True):
+                                     ("Le Bail: CaF₂ not in the model",
+                                      "Rietveld: CaF₂ added"), strict=True):
                 tt = np.asarray(res.two_theta)
-                keep = (tt >= 7.25) & (tt <= 7.75)
-                ax.plot(tt[keep], np.asarray(res.y_obs)[keep], ".", ms=3,
-                        color=hue["obs"], label="observed")
-                ax.plot(tt[keep], np.asarray(res.y_calc)[keep], "-", lw=1.2,
-                        color=hue["calc"], label="calculated")
+                keep = (tt >= 7.27) & (tt <= 7.70)
+                ax.plot(tt[keep], np.asarray(res.y_obs)[keep] / 1e5, ".", ms=3.5,
+                        color=hue["obs"])
+                ax.plot(tt[keep], np.asarray(res.y_calc)[keep] / 1e5, "-", lw=1.2,
+                        color=hue["calc"])
                 ax.set_xlabel("2θ (deg)")
-                ax.set_title(name, fontsize=9, color=FG[style])
-            axes[0].annotate("unmatched\nobserved peak", xy=(7.50, 14000),
-                             xytext=(7.30, 9000), fontsize=8, color=FG[style],
-                             arrowprops={"arrowstyle": "->", "color": FG[style]})
-            axes[0].set_ylabel("intensity")
-            axes[0].legend(fontsize=8, frameon=False)
+                ax.set_title(name, color=FG[style])
+            # Two series, so they are labelled directly rather than boxed, in
+            # the corner of the panel where neither curve goes.
+            for text, colour, dy in (("observed", hue["obs"], 0.0),
+                                     ("calculated", hue["calc"], 0.10)):
+                axes[1].annotate(text, xy=(0.97, 0.95 - dy), xycoords="axes fraction",
+                                 ha="right", va="top", color=colour)
+            axes[0].annotate("observed intensity\nthe model cannot place",
+                             xy=(7.525, 0.16), xytext=(7.56, 0.62),
+                             color=FG[style], va="center",
+                             arrowprops={"arrowstyle": "->", "color": FG[style],
+                                         "shrinkB": 6})
+            axes[0].set_ylabel("intensity (10⁵ arb. units)")
+            axes[0].set_xlim(7.27, 7.70)
             fig.tight_layout()
             _save(fig, "impurity-peak", style)
     return data, ref
