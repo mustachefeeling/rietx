@@ -143,8 +143,13 @@ The adaptive rule is **not landed** if any of these fires on either case:
 
 1. It costs whole-chain evaluations against the better of the two fixed modes
    on that case.
-2. It raises the escalation or quarantine count, or adds any
-   `SEQUENTIAL_*` diagnostic the fixed modes do not produce.
+2. It raises the escalation or quarantine count, adds any `SEQUENTIAL_*`
+   diagnostic the fixed modes do not produce, or leaves any accepted entry at a
+   `status` other than `"converged"`. The third clause is not decoration: a
+   bounded rung comes back `"max_iter"`, `_better` treats that as not-diverged
+   and `_reseed_needed` tests only divergence and Rwp, so a truncated fit could
+   be **accepted** rather than escalated. Whatever the bound is, hitting it has
+   to force the next rung.
 3. It moves an accepted parameter outside the exactly degenerate width family
    by more than **0.25 esd** against the fixed-mode chain it is closest to.
    (WP-1124's out-of-family bar: copy vs secant/tangent measured 0.047-0.262.)
@@ -166,6 +171,92 @@ WP-1124 did. Nothing in `src/` ships on a hunch.
   the entry rung may spend, and nothing else.
 - The model-cost estimate (deferred by WP-1113).
 
+## Findings
+
+All numbers: `[dev]` venv only (**no jax, no torch**; numba 0.67.0 present, so
+the compiled tier WP-1115 made the default is **on** —
+`capabilities().features["compiled_kernels_active"]` is `True`), darwin/arm64,
+python 3.12.12, numpy 2.5.2, `rietx` 1.1.0.dev0, best-of-3 on an idle machine,
+per root CLAUDE.md § Numbers. `examples/bench_refinement.py`, all four cases in
+one process.
+
+### 1 — the baseline, and the two regimes are real (2026-08-22)
+
+| case | wall (s) | nfev | njev | Rwp | escalations |
+|---|---|---|---|---|---|
+| `cpd-series` (`refit="single"`) | **4.77-4.80** | **627** | 449 | 0.12586 | 0 |
+| `cpd-series-stages` (`refit="stages"`) | 7.45-7.47 | 1041 | 776 | 0.12592 | 0 |
+| `trigger-series` (`refit="single"`) | 57.75-58.20 | 1603 | 1315 | 0.01943 | 2 |
+| `trigger-series-stages` (`refit="stages"`) | **36.12-40.54** | **1253** | 906 | 0.01944 | 0 |
+
+`trigger-series` reproduces WP-1123's and WP-1124's **1603** nfev and
+`trigger-series-stages` their **1253**, so this is the same tree measuring the
+same fits, and `src/` is untouched by this WP so far.
+
+**The two cases point opposite ways, as WP-0505 and WP-1110 said they would.**
+On the real small-cell chain the collapse wins 1.66× in evaluations (627 against
+1041) and 1.56× in wall; on the trigger-shaped chain the staged rung wins 1.28×
+in evaluations (1253 against 1603) and ~1.5× in wall. A flipped default would
+buy one case what it costs the other.
+
+### 2 — the whole trigger gap is the cost of discovering failure
+
+Per pattern, `trigger-series`, last repeat:
+
+| pattern | wall (s) | iter | kept rung | discarded rung | warm Rwp |
+|---|---|---|---|---|---|
+| 0 | 6.64 | 252 | cold | — | — |
+| 1 | **20.44** | 506 | `warm_staged` | **17.22 s** | 0.03170 |
+| 2 | 2.34 | 64 | `warm` | — | — |
+| 3 | 2.35 | 62 | `warm` | — | — |
+| 4 | 1.15 | 35 | `warm` | — | — |
+| 5 | 2.06 | 53 | `warm` | — | — |
+| 6 | **18.81** | 500 | `warm_staged` | **15.71 s** | 0.03006 |
+| 7 | 1.40 | 46 | `warm` | — | — |
+| 8 | 0.89 | 27 | `warm` | — | — |
+| 9 | 2.04 | 58 | `warm` | — | — |
+
+**32.93 s of 57.75 — 57 % — is the two discarded rungs**, reproducing WP-1124's
+decomposition on a fresh run.
+
+Two facts decide the design, and neither was visible before this table:
+
+1. **A successful first rung and a failed one do not overlap, anywhere.**
+   Successes cost **27-64** iterations on `trigger-series` and **25-107** on
+   `cpd-series`. Both failures ran to **~400**, which is exactly the cap:
+   `_collapse` takes `max_iter` as the maximum over the plan's stages (100 for
+   `qpa_plan`) and `run_least_squares` sizes scipy's `max_nfev` at
+   `max_iter × NFEV_PER_ITERATION` (= 4). So a failed first rung does not cost
+   *more* than a successful one, it costs **the whole budget**, and the gap
+   between the largest success and the smallest failure is a factor of six.
+   The two regimes are separable by cost, which is what makes a budget derived
+   from the chain's own history a rule rather than a tuning knob.
+2. **On seven of the nine warm patterns the collapse is the better rung even
+   here.** 0.89-2.35 s against the staged mode's 2.97-4.25 s for the same
+   patterns. `refit="stages"` wins this case only by never paying for a
+   discovery, not by fitting better.
+
+Fact 2 **refutes lever B as it was written**, before it was built. Starting
+later patterns on the rung that worked would move patterns 2-9 from 0.89-2.35 s
+onto 2.97-4.25 s to avoid one 15.71 s discovery: adding up the measured
+per-pattern rows, that is ~50 s against the 42.8 s a bound alone predicts and
+the 57.75 s baseline. The escalations here are **sporadic, not systematic**, and
+a rule that generalises from one failure to the rest of the chain pays for the
+generalisation on every pattern that did not need it.
+
+Fact 1 gives the ceiling worth chasing. With the two discoveries made *free*,
+the same ladder would run in **~25.2 s** — better than `refit="stages"`'s
+36.12-40.54 s, because it would keep the collapse's win on the seven patterns
+*and* the staged rung's rescue on the two. So the target is not "pick the right
+fixed rung" but "make the wrong first rung cheap", and the fixed-mode winner on
+this case is a floor to beat rather than the goal.
+
+The bound has one blind spot the table names: **the first warm pattern has no
+accepted first-rung history**, and on `trigger-series` it is one of the two that
+fails (17.22 s). Only the cold fit precedes it, at 252 iterations — which is
+still 1.6× cheaper than the 400 the rung actually spent, and is the one bound
+available at that point.
+
 ## Tasks
 
 - [x] **A second series case in the harness**: the round-robin sample-1 chain
@@ -181,19 +272,30 @@ WP-1124 did. Nothing in `src/` ships on a hunch.
       phases, instrument, `seed_scales`, `qpa_plan()` and default
       `carry=("*",)` — so only `refit` varies. Pinned by
       `test_the_real_series_case_is_the_acceptance_chain`.)*
-- [ ] **Baseline both cases on this tree**, both modes, the acceptance command
+- [x] **Baseline both cases on this tree**, both modes, the acceptance command
       verbatim: per-pattern table with the discarded-rung column, whole-chain
       nfev/njev, escalation count, and the fixed-mode winner per case. This is
       the "before" every later row is judged against; WP-1124's numbers are
       quoted for `trigger-series` and re-measured, not assumed.
+      *(2026-08-22: § Findings 1-2. The fixed-mode winner is `single` on
+      `cpd-series` and `stages` on `trigger-series`, as WP-0505 and WP-1110
+      predicted. Two facts came out that were not in the plan: a successful
+      first rung and a failed one do not overlap in cost anywhere, and the
+      collapse is still the better rung on seven of the trigger case's nine
+      warm patterns — which refutes lever B before it is built.)*
 - [ ] **Lever A — bound the first rung**: budget from the chain's accepted
       history, no control-flow change. Measure both cases, both modes: whole-
       chain nfev/njev, discarded wall, escalation count, per-pattern answer
       agreement in esd. State the budget rule's constants and where they came
       from (measured, never tuned to one case).
-- [ ] **Lever B — learn the rung**: after an escalation, later patterns of the
-      pass start on the rung that worked. Same read-outs, plus what the rule
-      does when the two directions disagree about where the escalation was.
+- [ ] **Lever B — learn the rung**: **refuted by § Findings 2 before being
+      built**, and the task stays here to record that rather than to run it.
+      The trigger case's escalations are sporadic, not systematic — the
+      collapse is the better rung on seven of its nine warm patterns — so
+      generalising from one failure to the rest of the chain costs more on
+      every pattern that did not need it (~50 s against a bound's predicted
+      42.8 s). Build it only if a case turns up whose escalations are the norm;
+      none of the harness's two is.
 - [ ] **`direction="both"` on whichever lever survives**, both cases: the
       path-dependence read-out that retired B8. Pre-registered clause 4.
 - [ ] **Land or retire.** On a go: the third `REFIT_MODES` member, a caller's
