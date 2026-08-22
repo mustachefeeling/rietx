@@ -106,9 +106,10 @@ subsumed by A1, and out of scope either way); any Rwp-judged claim.
 
 ## Tasks
 
-- [ ] **The wrapper**: profiled residual + weighted ridge inner solve as a
+- [x] **The wrapper**: profiled residual + weighted ridge inner solve as a
       probe script beside `examples/stage_trajectory.py`, gated by the two
       correctness checks above before anything is counted.
+      `examples/probe_varpro.py`; it grew a third gate (below).
 - [ ] **The named stages**: cpd-1a/cpd-2 `zero_disp` and `cell`, profiled
       against joint, at both schedules (`intermediate_ftol` default and
       `None`) — outer iterations, decay ratio, tail fraction per stage.
