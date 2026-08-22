@@ -349,6 +349,14 @@ Untouched, and the boundary of the result:
   coefficients are. The column stayed in the probe, reporting the thing it
   disproved.
 
+  *Numbers this session measured.* Fast suite **2619 passed / 117 skipped**
+  (`[dev]` only — no jax, no torch — macOS/arm64, 10 cores, numba 0.67.0);
+  nothing was added to it, so no count moved, and the one test file touched
+  was `test_docs_consistency.py`'s `SIZE_CAPS` entry. CLAUDE.md's cap raised
+  834 → 845 with the justifying comment that file requires: the fence stayed,
+  the measurements went down a rank into § Findings, the survey and the v1.1
+  record. Acceptance ran clean on the final tree; `ruff` clean.
+
   *Next actions.* None on this WP. For whoever opens the landing WP: E5 now
   stands on **claim 3, the coverage study**, and on Pawley dimension; both are
   unmeasured, and neither can quote this probe's gate 3, because a bounded
