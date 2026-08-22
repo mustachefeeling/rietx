@@ -1,6 +1,6 @@
 # WP-1121 — the per-reflection front: what a compiled tier does not reach
 
-Milestone: v1.1 · Status: ⬜
+Milestone: v1.1 · Status: ✅ 2026-08-22 — the front is measured and named: per-reflection work is dispatch-bound, 20 % of the fit; two changes landed (1.02–1.08×), cold target still missed at 8.7 s and said so
 Depends on: 1115 (its gate reading is the decomposition this attacks)
 
 ## Goal
@@ -335,9 +335,14 @@ Together they are the only measured route to the target, and 1.6× × whatever
       not, so its bar is agreement with a difference quotient that has no
       truncation error rather than bit-identity (§ Findings 3), and a converged
       fit moves. Together 1.02–1.08× across the four cases.
-- [ ] **The preset flip is a decision, not a task** — put 1113's priced
-      numbers to the user with this WP's own result beside them, since the two
-      multiply.
+- [x] **The preset flip is a decision, not a task** — put to the maintainer
+      with this WP's result beside it (§ Findings 6, route 1), and **still
+      open**. 1113's price is unchanged: intermediate stages at `ftol=1e-6`
+      buy 1.5–1.7× fewer whole-plan evaluations at ≤ 0.02 esd of parameter
+      movement. Against this WP's 8.70–8.72 s that is ≈ 5.4 s, and it is the
+      larger of the two remaining factors. Carried in ROADMAP § Current focus
+      and the v1.1 record so closing this WP does not orphan it again — which
+      is the failure this WP was itself created to repair.
 - [x] Tests + PNGs. Five new: three step sizes of the scale column's
       exactness and the `scale == 0` fence (`test_jacobian.py`), the two-arm
       alternation and the bound that stops it growing (`test_scalar_memo.py`);
@@ -375,6 +380,66 @@ stated per landed change, and never an Rwp comparison as evidence.
   is built on.
 
 ## Handover log
+
+- **2026-08-22** — v1.1's cold-fit target will not be reached by making the
+  arithmetic cheaper, and this session is why we now know that rather than
+  suspect it. The fit is decomposed end to end on the tier that actually
+  ships: plane arithmetic is 55 % of it and already within about 2× of what
+  numpy can do, the per-reflection work is 20 %, and everything else put
+  together is under 20 %. Two changes landed — a phase scale is no longer
+  finite-differenced, and the scalar cache holds the two states a Jacobian
+  actually alternates between — worth 1.02–1.08× across the harness, which
+  leaves the cold fit at 8.7 s against a target of low single digits. The
+  useful part is the mechanism underneath: the per-reflection blocks are slow
+  for a *different reason* than the plane kernels ever were, so the tool that
+  bought 11× there buys 1.03× here, and reaching for it again would waste a
+  WP. What is left on the table is one decision the maintainer owns and one
+  WP that is already open.
+
+  **Done.** Six checklist items, all of them. `--seams` was measuring the
+  fallback tier after 1115 shipped (a module-scope `set_enabled(False)`
+  covered every mode); it now takes the environment's tier and stamps which
+  one it ran. Switching it on exposed a live race in library code —
+  `compiled.warm` imports numba on a background thread by design, so a first
+  `enabled()` on the calling thread could find the module in `sys.modules`
+  with no `config` on it yet and raise `AttributeError` out of an ordinary
+  fit. Fixed, with a regression test that builds the half-initialised module
+  rather than racing a real thread. Then `_scale_column` (§ Findings 3) and
+  the depth-2 memo (§ Findings 2). Eight bit-identity goldens re-baselined,
+  `tests/data/README.md` entry written. Root CLAUDE.md gains one rule (804 →
+  817, justified at the cap).
+
+  **Measured** — `[dev]` venv (numba yes, no jax/torch), darwin/arm64,
+  python 3.12.12, `bench_refinement.py` best-of-3 on an idle machine.
+  Trigger cold **8.81–8.89 → 8.70–8.72 s**; cpd-2 3.64–3.76 → 3.38–3.41;
+  cpd-1a 2.18–2.20 → 2.04–2.05; nac 0.40 → 0.38. The seam decomposition,
+  the memo hit rates, the exactness sweep and the per-reflection cost per
+  element are § Findings 1–5; § Findings 6 is the closing statement.
+  Fast suite **2614 passed / 117 skipped** (was 2607 / 117): seven tests
+  added, all seven passes, no new skip. Full suite run once on the final code
+  tree — see the § Handover note below for its result.
+
+  **Gotchas the successor should not re-learn.** A per-family timing census
+  over a depth-1 cache charges each column for whatever its predecessor
+  evicted: it said removing the scale columns would buy 3.3 % and the real
+  figure was a fifth of that. Price a removal by removing it. An
+  unbounded-cache "would-hit" figure is not headroom either — depth 8 built
+  exactly the same 35 596 blocks as depth 2, to the call. And the
+  whole-model FD is the wrong oracle for an analytic column on a transformed
+  parameter; it agreed to 2e-11 with a column that was 4.6e-6 from the truth
+  (now a CLAUDE.md rule).
+
+  **Next**, in order. (1) The **preset flip** is the one open decision and it
+  is the maintainer's: 1113 priced intermediate stages at `ftol=1e-6` at
+  1.5–1.7× fewer whole-plan evaluations for ≤ 0.02 esd of parameter movement,
+  which against 8.7 s is ≈ 5.4 s and is the larger of the two remaining
+  factors. It is carried in ROADMAP § Current focus and the v1.1 record so
+  that closing this WP does not orphan it — orphaning a forward finding is
+  the exact failure this WP was created to repair. (2)
+  [1122](1122-compiled-peaks-buffer.md), whose `### Inherited` now holds this
+  WP's remainder and one correction to its cost model: the buffer attacks
+  element volume, which is priced against the plane seam that is already near
+  its floor, and buys nothing on the per-reflection 20 %.
 
 - **2026-08-22** — created, at the maintainer's direction, to give WP-1115's
   strongest forward finding an owner. 1115 shipped the compiled tier and took
