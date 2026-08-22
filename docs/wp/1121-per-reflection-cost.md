@@ -103,12 +103,63 @@ compiled peaks buffer**, which is [1122](1122-compiled-peaks-buffer.md)'s and
 is gated on this WP's closing measurement; anything that moves a converged fit
 without a stated and asserted equivalence bar.
 
+## Findings
+
+### 1 — the decomposition on the shipped tier (2026-08-22)
+
+`bench_compiled_kernel.py --seams`, three runs, `[dev]` venv on darwin/arm64,
+python 3.12.12. Trigger cold fit **8.86–8.93 s**, Rwp 0.01998, converged; every
+share below is stable to 0.1 pp across the three, so the ranges are the
+measurement's own and not a machine-state allowance.
+
+| seam | calls | s | ms/call | share |
+|---|---|---|---|---|
+| residual (forward) | 366 | 1.96–1.99 | 5.4 | 22.1–22.2 % |
+| jacobian: bases | 287 | 2.90–2.93 | 10.1 | 32.7–32.8 % |
+| jacobian: columns | 286 | 2.89–2.92 | 10.1–10.2 | 32.6–32.8 % |
+| — of which plane accumulation | 9 675 | 0.33 | 0.034 | 3.7–3.8 % |
+| — **of which perturbed `phase_peaks`** | **15 444** | **1.85–1.87** | **0.120** | **20.9–21.0 %** |
+| `compile_model` | 8 | 0.176 | 21.9 | 2.0 % |
+| solver + runner | | 0.92–0.93 | | 10.3–10.5 % |
+
+**The § Context prediction was right to the point.** `phase_peaks` was 11.2 %
+before the tier and is **20.9–21.0 %** after it, because its absolute cost did
+not move (1.911 → 1.85–1.87 s) while everything around it did. It is now the
+largest line item that is not plane arithmetic, and **64 % of the column seam**
+against 30 % before.
+
+**What the tier bought, seam by seam** — the same harness on the same machine,
+`RIETX_COMPILED=0` reproducing the § Context table to 0.1 pp (17.16 s, every
+share within 0.1 of the pre-1115 row), so these are ratios between two runs of
+one binary rather than a comparison across sessions:
+
+| seam | numpy s | compiled s | ratio |
+|---|---|---|---|
+| residual (forward) | 3.739 | 1.97 | 1.90× |
+| jacobian: bases | 5.846 | 2.91 | 2.01× |
+| plane accumulation (in columns) | 3.652 | 0.333 | **11.0×** |
+| perturbed `phase_peaks` | 1.917 | 1.86 | **1.03×** |
+| solver + runner | 1.046 | 0.92 | 1.14× |
+
+The scatter is the outlier and it is the one kernel that fused a python-level
+loop rather than a numpy expression. The two profile kernels sit at ~2×, which
+is 1115's own reading of its remaining headroom.
+
+**What this leaves on the table.** Plane work is still 55 % of the fit (bases
+32.8 + residual 22.2) and is ~2× off its floor by 1115's measurement, so the
+whole seam is worth at most ~27 % of wall even if it went to zero. Against
+that, `phase_peaks` is 21 % at a ratio of 1.03× — untouched, and the only line
+where a first attempt is not competing with an already-compiled one.
+
 ## Tasks
 
-- [ ] **Re-measure the decomposition on the shipped tier** — the table above is
-      the pre-1115 state and every share in it has moved. Same method
-      (`bench_compiled_kernel.py --seams`), shares not absolutes, and record
-      what fraction the compiled path now leaves on the table.
+- [x] **Re-measure the decomposition on the shipped tier** — § Findings 1.
+      `--seams` could not answer this as it stood: `compiled.set_enabled(False)`
+      sat at module scope, so the mode decomposed the *fallback* after the tier
+      had shipped. It now takes the environment's tier and stamps which one it
+      ran. Switching it on also surfaced a live race in `_redirect_cache`
+      (`warm` imports numba on a thread; a first `enabled()` found the module
+      half-built), fixed with a regression test.
 - [ ] **Instrument the scalar-memo hit rate** per slot over one trigger
       Jacobian, and settle lead 1 with a number. A depth-1 cache that never
       hits is a different fix from one that hits 90 % of the time.
