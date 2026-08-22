@@ -149,12 +149,41 @@ Rietveld: status=converged  Rwp=0.0933  GoF=3.54
 ```
 
 It goes on to print the report summary, its five worst regions, and the history
-tree below. The script itself:
+tree below.
+
+The script is three blocks. First, read the pattern, the structure and the
+instrument, and set the profile starting values in the right decade for 11-BM's
+resolution:
 
 ```{literalinclude} ../../../examples/nac_11bm.py
 :language: python
-:caption: examples/nac_11bm.py
+:dedent: 4
+:start-at: data = rx.read_pattern
+:end-before: "# --- Le Bail first"
 ```
+
+Then the Le Bail fit, which refines the cell and the profile without the
+structure, and tags the node it reached:
+
+```{literalinclude} ../../../examples/nac_11bm.py
+:language: python
+:dedent: 4
+:start-at: "# --- Le Bail first"
+:end-before: "# --- Rietveld seeded"
+```
+
+Then the impurity its report exposed, added as a recorded model edit, and the
+Rietveld fit that follows with a displacement stage appended to the preset:
+
+```{literalinclude} ../../../examples/nac_11bm.py
+:language: python
+:dedent: 4
+:start-at: "# --- Rietveld seeded"
+:end-before: return data, ref, lebail, result
+```
+
+The imports, and the `main` that builds the report and prints the history, are
+in the file itself.
 
 Six things in it are moves that any later refinement repeats:
 

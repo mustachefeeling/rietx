@@ -257,7 +257,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # motivation and disposition live in solver-survey.md §5 and the WP
     # files, and the Current focus mention replaced text inside an existing
     # line.  Same rule as the bumps above: a row is not narrative.
-    "docs/ROADMAP.md": 457,
+    # 457 -> 458 for WP-1126 (2026-08-22): its own index row, and only that.
+    # The manual style pass touches no always-loaded file: the review's rules
+    # went into the yue-docs-style skill and the chapters, and the WP file
+    # carries the measurements.
+    "docs/ROADMAP.md": 458,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
