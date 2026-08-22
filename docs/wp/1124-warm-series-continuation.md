@@ -89,14 +89,68 @@ front (WP-1121 named it; no WP owns it); the tangent-as-sensitivity output
 B8 also promises (scientifically interesting, nothing to do with the
 verdict); the model-cost estimate (deferred by 1113); any Rwp-judged claim.
 
+## Findings
+
+All numbers: `[dev]` venv only (**no jax, no torch**), darwin/arm64, python
+3.12.12, numpy 2.5.2, `rietx` 1.1.0.dev0, best-of-3 on an idle machine, per
+root CLAUDE.md § Numbers. `examples/bench_refinement.py` for §1, the probe's
+own `examples/bench_series_predictor.py` for the rest.
+
+### 1 — the band decomposed, and it is not shaped like the target (2026-08-22)
+
+Baseline on this tree, the acceptance command verbatim:
+
+| case | wall (s) | nfev | njev | Rwp |
+|---|---|---|---|---|
+| `trigger-series` (`refit="single"`, the default) | **57.66-57.96** | 1603 | 1315 | 0.01943 |
+| `trigger-series-stages` (`refit="stages"`) | **35.76-35.97** | 1253 | 906 | 0.01944 |
+
+The nfev reproduces WP-1123's **1603** exactly, so this is the same tree
+measuring the same fits — worth stating because this session rebuilt the venv
+(it was missing `numba`, i.e. the compiled tier WP-1115 made the default was
+**off**; every number here would otherwise have been the fallback's).
+
+**The harness was measuring the cheap half of the expensive patterns.** A
+pattern emits one `fit_start`/`fit_end` pair *per ladder rung*, and
+`_run_series` kept the last of each kind — so an escalated pattern reported
+only the rung that succeeded, which is by construction the one cheap enough to
+be kept. Its docstring already claimed the whole escalation. Fixed here (the
+pairs are accumulated and summed, and `rungs=` prints the breakdown), which
+changes what the case says about itself:
+
+| pattern | reported before | actually | rungs |
+|---|---|---|---|
+| 1 | 3.21 s | **20.19 s** | `warm`=17.01 + `warm_staged`=3.18 |
+| 6 | 3.13 s | **18.82 s** | `warm`=15.62 + `warm_staged`=3.20 |
+
+**32.63 s of the 57.45 s series — 57 % — is wall spent in first rungs the
+ladder then threw away.** So "~5.7 s a pattern" is an average over a bimodal
+distribution, and neither mode is at it: seven clean warm patterns at
+**0.89-2.32 s** (median 2.03), already at or just above the ~1 s target, and
+two at 18.8-20.2 s. Delete the two escalations and the same ten patterns cost
+~24.8 s with no per-evaluation work whatsoever.
+
+**And the shipped default first rung is the slower one on this case.**
+`refit="stages"` runs **1.61×** faster than `refit="single"` — 35.76-35.97 s
+against 57.66-57.96 — with **zero** escalations, every pattern 2.82-3.73 s at
+95-140 iterations. That inverts WP-0505's small-cell measurement (904
+collapsed against 1623 staged) in the direction WP-1110's agent round hit on a
+real trigger-shaped model. `_ladder`'s docstring already says which rung is
+cheaper is a property of the model; the measurement is that on *the milestone's
+own trigger workflow* it is the staged one. Not this WP's to change
+(§ Non-goals), and the largest single number on the table.
+
 ## Tasks
 
-- [ ] **Decompose the band first**: per-pattern wall / nfev / rung table for
+- [x] **Decompose the band first**: per-pattern wall / nfev / rung table for
       `trigger-series` and `trigger-series-stages` on the current tree — the
       post-1123 "after" no record holds — and where the ~5.7 s average sits
       against the 5.67-5.70 s cold fit. This is the baseline every later row
       compares against, and it says how much of the band is escalations
       before any predictor runs.
+      *(2026-08-22: § Findings 1; the harness's per-pattern collector fixed in
+      the same commit, because the number it printed omitted the escalations
+      this task exists to count.)*
 - [ ] **Secant probe**: `prepare`/`on_result` implementation, both
       directions; whole-chain evaluations, escalation count, per-pattern
       wall, endpoint agreement (esd-relative, per pattern) against the copy
