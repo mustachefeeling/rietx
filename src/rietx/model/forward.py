@@ -197,6 +197,12 @@ def window_fwhm_mult(eta: np.ndarray) -> np.ndarray:
 #: zero-node profile
 AXIAL_SIZING_FLOOR = 0.02
 
+#: Distinct keys :meth:`CompiledModel._memo` holds per slot.  Two, because a
+#: Jacobian column alternates between the expansion point and one perturbed
+#: state; see that method for the measurement and for why this is capped.
+_MEMO_DEPTH = 2
+
+
 def _freeze(value) -> None:
     """Mark every ndarray inside a memoised block read-only, in place.
 
@@ -723,17 +729,48 @@ class CompiledModel:
         silently.  ``phase_peaks`` is public, so that consumer need not be in
         this repository.  Freezing the arrays costs nothing per call and turns
         the corruption into a ``ValueError`` naming the write.
+
+        **Two keys deep, because a Jacobian alternates between exactly two**
+        (WP-1121).  A column perturbs one parameter and leaves the rest at the
+        expansion point, so a run of columns that do not touch this block all
+        want the *same* base key — and one cell column between two of them is
+        enough to evict it from a one-deep slot, which then rebuilds a block
+        the perturbation could not have changed.  Measured on the trigger cold
+        fit: 63.6 % of column-seam lookups hit at depth 1 against 72.9 % with
+        an unbounded cache, the gap worth 0.29 s of 8.8 s, and |F|² alone —
+        145 µs a build — carrying 0.17 s of it.
+
+        Depth is capped rather than unbounded because the keys are decoded θ:
+        an unbounded map grows one entry per distinct parameter vector and a
+        fit visits thousands, so it is a leak wearing a cache's clothes.  Two
+        is what the *access pattern* asks for, not a tuning constant — the
+        alternation has two arms, and **depth 8 was measured to build exactly
+        the same 35 596 blocks as depth 2** on the trigger fit, to the call.
+        What the remaining 8 pp of the unbounded figure would take is a key
+        last seen in an *earlier Jacobian*, thousands of lookups ago; no cache
+        that is not a leak reaches it, and reading that gap as headroom is the
+        mistake this note exists to stop.
         """
         cache = cp.scalar_cache
         if cache is None or get_backend().name != "numpy":
             return build()
         key = key_fn()
-        hit = cache.get(slot)
-        if hit is not None and hit[0] == key:
-            return hit[1]
+        held = cache.get(slot)
+        if held is not None:
+            if held[0][0] == key:
+                return held[0][1]
+            if len(held) > 1 and held[1][0] == key:
+                # promote, so an alternation keeps hitting rather than
+                # evicting the arm it is about to want again
+                held[0], held[1] = held[1], held[0]
+                return held[0][1]
         value = build()
         _freeze(value)
-        cache[slot] = (key, value)
+        if held is None:
+            cache[slot] = [(key, value)]
+        else:
+            held.insert(0, (key, value))
+            del held[_MEMO_DEPTH:]
         return value
 
     def _atom_key(self, ip: int, values: dict[str, float]) -> tuple:

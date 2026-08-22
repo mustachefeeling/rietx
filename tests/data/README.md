@@ -275,6 +275,22 @@ for "nothing here may change a single computed number on the numpy path".
    comparison, which legitimately *rises* in the third digit as the
    truncated tail residue becomes visible.
 
+**WP-1121 re-baseline (2026-08-22)**: the eight states with a free
+`phases.N.scale` — `srm660c`, `nac`, `toy_rich`, `toy_restraints`,
+`toy_stephens`, `toy_capillary`, `toy_roughness`, `toy_anomalous`.  Only their
+`jacobian` key moved and, inside it, **only the `.scale` columns** (1 of 22, 2
+of 25, 1 of the rest), by 2.4e-6 to 8.1e-6 relative.  That is a deliberate
+accuracy change, not a reduction-order one: the intensity is exactly linear in
+a phase scale, so `_scale_column` computes ∂y/∂scale in closed form where the
+peak-chain FD carried the softplus transform's O(h) curvature error — the new
+column agrees with a difference quotient in *physical* space (which has no
+truncation error at any step) to 3.6e-16, the old one to 4.6e-6.  `toy_lebail`
+and `toy_pawley` were **not** re-captured and reproduce bit-for-bit: those
+modes force-fix the scale, so they have no such column, which is the
+independent check that the `rietveld`-only guard on the new branch holds.  The
+same tree's depth-2 scalar memo moved no key of any state, which is what
+bit-identical means for it.
+
 These are *environment-pinned* bit patterns, not physical reference values: a
 different BLAS/numpy build may legitimately differ in final bits.  **WP-1002
 measured which half of that sentence is true.**  The *numpy* half is not:

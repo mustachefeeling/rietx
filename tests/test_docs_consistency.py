@@ -200,7 +200,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # it is held to.  The measurements, the `prange` comparison and the three
     # traps stayed down a rank: § The decision in the WP, the v1.1 record's
     # narrative, and the bars executable in tests/test_compiled_kernels.py.
-    "CLAUDE.md": 804,
+    # 804 -> 817 for WP-1121 (2026-08-22): how to *verify* an analytic Jacobian
+    # branch, which the clause above it only says how to *scope*.  It earns a
+    # clause because the trap is silent and points the wrong way: the
+    # whole-model FD is the branch's own fallback, so a session reaches for it
+    # as the oracle, and on a transformed parameter it certifies the column
+    # being replaced while condemning the exact one that replaces it (measured
+    # at 2e-11 agreement with a column 4.6e-6 from the truth).  The operating
+    # detail went down a rank as this comment requires — the step sweep, the
+    # per-state golden diff and the seam decomposition are in the WP, the
+    # column's own reasoning in `_scale_column`'s docstring.
+    "CLAUDE.md": 817,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one

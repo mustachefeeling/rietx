@@ -64,6 +64,9 @@ _STRUCTURAL_PATH = re.compile(r"^phases\.(\d+)\.atoms\.(\d+)\.(dof|adp)\.\d+$")
 #: March-Dollase coefficient — an analytic intensity-multiplier column
 #: (``po_intensity_grad``), not the peak-chain FD path.
 _PO_PATH = re.compile(r"^phases\.(\d+)\.preferred_orientation\.r$")
+#: Phase scale — the one parameter the intensity is *exactly linear* in, so
+#: its column needs no perturbed ``phase_peaks`` at all (``_scale_column``).
+_SCALE_PATH = re.compile(r"^phases\.(\d+)\.scale$")
 
 #: Residual evaluations per accepted iteration that TRF's budget must allow
 #: for, so that a run genuinely needing ``max_iter`` iterations is never cut
@@ -356,6 +359,40 @@ def _po_column(model: CompiledModel, bases: DerivativeBases,
     return _accumulate(len(model.tt), [(pp.layout, terms)])
 
 
+def _scale_column(model: CompiledModel, bases: DerivativeBases,
+                  values: dict[str, float], ip: int) -> np.ndarray:
+    """∂y/∂scale for phase ip: its own contribution, divided by the scale.
+
+    The scale enters ``phase_peaks`` exactly once, in ``base = scale · mult ·
+    |F|²``, and every factor applied after it is independent of it — the
+    March multiplier, the line weight, Lp, Sabine extinction (which reads the
+    *raw* ``|F|²``, never the scaled product), specimen absorption, surface
+    roughness, and the mask that zeroes a reflection pushed off the sphere.
+    So the intensity is exactly linear in the scale, no position or width
+    moves at all, and ∂intensity/∂scale is the intensity over the scale.
+
+    That makes this the cheapest column in the Jacobian and it was the
+    **dearest** before WP-1121: the peak-chain FD perturbed the scale and
+    rebuilt the phase's whole scalar chain, which on the trigger case was
+    1148 columns and 3.3 % of the fit, most of it a structure-factor
+    evaluation that the perturbation could not have changed.  It cost that
+    much *because* it could not change anything — the memoised blocks all
+    hit, so the price was the ones a neighbouring cell column had evicted.
+
+    **Not valid at ``scale == 0``**, where the true derivative is the whole
+    unscaled chain and this expression is 0/0.  A softplus lower bound of 0
+    is reachable in fp (root CLAUDE.md § Invariants: safe where zero is the
+    off state, a bug where the physics divides — here it divides), so the
+    caller tests the scale and leaves a dead phase to the FD path, which
+    stays correct there.
+    """
+    scale = values[f"phases.{ip}.scale"]
+    pp = bases.planes[ip]
+    coef = np.where(pp.finite, pp.inten / scale, 0.0)
+    terms = [(coef, pp.omega)] if np.any(coef != 0.0) else []
+    return _accumulate(len(model.tt), [(pp.layout, terms)])
+
+
 def _axial_column(model: CompiledModel, bases: DerivativeBases,
                   which: int, dpdu: float) -> np.ndarray:
     """∂y/∂θ_c for S/L (which=8) or H/L (which=9) from the node-FD bases.
@@ -535,6 +572,13 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                     and not extra):
                 J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _po_column(
                     model, get_bases(), values, int(po.group(1)))
+            elif ((sc := _SCALE_PATH.match(path)) and model.mode == "rietveld"
+                    and not extra and values[path] > 0.0):
+                # exactly linear, so no perturbed ``phase_peaks``; the scale
+                # test is the 0/0 fence _scale_column's docstring names, and
+                # a phase sitting at zero falls through to the FD path below
+                J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _scale_column(
+                    model, get_bases(), values, int(sc.group(1)))
             elif model.scalar_chain_supported(path) and all(
                     model.scalar_chain_supported(p) and p not in bkg_cols
                     and p not in axial_paths for p in extra):
