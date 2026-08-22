@@ -66,7 +66,12 @@ tail fraction — never nfev and never wall clock.** WP-1113's instrumentation
 carries all three (`eval.accepted`/`step_norm`/`values`,
 `stage_end.termination`; `examples/stage_trajectory.py` prints and plots
 them). Wall clock is meaningless on a probe paying FD prices for analytic
-work.
+work. Counts also survive a busy machine where wall clock does not — WP-1124
+read the same chain at 35.8 s and 42.9 s minutes apart at an identical 1253
+nfev — so **both arms run back to back in one process**
+(`examples/bench_series_predictor.py` is the shape), and the WP-1111 counting
+scaffold wraps scipy's entry point, so any evaluation the wrapper spends
+outside it is added by hand or it is invisible.
 
 **Correctness gates before any count is quoted**, both from E5's
 pre-registered verification and both cheap:
@@ -85,34 +90,11 @@ half is dead. Amdahl context for the ceiling: the cold trigger fit is
 5.67-5.70 s at 232 nfev on the current tree, and per-evaluation cost is near
 its floor (WP-1112/1115/1120), so count converts to wall nearly linearly —
 but the count left to win is what the schedule left behind, chiefly the
-final stage.
-
-### Inherited
-
-*From [WP-1124](1124-warm-series-continuation.md), closed 2026-08-22 — two
-measurement gotchas that cost that session time, and one shape for a probe's
-verdict.*
-
-- **Check the venv is current before quoting any timing.** 1124 opened on a
-  venv that predated WP-1115 and was missing `numba`, so the compiled tier —
-  what a default install runs — was **off**, and every number would have been
-  the fallback's. `rietx.model.compiled.enabled()` is the check;
-  `rietx.__version__` disagreeing with `pyproject.version` was the tell. This
-  matters more here than there: A1 is judged on counts *converting to wall*,
-  and the conversion factor is exactly what the tier changes.
-- **Counts survive a busy machine; wall clock does not.** 1124 measured the
-  same chain at 35.76-35.97 s and 41.77-42.93 s minutes apart at an identical
-  1253 nfev, and its closing run read 58.96-114.66 s for bit-identical counts
-  at load average 12.9. So compare arms **inside one process**, and state a
-  count-based version of any wall claim. `examples/bench_series_predictor.py`
-  is the shape that does this — arms run back to back in one process, the
-  predictor's own evaluations added to its totals because the WP-1111 counting
-  scaffold wraps scipy's entry point and does not see work done outside it.
-- **A probe's verdict can be decided by a clause that is not about speed.**
-  1124's two arms both *reduced* evaluations on the default case and were
-  retired anyway, on `direction="both"` disagreement and on a silent chain
-  break whose corrector check had passed. If A1 changes what a fit converges
-  to, that is the finding, whatever the count does.
+final stage. That conversion factor is what the compiled tier changes, so
+**check the venv is current before quoting any timing**:
+`rietx.model.compiled.enabled()` is the check and `rietx.__version__`
+disagreeing with `pyproject.version` is the tell (WP-1124 opened on a venv
+that predated WP-1115, with the tier silently off).
 
 ## Non-goals
 
@@ -146,7 +128,11 @@ and platform per root CLAUDE.md § Numbers. Kill criterion, pre-registered:
 if the profiled stages' outer-iteration counts are not materially below the
 `intermediate_ftol = 1e-6` counts on the same stages (beyond run-to-run
 spread), or either correctness gate fails, the speed half of E5 is dead —
-record the bound and the survey note, and close.
+record the bound and the survey note, and close. A probe's verdict can also
+be decided by a clause that is not about speed: WP-1124 retired two arms
+that *did* reduce evaluations, on what they changed about the answer. If
+profiling changes what a fit converges to, that is the finding whatever the
+count does.
 
 ```sh
 .venv/bin/python examples/probe_varpro.py   # the per-stage table § Findings quotes
