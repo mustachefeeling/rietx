@@ -99,6 +99,9 @@ docs = [
     # MutationObserver — which is exactly how furo signals its light/dark
     # toggle, so the diagrams follow the toggle with no custom JS here.
     "sphinxcontrib-mermaid>=2.1",
+    # Part 1's installation tabs (WP-1126): one chapter, three operating
+    # systems, two installers.
+    "sphinx-design>=0.6",
     "furo>=2024.1",
 ]
 dev = [
