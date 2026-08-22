@@ -1,7 +1,8 @@
 # WP-1115 — compiled-kernel spike (gated: open only if the floor still binds)
 
-Milestone: v1.1 · Status: 🔄 2026-08-22 — gate read **open**; both kernels
-prototyped and measured, packaging decision outstanding
+Milestone: v1.1 · Status: 🔄 2026-08-22 — gate read **open**; all three
+kernels prototyped and measured (17.1 → 8.0 s projected), packaging decision
+outstanding
 Depends on: 1112, 1114, 1120 (the gate reads their measured outcomes)
 
 ## Goal
