@@ -5,6 +5,12 @@ Status: **survey, not a plan.** Nothing here is committed to a milestone. Writte
 minimisation and inference methods from ML / statistics / applied maths that the
 powder-diffraction community has not adopted, and what could they actually buy?*
 
+**Re-assessed 2026-08-22**, after the v1.1 speed series (WP-1109…1123) — the
+summary and disposition are §5, and every item that moved carries a dated
+**2026-08-22:** note in place. Two probe WPs came out of it:
+[WP-1124](wp/1124-warm-series-continuation.md) (B8) and
+[WP-1125](wp/1125-varpro-probe.md) (A1/E5's speed half).
+
 Read with the v0.5 method result in mind — **a change is judged by what it
 provably changed, not by Δ Rwp.** For solver work the analogue is: judge by
 *basin of attraction* (fraction of perturbed starts reaching the reference
@@ -35,6 +41,17 @@ report. **So WP-0601 must be justified by constraints and robustness, never by
 speed** — which is what its `## Inherited` section already argues on other
 grounds, now with a number. Conversely **WP-0605 (batched peak loop, ≈2.4× on the
 Jacobian path) is aimed at the 62 % and is correctly first in the v0.6 queue.**
+
+**2026-08-22:** superseded by the v1.1 series (`milestones/v1.1.md`). The
+trigger cold fit went 50 → 5.67-5.70 s (WP-1112/1115/1120/1121/1123) and the
+decomposition on that tree is plane seam 54.9 %, per-reflection 19.4 %,
+solver 11.8 % — so pure solve-*time* work now caps at ~1.13×, deader than the
+1.25× above. But the "everything else" of this table hid the **evaluation
+count**, which became a real front: WP-1113 named its mechanism (ftol-bound
+Gauss-Newton tails at ≈ 0.93/iteration along the zero ↔ displacement ↔
+background degeneracy — not trust-region crawls) and WP-1123 harvested
+1.5-1.7× of it with the `intermediate_ftol = 1e-6` default. The caveat below
+stands unpaid: still no repeat on a large Pawley / multi-histogram fit.
 
 ### 0.2 This problem is *not* sloppy. It is badly scaled — and that turns out not to matter either
 
@@ -75,6 +92,14 @@ are theoretically sound and practically inert at this problem size.
 parameters). Earlier stages and larger problems (Pawley, multi-histogram) are
 unmeasured and could differ — 0.1 in particular should be repeated on a
 600-parameter Pawley fit before being treated as general.
+
+**2026-08-22:** the 0.3 null generalises, with a mechanism (WP-1113):
+`x_scale='jac'` measured worse or flat on cpd-1a (397 vs 408 nfev at a
+0.76 esd drift), cpd-2 (631 vs 540) and the trigger (374 vs 363) — worse even
+on the one trust-region-shaped stage it was predicted to help — and the
+`zero_disp`/`cell` counts are **bit-unchanged** under it, because the
+Gauss-Newton step is invariant under diagonal column rescaling and the trust
+region never binds on the ridge. Closed for good.
 
 ---
 
@@ -257,6 +282,19 @@ approximate derivative usually suffices; and VarPro's advantage over alternation
 shrinks as the linear block shrinks, so a plain 2-phase Rietveld fit with a
 handful of background terms will benefit far less than a Pawley fit.
 
+**2026-08-22:** a third motivation, measured, that this entry could not have
+had: WP-1113's evaluation-count mechanism is a ridge walk along the
+zero ↔ displacement ↔ **background** degeneracy — one leg of it is the linear
+block, and profiling that block out removes the leg by construction rather
+than by better stepping. Two deflations in the other direction: WP-1123
+already banked 1.5-1.7× of the count with the `intermediate_ftol` default, so
+the speed bar is *beyond* that schedule; and the "removes 62 % of the
+Jacobian" framing is stale — background columns are stored design rows now,
+near-free. The correctness half (Le Bail esds, derived equal-splitting,
+claim E5.3) is untouched and remains the deeper prize. **Probe opened:
+[WP-1125](wp/1125-varpro-probe.md)** decides the speed half on the stages
+1113 named, with a pre-registered kill criterion.
+
 **A2. Scale-space continuation / graduated non-convexity.** Blake & Zisserman
 (1987); Bunks et al. (1995) *Geophysics* 60, 1457 (multiscale FWI); Yang et al.
 (2020) IEEE RA-L. **Measured in §1.2: 4–12× wider capture range, non-monotone in
@@ -323,6 +361,12 @@ columns that cannot change*, is the lever. Note the background columns are
 ∂y/∂c_i is literally a stored row. Any recomputation of those columns per
 iteration is pure waste.
 
+**2026-08-22:** absorbed by other means — the derivative-bases mask
+(WP-1109), the two-key scalar memo (WP-1109/1121, measured identical to an
+unbounded cache), and the closed-form phase-scale column (WP-1121). Broyden
+was never needed: the count turned out to be a termination problem
+(WP-1113), not a Jacobian-cost one.
+
 **B5. A statistically meaningful convergence criterion.** The driver stops on
 `ftol` with `xtol=gtol=1e-12`; the field stops on "ΔRwp < 0.001". Both are
 arbitrary. The natural criterion for a package whose product is *parameters with
@@ -331,6 +375,18 @@ own esd** — |Δθᵢ| < ε·σᵢ. That is scale-free, prevents both premature
 stiff directions and wasted iterations chasing sloppy ones, and makes solver
 comparisons fair. Coelho 2018 notes himself that loose termination criteria bias
 solver benchmarks; this fixes that at the root.
+
+**2026-08-22:** half-landed, and the fine form is better motivated than when
+written. WP-1123's `intermediate_ftol = 1e-6` default is the coarse cousin —
+a stage-level schedule, 1.5-1.7× fewer whole-plan evaluations at ≤ 0.03 esd —
+and WP-1113 measured exactly the waste this entry predicted (37-52 % of
+accepted evaluations past 99.99 % of the banked cost decrease). What remains
+for the per-parameter form is the **final** stage, which still runs at 1e-9
+and inherits the ridge walk once. One worry answers itself in this entry's
+favour: an exactly degenerate family (instrument-X ↔ `lor_size`, WP-1113/1123)
+has enormous esds along the flat direction, so steps along it never block an
+esd-relative stop — the criterion is naturally immune to the degeneracies the
+ftol schedule's worst nominal "shifts" lived in. See also E4.
 
 **B6. Cone constraints, which BCCG cannot do.** The Stephens positivity
 constraint σ²(M) = T·θ ≥ 0 is a *linear inequality in the free parameters*, so a
@@ -369,12 +425,30 @@ esd that hides a false minimum. Caveat: the shift basis functions {1, cosθ,
 sin2θ} are near-parallel over a narrow 2θ range, so the regression must report
 its own conditioning — which is the same non-separability gate Layer 1 applies.
 
+**2026-08-22:** retired as a *warm seed*, only (WP-1113): 1.06-1.08 ×
+whole-plan, because the converged zero/displacement pair is **compensating**
+— the data's net apparent shift is tiny, the seed correctly finds it, and the
+cost is the ridge walk, which no rigid seed reaches. The cold-start
+capture-range claim above — the job this entry was written for — is untested
+and stays parked with E11.
+
 **B8. Predictor-corrector continuation for series.** `sequential.py` warm-starts
 each pattern from the last, worth "≈3× in iterations". Numerical continuation
 does better: extrapolate along the tangent dθ/dT (implicit function theorem,
 available from the same J already factorised) instead of copying the previous
 point. Bonus: the tangent *is* the parameter's sensitivity to the series
 variable, which is scientifically interesting output, not just a warm start.
+
+**2026-08-22:** promoted — this is now the survey item with a gating target
+waiting for it. The warm-series band is v1.1's one remaining acceptance row
+(~5.7 s/pattern measured against the ~1 s band, WP-1123) and no WP owned the
+front; WP-1123's sign-change finding (the chain flipped 1.04× worse → 1.12×
+better across one unrelated commit, because per-fit differences integrate
+through rung escalation or avoidance) says warm-start *quality* is the
+chain's amplifier, which is exactly what a predictor improves. **Probe
+opened: [WP-1124](wp/1124-warm-series-continuation.md)** — secant then
+Gauss-Newton tangent, against the copy seed, judged on chain evaluations and
+escalations with a pre-registered kill criterion.
 
 ### 2.C Statistics & inference — where the field is weakest
 
@@ -525,6 +599,12 @@ parameters") and the FullProf manual warns that too little background smoothing
 gives "wrong estimation of structural parameters" — both without a single
 number.
 
+**2026-08-22, on (d):** the caveat went live — ΔBIC is now load-bearing in
+`background/select.py` and in the Layer-2 component gate
+(`report/layer2.delta_bic`), so the Greven & Kneib bias applies wherever
+those compare penalised backgrounds. Worth checking before v1.2's component
+seam (WP-1102/1103) leans on `delta_bic` harder.
+
 **C5. Gradient-based posteriors — and a correction to my own first draft.** I
 initially proposed collapsed HMC/NUTS on the jax model as the way to get
 "correct" uncertainties. **That is wrong under misspecification, and the
@@ -624,6 +704,14 @@ penalty, no tuning constant (Donoho, Johnstone, Hoch & Stern 1992; Slawski & Hei
 already knows. (The full line-spectral machinery — ESPRIT/Prony/atomic norm — is
 *not* recommended: it assumes exact Lorentzians, and powder violates that badly
 through θ-dependent widths and FCJ axial asymmetry.)
+
+**2026-08-22:** this entry acquired a customer. WP-1103 (v1.2, sharp extra
+peaks as declared components) names auto-detection of extra peaks a non-goal
+— so once the component seam exists, this NNLS deconvolution is the natural
+companion WP: a residual-peak *proposer* feeding declared `PeakComponent`s.
+Relatedly, the component seam reframes C7/E12: the treatment for unmodelled
+impurity becomes "model it as a component", leaving the asymmetric weights
+as the detector rather than the cure.
 
 **C10. The background prior should come from the instrument, not only from the
 data.** C4 proposes REML/GCV, which is data-driven. Model-discrepancy theory
@@ -783,6 +871,12 @@ initial broadening to mean peak spacing, **not** a constant (§1.2 is non-monoto
   benign and §1.1's multimodality is an artefact of noise-free synthetic peaks —
   itself a publishable-grade finding about this package's robustness.
 - **Cost**: moderate. Reuses the staged runner; needs no new solver.
+- **2026-08-22**: unchanged in standing (still gated on E0's cold-start
+  failure rate), with one new datum against generality: WP-1113 proved a
+  *genuine local minimum* in the degenerate **width** valley (a TRF polish
+  from LM's exact endpoint stays at Rwp 0.2436). Broadening's basin-widening
+  argument is about parameters that dilate the d-axis; it has nothing to say
+  about width valleys.
 
 ### E4. A statistically meaningful termination rule
 
@@ -795,6 +889,11 @@ Replace/augment `ftol` with "stop when |Δθᵢ| < ε·σᵢ for all i".
   good rule makes that spread ≪ 1; the current rule's spread is unmeasured.
 - **Why early**: E0's iteration-count comparisons are meaningless without it, and
   Coelho 2018 explicitly warns that loose criteria bias solver benchmarks.
+- **2026-08-22**: half-landed — see B5's dated note. The coarse form is
+  WP-1123's shipped default; what this entry still owes is the per-parameter
+  criterion, now aimed specifically at the final stage's inherited ridge
+  walk, with the instrumentation (WP-1113's `eval` events and
+  `stage_trajectory.py`) already in place.
 
 ### E5. Variable projection, on Pawley first
 
@@ -822,6 +921,11 @@ solve; start with Kaufman's approximate derivative.
   correctness argument evaporates and VarPro reduces to a speed optimisation to
   be judged against E1's Amdahl bound.
 - **Cost**: high — the largest item here. Worth a WP of its own if E0/E1 support it.
+- **2026-08-22**: the speed half now has a probe —
+  [WP-1125](wp/1125-varpro-probe.md), background-only, judged against the
+  WP-1123 schedule on the stages WP-1113 named (see A1's dated note for the
+  new motivation). Claims 1-3 above are untouched and unscheduled; the probe
+  reuses claims 1 and 2 (background half) as its correctness gates.
 
 ### E6. Cone-constrained Gauss-Newton for Stephens strain
 
@@ -879,6 +983,15 @@ Solve the GN step as a QP subject to T·θ ≥ 0 (active-set or ADMM).
 - **Cost**: moderate; the simulation harness is reusable for E5.3, E8 and E9.
 - **Bonus**: the same study immediately tells you whether BL's *scalar* is even
   the right shape, independent of which estimator replaces it.
+- **2026-08-22**: untouched, still the highest-value correctness item — and
+  materially cheaper than when written: the coverage study's per-refinement
+  cost fell with the v1.1 series (cpd-scale fits ~2 s, nac 0.35-0.41 s), so
+  the decisive design is an afternoon rather than a cluster job. Two seams
+  matured under it: WP-1110's Jacobi-equilibrated `normal_covariance` is the
+  clean place a HAC meat drops into, and its theme — fits lying about their
+  own reliability in the flattering direction — is this entry's failure class
+  one rank down. The 1117 preview promise makes the per-parameter inflation
+  field a cheap contract event.
 
 ### E8. REML/GCV for the background penalty, and effective DOF
 
@@ -937,6 +1050,9 @@ conditioning.
   method is out.
 - **Cost**: small. Run it before E3, since a cheap linear estimator that lands
   inside the existing basin makes the continuation ladder unnecessary.
+- **2026-08-22**: the warm-seed use is retired (B9's dated note has the
+  numbers and the mechanism); the cold-start use this entry describes is
+  unmeasured and stays, gated like E3 on E0's failure rate.
 
 ### E12. Asymmetric residual weighting as an impurity detector (C7)
 
@@ -1016,3 +1132,52 @@ first in the v0.6 queue.
 **E5 (variable projection) is the largest idea on this page** and the one most
 likely to be genuinely novel in the field, but it is a milestone-sized piece of
 work and should not start before E0/E1 say what it would buy.
+
+---
+
+## 5. Re-assessed 2026-08-22, after the v1.1 speed series
+
+§4 stands as written — this section records what WP-1109…1123 did to the
+page. Details live in the dated **2026-08-22:** notes at each item and in
+`milestones/v1.1.md`; this is the map.
+
+**Superseded**: §0.1's decomposition. Trigger cold fit 50 → 5.67-5.70 s;
+plane seam 54.9 %, per-reflection 19.4 %, solver 11.8 % on that tree.
+Solve-time work caps at ~1.13× now. The evaluation *count*, which §0.1's
+"everything else" hid, became a named mechanism (WP-1113) and a shipped
+default (WP-1123, 1.5-1.7×). The Pawley/multi-histogram repeat is still owed.
+
+**Retired harder**: E2/B3 (`x_scale` — generalised, with the
+scale-invariance mechanism), B9/E11 as a warm seed (the compensating-pair
+finding; the cold-start job is untested and parked), B4 (absorbed by the
+bases mask, the scalar memo and the closed-form scale column).
+
+**Half-landed**: E4/B5. The stage-level schedule shipped as
+`intermediate_ftol = 1e-6`; the per-parameter esd-relative criterion remains
+open, aimed at the final stage, and is the most concrete near-term item left
+here.
+
+**Promoted, with probes opened**:
+
+- **B8 → [WP-1124](wp/1124-warm-series-continuation.md)**. The warm-series
+  band is v1.1's one remaining gating target and WP-1123's sign-change
+  finding names warm-start quality as the chain's amplifier.
+- **A1/E5 speed half → [WP-1125](wp/1125-varpro-probe.md)**. WP-1113's ridge
+  walk runs along the degeneracy's linear leg, which variable projection
+  removes by construction. The probe is background-only, judged against the
+  flipped schedule; the correctness half (Le Bail esds, derived
+  equal-splitting, the E5.3 coverage study) stays unscheduled and is the
+  deeper prize.
+
+**Cheaper, unchanged in standing**: E7/C1 — still the highest-value
+correctness item, now an afternoon's compute; recommended first correctness
+WP after v1.1. E0 — still unbuilt, but the 1111 harness, the counting
+scaffold and `stage_trajectory.py` are most of its plumbing.
+
+**New connections**: C4(d)'s bias went live (`background/select.py`,
+`report/layer2.delta_bic`); C9 acquired a customer in WP-1103's component
+seam; E3 gained a counterexample family (the width-valley local minimum,
+which broadening cannot fix).
+
+**Untouched**: E8, E9, E10, E12, E13, C2, C6, C8, C10, C11 — no movement,
+no change in standing.

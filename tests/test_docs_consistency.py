@@ -251,7 +251,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # rows are not narrative and the prose is eight lines for both, because the
     # fences, the measured behaviour and the acceptance live in the WP files.
     # Current focus was rewritten in the same pass and paid part of it back.
-    "docs/ROADMAP.md": 455,
+    # 455 -> 457 (2026-08-22): the two probe rows the solver-survey
+    # re-assessment opened — 1124 (warm-series continuation, survey B8) and
+    # 1125 (variable-projection probe, survey A1/E5).  Rows only: the
+    # motivation and disposition live in solver-survey.md §5 and the WP
+    # files, and the Current focus mention replaced text inside an existing
+    # line.  Same rule as the bumps above: a row is not narrative.
+    "docs/ROADMAP.md": 457,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
