@@ -2,8 +2,12 @@
 
 Run: ``.venv/bin/python examples/bench_compiled_kernel.py`` (needs ``numba``;
 it is not a dependency of this package, which is the point of the spike).
-``--seams`` instead decomposes a whole trigger cold fit into the seams the
-kernel numbers are weighed against.
+Four modes: the default benches the two profile kernels with a thread ladder,
+``--accum`` the column seam's scatter on inputs captured from a real fit,
+``--nogil`` the serial-plus-thread-pool alternative to ``parallel=True``
+(**run it twice** — the question is whether the disk cache hits), and
+``--seams`` decomposes a whole trigger cold fit into the shares all of the
+above are weighed against.
 
 **Reported, never gated.**  No test asserts any timing here, for the reason
 ``bench_torch_mps.py`` states: wall clock is a property of one machine on one
@@ -62,6 +66,7 @@ import math
 import sys
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -83,6 +88,65 @@ from rietx.params.vector import ParameterTable  # noqa: E402
 
 _SQRT_LN2_PI = math.sqrt(math.log(2.0) / math.pi)
 _4LN2 = 4.0 * math.log(2.0)
+
+
+def _nogil_kernel():
+    """The bases kernel as a *serial* ``nogil`` range kernel, for ``--nogil``.
+
+    ``parallel=True`` is what refuses to cache — it recompiles every process,
+    which is most of the startup cost a shipped compiled tier would impose.
+    A serial kernel over a row range, with the GIL released, caches like any
+    other and can be driven from a Python thread pool instead.  Same
+    arithmetic as ``bases_parallel``; only the parallelism moves out.
+    """
+    from numba import njit
+
+    @njit(cache=True, nogil=True)
+    def bases_range(tt, i0, i1, pos, gam, eta, nptr, nphi, nom,
+                    om_p, dx_p, dg_p, de_p, lo, hi):
+        for j in range(lo, hi):
+            g, e, p = gam[j], eta[j], pos[j]
+            a, b = nptr[j], nptr[j + 1]
+            base = i0[j]
+            for i in range(i0[j], i1[j]):
+                s0 = s1 = s2 = s3 = 0.0
+                if b == a:
+                    u = (tt[i] - p) / g
+                    lor = (2.0 / (math.pi * g)) / (1.0 + 4.0 * u * u)
+                    gau = (2.0 / g) * _SQRT_LN2_PI * math.exp(-_4LN2 * u * u)
+                    s0 = e * lor + (1.0 - e) * gau
+                    s1 = (e * (-lor * (8.0 * u / g) / (1.0 + 4.0 * u * u))
+                          + (1.0 - e) * (-gau * (2.0 * _4LN2 * u / g)))
+                    s2 = (e * ((lor / g) * (8.0 * u * u
+                                            / (1.0 + 4.0 * u * u) - 1.0))
+                          + (1.0 - e) * ((gau / g)
+                                         * (2.0 * _4LN2 * u * u - 1.0)))
+                    s3 = lor - gau
+                else:
+                    for q in range(a, b):
+                        w = nom[q]
+                        u = (tt[i] - nphi[q]) / g
+                        lor = (2.0 / (math.pi * g)) / (1.0 + 4.0 * u * u)
+                        gau = ((2.0 / g) * _SQRT_LN2_PI
+                               * math.exp(-_4LN2 * u * u))
+                        s0 += w * (e * lor + (1.0 - e) * gau)
+                        s1 += w * (e * (-lor * (8.0 * u / g)
+                                        / (1.0 + 4.0 * u * u))
+                                   + (1.0 - e) * (-gau * (2.0 * _4LN2 * u / g)))
+                        s2 += w * (e * ((lor / g) * (8.0 * u * u
+                                                     / (1.0 + 4.0 * u * u)
+                                                     - 1.0))
+                                   + (1.0 - e) * ((gau / g)
+                                                  * (2.0 * _4LN2 * u * u
+                                                     - 1.0)))
+                        s3 += w * (lor - gau)
+                c = i - base
+                om_p[j, c] = s0
+                dx_p[j, c] = s1
+                dg_p[j, c] = s2
+                de_p[j, c] = s3
+
+    return bases_range
 
 
 def _accum_kernel():
@@ -439,6 +503,90 @@ def _scaling(title, fn, numpy_time, reps, maxt, numba) -> None:
     numba.set_num_threads(maxt)
 
 
+def bench_nogil(reps: int) -> int:
+    """Serial ``nogil`` kernel on a thread pool, against the ``prange`` twin.
+
+    Two questions at once, because they trade against each other: does the
+    cache hit (**run this twice** — the first process compiles, the second
+    should not), and does a Python thread pool reach ``prange``'s throughput.
+    """
+    try:
+        bases_range = _nogil_kernel()
+    except ImportError:
+        print("numba is not installed; this spike needs it "
+              "(`uv pip install numba`).")
+        return 1
+    import numba
+
+    cache_dir = Path(__file__).resolve().parent / "__pycache__"
+    warm = any(cache_dir.glob("*bases_range*.nbi"))
+    setup = _trigger_setup()
+    model = compile_model(setup.structure, setup.instrument, setup.data,
+                          mode=setup.mode, two_theta_limits=setup.limits)
+    table = ParameterTable(setup.structure, setup.instrument)
+    values = table.decode(table.x0())
+    sl = values["instrument.geometry.axial_sl"]
+    hl = values["instrument.geometry.axial_hl"]
+    tt = np.asarray(model.tt, dtype=np.float64)
+
+    args = []
+    for ip, cp in enumerate(model.phases):
+        lay = cp.batch
+        peaks = model.phase_peaks(ip, values, None)
+        pos = lay.gather(peaks, 0)
+        nptr, nphi, nom = build_nodes(lay, pos, sl, hl)
+        planes = tuple(np.zeros((len(pos), lay.w_max)) for _ in range(4))
+        args.append((np.asarray(lay.i0, dtype=np.int64),
+                     np.asarray(lay.i1, dtype=np.int64), pos,
+                     lay.gather(peaks, 1), lay.gather(peaks, 2),
+                     nptr, nphi, nom, planes, len(pos)))
+
+    a0 = args[0]
+    t0 = time.perf_counter()
+    bases_range(tt, a0[0], a0[1], a0[2], a0[3], a0[4], a0[5], a0[6], a0[7],
+                *a0[8], 0, 1)
+    t_jit = time.perf_counter() - t0
+    print(f"numba {numba.__version__} · disk cache "
+          f"{'present' if warm else 'absent'} before this run")
+    print(f"first call: {t_jit:.2f} s   (the `parallel=True` twin measures "
+          f"0.38-0.39 s on EVERY run, cache or no cache)")
+
+    pool = ThreadPoolExecutor(max_workers=max(
+        16, numba.config.NUMBA_DEFAULT_NUM_THREADS))
+
+    def run(nthreads):
+        def go():
+            futs = []
+            for i0, i1, pos, gam, eta, nptr, nphi, nom, planes, n in args:
+                per = (n + nthreads - 1) // nthreads
+                for c in range(nthreads):
+                    lo, hi = c * per, min(n, c * per + per)
+                    if lo < hi:
+                        futs.append(pool.submit(
+                            bases_range, tt, i0, i1, pos, gam, eta, nptr,
+                            nphi, nom, *planes, lo, hi))
+            for f in futs:
+                f.result()
+        return go
+
+    def serial():
+        for i0, i1, pos, gam, eta, nptr, nphi, nom, planes, n in args:
+            bases_range(tt, i0, i1, pos, gam, eta, nptr, nphi, nom,
+                        *planes, 0, n)
+
+    t_ser = best_of(serial, reps)
+    print(f"\n{'threads':>8s} {'ms':>9s} {'vs serial':>10s}")
+    print(f"{'inline':>8s} {1e3 * t_ser:9.3f} {1.0:9.2f}×")
+    maxt = numba.config.NUMBA_DEFAULT_NUM_THREADS
+    for nt in sorted({1, 2, 4, 8, maxt}):
+        if nt > maxt:
+            continue
+        t = best_of(run(nt), reps)
+        print(f"{nt:8d} {1e3 * t:9.3f} {t_ser / t:9.2f}×")
+    pool.shutdown()
+    return 0
+
+
 def bench_seams() -> int:
     """Decompose one trigger cold fit into the seams the kernels sit in.
 
@@ -664,6 +812,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seams", action="store_true",
                     help="decompose a trigger cold fit instead of benching "
                          "the kernels")
+    ap.add_argument("--nogil", action="store_true",
+                    help="serial nogil kernel on a thread pool vs the "
+                         "prange twin: cache behaviour and throughput")
     ap.add_argument("--accum", action="store_true",
                     help="bench the column seam's plane accumulation on "
                          "inputs captured from a real fit")
@@ -674,6 +825,8 @@ def main(argv: list[str] | None = None) -> int:
         return bench_seams()
     if args.accum:
         return bench_accum(args.repeats)
+    if args.nogil:
+        return bench_nogil(args.repeats)
     return bench_kernels(args.repeats)
 
 

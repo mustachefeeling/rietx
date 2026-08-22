@@ -95,9 +95,16 @@ making the compiled path the default install.
       only 57 % plane work, so the first projection (which assumed it fused
       like the bases) read 3.22× where the measured answer is 2.15×. The
       fused scatter itself is **bit-identical** at 6.9–7.1×.
-- [ ] Packaging decision with the user: `[speed]` extra vs not shipping;
-      conformance-suite wiring for whichever lands. Now decidable against a
-      projection with no estimated terms left in it.
+- [x] **Price shipping it by default, and the ways to cut the JIT cost** —
+      § Packaging and § Reducing the JIT cost. The startup objection is
+      largely solvable (nogil + thread pool caches *and* beats prange); the
+      +157 MB and the `numpy<2.6` ceiling are not.
+- [ ] Packaging decision with the user: `[speed]` extra vs not shipping vs
+      default-on; conformance-suite wiring for whichever lands. Now decidable
+      against a projection with no estimated terms and a priced startup cost.
+- [ ] **If it ships, build it on the `nogil` + thread-pool shape, not
+      `prange`** — measured faster *and* cacheable. Add explicit signatures
+      and a `NUMBA_CACHE_DIR` default; warm on a background thread.
 
 ## Gate reading — 2026-08-22: OPEN
 
@@ -199,12 +206,96 @@ and bases remainders 1.0 + 1.4 s, solver and runner 1.0 s, and the compiled
 kernels themselves 1.6 s. The next bottleneck is **not** a plane kernel — it
 is how many perturbed `phase_peaks` a Jacobian asks for.
 
+## Packaging — what shipping it *by default* costs a user
+
+Asked on 2026-08-22 and measured rather than estimated (`[dev]` venv,
+darwin/arm64). This prices the option the WP's own Non-goals reject; it is
+recorded because the rejection should rest on numbers.
+
+| cost | measured |
+|---|---|
+| install weight | llvmlite **137 MB** + numba **20 MB** = **+157 MB** on a ~124 MB runtime baseline (scipy 83, numpy 25, gemmi 6.6, spglib 6.0, pydantic 3.0) — **2.3× the install** |
+| numpy ceiling | numba 0.67.0 requires **`numpy<2.6`** (and `>=1.22`) |
+| startup | **1.52 s** cold JIT for the four kernels, **1.25 s** with a populated disk cache |
+| short fits | `nac` 0.53 s and `nac-lebail` 0.44–0.48 s today; with a compiled tier plus ~1.2 s startup they become ≈ 1.6 s, i.e. **~3× slower** |
+| Python versions | **not a cost**: numba 0.67 resolves on 3.11, 3.12, 3.13 and 3.14, the whole CI matrix, with no numpy downgrade |
+| import time | **not a cost**: 0.09–0.28 s against rietx's own 0.79 s |
+
+Two of those deserve their mechanism written down.
+
+**The numpy ceiling is the sharp one and it is permanent.** Today numpy is
+2.5.2 so `<2.6` binds nothing, but on the day numpy 2.6 ships, rietx becomes
+the package holding a user's environment back until numba catches up. numba
+has always carried an upper bound; this is not a version to wait out.
+
+**The disk cache does not remove the startup cost**, which is the part that
+was not anticipated. The two `parallel=True` kernels recompile in **every
+process** — 0.62 s and 0.38 s, unchanged across three consecutive warm runs,
+writing fresh cache entries each time — while the serial kernels cache
+properly (the accumulation drops 0.04 s → 0.00 s). So ~1.0 s of the 1.25 s is
+`parallel=True`, paid per process. The GUI is long-lived and pays it once;
+the CLI one-shot fit and `agent.refine_json` pay it per invocation, which is
+exactly the surface where a sub-second fit is the selling point.
+
+## Reducing the JIT cost
+
+Four strategies measured, three of them effective, and together they change
+the startup arithmetic enough to matter to the decision above.
+
+1. **Replace `parallel=True` with a serial `nogil` kernel on a Python thread
+   pool** (`bench_compiled_kernel.py --nogil`). This is the large one and it
+   costs nothing: the kernel **caches** (0.28 s first process → **0.06 s**
+   thereafter) *and* it is **faster** than the prange twin — 1.23 ms at 8
+   threads against prange's best 1.36 ms, i.e. **12.3× vs numpy's 15.2 ms**
+   where prange managed 11.2×. `nogil=True` releases the GIL for the call, so
+   a shared `ThreadPoolExecutor` over row ranges gets the parallelism that
+   numba's parfor machinery was being compiled for. Use a **shared** pool: a
+   fresh `ThreadPoolExecutor` per call costs 6.0 → 2.8 ms of the win.
+2. **Warm the kernels on a background thread at import or session start.**
+   numba compilation **releases the GIL and overlaps essentially completely**
+   with numpy work: measured across separate processes, serial 0.96–0.97 s
+   against threaded 0.63–0.66 s, hiding the whole 0.33 s payload. So whatever
+   JIT survives (1) can hide behind the file read, CIF parse, `ParameterTable`
+   build and `compile_model` a fit does anyway.
+3. **Redirect the cache to somewhere writable.** numba honours
+   `NUMBA_CACHE_DIR` (verified: entries land in the redirected directory).
+   The default location is beside the source, i.e. inside `site-packages`,
+   which is read-only in plenty of real installs (system Python, containers,
+   Nix) — and an unwritable cache silently means recompiling every process.
+   A shipped tier should point this at a user cache directory itself.
+4. **numba's own AOT is not the answer.** `numba.pycc` still exists in 0.67
+   but is legacy and raises without setuptools present at runtime. Genuine
+   AOT means a Cython or C extension compiled into the wheel: zero startup,
+   threading via OpenMP, at the price of per-platform wheels in CI and a
+   toolchain for sdist installs. **This reverses task 3's conclusion for the
+   default-dependency option specifically** — "Cython not needed" was reached
+   against the *opt-in* option, where a long job amortises the JIT.
+
+Not yet measured, and worth trying before any decision is final:
+
+- **Explicit signatures** on each `njit`, which make cache hits deterministic
+  and stop per-layout respecialisation. There is a symptom pointing at churn:
+  `.nbc` entries accumulated on every run of the prange kernels rather than
+  being reused.
+- **Size-thresholded dispatch** — run numpy below a work threshold so a small
+  fit never triggers a compile at all. `nac` at 0.53 s is precisely the case
+  that regresses, and the harness already says where the crossover is.
+- **UI**: say what the pause is ("compiling accelerated kernels, first run
+  only"), and/or a `rietx warmup` command and a GUI first-launch warm, so the
+  cost is paid once, visibly, at a moment nobody is waiting on a fit.
+
+Taken together, (1) + (2) + (3) take warm startup from ~1.25 s to ~0.06 s
+with most of the remainder hideable, which removes the short-fit regression
+entirely. They do **not** touch the +157 MB or the `numpy<2.6` ceiling, and
+those two are the whole case against default-on.
+
 ## Acceptance
 
 ```sh
 .venv/bin/python examples/bench_refinement.py     # with/without the compiled path
 .venv/bin/python examples/bench_compiled_kernel.py            # the profile kernels
 .venv/bin/python examples/bench_compiled_kernel.py --accum    # the column scatter
+.venv/bin/python examples/bench_compiled_kernel.py --nogil    # cache + threads (run TWICE)
 .venv/bin/python examples/bench_compiled_kernel.py --seams    # the shares they sit in
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m ruff check src tests examples
@@ -269,7 +360,12 @@ ranges from the harness and the equivalence bar stated per 1112's pattern.
   **Gotchas for the successor.** (1) The machine was not idle for part of
   this session and single-run totals wandered between 17.1 s and 29.8 s for
   the *same* fit; the seam **shares** held to within 0.8 pp throughout, so
-  quote shares, and take absolute wall clock only from a tight harness band. (2) A
+  quote shares, and take absolute wall clock only from a tight harness band.
+  (1b) Compile timings must be compared **across processes**: compiling the
+  same kernel twice in one process is cheaper the second time because LLVM is
+  already initialised, and an in-process A/B silently reports a 43 % "overlap"
+  that is nothing of the kind. The GIL-overlap number above was re-measured
+  as two separate runs for exactly this reason. (2) A
   fused kernel and the numpy planes must be compared **in-window only** —
   numpy's padded tail carries the clipped duplicate that `BatchLayout.mask`
   zeroes downstream, and comparing it reports a 0.9 relative "disagreement"
@@ -283,15 +379,36 @@ ranges from the harness and the equivalence bar stated per 1112's pattern.
   addressable just because most of it is — splitting the column seam moved
   the headline from 3.22× to 2.15×.
 
+  **Then the packaging question was priced** (§ Packaging, § Reducing the JIT
+  cost), because the decision should not rest on an estimate either. Shipping
+  the tier as a default dependency costs a user +157 MB — llvmlite alone is
+  137 MB against a ~124 MB runtime baseline — a permanent `numpy<2.6`
+  ceiling, and about 1.2 s of startup per process. The startup was the
+  surprise: it does **not** go away with the disk cache, because the two
+  `parallel=True` kernels recompile in every process while the serial ones
+  cache properly. At that cost the small cases go backwards: `nac` fits in
+  0.53 s today and would take about 1.6 s.
+  
+  That objection then turned out to be mostly self-inflicted. Rewriting the
+  bases kernel as a *serial* `nogil` kernel driven from a shared
+  `ThreadPoolExecutor` caches (0.28 s once, 0.06 s thereafter) and is
+  **faster** than the `prange` version it replaces — 12.3× against numpy
+  where prange managed 11.2×. Compilation also releases the GIL, so whatever
+  remains hides behind the file read and model compile a fit does anyway
+  (measured: 0.96 s serial against 0.63 s overlapped). What none of that
+  touches is the install weight and the numpy ceiling, and those are the
+  whole case against default-on.
+
   **Next**: the packaging decision is the user's and is the one thing
   blocking; it is now decidable against a projection with no estimated terms
-  left in it. If it is a go, all three kernels are worth wiring (they are
-  63 % of the fit between them), behind a `[speed]` extra with the
-  conformance suite diffing against the numpy path — and the accumulation
-  can be held to *bit*-identity rather than a re-baseline. If it is a no-go,
-  1115 closes 🛑 with this file's tables. Either way the front after a
-  compiled tier is **not** another plane kernel: it is the 15 608 perturbed
-  `phase_peaks` calls a trigger Jacobian asks for.
+  and a priced startup cost. If it is a go, all three kernels are worth
+  wiring (63 % of the fit between them) — behind a `[speed]` extra, on the
+  **`nogil` + thread-pool shape rather than `prange`**, with the conformance
+  suite diffing against the numpy path and the accumulation held to
+  *bit*-identity rather than a re-baseline. If it is a no-go, 1115 closes 🛑
+  with this file's tables. Either way the front after a compiled tier is
+  **not** another plane kernel: it is the 15 608 perturbed `phase_peaks`
+  calls a trigger Jacobian asks for.
 
 - **2026-08-20** — created by the 1109 review session, deliberately gated;
   the gate is the first task, and closing 🛑 because the targets are already
