@@ -64,6 +64,40 @@ values it ended on. On the synthetic five-stage fit that is 36 of 4200 channels,
 by at most 8e-6 of the peak height, all of them in peak tails at a window edge.
 `RefinementResult.y_calc` is the first of the two — the curve the fit minimised.
 
+(plotting-the-fit)=
+## Plotting the fit
+
+`RefinementResult.plot` draws the standard panel [](quickstart.md) opens with:
+observed points, the calculated line, the `obs − calc` difference on the same
+axis at the same scale, and one row of reflection ticks per phase. It needs
+matplotlib (the `viz` extra), and it returns the figure, so passing `path=`
+is optional.
+
+`two_theta_range=` is a *window*, not a crop. The intensity scale and the rows
+below it are built from what the window contains, so a zoom into a weak region
+is a figure of its own data.
+
+`weighted=True` draws Δ/σ instead, in its own panel with a ±3σ band. A raw
+difference shares the intensity axis, so the eye reads a small deviation on a
+strong peak as a large error, while Δ/σ has expectation 1 under a correct model
+and the band is an absolute scale rather than a relative one. It is not the
+default because it costs the one thing the classic layout gives away free: the
+residual and the peak that caused it in a single glance.
+
+`wavelength=` puts λ on the 2θ axis, which is meaningless without it. The result
+does not carry the emission line, so it has to be passed. It is also what
+`x_axis="q"` and `x_axis="d"` are derived through, and those two carry no λ of
+their own, which is the point of them.
+
+`y_scale=` takes `"sqrt"` (equal display distance for equal counting σ), `"log"`
+or `"asinh"`. Any of them moves the difference into its own panel, since an
+offset raw difference is negative by construction and a nonlinear intensity axis
+cannot draw it.
+
+`style="dark"` is for a figure going onto a dark page, and `figsize=`/
+`font_size=` are the exposure surface: build the figure at the width it will be
+read at rather than scaling it in the document afterwards.
+
 ## The reflection list
 
 `Refinement.reflection_table` returns one row per **(emission line,
