@@ -164,7 +164,7 @@ A series has **one history tree per pattern**, so the ids are on each
 passes disagree on, but the JSON envelope carries only the **forward**
 `SeriesResult`. The backward chain is reachable as
 `SequentialRefinement.backward_` on the python object, and
-`refine_sequential` — which is what this task calls — discards it. Through this
+`refine_sequential`, which is what this task calls, discards it. Through this
 surface you get the `SEQUENTIAL_PATH_DEPENDENT` diagnostics and not the second
 trajectory.
 :::
@@ -267,7 +267,7 @@ to 0.82 s) and the envelope grows 3.5 kB (0.6–0.8 kB a rung), about 3 % of
 the report's own 111 kB. That share is a property of the report, not of the
 trajectory: 89 of the report's 111 kB is its geometry table, which no rung
 carries, so beside a geometry-light report the same rungs weigh a far larger
-fraction. It changes no number the fit produces — Rwp came back bit-identical
+fraction. It changes no number the fit produces: Rwp came back bit-identical
 with the rungs on and off.
 
 ### Failure
@@ -316,23 +316,23 @@ envelope = agent.refine_json({"task": "index"})
 envelope["error"]["code"], envelope["error"]["details"][0]["where"]
 ```
 
-**A backend this build cannot run is refused before anything runs.** The check
-is `BackendCapability.available` — the same answer `capabilities()` publishes,
-so an attempt can never contradict the roster you read. On a build without the
+A backend this build cannot run is refused before anything runs. The check is
+`BackendCapability.available`, the same answer `capabilities()` publishes, so an
+attempt can never contradict the roster you read. On a build without the
 `jax` extra, `{"task": "refine", …, "backend": "jax"}` comes back
 `BACKEND_UNAVAILABLE` with the install command as its suggestion, and nothing
 is compiled or fitted first.
 
 `REFINEMENT_FAILED` is therefore what it says: the request was valid, this
 build could run it, and the engine still refused. That covers a model the
-physics rejects and a combination this build does not support — soft restraints
-in a joint multi-histogram fit, for one — and in both cases
+physics rejects and a combination this build does not support, soft restraints
+in a joint multi-histogram fit for one, and in both cases
 `AgentError.message` carries the engine's own sentence, which usually names the
 way out.
 
 ## Registering rietx as a tool
 
-`agent.tool_definition` returns a ready-to-register definition — `name`,
+`agent.tool_definition` returns a ready-to-register definition: `name`,
 `description`, `input_schema`. `agent.request_schema` and
 `agent.response_schema` are the JSON Schemas alone.
 
@@ -379,7 +379,7 @@ sorted(caps.features)
 ```
 
 - **`Capabilities.backends`**, `Capabilities.solvers`, `Capabilities.modes`,
-  `Capabilities.anodes` — the dispatch vocabularies. A `BackendCapability`
+  `Capabilities.anodes`, the dispatch vocabularies. A `BackendCapability`
   carries `BackendCapability.name`, whether its optional dependency imports
   *here*, whether it is experimental, what to install, and
   `BackendCapability.dtype`, the precision it computes at. An
@@ -388,11 +388,11 @@ sorted(caps.features)
   check, and `AnodeCapability.kalpha1_only`, which is true for the `CuKa1`-style
   entries where an incident-side monochromator has left one line rather than
   two.
-- **`Capabilities.plans`** — each `PlanCapability` with `PlanCapability.title`,
+- **`Capabilities.plans`**, each `PlanCapability` with `PlanCapability.title`,
   `PlanCapability.description`, `PlanCapability.modes` and
   `PlanCapability.when_to_use`, so a program can offer the choice in its own UI
   without hard-coding a list. `PLAN_INFO` is the same table in the library.
-- **`Capabilities.reader_formats`** — every pattern format `read_pattern` opens.
+- **`Capabilities.reader_formats`**, every pattern format `read_pattern` opens.
   Each `ReaderCapability` carries `ReaderCapability.name` and
   `ReaderCapability.title` for a file dialogue, `ReaderCapability.extensions`,
   `ReaderCapability.sniff` (how the file is recognised), `ReaderCapability.sigma`
@@ -400,9 +400,9 @@ sorted(caps.features)
   `ReaderCapability.options` (the keywords *this* format honours) and
   `ReaderCapability.refuses` (what it declines, and why). A format with a
   `ReaderCapability.refuses` string is one the build recognises **in order to
-  decline** — "we know what this is and it is the wrong kind of file" is a
+  decline**: "we know what this is and it is the wrong kind of file" is a
   different answer from "we cannot open this".
-- **`Capabilities.reader_options`** — the reader keyword vocabulary itself,
+- **`Capabilities.reader_options`**, the reader keyword vocabulary itself,
   build-wide rather than per format, because `scan` means the same thing in
   every format that takes it. Each `ReaderOptionCapability` gives
   `ReaderOptionCapability.name`, `ReaderOptionCapability.kind` (`"str"` or
@@ -417,7 +417,7 @@ sorted(caps.features)
   increasing cost; `Capabilities.centrings`, the Bravais letters each system
   admits, as a map; and `Capabilities.shift_templates`, the systematic-shift
   models the screen can fit.
-- **`Capabilities.features`** — feature flags, each *derived* from the thing it
+- **`Capabilities.features`**, feature flags, each *derived* from the thing it
   reports (a schema field's presence, a top-level export's existence) rather
   than written as a literal `true`. A flag flips by itself when its feature
   lands.
@@ -433,7 +433,7 @@ independently:
 
 | Field | Versions |
 |---|---|
-| `Capabilities.schema_version` | the pydantic schemas — the model, the pattern, the result |
+| `Capabilities.schema_version` | the pydantic schemas: the model, the pattern, the result |
 | `Capabilities.report_thresholds_version` | the `FitReport` gates and their thresholds |
 | `Capabilities.event_schema_version` | the streaming event ladder |
 | `Capabilities.project_format_version` | the `.rex` project directory |

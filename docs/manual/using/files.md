@@ -69,7 +69,7 @@ for note in notes:
 ```
 
 **The intensities and σ need not be the file's numbers.** Vendors disagree about
-whether an attenuator factor is already applied — four formats, three answers —
+whether an attenuator factor is already applied (four formats, three answers),
 so the reader applies it or not by measured convention, and σ goes through the
 same transformation either way. Where the scale cannot be established the reader
 **withholds** σ and says so with `PATTERN_INTENSITY_SCALED`, because the Poisson
@@ -104,7 +104,7 @@ Two repairs happen at read, and both are recorded rather than assumed. A species
 label that is not a recognised scatterer is normalised
 (`CIF_SPECIES_NORMALISED`), and a cell angle that disagrees with its space group
 by a small amount is snapped to the symmetry value
-(`CIF_CELL_ANGLE_CORRECTED`) — a β of 90.002(3) under `P m m m` is an
+(`CIF_CELL_ANGLE_CORRECTED`): a β of 90.002(3) under `P m m m` is an
 experimenter quoting a refined number. Past that threshold the symbol and the
 angle contradict each other, one of the two is wrong, and choosing between them
 is yours: the value is left byte for byte and the read raises.
@@ -223,7 +223,7 @@ The pattern is copied verbatim rather than re-serialised, because the bytes are
 the contract: the reader takes σ from the file's own column and never overrides
 it. `Project.data_ref` returns the `DataRef` that makes those bytes trustworthy
 on re-open. It carries `DataRef.sha256` of the file, `DataRef.fingerprint` of
-the *parsed* arrays, and `DataRef.reader` with `DataRef.options` — the reader
+the *parsed* arrays, and `DataRef.reader` with `DataRef.options`. The reader
 call itself is part of the reference, because a pdCIF is a different pattern
 depending on the block. Agreeing bytes with a disagreeing fingerprint mean the
 reader changed, not that the project is corrupt.
@@ -311,8 +311,8 @@ writers as methods on `Refinement`.
 
 The CIF is the one a journal asks for, so it carries more than the coordinates.
 Per phase it writes the agreement indices of
-[](results.md) — `_refine_ls_R_I_factor` (R_B), `_refine_ls_R_factor_all` (R_F)
-and `_refine_ls_number_reflns` — and the geometry as `_geom_bond_`,
+[](results.md) as `_refine_ls_R_I_factor` (R_B), `_refine_ls_R_factor_all` (R_F)
+and `_refine_ls_number_reflns`, and the geometry as `_geom_bond_`,
 `_geom_contact_` and `_geom_angle` loops with esds in su notation. Each
 `_geom_*_site_symmetry_*` code indexes a `_space_group_symop_` loop written
 into the same block, because a code that pointed at whatever order the reader's

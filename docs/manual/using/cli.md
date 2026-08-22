@@ -2,7 +2,7 @@
 
 `rietx` is a small command with five subcommands. It is deliberately small: the
 package is API-first, and the terminal gets only the jobs that are genuinely
-terminal-shaped — asking what the cell of a pattern is, watching a running
+terminal-shaped. Asking what the cell of a pattern is, watching a running
 refinement, rendering a saved result, and launching the two browser tools.
 
 ```console
@@ -35,11 +35,11 @@ diagnostics make, in the one channel a shell pipeline can branch on without
 parsing.
 :::
 
-## `rietx index` — what is this cell?
+## `rietx index`: what is this cell?
 
-The only subcommand that computes an answer rather than displaying one, and the
-one worth having in a terminal, because "what is this?" is a question you ask
-about a file you just collected.
+The only subcommand that computes an answer rather than displaying one. It
+belongs in a terminal because "what is this?" is a question you ask about a file
+you have just collected.
 
 ```console
 $ rietx index corundum.prn --wavelength 1.540596 --systems trigonal --total-budget 45
@@ -54,7 +54,7 @@ diagnostics, which is where a truncated search says so.
 | Option | Is |
 |---|---|
 | `--wavelength` | required, in Å, and a **single line**. For a lab Kα doublet build the instrument in python and call `index_pattern`, because peak picking recognises each line's Kα2 alias and a one-line source cannot |
-| `--geometry`, `--radius` | `debye_scherrer` (default), `bragg_brentano` — which needs a goniometer radius — or `flat_plate_transmission` |
+| `--geometry`, `--radius` | `debye_scherrer` (default), `bragg_brentano` (which needs a goniometer radius) or `flat_plate_transmission` |
 | `--systems` | comma-separated crystal systems; the default is all seven. A restricted search **reports what it did not cover** rather than concluding anything about it |
 | `--engines` | comma-separated engines; the default is all of them, and `high` confidence *means* every engine that ran agreed |
 | `--min-d`, `--max-d` | the principal d-spacing bounds of the search domain. Domain size is what an exhaustive search pays for |
@@ -107,7 +107,7 @@ candidate 1 at 4.75950 Å, and the command still exits 1, because six caveats
 stand between it and the gate. Exit 0 is the narrow claim "one candidate reached
 `high` with no ambiguity partner", not "something was printed".
 
-## `rietx watch` — a running refinement, live
+## `rietx watch`: a running refinement, live
 
 ```console
 $ rietx watch ./live-dir --port 8899 --open
@@ -119,7 +119,7 @@ project's own `live/` ([](files.md)). It reads the log; it does not drive the
 fit, so it can be started and stopped while a refinement runs.
 [](refining.md) covers the event stream itself.
 
-## `rietx html` — a saved result as a page
+## `rietx html`: a saved result as a page
 
 ```console
 $ rietx html result.json fit.html
@@ -127,11 +127,11 @@ wrote fit.html
 ```
 
 Takes a serialized `RefinementResult` and writes a standalone HTML page. Two
-arguments exactly; anything else exits 2. This is the reporting path for a fit
-that ran somewhere else — on a cluster, in CI, in a notebook you have since
-closed — since a `RefinementResult` round-trips through JSON.
+arguments exactly; anything else exits 2. Because a `RefinementResult`
+round-trips through JSON, this is the reporting path for a fit that ran
+somewhere else: on a cluster, in CI, or in a notebook you have since closed.
 
-## `rietx compare` — did that correction help?
+## `rietx compare`: did that correction help?
 
 ```console
 $ rietx compare --open
@@ -156,7 +156,7 @@ and lists nothing:
 `rietx.viz.compare.run` is the same computation headless, and takes the same
 standard and variant keys.
 
-## `rietx gui` — the refinement GUI
+## `rietx gui`: the refinement GUI
 
 :::{admonition} Beta
 :class: warning
@@ -170,7 +170,7 @@ $ rietx gui my_sample.rex
 ```
 
 Serves the GUI on `127.0.0.1:8731` and opens a browser. The project argument is
-optional — without one it starts empty and you open or create a project from
+optional; without one it starts empty and you open or create a project from
 inside. A project that will not open exits 2 and prints the reason, which is the
 whole value of the refusal messages.
 
@@ -178,7 +178,7 @@ whole value of the refusal messages.
 |---|---|
 | `--port N` | serve somewhere else |
 | `--no-open` | do not open a browser |
-| `--machine` | print one JSON boot line — url, port, project, pid — and nothing else, for a supervising process |
+| `--machine` | print one JSON boot line (url, port, project, pid) and nothing else, for a supervising process |
 | `--backend`, `--solver` | the Jacobian backend and the least-squares driver the session runs with, the same names `capabilities()` reports |
 
 The GUI needs the `gui` extra ([](install.md)), which is plotly only: the built

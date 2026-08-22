@@ -50,9 +50,9 @@ for row in result.qpa.phases:
 quantities. `PhaseQuantity.z` and `PhaseQuantity.molar_mass` are a best-effort
 split of the first into an integer count and a formula-unit mass, and they fall
 back to `z = 1` with `molar_mass = cell_mass` when the composition does not
-reduce to integers under refined occupancies. **The weight fraction never
-depends on that split**, so a surprising `z` is a cosmetic problem and not a
-wrong answer.
+reduce to integers under refined occupancies. The weight fraction never depends
+on that split, so a surprising `z` is a cosmetic problem and not a wrong
+answer.
 
 `PhaseQuantity.weight_fraction_stderr` is propagated from the **correlated**
 scale block of the covariance, not from σ(S) treated as independent, so it
@@ -60,8 +60,8 @@ carries the same conditioning as every other esd the package reports.
 
 ### A worked mixture
 
-Fitting `cpd-1e` of the IUCr round-robin — corundum, zincite and fluorite,
-weighed at 55.12, 15.25 and 29.62 wt % — reaches Rwp 0.126 and gives:
+Fitting `cpd-1e` of the IUCr round-robin (corundum, zincite and fluorite,
+weighed at 55.12, 15.25 and 29.62 wt %) reaches Rwp 0.126 and gives:
 
 | Phase | W (%) | esd | Z | Z·M | V (Å³) | Weighed | Error |
 |---|---|---|---|---|---|---|---|
@@ -70,17 +70,17 @@ weighed at 55.12, 15.25 and 29.62 wt % — reaches Rwp 0.126 and gives:
 | fluorite | 29.74 | 0.45 | 4 | 312.30 | 163.09 | 29.62 | +0.12 |
 
 The errors are well inside the published participant spread for this sample,
-and they are much larger than the esds — which is the normal state of affairs
-and the first thing to understand about a QPA esd. It measures how well the
-scales are determined **by this model against this pattern**, not how close the
-answer is to the truth.
+and they are much larger than the esds. That is the normal state of affairs and
+the first thing to understand about a QPA esd: it measures how well the scales
+are determined **by this model against this pattern**, not how close the answer
+is to the truth.
 
 ## What the fractions are fractions of
 
 `QuantitativePhaseAnalysis.crystalline_only` is `True`, and it is not a caveat
 to skim. The fractions are of the **modelled crystalline content**. They are
-renormalised across the phases in the model, so they sum to 1 exactly — in the
-mixture above, to 1.0 to nine decimal places — whatever is missing.
+renormalised across the phases in the model, so they sum to 1 exactly whatever
+is missing: in the mixture above, to 1.0 to nine decimal places.
 
 Two things therefore do not show up as a shortfall:
 
@@ -94,12 +94,12 @@ that sums to 1. What does show them is the fit: an amorphous fraction is a broad
 hump the background has to absorb, and a missing phase is a set of peaks with no
 tick under them. [](report.md)'s Layer 0 is where both are named.
 `PatternDiagnostics.amorphous_hump_score` is the pattern-level version of the
-first — the RMS of what is left in the background envelope after a cubic and a
+first: the RMS of what is left in the background envelope after a cubic and a
 1/2θ term, relative to the median level, so what it measures is broad structure
 that no ordinary background shape accounts for.
 
-Internal-standard and amorphous quantification — spiking with a known weight of
-a known phase and solving for the rest — is not implemented.
+Internal-standard and amorphous quantification, spiking with a known weight of a
+known phase and solving for the rest, is not implemented.
 
 :::{admonition} For agents
 :class: agent
@@ -113,8 +113,8 @@ so the qualification is unconditional.
 
 Phases in a mixture do not all absorb the same. A strongly absorbing coarse
 phase shadows its own particles' interiors, so its intensity is suppressed
-relative to a weakly absorbing one and its weight fraction comes back low —
-the Brindley microabsorption effect {cite}`brindley1945`, eq.
+relative to a weakly absorbing one and its weight fraction comes back low. This
+is the Brindley microabsorption effect {cite}`brindley1945`, eq.
 {eq}`corr-brindley`.
 
 The correction needs a particle radius per phase, and there is no way to get one
@@ -132,7 +132,7 @@ assumed.
 | `MicroabsorptionCorrection.wavelength` | the primary line µ was evaluated at |
 | `MicroabsorptionCorrection.mu_mean_cm` | the volume-weighted mean attenuation of the solid mixture |
 
-**The corrected fraction is reported alongside, never substituted.**
+The corrected fraction is reported alongside rather than substituted.
 `PhaseQuantity.weight_fraction` stays the uncorrected Hill-Howard number and
 `PhaseQuantity.weight_fraction_corrected` sits beside it. The esd belongs to the
 uncorrected one: the corrected fraction inherits the systematic uncertainty of
@@ -159,8 +159,8 @@ gives:
 | zircon | 379.8 | 0.057 | 0.969 | 20.74 | −9.16 | 20.53 | −9.37 |
 
 Read that table as three separate statements. The uncorrected errors have the
-microabsorption **shape** — the two absorbing phases suppressed, the weakly
-absorbing one inflated — which is the diagnosis. The correction moves the two
+microabsorption **shape**, the two absorbing phases suppressed and the weakly
+absorbing one inflated, which is the diagnosis. The correction moves the two
 extremes toward the weighed values and leaves zircon slightly worse, which is
 what a correction being applied outside its regime looks like. And
 `BRINDLEY_OUTSIDE_REGIME` fires on magnetite (µR = 0.567) and zircon
@@ -168,7 +168,7 @@ what a correction being applied outside its regime looks like. And
 
 The lesson is the one the package applies to every correction: the failure is
 characterised rather than tuned away. A corrected fraction that is still 11 wt %
-from the truth is not a QPA result — it is evidence that this specimen needs a
+from the truth is not a QPA result. It is evidence that this specimen needs a
 different preparation.
 
 ## Writing it out
