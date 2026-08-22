@@ -23,7 +23,7 @@ Toby {cite}`toby2006`, and Part 2 gives them as equation
 
 | Field | Is | Reads as |
 |---|---|---|
-| `Statistics.rwp` | the weighted profile R-factor | how well the calculated pattern matches the measured one, weighted by the counting statistics. A **fraction**: 0.0932 is 9.3 %. |
+| `Statistics.rwp` | the weighted profile R-factor | how well the calculated pattern matches the measured one, weighted by the counting statistics. A **fraction**: 0.0933 is 9.3 %. |
 | `Statistics.rp` | the unweighted profile R-factor | the same comparison with every point weighted equally, so strong peaks dominate it. |
 | `Statistics.rexp` | the expected R-factor | the Rwp that perfect counting statistics alone would produce. It is a property of the data and the parameter count, not of the model. |
 | `Statistics.chi2` | the **reduced** χ², Σw δ²/(N − P) | how far the fit is from statistical perfection. 1.0 means the residual is the size of the noise. |
@@ -32,18 +32,18 @@ Toby {cite}`toby2006`, and Part 2 gives them as equation
 | `Statistics.durbin_watson` | the serial-correlation statistic | ≈ 2 means neighbouring residuals are independent. Far from 2 means the misfit is structured, whatever Rwp says. |
 | `Statistics.esd_inflation` | the Bérar-Lelann factor | the amount the reported esds were multiplied by to account for that serial correlation. It has **already been applied**. |
 | `Statistics.n_points` , `Statistics.n_free_parameters` | N and P | what makes the rest interpretable. |
-| `Statistics.max_shift_over_esd` | max \|Δθ\|/esd over the last accepted step, external units both sides | the convergence quantity (McCusker 1999 §7: converged when ≤ 0.1, a band quoted and never tuned). A converged fit satisfies it a fortiori; on a stage that stopped on its iteration budget it says **how far** the solve was still moving. `None` when it cannot be measured — no accepted step, no esds, a replay, or a joint multi-pattern fit. |
-| `Statistics.identifiability_clause` | the report's identifiability sentence, verbatim — the exchange finding with the swap experiment and its license, and/or the softest notable mode | the same sentence the report's summary carries, delivered beside the numbers so a consumer that reads only the statistics block still gets it. The evidence behind it is `FitReport.identifiability` ([](report.md)). Written by `build_report`, never by the fit: `None` until a report is built, and `None` when nothing crossed a comment threshold — either way it is not a verdict about the fit. |
+| `Statistics.max_shift_over_esd` | max \|Δθ\|/esd over the last accepted step, external units both sides | the convergence quantity (McCusker 1999 §7: converged when ≤ 0.1, a band quoted and never tuned). A converged fit satisfies it a fortiori; on a stage that stopped on its iteration budget it says **how far** the solve was still moving. `None` when it cannot be measured: no accepted step, no esds, a replay, or a joint multi-pattern fit. |
+| `Statistics.identifiability_clause` | the report's identifiability sentence, verbatim: the exchange finding with the swap experiment and its license, and/or the softest notable mode | the same sentence the report's summary carries, delivered beside the numbers so a consumer that reads only the statistics block still gets it. The evidence behind it is `FitReport.identifiability` ([](report.md)). Written by `build_report`, never by the fit: `None` until a report is built, and `None` when nothing crossed a comment threshold, and neither is a verdict about the fit. |
 
-**`Statistics.chi2` is the reduced χ², not Σw δ².** The two differ by a factor
-of N − P, which on a real pattern is several thousand.
+`Statistics.chi2` is the reduced χ², not Σw δ². The two differ by a factor of
+N − P, which on a real pattern is several thousand.
 
-**The literature is not consistent about which of the two is called χ².** The
-IUCr guidelines {cite}`mccusker1999` write χ² = Rwp/Rexp and say it should
-approach 1; that quantity is `Statistics.gof` here, and `Statistics.chi2` is its
-square. Both conventions say the same thing about a fit — the naming follows
-Toby {cite}`toby2006` — but a number copied from a paper needs the convention
-copied with it.
+The literature is not consistent about which of the two is called χ². The IUCr
+guidelines {cite}`mccusker1999` write χ² = Rwp/Rexp and say it should approach 1;
+that quantity is `Statistics.gof` here, and `Statistics.chi2` is its square. Both
+conventions say the same thing about a fit, and the naming here follows Toby
+{cite}`toby2006`, but a number copied from a paper needs the convention copied
+with it.
 
 `Statistics.esd_inflation` is conservative by construction. Perfectly white
 residuals still land near 1.51, because same-sign runs happen by chance, and lab
@@ -55,12 +55,12 @@ upper bound on the serial-correlation damage rather than as a measurement of it.
 Every field above measures the *pattern*. Two more measure the **structure**, and
 a journal will ask for at least one of them {cite}`mccusker1999`. They live on
 `RefinementResult.phase_agreement`, one `PhaseAgreement` row per phase, keyed by
-`PhaseAgreement.name` — the same name the phase carries everywhere else. Part 2
+`PhaseAgreement.name`, the same name the phase carries everywhere else. Part 2
 defines both as equation {eq}`est-structure-r`.
 
 | Field | Is | Reads as |
 |---|---|---|
-| `PhaseAgreement.r_bragg` | R_B, the Bragg-intensity R-factor | how well the model reproduces the *integrated intensities* I = m·F², m the multiplicity — rather than the profile. Written to a CIF as `_refine_ls_R_I_factor`. |
+| `PhaseAgreement.r_bragg` | R_B, the Bragg-intensity R-factor | how well the model reproduces the *integrated intensities* I = m·F² with m the multiplicity, rather than the profile. Written to a CIF as `_refine_ls_R_I_factor`. |
 | `PhaseAgreement.r_f` | R_F, the structure-factor R-factor | the same comparison on the amplitude rather than the intensity, so it is the number a single-crystal R is directly comparable with. Written as `_refine_ls_R_factor_all`. |
 | `PhaseAgreement.n_reflections` | how many reflections were summed | smaller than the phase's reflection list whenever one falls off the Ewald sphere. |
 
@@ -68,27 +68,27 @@ A joint multi-histogram fit reports them per histogram, on
 `HistogramResult.phase_agreement`: the partition is of one pattern's counts, so
 there is no pooled value.
 
-**Both are biased towards the model you are testing.** A powder pattern does not
-measure individual reflection intensities — overlapped peaks share their counts —
-so the "observed" intensity of each reflection is the observed pattern
+Both are biased towards the model you are testing. A powder pattern does not
+measure individual reflection intensities, because overlapped peaks share their
+counts, so the "observed" intensity of each reflection is the observed pattern
 *partitioned in proportion to the calculated one*. A wrong model therefore
 receives the intensity it predicted, and both indices flatter it. That is the
 paper's own warning, and it fixes what they are for: watching an R_B fall as you
 improve a model, not judging a model in isolation.
 
-**A trace phase's R_B is not comparable with the major phase's.** Neither index
-is weighted — the sums count every reflection alike, whatever its counting
-statistics — so a reflection the fit barely constrains weighs as much as one
+A trace phase's R_B is not comparable with the major phase's. Neither index is
+weighted (the sums count every reflection alike, whatever its counting
+statistics), so a reflection the fit barely constrains weighs as much as one
 that dominates it, and a minor phase's windows sit under
 the major phase's peaks, where the counts the major phase failed to describe are
 handed out too. Measured on the 11-BM NAC pattern with its 1.35 wt % CaF₂
 impurity: NAC reads R_B 0.052 and the impurity 0.385, with the whole of the
-impurity's misfit in four reflections at I(obs)/I(calc) ≈ 2.2 — every one of
+impurity's misfit in four reflections at I(obs)/I(calc) ≈ 2.2, every one of
 them under a strong NAC peak with a large positive residual. Read R_B beside the
 phase's weight fraction, and treat a trace phase's value as a question rather
 than a measurement.
 
-Both are absent — an empty list — for a Le Bail or Pawley fit. There the
+Both are absent, an empty list, for a Le Bail or Pawley fit. There the
 intensities *are* the fit, so the partition would be compared against itself.
 
 ## The bonding geometry
@@ -102,15 +102,15 @@ structure* {cite}`mccusker1999`. `RefinementResult.geometry` is a
 | Field | Is | Reads as |
 |---|---|---|
 | `GeometryTable.distances` | one `GeometryDistance` per neighbour | every asymmetric-unit atom's **whole** environment, so the number of rows naming an atom is its coordination number. A bond between two sites is therefore in the list twice, once from each end. |
-| `GeometryTable.bonds` , `GeometryTable.contacts` | the two halves of that list | split by `GeometryDistance.bonded`: at most the two covalent radii plus `GeometryTable.bond_slack`, or beyond it out to `GeometryTable.contact_max`. The guidelines ask for both — "interatomic distances (both bonding and nonbonding) should be reasonable". |
+| `GeometryTable.bonds` , `GeometryTable.contacts` | the two halves of that list | split by `GeometryDistance.bonded`: at most the two covalent radii plus `GeometryTable.bond_slack`, or beyond it out to `GeometryTable.contact_max`. The guidelines ask for both: "interatomic distances (both bonding and nonbonding) should be reasonable". |
 | `GeometryTable.angles` | one `GeometryAngle` per pair of bonded neighbours | at every vertex, over that vertex's complete bonded environment. Contacts are not arms. |
 | `GeometryTable.notes` | where coverage stopped | a per-atom contact cap or a phase too large to search. Empty means nothing was bounded. |
 
 A row's value is `GeometryDistance.distance` in ångströms, or
-`GeometryAngle.angle` in degrees. Each names its atoms twice: as
-`GeometryDistance.atom_1` and `GeometryDistance.atom_2` — the labels the
-structure carries, with `GeometryAngle.atom_1`, `GeometryAngle.atom_2` and
-`GeometryAngle.atom_3` putting the **vertex in the middle** — and as
+`GeometryAngle.angle` in degrees. Each names its atoms twice. Once by the labels
+the structure carries, as `GeometryDistance.atom_1` and
+`GeometryDistance.atom_2`, with `GeometryAngle.atom_1`, `GeometryAngle.atom_2`
+and `GeometryAngle.atom_3` putting the vertex in the middle. Once by index, as
 `GeometryDistance.atom_index_1`, `GeometryDistance.atom_index_2`,
 `GeometryAngle.atom_index_1`, `GeometryAngle.atom_index_2` and
 `GeometryAngle.atom_index_3`, which index `Phase.atoms` directly.
@@ -130,7 +130,7 @@ covariance, which is what the guidelines require of any derived quantity: "the
 whole correlation matrix, not just the diagonal elements, should be included in
 the calculation" {cite}`mccusker1999`. Part 2 gives the propagation as equation
 {eq}`est-derived`. `GeometryDistance.stderr_diagonal` is the same propagation
-with the refined parameters' correlations zeroed — the number a reader combining
+with the refined parameters' correlations zeroed, the number a reader combining
 the printed parameter esds in quadrature would get. It is carried so the
 difference is visible rather than asserted, and it is never the answer.
 `GeometryAngle.stderr` and `GeometryAngle.stderr_diagonal` are the same pair, in
@@ -148,7 +148,7 @@ degrees.
 
 Dropping the correlations is not a conservative approximation, and that is the
 whole reason both numbers are reported. The figure is the 88 distances of an
-11-BM NAC refinement under `mccusker_structural` (Rwp 0.0818), each plotted as
+11-BM NAC refinement under `mccusker_structural` (Rwp 0.0819), each plotted as
 its diagonal-only esd over its full one: the ratio runs from 0.86 to 1.41, on
 both sides of equality, so the cheap number is sometimes too small and
 sometimes 40 % too large, with nothing in the row to say which.
@@ -159,10 +159,10 @@ parameter, the quadratic form has one term, and the two esds agree to the last
 digit. Correlation between coordinates is what the guideline is about, which is
 also why a table quoted from a profile-only refinement has nothing to say here.
 
-An esd is `None` when it cannot be measured, and `None` is **absence, never
-σ = 0**. Four routes lead there, and they mean the same thing. A result with no
-covariance behind it — any evaluate-only pass, a replay of a history node
-included — has distances and no esds at all. So does a row nothing free
+An esd is `None` when it cannot be measured, which is absence rather than
+σ = 0. Four routes lead there, and they mean the same thing. A result with no
+covariance behind it (any evaluate-only pass, a replay of a history node
+included) has distances and no esds at all. So does a row nothing free
 reaches. A row whose value is fixed by symmetry has no variance to report: a
 fluorite Ca–F distance with the cell held, or a rutile O–Ti–O angle, which stays
 at exactly 90° however the one free coordinate degree of freedom moves. And an
@@ -192,22 +192,22 @@ that answers this. Part 2 states the correction it applies as equation
 |---|---|---|
 | `DataSupport.n_unique_reflections` | reflections this pattern measured, summed over phases | one symmetry orbit is one reflection, and a Kα doublet's second line is the same reflection measured again, not a second observation. A reflection counts when a fitted channel lies within half its own FWHM of its position, so an excluded region removes what sits under it and a peak half-measured at a range end still counts. |
 | `DataSupport.n_effective_observations` | the same count corrected for overlap | each reflection contributes the fraction of its own area on which no overlapping reflection stands higher, so an isolated line is worth 1 and an exactly coincident pair is worth 1 between the two of them. A **float**, because a partly resolved pair is worth more than one and less than two. |
-| `DataSupport.n_structural_parameters` | the free parameters the ratio is about | the atomic ones: coordinate DOFs, occupancies, Biso, ADP components. The cell, zero, profile, background, scale, preferred orientation and extinction are excluded — peak positions and shape determine those, not the intensities being counted. |
+| `DataSupport.n_structural_parameters` | the free parameters the ratio is about | the atomic ones: coordinate DOFs, occupancies, Biso, ADP components. The cell, zero, profile, background, scale, preferred orientation and extinction are excluded, because peak positions and shape determine those rather than the intensities being counted. |
 | `DataSupport.observations_per_parameter` | the raw count divided by the parameters | the upper bound on the ratio. `None` when no structural parameter is free, which is a profile-only stage, a Le Bail fit or a Pawley fit. |
 | `DataSupport.effective_observations_per_parameter` | the effective count divided by the parameters | **the number the guideline is about**: at least three and preferably five {cite}`mccusker1999`. `None` on the same terms as the row above. |
 
 The complement of `DataSupport.n_structural_parameters` is
-`Statistics.n_free_parameters` minus it — the profile, background and cell
+`Statistics.n_free_parameters` minus it: the profile, background and cell
 parameters, which the same fit refined against the same pattern but which the
 peak *positions* pay for.
 
-**`DataSupport.n_unique_reflections` over-counts, on purpose.** Two reflections
-at the same 2θ are one observation, and both are counted here. In a cubic cell
-that pair is common — (300) and (221) coincide exactly — so the raw count is an
+`DataSupport.n_unique_reflections` over-counts, on purpose. Two reflections at
+the same 2θ are one observation, and both are counted here. In a cubic cell that
+pair is common: (300) and (221) coincide exactly. The raw count is therefore an
 upper bound on the information, and the ratio built from it is optimistic.
 `DataSupport.n_effective_observations` is the corrected number, by the method of
-Altomare *et al.* {cite}`altomare1995`, and the **gap between the two is the
-pattern's overlap**.
+Altomare *et al.* {cite}`altomare1995`, and the gap between the two is the
+pattern's overlap.
 
 ```{image} figures/effective-observations-light.png
 :class: only-light
@@ -226,17 +226,17 @@ throughout; 22.0 effective observations while the lines are sharp, and 3.7 by
 the time the pattern is one hump. The raw count cannot see any of that, which
 is what makes it the wrong denominator for a parameter ratio.
 
-**The estimate is not a theorem.** The paper says so, and the IUCr guidelines
+The estimate is not a theorem. The paper says so, and the IUCr guidelines
 repeat it: the approach "may not have a rigorous basis", and what it gives is a
 reasonable estimate of how many parameters the data will support. Two numbers a
 reader should have with it: the interval each reflection is judged over is
 ±2 FWHM, and the paper's own check at ±4 FWHM lands 6.5 % lower on average, so
 the reported figure is a little generous.
 
-**Nothing here refuses anything.** The number is evidence, read beside the fit
+Nothing here refuses anything. The number is evidence, read beside the fit
 rather than as a gate on it, and a ratio below three is a reason to hold
-parameters rather than a reason the fit is wrong. The sharper question — *which*
-parameter is unsupported, rather than how many the pattern can carry — is the
+parameters rather than a reason the fit is wrong. The sharper question, *which*
+parameter is unsupported rather than how many the pattern can carry, is the
 next section. A ratio below five raises the `DATA_SUPPORT_LOW` diagnostic, as a
 warning below three and as information between three and five.
 
@@ -244,14 +244,14 @@ warning below three and as information between three and five.
 
 `RefinementResult.identifiability` is an `Identifiability`, and it exists because
 these statistics cannot be recovered afterwards. They are read off the **final
-Jacobian**, an N × P array nothing serializes — a history node stores state, not
-curves — so they are screened at fit time or lost. Rwp and the residual, which
+Jacobian**, an N × P array nothing serializes (a history node stores state, not
+curves), so they are screened at fit time or lost. Rwp and the residual, which
 any consumer can recompute from the arrays already on the result, are the
 contrast.
 
 | Field | Is | Reads as |
 |---|---|---|
-| `Identifiability.background_absorption` | dot-path → the block projection R² of that structural column onto the background column span | how much of a parameter the background could imitate. Every screened path is here, not only the ones over the guard threshold: a fired/not-fired bit is a verdict, 0.46 against 0.08 is evidence — and these are the *same* numbers the `BACKGROUND_ABSORPTION` diagnostic decided on, never a second measurement |
+| `Identifiability.background_absorption` | dot-path → the block projection R² of that structural column onto the background column span | how much of a parameter the background could imitate. Every screened path is here, not only the ones over the guard threshold: a fired/not-fired bit is a verdict, 0.46 against 0.08 is evidence, and these are the *same* numbers the `BACKGROUND_ABSORPTION` diagnostic decided on rather than a second measurement |
 | `Identifiability.top_correlations` | the worst-\|ρ\| pairs, each a `CorrelationPair`, worst first | which two refined parameters moved together |
 | `Identifiability.soft_modes` | the softest directions of the scale-normalised normal matrix, each a `SoftMode` | the same problem where it involves three parameters or more, which no pairwise list can show |
 | `Identifiability.exchangeability` | one `ExchangeRow` per held parameter screened | whether a parameter you held could have been absorbed by the ones you refined |
@@ -267,9 +267,9 @@ contrast.
 | `ExchangeRow.partners` | dot-path → signed loading of the reconstruction, kept above 0.05: which fitted values absorb the held parameter's signature |
 
 The softest modes are carried whatever their eigenvalues, because the number is
-the evidence and deciding where comment starts is the report's job. **Read
-`ExchangeRow.r2` alone with care**: it is a property of the design matrix over
-the sampled range and fires on clean fits too — measured at 0.999945 on both a
+the evidence and deciding where comment starts is the report's job. Read
+`ExchangeRow.r2` alone with care: it is a property of the design matrix over the
+sampled range and fires on clean fits too, measured at 0.999945 on both a
 degenerate fixture and its clean reference. The discriminating half, whether
 anything significant is riding the exchange, is in [the report](report.md), whose
 `ExchangeFinding` carries the fitted partner's value and esd beside the same R².
@@ -286,7 +286,7 @@ that reflection was never measured, and no refinement afterwards recovers it.
 `PatternDiagnostics.steps_per_fwhm` is that number: the median, over the
 pattern's resolved peaks, of how many channels span the peak's half-height
 width. `PatternDiagnostics.n_peaks_measured` says how many peaks the median was
-taken over. Both come from `diagnose(data)`, which needs no model — so this is a
+taken over. Both come from `diagnose(data)`, which needs no model, so this is a
 question to ask of a file **before** refining it, and the answer does not change
 afterwards:
 
@@ -318,7 +318,7 @@ from.
 | `PatternDiagnostics.peak_density_per_deg` | those per degree 2θ | above roughly 2/deg the pattern is dense, which favours a stiff baseline and a low background order |
 | `PatternDiagnostics.signal_to_background` | near-maximum net signal over the median background level | |
 | `PatternDiagnostics.air_scatter_gain` | how much of the envelope's cubic-fit residual variance a 1/(2θ) column explains | a nested-model test for the low-angle air-scatter rise; a high value is what turns the 1/x background term on |
-| `PatternDiagnostics.amorphous_hump_score` | RMS of the envelope residual after *both* the cubic and the 1/x term, over the median level | what is left is genuinely broad non-polynomial structure — amorphous content, capillary glass — and calls for a more flexible background |
+| `PatternDiagnostics.amorphous_hump_score` | RMS of the envelope residual after *both* the cubic and the 1/x term, over the median level | what is left is genuinely broad non-polynomial structure (amorphous content, capillary glass), and calls for a more flexible background |
 | `PatternDiagnostics.baseline_lambda` | the arPLS stiffness the whiteness rule picked for this pattern | |
 | `PatternDiagnostics.steps_per_fwhm`, `PatternDiagnostics.n_peaks_measured` | the sampling pair above | null when no peak was measurable |
 | `PatternDiagnostics.contamination` | Kβ and W Lα ghost candidates, each a `ContaminationFlag` | see the warning below |
@@ -335,7 +335,7 @@ An empty `PatternDiagnostics.contamination` means "nothing was flagged **or**
 nothing was checked". The Kβ position is anode-specific, so the screen needs
 `wavelength=`, and a wavelength matching no tabulated Kα1 is skipped silently.
 Measured on the 11-BM pattern, `diagnose(data)` and
-`diagnose(data, wavelength=0.4139090)` both return an empty list — the first
+`diagnose(data, wavelength=0.4139090)` both return an empty list: the first
 because nothing was asked, the second because a synchrotron wavelength has no
 anode. On the round-robin corundum pattern at Cu Kα the same call returns three
 flags, two Kβ ghosts and one tungsten Lα.
@@ -350,7 +350,7 @@ this is the object that comes back.
 
 | Field | Is | Reads as |
 |---|---|---|
-| `RestraintReport.rows` | one `RestraintRow` per restraint | `RestraintRow.computed` against `RestraintRow.target`, with `RestraintRow.deviation` and `RestraintRow.deviation_over_sigma` the two ways of reading the gap — the second measured against the `RestraintRow.sigma` you declared, and `RestraintRow.weight` beside it. `RestraintRow.kind`, `RestraintRow.atoms`, `RestraintRow.path` and `RestraintRow.phase_index` say which restraint it was. |
+| `RestraintReport.rows` | one `RestraintRow` per restraint | `RestraintRow.computed` against `RestraintRow.target`, with `RestraintRow.deviation` and `RestraintRow.deviation_over_sigma` the two ways of reading the gap, the second measured against the `RestraintRow.sigma` you declared, and `RestraintRow.weight` beside it. `RestraintRow.kind`, `RestraintRow.atoms`, `RestraintRow.path` and `RestraintRow.phase_index` say which restraint it was. |
 | `RestraintReport.restraint_chi2` | Σ weight·(deviation/σ)² | the penalty term S_G of {eq}`par-restraint-weight`, at unit weight scale. |
 | `RestraintReport.weight_scale` | the c_w the stage ran at | so the penalty the fit actually minimised is `RestraintReport.weight_scale` × `RestraintReport.restraint_chi2`. |
 | `RestraintReport.n_restraints` | how many rows there were | the rows are in the covariance but out of Rwp, so this is not part of N. |
@@ -378,13 +378,13 @@ than with an Rwp comparison as its evidence.
 
 `RefinementResult.absorption` is the worked example of that rule.
 Specimen absorption is one seam with three geometries behind it, and one of them
-**provably cannot move Rwp**: the capillary factor is exactly a constant times
+provably cannot move Rwp: the capillary factor is exactly a constant times
 exp(c·sin²θ), so applying it is an exact reparameterisation of the phase scale
 and the displacement parameters. A comparison of fits would show nothing. The
 `AbsorptionCorrection` record is where the correction says what it changed.
 
 It is present only for a Rietveld fit that carried a specimen dimension, and
-`None` otherwise — including for a fit that declared none, which is not the same
+`None` otherwise, including for a fit that declared none, which is not the same
 as a specimen of no thickness. [](data.md) covers declaring it.
 
 | Field | Is | Reads as |
@@ -394,7 +394,7 @@ as a specimen of no thickness. [](data.md) covers declaring it.
 | `AbsorptionCorrection.mu_r_source` | `given` or `estimated` | estimated means composition × packing × that length, so it inherits their uncertainty |
 | `AbsorptionCorrection.wavelength` | the λ it was computed at | µ is wavelength-dependent, so the number is not portable between sources |
 | `AbsorptionCorrection.equivalent_delta_biso` | the Biso bias, in Å², that refining **without** this correction would have absorbed | positive means add this to recover the unbiased value. For the cylinder this is the entire content of the correction |
-| `AbsorptionCorrection.unabsorbed_fraction` | the share of ln A that a free scale and a free Biso cannot reproduce | zero for the cylinder to rounding, a few to tens of per cent for a plate — and hence how far to trust the ΔBiso above |
+| `AbsorptionCorrection.unabsorbed_fraction` | the share of ln A that a free scale and a free Biso cannot reproduce | zero for the cylinder to rounding, a few to tens of per cent for a plate, and hence how far to trust the ΔBiso above |
 | `AbsorptionCorrection.identifiable_fraction` | the same measure applied to ∂lnA/∂µt | the number behind the decision not to make the thickness refinable |
 | `AbsorptionCorrection.intensity_fraction_of_optimal` | µt·exp(1 − µt), transmission only | the counts this specimen delivered as a fraction of the best it could have. A specimen-preparation number no fit statistic can express: a badly chosen thickness costs counting statistics, not accuracy |
 | `AbsorptionCorrection.out_of_range` | whether µR left the expression's validated range | |
