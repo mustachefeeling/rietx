@@ -280,3 +280,66 @@ def test_the_memo_does_build_its_key_when_it_is_live(rich):
     assert cached._memo(cached.phases[0], "probe", counted_key,
                         lambda: "second") == "first"
     assert len(built) == 2
+
+
+def test_an_alternation_between_two_states_stops_rebuilding(rich):
+    """The WP-1121 shape: a Jacobian column asks for the expansion point, one
+    perturbed state, the expansion point again, and so on.
+
+    One key per slot turns that into a rebuild on *every* call — the memo
+    answers nothing while still paying for its key — and it is not a corner
+    case: the column seam hit 63.6 % of its lookups at depth 1 on the trigger
+    cold fit, against 72.9 % for a cache with no bound at all.
+
+    Reuse is asserted by **object identity**, not by value: a rebuilt block
+    would carry the same numbers (every block here is a deterministic
+    function of its key), so an equality check would pass for the cache that
+    is not working, which is exactly the bug.
+    """
+    cached, _plain, table = rich
+    base = table.decode(table.x0())
+    other = dict(base)
+    other["phases.0.cell.a"] = base["phases.0.cell.a"] * 1.001
+
+    first_base = cached.phase_peaks(0, base)
+    first_other = cached.phase_peaks(0, other)
+    for _ in range(4):
+        again_base = cached.phase_peaks(0, base)
+        again_other = cached.phase_peaks(0, other)
+        # position and both widths come straight out of memoised blocks
+        for il in range(len(first_base)):
+            for k in (0, 1, 2):
+                assert again_base[il][k] is first_base[il][k], \
+                    f"the base arm was rebuilt (line {il}, slot {k})"
+                assert again_other[il][k] is first_other[il][k], \
+                    f"the perturbed arm was rebuilt (line {il}, slot {k})"
+
+
+def test_a_third_state_evicts_the_least_recently_used_arm(rich):
+    """The bound is real, and that is the point of it.
+
+    The keys are decoded θ, so an unbounded map grows an entry per parameter
+    vector a fit visits — thousands — which is a leak, not a cache.  Depth is
+    therefore 2, and this pins that a third state costs the older arm rather
+    than joining it.  Measured justification for the number: depth 8 built
+    exactly the same blocks as depth 2 on the trigger fit, to the call, so the
+    lookups a deeper cache would catch are ones from an earlier Jacobian
+    entirely (``CompiledModel._memo``).
+    """
+    from rietx.model.forward import _MEMO_DEPTH
+
+    assert _MEMO_DEPTH == 2, "this test pins the shape that constant sets"
+    cached, _plain, table = rich
+    base = table.decode(table.x0())
+    second = dict(base)
+    second["phases.0.cell.a"] = base["phases.0.cell.a"] * 1.001
+    third = dict(base)
+    third["phases.0.cell.a"] = base["phases.0.cell.a"] * 1.002
+
+    first_base = cached.phase_peaks(0, base)
+    cached.phase_peaks(0, second)
+    cached.phase_peaks(0, third)          # base is now the older of three
+    assert len(cached.phases[0].scalar_cache["cell"]) == _MEMO_DEPTH
+    back = cached.phase_peaks(0, base)
+    assert back[0][0] is not first_base[0][0], \
+        "a third state did not evict, so the cache is unbounded"
