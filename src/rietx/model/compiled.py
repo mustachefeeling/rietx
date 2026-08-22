@@ -120,6 +120,9 @@ _KERNELS: dict | None = None
 _UNAVAILABLE = False
 _ENABLED: bool | None = None
 _POOL: ThreadPoolExecutor | None = None
+#: worker count the pool was actually built with — read once, from the
+#: environment, and the number ``_spread`` splits by thereafter
+_POOL_WORKERS = 0
 _WARMING: threading.Thread | None = None
 
 
@@ -270,7 +273,14 @@ def warm(block: bool = False) -> None:
     time and a flag test thereafter.
     """
     global _WARMING
-    if _KERNELS is not None or _UNAVAILABLE or not enabled():
+    if _KERNELS is not None or _UNAVAILABLE:
+        return
+    # deliberately *not* ``enabled()``: that would answer through
+    # ``available()``, which imports numba — a tenth of a second or two, on the
+    # calling thread, immediately before handing the rest of the work to
+    # another one.  The switch can be read without it, and whether numba
+    # actually imports is then the background thread's question too.
+    if _ENABLED is False or (_ENABLED is None and _off_by_env()):
         return
     if block:
         _kernels()
@@ -288,14 +298,16 @@ def _pool() -> ThreadPoolExecutor:
     Its threads are idle between residuals, and rebuilding it per call was
     measured to cost more than half the threading win.
     """
-    global _POOL
+    global _POOL, _POOL_WORKERS
     if _POOL is None:
         # its own lock: ``_LOCK`` is held for the whole of a cold compile, and
         # a pool build must never queue behind one
         with _POOL_LOCK:
             if _POOL is None:
+                _POOL_WORKERS = n_threads()
                 _POOL = ThreadPoolExecutor(
-                    max_workers=n_threads(), thread_name_prefix="rietx-kernel")
+                    max_workers=_POOL_WORKERS,
+                    thread_name_prefix="rietx-kernel")
     return _POOL
 
 
@@ -305,13 +317,23 @@ def _spread(fn, n_rows: int) -> None:
     Row ranges are disjoint in the output planes, so no lock is needed; the
     kernels release the GIL for the duration of the call, which is what makes a
     python-level pool a real parallel loop here.
+
+    The split reads the pool's own worker count rather than :func:`n_threads`,
+    for two reasons: this runs thousands of times in a fit and an
+    ``os.environ`` lookup per call is not free at that rate, and a split that
+    disagreed with the pool it submits to would queue chunks behind each other
+    for no reason.  The environment is therefore read once, when the pool is
+    built.
     """
-    nt = n_threads()
-    if nt == 1 or n_rows < _THREAD_MIN_ROWS:
+    if n_rows < _THREAD_MIN_ROWS:
         fn(0, n_rows)
         return
-    per = -(-n_rows // nt)
-    futures = [_pool().submit(fn, lo, min(n_rows, lo + per))
+    pool = _pool()
+    if _POOL_WORKERS <= 1:
+        fn(0, n_rows)
+        return
+    per = -(-n_rows // _POOL_WORKERS)
+    futures = [pool.submit(fn, lo, min(n_rows, lo + per))
                for lo in range(0, n_rows, per)]
     for f in futures:
         f.result()
