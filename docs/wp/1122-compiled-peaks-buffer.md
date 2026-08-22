@@ -471,6 +471,99 @@ stretch (< 1 s cold) reported either way; never an Rwp comparison.
 
 ## Handover log
 
+### 2026-08-22 — the buffer is priced, and it misses what it was created for
+
+Reusing peak shapes — computing a few dozen exact profiles across the range
+and interpolating the rest — was measured on the compiled substrate that
+1114's NO-GO said to re-take it on. It would pay on patterns whose peaks are
+smeared by axial divergence: about 2.4× on the part of a fit that computes
+peak shapes, and 1.5× on the whole fit, for the one harness case shaped that
+way. It would not pay on the other three, which have to decline it rather
+than merely fail to benefit. And the target the WP was created for — a cold
+four-phase fit under a second — is out of reach whatever is built here,
+because peak-shape work is 55 % of that fit and removing **all** of it still
+leaves 2.6 s. So the recommendation is not to build the mode on this
+milestone's terms. The physics was never the problem, was not re-tested, and
+is not what failed; what failed is that the seam it attacks is too small a
+share of the remaining time.
+
+*Done.* The mailbox is consumed — all eight entries were still true (both
+blockers closed the same day) and none was stale, so they were folded into
+Context rather than dropped: the gate paragraph became a statement of where
+the cost stands, 1121's share table came with it, and 1123's shape for a
+declared-tolerance mode plus its caution against judging one on a chained
+series joined the honesty clauses. Then task 1: `examples/bench_compiled_buffer.py`,
+and § Findings 1-6.
+
+*Measured* (worktree `[dev]` venv — numpy 2.5.2, scipy 1.18.1, numba 0.67.0,
+no jax/torch — darwin/arm64, python 3.12.12, machine idle):
+
+- Harness, best of three: nac 0.34-0.35 s, cpd-1a 1.49-1.52 s, cpd-2
+  2.27-2.29 s, trigger cold **5.68-5.81 s**. 1123's figures reproduce.
+- Seams of the cold trigger fit (`bench_compiled_kernel.py --seams`, 5.75 s):
+  forward 22.1 %, bases 32.8 %, columns 30.3 % (`phase_peaks` 19.4 %,
+  `accumulate` 3.4 %), `compile_model` 3.0 %, solver 11.8 %. 1121's table,
+  re-measured rather than quoted.
+- Exact plane seam 2.03-3.88 ns per profile element (forward) and 4.96-6.84 ns
+  (bases); the buffered reconstruction 5.60-8.77 ns per (row, window point).
+- **Break-even is 2.78-4.16 FCJ images per window point.** The trigger's four
+  phases carry 7.79-7.87 and reach 1.89-2.81× each; every other family in the
+  harness carries exactly 1.00 and loses 3-7×.
+- Whole-fit projection with per-family selection: trigger 5.68 → 3.83 s
+  (**1.48×**), the other three unchanged. Amdahl ceiling **2.22×** (2.56 s).
+- Fast selection **2619 passed, 117 skipped in 1:55**, exit 0 — unmoved from
+  1123's closing count, which is right: this session added an example script
+  and documentation, and no test. No full-suite run, because nothing here can
+  move a measured number.
+- `ruff check src tests examples` clean; `tests/test_docs_consistency.py` 20
+  passed.
+
+*Gotchas for whoever comes next.*
+
+- **Two confounds have to be removed or the probe answers a different
+  question, and both flatter the buffer.** `compiled._spread` only engages
+  the thread pool above 512 rows and the exact path splits by FCJ *bucket*
+  while a reconstruction splits by row, so on the trigger's one 564-row phase
+  the first cut compared a threaded buffer against a serial exact path and
+  read 1.29× where the serial answer is 1.11×. Everything is now timed under
+  `RIETX_COMPILED_THREADS=1`; both sides are row-parallel over disjoint
+  outputs, so the pool multiplies them together and cancels. The other is the
+  anchor build: 1114's prototype builds it in numpy, and charging the buffer
+  for that against a compiled exact path reads 0.53-1.11× where the compiled
+  rate gives 1.89-2.81×. The probe reports both columns for this reason.
+- **The deciding quantity is not the tolerance.** It is images per window
+  point, which is why `img*` is a column: a family below break-even cannot pay
+  at any tolerance, with any kernel, at any anchor count, because building the
+  anchors then costs more exact elements than the whole exact evaluation does
+  (`vol×` 0.26-0.59 on the lab cases). A looser tolerance moves K, and K is
+  not what the cost is in.
+- **The harness cannot settle the beneficiary set, and this bounds the
+  finding.** cpd-1a and cpd-2 are lab geometries whose instrument leaves both
+  axial ratios at 0.0, so they compile no real quadrature, and nac is
+  synchrotron Debye-Scherrer. The harness therefore contains **no lab case
+  with FCJ actually on**, and a real Bragg-Brentano fit with declared axial
+  divergence would sit somewhere between 1 and the trigger's 7.8. Where it
+  falls decides whether the buffer would serve one simulated case or a class
+  of real ones, and answering it needs a dataset the harness does not have.
+- Three of the probe's volume figures reproduce numbers this WP's Context had
+  from an independent measurement — 1 125 778 elements per forward
+  evaluation, 34.6 window points per pattern point, 7.8× images — and the
+  reconstruction kernel agrees with 1114's numpy prototype to 4.3e-16. Both
+  were deliberate: a cost model that cannot reproduce a known volume is not
+  measuring the thing it names.
+
+*Next.* One decision, and it is the maintainer's, because it is milestone
+scope rather than measurement: **close 1122 🛑 on these numbers, or build the
+mode anyway** for 1.48× on FCJ-dense fits with the stretch target dropped.
+Nothing else in the WP can start before it — tasks 2-7 all presuppose the
+build. On a 🛑 close, three things follow in order: delete the (already
+consumed) `### Inherited` heading, rewrite ROADMAP's Current focus, and
+correct `milestones/v1.1.md`, whose stretch row still ties < 1 s to 1114's
+go/no-go — that row is now measured unreachable through this route and should
+say so rather than being quietly dropped. If instead the mode is built,
+§ Findings 4's break-even is the compile-time rule the per-family decision
+should use, and § Findings 3's caveats are the two ways to measure it wrong.
+
 - **2026-08-22** — created, at the maintainer's direction, to give the
   compiled-substrate option in 1114's design note an owner and the v1.1
   stretch target its one measured route. The exact-arithmetic road ends
