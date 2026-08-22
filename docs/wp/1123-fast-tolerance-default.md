@@ -256,6 +256,21 @@ magnitude and **not fixed in sign**. That is the finding, and it is stronger
 than either number — a single cold fit has no amplifier and was faster in both
 trees (8.67 → 6.57 s inside the series).
 
+*Verified* (merged tree, worktree venv `[dev]`, darwin/arm64, python 3.12.12):
+
+- **Full suite 2728 passed / 126 skipped in 22:23**, exit 0 — one run, on the
+  final tree, as the ladder asks.
+- **Fast selection 2619 passed / 117 skipped in 1:55.** The fast count moved
+  +9 against this session's own pre-merge measurement (2610/117): three
+  textdoc tests, two solver-seam, and four that came in with 1121.
+- `tests/test_acceptance_indexing.py` alone: **44 passed in 20:16** — run
+  before closing, as CLAUDE.md requires of anything an engine's plan touches,
+  and the rankings are unchanged.
+- `ruff` clean; `sphinx -W` clean; `npm test` 407 passed, `svelte-check` 0
+  errors.
+- Plots read rather than assumed: `tests/output/qarr_cpd-2.png` under the new
+  schedule is the same fit to the eye, Rwp 0.1329, difference curve flat.
+
 *Gotchas for whoever comes next.*
 
 - `sequential._collapse` builds the warm one-stage plan from the source plan
