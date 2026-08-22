@@ -108,7 +108,12 @@ VALUE_DIGITS = 12
 #:
 #: An added key is not a :data:`FORMAT_VERSION` bump, for the reason a new field
 #: on an event kind is not an ``EVENT_SCHEMA_VERSION`` bump: no line's *meaning*
-#: changed, and every document a previous build wrote still parses here.
+#: changed, and every document a previous build wrote still parses here.  The
+#: same reading covers a new plan-level *line* (WP-1123's ``tolerance``): the
+#: asymmetry it leaves — a document written here is refused by an older build,
+#: which does not know the keyword — is the one every added key already had,
+#: and a bump would instead refuse every document already stored, since the
+#: parser compares this constant for equality.
 STAGE_KEYS = tuple(k for k in StageSpec.model_fields
                    if k not in ("name", "turn_on"))
 #: The subset that must come back as ``int``.

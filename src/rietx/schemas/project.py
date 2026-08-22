@@ -42,7 +42,12 @@ from .plan import PlanSpec
 #: at all.  It would in fact die earlier than the check, on ``read_pattern``'s
 #: old signature; that is not fixable retroactively, and recording that the
 #: vocabulary grew is the part that is.
-PROJECT_FORMAT_VERSION = "1.1"
+#: ``1.2`` (WP-1123): the persisted plan gained ``intermediate_ftol``, so a
+#: project written here carries a key an older build's ``extra="forbid"``
+#: refuses.  Minor for the same reason 1.1 was: the major gate still opens
+#: every 1.x, nothing already written means anything different, and what the
+#: bump records is that the vocabulary grew.
+PROJECT_FORMAT_VERSION = "1.2"
 
 
 def check_interval(kind: str, lo: float, hi: float) -> None:
