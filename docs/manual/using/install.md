@@ -105,10 +105,14 @@ the file is read and the parameter table is built. The machine code is cached
 under `~/.rietx/numba-cache`, or under `$RIETX_STATE_DIR` if that is set.
 
 Numbers, not adjectives: the compiled and numpy paths agree to within one or two
-units in the last place. The accumulation is bit-for-bit identical, symmetric
-peaks are bit-for-bit identical, and peaks carrying the axial-divergence
-correction agree to about 1e-16 relative — a different summation order for the
-same quadrature, not a different model.
+units in the last place, everywhere and on every platform. The accumulation is
+bit-for-bit identical — it is multiplication and addition in a fixed order, with
+no library function in it. The peak shapes call `exp`, whose last bit belongs to
+whichever library provides it, so they land on the same doubles on some
+platforms and one part in 3e-17 away on others; peaks carrying the
+axial-divergence correction differ by about 1e-16 on all of them, a different
+summation order for the same quadrature. None of this is a different model, and
+none of it is visible in a refined parameter or its esd.
 
 ## Checking an install
 

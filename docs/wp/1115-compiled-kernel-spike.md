@@ -303,15 +303,28 @@ lower.
 
 **Three findings from building it that the prototype could not have shown.**
 
-1. **Bit-identity was available and the prototype's few-ulp result was an
-   artefact of my own transcription.** The two Ω spellings differ in exactly
-   one association — the forward computes `-4ln2·(x/Γ)²`, the bases
-   `((-4ln2)·u)·u` — and the Lorentzian is common to both, because `(4·u)·u`
-   and `4·(u·u)` are bit-equal (multiplying by a power of two is exact).
-   Transcribe each faithfully and numba's `math.exp` agrees with numpy's `exp`
-   bit for bit here, so symmetric rows land on the same doubles in window. FCJ
-   rows still differ at ≤ 4e-16 — a sequential node sum against `_node_mix`'s
-   matmul — which is WP-1112's bar, not a new one.
+1. **The prototype's few-ulp result was an artefact of its own transcription,
+   and the real bar is set by libm.** The two Ω spellings differ in exactly one
+   association — the forward computes `-4ln2·(x/Γ)²`, the bases `((-4ln2)·u)·u`
+   — and the Lorentzian is common to both, because `(4·u)·u` and `4·(u·u)` are
+   bit-equal (multiplying by a power of two is exact). Transcribe each
+   faithfully and symmetric rows land on the same doubles *on darwin/arm64*,
+   where numba's `math.exp` and numpy's `exp` agree bit for bit. **They do not
+   on Linux**, by ~3e-17 relative — measured by CI, after a round that failed
+   on exactly the tests this WP had just written the rule about. So the
+   contract is the rounding bar and the bit is asserted only where it holds,
+   the argument `test_backend_shim` already makes for its goldens. FCJ rows
+   differ at ≤ 4e-16 everywhere — a sequential node sum against `_node_mix`'s
+   matmul, WP-1112's bar and not a new one. The accumulation is bit-identical
+   on every platform, because no library function enters it.
+
+   A second-order consequence worth keeping: **on a platform where libm differs
+   by an ulp, a magnitude test cannot tell "used the other Ω spelling" from
+   "used the right one"** — the spelling gap and the libm gap are the same size
+   (2.87e-17 against 5.74e-17 on the fixture). The portable guard is structural
+   (the two spells must produce *different* output, which catches a kernel that
+   ignores the declaration, mutation-tested), and identity is checked where it
+   can be.
 2. **Declining while the background compile runs is the wrong shape.** It was
    the first one here: a residual that arrived before the kernels were ready
    ran numpy, a later one ran the kernels. That makes which path an evaluation

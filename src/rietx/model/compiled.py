@@ -43,12 +43,15 @@ The three rules this module is held to
    is **bit-identical** — multiplies and adds in the order ``np.bincount``
    performs them, with no library function in it, so the bar is the bit and
    ``tests/test_compiled_kernels.py`` asserts it.  The profile kernels call
-   ``exp``, which is libm's here and numpy's own SIMD routine there; they were
-   measured bit-identical on darwin/arm64 against numpy 2.5.2 and are held to
-   ≤ 1e-15 relative, the rounding bar WP-1112 set for FCJ rows.  The numpy
-   builder stays the oracle for bit-identity against the per-reflection loop
+   ``exp``, and **whose ``exp`` decides the last bit**: numba calls the C
+   library's, numpy its own vectorised routine.  Measured, they agree bit for
+   bit on darwin/arm64 against numpy 2.5.2 and miss by ~3e-17 relative on
+   Linux — so the contract is the rounding bar (≤ 1e-15, WP-1112's bar for FCJ
+   rows) and the bit is asserted only where it was measured.  The numpy builder
+   stays the oracle for bit-identity against the per-reflection loop
    (``tests/test_batched_forward.py``), which is why it has to remain a live,
-   exercised path and not merely dead fallback code.
+   exercised path and not merely dead fallback code — and why every test in
+   that file declares the numpy path rather than inheriting the default.
 
 Threading
 ---------

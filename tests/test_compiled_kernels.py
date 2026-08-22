@@ -8,13 +8,17 @@ Two things are checked here and they are different in kind.
   one — no library function enters the sum, so the two implementations perform
   the same IEEE operations in the same order and the assertion is on the raw
   bit pattern;
-* the **profile kernels** are bit-identical *in window* on symmetric rows and
-  agree to rounding on FCJ rows, where a sequential node sum replaces
-  ``_node_mix``'s matmul.  The pad tail is excluded from the bit assertion on
-  purpose: numpy reaches it by multiplying the computed value by ``mask``, so a
-  negative value lands on ``-0.0`` there while the kernel never writes it at
-  all, and nothing downstream can see the difference because the scatter drops
-  the pad.
+* the **profile kernels** agree to rounding — 1e-13 relative, WP-1112's bar —
+  and on symmetric rows they are bit-identical *where that was measured*.
+  Which is a property of the platform rather than of the code: numba calls the
+  C library's ``exp``, numpy its own vectorised routine, and the two agree bit
+  for bit on darwin/arm64 against numpy 2.5.2 and miss by ~3e-17 on Linux.  The
+  bit is therefore asserted only there, for the same reason
+  ``test_backend_shim`` pins its goldens to one platform.  The pad tail is
+  excluded from the bit assertion either way: numpy reaches it by multiplying
+  the computed value by ``mask``, so a negative value lands on ``-0.0`` there
+  while the kernel never writes it at all, and nothing downstream can see the
+  difference because the scatter drops the pad.
 
 **The contract**, which is the half a green arithmetic test would not notice: a
 build with no numba, or one with the tier switched off, must produce a working
@@ -31,6 +35,7 @@ a suite that runs under ``-n auto`` measures the machine, not the change.
 from __future__ import annotations
 
 import os
+import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -162,18 +167,35 @@ def _model(*, axial: bool):
     return model, table.decode(table.x0())
 
 
-def test_symmetric_rows_are_bit_identical_in_window():
-    """The kernel is a transcription, so on a symmetric row it must land on the
-    same doubles — which needs ``math.exp`` to agree with ``np.exp``, and it
-    does here.  In window only: see the module docstring on the pad tail."""
+def test_symmetric_rows_land_on_the_numpy_doubles():
+    """A symmetric row is a straight transcription, so the only thing that can
+    move it is ``exp``, and whether that moves it is a **property of the
+    platform, not of the code**.
+
+    numba calls the C library's ``exp``; numpy calls its own vectorised
+    routine.  Measured: they agree bit for bit on darwin/arm64 against numpy
+    2.5.2, and miss by ~3e-17 relative on Linux — which cost a CI round, and is
+    why the bar this test enforces everywhere is the rounding one.  The bit is
+    asserted only where it was measured, on the same platform and for the same
+    reason ``test_backend_shim``'s goldens are pinned to one: it is a real
+    property worth not losing silently, and it is not portable.
+
+    In window only, either way: see the module docstring on the pad tail.
+    """
     model, values = _model(axial=False)
     assert not any(np.any(cp.batch.fcj > 0) for cp in model.phases)
     got, want = _both(lambda: model.derivative_bases(values))
+    on_the_measured_platform = (sys.platform, platform.machine()) == ("darwin",
+                                                                     "arm64")
     for gp, wp in zip(got.planes, want.planes):
         inwin = gp.layout.mask > 0
         for name in ("omega", "d_pos", "d_gamma", "d_eta"):
-            a, b = getattr(gp, name), getattr(wp, name)
-            assert _bits_equal(a[inwin], b[inwin]), f"{name} moved in window"
+            a, b = getattr(gp, name)[inwin], getattr(wp, name)[inwin]
+            assert _rel(a, b) < 1e-15, f"{name} past the rounding bar"
+            if on_the_measured_platform:
+                assert _bits_equal(a, b), (
+                    f"{name} moved off the numpy bits on darwin/arm64, where "
+                    "they were measured identical — a transcription changed")
 
 
 def test_the_forward_and_the_bases_keep_their_separate_spellings():
@@ -181,9 +203,21 @@ def test_the_forward_and_the_bases_keep_their_separate_spellings():
 
     They are built by the same kernel under different ``spell`` flags, which is
     exactly the way to lose the distinction by accident — one shared code path
-    and one forgotten argument.  So the guard is not that each matches numpy
-    (the test above) but that the two still *disagree*, on the numpy path and
-    on the compiled one alike, and by the same amount.
+    and one forgotten argument.  Two guards, and the second is deliberately
+    platform-gated rather than dressed up as portable.
+
+    **That the two spells produce different output** is checkable anywhere and
+    catches the likeliest mistake, a forgotten argument leaving both callers on
+    one spelling.  **Which of them is which** cannot be established by
+    magnitude off the measured platform, and pretending otherwise would be the
+    weakest kind of green: the gap between the spellings is 1-2 ulp, and so is
+    the gap between numba's ``exp`` and numpy's, so on Linux "used the other
+    spelling" and "used the right one" are literally the same size — measured
+    at 2.87e-17 against a 5.74e-17 spelling gap, a factor of two.  On
+    darwin/arm64, where ``exp`` agrees, each compiled Ω is bit-equal to its own
+    numpy function and a swap is unmissable.  So that is where the identity is
+    asserted, on the same argument that pins ``test_backend_shim``'s goldens to
+    one platform.
     """
     model, values = _model(axial=False)
 
@@ -200,8 +234,11 @@ def test_the_forward_and_the_bases_keep_their_separate_spellings():
         "the numpy spellings stopped differing — this guard proves nothing"
     assert not _bits_equal(g_fwd, g_bas), \
         "the compiled kernel lost the spelling distinction"
-    assert _rel(g_fwd, w_fwd) == 0.0
-    assert _rel(g_bas, w_bas) == 0.0
+    if (sys.platform, platform.machine()) == ("darwin", "arm64"):
+        assert _bits_equal(g_fwd, w_fwd), \
+            "the compiled forward stopped reproducing pseudo_voigt"
+        assert _bits_equal(g_bas, w_bas), \
+            "the compiled bases Ω stopped reproducing _components"
 
 
 def test_fcj_rows_agree_to_rounding_on_every_plane():
