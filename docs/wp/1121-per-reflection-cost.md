@@ -151,6 +151,136 @@ whole seam is worth at most ~27 % of wall even if it went to zero. Against
 that, `phase_peaks` is 21 % at a ratio of 1.03× — untouched, and the only line
 where a first attempt is not competing with an already-compiled one.
 
+### 2 — lead 1 settled: the memo was thrashing on one axis, and only one
+
+The lead said a depth-1 cache "returns nothing while still paying for the key
+build". Instrumented over a whole trigger fit — `_memo` wrapped, each call
+classified hit / miss-on-a-new-key / miss-on-a-key-it-had-already-cached, the
+last being what a deeper cache would convert:
+
+| slot | lookups | hit % (depth 1) | with no bound | build |
+|---|---|---|---|---|
+| widths | 15 444 | 15.2 % | 27.9 % | 49.6 µs |
+| pos | 15 444 | 51.4 % | 69.0 % | 9.8 µs |
+| f2 | 15 444 | 73.5 % | 81.0 % | 145.3 µs |
+| cell / lp / abs / aniso | 15 444 each | 76.2 % | 83.1 % | 28.1 / 7.9 / 0.3 / 0.2 µs |
+| **column seam, all slots** | **108 108** | **63.6 %** | **72.9 %** | |
+
+**So the lead's mechanism is false as stated and true in a corner.** The memo
+answers two lookups in three, not none. Key building is 0.094 s over the whole
+fit — **1.0 % of wall** — so "paying for the key build" is not a cost anyone
+should have gone looking for. What is real is the 9.3 pp gap, worth **0.331 s
+(3.7 %)** as an upper bound at a free unbounded cache.
+
+**Depth 2 collects the part that exists, and depth 8 collects nothing more** —
+measured, byte for byte: 35 596 block builds either way, to the call. The
+alternation a Jacobian makes has exactly two arms (the expansion point and one
+perturbed state), and the lookups beyond them want a key last seen in an
+*earlier Jacobian*, thousands of lookups ago. Reading the unbounded figure as
+headroom is therefore the mistake, and the keys being decoded θ is why the
+unbounded cache is not an option: it grows one entry per parameter vector a
+fit visits. Landed at depth 2: **bit-identical** (nfev, njev and Rwp unmoved on
+all four cases), 0.3–0.5 % of wall.
+
+### 3 — lead 3: the one parameter that is exactly linear, and a census that over-read
+
+A per-family census of the column seam (9 675 columns, 15 444 `phase_peaks`
+calls, 1.60 per column) put `phases.N.scale` second at 0.295 s, 3.3 % of wall
+— odd for the one parameter that moves no position and no width. It is odd
+because it is an artefact: **a per-family timing census over a depth-1 cache
+charges each column for whatever its predecessor evicted**, so the scale
+columns were being billed for |F|² rebuilds (145 µs each) that a neighbouring
+cell column had caused. Removing the family does not remove that work, it
+moves it. Measured after the fact: `phase_peaks` fell 1.849 → 1.780 s, a fifth
+of what the census predicted. **Price a removal by removing it.**
+
+The change is still right, and on a better ground than speed. The scale enters
+`phase_peaks` once, in `base = scale · mult · |F|²`, and every factor after it
+is independent of it, so `∂y/∂scale = y_phase/scale` **exactly** —
+`_scale_column`, the peer of `_po_column` and of the Pawley aux block. The
+equivalence bar is therefore not bit-identity but *exactness*, and the check
+that establishes it is not an FD in θ:
+
+| reference | agreement |
+|---|---|
+| difference quotient in **physical** space, 100 % step | **3.6e-16** |
+| …same, 1 % step | 3.5e-14 |
+| …same, 0.01 % step | 2.9e-12 |
+| central FD in θ (O(h²)) | 1.4e-7 |
+| forward FD in θ — *the column being replaced* | 4.6e-6 |
+
+The error growing as the step shrinks is cancellation, and it is the signature
+of a function that is exactly linear. **A θ-space FD is the wrong reference
+here**: the scale is a softplus of θ, so the whole-model FD makes the same
+O(h) transform-curvature error as the peak-chain FD and certifies it at 2e-11
+while both are 4.6e-6 from the truth. `scale == 0` is fenced to the FD path —
+softplus underflows to exactly 0.0 and the expression is 0/0 there, root
+CLAUDE.md's "a bug wherever the physics divides".
+
+Measured, best-of-3, `[dev]` venv, darwin/arm64, python 3.12.12 — scale column
+and depth-2 memo together:
+
+| case | before | after | ratio |
+|---|---|---|---|
+| nac | 0.40 | 0.38 | 1.05× |
+| cpd-1a | 2.18–2.20 | 2.04–2.05 | 1.07× |
+| cpd-2 | 3.64–3.76 | 3.38–3.41 | 1.08× |
+| trigger | 8.81–8.89 | 8.70–8.72 | 1.02× |
+
+Largest where there are most phases, which is what a per-phase column family
+should give. Rwp moves in the fourth decimal on cpd-2 and is **not** offered as
+evidence for any of it.
+
+### 4 — the mechanism, named: this seam is dispatch-bound and the plane seam is not
+
+The finding to carry forward, and it inverts WP-1115's. That gate asked
+whether python dispatch was the plane kernels' cost and measured it **noise**:
+200–400 µs calls on ~10⁵-element planes, 2–4 ns an element. The per-reflection
+blocks run on the *reflection* axis, and the trigger's four phases hold **98,
+282, 112 and 98 reflections — 594 in total**:
+
+| block | µs per 4-phase rebuild | ns per reflection |
+|---|---|---|
+| `f2` | 619 | 1042 |
+| `widths` | 210 | 354 |
+| `cell` | 100 | 169 |
+| `pos` | 45 | 76 |
+| a call with **every slot hitting** | 334 | 562 |
+
+That last row is the one that names the mechanism: a `phase_peaks` call that
+builds *nothing* still costs 562 ns per reflection. These are chains of tens of
+numpy calls over arrays of a hundred-odd elements, where per-call overhead
+dominates and the array length barely enters — **two to three orders of
+magnitude off the plane seam's cost per element**. It is why 1115's compiled
+tier bought 11.0× on the scatter, ~2× on the two profile kernels, and **1.03×
+here**: fusion and threading pay where there is a plane to fuse, and this seam
+has none.
+
+So the per-reflection front is not "the same work, unfused". It is a different
+regime, and the lever in it is *fewer, larger numpy calls* — or compiled code
+that does not dispatch at all — rather than a better plane kernel.
+
+### 5 — where the trigger fit's time is after this WP
+
+`--seams`, compiled tier, wall 8.70–8.72 s. Everything measured above, in one
+place, as the remainder [1122](1122-compiled-peaks-buffer.md) starts from:
+
+| seam | share | absolute | what it is |
+|---|---|---|---|
+| jacobian: bases | 32.8 % | 2.91 s | plane work, ~2× off its numpy floor (1115) |
+| residual (forward) | 22.2 % | 1.97 s | plane work, same |
+| jacobian: columns | 31.6 % | 2.78 s | |
+| — perturbed `phase_peaks` | 20.2 % | 1.78 s | **per-reflection, dispatch-bound** |
+| — plane accumulation | 3.6 % | 0.32 s | compiled, 11× already |
+| — `table.decode` | 3.2 % | 0.28 s | one full decode per column, for a one-entry change |
+| — FD arithmetic + gather | 3.7 % | 0.32 s | |
+| solver + runner | 10.5 % | 0.92 s | scipy TRF |
+| `compile_model` | 2.0 % | 0.18 s | 8 stage compiles |
+
+Inside the 1.78 s of `phase_peaks`: **1.36 s block builds, 0.09 s key builds,
+0.29 s the per-line intensity assembly** that runs on every column including
+the ones that cannot move an intensity.
+
 ## Tasks
 
 - [x] **Re-measure the decomposition on the shipped tier** — § Findings 1.
@@ -160,17 +290,27 @@ where a first attempt is not competing with an already-compiled one.
       ran. Switching it on also surfaced a live race in `_redirect_cache`
       (`warm` imports numba on a thread; a first `enabled()` found the module
       half-built), fixed with a regression test.
-- [ ] **Instrument the scalar-memo hit rate** per slot over one trigger
-      Jacobian, and settle lead 1 with a number. A depth-1 cache that never
-      hits is a different fix from one that hits 90 % of the time.
-- [ ] Attack whichever lead the measurement supports; equivalence bar stated
-      and asserted per 1112/1115's pattern (bit-identity where no library call
-      enters, the rounding bar where one does).
+- [x] **Instrument the scalar-memo hit rate** — § Findings 2. It hits 63.6 %
+      of the time in the column seam, so the lead's "returns nothing" is
+      false; the fixable part is one alternation, landed as a depth-2 memo,
+      bit-identical. Depth 8 builds exactly the same blocks as depth 2.
+- [x] Attack whichever lead the measurement supports — two landed, each with
+      its bar stated and asserted. The depth-2 memo is **bit-identical**
+      (§ Findings 2). `_scale_column` is **exact** where the FD it replaces was
+      not, so its bar is agreement with a difference quotient that has no
+      truncation error rather than bit-identity (§ Findings 3), and a converged
+      fit moves. Together 1.02–1.08× across the four cases.
 - [ ] **The preset flip is a decision, not a task** — put 1113's priced
       numbers to the user with this WP's own result beside them, since the two
       multiply.
-- [ ] Tests (unit/property; the cross-backend configs grow whenever a
-      derivative path does) + obs/calc/diff PNGs to `tests/output/`.
+- [x] Tests + PNGs. Five new: three step sizes of the scale column's
+      exactness and the `scale == 0` fence (`test_jacobian.py`), the two-arm
+      alternation and the bound that stops it growing (`test_scalar_memo.py`);
+      each was made to fail on the code it guards before landing. No new
+      cross-backend config: `capillary_offsets` already frees
+      `phases.0.scale`, so the matrix covers the new branch — and its `fd`
+      row, which needs no optional backend, passed. `tests/output/wp1121_*.png`
+      for all four cases plus zooms, inspected.
 - [ ] If the cold target is still missed after all of it, **say so with the
       measured remainder** and name what would be needed. A milestone target
       missed and explained is a result; missed and quietly re-scoped is not.
