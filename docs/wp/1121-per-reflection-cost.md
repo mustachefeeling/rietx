@@ -95,6 +95,17 @@ compiled kernel still misses. It does still miss. That is a real option here
 and 1114 § Findings 3–4 list the three accuracy traps and the cache-keying bug
 any implementation re-hits first).
 
+### Inherited
+
+- **From the 2026-08-22 session that opened 1122** (maintainer-directed):
+  the compiled peaks buffer this file's fences call "a real option here"
+  now has its own WP, [1122](1122-compiled-peaks-buffer.md), gated on this
+  WP's closing measurement — do not build the buffer here. If the cold
+  target is still missed after this WP's leads and the preset decision,
+  close by pushing the measured remainder — which seams survive, at what
+  absolute cost per evaluation — into 1122's `### Inherited`; its task 1
+  starts from exactly that.
+
 ## Non-goals
 
 A fourth backend; GPU; a sixth plane kernel (that seam is done — 1115 § The
