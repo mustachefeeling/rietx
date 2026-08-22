@@ -133,7 +133,7 @@ def fap_inputs():
 
 def _gsas_protocol_plan() -> rx.RefinementPlan:
     """The parameter set GSAS refined for this tutorial (see module docstring)."""
-    return rx.RefinementPlan(stages=[
+    plan = rx.RefinementPlan(stages=[
         rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
         rx.Stage("disp", ["instrument.geometry.sample_displacement"]),
         rx.Stage("cell", ["phases.*.cell.*"]),
@@ -141,6 +141,13 @@ def _gsas_protocol_plan() -> rx.RefinementPlan:
         rx.Stage("axial", ["instrument.geometry.axial_sl"]),
         rx.Stage("biso", ["phases.*.atoms.*.biso"]),
     ])
+    # WP-1123: the shipped convergence schedule, named rather than inherited.
+    # Every stage but the last stops at 1e-6 and the last at the solver's own
+    # 1e-9, which is what a user's own run does — so these numbers are the
+    # ones the package actually produces.  None here would converge every
+    # stage; measured cost of the schedule on this protocol is <= 0.02 esd.
+    plan.intermediate_ftol = 1e-6
+    return plan
 
 
 @pytest.fixture(scope="module")

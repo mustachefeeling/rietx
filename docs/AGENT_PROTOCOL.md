@@ -1065,7 +1065,7 @@ about high-symmetry lattices until the corpus moves — post-v1 by scope call.
 
 ---
 
-## 8. Nineteen things that will surprise you, all measured
+## 8. Twenty things that will surprise you, all measured
 
 These are the findings from building the package that change how an agent
 should behave. Each one cost a debugging pass.
@@ -1347,6 +1347,25 @@ coordination is wrong, §8 of the paper says the refinement "will not progress
 satisfactorily", and raising c_w makes that worse rather than better.
 `RestraintReport.weight_scale` records which value produced a report, so the
 penalty actually minimised is `weight_scale · restraint_chi2`.
+
+**8.20 Intermediate stages are not converged, on purpose, and the last one is.**
+A staged plan stops every stage but the last at `ftol = 1e-6` rather than the
+solver's `1e-9` (`RefinementPlan.intermediate_ftol`, default since 1.1). The
+reason is 8.13's mechanism seen from the other side: those long stages are
+walking a near-degenerate direction at ≈0.93 per iteration, and 99.99 % of the
+cost decrease is banked by evaluation 55 of 93 — the rest is digits the next
+stage refines again anyway, because stages are cumulative and the last one
+polishes everything at `1e-9`. Measured over the three lab-shaped benchmark
+cases: 1.50×, 1.71× and 1.54× fewer evaluations, every non-degenerate parameter
+within 0.02 esd of the fully converged plan, QPA within 0.003 wt %.
+**Corollary for the agent, in three parts.** Do not read a small parameter
+difference between a 1.0.x number and a 1.1 number as a physics change; check
+`StageResult.ftol` first. Set `intermediate_ftol = None` when a number is going
+into a paper, or when you are reproducing an earlier release, and say that you
+did. And do not assume it pays on a **series**: a chained ten-pattern run
+measured 1705 evaluations against 1634 fully converged, because each pattern
+warm-starts from its predecessor and a different seed changes how many recovery
+rungs the next one needs (§9b).
 
 ---
 

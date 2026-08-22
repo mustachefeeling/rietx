@@ -85,12 +85,19 @@ globs a stage freed or a `set_vary` changed. `NodeAction.values` is what
 `set_values` was called with. `NodeAction.ties` and `NodeAction.untied` are what
 a tie edit declared and removed.
 
-A stage records its five solver settings as well: `NodeAction.max_iter`,
-`NodeAction.lebail_cycles`, `NodeAction.seed`, `NodeAction.strain_seed` and
-`NodeAction.restraint_weight_scale`. They are there because
+A stage records its solver settings as well: `NodeAction.max_iter`,
+`NodeAction.lebail_cycles`, `NodeAction.seed`, `NodeAction.strain_seed`,
+`NodeAction.restraint_weight_scale`, `NodeAction.ftol` and
+`NodeAction.window_slack_deg`. They are there because
 `Refinement.cherry_pick` rebuilds a `Stage` from this action and runs it
 somewhere else. A setting missing here would be a stage that replays as a
 different stage from the one recorded.
+
+`NodeAction.ftol` records the tolerance the stage was solved at, which is not
+always the one it declared: a stage taking the plan's schedule
+(`RefinementPlan.intermediate_ftol`, see [](refining.md)) declares nothing and
+still stops at `1e-6`, so a node holding `None` would replay the one thing the
+original run did not do.
 
 `NodeAction.api_call` renders the node as the public call that would repeat it,
 so a log reads as a session script:

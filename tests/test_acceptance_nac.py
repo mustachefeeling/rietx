@@ -91,6 +91,12 @@ def nac_rietveld(nac_inputs, nac_lebail):
 
     plan = rx.RefinementPlan.mccusker_default()
     plan.stages.append(rx.Stage("biso", ["phases.*.atoms.*.biso"]))
+    # WP-1123: the shipped convergence schedule, named rather than inherited.
+    # Every stage but the last stops at 1e-6 and the last at the solver's own
+    # 1e-9, which is what a user's own run does — so these numbers are the
+    # ones the package actually produces.  None here would converge every
+    # stage; measured cost of the schedule on this protocol is <= 0.02 esd.
+    plan.intermediate_ftol = 1e-6
     ref = rx.Refinement(structure2, instrument2)
     return ref, ref.fit(data, plan=plan, two_theta_limits=LIMITS)
 
