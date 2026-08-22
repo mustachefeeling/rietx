@@ -814,7 +814,8 @@ row covers it. Apple-GPU execution is *slower* than numpy (46-182×,
 launch-latency-bound): `torch-mps` buys precision validation, not speed (the v0.4
 record). Also since v0.4: true Voigt (`shape="voigt"`, TCHZ still the default),
 soft restraints, the Bérar-Lelann esd inflation. v2 fence: FPA, neutron/TOF,
-spherical-harmonics texture, MCP server.
+spherical-harmonics texture, MCP server — and the **peaks buffer with FPA**,
+never before: shape reuse needs > 2.8-4.2 FCJ images a window point (WP-1122).
 
 Key test data (provenance + every reference value in `tests/data/README.md`):
 - `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +

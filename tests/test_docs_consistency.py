@@ -222,7 +222,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # requires: the harness table and the esd shifts are in the WP's handover
     # and the v1.1 record, the trade in docs/manual/using/refining.md, the
     # decision beside the numbers it produced in tests/validation_matrix.py.
-    "CLAUDE.md": 833,
+    # 833 -> 834 for WP-1122 (2026-08-22): one line, extending a fence that is
+    # already here.  The peaks buffer is now behind FPA rather than merely
+    # unbuilt, and the clause carries the measured reason a session cannot
+    # re-derive cheaply — shape reuse needs more FCJ images a window point than
+    # any symmetric family has, so a re-attempt without FPA repeats 1114's and
+    # 1122's no-go.  The measurements went down a rank as rule 4 requires: the
+    # break-even table, the Amdahl share and the two ways to mis-measure it are
+    # in the WP's § Findings and the v1.1 record's narrative.
+    "CLAUDE.md": 834,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one

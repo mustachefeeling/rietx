@@ -1,6 +1,6 @@
 # WP-1122 — compiled peaks buffer: the declared-tolerance tier
 
-Milestone: v1.1 · Status: 🔄 2026-08-22 — task 1 measured: NO-GO recommended on v1.1's terms (§ Findings 6), close is the maintainer's call
+Milestone: v1.1 · Status: 🛑 2026-08-22 — NO-GO on v1.1's terms; deferred to be built **with FPA**, which is what moves the break-even
 Depends on: 1115 (the substrate and its rules), 1121 (the gate: its closing
 remainder prices this WP)
 
@@ -470,6 +470,54 @@ stretch (< 1 s cold) reported either way; never an Rwp comparison.
 - WP-1121 — the gate; WP-1113 § Findings — the multiplying flip.
 
 ## Handover log
+
+### 2026-08-22 (2nd session) — closed 🛑, and handed to FPA rather than shelved
+
+The maintainer's decision on § Findings 6: **do not build the mode, and build
+it at the same time as FPA.** That is a different answer from 1114's shelf,
+and a better one. What this WP measured is not that shape reuse fails but
+that it needs a point to be computing the same shape several times over
+before it can pay, and the thing that will make that true across the board is
+fundamental-parameters peak shapes, which are v2-fenced. So the buffer stops
+being a speed WP looking for a case and becomes a component of the FPA work,
+where the arithmetic it removes is the arithmetic FPA adds.
+
+Nothing was built, and nothing here needs unbuilding: the only code this WP
+added is a benchmark (`examples/bench_compiled_buffer.py`), production code
+is untouched, and the exact path is the only forward mode the package has.
+
+*What closing this settles.*
+
+- **v1.1's stretch target is unreachable and is now recorded as such**, not
+  quietly dropped. Under 1 s cold needed the plane seam gone, and the plane
+  seam is 54.9 % of the fit, so zero cost there still leaves 2.56 s. The
+  milestone's two *gating* targets are unaffected by this close; the stretch
+  row in `milestones/v1.1.md` now says what was measured and what it waits on.
+- **The break-even is the durable result**, and it is what a future session
+  needs: 2.8-4.2 FCJ images per window point, below which no tolerance, kernel
+  or anchor count can make the buffer pay, because the anchor build alone then
+  costs more exact elements than the whole exact evaluation. It is stated in
+  root CLAUDE.md § Backends beside the fence so that re-opening this needs a
+  reason rather than an oversight.
+- **The physics half stays proven and stays 1114's.** K ≤ 32 anchors at 1e-4
+  on every case and both states, and this WP's reconstruction kernel agreeing
+  with that prototype to 4.3e-16, are the two halves of "the design works".
+  An FPA session inherits both and re-derives neither.
+
+*Gotchas for the FPA session that picks this up.* All of § Findings still
+applies, and three parts of it are what that session should read first:
+Findings 4 for the break-even and why the tolerance is not the deciding
+variable; Findings 3 for the two ways to measure this wrong, both of which
+flatter the buffer (the thread-pool threshold, and pricing a numpy anchor
+build against a compiled exact path); and Findings 5's caveat, which is the
+one open measurement — the harness holds no lab case with FCJ actually on, so
+where a real Bragg-Brentano fit sits against the break-even is still unknown,
+and under FPA that question changes shape anyway.
+
+*Next.* Nothing on this WP; it is closed. The buffer is now a component of
+the v2 FPA work (root CLAUDE.md § Backends, ROADMAP's v2+ row), and the
+design it would start from is [1114](1114-peaks-buffer-spike.md)'s note plus
+this file's § Findings.
 
 ### 2026-08-22 — the buffer is priced, and it misses what it was created for
 
