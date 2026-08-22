@@ -57,6 +57,13 @@ The profile spelling is the caller's, here as everywhere: the forward kernel
 reproduces ``pseudo_voigt`` and the bases kernel reproduces ``_components``,
 which are deliberately 1-2 ulp apart (root CLAUDE.md § Conventions).  A
 fused kernel that borrowed the other one would move every converged fit.
+
+**This script switches the shipped tier off** (``compiled.set_enabled(False)``,
+below the imports).  It is the prototype harness the WP-1115 decision was taken
+on, so its "numpy" column has to be numpy; left alone it would now be the
+shipped kernels measuring themselves and every ratio would read 1.0×.  What
+the *shipped* tier is worth is a different measurement and belongs to
+``bench_refinement.py``, run twice with and without ``RIETX_COMPILED=0``.
 """
 
 from __future__ import annotations
@@ -76,6 +83,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import rietx as rx  # noqa: E402
+from rietx.model import compiled  # noqa: E402
 from rietx.model.forward import (  # noqa: E402
     CompiledModel,
     accumulate_planes,
@@ -85,6 +93,9 @@ from rietx.model.profiles.fcj import fcj_offsets_weights_batch  # noqa: E402
 from rietx.model.profiles.pseudovoigt import pseudo_voigt_derivs  # noqa: E402
 from rietx.optimize import least_squares as lsq  # noqa: E402
 from rietx.params.vector import ParameterTable  # noqa: E402
+
+# the "numpy" column must be numpy: see the docstring's last paragraph
+compiled.set_enabled(False)
 
 _SQRT_LN2_PI = math.sqrt(math.log(2.0) / math.pi)
 _4LN2 = 4.0 * math.log(2.0)
@@ -390,7 +401,8 @@ def bench_kernels(reps: int) -> int:
 
         def np_path(r=r, lay=lay):
             omega = model._omega_batch(lay, r["pos"], r["gam"], r["eta"],
-                                       r["finite"], sl, hl, model._profile)
+                                       r["finite"], sl, hl,
+                                       compiled.SPELL_FORWARD)
             return accumulate_planes(npts, [(lay, [(r["inten"], omega)])])
 
         def nb_path(r=r):
