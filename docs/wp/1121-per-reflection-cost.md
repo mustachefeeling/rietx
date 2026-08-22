@@ -416,8 +416,11 @@ stated per landed change, and never an Rwp comparison as evidence.
   the memo hit rates, the exactness sweep and the per-reflection cost per
   element are § Findings 1–5; § Findings 6 is the closing statement.
   Fast suite **2614 passed / 117 skipped** (was 2607 / 117): seven tests
-  added, all seven passes, no new skip. Full suite run once on the final code
-  tree — see the § Handover note below for its result.
+  added, all seven passes, no new skip. Full suite, once on the final tree,
+  **2723 passed / 126 skipped** in 24:20 — the same +7, all passes, and the
+  skip count unmoved, which is the check that none of the seven arrived as a
+  skip on a venv without jax or torch. ruff clean; CI green on all six
+  required checks (run 32571684487, 12m25s).
 
   **Gotchas the successor should not re-learn.** A per-family timing census
   over a depth-1 cache charges each column for whatever its predecessor
