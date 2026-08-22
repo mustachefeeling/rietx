@@ -259,28 +259,30 @@ available at that point.
 
 ### 3 — the bound, measured on both cases (2026-08-22)
 
-`first_rung_factor=2.0`, `bench_refinement.py`, all four rows in one process:
+`first_rung_factor=2.0`, `bench_refinement.py`, all four rows in one process.
+**These are the final-rule numbers**; § Findings 6 has the half of the rule that
+was refuted between the first measurement and this one, and why its figures
+(1183 nfev, 1.36×) do not stand.
 
 | case | wall (s) | nfev | njev | Rwp | escalations | discarded |
 |---|---|---|---|---|---|---|
-| `cpd-series` | 4.70-4.73 | 627 | 449 | 0.12586 | 0 | — |
-| `cpd-series-bounded` | 4.73-4.79 | **627** | **449** | 0.12586 | 0 | — |
-| `trigger-series` | 57.41-57.85 | 1603 | 1315 | 0.01943 | 2 | 33.07 s (57 %) |
-| `trigger-series-bounded` | 42.0-48.1 | **1183** | **924** | 0.01943 | 2 | 19.00 s (40 %) |
+| `cpd-series` (bounded, the shipped default) | 4.68-4.83 | **627** | **449** | 0.12586 | 0 | — |
+| `cpd-series-unbounded` (pre-1127) | 4.69-4.73 | 627 | 449 | 0.12586 | 0 | — |
+| `trigger-series` (bounded) | **46.49-46.65** | **1331** | **1072** | 0.01943 | 2 | 21.88 s |
+| `trigger-series-unbounded` (pre-1127) | 57.22-57.42 | 1603 | 1315 | 0.01943 | 2 | 32.84 s |
 
-**Trigger: 1.36× fewer evaluations (1603 → 1183) and 1.42× fewer Jacobians**,
-for 1.25-1.42× of wall depending on the run — three separate processes measured
-the same pair at 1.42×, 1.42× and 1.25×, which is why the counts lead. Both
-escalations survive; what changed is only what the losing rung was allowed to
-spend. Pattern 1's first rung went 400 → **252** evaluations (the cold bound, no
-accepted first rung behind it yet) and pattern 6's 400 → **128** (2 × the most
-expensive accepted first rung, 64). Every other pattern's iteration count is
-unchanged, to the evaluation.
+**Trigger: 1.20× fewer evaluations (1603 → 1331), 1.23× fewer Jacobians, 1.23×
+of wall.** Both escalations survive; what changed is only what the losing rung
+was allowed to spend. Pattern 6's first rung went 400 → **128** evaluations
+(2 × the most expensive accepted first rung, 64); pattern 1's stays at 400,
+because it is the first warm pattern and the chain has no evidence yet about
+what a working first rung costs on this model. Every other pattern's iteration
+count is unchanged, to the evaluation.
 
-**And 1183 beats the better fixed mode.** `refit="stages"` on this case is 1253.
-So the bounded collapse is now the cheapest of the three by the deterministic
-read-out, which is the outcome § Findings 2 predicted from the ceiling and did
-not assume.
+**1331 does not beat the better fixed mode**: `refit="stages"` on this case is
+1253. The bound improves whichever mode it is in — 1603 → 1331 under `"single"`,
+inert under `"stages"` — but it does not close the gap that choosing the mode
+would. See § Findings 7 for what that does to the pre-registered clause 1.
 
 **`cpd-series` is bit-identical** — same nfev, same njev, same Rwp, same
 per-pattern iteration counts. That is the design working rather than a lucky
@@ -293,18 +295,18 @@ where they all work it is never reached.
 
 | read-out | `trigger` | `cpd` |
 |---|---|---|
-| evaluations vs unbounded | 1603 → 1183 (**1.36×**) | 627 → 627 (1.00×) |
+| evaluations vs unbounded | 1603 → 1331 (**1.20×**) | 627 → 627 (1.00×) |
 | escalations / quarantined | 2 → 2 / 0 → 0 | 0 → 0 / 0 → 0 |
 | diagnostics added | **none** | **none** |
 | accepted entries not `converged` | **none** | **none** |
 | accepted values that differ at all | **0 of 1030** | **0 of 392** |
 | agreement outside the width family | 0.000 esd | 0.000 esd |
-| `direction="both"` nfev | 3325 → 2433 (1.37×) | 2839 → 2042 (1.39×) |
+| `direction="both"` nfev | 3325 → 2717 (1.22×) | 2839 → 2042 (**1.39×**) |
 | `SEQUENTIAL_PATH_DEPENDENT` | absent → **absent** | absent → **absent** |
 
-**All four clauses are silent, and the equivalence is stronger than clause 3
+**Clauses 2, 3 and 4 are silent, and the equivalence is stronger than clause 3
 asked for: the answers are bit-identical, not merely within 0.25 esd.** Every
-accepted value of every pattern, on both cases.
+accepted value of every pattern, on both cases. Clause 1 is § Findings 7.
 
 That is not luck either, and the mechanism is worth stating because it is what
 makes the bound safe: **the bound only ever truncates a rung whose result is
@@ -337,10 +339,10 @@ a corner, it is what two rungs from the same warm state can genuinely reach.
 `_prefer` now ranks a truncated attempt below any that ran to completion, and
 `_better` decides only between two attempts in the same state. **It cost
 evaluations, and the cost is the honest one**: `cpd` under `direction="both"`
-went 1908 → 2042 (+7 %) when it landed, one commit apart on the same tree, which
-means the backward pass had been keeping a truncated fit. Nothing else changed,
-and `_prefer` is the only thing that can change a rung sequence by changing
-which attempt the fence is asked about. Every forward number above is unmoved.
+went 1908 → 2042 (+7 %) when it landed, one commit apart, which means the
+backward pass had been keeping a truncated fit. Nothing else changed, and
+`_prefer` is the only thing that can change a rung sequence by changing which
+attempt the fence is asked about. Every forward number was unmoved.
 
 A first rung that hits the **plan's own** budget is untouched by any of this and
 is still kept if nothing beats it, which is what the shipped ladder has always
@@ -348,6 +350,57 @@ done — pinned by the second half of
 `test_a_bounded_first_rung_that_spends_its_bound_escalates`, so the escalation
 this WP adds is attributable to the bound and not to a change of policy on
 `max_iter`.
+
+### 6 — the cold bound was the other half of the rule, and it was false
+
+The bound shipped in § Findings 3 is one rule. It was designed as two, and the
+second is worth recording because it is the more tempting of the pair: **"a warm
+refit that costs more than the cold fit it started from is not a warm refit"**.
+It needs no constant, and — unlike the accepted-rung bound — it is available to
+the *first* warm pattern, which is one of the two that escalate on
+`trigger-series`. With it, that pattern's first rung was cut 400 → 252 and the
+case measured **1183 nfev, 1.36×**, beating `refit="stages"`'s 1253.
+
+**It is false, and the test suite refuted it before the harness could.**
+`_collapse` of a *one-stage* plan is that plan, so for a short plan the cold fit
+and the collapsed warm rung are the same problem from different starting points,
+and a warm start from a neighbouring pattern can legitimately want *more*
+evaluations than a cold start from the initial model. Measured on
+`tests/test_sequential.py`'s own cheap plan: **cold 9 evaluations, warm 14**, so
+the cold bound cut a rung that was about to succeed and two unrelated event-
+stamp tests went red.
+
+Three things to take from it. The rule survived both real harness cases only
+because a multi-stage cold fit sums to several times a collapsed rung (252
+against 25-107) — **a property of those plans, not of the rule**, and no factor
+repairs it: the toy needs ≥ 1.56 × cold to be safe and the trigger case needs
+≤ 1.0 × cold to be useful. A **one-parameter toy plan was a better adversary
+than either real case**, which is the opposite of the usual expectation and is
+why the fast suite ran before the flip rather than after. And the surviving
+bound is the one derived from the quantity it bounds — what a *working first
+rung* costs — which is the form to keep when the next such rule is proposed.
+
+The same measurement retired a second, quieter flaw: a first rung kept at the
+plan's own cap reports `"max_iter"`, and it was entering the evidence sample at
+full budget, which would have raised the bound to twice the cap and switched it
+off from then on. "Worked" is now convergence, not survival.
+
+### 7 — clause 1, read as it was written, fires on `trigger`
+
+Pre-registered: *"It costs whole-chain evaluations against the better of the two
+fixed modes on that case."* On `trigger` the bounded chain is **1331** and the
+better fixed mode, `refit="stages"`, is **1253**. Read literally, the clause
+fires. It is recorded that way rather than reinterpreted, because a criterion
+corrected after the data is in cannot be told from a moved goalpost
+(`tests/CLAUDE.md` § An eval's expected answer is a measurement).
+
+What the clause was for, and where it mis-fits: it was written for a rule that
+**chooses** the first rung — lever B's shape, refuted in § Findings 2 — where
+"worse than just picking the right mode" is the failure to guard against. The
+bound chooses nothing. It prices whichever mode the caller picked: 1603 → 1331
+under `"single"`, inert under `"stages"`, bit-identical on both cases' answers.
+So it makes no chain worse, and the gap to 1253 is the *mode* choice, which is
+still unowned and still adaptive-or-nothing for WP-0505's reason.
 
 ## Tasks
 
