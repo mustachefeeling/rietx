@@ -414,6 +414,20 @@ The suite has them for four known specimens; a user's own sample gets none.
 |---|---|---|---|
 | [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | ⬜ | — |
 
+### Unscheduled — the specimen is not an angle (added 2026-08-23)
+
+Sample broadening is stored as a deg-2θ coefficient and shared across histograms
+as though it were a specimen property. For strain it is one (λ-free, measured
+bit-clean). For **size it is not**: the same crystallite broadens by a different
+angle at a different wavelength, so one shared column serves the fixture's two
+histograms values **1.717× apart** and lands +12.5 % / −34.5 % from truth at
+Rwp 0.0850 → 0.2179, reporting `converged`. Under it, the package has never
+converted any of these coefficients to a size or a strain at all.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1131](wp/1131-sample-broadening-is-a-specimen-property.md) | Sample broadening is a specimen property, not an angular coefficient | ⬜ | — |
+
 ## v2+ (seams pre-built, implementations fenced out)
 
 Fundamental Parameters Approach as a differentiable convolution stack

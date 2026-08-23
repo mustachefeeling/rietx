@@ -92,6 +92,23 @@ formats need their own arm, and the meta-test that fails on a registry member
 missing from its arm applies unchanged. A new format token is spelled in
 `_about.py`, never inline (root CLAUDE.md § Conventions).
 
+### Inherited
+
+- **2026-08-23, from [1131](1131-sample-broadening-is-a-specimen-property.md):
+  rietx has no constant Lorentzian instrument term, so a GSAS-II profile cannot
+  round-trip.** GSAS-II's CW Lorentzian is `γ = X/cosθ + Y·tanθ + **Z**`;
+  `ProfileTCHZ` declares exactly `u, v, w, x, y` and no sixth term
+  (`schemas/instrument.py:507-543`, and `params/vector.py:489` and `:953` both
+  hard-code that five-name tuple). An `.instprm` with a nonzero `Z` therefore has
+  nowhere to land, and the honest reader behaviour — carry it or refuse it by
+  name — is this WP's call, not a physics question: Von Dreele's own teaching
+  slide says `X, Y, Z = 0` is normal and that 11-BM has them zero, so `Z` earns
+  a schema field for round-tripping and not for modelling. 1131 fenced it here
+  explicitly rather than folding it in. Note also, for the same reader, that
+  rietx's `profile.x` is the 1/cosθ (size) coefficient and matches GSAS-II's `X`
+  by law, while TOPAS's `pkx`/`pky` map to rietx's `y`/`x` and **not** by letter
+  (measured in WP-1130).
+
 ## Non-goals
 
 - **Not a TOPAS-compatible engine.** No macro language, no `prm` expression

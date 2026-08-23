@@ -290,7 +290,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # are_a_bijection makes an index row the one line a new WP cannot demote —
     # and Current focus was not touched at the opening, because the front it
     # takes over is already named there in WP-1124's closing sentence.
-    "docs/ROADMAP.md": 459,
+    # 459 -> 473 for WP-1131 (2026-08-23): its index row, and the section that
+    # had to come with it — the bumps above buy a row inside an existing table,
+    # and there was no table for this one.  The five prose lines are the part a
+    # row cannot carry: that the defect is *size* and not strain, that the two
+    # are distinguished by the wavelength and nothing else, and the measured
+    # size of it.  Without them the row reads as a reporting feature, which is
+    # the half of the WP that is not a correctness bug.
+    "docs/ROADMAP.md": 473,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
