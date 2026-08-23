@@ -269,9 +269,21 @@ def test_a_trace_phase_that_is_really_there_does_not_fire_it(absent_phase_fit):
     """The false-positive side, on the same fit.
 
     Measured on the 11-BM NAC protocol, whose CaF₂ impurity is a genuine minor
-    phase: 185σ of support against the absent phase's 0.088σ here.  The 1σ
-    threshold is three orders from either, so it is not a knife edge — pinned
-    as an ordering rather than as a number.
+    phase: 185σ of support there against a *noise-level* absent phase here.
+    The claim is that ordering, and it is asserted as one — against this run's
+    own ``support[0]``, never against a remembered figure.
+
+    **The absent phase's support is the landing point of a flat direction and
+    cannot be pinned to a number** (WP-1129); the cell assertion above already
+    says so about the same fit's other coordinate. The phase reaches the
+    pattern only through ``scale × |F|² × profile``, and its scale converges to
+    *a* zero, not to *the* zero: measured 1.6e-14 under the shipped schedule
+    and 7.1e-09 under ``intermediate_ftol=None``, one macOS box, one commit.
+    The support that follows spans **six orders** across settings and
+    platforms — 9.1e-07 and 0.548 here, 0.088 on WP-1110's machine, 1.64 on a
+    Windows CI worker, which is what a fixed ``< 1.0`` bound turned into a red
+    nightly. Every one of those is noise beside the ~386σ the real phase
+    carries, which is the only thing the fit actually determines.
     """
     ref, _ = absent_phase_fit
     from rietx.model.forward import compile_model
@@ -283,8 +295,12 @@ def test_a_trace_phase_that_is_really_there_does_not_fire_it(absent_phase_fit):
     support = [float(np.max(np.asarray(model.phase_component(ip, values))
                             / model.sigma))
                for ip in range(len(ref.structure.phases))]
-    assert support[0] > 10.0, "the real phase is far above the noise"
-    assert support[1] < 1.0, "the absent one is far below it"
+    assert support[0] > 10.0, \
+        f"the real phase is far above the noise: {support[0]:.3g}σ"
+    assert support[1] < support[0] / 20.0, (
+        f"the absent one is not far below it: {support[1]:.3g}σ against the "
+        f"real phase's {support[0]:.3g}σ — a ratio of "
+        f"{support[0] / max(support[1], 1e-300):.3g}, and the bar is 20")
 
 
 @pytest.mark.slow
