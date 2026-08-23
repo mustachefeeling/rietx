@@ -196,22 +196,38 @@ def test_a_prior_only_candidate_is_appended_with_provenance():
 # the seed: a stated basin is tried before the random ladder
 # ----------------------------------------------------------------------
 @pytest.mark.xdist_group("indexing-priors")
-def test_the_prior_seeds_svds_starting_basin():
+def test_the_prior_seeds_svds_starting_basin(monkeypatch):
     """``search_svd`` runs one deliberate trial per prior before its random
-    ladder, so with a budget far too small for the ladder the truth is still
-    found — from the seed, deterministically (the first budget check happens
-    at zero elapsed, so the seed trial always runs)."""
+    ladder, so the truth is found from the seed alone.
+
+    The ladder is starved **structurally**, by setting this system's Table-2
+    control pair to zero random trials, and the budget is a runaway guard at
+    30 s.  Before WP-1128 the starvation was a 0.05 s budget, which is the
+    shape ``tests/CLAUDE.md`` forbids: it read as a timer, and what it timed
+    was the machine.  ``volume_window``'s κ probes ran between the budget's
+    start and its first check — 2-3 ms idle here, 63 ms measured on a
+    4×-oversubscribed machine — so on a loaded CI worker the budget expired
+    with ``calls=0`` and the seed never ran at all (two red Linux nightlies,
+    2026-08-21/22).  With ``n1 = 0`` the sentence below is true by
+    construction rather than by arithmetic about how long a call takes.
+    """
     from rietx.indexing.qspace import af_from_cell
     from rietx.indexing.reduce import same_lattice
-    from rietx.indexing.svd import search_svd
+    from rietx.indexing.svd import CONTROL, search_svd
 
+    monkeypatch.setitem(CONTROL, "monoclinic", (0, 1))
     peaks, true_cell = synthetic_peaks("monoclinic")
     _sg, _cell, _tt, (min_d, max_d), vol = CASES["monoclinic"]
     spec = SearchSpec(systems=("monoclinic",), min_d_axis=min_d,
                       max_d_axis=max_d, max_volume=vol,
                       shift_allowance_deg=1e-9,
-                      prior_cells=(true_cell,), budget_seconds=0.05)
+                      prior_cells=(true_cell,), budget_seconds=30.0)
     res = search_svd(peaks, spec=spec)
+    # the ladder made no calls, so every call was a prior's: one per centring
+    assert res.stats["monoclinic.calls"] == float(
+        len(spec.centrings_for("monoclinic"))), (
+        "the ladder was not starved — this test would then be measuring the "
+        "random search rather than the seed")
     # same_lattice, never cell tuples: a monoclinic answer legitimately comes
     # back in another setting (the WP-1040 trap, hit again writing this test —
     # the seed's first find was (11.01, 16.408, 8.875, β=139.7°), the same
@@ -219,6 +235,5 @@ def test_the_prior_seeds_svds_starting_basin():
     truth_af = af_from_cell(true_cell)
     assert any(same_lattice(af_from_cell(c.cell), truth_af)[0]
                for c in res.candidates), (
-        "the seeded start did not reach the stated basin — monoclinic needs "
-        "~15k random calls (WP-1040's table), so the seed is the only way "
-        "this budget finds anything")
+        "the seeded start did not reach the stated basin — with the random "
+        "ladder starved to zero trials the seed is the only thing that ran")

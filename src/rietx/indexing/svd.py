@@ -778,8 +778,6 @@ def _search_system(peaks: PeakList, system: str, spec: SearchSpec,
     prior_afs = prior_seed_afs(spec, system)
 
     for centring in spec.centrings_for(system):
-        gate_lo, gate_hi = volume_window(len(q_search), system, centring, q_max,
-                                         seed=spec.seed)
         for af_p in prior_afs:
             if budget.expired():
                 return found, _stats(calls, budget, zes), False
@@ -792,6 +790,16 @@ def _search_system(peaks: PeakList, system: str, spec: SearchSpec,
                     sigma, tt_all, tt_max, search_lines, seen, found,
                     vol_ceiling, ze=out.ze) > -np.inf:
                 zes.append(out.ze)
+        # The N_c/N_o window gates the **random ladder** and no part of a
+        # prior's trial, so it is measured after them.  Its κ probes cost a
+        # couple of ms, and ahead of the prior loop they were the one thing
+        # that could spend a small budget before the caller's own stated cell
+        # got its single deliberate call — 63 ms of them against a 50 ms
+        # budget on a 4×-oversubscribed machine (WP-1128).  Pure reordering:
+        # ``volume_window`` draws from its own ``default_rng(seed)``, so
+        # neither ``rng``'s stream nor any accepted value moves.
+        gate_lo, gate_hi = volume_window(len(q_search), system, centring, q_max,
+                                         seed=spec.seed)
         v_lo = max(spec.min_volume, gate_lo)
         v_hi = min(vol_ceiling, gate_hi)
         if not (v_lo < v_hi):
