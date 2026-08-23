@@ -64,8 +64,10 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**v1.0 shipped 2026-08-16** ([record](milestones/v1.0.md)): public, gated,
-hosted, on PyPI. **The promise is a preview**
+**v1.1 shipped 2026-08-23** ([record](milestones/v1.1.md), [notes](releases/1.1.0.md)) — the speed milestone.  The trigger-shaped cold fit went **50.11-50.43 → 5.69-5.72 s** (8.8×) and the same model as a 10-pattern warm series **266.78-269.61 → 49.24-49.30 s** (5.4×), each win carrying its own equivalence bar and none an Rwp comparison.  The warm-series band is recorded **met on the maintainer's judgement, and mis-specified rather than cleared** — WP-1124 refuted the distribution it assumed, so the row is judged on the per-pattern table: seven of nine warm patterns at 0.88-2.33 s, two at 10.53 and 20.26.  **1.0.2 was folded in and never published**: written and unreleased when v1.1 opened, so an upgrade from 1.0.1 crosses both; `releases/1.0.2.md` stays the chapter-by-chapter record and 1.1.0's § Upgrading is the authority.
+Three things a consumer could observe moved with it.  **numba is a core dependency** — the compiled tier, +157 MB and a `numpy<2.6` ceiling, both priced, with a soft import and `RIETX_COMPILED=0` as the way out.  **Intermediate stages stop at `ftol=1e-6`** by default (≤ 0.03 esd on one fit, unbounded and unsigned on a *chain*; `intermediate_ftol=None` is bit-identical).  And the **ladder's first rung is bounded** at `first_rung_factor=3.0`, bit-identical on both series measured.  `schema_version` 0.1 → 0.5, report thresholds 1.1 → 1.3, project format 1.1 → 1.2, indexing thresholds 1.2 → 1.3 — each step's reason beside its constant, per the preview promise.
+
+**The promise is a preview**
 ([1117](wp/1117-compatibility-promise.md), `docs/manual/using/compatibility.md`):
 anything may change in any release; any change a consumer could observe bumps
 its contract's last component by one, the comment beside the constant saying
@@ -79,33 +81,17 @@ documented or excluded with a reason, so a *new* one fails the partition on
 arrival, and 257 of the 1320 are **provisional by declaration** — the indexing
 subsystem, derived from each name's defining module rather than listed.
 
-**1.0.2 is written, unblocked and unreleased** (notes:
-[releases/1.0.2.md](releases/1.0.2.md)). It carries 1.0.x's first **breaking**
-entry (`SCHEMA_VERSION` 0.1 → 0.2) and, after
-[1077](wp/1077-extinction-refutes-certified-class.md), the first whose *answer*
-moves. A refinement still gives 1.0.1's numbers; releasing it is
-`docs/RELEASING.md`.
-
-**v1.1 — refinement speed — is in flight** (opened 2026-08-20, `1.1.0.dev0`; scope, targets and the whole
-narrative: [milestones/v1.1.md](milestones/v1.1.md)). **Every WP in the block is closed.** The trigger cold fit
-went **50 → 5.67-5.70 s** (8.7×) and the warm chain **1603 → 1395** evaluations, each win carrying its own
-equivalence bar and none an Rwp comparison: the plane seam ([1120](wp/1120-batched-residual.md)), the compiled
-tier ([1115](wp/1115-compiled-kernel-spike.md) — numba is now a core dependency, the maintainer's call), the
-per-reflection close-outs ([1121](wp/1121-per-reflection-cost.md)), the fast tolerance schedule on by default
-([1123](wp/1123-fast-tolerance-default.md)) and the ladder's *priced* first rung ([1127](wp/1127-ladder-first-rung.md)).
-Three probes closed negative and kept their yield ([1114](wp/1114-peaks-buffer-spike.md), [1124](wp/1124-warm-series-continuation.md), [1125](wp/1125-varpro-probe.md)); [1122](wp/1122-compiled-peaks-buffer.md) is 🛑, deferring the peaks buffer to ship **with FPA**.  **[1128](wp/1128-prior-seed-before-the-gate.md) closed 2026-08-23** — the two red Linux nightlies were a **load sensor, not a regression**: `volume_window`'s κ probes sat between the indexing budget's start and its first check, so a loaded worker could spend the whole budget before a stated prior got its one deliberate call.  Reordered bit-identically (margin 5.4× → 207×), and the test starves the ladder structurally instead of by the clock.
-Two fronts stay unowned and are recorded as such: the **per-reflection 19.4 %** one, and the **`refit=` choice**, which is adaptive-or-nothing (1253 against 1395 evaluations on the trigger chain, 627 against 1041 the other way on the small-cell one).  [1110](wp/1110-agent-surface-friction.md) closed 2026-08-21 and two of its fixes change what a fit *says*, so the release notes carry them — the covariance is **equilibrated before it is inverted** (a direction the data does not move reports no esd rather than a small one) and an **unseen phase's cell takes a per-stage window** (both root CLAUDE.md § Invariants); its one open item is decided (`Parameter.expr` stays), item 19 is [1118](wp/1118-foreign-model-files.md), both unscheduled.  [1116](wp/1116-session-protocol-hygiene.md), [1117](wp/1117-compatibility-promise.md) and [1126](wp/1126-manual-style-pass.md) closed alongside.
-
-Parked, in rough order, for after v1.1 — none of it blocks a speed session: the
+**Next is v1.2 — free-standing peaks** (1101-1103, shifted 2026-08-20).  Two speed fronts stay **unowned and recorded rather than closed**: the **per-reflection 19.4 %** one (solver 11.8 %), and the **`refit=` choice**, adaptive-or-nothing — 1253 against 1395 evaluations on the trigger chain, 627 against 1041 the other way on the small-cell one.  50 % of the trigger series wall is still discarded ladder rungs (down from 57 %), which is where that second front lives.
+Parked, in rough order, none of it blocking: the
 1.0.0-release-notes promises (`.rex` zip transport; `RefinementState.excluded_regions`
 with `replay` honouring them — 1003 §B, decided); the post-1003 indexing work
 (narrow the acceptance fixtures' search — the nightly `full` job's ~77 min of
-setup — and the `grade` prior-counting change, 1046 §4); the model-cost
+setup, and its `indexing-acceptance` group is one worker's 1400 s-per-fixture
+serial tail — and the `grade` prior-counting change, 1046 §4); the model-cost
 estimate (1110's agent ask, deferred by 1113 — its § Findings prices both
-halves: 1111's `_shape` has the per-evaluation one, the count is protocol-bound);
-[1017](wp/1017-gui-manual-onboarding.md) (GUI stays beta until it lands); the
-v1.2 free-standing peaks set (1101–1103, shifted 2026-08-20). The agentic-report
-set (1104–1108) is ✅ complete — appendices in `milestones/v1.1.md`. 1066's
+halves); [1017](wp/1017-gui-manual-onboarding.md) (GUI stays beta until it
+lands); [1118](wp/1118-foreign-model-files.md), unscheduled. The agentic-report
+set (1104-1108) is ✅ complete — appendices in `milestones/v1.1.md`. 1066's
 naming rule stands beside all of it (root CLAUDE.md, `_about.py`).
 
 ## Milestones
@@ -119,7 +105,7 @@ naming rule stands beside all of it (root CLAUDE.md, `_about.py`).
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ✅ **shipped 2026-07-28** ([record](milestones/v0.5.md)) | capillary absorption validated at **both** levels: the Rouse (1970) cylinder factor against a quadrature of the exact ITC eq. (6.3.3.4) integral across 0 ≤ µR ≤ 1 *and* 0 ≤ sin²θ ≤ 1 (0.0035, the paper's own bound), and on real 11-BM SRM 660a LaB₆ data in a documented 0.81 mm bore — Rwp moves 3e-8, the cell 8e-12 Å, and *both* Biso move by the predicted 0.0166542 Å². Plus the two accuracy wins no fit statistic shows: dispersion takes the round-robin QPA error from RMS 2.26 → 0.69 wt %, and a mis-declared flat-plate thickness biases Biso by up to −1.5 Å² |
 | v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop, theory manual | ✅ **shipped 2026-07-29** ([record](milestones/v0.6.md)) | bounded LM 0.74–1.04× vs scipy TRF (CPU — the expected Amdahl tie), identical minima on 2/3 protocols, ΔBIC −13 on the third, and the Stephens cone enforced as a linear inequality (brucite 12/43 → 0/43 outside, at higher Rwp); FCJ node memo 1.23× bit-identical; agent schema generated from live registries with a registry-membership meta-test; theory manual builds `-W`-clean with every fenced constant injected from the live package and five anti-divergence guards in the fast suite |
 | v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ✅ **shipped 2026-08-16** ([record](milestones/v1.0.md)) | full suite green at ship: 2509 passed / 126 skipped locally (`[dev]`, macOS) and CI-green on Linux `[dev,jax]` (run 31966606174, full job 1h57); GUI end-to-end and the bethanechol individual-program grading landed by their WPs (record § Acceptance); repo public with six required checks gating `main`; manual + AGENT_PROTOCOL at yue-here.github.io/rietx, all URLs verified; `rietx` 1.0.0 on PyPI, fresh-venv install + `capabilities()` verified from the index; Windows fast suite green as the classifier's pre-upload gate — a gate that caught three real defects (CRLF-unstable checkouts, an SO_REUSEADDR double-bind in the GUI server, cp1252 example pipes) before the irreversible step |
-| v1.1 | Refinement speed: seconds not minutes | 🔄 opened 2026-08-20 | judged on the WP-1111 harness ([targets](milestones/v1.1.md)): warm-started series per-pattern wall in the ~1 s band; cold trigger-shaped 4-phase Cu Kα fit in low single-digit seconds; stretch (tracked, not gating) cold < 1 s **measured unreachable and recorded as such** ([1122](wp/1122-compiled-peaks-buffer.md): the plane seam is 54.9 % of the fit, so a free one still leaves 2.56 s); every landed WP with its equivalence bar, never an Rwp comparison |
+| v1.1 | Refinement speed: seconds not minutes | ✅ **shipped 2026-08-23** ([record](milestones/v1.1.md)) | trigger-shaped cold fit **5.69-5.72 s** against the milestone's opening **50.11-50.43 s** (8.8×) and the 10-pattern warm series **49.24-49.30 s** against **266.78-269.61** (5.4×), best-of-3 idle, darwin/arm64 `[dev]`; seven of nine warm patterns at 0.88-2.33 s (median 2.02) with two at 10.53/20.26 — the ~1 s band **met on the maintainer's judgement and recorded mis-specified**, judged on the per-pattern table as WP-1124 required; stretch (cold < 1 s) **measured unreachable** and recorded as such; every landed WP with its equivalence bar, never an Rwp comparison |
 | v1.2 | Free-standing peaks: fit_peaks + the extra-components seam | ⬜ next | — |
 | v2+ | FPA (**with** the peaks buffer — [1122](wp/1122-compiled-peaks-buffer.md) measured it below break-even without one), neutron/TOF, texture, MCP server | ⬜ fenced | — |
 

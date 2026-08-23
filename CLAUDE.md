@@ -778,15 +778,15 @@ them all:
 carry everywhere: commit per checklist item prefixed `WP-NNNN:`, and a CLAUDE.md
 takes **rules, not findings**.
 
-Shipped: **v0.1 … v1.0**, one record each in `docs/milestones/`; ROADMAP's table
-carries the acceptance one-liners, restated in neither place. **v1.0 shipped
-2026-08-16**: repo public with CI gating `main`, manual + AGENT_PROTOCOL hosted
-at `_about.DOCS_URL`, 1.0.0 on PyPI; since WP-1117 the compatibility promise
-(`docs/manual/using/compatibility.md`) is a **preview** — anything may change
-in any release, versions bumping per observable change. `pyproject.version`
-tracks the milestone in flight (1.1.0.dev0 today — **v1.1, refinement speed**),
-or the last shipped when none is; a new milestone opens at `1.x.0.dev0`. It is
-the string every `RefinementResult.provenance` and history node stamps.
+Shipped: **v0.1 … v1.1**, one record each in `docs/milestones/`; ROADMAP's table
+carries the acceptance one-liners, restated in neither place. Since WP-1117 the
+compatibility promise (`docs/manual/using/compatibility.md`) is a **preview** —
+anything may change in any release, versions bumping per observable change.
+**1.0.2 was written and never published**, folded into v1.1 (2026-08-23), so
+1.0.1 is what anyone upgrades *from* and `docs/releases/1.0.2.md` describes a
+release that never existed. `pyproject.version` tracks the milestone in flight,
+or the **last shipped when none is** — 1.1.0 today, none open. It is the string
+every `RefinementResult.provenance` and history node stamps, and a new milestone opens at `1.x.0.dev0`.
 
 **Indexing — the rules that govern behavior outside `indexing/`.** The full
 dossier is `src/rietx/indexing/CLAUDE.md` (auto-loads when a session works
