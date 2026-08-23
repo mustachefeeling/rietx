@@ -402,6 +402,18 @@ nonlinear stays fenced behind `Parameter.expr`. 1119 lands first if both run.
 | [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | ⬜ | — |
 | [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ⬜ | — |
 
+### Unscheduled — the fit has no reference (added 2026-08-23)
+
+Every background rietx fitted to the ZrMo₂O₈ 492 K scan sat at **0.50–0.71 of
+TOPAS's** while `Rwp`/`GoF` matched TOPAS's to two decimals; a hand heuristic
+landed at 0.82–1.20. The gap is a **reference**: a quantity derived sharing no
+assumption with the fit, so disagreement is diagnostic rather than tautological.
+The suite has them for four known specimens; a user's own sample gets none.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | ⬜ | — |
+
 ## v2+ (seams pre-built, implementations fenced out)
 
 Fundamental Parameters Approach as a differentiable convolution stack
