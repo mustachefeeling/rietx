@@ -230,6 +230,57 @@ spacing. `air_scatter_gain` reads 0.069 on a synthetic containing a genuine
 900/(2θ) term, against an `AIR_SCATTER_TRIGGER` of 0.3, because a cubic already
 absorbs 1/x over a 60° range.
 
+### Finding 8 — the multimodal channel, measured on this session's own failure
+
+The premise is that the package supplies information and the agent supplies the
+reasoning, so **which channel carries the information efficiently is a design
+question, not a rendering detail**. This session is the only controlled evidence
+there is, and it is a negative followed by a qualified positive.
+
+**Vision did not find the error.** The maintainer's plot was in context from the
+first message and the model did not raise the background; the maintainer did.
+Once told, the model matched the supplied hypothesis to whichever background sat
+highest in the cluster rather than detecting anything. Worse, the one unaided
+visual judgement it made was **inverted**: it read a background sitting well
+below the inter-peak valleys as sound and one at the valley level as suspect,
+when the second was the closest of five to TOPAS (0.75–0.81) and the four
+"sound" ones were at 0.50–0.59.
+
+**Vision did find it once, from a purpose-built panel.** On the anchors figure
+the model noticed unprompted that the anchored curve traced the data floor while
+every fitted background ran ~30 counts beneath it, and that produced the
+reversal. Two properties separated that panel from the standard one, and both
+are constructible:
+
+| panel | the same error, as a fraction of panel height |
+|---|---|
+| standard obs/calc/diff, 14–70° | 2.6% |
+| standard obs/calc/diff, 18–25° zoom | 4.9% |
+| y cropped to the background's own range, reference overlaid | **14.0%** |
+
+More decisive than the scale: **a reference inside the frame**. With only the
+fit in frame the eye's sole comparator is its prior, and the prior was wrong. A
+uniform factor-of-two in level leaves a smooth monotone decay, which has no
+visual signature at all — which is also why the maintainer caught the
+Chebyshev-12 *inflection* (a shape defect, visible) and not the *level*. That
+read was half right: "underestimates at higher angle" is correct at 0.59–0.69,
+"too generous in the 15–30 region" is inverted, since it is 0.50–0.54 there.
+
+**Cost, measured, because the conditional is the whole question.** For a
+question already known, numbers are far cheaper: the per-region table carrying
+this finding is ~123 tokens against ~1830 for the figure at 1373×1000
+(Anthropic vision ≈ w·h/750 after the 1568 px long-edge downscale), a factor of
+~15, and rendering costs ~1 s of matplotlib against a numpy pass. **Vision is
+not the cheap channel for a question you can name.** Where it earns its tokens
+is the question that cannot be named in advance — open-ended "what is wrong with
+this fit" — and there the comparison is against the *round trips* an agent
+would otherwise spend discovering which statistic to compute, not against the
+answer's token count. That comparison is unmeasured and is a task below.
+
+Consequence: a plot is a way of **presenting** a reference, never a substitute
+for one, and the surface should say which channel answers which question instead
+of leaving an agent to guess.
+
 ### Bug found on the way (small, self-contained)
 
 `params.vector.cell_window` returns `lo == hi` for any negative cell value:
@@ -297,13 +348,35 @@ look while the above is open.
       refuse where there is a diagnostics channel, not a bound pair to return;
       at minimum it must never return `lo == hi`, and the raise must name the
       path. Check `gauss_size`'s NaN column at the same time.
+- [ ] **A background panel for `plot_for_vlm`.** Not "draw the background" — it
+      already appears, as a thin line at the bottom of an axis scaled to the
+      tallest peak, where Finding 8 measures the error at 2.6–4.9% of panel
+      height. The panel is: fitted background **and** the anchored estimate in
+      one frame, y cropped to their own range, anchors marked, peak-crowded
+      regions shaded. Finding 8's rule is the acceptance test — a panel without
+      a reference in it would have shown a smooth decay and been called fine.
+- [ ] **A diagnostic names the view that shows it.** `GuardFinding` already
+      carries `code`/`paths`/`value`/`message` and every guard `Diagnostic`
+      carries `where`; the missing field is which rendered view makes this
+      finding legible. An agent then reaches the second channel because it was
+      told, not because it guessed. Keep it a pointer, not an embedded image:
+      the caller decides whether to spend the tokens.
+- [ ] **Measure the round-trip case, since the token case is already decided.**
+      Finding 8 prices a *named* question at ~15× against the image. The open
+      question is the unnamed one: give an agent a fit and "what is wrong with
+      it", with and without the montage, and count calls to answer as well as
+      tokens. `tests/eval_report_agent/` and `tests/eval_agent_surface/` carry
+      the discipline (register before running, enforce the condition in a shim,
+      pre-register the read-out) and neither round pools with this one.
 - [ ] **`rietx compare` row** — the standing rule in the root CLAUDE.md, and the
       cumulative Δχ² panel is what localises this to 18–25° in the first place.
 - [ ] **`AGENT_PROTOCOL.md` rows.** Rwp and GoF never accept a background;
       a fitted background below the anchors by a large factor names the phase
       widths as first suspect, not the background function; a model-free
       estimate is biased high by construction and is not a reference the
-      co-refined answer should match.
+      co-refined answer should match. Plus the **channel rule** from Finding 8:
+      numbers for a question you can name (~15× cheaper), an image for one you
+      cannot, and never an image without a reference in the frame.
 - [ ] Tests (unit for the selector on synthetic anchors with known answers;
       a real-data acceptance if the dataset can be given a home) + obs/calc/diff
       PNGs to `tests/output/`, **including the anchors-against-fit plot**, which
@@ -367,12 +440,26 @@ is this WP.
 *Done* — nothing landed in the tree; this session was measurement and this file
 is its record. The scripts are session-local and not committed.
 
-*Measured* — Findings 1–7 above, plus the `cell_window` degeneracy. The numbers
+*Measured* — Findings 1–8 above, plus the `cell_window` degeneracy. The numbers
 that decide the design: 0.50–0.71 (every fitted background against TOPAS),
 0.82–1.20 (the heuristic against TOPAS), 0.96–1.07 (the fit once the widths are
 capped), 0.1105 → 0.1173 (Rwp moving the wrong way as the background becomes
 right), 20.8% (channels where flatness-alone puts the background above the
-data), 6% (channels that are both flat and peak-free).
+data), 6% (channels that are both flat and peak-free), 2.6/4.9/14.0% (the same
+background error as a fraction of panel height in three plot designs), ~15×
+(the token cost of the figure against the table that carries the same finding).
+
+*The multimodal question, asked directly and answered honestly* — Finding 8 is
+this session grading itself, and it is a negative. The model had the
+maintainer's plot in context from the first message and did not raise the
+background; when told, it matched the supplied hypothesis rather than detecting
+anything; and its one unaided visual judgement was inverted, reading the
+closest-to-TOPAS background as the offender and the four that were half-wrong as
+sound. It found the real error only from a panel that cropped the axis to the
+background's own range **and** carried a reference curve. The design conclusion
+is not "add vision" but "a plot presents a reference and never replaces one",
+and the token measurement says the numbers win outright for any question that
+can be named in advance.
 
 *Gotchas for the next session* — the trigger dataset is not in the repo and must
 be re-fetched; TOPAS's TCHZ `pkx`/`pky` map to rietx's `y`/`x` and not by
@@ -381,6 +468,7 @@ a direction and not a value; the per-region R² in Finding 6 was taken at the
 degenerate optimum and a statistic evaluated at the bad answer does not flag the
 bad answer.
 
-*Next* — the anchor selector, because every other task reads it. Then the
-phase-broadening check, which would have caught this session's failure at the
-moment it happened rather than three rounds later.
+*Next* — the anchor selector, because every other task reads it: the diagnostic,
+the `plot_for_vlm` panel and the protocol's channel rule all need something to
+compare against. Then the phase-broadening check, which would have caught this
+session's failure at the moment it happened rather than three rounds later.
