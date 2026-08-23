@@ -519,6 +519,40 @@ front itself passes to the ladder: `refit="stages"` runs the same chain
 escalations, which inverts WP-0505's small-cell measurement and wants its own
 WP (adaptive, not a flipped default).
 
+**2026-08-22, the ladder half: [WP-1127](wp/1127-ladder-first-rung.md) took that
+front and shipped, and it is the first thing on this page's speed side to do
+so.** Not by choosing the rung — the successor idea, "start later patterns on
+the rung that worked", was **refuted before it was built** by the per-pattern
+table: the collapse is still the better rung on seven of the trigger case's nine
+warm patterns (0.89-2.35 s against 2.97-4.25 s staged), so its escalations are
+sporadic rather than systematic and generalising from one failure costs more on
+every pattern that did not need it. What shipped instead prices the *discovery*:
+the first rung is a bet, and `_collapse` sizes it like an answer, so a losing bet
+spends the plan's largest budget on its widest Jacobian before being discarded.
+Bounding it at `FIRST_RUNG_FACTOR` × the dearest **converged** first rung the
+chain has seen takes `trigger-series` from **1603 to 1395** evaluations
+(57.3-57.5 → 49.2-49.3 s) and leaves the small-cell chain identical to the
+evaluation, with every accepted value on both cases **bit-identical** — a bound
+only shortens work that was going to be thrown away, because the rung that
+replaces it starts from the same warm state.
+
+Three things this page should carry from it. The tempting bound is the false one:
+"a warm refit costing more than the cold fit is not a warm refit" needs no
+constant and is available to the first warm pattern, and it is **wrong**, because
+`_collapse` of a one-stage plan *is* that plan — measured at cold 9 evaluations
+against warm 14, and no factor repairs it (the toy needs ≥ 1.56× cold to be safe,
+the trigger case ≤ 1.0× to be useful). A **one-parameter toy plan was a sharper
+adversary than either real case**, which had hidden the error behind a
+multi-stage cold fit's own size. And the survey's own habit of comparing against
+"the better fixed setting" mis-fits a rule that improves whichever setting is
+chosen: the WP's pre-registered clause 1 fires on that reading (1395 against
+`refit="stages"`'s 1253) and is recorded as firing rather than reworded.
+
+**What is still open on this front is the `refit=` choice itself** — 1253 against
+1395 says the mode matters more than the bound on that case, while the small-cell
+chain says the opposite (627 against 1041). Unowned, and still adaptive-or-
+nothing for WP-0505's reason.
+
 ### 2.C Statistics & inference — where the field is weakest
 
 **C1. HAC / sandwich covariance instead of a scalar inflation — the single
@@ -1256,6 +1290,20 @@ here.
   runs the same chain 1.61× faster than the shipped default. The front stays
   open and moves to the ladder, not the seed. The tangent-as-sensitivity half
   of B8 is untouched and still parked.
+- **The ladder half → [WP-1127](wp/1127-ladder-first-rung.md) — *shipped*, and
+  the first thing on this page's speed side to do so.** Not by choosing the
+  rung: that idea was refuted before it was built, because the collapse is
+  still the better rung on seven of the trigger case's nine warm patterns, so
+  its failures are sporadic and generalising from one costs more than it saves.
+  What shipped **prices the discovery** instead — the first rung is a bet and
+  `_collapse` sizes it like an answer, so a losing bet spends the plan's
+  largest budget on its widest Jacobian before being thrown away. Bounded at
+  `FIRST_RUNG_FACTOR` × the dearest *converged* first rung so far:
+  **1603 → 1395** evaluations on `trigger-series`, identical to the evaluation
+  on the small-cell chain, and **bit-identical answers on both**, because the
+  rung replacing a truncated one starts from the same warm state. Default
+  flipped on the maintainer's call. The §2.B8 note has the *second* bound,
+  which was false — read it before proposing another.
 - **A1/E5 speed half → [WP-1125](wp/1125-varpro-probe.md)** — *probed and
   **retired** the same day, like B8 above; the dated note in §2.A1 has the
   mechanism.* The premise that opened it was wrong: profiling the background

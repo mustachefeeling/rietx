@@ -97,6 +97,7 @@ from __future__ import annotations
 
 import fnmatch
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -106,7 +107,7 @@ from .backend.api import backend_dtype_note
 from .history.events import EventStream, as_event_stream
 from .history.tree import RefinementTree
 from .optimize.cancel import RefinementCancelled
-from .optimize.least_squares import SOLVERS
+from .optimize.least_squares import NFEV_PER_ITERATION, SOLVERS
 from .params.vector import ParameterTable
 from .refine import _VERSION, Refinement, _extract_reflections, _utcnow
 from .report.schemas import THRESHOLDS_VERSION
@@ -123,6 +124,53 @@ from .strategy.staged import RefinementPlan, Stage, resolve_plan
 #: refit.  A median rather than the previous value on purpose: one bad pattern
 #: must not be able to ratchet the threshold up and let its successors through.
 RESEED_FACTOR = 1.25
+
+#: Converged first rungs needed before the chain bounds anything (WP-1127).
+#: One sample is not a spread, and the running maximum of a *short* sample is
+#: set by whichever pattern happened to be cheapest.  The same reasoning as
+#: :data:`MIN_POINTS_FOR_DISCONTINUITY` one fence over, and it was measured the
+#: expensive way: at one sample the bound went 2 × 8 = 16 evaluations on the
+#: thermal-ramp chain and its third pattern legitimately wanted **17**, a
+#: one-evaluation margin that darwin cleared and Linux did not.
+FIRST_RUNG_SAMPLES = 3
+
+#: Headroom over the most expensive first rung the chain has already
+#: **converged** — :meth:`SequentialRefinement.fit`'s ``first_rung_factor``
+#: default (WP-1127).
+#:
+#: The first rung is a *bet* that the collapsed warm refit suffices, and it is
+#: otherwise sized like an answer: :func:`_collapse` takes ``max_iter`` as the
+#: maximum over the plan's stages, so a bet that loses spends the plan's largest
+#: budget on the widest Jacobian in it and is then thrown away.  A winning bet
+#: and a losing one do not overlap: a first rung that is kept costs 27-64
+#: evaluations on ``trigger-series`` and 25-107 on ``cpd-series``, while both
+#: losing ones ran to ~400, the cap itself.  **The bound only has to land in
+#: that gap**, so it is set for margin rather than for tightness.
+#:
+#: Calibrated on the quantity that decides it: how far a *legitimate* first rung
+#: can exceed the running maximum of the converged ones before it.  Measured
+#: across three chains — the two harness series and the thermal ramp — that
+#: ratio reaches **1.29** once :data:`FIRST_RUNG_SAMPLES` samples are in hand,
+#: so 3.0 carries 2.3× margin over the worst case seen anywhere.  It reached
+#: 1.89 at a single sample, which is what the minimum is for.
+#:
+#: Being wrong is cheap and **cannot reach the answer**: a bound that bites
+#: costs one escalation, the rung it escalates to is the full staged plan from
+#: the same warm state, and :func:`_prefer` refuses to keep the truncated
+#: attempt over the completed one.  Measured on both harness cases, every
+#: accepted value is bit-identical to the unbounded chain's, because the bound
+#: only truncates a rung whose result is discarded and its replacement starts
+#: from the warm state rather than from the truncation.
+#:
+#: What licenses a modest factor is that being wrong is cheap **and cannot reach
+#: the answer**: a bound that bites costs one escalation, and the rung it
+#: escalates to is the full staged plan from the same warm state, with
+#: :func:`_prefer` refusing to keep the truncated attempt over the completed one.
+#: Measured on both harness cases, every accepted value is bit-identical to the
+#: unbounded chain's — 0 of 1030 and 0 of 392 — because the bound only truncates
+#: a rung whose result is discarded, and its replacement starts from the warm
+#: state rather than from the truncation.
+FIRST_RUNG_FACTOR = 3.0
 
 #: A step is called a discontinuity when it exceeds this multiple of the median
 #: absolute step of the same parameter over the series *and* is significant
@@ -313,6 +361,61 @@ def _ladder(base_plan: RefinementPlan, warm_plan: RefinementPlan
     return rungs
 
 
+def _first_rung_budget(accepted_first: list[int],
+                       factor: float | None) -> int | None:
+    """Evaluations the collapsed first rung may spend, or ``None`` for no bound.
+
+    ``factor`` (:data:`FIRST_RUNG_FACTOR`) times the most expensive first rung
+    **this chain has already converged**, once :data:`FIRST_RUNG_SAMPLES` of
+    them are in hand — the only evidence there is about what a working first
+    rung on this model costs, and a short sample of it is set by whichever
+    pattern happened to be cheapest.
+
+    "Worked" is convergence, not survival, and both halves of that earn their
+    keep.  A rung that *escalated* says nothing about what a working one costs,
+    and letting it in would raise the bound by exactly the failure the bound
+    exists to cut short.  A rung that was *kept* at the plan's own cap reports
+    ``"max_iter"``, and letting it in at full budget would raise the bound to
+    twice that cap and switch the whole thing off from there on.
+
+    **The cold fit is not evidence here, and WP-1127 measured that rather than
+    assuming it.**  "A warm refit that costs more than the cold fit it started
+    from is not a warm refit" is a tempting second bound, needing no constant
+    and — unlike this one — available to the first warm pattern.  It is false:
+    :func:`_collapse` of a *one-stage* plan is that plan, so the two are then
+    the same problem from different starting points, and a warm start from a
+    neighbouring pattern can legitimately want more evaluations than a cold
+    start from the initial model.  Measured on the test suite's own cheap plan:
+    cold **9** evaluations, warm **14**, so the cold bound cut a rung that was
+    about to succeed.  It survived both real harness cases only because a
+    multi-stage cold fit sums to several times a collapsed rung (252 against
+    25-107), which is a property of those plans and not of the rule.
+    """
+    if factor is None or len(accepted_first) < FIRST_RUNG_SAMPLES:
+        return None
+    return int(factor * max(accepted_first))
+
+
+def _bounded_plan(plan: RefinementPlan, budget_nfev: int | None) -> RefinementPlan:
+    """``plan`` with its stages' evaluation budget capped at ``budget_nfev``.
+
+    ``Stage.max_iter`` is in *iterations* and the solver caps *evaluations* at
+    ``max_iter × NFEV_PER_ITERATION``, so the budget divides before it is
+    applied.  Never raises a stage's budget: ``min`` with what the stage
+    already declared, so a plan whose stages are already tighter than the bound
+    is returned unchanged — as the *same object*, which keeps
+    :func:`_ladder`'s ``warm_plan is base_plan`` identity readable.
+    """
+    if budget_nfev is None:
+        return plan
+    cap = max(1, -(-budget_nfev // NFEV_PER_ITERATION))
+    stages = [replace(s, max_iter=min(s.max_iter, cap)) for s in plan.stages]
+    if all(new.max_iter == old.max_iter
+           for new, old in zip(stages, plan.stages, strict=True)):
+        return plan
+    return replace(plan, stages=stages)
+
+
 def _rung_stamp(rung: str, *, escalation: bool) -> dict[str, Any]:
     """The ladder's event-stamp keys — present only on a **restart**.
 
@@ -449,6 +552,7 @@ class SequentialRefinement:
             direction: str = "forward",
             reseed: bool = True,
             reseed_factor: float = RESEED_FACTOR,
+            first_rung_factor: float | None = FIRST_RUNG_FACTOR,
             prepare: Callable[[int, PatternData, Structure, Instrument],
                               None] | None = None,
             on_result: Callable[[int, RefinementResult], None] | None = None,
@@ -491,6 +595,30 @@ class SequentialRefinement:
             the quarantine: a diverged fit still seeds nothing and joins no
             median, because that is about what the chain carries rather than
             about how hard it tried.
+        first_rung_factor:
+            Bound what the *collapsed* first rung may spend before the ladder
+            gives up on it, at this multiple of the most expensive first rung
+            the chain has already **converged** (:func:`_first_rung_budget`,
+            :data:`FIRST_RUNG_FACTOR`, :data:`FIRST_RUNG_SAMPLES`).  A chain
+            bounds nothing until several warm rungs have worked, because until
+            then it has no usable evidence about what a working one costs on
+            this model.  ``None`` is no bound and
+            reproduces every fit before WP-1127 bit for bit — the way back a
+            golden declares, as ``intermediate_ftol`` is for WP-1123's
+            schedule.
+
+            It buys nothing on a chain where the collapse works, by
+            construction: the bound is derived from what working rungs cost, so
+            it only binds on one that is not working, and the round-robin
+            sample-1 chain runs unchanged to the evaluation.  Where it does
+            bind it is worth 1.36× the whole chain's evaluations, because a
+            ladder's first rung is a *bet* and the shipped budget sizes it like
+            an answer.  A bound that bites costs an escalation and never an
+            answer: the rung it escalates to is the full staged plan from the
+            same warm state, which the truncation never touched, and
+            :func:`_prefer` refuses to keep the truncated attempt over it.
+            Inert under ``refit="stages"``, where the first rung is the answer
+            plan rather than a bet.
         prepare:
             ``(index, data, structure, instrument) -> None``, called on the
             warmed models just before each pattern's fit.  The hook exists for
@@ -533,7 +661,8 @@ class SequentialRefinement:
             order, patterns, names, xs, mode, base_plan, ladder,
             two_theta_limits, reseed, reseed_factor, prepare, on_result,
             stream=stream, cancel=cancel,
-            pass_name="backward" if direction == "backward" else "forward")
+            pass_name="backward" if direction == "backward" else "forward",
+            first_rung_factor=first_rung_factor)
 
         diagnostics = [d for e in entries
                        for d in _reseed_diagnostics(e) + _unrecovered_diagnostics(e)]
@@ -558,7 +687,7 @@ class SequentialRefinement:
                 list(reversed(order)), patterns, names, xs, mode, base_plan,
                 ladder, two_theta_limits, reseed, reseed_factor, prepare,
                 None, history_suffix=".backward", stream=stream, cancel=cancel,
-                pass_name="backward")
+                pass_name="backward", first_rung_factor=first_rung_factor)
             back = SeriesResult(mode=mode, entries=back_entries, x_label=x_label,
                                 direction="backward")
             if cancel is not None and bool(cancel):
@@ -585,7 +714,8 @@ class SequentialRefinement:
     def _chain(self, order, patterns, names, xs, mode, base_plan, ladder,
                two_theta_limits, reseed, reseed_factor, prepare, on_result,
                history_suffix: str = "", stream: EventStream | None = None,
-               cancel=None, pass_name: str = "forward"):
+               cancel=None, pass_name: str = "forward",
+               first_rung_factor: float | None = None):
         """Walk ``order``, warm-starting each fit from the previous accepted one.
 
         Returns entries in **series** order regardless of the walk direction, so
@@ -611,6 +741,10 @@ class SequentialRefinement:
         previous_hkl: list = []
         previous_tag: tuple[str | None, str | None] = (None, None)
         accepted_rwp: list[float] = []
+        # WP-1127's sample: what every first rung that was *kept without
+        # escalating* cost.  Read only by _first_rung_budget, and it stays
+        # empty when no factor was asked for.
+        accepted_first: list[int] = []
 
         n = len(patterns)
         for position, k in enumerate(order):
@@ -619,19 +753,35 @@ class SequentialRefinement:
             stamp = {"series_index": k, "series_label": names[k],
                      "series_n": n, "series_pass": pass_name}
             attempts = ladder if warm else [("cold", base_plan, False)]
+            # the bound applies to the *collapsed* first rung only: under
+            # refit="stages" the first rung already is the answer plan, and
+            # capping that would truncate the fit rather than the bet
+            budget = (_first_rung_budget(accepted_first, first_rung_factor)
+                      if warm and attempts[0][0] == "warm" else None)
             best_ref = best = None
             best_rung = ""
+            best_truncated = False
             tried: list[str] = []
             rwps: list[float] = []
+            rung_nfev: list[int] = []
             iterations = 0
+            bound_hit = False
             cancelled = False
 
             for rung, rung_plan, rung_warm in attempts:
                 # the fence is asked about the *best* attempt, not the last one:
-                # a rung that came back worse has not made the pattern worse
-                if tried and not (reseed and _reseed_needed(
+                # a rung that came back worse has not made the pattern worse.
+                # A bounded first rung that spent its bound escalates whatever
+                # the fence says: it came back "max_iter", which _better reads
+                # as merely not-diverged and _reseed_needed does not test at
+                # all, so without this the ladder could *accept* a fit that was
+                # cut short (WP-1127).
+                forced = bound_hit and len(tried) == 1
+                if tried and not forced and not (reseed and _reseed_needed(
                         best, accepted_rwp, reseed_factor)):
                     break
+                if not tried and budget is not None:
+                    rung_plan = _bounded_plan(rung_plan, budget)
                 try:
                     ref, result = self._fit_one(
                         data, names[k], previous if rung_warm else None,
@@ -644,11 +794,17 @@ class SequentialRefinement:
                 except RefinementCancelled:
                     cancelled = True
                     break
+                spent = sum(s.n_iterations for s in result.stages)
+                truncated = (not tried and budget is not None
+                             and result.status == "max_iter")
+                bound_hit = bound_hit or truncated
                 tried.append(rung)
                 rwps.append(result.statistics.rwp)
-                iterations += sum(s.n_iterations for s in result.stages)
-                if best is None or _better(result, best):
+                rung_nfev.append(spent)
+                iterations += spent
+                if _prefer(result, truncated, best, best_truncated):
                     best, best_ref, best_rung = result, ref, rung
+                    best_truncated = truncated
 
             if best is None:      # cancelled on the first attempt: no half-fits
                 break
@@ -678,6 +834,16 @@ class SequentialRefinement:
                 previous_tag = (entry.tree_id, entry.node_id)
                 if entry.statistics is not None:
                     accepted_rwp.append(entry.statistics.rwp)
+                # The sample the first-rung bound is derived from, taken where
+                # the quarantine is: a pattern the chain steps over is not
+                # evidence about what a working rung costs either (WP-1127).
+                # "Worked" is convergence, not survival — a first rung kept at
+                # the *plan's* own cap reports "max_iter", and letting it in at
+                # full budget would raise the bound to twice the cap and switch
+                # the whole thing off from then on.
+                if (warm and len(tried) == 1 and rung_nfev
+                        and best.status == "converged"):
+                    accepted_first.append(rung_nfev[0])
             if on_result is not None:
                 on_result(k, best)
             if cancelled:
@@ -783,6 +949,31 @@ def _better(a: RefinementResult, b: RefinementResult) -> bool:
     if (a.status == "diverged") != (b.status == "diverged"):
         return b.status == "diverged"
     return a.statistics.rwp < b.statistics.rwp
+
+
+def _prefer(result: RefinementResult, truncated: bool,
+            best: RefinementResult | None, best_truncated: bool) -> bool:
+    """Is ``result`` the attempt to keep, given which of the two was cut short?
+
+    :func:`_better` ranks a diverged fit below a finished one and then goes on
+    Rwp, and that is the whole rule while every attempt spent what its own plan
+    allowed.  A first rung the WP-1127 bound truncated did not: it reports
+    ``"max_iter"`` because *this ladder* stopped it early, so at equal Rwp
+    keeping it over a rung that ran to completion would let the bound pick the
+    answer — the one route by which a bound could reach one.  Measured: with a
+    truncated rung and its rescue at the same Rwp, ``_better`` alone keeps the
+    truncated one and the entry comes back ``"max_iter"``.
+
+    So a truncated attempt loses to any untruncated one outright, and
+    :func:`_better` decides only between two attempts in the same state.  A
+    first rung that hit the *plan's* own budget is untouched by this and is
+    still kept if nothing beats it, which is what the ladder has always done.
+    """
+    if best is None:
+        return True
+    if truncated != best_truncated:
+        return best_truncated
+    return _better(result, best)
 
 
 def _reseed_needed(result: RefinementResult, accepted_rwp: list[float],

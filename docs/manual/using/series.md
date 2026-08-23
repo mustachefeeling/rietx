@@ -107,6 +107,7 @@ recorded instead as annotation notes on each tree's root node. The default is
 | `two_theta_limits` | applied to every pattern |
 | `direction` | `"forward"`, `"backward"`, or `"both"` |
 | `reseed`, `reseed_factor` | the fence that rejects a bad warm start, and how far above the median Rwp it fires |
+| `first_rung_factor` | how much the first rung may spend before the ladder gives up on it, as a multiple of the most expensive first rung this chain has converged. `None` removes the bound |
 | `prepare` | `(index, data, structure, instrument) -> None`, called on the warmed models before each fit |
 | `on_result` | `(index, result) -> None`, called with each pattern's full result as it finishes |
 | `events`, `cancel` | as on `Refinement.fit`, per pattern |
@@ -287,6 +288,18 @@ the sum over exactly those.
 The middle rung is the one that matters. Throwing a warm start away costs
 roughly triple, and before it existed that was being paid for a starting point
 that had not been shown to be the problem.
+
+The first rung is bounded, because it is a guess rather than the answer. Its
+budget is `first_rung_factor` times the most expensive first rung this chain has
+already converged, and it applies only once a few of them have. A chain whose
+collapsed refit always works stays well clear of the bound. A first rung
+that spends its budget escalates rather than being kept, and the rung it
+escalates to starts from the same warm state, so the values a bounded chain
+reports are the values it would have reported without the bound. Measured on the
+benchmark's ten-pattern series: 1603 solver evaluations without the bound and
+1395 with it, both converging to Rwp 0.01943, with every accepted value
+identical. On the eight-mixture round-robin series the two runs are identical to
+the evaluation. Set `first_rung_factor=None` to reproduce a pre-1.1 run exactly.
 
 Quarantine is the other half, and it is about what the chain *carries* rather
 than what it reports. A fit still `"diverged"` after the last rung is not a

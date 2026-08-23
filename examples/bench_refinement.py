@@ -125,6 +125,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
 import rietx as rx  # noqa: E402
 from rietx import _about  # noqa: E402
 from rietx.model.forward import compile_model  # noqa: E402
+from rietx.sequential import FIRST_RUNG_FACTOR  # noqa: E402
 
 # -- the counting scaffold -------------------------------------------------
 
@@ -192,6 +193,11 @@ class Setup:
     patterns: list[rx.PatternData] | None = None
     #: series cases only — ``refine_sequential``'s first ladder rung.
     refit: str = "single"
+    #: series cases only — WP-1127's first-rung bound, **declared** rather than
+    #: inherited so a row says which ladder produced its number (the dispersion
+    #: rule, root CLAUDE.md).  ``None`` is the pre-WP-1127 ladder; the default
+    #: here is the shipped one.
+    first_rung_factor: float | None = FIRST_RUNG_FACTOR
 
 
 @dataclass
@@ -301,6 +307,67 @@ def _cpd_2() -> Setup:
         "qarr cpd-2, 4 phases, QPA acceptance protocol (9 stages, texture)",
         data, structure, instrument,
         qpa_plan(biso_globs=biso, texture=True))
+
+
+def _cpd_series(refit: str = "single") -> Setup:
+    """The IUCr round-robin sample-1 chain: eight real mixtures, one goniometer.
+
+    **The counterexample family, and the reason it is a case** (WP-1127).  The
+    ladder's first rung is set by ``refit=``, and which rung is cheaper is a
+    property of the model rather than a constant: WP-0505 measured this very
+    series at 838-904 iterations warm-collapsed against 1623 warm-staged, and
+    WP-1110's agent round then hit the opposite side of the trade on a real
+    trigger-shaped model — which ``trigger-series`` reproduces, 1253 nfev
+    staged against 1603 collapsed.  A rule chosen on either case alone is
+    tuned to it, so the harness carries both.
+
+    Deliberately the same chain ``tests/test_acceptance_sequential.py``'s
+    ``chained_all`` fixture runs — the same eight patterns, phases, instrument,
+    ``seed_scales`` and ``qpa_plan()``, and the same default ``carry=("*",)``
+    — so the protocol is the acceptance suite's and what varies here is only
+    ``refit``.  It is a **hostile** series on purpose: the composition swings
+    from 1 to 94 wt % across the set, which is where a naive carry was expected
+    to hurt and measured not to.
+
+    Small cells, three phases, no FCJ: the per-pattern shape ``cpd-1a`` already
+    reports one row up, chained.
+    """
+    from test_acceptance_qpa_roundrobin import (
+        DATA,
+        SAMPLE1,
+        corundum_phase,
+        fluorite_phase,
+        qarr_instrument,
+        qpa_plan,
+        seed_scales,
+        zincite_phase,
+    )
+
+    if not DATA.exists():
+        raise FileNotFoundError("IUCr QPA round-robin dataset not present")
+    patterns = [rx.read_pattern(DATA / f"{s}.prn") for s in SAMPLE1]
+    structure = rx.Structure(phases=[corundum_phase(), zincite_phase(),
+                                     fluorite_phase()])
+    instrument = qarr_instrument()
+    seed_scales(structure, instrument, patterns[0])
+    return Setup(
+        f"IUCr round-robin sample-1 series (real): 8 mixtures, 1 to 94 wt % "
+        f"swing, refit={refit!r}",
+        patterns[0], structure, instrument, qpa_plan(), patterns=patterns,
+        refit=refit,
+        notes="per-pattern wall printed below; cpd-1a is the cold fit and "
+              "1b-1h are warm starts")
+
+
+def _cpd_series_stages() -> Setup:
+    return _cpd_series(refit="stages")
+
+
+def _cpd_series_unbounded() -> Setup:
+    setup = _cpd_series()
+    setup.first_rung_factor = None
+    setup.title += ", first rung unbounded (pre-WP-1127)"
+    return setup
 
 
 # -- the trigger-shaped case, simulated ------------------------------------
@@ -501,21 +568,59 @@ def _trigger_series_stages() -> Setup:
     return _trigger_series(refit="stages")
 
 
+def _trigger_series_unbounded() -> Setup:
+    setup = _trigger_series()
+    setup.first_rung_factor = None
+    setup.title += ", first rung unbounded (pre-WP-1127)"
+    return setup
+
+
 CASES: tuple[Case, ...] = (
     Case("nac-lebail", _nac_lebail, "22 003 pts, 1 phase — the Le Bail seed leg"),
     Case("nac", _nac, "22 003 pts, no FCJ — the dispatch-light case"),
     Case("cpd-1a", _cpd_1a, "7 251 pts, no FCJ, 3 phases — the small lab case"),
     Case("cpd-2", _cpd_2, "7 251 pts, no FCJ, 4 phases + texture — WP-1109's profile"),
+    Case("cpd-series", _cpd_series,
+         "8 × cpd-1, warm-started, refit='single' — WP-0505's counterexample"),
+    Case("cpd-series-stages", _cpd_series_stages,
+         "the same real chain, refit='stages' — the other side of the trade"),
+    Case("cpd-series-unbounded", _cpd_series_unbounded,
+         "cpd-series without WP-1127's bound — inert here, so identical"),
     Case("trigger", _trigger,
          "4 165 pts, 1 188 pairs, 4 phases — the trigger-shaped cold fit (~50 s)"),
     Case("trigger-series", _trigger_series,
          "10 × trigger, warm-started, refit='single' (the default collapse)"),
     Case("trigger-series-stages", _trigger_series_stages,
          "the same series, refit='stages' — the width-vs-stage-count trade"),
+    Case("trigger-series-unbounded", _trigger_series_unbounded,
+         "trigger-series without WP-1127's bound — the pre-1127 'before'"),
 )
 
 
 # -- measurement -----------------------------------------------------------
+
+@dataclass
+class PerPattern:
+    """One pattern of a series case, with its whole escalation (WP-1124/1127).
+
+    ``wall`` sums every rung the pattern ran and ``rung_walls`` breaks it out in
+    ladder order, so a discarded first rung is visible rather than averaged
+    away.  ``rwp_warm`` and ``status`` are what say *why* a pattern escalated:
+    the ladder climbs when the fit diverged or when the best attempt so far sits
+    above ``RESEED_FACTOR`` × the accepted median, and those are different
+    failures with different fixes.  ``rwp_warm`` is ``None`` on a pattern that
+    never escalated — the library records it only then.
+    """
+
+    index: int
+    wall: float
+    iterations: int
+    rwp: float
+    rung: str
+    rung_walls: list[float]
+    rwp_warm: float | None = None
+    status: str = ""
+
 
 @dataclass
 class Run:
@@ -526,11 +631,9 @@ class Run:
     free: int
     stages: list[tuple[str, int]] = field(default_factory=list)
     status: str = ""
-    #: series cases only: (index, wall, n_iterations, Rwp, rung, rung_walls)
-    #: per pattern, index 0 being the cold fit and the rest warm starts.
-    #: ``wall`` sums every rung the pattern ran; ``rung_walls`` breaks it out
-    #: in ladder order, so a discarded first rung is visible (WP-1124)
-    per_pattern: list[tuple[int, float, int, float, str, list[float]]] = field(default_factory=list)
+    #: series cases only: one :class:`PerPattern` per pattern, index 0 being
+    #: the cold fit and the rest warm starts
+    per_pattern: list[PerPattern] = field(default_factory=list)
 
 
 def _shape(setup: Setup) -> tuple[int, int, float]:
@@ -617,14 +720,16 @@ def _run_series(setup: Setup) -> Run:
                                    setup.structure.model_copy(deep=True),
                                    setup.instrument.model_copy(deep=True),
                                    plan=setup.plan, refit=setup.refit,
+                                   first_rung_factor=setup.first_rung_factor,
                                    events=collect)
         wall = time.perf_counter() - t0
 
-    per: list[tuple[int, float, int, float, str, list[float]]] = []
+    per: list[PerPattern] = []
     for entry in series.entries:
         spans = rung_spans(entry.index)
-        per.append((entry.index, sum(spans), entry.n_iterations,
-                    entry.statistics.rwp, entry.rung, spans))
+        per.append(PerPattern(entry.index, sum(spans), entry.n_iterations,
+                              entry.statistics.rwp, entry.rung, spans,
+                              entry.rwp_warm, entry.status))
     last = series.entries[-1] if series.entries else None
     statuses = {e.status for e in series.entries}
     status = "converged" if statuses == {"converged"} else "/".join(sorted(statuses))
@@ -679,20 +784,25 @@ def _report(case: Case, setup: Setup, runs: list[Run]) -> None:
         print("    per-stage nfev: " +
               "  ".join(f"{n}={i}" for n, i in last.stages))
     if last.per_pattern:
-        cold = last.per_pattern[0][1]
-        warm = [w for _, w, _, _, _, _ in last.per_pattern[1:]]
-        wasted = sum(sum(s[:-1]) for _, _, _, _, _, s in last.per_pattern
-                     if len(s) > 1)
+        cold = last.per_pattern[0].wall
+        warm = [p.wall for p in last.per_pattern[1:]]
+        wasted = sum(sum(p.rung_walls[:-1]) for p in last.per_pattern
+                     if len(p.rung_walls) > 1)
         print(f"    cold {cold:.2f} s | warm {min(warm):.2f}-{max(warm):.2f} s "
               f"over {len(warm)} patterns (last repeat)")
         if wasted:
-            print(f"    {wasted:.2f} s of that is rungs the ladder discarded "
-                  f"— see rungs= below")
-        for i, w, it, rwp, rung, spans in last.per_pattern:
-            detail = (f"  rungs={'+'.join(f'{s:.2f}' for s in spans)}"
-                      if len(spans) > 1 else "")
-            print(f"      pattern {i:2d}  {w:7.2f} s  {it:5d} iter  "
-                  f"Rwp {rwp:.5f}  kept {rung}{detail}")
+            print(f"    {wasted:.2f} s of that ({100 * wasted / last.wall:.0f} %"
+                  f" of the series) is rungs the ladder discarded — rungs= below")
+        for p in last.per_pattern:
+            detail = ""
+            if len(p.rung_walls) > 1:
+                detail = f"  rungs={'+'.join(f'{s:.2f}' for s in p.rung_walls)}"
+                if p.rwp_warm is not None:
+                    detail += f"  warm Rwp {p.rwp_warm:.5f}"
+            if p.status and p.status != "converged":
+                detail += f"  [{p.status}]"
+            print(f"      pattern {p.index:2d}  {p.wall:7.2f} s  "
+                  f"{p.iterations:5d} iter  Rwp {p.rwp:.5f}  kept {p.rung}{detail}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -708,7 +818,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.list:
         for case in CASES:
-            print(f"  {case.key:10s} {case.blurb}")
+            print(f"  {case.key:{max(len(c.key) for c in CASES)}s} {case.blurb}")
         return 0
 
     wanted = [c.strip() for c in args.cases.split(",") if c.strip()]

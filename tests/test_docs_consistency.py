@@ -240,7 +240,21 @@ SIZE_CAPS: dict[str, int | None] = {
     # the trust-radius mechanism and the two gates that failed for reasons
     # unrelated to their names are in the WP's § Findings, the survey's §2.A1
     # and E5 notes, and the v1.1 record's narrative.
-    "CLAUDE.md": 845,
+    # 845 -> 855 for WP-1127 (2026-08-22): the ladder's first-rung bound, and
+    # like the two fences above it is here because the *wrong* version of it is
+    # the attractive one.  Two clauses cannot go down a rank without being
+    # re-derived by whoever proposes the next bound: what a bound may be
+    # derived from (only a rung that did the same job and converged — the cold
+    # fit reads as free evidence and is false), and the two places a bound
+    # would otherwise reach the answer, neither of which is where it is
+    # applied.  The measurements went down a rank as rule 4 requires: the
+    # cold-9-warm-14 refutation, the per-case tables and the pre-registered
+    # clause that fired are in the WP's § Findings and the v1.1 record.  The
+    # last two lines are the third such trap and the one that cost a CI round:
+    # a threshold set for effect rather than for margin, which two of four
+    # python versions on the other platform caught and a green local full suite
+    # did not.
+    "CLAUDE.md": 855,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one
@@ -271,7 +285,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # The manual style pass touches no always-loaded file: the review's rules
     # went into the yue-docs-style skill and the chapters, and the WP file
     # carries the measurements.
-    "docs/ROADMAP.md": 458,
+    # 458 -> 459 for WP-1127 (2026-08-22): its own index row, and only that.
+    # The row is required rather than chosen — test_wp_files_and_roadmap_rows_
+    # are_a_bijection makes an index row the one line a new WP cannot demote —
+    # and Current focus was not touched at the opening, because the front it
+    # takes over is already named there in WP-1124's closing sentence.
+    "docs/ROADMAP.md": 459,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
