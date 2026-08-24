@@ -230,15 +230,31 @@ def test_no_analytic_branch_claims_a_peak_path(path):
     assert model.scalar_chain_supported(path) is False
 
 
-def test_the_fd_column_is_exact_where_the_check_is_exact():
+def test_the_fd_column_matches_a_hand_written_derivative():
     """Each peak column against a hand-written derivative, not against another FD.
 
     The whole-model FD is the right *fallback* and the wrong *reference*
     (CLAUDE.md § Invariants), so the oracle here is the analytic derivative of
-    the Gaussian chained through the transform.  ``height`` is the exact arm:
-    y is **linear** in h, so the physical-space difference quotient has no
-    truncation error and the bar is tight.  ``position`` and ``fwhm`` are
-    nonlinear, so the FD column carries O(h) curvature and the bar says so.
+    the Gaussian chained through the transform.  ``position`` and ``fwhm`` are
+    nonlinear in their parameter, so their columns carry O(h) truncation error
+    and the bar says so.
+
+    ``height`` is different and its bar is derived rather than declared.  y is
+    **linear** in h, so that column has no truncation error at any step — but
+    that is not the same as being exact.  ``_make_jacobian`` takes a *forward*
+    difference of the whole residual at h = 1e-6·max(1, |θ|), so the two
+    vectors it subtracts agree to ~h·∂r/∂u and the accuracy floor is the
+    **cancellation** term ε·max|r|/h.  This is the invariant's own sentence —
+    "the error growing as the step shrinks is cancellation rather than a
+    defect" — and it is why the bar cannot be zero-with-a-tight-tolerance.
+
+    That distinction is not academic here.  An earlier version of this test
+    called the column exact and asserted a flat ``1e-9 * scale``, which on this
+    fixture is 7.07e-11 against a floor of 7.45e-11 — a bar sitting *on* the
+    floor, so which side of it a platform lands is decided by BLAS summation
+    order.  It passed CI py3.11, py3.13 and py3.14 and failed py3.12 at 1.22×
+    the floor, while this machine measured 0.34×.  The margin below is over the
+    floor, which is the quantity that actually moves.
     """
     _s, _i, _d, table, model = _state(peaks=(_peak(),))
     theta = table.x0()
@@ -268,13 +284,29 @@ def test_the_fd_column_is_exact_where_the_check_is_exact():
         # ∂/∂Γ = +8 ln2 · u²/Γ · curve
         PEAK_PATHS[2]: 8.0 * np.log(2.0) * u * u / fwhm * curve,
     }
-    bars = {PEAK_PATHS[0]: 2e-5, PEAK_PATHS[1]: 1e-9, PEAK_PATHS[2]: 2e-5}
+    # ε·max|r|/h, with h spelled exactly as ``_make_jacobian`` spells it — the
+    # floor is a property of this fixture's residual, so it is measured here
+    # rather than carried as a constant that would rot when the fixture moves.
+    resid = _make_residual(model, table)(theta)[:n_data]
+
+    def cancellation_floor(path):
+        h = 1e-6 * max(1.0, abs(float(theta[free.index(path)])))
+        return np.finfo(np.float64).eps * np.max(np.abs(resid)) / h
+
+    # relative, against the column's own scale, for the two truncation-limited
+    # columns; absolute, against the floor, for the one that has no truncation
+    # term to be limited by.  4× is ~3× clear of the worst reading seen on any
+    # CI platform and still leaves the height column ~2500× tighter than these.
+    rel_bars = {PEAK_PATHS[0]: 2e-5, PEAK_PATHS[2]: 2e-5}
     for path, dy in expect.items():
         col = jac[:n_data, free.index(path)]
         # the residual is (y_obs − y_calc)/σ, hence the minus sign
         truth = -sqrt_w * dy * dpdu(path)
-        scale = np.max(np.abs(truth))
-        assert np.max(np.abs(col - truth)) <= bars[path] * scale, path
+        err = np.max(np.abs(col - truth))
+        if path in rel_bars:
+            assert err <= rel_bars[path] * np.max(np.abs(truth)), path
+        else:
+            assert err <= 4.0 * cancellation_floor(path), path
 
 
 def test_a_peak_column_is_exactly_zero_on_every_row_below_the_data():
