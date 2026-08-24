@@ -417,29 +417,66 @@ def refined(name: str, text: str) -> bool | None:
     return read.vary if read else None
 
 
-#: An equation *and the value TOPAS evaluated it to*: ``= 1/4 + Fe1_1_dx;: 0.25``,
-#: needed here on its own because the old sweep read it without a keyword.
-_EVALUATED = rf"=\s*[^;\n]*;\s*:\s*({_NUM})"
+# -------------------------------------------------------- symbol declarations
+
+#: The keywords this reader reads a value for, and therefore the only places a
+#: **name slot** can sit. ``x ph1_O1_x 0.29935`` declares ``ph1_O1_x``, which
+#: ``y = ph1_O1_x;`` two tokens later references; refusing that cost 14 of the
+#: 606 archive files, the tier-1 Cr2WO6 references among them. ``prm`` and
+#: ``local`` are TOPAS's explicit declarations.
+#:
+#: The *keyword* slot is never a declaration, and that is the whole narrowing:
+#: the predecessor swept every ``<name> <number>`` pair in the file, which on a
+#: realistic 30-line file bound 21 symbols including ``beq``, ``bkg``, ``gof``,
+#: ``min``, ``max``, ``r_wp``, ``x``, ``y``, ``z``. Nothing raises when one is
+#: substituted into an equation — ``_resolve`` substitutes and ``_arith``
+#: returns a plausible number — and ``setdefault`` meant a real ``prm x 0.9999``
+#: lost to an earlier site's ``x 0.1111``.
+_DECLARING_KEYWORDS = ("prm", "local", "a", "b", "c", "al", "be", "ga",
+                       "x", "y", "z", "beq", "occ", "scale", "weight_percent")
+
+_DECLARATION = re.compile(rf"\b(?P<kw>{'|'.join(_DECLARING_KEYWORDS)})\b")
+
+#: A macro's *named* argument is a declaration too — ``CS_L(csl1, 210.4)`` names
+#: a crystallite size an equation elsewhere may reach, and ``Cubic_(lpa …)``
+#: names a lattice parameter. Comma- or space-separated, because TOPAS writes
+#: both, and bounded by the separator so a nameless argument cannot be read as
+#: a name.
+_DECLARED_ARG = re.compile(
+    rf"[(,]\s*(?:{_FLAG})?(?P<name>{_NAME})\s*[,\s]\s*(?:{_FLAG})?"
+    rf"(?P<value>{_NUM})")
 
 
 def symbol_table(text: str) -> dict[str, float]:
-    """Every ``<name> <value>`` parameter binding in the file.
+    """Every parameter the file **declares**, by name.
 
     Needed because a coordinate equation routinely *references another
     parameter* rather than being self-contained: ``y = ph1_O1_x;`` is how a
     tetragonal Cr2WO6 oxygen says y is tied to x. Refusing those cost 14 of the
-    606 archive files, the tier-1 Cr2WO6 references among them, so the
-    reference is resolved instead — and an unresolvable one still returns None
-    and still raises, because inventing a coordinate is the one outcome worse
-    than refusing to read the file.
+    606 archive files, so the reference is resolved instead — and an
+    unresolvable one still returns None and still raises, because inventing a
+    coordinate is the one outcome worse than refusing to read the file.
+
+    A *declaration*, never any ``<name> <number>`` pair: see
+    :data:`_DECLARING_KEYWORDS` for what that bought and what it cost.
     """
     out: dict[str, float] = {}
-    # `prm Fe1_1_x = 1/4 + Fe1_1_dx;: 0.25000` — bind the evaluated value, which
-    # is the whole reason the deeper chain (`Fe1_1_dx`) never has to be walked.
-    for name, tok in re.findall(rf"\b({_NAME})\s*{_EVALUATED}", text):
-        out.setdefault(name, float(tok))
-    for name, tok in re.findall(rf"\b({_NAME})\s+{_FLAG}?({_NUM})", text):
-        out.setdefault(name, float(tok))
+    for m in _DECLARATION.finditer(text):
+        tail = text[m.end():]
+        if m["kw"] == "occ":
+            # `occ La 1.` puts the *species* where the name slot is, so the old
+            # sweep bound `La` to 1.0 and a `prm La` would silently have got
+            # lanthanum's occupancy. Read past the species, as `_read` does.
+            if not (species := re.match(r"\s*\S+", tail)):
+                continue
+            tail = tail[species.end():]
+        read = _read_tail(tail, {})
+        # `prm Fe1_1_x = 1/4 + Fe1_1_dx;: 0.25000` binds the evaluated value,
+        # which is the whole reason the deeper chain never has to be walked.
+        if read is not None and read.name and read.value is not None:
+            out.setdefault(read.name, read.value)
+    for m in _DECLARED_ARG.finditer(text):
+        out.setdefault(m["name"], float(m["value"]))
     return out
 
 

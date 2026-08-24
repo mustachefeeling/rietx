@@ -748,3 +748,92 @@ def test_a_phase_stating_no_scale_still_gets_the_seed(tmp_path):
     assert to_structure(model).phases[0].scale.value == pytest.approx(1e-4)
 
 
+# ------------------------------------------------- a keyword is not a symbol
+
+#: A realistic file, whose only *declarations* are the two `prm`s and the named
+#: values. Measured on the old sweep: 21 symbols bound from these 30 lines,
+#: including `beq`, `bkg`, `gof`, `min`, `max`, `r_wp`, `x`, `y`, `z` and the
+#: element symbols `B`, `La`, `N` — each bound to an occupancy of 1.0, so a
+#: `prm B` would have silently got boron's occupancy.
+_REALISTIC = '''r_wp 8.04733245 gof 1.52039055
+xdd "srm660b.xy"
+    CuKa5(0.0001)
+    Radius(217.5)
+    bkg @ 128.4 -33.9 12.6 -4.1 1.9
+prm scph1 1.0
+prm scb1 0.0844868572
+str
+    phase_name "LaB6"
+    space_group "Pm-3m"
+    Cubic_(lpa 4.15689)
+    scale ph1_scale 0.000225160497`
+    weight_percent ph1_wtpct 17.907`
+    CS_L(csl1, 210.4)
+    site La1 x 0 y 0 z 0 occ La 1. beq !bla 0.4389
+    site B1  x @, 0.19895` y 0.5 z 0.5 occ B 1. beq @, 0.3076`
+str
+    phase_name "cubic_BN"
+    space_group "F-43m"
+    a lp_bn 3.616466` min 3.61 max 3.63
+    scale ph2_scale 0.00321777397`
+    weight_percent cBN_wtpct 82.093`
+    site N1 x 0 y 0 z 0 occ N 1. beq @, 0.30441`
+'''
+
+
+@pytest.mark.parametrize("keyword", [
+    "a", "b", "c", "x", "y", "z", "beq", "occ", "scale", "weight_percent",
+    "bkg", "min", "max", "r_wp", "gof", "site", "prm", "Radius",
+])
+def test_a_keyword_is_never_bound_as_a_symbol(keyword):
+    """The sweep took any `<name> <number>` pair, so every keyword with a bare
+    value became a named parameter. Nothing raises when one is then
+    substituted into an equation: `_arith` returns a plausible number."""
+    assert keyword not in symbol_table(strip_comments(_REALISTIC))
+
+
+@pytest.mark.parametrize("species", ["La", "B", "N"])
+def test_a_species_is_never_bound_as_a_symbol(species):
+    """`occ La 1.` puts the species where the grammar's name slot is, so the
+    old sweep bound `La` to 1.0 — and a `prm La` would then have lost to it."""
+    assert species not in symbol_table(strip_comments(_REALISTIC))
+
+
+@pytest.mark.parametrize("declared", [
+    "scph1", "scb1", "lpa", "ph1_scale", "ph1_wtpct", "bla", "lp_bn",
+    "ph2_scale", "cBN_wtpct", "csl1",
+])
+def test_every_real_declaration_is_still_bound(declared):
+    """The narrowing must not cost a name an equation could reach: a `prm`, a
+    `local`, the name slot of a keyword's value, and a macro's named argument
+    are all declarations."""
+    assert declared in symbol_table(strip_comments(_REALISTIC))
+
+
+def test_a_prm_outranks_an_earlier_sites_coordinate(tmp_path):
+    """`setdefault` means the first binding wins, so a real `prm x 0.9999` lost
+    to whatever earlier line happened to write `x <number>` — silently, because
+    `_resolve` substitutes and `_arith` returns a number."""
+    inp = _inp(tmp_path, "collide.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0.1111 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'prm x 0.9999\n'
+               'site A2 x = x; y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    a1, a2 = read_topas_inp(inp).phases[0].sites
+    assert a1.x == pytest.approx(0.1111)
+    assert a2.x == pytest.approx(0.9999)
+
+
+def test_an_equation_reaching_a_keyword_refuses_rather_than_inventing(tmp_path):
+    """`y = x;` names no parameter this file declares — `x` is a keyword, not a
+    symbol — and the old sweep resolved it to the *first* site's x. Refusing is
+    the only honest answer: inventing a coordinate is the one outcome worse
+    than declining to read the file."""
+    inp = _inp(tmp_path, "keyword_ref.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0.3333 y 0.6667 z 0 occ Na+1 1 beq b 0.5\n'
+               'site A2 x 0.1 y = x; z 0 occ Na+1 1 beq b 0.5\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert "keyword_ref.inp" in str(exc.value) and "cannot read y" in str(exc.value)
+
