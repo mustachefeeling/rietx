@@ -35,6 +35,7 @@ reading the syntax:
 
 from __future__ import annotations
 
+import ast
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -48,6 +49,32 @@ from pathlib import Path
 _SG_SUFFIX: dict[str, str] = {"Z": ":2", "S": ":1", "R": ":R", "H": ":H"}
 
 _NUM = r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?"
+
+#: A TOPAS parameter name. Leading character is deliberately **not** ``\w``:
+#: ``\w`` matches a digit, so ``(?:\w+\s+)?`` in front of a value silently eats
+#: the integer part of a *nameless* one — ``weight_percent 97.9`` came back
+#: 0.9, a wrong number with nothing raised, which is the whole failure class
+#: this reader exists to avoid.
+_NAME = r"[A-Za-z_]\w*"
+
+#: Refinement flags, in every spelling the archive actually contains: ``@``
+#: (refine), ``!`` (fix), and either followed by a comma — ``@, 0.0013`` is
+#: how TOPAS writes a refined value it did not name, and appears on 100+ files
+#: here. Flags may sit before the name, after it, or both.
+_FLAG = r"(?:[@!]\s*,?\s*)"
+
+#: The one grammar every scalar in a ``.inp`` follows:
+#: ``<keyword> [flags] [name] [flags] <number>[`][_esd][_LIMIT_…]``.
+#: Written once because five ad-hoc spellings of it disagreed on real files —
+#: `scale @, 0.0013` and `weight_percent !ph3_wtpct 100.0` were read as *absent*
+#: by two of them, which `to_structure` then replaced with a default scale.
+_PRM = rf"{_FLAG}?(?:{_NAME}\s+{_FLAG}?)?({_NUM})"
+
+#: An equation *and the value TOPAS evaluated it to*: ``= 1/4 + Fe1_1_dx;: 0.25``.
+#: The ``;:`` tail is the most authoritative number in the file — it is what the
+#: converged refinement actually used, so it is preferred over re-evaluating the
+#: expression here, which would need every symbol the expression reaches.
+_EVALUATED = rf"=\s*[^;\n]*;\s*:\s*({_NUM})"
 
 
 class TopasInpError(ValueError):
@@ -147,35 +174,137 @@ def normalize_space_group(symbol: str) -> str:
     return s
 
 
-def _value(token: str) -> float:
+def _value(token: str) -> float | None:
     """Strip TOPAS's decoration: ``@``/``!`` flags, a trailing refined-marker
-    backtick, and ``_LIMIT_*`` annotations."""
-    token = re.sub(r"_LIMIT_[A-Z_]*[\d.]*", "", token.strip().lstrip("@!").rstrip("`"))
-    if m := re.search(_NUM, token):
-        return float(m.group(0))
-    raise ValueError(token)
+    backtick, and ``_LIMIT_*`` annotations.
 
-
-def _field(name: str, line: str) -> float | None:
-    """One ``site`` field, in either spelling (rule 3).
-
-    Self-contained rational arithmetic in the equation form is evaluated;
-    an equation referencing another parameter (``z = 1-x;``) returns None so
-    the caller raises rather than inventing a coordinate.
+    Returns None rather than raising on a token holding no number. The caller
+    is the only place that knows whether that is fatal — a missing coordinate
+    is, a missing occupancy is not — and a bare ``ValueError`` from here
+    escaped as the parser's own exception, which this package's readers may
+    never do (root ``CLAUDE.md``: a reader raises naming the file).
     """
-    if m := re.search(rf"\b{name}\s*=\s*([^;\n]+);", line):
-        expr = m.group(1).strip()
-        if not re.fullmatch(r"[\d\s./*+-]+", expr):
-            return None
-        try:
-            return float(eval(expr, {"__builtins__": {}}, {}))  # noqa: S307
-        except Exception:
-            return None
-    if m := re.search(rf"\b{name}\s+(?:[A-Za-z_]\w*\s+)?(@?!?\s*{_NUM}`?)", line):
-        try:
-            return _value(m.group(1))
-        except ValueError:
-            return None
+    token = re.sub(r"_LIMIT_[A-Z_]*[\d.]*", "", token.strip().lstrip("@!").rstrip("`"))
+    m = re.search(_NUM, token)
+    return float(m.group(0)) if m else None
+
+
+_AST_OPS = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.USub, ast.UAdd)
+
+
+def _arith(expr: str) -> float | None:
+    """Evaluate the rational arithmetic TOPAS writes for a special position.
+
+    ``ast`` rather than ``eval``: the charset gate this replaces admitted
+    ``**``, so ``9**9**9`` in a malformed file was an unbounded computation
+    inside a reader. Only the five operators a coordinate equation needs are
+    walked, and anything else — a name, a call, a power — returns None.
+    """
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError:
+        return None
+
+    def walk(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, _AST_OPS):
+            v = walk(node.operand)
+            return None if v is None else (-v if isinstance(node.op, ast.USub) else v)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, _AST_OPS):
+            a, b = walk(node.left), walk(node.right)
+            if a is None or b is None:
+                return None
+            if isinstance(node.op, ast.Add):
+                return a + b
+            if isinstance(node.op, ast.Sub):
+                return a - b
+            if isinstance(node.op, ast.Mult):
+                return a * b
+            return None if b == 0 else a / b
+        return None
+
+    return walk(tree.body)
+
+
+def symbol_table(text: str) -> dict[str, float]:
+    """Every ``<name> <value>`` parameter binding in the file.
+
+    Needed because a coordinate equation routinely *references another
+    parameter* rather than being self-contained: ``y = ph1_O1_x;`` is how a
+    tetragonal Cr2WO6 oxygen says y is tied to x. Refusing those cost 14 of the
+    606 archive files, the tier-1 Cr2WO6 references among them, so the
+    reference is resolved instead — and an unresolvable one still returns None
+    and still raises, because inventing a coordinate is the one outcome worse
+    than refusing to read the file.
+    """
+    out: dict[str, float] = {}
+    # `prm Fe1_1_x = 1/4 + Fe1_1_dx;: 0.25000` — bind the evaluated value, which
+    # is the whole reason the deeper chain (`Fe1_1_dx`) never has to be walked.
+    for name, tok in re.findall(rf"\b({_NAME})\s*{_EVALUATED}", text):
+        out.setdefault(name, float(tok))
+    for name, tok in re.findall(rf"\b({_NAME})\s+{_FLAG}?({_NUM})", text):
+        out.setdefault(name, float(tok))
+    return out
+
+
+def _resolve(expr: str, symbols: dict[str, float]) -> float | None:
+    """An equation's value: substitute named parameters, then evaluate.
+
+    Longest name first, so a name that is a prefix of another is never
+    half-replaced (``Fe1_1_x`` inside ``Fe1_1_x2``).
+    """
+    for sym in sorted(symbols, key=len, reverse=True):
+        if sym in expr:
+            expr = re.sub(rf"\b{re.escape(sym)}\b", repr(symbols[sym]), expr)
+    return _arith(expr)
+
+
+def _field(name: str, line: str, symbols: dict[str, float] | None = None) -> float | None:
+    """One ``site`` field, in every spelling the archive contains (rule 3).
+
+    Four forms, all real: a plain or flagged number (``z 0.5``, ``beq @, 0.58``),
+    a *named* value with the flag on either side (``z !ph1_cr1_z 0.33489``), an
+    equation (``x = 1/3;``, ``x Zr1_x =1/2;``), and the ``A1(name, value, esd)``
+    macro TOPAS writes for a refined coordinate.
+    """
+    symbols = symbols or {}
+    #: A1/A2/A3 are x/y/z; checked first because the axis letter does not appear.
+    axis_macro = {"x": "A1", "y": "A2", "z": "A3"}.get(name)
+    if axis_macro and (m := re.search(
+            rf"\b{axis_macro}\(\s*{_FLAG}?{_NAME}\s*,\s*({_NUM})", line)):
+        return float(m.group(1))
+    # TOPAS's own evaluated value first, where the file states one.
+    if m := re.search(rf"\b{name}\s+(?:{_NAME}\s*)?{_EVALUATED}", line):
+        return float(m.group(1))
+    if m := re.search(rf"\b{name}\s+(?:{_NAME}\s*)?=\s*([^;\n]+);", line):
+        return _resolve(m.group(1).strip(), symbols)
+    if m := re.search(rf"\b{name}\s+{_FLAG}?(?:{_NAME}\s+{_FLAG}?)?({_NUM}`?)", line):
+        return _value(m.group(1))
+    return None
+
+
+#: Keywords that can follow ``occ`` on a site line. They bound the occupancy's
+#: text, which is what makes an *absent* occupancy different from one whose
+#: value is the next keyword's: ``occ Sr+2 beq 0.765`` is a full occupancy and a
+#: B of 0.765, and reading the token after the species gave it occupancy 0.765.
+_SITE_KEYWORDS = r"\b(?:beq|ADPs|vcocc|rand_xyz|num_posns|u\d\d|site)\b"
+
+
+def _occupancy(rest: str, symbols: dict[str, float]) -> float | None:
+    """The occupancy from the text after ``occ <species>``, or None if absent.
+
+    None means TOPAS's own default of full occupancy, not a parse failure: the
+    keyword is optional in the format. Distinguishing the two is why the search
+    is bounded by :data:`_SITE_KEYWORDS` rather than being a scan to end of line.
+    """
+    tail = re.split(_SITE_KEYWORDS, rest, maxsplit=1)[0]
+    if m := re.match(rf"\s*{_EVALUATED}", tail):
+        return float(m.group(1))
+    if m := re.match(r"\s*=\s*([^;\n]+);", tail):
+        return _resolve(m.group(1).strip(), symbols)
+    if m := re.match(rf"\s*{_PRM}", tail):
+        return _value(m.group(1))
     return None
 
 
@@ -188,6 +317,7 @@ def read_topas_inp(path: str | Path) -> TopasModel:
         raise TopasInpError(f"{path}: cannot read: {exc}") from exc
     active = resolve_ifdefs(strip_comments(raw))
     model = TopasModel()
+    symbols = symbol_table(active)
 
     if m := re.search(rf"r_wp\s+({_NUM})", active):
         model.r_wp = float(m.group(1))
@@ -215,14 +345,14 @@ def read_topas_inp(path: str | Path) -> TopasModel:
         phase = TopasPhase(name=name.group(1).strip(),
                            space_group=normalize_space_group(sg.group(1)))
         for key in ("a", "b", "c", "al", "be", "ga"):
-            m = re.search(rf"^\s*{key}\s+(?:\w+\s+)?(@?!?\s*{_NUM}`?)([^\n]*)",
+            m = re.search(rf"^\s*{key}\s+{_FLAG}?(?:{_NAME}\s+{_FLAG}?)?({_NUM}`?)([^\n]*)",
                           chunk, re.M)
             if not m:
                 continue
-            try:
-                phase.cell[key] = _value(m.group(1))
-            except ValueError:
+            value = _value(m.group(1))
+            if value is None:
                 continue
+            phase.cell[key] = value
             # TOPAS bounds a cell explicitly (`min 3.61 max 3.66;`). Those are
             # part of the author's model: without them a phase the data cannot
             # see is a flat direction and its cell runs away.
@@ -235,30 +365,29 @@ def read_topas_inp(path: str | Path) -> TopasModel:
             if "a" not in phase.cell:
                 v = float(m.group(1))
                 phase.cell.update(a=v, b=v, c=v, al=90.0, be=90.0, ga=90.0)
-        if m := re.search(rf"scale\s+\w*\s*@?\s*({_NUM})", chunk):
-            phase.scale = float(m.group(1))
-        if m := re.search(rf"weight_percent\s+\w*\s*({_NUM})", chunk):
-            phase.weight_percent = float(m.group(1))
+        phase.scale = _field("scale", chunk, symbols)
+        phase.weight_percent = _field("weight_percent", chunk, symbols)
 
         site_lines = [ln for ln in chunk.split("\n") if re.match(r"\s*site\s", ln)]
         for line in site_lines:
             label = re.match(r"\s*site\s+(\S+)", line)
-            occ = re.search(r"\bocc\s+(\S+)\s+(\S+)", line)
+            occ = re.search(r"\bocc\s+(\S+)", line)
             if not (label and occ):
                 raise TopasInpError(
                     f"{path}: {phase.name}: no label/occ in site line: {line.strip()!r}")
             coords = {}
             for axis in "xyz":
-                v = _field(axis, line)
+                v = _field(axis, line, symbols)
                 if v is None:
                     raise TopasInpError(
                         f"{path}: {phase.name}: cannot read {axis} from "
                         f"site line: {line.strip()!r}")
                 coords[axis] = v
-            beq = _field("beq", line)
+            beq = _field("beq", line, symbols)
+            occupancy = _occupancy(line[occ.end():], symbols)
             phase.sites.append(TopasSite(
                 label=label.group(1), species=normalize_species(occ.group(1)),
-                occupancy=_value(occ.group(2)),
+                occupancy=occupancy if occupancy is not None else 1.0,
                 beq=beq if beq is not None else 0.5, **coords))
         # A dropped site is a silently wrong structure factor, so the count is
         # an invariant rather than something the regex is trusted to get right.
@@ -286,19 +415,27 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
 
         def _p(key: str, default: float):
             lo, hi = ph.cell_limits.get(key, (None, None)) if cell_limits else (None, None)
+            value = c.get(key, default)
             kw = {}
-            if lo is not None:
+            # A stated bound that excludes the stated value is dropped, not
+            # enforced. The two disagree in real files — TOPAS writes the
+            # converged value back into the .inp, so an edited or re-run bound
+            # can end up on the wrong side of it — and the *value* is the
+            # measurement while the bound is the author's search window. Keeping
+            # both raised a pydantic error out of a reader, which this package's
+            # readers may not do.
+            if lo is not None and value >= lo:
                 kw["min"] = lo
-            if hi is not None:
+            if hi is not None and value <= hi:
                 kw["max"] = hi
-            return rx.Parameter(value=c.get(key, default), **kw)
+            return rx.Parameter(value=value, **kw)
 
         cell = rx.Cell(a=_p("a", c["a"]), b=_p("b", c["a"]), c=_p("c", c["a"]),
                        alpha=_p("al", 90.0), beta=_p("be", 90.0), gamma=_p("ga", 90.0))
         atoms = [rx.Atom(label=s.label, species=s.species,
                          x=rx.Parameter(value=s.x), y=rx.Parameter(value=s.y),
                          z=rx.Parameter(value=s.z),
-                         occupancy=rx.Parameter(value=s.occupancy),
+                         occ=rx.Parameter(value=s.occupancy),
                          biso=rx.Parameter(value=max(s.beq, 0.0), min=0.0, max=25.0))
                  for s in ph.sites]
         phases.append(rx.Phase(
