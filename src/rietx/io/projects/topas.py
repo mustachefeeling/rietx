@@ -60,6 +60,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..formats.base import decode
+
 #: TOPAS origin/axis suffixes → the Hermann-Mauguin extension gemmi wants.
 #: ``Z`` is *Zentrum*, the centrosymmetric origin (choice 2); ``S`` is the
 #: site-symmetry origin (choice 1). Dropping the letter is not harmless: for
@@ -494,9 +496,24 @@ def read_topas_inp(path: str | Path) -> TopasModel:
     """Parse a ``.inp``. Raises :class:`TopasInpError` naming the file and line."""
     path = Path(path)
     try:
-        raw = path.read_text(encoding="utf-8", errors="ignore")
+        raw_bytes = path.read_bytes()
     except OSError as exc:
         raise TopasInpError(f"{path}: cannot read: {exc}") from exc
+    # `base.decode` is the seam `head()` already goes through, shared rather
+    # than duplicated: a `read_text(encoding="utf-8")` on a UTF-16 export gave
+    # zero phases and `to_structure` then reported "a Pawley or indexing-only
+    # .inp is legal and has none" — a confident wrong diagnosis of a decode
+    # failure, which is the class this reader exists to remove.
+    raw, codec, _bom = decode(raw_bytes)
+    # What a mark cannot name is refused, per `io/CLAUDE.md`'s `xy` row:
+    # ASCII-range UTF-16 is *valid* UTF-8 with interleaved NULs, so a surviving
+    # NUL means no byte-order mark said which of LE and BE this is. Guessing is
+    # a repair this reader could not say it made.
+    if "\x00" in raw:
+        raise TopasInpError(
+            f"{path}: not text this reader can decode — NUL bytes survive a "
+            f"{codec} decode, which is what an ASCII-range UTF-16 export with "
+            f"no byte-order mark looks like. Re-save it as UTF-8.")
     active = resolve_ifdefs(strip_comments(raw))
     model = TopasModel(path=str(path))
     symbols = symbol_table(active)

@@ -592,5 +592,129 @@ def test_a_str_block_that_produced_no_cell_refuses_rather_than_dropping(tmp_path
     assert "nocell.inp" in str(exc.value) and "cell_less" in str(exc.value)
 
 
+# ------------------------------------------------------------ the encoding
+
+#: One realistic file, written in five encodings. The three a byte-order mark
+#: names are read; the two it does not are refused.
+_ENCODED = ('r_wp 8.04733245 gof 1.52039055\n'
+            'xdd "srm660b.xy"\nCuKa5(0.0001)\n'
+            'str\nphase_name "LaB6"\nspace_group "Pm-3m"\n'
+            'Cubic_(lpa 4.15689)\nscale ph1_scale 0.000225160497`\n'
+            'site La1 x 0 y 0 z 0 occ La 1. beq !bla 0.4389\n')
+
+
+@pytest.mark.parametrize("codec", ["utf-8", "utf-8-sig", "utf-16"])
+def test_a_byte_order_mark_is_decoded_not_read_as_utf8(tmp_path, codec):
+    """`read_text(encoding="utf-8")` on a UTF-16 file gives zero phases, and
+    `to_structure` then says "a Pawley or indexing-only .inp is legal and has
+    none" — a confident wrong diagnosis of a *decode* failure.
+
+    `io.formats.base.decode` is the seam that already answers this, shared with
+    `head()` rather than duplicated. All 606 archive files are BOM-free, so
+    this is latent rather than measured.
+    """
+    inp = tmp_path / "enc.inp"
+    inp.write_bytes(_ENCODED.encode(codec))
+    model = read_topas_inp(inp)
+    assert [p.name for p in model.phases] == ["LaB6"]
+    assert model.r_wp == pytest.approx(8.04733245)
+    assert model.data_files == ["srm660b.xy"]
+    assert to_structure(model).phases[0].cell.a.value == pytest.approx(4.15689)
+
+
+def test_a_bom_immediately_before_the_first_str_still_splits(tmp_path):
+    """U+FEFF is category Cf, not `\\s`, so `^\\s*str\\s*$` misses a `str` the
+    mark is glued to — the one place a UTF-8 BOM actually breaks this reader."""
+    inp = tmp_path / "bomfirst.inp"
+    inp.write_bytes(('str\nphase_name "LaB6"\nspace_group "Pm-3m"\n'
+                     'Cubic_(lpa 4.15689)\n'
+                     'site La1 x 0 y 0 z 0 occ La 1. beq !bla 0.4389\n')
+                    .encode("utf-8-sig"))
+    assert [p.name for p in read_topas_inp(inp).phases] == ["LaB6"]
+
+
+@pytest.mark.parametrize("codec", ["utf-16-le", "utf-16-be"])
+def test_a_utf16_file_with_no_mark_is_refused_naming_the_file(tmp_path, codec):
+    """`io/CLAUDE.md`'s `xy` row settles this: a NUL is refused by name *unless*
+    behind a BOM, because ASCII-range UTF-16LE is valid UTF-8 with interleaved
+    NULs and no byte-order mark says which of LE and BE it is. Guessing is a
+    repair this reader cannot say it made, so it refuses instead."""
+    inp = tmp_path / f"{codec}.inp"
+    inp.write_bytes(_ENCODED.encode(codec))
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert f"{codec}.inp" in str(exc.value)
+
+
+# ---------------------------------------- the flag grammar, off the one match
+
+def test_the_coordinate_macros_own_flag_is_read(tmp_path):
+    """`A1(@xO3, …)` carries its flag *inside* the parenthesis.
+
+    The value grammar was unified and the flag grammar was not, so `refined`'s
+    separate regex never looked inside the macro and returned None — which
+    `rx.Parameter` then defaults to `vary=False`, i.e. **held**. The tri-state
+    this reader argues for collapsed to "held" at the one boundary where the
+    file was explicit.
+    """
+    line = ("site O3 A1(@xO3, 0.00143, 0.00143) A2(!yO3, 0.03550, 0.001) "
+            "A3(@zO3, 0.21526, 0.001) occ O 1.0 beq !bval 0.5")
+    assert refined("x", line) is True
+    assert refined("y", line) is False
+    assert refined("z", line) is True
+    inp = _inp(tmp_path, "macroflags.inp",
+               f'str\nphase_name "P"\nspace_group "P1"\na 5.0\n{line}\n')
+    (atom,) = to_structure(read_topas_inp(inp)).phases[0].atoms
+    assert (atom.x.vary, atom.y.vary, atom.z.vary) == (True, False, True)
+
+
+def test_a_write_back_backtick_after_an_evaluated_tail_is_read_as_refined(tmp_path):
+    """`scale =scph1*scb1;:  0.0844868572\\`` — the backtick sits after the `;:`
+    tail, where the flag regex could not reach it. The value was read
+    correctly and the flag was lost, which is the same tri-state error one
+    field over."""
+    inp = _inp(tmp_path, "tail.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'scale =scph1*scb1;:  0.0844868572`\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert phase.scale == pytest.approx(0.0844868572)
+    assert phase.vary["scale"] is True
+    assert to_structure(read_topas_inp(inp)).phases[0].scale.vary is True
+
+
+# ------------------------------------------------------ occ carries a species
+
+@pytest.mark.parametrize("occ, expected", [
+    ("occ Ca+2 @ 0.6", True),        # charged and flagged
+    ("occ Ca @ 0.6", True),          # uncharged — the one that worked, by luck
+    ("occ Ca+2 !n 0.6", False),
+    ("occ Ca !n 0.6", False),        # uncharged but *named*: also lost
+    ("occ Si !ph1_Si 0.8000", False),        # SiGe_LiCl-KCl_grey_PVII.inp
+    ("occ La+3 !LSF_occ_La 0.6 vcocc", False),   # lasf_longruns_riet_07.inp
+    ("occ Na+1 1", None),            # the file says nothing
+])
+def test_an_occupancys_flag_is_read_whatever_the_species(occ, expected):
+    """The grammar has **one** name slot and on an `occ` line the species
+    consumes it, so `occ Ca @ 0.6` worked by accident and everything else
+    returned None. Widening `_NAME` to admit `+`/`-` is not the fix — it is
+    load-bearing everywhere else — so `occ` reads past its species first.
+
+    Incidence: 38 real site lines. `occ Si !ph1_Si 0.8000` is a Si/Ge solid
+    solution deliberately **held** at 0.8/0.2, arriving as held-by-default
+    rather than held-by-file — and a default cannot be told from a decision.
+    """
+    assert refined("occ", f"site A1 x 0 y 0 z 0 {occ} beq b 0.5") is expected
+
+
+def test_a_held_occupancy_reaches_the_structure_as_held(tmp_path):
+    inp = _inp(tmp_path, "sige.inp",
+               'str\nphase_name "SiGe"\nspace_group "Fd-3m:2"\na 5.45\n'
+               'site Si1_Si x 0. y 0. z 0. occ Si !ph1_Si 0.8000 beq b 0.5\n'
+               'site Si1_Ge x 0. y 0. z 0. occ Ge @ph1_Ge 0.2000 beq b 0.5\n')
+    si, ge = to_structure(read_topas_inp(inp)).phases[0].atoms
+    assert (si.occ.value, si.occ.vary) == (pytest.approx(0.8), False)
+    assert (ge.occ.value, ge.occ.vary) == (pytest.approx(0.2), True)
+
 
 
