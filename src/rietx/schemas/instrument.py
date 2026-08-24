@@ -716,6 +716,34 @@ class Instrument(Base):
         default_factory=lambda: BackgroundChebyshev(), discriminator=None
     )
 
+    @model_validator(mode="after")
+    def _radiation_admits_its_corrections(self) -> "Instrument":
+        """Refuse a correction whose derivation assumes the other radiation.
+
+        ``Geometry`` already refuses ``surface_roughness`` outside
+        ``bragg_brentano`` — that is a *geometry* fence, and this is the
+        radiation one beside it.  Both roughness models depress the low-angle
+        intensity because the beam samples less material where an irregular
+        surface turns away from it, which needs the penetration depth to be
+        comparable to the surface relief: microns for X-rays.  A thermal neutron
+        beam penetrates centimetres of the same specimen, so the correction has
+        no regime here rather than merely a small coefficient, and fitting it
+        would buy Rwp from a parameter with nothing behind it.
+
+        Refused rather than diagnosed because there is no legitimate reason to
+        set it — unlike ``dispersion = None``, which has two — and because a
+        stored roughness block is a claim, not a default.
+        """
+        if (self.source.kind != "xray_cw"
+                and self.geometry.surface_roughness is not None):
+            raise ValueError(
+                f"surface_roughness is an X-ray correction and this source is "
+                f"{self.source.kind!r}: both models (Suortti 1972, Pitschke "
+                f"1993) depress the low-angle intensity of a beam that "
+                f"penetrates microns, while a thermal neutron beam penetrates "
+                f"centimetres — set geometry.surface_roughness = None")
+        return self
+
     @classmethod
     def constant_wavelength_neutron(
             cls, wavelength: float, *,

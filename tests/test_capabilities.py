@@ -125,6 +125,53 @@ def test_every_anode_appears_with_its_lines_and_kbeta(caps):
     assert by_name["CuKa1"].kbeta == by_name["CuKa"].kbeta == _KBETA["CuKa"]
 
 
+def test_every_source_kind_in_the_union_appears_as_a_radiation(caps):
+    """The registry here is the ``Instrument.source`` union itself.
+
+    A source kind reachable by ``model_validate`` and absent from the arm is a
+    radiation a client cannot discover — the same failure as an unlisted plan,
+    one vocabulary over, and the reason ``_source_classes`` reads the annotation
+    instead of restating it.
+    """
+    union = get_args(rx.Instrument.model_fields["source"].annotation)
+    live = {get_args(cls.model_fields["kind"].annotation)[0] for cls in union}
+    assert {r.kind for r in caps.radiations} == live
+    assert live >= {"xray_cw", "neutron_cw"}, "both radiations must be reachable"
+
+
+def test_each_radiation_reports_what_actually_differs(caps):
+    """Derived predicates, so each flag flips with its own feature (WP-1037).
+
+    Checked against the *classes* rather than against expected literals: a
+    hand-written ``True`` here would be a second opinion that agreed with itself
+    while the field it describes was renamed away.
+    """
+    from rietx.schemas.instrument import NeutronSource, Source
+
+    by_kind = {r.kind: r for r in caps.radiations}
+    for cls, kind in ((Source, "xray_cw"), (NeutronSource, "neutron_cw")):
+        arm = by_kind[kind]
+        assert arm.anomalous_dispersion == ("dispersion" in cls.model_fields)
+        assert arm.polarization_refinable == ("polarization" in cls.model_fields)
+
+    # and the two disagree, which is the whole reason the arm exists
+    assert by_kind["xray_cw"].anomalous_dispersion
+    assert not by_kind["neutron_cw"].anomalous_dispersion
+    assert by_kind["neutron_cw"].max_emission_lines == 1
+    assert by_kind["xray_cw"].max_emission_lines is None
+    # every entry is documented rather than defaulting to its own discriminator
+    assert all(r.title != r.kind and r.scatterer != "undocumented"
+               for r in caps.radiations)
+
+
+def test_the_anode_arm_says_nothing_about_a_neutron_source(caps):
+    """``anodes`` is a sub-vocabulary of one radiation, which is why both arms
+    exist: a client reading ``anodes`` alone would conclude this build does
+    X-rays only."""
+    assert all(a.wavelengths for a in caps.anodes)
+    assert "neutron_cw" not in {a.name for a in caps.anodes}
+
+
 def test_every_reader_format_appears_in_dispatch_order(caps):
     assert [r.name for r in caps.reader_formats] == [f.name for f in PATTERN_FORMATS]
     by_name = {r.name: r for r in caps.reader_formats}

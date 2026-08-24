@@ -448,7 +448,17 @@ class ParameterTable:
         self._add(f"{base}.biso", atom.biso, force_fixed=True)
 
     def _collect_instrument(self, instrument: Instrument) -> None:
-        self._add("instrument.polarization", instrument.source.polarization)
+        # K is a fact about the radiation, not about this instrument, wherever
+        # the radiation pins it.  A neutron beam is not polarised the way the
+        # Thomson cross-section polarises X-rays, so Lp collapses to the bare
+        # Lorentz factor at K = 1 — and a *free* entry there is worse than a
+        # dead column: Lp(2θ, K) does move the pattern, so the solver would buy
+        # Rwp by refining a term whose value the physics already knows.
+        # Force-fixed rather than merely unfree, the WP-1073 rule — a parameter
+        # the forward branch cannot legitimately use must be locked, or
+        # ``set_vary`` frees it and nothing objects.
+        self._add("instrument.polarization", instrument.source.polarization,
+                  force_fixed=instrument.source.kind != "xray_cw")
         for il, line in enumerate(instrument.source.lines):
             # line 0 defines the intensity scale: its weight is degenerate with
             # the phase scale factors, so it is always held fixed

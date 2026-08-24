@@ -147,6 +147,67 @@ def test_unknown_species_refuses_at_compile_rather_than_returning_zero():
         compile_phase_sites(bogus, neutron=True)
 
 
+# -------------------------------------------------------------- the refusals ---
+def test_a_dispersion_channel_cannot_be_attached_to_a_neutron_source():
+    """Structural, via ``extra="forbid"`` — there is no field to set."""
+    from pydantic import ValidationError  # noqa: PLC0415
+    with pytest.raises(ValidationError, match="dispersion"):
+        NeutronSource(wavelength=2.0780, dispersion=None)
+    with pytest.raises(ValidationError, match="lines"):
+        NeutronSource(wavelength=2.0780, lines=[])
+
+
+def test_polarization_is_force_fixed_rather_than_merely_unfree():
+    """A free K would not be a dead column, which is what makes this matter.
+
+    Lp(2θ, K) does move the pattern, so a solver handed a free K on a neutron
+    fit would buy Rwp by refining a term the physics already fixes. WP-1073's
+    rule: force-fixed, so ``set_vary`` cannot reach it.
+    """
+    structure = rx.Structure(phases=[corundum()])
+    neutron = rx.Refinement(structure,
+                            rx.Instrument.constant_wavelength_neutron(2.0780))
+    row = next(r for r in neutron.parameters()
+               if r.path == "instrument.polarization")
+    assert row.value == 1.0
+    assert not row.refinable
+    neutron.set_vary(["instrument.polarization"], True)
+    row = next(r for r in neutron.parameters()
+               if r.path == "instrument.polarization")
+    assert not row.refinable, "set_vary freed a force-fixed polarization"
+
+    # and the lock is conditional on the radiation, not a blanket freeze
+    xray = rx.Refinement(structure, rx.Instrument.debye_scherrer(1.5406))
+    assert next(r for r in xray.parameters()
+                if r.path == "instrument.polarization").refinable
+
+
+def test_surface_roughness_is_refused_on_a_neutron_source():
+    """A µm-penetration correction applied to a cm-penetration beam.
+
+    Refused rather than diagnosed: there is no legitimate reason to set it, and
+    a stored roughness block is a claim rather than a default.
+    """
+    from pydantic import ValidationError  # noqa: PLC0415
+
+    from rietx.schemas.instrument import (  # noqa: PLC0415
+        EmissionLine,
+        Geometry,
+        RoughnessSuortti,
+        Source,
+    )
+
+    geometry = dict(kind="bragg_brentano", goniometer_radius_mm=240.0,
+                    surface_roughness=RoughnessSuortti())
+    with pytest.raises(ValidationError, match="X-ray correction"):
+        rx.Instrument(source=NeutronSource(wavelength=2.0780),
+                      geometry=Geometry(**geometry))
+    # the same block on an X-ray source is untouched
+    ok = rx.Instrument(source=Source(lines=[EmissionLine(wavelength=1.5406)]),
+                       geometry=Geometry(**geometry))
+    assert ok.geometry.surface_roughness is not None
+
+
 # ------------------------------------------------------------------ the fit ---
 def test_xray_only_diagnostic_stays_quiet_for_neutrons():
     """DISPERSION_NEGLECTED would advise restoring a correction that does not
