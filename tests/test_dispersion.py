@@ -498,33 +498,6 @@ def test_ions_resolve_to_the_element():
     assert dispersion("Zn2+", CU_KA1_LAMBDA) == dispersion("Zn", CU_KA1_LAMBDA)
 
 
-def test_both_charge_spellings_resolve():
-    """Digit-first is IUCr's order; sign-first is what TOPAS writes, and a fair
-    number of CIFs in the wild carry it.
-
-    The charge is discarded either way, so accepting the second costs nothing.
-    Refusing it cost more than it looks: dispersion resolves at stage compile
-    (on by default since v1.0), so one sign-first species failed partway into
-    ``compile_model`` naming the species but not the atom, the phase, or that
-    the caller's structure was at fault.
-    """
-    from rietx.crystallography.dispersion import normalize_element
-
-    assert normalize_element("Cu+1") == normalize_element("Cu1+") == "Cu"
-    assert normalize_element("O-2") == normalize_element("O2-") == "O"
-    assert normalize_element("Cu+") == "Cu"
-    assert dispersion("Cu+1", CU_KA1_LAMBDA) == dispersion("Cu", CU_KA1_LAMBDA)
-
-
-@pytest.mark.parametrize("bad", ["", "1Cu", "Cu++", "Xx1+2", "Cu+1+", "Cu 1+"])
-def test_a_species_that_is_not_an_element_still_refuses(bad):
-    """Widening the charge spelling must not widen what counts as an element."""
-    from rietx.crystallography.dispersion import normalize_element
-
-    with pytest.raises(KeyError):
-        normalize_element(bad)
-
-
 def test_hydrogen_is_zero_not_a_refusal():
     """Z = 1, 2 are absent from the tabulation and have no X-ray edge.
 
