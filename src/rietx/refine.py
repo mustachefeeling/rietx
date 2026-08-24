@@ -51,7 +51,7 @@ from .params.vector import AffineTie, ParameterTable, _is_wavelength
 from .report.schemas import THRESHOLDS_VERSION, StageReport
 from .schemas.common import Diagnostic, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
-from .schemas.instrument import Instrument
+from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.pattern import PatternData
 from .schemas.results import (
@@ -1892,6 +1892,52 @@ def _reflection_positions(model: CompiledModel,
     return positions[(positions >= model.tt_min) & (positions <= model.tt_max)]
 
 
+def _capillary_offset_diagnostics(model: CompiledModel,
+                                  table: ParameterTable) -> list[Diagnostic]:
+    """Say when the eq (4) offsets could not be expressed, rather than holding
+    them silently.
+
+    They are the capillary geometry's position aberration (McCusker et al. 1999
+    eq 4), and eq (4) divides by the goniometer radius — so without one they are
+    force-fixed at zero, correctly, because there is nothing to divide by.  What
+    is not correct is leaving that quiet: **a held aberration reads as a measured
+    zero** (WP-1073), and this one is not small.  Measured on a BT-1 Cr2WO6
+    refinement where TOPAS refined a specimen displacement of 0.0975 and this
+    package could not express one: both cell axes came back low by 143 ppm
+    *together*, so c/a agreed with TOPAS to 3.4 ppm while neither axis did.  A
+    uniform d-scale offset is what an unmodelled cos θ position error looks
+    like, and an axial ratio hides it by construction.
+
+    Info rather than warning, and it deliberately does **not** ask for the
+    offsets to be freed.  WP-1073 measured what that costs on 11-BM: the pair is
+    a degeneracy the fit rides to a bound while Rwp *improves* and the cell moves
+    1117 ppm.  So they stay report-driven, and this says only that the door is
+    shut and which field opens it.
+    """
+    if model.geometry_kind != "debye_scherrer":
+        return []
+    # Read the gate off the table rather than re-deriving it from the geometry.
+    # ``ParameterTable`` force-fixes these two exactly when eq (4) has no R to
+    # divide by, so a *locked* entry on a capillary is the radius being absent,
+    # said by the one authority that decides it.  Re-testing the geometry here
+    # would be a second opinion that could drift from the first.
+    locked = {e.path for e in table.entries if e.locked}
+    if not any(f"instrument.geometry.{name}" in locked
+               for name in CAPILLARY_OFFSETS):
+        return []
+    return [Diagnostic(
+        level="info", code="CAPILLARY_OFFSET_UNAVAILABLE",
+        where=["instrument.geometry.goniometer_radius_mm"],
+        message=("this capillary geometry declares no goniometer radius, so the "
+                 "eq (4) specimen-offset aberrations are held at zero — which is "
+                 "not the same statement as having measured them to be zero"),
+        suggestion=("set instrument.geometry.goniometer_radius_mm if the "
+                    "diffractometer's is known; an unmodelled offset of this "
+                    "kind lands in the cell as a uniform d-scale error, moving "
+                    "both axes together, which leaves an axial ratio looking "
+                    "better than either axis deserves"))]
+
+
 def _absorption_diagnostics(record) -> list[Diagnostic]:
     """Surface the ways a specimen absorption correction can mislead."""
     out: list[Diagnostic] = []
@@ -2088,6 +2134,11 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     absorption = _absorption_record(model, mu_r_source, mu_r_skipped, values)
     if absorption is not None:
         diagnostics = diagnostics + _absorption_diagnostics(absorption)
+
+    # The position aberration this geometry has and could not express, for the
+    # same reason as above: nothing else in the result says it was unavailable
+    # rather than measured at zero.
+    diagnostics = diagnostics + _capillary_offset_diagnostics(model, table)
 
     # Surface-roughness regime fences (WP-0502): whether the fitted range can
     # see the correction at all, and whether it left its derivation's domain.
