@@ -176,6 +176,7 @@ patterns in order.
 | `SeriesEntry.statistics` | that pattern's own `Statistics` |
 | `SeriesEntry.parameters` | the `RefinedParameter` rows the fit determined |
 | `SeriesEntry.qpa` | the phase quantities, when the fit produced them |
+| `SeriesEntry.phase_agreement` | per-phase `PhaseAgreement` (R_Bragg, R_F), empty outside Rietveld mode |
 | `SeriesEntry.diagnostics` | that pattern's own diagnostics |
 | `SeriesEntry.n_iterations` | iterations over **every** attempt on this pattern |
 | `SeriesEntry.reseeded` | the warm start was rejected and the pattern was refitted cold |
@@ -186,6 +187,22 @@ patterns in order.
 
 `SeriesEntry.value` and `SeriesEntry.stderr` look a path up in that entry's
 parameters and return `None` when it is not there.
+
+`SeriesEntry.phase_agreement` is **not** the test of whether a minor phase is
+real, and the temptation to read it as one is why it needs a paragraph. Both
+indices are biased towards the model being tested, and a trace phase's is not
+comparable with the major phase's at all —
+{ref}`structure-agreement-indices` has the mechanism and the
+in-repo measurement. What the field is for here is the *trajectory*: one
+pattern's R_B is a value, sixty of them are a shape, and watching a phase's
+R_B walk across a ramp is a use a single fit cannot make of it.
+
+The question it looks like it answers has its own channel. `PHASE_UNCONSTRAINED`
+measures each phase's strongest modelled point in σ of the observation noise —
+"can the data see this phase at all" — reaches an entry through
+`SeriesEntry.diagnostics`, and aggregates over the chain as
+`SEQUENTIAL_PERSISTENT_FINDING`, which says the thing no per-pattern diagnostic
+can: *42 of 68*. Read R_B beside that and beside the weight with its esd.
 
 `SeriesEntry.rung` and `SeriesEntry.reseeded` answer different questions.
 `rung` says where the numbers came from; the first pattern of a chain is always

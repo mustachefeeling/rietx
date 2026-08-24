@@ -50,6 +50,7 @@ residuals still land near 1.51, because same-sign runs happen by chance, and lab
 data with unmodelled profile detail typically lands at 2 to 4. Treat it as an
 upper bound on the serial-correlation damage rather than as a measurement of it.
 
+(structure-agreement-indices)=
 ## Structure agreement indices
 
 Every field above measures the *pattern*. Two more measure the **structure**, and

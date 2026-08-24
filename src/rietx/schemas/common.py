@@ -28,7 +28,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: recording what a stage ran at.  The one entry so far whose default changes
 #: an answer rather than only the field list — bounded at 0.03 esd on a single
 #: fit — and ``intermediate_ftol=None`` restores the old schedule bit for bit.
-SCHEMA_VERSION = "0.5"
+#: 0.5 → 0.6: ``SeriesEntry.phase_agreement`` added — the per-phase Bragg
+#: agreement each pattern's own result already carried, now surviving the series
+#: boundary.  Additive and defaulted, and it bumps anyway: WP-1117 made the only
+#: question whether a consumer could notice, and a new field on a response arm
+#: is noticeable.
+SCHEMA_VERSION = "0.6"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

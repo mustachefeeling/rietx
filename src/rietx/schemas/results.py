@@ -246,11 +246,16 @@ class Identifiability(Base):
     fit time or lost — unlike Rwp or a residual, which any consumer can
     recompute from the arrays already here.
 
-    It is **additive and defaulted**, which deliberately leaves
-    ``SCHEMA_VERSION`` where it is: the events rule of WP-1043 one rank over —
-    a new field on an existing shape is not a new shape, and every reader
-    written against the old one keeps parsing.  A *new* top-level result
-    section that a consumer must branch on would be the other case.
+    It arrived **additive and defaulted**, which under the rule of the day left
+    ``SCHEMA_VERSION`` where it was — the events rule of WP-1043 one rank over,
+    a new field on an existing shape not being a new shape.  **That is no
+    longer the rule.**  Since WP-1117 the only question is whether a consumer
+    could *notice*, and a new field on a result is noticeable, so an addition
+    of this shape now bumps the version like any other: the comment beside
+    :data:`~rietx.schemas.common.SCHEMA_VERSION` is the changelog, and three of
+    its entries are additive defaulted fields.  Corrected here rather than
+    deleted because this is the sentence that talked a later reader out of a
+    bump it owed.
 
     ``background_absorption`` maps each screened structural path to the block
     projection R² of its Jacobian column onto the background column span

@@ -36,6 +36,7 @@ from rietx.sequential import (
     _carry_into,
     _collapse,
     _discontinuity_diagnostics,
+    _entry_from_result,
     _labels_for,
     _path_dependence_diagnostics,
     _reseed_needed,
@@ -197,6 +198,56 @@ def test_the_table_header_has_no_duplicate_column(thermal_series):
     # a real coordinate is used verbatim, which is the whole point of the field
     named = SeriesResult(entries=list(thermal_series.entries), x_label="T (K)")
     assert named.to_table(paths=[])[0][2] == "T (K)"
+
+
+def test_every_entry_carries_per_phase_bragg_agreement(thermal_series):
+    """The signal existed per pattern and was dropped at the series boundary.
+
+    This asserts only that: every entry of a Rietveld chain carries a row per
+    phase, populated. What the numbers *mean* is deliberately not claimed here —
+    a trace phase's R_B is not comparable with the major phase's and a low one
+    is consistent with a self-fulfilling partition (``structure_r_factors``,
+    WP-1069), so a test asserting a threshold would be asserting an
+    interpretation the index does not support.
+    """
+    for entry in thermal_series.entries:
+        assert entry.phase_agreement, f"entry {entry.index} carries none"
+        for agreement in entry.phase_agreement:
+            assert agreement.n_reflections > 0
+            # r_bragg is float | None -- None for a phase with no partitionable
+            # scattering power -- so `>= 0.0` would raise TypeError rather than
+            # fail readably on the case this test is here to catch.
+            assert agreement.r_bragg is not None
+            assert agreement.r_bragg >= 0.0
+
+
+def test_phase_agreement_carries_the_underlying_results_values(thermal_patterns):
+    """Value equality with the result's own rows, which is what a consumer reads.
+
+    Not "copies rather than recomputes": an exact recomputation would pass this
+    too, and the assertion cannot tell them apart. The claim worth pinning is
+    the one it makes — a reader of the entry and a reader of the result see the
+    same numbers — plus the *independence* of the copy, which value equality
+    alone would miss.
+    """
+    structure, ins = _start_models()
+    result = rx.refine(thermal_patterns[0], structure, ins, plan="mccusker_default")
+    entry = _entry_from_result(0, "one", None, result)
+    assert [(a.name, a.r_bragg, a.r_f, a.n_reflections) for a in entry.phase_agreement] == \
+           [(a.name, a.r_bragg, a.r_f, a.n_reflections) for a in result.phase_agreement]
+    # a deep copy, so mutating the result cannot reach an entry already recorded
+    assert all(a is not b for a, b in
+               zip(entry.phase_agreement, result.phase_agreement, strict=True))
+
+
+def test_a_lebail_entry_carries_no_agreement(thermal_patterns):
+    """Empty outside Rietveld, for the reason it is empty on the result there:
+    in Le Bail the partition *is* the fit, so I(obs) would be compared with
+    itself."""
+    structure, ins = _start_models()
+    result = rx.refine(thermal_patterns[0], structure, ins,
+                       mode="lebail", plan="profile_only")
+    assert _entry_from_result(0, "one", None, result).phase_agreement == []
 
 
 def test_labels_are_made_unique():
