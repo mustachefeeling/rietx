@@ -162,12 +162,20 @@ class RadiationCapability(Base):
     #: from the class, never asserted: f′/f″ is an X-ray core-level effect, and
     #: a neutron source has no field for it to be set on
     anomalous_dispersion: bool
-    #: how many emission lines the source can carry.  1 for a neutron
-    #: monochromator, unbounded for an anode with a Kα doublet
+    #: how many emission lines the source can carry.  ``None`` is unbounded —
+    #: an anode with a Kα doublet declares its own list, and a source that can
+    #: declare λ/n harmonics grows its spectrum the same way, so this stopped
+    #: being 1 for neutrons the moment harmonics landed.  1 means the spectrum
+    #: is one wavelength and can be nothing else.
     max_emission_lines: int | None
     #: ``True`` where the Lorentz-polarisation K is refinable.  For neutrons it
     #: is pinned at 1, which collapses the factor to the bare Lorentz factor
     polarization_refinable: bool
+    #: ``True`` where the source accepts declared λ/n monochromator harmonics.
+    #: Read off ``Source.harmonics_supported`` — the same attribute the schema's
+    #: own refusal reads — so this cannot claim a support the validator denies.
+    #: False for X-rays, where one shared f′/f″ cannot serve λ and λ/n.
+    harmonic_contamination: bool
 
 
 class ReaderCapability(Base):
@@ -351,15 +359,23 @@ def _radiation(cls: type) -> RadiationCapability:
     kind = get_args(cls.model_fields["kind"].annotation)[0]
     title, scatterer = _RADIATION_NOTES.get(kind, (kind, "undocumented"))
     lines_field = cls.model_fields.get("lines")
+    # Not "does the class have a harmonics field" — both source classes do, so
+    # that predicate would report X-ray support the validator refuses.  The
+    # class attribute is the one authority for the answer and
+    # ``check_harmonics`` reads the same one.
+    harmonics = bool(getattr(cls, "harmonics_supported", False))
     return RadiationCapability(
         kind=kind,
         title=title,
         scatterer=scatterer,
-        # both derived predicates, never literals: a source that grows a
+        # all derived predicates, never literals: a source that grows a
         # dispersion channel flips its own flag
         anomalous_dispersion="dispersion" in cls.model_fields,
-        max_emission_lines=None if lines_field is not None else 1,
+        # a declared spectrum *or* a harmonic declaration lifts the cap: a
+        # single-wavelength source that can carry λ/n is not a one-line source
+        max_emission_lines=None if (lines_field is not None or harmonics) else 1,
         polarization_refinable="polarization" in cls.model_fields,
+        harmonic_contamination=harmonics,
     )
 
 

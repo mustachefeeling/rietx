@@ -1999,6 +1999,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # see the correction at all, and whether it left its derivation's domain.
     diagnostics = diagnostics + _roughness_regime_diagnostics(model, values)
 
+    # A declared λ/n monochromator harmonic, and what fraction of the
+    # fundamental it refined to.  Empty unless the source declared one, so this
+    # is silent on every model built before harmonics existed.
+    diagnostics = diagnostics + _harmonic_diagnostics(
+        model, values, set(table.free_paths), stderr_phys)
+
     # A phase the data cannot see, refined anyway (WP-1110).  Named here rather
     # than left to HIGH_CORRELATION, which reports the ρ≈1 between the phase's
     # cell and its scale — the symptom — while this reports the cause.
@@ -2238,6 +2244,118 @@ def _dispersion_diagnostics(structure: Structure,
                    "wavelength sits in an absorption-edge interval, supply the "
                    "measured pair through Dispersion.overrides instead",
     )]
+
+
+#: Below this refined fraction a declared λ/n harmonic is reported as **not
+#: detected** rather than measured.  Not a tuning and not a detection limit:
+#: the weight's own esd is the detection limit and the diagnostic quotes it.
+#: This is the band inside which the fitted value is indistinguishable from the
+#: zero its bound sits at, so calling it a measurement of the beam would be the
+#: confident wrong singleton the FitReport rules exist to prevent.  0.1 % is one
+#: tenth of :data:`~rietx.schemas.instrument.HARMONIC_WEIGHT_SEED`, i.e. the
+#: refinement travelled *away* from its seed toward zero and stayed there.
+HARMONIC_ABSENT_FRAC = 1e-3
+
+#: Above this refined fraction the number is reported as evidence about the
+#: **model**, not about the beam.  Reported values for real monochromators are a
+#: few per cent — the published Nd₂Ru₂O₇ pyrochlore refinement carried its λ/2
+#: entry at 1.2 % of the fundamental's scale — and a harmonic an order above
+#: that is a line being used as a general-purpose intensity sink for peaks the
+#: model puts nowhere: an unindexed impurity, a magnetic contribution, a
+#: background too stiff to follow. Placed an order of magnitude above the
+#: reported band rather than at its edge, so a genuinely strong harmonic is
+#: still reported as one.
+HARMONIC_IMPLAUSIBLE_FRAC = 0.15
+
+
+def _harmonic_diagnostics(model: CompiledModel, values: dict[str, float],
+                          free_paths: set[str],
+                          stderr: dict[str, float]) -> list[Diagnostic]:
+    """``HARMONIC_FRACTION``: what a declared λ/n line refined to, in per cent.
+
+    The number a user judges this correction by is the fraction of the
+    fundamental the harmonic carries, so that is what is reported — not the
+    internal weight, and never an Rwp comparison (which is not evidence for a
+    correction; see CLAUDE.md).  Three distinct statements, because a fitted
+    fraction can fail in three different ways and only one of them is a
+    measurement:
+
+    * **held** — the weight never entered θ, so the value is the caller's
+      assumption dressed as a result.  Reported so it cannot be quoted.
+    * **absent** — refined to within :data:`HARMONIC_ABSENT_FRAC` of zero.  A
+      *positive* result about the beam, and the one this correction's negative
+      control turns on: a Ge monochromator cut on all-odd indices has an
+      extinct second order, and the fit should find nothing.
+    * **implausible** — past :data:`HARMONIC_IMPLAUSIBLE_FRAC`, or sitting on
+      the parameter's upper bound.  The line is absorbing something that is not
+      a harmonic.
+
+    This is the *post-fit, refined* counterpart of the **pre-fit, model-free**
+    contamination flags in :mod:`rietx.background.diagnostics`
+    (``ContaminationFlag``, ``kind="kbeta"``/``"tungsten_la"``), and the
+    difference is what each can be used for.  Those look for a weak peak at a
+    known ghost wavelength in the *raw* pattern, need no structure and no
+    refinement, and answer "is there something here that looks like a known
+    contaminant?".  This one needs a converged model and answers "how much of
+    the intensity did the model attribute to the harmonic once everything else
+    had its chance?".  Neither substitutes for the other: the pre-fit check
+    fires on a pattern nobody has modelled, and this one sees a contamination
+    whose peaks overlap the fundamental's too closely for a peak search to
+    separate.
+    """
+    out: list[Diagnostic] = []
+    for il, order in sorted(model.harmonic_orders.items()):
+        path = f"instrument.source.lines.{il}.weight"
+        frac = float(values.get(path, 0.0))
+        lam = model.line_wavelengths[il]
+        esd = stderr.get(path)
+        pct = 100.0 * frac
+        where = [path]
+        esd_txt = f" ± {100.0 * esd:.2f}" if esd is not None else ""
+        head = (f"lambda/{order} = {lam:.5f} A carries {pct:.2f}{esd_txt} % of "
+                f"the fundamental")
+        if path not in free_paths:
+            out.append(Diagnostic(
+                level="info", code="HARMONIC_HELD", where=where,
+                message=(f"{head}, but the weight was never refined -- that is "
+                         f"the declared value, not a measured one"),
+                suggestion=("free instrument.source.lines.*.weight in a stage "
+                            "after the profile and the scale have settled; a "
+                            "held harmonic weight must not be quoted as a "
+                            "property of the beam")))
+            continue
+        if frac < HARMONIC_ABSENT_FRAC:
+            out.append(Diagnostic(
+                level="info", code="HARMONIC_ABSENT", where=where,
+                message=(f"the declared lambda/{order} line refined to "
+                         f"{pct:.3f}{esd_txt} % of the fundamental, i.e. to "
+                         f"nothing"),
+                suggestion=("this is a result, not a failure: the beam carries "
+                            "no measurable order-n contamination, which is what "
+                            "a monochromator whose nth order is extinct should "
+                            "give. Dropping the declaration reproduces the fit "
+                            "and removes a parameter the data does not support")))
+            continue
+        implausible = frac > HARMONIC_IMPLAUSIBLE_FRAC
+        out.append(Diagnostic(
+            level="warning" if implausible else "info",
+            code="HARMONIC_FRACTION", where=where,
+            message=(head + (", which is far above the few per cent a "
+                             "monochromator harmonic is reported at"
+                             if implausible else "")),
+            suggestion=(("a fraction this large is evidence about the model "
+                         "rather than about the beam -- the line is absorbing "
+                         "intensity the model puts nowhere (an unindexed "
+                         "impurity, a magnetic contribution, a background too "
+                         "stiff to follow). Check the tick marks against the "
+                         "unfitted peaks before believing it")
+                        if implausible else
+                        ("quote this as a property of this beam on this "
+                         "monochromator, never as one of the specimen, and "
+                         "never transfer it to another histogram -- it is a "
+                         "refined scale ratio between two wavelength "
+                         "components of one measurement"))))
+    return out
 
 
 #: a soft restraint is flagged in tension when its computed value sits more

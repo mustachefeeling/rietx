@@ -492,6 +492,16 @@ class CompiledModel:
     tt_max: float
     wavelength: float                 # primary line, used for tick positions
     line_wavelengths: tuple[float, ...]
+    # Which emission lines are *declared monochromator harmonics*, line index →
+    # order n (schemas.instrument.Harmonic).  Frozen here rather than inferred
+    # downstream from λ_i/λ_0 ≈ 1/n, because the declaration is a fact about the
+    # beam and a ratio is a coincidence: a genuine second wavelength half the
+    # primary would be indistinguishable.  Empty on every source that declares
+    # none, which is every source built before harmonics existed — nothing in
+    # the forward model reads it (a harmonic *is* an emission line and needs no
+    # special case), so it exists only for the post-fit HARMONIC_FRACTION
+    # diagnostic, which has to name the order it is reporting.
+    harmonic_orders: dict[int, int]
     geometry_kind: str
     radius_mm: float | None
     # dimensionless µ·R of a packed capillary, resolved once at compile from
@@ -993,7 +1003,22 @@ class CompiledModel:
         else:
             # |F|² samples the form factors at sinθ/λ = 1/2d — line-independent,
             # and a function of the cell and this phase's atoms alone, so a
-            # column perturbing a width or the background reuses it
+            # column perturbing a width or the background reuses it.
+            #
+            # This survives a **λ/n monochromator harmonic**, which is the one
+            # case where sharing looks wrong at first glance: that line's λ is
+            # half the primary's, so surely its structure factors differ?  They
+            # do not.  ``structure_factors_squared`` takes *d*, never λ — the
+            # form factors and the Debye-Waller factor are evaluated at
+            # sinθ/λ = 1/2d, which is a property of the reflection.  A harmonic
+            # diffracts the **same** hkl list with the same |F|²; what differs
+            # is only *where* each reflection lands, and that is the per-line
+            # ``tt_bragg`` below, with its own Lorentz factor, profile width and
+            # window.  The single exception is anomalous dispersion, whose f′/f″
+            # are functions of λ alone — which is exactly why a harmonic is
+            # refused on a dispersive source rather than sharing one f_anom
+            # across a factor-of-two wavelength gap
+            # (``schemas.instrument.check_harmonics``).
             f2 = self._memo(
                 cp, "f2", lambda: (cell_key(), self._atom_key(ip, values)),
                 lambda: structure_factors_squared(
@@ -2112,7 +2137,22 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     tt_min, tt_max = float(tt[0]), float(tt[-1])
 
     lams = tuple(line.wavelength for line in instrument.source.lines)
-    lam_gen = min(lams)  # smallest λ → smallest 2θ → largest d-sphere needed
+    # Which of those lines the source declared as λ/n harmonics.  The list is
+    # ordered fundamental-then-harmonics by ``Source.lines``, so the offset is
+    # the number of declared lines; read off the source rather than recomputed
+    # from the λ ratios (see ``CompiledModel.harmonic_orders``).
+    _declared = getattr(instrument.source, "harmonics", ())
+    harmonic_orders = {len(lams) - len(_declared) + i: h.order
+                       for i, h in enumerate(_declared)}
+    # Smallest λ → smallest 2θ for a given d → smallest d_min → the *largest*
+    # reflection sphere any line needs.  Load-bearing for a λ/n harmonic and not
+    # merely tidy: λ/2 has twice the Ewald radius, so generating with the
+    # primary λ would silently drop every reflection only the harmonic reaches.
+    # Measured on Nd₂Ru₂O₇ over 5-155° 2θ: 79 reflections at λ = 1.5404 Å
+    # against 499 at λ/2, i.e. 6.3× — those 420 are the harmonic's whole
+    # high-angle contribution, and dropping them would look like a correction
+    # that simply does not help.
+    lam_gen = min(lams)
     zero = instrument.zero_shift.value
     geom = instrument.geometry
 
@@ -2316,6 +2356,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         tt=tt, y_obs=y_obs, sigma=sigma, tt_min=tt_min, tt_max=tt_max,
         wavelength=instrument.source.primary_wavelength,
         line_wavelengths=lams,
+        harmonic_orders=harmonic_orders,
         geometry_kind=geom.kind, radius_mm=geom.goniometer_radius_mm,
         # frozen for the stage; None (nothing asked for) and 0.0 (asked for
         # and negligible) both mean the correction is the exact identity

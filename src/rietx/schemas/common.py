@@ -40,7 +40,15 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: added, which is a new field on a response arm.  Nothing existing changes
 #: shape and every pre-0.7 document validates unchanged — the bump is for the
 #: union arm, not for a migration.
-SCHEMA_VERSION = "0.7"
+#: 0.7 → 0.8 (PR #112): ``Source.harmonics`` / ``NeutronSource.harmonics``
+#: added — a list of ``Harmonic`` blocks declaring the λ/n components a
+#: monochromator does not filter out.  A consumer notices two things: the new
+#: key in every serialized source, and that a **neutron** source carrying a
+#: harmonic reports more than one entry in ``source.lines``, since the λ/n
+#: lines are *derived* there rather than stored.  Empty is the default and
+#: leaves the spectrum and every fitted number bit-identical; a non-empty list
+#: is refused outright on an X-ray source (``Source.harmonics_supported``).
+SCHEMA_VERSION = "0.8"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
