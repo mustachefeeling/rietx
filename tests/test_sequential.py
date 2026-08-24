@@ -201,32 +201,43 @@ def test_the_table_header_has_no_duplicate_column(thermal_series):
 
 
 def test_every_entry_carries_per_phase_bragg_agreement(thermal_series):
-    """A weight fraction cannot tell a real trace phase from a phantom.
+    """The signal existed per pattern and was dropped at the series boundary.
 
-    Per-phase R_Bragg can, and a series was the one workflow that could not see
-    it: the signal existed on every underlying ``RefinementResult`` and was
-    dropped at the series boundary. Measured on a YBaCo4O7 cooling series — the
-    hexagonal phase sat at 1.11 wt% with esd 0.63 (1.8 σ, below any sane
-    significance cut) while fitting its *own* reflections at r_bragg 0.70 % on
-    70 of them, so the weight alone would have discarded a real phase.
-
-    Read a value as suggestive, never decisive: R_Bragg flatters whatever model
-    partitioned the intensity (root CLAUDE.md on evidence for a correction).
+    This asserts only that: every entry of a Rietveld chain carries a row per
+    phase, populated. What the numbers *mean* is deliberately not claimed here —
+    a trace phase's R_B is not comparable with the major phase's and a low one
+    is consistent with a self-fulfilling partition (``structure_r_factors``,
+    WP-1069), so a test asserting a threshold would be asserting an
+    interpretation the index does not support.
     """
     for entry in thermal_series.entries:
         assert entry.phase_agreement, f"entry {entry.index} carries none"
         for agreement in entry.phase_agreement:
             assert agreement.n_reflections > 0
+            # r_bragg is float | None -- None for a phase with no partitionable
+            # scattering power -- so `>= 0.0` would raise TypeError rather than
+            # fail readably on the case this test is here to catch.
+            assert agreement.r_bragg is not None
             assert agreement.r_bragg >= 0.0
 
 
-def test_phase_agreement_is_the_underlying_results_own(thermal_patterns):
-    """The series copies, never recomputes — one authority per fact."""
+def test_phase_agreement_carries_the_underlying_results_values(thermal_patterns):
+    """Value equality with the result's own rows, which is what a consumer reads.
+
+    Not "copies rather than recomputes": an exact recomputation would pass this
+    too, and the assertion cannot tell them apart. The claim worth pinning is
+    the one it makes — a reader of the entry and a reader of the result see the
+    same numbers — plus the *independence* of the copy, which value equality
+    alone would miss.
+    """
     structure, ins = _start_models()
     result = rx.refine(thermal_patterns[0], structure, ins, plan="mccusker_default")
     entry = _entry_from_result(0, "one", None, result)
-    assert [(a.name, a.r_bragg, a.n_reflections) for a in entry.phase_agreement] == \
-           [(a.name, a.r_bragg, a.n_reflections) for a in result.phase_agreement]
+    assert [(a.name, a.r_bragg, a.r_f, a.n_reflections) for a in entry.phase_agreement] == \
+           [(a.name, a.r_bragg, a.r_f, a.n_reflections) for a in result.phase_agreement]
+    # a deep copy, so mutating the result cannot reach an entry already recorded
+    assert all(a is not b for a, b in
+               zip(entry.phase_agreement, result.phase_agreement, strict=True))
 
 
 def test_a_lebail_entry_carries_no_agreement(thermal_patterns):

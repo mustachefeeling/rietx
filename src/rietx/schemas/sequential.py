@@ -44,22 +44,35 @@ class SeriesEntry(Base):
     #: :attr:`~rietx.schemas.results.RefinementResult.phase_agreement` by
     #: :func:`rietx.sequential._entry_from_result` (the writer — WP-1076's rule).
     #:
-    #: Carried because a *series* needs the one question a weight fraction
-    #: cannot answer: is a minor phase real, or is it being refined against
-    #: nothing?  The two look identical in ``qpa`` and diverge here.  Measured on
-    #: a YBaCo4O7 anchor: the hexagonal phase sat at 1.11 wt% with esd 0.63
-    #: (1.8 σ, below any sane significance cut) while fitting its *own*
-    #: reflections at ``r_bragg`` 0.70 % on 70 of them — a real phase that the
-    #: weight alone would have discarded.  The converse matters more in a series:
-    #: a phantom kept on weak evidence has a cell the data cannot constrain, and
-    #: it drifts into the next pattern through the warm start.
+    #: Carried because the signal existed on every underlying result and was
+    #: dropped at the series boundary, and because a series is where a per-phase
+    #: index is worth *iterating*: one pattern's R_B is a value, sixty are a
+    #: trajectory, and a trajectory is a shape a single number cannot be read as.
+    #:
+    #: **It is not the answer to "is this phase real".**  Neither index is
+    #: weighted, and I(obs) is the observed pattern partitioned in proportion to
+    #: I(calc) — so a phase whose reflections sit under a stronger phase's peaks
+    #: receives the intensity it predicted and scores well for having predicted
+    #: it.  The bias is in the definition, not in the fit, and in-repo the
+    #: arithmetic runs the *other* way to intuition: 11-BM NAC's 1.35 wt% CaF₂
+    #: impurity scores R_B 0.385 against the major phase's 0.052, the whole
+    #: misfit sitting in four reflections under strong NAC peaks (WP-1069).  A
+    #: *low* R_B on a trace phase is therefore as consistent with a fully
+    #: overlapped, self-fulfilling partition as with a real phase, and nothing
+    #: here separates the two.
+    #: :func:`~rietx.optimize.statistics.structure_r_factors` holds the
+    #: definitions and the warning.
+    #:
+    #: The measurement that does answer that question is ``PHASE_UNCONSTRAINED``
+    #: — the phase's strongest modelled point in σ of the observation noise,
+    #: reaching an entry through :attr:`diagnostics` and aggregating over the
+    #: chain as ``SEQUENTIAL_PERSISTENT_FINDING``.  R_B belongs beside it and
+    #: beside the weight with its esd, never in front of either.
     #:
     #: Empty outside Rietveld mode, for the reason it is empty on
     #: ``RefinementResult`` there — in Le Bail the partition *is* the fit and in
     #: Pawley the intensities are parameters, so I(obs) would be compared against
-    #: itself.  Read a value as suggestive, never decisive: R_Bragg flatters
-    #: whatever model partitioned the intensity (root CLAUDE.md's rule on
-    #: evidence for a new correction).
+    #: itself.
     phase_agreement: list[PhaseAgreement] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
