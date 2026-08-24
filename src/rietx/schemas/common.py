@@ -33,25 +33,30 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: series boundary.  Additive and defaulted, and it bumps anyway: WP-1117 made
 #: the only question whether a consumer could notice, and a new field on a
 #: response arm is noticeable.
-#: 0.6 → 0.7 (PR #108): ``NeutronSource`` added as a second arm of the
-#: ``Instrument.source`` discriminated union (``kind="neutron_cw"``), so a
-#: consumer that switched exhaustively on ``kind`` now has a case it has never
-#: seen; ``Capabilities.radiations`` and the ``RadiationCapability`` it holds
-#: added, which is a new field on a response arm.  Nothing existing changes
-#: shape and every pre-0.7 document validates unchanged — the bump is for the
-#: union arm, not for a migration.
-#: 0.7 → 0.8 (PR #112): ``Source.harmonics`` / ``NeutronSource.harmonics``
-#: added — a list of ``Harmonic`` blocks declaring the λ/n components a
-#: monochromator does not filter out.  A consumer notices two things: the new
-#: key in every serialized source, and that a **neutron** source carrying a
-#: harmonic reports more than one entry in ``source.lines``, since the λ/n
-#: lines are *derived* there rather than stored.  Empty is the default and
-#: leaves the spectrum and every fitted number bit-identical; a non-empty list
-#: is refused outright on an X-ray source (``Source.harmonics_supported``).
-#: PR #114 is this entry's sibling on PR #108 and also claims 0.8 — deliberately,
-#: so that whichever lands second conflicts here and is forced to renumber to 0.9
-#: rather than merging cleanly into a ladder with a hole in it.
-SCHEMA_VERSION = "0.8"
+#: 0.6 → 0.7 (PR #108): constant-wavelength neutron support, three observable
+#: changes landing together because they are one feature and one PR.
+#: (a) ``NeutronSource`` added as a second arm of the ``Instrument.source``
+#: discriminated union (``kind="neutron_cw"``), so a consumer that switched
+#: exhaustively on ``kind`` now has a case it has never seen, and
+#: ``Capabilities.radiations`` / ``RadiationCapability`` are a new field on a
+#: response arm.
+#: (b) ``Source.harmonics`` / ``NeutronSource.harmonics`` — a list of
+#: ``Harmonic`` blocks declaring the λ/n components a monochromator does not
+#: filter out.  A consumer notices the new key in every serialized source, and
+#: that a **neutron** source carrying a harmonic reports more than one entry in
+#: ``source.lines``, since the λ/n lines are *derived* there rather than stored.
+#: Empty is the default; a non-empty list is refused outright on an X-ray source
+#: (``Source.harmonics_supported``).
+#: (c) ``EmissionLine.wavelength`` and ``NeutronSource.wavelength`` are a
+#: :class:`Parameter` rather than a ``float``, so a serialized source carries a
+#: nested object where it carried a number and the parameter table gains an
+#: ``instrument.source.lines.N.wavelength`` row.  Both still *accept* a bare
+#: number and default to ``vary=False``.
+#: Nothing existing changes meaning, every pre-0.7 document validates unchanged,
+#: and a fit that declares no harmonic and frees no wavelength is bit-identical.
+#: One bump rather than three: the ladder counts *observable releases*, and
+#: these three reach a consumer in the same one.
+SCHEMA_VERSION = "0.7"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
