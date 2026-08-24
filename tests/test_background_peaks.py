@@ -533,6 +533,6 @@ def test_save_instrument_profile_strips_the_peaks(tmp_path):
     one into the next sample would put a free peak where nothing measured."""
     path = tmp_path / "profile.json"
     save_instrument_profile(_instrument(peaks=(_peak(),)), path)
-    doc = json.loads(path.read_text())
+    doc = json.loads(path.read_text(encoding="utf-8"))
     assert "background_peaks" not in doc["instrument"]
     assert rx.load_instrument_profile(path).background_peaks == []
