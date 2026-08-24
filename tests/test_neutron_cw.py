@@ -359,3 +359,52 @@ def test_the_xray_control_still_estimates():
     assert source == "estimated"
     assert reason is None, f"X-ray estimate unexpectedly declined: {reason}"
     assert isinstance(inst.geometry.mu_r, float) and inst.geometry.mu_r > 0.0
+
+
+def test_a_declared_mu_r_reaches_the_absorption_record():
+    """Past the schema and into the record — the field is not the correction.
+
+    ``test_a_declared_mu_r_reaches_the_geometry_as_a_plain_float`` pins the
+    type; this pins that a µR declared on a *neutron* capillary actually
+    produces a Rouse correction with the right λ, and that the off state
+    reports nothing rather than zero.
+
+    The λ² claim is asserted as a **ratio measured against the X-ray case**
+    rather than against a hard-coded Å², so the test states the physics — the
+    bias is c(µR)·λ²/2, so the same specimen costs a 2.078 Å neutron fit
+    (2.078/1.5406)² ≈ 1.82× what it costs at Cu Kα — instead of pinning a
+    number whose provenance a later reader could not check.
+    """
+    from rietx.model.forward import compile_model
+    from rietx.refine import _absorption_record
+
+    tt = np.arange(15.0, 100.0, 0.05)
+    pattern = rx.PatternData(two_theta=tt.tolist(),
+                             intensity=np.ones_like(tt).tolist())
+    structure = rx.Structure(phases=[corundum()])
+
+    def record_for(inst):
+        ref = rx.Refinement(structure.model_copy(deep=True), inst)
+        model = compile_model(ref.structure, ref.instrument, pattern)
+        return _absorption_record(model, ref._mu_r_source, ref._mu_r_skipped)
+
+    neutron = rx.Instrument.constant_wavelength_neutron(
+        2.0780, mu_r=0.5, fwhm_deg=0.3)
+    rec = record_for(neutron)
+    assert rec is not None, "a declared µR applied no correction"
+    assert rec.method == "rouse_cylinder"
+    assert rec.mu_r == pytest.approx(0.5)
+    # declared, not estimated — and no radius was given, so none could be made
+    assert rec.mu_r_source == "given"
+    assert rec.wavelength == pytest.approx(2.0780)
+
+    # the λ² scaling, measured: same µR, same specimen, X-ray wavelength
+    xray = rx.Instrument.debye_scherrer(wavelength=1.5406, mu_r=0.5)
+    rec_x = record_for(xray)
+    assert rec_x is not None
+    assert rec.equivalent_delta_biso / rec_x.equivalent_delta_biso == \
+        pytest.approx((2.0780 / 1.5406) ** 2, rel=1e-9)
+
+    # µR = 0 is the off state (A ≡ 1), which reports nothing rather than zero
+    assert record_for(rx.Instrument.constant_wavelength_neutron(
+        2.0780, mu_r=0.0, fwhm_deg=0.3)) is None
