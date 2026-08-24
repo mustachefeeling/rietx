@@ -48,6 +48,67 @@ class EmissionLine(Base):
     )
 
 
+class NeutronSource(Base):
+    """Constant-wavelength **neutron** source: one wavelength, nuclear scattering.
+
+    A separate class rather than a flag on :class:`Source`, because almost every
+    field of an X-ray source is meaningless here and a class that has to explain
+    which of its own fields are inert is worse than two classes.  What differs:
+
+    * **One wavelength, no emission-line list.**  A monochromator or chopper
+      selects a single λ; there is no Kα1/Kα2 doublet and no line-weight ratio
+      to refine.
+    * **No anomalous dispersion.**  f′/f″ is an X-ray core-level effect.  The
+      neutron analogue — a complex, wavelength-dependent b near a nuclear
+      resonance — is a property of a handful of nuclides rather than a
+      correction applied to all of them, and is fenced out of this class (see
+      :mod:`rietx.crystallography.neutron`).
+    * **The polarisation term is identically 1.**  Neutrons are not polarised
+      by the monochromator the way the Thomson cross-section polarises X-rays,
+      so the Lorentz-polarisation factor reduces to the bare Lorentz factor
+      1/(sin²θ·cosθ), which is geometry and radiation-independent.  In the
+      existing form Lp = [K + (1 − K)·cos²2θ]/(sin²θ·cosθ) that is exactly
+      K = 1, so this class needs **no new correction code** — it pins K.
+
+    ``polarization`` is therefore force-fixed at 1.0 and refusing to be
+    anything else: a parameter the forward branch cannot use must be
+    force-fixed rather than merely left unfree, or a free entry becomes a dead
+    column in the Jacobian.
+    """
+
+    kind: Literal["neutron_cw"] = "neutron_cw"
+    #: Å.  Fixed, like every other source wavelength here — a powder pattern
+    #: cannot separate λ from the cell (they enter d = λ/(2 sin θ) as a
+    #: product), which is why a certified standard is refined with its cell
+    #: held to calibrate λ rather than the other way round.
+    wavelength: float = Field(gt=0.0)
+
+    @property
+    def lines(self) -> list[EmissionLine]:
+        """The single line, so callers that iterate a spectrum still work.
+
+        Weight is structurally 1: with one line there is nothing for a relative
+        weight to be relative to, and it would be degenerate with the phase
+        scales in any case.
+        """
+        return [EmissionLine(wavelength=self.wavelength,
+                             weight=Parameter(value=1.0, vary=False))]
+
+    @property
+    def primary_wavelength(self) -> float:
+        return self.wavelength
+
+    @property
+    def polarization(self) -> Parameter:
+        """K = 1, force-fixed — the docstring above says why."""
+        return Parameter(value=1.0, vary=False, min=1.0, max=1.0)
+
+    @property
+    def dispersion(self) -> None:
+        """Always ``None``; the X-ray path tests this to decide f′/f″."""
+        return None
+
+
 class Dispersion(Base):
     """Anomalous scattering corrections f′, f″ at the source wavelengths.
 
@@ -642,7 +703,10 @@ Background = BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpl
 class Instrument(Base):
     """Everything about the measurement except the sample."""
 
-    source: Source
+    #: Discriminated on ``kind``: ``"xray_cw"`` is :class:`Source`,
+    #: ``"neutron_cw"`` is :class:`NeutronSource`.  A union rather than one
+    #: class with inert fields — see :class:`NeutronSource`.
+    source: Source | NeutronSource = Field(discriminator="kind")
     geometry: Geometry = Field(default_factory=Geometry)
     zero_shift: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=-0.5, max=0.5, unit="deg")
@@ -651,6 +715,43 @@ class Instrument(Base):
     background: Background = Field(
         default_factory=lambda: BackgroundChebyshev(), discriminator=None
     )
+
+    @classmethod
+    def constant_wavelength_neutron(
+            cls, wavelength: float, *,
+            goniometer_radius_mm: float | None = None,
+            capillary_radius_mm: float | None = None,
+            mu_r: float | None = None,
+            fwhm_deg: float | None = None) -> "Instrument":
+        """Constant-wavelength neutron powder diffractometer.
+
+        Debye-Scherrer geometry, because that is what a CW neutron
+        diffractometer is — a can of powder in a beam with detectors on a
+        circle — so the cylindrical absorption correction and the eq (4)
+        capillary offsets apply unchanged.
+
+        ``fwhm_deg`` seeds the Caglioti terms from an observed peak width, which
+        matters more here than on a lab X-ray: a neutron instrument's lines are
+        typically 0.2-0.5° where the ``ProfileTCHZ`` default is a *synchrotron*
+        line of ~0.03°, and the frozen per-stage evaluation windows are sized
+        from the seed.  Left ``None``, the default stands and a 0.3° line will
+        not be found.
+
+        Note the profile itself needs no neutron-specific code: the Caglioti
+        law U·tan²θ + V·tanθ + W *is* the neutron resolution function (Caglioti,
+        Paoletti & Ricci, 1958, *Nucl. Instrum.* **3**, 223), and the X-ray path
+        is the borrower.
+        """
+        inst = cls(source=NeutronSource(wavelength=wavelength),
+                   geometry=Geometry(kind="debye_scherrer",
+                                     goniometer_radius_mm=goniometer_radius_mm,
+                                     capillary_radius_mm=capillary_radius_mm,
+                                     mu_r=(None if mu_r is None
+                                           else Parameter(value=mu_r))))
+        if fwhm_deg is not None:
+            inst.profile.w.value = (0.5 * fwhm_deg) ** 2
+            inst.profile.x.value = fwhm_deg
+        return inst
 
     @classmethod
     def debye_scherrer(cls, wavelength: float, *, polarization: float = 0.99,

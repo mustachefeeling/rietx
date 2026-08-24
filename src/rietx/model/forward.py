@@ -2183,7 +2183,12 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         if disp is not None:
             f_anom = resolve_dispersion([a.species for a in phase.atoms], lams,
                                         disp.overrides)
-        sites = compile_phase_sites(phase, f_anom)
+        # The source decides the radiation, exactly as it decides f_anom: a
+        # neutron source resolves bound coherent scattering lengths instead of
+        # X-ray form factors, and the two are mutually exclusive.
+        sites = compile_phase_sites(
+            phase, f_anom,
+            neutron=(instrument.source.kind == "neutron_cw"))
 
         n = len(refl)
         n_lines = len(lams)

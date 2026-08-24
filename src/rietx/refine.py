@@ -2195,6 +2195,13 @@ def _dispersion_diagnostics(structure: Structure,
 
     from .crystallography.dispersion import dispersion, normalize_element
 
+    # A neutron source has no anomalous dispersion to neglect: f'/f'' is an
+    # X-ray core-level effect, so this diagnostic would be advising a caller to
+    # restore a correction that does not exist for their radiation. The neutron
+    # analogue -- complex b near a nuclear resonance -- belongs to a handful of
+    # nuclides rather than to the source, and lives in crystallography.neutron.
+    if instrument.source.kind != "xray_cw":
+        return []
     if instrument.source.dispersion is not None:
         return []
     lam = instrument.source.primary_wavelength
