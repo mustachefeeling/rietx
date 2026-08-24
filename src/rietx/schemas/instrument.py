@@ -1092,24 +1092,51 @@ class BackgroundPeak(Base):
     wavelength neutron pattern of Cr₂WO₆ at 60 K (λ = 2.078 Å, 2941 channels,
     5-152 °2θ, σ from file) with a broad background feature near 14.4 °2θ.  Its
     published TOPAS refinement describes that feature with 7 Chebyshev terms
-    plus one explicit Gaussian (position 14.4158, height 9.516, ``gauss_fwhm``
-    5.8148) and returns a physical Biso(Cr) = +0.2150(761).  The same fit here,
-    both ways round, before this class existed:
+    plus one explicit Gaussian (position 14.4158(539), height 9.516(2.826),
+    ``gauss_fwhm`` 5.815(1.504)).  One phase, ``plan="mccusker_structural"``:
 
-    ==========================  =====  =======  ==========  =================
-    background                  terms  Rwp      Biso(Cr)    HIGH_CORRELATION
-    ==========================  =====  =======  ==========  =================
-    Chebyshev (auto order)          4  0.05350  **−0.0994**                 0
-    P-spline (auto knots)          57  0.05256  **−0.0387**               110
-    ==========================  =====  =======  ==========  =================
+    ============================  ======  =======  ============  ================
+    background                     terms  Rwp      Biso(Cr)/Å²   HIGH_CORRELATION
+    ============================  ======  =======  ============  ================
+    Chebyshev, 7 terms                  7  0.05303  −0.019(222)                  0
+    that **+ one peak**             7 + 3  0.05252  −0.029(219)                  0
+    Chebyshev, ``auto_background``     16  0.05137  −0.040(215)                  0
+    that **+ one peak**            16 + 3  0.05126  −0.053(213)                617
+    P-spline, ``auto_background``      57  0.05256  −0.039(218)                145
+    ============================  ======  =======  ============  ================
 
-    A **negative** — unphysical — displacement parameter under a stiff
-    background, and still negative under a flexible one that costs 57
-    parameters and 110 correlation warnings.  So the root CLAUDE.md rule
-    "background flexibility is a correctness question, not a cosmetic one" seen
-    from the other side: the question is not *how much* flexibility but
-    **where**.  Three parameters in the right place do what 53 more in the
-    wrong place cannot.
+    Three readings, and the honest one first.
+
+    **The peak finds the feature.**  On the low-order background it refines to
+    2θ₀ = 14.50(1.46)°, Γ = 6.06(3.83)° — the TOPAS values above, from a
+    different code with a different peak-shape model — at 20.8× the
+    instrumental FWHM there (0.291°).  That is the record field this correction
+    ships with, and it is not an Rwp comparison.
+
+    **A peak needs a low-order background to be identifiable.**  On the 16-term
+    polynomial the same peak walks to 24.8° and 31.9° wide, becomes a low-order
+    background term in all but name, and the fit returns 617
+    ``HIGH_CORRELATION`` findings.  Declare a peak *instead of* extra
+    polynomial terms, never on top of them.
+
+    **Biso(Cr) stays negative, so the background was not the whole story.**
+    That was the expectation this class was built to test and it is not met
+    here: the peak moves Biso(Cr) by −0.010 Å², the wrong way, on a parameter
+    whose esd is 0.22 — and no rietx row above is *significantly* negative, all
+    of them lying within one esd of zero and within about one combined esd of
+    TOPAS's +0.215(76).  What the rows do show is a **uniform** offset: every
+    site's Biso sits 0.15-0.25 Å² below the reference, which is the signature of
+    a correction acting over the whole Q range rather than of a localised
+    background error.  Three protocol differences are likelier causes than the
+    background — the reference refines a specimen displacement of 0.0975 (a
+    cos θ error this geometry cannot express without a goniometer radius), it
+    uses a Pearson VII peak shape against this package's TCHZ pseudo-Voigt, and
+    it carries a second phase at ≈1.2 vol %.
+
+    So the claim this class supports is the narrower one: it is the right
+    *description* of a localised background feature, and its recovered
+    parameters agree with an independent refinement of the same data.  It is not
+    evidence that a negative displacement parameter is a background problem.
 
     Fields, and the reason each bound is the bound it is:
 

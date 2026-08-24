@@ -158,13 +158,22 @@ _ROUGHNESS_STAGE = (
 #: The glob matches nothing unless the caller declared a peak, so the stage is
 #: safe in any plan — the preferred-orientation and roughness property.  What
 #: decides *where* is which mistake it is preventing.  A hump the background
-#: cannot describe is absorbed by whatever can, and what can is the
-#: displacement parameters: measured on a BT-1 Cr₂WO₆ pattern, a 5.8°-wide
-#: feature at 14.4° 2θ left unmodelled drives Biso(Cr) **negative** under a
-#: 4-term Chebyshev *and* under a 57-coefficient spline
-#: (:class:`~rietx.schemas.instrument.BackgroundPeak` has the table).  So the
-#: hump must already be described when ``biso`` opens, which puts this stage
-#: before ``coordinates``.
+#: cannot describe is absorbed by whatever can, and the candidates are the
+#: displacement parameters and the scale, so the hump should already be
+#: described when ``biso`` opens — which puts this stage before
+#: ``coordinates``.  Stated as an ordering argument rather than as a measured
+#: effect on purpose: on the BT-1 Cr₂WO₆ case
+#: (:class:`~rietx.schemas.instrument.BackgroundPeak` has the table) declaring
+#: the peak did **not** move Biso(Cr) back to a physical value, and the stage
+#: sits here because this is the order that gives it the chance, not because
+#: the chance was measured to be taken.
+#:
+#: **The stage is not free on an instrument with no peak.**  Staging is
+#: cumulative, so an inert stage still re-solves everything already freed and
+#: re-emits that solve's guard diagnostics: measured on the P-spline arm of the
+#: case above, the answer is unchanged to five figures while the
+#: ``HIGH_CORRELATION`` count goes 110 → 145.  The ``_ROUGHNESS_STAGE``
+#: precedent above pays the same price for the same reason.
 #:
 #: Not in ``scale_bkg``, which is stage 1: a free *position* over a pattern
 #: whose peaks have not been placed yet is a peak hunting for whatever misfit
