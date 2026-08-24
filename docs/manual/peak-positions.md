@@ -99,6 +99,43 @@ the doubled indices are all even, and the diamond structure factor $1 +
 \exp[2\pi i (h+k+l)/4]$ vanishes unless $h+k+l \equiv 0 \pmod 4$, while doubling
 an all-odd triple always gives $h+k+l \equiv 2$.
 
+## The wavelength–cell degeneracy
+
+{eq}`pos-bragg` reaches the wavelength only through the ratio $\lambda/2d$, so
+scaling $\lambda$ and every reciprocal-lattice length by the same factor leaves
+every computed position unchanged:
+
+```{math}
+:label: pos-lambda-cell
+
+\lambda \to s\lambda, \quad \mathbf{a}^{*}_i \to s\,\mathbf{a}^{*}_i
+\;\;\Longrightarrow\;\;
+2\theta_{hkl} \;\text{unchanged for all}\; hkl .
+```
+
+*Source:* `rietx.params.vector.check_wavelength_freedom`
+
+For one histogram that one-parameter family is an exactly flat direction of the
+residual, whatever the data quality: $\lambda$ and the cell cannot both be free.
+Differentiating {eq}`pos-bragg` in $\lambda$ shows what the freedom would buy
+instead —
+
+```{math}
+:label: pos-dlambda
+
+\frac{\partial\, 2\theta}{\partial \lambda}
+ \;=\; \frac{2\tan\theta}{\lambda},
+```
+
+*Source:* `rietx.model.forward`
+
+the same $\tan\theta$ signature as {eq}`pos-doublet`, which is exactly the
+signature a uniform cell scaling has. Across $N$ histograms of one specimen the
+cell is one object and the $\lambda_i$ are $N$ separate ones, so the family
+{eq}`pos-lambda-cell` collapses to a single scalar $s$: fixing one $\lambda_i$
+fixes $s$, and the other $N-1$ become measurable against the shared lattice.
+Hence exactly one wavelength held and at most $N-1$ free.
+
 ## Aberration shifts
 
 Additive $2\theta$ shifts with distinct angular signatures are modelled; the
