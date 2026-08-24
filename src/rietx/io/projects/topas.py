@@ -40,6 +40,17 @@ reading the syntax:
    suffixes (``Pn-3mZ``), and ionic charge is written sign-first (``Cu+1``).
    Both are translated; the origin one matters because dropping the suffix
    silently selects the *other* origin.
+
+**One grammar, read once, and it carries the flag with the value.** Every scalar
+in a ``.inp`` — a coordinate, a cell edge, a scale, an occupancy, a lattice
+macro's argument — is the same four spellings of one production, so
+:func:`_read_tail` is the only place that knows them and every caller goes
+through it. Five ad-hoc spellings of it disagreed on real files before WP-1118;
+a *sixth*, the cell loop's own regex, then disagreed with the unified one about
+the ``= expr;: value`` tail and cost **320 phases in 15 archive files**. The
+flag travels with the value for the same reason: a second regex re-reading the
+line for the flag alone lost it wherever the two grammars disagreed, and a lost
+tri-state reads as "held", which is a confident wrong protocol.
 """
 
 from __future__ import annotations
@@ -62,8 +73,8 @@ _NUM = r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?"
 #: A TOPAS parameter name. Leading character is deliberately **not** ``\w``:
 #: ``\w`` matches a digit, so ``(?:\w+\s+)?`` in front of a value silently eats
 #: the integer part of a *nameless* one — ``weight_percent 97.9`` came back
-#: 0.9, a wrong number with nothing raised, which is the whole failure class
-#: this reader exists to avoid.
+#: 0.9, and ``Cubic_(4.15689)`` came back 0.15689, a wrong number with nothing
+#: raised, which is the whole failure class this reader exists to avoid.
 _NAME = r"[A-Za-z_]\w*"
 
 #: Refinement flags, in every spelling the archive actually contains: ``@``
@@ -71,19 +82,6 @@ _NAME = r"[A-Za-z_]\w*"
 #: how TOPAS writes a refined value it did not name, and appears on 100+ files
 #: here. Flags may sit before the name, after it, or both.
 _FLAG = r"(?:[@!]\s*,?\s*)"
-
-#: The one grammar every scalar in a ``.inp`` follows:
-#: ``<keyword> [flags] [name] [flags] <number>[`][_esd][_LIMIT_…]``.
-#: Written once because five ad-hoc spellings of it disagreed on real files —
-#: `scale @, 0.0013` and `weight_percent !ph3_wtpct 100.0` were read as *absent*
-#: by two of them, which `to_structure` then replaced with a default scale.
-_PRM = rf"{_FLAG}?(?:{_NAME}\s+{_FLAG}?)?({_NUM})"
-
-#: An equation *and the value TOPAS evaluated it to*: ``= 1/4 + Fe1_1_dx;: 0.25``.
-#: The ``;:`` tail is the most authoritative number in the file — it is what the
-#: converged refinement actually used, so it is preferred over re-evaluating the
-#: expression here, which would need every symbol the expression reaches.
-_EVALUATED = rf"=\s*[^;\n]*;\s*:\s*({_NUM})"
 
 
 class TopasInpError(ValueError):
@@ -194,53 +192,6 @@ def normalize_space_group(symbol: str) -> str:
     return s
 
 
-def refined(name: str, text: str) -> bool | None:
-    """Was this parameter free in the refinement the file records?
-
-    **The refine flags are the payload, not the numbers** (WP-1118): a control
-    file says which parameters were free, which were held and what was
-    excluded, and that is the part a person cannot reconstruct from a CIF plus
-    a pattern. It is also the part that decides whether a cross-code comparison
-    means anything — DESIGN.md's v0.2 lesson, that a guessed protocol gave
-    Rwp 16 % and +390 ppm on fluorapatite against 9.73 % for the mirrored one.
-
-    Three signals, in decreasing order of authority:
-
-    * ``!`` before the value or its name — explicitly **held**.
-    * ``@`` before either — explicitly **refined**.
-    * a trailing backtick — TOPAS wrote this value back after refining it, so
-      it was free. Its *absence* is the inference WP-1110's agent round named
-      as the hardest single thing about transcribing an ``.inp`` by hand.
-
-    None means the file says nothing either way, which is not the same as
-    "fixed" and is why this is a tri-state rather than a bool.
-    """
-    m = re.search(rf"\b{name}\s+({_FLAG}?(?:{_NAME}\s+{_FLAG}?)?){_NUM}(`?)", text)
-    if not m:
-        return None
-    flags, tick = m.group(1) or "", m.group(2)
-    if "!" in flags:
-        return False
-    if "@" in flags or tick == "`":
-        return True
-    return None
-
-
-def _value(token: str) -> float | None:
-    """Strip TOPAS's decoration: ``@``/``!`` flags, a trailing refined-marker
-    backtick, and ``_LIMIT_*`` annotations.
-
-    Returns None rather than raising on a token holding no number. The caller
-    is the only place that knows whether that is fatal — a missing coordinate
-    is, a missing occupancy is not — and a bare ``ValueError`` from here
-    escaped as the parser's own exception, which this package's readers may
-    never do (root ``CLAUDE.md``: a reader raises naming the file).
-    """
-    token = re.sub(r"_LIMIT_[A-Z_]*[\d.]*", "", token.strip().lstrip("@!").rstrip("`"))
-    m = re.search(_NUM, token)
-    return float(m.group(0)) if m else None
-
-
 _AST_OPS = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.USub, ast.UAdd)
 
 
@@ -279,6 +230,196 @@ def _arith(expr: str) -> float | None:
     return walk(tree.body)
 
 
+def _resolve(expr: str, symbols: dict[str, float]) -> float | None:
+    """An equation's value: substitute named parameters, then evaluate.
+
+    Longest name first, so a name that is a prefix of another is never
+    half-replaced (``Fe1_1_x`` inside ``Fe1_1_x2``).
+    """
+    for sym in sorted(symbols, key=len, reverse=True):
+        if sym in expr:
+            expr = re.sub(rf"\b{re.escape(sym)}\b", repr(symbols[sym]), expr)
+    return _arith(expr)
+
+
+# --------------------------------------------------------------- one grammar
+
+#: An equation *and the value TOPAS evaluated it to*: ``= 1/4 + Fe1_1_dx;: 0.25``.
+#: The ``;:`` tail is the most authoritative number in the file — it is what the
+#: converged refinement actually used, so it is preferred over re-evaluating the
+#: expression here, which would need every symbol the expression reaches. The
+#: write-back backtick sits *after* that tail, which is where a flag regex
+#: reading the line a second time could not reach it.
+_TAIL_EVALUATED = re.compile(
+    rf"\s*(?P<pre>{_FLAG})?(?:(?P<name>{_NAME})\s*)?(?P<post>{_FLAG})?"
+    rf"=\s*[^;\n]*;\s*:\s*(?P<value>{_NUM})(?P<tick>`?)")
+
+#: An equation with no evaluated tail — ``x = 1/3;``, ``x Zr1_x =1/2;``,
+#: ``a = mlpa;``. This reader has to evaluate it itself, against
+#: :func:`symbol_table`, and an unresolvable one is None and still raises.
+_TAIL_EQUATION = re.compile(
+    rf"\s*(?P<pre>{_FLAG})?(?:(?P<name>{_NAME})\s*)?(?P<post>{_FLAG})?"
+    rf"=\s*(?P<expr>[^;\n]+);")
+
+#: A stated number: ``[flags] [name] [flags] <number>[`]``. The trailing
+#: ``_esd`` and ``_LIMIT_*`` annotations need no stripping, because ``_`` ends
+#: :data:`_NUM` — ``5.17632205e-006_3.88e-006_LIMIT_MIN_1e-015`` is one match.
+_TAIL_VALUE = re.compile(
+    rf"\s*(?P<pre>{_FLAG})?(?:(?P<name>{_NAME})\s+(?P<post>{_FLAG})?)?"
+    rf"(?P<value>{_NUM})(?P<tick>`?)")
+
+#: A1/A2/A3 are x/y/z, written as a macro because the axis letter does not
+#: appear on the line at all. The flag sits *inside* the parenthesis, which is
+#: the one place the flag grammar could not follow the value grammar.
+_AXIS_MACROS = {
+    axis: re.compile(rf"\b{macro}\(\s*(?P<pre>{_FLAG})?(?P<name>{_NAME})\s*,\s*"
+                     rf"(?P<value>{_NUM})(?P<tick>`?)")
+    for axis, macro in (("x", "A1"), ("y", "A2"), ("z", "A3"))}
+
+
+@dataclass(frozen=True)
+class _Read:
+    """One scalar exactly as the file states it.
+
+    ``value`` is None only where an equation could not be resolved — the caller
+    is the only place that knows whether that is fatal. ``vary`` is the
+    tri-state :func:`refined` returns. ``name`` is the parameter's own name
+    where the file gave one, which is what makes the value a *declaration*
+    another equation can reference. ``rest`` is the text after the number,
+    where a ``min``/``max`` window sits.
+    """
+
+    value: float | None
+    vary: bool | None
+    name: str | None = None
+    rest: str = ""
+
+
+def _flag(*tokens: str | None) -> bool | None:
+    """The refine tri-state a set of flag tokens and a write-back tick state.
+
+    ``!`` outranks everything: TOPAS writes the converged value back into a
+    *held* parameter too, so a backtick beside a ``!`` is a write, not a claim
+    that the parameter moved.
+    """
+    joined = "".join(t or "" for t in tokens)
+    if "!" in joined:
+        return False
+    if "@" in joined or "`" in joined:
+        return True
+    return None
+
+
+def _read_tail(tail: str, symbols: dict[str, float]) -> _Read | None:
+    """The one grammar, applied to the text that follows a keyword.
+
+    Three forms, all real, in decreasing order of authority: TOPAS's own
+    evaluated tail (preferred, because it is what the converged refinement
+    used), an equation this reader has to evaluate itself, and a stated number.
+    The fourth spelling — the ``A1(…)`` coordinate macro — is not a tail at all
+    and is handled by :func:`_read`. Each form yields the value *and* its flag
+    off a single match, which is what stops the two grammars drifting apart.
+    """
+    if m := _TAIL_EVALUATED.match(tail):
+        return _Read(float(m["value"]), _flag(m["pre"], m["post"], m["tick"]),
+                     m["name"], tail[m.end():])
+    if m := _TAIL_EQUATION.match(tail):
+        return _Read(_resolve(m["expr"].strip(), symbols),
+                     _flag(m["pre"], m["post"]), m["name"], tail[m.end():])
+    if m := _TAIL_VALUE.match(tail):
+        return _Read(float(m["value"]), _flag(m["pre"], m["post"], m["tick"]),
+                     m["name"], tail[m.end():])
+    return None
+
+
+#: Keywords that can follow ``occ`` on a site line. They bound the occupancy's
+#: text, which is what makes an *absent* occupancy different from one whose
+#: value is the next keyword's: ``occ Sr+2 beq 0.765`` is a full occupancy and a
+#: B of 0.765, and reading the token after the species gave it occupancy 0.765.
+_SITE_KEYWORDS = r"\b(?:beq|ADPs|vcocc|rand_xyz|num_posns|u\d\d|site)\b"
+
+
+def _read(name: str, text: str, symbols: dict[str, float] | None = None) -> _Read | None:
+    """What ``text`` states for the keyword ``name``, value and flag together.
+
+    Two keywords are not simply "name then value" and both are handled here
+    rather than by a second grammar:
+
+    * ``x``/``y``/``z`` may be written as the ``A1(…)``/``A2(…)``/``A3(…)``
+      macro, whose flag is inside the parenthesis.
+    * ``occ``'s next token is a **species**, not a parameter name. The grammar
+      has one name slot and on an ``occ`` line the species consumes it, so
+      ``occ Ca @ 0.6`` used to work by accident while ``occ Ca+2 @ 0.6`` and
+      ``occ Ca !n 0.6`` both lost their flag — 38 real site lines, including a
+      Si/Ge solid solution deliberately held at 0.8/0.2. Widening
+      :data:`_NAME` to admit ``+``/``-`` is not the fix: it is load-bearing
+      everywhere else, and a held-by-default occupancy cannot be told from a
+      held-by-file one.
+    """
+    symbols = symbols or {}
+    if (macro := _AXIS_MACROS.get(name)) and (m := macro.search(text)):
+        return _Read(float(m["value"]), _flag(m["pre"], m["tick"]), m["name"],
+                     text[m.end():])
+    for m in re.finditer(rf"\b{re.escape(name)}\b", text):
+        tail = text[m.end():]
+        if name == "occ":
+            if not (species := re.match(r"\s*\S+", tail)):
+                continue
+            tail = re.split(_SITE_KEYWORDS, tail[species.end():], maxsplit=1)[0]
+        if (read := _read_tail(tail, symbols)) is not None:
+            return read
+    return None
+
+
+def _field(name: str, line: str, symbols: dict[str, float] | None = None) -> float | None:
+    """One field's value, or None where the line does not state one (rule 3).
+
+    The value half of :func:`_read`, kept as a name because most callers want
+    only the number — the flag half is :func:`refined`, and both come off the
+    same match rather than from two regexes over the same line.
+    """
+    read = _read(name, line, symbols)
+    return read.value if read else None
+
+
+def refined(name: str, text: str) -> bool | None:
+    """Was this parameter free in the refinement the file records?
+
+    **The refine flags are the payload, not the numbers** (WP-1118): a control
+    file says which parameters were free, which were held and what was
+    excluded, and that is the part a person cannot reconstruct from a CIF plus
+    a pattern. It is also the part that decides whether a cross-code comparison
+    means anything — DESIGN.md's v0.2 lesson, that a guessed protocol gave
+    Rwp 16 % and +390 ppm on fluorapatite against 9.73 % for the mirrored one.
+
+    Three signals, in decreasing order of authority:
+
+    * ``!`` before the value or its name — explicitly **held**.
+    * ``@`` before either — explicitly **refined**.
+    * a trailing backtick — TOPAS wrote this value back after refining it, so
+      it was free. Its *absence* is the inference WP-1110's agent round named
+      as the hardest single thing about transcribing an ``.inp`` by hand.
+
+    None means the file says nothing either way, which is not the same as
+    "fixed" and is why this is a tri-state rather than a bool.
+
+    Read off the **same match as the value**, through :func:`_read`, rather
+    than by a second regex over the line: the value grammar was unified before
+    the flag grammar was, and wherever the two disagreed — the ``A1(@xO3, …)``
+    macro, a backtick after a ``;:`` tail, any ``occ`` with a species — the
+    flag came back None, which ``rx.Parameter`` then defaults to
+    ``vary=False``. The tri-state collapsed to "held" at the one boundary
+    where the file had been explicit.
+    """
+    read = _read(name, text)
+    return read.vary if read else None
+
+
+#: An equation *and the value TOPAS evaluated it to*: ``= 1/4 + Fe1_1_dx;: 0.25``,
+#: needed here on its own because the old sweep read it without a keyword.
+_EVALUATED = rf"=\s*[^;\n]*;\s*:\s*({_NUM})"
+
+
 def symbol_table(text: str) -> dict[str, float]:
     """Every ``<name> <value>`` parameter binding in the file.
 
@@ -298,66 +439,6 @@ def symbol_table(text: str) -> dict[str, float]:
     for name, tok in re.findall(rf"\b({_NAME})\s+{_FLAG}?({_NUM})", text):
         out.setdefault(name, float(tok))
     return out
-
-
-def _resolve(expr: str, symbols: dict[str, float]) -> float | None:
-    """An equation's value: substitute named parameters, then evaluate.
-
-    Longest name first, so a name that is a prefix of another is never
-    half-replaced (``Fe1_1_x`` inside ``Fe1_1_x2``).
-    """
-    for sym in sorted(symbols, key=len, reverse=True):
-        if sym in expr:
-            expr = re.sub(rf"\b{re.escape(sym)}\b", repr(symbols[sym]), expr)
-    return _arith(expr)
-
-
-def _field(name: str, line: str, symbols: dict[str, float] | None = None) -> float | None:
-    """One ``site`` field, in every spelling the archive contains (rule 3).
-
-    Four forms, all real: a plain or flagged number (``z 0.5``, ``beq @, 0.58``),
-    a *named* value with the flag on either side (``z !ph1_cr1_z 0.33489``), an
-    equation (``x = 1/3;``, ``x Zr1_x =1/2;``), and the ``A1(name, value, esd)``
-    macro TOPAS writes for a refined coordinate.
-    """
-    symbols = symbols or {}
-    #: A1/A2/A3 are x/y/z; checked first because the axis letter does not appear.
-    axis_macro = {"x": "A1", "y": "A2", "z": "A3"}.get(name)
-    if axis_macro and (m := re.search(
-            rf"\b{axis_macro}\(\s*{_FLAG}?{_NAME}\s*,\s*({_NUM})", line)):
-        return float(m.group(1))
-    # TOPAS's own evaluated value first, where the file states one.
-    if m := re.search(rf"\b{name}\s+(?:{_NAME}\s*)?{_EVALUATED}", line):
-        return float(m.group(1))
-    if m := re.search(rf"\b{name}\s+(?:{_NAME}\s*)?=\s*([^;\n]+);", line):
-        return _resolve(m.group(1).strip(), symbols)
-    if m := re.search(rf"\b{name}\s+{_FLAG}?(?:{_NAME}\s+{_FLAG}?)?({_NUM}`?)", line):
-        return _value(m.group(1))
-    return None
-
-
-#: Keywords that can follow ``occ`` on a site line. They bound the occupancy's
-#: text, which is what makes an *absent* occupancy different from one whose
-#: value is the next keyword's: ``occ Sr+2 beq 0.765`` is a full occupancy and a
-#: B of 0.765, and reading the token after the species gave it occupancy 0.765.
-_SITE_KEYWORDS = r"\b(?:beq|ADPs|vcocc|rand_xyz|num_posns|u\d\d|site)\b"
-
-
-def _occupancy(rest: str, symbols: dict[str, float]) -> float | None:
-    """The occupancy from the text after ``occ <species>``, or None if absent.
-
-    None means TOPAS's own default of full occupancy, not a parse failure: the
-    keyword is optional in the format. Distinguishing the two is why the search
-    is bounded by :data:`_SITE_KEYWORDS` rather than being a scan to end of line.
-    """
-    tail = re.split(_SITE_KEYWORDS, rest, maxsplit=1)[0]
-    if m := re.match(rf"\s*{_EVALUATED}", tail):
-        return float(m.group(1))
-    if m := re.match(r"\s*=\s*([^;\n]+);", tail):
-        return _resolve(m.group(1).strip(), symbols)
-    if m := re.match(rf"\s*{_PRM}", tail):
-        return _value(m.group(1))
-    return None
 
 
 def read_topas_inp(path: str | Path) -> TopasModel:
@@ -407,32 +488,47 @@ def read_topas_inp(path: str | Path) -> TopasModel:
         phase = TopasPhase(name=name.group(1).strip(),
                            space_group=normalize_space_group(sg.group(1)))
         for key in ("a", "b", "c", "al", "be", "ga"):
-            m = re.search(rf"^\s*{key}\s+{_FLAG}?(?:{_NAME}\s+{_FLAG}?)?({_NUM}`?)([^\n]*)",
-                          chunk, re.M)
-            if not m:
-                continue
-            value = _value(m.group(1))
-            if value is None:
-                continue
-            phase.cell[key] = value
-            if (free := refined(key, m.group(0))) is not None:
-                phase.vary[key] = free
-            # TOPAS bounds a cell explicitly (`min 3.61 max 3.66;`). Those are
-            # part of the author's model: without them a phase the data cannot
-            # see is a flat direction and its cell runs away.
-            lo = re.search(rf"\bmin\s*=?\s*({_NUM})", m.group(2))
-            hi = re.search(rf"\bmax\s*=?\s*({_NUM})", m.group(2))
-            if lo or hi:
-                phase.cell_limits[key] = (float(lo.group(1)) if lo else None,
-                                          float(hi.group(1)) if hi else None)
-        if m := re.search(rf"Cubic_?\(\s*\w*\s*({_NUM})", chunk):
-            if "a" not in phase.cell:
-                v = float(m.group(1))
+            # Anchored at the start of a line so the cell edge is the line's own
+            # keyword: `lpa` inside `Cubic_(lpa …)` is a macro argument, not an
+            # `a` line. Everything after that anchor goes through the one
+            # grammar — the cell's own regex was the sixth spelling of it, and
+            # it rejected the `= expr;: value` tail `_read` reads fine, which
+            # left `a` out of the cell and dropped the phase in `to_structure`.
+            for line in chunk.split("\n"):
+                if not re.match(rf"\s*{key}\b", line):
+                    continue
+                read = _read(key, line, symbols)
+                if read is None or read.value is None:
+                    continue
+                phase.cell[key] = read.value
+                if read.vary is not None:
+                    phase.vary[key] = read.vary
+                # TOPAS bounds a cell explicitly (`min 3.61 max 3.66;`). Those
+                # are part of the author's model: without them a phase the data
+                # cannot see is a flat direction and its cell runs away.
+                lo = re.search(rf"\bmin\s*=?\s*({_NUM})", read.rest)
+                hi = re.search(rf"\bmax\s*=?\s*({_NUM})", read.rest)
+                if lo or hi:
+                    phase.cell_limits[key] = (float(lo.group(1)) if lo else None,
+                                              float(hi.group(1)) if hi else None)
+                break
+        # `Cubic_(…)` states the whole cell in one macro argument, read through
+        # the same grammar: `\w*` in front of the value ate the integer part of
+        # a nameless one (`Cubic_(4.15689)` → 0.15689) and a bare flag
+        # (`Cubic(@ 4.15692`)`) matched nothing at all, leaving the cell empty.
+        if "a" not in phase.cell:
+            if (m := re.search(r"\bCubic_?\(", chunk)) and (
+                    read := _read_tail(chunk[m.end():], symbols)) is not None \
+                    and read.value is not None:
+                v = read.value
                 phase.cell.update(a=v, b=v, c=v, al=90.0, be=90.0, ga=90.0)
-        phase.scale = _field("scale", chunk, symbols)
+                if read.vary is not None:
+                    phase.vary.update(dict.fromkeys("abc", read.vary))
+        read = _read("scale", chunk, symbols)
+        phase.scale = read.value if read else None
+        if read is not None and read.vary is not None:
+            phase.vary["scale"] = read.vary
         phase.weight_percent = _field("weight_percent", chunk, symbols)
-        if (free := refined("scale", chunk)) is not None:
-            phase.vary["scale"] = free
 
         site_lines = [ln for ln in chunk.split("\n") if re.match(r"\s*site\s", ln)]
         for line in site_lines:
@@ -441,22 +537,26 @@ def read_topas_inp(path: str | Path) -> TopasModel:
             if not (label and occ):
                 raise TopasInpError(
                     f"{path}: {phase.name}: no label/occ in site line: {line.strip()!r}")
-            coords = {}
+            # One read per field, so the value and its flag come off one match.
+            reads: dict[str, _Read] = {}
             for axis in "xyz":
-                v = _field(axis, line, symbols)
-                if v is None:
+                read = _read(axis, line, symbols)
+                if read is None or read.value is None:
                     raise TopasInpError(
                         f"{path}: {phase.name}: cannot read {axis} from "
                         f"site line: {line.strip()!r}")
-                coords[axis] = v
-            beq = _field("beq", line, symbols)
-            occupancy = _occupancy(line[occ.end():], symbols)
-            vary = {f: free for f in ("x", "y", "z", "beq", "occ")
-                    if (free := refined(f, line)) is not None}
+                reads[axis] = read
+            for other in ("beq", "occ"):
+                if (read := _read(other, line, symbols)) is not None:
+                    reads[other] = read
+            beq = reads["beq"].value if "beq" in reads else None
+            occupancy = reads["occ"].value if "occ" in reads else None
             phase.sites.append(TopasSite(
                 label=label.group(1), species=normalize_species(occ.group(1)),
                 occupancy=occupancy if occupancy is not None else 1.0,
-                beq=beq if beq is not None else 0.5, vary=vary, **coords))
+                beq=beq if beq is not None else 0.5,
+                vary={f: r.vary for f, r in reads.items() if r.vary is not None},
+                **{axis: reads[axis].value for axis in "xyz"}))
         # A dropped site is a silently wrong structure factor, so the count is
         # an invariant rather than something the regex is trusted to get right.
         if len(phase.sites) != len(site_lines):

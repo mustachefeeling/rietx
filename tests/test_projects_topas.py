@@ -423,3 +423,102 @@ def test_a_phase_whose_sites_were_all_disabled_refuses_naming_the_phase(tmp_path
     with pytest.raises(TopasInpError) as exc:
         to_structure(read_topas_inp(inp))
     assert "gated.inp" in str(exc.value) and "p21n" in str(exc.value)
+
+
+# ------------------------------------------- one grammar, on the cell too
+
+#: The cell had its own regex once, and it admitted three of these six. The
+#: numbers are `parametric_04.inp`'s monoclinic `p21n` lattice parameter, which
+#: that file writes as an equation with TOPAS's evaluated tail — measured: the
+#: three equation spellings left `a` out of `phase.cell`, so `to_structure`
+#: dropped the phase, and across the archive that lost **320 phases in 15
+#: files**, 107 patterns of `parametric_04.inp` among them.
+CELL_SPELLINGS = [
+    ("a 7.301139", 7.301139, None),
+    ("a lpa 7.301139", 7.301139, None),
+    ("a @ 7.301139", 7.301139, True),
+    ("a !lpa 7.301139`", 7.301139, False),
+    ("a =mlpa;:7.301139`", 7.301139, True),
+    ("a = 7.3;", 7.3, None),
+    ("a = mlpa;", 7.30114, None),
+]
+
+
+@pytest.mark.parametrize("line, expected, vary", CELL_SPELLINGS)
+def test_a_cell_edge_reads_in_every_spelling_the_one_grammar_admits(
+        tmp_path, line, expected, vary):
+    """The cell is read through the same grammar as every other scalar.
+
+    A second regex for the cell is the failure this PR is about one rank down:
+    it disagreed with `_field` on the `= expr;: value` tail, and a phase whose
+    `a` is missing is silently absent from the `Structure` while its
+    `weight_percent` still reports.
+    """
+    inp = _inp(tmp_path, "cell.inp",
+               f'prm mlpa 7.30114\nstr\nphase_name "p21n"\nspace_group "P121/n1"\n'
+               f'{line}\nb 7.5\nc 7.7\nbe 99.1\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert phase.cell["a"] == pytest.approx(expected)
+    assert phase.vary.get("a") == vary
+    (built,) = to_structure(read_topas_inp(inp)).phases
+    assert built.cell.a.value == pytest.approx(expected)
+
+
+def test_a_cell_min_max_still_reads_when_the_value_is_named(tmp_path):
+    """Routing the cell through the one grammar must not lose the window that
+    keeps a phase the data cannot see from running away."""
+    inp = _inp(tmp_path, "cell.inp",
+               'str\nphase_name "P"\nspace_group "P1"\n'
+               'a lp_bn 3.616466` min 3.61 max 3.63\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert phase.cell_limits["a"] == (3.61, 3.63)
+    assert phase.vary["a"] is True
+
+
+# --------------------------------------------------------- the lattice macros
+
+#: Every spelling of a lattice macro that a real archive file contains, with
+#: the file it came from. A macro is a *specification fact* (io/CLAUDE.md's
+#: rule 2), so the argument order is read off these lines and never guessed.
+LATTICE_MACROS = [
+    # Cubic_ with a named argument — the one form that already worked.
+    ("Cubic_(lpa 4.15689)", (4.15689,) * 3 + (90.0,) * 3, None),
+    # nameless: `\w*` in front of the value ate the integer part and gave
+    # a = 0.15689, the same class as `weight_percent 11.596` → 0.596.
+    ("Cubic(10)", (10.0,) * 3 + (90.0,) * 3, None),              # rigidb.inp:37
+    ("Cubic_( 4.15689)", (4.15689,) * 3 + (90.0,) * 3, None),
+    # flag with no name: the whole cell came back empty, so the phase vanished.
+    ("Cubic(@  4.15692`)", (4.15692,) * 3 + (90.0,) * 3, True),  # LaB6_Riet_TCHZ_01.inp:54
+    ("Cubic_(!lpa 4.15689)", (4.15689,) * 3 + (90.0,) * 3, False),
+    # TOPAS's own evaluated tail, inside the macro's parenthesis.
+    ("Cubic(=a1;:  5.43416_0.00012)",                            # Si_in_cap_NOMAD_jue.inp:139
+     (5.43416,) * 3 + (90.0,) * 3, None),
+    ("Cubic(aLP  11.210591`)",                                   # i15-xpdf_…_pdfonly.inp:69
+     (11.210591,) * 3 + (90.0,) * 3, True),
+]
+
+
+@pytest.mark.parametrize("macro, cell, vary", LATTICE_MACROS)
+def test_a_lattice_macro_fills_the_cell_it_states(tmp_path, macro, cell, vary):
+    """A lattice macro is as much a statement of the cell as an ``a`` line.
+
+    Before this, only ``Cubic_(<name> <value>)`` was read: every other macro
+    left ``phase.cell`` empty and ``to_structure`` then *dropped the phase*
+    while ``weight_percent`` went on reporting for it, so a QPA table looked
+    complete with a phase missing from the `Structure`.
+    """
+    inp = _inp(tmp_path, "macro.inp",
+               f'str\nphase_name "P"\nspace_group "P1"\n{macro}\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert tuple(phase.cell[k] for k in ("a", "b", "c", "al", "be", "ga")) == \
+        pytest.approx(cell)
+    assert phase.vary.get("a") == vary
+    assert len(to_structure(read_topas_inp(inp)).phases) == 1
+
+
+
+
+
