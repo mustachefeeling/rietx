@@ -815,3 +815,241 @@ def test_identifiability_carries_the_quiet_measurements_too():
     back = RefinementResult.model_validate_json(result.model_dump_json())
     assert back.identifiability.background_absorption == \
         ident.background_absorption
+
+
+# ----------------------------------------------------------------------
+# signal cutoffs — an end of the range the instrument was not seeing
+# through.  The real-data provenance (ILL D20 SrFeO₃, NIST BT-1) is in
+# ``signal_cutoffs``' docstring; nothing here reads a drive.
+# ----------------------------------------------------------------------
+_LEVEL = 1.0e8
+#: σ²/y of the D20 files these cases are shaped after, measured at ≈20 000.
+_VARIANCE_PER_COUNT = 2.0e4
+
+
+def _cw_pattern(*, lo=5.0, hi=150.0, step=0.05, seed=3, peaks=(
+        (25.0, 3.0), (48.0, 1.5), (77.0, 2.2), (112.0, 1.2), (138.0, 0.9))):
+    """``(two_theta, y)`` for a flat-background pattern with broad peaks.
+
+    Shaped after a constant-wavelength neutron scan rather than built by the
+    forward model: these cases are about the *ends of the range*, so the peaks
+    exist only to make the interior level a realistic mixture of peak and
+    background, and a compiled model would tie the case to the profile code.
+    """
+    tt = np.arange(lo, hi + 0.5 * step, step)
+    y = np.full_like(tt, _LEVEL)
+    for centre, height in peaks:
+        y += height * _LEVEL * np.exp(-0.5 * ((tt - centre) / 0.5) ** 2)
+    rng = np.random.default_rng(seed)
+    return tt, y * (1.0 + 0.01 * rng.standard_normal(tt.size))
+
+
+def _sigma_like_the_file(y):
+    """σ with σ²/y constant — what makes the precision penalty derivable."""
+    return np.sqrt(_VARIANCE_PER_COUNT * np.maximum(y, 1.0))
+
+
+def _collapse(tt, y, *, at, edge, floor=0.02, deg=0.5):
+    """Taper ``y`` beyond ``at`` towards ``floor``, e-folding over ``deg``.
+
+    A factor of 50 in ≈2°, then a floor — the trailing shape measured on
+    ``306774`` (factor ≈45 over 2.3°, then 2-3 %).
+    """
+    x = (tt - at) if edge == "high" else (at - tt)
+    taper = np.where(x > 0.0, np.maximum(np.exp(-x / deg), floor), 1.0)
+    return y * taper
+
+
+def test_signal_cutoff_finds_a_trailing_cliff():
+    """The archetype: a level that collapses near the end and stays down.
+
+    The boundary reported is the *onset*, not the floor, so it must land on
+    the last channel that was still at level — within a channel or two of
+    where the taper was applied.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, clean = _cw_pattern()
+    y = _collapse(tt, clean, at=130.0, edge="high")
+    got = signal_cutoffs(tt, y, _sigma_like_the_file(y))
+
+    assert len(got) == 1, got
+    cut = got[0]
+    assert cut.edge == "high"
+    assert abs(cut.two_theta - 130.0) < 0.1, cut     # 0.05° step: two channels
+    assert cut.floor_fraction < 0.05, cut            # the floor, not the cliff
+    # what a trim at this boundary would drop, and it is most of the tail
+    assert cut.n_channels == int(np.sum(tt > cut.two_theta))
+    assert 350 < cut.n_channels < 420, cut
+
+
+def test_signal_cutoff_is_silent_on_clean_patterns():
+    """The false-positive guard, and the one that matters most.
+
+    A pattern whose ends are at its own interior level has no cutoff, and
+    neither does one whose background merely *falls* across the range — the
+    1/x air-scatter shape is the near miss, since it is highest at the end
+    this measure looks at.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, y = _cw_pattern()
+    assert signal_cutoffs(tt, y, _sigma_like_the_file(y)) == []
+
+    for background in (_flat_bkg, _air_scatter_bkg, _hump_bkg):
+        data = _peaky_pattern(background=background)
+        assert signal_cutoffs(data.tt(), data.y()) == [], background.__name__
+
+
+def test_signal_cutoff_ignores_an_interior_gap():
+    """A collapse that does not reach an end of the range is not a cutoff.
+
+    Same depth and more than the same width as the trailing case above — a
+    dead detector or an excised region, whose handling is an excluded region
+    and not a fit range.  Reaching the first or last channel is the whole
+    difference, so it is asserted against the case that only differs there.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, y = _cw_pattern()
+    gap = (tt > 60.0) & (tt < 68.0)
+    y = np.where(gap, 0.02 * y, y)
+    assert signal_cutoffs(tt, y, _sigma_like_the_file(y)) == []
+
+
+def test_signal_cutoff_finds_a_leading_cliff():
+    """The low end, which on real data is a beamstop rather than a detector.
+
+    Reported the same way and with the opposite ``edge``; the count is the
+    channels *below* the boundary, so the two edges' ``n_channels`` mean the
+    same thing for a caller trimming to them.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, clean = _cw_pattern()
+    y = _collapse(tt, clean, at=12.0, edge="low")
+    got = signal_cutoffs(tt, y, _sigma_like_the_file(y))
+
+    assert len(got) == 1, got
+    cut = got[0]
+    assert cut.edge == "low"
+    assert abs(cut.two_theta - 12.0) < 0.1, cut
+    assert cut.n_channels == int(np.sum(tt < cut.two_theta))
+
+
+def test_signal_cutoff_survives_a_strong_peak_in_the_last_channels():
+    """A pattern ending *on* a peak reports nothing.
+
+    The failure this guards is the mirror of the measure's own logic: the
+    interior level is a median over the middle, a peak at the last channel
+    sits far above it, and a rule keyed on "different from the interior"
+    rather than on "collapsed below it" would fire here.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, y = _cw_pattern(peaks=((25.0, 3.0), (149.8, 4.0)))
+    assert signal_cutoffs(tt, y, _sigma_like_the_file(y)) == []
+
+
+def test_signal_cutoff_relative_error_is_the_level_re_expressed():
+    """``relative_error_ratio`` is derived, and the test is that arithmetic.
+
+    With σ²/y constant, σ/y = √(σ²/y)/√y, so the region's precision penalty is
+    1/√``floor_fraction`` and carries no information the level did not.  It is
+    reported because it is the number the person who took the data reads, and
+    asserted here so that a later reader cannot mistake it for a second
+    observation.  Absent σ it is ``None``, not the Poisson identity.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, clean = _cw_pattern()
+    y = _collapse(tt, clean, at=130.0, edge="high")
+
+    cut = signal_cutoffs(tt, y, _sigma_like_the_file(y))[0]
+    assert cut.relative_error_ratio == pytest.approx(
+        1.0 / np.sqrt(cut.floor_fraction), rel=0.05)
+
+    assert signal_cutoffs(tt, y)[0].relative_error_ratio is None
+
+
+def test_signal_cutoff_degenerate_inputs_return_nothing():
+    """Every degenerate input is an empty list, and one of them is a *decision*.
+
+    A pattern with no live interior — dead but for a narrow band — comes back
+    empty rather than reporting itself as one long cutoff: the threshold is a
+    fraction of the pattern's own middle, so a collapse that consumed the
+    middle takes the reference down with it.  Silence where the evidence is
+    gone is the direction to fail in, and the alternative (a cutoff over the
+    whole range) is not an answer a caller could use.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    two_points = np.array([10.0, 140.0])
+    assert signal_cutoffs(two_points, np.array([1.0, 1.0e8])) == []
+
+    tt, y = _cw_pattern()
+    assert signal_cutoffs(tt, np.zeros_like(tt)) == []          # nothing at all
+    assert signal_cutoffs(tt, np.full_like(tt, 3.0)) == []      # flat and low
+
+    holed = y.copy()
+    holed[[0, 17, 200, -1]] = np.nan
+    assert signal_cutoffs(tt, holed) == []                      # NaN opens no run
+    # and closes none either: the same cliff, with holes in it, is the same cut
+    cliff = _collapse(tt, y, at=130.0, edge="high")
+    cliff[[0, 500, 2100, -1]] = np.nan
+    assert signal_cutoffs(tt, cliff)[0].two_theta == pytest.approx(130.0, abs=0.1)
+
+    # dead but for a narrow live band: the reference went with the middle
+    assert signal_cutoffs(tt, np.where((tt > 70.0) & (tt < 85.0), y, 0.01 * y)) == []
+
+
+def test_diagnose_carries_the_cutoffs_and_the_others_still_read_the_range():
+    """``diagnose`` reports the cutoff; it does not re-measure anything on the
+    trimmed range, and the docstring's ordering claim is the reason.
+
+    Asserted both ways: the field arrives, and the other fields still describe
+    the range they were handed — the same pattern cropped to the reported
+    boundaries is a *different* answer, which is what makes reading the cutoffs
+    first the caller's job rather than a silent step.
+    """
+    from rietx.background.diagnostics import diagnose
+
+    tt, clean = _cw_pattern()
+    y = _collapse(tt, clean, at=130.0, edge="high")
+    data = rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+                          sigma=_sigma_like_the_file(y).tolist())
+
+    diag = diagnose(data)
+    assert [c.edge for c in diag.signal_cutoffs] == ["high"]
+    assert abs(diag.signal_cutoffs[0].two_theta - 130.0) < 0.1
+    assert diag.signal_cutoffs[0].relative_error_ratio is not None
+
+    trimmed = diagnose(data.crop(float(tt[0]), diag.signal_cutoffs[0].two_theta))
+    assert trimmed.signal_cutoffs == []
+    assert trimmed.amorphous_hump_score < 0.5 * diag.amorphous_hump_score
+
+    # and the whole object survives the JSON round trip an agent takes
+    from rietx.background.diagnostics import PatternDiagnostics
+    assert PatternDiagnostics.model_validate_json(
+        diag.model_dump_json()).signal_cutoffs == diag.signal_cutoffs
+
+
+def test_signal_cutoff_reports_one_boundary_per_edge():
+    """A collapse with a bump inside it is one cutoff, not two.
+
+    The real leading edge has this shape — a shadowed floor, then a broad bump
+    at an angle no lattice plane could put one, then the climb — and there the
+    bump stays under the threshold, so it is one run.  Built here to cross it:
+    two runs at the same edge, and the answer is the innermost boundary,
+    because whatever rose in between never got back to level and the usable
+    range starts after the last of them.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, clean = _cw_pattern()
+    y = _collapse(tt, clean, at=12.0, edge="low")
+    halo = 0.5 * _LEVEL * np.exp(-0.5 * ((tt - 7.0) / 0.6) ** 2)
+
+    got = signal_cutoffs(tt, y + halo, _sigma_like_the_file(y + halo))
+    assert [c.edge for c in got] == ["low"], got
+    assert abs(got[0].two_theta - 12.0) < 0.2, got

@@ -3,11 +3,13 @@ from .diagnostics import (
     ContaminationFlag,
     CoverageRegion,
     PatternDiagnostics,
+    SignalCutoff,
     background_envelope,
     contamination_flags_from_peaks,
     counting_coverage,
     diagnose,
     identify_anode,
+    signal_cutoffs,
 )
 from .estimators import arpls, auto_lambda, snip, whittaker_solve
 from .models import (
@@ -29,6 +31,7 @@ __all__ = [
     "ContaminationFlag",
     "CoverageRegion",
     "PatternDiagnostics",
+    "SignalCutoff",
     "arpls",
     "auto_background",
     "auto_lambda",
@@ -45,6 +48,7 @@ __all__ = [
     "second_difference_matrix",
     "select_arpls_lambda",
     "select_chebyshev_order",
+    "signal_cutoffs",
     "snip",
     "whittaker_solve",
 ]

@@ -305,7 +305,7 @@ validity.
 ### Everything else `diagnose` measures
 
 The object that call returns is a `PatternDiagnostics`, and the two sampling
-fields above are two of its sixteen. The rest describe the pattern itself, with
+fields above are two of its seventeen. The rest describe the pattern itself, with
 no model involved, and they are what the background chapter's defaults are chosen
 from.
 
@@ -325,6 +325,7 @@ from.
 | `PatternDiagnostics.contamination` | Kβ and W Lα ghost candidates, each a `ContaminationFlag` | see the warning below |
 | `PatternDiagnostics.coverage_plateau` | the bulk pattern's σ²/max(y, 1), median over the middle half of the range | 1.0 is pure Poisson counting; anything else says the file's σ is something else (merged detectors, a monitor normalisation). Null means σ was not measured, so nothing was checked |
 | `PatternDiagnostics.coverage_regions` | stretches whose σ carries more variance per count than that plateau, each a `CoverageRegion` | the pattern's statistical weight is not uniform across its range; see below |
+| `PatternDiagnostics.signal_cutoffs` | ends of the range where the level collapsed and stayed down, each a `SignalCutoff` | read this one **first**; see below |
 
 | Field | Is |
 |---|---|
@@ -391,6 +392,61 @@ a pattern without a σ column reports `null` and an empty list — *not checkabl
 which is a different answer from an empty list beside a plateau. And v also rises
 wherever the counts collapse to nothing with σ staying finite, which is a
 different phenomenon wearing the same statistic.
+:::
+
+### Where the instrument stopped seeing the sample
+
+`PatternDiagnostics.signal_cutoffs` is the phenomenon that last paragraph names,
+measured from the intensities where it belongs, and it is the one field here to
+read **before** the others. Each entry is a `SignalCutoff`: an end of the range
+where the level collapsed to a small fraction of the interior level and stayed
+there. A detector's active area running out, a beamstop, sample-environment
+shielding — whatever the cause, those channels carry no diffraction information
+and belong outside the fit range rather than inside it.
+
+| Field | Is |
+|---|---|
+| `SignalCutoff.edge` | `"low"` or `"high"` — which end of the range |
+| `SignalCutoff.two_theta` | the boundary: where the collapse *began*, not where it reached its floor, because that is what a fit range should stop at. Still a live channel, so a trim keeps it |
+| `SignalCutoff.floor_fraction` | the region's median level over the interior level — how dead it is |
+| `SignalCutoff.n_channels` | channels outside the boundary, i.e. exactly what a trim there would drop |
+| `SignalCutoff.relative_error_ratio` | the implied precision penalty: the region's median σ/y over the interior's. Null when σ was not measured |
+
+Measured on an ILL D20 constant-wavelength neutron scan of in-situ SrFeO₃
+(λ = 2.422 Å, 1540 points over 0.034–153.934°, σ from the file), the two ends are
+different shapes and carry different arguments. The trailing end is a cliff: 91 %
+of the interior level at 142.83°, 24 % at 144.03°, then flat at 2–3 % for the
+remaining 8.7° — a factor of 45 in 2.3°, and past it nothing at all. The leading
+end is a graded degradation: a direct-beam shoulder, a shadowed floor near 5 %, a
+broad bump peaking around 4.6° at 14 % — at that wavelength d ≈ 30 Å, so it is
+not sample diffraction — then a climb that reaches the interior level only around
+28°. There *is* structure at the low end; it is a beamstop halo and air scatter
+rather than the specimen, and fitting a background through it means describing
+non-specimen structure at 3× the interior's fractional error. `signal_cutoffs`
+reports the pair at 7.63° and 143.03°; TOPAS's own refinements of that file
+declare `start_X 8 finish_X 142`.
+
+:::{warning}
+Nothing is trimmed for you and nothing else is re-measured. `diagnose` reports
+these and stops, because a fit range is a protocol decision and the numbers above
+do not settle it on their own.
+
+That is also why the ordering matters: every other field of a
+`PatternDiagnostics` is measured over the whole range it was handed. On that same
+file, full range against the 8–142° window, `amorphous_hump_score` reads 0.2549
+against 0.1380 — inflated 1.85× by the dead tail — `air_scatter_gain` 0.0027
+against 0.1433, so the real low-angle rise is **hidden entirely**, and
+`baseline_lambda` moves two decades, 10⁴ against 10⁶. If you decide to trim, call
+`diagnose` again on the trimmed pattern; the first answer described the range you
+gave it.
+
+`SignalCutoff.relative_error_ratio` is derived, not a second observation. Where
+σ²/y is constant — as it is across that whole pattern, at about 20 000 straight
+through both transitions — σ/y is 1/√y up to a constant, so the ratio is
+1/√`floor_fraction` and says nothing the level did not. It is reported because it
+is the number an experimenter reads. That σ²/y stays flat is also what separates
+this from `PatternDiagnostics.coverage_regions`: the file's σ there is honest, and
+those channels are not thinly covered, they are empty.
 :::
 
 ## What the restraints did
