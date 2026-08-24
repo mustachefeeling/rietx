@@ -221,18 +221,26 @@ def _span_basis(jac: np.ndarray, cols: list[int]) -> np.ndarray:
     :func:`one_parameter_gains` build their projections from — extracted so
     the two statistics cannot disagree about how a span is orthogonalised.
 
-    **A zero column is dropped, because it is not in the span.**  LAPACK's
-    Householder QR returns a Q with orthonormal columns whatever the rank of A,
-    so a zero column of A does not give a zero column of Q — it gives an
-    *arbitrary* direction orthogonal to the rest, and ``q qᵀ`` then projects
+    **An exactly-zero column is dropped, because it is not in the span.**
+    LAPACK's Householder QR returns a Q with orthonormal columns whatever the
+    rank of A, so a zero column of A does not give a zero column of Q — it gives
+    an *arbitrary* direction orthogonal to the rest, and ``q qᵀ`` then projects
     onto a space strictly larger than span(A).  Measured: a 3-column block with
     two zero columns reports R² = 1.00 for **every** target, which is a
-    saturated guard on a block that can produce nothing.  A parameter sitting
-    at a softplus off state is exactly how a zero column arises — dp/du → 0
-    there — so this reaches ``BackgroundPSpline.air_scatter`` at value 0 as well
-    as an unfreed-in-practice background peak, and in both cases the pre-drop
-    answer was the wrong one.  All columns zero leaves an ``(n, 0)`` basis,
-    whose projector is zero, i.e. "this block imitates nothing" — which is true.
+    saturated guard on a block that can produce nothing.
+
+    **Exactly** zero is the operative word, and it is why this filter changes
+    no number that shipped before it.  No design row is ever zero (checked: the
+    Chebyshev rows, the clamped-cubic B-spline rows and the 1/2θ air row all
+    carry signal), and a softplus parameter at its own off state does *not*
+    produce one either — ``to_internal`` clamps, so ``BackgroundPSpline.air_scatter``
+    at value 0 gives dp/du = 1e-12 and a column that is tiny but a real
+    direction.  What does produce one is a **product**: an additive background
+    peak at zero height has ∂y/∂2θ₀ = ∂y/∂Γ = h·(…) = 0 to the bit, so a
+    declared peak freed at its default height hands this function two of them.
+
+    All columns zero leaves an ``(n, 0)`` basis, whose projector is zero, i.e.
+    "this block imitates nothing" — which is true.
     """
     cols = [c for c in cols if np.any(jac[:, c])]
     q, _ = np.linalg.qr(jac[:, cols])

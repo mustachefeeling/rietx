@@ -356,6 +356,35 @@ def test_the_width_bound_is_measured_against_the_instrument_alone():
 # ----------------------------------------------------------------------
 # the absorption block, and the span it is built from
 # ----------------------------------------------------------------------
+def test_a_softplus_off_state_does_not_by_itself_make_a_zero_column():
+    """Why the ``_span_basis`` filter changes nothing that shipped before it.
+
+    ``to_internal`` clamps, so a softplus parameter at its own off state has a
+    tiny-but-real derivative rather than none, and no design row is zero either.
+    An exactly-zero column comes from a **product** — a peak at zero height —
+    which is what the filter is for.
+    """
+    from rietx.params.transforms import dphys_dinternal, to_internal
+
+    u = to_internal(0.0, "softplus")
+    assert np.isfinite(u) and dphys_dinternal(u, "softplus") > 0.0
+
+    _s, _i, _d, _t, model = _state(
+        peaks=(),
+        background=BackgroundPSpline.for_range(15.0, 110.0, knot_step_deg=8.0),
+        free=())
+    assert all(np.any(row) for row in model.bkg_design)
+
+    # the product, which is exactly zero: h = 0 kills ∂y/∂2θ₀ and ∂y/∂Γ
+    _s, _i, _d, table, model = _state(peaks=(_peak(height=0.0),))
+    theta = table.x0()
+    jac = _make_jacobian(model, table)(theta)
+    free = list(table.free_paths)
+    n_data = len(model.tt)
+    for path in (PEAK_PATHS[0], PEAK_PATHS[2]):
+        assert not np.any(jac[:n_data, free.index(path)]), path
+
+
 def test_a_zero_column_is_dropped_from_a_projection_span():
     """LAPACK's Q is orthonormal whatever the rank of A, so a zero column of A
     becomes an arbitrary direction and saturates every R² at 1."""
