@@ -192,21 +192,20 @@ def background_absorption(jac: np.ndarray, free_paths: list[str]) -> dict[str, f
     and dropping them overstates the risk by ~5× (measured: R² 0.46 → 0.08 at
     λ = 10⁴).
     """
-    #: **Additive background peaks join the block.**  The statistic asks what
-    #: the *whole declared background* can imitate, and an explicit broad peak
-    #: is the sharpest form of the failure it exists to catch — a hump narrow
-    #: enough to sit under a reflection eats Bragg intensity exactly as a
-    #: too-flexible spline does, and unlike the spline it can do it with three
-    #: parameters.  Leaving it out would make the number *less* true the more of
-    #: the background flexibility lives in peaks.
-    #:
-    #: The nonlinearity is not an objection: every column here is a
-    #: linearisation at the converged θ, the ``.biso`` and ``.scale`` targets
-    #: included, and the esds and correlations the guard sits beside are built
-    #: from the same one.  What *was* an objection is a zero column — a peak at
-    #: its off state contributes three of them — and that is handled once, in
-    #: :func:`_span_basis`, because it is a fact about spans and not about
-    #: peaks.
+    # Additive background peaks join the block.  The statistic asks what the
+    # *whole declared background* can imitate, and an explicit broad peak is the
+    # sharpest form of the failure it exists to catch — a hump narrow enough to
+    # sit under a reflection eats Bragg intensity exactly as a too-flexible
+    # spline does, and unlike the spline it can do it with three parameters.
+    # Leaving it out would make the number *less* true the more of the
+    # background's flexibility lives in peaks.
+    #
+    # The nonlinearity is not an objection: every column here is a linearisation
+    # at the converged θ, the ``.biso`` and ``.scale`` targets included, and the
+    # esds and correlations the guard sits beside are built from the same one.
+    # What *was* an objection is a zero column — a peak at its off state
+    # contributes three of them — and that is handled once, in ``_span_basis``,
+    # because it is a fact about spans and not about peaks.
     bg = [k for k, p in enumerate(free_paths)
           if p.startswith(("instrument.background.",
                            "instrument.background_peaks."))]
