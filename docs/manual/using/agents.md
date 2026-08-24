@@ -388,6 +388,21 @@ sorted(caps.features)
   check, and `AnodeCapability.kalpha1_only`, which is true for the `CuKa1`-style
   entries where an incident-side monochromator has left one line rather than
   two.
+- **`Capabilities.radiations`**, the source kinds `Instrument.source`
+  discriminates on. Read this *before* `Capabilities.anodes`, which is a
+  sub-vocabulary of the X-ray entry and says nothing about the others — a
+  program reading the anodes alone would conclude this build does X-rays only.
+  Each `RadiationCapability` carries `RadiationCapability.kind`, the
+  discriminator to write, `RadiationCapability.title` and
+  `RadiationCapability.scatterer`, the one-line statement of what does the
+  scattering and therefore whether the amplitude falls off with Q. The other
+  three say how the *shape* of the source differs, which is what decides
+  whether a field exists to set at all:
+  `RadiationCapability.anomalous_dispersion`,
+  `RadiationCapability.max_emission_lines` (`None` for unbounded, 1 for a
+  monochromator), and `RadiationCapability.polarization_refinable`. All three
+  are derived from the classes rather than declared, so each flips by itself
+  when its feature lands.
 - **`Capabilities.plans`**, each `PlanCapability` with `PlanCapability.title`,
   `PlanCapability.description`, `PlanCapability.modes` and
   `PlanCapability.when_to_use`, so a program can offer the choice in its own UI

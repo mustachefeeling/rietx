@@ -261,13 +261,13 @@ with r = 1 the identity.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `Instrument.source` | `Source` | required | radiation: wavelengths, line weights, polarisation |
+| `Instrument.source` | `Source` or `NeutronSource` | required | the radiation, discriminated on `kind` |
 | `Instrument.geometry` | `Geometry` | capillary, no aberrations | how the specimen sits in the beam |
 | `Instrument.zero_shift` | `Parameter` | 0.0 deg, in [−0.5, 0.5] | a constant 2θ offset, the one position error every geometry has |
 | `Instrument.profile` | `ProfileTCHZ` | see below | the instrumental width function |
 | `Instrument.background` | one of three | `BackgroundChebyshev` | the pedestal under the peaks |
 
-Three constructors build a plausible instrument, and the difference between them
+Four constructors build a plausible instrument, and the difference between them
 is which aberrations exist at all rather than which are switched on.
 
 | Constructor | Geometry | Radiation | Declares |
@@ -275,6 +275,7 @@ is which aberrations exist at all rather than which are switched on.
 | `Instrument.debye_scherrer` | capillary | one wavelength you pass | `polarization=0.99`, optional capillary radius and µR |
 | `Instrument.bragg_brentano` | flat plate, reflection | an anode name, Kα1 + Kα2 | goniometer radius 217.5 mm, `ka2_ratio=0.5`, optional monochromator angle |
 | `Instrument.flat_plate_transmission` | flat plate, transmission | an anode name, Kα1 by default | optional µt and thickness |
+| `Instrument.constant_wavelength_neutron` | capillary | one wavelength, nuclear scattering | K pinned at 1, no dispersion, optional `fwhm_deg` width seed |
 
 ```python
 from rietx import Instrument
@@ -298,7 +299,7 @@ Ask `capabilities()` for the anode names rather than trusting a list in prose.
 | `Source.lines` | list[`EmissionLine`] | required | one entry per emission line, at least one |
 | `Source.polarization` | `Parameter` | 0.5 | the fraction K of {eq}`corr-lp`; 0.5 is an unpolarised beam |
 | `Source.dispersion` | `Dispersion` or None | on | anomalous scattering, {eq}`int-friedel` |
-| `Source.kind` | `"xray_cw"` | `"xray_cw"` | constant-wavelength X-rays, the only kind today |
+| `Source.kind` | `"xray_cw"` | `"xray_cw"` | constant-wavelength X-rays |
 
 `Source.primary_wavelength` is the first line's wavelength, which is the one
 every d-spacing is quoted against.
@@ -316,6 +317,85 @@ than merely coarse. Setting `dispersion=None` declines the correction and
 reproduces the pre-v1.0 numbers exactly, and the fit says so with a diagnostic.
 It is the only correction in the package that needs no information a caller
 lacks, since the species and the wavelength are enough.
+
+(a-neutron-source)=
+### A neutron source
+
+`NeutronSource` is the other arm of `Instrument.source`. It is a separate class
+rather than a flag on `Source` because almost every field of an X-ray source is
+meaningless for neutrons, and a class that has to explain which of its own
+fields are inert is worse than two classes.
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `NeutronSource.wavelength` | float | required | Å, fixed — a powder pattern cannot separate λ from the cell |
+| `NeutronSource.kind` | `"neutron_cw"` | `"neutron_cw"` | constant wavelength, the discriminator you write |
+
+Three read-only properties let code written for an X-ray source keep working.
+`NeutronSource.lines` is the single line, weight structurally 1 — with one line
+there is nothing for a relative weight to be relative to.
+`NeutronSource.primary_wavelength` is that wavelength.
+`NeutronSource.polarization` is 1.0 and refuses to be anything else, and
+`NeutronSource.dispersion` is always `None`.
+
+Both of those last two are physics, not simplifications:
+
+- **K = 1** is why no new correction code exists. Neutrons are not polarised by
+  a monochromator the way the Thomson cross-section polarises X-rays, so the
+  Lorentz-polarisation factor {eq}`corr-lp` collapses to the bare Lorentz
+  factor 1/(sin²θ·cosθ) — which is geometry, and radiation-independent. K is
+  *force-fixed*, so `set_vary` cannot free it; a free K would not be a dead
+  column, it would let the fit buy Rwp from a term the physics already knows.
+- **No anomalous dispersion.** f′/f″ is an X-ray core-level effect. The neutron
+  analogue is a complex, wavelength-dependent b near a nuclear resonance, which
+  belongs to a handful of nuclides rather than to the source, so there is no
+  field to set and `DISPERSION_NEGLECTED` stays quiet.
+
+What actually changes in the calculation is the scattering amplitude, and only
+that. An X-ray form factor f(Q) falls off with angle because the electron cloud
+has spatial extent; a nucleus is a point scatterer on this scale, so **b is
+independent of Q** — one number per species, not a five-Gaussian expansion, and
+it may be **negative**. Part 2 has the amplitude and its source.
+
+`Instrument.constant_wavelength_neutron` is the constructor. It builds a
+capillary geometry, because that is what a CW neutron diffractometer is — a can
+of powder in a beam with detectors on a circle — so the cylindrical absorption
+correction and the capillary offsets apply unchanged.
+
+```python
+from rietx import Instrument
+
+bt1 = Instrument.constant_wavelength_neutron(wavelength=2.0780, fwhm_deg=0.3)
+assert bt1.source.kind == "neutron_cw"
+assert bt1.source.polarization.value == 1.0
+assert bt1.source.dispersion is None
+```
+
+Pass `fwhm_deg` unless you have a reason not to. It seeds the Caglioti terms
+from an observed peak width, and it matters more here than on a lab X-ray: a
+neutron instrument's lines are typically 0.2–0.5° where the `ProfileTCHZ`
+default is a synchrotron line of about 0.03°, and the per-stage evaluation
+windows are sized from the seed, so a 0.3° line started from the default is not
+found at all. The width *function* needs no neutron-specific code — the
+Caglioti law U·tan²θ + V·tanθ + W is the neutron resolution function, and the
+X-ray path is the borrower.
+
+Two corrections are refused rather than ignored. `surface_roughness` is an
+X-ray effect: both models depress the low-angle intensity of a beam that
+penetrates microns, while a thermal neutron beam penetrates centimetres, so the
+correction has no regime here rather than a small coefficient. And a species
+this build has no tabulated scattering length for raises at compile naming the
+species, rather than contributing zero — a substituted zero would delete a site
+from the structure factor without changing the shape of anything.
+
+:::{admonition} Time-of-flight is not this
+:class: note
+Everything here is *constant* wavelength. A time-of-flight instrument spans a
+range of wavelengths across several detector banks, which changes the profile
+function, the intensity corrections and the number of histograms at once, and
+the thermal scattering-length table cannot give b(λ) for a resonant absorber.
+`capabilities().radiations` is the list of what this build actually accepts.
+:::
 
 ### The geometry
 

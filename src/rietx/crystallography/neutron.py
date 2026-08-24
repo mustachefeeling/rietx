@@ -62,7 +62,7 @@ RESONANT_ABSORBERS: frozenset[str] = frozenset(
 @lru_cache(maxsize=None)
 def _load_table() -> dict[str, dict]:
     """Parse ``b_Sears.dat`` once. Keys are exactly the source's symbols."""
-    text = (files("rietx.data") / _DATA_FILE).read_text()
+    text = (files("rietx.data") / _DATA_FILE).read_text(encoding="utf-8")
     table: dict[str, dict] = {}
     for line in text.splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
