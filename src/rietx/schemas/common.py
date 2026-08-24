@@ -28,12 +28,19 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: recording what a stage ran at.  The one entry so far whose default changes
 #: an answer rather than only the field list — bounded at 0.03 esd on a single
 #: fit — and ``intermediate_ftol=None`` restores the old schedule bit for bit.
-#: 0.5 → 0.6: ``SeriesEntry.phase_agreement`` added — the per-phase Bragg
-#: agreement each pattern's own result already carried, now surviving the series
-#: boundary.  Additive and defaulted, and it bumps anyway: WP-1117 made the only
-#: question whether a consumer could notice, and a new field on a response arm
-#: is noticeable.
-SCHEMA_VERSION = "0.6"
+#: 0.5 → 0.6 (PR #99): ``SeriesEntry.phase_agreement`` added — the per-phase
+#: Bragg agreement each pattern's own result already carried, now surviving the
+#: series boundary.  Additive and defaulted, and it bumps anyway: WP-1117 made
+#: the only question whether a consumer could notice, and a new field on a
+#: response arm is noticeable.
+#: 0.6 → 0.7 (PR #108): ``NeutronSource`` added as a second arm of the
+#: ``Instrument.source`` discriminated union (``kind="neutron_cw"``), so a
+#: consumer that switched exhaustively on ``kind`` now has a case it has never
+#: seen; ``Capabilities.radiations`` and the ``RadiationCapability`` it holds
+#: added, which is a new field on a response arm.  Nothing existing changes
+#: shape and every pre-0.7 document validates unchanged — the bump is for the
+#: union arm, not for a migration.
+SCHEMA_VERSION = "0.7"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
