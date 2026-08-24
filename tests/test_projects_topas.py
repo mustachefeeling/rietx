@@ -904,6 +904,228 @@ def test_the_geometry_is_decided_by_a_declaration_not_by_a_name(
     assert read_topas_inp(inp).geometry == geometry
 
 
+# ------------------------------ a stated key that cannot be read refuses
+
+@pytest.mark.parametrize("key, line", [
+    ("a", "a = a*1.0;"),
+    ("b", "b =Get(a);"),          # 7 real phases in 4 archive files
+    ("c", "c = a*1.633;"),
+    ("al", "al = nothing_defined;"),
+    ("be", "be = 90+nothing_defined;"),
+    ("ga", "ga =Get(al);"),
+])
+def test_a_stated_cell_key_that_cannot_be_read_refuses_naming_it(
+        tmp_path, key, line):
+    """Whether the cell is right must not turn on whether the author *named*
+    the edge, which no caller can see.
+
+    Measured: `a 3.000` + `c = a*1.633;` + `ga 120` built c = 3.0 for a stated
+    4.899 — 63 % low — because `a` is a keyword and not a symbol, so the
+    equation is unresolvable, the key was `continue`d and `to_structure`
+    substituted `c["a"]`. The same substitution on an angle makes an
+    unresolvable `be = …;` read 90.0, so a monoclinic phase arrives
+    orthorhombic with nothing raised. `a` already refused (in `to_structure`,
+    for want of a cell); the other five now refuse symmetrically, at read,
+    where the line can be named.
+    """
+    base = "" if key == "a" else "a 3.0\n"
+    inp = _inp(tmp_path, "silent.inp",
+               f'str\nphase_name "P"\nspace_group "P1"\n{base}{line}\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert "silent.inp" in str(exc.value)
+    assert f"cannot read {key}" in str(exc.value)
+    assert line.strip() in str(exc.value)
+
+
+def test_naming_the_edge_is_what_made_the_difference(tmp_path):
+    """The measured pair, side by side: the same cell, written twice.
+
+    `c = lpa*1.633;` resolves because `a lpa 3.000` *declares* `lpa`, so this
+    half always worked. Nothing about the file says which spelling the author
+    would use, which is why the other half may not answer.
+    """
+    inp = _inp(tmp_path, "named.inp",
+               'str\nphase_name "P"\nspace_group "P63/mmc"\n'
+               'a lpa 3.000\nc = lpa*1.633;\nga 120\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert phase.cell["c"] == pytest.approx(4.899)
+    assert to_structure(read_topas_inp(inp)).phases[0].cell.c.value == \
+        pytest.approx(4.899)
+
+
+def test_a_cell_key_the_phase_never_states_still_keeps_its_default(tmp_path):
+    """The other half of the rule, and it stays unchanged: an **absent** line is
+    a different fact from an unreadable one. A cubic phase writes `a` alone."""
+    inp = _inp(tmp_path, "cubic.inp",
+               'str\nphase_name "W"\nspace_group "Im-3m"\na 3.158949\n'
+               'site W1 x 0 y 0 z 0 occ W 1. beq 0.3\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert list(phase.cell) == ["a"]
+    cell = to_structure(read_topas_inp(inp)).phases[0].cell
+    assert (cell.b.value, cell.c.value) == pytest.approx((3.158949, 3.158949))
+    assert (cell.alpha.value, cell.gamma.value) == pytest.approx((90.0, 90.0))
+
+
+# ---------------------------- a str chunk ends at the next block opener
+
+def test_a_trailing_pawley_block_lends_the_phase_above_nothing(tmp_path):
+    """`re.split(r"^\\s*str\\s*$")` ends a chunk only at the next `str`, so a
+    trailing `hkl_Is` belonged to the phase above it and `_read`/`_field` swept
+    the whole thing — three of the neighbour's numbers, silently.
+
+    Measured on the real file: `W02_DR_11bmb_3858_pawley_Nb2O5.inp` gave
+    tungsten b = 3.814 and c = 19.299 off the Nb2O5 block's
+    `load hkl_m_d_th2 I` table, where 3.814 is a **d-spacing** column read as a
+    cell edge. It is F1's failure mode moved from the cell regex to the block
+    splitter, and it reaches the scale and the weight percent too.
+    """
+    inp = _inp(tmp_path, "bleed.inp",
+               'str\n'
+               '  phase_name "structural"\n  space_group "Fm-3m"\n  a 4.0\n'
+               '  scale @ 0.001\n'
+               '  site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'hkl_Is\n'
+               '  a 3.1\n  c 19.3\n  scale @ 0.00987\n  weight_percent 61.4\n')
+    (phase,) = read_topas_inp(inp).phases
+    assert phase.cell == {"a": pytest.approx(4.0)}
+    assert phase.scale == pytest.approx(0.001)
+    assert phase.weight_percent is None
+    cell = to_structure(read_topas_inp(inp)).phases[0].cell
+    assert (cell.a.value, cell.c.value) == pytest.approx((4.0, 4.0))
+
+
+@pytest.mark.parametrize("opener", [
+    "hkl_Is",           # 139 line-initial occurrences in the archive
+    "xo_Is",            # 277
+    "xdd \"next.xye\"",  # 609 — a new dataset ends the phase too
+    "macro m_x { 1 }",  # 584
+    "fit_obj",          # 2
+    "str",              # the one it already ended at
+])
+def test_every_block_opener_ends_the_phase_above_it(tmp_path, opener):
+    """A `.inp` has no closing brace, so a phase's text runs to the next block
+    opener — of *any* kind, not to the next `str`. The counts are the archive's,
+    line-initial and after comment stripping."""
+    inp = _inp(tmp_path, "openers.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               f'{opener}\nweight_percent 61.4\nc 19.3\n')
+    (phase,) = read_topas_inp(inp).phases
+    assert phase.weight_percent is None
+    assert "c" not in phase.cell
+
+
+def test_a_phase_after_a_pawley_block_is_still_read(tmp_path):
+    """The splitter must not lose a `str` that follows another block."""
+    inp = _inp(tmp_path, "after.inp",
+               'str\nphase_name "first"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'hkl_Is\nphase_name "pawley"\na 3.1\n'
+               'str\nphase_name "second"\nspace_group "P1"\na 5.0\n'
+               'site B1 x 0 y 0 z 0 occ Cl-1 1 beq b 0.5\n')
+    model = read_topas_inp(inp)
+    assert [p.name for p in model.phases] == ["first", "second"]
+    assert [p.cell["a"] for p in model.phases] == pytest.approx([4.0, 5.0])
+
+
+def test_a_str_block_with_no_phase_name_is_recorded_not_passed_over(tmp_path):
+    """Measured, on `simulate_Nb_Cu.inp`: a `str` block stating a cell and two
+    sites and **no** `phase_name` used to arrive named "CaO" with scale 1.0 —
+    both read off the `hkl_Is` block below it. That is finding 2 on a real file.
+
+    Ending the chunk at the `hkl_Is` removes the wrong name, and then the
+    reader must not go quiet about the block: answering "a Pawley or
+    indexing-only .inp is legal and has none" about a file carrying a cell and
+    two sites is the same confident wrong diagnosis a UTF-16 decode used to
+    get. The block cannot be *named* — taking the neighbour's name is the bug —
+    so it is recorded and the refusal quotes it.
+    """
+    inp = _inp(tmp_path, "unnamed.inp",
+               'str\n  a 4.8152\n  space_group "Fm-3m"\n'
+               '  site Ca1 x 0 y 0 z 0 occ Ca+2 1. beq 0.019\n'
+               '  site O1 x 0.5 y 0.5 z 0.5 occ O-2 1. beq 0.016\n'
+               '#ifdef phase_1_\nhkl_Is\n  phase_name "CaO"\n  scale nb_scale 1`\n'
+               '  a 4.8152\n#endif\n')
+    model = read_topas_inp(inp)
+    assert model.phases == []
+    assert model.skipped_blocks == ["a `str` block stating 2 site lines but no "
+                                    "phase_name"]
+    with pytest.raises(TopasInpError) as exc:
+        to_structure(model)
+    assert "2 site lines but no phase_name" in str(exc.value)
+    assert "indexing-only" not in str(exc.value)
+
+
+# ------------------------------------------- STR(...) is refused by name
+
+def test_a_phase_opening_with_the_STR_macro_is_refused_by_name(tmp_path):
+    """`STR(R-3)` expands to a whole `str` block from a macro library this
+    reader does not have and may not reproduce.
+
+    Such a file returned **zero** phases and `to_structure` then answered "A
+    Pawley or indexing-only .inp is legal and has none" — a confident wrong
+    diagnosis about a file that plainly contains `STR(`. Seven archive files
+    are affected (`rigidb.inp`, `split_fum.inp`, `SPODI.inp`, `D20.inp` and
+    three `AT027-23_*` variants), all of them returning no phase at all.
+    Expanding the macro can wait; answering wrongly about it cannot.
+    """
+    inp = _inp(tmp_path, "strmacro.inp",
+               'r_wp 3.2\nxdd "sample.xye"\n'
+               'STR(R-3)\nphase_name "corundum"\n'
+               'STR(Fm-3m)\nphase_name "silicon"\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert "strmacro.inp" in str(exc.value)
+    assert "STR(R-3)" in str(exc.value) and "2 phases" in str(exc.value)
+
+
+# --------------------------------------- beq: refused, never moved or leaked
+
+def test_a_negative_beq_is_refused_naming_the_site_never_clamped(tmp_path):
+    """`max(s.beq, 0.0)` moved a stated −0.42 to 0.0 with nothing said.
+
+    A slightly negative refined B is an ordinary outcome of a converged
+    refinement — the column absorbs absorption and normalisation error, and 75
+    sites across 11 archive files state one — so this is the reader repairing
+    where it cannot say that it did, the rule its own tri-state argument rests
+    on. Moving it changes every high-Q intensity, so it is a contradiction
+    rather than a deviation a reader may repair, and the sibling `.pcr` reader
+    refuses the same value: one story whichever code wrote the file. The number
+    stays readable on `model.phases`.
+    """
+    inp = _inp(tmp_path, "negb.inp",
+               'str\nphase_name "Co10Ge3O16"\nspace_group "P1"\na 8.3\n'
+               'site GE1 x 0 y 0 z 0 occ Ge+4 1 beq bge -0.42`\n')
+    model = read_topas_inp(inp)
+    assert model.phases[0].sites[0].beq == pytest.approx(-0.42)
+    with pytest.raises(TopasInpError) as exc:
+        to_structure(model)
+    assert "negb.inp" in str(exc.value) and "GE1" in str(exc.value)
+    assert "-0.42" in str(exc.value)
+
+
+def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(tmp_path):
+    """`rx.Cell(...)` and the `atoms` comprehension sat **outside** the try that
+    exists to convert a schema report into a reader's refusal — one line above
+    it — so only the `rx.Phase(...)` call was covered and `beq bA 26.0` reached
+    the caller as a raw `pydantic_core.ValidationError`.
+
+    The truncation pin cannot catch this class: a ragged cut rarely leaves a
+    well-formed line carrying an out-of-range number, so it is tested directly.
+    26 Å² is outside the [0, 25] window `Atom.biso` itself declares, which is
+    where the bound comes from — the reader quotes it rather than inventing it.
+    """
+    inp = _inp(tmp_path, "outofrange.inp",
+               'str\nphase_name "hot"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq bA 26.0\n')
+    with pytest.raises(TopasInpError) as exc:
+        to_structure(read_topas_inp(inp))
+    assert "outofrange.inp" in str(exc.value) and "hot" in str(exc.value)
+
+
 # ------------------------------------------------------------ the robustness pin
 
 def test_a_truncated_inp_never_escapes_as_anything_but_a_topas_error(tmp_path):

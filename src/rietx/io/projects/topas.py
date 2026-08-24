@@ -44,6 +44,17 @@ reading the syntax:
    Both are translated; the origin one matters because dropping the suffix
    silently selects the *other* origin.
 
+**A silent default or a clamp is the same bug as a wrong parse.** Four places
+answered where they should have refused, and each returned a number no file
+states: a *stated* cell key that could not be read fell back on ``c["a"]`` or
+90° (so a monoclinic phase arrived orthorhombic — see
+:func:`read_topas_inp`'s cell loop); a ``str`` chunk that ran into the next
+block took the neighbour's cell, scale and weight_percent (:data:`_BLOCK`); a
+schema refusal raised above the boundary that converts it; and a negative
+``beq`` was moved to zero (:func:`to_structure`). ``STR(...)`` is the same
+class one level up — a phase the reader cannot expand is refused by name
+(:data:`_STR_MACRO`), never answered with "this file has no phases".
+
 **One grammar, read once, and it carries the flag with the value.** Every scalar
 in a ``.inp`` — a coordinate, a cell edge, a scale, an occupancy, a lattice
 macro's argument — is the same four spellings of one production, so
@@ -141,6 +152,15 @@ class TopasModel:
     gof: float | None = None
     data_files: list = field(default_factory=list)
     background_terms: int | None = None
+    #: One sentence per ``str`` block that states no ``phase_name`` or no
+    #: ``space_group``, saying what it lacked and what it did carry. Such a
+    #: block cannot be read as a phase and is not one this reader may name —
+    #: taking the name from the next block is exactly the bleed :data:`_BLOCK`
+    #: fixes. But *silence* about it is the other half of that bug, because the
+    #: zero-phase refusal then reports "a Pawley or indexing-only .inp is legal
+    #: and has none" about a file carrying a cell and two sites. So it is
+    #: recorded, and :func:`to_structure` quotes it instead.
+    skipped_blocks: list = field(default_factory=list)
 
 
 def strip_comments(text: str) -> str:
@@ -528,6 +548,36 @@ _LATTICE_MACROS: dict[str, tuple[float, float, float]] = {
 #: nothing left to get wrong.
 _UNEVIDENCED_MACROS = ("Rhombohedral", "Orthorhombic", "Monoclinic", "Triclinic")
 
+#: What **ends** a ``str`` block. A `.inp` has no closing brace, so a phase's
+#: text runs to the next block opener — and splitting on ``str`` alone made a
+#: trailing ``hkl_Is``/``xo_Is`` Pawley block part of the phase above it, so
+#: `_read` swept the neighbour's numbers: `W02_DR_11bmb_3858_pawley_Nb2O5.inp`
+#: gave tungsten b = 3.814 and c = 19.299 off the Nb2O5 ``load hkl_m_d_th2 I``
+#: table (a d-spacing column, read as a cell edge), and a `scale` or a
+#: `weight_percent` the ``str`` block itself omits is still read off the block
+#: below with nothing raised. Each opener is a **specification fact**
+#: (`io/CLAUDE.md`'s rule 2) and the ones with a count are what the archive
+#: states at the start of a line: ``str`` (1601), ``xdd`` (609), ``macro``
+#: (584), ``xo_Is`` (277), ``hkl_Is`` (139), ``STR`` (7), ``fit_obj`` (2).
+#: ``d_Is``, ``xdd_scr`` and ``xdd_sum`` occur in no file here and are listed
+#: because they open a block of the same two kinds — a peak-phase and a
+#: dataset — so leaving them out could only re-create the bleed.
+_BLOCK_OPENERS = ("str", "hkl_Is", "xo_Is", "d_Is", "xdd_scr", "xdd_sum",
+                  "xdd", "macro", "fit_obj", "STR")
+
+#: ``xdd`` must follow ``xdd_scr``/``xdd_sum`` in the alternation above, and the
+#: pattern is anchored with ``[ \t]`` rather than ``\s`` because ``\s`` matches
+#: the newline and would let one match span two lines.
+_BLOCK = re.compile(rf"^[ \t]*(?P<kw>{'|'.join(_BLOCK_OPENERS)})\b", re.M)
+
+#: TOPAS's ``STR(...)`` macro expands to a whole ``str`` block. Its definition
+#: lives in a macro library this reader does not have and may not reproduce
+#: (``ATTRIBUTION.md``'s fence), so the phases such a file states cannot be
+#: read — and *saying nothing* is the F2 failure again: the file plainly
+#: contains ``STR(``, and answering "a Pawley or indexing-only .inp is legal
+#: and has none" is a confident wrong diagnosis about it. Refused by name.
+_STR_MACRO = re.compile(r"^[ \t]*STR\s*\(([^)\n]*)\)", re.M)
+
 #: What declares a capillary (Debye-Scherrer) geometry, as the archive spells
 #: it: the two ``Cylindrical_…`` correction macros and TOPAS's ``capillary_…``
 #: keywords (``capillary_diameter_mm``, ``capillary_parallel_beam``,
@@ -607,7 +657,30 @@ def read_topas_inp(path: str | Path) -> TopasModel:
         model.background_terms = len(re.findall(_NUM, m.group(1)))
     model.data_files = [d.strip() for d in re.findall(r'xdd\s+"?([^"\n]+)', active)]
 
-    for chunk in re.split(r"^\s*str\s*$", active, flags=re.M)[1:]:
+    # A phase this reader cannot read is refused by name, never left out: the
+    # five archive files whose every phase opens `STR(R-3)` came back with zero
+    # phases and were then diagnosed as legal Pawley inputs.
+    if m := _STR_MACRO.search(active):
+        n = len(_STR_MACRO.findall(active))
+        raise TopasInpError(
+            f"{path}: {n} phase{'' if n == 1 else 's'} here open with TOPAS's "
+            f"`STR(...)` macro (first: STR({m.group(1).strip()})), which expands "
+            f"to a whole `str` block from a macro library this reader does not "
+            f"have and may not reproduce. Reading on would report no phase at "
+            f"all — 'a Pawley or indexing-only .inp is legal and has none' — "
+            f"about a file that plainly states {n}.")
+
+    # A `str` block ends at the next block opener of any kind, not at the next
+    # `str`: see `_BLOCK_OPENERS` for the numbers, and `test_projects_topas.py`
+    # for the neighbour's cell, scale and weight_percent this stops arriving on
+    # the phase above.
+    openers = list(_BLOCK.finditer(active))
+    for index, opener in enumerate(openers):
+        if opener["kw"] != "str":
+            continue
+        end = (openers[index + 1].start() if index + 1 < len(openers)
+               else len(active))
+        chunk = active[opener.end():end]
         name = re.search(r'phase_name\s+"?([^"\n]+)', chunk)
         sg = re.search(r'\bspace_group\s+"?([^"\n]+)', chunk)
         # A *magnetic* space group is a construct this package has no model for,
@@ -621,6 +694,20 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                 f"group {mag.group(1)!r} has no counterpart in rietx; reading this "
                 f"phase would return a nuclear-only model that looks complete")
         if not (name and sg):
+            # Recorded rather than passed over in silence: `simulate_Nb_Cu.inp`
+            # has a `str` block stating a cell and two sites and no
+            # `phase_name`, and it used to arrive named "CaO" with scale 1.0 —
+            # both read off the `hkl_Is` block below it. Naming it is the
+            # neighbour's number again; saying nothing about it is the
+            # confident wrong diagnosis. `to_structure` quotes this list.
+            sites = len([ln for ln in chunk.split("\n")
+                         if re.match(r"\s*site\s", ln)])
+            lacks = " or ".join(w for w, got in
+                                (("phase_name", name), ("space_group", sg))
+                                if not got)
+            model.skipped_blocks.append(
+                f"a `str` block stating {sites} site line"
+                f"{'' if sites == 1 else 's'} but no {lacks}")
             continue
         phase = TopasPhase(name=name.group(1).strip(),
                            space_group=normalize_space_group(sg.group(1)))
@@ -631,24 +718,45 @@ def read_topas_inp(path: str | Path) -> TopasModel:
             # grammar — the cell's own regex was the sixth spelling of it, and
             # it rejected the `= expr;: value` tail `_read` reads fine, which
             # left `a` out of the cell and dropped the phase in `to_structure`.
-            for line in chunk.split("\n"):
-                if not re.match(rf"\s*{key}\b", line):
-                    continue
-                read = _read(key, line, symbols)
-                if read is None or read.value is None:
-                    continue
-                phase.cell[key] = read.value
-                if read.vary is not None:
-                    phase.vary[key] = read.vary
-                # TOPAS bounds a cell explicitly (`min 3.61 max 3.66;`). Those
-                # are part of the author's model: without them a phase the data
-                # cannot see is a flat direction and its cell runs away.
-                lo = re.search(rf"\bmin\s*=?\s*({_NUM})", read.rest)
-                hi = re.search(rf"\bmax\s*=?\s*({_NUM})", read.rest)
-                if lo or hi:
-                    phase.cell_limits[key] = (float(lo.group(1)) if lo else None,
-                                              float(hi.group(1)) if hi else None)
-                break
+            stated = [ln for ln in chunk.split("\n")
+                      if re.match(rf"\s*{key}\b", ln)]
+            read = None
+            for line in stated:
+                if (read := _read(key, line, symbols)) is not None \
+                        and read.value is not None:
+                    break
+                read = None
+            if read is None:
+                # A **stated** key that could not be read refuses, naming the
+                # key and the line. Defaulting it is `to_structure` putting
+                # `c["a"]` in for a length or 90° in for an angle, so whether
+                # the cell is right turns on whether the author happened to
+                # *name* the edge — which no caller can see. `c = a*1.633;`
+                # unnamed came back 3.0 for a stated 4.899 (63 % low), and an
+                # unresolvable `be = …;` made a monoclinic phase orthorhombic.
+                # An *absent* line is a different fact and keeps its default.
+                if stated:
+                    raise TopasInpError(
+                        f"{path}: {phase.name}: cannot read {key} from cell "
+                        f"line: {stated[0].strip()!r} — the phase states {key} "
+                        f"and this reader could not resolve its value, so "
+                        f"building it would substitute "
+                        f"{'90 deg' if key in ('al', 'be', 'ga') else 'a'} for "
+                        f"a number the file states. A phase that states no "
+                        f"{key} at all is a different fact and keeps its "
+                        f"default.")
+                continue
+            phase.cell[key] = read.value
+            if read.vary is not None:
+                phase.vary[key] = read.vary
+            # TOPAS bounds a cell explicitly (`min 3.61 max 3.66;`). Those
+            # are part of the author's model: without them a phase the data
+            # cannot see is a flat direction and its cell runs away.
+            lo = re.search(rf"\bmin\s*=?\s*({_NUM})", read.rest)
+            hi = re.search(rf"\bmax\s*=?\s*({_NUM})", read.rest)
+            if lo or hi:
+                phase.cell_limits[key] = (float(lo.group(1)) if lo else None,
+                                          float(hi.group(1)) if hi else None)
         if "a" not in phase.cell:
             if macro := _lattice_macro(chunk, symbols):
                 phase.cell.update(macro[0])
@@ -708,8 +816,25 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
 
     ``beq`` is TOPAS's B and rietx's ``biso`` is also B — no 8π² conversion.
     ``cell_limits`` applies the file's own ``min``/``max`` where it stated them.
+
+    A **negative** ``beq`` is refused, naming the site. It is not a parse error:
+    a slightly negative refined B is an ordinary outcome of a converged
+    refinement (the column absorbs absorption and normalisation error), and 75
+    sites across 11 archive files state one. But rietx's :class:`~rietx.Atom`
+    declares ``biso`` on [0, 25] Å², and ``max(beq, 0.0)`` moved the file's
+    −0.42 to 0 with nothing said — a *repair the reader cannot say it made*,
+    which changes every high-Q intensity. The number stays readable on
+    ``model.phases``; the sibling ``.pcr`` reader refuses the same value with
+    the same sentence, so a caller meeting a negative B gets one story whichever
+    code wrote the file.
     """
     import rietx as rx
+
+    # The window is `Atom.biso`'s own declaration, read off the schema rather
+    # than restated here: the bound this refusal quotes must not be the reader's
+    # invention, which is half of what was wrong with clamping to it.
+    biso_default = rx.Atom.model_fields["biso"].default_factory()
+    biso_window = {"min": biso_default.min, "max": biso_default.max}
 
     phases = []
     for ph in model.phases:
@@ -724,6 +849,17 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
                 f"so it cannot be built — and dropping it would leave its "
                 f"weight_percent reporting for a phase the Structure lacks. "
                 f"Read `model.phases` for what the file does state.")
+        for s in ph.sites:
+            if s.beq < biso_window["min"]:
+                raise TopasInpError(
+                    f"{model.path or '<model>'}: phase {ph.name!r}: site "
+                    f"{s.label!r} has beq = {s.beq}, and rietx bounds biso at "
+                    f"{biso_window['min']}. A negative B is an ordinary outcome "
+                    f"of a converged refinement — the column absorbs absorption "
+                    f"and normalisation error — but moving it to "
+                    f"{biso_window['min']} changes every high-Q intensity, so it "
+                    f"is a contradiction rather than a deviation a reader may "
+                    f"repair. Read `model.phases` for the file's own number.")
         c = ph.cell
 
         def _p(key: str, default: float):
@@ -745,24 +881,35 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
                 kw["vary"] = free
             return rx.Parameter(value=value, **kw)
 
-        cell = rx.Cell(a=_p("a", c["a"]), b=_p("b", c["a"]), c=_p("c", c["a"]),
-                       alpha=_p("al", 90.0), beta=_p("be", 90.0), gamma=_p("ga", 90.0))
         def _sp(site, field_: str, value: float, **kw):
             """A site parameter, carrying the file's own refine flag."""
             if (free := site.vary.get(field_)) is not None:
                 kw["vary"] = free
             return rx.Parameter(value=value, **kw)
 
-        atoms = [rx.Atom(label=s.label, species=s.species,
-                         x=_sp(s, "x", s.x), y=_sp(s, "y", s.y), z=_sp(s, "z", s.z),
-                         occ=_sp(s, "occ", s.occupancy),
-                         biso=_sp(s, "beq", max(s.beq, 0.0), min=0.0, max=25.0))
-                 for s in ph.sites]
         # Every schema refusal from here is converted at this boundary: a
         # reader raises naming the file, and pydantic's report names a field.
         # Reached in practice by a phase whose site lines all sat inside a
         # disabled #ifdef branch, which arrives as "phase has no atoms".
+        #
+        # `rx.Cell(...)` and the `atoms` comprehension used to sit *above* this
+        # try, one line up from the only handler that converts them — so
+        # `beq bA 26.0` left as a raw `pydantic_core.ValidationError`. The
+        # truncation pin cannot catch that class: a ragged cut rarely leaves a
+        # well-formed line carrying an out-of-range number, so the case has its
+        # own test.
         try:
+            cell = rx.Cell(a=_p("a", c["a"]), b=_p("b", c["a"]), c=_p("c", c["a"]),
+                           alpha=_p("al", 90.0), beta=_p("be", 90.0),
+                           gamma=_p("ga", 90.0))
+            atoms = [rx.Atom(label=s.label, species=s.species,
+                             x=_sp(s, "x", s.x), y=_sp(s, "y", s.y),
+                             z=_sp(s, "z", s.z),
+                             occ=_sp(s, "occ", s.occupancy),
+                             # The file's own number, not `max(beq, 0.0)`: a
+                             # negative one is refused above rather than moved.
+                             biso=_sp(s, "beq", s.beq, **biso_window))
+                     for s in ph.sites]
             phases.append(rx.Phase(
                 name=ph.name, space_group=ph.space_group, cell=cell, atoms=atoms,
                 # `or 1e-4` substituted the seed for a *stated* zero: 20 real
@@ -779,10 +926,18 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
             raise TopasInpError(
                 f"{model.path or '<model>'}: phase {ph.name!r}: {exc}") from exc
     if not phases:
+        # Never "this file has no phases" about a file whose `str` blocks this
+        # reader saw and could not name: that is the same confident wrong
+        # diagnosis a UTF-16 decode and a `STR(` macro used to get.
+        why = ("A Pawley or indexing-only .inp is legal and has none"
+               if not model.skipped_blocks else
+               f"{len(model.skipped_blocks)} `str` block"
+               f"{'' if len(model.skipped_blocks) == 1 else 's'} here could not "
+               f"be read as a phase — " + "; ".join(model.skipped_blocks))
         raise TopasInpError(
             f"{model.path or '<model>'}: no phase carries a cell, so there is no "
-            f"structure to build. A Pawley or indexing-only .inp is legal and has "
-            f"none — read `model.phases` directly for what it does state.")
+            f"structure to build. {why} — read `model.phases` directly for what "
+            f"it does state.")
     try:
         return rx.Structure(phases=phases)
     except Exception as exc:
