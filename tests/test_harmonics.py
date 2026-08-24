@@ -66,6 +66,15 @@ CU311 = ("mg090.Cu311.gsas", 1.54040)
 CELL = 10.34
 LIMITS = (5.0, 155.0)
 
+#: The real-data cases **self-skip** while that branch has not landed, the same
+#: way ``test_cross_backend``'s rows skip without their backend: the correction
+#: itself is covered by the fast tests and by the synthetic control, so a
+#: missing dataset must not read as a failing feature.  The synthetic negative
+#: control needs no file and never skips.
+needs_cu311 = pytest.mark.skipif(
+    not (DATA / CU311[0]).exists(),
+    reason=f"{CU311[0]} is committed by the refinable-wavelength branch")
+
 
 # ------------------------------------------------------------------ fixtures ---
 def nd2ru2o7(a: float = CELL) -> rx.Structure:
@@ -266,6 +275,7 @@ def test_declaring_no_harmonic_is_byte_identical():
     assert again.model_dump_json() == plain.model_dump_json()
 
 
+@needs_cu311
 def test_no_harmonic_leaves_the_calculated_pattern_bit_identical():
     """Empty harmonics must not perturb a single double of the forward model."""
     name, lam = CU311
@@ -284,6 +294,7 @@ def test_no_harmonic_leaves_the_calculated_pattern_bit_identical():
 
 
 # --------------------------------------- the two facts the design rests on ---
+@needs_cu311
 def test_the_reflection_list_is_generated_for_the_shortest_wavelength():
     """λ/2 reaches reflections the fundamental cannot, and must not lose them.
 
@@ -383,6 +394,7 @@ def test_a_monochromators_own_extinction_decides_whether_a_harmonic_exists():
 
 
 # ------------------------------------------------------------- acceptance ---
+@needs_cu311
 @pytest.mark.slow
 @pytest.mark.xdist_group("harmonics-cu311")
 class TestPublishedCu311Histogram:
