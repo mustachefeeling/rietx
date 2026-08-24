@@ -296,6 +296,14 @@ class Identifiability(Base):
     top_correlations: list[CorrelationPair] = Field(default_factory=list)
     soft_modes: list[SoftMode] = Field(default_factory=list)
     exchangeability: list[ExchangeRow] = Field(default_factory=list)
+    #: how many explicit :class:`~rietx.schemas.instrument.BackgroundPeak` terms
+    #: this fit declared (WP: additive background peaks).  Stated because the
+    #: rest of this section reports what the background *can imitate* and this
+    #: reports how much freedom it was given to do it with: N peaks are 3N free
+    #: parameters with unconstrained positions, and a reader comparing two Rwp
+    #: values has to be able to see them.  0 means none was declared, which is
+    #: the default and is exactly off.
+    n_background_peaks: int = 0
 
 
 class PhaseQuantity(Base):

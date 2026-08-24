@@ -515,6 +515,14 @@ class BackgroundEvidence(Base):
     #: consumer need not sort the table to branch on it
     worst_absorption: float = 0.0
     worst_absorption_path: str | None = None
+    #: explicit :class:`~rietx.schemas.instrument.BackgroundPeak` terms this fit
+    #: declared — a **projection** of
+    #: :attr:`~rietx.schemas.results.Identifiability.n_background_peaks`, never a
+    #: second count, so the section and the result cannot disagree.  Stated here
+    #: because it is the other half of "how flexible was the background": the
+    #: absorption table says what it could imitate, this says with how many free
+    #: peaks (3N parameters, positions unconstrained).
+    n_peaks: int = 0
 
 
 class ExchangeFinding(Base):

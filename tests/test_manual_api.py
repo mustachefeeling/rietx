@@ -52,7 +52,11 @@ import pytest
 from rietx import Instrument, PreferredOrientation
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
-from rietx.schemas.instrument import RoughnessSuortti
+from rietx.schemas.instrument import (
+    BACKGROUND_PEAK_FWHM_MIN,
+    BackgroundPeak,
+    RoughnessSuortti,
+)
 from rietx.schemas.structure import AnisoU, StephensStrain
 from tests.api_surface import (
     EXCLUDED_TYPES,
@@ -188,11 +192,12 @@ def documented_names() -> set[str]:
 def _fully_declared() -> tuple[object, object]:
     """LaB6 with every *optional* block declared, and an instrument to match.
 
-    Preferred orientation, Stephens strain and surface roughness contribute no
-    dot-paths at all unless the model declares the block, so a manual naming
-    `phases.*.preferred_orientation.r` would fail the check below against a
-    plain model — for the right reason, on a real path.  Declaring them here is
-    what lets Part 1 name the parameters those corrections actually refine.
+    Preferred orientation, Stephens strain, surface roughness and additive
+    background peaks contribute no dot-paths at all unless the model declares
+    the block, so a manual naming `phases.*.preferred_orientation.r` would fail
+    the check below against a plain model — for the right reason, on a real
+    path.  Declaring them here is what lets Part 1 name the parameters those
+    corrections actually refine.
     """
     structure = make_lab6()
     phase = structure.phases[0]
@@ -208,7 +213,14 @@ def _fully_declared() -> tuple[object, object]:
     instrument = Instrument.debye_scherrer(wavelength=0.4139)
     geometry = instrument.geometry.model_copy(
         update={"surface_roughness": RoughnessSuortti(b=Parameter(value=0.2))})
-    return structure, instrument.model_copy(update={"geometry": geometry})
+    peak = BackgroundPeak(position=Parameter(value=12.0, unit="deg"),
+                          height=Parameter(value=0.0, min=0.0,
+                                           transform="softplus"),
+                          fwhm=Parameter(value=6.0,
+                                         min=BACKGROUND_PEAK_FWHM_MIN,
+                                         transform="softplus"))
+    return structure, instrument.model_copy(
+        update={"geometry": geometry, "background_peaks": [peak]})
 
 
 def _parameter_paths() -> set[str]:

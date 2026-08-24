@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 
@@ -67,3 +69,42 @@ def second_difference_matrix(n: int) -> np.ndarray:
     for i in range(n - 2):
         d[i, i:i + 3] = (1.0, -2.0, 1.0)
     return d
+
+
+#: −4 ln 2, the Gaussian's FWHM normalisation, as one named constant so the
+#: numpy and traced evaluations cannot spell it two ways.  The association is
+#: fixed too: ``FOUR_LN2_NEG * (u * u)`` with u = (2θ − 2θ₀)/Γ, one spelling,
+#: because unlike the Bragg profile there is no second caller with a reason to
+#: reproduce a different one (root CLAUDE.md → Conventions, the two-Ω rule:
+#: the point is that each caller owns *which* spelling it reproduces, and here
+#: there is only one to own).
+FOUR_LN2_NEG = -4.0 * math.log(2.0)
+
+
+def background_peak_curve(two_theta, position, height, fwhm, xp):
+    """One explicit broad background Gaussian, evaluated on the whole grid.
+
+        y(2θ) = h · exp[ −4 ln2 · ((2θ − 2θ₀)/Γ)² ]
+
+    The evaluator for :class:`rietx.schemas.instrument.BackgroundPeak`, and the
+    **only** one: :meth:`rietx.model.forward.CompiledModel.background` calls it
+    for the numpy path and, through ``get_backend()``, for every traced backend,
+    so there is no twin to drift (``backend/traced.py``'s reason for existing,
+    satisfied by having nothing to copy).
+
+    Empirical basis function, not a peak shape — see
+    :class:`~rietx.schemas.instrument.BackgroundPeak` for the citation of the
+    *practice* and the note that no physical derivation is claimed.
+
+    ``two_theta`` must already be lifted onto ``xp`` by the caller: it is a
+    frozen constant and ``position`` is θ-derived, so a bare ndarray here would
+    be a frozen numpy constant on the left of a python operator against a traced
+    value (root CLAUDE.md → Conventions: raises on torch, mis-routes under
+    functorch).  ``height`` and ``fwhm`` are 0-d traced scalars; ``fwhm`` is
+    floored away from zero by the schema, so the division has no pole.
+
+    Whole-grid, no frozen window — the term is broad *by declaration*, which is
+    what makes it a background feature, so a window would be the whole grid.
+    """
+    u = (two_theta - position) / fwhm
+    return height * xp.exp(FOUR_LN2_NEG * (u * u))

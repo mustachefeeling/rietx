@@ -256,6 +256,7 @@ contrast.
 | `Identifiability.top_correlations` | the worst-\|ρ\| pairs, each a `CorrelationPair`, worst first | which two refined parameters moved together |
 | `Identifiability.soft_modes` | the softest directions of the scale-normalised normal matrix, each a `SoftMode` | the same problem where it involves three parameters or more, which no pairwise list can show |
 | `Identifiability.exchangeability` | one `ExchangeRow` per held parameter screened | whether a parameter you held could have been absorbed by the ones you refined |
+| `Identifiability.n_background_peaks` | how many explicit `BackgroundPeak` terms the fit declared | the other half of "how flexible was the background". The absorption table says what the background could imitate; this says with how many free peaks it was allowed to do it — N peaks are 3N parameters with unconstrained positions. 0 is the default and is exactly off |
 
 | Field | Is |
 |---|---|

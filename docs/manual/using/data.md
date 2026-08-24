@@ -266,6 +266,7 @@ with r = 1 the identity.
 | `Instrument.zero_shift` | `Parameter` | 0.0 deg, in [−0.5, 0.5] | a constant 2θ offset, the one position error every geometry has |
 | `Instrument.profile` | `ProfileTCHZ` | see below | the instrumental width function |
 | `Instrument.background` | one of three | `BackgroundChebyshev` | the pedestal under the peaks |
+| `Instrument.background_peaks` | list[`BackgroundPeak`] | `[]` (off) | explicit broad peaks added on top of that pedestal |
 
 Four constructors build a plausible instrument, and the difference between them
 is which aberrations exist at all rather than which are switched on.
@@ -679,6 +680,99 @@ A background flexible enough to imitate the peaks is a correctness problem
 rather than a cosmetic one: it biases displacement parameters up and scales
 down, and Rwp improves while it happens. That is measured once per fit and
 reported; [](results.md) has the table.
+
+(background-peaks)=
+### Explicit background peaks
+
+`Instrument.background_peaks` is a list of `BackgroundPeak`, each one broad
+Gaussian **added on top of** whichever of the three models is in use. It is not
+a fourth model: it composes with all of them, the design matrix is untouched,
+and the empty default is exactly off.
+
+| Field | Is | Bound |
+|---|---|---|
+| `BackgroundPeak.position` | the hump's apparent 2θ | unbounded by default — it is not a Bragg position, and the range that would bound it is a property of the pattern, not of the instrument |
+| `BackgroundPeak.height` | its peak value in counts | softplus, `min=0`, and zero *is* the off state, so the bound is safe |
+| `BackgroundPeak.fwhm` | its width in 2θ | softplus, floored at `BACKGROUND_PEAK_FWHM_MIN` — the Gaussian divides by Γ, so a zero width is a pole rather than an identity |
+| `BackgroundPeak.label` | a free-text tag | not a parameter and not part of any dot-path |
+
+All three parameters default to `vary=False`, so a declared peak is inert until
+a stage frees it, and a height of zero means a declared-but-never-freed peak is
+bit-identical to no peak at all. Nothing in the package ever *adds* a peak:
+`auto_background` sizes the polynomial or the spline and knows nothing about
+peaks, and the `mccusker_structural` plan's `background_peaks` stage frees
+whatever you declared and nothing more. `save_instrument_profile` strips them,
+since a hump belongs to this specimen and this sample environment rather than to
+the goniometer.
+
+#### Why three parameters can beat fifty-three
+
+The argument is not that a peak lowers Rwp. Measured on a NIST BT-1
+constant-wavelength neutron pattern of Cr₂WO₆ at 60 K (λ = 2.078 Å, 2941
+channels, 5–152° 2θ, σ from the file) with a broad background feature near
+14.4° 2θ:
+
+| background | terms | Rwp | GoF | Biso(Cr) / Å² | `HIGH_CORRELATION` |
+|---|---|---|---|---|---|
+| Chebyshev, order chosen by `auto_background` | 4 | 0.05350 | 2.0731 | **−0.0994** | 0 |
+| P-spline, knots chosen by `auto_background` | 57 | 0.05256 | 2.0560 | **−0.0387** | 110 |
+| published TOPAS fit: 7 Chebyshev + 1 Gaussian | 10 | 0.06663 | 2.583 | **+0.2150(761)** | — |
+
+An isotropic displacement parameter is a mean-square amplitude, so a negative
+one is not a small number — it is an unphysical one. Both alternatives produce
+one. The stiff background produces it with no correlation warnings at all,
+which is the point: nothing in the fit says anything is wrong. The flexible
+background pays 53 extra parameters and 110 correlation warnings and still
+produces it, because spline flexibility is spread over the whole range and the
+misfit is in one place. The published fit has the *worst* Rwp of the three and
+the only physical Biso.
+
+So the question a background poses is not *how much* flexibility but **where**.
+Three parameters aimed at the feature do what fifty-three spread across the
+pattern cannot.
+
+#### What a background peak is not
+
+A free position, height and width is a peak with no cell and no structure factor
+behind it, and enough of those will improve any Rwp — which is exactly the kind
+of evidence this package does not accept. What makes the term a *background*
+term is that its width comes from disorder rather than from the goniometer, and
+disorder is many times the resolution: the case above is 5.8° wide where the
+instrument's lines are 0.25–0.30°, a factor of about 20.
+
+So a peak that refines to less than
+`BACKGROUND_PEAK_MIN_WIDTH_MULT` (4) times the instrumental FWHM at its own
+position comes back with a `BACKGROUND_PEAK_TOO_NARROW` diagnostic, and the
+reading is "these background peaks are not quotable" — the same reading
+`STEPHENS_STRAIN_NOT_POSITIVE` has, and for the same reason: the condition
+depends on refinable parameters and on the peak's own position, so it cannot be
+a bound the solver is handed. Use a background peak for diffuse or amorphous
+scattering, or a cryostat, can or holder contribution. If there is a real
+unindexed line at that angle, the honest answers are a second phase or the
+unmatched-peak report in the `FitReport`'s Layer 0.
+
+```python
+from rietx import Instrument
+from rietx.schemas.common import Parameter
+from rietx.schemas.instrument import BACKGROUND_PEAK_FWHM_MIN, BackgroundPeak
+
+instrument = Instrument.constant_wavelength_neutron(2.078, fwhm_deg=0.30)
+instrument.background_peaks = [BackgroundPeak(
+    label="diffuse hump",
+    position=Parameter(value=14.4, unit="deg"),
+    height=Parameter(value=5.0, min=0.0, unit="counts", transform="softplus"),
+    fwhm=Parameter(value=5.8, min=BACKGROUND_PEAK_FWHM_MIN, unit="deg",
+                   transform="softplus"))]
+assert len(instrument.background_peaks) == 1
+```
+
+The paths are `instrument.background_peaks.*` — a `position`, a `height` and an
+`fwhm` per declared peak, indexed by its place in the list, so relabelling a
+peak never moves its refined values. Note the underscore:
+`instrument.background.*`, which every preset's first stage frees, does **not**
+reach them, because fnmatch's `*` crosses dots and a nested spelling would have
+been freed at stage 1 — with a free position over a pattern whose peaks had not
+been placed yet.
 
 ## Calibrating an instrument once and reusing it
 

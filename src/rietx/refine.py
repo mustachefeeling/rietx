@@ -1734,6 +1734,25 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "higher-symmetry Laue class has fewer), or extend the "
                        "fit range; do not report the S_HKL as measured",
         ))
+    for finding in guard.narrow_background_peaks:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="BACKGROUND_PEAK_TOO_NARROW",
+            where=list(finding.paths), value=finding.value,
+            message=f"the declared background peak {msg} is no longer "
+                    "describing a broad feature: at that width it is a "
+                    "reflection with no cell and no structure factor behind "
+                    "it, and a free peak improves Rwp whether or not anything "
+                    "is there",
+            suggestion="a background peak is for diffuse or amorphous "
+                       "scattering, a cryostat or sample-container "
+                       "contribution — features whose width comes from "
+                       "disorder and is many times the resolution. If there "
+                       "is a real unindexed line here, the honest answers are "
+                       "a second phase or the unmatched-peak report in the "
+                       "FitReport's Layer 0, not a background peak; do not "
+                       "report these peak parameters as measured",
+        ))
     for finding in guard.background_correlations:
         msg = str(finding)
         out.append(Diagnostic(
@@ -2284,12 +2303,17 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     if guard is not None and (guard.measured_background_absorption
                               or guard.measured_top_correlations
                               or guard.measured_soft_modes
-                              or guard.measured_exchangeability):
+                              or guard.measured_exchangeability
+                              or model.bkg_peak_paths):
         identifiability = Identifiability(
             background_absorption=dict(guard.measured_background_absorption),
             top_correlations=list(guard.measured_top_correlations),
             soft_modes=list(guard.measured_soft_modes),
-            exchangeability=list(guard.measured_exchangeability))
+            exchangeability=list(guard.measured_exchangeability),
+            # the declared count, read off the frozen compile state rather than
+            # counted from the parameter rows: a peak declared and never freed
+            # is still freedom the caller granted, and it would not appear there
+            n_background_peaks=len(model.bkg_peak_paths))
 
     return RefinementResult(
         status=status, mode=mode,

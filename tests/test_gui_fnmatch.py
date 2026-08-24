@@ -29,7 +29,11 @@ from pathlib import Path
 
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
-from rietx.schemas.instrument import Instrument
+from rietx.schemas.instrument import (
+    BACKGROUND_PEAK_FWHM_MIN,
+    BackgroundPeak,
+    Instrument,
+)
 from rietx.schemas.structure import (
     AnisoU,
     Atom,
@@ -75,8 +79,13 @@ def _vocabulary() -> list[str]:
 
     Brucite carries the shapes the LaB6 model has no reason to: an anisotropic
     ADP block (``adp.k`` beside ``u11``), a Stephens block (``microstrain.dof.k``
-    beside ``s400``), a Kα doublet's second line weight, and an atom on a special
-    position whose coordinates are locked.
+    beside ``s400``), a Kα doublet's second line weight, an atom on a special
+    position whose coordinates are locked, and an additive background peak
+    (``instrument.background_peaks.0.fwhm``).  The last is here for a reason
+    beyond covering its own glob: it is the one path a ``background`` glob must
+    **not** reach, and ``instrument.background.*`` reaches it under any nested
+    spelling because fnmatch's ``*`` crosses dots.  Without a peak in the
+    vocabulary that separation is asserted against nothing.
     """
     from tests.test_refine_synthetic import perturbed_models
 
@@ -97,10 +106,18 @@ def _vocabulary() -> list[str]:
         ],
         microstrain=StephensStrain.isotropic(1000.0, cell))
 
+    lab_instrument = Instrument.bragg_brentano()
+    lab_instrument.background_peaks = [BackgroundPeak(
+        label="amorphous mount",
+        position=Parameter(value=22.0, unit="deg"),
+        height=Parameter(value=0.0, min=0.0, transform="softplus"),
+        fwhm=Parameter(value=8.0, min=BACKGROUND_PEAK_FWHM_MIN,
+                       transform="softplus"))]
+
     paths: list[str] = []
     for structure, instrument in (
         (lab6_structure, lab6_instrument),
-        (Structure(phases=[brucite]), Instrument.bragg_brentano()),
+        (Structure(phases=[brucite]), lab_instrument),
     ):
         for entry in ParameterTable(structure, instrument).entries:
             if entry.path not in paths:

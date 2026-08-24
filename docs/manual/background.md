@@ -23,6 +23,53 @@ with $D_2$ the $(n-2) \times n$ second-difference matrix. The rows land in
 $J^\top J$ (so the covariance is regularised) but are excluded from Rwp and
 the serial-correlation statistics — they are soft observations, not data.
 
+## Localised flexibility: explicit background peaks
+
+The three models above are all *global* — a Chebyshev term and a spline
+coefficient each act over a stretch of the pattern — so a background feature
+confined to a few degrees is describable only by making the whole curve
+flexible. The alternative is an additive Gaussian on the angle axis, one per
+declared feature, summed on top of whichever model is in use:
+
+```{math}
+:label: bg-peak
+
+y_{\mathrm{peak}}(2\theta) \;=\; h \,
+\exp\!\left[-4\ln 2 \left(\frac{2\theta - 2\theta_0}{\Gamma}\right)^{\!2}\right].
+```
+
+*Source:* `rietx.background.models.background_peak_curve`
+
+This is an **empirical basis function, not a peak shape**, and no physical
+derivation is claimed for it: genuinely amorphous scattering is a Debye or
+radial-distribution term in $Q$, not a Gaussian in angle. What is cited is the
+practice — an explicit broad peak added to the background is what GSAS-II
+exposes as a background peak {cite}`toby2013` and what TOPAS exposes as a
+cell-less "peaks phase" {cite}`coelho2018topas`.
+
+Two consequences follow from the form. It is **nonlinear** in $2\theta_0$ and
+$\Gamma$, unlike every term in {eq}`bg-penalty`'s block, so it stays out of the
+linear design matrix and its Jacobian columns are finite differences of the
+whole model rather than exact design rows. And it is not identifiable on its
+own: $h$, $\Gamma$ and the low-order polynomial terms underneath it all raise
+the same region of the curve, so what makes the term a *background* term is the
+width. With $\Gamma_{\mathrm{inst}}(2\theta)$ the resolution function of
+{eq}`prof-caglioti-g`-{eq}`prof-caglioti-l`, the admissible régime is
+
+```{math}
+:label: bg-peak-width
+
+\Gamma \;\gtrsim\; 4\,\Gamma_{\mathrm{inst}}(2\theta_0),
+```
+
+*Source:* `rietx.strategy.staged.BACKGROUND_PEAK_MIN_WIDTH_MULT`
+
+below which the term is a reflection with no cell and no structure factor
+behind it. The condition depends on the refined resolution parameters and on
+$2\theta_0$ itself, so it is not a box constraint: like the Stephens strain
+cone it is carried as a reported guard rather than enforced, and a firing means
+the peak parameters are not quotable.
+
 ## Model-free estimation
 
 Baseline estimators serve the fixed-plus-Chebyshev model and the automatic

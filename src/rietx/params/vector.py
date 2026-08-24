@@ -36,6 +36,7 @@ from ..crystallography.symmetry import (
 from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
 from ..schemas.common import Parameter
 from ..schemas.instrument import (
+    BACKGROUND_PEAK_FIELDS,
     CAPILLARY_OFFSETS,
     BackgroundChebyshev,
     BackgroundPSpline,
@@ -151,6 +152,26 @@ def _background_parameters(bkg) -> list[tuple[str, Parameter]]:
         return out
     cheb = bkg.coefficients if isinstance(bkg, BackgroundChebyshev) else bkg.chebyshev.coefficients
     return [(f"c{n}", p) for n, p in enumerate(cheb)]
+
+
+def background_peak_parameters(peaks) -> list[tuple[str, Parameter]]:
+    """(sub-path, Parameter) pairs for ``Instrument.background_peaks``, or [].
+
+    Shared by the collector and by :meth:`ParameterTable.apply_to_models` for
+    the reason :func:`roughness_parameters` is — a parameter registered in one
+    and forgotten in the other silently loses its refined value at the next
+    stage's recompile, which has bitten this file before.  ``[]`` for the empty
+    list, so a table built from an instrument that declares no peak is
+    byte-for-byte the pre-``background_peaks`` table.
+
+    The index comes first (``0.position``, not ``position.0``) so the peak, not
+    the field, is the thing a path prefix names, and so a plan can free one
+    declared peak (``instrument.background_peaks.0.*``) without touching the
+    others.
+    """
+    return [(f"{i}.{name}", getattr(peak, name))
+            for i, peak in enumerate(peaks)
+            for name in BACKGROUND_PEAK_FIELDS]
 
 
 def roughness_parameters(rough) -> list[tuple[str, Parameter]]:
@@ -963,6 +984,13 @@ class ParameterTable:
             self._add(f"instrument.profile.{name}", getattr(instrument.profile, name))
         for sub, cp in _background_parameters(instrument.background):
             self._add(f"instrument.background.{sub}", cp)
+        # Additive broad peaks: skipped when none is declared rather than added
+        # locked, the surface-roughness idiom one loop up.  No gate — a peak
+        # composes with every background model and every geometry, which is the
+        # whole reason it lives beside ``background`` rather than inside its
+        # union.
+        for sub, cp in background_peak_parameters(instrument.background_peaks):
+            self._add(f"instrument.background_peaks.{sub}", cp)
 
     # -- the affine constraint block -----------------------------------
     def _flatten(self, tie: AffineTie, _seen: tuple[str, ...] = ()
@@ -1568,3 +1596,9 @@ class ParameterTable:
             put(getattr(instrument.profile, name), f"instrument.profile.{name}")
         for sub, cp in _background_parameters(instrument.background):
             put(cp, f"instrument.background.{sub}")
+        # the other half of the pair the helper exists for (see
+        # background_peak_parameters): registered in _collect_instrument and
+        # written back here, or a refined hump silently reverts at the next
+        # stage's recompile
+        for sub, cp in background_peak_parameters(instrument.background_peaks):
+            put(cp, f"instrument.background_peaks.{sub}")

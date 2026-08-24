@@ -48,6 +48,11 @@ def save_instrument_profile(instrument: Instrument, path: str | Path) -> None:
     next sample's refinement would be worse than useless — it would silently
     pre-bias that sample's ADPs, which is precisely the bias these corrections
     exist to remove (WP-0501, WP-0508).
+
+    ``background_peaks`` are stripped on the same grounds and it is the clearer
+    case of the two: a diffuse hump belongs to this specimen, this can and this
+    cryostat, so carrying one into the next sample would put a free peak at an
+    angle nothing measured — and a free peak improves any Rwp.
     """
     ins = instrument.model_copy(deep=True)
     ins.geometry.sample_displacement.value = 0.0
@@ -58,7 +63,8 @@ def save_instrument_profile(instrument: Instrument, path: str | Path) -> None:
     doc = {
         FORMAT_KEY: FORMAT_VERSION,
         "created_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "instrument": ins.model_dump(mode="json", exclude={"background"}),
+        "instrument": ins.model_dump(mode="json",
+                                     exclude={"background", "background_peaks"}),
     }
     Path(path).write_text(json.dumps(doc, indent=1), encoding="utf-8")
 

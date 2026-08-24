@@ -192,7 +192,24 @@ def background_absorption(jac: np.ndarray, free_paths: list[str]) -> dict[str, f
     and dropping them overstates the risk by ~5× (measured: R² 0.46 → 0.08 at
     λ = 10⁴).
     """
-    bg = [k for k, p in enumerate(free_paths) if p.startswith("instrument.background.")]
+    #: **Additive background peaks join the block.**  The statistic asks what
+    #: the *whole declared background* can imitate, and an explicit broad peak
+    #: is the sharpest form of the failure it exists to catch — a hump narrow
+    #: enough to sit under a reflection eats Bragg intensity exactly as a
+    #: too-flexible spline does, and unlike the spline it can do it with three
+    #: parameters.  Leaving it out would make the number *less* true the more of
+    #: the background flexibility lives in peaks.
+    #:
+    #: The nonlinearity is not an objection: every column here is a
+    #: linearisation at the converged θ, the ``.biso`` and ``.scale`` targets
+    #: included, and the esds and correlations the guard sits beside are built
+    #: from the same one.  What *was* an objection is a zero column — a peak at
+    #: its off state contributes three of them — and that is handled once, in
+    #: :func:`_span_basis`, because it is a fact about spans and not about
+    #: peaks.
+    bg = [k for k, p in enumerate(free_paths)
+          if p.startswith(("instrument.background.",
+                           "instrument.background_peaks."))]
     targets = [(k, p) for k, p in enumerate(free_paths)
                if p.endswith((".biso", ".scale", ".occ")) or ".adp." in p]
     return block_projection_r2(jac, bg, targets)
@@ -204,7 +221,21 @@ def _span_basis(jac: np.ndarray, cols: list[int]) -> np.ndarray:
     The one QR both :func:`block_projection_r2` and
     :func:`one_parameter_gains` build their projections from — extracted so
     the two statistics cannot disagree about how a span is orthogonalised.
+
+    **A zero column is dropped, because it is not in the span.**  LAPACK's
+    Householder QR returns a Q with orthonormal columns whatever the rank of A,
+    so a zero column of A does not give a zero column of Q — it gives an
+    *arbitrary* direction orthogonal to the rest, and ``q qᵀ`` then projects
+    onto a space strictly larger than span(A).  Measured: a 3-column block with
+    two zero columns reports R² = 1.00 for **every** target, which is a
+    saturated guard on a block that can produce nothing.  A parameter sitting
+    at a softplus off state is exactly how a zero column arises — dp/du → 0
+    there — so this reaches ``BackgroundPSpline.air_scatter`` at value 0 as well
+    as an unfreed-in-practice background peak, and in both cases the pre-drop
+    answer was the wrong one.  All columns zero leaves an ``(n, 0)`` basis,
+    whose projector is zero, i.e. "this block imitates nothing" — which is true.
     """
+    cols = [c for c in cols if np.any(jac[:, c])]
     q, _ = np.linalg.qr(jac[:, cols])
     return q
 
