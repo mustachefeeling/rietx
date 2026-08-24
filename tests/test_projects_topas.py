@@ -21,6 +21,7 @@ from rietx.io.projects.topas import (
     normalize_space_group,
     normalize_species,
     read_topas_inp,
+    refined,
     resolve_ifdefs,
     strip_comments,
     symbol_table,
@@ -322,3 +323,64 @@ def test_the_converged_figures_of_merit_are_recovered(tmp_path):
 def test_a_missing_file_raises_naming_it(tmp_path):
     with pytest.raises(TopasInpError, match="absent.inp"):
         read_topas_inp(tmp_path / "absent.inp")
+
+
+# ------------------------------------------------- the refine flags (WP-1118)
+
+@pytest.mark.parametrize("line, expected", [
+    ("a lp 4.15689`", True),      # backtick: TOPAS wrote it back after refining
+    ("a @ 4.15689", True),        # explicitly refined
+    ("a @, 4.15689", True),
+    ("a !lp 4.15689", False),     # explicitly held
+    ("a !lp 4.15689`", False),    # `!` outranks the backtick
+    ("a 4.15689", None),          # the file says nothing either way
+])
+def test_the_refine_flag_is_read_as_a_tri_state(tmp_path, line, expected):
+    """A control file's refine flags are the payload, not its numbers.
+
+    They are the part a person cannot reconstruct from a CIF plus a pattern,
+    and the part that decides whether a cross-code comparison means anything.
+    ``None`` is a third state on purpose: a file that says nothing is not a
+    file that said "held", and collapsing the two is what would let a reader
+    hand back a confident wrong protocol.
+    """
+    inp = _inp(tmp_path, "s.inp", f'str\nphase_name "P"\nspace_group "P1"\n{line}\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    assert read_topas_inp(inp).phases[0].vary.get("a") == expected
+
+
+def test_a_site_carries_its_own_flags():
+    """One site, mixed: a refined coordinate, a held B, an untouched occupancy."""
+    line = "site B1 x @, 0.19776` y 0.5 z 0.5 occ B 1. beq !bb 0.3076"
+    assert refined("x", line) is True
+    assert refined("beq", line) is False
+    assert refined("y", line) is None
+
+
+def test_the_certified_standards_protocol_survives_the_round_trip(tmp_path):
+    """The NIST SRM 660b protocol: the certified cell is **held**, and that is
+    the fact a transcription loses.
+
+    This is the whole argument for reading the flags. Both phases' scales were
+    refined and cBN's cell was refined; LaB6's was not, because 4.15689 Å is
+    the certificate's number and holding it is what decorrelates zero and
+    displacement from the cell. A reader that returned only the values would
+    hand back a model that looks identical and refines to a different answer.
+    """
+    inp = _inp(tmp_path, "srm660b.inp",
+               'r_wp 8.04733245 gof 1.52039055\n'
+               'str\nphase_name "LaB6"\nspace_group "Pm-3m"\n'
+               'scale ph1_scale  0.000225160497`\na 4.15689\n'
+               'site La1 x 0 y 0 z 0 occ La 1. beq !bla 0.4389\n'
+               'site B1  x @, 0.19895` y 0.5 z 0.5 occ B 1. beq @, 0.3076`\n'
+               'str\nphase_name "cubic_BN"\nspace_group "F-43m"\n'
+               'scale ph2_scale  0.00321777397`\na lp_bn  3.616466`\n'
+               'site N1 x 0 y 0 z 0 occ N 1. beq @, 0.30441`\n')
+    lab6, cbn = to_structure(read_topas_inp(inp)).phases
+
+    assert lab6.cell.a.value == pytest.approx(4.15689)
+    assert lab6.cell.a.vary is False          # certified, held
+    assert cbn.cell.a.vary is True            # the internal standard, refined
+    assert lab6.scale.vary is True and cbn.scale.vary is True
+    assert lab6.atoms[0].biso.vary is False   # `!bla`
+    assert lab6.atoms[1].x.vary is True       # `@, 0.19895``

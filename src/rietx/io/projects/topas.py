@@ -27,7 +27,16 @@ reading the syntax:
    number silently drops the first and mis-reads the second — dropping two heavy
    atoms out of seven cost a 98 wt% phase-fraction error with a *better* Rwp,
    which is why :func:`read_topas_inp` counts sites and raises.
-4. **Symbols use TOPAS spellings.** Space-group origin choices are letter
+4. **The refine flags are the payload, not the numbers** (WP-1118). A control
+   file says which parameters were free and which were held, and that is the
+   part a person cannot reconstruct from a CIF plus a pattern — it is also what
+   decides whether a cross-code comparison means anything. ``!`` is held, ``@``
+   is refined, and a trailing backtick means TOPAS wrote the value back after
+   refining it; the *absence* of that backtick is the inference WP-1110's agent
+   round named as the hardest single thing about transcribing an ``.inp`` by
+   hand. :func:`refined` is that reading, and it is a tri-state: a file that
+   says nothing is not a file that said "held".
+5. **Symbols use TOPAS spellings.** Space-group origin choices are letter
    suffixes (``Pn-3mZ``), and ionic charge is written sign-first (``Cu+1``).
    Both are translated; the origin one matters because dropping the suffix
    silently selects the *other* origin.
@@ -90,6 +99,10 @@ class TopasSite:
     z: float
     occupancy: float = 1.0
     beq: float = 0.5
+    #: Which of this site's parameters the file records as having been free.
+    #: Keyed by field name (``"x"``, ``"beq"``, …); a key is absent where the
+    #: file said nothing, which is not the same as "held" — see :func:`refined`.
+    vary: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -101,6 +114,9 @@ class TopasPhase:
     sites: list = field(default_factory=list)
     scale: float | None = None
     weight_percent: float | None = None
+    #: The phase-level half of the same protocol, keyed as the cell dict is
+    #: (``"a"``, ``"be"``, …) plus ``"scale"``.
+    vary: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -172,6 +188,38 @@ def normalize_space_group(symbol: str) -> str:
         if re.search(r"[a-z\-0-9/]$", stem):
             return stem + _SG_SUFFIX[suffix]
     return s
+
+
+def refined(name: str, text: str) -> bool | None:
+    """Was this parameter free in the refinement the file records?
+
+    **The refine flags are the payload, not the numbers** (WP-1118): a control
+    file says which parameters were free, which were held and what was
+    excluded, and that is the part a person cannot reconstruct from a CIF plus
+    a pattern. It is also the part that decides whether a cross-code comparison
+    means anything — DESIGN.md's v0.2 lesson, that a guessed protocol gave
+    Rwp 16 % and +390 ppm on fluorapatite against 9.73 % for the mirrored one.
+
+    Three signals, in decreasing order of authority:
+
+    * ``!`` before the value or its name — explicitly **held**.
+    * ``@`` before either — explicitly **refined**.
+    * a trailing backtick — TOPAS wrote this value back after refining it, so
+      it was free. Its *absence* is the inference WP-1110's agent round named
+      as the hardest single thing about transcribing an ``.inp`` by hand.
+
+    None means the file says nothing either way, which is not the same as
+    "fixed" and is why this is a tri-state rather than a bool.
+    """
+    m = re.search(rf"\b{name}\s+({_FLAG}?(?:{_NAME}\s+{_FLAG}?)?){_NUM}(`?)", text)
+    if not m:
+        return None
+    flags, tick = m.group(1) or "", m.group(2)
+    if "!" in flags:
+        return False
+    if "@" in flags or tick == "`":
+        return True
+    return None
 
 
 def _value(token: str) -> float | None:
@@ -353,6 +401,8 @@ def read_topas_inp(path: str | Path) -> TopasModel:
             if value is None:
                 continue
             phase.cell[key] = value
+            if (free := refined(key, m.group(0))) is not None:
+                phase.vary[key] = free
             # TOPAS bounds a cell explicitly (`min 3.61 max 3.66;`). Those are
             # part of the author's model: without them a phase the data cannot
             # see is a flat direction and its cell runs away.
@@ -367,6 +417,8 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                 phase.cell.update(a=v, b=v, c=v, al=90.0, be=90.0, ga=90.0)
         phase.scale = _field("scale", chunk, symbols)
         phase.weight_percent = _field("weight_percent", chunk, symbols)
+        if (free := refined("scale", chunk)) is not None:
+            phase.vary["scale"] = free
 
         site_lines = [ln for ln in chunk.split("\n") if re.match(r"\s*site\s", ln)]
         for line in site_lines:
@@ -385,10 +437,12 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                 coords[axis] = v
             beq = _field("beq", line, symbols)
             occupancy = _occupancy(line[occ.end():], symbols)
+            vary = {f: free for f in ("x", "y", "z", "beq", "occ")
+                    if (free := refined(f, line)) is not None}
             phase.sites.append(TopasSite(
                 label=label.group(1), species=normalize_species(occ.group(1)),
                 occupancy=occupancy if occupancy is not None else 1.0,
-                beq=beq if beq is not None else 0.5, **coords))
+                beq=beq if beq is not None else 0.5, vary=vary, **coords))
         # A dropped site is a silently wrong structure factor, so the count is
         # an invariant rather than something the regex is trusted to get right.
         if len(phase.sites) != len(site_lines):
@@ -428,18 +482,27 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
                 kw["min"] = lo
             if hi is not None and value <= hi:
                 kw["max"] = hi
+            if (free := ph.vary.get(key)) is not None:
+                kw["vary"] = free
             return rx.Parameter(value=value, **kw)
 
         cell = rx.Cell(a=_p("a", c["a"]), b=_p("b", c["a"]), c=_p("c", c["a"]),
                        alpha=_p("al", 90.0), beta=_p("be", 90.0), gamma=_p("ga", 90.0))
+        def _sp(site, field_: str, value: float, **kw):
+            """A site parameter, carrying the file's own refine flag."""
+            if (free := site.vary.get(field_)) is not None:
+                kw["vary"] = free
+            return rx.Parameter(value=value, **kw)
+
         atoms = [rx.Atom(label=s.label, species=s.species,
-                         x=rx.Parameter(value=s.x), y=rx.Parameter(value=s.y),
-                         z=rx.Parameter(value=s.z),
-                         occ=rx.Parameter(value=s.occupancy),
-                         biso=rx.Parameter(value=max(s.beq, 0.0), min=0.0, max=25.0))
+                         x=_sp(s, "x", s.x), y=_sp(s, "y", s.y), z=_sp(s, "z", s.z),
+                         occ=_sp(s, "occ", s.occupancy),
+                         biso=_sp(s, "beq", max(s.beq, 0.0), min=0.0, max=25.0))
                  for s in ph.sites]
         phases.append(rx.Phase(
             name=ph.name, space_group=ph.space_group, cell=cell, atoms=atoms,
             scale=rx.Parameter(value=ph.scale or 1e-4, min=0.0,
-                               transform="softplus")))
+                               transform="softplus",
+                               **({"vary": ph.vary["scale"]}
+                                  if "scale" in ph.vary else {}))))
     return rx.Structure(phases=phases)
