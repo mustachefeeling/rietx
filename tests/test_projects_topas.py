@@ -497,6 +497,16 @@ LATTICE_MACROS = [
      (5.43416,) * 3 + (90.0,) * 3, None),
     ("Cubic(aLP  11.210591`)",                                   # i15-xpdf_…_pdfonly.inp:69
      (11.210591,) * 3 + (90.0,) * 3, True),
+    # a = b, c, and γ = 90 — TOPAS writes the two independent lengths in order.
+    ("Tetragonal(@  4.594290`, @  2.958587`)",                   # d5_05005_pawley_01.inp:38
+     (4.594290, 4.594290, 2.958587, 90.0, 90.0, 90.0), True),
+    # a = b, c, and γ = **120**.
+    ("Hexagonal(@  3.613074`, @  12.037126`)",                   # BL104_B_1.inp:87
+     (3.613074, 3.613074, 12.037126, 90.0, 90.0, 120.0), True),
+    ("Trigonal(  12.695126,   37.972985)",                       # AT027-23_…:90
+     (12.695126, 12.695126, 37.972985, 90.0, 90.0, 120.0), None),
+    ("Trigonal(@  12.68790`_0.00010,  @  37.94996`_0.00056)",    # AT027-23_…_fin.inp:51
+     (12.68790, 12.68790, 37.94996, 90.0, 90.0, 120.0), True),
 ]
 
 
@@ -518,6 +528,68 @@ def test_a_lattice_macro_fills_the_cell_it_states(tmp_path, macro, cell, vary):
     assert phase.vary.get("a") == vary
     assert len(to_structure(read_topas_inp(inp)).phases) == 1
 
+
+@pytest.mark.parametrize("macro", [
+    "Rhombohedral(@ 5.4, @ 55.3)",
+    "Orthorhombic(@ 5.4, @ 6.1, @ 7.2)",
+    "Monoclinic(@ 5.4, @ 6.1, @ 7.2, @ 99.1)",
+    "Triclinic(@ 5.4, @ 6.1, @ 7.2, @ 88, @ 99, @ 101)",
+])
+def test_a_lattice_macro_with_no_evidenced_argument_order_is_refused_by_name(
+        tmp_path, macro):
+    """Guessing a macro's argument order is worse than declining to read it.
+
+    Each of these appears in the archive **only** inside a ``'`` comment, so no
+    file states which argument is which — ``Rhombohedral(@ #, @ #)`` in
+    `D20.inp`'s template is a length and an angle in an order no file here
+    fixes. A wrong order is a wrong cell with nothing raised, which is the one
+    outcome this reader exists to avoid, so the macro is refused by name.
+    """
+    inp = _inp(tmp_path, "unevidenced.inp",
+               f'str\nphase_name "P"\nspace_group "P1"\n{macro}\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert "unevidenced.inp" in str(exc.value)
+    assert macro.split("(")[0] in str(exc.value)
+
+
+def test_a_lattice_macro_beside_an_explicit_cell_is_not_needed(tmp_path):
+    """An `hkl_Is` Pawley block's macro must not overwrite the `str` phase's own
+    cell: the archive's `Hexagonal(` occurrences all sit in such a block, in the
+    same chunk as a `str` phase that states a, b, c itself."""
+    inp = _inp(tmp_path, "both.inp",
+               'str\nphase_name "LiAlCl4"\nspace_group "P121/c1"\n'
+               'a 7.018696\nb 6.520921\nc 13.019527\nal 90\nbe 93.32175\nga 90\n'
+               'site Al1 x 0.70588 y 0.32198 z 0.89924 occ Al+3 1.\n'
+               'hkl_Is\nphase_name "hexagonal from Dicvol"\n'
+               'Hexagonal(@  3.613074`, @  12.037126`)\nspace_group "P-6m2"\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert phase.cell["a"] == pytest.approx(7.018696)
+    assert phase.cell["c"] == pytest.approx(13.019527)
+
+
+def test_a_str_block_that_produced_no_cell_refuses_rather_than_dropping(tmp_path):
+    """Report or refuse, never drop — and `weight_percent` is why.
+
+    A phase whose cell could not be read used to be skipped by `to_structure`
+    with nothing said, while `model.phases` still carried its weight fraction.
+    The QPA numbers then look complete with a phase missing from the
+    `Structure`, which is worse than the dropped-*site* case this reader
+    already makes a hard error.
+    """
+    inp = _inp(tmp_path, "nocell.inp",
+               'str\nphase_name "real"\nspace_group "P1"\na 5.0\n'
+               'weight_percent ph1_wtpct 40.0`\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'str\nphase_name "cell_less"\nspace_group "P4/mmm"\n'
+               'weight_percent ph2_wtpct 60.0`\n'
+               'site Sr1 x 0 y 0 z 0 occ Sr+2 1 beq b 0.5\n')
+    model = read_topas_inp(inp)
+    assert [p.weight_percent for p in model.phases] == pytest.approx([40.0, 60.0])
+    with pytest.raises(TopasInpError) as exc:
+        to_structure(model)
+    assert "nocell.inp" in str(exc.value) and "cell_less" in str(exc.value)
 
 
 

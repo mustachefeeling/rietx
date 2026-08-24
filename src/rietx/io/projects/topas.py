@@ -441,6 +441,55 @@ def symbol_table(text: str) -> dict[str, float]:
     return out
 
 
+# ------------------------------------------------------------ lattice macros
+
+#: The lattice macros this reader implements, keyed to the angles they imply.
+#: A macro name and its argument order are **specification facts** (`io/
+#: CLAUDE.md`'s rule 2), so each was read off a real archive line rather than
+#: guessed: ``Cubic(@ 4.15692`)`` (LaB6_Riet_TCHZ_01.inp:54),
+#: ``Tetragonal(@ 4.594290`, @ 2.958587`)`` (d5_05005_pawley_01.inp:38),
+#: ``Hexagonal(@ 3.613074`, @ 12.037126`)`` (BL104_B_1.inp:87) and
+#: ``Trigonal( 12.695126, 37.972985)`` (AT027-23_…-mythen_summed_rf_fin:90).
+#: One argument means a = b = c; two mean a = b and c, in that order.
+_LATTICE_MACROS: dict[str, tuple[float, float, float]] = {
+    "Cubic": (90.0, 90.0, 90.0),
+    "Tetragonal": (90.0, 90.0, 90.0),
+    "Hexagonal": (90.0, 90.0, 120.0),
+    "Trigonal": (90.0, 90.0, 120.0),
+}
+
+#: Lattice macros TOPAS has that no archive file *uses*. Each appears only
+#: inside a ``'`` comment — ``'Rhombohedral(@ #, @ #)`` in `D20.inp`'s template
+#: is a length and an angle in an order nothing here fixes — so the argument
+#: order is unevidenced, and a wrong order is a wrong cell with nothing raised.
+#: Refused by name rather than parsed on a guess, and only where the macro is
+#: the phase's *only* cell: beside explicit ``a``/``b``/``c`` lines there is
+#: nothing left to get wrong.
+_UNEVIDENCED_MACROS = ("Rhombohedral", "Orthorhombic", "Monoclinic", "Triclinic")
+
+
+def _lattice_macro(chunk: str, symbols: dict[str, float]) -> tuple[dict, dict] | None:
+    """The cell and refine flags a lattice macro states, or None if it states no
+    complete one. The first macro in :data:`_LATTICE_MACROS` that reads
+    completely wins, which is deterministic and only ever matters in a chunk
+    holding two."""
+    for name, angles in _LATTICE_MACROS.items():
+        if not (m := re.search(rf"\b{name}_?\(([^)\n]*)\)", chunk)):
+            continue
+        reads = [_read_tail(arg, symbols) for arg in m.group(1).split(",")]
+        lengths = [r for r in reads if r is not None and r.value is not None]
+        if not lengths or (name != "Cubic" and len(lengths) < 2):
+            continue
+        a, c = lengths[0], lengths[-1]
+        cell = {"a": a.value, "b": a.value, "c": c.value,
+                "al": angles[0], "be": angles[1], "ga": angles[2]}
+        vary = {key: read.vary
+                for keys, read in (("ab", a), ("c", c))
+                for key in keys if read.vary is not None}
+        return cell, vary
+    return None
+
+
 def read_topas_inp(path: str | Path) -> TopasModel:
     """Parse a ``.inp``. Raises :class:`TopasInpError` naming the file and line."""
     path = Path(path)
@@ -512,18 +561,17 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                     phase.cell_limits[key] = (float(lo.group(1)) if lo else None,
                                               float(hi.group(1)) if hi else None)
                 break
-        # `Cubic_(…)` states the whole cell in one macro argument, read through
-        # the same grammar: `\w*` in front of the value ate the integer part of
-        # a nameless one (`Cubic_(4.15689)` → 0.15689) and a bare flag
-        # (`Cubic(@ 4.15692`)`) matched nothing at all, leaving the cell empty.
         if "a" not in phase.cell:
-            if (m := re.search(r"\bCubic_?\(", chunk)) and (
-                    read := _read_tail(chunk[m.end():], symbols)) is not None \
-                    and read.value is not None:
-                v = read.value
-                phase.cell.update(a=v, b=v, c=v, al=90.0, be=90.0, ga=90.0)
-                if read.vary is not None:
-                    phase.vary.update(dict.fromkeys("abc", read.vary))
+            if macro := _lattice_macro(chunk, symbols):
+                phase.cell.update(macro[0])
+                phase.vary.update(macro[1])
+            elif bad := [n for n in _UNEVIDENCED_MACROS
+                         if re.search(rf"\b{n}_?\(", chunk)]:
+                raise TopasInpError(
+                    f"{path}: {phase.name}: {bad[0]} states this phase's only "
+                    f"cell and no file establishes which of its arguments is "
+                    f"which, so reading it would be a guess at a cell — write "
+                    f"the a/b/c/al/be/ga lines out instead")
         read = _read("scale", chunk, symbols)
         phase.scale = read.value if read else None
         if read is not None and read.vary is not None:
@@ -577,8 +625,17 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
 
     phases = []
     for ph in model.phases:
+        # Report or refuse, never drop. A phase whose cell could not be read
+        # used to be skipped here with nothing said, while `model.phases` still
+        # carried its `weight_percent` — so the QPA numbers looked complete with
+        # a phase missing from the `Structure`, which is worse than the dropped-
+        # *site* case this reader already makes a hard error.
         if "a" not in ph.cell:
-            continue
+            raise TopasInpError(
+                f"{model.path or '<model>'}: phase {ph.name!r} states no cell, "
+                f"so it cannot be built — and dropping it would leave its "
+                f"weight_percent reporting for a phase the Structure lacks. "
+                f"Read `model.phases` for what the file does state.")
         c = ph.cell
 
         def _p(key: str, default: float):
