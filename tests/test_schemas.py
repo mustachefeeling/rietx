@@ -343,3 +343,135 @@ def test_structure_from_candidate_is_the_scaffold_plus_the_symbol_default():
     got = structure_from_candidate(candidate, name="candidate")
     want = lebail_scaffold("P m -3 m", cell, name="candidate")
     assert got.model_dump() == want.model_dump()
+
+
+# ------------------------------------------------- species well-formedness ---
+def _phase_with_species(species: str) -> Phase:
+    return Phase(
+        name="test", space_group="P 1", cell=Cell.cubic(5.0),
+        atoms=[Atom(label="A1", species=species, x=Parameter(value=0.0),
+                    y=Parameter(value=0.0), z=Parameter(value=0.0))])
+
+
+@pytest.mark.parametrize("species", [
+    "Fe",          # bare element
+    "Fe3+", "O2-", "Cu1+", "Cu+",   # digit-first charge, the IUCr order
+    "2H", "157Gd", "13C",           # a mass number: a different nucleus
+    "D",                            # deuterium's own long-standing symbol
+])
+def test_a_well_formed_species_is_accepted(species):
+    """Well-formedness is about the *spelling*, not about any table's rows.
+
+    ``2H`` has a neutron scattering length and no Waasmaier-Kirfel f0, so it
+    must pass here and be refused by the X-ray lookup — keeping those two
+    answers apart is what lets one structure serve two radiations.
+    """
+    assert _phase_with_species(species).atoms[0].species == species
+
+
+@pytest.mark.parametrize("species", [
+    "Cu+1", "O-2", "Ni+3",   # sign-first, what ICSD exports and TOPAS writes
+    "Wat", "",               # not readable as a symbol plus optional charge
+    "Cu++", "Cu 1+", "Cu+1+",
+])
+def test_a_malformed_species_is_refused_naming_the_atom_and_the_phase(species):
+    """The point of the check is *where* it fires, not that it fires.
+
+    Both form-factor lookups run at the first stage compile, two lines apart,
+    and whichever raises names the species and nothing else — not the atom, not
+    the phase, not that the caller's own structure is at fault. A ``Phase`` is
+    the smallest object that knows both, so the refusal belongs here.
+    """
+    with pytest.raises(ValidationError) as excinfo:
+        _phase_with_species(species)
+    message = str(excinfo.value)
+    assert "test" in message, "the phase is not named"
+    assert "A1" in message, "the atom is not named"
+    assert repr(species) in message, "the offending species is not quoted"
+
+
+def test_a_sign_first_charge_is_told_the_right_spelling():
+    """It is the commonest wild form, so the refusal carries the fix."""
+    with pytest.raises(ValidationError, match=r"Cu1\+"):
+        _phase_with_species("Cu+1")
+    with pytest.raises(ValidationError, match=r"O2-"):
+        _phase_with_species("O-2")
+
+
+def test_a_well_formed_symbol_that_names_no_element_is_the_lookups_business():
+    """``Xx`` is spelled correctly and is not an element, and that is two
+    questions rather than one.
+
+    The schema accepts it, because "an optional mass number, one or two letters
+    and an optional charge" is what a species label looks like and a schema
+    knows no chemistry. The tables then refuse it, naming it. Collapsing the two
+    would mean the schema carrying a periodic table — and would refuse ``2H``
+    for the X-ray table's sake while the neutron table has a row for it.
+
+    Note the two lookups refuse it at *different depths*, which is itself worth
+    pinning: ``normalize_element`` validates the shape only and hands ``"Xx"``
+    back, and ``dispersion`` is what has no row for it.
+    """
+    from rietx.crystallography.dispersion import dispersion, normalize_element
+    from rietx.crystallography.scattering import normalize_species
+
+    assert _phase_with_species("Xx").atoms[0].species == "Xx"
+    assert normalize_element("Xx") == "Xx"          # shape is all this checks
+    with pytest.raises(KeyError, match="Xx"):
+        dispersion("Xx", 1.5405929)                 # the table is what refuses
+    with pytest.raises(KeyError, match="Xx"):
+        normalize_species("Xx")
+
+
+@pytest.mark.parametrize("spelling", ["Fe", "Fe3+", "Fe2+", "Fe+"])
+def test_both_xray_lookups_accept_every_well_formed_spelling(spelling):
+    """The shared grammar, checked on a species both tables carry.
+
+    ``cif._CANONICAL_SPECIES`` is declared as the grammar both X-ray lookups
+    parse, "which share it deliberately" — so the agreement is a property to
+    assert, not a comment to trust.
+    """
+    from rietx.crystallography.dispersion import normalize_element
+    from rietx.crystallography.scattering import normalize_species
+
+    assert normalize_element(spelling) == "Fe"
+    assert normalize_species(spelling)          # resolves; ion kept or not
+
+
+@pytest.mark.parametrize("bad", ["Cu+1", "O-2", "Ni+3", "Cu++", "Cu 1+",
+                                 "Cu+1+", "1Cu", ""])
+def test_both_xray_lookups_refuse_every_malformed_spelling(bad):
+    """The guard that was missing, and the reason this fix moved layers.
+
+    Widening one lookup alone leaves the two disagreeing with nothing asserting
+    otherwise, and the divergence is invisible: the second fires two lines after
+    the first at the same stage compile and reports a *missing element* for a
+    species that is in its table under another spelling. Measured on a
+    hand-built ``Cu+1`` structure: the error moved from
+    ``dispersion.py`` "cannot read an element symbol" to ``scattering.py``
+    "no Waasmaier-Kirfel coefficients for species 'Cu+1'" — same depth, still
+    naming neither the atom nor the phase, and now actively misleading, since Cu
+    is in that table.
+    """
+    from rietx.crystallography.dispersion import normalize_element
+    from rietx.crystallography.scattering import normalize_species
+
+    with pytest.raises((KeyError, ValueError)):
+        normalize_element(bad)
+    with pytest.raises((KeyError, ValueError)):
+        normalize_species(bad)
+
+
+def test_a_reader_still_repairs_what_the_schema_refuses():
+    """The division of labour, asserted rather than described.
+
+    A schema has no diagnostics channel, so it raises; a reader has one, so it
+    may repair and record. That is why the population reaching the ``Phase``
+    validator is hand-built structures rather than CIFs.
+    """
+    from rietx.crystallography.cif import normalize_cif_species
+
+    assert normalize_cif_species("Cu+1") == ("Cu1+", "sign-first charge")
+    assert normalize_cif_species("O-2") == ("O2-", "sign-first charge")
+    # and the repaired form is exactly what the schema accepts
+    assert _phase_with_species(normalize_cif_species("Cu+1")[0])

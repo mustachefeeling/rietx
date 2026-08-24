@@ -15,6 +15,7 @@ Conventions
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Sequence
 
 from pydantic import Field, model_validator
@@ -374,6 +375,23 @@ class ValueRestraint(Base):
 Restraint = BondRestraint | AngleRestraint | ValueRestraint
 
 
+#: What a *well-formed* species label looks like: an element symbol, optionally
+#: preceded by a mass number and followed by a trailing charge.  Deliberately
+#: wider than ``crystallography.cif._CANONICAL_SPECIES``, which is the grammar
+#: the two **X-ray form-factor** lookups parse and share on purpose: this one
+#: additionally admits a leading mass number, because a nuclide is a different
+#: scatterer for neutrons (b(1H) and b(2H) differ in sign) while the X-ray
+#: tables have no such rows.  So a label may be well-formed here and still be
+#: refused by a lookup, which is the correct division: this says "the spelling
+#: is readable", the lookup says "this table has a row".
+_WELL_FORMED_SPECIES = re.compile(r"^(\d+)?([A-Za-z]{1,2})(\d*[+-])?$")
+
+#: The sign-first charge ICSD exports (``"O-2"``, ``"Cu+1"``).  Matched only to
+#: put the right spelling in the refusal, never to rewrite: repairing it belongs
+#: to a reader, which can record the substitution (``CIF_SPECIES_NORMALISED``).
+_SIGN_FIRST_CHARGE = re.compile(r"^([A-Za-z]{1,2})([+-])(\d+)$")
+
+
 class Phase(Base):
     """A crystalline phase: symmetry, cell, atoms, scale, sample broadening."""
 
@@ -449,6 +467,51 @@ class Phase(Base):
     def _nonempty(self) -> "Phase":
         if not self.atoms:
             raise ValueError(f"phase {self.name!r} has no atoms")
+        return self
+
+    @model_validator(mode="after")
+    def _species_are_well_formed(self) -> "Phase":
+        """Refuse a species label no lookup can parse, naming where it is.
+
+        This is *well-formedness*, not availability: it says the label is
+        spelled in a form the package's lookups read, and says nothing about
+        whether any table has a row for it.  The two are different answers and
+        keeping them apart is what lets the same structure serve two
+        radiations — ``2H`` is well-formed and has a neutron scattering length
+        but no Waasmaier-Kirfel f₀, and that refusal belongs to the lookup.
+
+        It lives here rather than in a lookup because **a `Phase` is the
+        smallest thing that knows both the atom and the phase it is in**.  The
+        lookups fire at the first stage compile, two lines apart
+        (``resolve_dispersion`` then ``scattering.normalize_species``), and
+        whichever of them raises names neither — so widening one to admit a
+        wild spelling only moves which of the two anonymous errors a caller
+        sees, and the second one is *worse*, because it reports a missing
+        element for a species that is in the table under a different spelling.
+
+        And a raise rather than a repair, by the WP-1028 / WP-1036 argument one
+        rank up: a silent correction is a reader's to make, because a reader has
+        a diagnostics channel to record it in and a schema does not.  A CIF
+        already gets that treatment — ``crystallography.cif.normalize_cif_species``
+        rewrites a sign-first charge and records ``CIF_SPECIES_NORMALISED`` — so
+        the population reaching here is hand-built structures, where the caller
+        is the one who can fix the spelling and should be told which atom to fix.
+        """
+        for index, atom in enumerate(self.atoms):
+            if _WELL_FORMED_SPECIES.match(atom.species.strip()):
+                continue
+            hint = ""
+            sign_first = _SIGN_FIRST_CHARGE.match(atom.species.strip())
+            if sign_first:
+                element, sign, digits = sign_first.groups()
+                hint = (f"; charge is written after the digits here, so "
+                        f"{element}{digits}{sign!s}")
+            raise ValueError(
+                f"phase {self.name!r} atom {index} ({atom.label!r}): species "
+                f"{atom.species!r} is not a species label this package can "
+                f"read. Expected an element symbol, optionally preceded by a "
+                f"mass number and followed by a charge — 'Fe', 'Fe3+', '2H', "
+                f"'157Gd'{hint}")
         return self
 
     @model_validator(mode="after")
