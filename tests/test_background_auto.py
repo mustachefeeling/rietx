@@ -161,6 +161,214 @@ def test_unknown_wavelength_is_not_checked_rather_than_clean():
 
 
 # ----------------------------------------------------------------------
+# counting coverage — how many observations stand behind each channel
+# ----------------------------------------------------------------------
+#
+# The measure and its two constants were set from two NIST BT-1
+# constant-wavelength neutron patterns (``Al2O3023.xye``, ``CrWO6003.xye``:
+# 3.00-166.25° at 0.05°, 3266 points, σ from the file, plateau v = 0.837 and
+# 0.826).  Both show the same ladder in σ²/max(y, 1) — ≈5× below 8°, ≈2.2-2.6×
+# out to ≈15°, tapering to 1× by ≈55°, then a step back to ≈2.2× inside one
+# channel at 161.30° — and neither pattern's plateau contains a region at all.
+# Those files live on the maintainer's archive drive and not in this repo, so
+# they are provenance for the numbers here and nothing is read from them: every
+# fixture below is synthetic, with the inflation put in on purpose.
+
+
+def _coverage_pattern(*, inflate=(), spikes=(), lo=5.0, hi=150.0, step=0.05,
+                      peak_deg=30.0, sigma_jitter=0.1, seed=3):
+    """Counts with a **measured** σ column and a prescribed coverage map.
+
+    Built the way the instrument builds it, as an exposure: a channel covered
+    for a fraction 1/k of the reference exposure reports the same *rate* and a
+    σ that is √k larger relative to it, so σ²/max(y, 1) = k there and 1 in the
+    bulk.  ``inflate`` is ``(2θ_lo, 2θ_hi, k)`` windows.
+
+    ``sigma_jitter`` is what makes the false-positive guard mean something: the
+    real σ column is not exactly √C (detector efficiencies, monitor
+    normalisation), and 10 % per-channel jitter on σ is 20 % on the ratio.
+    ``spikes`` multiplies σ on single channels, which is the shape of every
+    above-threshold excursion measured in the real plateau.
+    """
+    # rounded rather than np.arange: the window bounds below are compared
+    # against this grid, and 2900 accumulated steps of 0.05 put the last
+    # channel 3e-13 past ``hi``, outside its own window
+    tt = np.round(lo + step * np.arange(int(round((hi - lo) / step)) + 1), 6)
+    rng = np.random.default_rng(seed)
+    mu = 500.0 + 4000.0 * np.exp(-0.5 * ((tt - peak_deg) / 0.3) ** 2)
+    exposure = np.ones_like(tt)
+    for w_lo, w_hi, k in inflate:
+        exposure[(tt >= w_lo) & (tt <= w_hi)] = 1.0 / k
+    counts = rng.poisson(mu * exposure).astype(float)
+    y = counts / exposure
+    sigma = np.sqrt(np.maximum(counts, 1.0)) / exposure
+    sigma *= 1.0 + sigma_jitter * rng.standard_normal(len(tt))
+    for pos, factor in spikes:
+        sigma[int(np.argmin(np.abs(tt - pos)))] *= factor
+    return rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+                          sigma=np.abs(sigma).tolist())
+
+
+def test_counting_coverage_finds_the_thin_ends():
+    """A known 5× window at the low end and a 2.2× one at the high end — the
+    two levels the BT-1 patterns show — come back with their own bounds and
+    their own inflation.
+
+    The bounds are resolved to within the smoothing window and no better: a
+    median over ``COVERAGE_SMOOTH_DEG`` crosses the threshold when half the
+    window is inside the step, so an interior boundary sits half a window in
+    while a boundary at the pattern's own edge does not move.
+    """
+    from rietx.background import counting_coverage
+    from rietx.background.diagnostics import COVERAGE_SMOOTH_DEG
+
+    data = _coverage_pattern(inflate=[(5.0, 20.0, 5.0), (140.0, 150.0, 2.2)])
+    regions, plateau = counting_coverage(data.tt(), data.y(),
+                                        np.asarray(data.sigma))
+    assert plateau == pytest.approx(1.0, abs=0.05)
+    assert [r.edge for r in regions] == ["low", "high"], regions
+
+    low, high = regions
+    assert low.two_theta_min == 5.0
+    assert low.two_theta_max == pytest.approx(20.0, abs=COVERAGE_SMOOTH_DEG)
+    assert low.inflation == pytest.approx(5.0, rel=0.15)
+    assert low.n_channels == pytest.approx(15.0 / 0.05, rel=0.1)
+
+    assert high.two_theta_min == pytest.approx(140.0, abs=COVERAGE_SMOOTH_DEG)
+    assert high.two_theta_max == pytest.approx(150.0, abs=1e-9)
+    assert high.inflation == pytest.approx(2.2, rel=0.15)
+
+    # model-free: the Bragg peak at 30° is in neither region and makes none of
+    # its own — v is a property of σ against y, not of the pattern's shape
+    assert all(not (r.two_theta_min <= 30.0 <= r.two_theta_max) for r in regions)
+
+
+def test_counting_coverage_silent_on_clean_measured_sigma():
+    """The false-positive guard, and the more important of the two.
+
+    Uniform coverage with 10 % jitter on σ and four single-channel σ spikes big
+    enough to put the raw ratio at 3× — which is what the real plateau does
+    (every excursion above the threshold there is exactly one channel long).
+    Nothing may be reported, and the plateau must still say the check ran.
+    """
+    from rietx.background import counting_coverage
+
+    data = _coverage_pattern(spikes=[(40.0, 1.8), (70.0, 1.8), (95.0, 1.8),
+                                     (120.0, 1.8)])
+    regions, plateau = counting_coverage(data.tt(), data.y(),
+                                        np.asarray(data.sigma))
+    assert regions == []
+    assert plateau == pytest.approx(1.0, abs=0.05)
+
+    # the spikes are real in the unsmoothed statistic — the guard is the
+    # smoothing, not the absence of anything to smooth
+    v = np.asarray(data.sigma) ** 2 / np.maximum(data.y(), 1.0)
+    assert v.max() / plateau > 2.5
+
+
+def test_counting_coverage_declines_a_poisson_fallback_sigma():
+    """Empty because the statistic carries **no information**, not because it
+    was measured and found nothing.
+
+    Under σ = √max(y, 1) the ratio is identically 1 by construction, so an
+    answer computed from it would describe the fallback rather than the
+    experiment.  ``sigma=None`` is how this module already spells "not
+    measured" (:func:`sampling_steps_per_fwhm`), and ``coverage_plateau``
+    ``None`` is what separates *not checkable* from *checked and uniform*.
+    """
+    from rietx.background import counting_coverage
+    from rietx.background.diagnostics import COVERAGE_INFLATION_THRESHOLD
+
+    counts = _coverage_pattern(inflate=[(5.0, 20.0, 5.0)])
+    bare = rx.PatternData(two_theta=counts.two_theta,
+                          intensity=np.round(counts.y()).tolist())
+    assert bare.sigma is None
+    assert counting_coverage(bare.tt(), bare.y(), None) == ([], None)
+
+    d = diagnose(bare)
+    assert d.coverage_regions == []
+    assert d.coverage_plateau is None
+
+    # and the reason: handed the fallback array explicitly, the ratio is a
+    # constant 1 — degenerate, so the emptiness above is structural rather than
+    # a threshold that happened not to fire
+    ratio = bare.sig() ** 2 / np.maximum(bare.y(), 1.0)
+    np.testing.assert_allclose(ratio, 1.0, atol=1e-12)
+    assert COVERAGE_INFLATION_THRESHOLD > 1.0
+    regions, plateau = counting_coverage(bare.tt(), bare.y(), bare.sig())
+    assert regions == [] and plateau == pytest.approx(1.0)
+
+
+def test_counting_coverage_names_an_interior_region():
+    """A dead detector is not the bank running out at the end of its range.
+
+    Both are thin coverage and the ratio cannot tell them apart, but the causes
+    are different — one is the ordinary geometry of a multi-detector
+    instrument, the other is a fault or a stitched scan — so ``edge`` says
+    which shape was seen and leaves the reading to the caller.
+    """
+    from rietx.background import counting_coverage
+    from rietx.background.diagnostics import COVERAGE_SMOOTH_DEG
+
+    data = _coverage_pattern(inflate=[(70.0, 80.0, 3.0)])
+    regions, plateau = counting_coverage(data.tt(), data.y(),
+                                        np.asarray(data.sigma))
+    assert [r.edge for r in regions] == ["interior"], regions
+    assert regions[0].two_theta_min == pytest.approx(70.0, abs=COVERAGE_SMOOTH_DEG)
+    assert regions[0].two_theta_max == pytest.approx(80.0, abs=COVERAGE_SMOOTH_DEG)
+    assert regions[0].inflation == pytest.approx(3.0, rel=0.15)
+    # a 10° window inside the middle half does not move the plateau it is
+    # measured against
+    assert plateau == pytest.approx(1.0, abs=0.05)
+
+
+def test_counting_coverage_survives_degenerate_patterns():
+    """No pattern makes it raise, and two of these are declared behaviour.
+
+    A pattern with no σ and one whose σ is all zeros have no plateau to compare
+    against, so they answer ``None`` rather than guessing.  A window of **zero
+    intensity** with a finite σ does report a region, and that is the caveat
+    the docstring declares rather than a claim about detector count: max(y, 1)
+    in the denominator makes v large wherever the counts collapse, which is a
+    different phenomenon wearing the same statistic.
+    """
+    from rietx.background import counting_coverage
+
+    data = _coverage_pattern()
+    tt, y, sigma = data.tt(), data.y(), np.asarray(data.sigma)
+
+    assert counting_coverage(tt, y, None) == ([], None)
+    assert counting_coverage(tt[:2], y[:2], sigma[:2]) == ([], None)
+    assert counting_coverage(tt, y, np.zeros_like(sigma)) == ([], None)
+
+    nan_y, nan_sigma = y.copy(), sigma.copy()
+    nan_y[100:120] = np.nan
+    nan_sigma[900:905] = np.nan
+    regions, plateau = counting_coverage(tt, nan_y, nan_sigma)
+    assert plateau == pytest.approx(1.0, abs=0.05)
+    assert regions == [], "a non-finite channel makes no claim"
+
+    zeroed = y.copy()
+    zeroed[-400:] = 0.0
+    regions, _ = counting_coverage(tt, zeroed, sigma)
+    assert [r.edge for r in regions] == ["high"], (
+        "declared caveat: collapsing counts inflate v too")
+
+
+def test_diagnose_reports_the_same_coverage_as_the_function():
+    """One authority, the shape ``steps_per_fwhm`` already has: ``diagnose``
+    must be a call to :func:`counting_coverage`, not a second opinion."""
+    from rietx.background import counting_coverage
+
+    data = _coverage_pattern(inflate=[(5.0, 20.0, 5.0), (140.0, 150.0, 2.2)])
+    regions, plateau = counting_coverage(data.tt(), data.y(),
+                                        np.asarray(data.sigma))
+    d = diagnose(data)
+    assert d.coverage_plateau == plateau
+    assert d.coverage_regions == regions
+
+
+# ----------------------------------------------------------------------
 # auto-selection
 # ----------------------------------------------------------------------
 def test_peak_mask_keeps_background_channels():

@@ -1,9 +1,11 @@
 from .auto import auto_background
 from .diagnostics import (
     ContaminationFlag,
+    CoverageRegion,
     PatternDiagnostics,
     background_envelope,
     contamination_flags_from_peaks,
+    counting_coverage,
     diagnose,
     identify_anode,
 )
@@ -25,6 +27,7 @@ from .select import (
 __all__ = [
     "BackgroundSelection",
     "ContaminationFlag",
+    "CoverageRegion",
     "PatternDiagnostics",
     "arpls",
     "auto_background",
@@ -34,6 +37,7 @@ __all__ = [
     "chebyshev_background",
     "chebyshev_design_matrix",
     "contamination_flags_from_peaks",
+    "counting_coverage",
     "diagnose",
     "identify_anode",
     "interpolate_fixed",

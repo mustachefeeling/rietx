@@ -9,6 +9,13 @@ being chosen (arPLS stiff enough to be safe under peaks is too stiff to
 follow a genuine hump — measured, which is why the envelope is used here).
 Wavelength-dependent contamination checks (Kβ ghosts, W Lα from an aging
 tube) run only when the primary wavelength is supplied.
+
+One measure here reads the **σ column** rather than the intensities:
+:func:`counting_coverage`, which asks whether every channel was observed with
+the same statistical weight.  On a multi-detector instrument it is not — fewer
+detectors reach the ends of the range — and the σ column is the only place that
+shows.  It is the one thing in this module that a Poisson fallback σ cannot
+answer at all, so it returns nothing rather than a number.
 """
 
 from __future__ import annotations
@@ -17,6 +24,7 @@ import warnings
 
 import numpy as np
 from pydantic import Field
+from scipy.ndimage import median_filter
 from scipy.signal import find_peaks, peak_widths
 
 from ..schemas.common import Base
@@ -94,6 +102,29 @@ STEPS_PER_FWHM_MAX = 10.0
 #: WP-1071's handover, so the number is a floor and not a tuning.
 SAMPLING_PROMINENCE_SIGMA = 5.0
 
+#: Median-filter width, in ° 2θ, applied to the variance-inflation ratio before
+#: any region is cut out of it (:func:`counting_coverage`).  It is what makes the
+#: threshold below mean anything: measured on the two BT-1 patterns quoted there,
+#: the *per-channel* ratio through the quiet middle of the scan (60-145°) makes
+#: single-channel excursions to 2.27 and 2.43 — higher than the genuine steps the
+#: measure exists to find — and **every one of them is exactly one channel long**
+#: (3 and 4 such channels respectively), while a median over 11 channels leaves
+#: nothing above even 1.3 there.  Measured at 11, 21 and 41 channels: the regions
+#: come back the same, so the width is a floor and not a tuning.  1.0° is 21
+#: channels at those files' 0.05° step.
+COVERAGE_SMOOTH_DEG = 1.0
+
+#: How many times the plateau's variance-per-count a smoothed channel must carry
+#: before it counts as thinly covered.  Set from the gap between the two things
+#: it has to separate, on ``Al2O3023.xye`` (NIST BT-1, 3.00-166.25° at 0.05°,
+#: 3266 points, σ from the file): the smoothed ratio *drifts* over 1.11-1.37
+#: through 149-161°, then **steps** to 2.25 in a single channel at 161.30° and
+#: holds it to the end of the scan.  1.5 sits between the two with ≈1.4× margin
+#: on each side.  Not tuned to taste: neither BT-1 pattern's plateau reaches it
+#: anywhere (smoothed maximum 1.3 over 60-145°), and the region that matters —
+#: the one past the step — is identical at 1.3, 1.5 and 1.75.
+COVERAGE_INFLATION_THRESHOLD = 1.5
+
 
 class ContaminationFlag(Base):
     """A weak peak consistent with a known contamination line of a strong one."""
@@ -102,6 +133,41 @@ class ContaminationFlag(Base):
     two_theta: float           # where the ghost sits
     parent_two_theta: float    # the strong Kα parent reflection
     intensity_ratio: float     # ghost/parent net height
+
+
+class CoverageRegion(Base):
+    """A stretch of pattern whose σ carries more variance per count than the
+    bulk of the scan does — fewer independent observations behind each channel.
+
+    Purely **descriptive**, and deliberately so.  If σ is right then weighted
+    least squares already gives these channels the weight they deserve, which is
+    the whole job σ has; the region is a fact about *the experiment's coverage*,
+    not a verdict on the data.  What it tells a caller is that the pattern's
+    statistical weight is not uniform across its range — which is about how many
+    detectors saw each angle, and about nothing to do with the specimen.
+
+    The four numbers are the four separate questions: where it is, how much
+    variance per count it carries relative to the bulk (``inflation``), how much
+    of the pattern that is (``n_channels`` — a 3-channel region and a 700-channel
+    one are different facts about the same ratio), and *where in the range* it
+    sits.  ``edge`` is not a hint to do anything: a region at either end of the
+    scan is the detector bank's coverage running out, the ordinary geometry of a
+    multi-detector instrument, while an interior one has a different cause
+    entirely (a dead or excluded detector, two scans stitched together), so the
+    two must not be read as the same observation.  Both ends cannot be one
+    region, because the plateau is measured in the middle.
+
+    ``inflation`` is a **median** over the region, so it summarises rather than
+    resolves: a region can hold finer steps of its own (on ``Al2O3023.xye`` the
+    low-angle region runs ≈5× below 8°, ≈2.2× from 8-11°, ≈4× over 11.3-13°, then
+    ≈2.2× tapering to 1× by ≈55°), and the levels are not even monotonic in 2θ.
+    """
+
+    two_theta_min: float
+    two_theta_max: float
+    inflation: float           # median σ²/max(y,1) in the region, over the plateau
+    n_channels: int
+    edge: str                  # "low" | "high" | "interior"
 
 
 class PatternDiagnostics(Base):
@@ -133,6 +199,18 @@ class PatternDiagnostics(Base):
       measurable.  This is the one number here about the *experiment* rather
       than the pattern: below :data:`STEPS_PER_FWHM_MIN` no refinement can
       repair it, because the counts were never collected.
+    * ``coverage_plateau`` — the bulk pattern's σ²/max(y, 1), the median over
+      the middle half of the range.  1.0 is pure Poisson counting; a value
+      away from 1 means the file's σ is something else (merged detectors, a
+      monitor normalisation), which is a fact worth having on its own.
+      ``None`` means σ was *not measured* and nothing below was checked.
+    * ``coverage_regions`` — stretches carrying more variance per count than
+      that plateau (:func:`counting_coverage`), i.e. fewer independent
+      observations per channel.  Says the pattern's statistical weight is not
+      uniform across its range, and how; triggers **nothing**, because a
+      correct σ is already the whole handling.  Empty and
+      ``coverage_plateau`` set means checked and uniform; empty with
+      ``coverage_plateau`` ``None`` means not checkable.
     """
 
     n_points: int
@@ -149,6 +227,8 @@ class PatternDiagnostics(Base):
     steps_per_fwhm: float | None = None
     n_peaks_measured: int = 0
     contamination: list[ContaminationFlag] = Field(default_factory=list)
+    coverage_plateau: float | None = None
+    coverage_regions: list[CoverageRegion] = Field(default_factory=list)
 
 
 def background_envelope(two_theta: np.ndarray, y: np.ndarray, *,
@@ -304,6 +384,124 @@ def sampling_steps_per_fwhm(two_theta: np.ndarray, y: np.ndarray,
            else np.asarray(sigma, dtype=np.float64))
     return _median_steps_per_fwhm(counts - background_envelope(tt, counts), sig)
 
+def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
+    """Inclusive ``(start, end)`` index pairs of the True runs in ``mask``."""
+    padded = np.concatenate(([False], mask.astype(bool), [False]))
+    edges = np.flatnonzero(padded[1:] != padded[:-1])
+    return [(int(a), int(b) - 1) for a, b in zip(edges[::2], edges[1::2])]
+
+def counting_coverage(
+    two_theta: np.ndarray, y: np.ndarray, sigma: np.ndarray | None, *,
+    threshold: float = COVERAGE_INFLATION_THRESHOLD,
+    smooth_deg: float = COVERAGE_SMOOTH_DEG,
+    min_channels: int | None = None,
+) -> tuple[list[CoverageRegion], float | None]:
+    """``(regions, plateau)`` — where this pattern's σ implies fewer independent
+    observations per channel than the bulk of the scan does.
+
+    The statistic is the **variance inflation** v = σ²/max(y, 1), which is 1 for
+    pure Poisson counting and proportional to 1/n_eff for a channel averaged over
+    n_eff independent observations.  Its bulk level (``plateau``, the median over
+    the middle half of the range) is the reference, and a region is a run of
+    channels whose smoothed v/plateau exceeds ``threshold``.  Nothing here looks
+    at the intensities except through that ratio: no baseline, no peak list, no
+    model.
+
+    **Empty when σ was not measured**, signalled by ``sigma=None`` — the spelling
+    :func:`sampling_steps_per_fwhm` already uses, and the fact
+    :meth:`PatternData.sig` and ``DataRef.has_sigma`` are the authorities for
+    (CLAUDE.md, Weights).  Under the Poisson fallback σ = √max(y, 1) the ratio is
+    *identically* 1 by construction, so the measure carries no information at
+    all; an answer computed from it would be an answer about the fallback rather
+    than about the experiment, and ``plateau`` comes back ``None`` to say so.
+    Handing the fallback array in explicitly is therefore also empty, but for the
+    weaker reason that a constant ratio crosses no threshold.
+
+    **What a region means.** On an instrument with a bank of detectors on a
+    circle, the number contributing to a given 2θ falls off at both ends of the
+    range, and v ∝ 1/n_eff counts them.  Measured on two NIST BT-1
+    constant-wavelength neutron patterns (``Al2O3023.xye`` and ``CrWO6003.xye``,
+    3.00-166.25° at 0.05°, 3266 points, σ from the file, plateau v = 0.837 and
+    0.826): both show the same ladder — ≈5× below ≈8°, ≈2.2-2.6× from 8° to
+    ≈15°, tapering to 1× by ≈55°, 1× through the middle, and a step back to
+    ≈2.2× within one channel at 161.30°, held to the end of the scan.  The levels
+    are *quantised* because detectors are integers, which is what makes a step
+    a step rather than a gradual falloff, and they are not monotonic in 2θ
+    (Al2O3023 sits at ≈4× over 11.3-13.0°, between two ≈2.2× stretches).
+    Neither pattern's plateau contains a region at all.
+
+    **What it is for, and what it is not.** It reports that the pattern's
+    statistical weight is not uniform across its range — a fact about the
+    experiment's coverage, not about the specimen — and it is the model-free
+    confirmation that a file's σ column is real and structured rather than
+    fabricated, since a fabricated or fallback σ cannot show this at all.  It is
+    *not* an argument for trimming the range: if σ is right, weighted least
+    squares already weights those channels correctly, which is what σ is for.
+    Where it disagrees with a hand-chosen fit range that is information about the
+    range, in both directions and with no recommendation attached.
+
+    **One caveat, unhandled on purpose.** v also rises where the *intensity*
+    collapses — a scan or a detector that stops leaves near-empty channels with a
+    finite σ, and max(y, 1) in the denominator then makes v large for a reason
+    that has nothing to do with detector count.  This function cannot tell the
+    two apart from σ alone and does not try; a region reported at the very end of
+    a pattern whose counts fall to nothing there is that other phenomenon.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    if sigma is None or len(tt) < 4:
+        return [], None
+    counts = np.asarray(y, dtype=np.float64)
+    sig = np.asarray(sigma, dtype=np.float64)
+    with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
+        v = sig ** 2 / np.maximum(counts, 1.0)
+    finite = np.isfinite(v)
+
+    n = len(tt)
+    middle = v[n // 4:n - n // 4]
+    usable = middle[np.isfinite(middle) & (middle > 0.0)]
+    if not len(usable):
+        return [], None
+    # positive and finite by that filter, so the division below is safe
+    plateau = float(np.median(usable))
+
+    # A non-finite channel makes no claim rather than a false one: it is set to
+    # the plateau, so it neither starts a region nor breaks the median filter.
+    ratio = np.where(finite, v, plateau) / plateau
+
+    steps = np.diff(tt)
+    steps = steps[np.isfinite(steps) & (steps > 0.0)]
+    if not len(steps):
+        return [], plateau
+    # The smoothing window doubles as the minimum region width and as the widest
+    # gap that gets closed, both from one sentence: the statistic cannot resolve a
+    # feature narrower than the window it was smoothed over, so a shorter run is
+    # not evidence and a shorter gap is not a boundary.  One rule, no second
+    # tunable — ``min_channels`` overrides only the first, since the second is a
+    # property of the smoother rather than a choice about what counts.
+    width = max(int(smooth_deg / float(np.median(steps))), 5)
+    floor = width if min_channels is None else max(int(min_channels), 1)
+    smoothed = median_filter(ratio, size=width, mode="nearest")
+
+    merged: list[tuple[int, int]] = []
+    for lo, hi in _runs(smoothed > threshold):
+        if merged and lo - merged[-1][1] - 1 < width:
+            merged[-1] = (merged[-1][0], hi)
+        else:
+            merged.append((lo, hi))
+
+    regions: list[CoverageRegion] = []
+    for lo, hi in merged:
+        if hi - lo + 1 < floor:
+            continue
+        edge = "low" if lo == 0 else "high" if hi == n - 1 else "interior"
+        regions.append(CoverageRegion(
+            two_theta_min=float(tt[lo]), two_theta_max=float(tt[hi]),
+            # the raw ratio, not the smoothed one: smoothing is what found the
+            # boundaries, and a median over the region needs no help from it
+            inflation=float(np.median(ratio[lo:hi + 1])),
+            n_channels=int(hi - lo + 1), edge=edge))
+    return regions, plateau
+
 
 def diagnose(data: PatternData, *, wavelength: float | None = None,
              baseline_lambda: float | None = None) -> PatternDiagnostics:
@@ -345,6 +543,12 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     # sampling number is measured on exactly the pattern reported above
     steps, n_measured = _median_steps_per_fwhm(net, sigma)
 
+    # ``data.sigma is not None`` is the σ-measured test at this rank — the
+    # PatternData-level peer of ``DataRef.has_sigma``, and the same branch
+    # ``sig()`` itself takes.  Passing ``sigma`` unconditionally would hand the
+    # Poisson fallback to a measure that reads it as a flat answer.
+    coverage, plateau = counting_coverage(
+        tt, y, sigma if data.sigma is not None else None)
     return PatternDiagnostics(
         n_points=len(tt),
         two_theta_min=float(tt[0]), two_theta_max=float(tt[-1]),
@@ -359,6 +563,8 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
         steps_per_fwhm=steps,
         n_peaks_measured=n_measured,
         contamination=flags,
+        coverage_plateau=plateau,
+        coverage_regions=coverage,
     )
 
 

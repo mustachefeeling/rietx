@@ -305,7 +305,7 @@ validity.
 ### Everything else `diagnose` measures
 
 The object that call returns is a `PatternDiagnostics`, and the two sampling
-fields above are two of its fourteen. The rest describe the pattern itself, with
+fields above are two of its sixteen. The rest describe the pattern itself, with
 no model involved, and they are what the background chapter's defaults are chosen
 from.
 
@@ -323,6 +323,8 @@ from.
 | `PatternDiagnostics.baseline_lambda` | the arPLS stiffness the whiteness rule picked for this pattern | |
 | `PatternDiagnostics.steps_per_fwhm`, `PatternDiagnostics.n_peaks_measured` | the sampling pair above | null when no peak was measurable |
 | `PatternDiagnostics.contamination` | Kβ and W Lα ghost candidates, each a `ContaminationFlag` | see the warning below |
+| `PatternDiagnostics.coverage_plateau` | the bulk pattern's σ²/max(y, 1), median over the middle half of the range | 1.0 is pure Poisson counting; anything else says the file's σ is something else (merged detectors, a monitor normalisation). Null means σ was not measured, so nothing was checked |
+| `PatternDiagnostics.coverage_regions` | stretches whose σ carries more variance per count than that plateau, each a `CoverageRegion` | the pattern's statistical weight is not uniform across its range; see below |
 
 | Field | Is |
 |---|---|
@@ -340,6 +342,55 @@ Measured on the 11-BM pattern, `diagnose(data)` and
 because nothing was asked, the second because a synchrotron wavelength has no
 anode. On the round-robin corundum pattern at Cu Kα the same call returns three
 flags, two Kβ ghosts and one tungsten Lα.
+:::
+
+### How many observations stand behind each channel
+
+`PatternDiagnostics.coverage_regions` is the one measurement here that reads the
+σ **column** rather than the intensities. The statistic is the variance
+inflation σ²/max(y, 1), which is 1 for pure Poisson counting and proportional to
+1/n_eff for a channel averaged over n_eff independent observations; a region is a
+run of channels carrying more of it than the bulk of the scan does
+(`rietx.background.counting_coverage`).
+
+On an instrument with a bank of detectors on a circle, the number contributing to
+a given 2θ falls off at both ends of the range, and this counts them. Measured on
+two NIST BT-1 constant-wavelength neutron patterns (3.00–166.25° at 0.05°, σ from
+the file), both show the same ladder: about 5× below 8°, 2.2–2.6× out to 15°,
+tapering to 1× by 55°, then a step back to 2.2× inside a single channel at
+161.30° and held to the end of the scan. The levels are quantised because
+detectors are integers, which is why the ends read as steps rather than as a
+gradual falloff.
+
+| Field | Is |
+|---|---|
+| `CoverageRegion.two_theta_min`, `CoverageRegion.two_theta_max` | where the region runs, in degrees |
+| `CoverageRegion.inflation` | the median σ²/max(y, 1) over the region, divided by the plateau — how many times the bulk's variance per count it carries |
+| `CoverageRegion.n_channels` | how much of the pattern that is |
+| `CoverageRegion.edge` | `"low"`, `"high"` or `"interior"` — whether it sits at an end of the scanned range or inside it |
+
+:::{warning}
+This is descriptive, and it triggers nothing. If the file's σ is right then
+weighted least squares already gives those channels the weight they deserve —
+that is what σ is for — so a region is **not** an argument for trimming the
+range. What it tells you is that the pattern's statistical weight is not uniform
+across it, which is a fact about how many detectors saw each angle and not about
+the specimen. Where it disagrees with a hand-chosen fit range, that is
+information about the range, in either direction and with no recommendation
+attached.
+
+Read `CoverageRegion.edge` the same way. A region at either end is the detector
+bank's coverage running out, the ordinary geometry of a multi-detector
+instrument; an interior one has a different cause (a dead or excluded detector,
+two scans stitched together), and the statistic cannot tell the two apart on its
+own.
+
+One thing it genuinely settles: a σ column that shows this structure was
+measured. The Poisson fallback σ = √max(y, 1) makes the ratio identically 1, so
+a pattern without a σ column reports `null` and an empty list — *not checkable*,
+which is a different answer from an empty list beside a plateau. And v also rises
+wherever the counts collapse to nothing with σ staying finite, which is a
+different phenomenon wearing the same statistic.
 :::
 
 ## What the restraints did
