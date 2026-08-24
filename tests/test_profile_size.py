@@ -171,6 +171,19 @@ def test_k_is_an_argument_and_scales_the_answer_linearly():
         (apparent_size_from_size_coefficient, (0.2, -1.0)),
         (size_coefficient_for_size, (0.0, CU)),
         (size_coefficient_for_size, (100.0, 0.0)),
+        # K, one row per function that takes it.  Unguarded, k = 0 returned 0.0
+        # and k = -0.9 returned -397.2 Å: a length that is not one, and less
+        # usable than the ``inf`` the zero-width row above refuses.  ``nan``
+        # rides on the same `not k > 0.0` spelling.
+        (apparent_size, (0.5, 30.0, CU, 0.0)),
+        (apparent_size_from_size_coefficient, (0.2, CU, -0.9)),
+        (size_coefficient_for_size, (100.0, CU, float("nan"))),
+        # ``delta_q_fwhm`` is public and was the one of the four with no guards;
+        # unguarded it returned -0.0344 Å⁻¹ on a negative λ and -0.0062 Å⁻¹ at
+        # 2θ = 200, a *negative* Q width both times.
+        (delta_q_fwhm, (0.5, 30.0, -1.5406)),
+        (delta_q_fwhm, (0.5, 200.0, CU)),
+        (delta_q_fwhm, (0.0, 30.0, CU)),
     ],
 )
 def test_the_unusable_inputs_are_refused_by_name(fn, args):
@@ -178,6 +191,9 @@ def test_the_unusable_inputs_are_refused_by_name(fn, args):
 
     Refused rather than returned as ``inf``, so the caller finds out here
     instead of downstream — the package's "refuse, do not normalise" shape.
+    Every guard is spelled ``not x > 0.0`` rather than ``x <= 0.0`` so that
+    ``nan`` — which fails every comparison and so passes ``<=`` — is refused by
+    the same line.
     """
     with pytest.raises(ValueError):
         fn(*args)

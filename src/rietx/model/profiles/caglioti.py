@@ -85,6 +85,11 @@ _MIN_GAMMA_G2 = 1e-8  # deg²; keeps Γ_G real when U,V,W make the quadratic dip
 #: known morphology can say so.
 SCHERRER_K = 0.9
 
+# `not x > 0.0` rather than `x <= 0.0` throughout, because it is also the nan
+# test: nan fails every comparison, so `nan <= 0.0` is False and would let a nan
+# through to be returned as a nan size.  Refusing by name is the whole point of
+# these guards, and a nan is the input least likely to be noticed downstream.
+
 
 def delta_q_fwhm(fwhm_deg: float, two_theta_deg: float,
                  wavelength_a: float) -> float:
@@ -97,7 +102,19 @@ def delta_q_fwhm(fwhm_deg: float, two_theta_deg: float,
 
     A scalar helper for reporting and diagnostics, not a hot-path function: it
     is plain python float arithmetic and does not route through the backend.
+
+    Refuses a non-positive width or wavelength and a 2θ outside (0, 180) by
+    name.  This is the **one** place those three are checked: it is public, so a
+    direct caller is as exposed as :func:`apparent_size`'s — and unguarded it
+    returns a *negative* Q width on a negative λ or on 2θ > 180, which is not a
+    quantity at all.
     """
+    if not fwhm_deg > 0.0:
+        raise ValueError(f"fwhm_deg must be positive, got {fwhm_deg!r}")
+    if not wavelength_a > 0.0:
+        raise ValueError(f"wavelength_a must be positive, got {wavelength_a!r}")
+    if not 0.0 < two_theta_deg < 180.0:
+        raise ValueError(f"two_theta_deg must lie in (0, 180), got {two_theta_deg!r}")
     theta = math.radians(two_theta_deg / 2.0)
     return 2.0 * math.pi * math.cos(theta) * math.radians(fwhm_deg) / wavelength_a
 
@@ -118,16 +135,15 @@ def apparent_size(fwhm_deg: float, two_theta_deg: float, wavelength_a: float,
     "could size *alone* explain this width?", never to report a size from a
     total width.
 
-    Raises ``ValueError`` on a non-positive width, angle or wavelength — a zero
-    width is an infinite size, which is true and not a number a caller can do
-    anything with.
+    Raises ``ValueError`` on a non-positive width, angle, wavelength or K — a
+    zero width is an infinite size, which is true and not a number a caller can
+    do anything with, and a zero or negative K is *less* usable than that: it
+    returns a zero or negative length that no downstream check would question.
+    The width, angle and wavelength are refused by :func:`delta_q_fwhm`, which
+    this goes through anyway — one place per check, and the same message.
     """
-    if not fwhm_deg > 0.0:
-        raise ValueError(f"fwhm_deg must be positive, got {fwhm_deg!r}")
-    if not wavelength_a > 0.0:
-        raise ValueError(f"wavelength_a must be positive, got {wavelength_a!r}")
-    if not 0.0 < two_theta_deg < 180.0:
-        raise ValueError(f"two_theta_deg must lie in (0, 180), got {two_theta_deg!r}")
+    if not k > 0.0:
+        raise ValueError(f"k must be positive, got {k!r}")
     return 2.0 * math.pi * k / delta_q_fwhm(fwhm_deg, two_theta_deg, wavelength_a)
 
 
@@ -154,6 +170,8 @@ def apparent_size_from_size_coefficient(coefficient_deg: float,
         raise ValueError(f"coefficient_deg must be positive, got {coefficient_deg!r}")
     if not wavelength_a > 0.0:
         raise ValueError(f"wavelength_a must be positive, got {wavelength_a!r}")
+    if not k > 0.0:
+        raise ValueError(f"k must be positive, got {k!r}")
     return math.degrees(k * wavelength_a / coefficient_deg)
 
 
@@ -173,6 +191,8 @@ def size_coefficient_for_size(size_a: float, wavelength_a: float,
         raise ValueError(f"size_a must be positive, got {size_a!r}")
     if not wavelength_a > 0.0:
         raise ValueError(f"wavelength_a must be positive, got {wavelength_a!r}")
+    if not k > 0.0:
+        raise ValueError(f"k must be positive, got {k!r}")
     return math.degrees(k * wavelength_a / size_a)
 
 
