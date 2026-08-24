@@ -144,6 +144,60 @@ strict = rx.RefinementPlan(stages=plan.stages, correlation_guard=0.9)
 Lowering it reports more pairs. It does not change the fit: the guard measures
 the fit rather than constraining it.
 
+(strategy-harmonics)=
+### Checking for monochromator harmonic contamination
+
+No shipped preset frees an emission-line weight, so a declared λ/n harmonic
+([](data.md), {eq}`pos-harmonic-d`) needs a stage of your own. Where to put it
+is a strategy question rather than a detail:
+
+```python
+import rietx as rx
+
+base = rx.RefinementPlan.mccusker_structural()
+plan = rx.RefinementPlan(stages=[
+    *base.stages,
+    rx.Stage("harmonic", ["instrument.source.lines.*.weight"]),
+])
+assert plan.stages[-1].name == "harmonic"
+```
+
+**Check for it whenever a monochromator's order is not filtered.** The
+signature is extra intensity at 2θ *below* the fundamental's peaks — the
+harmonic diffracts the same hkl from a smaller d — together with a **GoF worse
+than a clean histogram of the same specimen**, while Rwp may well look better.
+That asymmetry is the whole diagnosis: Rwp is dominated by the strong peaks, and
+the harmonic's are weak peaks sitting where the model has nothing, so GoF
+measures the misfit against σ and Rwp mostly does not. A fit whose Rwp is
+respectable and whose GoF is far from 1 is the case to suspect.
+
+**Free the weight last.** It is a small fraction, it correlates with the
+background, and both the scale and the displacement parameters can imitate part
+of it. Freed early it takes intensity that belongs to the profile, and the
+record does not show that it did. Freed after the profile and the scale have
+settled, it has only the intensity nothing else claimed.
+
+**Read the fitted fraction as a property of the beam, or not at all.** The
+`HARMONIC_FRACTION` diagnostic reports it as a per cent of the fundamental with
+its esd, because that is the number worth judging. A value far from a few per
+cent is evidence that the model is absorbing something else through the line —
+an unindexed impurity, a magnetic contribution, a background too stiff to
+follow — rather than a measurement of the monochromator, and past 15 % the
+diagnostic says so at `warning` level. A fraction that refines to nothing is a
+result too: `HARMONIC_ABSENT` means the beam carries no measurable order-n
+component, which is what a monochromator whose nth order is extinct must give,
+and the declaration can then be dropped for one parameter fewer. A weight that
+was never freed reports `HARMONIC_HELD` and must not be quoted at all.
+
+Two related checks are **model-free and run before any fit**, and neither
+substitutes for this one: `diagnose(data)` looks for a weak peak at the Kβ or
+W Lα position of a strong one and returns `ContaminationFlag`s, needing no
+structure, answering "does something here look like a known contaminant?". This
+one needs a converged model and answers "how much intensity did the model
+attribute to the harmonic once everything else had its chance?" — which is the
+only way to see a contamination whose peaks overlap the fundamental's too
+closely for a peak search to separate.
+
 ## How hard each stage is converged
 
 `RefinementPlan.intermediate_ftol` is the termination tolerance every stage but

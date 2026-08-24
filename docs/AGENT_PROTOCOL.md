@@ -682,6 +682,9 @@ Every code below is a structured `Diagnostic` on `result.diagnostics` with a
 | `ADP_NOT_POSITIVE_DEFINITE` | Report the tensor as measured |
 | `STEPHENS_STRAIN_NOT_POSITIVE` | Report any S_HKL |
 | `DISPERSION_NEGLECTED` | Quote QPA weight fractions — unequal f′ across phases biases them directly (measured: RMS 2.26 → 0.69 wt % once applied) |
+| `HARMONIC_FRACTION` | Transfer the fitted per cent to another histogram, or read it as a property of the specimen. It is a refined scale ratio between two wavelength components of **one** measurement on **one** monochromator, so it is not comparable across instruments and not a material constant. At `warning` level (past 15 %) do not read it as a measurement of the beam at all — the line is absorbing intensity the model puts nowhere, and the tick marks against the unfitted peaks are what to check |
+| `HARMONIC_ABSENT` | Read it as a failure of the correction. It is a *result*: the declared λ/n line refined to nothing, which is what a monochromator whose nth order is extinct must give. Dropping the declaration reproduces the fit with one parameter fewer |
+| `HARMONIC_HELD` | Quote the harmonic fraction at all — the weight never entered θ, so the number is the value the caller declared, not a measured one. Free `instrument.source.lines.*.weight` in a stage **after** the profile and the scale have settled |
 | `ABSORPTION_ESTIMATE_UNAVAILABLE` | Assume the absorption correction ran. It did not; the fit has **no** specimen absorption correction |
 | `ABSORPTION_MU_R_OUT_OF_RANGE` | Trust the magnitude of the correction — µR > 1 extrapolates the Rouse fit |
 | `ABSORPTION_THICKNESS_MATTERS` | Quote displacement parameters without checking the flat specimen's thickness — part of the correction is not absorbable by the scale and ADPs, so a wrong µt lands in both |

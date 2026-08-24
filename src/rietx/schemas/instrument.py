@@ -73,7 +73,16 @@ HARMONIC_WEIGHT_MAX = 0.5
 
 
 class Harmonic(Base):
-    """A λ/n component leaking past a monochromator that does not filter order.
+    """An nth-order contribution at λ/n from a monochromator that passes order.
+
+    Named for the mechanism rather than the symptom: it is the **nth-order
+    reflection from the same monochromator planes**, which is why it is general
+    in n and why no monochromator setting removes it.  Published experimental
+    sections use exactly this vocabulary — "a Cu(311) monochromator was used,
+    with a constant wavelength of λ = 1.5402(2) Å and a second-order
+    contribution at λ/2" (Gaultois *et al.*, *J. Phys.: Condens. Matter*,
+    2013), describing the NIST BT-1 diffractometer this correction is validated
+    against.
 
     A crystal monochromator set to pass λ by Bragg reflection from planes of
     spacing d_M satisfies λ = 2 d_M sin θ_M.  At that *same* setting the

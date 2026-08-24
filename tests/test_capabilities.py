@@ -153,11 +153,21 @@ def test_each_radiation_reports_what_actually_differs(caps):
         arm = by_kind[kind]
         assert arm.anomalous_dispersion == ("dispersion" in cls.model_fields)
         assert arm.polarization_refinable == ("polarization" in cls.model_fields)
+        # harmonic support is *not* "has a harmonics field" — both classes do,
+        # and only one accepts a value.  The class attribute is the one
+        # authority, and ``check_harmonics`` reads the same one.
+        assert arm.harmonic_contamination == cls.harmonics_supported
 
     # and the two disagree, which is the whole reason the arm exists
     assert by_kind["xray_cw"].anomalous_dispersion
     assert not by_kind["neutron_cw"].anomalous_dispersion
-    assert by_kind["neutron_cw"].max_emission_lines == 1
+    assert by_kind["xray_cw"].harmonic_contamination is False
+    assert by_kind["neutron_cw"].harmonic_contamination is True
+    # unbounded on both, for different reasons: an X-ray source declares its own
+    # line list, and a neutron source can grow one at λ/n.  A source whose
+    # spectrum is one wavelength and can be nothing else would report 1 — there
+    # is no such class any more, which is what harmonics changed here
+    assert by_kind["neutron_cw"].max_emission_lines is None
     assert by_kind["xray_cw"].max_emission_lines is None
     # every entry is documented rather than defaulting to its own discriminator
     assert all(r.title != r.kind and r.scatterer != "undocumented"

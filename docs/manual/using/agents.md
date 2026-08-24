@@ -396,13 +396,17 @@ sorted(caps.features)
   discriminator to write, `RadiationCapability.title` and
   `RadiationCapability.scatterer`, the one-line statement of what does the
   scattering and therefore whether the amplitude falls off with Q. The other
-  three say how the *shape* of the source differs, which is what decides
+  four say how the *shape* of the source differs, which is what decides
   whether a field exists to set at all:
   `RadiationCapability.anomalous_dispersion`,
   `RadiationCapability.max_emission_lines` (`None` for unbounded, 1 for a
-  monochromator), and `RadiationCapability.polarization_refinable`. All three
-  are derived from the classes rather than declared, so each flips by itself
-  when its feature lands.
+  source whose spectrum is one wavelength and can be nothing else),
+  `RadiationCapability.polarization_refinable`, and
+  `RadiationCapability.harmonic_contamination` — whether that radiation accepts
+  declared λ/n monochromator harmonics ([](data.md)). All four are derived from
+  the classes rather than declared, so each flips by itself when its feature
+  lands; the last reads the same `harmonics_supported` attribute the schema's
+  own refusal reads, so it cannot claim a support the validator denies.
 - **`Capabilities.plans`**, each `PlanCapability` with `PlanCapability.title`,
   `PlanCapability.description`, `PlanCapability.modes` and
   `PlanCapability.when_to_use`, so a program can offer the choice in its own UI

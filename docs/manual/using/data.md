@@ -299,6 +299,7 @@ Ask `capabilities()` for the anode names rather than trusting a list in prose.
 | `Source.lines` | list[`EmissionLine`] | required | one entry per emission line, at least one |
 | `Source.polarization` | `Parameter` | 0.5 | the fraction K of {eq}`corr-lp`; 0.5 is an unpolarised beam |
 | `Source.dispersion` | `Dispersion` or None | on | anomalous scattering, {eq}`int-friedel` |
+| `Source.harmonics` | list[`Harmonic`] | empty | declared λ/n monochromator orders — **refused on this radiation**, see [below](harmonic-contamination) |
 | `Source.kind` | `"xray_cw"` | `"xray_cw"` | constant-wavelength X-rays |
 
 `Source.primary_wavelength` is the first line's wavelength, which is the one
@@ -329,11 +330,13 @@ fields are inert is worse than two classes.
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `NeutronSource.wavelength` | float | required | Å, fixed — a powder pattern cannot separate λ from the cell |
+| `NeutronSource.harmonics` | list[`Harmonic`] | empty | declared λ/n monochromator orders, see [below](harmonic-contamination) |
 | `NeutronSource.kind` | `"neutron_cw"` | `"neutron_cw"` | constant wavelength, the discriminator you write |
 
 Three read-only properties let code written for an X-ray source keep working.
-`NeutronSource.lines` is the single line, weight structurally 1 — with one line
-there is nothing for a relative weight to be relative to.
+`NeutronSource.lines` is the fundamental followed by one line per declared
+harmonic; with none declared it is the single line, weight structurally 1 —
+with one line there is nothing for a relative weight to be relative to.
 `NeutronSource.primary_wavelength` is that wavelength.
 `NeutronSource.polarization` is 1.0 and refuses to be anything else, and
 `NeutronSource.dispersion` is always `None`.
@@ -387,6 +390,78 @@ correction has no regime here rather than a small coefficient. And a species
 this build has no tabulated scattering length for raises at compile naming the
 species, rather than contributing zero — a substituted zero would delete a site
 from the structure factor without changing the shape of anything.
+
+(harmonic-contamination)=
+### λ/n monochromator harmonics
+
+A crystal monochromator set to pass λ also reflects the higher orders of the
+same planes, so the beam carries a small λ/n component for every order that is
+not extinct ({eq}`pos-harmonic-mono`). That component diffracts from the
+specimen too, and at a given 2θ it is diffracting from planes of spacing
+λ/(2n sin θ) — so **the harmonic's peak from a given hkl sits at lower 2θ than
+the fundamental's** ({eq}`pos-harmonic-d`). Unmodelled, it is extra intensity
+in places the model puts none.
+
+Declare it with `Harmonic`, on the source or through the constructor:
+
+```python
+from rietx import Instrument
+from rietx.schemas.instrument import Harmonic
+
+bt1 = Instrument.constant_wavelength_neutron(
+    wavelength=1.54040, fwhm_deg=0.3, harmonics=True)
+assert [line.wavelength for line in bt1.source.lines] == [1.54040, 0.77020]
+
+# general in n; True above is exactly [2]
+thirds = Instrument.constant_wavelength_neutron(1.54040, harmonics=[2, 3])
+assert len(thirds.source.lines) == 3
+assert thirds.source.harmonics == [Harmonic(order=2), Harmonic(order=3)]
+```
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `Harmonic.order` | int ≥ 2 | 2 | n in λ/n |
+| `Harmonic.weight` | `Parameter` | 0.01, fixed | intensity relative to line 0, like any emission line |
+| `Harmonic.wavelength_factor` | float | derived | 1/n — what the fundamental wavelength is multiplied by |
+
+`Source.harmonics_supported` and `NeutronSource.harmonics_supported` are
+class-level booleans saying whether that radiation accepts a declaration at all
+— `False` and `True` respectively. They are the one authority for the answer:
+the refusal below reads them, and so does
+`RadiationCapability.harmonic_contamination`, which is how the JSON surface
+reports it ([](agents.md)). Ask that rather than assuming, and never infer
+support from the presence of the `harmonics` field, which both classes have.
+
+**It is an emission line, not a phase.** The usual workaround is an extra phase
+with a doubled lattice parameter, which gets the positions right and the
+intensities wrong: cell 2a has d′ = 2d, so λ diffracts from it where λ/2
+diffracts from the real d, but its structure factors are those of a fictitious
+cell. A line at λ/n diffracts the **same** hkl list with the **same** |F|²,
+because |F|² is a function of the reflection through sin θ/λ = 1/2d and not of
+the wavelength that reaches it. So positions and intensities come out together,
+and it costs one refinable number instead of a phase.
+
+Empty is off, and off is exact: a source with no harmonic declared has the
+spectrum it always had, and reproduces every previously measured number bit for
+bit.
+
+**Refusals.** `order` must be at least 2 — n = 1 *is* the fundamental, and
+declaring it would be a second copy of line 0, degenerate with the phase
+scales. A repeated order is refused, because two lines at one wavelength with
+two weights on one physical component is a flat direction rather than a richer
+model. And harmonics are refused on an **X-ray** source: one f′ + i·f″ is
+frozen per phase and shared across every emission line, which is exact only
+while f is real, and λ against λ/2 is a 100 % wavelength change with absorption
+edges between them in general. `capabilities().radiations` reports which
+radiations accept them, read off the same attribute the refusal reads. On an
+X-ray source the route that does work is to declare the λ/n component as a
+plain `EmissionLine` with `dispersion=None`, where f = f₀ genuinely does serve
+both lines — the refusal's message says so.
+
+Whether a harmonic exists at all is arithmetic on the monochromator, not
+something to discover from a fit. Cu(311) doubles to the allowed (622), so the
+second order passes; a diamond-structure crystal cut on all-odd indices
+cancels its own second order exactly. Part 2 has both.
 
 :::{admonition} Time-of-flight is not this
 :class: note
