@@ -31,6 +31,7 @@ import math
 
 import numpy as np
 
+from ..model.profiles.caglioti import SCHERRER_K, apparent_size_from_size_coefficient
 from ..schemas.results import RefinementResult
 from .schemas import (
     BACKGROUND_ABSORPTION_NOTABLE,
@@ -164,10 +165,49 @@ def _significant(templates, name: str) -> tuple[float, float] | None:
     return None
 
 
+#: the one template whose fitted coefficient *is* a 1/cosθ size coefficient in
+#: deg 2θ — the same quantity as ``instrument.profile.x + phases.N.lor_size``,
+#: and therefore the one this module can read as a crystallite size with no
+#: reference angle (``model/profiles/caglioti`` (4)).  ``tan_theta`` is strain
+#: and ``constant``/``cos_theta``/… are positions: none of them has a size.
+_SIZE_TEMPLATE = "inv_cos_theta"
+
+
+def _size_clause(name: str, coefficient: float, wavelength: float | None) -> str:
+    """The 1/cosθ width deficit as an apparent crystallite size, or ``""``.
+
+    Empty in three cases, each of them "no claim" rather than "no size": a
+    template that is not the size term, a caller who passed no wavelength, and
+    a **negative** coefficient.  The last is the one worth naming — a negative
+    ΔΓ means the model's peaks are too *broad*, and Scherrer read backwards
+    would name the size of a crystallite the specimen does not have.  The
+    action is still emitted; only this clause is withheld.
+
+    Why the clause exists at all: the coefficient is in degrees, which is not
+    transferable between instruments — 0.05 deg is a 15 nm crystallite on Cu and
+    a 4 nm one on 11-BM — so the number the reader can act on is the size.
+    """
+    if name != _SIZE_TEMPLATE or wavelength is None or not coefficient > 0.0:
+        return ""
+    size_a = apparent_size_from_size_coefficient(coefficient, wavelength)
+    return (f"; the coefficient is the 1/cosθ size term, so it reads as one "
+            f"apparent crystallite size for the whole pattern — L ≈ "
+            f"{size_a:.0f} Å at λ = {wavelength:.4f} Å (Scherrer, K = "
+            f"{SCHERRER_K}, an order-of-magnitude statement: shape moves K by "
+            f"10-20 %). Degrees are not transferable between instruments; this "
+            f"is the same width in the unit a specimen can be judged in")
+
+
 def _trend_actions(trend: TrendAnalysis,
                    mapping: dict[str, tuple[ActionKind, str]],
-                   unit: str) -> list[SuggestedAction]:
-    """Turn one trend analysis into actions, capping confidence on ambiguity."""
+                   unit: str, *, wavelength: float | None = None
+                   ) -> list[SuggestedAction]:
+    """Turn one trend analysis into actions, capping confidence on ambiguity.
+
+    ``wavelength`` is used only to add :func:`_size_clause` to the width
+    observable's size template; ``None`` (the default, and what a caller with no
+    instrument in hand gets) leaves every rationale exactly as it was.
+    """
     hits = []
     for name, (kind, path) in mapping.items():
         sig = _significant(trend.templates, name)
@@ -193,6 +233,7 @@ def _trend_actions(trend: TrendAnalysis,
                      f"({coef:+.4g} ± {err:.2g} {unit}, R²={quality:.2f}, "
                      f"{trend.misfit_share:.0%} of χ², "
                      f"{trend.n_regions_used} regions)")
+        rationale += _size_clause(name, coef, wavelength)
         if not trend.separable:
             # collinear over this range: keep every candidate, trust none
             confidence = min(confidence, 0.3)
@@ -713,7 +754,8 @@ def suggest_actions(attributions: list[RegionAttribution],
                     unmatched: list[UnmatchedPeak],
                     *, rwp: float,
                     ticks: list[float] | None = None,
-                    geometry: str | None = None) -> list[SuggestedAction]:
+                    geometry: str | None = None,
+                    wavelength: float | None = None) -> list[SuggestedAction]:
     """Build the typed action list from Layers 0-1.
 
     ``geometry`` picks the position-action map (:data:`_POSITION_ACTIONS_BY_
@@ -723,6 +765,11 @@ def suggest_actions(attributions: list[RegionAttribution],
     (``POSITION_TEMPLATES``); on ``flat_plate_transmission`` it *is* offered
     and deliberately maps to nothing — the trend reports the shape, and there
     is no parameter the suggestion could legally free (WP-1003).
+
+    ``wavelength`` lets the width size template's rationale quote the width as
+    an apparent crystallite size (:func:`_size_clause`); ``None`` is *no claim*
+    and leaves the text as it was, which is what a caller with no instrument in
+    hand gets.
     """
     actions: list[SuggestedAction] = []
     by_obs = {t.observable: t for t in trends}
@@ -732,7 +779,8 @@ def suggest_actions(attributions: list[RegionAttribution],
     if "position" in by_obs:
         actions += _trend_actions(by_obs["position"], position_actions, "deg")
     if "width" in by_obs:
-        width_actions = _trend_actions(by_obs["width"], _WIDTH_ACTIONS, "deg")
+        width_actions = _trend_actions(by_obs["width"], _WIDTH_ACTIONS, "deg",
+                                       wavelength=wavelength)
         actions += width_actions
         actions += _instrument_width_action(by_obs["width"], width_actions)
 
