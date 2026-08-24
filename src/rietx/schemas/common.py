@@ -48,6 +48,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: lines are *derived* there rather than stored.  Empty is the default and
 #: leaves the spectrum and every fitted number bit-identical; a non-empty list
 #: is refused outright on an X-ray source (``Source.harmonics_supported``).
+#: PR #114 is this entry's sibling on PR #108 and also claims 0.8 — deliberately,
+#: so that whichever lands second conflicts here and is forced to renumber to 0.9
+#: rather than merging cleanly into a ladder with a hole in it.
 SCHEMA_VERSION = "0.8"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
