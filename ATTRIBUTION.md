@@ -261,6 +261,14 @@ they were built from. Their licence texts ship in the wheel and sdist as
 
 ## Data tables
 
+- `src/rietx/data/b_Sears.dat` — bound coherent neutron scattering lengths and
+  cross sections, obtained from the NIST Center for Neutron Research's
+  machine-readable copy (https://www.ncnr.nist.gov/resources/n-lengths/list.html,
+  retrieved 2026-08-23; public scientific data). Cite Sears, V. F. (1992).
+  *Neutron News* **3**(3), 26–37, and the same author's tabulation in
+  *International Tables for Crystallography* Vol. C, ch. 4.4.4, Table 4.4.4.1.
+  Thermal values only — no energy dependence, which is a fence for TOF rather
+  than a gap for constant wavelength.
 - `src/rietx/data/f0_WaasKirf.dat` — Waasmaier & Kirfel (1995) 5-Gaussian f0
   coefficients, obtained from the ESRF DABAX collection (public scientific data,
   redistributed by silx (MIT) among others). Cite Waasmaier & Kirfel (1995).
