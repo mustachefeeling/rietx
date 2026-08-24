@@ -755,16 +755,28 @@ of them.
 **Biso(Cr) stays negative, so the background was not the whole story.** This
 was the expectation the feature was built to test, and on this dataset it is
 not met: the peak moves Biso(Cr) by −0.010 Å², the wrong way, on a parameter
-whose esd is 0.22. Nor is the number *significantly* negative — every rietx
-row above is within one esd of zero, and within about one combined esd of
-TOPAS's +0.215(76). What the rows do show is a uniform offset: every site's
-Biso here sits 0.15–0.25 Å² below the TOPAS value, which is the signature of a
-correction acting on the whole Q range rather than of a localised background
-error. Three candidates the protocols differ by are more likely causes than
-the background: the reference fit refines a specimen displacement of 0.0975
-(a cos θ position error this geometry cannot express without a goniometer
-radius), it uses a Pearson VII peak shape where this package uses a TCHZ
-pseudo-Voigt, and it carries a second phase at about 1.2 vol %.
+whose esd is 0.22. Site by site against the reference, from the Chebyshev-7
+row:
+
+| site | TOPAS | this package | Δ | in combined σ | esd ratio |
+|---|---|---|---|---|---|
+| Cr1 | +0.2150(761) | −0.0186(2222) | −0.234 | 0.99 | 2.9 |
+| W1 | +0.5143(1114) | +0.5304(3347) | +0.016 | 0.05 | 3.0 |
+| O1 | +0.3759(567) | +0.2374(1580) | −0.139 | 0.83 | 2.8 |
+| O2 | +0.3223(333) | +0.2445(940) | −0.078 | 0.78 | 2.8 |
+
+The two refinements therefore *agree* — every site inside one combined σ — and
+Biso(Cr) is not significantly negative. It is the smallest and least determined
+of the four in both codes, and its central value here happens to land just
+below zero. The offsets are not uniform either (W agrees to 0.016 Å²), so they
+are not the signature of a missing whole-Q-range factor. What is systematic is
+the **esd**: 2.8–3.0× the reference's at every site. That is the number to
+attack before the sign of Biso(Cr) means anything, and the places to look are
+the three things the protocols differ by — the reference refines a specimen
+displacement of 0.0975 (a cos θ position error this geometry cannot express
+without a goniometer radius), it uses a Pearson VII peak shape where this
+package uses a TCHZ pseudo-Voigt, and it carries a second phase at about
+1.2 vol %.
 
 So the honest reading of this feature is narrower than the one it was built
 for: it is the right *description* of a localised background feature, and the

@@ -1121,17 +1121,30 @@ class BackgroundPeak(Base):
 
     **Biso(Cr) stays negative, so the background was not the whole story.**
     That was the expectation this class was built to test and it is not met
-    here: the peak moves Biso(Cr) by −0.010 Å², the wrong way, on a parameter
-    whose esd is 0.22 — and no rietx row above is *significantly* negative, all
-    of them lying within one esd of zero and within about one combined esd of
-    TOPAS's +0.215(76).  What the rows do show is a **uniform** offset: every
-    site's Biso sits 0.15-0.25 Å² below the reference, which is the signature of
-    a correction acting over the whole Q range rather than of a localised
-    background error.  Three protocol differences are likelier causes than the
-    background — the reference refines a specimen displacement of 0.0975 (a
-    cos θ error this geometry cannot express without a goniometer radius), it
-    uses a Pearson VII peak shape against this package's TCHZ pseudo-Voigt, and
-    it carries a second phase at ≈1.2 vol %.
+    here: the peak moves Biso(Cr) by −0.010 Å², the *wrong* way, on a parameter
+    whose esd is 0.22.  The Chebyshev-7 arm against the reference, site by site
+    and in combined σ:
+
+    ====  ===================  ===================  ========  =========
+    site  TOPAS                this package         Δ          in σ
+    ====  ===================  ===================  ========  =========
+    Cr1   +0.2150(761)         −0.0186(2222)        −0.234     0.99
+    W1    +0.5143(1114)        +0.5304(3347)        +0.016     0.05
+    O1    +0.3759(567)         +0.2374(1580)        −0.139     0.83
+    O2    +0.3223(333)         +0.2445(940)         −0.078     0.78
+    ====  ===================  ===================  ========  =========
+
+    So the two refinements **agree**, every site inside one combined σ, and
+    Biso(Cr) is not *significantly* negative — it is the smallest and least
+    determined of the four in both codes and its central value here lands just
+    below zero.  The offsets are also not uniform (W agrees to 0.016 Å²), so
+    they are not the signature of a missing whole-Q-range factor either.  What
+    is systematic is the **esd**: 2.8-3.0× the reference's at every site, which
+    is the number to attack before the sign of Biso(Cr) means anything, and
+    three protocol differences are the places to look — the reference refines a
+    specimen displacement of 0.0975 (a cos θ error this geometry cannot express
+    without a goniometer radius), uses a Pearson VII peak shape against this
+    package's TCHZ pseudo-Voigt, and carries a second phase at ≈1.2 vol %.
 
     So the claim this class supports is the narrower one: it is the right
     *description* of a localised background feature, and its recovered
