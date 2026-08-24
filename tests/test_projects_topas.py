@@ -384,3 +384,42 @@ def test_the_certified_standards_protocol_survives_the_round_trip(tmp_path):
     assert lab6.scale.vary is True and cbn.scale.vary is True
     assert lab6.atoms[0].biso.vary is False   # `!bla`
     assert lab6.atoms[1].x.vary is True       # `@, 0.19895``
+
+
+# ------------------------------------------- report or refuse, never drop
+
+def test_a_magnetic_phase_is_refused_by_name(tmp_path):
+    """rietx has no magnetic structure model, so returning the nuclear half
+    silently would hand back a model that looks complete.
+
+    Found by compiling every structure the reader returns: `mag_space_group
+    62.448` matched an unanchored `space_group` and arrived as the *symbol*
+    "62.448", which gemmi then refused a long way from the cause.
+    """
+    inp = _inp(tmp_path, "mag.inp",
+               'str\nphase_name "LaMnO3_mag"\nmag_space_group 62.448\na 5.7\n'
+               'site Mn1 x 0 y 0 z 0 occ Mn+3 1 beq b 0.5\n')
+    with pytest.raises(TopasInpError, match="magnetic space group"):
+        read_topas_inp(inp)
+
+
+def test_an_inp_with_no_structural_phase_refuses_naming_the_file(tmp_path):
+    """A Pawley or indexing-only `.inp` legitimately has no cell to build from.
+
+    It must still not reach the caller as a pydantic `ValidationError`: a
+    reader raises naming the file, and pydantic's report names a field.
+    """
+    inp = _inp(tmp_path, "pawley.inp", 'r_wp 3.2\nxdd "sample.xy"\n')
+    model = read_topas_inp(inp)
+    assert model.phases == []
+    with pytest.raises(TopasInpError, match="pawley.inp"):
+        to_structure(model)
+
+
+def test_a_phase_whose_sites_were_all_disabled_refuses_naming_the_phase(tmp_path):
+    inp = _inp(tmp_path, "gated.inp",
+               'str\nphase_name "p21n"\nspace_group "P21/n"\na 5.0\n'
+               '#ifdef NEVER\nsite A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n#endif\n')
+    with pytest.raises(TopasInpError) as exc:
+        to_structure(read_topas_inp(inp))
+    assert "gated.inp" in str(exc.value) and "p21n" in str(exc.value)

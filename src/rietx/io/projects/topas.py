@@ -125,6 +125,10 @@ class TopasModel:
     caller decides which phases to keep and how to seed what the file omits."""
 
     phases: list = field(default_factory=list)
+    #: The file this was read from, so :func:`to_structure` can name it in a
+    #: refusal — a reader raises naming the file, never its parser's exception,
+    #: and pydantic's report names a field rather than a file.
+    path: str | None = None
     anode: str | None = None          # "CuKa" from a CuKa5(...) macro
     emission_macro: str | None = None  # "CuKa5" verbatim, for provenance
     wavelength: float | None = None    # only if written as an explicit la/lo
@@ -364,7 +368,7 @@ def read_topas_inp(path: str | Path) -> TopasModel:
     except OSError as exc:
         raise TopasInpError(f"{path}: cannot read: {exc}") from exc
     active = resolve_ifdefs(strip_comments(raw))
-    model = TopasModel()
+    model = TopasModel(path=str(path))
     symbols = symbol_table(active)
 
     if m := re.search(rf"r_wp\s+({_NUM})", active):
@@ -387,7 +391,17 @@ def read_topas_inp(path: str | Path) -> TopasModel:
 
     for chunk in re.split(r"^\s*str\s*$", active, flags=re.M)[1:]:
         name = re.search(r'phase_name\s+"?([^"\n]+)', chunk)
-        sg = re.search(r'space_group\s+"?([^"\n]+)', chunk)
+        sg = re.search(r'\bspace_group\s+"?([^"\n]+)', chunk)
+        # A *magnetic* space group is a construct this package has no model for,
+        # and dropping it silently would return a nuclear-only structure that
+        # looks complete. WP-1118's rule: report or refuse, never drop. Caught
+        # here rather than by the regex because `mag_space_group 62.448` used to
+        # match the unanchored `space_group` and arrive as the symbol "62.448".
+        if mag := re.search(r"\bmag_space_group\s+(\S+)", chunk):
+            raise TopasInpError(
+                f"{path}: {name.group(1).strip() if name else '?'}: magnetic space "
+                f"group {mag.group(1)!r} has no counterpart in rietx; reading this "
+                f"phase would return a nuclear-only model that looks complete")
         if not (name and sg):
             continue
         phase = TopasPhase(name=name.group(1).strip(),
@@ -499,10 +513,29 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
                          occ=_sp(s, "occ", s.occupancy),
                          biso=_sp(s, "beq", max(s.beq, 0.0), min=0.0, max=25.0))
                  for s in ph.sites]
-        phases.append(rx.Phase(
-            name=ph.name, space_group=ph.space_group, cell=cell, atoms=atoms,
-            scale=rx.Parameter(value=ph.scale or 1e-4, min=0.0,
-                               transform="softplus",
-                               **({"vary": ph.vary["scale"]}
-                                  if "scale" in ph.vary else {}))))
-    return rx.Structure(phases=phases)
+        # Every schema refusal from here is converted at this boundary: a
+        # reader raises naming the file, and pydantic's report names a field.
+        # Reached in practice by a phase whose site lines all sat inside a
+        # disabled #ifdef branch, which arrives as "phase has no atoms".
+        try:
+            phases.append(rx.Phase(
+                name=ph.name, space_group=ph.space_group, cell=cell, atoms=atoms,
+                scale=rx.Parameter(value=ph.scale or 1e-4, min=0.0,
+                                   transform="softplus",
+                                   **({"vary": ph.vary["scale"]}
+                                      if "scale" in ph.vary else {}))))
+        except TopasInpError:
+            raise
+        except Exception as exc:
+            raise TopasInpError(
+                f"{model.path or '<model>'}: phase {ph.name!r}: {exc}") from exc
+    if not phases:
+        raise TopasInpError(
+            f"{model.path or '<model>'}: no phase carries a cell, so there is no "
+            f"structure to build. A Pawley or indexing-only .inp is legal and has "
+            f"none — read `model.phases` directly for what it does state.")
+    try:
+        return rx.Structure(phases=phases)
+    except Exception as exc:
+        # e.g. a phase whose site lines were all inside a disabled #ifdef branch
+        raise TopasInpError(f"{model.path or '<model>'}: {exc}") from exc
