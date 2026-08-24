@@ -24,7 +24,7 @@ from typing import Literal
 from pydantic import Field
 
 from .common import Base, Diagnostic, Mode, Provenance
-from .results import QuantitativePhaseAnalysis, RefinedParameter, Statistics
+from .results import PhaseAgreement, QuantitativePhaseAnalysis, RefinedParameter, Statistics
 
 
 class SeriesEntry(Base):
@@ -40,6 +40,27 @@ class SeriesEntry(Base):
     statistics: Statistics | None = None
     parameters: list[RefinedParameter] = Field(default_factory=list)
     qpa: QuantitativePhaseAnalysis | None = None
+    #: Per-phase Bragg agreement, copied from each pattern's
+    #: :attr:`~rietx.schemas.results.RefinementResult.phase_agreement` by
+    #: :func:`rietx.sequential._entry_from_result` (the writer — WP-1076's rule).
+    #:
+    #: Carried because a *series* needs the one question a weight fraction
+    #: cannot answer: is a minor phase real, or is it being refined against
+    #: nothing?  The two look identical in ``qpa`` and diverge here.  Measured on
+    #: a YBaCo4O7 anchor: the hexagonal phase sat at 1.11 wt% with esd 0.63
+    #: (1.8 σ, below any sane significance cut) while fitting its *own*
+    #: reflections at ``r_bragg`` 0.70 % on 70 of them — a real phase that the
+    #: weight alone would have discarded.  The converse matters more in a series:
+    #: a phantom kept on weak evidence has a cell the data cannot constrain, and
+    #: it drifts into the next pattern through the warm start.
+    #:
+    #: Empty outside Rietveld mode, for the reason it is empty on
+    #: ``RefinementResult`` there — in Le Bail the partition *is* the fit and in
+    #: Pawley the intensities are parameters, so I(obs) would be compared against
+    #: itself.  Read a value as suggestive, never decisive: R_Bragg flatters
+    #: whatever model partitioned the intensity (root CLAUDE.md's rule on
+    #: evidence for a new correction).
+    phase_agreement: list[PhaseAgreement] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
     #: Total least-squares iterations over **every attempt** on this pattern,

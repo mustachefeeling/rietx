@@ -176,6 +176,7 @@ patterns in order.
 | `SeriesEntry.statistics` | that pattern's own `Statistics` |
 | `SeriesEntry.parameters` | the `RefinedParameter` rows the fit determined |
 | `SeriesEntry.qpa` | the phase quantities, when the fit produced them |
+| `SeriesEntry.phase_agreement` | per-phase `PhaseAgreement` (R_Bragg, R_F), empty outside Rietveld mode |
 | `SeriesEntry.diagnostics` | that pattern's own diagnostics |
 | `SeriesEntry.n_iterations` | iterations over **every** attempt on this pattern |
 | `SeriesEntry.reseeded` | the warm start was rejected and the pattern was refitted cold |
@@ -186,6 +187,17 @@ patterns in order.
 
 `SeriesEntry.value` and `SeriesEntry.stderr` look a path up in that entry's
 parameters and return `None` when it is not there.
+
+`SeriesEntry.phase_agreement` answers the question a weight fraction cannot:
+is a minor phase real, or is it being refined against nothing? The two are
+indistinguishable in `qpa` and separate here. A hexagonal YBaCo4O7 phase
+measured at 1.11 wt% with esd 0.63 — 1.8 σ, below any sane significance cut —
+fitted its *own* reflections at `r_bragg` 0.70 % on 70 of them; on the weight
+alone it would have been discarded. The converse matters more in a series: a
+phantom kept on weak evidence has a cell the data cannot constrain, and the warm
+start carries that drift into the next pattern. Read it as suggestive rather
+than decisive — R_Bragg flatters whatever model partitioned the intensity — and
+pair it with the weight and its esd rather than replacing them.
 
 `SeriesEntry.rung` and `SeriesEntry.reseeded` answer different questions.
 `rung` says where the numbers came from; the first pattern of a chain is always

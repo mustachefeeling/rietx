@@ -485,6 +485,7 @@ def _entry_from_result(index: int, label: str, x: float | None,
         statistics=result.statistics.model_copy(deep=True),
         parameters=[p.model_copy(deep=True) for p in result.parameters],
         qpa=result.qpa.model_copy(deep=True) if result.qpa is not None else None,
+        phase_agreement=[a.model_copy(deep=True) for a in result.phase_agreement],
         diagnostics=list(result.diagnostics),
         n_iterations=sum(s.n_iterations for s in result.stages),
         node_id=result.node_id, tree_id=result.tree_id)
