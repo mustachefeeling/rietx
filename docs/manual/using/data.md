@@ -705,31 +705,72 @@ whatever you declared and nothing more. `save_instrument_profile` strips them,
 since a hump belongs to this specimen and this sample environment rather than to
 the goniometer.
 
+```{image} figures/background-peak-light.png
+:class: only-light
+:alt: Two fitted background curves over a synthetic pattern, one a plain polynomial and one the same polynomial plus a broad peak, above a panel showing the observed pattern with the peak-free background removed and the fitted peak drawn through the hump it found
+```
+
+```{image} figures/background-peak-dark.png
+:class: only-dark
+:alt: Two fitted background curves over a synthetic pattern, one a plain polynomial and one the same polynomial plus a broad peak, above a panel showing the observed pattern with the peak-free background removed and the fitted peak drawn through the hump it found
+```
+
+The pattern is synthetic, so its hump has a known position and width and the
+figure can say how close the three refined parameters came. The lower panel is
+the informative one: with the peak-free background subtracted, what is left is
+the feature, and the fitted peak lies along it.
+
 #### Why three parameters can beat fifty-three
 
 The argument is not that a peak lowers Rwp. Measured on a NIST BT-1
 constant-wavelength neutron pattern of Cr₂WO₆ at 60 K (λ = 2.078 Å, 2941
 channels, 5–152° 2θ, σ from the file) with a broad background feature near
-14.4° 2θ:
+14.4° 2θ, one phase, `plan="mccusker_structural"`:
 
 | background | terms | Rwp | GoF | Biso(Cr) / Å² | `HIGH_CORRELATION` |
 |---|---|---|---|---|---|
-| Chebyshev, order chosen by `auto_background` | 4 | 0.05350 | 2.0731 | **−0.0994** | 0 |
-| P-spline, knots chosen by `auto_background` | 57 | 0.05256 | 2.0560 | **−0.0387** | 110 |
-| published TOPAS fit: 7 Chebyshev + 1 Gaussian | 10 | 0.06663 | 2.583 | **+0.2150(761)** | — |
+| Chebyshev, 7 terms | 7 | 0.05303 | 2.0558 | −0.019(222) | 0 |
+| Chebyshev-7 **+ one background peak** | 7 + 3 | 0.05252 | 2.0373 | −0.029(219) | 0 |
+| Chebyshev, order from `auto_background` | 16 | 0.05137 | 1.9947 | −0.040(215) | 0 |
+| that **+ one background peak** | 16 + 3 | 0.05126 | 1.9915 | −0.053(213) | **617** |
+| P-spline, knots from `auto_background` | 57 | 0.05256 | 2.0560 | −0.039(218) | 145 |
+| published TOPAS fit: 7 Chebyshev + 1 Gaussian | 7 + 3 | 0.06663 | 2.583 | +0.215(76) | — |
 
-An isotropic displacement parameter is a mean-square amplitude, so a negative
-one is not a small number — it is an unphysical one. Both alternatives produce
-one. The stiff background produces it with no correlation warnings at all,
-which is the point: nothing in the fit says anything is wrong. The flexible
-background pays 53 extra parameters and 110 correlation warnings and still
-produces it, because spline flexibility is spread over the whole range and the
-misfit is in one place. The published fit has the *worst* Rwp of the three and
-the only physical Biso.
+Three things to read out of it, and only the first is the happy one.
 
-So the question a background poses is not *how much* flexibility but **where**.
-Three parameters aimed at the feature do what fifty-three spread across the
-pattern cannot.
+**The peak finds the feature.** On the low-order background it refines to
+2θ₀ = 14.50(1.46)°, Γ = 6.06(3.83)° against TOPAS's 14.4158(539)° and
+5.815(1.504)° — the same feature, from a different code, with a different
+peak-shape model. The fitted width is 20.8× the instrumental FWHM at that
+angle (0.291°), which is what a diffuse feature looks like and is well clear
+of the guard in the next section.
+
+**A peak needs a low-order background to be identifiable.** On the 16-term
+polynomial the same peak walks off to 24.8° and 31.9° wide, becomes a
+low-order background term in all but name, and the fit comes back with 617
+`HIGH_CORRELATION` findings. The peak and the polynomial are describing the
+same freedom. Declare a peak *instead of* extra polynomial terms, never on top
+of them.
+
+**Biso(Cr) stays negative, so the background was not the whole story.** This
+was the expectation the feature was built to test, and on this dataset it is
+not met: the peak moves Biso(Cr) by −0.010 Å², the wrong way, on a parameter
+whose esd is 0.22. Nor is the number *significantly* negative — every rietx
+row above is within one esd of zero, and within about one combined esd of
+TOPAS's +0.215(76). What the rows do show is a uniform offset: every site's
+Biso here sits 0.15–0.25 Å² below the TOPAS value, which is the signature of a
+correction acting on the whole Q range rather than of a localised background
+error. Three candidates the protocols differ by are more likely causes than
+the background: the reference fit refines a specimen displacement of 0.0975
+(a cos θ position error this geometry cannot express without a goniometer
+radius), it uses a Pearson VII peak shape where this package uses a TCHZ
+pseudo-Voigt, and it carries a second phase at about 1.2 vol %.
+
+So the honest reading of this feature is narrower than the one it was built
+for: it is the right *description* of a localised background feature, and the
+recovered parameters agree with an independent refinement of the same data —
+but a negative displacement parameter is not, on this evidence, a background
+problem.
 
 #### What a background peak is not
 

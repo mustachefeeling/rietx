@@ -231,10 +231,74 @@ def _state_capillary_offsets():
     return model, table, {}
 
 
+def _state_background_peaks():
+    """An additive background peak, all three parameters free.
+
+    A new derivative path with no row of its own: the peak is a term *added* to
+    the pattern rather than a factor inside the peak chain, so no analytic
+    branch claims it and the numpy reference column is the whole-model FD.  That
+    is exactly why it needs a matrix row — an FD column is only "exact because
+    it decodes through C like the residual" if the traced backends agree that it
+    is, and nothing else here evaluates a parameter the numpy path declines.
+
+    Freed **beside** the background coefficients on purpose: the peak and the
+    low-order Chebyshev terms both raise the same region of the curve, so this
+    is also the state where the backends have to agree about a nonlinear column
+    sitting next to the exact linear ones it is nearly parallel to.
+    """
+    from rietx.schemas.common import Parameter
+    from rietx.schemas.instrument import (
+        BACKGROUND_PEAK_FWHM_MIN,
+        BackgroundChebyshev,
+        BackgroundPeak,
+        Instrument,
+    )
+    from rietx.schemas.pattern import PatternData
+    from tests.test_backend_shim import _free
+    from tests.test_coordinates import make_rutile
+
+    structure = make_rutile()
+    structure.phases[0].scale.value = 8.0e-3
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.source.dispersion = None    # declined, not inherited
+    ins.profile.w.value = 8e-3
+    ins.background = BackgroundChebyshev.with_terms(3)
+    ins.background.coefficients[0].value = 20.0
+    # off every identity: a zero height would make the position and width
+    # columns identically zero, so the state would carry no information about
+    # the two nonlinear paths it exists to cover
+    ins.background_peaks = [BackgroundPeak(
+        label="hump",
+        position=Parameter(value=34.0, unit="deg"),
+        height=Parameter(value=120.0, min=0.0, unit="counts",
+                         transform="softplus"),
+        fwhm=Parameter(value=9.0, min=BACKGROUND_PEAK_FWHM_MIN, unit="deg",
+                       transform="softplus"))]
+
+    grid = np.arange(15.0, 90.0, 0.02)
+    empty = PatternData(two_theta=grid.tolist(),
+                        intensity=np.zeros_like(grid).tolist())
+    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim_table = ParameterTable(structure, ins)
+    y = sim.evaluate(sim_table.decode(sim_table.x0()))
+    pattern = PatternData(two_theta=sim.tt.tolist(), intensity=y.tolist())
+
+    table = ParameterTable(structure, ins)
+    _free(table, ["phases.0.scale", "instrument.background.c0",
+                  "instrument.background.c1",
+                  "instrument.background_peaks.0.position",
+                  "instrument.background_peaks.0.height",
+                  "instrument.background_peaks.0.fwhm"])
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return model, table, {}
+
+
 CONFIGS = {"families": _state_families,
            "families_voigt": _state_families_voigt,
            "families_tied": _state_families_tied,
-           "capillary_offsets": _state_capillary_offsets, **STATES}
+           "capillary_offsets": _state_capillary_offsets,
+           "background_peaks": _state_background_peaks, **STATES}
 
 #: the fast configs run everywhere; the two real-data ones are `slow`.
 #: ``families_voigt`` (WP-0405's shape) and ``toy_restraints`` (WP-0406's extra
@@ -258,6 +322,7 @@ CONFIG_PARAMS = [
     _config("families_voigt"),
     _config("families_tied"),
     _config("capillary_offsets"),
+    _config("background_peaks"),
     _config("toy_lebail"),
     _config("toy_pawley"),
     _config("toy_rich"),
