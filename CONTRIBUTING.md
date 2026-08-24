@@ -26,7 +26,8 @@ the wrong tree.
 
 - `--dist loadgroup` is not optional: it honours the `xdist_group` marks
   that keep a shared fixture on one worker. Plain `--dist load` silently
-  refits the expensive fixtures.
+  refits the expensive fixtures, so `tests/conftest.py` refuses a parallel
+  run without it. `-n 0` is how to ask for a serial one.
 - Run the fast suite before proposing a change; the full suite once, on the
   final tree, when the change can move a measured number.
 - Quote any test count with the extras installed and the platform

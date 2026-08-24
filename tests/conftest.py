@@ -1,6 +1,6 @@
 """Suite-wide hygiene and the fixtures that share an expensive refinement.
 
-Three things live here, in the order they have to happen:
+Four things live here, in the order they have to happen:
 
 1. **Headless matplotlib.**  Every test refinement writes obs/calc/diff PNGs
    (CLAUDE.md's Tests convention), so ``MPLBACKEND=Agg`` is set before anything
@@ -15,11 +15,18 @@ Three things live here, in the order they have to happen:
    *only* if pyplot was imported, so the ~700 tests that never plot do not pay
    an import.
 
+4. **The ``--dist loadgroup`` guard.**  A parallel run that does not honour the
+   ``xdist_group`` marks refits the shared fixtures and mis-measures every
+   wall-clock budget, both without failing, so ``pytest_configure`` refuses it
+   rather than leaving it to be noticed in a ``--durations`` list.
+
 Shared expensive results (``sample1_results``, ``srm660c_baseline``) are
 session-scoped: they exist because several acceptance modules were re-deriving
 the *identical* fit.  A consumer must carry the matching
 ``@pytest.mark.xdist_group`` or a second xdist worker silently recomputes the
-whole fixture — see each fixture's docstring for the group name.
+whole fixture — see each fixture's docstring for the group name.  The mark is
+what pins a consumer to its fixture's worker; the guard above is what makes
+sure the marks are being read at all.
 
 The builders those fixtures call stay in their own modules on purpose:
 ``tests/test_compare_ui.py`` asserts the comparison UI's standards against
@@ -46,6 +53,48 @@ if os.environ.get("PYTEST_XDIST_WORKER"):
     from rietx._about import COMPILED_THREADS_ENV
 
     os.environ.setdefault(COMPILED_THREADS_ENV, "1")
+
+
+#: The one ``--dist`` that honours ``@pytest.mark.xdist_group``.  ``load``
+#: distributes by test and ``loadscope``/``loadfile`` by scope and file, so all
+#: three deal a group's members to whichever worker is free.
+REQUIRED_DIST = "loadgroup"
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Refuse a parallel run that would silently ignore the ``xdist_group`` marks.
+
+    ``-n`` on its own leaves xdist at ``--dist load``, and the marks then do
+    nothing.  Two things break, both of them quietly:
+
+    * a shared session fixture (``sample1_results``, ``srm660c_baseline``, and
+      every module-scoped refinement pinned the same way) is rebuilt by each
+      worker that draws one of its consumers, so the sharing costs more than it
+      saved — the failure this file's own docstring describes;
+    * every wall-clock budget in the suite becomes a function of how the tests
+      happened to be dealt, which is what turns a runaway guard into a load
+      sensor (``tests/CLAUDE.md`` § Budgets in tests).
+
+    Neither shows up as a failure — the run is green, merely slower and
+    measuring something else — and the check CLAUDE.md offers for it is a human
+    reading a ``--durations`` list for a setup that appears twice.  That is a
+    guard that goes quiet, so the invariant is enforced here instead.  Serial
+    runs (no ``-n``, or ``-n 0``) are unaffected.  ``-n 1`` is refused with the
+    rest: one worker cannot split a group, but the mode is still the one that
+    ignores the marks, and ``-n 0`` is how to ask for a serial run.
+    """
+    n = getattr(config.option, "numprocesses", None)
+    if not n:  # None (no -n) or 0 (-n 0, explicitly serial)
+        return
+    dist = getattr(config.option, "dist", REQUIRED_DIST)
+    if dist != REQUIRED_DIST:
+        raise pytest.UsageError(
+            f"-n {n} with --dist {dist} ignores the xdist_group marks: shared "
+            "fixtures refit on every worker that needs one, and the suite's "
+            "wall-clock budgets start measuring machine load instead of what "
+            f"they assert. Both are silent. Pass --dist {REQUIRED_DIST} "
+            "(CLAUDE.md § Commands), or -n 0 to run serially."
+        )
 
 
 @pytest.fixture(autouse=True)
