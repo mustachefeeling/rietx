@@ -902,3 +902,31 @@ def test_the_geometry_is_decided_by_a_declaration_not_by_a_name(
                'Cubic_(lpa 4.15689)\n'
                'site La1 x 0 y 0 z 0 occ La 1. beq !bla 0.4389\n')
     assert read_topas_inp(inp).geometry == geometry
+
+
+# ------------------------------------------------------------ the robustness pin
+
+def test_a_truncated_inp_never_escapes_as_anything_but_a_topas_error(tmp_path):
+    """`io/CLAUDE.md`'s refusal rule, pinned: a reader raises `TopasInpError`
+    naming the file, never its parser's exception.
+
+    This is the `test_readers_robust.py` arm one subtree over, and the reason
+    it is written down is that the rule is easy to lose — a ragged cut through
+    a site line or a macro argument is exactly where a bare `ValueError` or an
+    `IndexError` gets out. Bounded to ~200 offsets on purpose: the same sweep
+    at every byte offset of seven real archive files (~57 700 truncations) also
+    passes, and it is not a test anyone should wait for.
+    """
+    raw = _REALISTIC.encode("utf-8")
+    target = tmp_path / "cut.inp"
+    offsets = sorted({round(i * len(raw) / 199) for i in range(200)})
+    for n in offsets:
+        target.write_bytes(raw[:n])
+        try:
+            to_structure(read_topas_inp(target))
+        except TopasInpError:
+            pass
+        except Exception as exc:            # noqa: BLE001 — the point of the test
+            raise AssertionError(
+                f"truncation at {n} of {len(raw)} bytes escaped as "
+                f"{type(exc).__name__}: {exc}") from exc
