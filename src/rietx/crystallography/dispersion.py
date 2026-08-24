@@ -112,9 +112,17 @@ def normalize_element(species: str) -> str:
     when an ionic f₀ is tabulated.  f′/f″ come from core levels that the
     valence electrons barely perturb, so every tabulation is per element; the
     asymmetry between the two lookups is physical, not an oversight.
+
+    Both charge spellings are accepted: the IUCr digit-first ``"Cu1+"``, and the
+    sign-first ``"Cu+1"`` that TOPAS writes and a fair number of CIFs in the wild
+    carry.  The charge is discarded either way, so accepting the second costs
+    nothing — and refusing it cost more than it looks: dispersion resolves at
+    stage compile (on by default since v1.0), so a single sign-first species
+    failed partway into ``compile_model`` with a message naming the species but
+    not the atom, the phase, or that the caller's structure was at fault.
     """
     s = species.strip()
-    m = re.match(r"^([A-Za-z]{1,2})(\d*[+-])?$", s)
+    m = re.match(r"^([A-Za-z]{1,2})(?:\d*[+-]|[+-]\d*)?$", s)
     if not m:
         raise KeyError(f"cannot read an element symbol from species {species!r}")
     return m.group(1).capitalize()
