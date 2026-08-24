@@ -36,6 +36,7 @@ from rietx.sequential import (
     _carry_into,
     _collapse,
     _discontinuity_diagnostics,
+    _entry_from_result,
     _labels_for,
     _path_dependence_diagnostics,
     _reseed_needed,
@@ -197,6 +198,45 @@ def test_the_table_header_has_no_duplicate_column(thermal_series):
     # a real coordinate is used verbatim, which is the whole point of the field
     named = SeriesResult(entries=list(thermal_series.entries), x_label="T (K)")
     assert named.to_table(paths=[])[0][2] == "T (K)"
+
+
+def test_every_entry_carries_per_phase_bragg_agreement(thermal_series):
+    """A weight fraction cannot tell a real trace phase from a phantom.
+
+    Per-phase R_Bragg can, and a series was the one workflow that could not see
+    it: the signal existed on every underlying ``RefinementResult`` and was
+    dropped at the series boundary. Measured on a YBaCo4O7 cooling series — the
+    hexagonal phase sat at 1.11 wt% with esd 0.63 (1.8 σ, below any sane
+    significance cut) while fitting its *own* reflections at r_bragg 0.70 % on
+    70 of them, so the weight alone would have discarded a real phase.
+
+    Read a value as suggestive, never decisive: R_Bragg flatters whatever model
+    partitioned the intensity (root CLAUDE.md on evidence for a correction).
+    """
+    for entry in thermal_series.entries:
+        assert entry.phase_agreement, f"entry {entry.index} carries none"
+        for agreement in entry.phase_agreement:
+            assert agreement.n_reflections > 0
+            assert agreement.r_bragg >= 0.0
+
+
+def test_phase_agreement_is_the_underlying_results_own(thermal_patterns):
+    """The series copies, never recomputes — one authority per fact."""
+    structure, ins = _start_models()
+    result = rx.refine(thermal_patterns[0], structure, ins, plan="mccusker_default")
+    entry = _entry_from_result(0, "one", None, result)
+    assert [(a.name, a.r_bragg, a.n_reflections) for a in entry.phase_agreement] == \
+           [(a.name, a.r_bragg, a.n_reflections) for a in result.phase_agreement]
+
+
+def test_a_lebail_entry_carries_no_agreement(thermal_patterns):
+    """Empty outside Rietveld, for the reason it is empty on the result there:
+    in Le Bail the partition *is* the fit, so I(obs) would be compared with
+    itself."""
+    structure, ins = _start_models()
+    result = rx.refine(thermal_patterns[0], structure, ins,
+                       mode="lebail", plan="profile_only")
+    assert _entry_from_result(0, "one", None, result).phase_agreement == []
 
 
 def test_labels_are_made_unique():
