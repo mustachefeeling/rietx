@@ -44,6 +44,7 @@ def _config(numprocesses, dist):
         (0, "no", True),                  # -n 0: explicitly serial
         (2, REQUIRED_DIST, True),         # the documented parallel invocation
         (2, "load", False),               # a bare -n: the silent case
+        (1, "load", False),               # one worker, still the mode that ignores
         (2, "loadscope", False),          # deals a group's members apart too
         (2, "loadfile", False),           # ... and so does this one
         (2, "no", False),                 # workers without a distribution mode

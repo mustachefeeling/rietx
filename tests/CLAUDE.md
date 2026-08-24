@@ -26,7 +26,7 @@ whole-suite run launched mid-edit and therefore repeated):
 - `-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y`
   stays serial, so `-s` and pdb keep working. `--dist loadgroup` is not
   optional — it honours the `xdist_group` marks that keep a shared fixture on
-  one worker; plain `--dist load` ignores them and silently refits.
+  one worker, and `conftest.pytest_configure` refuses a run without it.
 - Fast unit/property tests always; real-data acceptance marked
   `@pytest.mark.slow` (`test_acceptance_nac.py`, `_srm660c.py`, `_fap.py`,
   `_capillary.py`, `_indexing.py`). Reference values and data provenance in
@@ -48,8 +48,8 @@ consumer must carry the matching `@pytest.mark.xdist_group`** — otherwise a
 second worker rebuilds the whole fixture and the sharing costs more than it
 saved. Same rule one scope down: a module fixture several tests share pins
 its module (`nac`, `capillary`, `srm660c`, `stephens-brucite`,
-`indexing-consensus`, …). The failure is silent, so the check is a
-`--durations` scan for the same setup appearing twice.
+`indexing-consensus`, …). A wrong `--dist` is refused (§ Running); a missing
+mark is not, so its check stays a `--durations` scan for a setup appearing twice.
 
 **One dataset, one group**, and runtime is set by the longest *group*, not by
 total work — splitting a group is the only way to go faster, and un-sharing a

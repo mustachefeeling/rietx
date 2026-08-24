@@ -79,8 +79,9 @@ def pytest_configure(config: pytest.Config) -> None:
     measuring something else — and the check CLAUDE.md offers for it is a human
     reading a ``--durations`` list for a setup that appears twice.  That is a
     guard that goes quiet, so the invariant is enforced here instead.  Serial
-    runs (no ``-n``, or ``-n 0``) are unaffected: with one worker there is no
-    group to keep together.
+    runs (no ``-n``, or ``-n 0``) are unaffected.  ``-n 1`` is refused with the
+    rest: one worker cannot split a group, but the mode is still the one that
+    ignores the marks, and ``-n 0`` is how to ask for a serial run.
     """
     n = getattr(config.option, "numprocesses", None)
     if not n:  # None (no -n) or 0 (-n 0, explicitly serial)

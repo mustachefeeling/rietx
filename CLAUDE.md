@@ -29,8 +29,8 @@ npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fn
 
 `-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y` stays
 serial, so `-s` and pdb keep working. `--dist loadgroup` is not optional either —
-it honours the `xdist_group` marks that keep a shared fixture on one worker
-(`tests/CLAUDE.md`); plain `--dist load` ignores them and silently refits.
+it honours the `xdist_group` marks that keep a shared fixture on one worker.
+Ignoring them is silent, so `tests/conftest.py` refuses a run without it.
 
 Headline testing rules — operating detail and evidence (xdist group ordering,
 budget narrowing, quoting counts) in `tests/CLAUDE.md`; the dated measurement

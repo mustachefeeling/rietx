@@ -227,7 +227,8 @@ and take tens of minutes:
 ```
 
 `--dist loadgroup` is not optional. It honours the marks that keep a shared
-refinement fixture on one worker; plain `--dist load` silently refits. The suite
+refinement fixture on one worker; plain `--dist load` silently refits, so the
+suite refuses a parallel run without it and names what to pass. The suite
 prints its own counts, and those counts depend on the extras installed: `jax` and
 `torch` turn skips into passes.
 
