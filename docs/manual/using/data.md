@@ -483,7 +483,9 @@ from rietx.schemas.instrument import Harmonic
 
 bt1 = Instrument.constant_wavelength_neutron(
     wavelength=1.54040, fwhm_deg=0.3, harmonics=True)
-assert [line.wavelength for line in bt1.source.lines] == [1.54040, 0.77020]
+assert [line.wavelength.value for line in bt1.source.lines] == [1.54040, 0.77020]
+# a harmonic's λ is derived, so it is never free even when the fundamental is
+assert [line.wavelength.vary for line in bt1.source.lines] == [False, False]
 
 # general in n; True above is exactly [2]
 thirds = Instrument.constant_wavelength_neutron(1.54040, harmonics=[2, 3])

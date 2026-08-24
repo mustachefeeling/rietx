@@ -165,14 +165,21 @@ def test_harmonic_wavelength_is_derived_never_stored():
     """λ/n is exactly the fundamental divided by n, and cannot drift from it."""
     src = NeutronSource(wavelength=1.54040,
                         harmonics=[Harmonic(order=2), Harmonic(order=3)])
-    lams = [line.wavelength for line in src.lines]
+    lams = [line.wavelength.value for line in src.lines]
     assert lams[0] == 1.54040
     assert lams[1] == 1.54040 / 2.0
     assert lams[2] == 1.54040 / 3.0
     # the source has no field holding 0.7702, so no edit can put the two out of
     # step -- changing the fundamental moves the harmonics with it
     src.wavelength = 2.0
-    assert [line.wavelength for line in src.lines] == [2.0, 1.0, 2.0 / 3.0]
+    assert [line.wavelength.value for line in src.lines] == [2.0, 1.0, 2.0 / 3.0]
+    # ...including when the fundamental is *refined* rather than assigned, which
+    # is the case a stored λ/n would silently get wrong
+    src.wavelength.value = 3.0
+    assert [line.wavelength.value for line in src.lines] == [3.0, 1.5, 1.0]
+    # and a derived line is never free: it is λ/n by construction, so a second
+    # free handle on it would be a second name for one number
+    assert [line.wavelength.vary for line in src.lines] == [False, False, False]
 
 
 def test_harmonic_weight_is_the_stored_parameter_by_reference():
@@ -242,7 +249,7 @@ def test_the_xray_escape_route_the_refusal_names_actually_works():
     src = Source(lines=[EmissionLine(wavelength=1.5406),
                         EmissionLine(wavelength=1.5406 / 2)],
                  dispersion=None)
-    assert [line.wavelength for line in src.lines] == [1.5406, 0.7703]
+    assert [line.wavelength.value for line in src.lines] == [1.5406, 0.7703]
 
 
 def test_capabilities_reports_support_from_the_same_authority():
@@ -436,7 +443,7 @@ class TestPublishedCu311Histogram:
         row = next(r for r in res.parameters
                    if r.path == "instrument.source.lines.1.weight")
         # the harmonic's λ is exactly half, never a fitted second wavelength
-        assert ref.instrument.source.lines[1].wavelength == \
+        assert ref.instrument.source.lines[1].wavelength.value == \
             pytest.approx(CU311[1] / 2)
         assert 100 * weight.value == pytest.approx(1.05, abs=0.15)
         # measured, and resolved from zero by ~5.6σ
