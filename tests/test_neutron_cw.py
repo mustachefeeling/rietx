@@ -284,3 +284,78 @@ def test_hexagonal_cell_ties_survive_a_neutron_source():
     assert not b_row.refinable
     gamma = next(r for r in ref.parameters() if r.path == "phases.0.cell.gamma")
     assert math.isclose(gamma.value, 120.0)
+
+
+# ------------------------------------------------- specimen absorption ---
+# Three tests, none of which would pass for an X-ray source: the constructor
+# accepting a bare float, the estimator declining, and the X-ray control that
+# proves the fence is not simply "estimating never happens".
+def test_a_declared_mu_r_reaches_the_geometry_as_a_plain_float():
+    """``mu_r`` is a float on ``Geometry``, deliberately, and this constructor
+    wrapped it in a ``Parameter`` — so *every* call passing one raised.
+
+    The Rouse expression factors exactly into a Debye-Waller shape, so a free
+    µR would be an exactly singular direction beside the phase scale and Biso;
+    that is why the field is a plain float and not refinable.  Nothing caught
+    the wrong type because no test passed ``mu_r`` to this constructor at all.
+    """
+    inst = rx.Instrument.constant_wavelength_neutron(
+        2.0780, capillary_radius_mm=0.4, mu_r=0.5)
+    assert inst.geometry.mu_r == 0.5
+    assert isinstance(inst.geometry.mu_r, float)
+
+
+def test_the_xray_composition_estimator_declines_on_a_neutron_source():
+    """It is the wrong *quantity*, not a coarse estimate, so it must not run.
+
+    ``crystallography.attenuation`` is X-ray photoabsorption; neutron σ_abs
+    scales as λ (1/v) where X-ray µ/ρ falls as ~λ⁻³ and has edges.  Writing an
+    X-ray µR onto a neutron capillary would be a confidently wrong correction
+    applied in silence.
+    """
+    from rietx.refine import _resolve_specimen_absorption, estimate_mu_r
+
+    struct = rx.Structure(phases=[corundum()])
+    inst = rx.Instrument.constant_wavelength_neutron(
+        2.0780, capillary_radius_mm=0.4)
+    assert inst.geometry.mu_r is None
+
+    assert estimate_mu_r(struct, inst) is None
+
+    source, reason = _resolve_specimen_absorption(struct, inst)
+    assert source == "estimated"
+    assert reason is not None and "neutron" in reason
+    # and it declined rather than guessing: the field is untouched
+    assert inst.geometry.mu_r is None
+
+
+def test_declaring_mu_r_still_applies_the_correction_on_a_neutron_source():
+    """The fence is on the *table*, not on the correction.
+
+    Rouse's cylinder absorption is geometry, not radiation, so a µR the user
+    measured is honoured exactly as it is for an X-ray capillary.
+    """
+    from rietx.refine import _resolve_specimen_absorption
+
+    struct = rx.Structure(phases=[corundum()])
+    inst = rx.Instrument.constant_wavelength_neutron(
+        2.0780, capillary_radius_mm=0.4, mu_r=0.6)
+    source, reason = _resolve_specimen_absorption(struct, inst)
+    assert (source, reason) == ("given", None)
+    assert inst.geometry.mu_r == 0.6
+
+
+def test_the_xray_control_still_estimates():
+    """The fence must not be "estimation never happens" — the X-ray path is
+    unchanged, which is the only thing that makes the test above mean anything.
+    """
+    from rietx.refine import _resolve_specimen_absorption
+
+    struct = rx.Structure(phases=[corundum()])
+    inst = rx.Instrument.debye_scherrer(wavelength=1.5406,
+                                        capillary_radius_mm=0.4)
+    assert inst.geometry.mu_r is None
+    source, reason = _resolve_specimen_absorption(struct, inst)
+    assert source == "estimated"
+    assert reason is None, f"X-ray estimate unexpectedly declined: {reason}"
+    assert isinstance(inst.geometry.mu_r, float) and inst.geometry.mu_r > 0.0

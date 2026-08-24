@@ -1692,6 +1692,34 @@ def _apply_esds(table: ParameterTable, result: RefinementResult,
         p.path: p.stderr for p in result.parameters if p.stderr is not None})
 
 
+#: Why the composition estimator declines on a source that is not X-ray.
+#:
+#: :mod:`rietx.crystallography.attenuation` is an **X-ray** compilation —
+#: photoabsorption plus scattering, cross-checked against the Cromer-Liberman
+#: f'' table — and a neutron does not attenuate that way at all.  Neutron
+#: attenuation is σ_abs(λ) + σ_coh + σ_inc, where σ_abs is quoted at 2200 m/s
+#: (λ = 1.798 Å) and scales as 1/v, i.e. **linearly in λ**, while X-ray µ/ρ
+#: falls roughly as λ⁻³ between edges and has edges at all.  The two are
+#: unrelated numbers: hydrogen is nearly transparent to X-rays and one of the
+#: strongest neutron attenuators there is.
+#:
+#: So this is not a coarse estimate, it is the wrong physical quantity, and
+#: writing it into ``Geometry.mu_r`` would apply a confidently wrong correction
+#: with nothing said — the outcome the docstring below calls the worst of the
+#: three.  It declines and reports instead.  A neutron estimator is buildable
+#: from the table this package already ships (WP-1132); until it exists an
+#: explicit ``mu_r``/``mu_t`` is how to apply the correction on a neutron
+#: instrument, and an explicit value always won anyway.
+_NON_XRAY_ABSORPTION_ESTIMATE = (
+    "specimen absorption was not estimated: the composition estimator is X-ray "
+    "photoabsorption (McMaster tables), and neutron attenuation is a different "
+    "quantity from a different table — sigma_abs scales as lambda rather than "
+    "as lambda^-3, and the scattering cross-sections dominate for light "
+    "elements. Declare Geometry.mu_r (capillary) or Geometry.mu_t (flat plate) "
+    "explicitly to apply the correction; see WP-1132 for a neutron estimator."
+)
+
+
 def _resolve_specimen_absorption(structure: Structure,
                             instrument: Instrument) -> tuple[str, str | None]:
     """Fill in ``Geometry.mu_r`` **or** ``Geometry.mu_t`` from composition, in
@@ -1709,6 +1737,11 @@ def _resolve_specimen_absorption(structure: Structure,
     if geom.kind == "debye_scherrer":
         if geom.capillary_radius_mm is None or geom.mu_r is not None:
             return "given", None
+        # Asked *after* the explicit-value check, so declaring µR on a neutron
+        # capillary still works — only the X-ray table is fenced off, not the
+        # correction (:data:`_NON_XRAY_ABSORPTION_ESTIMATE`).
+        if instrument.source.kind != "xray_cw":
+            return "estimated", _NON_XRAY_ABSORPTION_ESTIMATE
         table = ParameterTable(structure, instrument)
         mu_r, reason = estimate_capillary_mu_r(
             structure, table.decode(table.x0()),
@@ -1721,6 +1754,8 @@ def _resolve_specimen_absorption(structure: Structure,
 
     if geom.thickness_mm is None or geom.mu_t is not None:
         return "given", None
+    if instrument.source.kind != "xray_cw":
+        return "estimated", _NON_XRAY_ABSORPTION_ESTIMATE
     table = ParameterTable(structure, instrument)
     mu_t, reason = estimate_flat_plate_mu_t(
         structure, table.decode(table.x0()),
@@ -2811,10 +2846,19 @@ def estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None:
     no capillary radius.  Use it to *populate* ``Geometry.mu_r``; a refinement
     will do the same thing itself at compile time if ``mu_r`` is left ``None``.
 
+    **X-ray sources only**, and ``None`` on any other — the tables are X-ray
+    photoabsorption and neutron attenuation is a different quantity entirely
+    (:data:`_NON_XRAY_ABSORPTION_ESTIMATE` has the physics and names the WP).
+    Returning a number here would be worse than returning nothing: the caller
+    asked for a starting µR and would have no way to tell that it came from
+    the wrong radiation.
+
     µR is not refinable, deliberately — see :mod:`rietx.model.absorption`.
     """
     geom = instrument.geometry
     if geom.kind != "debye_scherrer" or geom.capillary_radius_mm is None:
+        return None
+    if instrument.source.kind != "xray_cw":
         return None
     table = ParameterTable(structure, instrument)
     mu_r, _ = estimate_capillary_mu_r(

@@ -1120,8 +1120,7 @@ class Instrument(Base):
                    geometry=Geometry(kind="debye_scherrer",
                                      goniometer_radius_mm=goniometer_radius_mm,
                                      capillary_radius_mm=capillary_radius_mm,
-                                     mu_r=(None if mu_r is None
-                                           else Parameter(value=mu_r))))
+                                     mu_r=mu_r))
         if fwhm_deg is not None:
             inst.profile.w.value = (0.5 * fwhm_deg) ** 2
             inst.profile.x.value = fwhm_deg

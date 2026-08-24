@@ -297,7 +297,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # are distinguished by the wavelength and nothing else, and the measured
     # size of it.  Without them the row reads as a reporting feature, which is
     # the half of the WP that is not a correctness bug.
-    "docs/ROADMAP.md": 473,
+    # 473 -> 474 for WP-1132 (2026-08-24): its own index row, and only that.
+    # The row is required rather than chosen (the bijection test again), and
+    # every line of the WP's reasoning stays in its own file — unlike 1131 it
+    # needs no section here, because nothing about it has to be read before
+    # someone opens it.
+    "docs/ROADMAP.md": 474,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
