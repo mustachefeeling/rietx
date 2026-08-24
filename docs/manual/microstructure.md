@@ -15,6 +15,77 @@ and refine only the sample terms on the specimen.
 These laws depend on $hkl$ only through θ. Real strained powders break
 that — $(00l)$ and $(hk0)$ can differ threefold at the same $2\theta$.
 
+(sec-width-as-size)=
+## Reading a width as a size
+
+A width in degrees is not transferable between instruments; the crystallite
+size it implies is. Scherrer's relation {cite}`scherrer1918` reads a single
+line's breadth as an apparent size,
+
+```{math}
+:label: ms-scherrer
+
+L \;=\; \frac{K\lambda}{\beta\,\cos\theta} \qquad [\text{Å}],
+```
+
+*Source:* `rietx.model.profiles.caglioti`
+
+with $\beta$ the FWHM in radians of $2\theta$. $K$ depends on the crystallite
+shape **and** on which measure of breadth is used — 0.89 for the FWHM of a
+sphere against 1.0747 for its integral breadth {cite}`langford1978` — so an
+apparent size is an order-of-magnitude statement, never a quotable two-figure
+one. It is also a *lower* bound unless the instrument and strain contributions
+have been taken out first: Scherrer attributes every degree it is handed to
+size.
+
+Why the size and not the degrees is the transferable number is the same
+statement as working in $Q$. With $Q = 4\pi\sin\theta/\lambda$ the local
+Jacobian is $dQ/d(2\theta) = 2\pi\cos\theta/\lambda$, and the $\cos\theta$ of
+{eq}`ms-scherrer` cancels against it:
+
+```{math}
+:label: ms-delta-q
+
+\Delta Q \;=\; \frac{2\pi\cos\theta}{\lambda}\,\beta \;=\; \frac{2\pi K}{L}
+\qquad [\text{Å}^{-1}],
+```
+
+*Source:* `rietx.model.profiles.caglioti`
+
+independent of both $\lambda$ and $\theta$ — Scherrer broadening is *constant
+in Q*. Because the size law of {eq}`prof-caglioti-l` **is** $1/\cos\theta$, the
+same cancellation removes the reference angle entirely: a size *coefficient*
+maps to one size for the whole pattern,
+
+```{math}
+:label: ms-size-coefficient
+
+L \;=\; \frac{180}{\pi}\cdot\frac{K\lambda}{X_s}
+\qquad\Longleftrightarrow\qquad
+X_s \;=\; \frac{180}{\pi}\cdot\frac{K\lambda}{L},
+```
+
+*Source:* `rietx.model.profiles.caglioti`
+
+reading $\sqrt{P}$ in place of $X_s$ for the Gaussian variance coefficient of
+{eq}`prof-caglioti-g`. The right-hand form is the seeding direction — a width
+from a specimen already known from a micrograph, a synthesis or an earlier
+refinement, rather than from a default calibrated on a synchrotron linewidth.
+
+```{warning}
+Only the $1/\cos\theta$ coefficients have a size to read. $W$ is constant in
+θ and $U$ goes as $\tan^2\theta$, so a number of degrees taken off either is
+a number *at one chosen angle*: $U = 1.0\ \deg^2$ alone is 0.268° FWHM at
+$2\theta = 30$° and 3.172° at $2\theta = 145$°, a factor of twelve across an
+ordinary pattern.
+
+This is what makes a declared bound in degrees hard to transfer. $X$ carries
+$\max = 1.0$° — 79.4 Å on Cu Kα against 21.3 Å on 11-BM's 0.4139 Å, one cap
+admitting a 3.7× spread in the physics — while the sample terms $X_s$ and $P$
+carry $\min = 0$ and no maximum at all. Decide such a limit as a size; report
+it in degrees.
+```
+
 ## Stephens anisotropic strain
 
 Stephens' phenomenological model {cite}`stephens1999` lets every
