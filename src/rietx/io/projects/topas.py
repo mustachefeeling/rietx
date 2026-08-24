@@ -312,7 +312,7 @@ def read_topas_inp(path: str | Path) -> TopasModel:
     """Parse a ``.inp``. Raises :class:`TopasInpError` naming the file and line."""
     path = Path(path)
     try:
-        raw = path.read_text(errors="ignore")
+        raw = path.read_text(encoding="utf-8", errors="ignore")
     except OSError as exc:
         raise TopasInpError(f"{path}: cannot read: {exc}") from exc
     active = resolve_ifdefs(strip_comments(raw))

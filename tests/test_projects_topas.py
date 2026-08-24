@@ -12,6 +12,8 @@ fraction read as 0.596 wt% when the file said 11.596, and one read as 0.931 when
 the file said 60.931.
 """
 
+from pathlib import Path
+
 import pytest
 
 from rietx.io.projects.topas import (
@@ -24,6 +26,14 @@ from rietx.io.projects.topas import (
     symbol_table,
     to_structure,
 )
+
+
+def _inp(directory: Path, name: str, text: str) -> Path:
+    """Write a fixture .inp. One writer, so the encoding is named once."""
+    path = directory / name
+    path.write_text(text, encoding="utf-8")
+    return path
+
 
 # ----------------------------------------------------------------- rule 1, 2
 
@@ -126,8 +136,7 @@ SITE_LINES = [
 
 @pytest.mark.parametrize("line, xyz, occ, beq", SITE_LINES)
 def test_every_real_site_spelling_reads(tmp_path, line, xyz, occ, beq):
-    inp = tmp_path / "s.inp"
-    inp.write_text(f'str\nphase_name "P"\nspace_group "P1"\na 5.0\n{line}\n')
+    inp = _inp(tmp_path, "s.inp", f'str\nphase_name "P"\nspace_group "P1"\na 5.0\n{line}\n')
     (site,) = read_topas_inp(inp).phases[0].sites
     assert (site.x, site.y, site.z) == pytest.approx(xyz)
     assert site.occupancy == pytest.approx(occ)
@@ -139,8 +148,7 @@ def test_an_equation_referencing_another_parameter_resolves(tmp_path):
 
     Refusing it cost 14 archive files, the tier-1 Cr2WO6 references among them.
     """
-    inp = tmp_path / "s.inp"
-    inp.write_text('str\nphase_name "Cr2WO6"\nspace_group "P42/mnm"\na 4.58\n'
+    inp = _inp(tmp_path, "s.inp", 'str\nphase_name "Cr2WO6"\nspace_group "P42/mnm"\na 4.58\n'
                    'site O1 x ph1_O1_x 0.29935` y = ph1_O1_x; z 0 occ O-2 1. '
                    'beq ph1_beq_o1 0.34174`\n')
     (site,) = read_topas_inp(inp).phases[0].sites
@@ -154,8 +162,7 @@ def test_topas_own_evaluated_value_is_preferred_over_the_expression(tmp_path):
     Taking it means the expression's whole symbol chain never has to be walked,
     which is what made the WISH parametric files readable.
     """
-    inp = tmp_path / "s.inp"
-    inp.write_text('prm Fe1_x = 1/4 + Fe1_dx;:  0.25733\n'
+    inp = _inp(tmp_path, "s.inp", 'prm Fe1_x = 1/4 + Fe1_dx;:  0.25733\n'
                    'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
                    'scale =scph1*scb1;:  0.0844868572`\n'
                    'site Fe1 x = Fe1_x; y 0 z 0 occ Fe 1 beq b 0.5\n')
@@ -177,8 +184,7 @@ def test_an_unresolvable_coordinate_raises_naming_file_phase_and_line(tmp_path):
     produced a 98 wt% phase-fraction error with a *better* Rwp than the correct
     model — 0.02370 against 0.02353.
     """
-    inp = tmp_path / "broken.inp"
-    inp.write_text('str\nphase_name "Unreadable"\nspace_group "P1"\na 5.0\n'
+    inp = _inp(tmp_path, "broken.inp", 'str\nphase_name "Unreadable"\nspace_group "P1"\na 5.0\n'
                    'site A1 x 0 y 0 z = 1-nothing_defined; occ Na+1 1 beq b 0.5\n')
     with pytest.raises(TopasInpError) as exc:
         read_topas_inp(inp)
@@ -190,8 +196,7 @@ def test_an_unresolvable_coordinate_raises_naming_file_phase_and_line(tmp_path):
 def test_a_token_with_no_number_never_escapes_as_a_bare_valueerror(tmp_path):
     """Root CLAUDE.md: a reader raises naming the file, never its parser's
     exception. Three archive files reached ``ValueError('beq')`` this way."""
-    inp = tmp_path / "s.inp"
-    inp.write_text('str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+    inp = _inp(tmp_path, "s.inp", 'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
                    'site A1 x 0 y 0 z 0 occ La+3 !LSF_cubic_occ_La beq b 0.5\n')
     model = read_topas_inp(inp)          # must not raise ValueError
     assert model.phases[0].sites[0].occupancy == pytest.approx(1.0)
@@ -213,8 +218,7 @@ def test_a_token_with_no_number_never_escapes_as_a_bare_valueerror(tmp_path):
 def test_a_nameless_value_keeps_its_integer_part(tmp_path, line, expected):
     """``(?:\\w+\\s+)?`` in front of a value eats digits, because ``\\w``
     matches one. That is how ``weight_percent 97.9`` came back 0.9."""
-    inp = tmp_path / "s.inp"
-    inp.write_text(f'str\nphase_name "P"\nspace_group "P1"\na 5.0\n{line}\n')
+    inp = _inp(tmp_path, "s.inp", f'str\nphase_name "P"\nspace_group "P1"\na 5.0\n{line}\n')
     assert read_topas_inp(inp).phases[0].weight_percent == pytest.approx(expected)
 
 
@@ -227,16 +231,14 @@ def test_a_nameless_value_keeps_its_integer_part(tmp_path, line, expected):
 def test_scale_is_read_not_silently_defaulted(tmp_path, line, expected):
     """A scale read as absent is replaced by ``to_structure``'s 1e-4 default,
     which is a made-up number standing where the file had a measured one."""
-    inp = tmp_path / "s.inp"
-    inp.write_text(f'str\nphase_name "P"\nspace_group "P1"\na 5.0\n{line}\n')
+    inp = _inp(tmp_path, "s.inp", f'str\nphase_name "P"\nspace_group "P1"\na 5.0\n{line}\n')
     assert read_topas_inp(inp).phases[0].scale == pytest.approx(expected)
 
 
 def test_arithmetic_is_not_eval(tmp_path):
     """The charset gate that preceded the ``ast`` walk admitted ``**``, so a
     malformed file could put an unbounded computation inside a reader."""
-    inp = tmp_path / "s.inp"
-    inp.write_text('str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+    inp = _inp(tmp_path, "s.inp", 'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
                    'site A1 x = 9**9**9; y 0 z 0 occ Na+1 1 beq b 0.5\n')
     with pytest.raises(TopasInpError):
         read_topas_inp(inp)
@@ -251,8 +253,7 @@ def test_cell_limits_are_read_and_a_contradicting_one_is_dropped(tmp_path):
     converged value back, so value and bound can end up on opposite sides, and
     handing pydantic both raised a validation error out of a reader.
     """
-    inp = tmp_path / "s.inp"
-    inp.write_text('str\nphase_name "P"\nspace_group "P1"\n'
+    inp = _inp(tmp_path, "s.inp", 'str\nphase_name "P"\nspace_group "P1"\n'
                    'a lpa 6.2977` min 6.26 max 6.29\nc lpc 10.2458`\n'
                    'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
     phase = read_topas_inp(inp).phases[0]
@@ -264,8 +265,7 @@ def test_cell_limits_are_read_and_a_contradicting_one_is_dropped(tmp_path):
 
 
 def test_a_disabled_phase_is_not_in_the_model(tmp_path):
-    inp = tmp_path / "s.inp"
-    inp.write_text('#ifdef NEVER\nstr\nphase_name "ghost"\nspace_group "P1"\n'
+    inp = _inp(tmp_path, "s.inp", '#ifdef NEVER\nstr\nphase_name "ghost"\nspace_group "P1"\n'
                    'a 99.0\n#endif\n'
                    'str\nphase_name "real"\nspace_group "P1"\na 5.0\n'
                    'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
@@ -276,8 +276,7 @@ def test_the_emission_macro_is_reported_never_expanded(tmp_path):
     """ATTRIBUTION.md's fence: TOPAS is closed, so its macro library is not
     reproduced. Only the anode is reported; wavelengths come from rietx's own
     table."""
-    inp = tmp_path / "s.inp"
-    inp.write_text("CuKa5(0.0001)\nRadius(217.5)\n")
+    inp = _inp(tmp_path, "s.inp", "CuKa5(0.0001)\nRadius(217.5)\n")
     model = read_topas_inp(inp)
     assert (model.anode, model.emission_macro) == ("CuKa", "CuKa5")
     assert model.wavelength is None
@@ -286,8 +285,7 @@ def test_the_emission_macro_is_reported_never_expanded(tmp_path):
 
 def test_to_structure_builds_a_refinable_structure(tmp_path):
     """``beq`` is TOPAS's B and ``biso`` is also B — no 8π² conversion."""
-    inp = tmp_path / "s.inp"
-    inp.write_text('str\nphase_name "LaB6"\nspace_group "Pm-3m"\n'
+    inp = _inp(tmp_path, "s.inp", 'str\nphase_name "LaB6"\nspace_group "Pm-3m"\n'
                    'Cubic_(lpa 4.15689)\nscale ph_scale 0.000225160497\n'
                    'site La1 x 0 y 0 z 0 occ La 1. beq !bla 0.4389\n'
                    'site B1 x !bx 0.19895 y 0.5 z 0.5 occ B 1. beq !bb 0.3076\n')
@@ -307,8 +305,7 @@ def test_the_converged_figures_of_merit_are_recovered(tmp_path):
     The numbers are the NIST SRM 660b LaB6 + cBN reference refinement
     (APS 11-BM run 3095), whose certified cell is 4.15689 Å.
     """
-    inp = tmp_path / "s.inp"
-    inp.write_text('r_wp 8.04733245 gof 1.52039055\n'
+    inp = _inp(tmp_path, "s.inp", 'r_wp 8.04733245 gof 1.52039055\n'
                    'str\nphase_name "LaB6"\nspace_group "Pm-3m"\n'
                    'Cubic_(lpa 4.15689)\nweight_percent ph_lab6_wtpct 17.907\n'
                    'site La1 x 0 y 0 z 0 occ La 1. beq !bla 0.4389\n'
