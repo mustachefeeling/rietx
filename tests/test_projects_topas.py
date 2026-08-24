@@ -837,3 +837,68 @@ def test_an_equation_reaching_a_keyword_refuses_rather_than_inventing(tmp_path):
         read_topas_inp(inp)
     assert "keyword_ref.inp" in str(exc.value) and "cannot read y" in str(exc.value)
 
+
+# ------------------------------------------------ a quote is not a comment
+
+@pytest.mark.parametrize("line", [
+    r'''xdd "C:\data\o'brien.xy"''',
+    r'''phase_name "d'Alembert phase"''',
+])
+def test_an_apostrophe_inside_a_quoted_string_is_not_a_comment(line):
+    """Cutting at the first `'` truncated the string it sat in: a data file
+    became `C:\\data\\o` and a phase became `d`. A silently mislabelled phase
+    is a wrong answer with nothing raised; incidence in the archive is 0, so
+    this is latent."""
+    assert strip_comments(line) == line
+
+
+def test_a_truncated_string_does_not_reach_the_model(tmp_path):
+    inp = _inp(tmp_path, "quoted.inp",
+               'r_wp 3.2\nxdd "C:\\data\\o\'brien.xy"\n'
+               'str\nphase_name "d\'Alembert"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    model = read_topas_inp(inp)
+    assert model.data_files == ["C:\\data\\o'brien.xy"]
+    assert [p.name for p in model.phases] == ["d'Alembert"]
+
+
+def test_a_real_trailing_comment_is_still_cut(tmp_path):
+    """The other side of the same test: a `'` outside a string still opens a
+    comment, which is what rule 1 exists for."""
+    assert strip_comments('xdd "sample.xy" \' a real comment') == 'xdd "sample.xy" '
+    assert strip_comments("str ' don't") == "str "
+
+
+# ----------------------------------------------- the geometry is a declaration
+
+@pytest.mark.parametrize("line, geometry", [
+    # what actually declares a capillary, quoted from the archive
+    ("capillary_u_cm_inv @, 36.0187505", "debye_scherrer"),
+    ("capillary_diameter_mm 0.5", "debye_scherrer"),
+    ("capillary_parallel_beam", "debye_scherrer"),
+    ("Cylindrical_2Th_Correction(@, 0.91181`)", "debye_scherrer"),
+    ("Cylindrical_I_Correction(2.64)", "debye_scherrer"),
+    # and what does not: a name, a path and a parameter are not declarations
+    ('phase_name "Debye_test_material"', "bragg_brentano"),
+    ('xdd "C:/data/debye_run3.xy"', "bragg_brentano"),
+    ("prm capillary_diam 0.7", "bragg_brentano"),
+    ('phase_name "MgO_cylindrical_ref"', "bragg_brentano"),
+])
+def test_the_geometry_is_decided_by_a_declaration_not_by_a_name(
+        tmp_path, line, geometry):
+    """The sniff matched `Cylindrical_|capillary|Debye` case-insensitively over
+    the whole file, so a phase called `Debye_test_material` flipped a file
+    carrying `Radius(217.5)` and `LP_Factor(26.4)` — unambiguously
+    Bragg-Brentano — to `debye_scherrer`.
+
+    A geometry is declared by a *statement*, so the token has to open a line.
+    Incidence in the archive is 0, so this is latent; what the archive does
+    show is that `Debye` appears in **no** file, while the tokens above are how
+    the 26 capillary files actually say it.
+    """
+    inp = _inp(tmp_path, "geom.inp",
+               f'r_wp 4.1\nRadius(217.5)\nCuKa5(0.0001)\nLP_Factor(26.4)\n{line}\n'
+               'str\nphase_name "LaB6"\nspace_group "Pm-3m"\n'
+               'Cubic_(lpa 4.15689)\n'
+               'site La1 x 0 y 0 z 0 occ La 1. beq !bla 0.4389\n')
+    assert read_topas_inp(inp).geometry == geometry

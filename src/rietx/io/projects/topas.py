@@ -19,6 +19,9 @@ reading the syntax:
 1. **Dead text outnumbers live text.** ``/* … */`` blocks and ``'`` line
    comments routinely disable several instrument blocks per file. Reading a
    wavelength without stripping them picks up whichever block was commented out.
+   A ``'`` inside a ``"…"`` string is *not* a comment, though: cutting there
+   turned ``xdd "C:\\data\\o'brien.xy"`` into ``C:\\data\\o`` and a phase called
+   ``d'Alembert`` into ``d``, a silently mislabelled phase.
 2. **``#ifdef`` gates real content.** A phase inside a disabled branch is not in
    the model. Nesting is shallow but real.
 3. **A coordinate is not always a literal.** Special positions are conventionally
@@ -141,9 +144,28 @@ class TopasModel:
 
 
 def strip_comments(text: str) -> str:
-    """Remove ``/* */`` blocks and ``'`` line comments (rule 1)."""
+    """Remove ``/* */`` blocks and ``'`` line comments (rule 1).
+
+    A ``'`` inside a ``"…"`` string is a character, not a comment opener: TOPAS
+    quotes file paths and phase names, and both may hold an apostrophe. Cutting
+    at the first ``'`` regardless read ``xdd "C:\\data\\o'brien.xy"`` as the
+    data file ``C:\\data\\o`` and named a phase ``d`` — a truncated path is a
+    loud failure later, but a truncated ``phase_name`` is a silently
+    mislabelled phase, which is the class this reader exists to avoid. Nothing
+    in the 606-file archive carries one, so this is latent rather than measured.
+    """
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
-    return "\n".join(line.split("'")[0] for line in text.split("\n"))
+    kept: list[str] = []
+    for line in text.split("\n"):
+        quoted, cut = False, len(line)
+        for i, ch in enumerate(line):
+            if ch == '"':
+                quoted = not quoted
+            elif ch == "'" and not quoted:
+                cut = i
+                break
+        kept.append(line[:cut])
+    return "\n".join(kept)
 
 
 def resolve_ifdefs(text: str) -> str:
@@ -506,6 +528,19 @@ _LATTICE_MACROS: dict[str, tuple[float, float, float]] = {
 #: nothing left to get wrong.
 _UNEVIDENCED_MACROS = ("Rhombohedral", "Orthorhombic", "Monoclinic", "Triclinic")
 
+#: What declares a capillary (Debye-Scherrer) geometry, as the archive spells
+#: it: the two ``Cylindrical_…`` correction macros and TOPAS's ``capillary_…``
+#: keywords (``capillary_diameter_mm``, ``capillary_parallel_beam``,
+#: ``capillary_divergent_beam``, ``capillary_u_cm_inv``), which is how the 26
+#: capillary files here say it. Anchored to the start of a line because a
+#: geometry is a **statement**: the predecessor matched
+#: ``Cylindrical_|capillary|Debye`` case-insensitively over the whole file, so a
+#: phase called ``Debye_test_material`` flipped a file carrying ``Radius(217.5)``
+#: and ``LP_Factor(26.4)`` — unambiguously Bragg-Brentano — and so did a data
+#: file named ``debye_run3.xy`` and a ``prm capillary_diam``. ``Debye`` itself is
+#: gone: it names no TOPAS keyword and occurs in none of the 606 files.
+_CAPILLARY = re.compile(r"^[ \t]*(?:capillary_\w+|Cylindrical_\w*\s*\()", re.M)
+
 
 def _lattice_macro(chunk: str, symbols: dict[str, float]) -> tuple[dict, dict] | None:
     """The cell and refine flags a lattice macro states, or None if it states no
@@ -566,8 +601,7 @@ def read_topas_inp(path: str | Path) -> TopasModel:
         model.wavelength = float(lo[0])
     if m := re.search(rf"Radius\(\s*({_NUM})", active):
         model.goniometer_radius_mm = float(m.group(1))
-    model.geometry = ("debye_scherrer"
-                      if re.search(r"Cylindrical_|capillary|Debye", active, re.I)
+    model.geometry = ("debye_scherrer" if _CAPILLARY.search(active)
                       else "bragg_brentano")
     if m := re.search(rf"bkg\s*((?:\s*@?\s*{_NUM}`?)+)", active):
         model.background_terms = len(re.findall(_NUM, m.group(1)))
