@@ -43,7 +43,25 @@ with no reference angle at all —
 for the Lorentzian ``x_size``, and the same with √``gauss_size`` for the
 Gaussian variance coefficient.  :func:`apparent_size_from_size_coefficient` is
 (4) and :func:`size_coefficient_for_size` is its inverse, which is what seeds a
-width from a known specimen.  Report in degrees by all means; decide in size.
+width from a known specimen.
+
+**Which parameters this reaches**, since it is the point of reading a width as
+a size at all: exactly the two size coefficients of the laws above, and no
+others.  ``x_size`` is ``instrument.profile.x + phases.N.lor_size``,
+``gauss_size`` is ``phases.N.gauss_size``, and their declared bounds are where
+the deg-versus-Å question bites:
+
+* ``instrument.profile.x`` carries ``max = 1.0`` deg — 79.4 Å on Cu Kα against
+  21.3 Å on 11-BM.  One cap, a 3.7× spread in the physics it admits.
+* ``Phase.lor_size`` and ``Phase.gauss_size`` carry ``min = 0.0`` and **no max
+  at all**, so on the sample side an unbounded specimen width is not capped
+  badly — it is not capped.
+
+The Caglioti ``u`` and ``w`` are **not** size terms and have no size to read:
+``w`` is constant in θ and ``u`` goes as tan²θ, neither of them 1/cosθ.  A
+number of degrees taken off either is a number at one chosen angle, which is
+the reference angle this module exists to remove.  Report in degrees by all
+means; decide in size.
 """
 
 from __future__ import annotations
@@ -57,12 +75,14 @@ from ...backend import get_backend
 _MIN_GAMMA_G2 = 1e-8  # deg²; keeps Γ_G real when U,V,W make the quadratic dip
 
 #: Scherrer constant for a **FWHM** and roughly isotropic crystallites
-#: (Scherrer, 1918, Nachr. Ges. Wiss. Göttingen 26, 98; Langford & Wilson,
-#: 1978, J. Appl. Cryst. 11, 102 tabulate K by crystallite shape *and* by which
-#: width measure is used — 0.89 for the FWHM of a sphere against 1.0747 for its
-#: integral breadth).  Shape moves it by ~10-20 %, so an apparent size is an
-#: order-of-magnitude statement and never a quotable two-figure one; K is an
-#: argument everywhere below so a caller with a known morphology can say so.
+#: (Scherrer, 1918, Nachr. Ges. Wiss. Göttingen, Math.-Phys. Kl. 1918, 98-100 —
+#: the primary record's volume is the year, not the "26" the constant is usually
+#: quoted with; Langford & Wilson, 1978, J. Appl. Cryst. 11, 102-113 tabulate K
+#: by crystallite shape *and* by which width measure is used — 0.89 for the FWHM
+#: of a sphere against 1.0747 for its integral breadth).  Shape moves it by
+#: ~10-20 %, so an apparent size is an order-of-magnitude statement and never a
+#: quotable two-figure one; K is an argument everywhere below so a caller with a
+#: known morphology can say so.
 SCHERRER_K = 0.9
 
 
@@ -117,9 +137,11 @@ def apparent_size_from_size_coefficient(coefficient_deg: float,
     """Scherrer size, Å, from a **1/cosθ size coefficient** — no angle needed.
 
     The module docstring's (4).  ``coefficient_deg`` is the Lorentzian
-    ``x_size`` (instrument ``X`` + phase ``lor_size``) directly, or
-    ``sqrt(gauss_size)`` for the Gaussian variance coefficient, both in the
-    deg-2θ FWHM units :func:`lorentzian_fwhm` and :func:`gaussian_fwhm` use.
+    ``x_size`` — ``instrument.profile.x + phases.N.lor_size`` — directly, or
+    ``sqrt(phases.N.gauss_size)`` for the Gaussian variance coefficient, both in
+    the deg-2θ FWHM units :func:`lorentzian_fwhm` and :func:`gaussian_fwhm` use.
+    Those are the only two parameters this inverts exactly; the Caglioti ``u``
+    and ``w`` are tan²θ and constant terms and have no size to read.
 
     Angle-free because the law and Scherrer are the *same* 1/cosθ: this is
     :func:`apparent_size` evaluated at any 2θ whatever, and
@@ -143,6 +165,9 @@ def size_coefficient_for_size(size_a: float, wavelength_a: float,
     micrograph, a synthesis, a previous refinement — rather than from the
     package's synchrotron-linewidth default, which a lab pattern's frozen
     windows cannot recover from.
+
+    Seeds ``instrument.profile.x`` or ``phases.N.lor_size`` directly, and
+    ``phases.N.gauss_size`` as the square of what it returns.
     """
     if not size_a > 0.0:
         raise ValueError(f"size_a must be positive, got {size_a!r}")

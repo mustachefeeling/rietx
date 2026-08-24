@@ -22,6 +22,7 @@ from rietx.model.profiles.caglioti import (
     apparent_size,
     apparent_size_from_size_coefficient,
     delta_q_fwhm,
+    gaussian_fwhm,
     lorentzian_fwhm,
     size_coefficient_for_size,
 )
@@ -69,23 +70,76 @@ def test_delta_q_is_scherrer_in_q_whatever_the_instrument(wavelength, two_theta)
 
 
 def test_one_number_of_degrees_is_three_different_crystallites():
-    """The motivation, pinned: why issue #102's bound cannot be stated in deg².
+    """The motivation, pinned: a width in degrees is not a transferable number.
 
-    ``profile.w`` and ``profile.u`` carry ``max = 1.0`` deg², i.e. ~1.0 deg
-    FWHM.  Read as a size at 2θ = 30, that one bound is an ordinary
-    nanocrystalline lab specimen on Cu and a crystallite of ~4 unit cells on
-    11-BM — so a single deg² cap either refuses legitimate lab data or admits
-    synchrotron nonsense, and cannot do both.  Values are this expression's,
-    quoted to 2 dp; the ratio is the point, not the digits.
+    ``profile.w`` carries ``max = 1.0`` deg², and being the *constant* term of
+    the Gaussian variance that is 1.0 deg FWHM at every angle — so reading it as
+    a size needs no more than the wavelength.  Read at 2θ = 30 that one bound is
+    an ordinary nanocrystalline lab specimen on Cu and a crystallite of ~4 unit
+    cells on 11-BM, so a single deg² cap either refuses legitimate lab data or
+    admits synchrotron nonsense and cannot do both.  Values are this
+    expression's, quoted to 2 dp; the ratio is the point, not the digits.
+
+    ``profile.u`` is **not** in this statement, whatever its own cap: it is the
+    tan²θ term, so 1.0 deg² there is 1.0 deg only at 2θ = 90 (the test below
+    pins the whole row).  Only ``w`` is one number of degrees at every angle,
+    and only the 1/cosθ coefficients are a *size* — see
+    ``test_the_instrument_size_bound_is_two_different_crystallites``.
     """
     sizes = {name: apparent_size(1.0, 30.0, lam) / 10.0  # Å -> nm
              for name, lam in (("cu", CU), ("mo", MO), ("synchrotron", SYNCHROTRON))}
     assert sizes["cu"] == pytest.approx(8.22, abs=0.01)
     assert sizes["mo"] == pytest.approx(3.79, abs=0.01)
     assert sizes["synchrotron"] == pytest.approx(2.21, abs=0.01)
-    # The spread *is* the argument: same degrees, 3.7x the physics.
-    assert sizes["cu"] / sizes["synchrotron"] == pytest.approx(CU / SYNCHROTRON,
-                                                              rel=1e-12)
+    # The cosθ, which is what the λ ratio above cannot see: L = Kλ/(β cosθ), so
+    # the *same* 1.0 deg read at 145 instead of 30 is a 3.2x larger crystallite.
+    # An assertion on the λ ratio alone passes whatever this does with the
+    # angle — it is dimensional bookkeeping, not a measurement of the law.
+    assert (apparent_size(1.0, 145.0, CU) / apparent_size(1.0, 30.0, CU)
+            == pytest.approx(math.cos(math.radians(15.0))
+                             / math.cos(math.radians(72.5)), rel=1e-12))
+
+
+@pytest.mark.parametrize(
+    ("two_theta", "gamma_g"),
+    [(30.0, 0.268), (60.0, 0.577), (90.0, 1.000), (145.0, 3.172)],
+)
+def test_the_u_term_is_one_degree_only_at_two_theta_90(two_theta, gamma_g):
+    """``u`` = 1.0 deg² is 1.0 deg FWHM at exactly one angle, and it is 2θ = 90.
+
+    Γ_G² = u·tan²θ + v·tanθ + w, so ``u`` alone gives Γ_G = tanθ: 0.268 deg at
+    2θ = 30 and 3.172 deg at 2θ = 145, a factor of twelve across an ordinary
+    pattern.  Pinned because the sentence "``u`` and ``w`` are ~1.0 deg FWHM"
+    read as though it covered both, and it is true of ``w`` only — a bound
+    stated on ``u`` is a bound whose width depends on where you read it, which
+    is the reference-angle problem one level below the one this module removes.
+    """
+    assert float(gaussian_fwhm(two_theta / 2.0, 1.0, 0.0, 0.0)) == pytest.approx(
+        gamma_g, abs=5e-4
+    )
+
+
+def test_the_instrument_size_bound_is_two_different_crystallites():
+    """The same argument on the parameter that actually *is* a size term.
+
+    ``instrument.profile.x`` is the Lorentzian 1/cosθ coefficient and carries
+    ``max = 1.0`` deg, which the angle-free (4) reads with no reference angle at
+    all: 79.4 Å on Cu Kα against 21.3 Å on 11-BM.  One declared cap, a 3.7×
+    spread in the physics it admits — and 21 Å is about four unit cells, i.e.
+    outside Scherrer's own domain rather than merely small.
+
+    The sample side is the stronger case and has no number to pin: ``lor_size``
+    and ``gauss_size`` carry ``min = 0.0`` and no ``max``, so there is no bound
+    there to read as a size.
+    """
+    assert apparent_size_from_size_coefficient(1.0, CU) == pytest.approx(79.44, abs=0.01)
+    assert apparent_size_from_size_coefficient(1.0, SYNCHROTRON) == pytest.approx(
+        21.34, abs=0.01
+    )
+    # the Gaussian variance coefficient enters through its square root, so a
+    # ``gauss_size`` of 0.25 deg² is a 0.5 deg coefficient and twice the size
+    assert apparent_size_from_size_coefficient(
+        math.sqrt(0.25), CU) == pytest.approx(2.0 * 79.44, abs=0.02)
 
 
 @pytest.mark.parametrize("wavelength", [CU, MO, SYNCHROTRON])
