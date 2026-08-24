@@ -1211,3 +1211,90 @@ def test_a_cancelled_chain_does_not_run_the_verification_pass():
     assert [d.code for d in series.diagnostics] == ["SEQUENTIAL_CANCELLED"]
     assert not any(d.code == "SEQUENTIAL_PATH_DEPENDENT"
                    for d in series.diagnostics)
+
+
+# ------------------------------------------------ agreement trajectories ---
+def test_agreement_trajectory_carries_the_index_across_the_series(thermal_series):
+    """``qpa_trajectory``'s shape over the rows PR #99 carried to the boundary.
+
+    The point of the accessor is that a *trend* in R_B is readable where a
+    single value is not: WP-1069's warning is about comparing one phase's
+    index with another's, not about watching one phase's move with temperature.
+    """
+    names = thermal_series.agreement_phases()
+    assert names, "the fixture carries no agreement rows to trajectory over"
+    traj = thermal_series.agreement_trajectory(names[0])
+    assert traj.path == f"r_bragg.{names[0]}"
+    assert traj.x_label == thermal_series.x_label
+    assert len(traj) == len(thermal_series.entries)
+    assert traj.x == list(thermal_series.x)
+    assert all(v >= 0.0 for v in traj.value)
+    # value-for-value the rows themselves, not a recomputation
+    assert traj.value == [
+        next(r.r_bragg for r in e.phase_agreement if r.name == names[0])
+        for e in thermal_series.entries]
+
+
+def test_the_agreement_esd_column_is_empty_because_a_residual_has_no_esd(
+        thermal_series):
+    """Not a gap — a fact, and the reason it differs from the other two.
+
+    ``trajectory`` and ``qpa_trajectory`` use ``None`` for "this pattern did
+    not estimate one".  Here the whole column is ``None`` for every series,
+    because R_Bragg is a residual rather than a fitted parameter and has no
+    covariance entry to propagate from.  ``arrays()`` must still work, since a
+    plotting caller cannot be asked to special-case one trajectory kind.
+    """
+    import numpy as np
+
+    name = thermal_series.agreement_phases()[0]
+    traj = thermal_series.agreement_trajectory(name)
+    assert traj.stderr == [None] * len(traj)
+    _x, _v, sd = traj.arrays()
+    assert np.isnan(sd).all()
+
+
+def test_r_f_is_reachable_and_is_a_different_number(thermal_series):
+    """Both McCusker indices are offered; a fit quotes at least one of them,
+    and which is a reader's convention rather than this method's choice."""
+    name = thermal_series.agreement_phases()[0]
+    rb = thermal_series.agreement_trajectory(name, metric="r_bragg")
+    rf = thermal_series.agreement_trajectory(name, metric="r_f")
+    assert rf.path == f"r_f.{name}"
+    assert len(rf) == len(rb)
+    assert rf.value != rb.value, "r_f and r_bragg returned the same column"
+    with pytest.raises(ValueError, match="r_bragg"):
+        thermal_series.agreement_trajectory(name, metric="rwp")
+
+
+def test_resolve_trajectory_is_the_one_dispatch_for_every_kind(thermal_series):
+    """The duplicated two-branch conditional ``viz`` and the GUI each carried.
+
+    An unprefixed path must still reach :meth:`trajectory` — that is what makes
+    the resolver safe to call unconditionally on a display path.
+    """
+    name = thermal_series.agreement_phases()[0]
+    assert thermal_series.resolve_trajectory(f"r_bragg.{name}").value == \
+        thermal_series.agreement_trajectory(name).value
+    assert thermal_series.resolve_trajectory(f"r_f.{name}").value == \
+        thermal_series.agreement_trajectory(name, metric="r_f").value
+
+    param = thermal_series.paths()[0]
+    assert not param.startswith(thermal_series._TRAJECTORY_PREFIXES)
+    assert thermal_series.resolve_trajectory(param).value == \
+        thermal_series.trajectory(param).value
+
+
+def test_a_lebail_series_has_an_empty_agreement_trajectory_not_a_zero_one(
+        thermal_series):
+    """Absent for cause, one rank up from the entry that is empty for it.
+
+    A zero R_B would read as a perfect fit; an empty trajectory reads as "this
+    mode does not produce the number", which is the true statement.
+    """
+    stripped = SeriesResult(
+        entries=[e.model_copy(update={"phase_agreement": []})
+                 for e in thermal_series.entries],
+        x_label=thermal_series.x_label)
+    assert stripped.agreement_phases() == []
+    assert len(stripped.agreement_trajectory("anything")) == 0

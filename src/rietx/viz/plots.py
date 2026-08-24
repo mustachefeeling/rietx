@@ -760,8 +760,7 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     fig, axes = plt.subplots(len(paths), 1, figsize=(8, 2.4 * len(paths)),
                              dpi=dpi, sharex=True, squeeze=False)
     for ax, name in zip(axes[:, 0], paths, strict=True):
-        traj = (series.qpa_trajectory(name[4:]) if name.startswith("qpa.")
-                else series.trajectory(name))
+        traj = series.resolve_trajectory(name)
         x, value, sd = traj.arrays()
         ax.errorbar(x, value, yerr=np.where(np.isfinite(sd), sd, 0.0),
                     fmt="o-", ms=4, lw=1.0, capsize=2, color="#1f5fa8")

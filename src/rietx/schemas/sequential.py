@@ -19,7 +19,7 @@ of each pattern stays reachable in memory on the
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import Field
 
@@ -279,6 +279,91 @@ class SeriesResult(Base):
                                else 100.0 * row.weight_fraction_stderr)
             traj.labels.append(e.label)
         return traj
+
+    def agreement_trajectory(self, phase: str, *,
+                             metric: str = "r_bragg") -> Trajectory:
+        """A phase's structure agreement index across the series.
+
+        ``qpa_trajectory``'s shape, over the ``phase_agreement`` each entry now
+        carries.  ``metric`` is ``"r_bragg"`` (McCusker et al. 1999 eq 14) or
+        ``"r_f"`` (eq 13); a fit quotes at least one of them, and *which* is a
+        reader's convention rather than something this method should choose.
+
+        **Every ``stderr`` is ``None``, and that is a fact rather than a gap.**
+        A residual is not a fitted parameter: R_Bragg has no covariance entry
+        to propagate from, so unlike :meth:`trajectory` and
+        :meth:`qpa_trajectory` — where a ``None`` means *this* pattern did not
+        estimate one — the whole column is empty for every series. Kept as a
+        ``Trajectory`` anyway so plotting and export need no second shape, and
+        :meth:`Trajectory.arrays` turns it into the NaNs an errorbar ignores.
+
+        Absent for cause outside Rietveld mode: in Le Bail the partition *is*
+        the fit and in Pawley the intensities are refined, so ``refine`` leaves
+        ``phase_agreement`` empty there and the trajectory is legitimately
+        empty rather than zero.  Patterns missing the phase are skipped, not
+        filled, for :meth:`trajectory`'s reason.
+        """
+        if metric not in ("r_bragg", "r_f"):
+            raise ValueError(
+                f"metric must be 'r_bragg' or 'r_f', got {metric!r}")
+        traj = Trajectory(path=f"{metric}.{phase}", x_label=self.x_label)
+        for e, xv in zip(self.entries, self.x, strict=True):
+            row = next((r for r in e.phase_agreement if r.name == phase), None)
+            if row is None:
+                continue
+            value = getattr(row, metric)
+            # ``None`` only for a phase with no partitionable scattering power
+            # at all — a real absence, so it is skipped like a missing phase
+            # rather than carried as a hole in an otherwise aligned column.
+            if value is None:
+                continue
+            traj.x.append(xv)
+            traj.value.append(value)
+            traj.stderr.append(None)
+            traj.labels.append(e.label)
+        return traj
+
+    #: Prefixes :meth:`resolve_trajectory` dispatches on, longest first so a
+    #: future ``qpa_x.`` could not be swallowed by ``qpa.``.
+    _TRAJECTORY_PREFIXES: ClassVar[tuple[str, ...]] = (
+        "r_bragg.", "r_f.", "qpa.")
+
+    def resolve_trajectory(self, path: str) -> Trajectory:
+        """The trajectory a *prefixed* path names, whichever kind it is.
+
+        The one authority for turning a display path into a curve.  Before
+        this, ``viz/plots.py`` and ``gui/series.py`` each carried their own
+        copy of the same two-branch conditional, so a third kind meant editing
+        both and a reader had to check they still agreed — the shape this
+        repo's "one authority per fact" rule exists to remove.
+
+        An unprefixed path is an ordinary parameter dot-path and goes to
+        :meth:`trajectory`, which is what makes this safe to call
+        unconditionally: ``instrument.zero_shift`` contains no prefix and
+        cannot be mistaken for one.
+        """
+        for prefix in self._TRAJECTORY_PREFIXES:
+            if path.startswith(prefix):
+                name = path[len(prefix):]
+                if prefix == "qpa.":
+                    return self.qpa_trajectory(name)
+                return self.agreement_trajectory(name,
+                                                 metric=prefix.rstrip("."))
+        return self.trajectory(path)
+
+    def agreement_phases(self) -> list[str]:
+        """Phase names carrying an agreement index, in first-seen order.
+
+        The peer of the inline QPA-phase gather in ``gui/series.py``; a series
+        may report agreement for a phase that has no QPA at all, since QPA
+        needs Z and a molar mass and a structure R does not.
+        """
+        out: list[str] = []
+        for e in self.entries:
+            for row in e.phase_agreement:
+                if row.name not in out:
+                    out.append(row.name)
+        return out
 
     # -- tabular export ------------------------------------------------
     def to_table(self, *, paths: list[str] | None = None

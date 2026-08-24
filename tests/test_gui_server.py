@@ -2895,7 +2895,11 @@ def test_the_backward_chain_travels_as_a_number_not_a_footnote(series):
     backward = session._series_run["backward"]
     assert backward is not None
     for path, row in served.items():
-        if path.startswith("qpa."):
+        # A prefixed path names a derived curve (a QPA, an agreement index),
+        # not a refined parameter, and only refined ones get a backward chain.
+        # Asked of the resolver's own list rather than spelled here, or this
+        # test keeps a second copy of which prefixes exist.
+        if path.startswith(backward._TRAJECTORY_PREFIXES):
             continue
         assert row["backward"] == list(backward.trajectory(path).value), path
         # a flagged path is one the library flagged, never this layer's judgement
