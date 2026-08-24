@@ -694,8 +694,12 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
         try:
             phases.append(rx.Phase(
                 name=ph.name, space_group=ph.space_group, cell=cell, atoms=atoms,
-                scale=rx.Parameter(value=ph.scale or 1e-4, min=0.0,
-                                   transform="softplus",
+                # `or 1e-4` substituted the seed for a *stated* zero: 20 real
+                # phases across 9 files record `scale 0`, a phase refined to
+                # absent, and this repo already treats that as a real state
+                # (`weight_percent cBN_wtpct 0.000`). None is the only absence.
+                scale=rx.Parameter(value=1e-4 if ph.scale is None else ph.scale,
+                                   min=0.0, transform="softplus",
                                    **({"vary": ph.vary["scale"]}
                                       if "scale" in ph.vary else {}))))
         except TopasInpError:

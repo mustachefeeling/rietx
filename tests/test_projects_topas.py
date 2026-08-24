@@ -717,4 +717,34 @@ def test_a_held_occupancy_reaches_the_structure_as_held(tmp_path):
     assert (ge.occ.value, ge.occ.vary) == (pytest.approx(0.2), True)
 
 
+# -------------------------------------------------- a stated zero is a value
+
+def test_a_stated_zero_scale_is_not_replaced_by_the_default(tmp_path):
+    """`ph.scale or 1e-4` substitutes a made-up default for a measured zero.
+
+    A phase refined to absent is a state this repo already recognises — the
+    `weight_percent cBN_wtpct 0.000` case above — and 20 real phases across 9
+    files state `scale 0`. `or` also destroys the difference between "the file
+    stated zero" and "the file said nothing", which is the F3 error again.
+    """
+    inp = _inp(tmp_path, "off.inp",
+               'str\nphase_name "cBN_refined_to_absent"\nspace_group "F-43m"\n'
+               'a 3.616466\nscale !ph_off 0\n'
+               'site N1 x 0 y 0 z 0 occ N 1. beq !bn 0.30441\n')
+    model = read_topas_inp(inp)
+    assert model.phases[0].scale == 0.0
+    scale = to_structure(model).phases[0].scale
+    assert scale.value == 0.0
+    assert scale.vary is False
+
+
+def test_a_phase_stating_no_scale_still_gets_the_seed(tmp_path):
+    """The other half of the tri-state: absent is still the 1e-4 seed."""
+    inp = _inp(tmp_path, "noscale.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    model = read_topas_inp(inp)
+    assert model.phases[0].scale is None
+    assert to_structure(model).phases[0].scale.value == pytest.approx(1e-4)
+
 
