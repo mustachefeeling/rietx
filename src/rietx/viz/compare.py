@@ -55,9 +55,11 @@ from ..schemas.instrument import (
     BackgroundChebyshev,
     BackgroundPSpline,
     Dispersion,
+    EmissionLine,
     Instrument,
     RoughnessPitschke,
     RoughnessSuortti,
+    Source,
 )
 from ..schemas.structure import (
     Parameter,
@@ -102,8 +104,17 @@ class Standard:
     #: the GSAS-II fluorapatite is only a cross-code consistency check
     description: str
     files: tuple[str, ...]
+    #: which of ``files`` is the *measurement*, and the reader call that claims
+    #: it.  Declared rather than inferred, for the reason ``DataRef`` records a
+    #: reader call at all: ``files[0]`` is only a convention, and a pdCIF
+    #: carrying a ``_meas`` and a ``_calc`` block is a different pattern
+    #: depending on ``block``.  A consumer building a *project* from a standard
+    #: (``rietx.examples``) has to state the call rather than inherit whichever
+    #: block a default happens to pick.
+    pattern: str
     build: Callable[[Path], StandardInputs]
     geometry: str                      # "bragg_brentano" | "debye_scherrer"
+    reader_options: tuple[tuple[str, str], ...] = ()
 
     def available(self, data_dir: Path) -> bool:
         return all((data_dir / f).exists() for f in self.files)
@@ -275,6 +286,95 @@ def _build_srm660c(data_dir: Path) -> StandardInputs:
     return StandardInputs(data=data, structure=structure, instrument=ins, plan=plan)
 
 
+_EIGHT_PI2 = 8.0 * np.pi**2
+
+#: label, species, x, y, z, Uiso — the ``CRS1 AT`` records of GSAS's converged
+#: ``FAP.EXP``, which is where this whole protocol is read from.
+_FAP_ATOMS = (
+    ("Ca1", "Ca", 0.333333, 0.666667, 0.001913, 0.006079),
+    ("Ca2", "Ca", 0.241976, 0.992603, 0.250000, 0.004561),
+    ("P3", "P", 0.397416, 0.367704, 0.250000, 0.003978),
+    ("F4", "F", 0.000000, 0.000000, 0.250000, 0.013850),
+    ("O5", "O", 0.325053, 0.484763, 0.250000, 0.004916),
+    ("O6", "O", 0.591494, 0.469954, 0.250000, 0.006609),
+    ("O7", "O", 0.339510, 0.258126, 0.070641, 0.006713),
+)
+
+
+def _build_fap(data_dir: Path) -> StandardInputs:
+    """GSAS-II's "LabData" fluorapatite — the **cross-code** row.
+
+    Every other standard here is measured against a certificate or a weighed
+    composition.  This one is measured against another Rietveld code's own
+    converged answer for the same file, so what it shows is a *convention*
+    difference rather than an error: the two cells sit +116 and +113 ppm apart,
+    the same relative offset on both axes, which is a d-scale disagreement and
+    not a structural one.  ±300 ppm is the honest band.
+
+    Mirrors ``tests/test_acceptance_fap`` field for field (the anti-drift test
+    in ``tests/test_compare_ui`` asserts it).  Three parts of the protocol are
+    GSAS's rather than ours and matter more than they look:
+
+    * the tutorial's own 1.5405/1.5443 Å doublet, not the NIST/Hölzer preset —
+      a 60 ppm wavelength difference lands straight on the cell being compared;
+    * zero held at 0 with the specimen **displacement** refining instead, and
+      the Caglioti terms held at the ``INST_XRY.PRM`` starting values, because
+      those are GSAS's own refine flags;
+    * dispersion **declined**, because GSAS's converged run did not apply
+      f′/f″ either.  Adopting another code's protocol means adopting what it
+      did not model as much as what it did.
+    """
+    from ..io.readers import read_pattern
+    from ..schemas.pattern import PatternData
+    from ..schemas.structure import Atom, Cell
+
+    raw = read_pattern(data_dir / "FAP.XRA")
+    # GSAS's own excluded region (FAP.EXP "EXC 2  130.000 1000.000"); the file
+    # runs to 130.04° and that last channel is a detector artefact.  Excluding
+    # it reproduces GSAS's 5750 channels exactly, which is what makes the two
+    # codes' agreement indices comparable at all.
+    data = PatternData(two_theta=raw.two_theta, intensity=raw.intensity,
+                       sigma=raw.sigma, excluded_regions=[(129.99, 1000.0)],
+                       metadata=raw.metadata)
+    cell = Cell(a=_p(9.3717, min=1.0), b=_p(9.3717, min=1.0), c=_p(6.8859, min=1.0),
+                alpha=_p(90.0), beta=_p(90.0), gamma=_p(120.0))
+    structure = Structure(phases=[Phase(
+        name="fluorapatite", space_group="P 63/m", cell=cell,
+        atoms=[Atom(label=lab, species=sp, x=_p(x), y=_p(y), z=_p(z),
+                    biso=_p(u * _EIGHT_PI2, min=0.0, max=25.0))
+               for lab, sp, x, y, z, u in _FAP_ATOMS],
+        scale=_p(1e-3, min=0.0, transform="softplus"),
+        # GSAS LX, LY starting values (centideg → deg)
+        lor_size=_p(0.0335, min=0.0, transform="softplus"),
+        lor_strain=_p(0.0249, min=0.0, transform="softplus"))])
+
+    ins = Instrument.bragg_brentano()
+    ins.source = Source(
+        lines=[EmissionLine(wavelength=1.5405),
+               EmissionLine(wavelength=1.5443, weight=_p(0.5, min=0.0, max=1.0))],
+        polarization=_p(0.5, min=0.0, max=1.0),
+        dispersion=None)
+    ins.profile.u.value = 2e-4     # GSAS GU, held
+    ins.profile.v.value = -2e-4    # GSAS GV, held
+    ins.profile.w.value = 5e-4     # GSAS GW, held
+    # S/L and H/L are near-degenerate (see Geometry docstring); refine one
+    ins.geometry.axial_sl.value = 0.02
+    ins.geometry.axial_hl.value = 0.02
+    ins.background = BackgroundChebyshev.with_terms(6)
+
+    plan = RefinementPlan(stages=[
+        Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        Stage("disp", ["instrument.geometry.sample_displacement"]),
+        Stage("cell", ["phases.*.cell.*"]),
+        Stage("sample_lor", ["phases.*.lor_size", "phases.*.lor_strain"]),
+        Stage("axial", ["instrument.geometry.axial_sl"]),
+        Stage("biso", ["phases.*.atoms.*.biso"]),
+    ])
+    plan.intermediate_ftol = 1e-6
+    return StandardInputs(data=data, structure=structure, instrument=ins,
+                          plan=plan)
+
+
 def _build_nac(data_dir: Path) -> StandardInputs:
     """APS 11-BM NAC + the CaF₂ impurity — synchrotron capillary geometry.
 
@@ -365,14 +465,16 @@ STANDARDS: tuple[Standard, ...] = (
                      "diffractometer. The package's **absolute** cell anchor "
                      "(a = 4.156895(25) Å, +28 ppm). Zero held at 0, displacement "
                      "refined — the NIST protocol."),
-        files=("nist_srm660c_100a.cif",), build=_build_srm660c,
+        files=("nist_srm660c_100a.cif",), pattern="nist_srm660c_100a.cif",
+        reader_options=(("block", "_meas"),), build=_build_srm660c,
         geometry="bragg_brentano"),
     Standard(
         key="corundum", title="SRM 676a corundum — α-Al₂O₃ (lab CuKα)",
         description=("IUCr CPD round-robin pure phase, also the SRM 676a cell "
                      "anchor. c/a is the certificate-grade assertion (+30 ppm); "
                      "the absolute axes carry a ≈−300 ppm lab d-scale offset."),
-        files=("qarr/corundum.prn",), build=_build_qarr(corundum_phase, "qarr/corundum.prn"),
+        files=("qarr/corundum.prn",), pattern="qarr/corundum.prn",
+        build=_build_qarr(corundum_phase, "qarr/corundum.prn"),
         geometry="bragg_brentano"),
     Standard(
         key="zincite", title="Zincite — ZnO (lab CuKα)",
@@ -380,14 +482,16 @@ STANDARDS: tuple[Standard, ...] = (
                      "neglected anomalous scattering: applying f′/f″ barely moves "
                      "Rwp but takes B(O) from 0.02 to 0.43 Å² — a displacement "
                      "parameter that had been spending itself on Zn's missing f′."),
-        files=("qarr/zincite.prn",), build=_build_qarr(zincite_phase, "qarr/zincite.prn"),
+        files=("qarr/zincite.prn",), pattern="qarr/zincite.prn",
+        build=_build_qarr(zincite_phase, "qarr/zincite.prn"),
         geometry="bragg_brentano"),
     Standard(
         key="fluorite", title="Fluorite — CaF₂ (lab CuKα)",
         description=("Round-robin pure phase; both sites fully fixed by symmetry, "
                      "so displacement parameters are the only structural freedom "
                      "and intensity-correction degeneracies show up cleanly."),
-        files=("qarr/fluorite.prn",), build=_build_qarr(fluorite_phase, "qarr/fluorite.prn"),
+        files=("qarr/fluorite.prn",), pattern="qarr/fluorite.prn",
+        build=_build_qarr(fluorite_phase, "qarr/fluorite.prn"),
         geometry="bragg_brentano"),
     Standard(
         key="brucite", title="Brucite — Mg(OH)₂ (lab CuKα)",
@@ -395,14 +499,28 @@ STANDARDS: tuple[Standard, ...] = (
                      "specimen: strongly platy on (001). The anisotropic-strain test "
                      "case — where the improvement is real, passes ΔBIC, and is still "
                      "rejected by the positivity cone."),
-        files=("qarr/brucite.prn",), build=_build_qarr(brucite_phase, "qarr/brucite.prn"),
+        files=("qarr/brucite.prn",), pattern="qarr/brucite.prn",
+        build=_build_qarr(brucite_phase, "qarr/brucite.prn"),
+        geometry="bragg_brentano"),
+    Standard(
+        key="fap", title="GSAS-II LabData — fluorapatite (lab CuKα doublet)",
+        description=("The **cross-code** row: measured against GSAS's own "
+                     "converged refinement of the same file rather than a "
+                     "certificate. Seven sites with real coordinate freedom, "
+                     "counts only (Poisson σ), and GSAS's 130° exclusion, so "
+                     "the two codes' agreement indices cover the same 5750 "
+                     "channels. The cells sit +116 and +113 ppm apart — the "
+                     "same relative offset on both axes, which is a d-scale "
+                     "convention difference, not a structural one."),
+        files=("FAP.XRA",), pattern="FAP.XRA", build=_build_fap,
         geometry="bragg_brentano"),
     Standard(
         key="nac", title="APS 11-BM — NAC + CaF₂ (synchrotron capillary)",
         description=("Na₂Ca₃Al₂F₁₄ with a fluorite impurity, λ = 0.4139090 Å, fitted "
                      "2-24° 2θ. The only debye_scherrer standard here, so the only "
                      "one where the capillary absorption variant applies."),
-        files=("11BM_NAC.fxye", "cod_1000236.cif"), build=_build_nac,
+        files=("11BM_NAC.fxye", "cod_1000236.cif"), pattern="11BM_NAC.fxye",
+        build=_build_nac,
         geometry="debye_scherrer"),
     Standard(
         key="lab6_capillary", title="APS 11-BM — NIST SRM 660a LaB₆ (capillary)",
@@ -413,6 +531,7 @@ STANDARDS: tuple[Standard, ...] = (
                      "cell is circular here and is not an anchor — the "
                      "absorption variant's Biso shift is what this one shows."),
         files=("11BM_LaB6_660a.fxye", "cod_1000055.cif"),
+        pattern="11BM_LaB6_660a.fxye",
         build=_build_lab6_capillary, geometry="debye_scherrer"),
 )
 

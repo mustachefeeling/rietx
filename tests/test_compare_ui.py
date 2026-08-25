@@ -129,6 +129,51 @@ def test_lab6_capillary_standard_matches_the_acceptance_builder():
            [(s.name, list(s.turn_on)) for s in _plan().stages]
 
 
+def test_fap_standard_matches_the_acceptance_builder():
+    """The cross-code protocol, pinned to the suite that measures it.
+
+    Sharper here than for the other standards: every field of this one is
+    *GSAS's* choice rather than ours — its doublet, its held Caglioti terms,
+    its 130° exclusion, its declined dispersion — so a drift would not read as
+    wrong, it would read as a different code being compared against.
+    """
+    if not (DATA_DIR / "FAP.XRA").exists():
+        pytest.skip("GSAS-II LabData tutorial dataset not present")
+    from tests.test_acceptance_fap import _gsas_protocol_plan, build_fap_inputs
+
+    data, structure, instrument = build_fap_inputs()
+    inputs = cmp.STANDARD_BY_KEY["fap"].build(DATA_DIR)
+
+    assert _dump(inputs.structure) == _dump(structure)
+    assert _dump(inputs.instrument) == _dump(instrument)
+    assert inputs.data.excluded_regions == data.excluded_regions
+    assert np.array_equal(inputs.data.intensity, data.intensity)
+    assert inputs.two_theta_limits is None
+    assert [(s.name, list(s.turn_on)) for s in inputs.plan.stages] == \
+           [(s.name, list(s.turn_on)) for s in _gsas_protocol_plan().stages]
+    assert inputs.plan.intermediate_ftol == _gsas_protocol_plan().intermediate_ftol
+
+
+def test_every_standard_declares_which_of_its_files_is_the_measurement():
+    """``pattern`` is what a project built from a standard opens, and
+    ``reader_options`` is the reader *call* — a pdCIF with a ``_meas`` and a
+    ``_calc`` block is a different pattern depending on ``block``.  Both are
+    checked against ``build``'s own answer rather than trusted."""
+    from rietx.io.readers import read_pattern
+
+    for std in cmp.STANDARDS:
+        if not std.available(DATA_DIR):
+            continue
+        assert std.pattern in std.files, std.key
+        declared = read_pattern(DATA_DIR / std.pattern,
+                                **{k: v for k, v in std.reader_options})
+        built = std.build(DATA_DIR).data
+        assert np.array_equal(np.asarray(declared.two_theta),
+                              np.asarray(built.two_theta)), std.key
+        assert np.array_equal(np.asarray(declared.intensity),
+                              np.asarray(built.intensity)), std.key
+
+
 def test_every_variant_is_reachable_from_some_standard():
     reachable = {v.key for s in cmp.STANDARDS for v in cmp.VARIANTS
                  if v.applies_to(s)}
