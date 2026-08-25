@@ -695,10 +695,7 @@
       Rwp <strong>{(rwp * 100).toFixed(3)}%</strong>
       {#if gof !== null}<span class="muted">GoF {gof.toFixed(3)}</span>{/if}
       {#if immature}
-        <button class="ghost tiny warn" title={result.maturity.message}
-          onclick={() => (tab = "report")}>
-          ⚠ not a fit yet
-        </button>
+        <span class="chip bad" title={result.maturity.message}>⚠ not a fit yet</span>
       {/if}
     {/if}
   </div>
@@ -785,7 +782,7 @@
              label is ever shortened and the strip takes a second row instead. -->
         <nav class="tabs">
           {#each TABS as entry (entry.id)}
-            <button class:on={tab === entry.id} onclick={() => (tab = entry.id)}
+            <button class="tab" class:on={tab === entry.id} onclick={() => (tab = entry.id)}
               >{entry.label}</button>
           {/each}
         </nav>
@@ -896,23 +893,11 @@
     color: var(--warn);
   }
 
-  .stats button.warn {
-    color: var(--warn);
-    border-color: var(--warn);
-    border-style: dashed;
-  }
-
   .controls {
     display: flex;
     align-items: center;
     gap: 8px;
     flex: 0 0 auto;
-  }
-
-  .segmented.theme button {
-    padding: 3px 7px;
-    font-size: 12px;
-    line-height: 1.1;
   }
 
   .pill[data-state="running"] {
@@ -980,32 +965,15 @@
     border-left: 0;
   }
 
+  /* The overflow rule is: never shorten a label, wrap instead (WP-1034) —
+     which is also why `.tab` does not grow to fill the row: with nine of them
+     the strip wraps at a 340 px column, and a lone `Build` stretched across
+     the second row read as a banner rather than as a tab. */
   .tabs {
     display: flex;
     flex-wrap: wrap;
     border-bottom: 1px solid var(--line);
     flex: 0 0 auto;
-  }
-
-  /* The overflow rule is: never shorten a label, wrap instead (WP-1034).  Which
-     is also why the buttons no longer *grow* to fill the row — with eight of
-     them the strip wraps at a 340 px column, and a lone `Build` stretched
-     across the second row read as a banner rather than as a tab. */
-  .tabs button {
-    flex: 0 0 auto;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    color: var(--muted);
-    font-weight: 400;
-    padding: 5px 6px;
-    border-bottom: 2px solid transparent;
-  }
-
-  .tabs button.on {
-    color: var(--fg);
-    border-bottom-color: var(--accent);
-    font-weight: 600;
   }
 
   .panel {
@@ -1028,9 +996,5 @@
 
   .empty .bad {
     margin: 0.6rem 1.2rem 0;
-  }
-
-  .bad {
-    color: var(--bad);
   }
 </style>

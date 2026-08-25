@@ -81,14 +81,14 @@ phrase (this WP writes that rule into `gui/CLAUDE.md`).
 
 ## Tasks
 
-- [ ] `app.css`: the type/space/radius tokens; the eight registers written
+- [x] `app.css`: the type/space/radius tokens; the eight registers written
       once, each with a one-line comment saying what it means; delete
       `.small`/`.tiny`; chip tones as one set.
-- [ ] `App.svelte`: the header on the registers (`Open…` ghost, the three
+- [x] `App.svelte`: the header on the registers (`Open…` ghost, the three
       segmented controls at register size, the status pill, `Run` primary,
       `Cancel`/`⌘K` ghost, `⚠ not a fit yet` as a `chip bad`); the tab strip
       as `.tab`.
-- [ ] Every `panels/*.svelte` `<style>`: delete local `button`, `.chip`,
+- [x] Every `panels/*.svelte` `<style>`: delete local `button`, `.chip`,
       `.pill`, `.small`, `.tiny` rules and literal font sizes; replace call
       sites (`class="ghost tiny"` → `class="ghost"`, `button.chip.act` →
       `button.ghost`, `chip tiny` → `chip`), keeping every existing tone.

@@ -113,30 +113,20 @@
     position: relative;
   }
 
+  /* the section-heading register (app.css), doubling as this panel's own bar */
   h2 {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
     margin: 0;
-    padding: 4px 10px 2px;
+    padding: var(--s2) 10px var(--s1);
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-weight: 600;
+    gap: var(--s3);
     flex: 0 0 auto;
   }
 
-  h2 button {
-    padding: 1px 8px;
-    font-size: 10px;
-  }
-
+  /* a ghost button that carries the heading's own tracking, since it *is* the
+     heading — the register supplies everything else */
   .caret {
-    font: inherit;
-    font-size: 11px;
     color: var(--muted);
-    padding: 0 2px;
     letter-spacing: inherit;
     text-transform: inherit;
   }

@@ -630,20 +630,20 @@
   <header>
     <h1>{showWizard ? "New project" : "Structure & instrument"}</h1>
     {#if !showWizard}
-      <button class="ghost small" onclick={() => (wizardOpen = true)}>New project…</button>
+      <button class="ghost" onclick={() => (wizardOpen = true)}>New project…</button>
     {:else if project}
-      <button class="ghost small" onclick={() => (wizardOpen = false)}>Back to the project</button>
+      <button class="ghost" onclick={() => (wizardOpen = false)}>Back to the project</button>
     {/if}
     <span class="spacer"></span>
     {#if !showWizard}
-      <button class="ghost small" class:on={viewer} onclick={() => (viewer = !viewer)}
+      <button class="ghost" class:on={viewer} onclick={() => (viewer = !viewer)}
         title="the cell, the symmetry images, the bonds and the displacement
                ellipsoids — drawn from the model on screen">3D</button>
     {/if}
     {#if !showWizard && dirty > 0}
-      <span class="muted small">{dirty} edit{dirty === 1 ? "" : "s"}</span>
-      <button class="small" disabled={busy || invalid.length > 0} onclick={apply}>Apply</button>
-      <button class="ghost small" onclick={revert}>Revert</button>
+      <span class="muted">{dirty} edit{dirty === 1 ? "" : "s"}</span>
+      <button disabled={busy || invalid.length > 0} onclick={apply}>Apply</button>
+      <button class="ghost" onclick={revert}>Revert</button>
     {/if}
   </header>
 
@@ -663,15 +663,15 @@
           <ul>
             {#each recent as entry (entry.path)}
               <li>
-                <button class="ghost small" disabled={busy}
+                <button class="ghost" disabled={busy}
                   onclick={async () => { openError = await onopen(entry.path); }}
                   >{entry.name}</button>
-                <span class="muted mono tiny">{entry.path}</span>
+                <span class="muted mono">{entry.path}</span>
               </li>
             {/each}
           </ul>
-          {#if openError}<p class="bad tiny">{openError}</p>{/if}
-          <p class="muted tiny">
+          {#if openError}<p class="bad">{openError}</p>{/if}
+          <p class="muted">
             Opening one replaces the project in this session; nothing is unsaved.
           </p>
         </section>
@@ -689,13 +689,13 @@
               aria-label="pattern preview">
               <path d={sparkline(wiz.pattern.curve)} />
             </svg>
-            <p class="muted tiny">
+            <p class="muted">
               claimed by <strong>{wiz.pattern.format.name}</strong> —
               {wiz.pattern.format.sniff}. σ: {wiz.pattern.format.sigma}
             </p>
             {#each readerOptions.filter((o: any) =>
                 wiz.pattern.format.options.includes(o.name)) as opt (opt.name)}
-              <label class="inline tiny">
+              <label class="inline">
                 {opt.name}
                 {#if opt.name === "scan" && scanCount(wiz.pattern) > 1}
                   <!-- a picker, not a number box: "scan 1" tells nobody which
@@ -730,7 +730,7 @@
               </label>
             {/each}
             {#if wiz.pattern.instrument_hint}
-              <p class="muted tiny">
+              <p class="muted">
                 instrument seeded from the file —
                 {wiz.pattern.instrument_hint.why}
               </p>
@@ -739,8 +739,7 @@
                  duplicate, an option that did not apply. The wizard is where a
                  human should see a repair, before it becomes a project. -->
             {#each wiz.pattern.diagnostics ?? [] as note (note.code + note.message)}
-              <p class="tiny {note.level === 'error' ? 'bad'
-                            : note.level === 'warning' ? 'warn' : 'info'}">
+              <p class="{note.level === 'error' ? 'bad' : note.level === 'warning' ? 'warn' : 'info'}">
                 <span class="mono">{note.code}</span> {note.message}
               </p>
             {/each}
@@ -755,7 +754,7 @@
           </label>
           {#if wiz.structure}
             <p class="summary mono">{structureSummary(wiz.structure)}</p>
-            <label class="inline tiny" title={wiz.structure.aniso_available
+            <label class="inline" title={wiz.structure.aniso_available
               ? "keeps the file's U^ij instead of collapsing them to U_eq"
               : "this file carries no _atom_site_aniso_U_ij loop"}>
               <input type="checkbox" checked={wiz.aniso}
@@ -776,7 +775,7 @@
               </span>
             </label>
             {#if wiz.structure.unknown_species.length}
-              <p class="bad tiny">
+              <p class="bad">
                 {wiz.structure.unknown_species.length} atom(s) carry a species with no
                 form factor here: {wiz.structure.unknown_species
                   .map((u: any) => `${u.label} (${u.species})`).join(", ")}
@@ -787,7 +786,7 @@
 
         <li class:done={!!wiz.instrument || wiz.preset !== ""}>
           <h2>3 · Instrument</h2>
-          <p class="muted tiny">
+          <p class="muted">
             Required, and not defaulted: <code>Instrument</code> has no default
             source, and guessing an anode would put a wavelength nobody chose into
             every refined cell.
@@ -797,7 +796,7 @@
               {wiz.instrument.filename} · {wiz.instrument.summary.geometry} ·
               λ {wiz.instrument.summary.wavelengths.join(", ")} Å · frozen
             </p>
-            <button class="ghost small" onclick={() => (wiz.instrument = null)}>
+            <button class="ghost" onclick={() => (wiz.instrument = null)}>
               Use the form instead</button>
           {:else}
             <select value={wiz.preset} disabled={busy}
@@ -831,7 +830,7 @@
                 </label>
               {/each}
             </div>
-            <label class="file small">
+            <label class="file">
               <input type="file" onchange={(e) => stage("instrument", e)} />
               <span>…or load a saved instrument profile</span>
             </label>
@@ -841,7 +840,7 @@
         <li class:done={!!wiz.path}>
           <h2>4 · Project</h2>
           <label class="inline">
-            <span class="muted tiny">directory</span>
+            <span class="muted">directory</span>
             <input class="mono wide" bind:value={wiz.path}
               placeholder="/path/to/my_sample.rex" />
           </label>
@@ -865,7 +864,7 @@
       {#if wizError}<p class="bad">{wizError}</p>{/if}
       <div class="create">
         <button disabled={!!cannotCreate || busy} onclick={create}>Create project</button>
-        <span class="muted small">{cannotCreate
+        <span class="muted">{cannotCreate
           || "nothing is written until this — every file has already been read"}</span>
       </div>
     </div>
@@ -877,11 +876,11 @@
         <h2>Structure
           <label class="file inline-file">
             <input type="file" accept=".cif" onchange={(e) => replaceFrom("cif", e)} />
-            <span class="ghost small">Replace from CIF…</span>
+            <span class="ghost">Replace from CIF…</span>
           </label>
         </h2>
         {#if structure.phases.length > 1}
-          <nav class="phases">
+          <nav class="phases segmented">
             {#each structure.phases as p, i (i)}
               <button class:on={phase === i} onclick={() => (phase = i)}>{p.name}</button>
             {/each}
@@ -903,32 +902,32 @@
              before anything is applied. -->
         <div class="symmetry">
           <div class="symrow">
-            <span class="muted tiny">space group</span>
+            <span class="muted">space group</span>
             <input class="mono sym" data-field="phases.{phase}.space_group"
               value={symbolDraft ?? structure.phases[phase].space_group}
               title="the Hermann-Mauguin symbol or its IT number; a setting
                 extension (:H, :R) is part of it"
               oninput={(e) => (symbolDraft =
                 (e.currentTarget as HTMLInputElement).value)} />
-            <button class="ghost tiny" disabled={!symDirty || symBusy || busy}
+            <button class="ghost" disabled={!symDirty || symBusy || busy}
               onclick={previewSymbol}>Preview…</button>
           </div>
-          <p class="muted tiny nowrapish">{symLine}</p>
+          <p class="muted nowrapish">{symLine}</p>
           {#if phaseSym?.constraints}
-            <p class="muted tiny">holds: {phaseSym.constraints}</p>
+            <p class="muted">holds: {phaseSym.constraints}</p>
           {/if}
           {#if lettersFor !== phase}
-            <button class="ghost tiny" disabled={lettersBusy}
+            <button class="ghost" disabled={lettersBusy}
               title="a symmetry search per atom — fetched on request, not on
                 every head move"
               onclick={showLetters}>{lettersBusy
                 ? "searching…" : "Wyckoff letters…"}</button>
           {/if}
-          {#if symError}<p class="bad tiny">{symError}</p>{/if}
+          {#if symError}<p class="bad">{symError}</p>{/if}
 
           {#if symPreview}
             <div class="preview" class:blocked={symPreview.blocked}>
-              <p class="small">
+              <p>
                 <strong class="mono">{symPreview.to?.xhm ?? "?"}</strong>
                 {#if !symPreview.changed}
                   — the same setting; nothing would change.
@@ -939,28 +938,28 @@
                 {/if}
               </p>
               {#each symPreview.refusals as refusal (refusal.where)}
-                <p class="bad tiny">{refusal.message}</p>
+                <p class="bad">{refusal.message}</p>
               {/each}
               {#each symPreview.notes as note2 (note2.kind + note2.where.join())}
-                <p class="tiny {noteTone(note2.kind)}">{note2.message}</p>
+                <p class="{noteTone(note2.kind)}">{note2.message}</p>
               {/each}
               {#if !symPreview.blocked}
                 {#each entryLines(symPreview.entries) as line (line)}
-                  <p class="muted tiny">{line}</p>
+                  <p class="muted">{line}</p>
                 {/each}
                 {#each siteLines(symPreview.sites) as line (line)}
-                  <p class="muted tiny">{line}</p>
+                  <p class="muted">{line}</p>
                 {/each}
                 {#if !entryLines(symPreview.entries).length
                      && !siteLines(symPreview.sites).length && symPreview.changed}
-                  <p class="muted tiny">no parameter gains or loses a tie — the
+                  <p class="muted">no parameter gains or loses a tie — the
                     reflection list is what moves.</p>
                 {/if}
               {/if}
               <div class="symrow">
                 <button disabled={symPreview.blocked || !symPreview.changed
                   || symBusy || busy} onclick={applySymbol}>Apply</button>
-                <button class="ghost small"
+                <button class="ghost"
                   onclick={() => { symPreview = null; symbolDraft = null; }}
                   >Discard</button>
               </div>
@@ -986,12 +985,12 @@
                   value={text(structure, field, "structure")}
                   oninput={(e) => type(path, (e.currentTarget as HTMLInputElement).value)} />
               {/if}
-              {#if row?.esd}<span class="muted tiny">{formatEsd(row.value, row.esd)}</span>{/if}
+              {#if row?.esd}<span class="muted">{formatEsd(row.value, row.esd)}</span>{/if}
             </label>
           {/each}
         </div>
 
-        <h3>Atoms <span class="muted tiny">{atoms.length}</span></h3>
+        <h3>Atoms <span class="muted">{atoms.length}</span></h3>
         <!-- the table scrolls, not the column: its `min-content` is 448 px
              (WP-1034 task 1) and a column narrower than that used to take the
              cell row and the headings sideways with it -->
@@ -1040,11 +1039,11 @@
                   disabled={busy}
                   onchange={(e) => toggleAniso(row.base,
                     (e.currentTarget as HTMLInputElement).checked)} /></td>
-                <td><button class="ghost tiny" disabled={busy}
+                <td><button class="ghost" disabled={busy}
                   title="remove this atom" onclick={() => removeAtom(row.index)}>×</button></td>
               </tr>
               {#if row.frozen}
-                <tr class="sub"><td colspan="7" class="muted tiny">{row.frozen}</td></tr>
+                <tr class="sub"><td colspan="7" class="muted">{row.frozen}</td></tr>
               {:else if row.dofs.length}
                 <tr class="sub"><td colspan="7">
                   <span class="sublabel">moves along</span>
@@ -1054,7 +1053,7 @@
                        different rhythms -->
                   <div class="dofs">
                     {#each row.dofs as dof, k (dof.path)}
-                      <label class="dof mono tiny" title={dof.path}>
+                      <label class="dof mono" title={dof.path}>
                         <span class="pattern">[{(row.site?.dof_directions?.[k] ?? []).join(" ")}]</span>
                         <input class="mono narrow" data-field={dof.path}
                           value={pedits.get(dof.path)
@@ -1071,7 +1070,7 @@
                   <span class="sublabel">U<sup>ij</sup> patterns</span>
                   <div class="dofs wide-patterns">
                     {#each row.adps as adp, k (adp.path)}
-                      <label class="dof mono tiny" title={adp.path}>
+                      <label class="dof mono" title={adp.path}>
                         <span class="pattern">[{(row.site?.adp_patterns?.[k] ?? []).join(" ")}]</span>
                         <input class="mono narrow" data-field={adp.path}
                           value={pedits.get(adp.path)
@@ -1094,9 +1093,9 @@
           <input class="mono narrow" placeholder="x" bind:value={draft.x} />
           <input class="mono narrow" placeholder="y" bind:value={draft.y} />
           <input class="mono narrow" placeholder="z" bind:value={draft.z} />
-          <button class="ghost small" disabled={busy} onclick={addAtom}>Add atom</button>
+          <button class="ghost" disabled={busy} onclick={addAtom}>Add atom</button>
         </div>
-        <p class="muted tiny">
+        <p class="muted">
           A new atom's position decides its site symmetry, and therefore how many
           DOFs it gets — which is why it is typed here and moved by them afterwards.
         </p>
@@ -1116,11 +1115,11 @@
         <h2>Instrument
           <label class="file inline-file">
             <input type="file" onchange={(e) => replaceFrom("instrument", e)} />
-            <span class="ghost small">Load profile…</span>
+            <span class="ghost">Load profile…</span>
           </label>
         </h2>
         {#if warning}
-          <p class="warn tiny">{warning} Nudge one if you free both — the guard
+          <p class="warn">{warning} Nudge one if you free both — the guard
             reports the pair, and two solvers escape the corner in two
             unprincipled directions.</p>
         {/if}
@@ -1154,7 +1153,7 @@
         </div>
 
         <h3>Background</h3>
-        <p class="muted tiny">
+        <p class="muted">
           {instrument.background.kind}
           {#if instrument.background.kind === "chebyshev"}
             — the coefficients themselves are parameters; the count is a shape
@@ -1162,7 +1161,7 @@
           {/if}
         </p>
         {#if instrument.background.kind === "chebyshev"}
-          <label class="inline tiny">
+          <label class="inline">
             terms
             <input class="mono narrow" type="number" min="1" max="30"
               value={instrument.background.coefficients.length}
@@ -1192,13 +1191,13 @@
 
     <footer>
       {#if error}<p class="bad">{error}</p>{/if}
-      {#if loadError}<p class="bad tiny">{loadError}</p>{/if}
+      {#if loadError}<p class="bad">{loadError}</p>{/if}
       {#if invalid.length}
-        <p class="bad tiny">{invalid.map((i) => `${i.path}: ${i.why}`).join(" · ")}</p>
+        <p class="bad">{invalid.map((i) => `${i.path}: ${i.why}`).join(" · ")}</p>
       {/if}
-      {#if note}<p class="muted tiny">{note}</p>{/if}
+      {#if note}<p class="muted">{note}</p>{/if}
       {#if dirty > 0}
-        <p class="muted tiny">
+        <p class="muted">
           {Object.keys({ ...(insDelta?.values ?? {}), ...(strDelta?.values ?? {}),
                          ...pending.values }).length} through
           <code>set_values</code> ·
@@ -1235,26 +1234,29 @@
   }
 
   h1 {
-    font-size: 13px;
+    font-size: var(--text);
     margin: 0;
   }
 
   h2 {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    margin: 10px 0 4px;
-    font-weight: 600;
+    margin: 10px 0 var(--s2);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--s3);
   }
 
+  /* a sub-heading *inside* a section, so deliberately not the section-heading
+     register: it names a block of the form, not the form */
   h3 {
-    font-size: 11.5px;
+    font-size: var(--text-sm);
+    text-transform: none;
+    letter-spacing: 0;
+    color: inherit;
     margin: 10px 0 3px;
-    font-weight: 600;
+  }
+
+  p {
+    margin: var(--s1) 0;
   }
 
   .wizard {
@@ -1308,8 +1310,8 @@
   }
 
   .summary {
-    margin: 4px 0;
-    font-size: 11.5px;
+    margin: var(--s2) 0;
+    font-size: var(--text-sm);
   }
 
   svg.spark {
@@ -1324,23 +1326,6 @@
     stroke: var(--accent);
     stroke-width: 1;
     vector-effect: non-scaling-stroke;
-  }
-
-  .file input[type="file"] {
-    display: none;
-  }
-
-  .file span {
-    display: inline-block;
-    border: 1px dashed var(--line);
-    border-radius: 5px;
-    padding: 4px 10px;
-    cursor: pointer;
-    font-size: 11.5px;
-  }
-
-  .file span:hover {
-    border-color: var(--accent);
   }
 
   .inline-file {
@@ -1434,10 +1419,12 @@
     flex: 1.25 1 260px;
   }
 
+  /* choosing one of N phases is the `.segmented` register (app.css) — as N
+     plain buttons every phase wore the primary fill and `class:on` said
+     nothing, so a two-phase model showed no selection at all */
   nav.phases {
-    display: flex;
-    gap: 4px;
-    margin: 4px 0;
+    margin: var(--s2) 0;
+    align-self: flex-start;
   }
 
   .grid {
@@ -1451,7 +1438,7 @@
     display: flex;
     flex-direction: column;
     gap: 1px;
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     min-width: 92px;
   }
 
@@ -1471,10 +1458,9 @@
     width: 100%;
   }
 
+  /* the size is the control register's (app.css); this is the chrome */
   input,
   select {
-    font: inherit;
-    font-size: 11.5px;
     border: 1px solid var(--line);
     background: var(--bg);
     color: inherit;
@@ -1514,14 +1500,14 @@
        eight columns into an unreadable smear (measured: 448 px on NAC) */
     min-width: 448px;
     border-collapse: collapse;
-    font-size: 11.5px;
+    font-size: var(--text-sm);
   }
 
   table.atoms th {
     text-align: left;
     font-weight: 600;
     color: var(--muted);
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--line);
@@ -1555,7 +1541,7 @@
      they used to be a plain muted span against uppercase tracked `th`s */
   .sublabel {
     display: block;
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -1612,22 +1598,6 @@
 
   footer p {
     margin: 2px 0;
-  }
-
-  .tiny {
-    font-size: 11px;
-  }
-
-  .small {
-    font-size: 11.5px;
-  }
-
-  .bad {
-    color: var(--bad);
-  }
-
-  .warn {
-    color: var(--warn);
   }
 
   /* an `info` note is a fact about the change, not a complaint about it — the
@@ -1693,6 +1663,6 @@
   .wyckoff {
     margin-left: 6px;
     opacity: 0.75;
-    font-size: 10.5px;
+    font-size: var(--text-xs);
   }
 </style>

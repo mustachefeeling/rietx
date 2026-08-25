@@ -127,17 +127,17 @@
 </script>
 
 <section>
-  {#if error}<p class="bad small">{error}</p>{/if}
+  {#if error}<p class="bad">{error}</p>{/if}
 
   {#if !report}
-    <p class="muted small pad">{empty || "loading the report…"}</p>
+    <p class="muted pad">{empty || "loading the report…"}</p>
   {:else}
     {@const h = head_!}
     <div class="scroller">
       <div class="head">
         <span class="mono tabular">Rwp <strong>{(h.rwp * 100).toFixed(3)}%</strong></span>
         <span class="mono tabular muted">GoF {h.gof.toFixed(3)}</span>
-        <span class="muted small">Layer 1 on {h.gated} regions</span>
+        <span class="muted">Layer 1 on {h.gated} regions</span>
         <!-- two counts, not one: an observed peak with no tick is an impurity or a
              wrong cell, while a calculated peak with no intensity is what a
              *mispositioned* model produces at every peak. One badge for both read
@@ -151,34 +151,34 @@
 mispositioned or absent phase, not an impurity">
             {h.unobserved} unobserved</span>
         {/if}
-        <span class="muted small mono">v{report.thresholds_version}</span>
+        <span class="muted mono">v{report.thresholds_version}</span>
       </div>
 
-      <p class="small summary">{report.summary}</p>
+      <p class="summary">{report.summary}</p>
 
       {#if h.abstained}
         <!-- an abstention is a finding: Layer 1 refused, and the reason is the
              information. Rendering it as an empty panel would be the one thing
              the report's design exists to prevent -->
-        <p class="abstain small">Layer 1 abstained — {h.abstained}</p>
+        <p class="abstain">Layer 1 abstained — {h.abstained}</p>
       {/if}
 
       {#if h.refusedBy.length}
-        <p class="small muted">
+        <p class="muted">
           gates refused:
           {#each h.refusedBy as entry (entry)}<span class="chip">{entry}</span>{/each}
         </p>
       {/if}
 
       {#if applied}
-        <div class="applied small">
+        <div class="applied">
           <strong>applied {applied.kind}</strong>
           <span class="mono tabular">
             predicted Δχ² {applied.predicted === null ? "—" : applied.predicted.toPrecision(4)}
             · observed {observed === null ? "running…" : observed.toPrecision(4)}
           </span>
           <span class="spacer"></span>
-          <button class="ghost tiny" disabled={busy} onclick={() => undo(applied!.undo)}
+          <button class="ghost" disabled={busy} onclick={() => undo(applied!.undo)}
             title="check out the node this project stood at before the action">
             Undo</button>
         </div>
@@ -187,10 +187,10 @@ mispositioned or absent phase, not an impurity">
       <!-- Layer 2 -->
       <h3>Suggestions</h3>
       {#if h.predicted !== null}
-        <p class="tiny muted">{predictionNote(h)}</p>
+        <p class="muted">{predictionNote(h)}</p>
       {/if}
       {#if !rows.length}
-        <p class="muted small">Nothing suggested — on a converged fit that is the
+        <p class="muted">Nothing suggested — on a converged fit that is the
           right answer, not a missing panel.</p>
       {/if}
       {#each rows as row (row.action.kind + row.action.parameter_paths.join(","))}
@@ -204,36 +204,36 @@ mispositioned or absent phase, not an impurity">
             {#if arm && arm.how !== "stage"}<span class="chip">{arm.how}</span>{/if}
             <span class="spacer"></span>
             {#if row.action.two_theta_range}
-              <button class="ghost tiny" onclick={() =>
+              <button class="ghost" onclick={() =>
                 zoom(row.action.two_theta_range![0], row.action.two_theta_range![1])}
                 title="zoom the plot to where this was measured">
                 {row.action.two_theta_range[0].toFixed(2)}°</button>
             {/if}
             {#if arm?.can_apply}
-              <button class="small" disabled={busy}
+              <button disabled={busy}
                 title={arm.api_call ?? ""}
                 onclick={() => apply(row.action.kind, row.action.parameter_paths)}>
                 Apply</button>
             {/if}
           </div>
-          <p class="why small">{row.action.rationale}</p>
-          <p class="paths mono tiny muted">{row.action.parameter_paths.join("  ")}</p>
+          <p class="why">{row.action.rationale}</p>
+          <p class="paths mono muted">{row.action.parameter_paths.join("  ")}</p>
           {#if row.action.alternatives.length}
-            <p class="tiny muted">could not rule out: {row.action.alternatives.join(", ")}</p>
+            <p class="muted">could not rule out: {row.action.alternatives.join(", ")}</p>
           {/if}
           {#if arm && !arm.can_apply}
             <!-- greyed with the reason, never hidden: the veto *is* the reasoning,
                  and an advice note is the action's whole deliverable -->
-            <p class="tiny refusal">{arm.refusal}</p>
+            <p class="refusal">{arm.refusal}</p>
           {/if}
         </div>
       {/each}
 
       <!-- Layer 0 -->
       <h3>Worst regions</h3>
-      <div class="table tiny">
+      <div class="table">
         {#each regions as region (region.two_theta_lo)}
-          <button class="trow" onclick={() => zoom(region.two_theta_lo, region.two_theta_hi)}
+          <button class="trow pick" onclick={() => zoom(region.two_theta_lo, region.two_theta_hi)}
             title="zoom the plot to this window">
             <span class="mono tabular">{region.two_theta_lo.toFixed(2)}–{region.two_theta_hi.toFixed(2)}°</span>
             <span class="mono tabular">{(num(region.chi2_share) * 100).toFixed(1)}% χ²</span>
@@ -246,9 +246,9 @@ mispositioned or absent phase, not an impurity">
 
       {#if report.unmatched?.length}
         <h3>Peaks with no partner</h3>
-        <div class="table tiny">
+        <div class="table">
           {#each report.unmatched.slice(0, 10) as peak (peak.two_theta + peak.kind)}
-            <button class="trow" onclick={() => zoom(peak.two_theta - 0.3, peak.two_theta + 0.3)}>
+            <button class="trow pick" onclick={() => zoom(peak.two_theta - 0.3, peak.two_theta + 0.3)}>
               <span class="mono tabular">{peak.two_theta.toFixed(3)}°</span>
               <span class="mono tabular">{num(peak.height_over_sigma).toFixed(0)}σ</span>
               <span class="muted">{peak.kind === "unmatched_obs"
@@ -263,7 +263,7 @@ mispositioned or absent phase, not an impurity">
       {#if !simple}
         <h3>Trends</h3>
         {#each report.trends ?? [] as trend (trend.observable)}
-          <div class="trend small">
+          <div class="trend">
             <strong>{trend.observable}</strong>
             <span class="muted">{(num(trend.misfit_share) * 100).toFixed(0)}% of χ²,
               {trend.n_regions_used} regions</span>
@@ -271,7 +271,7 @@ mispositioned or absent phase, not an impurity">
               <span class="chip warn" title="|r|={num(trend.max_template_collinearity).toFixed(3)}">
                 not separable</span>
             {/if}
-            <div class="templates mono tiny">
+            <div class="templates mono">
               {#each trend.templates as t (t.name)}
                 <span class:best={t.r2 === Math.max(...trend.templates.map((x: any) => num(x.r2)))}>
                   {t.name} {num(t.coefficient).toPrecision(3)}±{num(t.stderr).toPrecision(2)}
@@ -283,7 +283,7 @@ mispositioned or absent phase, not an impurity">
         {/each}
 
         <h3>Attribution</h3>
-        <div class="table tiny">
+        <div class="table">
           {#each report.attribution ?? [] as region (region.two_theta_lo)}
             <div class="trow flat" class:gated={region.gates_passed}>
               <span class="mono tabular">{region.two_theta_lo.toFixed(2)}–{region.two_theta_hi.toFixed(2)}°</span>
@@ -304,11 +304,11 @@ mispositioned or absent phase, not an impurity">
         </div>
 
         {#each (report.texture ?? []).filter((t: any) => t.detected) as t (t.phase_index)}
-          <p class="small">texture: phase {t.phase_index} along {t.best_axis?.join("")},
+          <p>texture: phase {t.phase_index} along {t.best_axis?.join("")},
             r={num(t.march_coefficient).toFixed(3)}, R²{num(t.r2).toFixed(2)}</p>
         {/each}
         {#each (report.strain ?? []).filter((s: any) => s.detected) as s (s.phase_index)}
-          <p class="small">strain: phase {s.phase_index} directional by
+          <p>strain: phase {s.phase_index} directional by
             {num(s.anisotropy).toFixed(1)}×{s.separable ? "" : " (patterns unresolved)"}</p>
         {/each}
       {/if}
@@ -334,26 +334,12 @@ mispositioned or absent phase, not an impurity">
     padding: 10px;
   }
 
-  .small {
-    font-size: 11.5px;
-  }
-
-  .tiny {
-    font-size: 11px;
-  }
-
-  button.tiny {
-    padding: 0 5px;
-    font-size: 10.5px;
-  }
-
   h3 {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
     margin: 10px 0 3px;
-    font-weight: 600;
+  }
+
+  p {
+    margin: var(--s1) 0;
   }
 
   .head {
@@ -391,18 +377,7 @@ mispositioned or absent phase, not an impurity">
   }
 
   .chip {
-    font: var(--mono);
-    font-size: 10px;
-    padding: 0 4px;
-    border-radius: 8px;
-    border: 1px solid var(--line);
-    color: var(--muted);
     margin-left: 3px;
-  }
-
-  .chip.warn {
-    border-color: var(--warn);
-    color: var(--warn);
   }
 
   .action {
@@ -437,7 +412,7 @@ mispositioned or absent phase, not an impurity">
 
   .conf {
     flex: 0 0 auto;
-    font-size: 11.5px;
+    font-size: var(--text-sm);
   }
 
   .kind {
@@ -466,19 +441,15 @@ mispositioned or absent phase, not an impurity">
     flex-direction: column;
   }
 
+  /* a table row, whether or not it acts — the `.pick` register (app.css) is
+     what takes the box off the ones that do */
   .trow {
     display: flex;
     gap: 7px;
     align-items: center;
-    background: transparent;
-    border: 0;
     border-bottom: 1px solid var(--line);
-    border-radius: 0;
-    color: inherit;
-    font-weight: 400;
-    text-align: left;
     padding: 1px 2px;
-    font-size: 11px;
+    font-size: var(--text-sm);
     line-height: 18px;
   }
 
@@ -512,7 +483,6 @@ mispositioned or absent phase, not an impurity">
   }
 
   .bad {
-    color: var(--bad);
     padding: 0 9px;
     margin: 3px 0;
   }

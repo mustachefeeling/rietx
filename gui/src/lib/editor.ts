@@ -86,7 +86,7 @@ const HIGHLIGHT = HighlightStyle.define([
 export function editorTheme(dark: boolean): Extension {
   return EditorView.theme(
     {
-      "&": { height: "100%", fontSize: "12px", backgroundColor: "var(--bg)", color: "var(--fg)" },
+      "&": { height: "100%", fontSize: "var(--text-sm)", backgroundColor: "var(--bg)", color: "var(--fg)" },
       ".cm-scroller": { fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace" },
       ".cm-gutters": {
         backgroundColor: "var(--panel)",

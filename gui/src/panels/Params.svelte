@@ -175,10 +175,10 @@
       placeholder="filter — a word, or a glob like phases.*.cell.*"
       bind:value={query}
       disabled={!rows.length} />
-    <span class="muted mono small" title="the glob that will be sent">{glob}</span>
+    <span class="muted mono" title="the glob that will be sent">{glob}</span>
   </header>
 
-  <div class="bar small">
+  <div class="bar">
     <span class="muted">
       {view.shown} of {rows.length} rows · <strong>{nFree}</strong> free
       {#if mode}· <span class="mono">{mode}</span>{/if}
@@ -188,17 +188,17 @@
       {/if}
     </span>
     <span class="spacer"></span>
-    <button class="ghost small" disabled={busy || !picked.toFree} onclick={() => bulk(true)}
+    <button class="ghost" disabled={busy || !picked.toFree} onclick={() => bulk(true)}
       title="one set_vary call on the glob above — one history node">
       Free {picked.toFree}
     </button>
-    <button class="ghost small" disabled={busy || !picked.toFix} onclick={() => bulk(false)}>
+    <button class="ghost" disabled={busy || !picked.toFix} onclick={() => bulk(false)}>
       Fix {picked.toFix}
     </button>
   </div>
 
   {#if error}
-    <p class="bad small">{error}</p>
+    <p class="bad">{error}</p>
   {/if}
 
   <div
@@ -206,16 +206,16 @@
     bind:clientHeight={viewport}
     onscroll={(event) => (scrollTop = (event.currentTarget as HTMLElement).scrollTop)}>
     {#if loading && !rows.length}
-      <p class="muted small pad">loading the table…</p>
+      <p class="muted pad">loading the table…</p>
     {:else if !rows.length}
-      <p class="muted small pad">No parameters — open a project.</p>
+      <p class="muted pad">No parameters — open a project.</p>
     {:else if !view.items.length}
-      <p class="muted small pad">Nothing matches <span class="mono">{glob}</span>.</p>
+      <p class="muted pad">Nothing matches <span class="mono">{glob}</span>.</p>
     {:else}
       <div style:height="{slice.padTop}px"></div>
       {#each view.items.slice(slice.start, slice.end) as item (item.key)}
         {#if item.kind === "group"}
-          <button class="group mono" onclick={() => toggleGroup(item.key)}>
+          <button class="group mono pick" onclick={() => toggleGroup(item.key)}>
             <span class="caret">{collapsed.has(item.key) ? "▸" : "▾"}</span>
             {item.label}
             <span class="muted">{item.free}/{item.n}</span>
@@ -275,7 +275,7 @@
   </div>
 
   {#if pending.touched}
-    <footer class="small">
+    <footer>
       <span>
         {pending.touched} pending {pending.touched === 1 ? "edit" : "edits"}
         {#if pending.invalid.length}
@@ -283,11 +283,11 @@
         {/if}
       </span>
       <span class="spacer"></span>
-      <button class="ghost small" onclick={revert}>Revert</button>
+      <button class="ghost" onclick={revert}>Revert</button>
       <!-- an invalid cell blocks Apply rather than being dropped silently: the
            whole point of carrying bounds on the row is to say so before the
            round trip, and a partial apply is a worse answer than none -->
-      <button class="small" disabled={busy || pending.invalid.length > 0} onclick={apply}>
+      <button disabled={busy || pending.invalid.length > 0} onclick={apply}>
         Apply
       </button>
     </footer>
@@ -320,12 +320,15 @@
     color: var(--fg);
   }
 
+  /* rows of controls, so they are control-sized — the counts beside the
+     buttons read with them rather than as prose */
   .bar,
   footer {
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 0 8px 4px;
+    font-size: var(--text-sm);
   }
 
   footer {
@@ -335,10 +338,6 @@
 
   .spacer {
     flex: 1 1 auto;
-  }
-
-  .small {
-    font-size: 11.5px;
   }
 
   .scroller {
@@ -362,15 +361,12 @@
     box-sizing: border-box;
   }
 
+  /* the `.pick` register (app.css) with the group header's own surface */
   .group {
     width: 100%;
     background: color-mix(in srgb, var(--panel) 60%, var(--bg));
-    border: 0;
     border-bottom: 1px solid var(--line);
-    border-radius: 0;
-    color: var(--fg);
     font-weight: 600;
-    text-align: left;
     padding-left: 6px;
   }
 

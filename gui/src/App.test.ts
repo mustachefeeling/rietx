@@ -709,16 +709,19 @@ describe("the shell", () => {
     await flush();
 
     expect(host.querySelector(".stats")?.classList.contains("immature")).toBe(true);
-    const flag = button("⚠ not a fit yet")!;
+    // A chip, not a button (WP-1201): a chip is a fact and never acts, so the
+    // judgement travels as a `bad` tone and the maturity message, and the panel
+    // that explains it is reached from the tab strip like every other panel.
+    // WP-1029 had made this badge a route to the Report tab; the register
+    // vocabulary trades that shortcut for "a thing that acts looks like one".
+    const flag = [...host.querySelectorAll<HTMLElement>(".stats .chip")]
+      .find((c) => c.textContent?.trim() === "⚠ not a fit yet")!;
     expect(flag).toBeTruthy();
+    expect(flag.tagName).toBe("SPAN");
+    expect(flag.classList.contains("bad")).toBe(true);
     expect(flag.title).toContain("same specimen");
     // the calm pill is still there and still says `converged` — untouched
     expect(host.querySelector(".pill")?.textContent?.trim()).toBe("idle");
-
-    // …and it is a route to the panel that explains it, not just a badge
-    flag.click();
-    await flush();
-    expect(host.textContent).toContain("No fit to report on yet");
   });
 
   it("surfaces an open refusal verbatim rather than 'could not open'", async () => {
@@ -1069,7 +1072,7 @@ describe("the history worktree", () => {
     const nodes = [...host.querySelectorAll<HTMLElement>(".node")];
     nodes[1].querySelector<HTMLButtonElement>("button.pick")!.click();
     await flush();
-    nodes[2].querySelector<HTMLButtonElement>("button.tiny")!.click();   // ⇄
+    nodes[2].querySelector<HTMLButtonElement>("button.ghost")!.click();   // ⇄
     await flush();
 
     expect(stub.calls.some((c) => c.url.includes("/api/history/diff?a=n0001&b=n0002"))).toBe(true);
@@ -1097,7 +1100,7 @@ describe("the report panel", () => {
     expect(actions[1].textContent).toContain("already refined by the staged plan");
     expect(actions[2].textContent).toContain("no phase is named yet");
     // one Apply button: the other two are refusals with reasons, not controls
-    expect(host.querySelectorAll(".action button.small").length).toBe(1);
+    expect(host.querySelectorAll(".action button:not(.ghost)").length).toBe(1);
     // 0.5 is capped by the collinear templates, so it must not read as confident
     expect(actions[0].dataset.tone).toBe("medium");
   });
@@ -2645,9 +2648,10 @@ describe("the structure viewer", () => {
     const drawn = recorder();
     const stub = await openViewer();
     const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
-    const chip = [...host.querySelectorAll("button")]
-      .find((b) => b.className.includes("chip") && b.textContent?.trim() === "La")!;
-    chip.click();
+    // the legend acts, so since WP-1201 it is `button.ghost` and not a chip
+    const swatch = [...host.querySelectorAll<HTMLButtonElement>(".legend button")]
+      .find((b) => b.textContent?.trim() === "La")!;
+    swatch.click();
     await flush();
     // La's half-sticks go with it: a half belongs to its atom
     expect(drawn[drawn.length - 1].traces.map((t: any) => t.name))

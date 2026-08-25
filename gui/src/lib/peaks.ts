@@ -54,9 +54,29 @@ export interface PeaksPayload {
   api_call?: string;
 }
 
+/**
+ * A chip's tone, in the app's one tone vocabulary (`app.css`).
+ *
+ * `note` is the neutral member and the chip's own default, so a tone function
+ * that cannot decide returns it rather than nothing.
+ */
+export type Tone = "note" | "ok" | "warn" | "bad" | "accent";
+
 /** A flag chip's tone: the unusable set reads as "this line is out". */
-export function flagTone(flag: string, unusable: readonly string[]): "out" | "note" {
-  return unusable.includes(flag) ? "out" : "note";
+export function flagTone(flag: string, unusable: readonly string[]): Tone {
+  return unusable.includes(flag) ? "bad" : "note";
+}
+
+/**
+ * A candidate's confidence as a tone.
+ *
+ * The grade is the server's — `high` requires zero caveats — and this only
+ * says how it is drawn: the middle grade is a warning because a `medium` cell
+ * is one a caveat has already been raised against, not a slightly worse
+ * answer.
+ */
+export function confidenceTone(confidence: "high" | "medium" | "low"): Tone {
+  return confidence === "high" ? "ok" : confidence === "medium" ? "warn" : "note";
 }
 
 /**
@@ -194,7 +214,7 @@ export function fomOf(candidate: Candidate, name: string): number | null {
 }
 
 /** Red for a caveat that refutes, amber for one that merely caps. */
-export function caveatTone(caveat: string, refuting: readonly string[]): "bad" | "warn" {
+export function caveatTone(caveat: string, refuting: readonly string[]): Tone {
   return refuting.includes(caveat) ? "bad" : "warn";
 }
 
