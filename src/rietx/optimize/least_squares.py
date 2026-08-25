@@ -131,7 +131,7 @@ _INTENSITY_ONLY = (
     re.compile(r"^phases\.\d+\.preferred_orientation\.r$"),
     # a line weight and the polarization ratio scale the intensity of a peak
     # that is already placed.  The line's ``wavelength`` beside it is a table
-    # entry since WP-1128 and is deliberately **absent** from this list: λ moves
+    # entry since WP-1134 and is deliberately **absent** from this list: λ moves
     # every peak of its histogram (2θ = 2·asin(λ/2d)), so it needs the position,
     # width and mixing partials.  Spelled ``\.weight$`` rather than as a
     # ``lines\.\d+\.`` prefix precisely so the wavelength cannot be swept in.

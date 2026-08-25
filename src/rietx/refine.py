@@ -2348,7 +2348,11 @@ def _harmonic_diagnostics(model: CompiledModel, values: dict[str, float],
     for il, order in sorted(model.harmonic_orders.items()):
         path = f"instrument.source.lines.{il}.weight"
         frac = float(values.get(path, 0.0))
-        lam = model.line_wavelengths[il]
+        # ``line_lambdas`` and not ``line_wavelengths``: the latter is the
+        # compile-time tuple, and a derived harmonic's entry in it goes stale
+        # as soon as the fundamental refines.  Reporting a lambda/n the fit did
+        # not use is the shape this package's evidence rule exists to prevent.
+        lam = model.line_lambdas(values)[il]
         esd = stderr.get(path)
         pct = 100.0 * frac
         where = [path]

@@ -522,3 +522,45 @@ class TestSyntheticNegativeControl:
         assert "HARMONIC_HELD" in codes
         assert "HARMONIC_FRACTION" not in codes
         assert "HARMONIC_ABSENT" not in codes
+
+
+def test_a_derived_harmonic_follows_a_refining_fundamental():
+    """The residual's λ/n, not the schema's — a different question.
+
+    ``test_harmonic_wavelength_is_derived_never_stored`` shows the *schema*
+    rebuilds λ/n from ``self.wavelength``.  The forward model reads λ from θ
+    per line, and a derived harmonic deliberately has **no θ row** — freeing
+    one would be a second name for one number.  So ``line_lambdas`` could only
+    ever hand back the frozen compile-time λ/n, which goes stale the instant
+    the fundamental refines.  A stored λ/n and that code differ only in *when*
+    they go stale.
+
+    Measured before the fix, at +0.2 % on the fundamental: the pair read
+    (1.5404, 0.7702) where tracking gives (1.5434808, 0.7717404).  At the
+    +258 ppm the acceptance suite finds on this instrument, a stale λ/2
+    misplaces the harmonic peaks by up to 0.11° at 2θ = 150° — about a third of
+    the 0.30° FWHM the seed assumes — and nothing raised, because the Jacobian
+    column agreed with the residual.
+    """
+    lam = 1.5404
+    structure = nd2ru2o7()
+    ins = rx.Instrument.constant_wavelength_neutron(
+        lam, fwhm_deg=0.30, harmonics=True)
+    tt = np.arange(*LIMITS, 0.05)
+    pattern = PatternData(two_theta=tt.tolist(),
+                          intensity=np.ones_like(tt).tolist())
+    model = compile_model(structure, ins, pattern, mode="rietveld")
+
+    assert model.harmonic_orders == {1: 2}
+    # with nothing in θ, both lines are the compile-time values
+    assert model.line_lambdas({}) == pytest.approx([lam, lam / 2.0])
+
+    moved = lam * 1.002
+    got = model.line_lambdas(
+        {"instrument.source.lines.0.wavelength": moved})
+    assert got[0] == pytest.approx(moved)
+    assert got[1] == pytest.approx(moved / 2.0), (
+        "the derived harmonic did not follow the fundamental — it is reading "
+        "its frozen compile-time λ/n")
+    # and the ratio is exact, not merely close: λ/n is a construction
+    assert got[0] / got[1] == pytest.approx(2.0, rel=1e-15)

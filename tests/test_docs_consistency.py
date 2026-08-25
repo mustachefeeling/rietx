@@ -302,7 +302,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # every line of the WP's reasoning stays in its own file — unlike 1131 it
     # needs no section here, because nothing about it has to be read before
     # someone opens it.
-    "docs/ROADMAP.md": 474,
+    # 474 -> 475 for WP-1134 (2026-08-25): its own index row, and only that.
+    # The row is required rather than chosen (the bijection test).  This WP
+    # exists because the number did not: the neutron/harmonics/wavelength work
+    # was committed under WP-1128, which is the shipped v1.1 indexing WP cited
+    # from indexing/svd.py -- two meanings of one number costs more than a
+    # renumber, so the in-code citations moved to 1134 and this file names it.
+    "docs/ROADMAP.md": 475,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections

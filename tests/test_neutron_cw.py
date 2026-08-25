@@ -408,3 +408,52 @@ def test_a_declared_mu_r_reaches_the_absorption_record():
     # µR = 0 is the off state (A ≡ 1), which reports nothing rather than zero
     assert record_for(rx.Instrument.constant_wavelength_neutron(
         2.0780, mu_r=0.0, fwhm_deg=0.3)) is None
+
+
+# ------------------------------------------------------- isotopes reach it ---
+@pytest.mark.parametrize("species,expect_b", [
+    ("H", -3.739), ("D", 6.671), ("2H", 6.671), ("7Li", -2.220),
+    ("157Gd", -1.140),
+])
+def test_an_isotope_label_survives_the_species_normaliser(species, expect_b):
+    """The isotope convention was implemented one line below where it was lost.
+
+    ``compile_phase_sites`` normalised every species through the **X-ray**
+    normaliser before branching on ``neutron``, and that normaliser validates
+    against Waasmaier-Kirfel coefficients — which no isotope has, and which a
+    neutron phase never needs, because it resolves ``b_coh`` instead and
+    reaches ``f0`` nowhere.  So ``D``, ``2H`` and ``7Li`` raised "no
+    Waasmaier-Kirfel coefficients" while the shipped Sears table has had
+    b(²H) = +6.671 fm all along.  The headline neutron case, and no test
+    covered it.
+
+    ``D`` and ``2H`` must give the *same* answer — the alias is the convention,
+    not a second entry — and it must differ in **sign** from ``H``, which is
+    the whole reason anyone deuterates a sample for neutrons.
+    """
+    from rietx.crystallography.structure_factor import compile_phase_sites
+
+    P = rx.Parameter
+    phase = rx.Phase(
+        name="one-site", space_group="P 1",
+        cell=rx.Cell(a=P(value=5.0), b=P(value=5.0), c=P(value=5.0),
+                     alpha=P(value=90.0), beta=P(value=90.0),
+                     gamma=P(value=90.0)),
+        atoms=[rx.Atom(label="A", species=species, x=P(value=0.0),
+                       y=P(value=0.0), z=P(value=0.0))])
+    sites = compile_phase_sites(phase, neutron=True)
+    assert sites.b_coh is not None
+    assert sites.b_coh[0] == pytest.approx(expect_b, abs=1e-3)
+
+
+def test_deuterium_and_hydrogen_differ_in_sign():
+    """Asserted on its own because it is the reason the case matters.
+
+    b(H) is negative and b(²H) positive, so an H/D substitution inverts that
+    site's contribution to every structure factor.  A test that only checked
+    "an isotope does not raise" would pass on a table that returned b(H) for D.
+    """
+    from rietx.crystallography.neutron import b_coh
+
+    assert b_coh("H") < 0.0 < b_coh("D")
+    assert b_coh("D") == b_coh("2H")

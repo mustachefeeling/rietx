@@ -496,7 +496,7 @@ class CompiledModel:
     #: windows and the FCJ node counts all come from it — and it is what a
     #: caller outside the hot loop (plot, exporter, tick list) reads.  It is
     #: *not* what the residual uses when a wavelength is free: λ is a row of θ
-    #: since WP-1128, so :meth:`line_lambdas` reads the decoded values and
+    #: since WP-1134, so :meth:`line_lambdas` reads the decoded values and
     #: falls back to this tuple.  A free λ therefore moves peaks inside a stage
     #: while the windows stay put, which is the same bargain the cell already
     #: strikes — legitimate while the motion is small against the window slack,
@@ -707,15 +707,29 @@ class CompiledModel:
     def line_lambdas(self, values: dict[str, float]) -> list:
         """λ per emission line, from θ where it is a row and frozen otherwise.
 
-        The wavelength became a table entry in WP-1128 (a joint fit may free all
+        The wavelength became a table entry in WP-1134 (a joint fit may free all
         but one of them), so the residual must not read the compile-time tuple.
         ``.get`` rather than ``[]`` because ``phase_peaks`` is public and is
         called with hand-built value dicts by plots, exporters and replay; a
         dict that does not mention λ means "the instrument's λ", which is the
         frozen value.
         """
-        return [values.get(f"instrument.source.lines.{il}.wavelength", lam)
-                for il, lam in enumerate(self.line_wavelengths)]
+        out = [values.get(f"instrument.source.lines.{il}.wavelength", lam)
+               for il, lam in enumerate(self.line_wavelengths)]
+        # A declared harmonic is lambda/n by construction and therefore has NO
+        # theta row -- freeing one would be a second name for one number.  So
+        # ``.get`` above can only ever hand back its frozen compile-time value,
+        # which goes stale the moment the fundamental refines.  Recompute it.
+        #
+        # Measured before this line existed: with the fundamental moved +0.2 %,
+        # the pair read (1.5434808, 0.7702) where tracking gives
+        # (1.5434808, 0.7717404).  At the +258 ppm the acceptance suite finds on
+        # this instrument that misplaces the lambda/2 peaks by up to 0.11 deg at
+        # 2theta = 150 deg, about a third of the assumed 0.30 deg FWHM -- and
+        # nothing raised, because the Jacobian column agreed with the residual.
+        for il, order in self.harmonic_orders.items():
+            out[il] = out[0] / order
+        return out
 
     def _cell_block(self, cp: "CompiledPhase", cell: tuple, lams: list):
         """(d, [2θ_Bragg per emission line]) — the cell and λ together.

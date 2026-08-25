@@ -683,7 +683,7 @@ recent list, and is therefore not behind the 409 (WP-1044).
   B: f″) — no second orbit pass, no centro/non-centro case split, and B ≡ 0
   recovers |F|² bit-identically, which constrains the fp *association order* in
   `_orbit_terms`. f′/f″ are frozen at stage compile onto `PhaseSites.f_anom`: they
-  depend only on species and λ, and `EmissionLine.wavelength` is a plain float,
+  depend only on species and λ, which is frozen per stage (WP-1134),
   so they can never be a function of θ. One |F|² is shared across emission
   lines, *guarded* rather than smeared — `dispersion.resolve` raises when a line
   differs from the primary by more than 1 % of Z (an edge between them). Near an
@@ -834,7 +834,7 @@ per-column agreement with the analytic Jacobian in `tests/test_cross_backend.py`
 row covers it. Apple-GPU execution is *slower* than numpy (46-182×,
 launch-latency-bound): `torch-mps` buys precision validation, not speed (the v0.4
 record). Also since v0.4: true Voigt (`shape="voigt"`, TCHZ still the default),
-soft restraints, the Bérar-Lelann esd inflation. v2 fence: FPA, neutron/TOF,
+soft restraints, the Bérar-Lelann esd inflation. v2 fence: FPA, neutron **TOF**,
 spherical-harmonics texture, MCP server — and the **peaks buffer with FPA**,
 never before: shape reuse needs > 2.8-4.2 FCJ images a window point (WP-1122).
 

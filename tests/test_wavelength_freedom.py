@@ -149,15 +149,26 @@ def test_a_glob_skips_it_while_the_cell_is_free_but_not_when_held():
     """
     ins = Instrument.debye_scherrer(wavelength=1.5406)
 
-    free_cell = ParameterTable(make_lab6(), ins)
-    assert WL not in free_cell.set_vary(["*"], True)
-    assert WL not in free_cell.free_paths
-    # ...and the rest of the broad glob still did its job
-    assert "phases.0.cell.a" in free_cell.free_paths
+    # A ``*`` glob frees the CELL as well, so λ is skipped whatever the cell
+    # started as — and that is the self-consistent answer rather than a
+    # limitation.  An earlier version of this test asserted that ``*`` on a
+    # held cell frees λ, which only held because the skip set was computed
+    # before the loop had freed the cell; it was the order-dependence, tested.
+    for structure in (make_lab6(), _held_cell()):
+        table = ParameterTable(structure, ins)
+        hits = table.set_vary(["*"], True)
+        assert "phases.0.cell.a" in hits, "the broad glob stopped working"
+        assert WL not in hits
+        assert WL not in table.free_paths
 
+    # The skip is about the cell, not about globbing: a λ glob that leaves the
+    # cell alone frees λ when the cell is held and declines it when it is free.
     held = ParameterTable(_held_cell(), ins)
-    assert WL in held.set_vary(["*"], True)
+    assert WL in held.set_vary([WL], True)
     assert WL in held.free_paths
+
+    free_cell = ParameterTable(make_lab6(), ins)
+    assert WL not in free_cell.set_vary([WL], True)
 
     # not statically locked in either case — that is what made it undoable
     assert next(e for e in held.entries if e.path == WL).locked is False
@@ -400,3 +411,30 @@ def test_a_joint_fit_reports_the_calibration_move_in_ppm():
     assert diags[0].where == [f"hist.1.{WL}"]
     assert diags[0].value == pytest.approx(500.0, rel=0.25)
     assert "ppm" in diags[0].message
+
+
+def test_the_glob_skip_does_not_depend_on_how_the_caller_batched_it():
+    """One call carrying both globs must behave like two calls in sequence.
+
+    The skip set was computed once before ``set_vary``'s loop, and
+    ``_cell_is_free`` read ``_free_idx``, which is rebuilt only at the end of
+    the call.  So a single call carrying a cell glob *and* a λ glob froze its
+    decision before the cell was seen to move, freed both, and deferred the
+    refusal to the solve — while the same two globs in two calls skipped λ.  A
+    contract that reads differently depending on how a caller batched its globs
+    is not a contract.
+    """
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+
+    one = ParameterTable(_held_cell(), ins)
+    hits = one.set_vary(["phases.*.cell.*", WL], True)
+    assert "phases.0.cell.a" in hits
+    assert WL not in hits, "λ was freed beside a cell freed in the same call"
+
+    two = ParameterTable(_held_cell(), ins)
+    two.set_vary(["phases.*.cell.*"], True)
+    assert WL not in two.set_vary([WL], True)
+
+    # and the held-cell case still works, or the skip never stops skipping
+    alone = ParameterTable(_held_cell(), ins)
+    assert WL in alone.set_vary([WL], True)

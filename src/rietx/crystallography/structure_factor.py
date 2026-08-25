@@ -58,6 +58,7 @@ from ..backend import get_backend
 from ..schemas.structure import Phase
 from .adp import VOIGT, ustar_from_ucif
 from .neutron import b_coh as neutron_b_coh
+from .neutron import normalize_species as neutron_normalize_species
 from .scattering import f0, normalize_species
 from .symmetry import get_spacegroup
 
@@ -76,8 +77,12 @@ class PhaseSites:
     ``f_anom[j]`` is the atom's dispersion correction f′ + i·f″, ``None`` when
     the source declares none.  It is frozen for the same reason the op subsets
     are, but more strongly: it depends only on the species and the wavelength,
-    and ``EmissionLine.wavelength`` is a plain float rather than a
-    ``Parameter``, so it can never be a function of θ.
+    and every emission line's wavelength is frozen onto the compiled model
+    at stage compile, so f'/f" can never be a function of theta.  (Since
+    WP-1134 ``EmissionLine.wavelength`` is a ``Parameter`` and a joint fit may
+    free it; that changes when the value is read, not that it is frozen per
+    stage, and ``model/forward.py`` carries the argument that still holds --
+    the moves are ppm-scale against tables flat on that scale.)
 
     ``b_coh[j]`` is the atom's **bound coherent neutron scattering length** in
     fm, and its presence is what makes this a neutron phase: set, the amplitude
@@ -180,7 +185,15 @@ def compile_phase_sites(phase: Phase,
     for atom in phase.atoms:
         xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
         ops.append(select_orbit_ops(sg, xyz))
-        species.append(normalize_species(atom.species))
+        # The species convention follows the RADIATION.  The X-ray normaliser
+        # validates against Waasmaier-Kirfel coefficients, which no isotope
+        # has and a neutron phase never needs: it resolves ``b_coh`` below and
+        # reaches ``f0`` nowhere.  Running it unconditionally discarded the
+        # isotope convention one line above the lookup that implements it, so
+        # D, 2H and 7Li raised "no Waasmaier-Kirfel coefficients" — the
+        # headline neutron case, on a table that has had b(2H) all along.
+        species.append(neutron_normalize_species(atom.species) if neutron
+                       else normalize_species(atom.species))
         aniso.append(atom.aniso is not None)
     fa = None
     if f_anom is not None:

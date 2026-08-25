@@ -108,7 +108,7 @@ naming rule stands beside all of it (root CLAUDE.md, `_about.py`).
 | v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ✅ **shipped 2026-08-16** ([record](milestones/v1.0.md)) | full suite green at ship: 2509 passed / 126 skipped locally (`[dev]`, macOS) and CI-green on Linux `[dev,jax]` (run 31966606174, full job 1h57); GUI end-to-end and the bethanechol individual-program grading landed by their WPs (record § Acceptance); repo public with six required checks gating `main`; manual + AGENT_PROTOCOL at yue-here.github.io/rietx, all URLs verified; `rietx` 1.0.0 on PyPI, fresh-venv install + `capabilities()` verified from the index; Windows fast suite green as the classifier's pre-upload gate — a gate that caught three real defects (CRLF-unstable checkouts, an SO_REUSEADDR double-bind in the GUI server, cp1252 example pipes) before the irreversible step |
 | v1.1 | Refinement speed: seconds not minutes | ✅ **shipped 2026-08-23** ([record](milestones/v1.1.md)) | trigger-shaped cold fit **5.69-5.72 s** against the milestone's opening **50.11-50.43 s** (8.8×) and the 10-pattern warm series **49.24-49.30 s** against **266.78-269.61** (5.4×), best-of-3 idle, darwin/arm64 `[dev]`; seven of nine warm patterns at 0.88-2.33 s (median 2.02) with two at 10.53/20.26 — the ~1 s band **met on the maintainer's judgement and recorded mis-specified**, judged on the per-pattern table as WP-1124 required; stretch (cold < 1 s) **measured unreachable** and recorded as such; every landed WP with its equivalence bar, never an Rwp comparison |
 | v1.2 | Free-standing peaks: fit_peaks + the extra-components seam | ⬜ next | — |
-| v2+ | FPA (**with** the peaks buffer — [1122](wp/1122-compiled-peaks-buffer.md) measured it below break-even without one), neutron/TOF, texture, MCP server | ⬜ fenced | — |
+| v2+ | FPA (**with** the peaks buffer — [1122](wp/1122-compiled-peaks-buffer.md) measured it below break-even without one), neutron **TOF** (CW landed, WP-1134), texture, MCP server | ⬜ fenced | — |
 
 ## Work packages
 
@@ -427,12 +427,13 @@ converted any of these coefficients to a size or a strain at all.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1131](wp/1131-sample-broadening-is-a-specimen-property.md) | Sample broadening is a specimen property, not an angular coefficient | ⬜ | — |
+| [1134](wp/1134-constant-wavelength-neutron.md) | Constant-wavelength neutron: b, lambda/n harmonics, a refinable wavelength | 🔄 | — |
 | [1132](wp/1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | ⬜ | #108 |
 
 ## v2+ (seams pre-built, implementations fenced out)
 
 Fundamental Parameters Approach as a differentiable convolution stack
-(Cheary-Coelho 1992); neutron CW; TOF (new Source/Profile implementations
+(Cheary-Coelho 1992); TOF (new Source/Profile implementations
 behind the frozen seams); spherical-harmonics texture (Von Dreele 1997);
 rigid bodies; MCP server wrapping `refine_json`; internal-standard/amorphous
 QPA; `vmap`-batched in-situ series; notebook widgets. *(The human GUI was

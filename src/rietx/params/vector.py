@@ -828,13 +828,22 @@ class ParameterTable:
         # ``vary=True`` is a claim rather than a broad sweep, and is refused
         # loudly instead — at the solve, by
         # :meth:`check_wavelength_against_cell`.
-        skip = (self._wavelength_paths()
-                if (vary and not getattr(self, "_joint", False)
-                    and self._cell_is_free()) else frozenset())
+        lam_paths = self._wavelength_paths()
         hits = []
         for e in self.entries:
             if any(fnmatch.fnmatchcase(e.path, g) for g in path_globs):
-                if e.tie is None and not e.locked and e.path not in skip:
+                if e.tie is None and not e.locked:
+                    # Asked per row rather than once before the loop.  Computed
+                    # once, the contract was order-dependent: two calls freeing
+                    # the cell then λ skipped λ, while ONE call carrying both
+                    # globs froze the skip set before the cell was free and so
+                    # freed both, deferring the refusal to the solve.  Nothing
+                    # shipped hits it, and a contract that reads differently
+                    # depending on how a caller batched its globs is not one.
+                    if (vary and e.path in lam_paths
+                            and not getattr(self, "_joint", False)
+                            and self._cell_is_free()):
+                        continue
                     e.vary = vary
                     hits.append(e.path)
         self._rebuild()
@@ -846,9 +855,17 @@ class ParameterTable:
                          and e.path.endswith(".wavelength"))
 
     def _cell_is_free(self) -> bool:
-        return any(self.entries[i].path.rsplit(".", 1)[-1] in self._CELL_SUFFIXES
-                   and ".cell." in self.entries[i].path
-                   for i in self._free_idx)
+        """Any free cell parameter, read from the **entries**, not ``_free_idx``.
+
+        ``_free_idx`` is rebuilt only at the end of ``set_vary``, so inside that
+        loop it is one call stale — which made a single call carrying both a
+        cell glob and a λ glob free both, because the cell had not been seen to
+        move yet.  Reading ``e.vary`` sees the in-progress state and makes the
+        decision order-independent.
+        """
+        return any(e.vary and e.tie is None and ".cell." in e.path
+                   and e.path.rsplit(".", 1)[-1] in self._CELL_SUFFIXES
+                   for e in self.entries)
 
     def seed_softplus(self, paths: list[str], value: float) -> list[str]:
         """Lift softplus-bounded free params sitting below ``value`` up to it.
