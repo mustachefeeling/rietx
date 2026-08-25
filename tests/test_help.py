@@ -428,6 +428,25 @@ def test_the_help_route_serves_the_registry():
 
 
 # -------------------------------------------------------------------- the prose
+def test_every_parameter_family_carries_a_range_and_a_chapter():
+    """A parameter entry must have both ``typical`` and ``anchor``; an arm need not.
+
+    All 33 families already do, and this is the audit turning that accident
+    into a checked claim: a range to compare a refined number against, and the
+    chapter with the equation, are the two things a parameter entry is *for*.
+    ``None`` on either would read as "nothing covers this" about a family
+    nobody had finished — the defaulted-answer shape again.
+
+    The named arms are exempt by nature, not by oversight: a peak flag has no
+    typical range, and seven of the thirteen name a state no Part 2 chapter
+    has an equation for.
+    """
+    thin = sorted({g for g, e in PARAMETER_HELP.items()
+                   if e.typical is None or e.anchor is None})
+    assert not thin, (
+        f"parameter families with no typical range or no manual anchor: {thin}")
+
+
 def test_every_entry_has_a_title_and_a_description():
     thin = [name for name, e in _every_entry()
             if not e.title or len(e.description.split()) < 8]
