@@ -253,9 +253,9 @@ temp dir), `--state-dir` for the recent list, `*.rex/` in `.gitignore` (1204).
 
 **An example project *is* a `compare.py` standard** (WP-1204,
 `src/rietx/examples.py`), so no protocol is restated — `test_compare_ui.py`
-already pins those to the acceptance suites — and `list_examples()` is
-`STANDARDS` filtered by what is in `src/rietx/data/examples/`, so a file added
-to the wheel adds an example.
+already pins those to the acceptance suites — and `list_examples()`'s
+membership is `STANDARDS` filtered by what is in `src/rietx/data/examples/`, so
+a file added to the wheel adds an example.
 
 ## Invariants (do not break)
 - **Frozen-per-stage discreteness**: the hkl list, symmetry-op subsets, FCJ

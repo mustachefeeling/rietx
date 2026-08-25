@@ -47,17 +47,30 @@ if TYPE_CHECKING:  # pragma: no cover - import cost, not behaviour
 #: yet.  Keyed by standard, and ``tests/test_example_projects.py`` fails on a
 #: key that is not a shipped standard or a shipped standard with no key, so the
 #: two cannot drift apart in either direction.
+#:
+#: **Two presentation rules live here, because this is the only place they can.**
+#: The order is this dict's, not ``STANDARDS``', because which example a
+#: stranger clicks first is a fact about teaching and not about the comparison
+#: registry — and the first one has to be a *continuous* scan, asserted in the
+#: test, because gaps in a pattern read as broken data to someone who does not
+#: know the provenance.  And where a dataset's own shape would surprise them,
+#: the blurb says so before they click rather than leaving them to it: SRM 660c
+#: is 24 scan windows with nothing measured between, which is normal for a
+#: certification measurement and alarming if nobody mentions it.
 BLURBS: dict[str, str] = {
-    "srm660c": (
-        "NIST's certified LaB₆ line-profile standard, measured on an ordinary "
-        "laboratory diffractometer. One cubic phase and two atoms, so the "
-        "whole model fits on a screen — and the cell is certified, so you can "
-        "check the answer against a number somebody else measured."),
     "fap": (
-        "Fluorapatite from the GSAS-II tutorial, on a lab Cu Kα doublet. "
-        "Seven atomic sites with real positional freedom, which is where a "
-        "refinement starts to need a plan rather than a button. The reference "
-        "values come from GSAS's own converged fit of the same file."),
+        "Fluorapatite from the GSAS-II tutorial, on a lab Cu Kα doublet: an "
+        "ordinary powder pattern from an ordinary diffractometer. Seven atomic "
+        "sites with real positional freedom, which is where a refinement "
+        "starts to need a plan rather than a button. The reference values come "
+        "from GSAS's own converged fit of the same file."),
+    "srm660c": (
+        "NIST's certified LaB₆ line-profile standard. One cubic phase and two "
+        "atoms, so the whole model fits on a screen, and the cell is certified, "
+        "so you can check the answer against a number somebody else measured. "
+        "The pattern has gaps by design: NIST step-scanned only the 24 windows "
+        "that contain peaks, which is what a certification measurement does "
+        "with its counting time."),
     "nac": (
         "A synchrotron capillary pattern from APS 11-BM: Na₂Ca₃Al₂F₁₄ with a "
         "fluorite impurity. Two phases, very sharp peaks and a short "
@@ -93,11 +106,20 @@ def examples_dir() -> Path:
 
 
 def _standards():
-    """The shipped subset of the comparison registry, in its order."""
+    """The shipped subset of the comparison registry, in :data:`BLURBS`' order.
+
+    Membership stays derived from the directory — a file that shipped without a
+    blurb still reaches :func:`list_examples` and still fails there, rather than
+    being filtered out of the list it is missing from.  Only the *order* comes
+    from ``BLURBS``, for the reason given in its comment.
+    """
     from .viz.compare import STANDARDS
 
     root = examples_dir()
-    return [s for s in STANDARDS if s.available(root)]
+    order = list(BLURBS)
+    shipped = [s for s in STANDARDS if s.available(root)]
+    return sorted(shipped, key=lambda s: order.index(s.key) if s.key in order
+                  else len(order))
 
 
 def list_examples() -> list[ExampleInfo]:

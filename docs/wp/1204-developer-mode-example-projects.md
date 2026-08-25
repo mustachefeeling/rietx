@@ -103,6 +103,55 @@ git status --short   # clean after the run
 
 ## Handover log
 
+### 2026-08-25 (3rd session) — the gapped example is not the first one
+
+Maintainer's question after the merge: SRM 660c's pattern has huge gaps between
+the peaks, and a stranger who does not know the provenance will read that as
+broken data. Measured: it is **24 separate step-scan windows**, one per peak,
+covering 38.7 % of its 20.3-150.9° span, because a certification measurement
+spends its counting time on the peaks and none on the background. Three of the
+four widest gaps straddle a *systematically absent* reflection — LaB₆ is
+primitive cubic so 2θ is set by N = h²+k²+l², and N = 7, 15, 23 are not sums of
+three squares (Legendre), so there is no peak at 58.7°, 91.7° or 125.4°. It is
+the **only** gapped pattern in the repo; every other candidate, shipped or not,
+is a single continuous region.
+
+So the data is right and the presentation was wrong, and it is fixed where a
+person actually reads: the blurb now says the pattern has gaps by design and
+why, and the list is reordered so the first thing a new user clicks is an
+ordinary continuous lab pattern (fluorapatite) rather than the gapped one.
+
+Done:
+
+- `BLURBS`' **key order is the list order**. Which example a stranger clicks
+  first is a fact about teaching, not about the comparison registry, so it
+  belongs to this module — but only the *order*: membership stays derived from
+  the directory, so a file shipped without a blurb still reaches
+  `list_examples()` and still fails there rather than being filtered out of the
+  list it is missing from.
+- Two guards, both made to fail on purpose first (`tests/CLAUDE.md`):
+  `test_the_first_example_is_a_continuous_scan` ("the first example (srm660c)
+  is a stitched multi-region scan") and
+  `test_a_gapped_example_says_so_before_it_is_opened` ("srm660c is a stitched
+  scan and its blurb does not mention it"). Both bind to a shared
+  `_scan_regions` helper — a step more than 5× the median, which separates a
+  skipped stretch from SRM 660c's own step schedule (0.008 → 0.016 across its
+  windows).
+- `quickstart.md`'s listing output and a sentence on the order; the vitest
+  fixture reordered to match.
+
+Measured: `tests/test_example_projects.py` 21 → **24**; vitest unchanged at 415
+(the fixture was reordered, not extended). Suites re-run green: 178 passed
+across `test_example_projects`, `test_gui_server`, `test_gui_dist`,
+`test_compare_ui`.
+
+Gotcha for whoever adds a fourth example: the continuity guard binds to
+`NAMES[0]`, so **reordering `BLURBS` is now a tested decision**, not a
+cosmetic one. And a new gapped dataset must spend a blurb sentence on its
+shape or the second guard fails by name.
+
+Next: unchanged — [1202](1202-help-corpus.md)/[1203](1203-help-popover.md).
+
 ### 2026-08-25 (2nd session) — developer mode, and three example projects in the wheel
 
 Both halves of the question are answered. A developer can now open any

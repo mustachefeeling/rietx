@@ -470,12 +470,12 @@ const SERIES_ANSWER = {
 /** What `GET /api/examples` answers (WP-1204): the shipped example projects,
  *  `built` saying whether opening one costs a build first. */
 const EXAMPLES = [
-  { name: "srm660c", title: "NIST SRM 660c — LaB\u2086 (lab CuK\u03b1)",
-    description: "the cell is certified, so you can check the answer",
-    bytes: 433024, built: true, path: "/home/me/.rietx/examples/srm660c.rex" },
   { name: "fap", title: "GSAS-II LabData — fluorapatite (lab CuK\u03b1 doublet)",
     description: "seven atomic sites with real positional freedom",
     bytes: 47104, built: false, path: "/home/me/.rietx/examples/fap.rex" },
+  { name: "srm660c", title: "NIST SRM 660c — LaB\u2086 (lab CuK\u03b1)",
+    description: "the cell is certified, so you can check the answer",
+    bytes: 433024, built: true, path: "/home/me/.rietx/examples/srm660c.rex" },
 ];
 
 

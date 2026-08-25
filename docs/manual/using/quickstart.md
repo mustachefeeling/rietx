@@ -22,10 +22,16 @@ for example in list_examples():
 ```
 
 ```text
-srm660c  NIST SRM 660c — LaB₆ (lab CuKα)
 fap      GSAS-II LabData — fluorapatite (lab CuKα doublet)
+srm660c  NIST SRM 660c — LaB₆ (lab CuKα)
 nac      APS 11-BM — NAC + CaF₂ (synchrotron capillary)
 ```
+
+They are listed in the order they are worth opening: an ordinary lab pattern
+first, then the certified standard, then a two-phase synchrotron one.
+`ExampleInfo.description` says what each teaches, and what about it is
+unusual — SRM 660c is 24 step-scan windows with nothing measured between them,
+which is what a certification measurement spends its counting time on.
 
 `rietx.examples.build_example` writes one out as a `.rex` project directory
 ([](files.md)) at its starting values. Nothing is fitted: the refinement is
