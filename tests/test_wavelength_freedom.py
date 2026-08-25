@@ -608,6 +608,59 @@ def test_a_branch_inherits_the_declared_reference_from_the_root():
     assert ref._declared_wavelengths == [pytest.approx(declared_lam)]
 
 
+def test_a_series_measures_each_pattern_against_the_root_declaration():
+    """A chained series declares λ once, not per pattern (WP-1134).
+
+    ``_fit_one`` warm-starts pattern n from pattern n-1's *refined* λ (the
+    default ``carry``), and a per-pattern ``Refinement`` built from that warmed
+    instrument would snapshot the refined value as its declared reference — so
+    ``WAVELENGTH_CALIBRATION`` for patterns 2+ would report the tiny
+    pattern-to-pattern drift instead of the cumulative move from what the
+    beamline stated.  This is the ``branch`` bug one level up, and the fence is
+    the same: the wavelength is a property of the instrument the *series* was
+    built with, declared once.
+
+    Three near-identical patterns of one specimen (a repeated calibration), the
+    instrument declared 400 ppm below the true λ.  Every pattern's diagnostic
+    must report the cumulative ~+400 ppm against the root declaration, never the
+    ~0 ppm drift from the previous pattern's answer.  The warm start itself is
+    untouched — only the diagnostic's reference is threaded from the root.
+    """
+    from rietx.sequential import refine_sequential
+    from rietx.strategy.staged import RefinementPlan, Stage
+    from tests.test_multi_histogram import synthesize
+
+    true_lam = 1.5406
+    declared_lam = true_lam * (1.0 - 400e-6)            # 1.539984 Å
+    patterns = [synthesize(true_lam, 20.0, 120.0, scale=1e4, zero=0.0,
+                           bkg=[50.0, 0.0], seed=s) for s in (1, 2, 3)]
+    ins = Instrument.debye_scherrer(wavelength=declared_lam)
+    ins.profile.w.value = 3e-4
+
+    plan = RefinementPlan(stages=[
+        Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        Stage("wavelength", [WL]),
+    ])
+    series = refine_sequential(patterns, _held_cell(), ins, plan=plan)
+
+    cals = []
+    for entry in series.entries:
+        hits = [d for d in entry.diagnostics
+                if d.code == "WAVELENGTH_CALIBRATION"]
+        assert len(hits) == 1, "every pattern freed λ, so every one reports it"
+        cals.append(hits[0])
+
+    for d in cals:
+        # cumulative from the root declaration, not the ~0 drift the per-verb
+        # snapshot would give patterns 2+ (his shape: +417, −18, +1.6)
+        assert d.value > 100.0, "a pattern measured the drift, not the calibration"
+        assert d.value == pytest.approx(400.0, rel=0.25)
+        assert f"declared {declared_lam:.6f}" in d.message
+    # the successors agree with pattern 0 in sign and size (all cumulative)
+    assert cals[1].value == pytest.approx(cals[0].value, rel=0.2)
+    assert cals[2].value == pytest.approx(cals[0].value, rel=0.2)
+
+
 def test_the_glob_skip_does_not_depend_on_how_the_caller_batched_it():
     """One call carrying both globs must behave like two calls in sequence.
 
