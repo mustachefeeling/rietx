@@ -1,6 +1,6 @@
 # WP-1202 — The help corpus, served and meta-tested
 
-Milestone: v1.2 · Status: ✅ 2026-08-25 — 87 entries in one module, every arm crossed against its live vocabulary both ways
+Milestone: v1.2 · Status: ✅ 2026-08-25 — 92 entries in one module, every arm crossed against its live vocabulary both ways
 Depends on: — (before WP-1203, which renders it)
 
 ## Goal
@@ -116,6 +116,55 @@ by one for the added field, comment beside the constant.
   with (`test_every_vocabulary_member_appears_in_the_protocol`).
 
 ## Handover log
+
+### 2026-08-25 — review: a coverage test is only as wide as the models it builds
+
+`/code-review high` on the branch found five live parameter paths with no
+family — `instrument.background.air` and the four
+`instrument.geometry.surface_roughness.*` fields — so `help_key_for` returned
+`None` for them, their `ParameterRow`s carried no key, and the glossary omitted
+them. The entry below's "coverage is exact, not approximate" was true of the
+models the test builds and not of the vocabulary: `_default_models()` carries
+the default Chebyshev background and no roughness block, which is the same hole
+it was written to close for preferred orientation. A `Geometry` holds at most
+one roughness model and an `Instrument` one background, so "every optional block
+present" cannot be one pair of models.
+
+**Done.**
+
+- Five families added, 33 → 38 over 44 → 49 globs, 87 → 92 entries; unit,
+  schema default, typical range and a manual anchor on each
+  (`surface-roughness`, `additive-models-never-subtraction`).
+- `tests/test_help.py` gains `_variant_models()` (P-spline + Suortti, and
+  Pitschke) and `_all_models()`; `_vocabulary()`, `_schema_parameters()` and the
+  `help_key` row test read all three pairs, so the new defaults are pinned and a
+  sixth optional block cannot go unchecked. `_PATH_RENAMES` gains
+  `air_scatter → air`.
+- Four entries said something the code does not. `sample_displacement`'s sign
+  was the opposite of `displacement_shift_deg`'s ("positive below it" against
+  positive toward the source/detector side). The `polarization` preset field
+  quoted 0.5 as its default when the one preset offering it, `debye_scherrer`,
+  defaults it to 0.99, and neither flat-plate preset carries the field at all.
+  `mu_t`'s "µt = 0 is refused" is Bragg-Brentano's alone — under
+  `flat_plate_transmission` it is legal and is what empty means — which is
+  WP-1073's rule the corpus exists to carry. `radiation`'s typical range listed
+  `Cu, Mo, Co, Cr, Ag`, none of which `_RADIATIONS` accepts, and omitted `FeKa`.
+- `docs/manual/conf.py`: `_ARMS` is the one thing on that page not derived from
+  the registry, so the build now fails on an arm with no section rather than
+  rendering nothing and saying nothing. Its two mid-file imports moved to the
+  top, dropping both `# noqa: E402`.
+
+**Measured** (`[dev]`, darwin/arm64): fast suite 2814 passed / 117 skipped,
+unmoved — the new coverage rides in the tests already there rather than adding
+any. `sphinx -W` clean with the five entries in the glossary; `ruff` clean.
+
+**Left for the maintainer.** `MARCH_R_MIN`, `Atom.occ`'s `max`,
+`PEAK_AXIAL_TAIL_MAX_FWHM` and every `STAGE_FIELD_HELP` default are live
+constants restated as prose in `help.py`, and only *parameter* `unit`/`default`
+are crossed against the schema. Retuning any of them leaves a stale number in
+print, which is the failure the module docstring says it exists to prevent.
+Interpolating them means importing schema constants into `help.py` — a design
+call, not a fix.
 
 ### 2026-08-25 — one place where a name is explained, and 87 explanations in it
 
