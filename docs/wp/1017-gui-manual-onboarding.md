@@ -1,8 +1,9 @@
 # WP-1017 — GUI manual, in-app help, onboarding
 
-Milestone: post-v1.0 (deferred) · Status: ⬜ — deferred 2026-08-14 past the
-public release; the GUI ships as a **beta** feature until it lands
-Depends on: WP-1011…WP-1016 (soft — chapters can land as their panels do)
+Milestone: v1.2 · Status: ⬜ — re-scoped 2026-08-25 as the last WP of v1.2;
+the GUI ships as a **beta** feature until it lands
+Depends on: WP-1201…WP-1217 (last in v1.2: the chapters describe panels those
+WPs settle, and the beta declaration lifts here)
 
 ## Goal
 
@@ -10,30 +11,47 @@ The GUI is documented where the theory manual lives, helps from inside the
 app, and onboards a first-year PhD student without a wizard that hides the
 real UI.
 
-## Deferred past v1.0 (2026-08-14, user decision)
+## Re-scoped 2026-08-25: the manual, and the mechanism that keeps it true
 
-**The GUI keeps moving, so documenting it now buys a rewrite.** The intent is
-to keep working on the GUI *after* the public release and document it once the
-panels settle; until then it ships **as a beta feature**, said out loud in the
-README and the release notes rather than left for a user to discover. The
-evidence for the decision is this file's own `### Inherited`: eight separate
-sessions have written "three sentences in this manual are now wrong" into it
-since 2026-07-30, and the mailbox is still growing.
+Deferred on 2026-08-14 because the GUI kept moving (eight sessions had
+written "three sentences in this manual are now wrong" into the mailbox
+below). It returns as the **last** WP of v1.2, after the seventeen panel WPs
+(1201-1217) settle what it describes. Two things changed in the scope.
 
-Two consequences that are not this WP's to carry:
+**The manual gets a sync mechanism, not only chapters.** The user's ask:
+"we need a method of keeping all the manuals in sync with the code". Prose
+about behaviour cannot be checked mechanically; names, vocabularies,
+constants and pictures can, and the chapters are written so that everything
+checkable is checked:
 
-- **[WP-1067](1067-user-api-manual.md) is the manual that ships with v1.0** —
-  Part 1 (using the library and its API) beside the theory manual as Part 2.
-  It declares the GUI's beta status in the README and names `rietx gui` in
-  one line in its CLI chapter, with **no walkthrough**, so this WP keeps the
-  whole GUI documentation surface.
-- **1017 no longer blocks [1003](1003-api-freeze-pypi.md)**. The freeze's
-  dependency range was written when the manual was the milestone's last GUI
-  row; the note is in 1003's `### Inherited`.
+- **Descriptions have one authority.** Every parameter, flag, stage field
+  and wizard field is described in the help corpus (`rietx.help`, WP-1202);
+  the GUI popover renders it and `docs/manual/using/glossary.md` is
+  generated from it. A chapter links to a glossary entry; it never restates
+  one.
+- **Routes are partitioned.** Every route in `gui/server.ROUTES` is named in
+  a GUI chapter or excluded with a reason, the `tests/api_surface.py`
+  pattern; a new route fails the partition until documented.
+- **Panel and tab names are a corpus.** vitest writes `tests/data/gui/
+  panels.json` from the live tab strip and pytest asserts every chapter
+  names each, the fnmatch mechanism in the other direction.
+- **The `.rxt` grammar quotes the parser.** `FORMAT_VERSION` and
+  `VALUE_DIGITS` are fenced constants; the keyword table is injected from
+  `textdoc._KEYWORDS`, already pinned to `lib/rxt.ts`.
+- **Screenshots are generated.** `docs/manual/make_screenshots.py` drives
+  playwright over the shipped example projects (WP-1204), light/dark pairs,
+  the `make_figures.py` rule; a test asserts every screenshot a chapter
+  references is one the script produces, so a moved control is a stale
+  picture the build can name.
 
-When this WP is picked up, prune the mailbox below against the GUI as it is
-*then* — most of it will be about panels that have moved again, and the whole
-point of deferring was to stop paying for that.
+**In-app help is not this WP's any more.** The `static/help.json` and
+tooltip wiring the original scope carried landed as the corpus (1202) and
+the popover (1203); what remains here is the "learn more" anchors' dead-link
+guard being green over the finished chapters, and the first-run checklist.
+
+The mailbox below was accurate on 2026-08-06 and is **left for the session
+that picks this up**, per its own rule: prune it against the running app,
+not against the notes.
 
 ## Context
 
@@ -604,6 +622,12 @@ and plotly is served from the installed package rather than bundled, which is wh
 - [ ] `static/help.json` + tooltip wiring + "learn more" anchors;
       `tests/test_gui_help.py` dead-link guard.
 - [ ] First-run progressive checklist (non-modal), persisted dismissal.
+- [ ] Route partition test (`server.ROUTES` documented or excluded with a
+      reason) and the panel-name corpus (vitest writes, pytest reads).
+- [ ] `docs/manual/make_screenshots.py` over the shipped examples +
+      the referenced-screenshot test; light/dark pairs committed.
+- [ ] The glossary and every `{ref}` to it from the chapters; lift the beta
+      declaration in README and `using/compatibility.md`.
 
 ## Acceptance
 
@@ -620,6 +644,11 @@ and plotly is served from the installed package rather than bundled, which is wh
 
 ## Handover log
 
+- **2026-08-25** — re-scoped as the last WP of v1.2 (the GUI milestone):
+  the chapters keep their shape, the sync mechanism above is added, and
+  in-app help moved to WP-1202/1203. Milestone field, Depends line and the
+  ROADMAP row (now in § v1.2) synced. The mailbox is untouched on purpose.
+  Next: nothing until 1201-1217 land.
 - **2026-08-14** — **deferred past the public release** (user decision): the
   GUI ships as a beta feature and gets its manual once the panels settle.
   Done: Status line, milestone field and the ROADMAP row moved to a new

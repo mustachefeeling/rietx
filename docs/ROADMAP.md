@@ -64,36 +64,14 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**v1.1 shipped 2026-08-23** ([record](milestones/v1.1.md), [notes](releases/1.1.0.md)) — the speed milestone.  The trigger-shaped cold fit went **50.11-50.43 → 5.69-5.72 s** (8.8×) and the same model as a 10-pattern warm series **266.78-269.61 → 49.24-49.30 s** (5.4×), each win carrying its own equivalence bar and none an Rwp comparison.  The warm-series band is recorded **met on the maintainer's judgement, and mis-specified rather than cleared** — WP-1124 refuted the distribution it assumed, so the row is judged on the per-pattern table: seven of nine warm patterns at 0.88-2.33 s, two at 10.53 and 20.26.  **1.0.2 was folded in and never published**: written and unreleased when v1.1 opened, so an upgrade from 1.0.1 crosses both; `releases/1.0.2.md` stays the chapter-by-chapter record and 1.1.0's § Upgrading is the authority.
-Three things a consumer could observe moved with it.  **numba is a core dependency** — the compiled tier, +157 MB and a `numpy<2.6` ceiling, both priced, with a soft import and `RIETX_COMPILED=0` as the way out.  **Intermediate stages stop at `ftol=1e-6`** by default (≤ 0.03 esd on one fit, unbounded and unsigned on a *chain*; `intermediate_ftol=None` is bit-identical).  And the **ladder's first rung is bounded** at `first_rung_factor=3.0`, bit-identical on both series measured.  `schema_version` 0.1 → 0.5, report thresholds 1.1 → 1.3, project format 1.1 → 1.2, indexing thresholds 1.2 → 1.3 — each step's reason beside its constant, per the preview promise.
-Two nightly reds were cleared on the way out and **neither was a regression** — both were tests pinning what the machine decides.  [1128](wp/1128-prior-seed-before-the-gate.md): the Linux red was a **load sensor**, `volume_window`'s κ probes sitting between the indexing budget's start and its first check, so a loaded worker spent the whole budget before a stated prior got its one call (margin 5.4× → 207×, reordered bit-identically; the test now starves the ladder structurally).  [1129](wp/1129-absent-phase-support-is-a-flat-direction.md): the Windows red — the job `docs/RELEASING.md` step 4 gates on — pinned an absent phase's support at `< 1.0` when it is the landing point of a **flat direction** spanning six orders (9.1e-07 / 0.088 / 0.548 / 1.64) while the real phase sits unmoved at ~386σ; re-asserted as a ratio against the same run's own `support[0]`, which is the rule the sibling cell test in that file already stated.
+**v1.2 — the GUI for a crystallographer, opened 2026-08-25** ([record](milestones/v1.2.md)). The maintainer's notes from using the GUI the way a first-time crystallographer would, triaged against three read-only passes over `gui/src` and `src/rietx/gui`: every note has a cause in code, and the causes are one WP each, **17 new (1201-1217) plus [1017](wp/1017-gui-manual-onboarding.md) re-scoped** as the manual and its sync mechanism. Two orderings are fixed. [1201](wp/1201-gui-house-style.md) (tokens and registers) lands **first**, because every other panel change builds on one control vocabulary; 1017 lands **last**, its own rule since 2026-08-14. Between them the order is the § v1.2 table: developer mode and shipped examples (1204), the help corpus and its popover (1202, 1203), the wizard (1205-1207), Plan (1208), Peaks and the plot (1209-1213), Model (1214-1216), History (1217).
+Decisions taken at the opening: help is cursor-only with a click popover and no visible mark; a project without a CIF is two WPs (a typed cell, then pattern-only projects, which is a library change); a ~3.2 MB example set ships in the wheel; chips become non-interactive facts; the hover tooltip becomes a readout strip under the plot. Free-standing peaks (1101-1103) shift to **v1.3**, the precedent v1.1 set. `pyproject.version` is `1.2.0.dev0`.
 
-**The promise is a preview**
-([1117](wp/1117-compatibility-promise.md), `docs/manual/using/compatibility.md`):
-anything may change in any release; any change a consumer could observe bumps
-its contract's last component by one, the comment beside the constant saying
-what — no classification. Documenting a name still gates arrival (the
-partition); it no longer freezes it.
+**v1.1 shipped 2026-08-23** ([record](milestones/v1.1.md), [notes](releases/1.1.0.md)): the trigger-shaped cold fit 50.11-50.43 → 5.69-5.72 s and the 10-pattern warm series 266.78-269.61 → 49.24-49.30 s, each WP with its own equivalence bar and none an Rwp comparison. Three consumer-visible changes rode with it: numba as a core dependency (`RIETX_COMPILED=0` is the way out), intermediate stages at `ftol=1e-6` (`intermediate_ftol=None` is bit-identical), and the ladder's first rung bounded at `first_rung_factor=3.0`. **1.0.2 was folded in and never published**, so an upgrade from 1.0.1 crosses both and 1.1.0's § Upgrading is the authority. Two speed fronts stay unowned and recorded: the per-reflection 19.4 % and the `refit=` choice (50 % of the trigger series wall is still discarded ladder rungs).
 
-**The deferred bucket is empty and the live tier is a declared one**
-([1076](wp/1076-result-row-honesty.md) closed [1067](wp/1067-user-api-manual.md);
-[1078](wp/1078-indexing-provisional.md) declared it): every public name is
-documented or excluded with a reason, so a *new* one fails the partition on
-arrival, and 257 of the 1320 are **provisional by declaration** — the indexing
-subsystem, derived from each name's defining module rather than listed.
+**The promise is a preview** ([1117](wp/1117-compatibility-promise.md), `docs/manual/using/compatibility.md`): anything may change in any release; a consumer-observable change bumps its contract's last component by one, the reason beside the constant. Documenting a name gates arrival (the partition, [1076](wp/1076-result-row-honesty.md), [1078](wp/1078-indexing-provisional.md)); it no longer freezes it.
 
-**Next is v1.2 — free-standing peaks** (1101-1103, shifted 2026-08-20).  Two speed fronts stay **unowned and recorded rather than closed**: the **per-reflection 19.4 %** one (solver 11.8 %), and the **`refit=` choice**, adaptive-or-nothing — 1253 against 1395 evaluations on the trigger chain, 627 against 1041 the other way on the small-cell one.  50 % of the trigger series wall is still discarded ladder rungs (down from 57 %), which is where that second front lives.
-Parked, in rough order, none of it blocking: the
-1.0.0-release-notes promises (`.rex` zip transport; `RefinementState.excluded_regions`
-with `replay` honouring them — 1003 §B, decided); the post-1003 indexing work
-(narrow the acceptance fixtures' search — the nightly `full` job's ~77 min of
-setup, and its `indexing-acceptance` group is one worker's 1400 s-per-fixture
-serial tail — and the `grade` prior-counting change, 1046 §4); the model-cost
-estimate (1110's agent ask, deferred by 1113 — its § Findings prices both
-halves); [1017](wp/1017-gui-manual-onboarding.md) (GUI stays beta until it
-lands); [1118](wp/1118-foreign-model-files.md), unscheduled. The agentic-report
-set (1104-1108) is ✅ complete — appendices in `milestones/v1.1.md`. 1066's
-naming rule stands beside all of it (root CLAUDE.md, `_about.py`).
+Parked, none of it blocking: the 1.0.0-release-notes promises (`.rex` zip transport, and `RefinementState.excluded_regions` with `replay` honouring them, 1003 §B); the post-1003 indexing work (narrow the acceptance fixtures' search, and the `grade` prior-counting change, 1046 §4); the model-cost estimate (1110's ask, priced in 1113 § Findings); [1118](wp/1118-foreign-model-files.md), [1119](wp/1119-named-variables.md), [1130](wp/1130-background-reference.md) and [1131](wp/1131-sample-broadening-is-a-specimen-property.md), unscheduled.
 
 ## Milestones
 
@@ -107,7 +85,8 @@ naming rule stands beside all of it (root CLAUDE.md, `_about.py`).
 | v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop, theory manual | ✅ **shipped 2026-07-29** ([record](milestones/v0.6.md)) | bounded LM 0.74–1.04× vs scipy TRF (CPU — the expected Amdahl tie), identical minima on 2/3 protocols, ΔBIC −13 on the third, and the Stephens cone enforced as a linear inequality (brucite 12/43 → 0/43 outside, at higher Rwp); FCJ node memo 1.23× bit-identical; agent schema generated from live registries with a registry-membership meta-test; theory manual builds `-W`-clean with every fenced constant injected from the live package and five anti-divergence guards in the fast suite |
 | v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ✅ **shipped 2026-08-16** ([record](milestones/v1.0.md)) | full suite green at ship: 2509 passed / 126 skipped locally (`[dev]`, macOS) and CI-green on Linux `[dev,jax]` (run 31966606174, full job 1h57); GUI end-to-end and the bethanechol individual-program grading landed by their WPs (record § Acceptance); repo public with six required checks gating `main`; manual + AGENT_PROTOCOL at yue-here.github.io/rietx, all URLs verified; `rietx` 1.0.0 on PyPI, fresh-venv install + `capabilities()` verified from the index; Windows fast suite green as the classifier's pre-upload gate — a gate that caught three real defects (CRLF-unstable checkouts, an SO_REUSEADDR double-bind in the GUI server, cp1252 example pipes) before the irreversible step |
 | v1.1 | Refinement speed: seconds not minutes | ✅ **shipped 2026-08-23** ([record](milestones/v1.1.md)) | trigger-shaped cold fit **5.69-5.72 s** against the milestone's opening **50.11-50.43 s** (8.8×) and the 10-pattern warm series **49.24-49.30 s** against **266.78-269.61** (5.4×), best-of-3 idle, darwin/arm64 `[dev]`; seven of nine warm patterns at 0.88-2.33 s (median 2.02) with two at 10.53/20.26 — the ~1 s band **met on the maintainer's judgement and recorded mis-specified**, judged on the per-pattern table as WP-1124 required; stretch (cold < 1 s) **measured unreachable** and recorded as such; every landed WP with its equivalence bar, never an Rwp comparison |
-| v1.2 | Free-standing peaks: fit_peaks + the extra-components seam | ⬜ next | — |
+| v1.2 | The GUI for a crystallographer: house style, one help mechanism, onboarding, the panels a first-time user meets | 🔄 **in flight** (opened 2026-08-25, [record](milestones/v1.2.md)) | — |
+| v1.3 | Free-standing peaks: fit_peaks + the extra-components seam | ⬜ next | — |
 | v2+ | FPA (**with** the peaks buffer — [1122](wp/1122-compiled-peaks-buffer.md) measured it below break-even without one), neutron **TOF** (CW landed, WP-1134), texture, MCP server | ⬜ fenced | — |
 
 ## Work packages
@@ -296,15 +275,14 @@ docs were ballooning, CI paid twice per merged PR, and the handover was
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ deferred 2026-08-14 | 1011–1016, 1029, 1032–1035 (soft) |
 | [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | ✅ 2026-08-18 — § Floor landed and unblocked 1003; the McCusker set's pass landed (Part 2 took its four equations, `using/results.md` split off, restraints documented, three figures); ten 1.0.x chapters landed (`data`, `model`, `refining`, `history`, `indexing`, `series`, `qpa`, `exports`, `cli`, plus second passes on `agents` and `report`), two planned chapters were deleted by measurement and one line grew from three commands to five; closed when [1076](wp/1076-result-row-honesty.md) emptied the `deferred-1.0.x` bucket — the derived surface is documented-or-excluded end to end, **1322 of 1322** | 0604, 1004–1007, 1047 |
 | [1068](wp/1068-manual-second-pass.md) | Part 1 second pass: voice, figures, structure | ✅ 2026-08-15 — voice, sectioning, `concepts.md` + `files.md`, four diagrams, three figure pairs; the McCusker read fixed a false attribution and produced the compliance audit | 1067 |
 | [1076](wp/1076-result-row-honesty.md) | A result row's unwritten fields: `at_bound` and `initial` | ✅ 2026-08-18 — the whole class, in four groups: `at_bound` three-valued and projected from one bound test, `initial`/`correlation_warnings` deleted, `TieSpec.from_tie` privatised, `"skipped"` and `"lebail_update"` off their vocabularies, `BACKEND_UNAVAILABLE` repaired in both directions it was wrong in, and `SeriesResult` given one `index` column and a reachable `backward`; SCHEMA_VERSION 0.1 → 0.2 and 1.0.2 gains 1.0.x's first breaking entry | 1067 |
 | [1077](wp/1077-extinction-refutes-certified-class.md) | The extinction screen refutes a certified class (corundum R -3 c), and no row covers the shape | ✅ 2026-08-18 — the evidence was wrong: both refuting positions sit on a strong line's low-angle flank, where *sham* positions carrying no reflection clear the same 3σ test on 40-50 % of probes (24.7σ max, that flank only — the axial tail), and freeing the FCJ asymmetry improves Rwp without removing the refutation. `n_testable` gains a third clause — the class's **own** fit must leave the window below the test's own threshold — so a total tail failure cannot refute; the screen returns `R - c -` = {R 3 c, R -3 c} at ΔBIC −218, five testable positions all absent. `n_testable` is `int \| None`. The badly-fitted whole-range arm still refutes, which is `profile_rwp`'s job and is now measured as such | — |
 | [1078](wp/1078-indexing-provisional.md) | Indexing is provisional, and every surface says so — 257 names declared, derived by defining module; **unblocks 1.0.2** | ✅ | 1067 |
 
-The GUI keeps moving, so it **ships as a beta feature** and is documented once
-the panels settle. 1067 declares that beta status; its **§ Floor gates
+The GUI **ships as a beta feature** until [1017](wp/1017-gui-manual-onboarding.md)
+lands, now the last row of § v1.2. 1067 declares that status; its **§ Floor gates
 [1003](wp/1003-api-freeze-pypi.md)** and the rest lands in 1.0.x, so it stays
 open past the milestone by design rather than being split.
 
@@ -325,13 +303,42 @@ the freeze decides.
 | [1073](wp/1073-capillary-displacement.md) | Capillary sample displacement, eq (4) | ✅ 2026-08-15 — eq (4) with derived signs, position templates and actions keyed by geometry (THRESHOLDS 1.0); measured: 11-BM is where it must *not* be refined | — (1.0.x) |
 | [1074](wp/1074-restraint-weight-schedule.md) | Restraint weight schedule (c_w) | ✅ 2026-08-16 — eq (7)'s c_w per stage, identity default bit-identical; measured: a flat c_w = 1 converges to a 4.834 Å bond at Rwp 0.0393, the schedule to 1.872 Å at 0.0327 | 0406 (1.0.x) |
 
-### v1.2 — free-standing peaks (shifted 2026-08-20)
+### v1.2 — the GUI for a crystallographer (added 2026-08-25)
+
+The maintainer's use notes, triaged: the style system first, the manual last,
+and between them one WP per cause found in the code. Order is the table's;
+Depends cells are hard unless marked soft. The per-note assessment and the
+decisions are the [v1.2 record](milestones/v1.2.md) § Scope.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1201](wp/1201-gui-house-style.md) | GUI house style: tokens and registers | ⬜ | — (first) |
+| [1204](wp/1204-developer-mode-example-projects.md) | Developer mode and example projects | ⬜ | — (1201 soft) |
+| [1202](wp/1202-help-corpus.md) | The help corpus, served and meta-tested | ⬜ | — |
+| [1203](wp/1203-help-popover.md) | The help popover: one mechanism across the panels | ⬜ | 1201, 1202 |
+| [1205](wp/1205-new-project-open-browse-defaults.md) | New project: open any project, browse, sensible defaults, the wizard bug | ⬜ | 1201, 1203, 1204 |
+| [1206](wp/1206-typed-cell-project.md) | A project without a CIF, part 1: a typed cell | ⬜ | 1205 |
+| [1207](wp/1207-pattern-only-project.md) | A project without a CIF, part 2: pattern-only projects | ⬜ | 1206 |
+| [1208](wp/1208-plan-introduction.md) | Plan panel: the gentle introduction | ⬜ | 1203 |
+| [1209](wp/1209-peaks-table-numbers-flags.md) | Peaks table: numbers, columns, flags | ⬜ | 1201, 1203 |
+| [1210](wp/1210-peak-layer-identity.md) | The peak layer: hide it, tell it apart, data-only | ⬜ | 1201 |
+| [1211](wp/1211-candidate-overlay.md) | Indexing candidates on the plot | ⬜ | 1210 |
+| [1212](wp/1212-redraw-never-moves-axes.md) | A redraw never moves the axes | ⬜ | 1210 |
+| [1213](wp/1213-hover-readout.md) | The hover readout | ⬜ | 1212 |
+| [1214](wp/1214-model-vary-and-profile-save.md) | Model: vary in the editor, and save instrument profile | ⬜ | 1201 |
+| [1215](wp/1215-structure-table.md) | Model: the structure table | ⬜ | 1214 |
+| [1216](wp/1216-instrument-form.md) | Model: the instrument form | ⬜ | 1214 |
+| [1217](wp/1217-history-graph-compare.md) | History: the graph and the compare table | ⬜ | 1201 |
+| [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help anchors, and the sync mechanism (re-scoped 2026-08-25) | ⬜ | 1201–1217 (last) |
+
+### v1.3 — free-standing peaks (shifted 2026-08-20, and again 2026-08-25)
 
 Peaks without a structure, at three ranks: fitted standalone (1101), and the
 `Instrument.extra_components` union seam — the serializable answer to TOPAS's
 fit_obj — with broad humps (1102) and sharp peaks (1103) as its first members.
 Shifted from v1.1 when the refinement-speed milestone took that slot
-(2026-08-20); the WPs keep their 11xx numbers per the block rule's
+(2026-08-20), and from v1.2 when the GUI milestone took that one
+(2026-08-25); the WPs keep their 11xx numbers per the block rule's
 ran-past precedent above.
 
 | WP | Title | Status | Depends on |

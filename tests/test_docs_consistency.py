@@ -297,6 +297,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # are distinguished by the wavelength and nothing else, and the measured
     # size of it.  Without them the row reads as a reporting feature, which is
     # the half of the WP that is not a correctness bug.
+    # 473 -> 480 for the v1.2 opening (2026-08-25): a milestone section with
+    # eighteen index rows (1201-1217 and 1017 moved in), which the bijection
+    # test requires one line each, net +7 after Current focus was rewritten
+    # from 30 lines to 12 and the peaks section was retitled v1.3 in place.
+    # The per-note assessment went down a rank into milestones/v1.2.md.
     # 473 -> 474 for WP-1132 (2026-08-24): its own index row, and only that.
     # The row is required rather than chosen (the bijection test again), and
     # every line of the WP's reasoning stays in its own file — unlike 1131 it
@@ -308,7 +313,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # was committed under WP-1128, which is the shipped v1.1 indexing WP cited
     # from indexing/svd.py -- two meanings of one number costs more than a
     # renumber, so the in-code citations moved to 1134 and this file names it.
-    "docs/ROADMAP.md": 475,
+    # 480 -> 482 merging PR #108 into the v1.2 opening (2026-08-25):
+    # the two caps above were measured against different parents, so
+    # neither survives the merge; 482 is the merged file, both index
+    # rows on top of the v1.2 section.
+    "docs/ROADMAP.md": 482,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections

@@ -7,6 +7,13 @@ pipeline and package-wide invariants; `docs/milestones/v1.0.md` holds the
 narrative of how these panels landed; the WP files (1008…1015, 1029) hold the
 measured detail behind each rule below.
 
+Two rules for anything a person reads here (v1.2, WP-1201/1202/1203):
+**GUI prose is written under `/yue-docs-style`** (help entries, wizard lines,
+empty states, error text), and **a button's `title=` is a verb phrase; every
+other explanation is an entry in the help corpus** (`rietx.help`, rendered by
+the help popover), never a `title=`. Until 1203 lands, `title=` stays the one
+mechanism, so the second rule binds new text and not existing strings.
+
 The **GUI** (WP-1008, `gui/`) is `rietx gui [PROJECT.rex]` — stdlib
 `http.server` on 127.0.0.1, the third such app here after `watch` and `compare`.
 `gui/session.py` holds `GuiSession`, where **every verb is a plain method and
