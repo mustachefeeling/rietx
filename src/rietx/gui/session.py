@@ -54,6 +54,7 @@ from typing import Any, Literal
 
 from .. import _about
 from ..capabilities import capabilities as _capabilities
+from ..help import help_registry as _help_registry
 from ..history.events import EventStream
 from ..optimize.cancel import CancelToken, RefinementCancelled
 from ..project import Project
@@ -205,6 +206,17 @@ class GuiSession:
     def capabilities(self) -> dict:
         """:func:`rietx.capabilities`, verbatim — the client's one guess-free call."""
         return _capabilities().model_dump(mode="json")
+
+    def help(self) -> dict:
+        """:func:`rietx.help_registry`, verbatim — the whole help corpus.
+
+        Static for the life of the build, and needs no project, so it sits
+        beside :meth:`capabilities` rather than behind the in-flight 409: a
+        person reading what a parameter means while a run works is not editing
+        anything.  A parameter row carries only its ``help_key``, which indexes
+        the ``parameters`` arm here.
+        """
+        return _help_registry()
 
     def version(self) -> dict:
         return {"package_version": _VERSION, "pid": os.getpid(),

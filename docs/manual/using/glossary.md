@@ -33,10 +33,28 @@ Isotropic displacement parameter
 
 A path outside the parameter vocabulary returns `None` rather than a guess.
 
+`help_key_for` returns the family glob itself rather than the entry, which is
+what `Refinement.parameters()` puts on every row as `ParameterRow.help_key`. A
+row carries the key and not the entry because an entry describes a family, so
+inlining one repeats the same paragraph once per atom.
+
+```python
+import rietx as rx
+
+print(rx.help_key_for("phases.0.atoms.3.biso"))
+print(rx.help_key_for("phases.0.atoms.3.nonsense"))
+```
+
+```text
+phases.*.atoms.*.biso
+None
+```
+
 `help_registry` returns the whole corpus as JSON-able data, which is what the
 GUI's `GET /api/help` serves. Its keys are `parameters`, `peak_flags`,
 `peak_diagnostics`, `stage_fields`, `reader_options`, `instrument_fields` and
-`plans`.
+`plans`. Each object in `parameters` lists every glob that reaches it, so a
+`help_key` looks up there.
 
 ```python
 import rietx as rx

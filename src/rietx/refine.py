@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 from ._about import DIST_NAME
 from .backend.api import backend_dtype_note
 from .background.diagnostics import STEPS_PER_FWHM_MIN, sampling_steps_per_fwhm
+from .help import help_key_for
 from .history.events import as_event_stream
 from .history.store import fingerprint
 from .history.tree import RefinementTree
@@ -408,6 +409,7 @@ class Refinement:
                 esd=esd.get(e.path),
                 mode_fixed=mode_fixed_path(e.path, mode),
                 needs_held_cell=e.path in blocked,
+                help_key=help_key_for(e.path),
             ))
         return rows
 

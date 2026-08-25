@@ -11,7 +11,7 @@ from . import agent
 from .background import auto_background, diagnose
 from .capabilities import capabilities
 from .crystallography.cif import format_su
-from .help import HelpEntry, help_for, help_registry
+from .help import HelpEntry, help_for, help_key_for, help_registry
 from .history import RefinementTree
 from .indexing import determine_extinction_symbol, index_pattern, pick_peaks
 from .io.exporters import (
@@ -134,6 +134,7 @@ __all__ = [
     "diagnose",
     "format_su",
     "help_for",
+    "help_key_for",
     "help_registry",
     "determine_extinction_symbol",
     "index_pattern",

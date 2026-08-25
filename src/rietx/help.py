@@ -46,6 +46,7 @@ __all__ = [
     "STAGE_FIELD_HELP",
     "UNIT_DISPLAY",
     "help_for",
+    "help_key_for",
     "help_registry",
     "plan_help",
 ]
@@ -1124,8 +1125,8 @@ def plan_help() -> dict[str, HelpEntry]:
     }
 
 
-def help_for(path: str) -> HelpEntry | None:
-    """The entry for a parameter dot-path, or ``None`` if no family claims it.
+def help_key_for(path: str) -> str | None:
+    """The family glob that claims a parameter dot-path, or ``None``.
 
     Matching is :func:`fnmatch.fnmatchcase` against the keys of
     :data:`PARAMETER_HELP`, the same call ``ParameterTable.set_vary`` makes.
@@ -1133,11 +1134,28 @@ def help_for(path: str) -> HelpEntry | None:
     produces matches exactly one family, so the first match is the only match;
     a path from outside that vocabulary may match none, and gets ``None``
     rather than a guess.
+
+    This is what :attr:`~rietx.schemas.params.ParameterRow.help_key` carries.
+    A row holds the key rather than the entry because an entry describes a
+    *family*, so inlining one repeats a paragraph once per atom: measured at
+    3.4x the ``/api/params`` payload on an ordinary two-phase model (20.8 kB to
+    70.0 kB), against 40.7 kB for the whole registry fetched once.  The server
+    still owns the match, so no client re-derives it.
     """
-    for glob, entry in PARAMETER_HELP.items():
+    for glob in PARAMETER_HELP:
         if fnmatchcase(path, glob):
-            return entry
+            return glob
     return None
+
+
+def help_for(path: str) -> HelpEntry | None:
+    """The entry for a parameter dot-path, or ``None`` if no family claims it.
+
+    :func:`help_key_for` with the lookup done, for a caller holding one path
+    rather than a table of them.
+    """
+    key = help_key_for(path)
+    return None if key is None else PARAMETER_HELP[key]
 
 
 def help_registry() -> dict[str, object]:

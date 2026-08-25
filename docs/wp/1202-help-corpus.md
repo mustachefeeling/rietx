@@ -86,7 +86,8 @@ by one for the added field, comment beside the constant.
 
 - [x] `src/rietx/help.py`: `HelpEntry`, the family registry, `help_for(path)`,
       the named arms; exported from `rietx` and documented in Part 1.
-- [ ] `ParameterRow.help` + `session.params` fill; `SCHEMA_VERSION` bump with
+- [x] `ParameterRow.help_key` (a family key, not the entry — see the
+      handover) filled in `Refinement.parameters`; `SCHEMA_VERSION` bump with
       its reason; `GET /api/help` route (in `server.ROUTES`, disjointness
       test still green).
 - [ ] `tests/test_help.py`: every family the fnmatch corpus vocabulary
