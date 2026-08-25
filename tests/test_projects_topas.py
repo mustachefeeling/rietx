@@ -1769,8 +1769,9 @@ def test_a_macro_string_containing_site_inside_a_block_is_not_split_as_a_site(
 def test_the_dropped_block_refusal_agrees_in_number(
         tmp_path, second_blocks, n_carrying, n_building, singular):
     """The refusal pluralised its nouns but not its verbs — "1 `str` block here
-    state a cell" and "1 other phase build". Both agree now, singular and
-    plural."""
+    state a cell" and "1 other phase build" — and, once the verbs were fixed,
+    still not its pronouns: "1 block … so **they** cannot be built — and
+    dropping **them**". All three agree now, singular and plural."""
     inp = _inp(tmp_path, "agree.inp",
                'str\nphase_name "A"\nspace_group "P1"\na 5.0\n'
                'weight_percent wpA 40.0\n'
@@ -1780,7 +1781,11 @@ def test_the_dropped_block_refusal_agrees_in_number(
     msg = str(exc.value)
     if singular:
         assert "block here states a cell" in msg
+        assert "so it cannot be built" in msg
+        assert "dropping it while" in msg
         assert "other phase builds would" in msg
     else:
         assert "blocks here state a cell" in msg
+        assert "so they cannot be built" in msg
+        assert "dropping them while" in msg
         assert "other phase builds would" in msg

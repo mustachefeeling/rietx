@@ -1409,12 +1409,17 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     # refuse, naming what was dropped.
     carrying = [sb for sb in model.skipped_blocks if sb.cell or sb.n_sites]
     if phases and carrying:
+        # The pronouns agree in number with the blocks, as the verbs already do:
+        # "1 block … states … so IT cannot be built — and dropping IT", "2
+        # blocks … state … so THEY cannot be built — and dropping THEM".
+        one = len(carrying) == 1
         raise TopasInpError(
             f"{model.path or '<model>'}: {len(carrying)} `str` block"
-            f"{'' if len(carrying) == 1 else 's'} here state"
-            f"{'s' if len(carrying) == 1 else ''} a cell or a site "
-            f"but no phase_name/space_group, so they cannot be built — and "
-            f"dropping them while {len(phases)} other phase"
+            f"{'' if one else 's'} here state"
+            f"{'s' if one else ''} a cell or a site "
+            f"but no phase_name/space_group, so {'it' if one else 'they'} "
+            f"cannot be built — and "
+            f"dropping {'it' if one else 'them'} while {len(phases)} other phase"
             f"{'' if len(phases) == 1 else 's'} build"
             f"{'s' if len(phases) == 1 else ''} would leave the weight "
             f"fractions no longer summing. " + "; ".join(str(sb) for sb in carrying)
