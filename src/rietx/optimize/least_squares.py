@@ -130,8 +130,11 @@ _INTENSITY_ONLY = (
     re.compile(r"^phases\.\d+\.atoms\.\d+\."),
     re.compile(r"^phases\.\d+\.preferred_orientation\.r$"),
     # a line weight and the polarization ratio scale the intensity of a peak
-    # that is already placed; the line's *wavelength* would not, and is not a
-    # table entry
+    # that is already placed.  The line's ``wavelength`` beside it is a table
+    # entry since WP-1134 and is deliberately **absent** from this list: λ moves
+    # every peak of its histogram (2θ = 2·asin(λ/2d)), so it needs the position,
+    # width and mixing partials.  Spelled ``\.weight$`` rather than as a
+    # ``lines\.\d+\.`` prefix precisely so the wavelength cannot be swept in.
     re.compile(r"^instrument\.source\.lines\.\d+\.weight$"),
     re.compile(r"^instrument\.polarization$"),
 )
@@ -880,6 +883,11 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     and table exactly as the last accepted evaluation found them."""
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
+    # A free λ beside a free cell is an exactly flat direction.  Asked here
+    # rather than at table build because a cumulative plan can free the two in
+    # different stages, and rather than in ``_rebuild`` because a diagnostic
+    # probe frees parameters without intending to fit them.
+    table.check_wavelength_against_cell()
     _freeze_cell_windows(model, table)
     residual = _make_residual(model, table)
     jacobian = _jacobian_for(model, table, backend)

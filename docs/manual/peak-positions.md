@@ -39,6 +39,103 @@ Every emission line diffracts at its own Bragg angle. Differentiating
 
 which grows with $\tan\theta$ — a Kα₂ line is never a fixed offset from Kα₁.
 
+(sec-harmonics)=
+### Monochromator harmonics
+
+A crystal monochromator set to pass $\lambda$ by Bragg reflection from planes of
+spacing $d_M$ satisfies $\lambda = 2 d_M \sin\theta_M$. At that same setting
+
+```{math}
+:label: pos-harmonic-mono
+
+\frac{\lambda}{n} \;=\; 2\,\frac{d_M}{n}\,\sin\theta_M ,
+```
+
+*Source:* `rietx.schemas.instrument.Harmonic`
+
+and $d_M/n$ is the spacing of the $n$th-order reflection of the same planes. So
+the transmitted beam carries $\lambda/n$ for every integer $n \ge 2$ whose
+reflection $n\cdot(hkl)$ is not extinct. The order belongs to the reflection
+rather than to the geometry, which is why no adjustment of $\theta_M$ removes
+it.
+
+That component diffracts from the specimen too. At detector angle $2\theta$ it
+satisfies $\lambda/n = 2 d \sin\theta$, so it is diffracting from planes of
+spacing
+
+```{math}
+:label: pos-harmonic-d
+
+d \;=\; \frac{\lambda}{2 n \sin\theta}
+\qquad\Longleftrightarrow\qquad
+\sin\theta_n \;=\; \frac{1}{n}\,\sin\theta_1 ,
+```
+
+*Source:* `rietx.schemas.instrument.Harmonic`
+
+where $\theta_1$ and $\theta_n$ are where the fundamental and the harmonic put
+the *same* reflection. Since $\sin$ increases on $(0°, 90°)$, $\theta_n <
+\theta_1$: **the harmonic's peak from a given $hkl$ sits at lower $2\theta$ than
+the fundamental's**, and the two are related by a factor on $\sin\theta$ rather
+than by an offset in $2\theta$ — the same structure as {eq}`pos-doublet`, taken
+to a ratio of $n$ instead of a small $\Delta\lambda$.
+
+Two consequences decide the implementation. First, the harmonic diffracts the
+same $hkl$ list with the same $|F|^2$, because $|F|^2$ is evaluated at
+$\sin\theta/\lambda = 1/2d$ — a property of the reflection, not of the
+wavelength that reaches it. That is what makes a $\lambda/n$ component an
+*emission line* here rather than a second phase: a phase with a doubled cell
+reproduces the positions ($2a$ has $d' = 2d$, and $\lambda$ at $d'$ lands where
+$\lambda/2$ at $d$ does) but carries the structure factors of a fictitious cell,
+so its intensities are wrong. Second, $\lambda/n$ has $n$ times the Ewald
+radius, so the reflection list must be generated for the *shortest* wavelength
+in the source or the harmonic's high-angle reflections are silently absent.
+
+Whether a harmonic exists at all is arithmetic on the monochromator's own
+structure. Copper is face-centred cubic with one atom per lattice point, so
+Cu(311) doubles to the fully allowed (622) and the second order passes. A
+diamond-structure crystal cut on all-odd indices cancels its own second order:
+the doubled indices are all even, and the diamond structure factor $1 +
+\exp[2\pi i (h+k+l)/4]$ vanishes unless $h+k+l \equiv 0 \pmod 4$, while doubling
+an all-odd triple always gives $h+k+l \equiv 2$.
+
+## The wavelength–cell degeneracy
+
+{eq}`pos-bragg` reaches the wavelength only through the ratio $\lambda/2d$, so
+scaling $\lambda$ and every reciprocal-lattice length by the same factor leaves
+every computed position unchanged:
+
+```{math}
+:label: pos-lambda-cell
+
+\lambda \to s\lambda, \quad \mathbf{a}^{*}_i \to s\,\mathbf{a}^{*}_i
+\;\;\Longrightarrow\;\;
+2\theta_{hkl} \;\text{unchanged for all}\; hkl .
+```
+
+*Source:* `rietx.params.vector.check_wavelength_freedom`
+
+For one histogram that one-parameter family is an exactly flat direction of the
+residual, whatever the data quality: $\lambda$ and the cell cannot both be free.
+Differentiating {eq}`pos-bragg` in $\lambda$ shows what the freedom would buy
+instead —
+
+```{math}
+:label: pos-dlambda
+
+\frac{\partial\, 2\theta}{\partial \lambda}
+ \;=\; \frac{2\tan\theta}{\lambda},
+```
+
+*Source:* `rietx.model.forward`
+
+the same $\tan\theta$ signature as {eq}`pos-doublet`, which is exactly the
+signature a uniform cell scaling has. Across $N$ histograms of one specimen the
+cell is one object and the $\lambda_i$ are $N$ separate ones, so the family
+{eq}`pos-lambda-cell` collapses to a single scalar $s$: fixing one $\lambda_i$
+fixes $s$, and the other $N-1$ become measurable against the shared lattice.
+Hence exactly one wavelength held and at most $N-1$ free.
+
 ## Aberration shifts
 
 Additive $2\theta$ shifts with distinct angular signatures are modelled; the

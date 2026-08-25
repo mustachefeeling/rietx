@@ -304,8 +304,9 @@ def test_w2_satellites_vanish_when_the_source_is_fixed():
     _plot(r1, "eval_w2_single_line_landing")
 
     doublet = qarr_instrument()
-    lam1 = doublet.source.lines[0].wavelength
-    lam2 = doublet.source.lines[1].wavelength
+    # ``.value``: EmissionLine.wavelength is a Parameter, not a float
+    lam1 = doublet.source.lines[0].wavelength.value
+    lam2 = doublet.source.lines[1].wavelength.value
     preds = _ka2_predictions(r1, lam1, lam2)
     assert len(_unmatched_near(rep1, preds)) >= 10       # measured 31
     active = {a.kind: a.confidence

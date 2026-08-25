@@ -22,7 +22,14 @@ SHORT = rx.RefinementPlan(stages=[
 
 #: Fields ``ParameterRow`` adds to ``Entry``'s, declared here so the anti-drift
 #: test asserts the addition rather than silently tolerating any difference.
-DELIBERATE_EXTRAS = {"esd", "mode_fixed"}
+#:
+#: All three are held-reasons an ``Entry`` cannot carry, for the same reason:
+#: they are not facts about the parameter.  ``esd`` comes from the last fit,
+#: ``mode_fixed`` from the intensity mode, and ``needs_held_cell`` from whether
+#: this histogram's *cell* is currently free — the only one that changes with
+#: another parameter's state, which is why it cannot be an ``Entry.locked``
+#: flag and has to be recomputed each time the surface is read.
+DELIBERATE_EXTRAS = {"esd", "mode_fixed", "needs_held_cell"}
 
 
 @pytest.fixture(scope="module")
@@ -42,6 +49,39 @@ def test_parameter_row_mirrors_entry_plus_declared_extras():
     row_fields = set(ParameterRow.model_fields)
     assert row_fields - entry_fields == DELIBERATE_EXTRAS
     assert entry_fields - row_fields == set(), "an Entry field is not exposed"
+
+
+def test_a_wavelength_is_held_by_the_cell_and_says_so():
+    """The fourth held-reason, and the only dynamic one.
+
+    ``refinable`` promises "``set_vary`` could free this row".  With the cell
+    free, ``set_vary`` skips a wavelength — so without this flag the promise
+    would be false while ``held_because`` said nothing, which is exactly the
+    defaulted-``False`` shape WP-1076 removes.  Both directions asserted: a
+    held-because that never clears is the old hard lock in disguise.
+    """
+    import rietx as rx
+
+    WL = "instrument.source.lines.0.wavelength"
+    ins = rx.Instrument.debye_scherrer(wavelength=1.5406)
+
+    def structure(cell_vary):
+        st = rx.Structure(phases=[rx.Phase(
+            name="LaB6", space_group="P m -3 m",
+            cell=rx.Cell.cubic(4.15689, vary=cell_vary),
+            atoms=[rx.Atom(label="La", species="La", x=rx.Parameter(value=0.0),
+                           y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))])])
+        return st
+
+    free = rx.Refinement(structure(True), ins, history=False)
+    row = next(r for r in free.parameters() if r.path == WL)
+    assert row.needs_held_cell and not row.refinable
+    assert "cell held" in row.held_because
+    assert not row.locked, "a dynamic reason must not masquerade as structural"
+
+    held = rx.Refinement(structure(False), ins, history=False)
+    row = next(r for r in held.parameters() if r.path == WL)
+    assert not row.needs_held_cell and row.refinable and row.held_because == ""
 
 
 def test_tie_spec_describes_its_right_hand_side():

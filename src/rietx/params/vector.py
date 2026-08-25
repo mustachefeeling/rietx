@@ -43,6 +43,104 @@ from ..schemas.instrument import (
 from ..schemas.structure import Structure
 from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physical
 
+#: Dot-path suffix of a source line's wavelength row.  One authority for the
+#: spelling, since three places test for it: the collector, the freedom check
+#: below and the ``WAVELENGTH_CALIBRATION`` diagnostic in ``refine.py`` (shared
+#: with the joint path in ``multi.py``).
+WAVELENGTH_SUFFIX = ".wavelength"
+
+
+def _is_wavelength(path: str) -> bool:
+    return (path.startswith("instrument.source.lines.")
+            and path.endswith(WAVELENGTH_SUFFIX))
+
+
+def check_wavelength_freedom(free_wavelengths: list[str], n_wavelengths: int,
+                             n_histograms: int, *,
+                             cell_shared: bool = True) -> None:
+    """Refuse a wavelength freedom the data cannot support.  Three cases.
+
+    A powder pattern measures d = λ/(2 sin θ), which fixes only the *product*
+    λ·(1/d) — so for **one** histogram a free λ beside a free cell is a flat
+    direction, exactly, and no amount of data removes it.  Across **N**
+    histograms of one specimen sharing one cell the degeneracy breaks: holding
+    one λ pins the cell's scale, and the remaining N − 1 are then
+    over-determined by that shared cell and genuinely measurable.  Holding
+    *all* of them instead forces every monochromator's calibration error into
+    the shared cell; freeing all of them restores the flat direction.
+
+    **The shared cell is the whole mechanism, so it is part of the rule**:
+
+        a free wavelength requires its histogram's cell to be *shared* with at
+        least one histogram whose wavelength is held.
+
+    "Exactly one held, at most N − 1 free" is that statement's special case
+    when every histogram shares one cell, which is the default
+    (:class:`~rietx.params.multi.SharingMap` shares everything that is not
+    ``instrument.*`` or ``*.scale``).  Un-share the cell — a legitimate thing to
+    want, when two histograms are two preparations — and the degeneracy of a
+    single-histogram fit is back inside the joint one, per histogram, which is
+    why ``cell_shared=False`` refuses every free λ rather than letting the fit
+    wander.
+
+    **Which one to hold is not arbitrary**: hold the wavelength of the
+    histogram that determines the cell.  On a synchrotron-plus-neutron pair
+    that is the synchrotron — its wavelength calibration is the better known
+    *and* its angular resolution makes its cell the better determined — and the
+    neutron wavelengths then refine against a cell the X-ray data has pinned,
+    which is the only way their monochromator calibrations can be measured at
+    all.
+
+    This is :class:`~rietx.schemas.instrument.EmissionLine`'s weight convention
+    one rank up — one member of a set pinned to fix a scale the data cannot
+    set, the rest free — and the same argument fixes *where* each is enforced.
+    A line weight's scale lives inside one source, so line 0 can be locked in
+    the collector.  A wavelength's scale lives in the *cell*, which is shared
+    across instruments, so no single instrument can count the set and the check
+    has to sit at the two constructors that see it: :class:`ParameterTable`
+    (which sees one instrument, hence always the N = 1 case) and
+    :class:`~rietx.params.multi.MultiParameterTable` (which sees all of them).
+    That is why this is a function and not a validator on ``EmissionLine``.
+
+    ``free_wavelengths`` are the free wavelength paths, spelled as the caller's
+    own surface spells them; ``n_wavelengths`` is how many wavelength rows the
+    whole problem has and ``n_histograms`` how many patterns it stacks.
+
+    **Scope: constant-wavelength only.**  The same fence generalises verbatim to
+    a time-of-flight multi-bank fit, where each bank carries its own DIFC
+    calibration and exactly one of them must be held to pin the cell; nothing
+    here implements TOF.
+    """
+    if not free_wavelengths:
+        return
+    if not cell_shared:
+        raise ValueError(
+            f"{free_wavelengths[0]} cannot vary while the cell is "
+            "per-histogram: λ is measurable only against a cell some *other* "
+            "histogram's held wavelength has pinned, so a histogram with its "
+            "own cell is back in the single-histogram degeneracy — inside a "
+            "joint fit, where it looks solved.  Share the cell "
+            "(SharingMap's default does) or hold every wavelength")
+    if n_histograms < 2:
+        raise ValueError(
+            f"{free_wavelengths[0]} cannot vary in a single-histogram fit: "
+            "d = λ/(2 sin θ) fixes only the product, so a free wavelength "
+            "beside a free cell is an exactly flat direction — the same "
+            "degeneracy that makes a certified standard's cell the thing you "
+            "hold in order to calibrate λ.  It becomes measurable only in a "
+            "joint fit of several histograms of one specimen sharing one cell "
+            "(rietx.refine_multi), where one wavelength is held and the rest "
+            "are free")
+    if len(free_wavelengths) >= n_wavelengths:
+        raise ValueError(
+            f"{len(free_wavelengths)} of {n_wavelengths} wavelengths are "
+            f"free; hold one.  Across {n_histograms} histograms of one "
+            "specimen the shared cell makes N − 1 wavelengths measurable, but "
+            "only because the held one pins the cell's scale — free them all "
+            "and the flat direction of a single-histogram fit is back.  Hold "
+            f"{sorted(free_wavelengths)[0]} (the convention is to hold the "
+            "best-calibrated histogram's) and leave the others free")
+
 
 def _background_parameters(bkg) -> list[tuple[str, Parameter]]:
     """(sub-path, Parameter) pairs for any background model, in design order."""
@@ -231,7 +329,16 @@ def cell_window(name: str, value: float, lo: float, hi: float) -> tuple[float, f
 
 
 class ParameterTable:
-    def __init__(self, structure: Structure, instrument: Instrument):
+    def __init__(self, structure: Structure, instrument: Instrument, *,
+                 joint: bool = False):
+        #: ``True`` when this table is one histogram of a joint fit, so the
+        #: wavelength count is somebody else's to make —
+        #: :class:`~rietx.params.multi.MultiParameterTable`, the only object
+        #: that can see the whole set (:func:`check_wavelength_freedom`).
+        #: ``False`` (the default) is a single-histogram fit, where a free
+        #: wavelength is refused here, in ``__init__``, like every other
+        #: symmetry-of-the-problem refusal.
+        self._joint = joint
         self.entries: list[Entry] = []
         #: phase base path → the Stephens DOF vector of the *unit* isotropic
         #: limit (1 ppm), kept so :meth:`seed_stephens` can put a freed block
@@ -448,12 +555,58 @@ class ParameterTable:
         self._add(f"{base}.biso", atom.biso, force_fixed=True)
 
     def _collect_instrument(self, instrument: Instrument) -> None:
-        self._add("instrument.polarization", instrument.source.polarization)
+        # K is a fact about the radiation, not about this instrument, wherever
+        # the radiation pins it.  A neutron beam is not polarised the way the
+        # Thomson cross-section polarises X-rays, so Lp collapses to the bare
+        # Lorentz factor at K = 1 — and a *free* entry there is worse than a
+        # dead column: Lp(2θ, K) does move the pattern, so the solver would buy
+        # Rwp by refining a term whose value the physics already knows.
+        # Force-fixed rather than merely unfree, the WP-1073 rule — a parameter
+        # the forward branch cannot legitimately use must be locked, or
+        # ``set_vary`` frees it and nothing objects.
+        self._add("instrument.polarization", instrument.source.polarization,
+                  force_fixed=instrument.source.kind != "xray_cw")
         for il, line in enumerate(instrument.source.lines):
             # line 0 defines the intensity scale: its weight is degenerate with
             # the phase scale factors, so it is always held fixed
             self._add(f"instrument.source.lines.{il}.weight", line.weight,
                       force_fixed=(il == 0))
+        # The wavelength, and the mirror image of the weight rule above it.  A
+        # line weight's scale lives inside this source, so **line 0** is the one
+        # that must be held; a wavelength's scale lives in the *cell*, which may
+        # be shared across histograms this table cannot see, so line 0 is the
+        # one that may be *free* — and only when somebody else is counting.
+        #
+        # Two locks and one refusal, in the shape ``CAPILLARY_OFFSETS`` uses
+        # just below.  Lines 1+ are force-fixed unconditionally: within one
+        # source the lines' wavelength *ratio* is atomic physics (the NIST
+        # column in ``schemas.instrument._KA_DOUBLETS`` is quoted for exactly
+        # this reason, ~20 ppm), so a free secondary line is a second flat
+        # direction beside the first — the WP-1073 rule that a parameter which
+        # cannot legitimately move is force-fixed rather than merely unfree.  In
+        # a single-histogram table *every* line is force-fixed, because there λ
+        # is exactly degenerate with the cell whatever the data; that is what
+        # lets ``ParameterRow.held_because`` tell the truth about it without a
+        # fourth held-reason, and what stops a glob freeing it by accident.  And
+        # a *declared* ``vary=True`` there is refused by name rather than
+        # quietly swallowed, because it is a claim the caller made.
+        wl_params = list(instrument.source.wavelength_parameters)
+        # No single-histogram check here: ``_rebuild`` runs at the end of
+        # ``__init__`` and at every stage boundary, and it is the only place
+        # that sees both free sets at once.  Checking here as well would be a
+        # second authority for one fact, and the weaker of the two — it cannot
+        # see a cell freed by a later stage.
+        for il, wl in enumerate(wl_params):
+            # Line 0 is NOT force-fixed even in a single-histogram table.  A
+            # free λ there is admissible whenever the *cell* is held — which is
+            # what a certified standard is for — so "can never legitimately
+            # move", which is what force_fixed asserts, would be false.  The
+            # λ-versus-cell condition is dynamic (stages call ``set_vary``), so
+            # it is enforced in ``_rebuild`` where the free set is known rather
+            # than frozen here.  Line > 0 keeps it: a Kα2 wavelength is a
+            # physical constant, not a calibration target.
+            self._add(f"instrument.source.lines.{il}.wavelength", wl,
+                      force_fixed=il > 0)
         geom = instrument.geometry
         for name in ("sample_displacement", "sample_transparency",
                      "axial_sl", "axial_hl"):
@@ -551,6 +704,56 @@ class ParameterTable:
         self._C = sparse.csr_matrix((c_vals, (c_rows, c_cols)), shape=(n, m))
         self._d = d
 
+    #: Paths whose freedom λ trades against.  A cell *angle* is included: a
+    #: monoclinic β scales no length on its own, but the metric it enters is
+    #: what d is computed from, so freeing it alongside λ is the same family.
+    _CELL_SUFFIXES = ("a", "b", "c", "alpha", "beta", "gamma")
+
+    def check_wavelength_against_cell(self) -> None:
+        """Refuse a free λ beside a free cell.  Called once per **solve**.
+
+        The condition is *dynamic* — a cumulative plan can free the cell in one
+        stage and λ in a later one — so it cannot be frozen at construction,
+        and ``force_fixed`` (which asserts a parameter can *never* legitimately
+        move) is the wrong mechanism for it.
+
+        **Why the solve entry and not** ``_rebuild``.  ``_rebuild`` sees every
+        vary change, which makes it the tempting seam, but not every vary
+        change is a request to fit: ``identifiability.exchangeability_scan``
+        frees candidate parameters temporarily to measure whether the data can
+        tell them apart, and *that* probe is exactly how a caller finds out λ
+        and the cell are exchangeable.  Refusing it there would break the
+        diagnostic that diagnoses this very degeneracy.  A raise belongs where
+        an answer would otherwise be produced from a flat direction, which is
+        the solve.
+
+        Single-histogram only.  The joint case is ``MultiParameterTable``'s,
+        where the rule is "exactly one held, at most N − 1 free" and the shared
+        cell is the mechanism; that check runs there and this one must not
+        second-guess it.
+        """
+        if getattr(self, "_joint", False):
+            return
+        free = {self.entries[i].path for i in self._free_idx}
+        lam = sorted(p for p in free
+                     if p.startswith("instrument.source.lines.")
+                     and p.endswith(".wavelength"))
+        if not lam:
+            return
+        cell = sorted(p for p in free
+                      if ".cell." in p and p.rsplit(".", 1)[-1] in self._CELL_SUFFIXES)
+        if cell:
+            raise ValueError(
+                f"{lam[0]} and {cell[0]} cannot both be free: d = λ/(2 sin θ) "
+                "fixes only the product, so scaling λ and every reciprocal "
+                "lattice length together leaves every computed position "
+                "unchanged — an exactly flat direction no amount of data "
+                "removes.  Hold the cell (what a certified standard is for, "
+                "and how a wavelength is calibrated) or hold λ.  Across "
+                "several histograms of one specimen sharing a cell the "
+                "degeneracy breaks and N − 1 wavelengths are measurable: "
+                "rietx.refine_multi")
+
     def constraint_block(self) -> tuple[sparse.csr_matrix, np.ndarray]:
         """The current (C, d) with rows in entry order, columns in θ order."""
         return self._C, self._d
@@ -617,14 +820,61 @@ class ParameterTable:
         """
         import fnmatch
 
+        # A wavelength is freeable only while the cell is held, and that is a
+        # *dynamic* fact, so it cannot be an ``Entry.locked`` flag.  Skipping it
+        # by glob rather than raising is the same treatment a symmetry-fixed
+        # cell angle gets, and for the reason this method's docstring gives: a
+        # staged plan frees by glob, and turning a broad plan into an error
+        # would be worse than declining one row of it.  A *declared*
+        # ``vary=True`` is a claim rather than a broad sweep, and is refused
+        # loudly instead — at the solve, by
+        # :meth:`check_wavelength_against_cell`.
+        lam_paths = self._wavelength_paths()
         hits = []
         for e in self.entries:
             if any(fnmatch.fnmatchcase(e.path, g) for g in path_globs):
                 if e.tie is None and not e.locked:
+                    # Asked per row rather than once before the loop.  Computed
+                    # once, the contract was order-dependent: two calls freeing
+                    # the cell then λ skipped λ, while ONE call carrying both
+                    # globs froze the skip set before the cell was free and so
+                    # freed both, deferring the refusal to the solve.  Nothing
+                    # shipped hits it, and a contract that reads differently
+                    # depending on how a caller batched its globs is not one.
+                    if (vary and e.path in lam_paths
+                            and not getattr(self, "_joint", False)
+                            and self._cell_is_free()):
+                        continue
                     e.vary = vary
                     hits.append(e.path)
         self._rebuild()
         return hits
+
+    def _wavelength_paths(self) -> frozenset[str]:
+        return frozenset(e.path for e in self.entries
+                         if e.path.startswith("instrument.source.lines.")
+                         and e.path.endswith(".wavelength"))
+
+    def _cell_is_free(self) -> bool:
+        """Any free cell parameter, read from the **entries**, not ``_free_idx``.
+
+        ``_free_idx`` is rebuilt only at the end of ``set_vary``, so inside that
+        loop it is one call stale — which made a single call carrying both a
+        cell glob and a λ glob free both, because the cell had not been seen to
+        move yet.  Reading ``e.vary`` sees the in-progress state and makes the
+        decision order-independent — but only *given* that the build order puts
+        every phase entry before every instrument entry in ``entries``.  The
+        cell is entry 0 and λ sits among the instrument entries well after it
+        (index 26 with a single line, 27/28 with a Kα doublet), so within one
+        call the cell is always freed before λ is tested.  Flip that order and a
+        single ``*`` glob would free both again;
+        ``test_a_glob_skips_it_while_the_cell_is_free_but_not_when_held``'s
+        ``WL not in hits`` assertion on the held-cell table goes red on the
+        flip, which is where the dependence is pinned.
+        """
+        return any(e.vary and e.tie is None and ".cell." in e.path
+                   and e.path.rsplit(".", 1)[-1] in self._CELL_SUFFIXES
+                   for e in self.entries)
 
     def seed_softplus(self, paths: list[str], value: float) -> list[str]:
         """Lift softplus-bounded free params sitting below ``value`` up to it.
@@ -945,6 +1195,13 @@ class ParameterTable:
         put(instrument.source.polarization, "instrument.polarization")
         for il, line in enumerate(instrument.source.lines):
             put(line.weight, f"instrument.source.lines.{il}.weight")
+        # …and the wavelength through ``wavelength_parameters``, never through
+        # ``lines``: a neutron source's ``lines`` is a *property* that builds a
+        # fresh EmissionLine per access, so a write there lands on a throwaway
+        # and the refined λ is silently lost at the next recompile — exactly the
+        # half-wired-parameter failure this file's docstring warns about.
+        for il, wl in enumerate(instrument.source.wavelength_parameters):
+            put(wl, f"instrument.source.lines.{il}.wavelength")
         for name in ("sample_displacement", "sample_transparency",
                      "axial_sl", "axial_hl", *CAPILLARY_OFFSETS):
             put(getattr(instrument.geometry, name), f"instrument.geometry.{name}")

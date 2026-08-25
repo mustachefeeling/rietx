@@ -261,13 +261,13 @@ with r = 1 the identity.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `Instrument.source` | `Source` | required | radiation: wavelengths, line weights, polarisation |
+| `Instrument.source` | `Source` or `NeutronSource` | required | the radiation, discriminated on `kind` |
 | `Instrument.geometry` | `Geometry` | capillary, no aberrations | how the specimen sits in the beam |
 | `Instrument.zero_shift` | `Parameter` | 0.0 deg, in [−0.5, 0.5] | a constant 2θ offset, the one position error every geometry has |
 | `Instrument.profile` | `ProfileTCHZ` | see below | the instrumental width function |
 | `Instrument.background` | one of three | `BackgroundChebyshev` | the pedestal under the peaks |
 
-Three constructors build a plausible instrument, and the difference between them
+Four constructors build a plausible instrument, and the difference between them
 is which aberrations exist at all rather than which are switched on.
 
 | Constructor | Geometry | Radiation | Declares |
@@ -275,13 +275,15 @@ is which aberrations exist at all rather than which are switched on.
 | `Instrument.debye_scherrer` | capillary | one wavelength you pass | `polarization=0.99`, optional capillary radius and µR |
 | `Instrument.bragg_brentano` | flat plate, reflection | an anode name, Kα1 + Kα2 | goniometer radius 217.5 mm, `ka2_ratio=0.5`, optional monochromator angle |
 | `Instrument.flat_plate_transmission` | flat plate, transmission | an anode name, Kα1 by default | optional µt and thickness |
+| `Instrument.constant_wavelength_neutron` | capillary | one wavelength, nuclear scattering | K pinned at 1, no dispersion, optional `fwhm_deg` width seed |
 
 ```python
 from rietx import Instrument
 
 synchrotron = Instrument.debye_scherrer(wavelength=0.4139090)
 lab = Instrument.bragg_brentano(radiation="CuKa", monochromator_two_theta=26.6)
-assert [line.wavelength for line in lab.source.lines] == [1.5405929, 1.5444274]
+assert [line.wavelength.value for line in lab.source.lines] == [1.5405929,
+                                                                1.5444274]
 assert round(lab.source.polarization.value, 4) == 0.5557
 ```
 
@@ -298,16 +300,75 @@ Ask `capabilities()` for the anode names rather than trusting a list in prose.
 | `Source.lines` | list[`EmissionLine`] | required | one entry per emission line, at least one |
 | `Source.polarization` | `Parameter` | 0.5 | the fraction K of {eq}`corr-lp`; 0.5 is an unpolarised beam |
 | `Source.dispersion` | `Dispersion` or None | on | anomalous scattering, {eq}`int-friedel` |
-| `Source.kind` | `"xray_cw"` | `"xray_cw"` | constant-wavelength X-rays, the only kind today |
+| `Source.harmonics` | list[`Harmonic`] | empty | declared λ/n monochromator orders — **refused on this radiation**, see [below](harmonic-contamination) |
+| `Source.kind` | `"xray_cw"` | `"xray_cw"` | constant-wavelength X-rays |
 
-`Source.primary_wavelength` is the first line's wavelength, which is the one
-every d-spacing is quoted against.
+`Source.primary_wavelength` is the first line's wavelength **as a float**,
+which is the one every d-spacing is quoted against.
+`Source.wavelength_parameters` is the list of live wavelength `Parameter`
+objects, one per line, and is what code that needs to *write* a wavelength
+uses — `NeutronSource.lines` builds a fresh object per access, so a write
+through `lines[i].wavelength` lands on a throwaway there.
 
-`EmissionLine.wavelength` is a plain float in Å and `EmissionLine.weight` is a
-refinable intensity relative to line 0. Line 0's weight is structurally locked
-at 1, since it is degenerate with the phase scales. Each line diffracts at its
-own Bragg angle, so a doublet's splitting grows with tan θ ({eq}`pos-doublet`)
-and is never a fixed 2θ offset.
+`EmissionLine.wavelength` is a `Parameter` in Å, defaulting to `vary=False`,
+and `EmissionLine.weight` is a refinable intensity relative to line 0. Line 0's
+weight is structurally locked at 1, since it is degenerate with the phase
+scales. Each line diffracts at its own Bragg angle, so a doublet's splitting
+grows with tan θ ({eq}`pos-doublet`) and is never a fixed 2θ offset.
+
+A bare number is still accepted where a wavelength `Parameter` is wanted, so
+`EmissionLine(wavelength=1.5406)` builds a fixed one and every instrument
+document written before this became a `Parameter` validates unchanged.
+
+(a-refinable-wavelength)=
+#### A refinable wavelength
+
+`EmissionLine.wavelength` and `NeutronSource.wavelength` default to
+`vary=False`, and for a **single** histogram that default is a fence rather
+than a convention. Bragg's law is {eq}`pos-bragg`, so the pattern measures
+λ/(2 sin θ) and fixes only the *product* of λ with a reciprocal cell — a free λ
+beside a free cell is an exactly flat direction, and freeing one is refused
+naming the degeneracy:
+
+```python
+from rietx import Instrument
+from rietx.params.vector import check_wavelength_freedom
+
+instrument = Instrument.debye_scherrer(wavelength=0.4139090)
+instrument.source.lines[0].wavelength.vary = True
+try:
+    check_wavelength_freedom(["instrument.source.lines.0.wavelength"],
+                             n_wavelengths=1, n_histograms=1)
+except ValueError as exc:
+    assert "single-histogram" in str(exc)
+```
+
+Across several histograms of one specimen the degeneracy breaks, because they
+share one cell. The rule is stated in full — and enforced — in
+{ref}`a-refinable-wavelength-jointly`; the short version is **hold one
+wavelength, free at most N − 1**, and hold the one belonging to the histogram
+that determines the cell.
+
+This is `EmissionLine.weight`'s convention one rank up. In both cases one
+member of a set is pinned to fix a scale the data cannot set and the rest are
+free; what differs is where the set lives. A line weight's scale lives inside
+one source, so line 0 is locked in the parameter table. A wavelength's scale
+lives in the *cell*, which is shared across instruments, so no single
+instrument can count the set and the check sits where the joint problem is
+assembled.
+
+Only **line 0**'s wavelength is ever refinable. Within one source the lines'
+wavelength *ratio* is atomic physics — the tabulated Kα1/Kα2 pair traces to one
+NIST column for exactly this reason, and is known to about 20 ppm — so a
+secondary line's wavelength is structurally locked, the way line 0's *weight*
+is. The two locks are the same argument pointed in opposite directions: a weight
+is relative to something inside the source, a wavelength is relative to
+something outside it.
+
+A consequence worth stating: a monochromator's second-order λ/2 harmonic cannot
+be modelled *alongside* a refining wavelength. Adding a second `EmissionLine` at
+λ/2 with its own weight models the harmonic at a fixed λ, but its wavelength
+would not follow line 0's as that refines. Nothing here does that.
 
 `Dispersion` is on by default. `Dispersion.table` names the tabulation and
 `Dispersion.overrides` takes measured f′, f″ pairs per element, which is what
@@ -316,6 +377,175 @@ than merely coarse. Setting `dispersion=None` declines the correction and
 reproduces the pre-v1.0 numbers exactly, and the fit says so with a diagnostic.
 It is the only correction in the package that needs no information a caller
 lacks, since the species and the wavelength are enough.
+
+(a-neutron-source)=
+### A neutron source
+
+`NeutronSource` is the other arm of `Instrument.source`. It is a separate class
+rather than a flag on `Source` because almost every field of an X-ray source is
+meaningless for neutrons, and a class that has to explain which of its own
+fields are inert is worse than two classes.
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `NeutronSource.wavelength` | float | required | Å, fixed — a powder pattern cannot separate λ from the cell |
+| `NeutronSource.harmonics` | list[`Harmonic`] | empty | declared λ/n monochromator orders, see [below](harmonic-contamination) |
+| `NeutronSource.kind` | `"neutron_cw"` | `"neutron_cw"` | constant wavelength, the discriminator you write |
+
+Three read-only properties let code written for an X-ray source keep working.
+`NeutronSource.lines` is the fundamental followed by one line per declared
+harmonic; with none declared it is the single line, weight structurally 1 —
+with one line there is nothing for a relative weight to be relative to.
+`NeutronSource.primary_wavelength` is that wavelength.
+
+| `NeutronSource.wavelength` | `Parameter` | required | Å, `vary=False` — see {ref}`a-refinable-wavelength` |
+| `NeutronSource.kind` | `"neutron_cw"` | `"neutron_cw"` | constant wavelength, the discriminator you write |
+
+Three read-only properties let code written for an X-ray source keep working.
+`NeutronSource.lines` is the single line, weight structurally 1 — with one line
+there is nothing for a relative weight to be relative to.
+`NeutronSource.primary_wavelength` is that wavelength as a float, and
+`NeutronSource.wavelength_parameters` is the live `Parameter` behind it, in a
+one-element list so a caller need not know which arm of the union it holds.
+That property is the one authority for writing a refined wavelength back:
+`lines` is a *property* here and a stored field on `Source`, so writing through
+`lines[0].wavelength` would land on a fresh object and the refined value would
+vanish at the next recompile.
+`NeutronSource.polarization` is 1.0 and refuses to be anything else, and
+`NeutronSource.dispersion` is always `None`.
+
+Both of those last two are physics, not simplifications:
+
+- **K = 1** is why no new correction code exists. Neutrons are not polarised by
+  a monochromator the way the Thomson cross-section polarises X-rays, so the
+  Lorentz-polarisation factor {eq}`corr-lp` collapses to the bare Lorentz
+  factor 1/(sin²θ·cosθ) — which is geometry, and radiation-independent. K is
+  *force-fixed*, so `set_vary` cannot free it; a free K would not be a dead
+  column, it would let the fit buy Rwp from a term the physics already knows.
+- **No anomalous dispersion.** f′/f″ is an X-ray core-level effect. The neutron
+  analogue is a complex, wavelength-dependent b near a nuclear resonance, which
+  belongs to a handful of nuclides rather than to the source, so there is no
+  field to set and `DISPERSION_NEGLECTED` stays quiet.
+
+What actually changes in the calculation is the scattering amplitude, and only
+that. An X-ray form factor f(Q) falls off with angle because the electron cloud
+has spatial extent; a nucleus is a point scatterer on this scale, so **b is
+independent of Q** — one number per species, not a five-Gaussian expansion, and
+it may be **negative**. Part 2 has the amplitude and its source.
+
+`Instrument.constant_wavelength_neutron` is the constructor. It builds a
+capillary geometry, because that is what a CW neutron diffractometer is — a can
+of powder in a beam with detectors on a circle — so the cylindrical absorption
+correction and the capillary offsets apply unchanged.
+
+```python
+from rietx import Instrument
+
+bt1 = Instrument.constant_wavelength_neutron(wavelength=2.0780, fwhm_deg=0.3)
+assert bt1.source.kind == "neutron_cw"
+assert bt1.source.polarization.value == 1.0
+assert bt1.source.dispersion is None
+```
+
+Pass `fwhm_deg` unless you have a reason not to. It seeds the Caglioti terms
+from an observed peak width, and it matters more here than on a lab X-ray: a
+neutron instrument's lines are typically 0.2–0.5° where the `ProfileTCHZ`
+default is a synchrotron line of about 0.03°, and the per-stage evaluation
+windows are sized from the seed, so a 0.3° line started from the default is not
+found at all. The width *function* needs no neutron-specific code — the
+Caglioti law U·tan²θ + V·tanθ + W is the neutron resolution function, and the
+X-ray path is the borrower.
+
+Two corrections are refused rather than ignored. `surface_roughness` is an
+X-ray effect: both models depress the low-angle intensity of a beam that
+penetrates microns, while a thermal neutron beam penetrates centimetres, so the
+correction has no regime here rather than a small coefficient. And a species
+this build has no tabulated scattering length for raises at compile naming the
+species, rather than contributing zero — a substituted zero would delete a site
+from the structure factor without changing the shape of anything.
+
+(harmonic-contamination)=
+### λ/n monochromator harmonics
+
+A crystal monochromator set to pass λ also reflects the higher orders of the
+same planes, so the beam carries a small λ/n component for every order that is
+not extinct ({eq}`pos-harmonic-mono`). That component diffracts from the
+specimen too, and at a given 2θ it is diffracting from planes of spacing
+λ/(2n sin θ) — so **the harmonic's peak from a given hkl sits at lower 2θ than
+the fundamental's** ({eq}`pos-harmonic-d`). Unmodelled, it is extra intensity
+in places the model puts none.
+
+Declare it with `Harmonic`, on the source or through the constructor:
+
+```python
+from rietx import Instrument
+from rietx.schemas.instrument import Harmonic
+
+bt1 = Instrument.constant_wavelength_neutron(
+    wavelength=1.54040, fwhm_deg=0.3, harmonics=True)
+assert [line.wavelength.value for line in bt1.source.lines] == [1.54040, 0.77020]
+# a harmonic's λ is derived, so it is never free even when the fundamental is
+assert [line.wavelength.vary for line in bt1.source.lines] == [False, False]
+
+# general in n; True above is exactly [2]
+thirds = Instrument.constant_wavelength_neutron(1.54040, harmonics=[2, 3])
+assert len(thirds.source.lines) == 3
+assert thirds.source.harmonics == [Harmonic(order=2), Harmonic(order=3)]
+```
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `Harmonic.order` | int ≥ 2 | 2 | n in λ/n |
+| `Harmonic.weight` | `Parameter` | 0.01, fixed | intensity relative to line 0, like any emission line |
+| `Harmonic.wavelength_factor` | float | derived | 1/n — what the fundamental wavelength is multiplied by |
+
+`Source.harmonics_supported` and `NeutronSource.harmonics_supported` are
+class-level booleans saying whether that radiation accepts a declaration at all
+— `False` and `True` respectively. They are the one authority for the answer:
+the refusal below reads them, and so does
+`RadiationCapability.harmonic_contamination`, which is how the JSON surface
+reports it ([](agents.md)). Ask that rather than assuming, and never infer
+support from the presence of the `harmonics` field, which both classes have.
+
+**It is an emission line, not a phase.** The usual workaround is an extra phase
+with a doubled lattice parameter, which gets the positions right and the
+intensities wrong: cell 2a has d′ = 2d, so λ diffracts from it where λ/2
+diffracts from the real d, but its structure factors are those of a fictitious
+cell. A line at λ/n diffracts the **same** hkl list with the **same** |F|²,
+because |F|² is a function of the reflection through sin θ/λ = 1/2d and not of
+the wavelength that reaches it. So positions and intensities come out together,
+and it costs one refinable number instead of a phase.
+
+Empty is off, and off is exact: a source with no harmonic declared has the
+spectrum it always had, and reproduces every previously measured number bit for
+bit.
+
+**Refusals.** `order` must be at least 2 — n = 1 *is* the fundamental, and
+declaring it would be a second copy of line 0, degenerate with the phase
+scales. A repeated order is refused, because two lines at one wavelength with
+two weights on one physical component is a flat direction rather than a richer
+model. And harmonics are refused on an **X-ray** source: one f′ + i·f″ is
+frozen per phase and shared across every emission line, which is exact only
+while f is real, and λ against λ/2 is a 100 % wavelength change with absorption
+edges between them in general. `capabilities().radiations` reports which
+radiations accept them, read off the same attribute the refusal reads. On an
+X-ray source the route that does work is to declare the λ/n component as a
+plain `EmissionLine` with `dispersion=None`, where f = f₀ genuinely does serve
+both lines — the refusal's message says so.
+
+Whether a harmonic exists at all is arithmetic on the monochromator, not
+something to discover from a fit. Cu(311) doubles to the allowed (622), so the
+second order passes; a diamond-structure crystal cut on all-odd indices
+cancels its own second order exactly. Part 2 has both.
+
+:::{admonition} Time-of-flight is not this
+:class: note
+Everything here is *constant* wavelength. A time-of-flight instrument spans a
+range of wavelengths across several detector banks, which changes the profile
+function, the intensity corrections and the number of histograms at once, and
+the thermal scattering-length table cannot give b(λ) for a resonant absorber.
+`capabilities().radiations` is the list of what this build actually accepts.
+:::
 
 ### The geometry
 

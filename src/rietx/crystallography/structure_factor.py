@@ -57,6 +57,8 @@ import numpy as np
 from ..backend import get_backend
 from ..schemas.structure import Phase
 from .adp import VOIGT, ustar_from_ucif
+from .neutron import b_coh as neutron_b_coh
+from .neutron import normalize_species as neutron_normalize_species
 from .scattering import f0, normalize_species
 from .symmetry import get_spacegroup
 
@@ -75,14 +77,30 @@ class PhaseSites:
     ``f_anom[j]`` is the atom's dispersion correction f′ + i·f″, ``None`` when
     the source declares none.  It is frozen for the same reason the op subsets
     are, but more strongly: it depends only on the species and the wavelength,
-    and ``EmissionLine.wavelength`` is a plain float rather than a
-    ``Parameter``, so it can never be a function of θ.
+    and every emission line's wavelength is frozen onto the compiled model
+    at stage compile, so f'/f" can never be a function of theta.  (Since
+    WP-1134 ``EmissionLine.wavelength`` is a ``Parameter`` and a joint fit may
+    free it; that changes when the value is read, not that it is frozen per
+    stage, and ``model/forward.py`` carries the argument that still holds --
+    the moves are ppm-scale against tables flat on that scale.)
+
+    ``b_coh[j]`` is the atom's **bound coherent neutron scattering length** in
+    fm, and its presence is what makes this a neutron phase: set, the amplitude
+    is that constant; ``None``, it is the X-ray form factor f₀(species, k).
+    It is frozen on the strongest grounds of the three — a nucleus is a point
+    scatterer on this scale, so b has no k dependence *at all*, which is why one
+    number per atom suffices where f₀ needs a five-Gaussian expansion evaluated
+    per reflection.  Mutually exclusive with ``f_anom``: f′/f″ is an X-ray
+    core-level effect, and the two amplitudes are not even in the same units
+    (fm against electrons), so a phase carrying both is a modelling error rather
+    than a combination to average.
     """
 
     ops: list[tuple[np.ndarray, np.ndarray]]
     species: list[str]
     aniso: list[bool] = field(default_factory=list)
     f_anom: np.ndarray | None = None  # (n_asym,) complex128
+    b_coh: np.ndarray | None = None   # (n_asym,) float64, fm
 
     def __post_init__(self) -> None:
         if not self.aniso:
@@ -93,6 +111,17 @@ class PhaseSites:
                 raise ValueError(
                     f"f_anom must have one entry per asymmetric-unit atom "
                     f"({len(self.species)}), got shape {self.f_anom.shape}")
+        if self.b_coh is not None:
+            self.b_coh = np.asarray(self.b_coh, dtype=np.float64)
+            if self.b_coh.shape != (len(self.species),):
+                raise ValueError(
+                    f"b_coh must have one entry per asymmetric-unit atom "
+                    f"({len(self.species)}), got shape {self.b_coh.shape}")
+            if self.f_anom is not None:
+                raise ValueError(
+                    "a phase cannot carry both b_coh (neutron scattering "
+                    "lengths, fm) and f_anom (X-ray anomalous dispersion): the "
+                    "two amplitudes are different radiations in different units")
 
     @property
     def n_asym(self) -> int:
@@ -130,7 +159,8 @@ def select_orbit_ops(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = 1e-4
 
 
 def compile_phase_sites(phase: Phase,
-                        f_anom: dict[str, complex] | None = None) -> PhaseSites:
+                        f_anom: dict[str, complex] | None = None,
+                        *, neutron: bool = False) -> PhaseSites:
     """Freeze the per-atom symmetry and species data for one stage.
 
     ``f_anom`` maps a **raw** ``Atom.species`` string (``"Zn2+"``, not the
@@ -138,6 +168,15 @@ def compile_phase_sites(phase: Phase,
     ``None`` leaves the phase non-anomalous.  The caller resolves it, because
     it is a property of the *source* wavelength rather than of the structure —
     see ``model.forward.compile_model``.
+
+    ``neutron=True`` resolves bound coherent scattering lengths instead of X-ray
+    form factors, and is decided by the source, not the structure — the same
+    division as ``f_anom``.  It refuses to combine with ``f_anom`` for the
+    reason given on :class:`PhaseSites`.  Note the *species* normalisation
+    differs between the two radiations: an ion resolves to its element for
+    f′/f″ because that is a core-level effect, while for b a **mass number is
+    kept**, because the isotope is the scatterer (see
+    :mod:`rietx.crystallography.neutron`).
     """
     sg = get_spacegroup(phase.space_group)
     ops: list[tuple[np.ndarray, np.ndarray]] = []
@@ -146,13 +185,30 @@ def compile_phase_sites(phase: Phase,
     for atom in phase.atoms:
         xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
         ops.append(select_orbit_ops(sg, xyz))
-        species.append(normalize_species(atom.species))
+        # The species convention follows the RADIATION.  The X-ray normaliser
+        # validates against Waasmaier-Kirfel coefficients, which no isotope
+        # has and a neutron phase never needs: it resolves ``b_coh`` below and
+        # reaches ``f0`` nowhere.  Running it unconditionally discarded the
+        # isotope convention one line above the lookup that implements it, so
+        # D, 2H and 7Li raised "no Waasmaier-Kirfel coefficients" — the
+        # headline neutron case, on a table that has had b(2H) all along.
+        species.append(neutron_normalize_species(atom.species) if neutron
+                       else normalize_species(atom.species))
         aniso.append(atom.aniso is not None)
     fa = None
     if f_anom is not None:
         fa = np.array([complex(f_anom[a.species]) for a in phase.atoms],
                       dtype=np.complex128)
-    return PhaseSites(ops=ops, species=species, aniso=aniso, f_anom=fa)
+    b = None
+    if neutron:
+        if f_anom is not None:
+            raise ValueError(
+                f"phase {phase.name!r}: neutron scattering lengths and X-ray "
+                f"anomalous dispersion cannot both apply")
+        b = np.array([neutron_b_coh(a.species) for a in phase.atoms],
+                     dtype=np.float64)
+    return PhaseSites(ops=ops, species=species, aniso=aniso, f_anom=fa,
+                      b_coh=b)
 
 
 def transposed_rotation_indices(hkl: np.ndarray, rot: np.ndarray) -> np.ndarray:
@@ -201,9 +257,19 @@ def _orbit_terms(hkl, k, sites, xyz, occ, biso, uaniso, astar, j):
     positions = xp.matmul(rot, xyz[j]) + xp.asarray(tran, dtype=np.float64)  # (m, 3)
     phase = xp.exp(2.0j * xp.pi * (positions @ hkl.T))  # (m, N)
     fa = None if sites.f_anom is None else sites.f_anom[j]
-    f = f0(sites.species[j], k)
-    if fa is not None:
-        f = f + float(fa.real)
+    if sites.b_coh is None:
+        f = f0(sites.species[j], k)
+        if fa is not None:
+            f = f + float(fa.real)
+    else:
+        # A nucleus is a point scatterer on this scale, so b has no k
+        # dependence.  Broadcast to (N,) anyway rather than passing a scalar:
+        # the anisotropic branch below builds ``amp_b`` with ``full_like(f, …)``
+        # and the derivative kernels index amplitudes as ``amp[:, None]``, so
+        # every amplitude in this module is reflection-shaped by contract.
+        # ``full_like(k, …)`` also keeps the constant off the left of a python
+        # operator against a θ-derived value (see backend/api.py).
+        f = xp.full_like(k, float(sites.b_coh[j]))
     if sites.aniso[j]:
         dw = _aniso_dw(hkl, rot, uaniso[j], astar)
         # broadcast to (N,) like every other amplitude: f″ is reflection-

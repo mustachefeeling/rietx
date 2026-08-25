@@ -28,12 +28,35 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: recording what a stage ran at.  The one entry so far whose default changes
 #: an answer rather than only the field list — bounded at 0.03 esd on a single
 #: fit — and ``intermediate_ftol=None`` restores the old schedule bit for bit.
-#: 0.5 → 0.6: ``SeriesEntry.phase_agreement`` added — the per-phase Bragg
-#: agreement each pattern's own result already carried, now surviving the series
-#: boundary.  Additive and defaulted, and it bumps anyway: WP-1117 made the only
-#: question whether a consumer could notice, and a new field on a response arm
-#: is noticeable.
-SCHEMA_VERSION = "0.6"
+#: 0.5 → 0.6 (PR #99): ``SeriesEntry.phase_agreement`` added — the per-phase
+#: Bragg agreement each pattern's own result already carried, now surviving the
+#: series boundary.  Additive and defaulted, and it bumps anyway: WP-1117 made
+#: the only question whether a consumer could notice, and a new field on a
+#: response arm is noticeable.
+#: 0.6 → 0.7 (PR #108): constant-wavelength neutron support, three observable
+#: changes landing together because they are one feature and one PR.
+#: (a) ``NeutronSource`` added as a second arm of the ``Instrument.source``
+#: discriminated union (``kind="neutron_cw"``), so a consumer that switched
+#: exhaustively on ``kind`` now has a case it has never seen, and
+#: ``Capabilities.radiations`` / ``RadiationCapability`` are a new field on a
+#: response arm.
+#: (b) ``Source.harmonics`` / ``NeutronSource.harmonics`` — a list of
+#: ``Harmonic`` blocks declaring the λ/n components a monochromator does not
+#: filter out.  A consumer notices the new key in every serialized source, and
+#: that a **neutron** source carrying a harmonic reports more than one entry in
+#: ``source.lines``, since the λ/n lines are *derived* there rather than stored.
+#: Empty is the default; a non-empty list is refused outright on an X-ray source
+#: (``Source.harmonics_supported``).
+#: (c) ``EmissionLine.wavelength`` and ``NeutronSource.wavelength`` are a
+#: :class:`Parameter` rather than a ``float``, so a serialized source carries a
+#: nested object where it carried a number and the parameter table gains an
+#: ``instrument.source.lines.N.wavelength`` row.  Both still *accept* a bare
+#: number and default to ``vary=False``.
+#: Nothing existing changes meaning, every pre-0.7 document validates unchanged,
+#: and a fit that declares no harmonic and frees no wavelength is bit-identical.
+#: One bump rather than three: the ladder counts *observable releases*, and
+#: these three reach a consumer in the same one.
+SCHEMA_VERSION = "0.7"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

@@ -491,7 +491,27 @@ class CompiledModel:
     tt_min: float
     tt_max: float
     wavelength: float                 # primary line, used for tick positions
+    #: λ of each emission line **at stage compile**, in Å.  This is the value
+    #: the frozen discreteness was sized from — the reflection list, the point
+    #: windows and the FCJ node counts all come from it — and it is what a
+    #: caller outside the hot loop (plot, exporter, tick list) reads.  It is
+    #: *not* what the residual uses when a wavelength is free: λ is a row of θ
+    #: since WP-1134, so :meth:`line_lambdas` reads the decoded values and
+    #: falls back to this tuple.  A free λ therefore moves peaks inside a stage
+    #: while the windows stay put, which is the same bargain the cell already
+    #: strikes — legitimate while the motion is small against the window slack,
+    #: and it is (215 ppm of λ is 0.09° at 2θ = 150° with a 0.30° FWHM).
     line_wavelengths: tuple[float, ...]
+    # Which emission lines are *declared monochromator harmonics*, line index →
+    # order n (schemas.instrument.Harmonic).  Frozen here rather than inferred
+    # downstream from λ_i/λ_0 ≈ 1/n, because the declaration is a fact about the
+    # beam and a ratio is a coincidence: a genuine second wavelength half the
+    # primary would be indistinguishable.  Empty on every source that declares
+    # none, which is every source built before harmonics existed — nothing in
+    # the forward model reads it (a harmonic *is* an emission line and needs no
+    # special case), so it exists only for the post-fit HARMONIC_FRACTION
+    # diagnostic, which has to name the order it is reporting.
+    harmonic_orders: dict[int, int]
     geometry_kind: str
     radius_mm: float | None
     # dimensionless µ·R of a packed capillary, resolved once at compile from
@@ -684,15 +704,44 @@ class CompiledModel:
             out.append(self._peak_widths(gam_g, gam_l))
         return out
 
-    def _cell_block(self, cp: "CompiledPhase", cell: tuple):
-        """(d, [2θ_Bragg per emission line]) — everything the cell alone fixes.
+    def line_lambdas(self, values: dict[str, float]) -> list:
+        """λ per emission line, from θ where it is a row and frozen otherwise.
+
+        The wavelength became a table entry in WP-1134 (a joint fit may free all
+        but one of them), so the residual must not read the compile-time tuple.
+        ``.get`` rather than ``[]`` because ``phase_peaks`` is public and is
+        called with hand-built value dicts by plots, exporters and replay; a
+        dict that does not mention λ means "the instrument's λ", which is the
+        frozen value.
+        """
+        out = [values.get(f"instrument.source.lines.{il}.wavelength", lam)
+               for il, lam in enumerate(self.line_wavelengths)]
+        # A declared harmonic is lambda/n by construction and therefore has NO
+        # theta row -- freeing one would be a second name for one number.  So
+        # ``.get`` above can only ever hand back its frozen compile-time value,
+        # which goes stale the moment the fundamental refines.  Recompute it.
+        #
+        # Measured before this line existed: with the fundamental moved +0.2 %,
+        # the pair read (1.5434808, 0.7702) where tracking gives
+        # (1.5434808, 0.7717404).  At the +258 ppm the acceptance suite finds on
+        # this instrument that misplaces the lambda/2 peaks by up to 0.11 deg at
+        # 2theta = 150 deg, about a third of the assumed 0.30 deg FWHM -- and
+        # nothing raised, because the Jacobian column agreed with the residual.
+        for il, order in self.harmonic_orders.items():
+            out[il] = out[0] / order
+        return out
+
+    def _cell_block(self, cp: "CompiledPhase", cell: tuple, lams: list):
+        """(d, [2θ_Bragg per emission line]) — the cell and λ together.
 
         One block rather than two memo slots because they share their input and
         every caller wants both: the line positions are ``two_theta_deg(d, λ)``
-        and nothing else enters them.
+        and nothing else enters them.  ``d`` depends on the cell alone; the
+        per-line angles are where λ enters the model at all, which is why a free
+        λ moves every peak of its histogram and nothing else does.
         """
         d = d_spacings(cp.reflections.hkl, *cell)
-        return d, [two_theta_deg(d, lam) for lam in self.line_wavelengths]
+        return d, [two_theta_deg(d, lam) for lam in lams]
 
     def _memo(self, cp: "CompiledPhase", slot: str, key_fn, build):
         """``build()`` memoised on exact equality of a small scalar key.
@@ -980,11 +1029,25 @@ class CompiledModel:
         # every key below is built inside a thunk, never at the call site: on a
         # traced backend these values are tracers and ``float()`` on one raises
         # (see ``_memo``)
+        lams = self.line_lambdas(values)
+
+        # The λs join the cell in *every* key below, not only the "cell" slot.
+        # Two reasons, and the second is the load-bearing one.  (a) 2θ_Bragg
+        # feeds the widths, Lp, the absorption factor and Sabine extinction, so
+        # a stale block under a moved λ would be wrong in five slots rather than
+        # one.  (b) ``_peak_chain_column`` builds the analytic λ column by
+        # perturbing θ and re-deriving these scalars — a key that ignored λ
+        # would hand the perturbed call the *unperturbed* block and the column
+        # would come back identically zero, which is the silent-short-column
+        # failure the FD fallback exists to prevent.  With λ held the key is a
+        # constant-extended tuple, so the hit/miss pattern and every value are
+        # bit-identical to before.
         def cell_key():
-            return tuple(float(c) for c in cell)
+            return (tuple(float(c) for c in cell)
+                    + tuple(float(x) for x in lams))
 
         d, tt_bragg_lines = self._memo(
-            cp, "cell", cell_key, lambda: self._cell_block(cp, cell))
+            cp, "cell", cell_key, lambda: self._cell_block(cp, cell, lams))
 
         if self.mode in ("lebail", "pawley"):
             # extracted by partitioning (Le Bail) or refined as θ (Pawley) —
@@ -993,7 +1056,22 @@ class CompiledModel:
         else:
             # |F|² samples the form factors at sinθ/λ = 1/2d — line-independent,
             # and a function of the cell and this phase's atoms alone, so a
-            # column perturbing a width or the background reuses it
+            # column perturbing a width or the background reuses it.
+            #
+            # This survives a **λ/n monochromator harmonic**, which is the one
+            # case where sharing looks wrong at first glance: that line's λ is
+            # half the primary's, so surely its structure factors differ?  They
+            # do not.  ``structure_factors_squared`` takes *d*, never λ — the
+            # form factors and the Debye-Waller factor are evaluated at
+            # sinθ/λ = 1/2d, which is a property of the reflection.  A harmonic
+            # diffracts the **same** hkl list with the same |F|²; what differs
+            # is only *where* each reflection lands, and that is the per-line
+            # ``tt_bragg`` below, with its own Lorentz factor, profile width and
+            # window.  The single exception is anomalous dispersion, whose f′/f″
+            # are functions of λ alone — which is exactly why a harmonic is
+            # refused on a dispersive source rather than sharing one f_anom
+            # across a factor-of-two wavelength gap
+            # (``schemas.instrument.check_harmonics``).
             f2 = self._memo(
                 cp, "f2", lambda: (cell_key(), self._atom_key(ip, values)),
                 lambda: structure_factors_squared(
@@ -1073,7 +1151,7 @@ class CompiledModel:
                 lambda: [self._absorption(tt) for tt in tt_bragg_lines])
 
         out = []
-        for il, lam in enumerate(self.line_wavelengths):
+        for il, lam in enumerate(lams):
             w_line = values[f"instrument.source.lines.{il}.weight"]
             tt_bragg = tt_bragg_lines[il]
             pos = positions[il]
@@ -1368,7 +1446,11 @@ class CompiledModel:
                                        xyz, occ, biso, uaniso, astar)
         vol = cell_volume(*cell)
         out = []
-        for il, lam in enumerate(self.line_wavelengths):
+        # λ read through ``line_lambdas``, never off the frozen tuple: a joint
+        # fit may have moved a wavelength since compile, and a column built at
+        # the compile-time λ would place this phase's peaks somewhere the
+        # residual does not.
+        for il, lam in enumerate(self.line_lambdas(values)):
             w_line = values[f"instrument.source.lines.{il}.weight"]
             tt_bragg = two_theta_deg(d, lam)
             col = d_base * w_line * lorentz_polarization(
@@ -1418,7 +1500,11 @@ class CompiledModel:
         ext = values[f"phases.{ip}.extinction"]
         vol = cell_volume(*cell)
         out = []
-        for il, lam in enumerate(self.line_wavelengths):
+        # λ read through ``line_lambdas``, never off the frozen tuple: a joint
+        # fit may have moved a wavelength since compile, and a column built at
+        # the compile-time λ would place this phase's peaks somewhere the
+        # residual does not.
+        for il, lam in enumerate(self.line_lambdas(values)):
             w_line = values[f"instrument.source.lines.{il}.weight"]
             tt_bragg = two_theta_deg(d, lam)
             col = d_base * w_line * lorentz_polarization(
@@ -1460,6 +1546,28 @@ class CompiledModel:
             return True
         if path.startswith("instrument.profile."):
             return True
+        # Both source-line rows: the ``weight`` scales an already-placed peak,
+        # and the ``wavelength`` moves one.  **The reach claim for λ is that
+        # everything it touches is a per-peak scalar of this method's four**,
+        # and it is checkable by enumeration — λ enters the model in exactly one
+        # expression, ``two_theta_deg(d, λ)`` in :meth:`_cell_block`, and every
+        # further use is a function of that angle: the widths (Caglioti in θ),
+        # Lp, the specimen absorption factor, Sabine extinction, the roughness
+        # depression.  All four scalars move, so no ``profile_derivs=False``
+        # claim covers a free λ (``_INTENSITY_ONLY`` is an allow-list and does
+        # not name it) and ``_require_basis`` would raise rather than shorten a
+        # column if one ever did.
+        #
+        # Two things λ does *not* reach, both by declaration rather than by
+        # accident.  f′/f″ are frozen onto ``PhaseSites.f_anom`` at compile, so
+        # |F|² does not follow a refining λ — legitimate, because a calibration
+        # error is ppm-scale and the dispersion tables are flat over that
+        # (a 215 ppm move at 1.2 Å is 0.26 mÅ, far inside
+        # ``LINE_DISPERSION_TOL``), and *required*, because a θ-dependent
+        # dispersion would break the frozen-per-stage contract.  And the
+        # reflection list, point windows and FCJ node counts are compile-time
+        # discreteness, sized from ``line_wavelengths``: a free λ moves peaks
+        # inside their frozen windows exactly as a free cell does.
         return path.startswith("instrument.source.lines.")
 
     def derivative_bases(self, values: dict[str, float],
@@ -2111,8 +2219,23 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         raise ValueError("fewer than 10 points remain in the fit range")
     tt_min, tt_max = float(tt[0]), float(tt[-1])
 
-    lams = tuple(line.wavelength for line in instrument.source.lines)
-    lam_gen = min(lams)  # smallest λ → smallest 2θ → largest d-sphere needed
+    lams = tuple(line.wavelength.value for line in instrument.source.lines)
+    # Which of those lines the source declared as λ/n harmonics.  The list is
+    # ordered fundamental-then-harmonics by ``Source.lines``, so the offset is
+    # the number of declared lines; read off the source rather than recomputed
+    # from the λ ratios (see ``CompiledModel.harmonic_orders``).
+    _declared = getattr(instrument.source, "harmonics", ())
+    harmonic_orders = {len(lams) - len(_declared) + i: h.order
+                       for i, h in enumerate(_declared)}
+    # Smallest λ → smallest 2θ for a given d → smallest d_min → the *largest*
+    # reflection sphere any line needs.  Load-bearing for a λ/n harmonic and not
+    # merely tidy: λ/2 has twice the Ewald radius, so generating with the
+    # primary λ would silently drop every reflection only the harmonic reaches.
+    # Measured on Nd₂Ru₂O₇ over 5-155° 2θ: 79 reflections at λ = 1.5404 Å
+    # against 499 at λ/2, i.e. 6.3× — those 420 are the harmonic's whole
+    # high-angle contribution, and dropping them would look like a correction
+    # that simply does not help.
+    lam_gen = min(lams)
     zero = instrument.zero_shift.value
     geom = instrument.geometry
 
@@ -2183,7 +2306,12 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         if disp is not None:
             f_anom = resolve_dispersion([a.species for a in phase.atoms], lams,
                                         disp.overrides)
-        sites = compile_phase_sites(phase, f_anom)
+        # The source decides the radiation, exactly as it decides f_anom: a
+        # neutron source resolves bound coherent scattering lengths instead of
+        # X-ray form factors, and the two are mutually exclusive.
+        sites = compile_phase_sites(
+            phase, f_anom,
+            neutron=(instrument.source.kind == "neutron_cw"))
 
         n = len(refl)
         n_lines = len(lams)
@@ -2311,6 +2439,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         tt=tt, y_obs=y_obs, sigma=sigma, tt_min=tt_min, tt_max=tt_max,
         wavelength=instrument.source.primary_wavelength,
         line_wavelengths=lams,
+        harmonic_orders=harmonic_orders,
         geometry_kind=geom.kind, radius_mm=geom.goniometer_radius_mm,
         # frozen for the stage; None (nothing asked for) and 0.0 (asked for
         # and negligible) both mean the correction is the exact identity

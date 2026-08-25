@@ -14,11 +14,19 @@ symmetric-transmission absorption factor).
 from __future__ import annotations
 
 import math
-from typing import Literal
+from typing import ClassVar, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from .common import Base, Parameter
+
+#: Å.  Strictly positive floor for a wavelength :class:`Parameter`.  λ reaches
+#: the model only through sin θ = λ/2d, so λ ≤ 0 puts every reflection at
+#: 2θ = 0 (or off the sphere) and the profile derivatives go with it — the
+#: "softplus min=0 where the physics divides" trap of the root ``CLAUDE.md``,
+#: one rank over.  1e-3 Å is three orders below any diffraction wavelength, so
+#: the bound is a fence and not a claim about the instrument.
+_WAVELENGTH_MIN_A = 1e-3
 
 #: The two halves of McCusker eq (4), in order (sin 2θ, cos 2θ).  One
 #: authority for the pair of names: the schema validator, ``ParameterTable``,
@@ -29,23 +37,368 @@ CAPILLARY_OFFSETS: tuple[str, str] = ("capillary_offset_along_beam",
                                       "capillary_offset_across_beam")
 
 
+def _as_wavelength(v):
+    """Coerce a bare number into a wavelength :class:`Parameter`.
+
+    ``wavelength`` was a plain ``float`` through v1.1, so every construction
+    site — and every persisted instrument — spells it as a number.  Accepting
+    one here keeps all of them working and makes the field's own history the
+    migration: a document written before this change validates unchanged, at
+    ``vary=False``, which is what it meant.
+    """
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return Parameter(value=float(v), vary=False,
+                         min=_WAVELENGTH_MIN_A, unit="A")
+    return v
+
+
 class EmissionLine(Base):
     """One wavelength component of the incident spectrum.
 
-    ``wavelength`` is in Å and fixed (emission wavelengths are known far more
-    accurately than a powder pattern can refine them).  ``weight`` is the
-    intensity of this line *relative to the first line of the source*, which is
-    pinned at 1 by convention — refining the first line's weight would be
-    degenerate with the phase scale factors, so the parameter table always
-    holds line 0 fixed.  A Kα1/Kα2 doublet therefore carries one refinable
-    number: the Kα2/Kα1 intensity ratio (≈0.5 for a sealed Cu tube; lower
-    after a crystal monochromator's passband clips Kα2).
+    ``wavelength`` is in Å and **defaults to fixed**, because for a *single*
+    histogram it is exactly degenerate with the cell: d = λ/(2 sin θ) fixes
+    only the product, so a free λ beside a free cell is a flat direction and
+    the parameter table refuses it (:func:`rietx.params.multi.check_wavelength_freedom`).
+    Across several histograms of **one specimen sharing one cell** the
+    degeneracy breaks — holding one λ pins the cell's scale and the remaining
+    N − 1 are over-determined by that shared cell — so a joint fit may free all
+    but one of them.  A bare number is still accepted and becomes a fixed
+    parameter, so nothing that spelled ``wavelength=1.5406`` has to change.
+
+    ``weight`` is the intensity of this line *relative to the first line of the
+    source*, which is pinned at 1 by convention — refining the first line's
+    weight would be degenerate with the phase scale factors, so the parameter
+    table always holds line 0 fixed.  A Kα1/Kα2 doublet therefore carries one
+    refinable number: the Kα2/Kα1 intensity ratio (≈0.5 for a sealed Cu tube;
+    lower after a crystal monochromator's passband clips Kα2).
+
+    **The wavelength rule is that same convention one rank up**, and
+    deliberately so: one member of a set is pinned to fix a scale the data
+    cannot set and the rest are free.  What differs is only *where the set
+    lives* — the line weights are a set inside one source, so line 0 can be
+    locked here; the wavelengths are a set across *instruments*, which no
+    single instrument can count, so the pinning is enforced where the joint
+    problem is assembled.
     """
 
-    wavelength: float = Field(gt=0.0)
+    wavelength: Parameter
     weight: Parameter = Field(
         default_factory=lambda: Parameter(value=1.0, min=0.0, max=2.0)
     )
+
+    @field_validator("wavelength", mode="before")
+    @classmethod
+    def _coerce_wavelength(cls, v):
+        return _as_wavelength(v)
+
+    @model_validator(mode="after")
+    def _positive_wavelength(self) -> "EmissionLine":
+        if self.wavelength.value <= 0.0:
+            raise ValueError(
+                f"wavelength must be positive, got {self.wavelength.value}")
+        return self
+
+
+#: The harmonic order a bare ``Harmonic()`` declares.  A monochromator set for
+#: λ reflects *every* order its planes admit, but the second is the only one
+#: that normally carries measurable intensity: the higher orders' structure
+#: factors and their Bragg-reflectivity widths both fall away, and the λ/3
+#: component of a Ge or Cu monochromator is typically an order below the λ/2
+#: one.  So this is a **default, not a limit** — :class:`Harmonic` is general
+#: in ``order`` and a beamline that knows it has a third order declares it.
+DEFAULT_HARMONIC_ORDER = 2
+
+#: Seed for a harmonic's relative weight.  Deliberately small and deliberately
+#: *not* any of the numbers the literature reports for a real beamline (see
+#: :class:`Harmonic`): a seed at the expected answer is how a correction comes
+#: back confirming its own prior.  1 % is far enough below every reported value
+#: that the refinement has to travel to reach one.
+HARMONIC_WEIGHT_SEED = 0.01
+
+#: Ceiling on a harmonic's relative weight.  Not a tuning: a component that is
+#: more than half the fundamental is not a contaminant of it, and a refinement
+#: that pushes the weight here is telling you the peaks it is filling are not
+#: harmonic peaks.  The bound is therefore *informative* — ``BOUND_HIT`` on
+#: this path is the finding, not a nuisance.
+HARMONIC_WEIGHT_MAX = 0.5
+
+
+class Harmonic(Base):
+    """An nth-order contribution at λ/n from a monochromator that passes order.
+
+    Named for the mechanism rather than the symptom: it is the **nth-order
+    reflection from the same monochromator planes**, which is why it is general
+    in n and why no monochromator setting removes it.  Published experimental
+    sections use exactly this vocabulary — "a Cu(311) monochromator was used,
+    with a constant wavelength of λ = 1.5402(2) Å and a second-order
+    contribution at λ/2" (Gaultois *et al.*, *J. Phys.: Condens. Matter*,
+    2013), describing the NIST BT-1 diffractometer this correction is validated
+    against.
+
+    A crystal monochromator set to pass λ by Bragg reflection from planes of
+    spacing d_M satisfies λ = 2 d_M sin θ_M.  At that *same* setting the
+    condition λ/n = 2 (d_M/n) sin θ_M also holds, and d_M/n is the spacing of
+    the nth-order reflection of the same planes — so the beam carries λ/n for
+    every n ≥ 2 whose reflection n·(hkl) is not extinct.  The order is a
+    property of the reflection, not of the geometry, so no adjustment of the
+    monochromator angle removes it; only something that discriminates by energy
+    does — a filter, a second crystal detuned off the harmonic's rocking curve,
+    or an extinct nth order.
+
+    **The extinction route is the one that decides a real beamline**, and it is
+    arithmetic rather than a measurement.  A germanium monochromator (diamond
+    structure) cut on all-odd indices has |F| = 0 for its own second order: the
+    doubled indices are all even, and the diamond structure factor
+    1 + exp[2πi(h+k+l)/4] vanishes unless h+k+l ≡ 0 (mod 4).  Ge(733) doubles
+    to (14,6,6) with h+k+l = 26 ≡ 2, so **Ge(733) passes no λ/2 at all**.  Cu
+    is face-centred cubic with one atom per lattice point and no such
+    cancellation: Cu(311) doubles to (622), all even, fully allowed — so
+    **Cu(311) does pass λ/2**.  Two histograms of one specimen taken on those
+    two monochromators are therefore a controlled pair by construction, which
+    is what this correction is validated against (``tests/test_harmonics.py``).
+
+    **Why this is an emission line and not a phase.**  At a fixed detector
+    angle 2θ the λ/n beam satisfies λ/n = 2 d sin θ, so it is diffracting from
+    planes of spacing d = λ/(2n sin θ) — the harmonic's peak from a given
+    *hkl* therefore sits at **lower** 2θ than the fundamental's peak from the
+    same *hkl*.  A phase with a doubled cell reproduces those positions (cell
+    2a has d′ = 2d, and λ at d′ lands where λ/2 at d does) and is the usual
+    workaround, but its structure factors are those of a fictitious doubled
+    cell, so the *intensities* are wrong.  An emission line at λ/n diffracts
+    the **same** *hkl* list with the **same** |F|², which gets positions and
+    intensities right together, and costs one refinable number instead of a
+    whole phase.  This is also what the published Nd₂Ru₂O₇ pyrochlore
+    refinement did: two wavelengths, λ and exactly λ/2, on one histogram, each
+    with its own scale.
+
+    ``weight`` follows the package's existing convention — relative to line 0
+    of the source, which is structurally locked at 1 — so a declared harmonic
+    is exactly one refinable parameter.  What that number *is* depends on the
+    monochromator and is not predictable from the cut: reported values for
+    real beamlines span a factor of ten, so it is refined, never assumed, and
+    :data:`HARMONIC_WEIGHT_SEED` is set low on purpose.
+
+    Refine it **only after the profile and the scale are settled**.  It is a
+    small fraction that correlates with the background, and a fitted value far
+    from a few per cent is evidence the model is absorbing something else
+    through it — an unmodelled impurity, a bad background — rather than a
+    measurement of the beam.
+    """
+
+    #: n in λ/n.  ``ge=2`` because n = 1 *is* the fundamental (declaring it
+    #: would be a second copy of line 0, degenerate with the phase scales) and
+    #: n ≤ 0 is not a diffraction order at all.
+    order: int = Field(default=DEFAULT_HARMONIC_ORDER, ge=2)
+    weight: Parameter = Field(
+        default_factory=lambda: Parameter(
+            value=HARMONIC_WEIGHT_SEED, min=0.0, max=HARMONIC_WEIGHT_MAX)
+    )
+
+    @property
+    def wavelength_factor(self) -> float:
+        """1/n — what the fundamental wavelength is multiplied by."""
+        return 1.0 / float(self.order)
+
+
+def check_harmonics(harmonics: list[Harmonic], *, kind: str,
+                    supported: bool) -> None:
+    """Refuse a harmonic declaration that cannot mean anything.
+
+    One authority for every source class, so the refusals cannot drift.  An
+    empty list returns immediately and touches nothing, which is what makes
+    "off" exact rather than merely cheap.
+
+    ``order`` itself is fenced on :class:`Harmonic` (``ge=2``: n = 1 is the
+    fundamental, n ≤ 0 is not a diffraction order).  Two things only a
+    *source* can see are checked here.  **Duplicate orders** would put two
+    emission lines at one wavelength carrying two weights for one physical
+    component — a flat direction, not a richer model.  And **whether this
+    radiation's spectrum can carry a harmonic at all**, which is
+    ``Source.harmonics_supported`` — see that attribute for why the X-ray
+    answer is no.
+    """
+    if not harmonics:
+        return
+    if not supported:
+        orders = ", ".join(f"n = {h.order}" for h in harmonics)
+        raise ValueError(
+            f"a {kind} source cannot carry declared harmonics ({orders}): one "
+            f"f' + i*f'' is frozen per phase and shared across every emission "
+            f"line, which is exact only while f is real. lambda and "
+            f"lambda/{harmonics[0].order} differ by 100 %, with absorption "
+            f"edges between them in general, so "
+            f"crystallography.dispersion.resolve refuses the pair anyway (its "
+            f"limit is 1 % of Z) -- and smearing one f' across a "
+            f"factor-of-two wavelength gap is the one thing that must not "
+            f"happen silently. Two routes are open. Use a neutron source, "
+            f"where there is no dispersion channel to disagree with and "
+            f"harmonics are supported. Or, on an X-ray source, declare the "
+            f"lambda/n component as a plain EmissionLine in source.lines with "
+            f"source.dispersion = None: with f = f0 the structure factor "
+            f"depends on the reflection (through sin(theta)/lambda = 1/2d) "
+            f"and not on which wavelength diffracts it, so one |F|^2 serves "
+            f"both lines exactly. That forgoes the order declaration and so "
+            f"the HARMONIC_FRACTION diagnostic, which is the whole difference")
+    seen: set[int] = set()
+    for h in harmonics:
+        if h.order in seen:
+            raise ValueError(
+                f"duplicate harmonic order n = {h.order} on a {kind} source: "
+                f"two declarations of the same order put two emission lines at "
+                f"the same wavelength with two weights on one physical "
+                f"component, which is a flat direction rather than a richer "
+                f"model -- declare each order once")
+        seen.add(h.order)
+
+
+class NeutronSource(Base):
+    """Constant-wavelength **neutron** source: one wavelength, nuclear scattering.
+
+    A separate class rather than a flag on :class:`Source`, because almost every
+    field of an X-ray source is meaningless here and a class that has to explain
+    which of its own fields are inert is worse than two classes.  What differs:
+
+    * **One wavelength, no emission-line list.**  A monochromator or chopper
+      selects a single λ; there is no Kα1/Kα2 doublet and no line-weight ratio
+      to refine.
+    * **No anomalous dispersion.**  f′/f″ is an X-ray core-level effect.  The
+      neutron analogue — a complex, wavelength-dependent b near a nuclear
+      resonance — is a property of a handful of nuclides rather than a
+      correction applied to all of them, and is fenced out of this class (see
+      :mod:`rietx.crystallography.neutron`).
+    * **The polarisation term is identically 1.**  Neutrons are not polarised
+      by the monochromator the way the Thomson cross-section polarises X-rays,
+      so the Lorentz-polarisation factor reduces to the bare Lorentz factor
+      1/(sin²θ·cosθ), which is geometry and radiation-independent.  In the
+      existing form Lp = [K + (1 − K)·cos²2θ]/(sin²θ·cosθ) that is exactly
+      K = 1, so this class needs **no new correction code** — it pins K.
+
+    ``polarization`` is therefore force-fixed at 1.0 and refusing to be
+    anything else: a parameter the forward branch cannot use must be
+    force-fixed rather than merely left unfree, or a free entry becomes a dead
+    column in the Jacobian.
+    """
+
+    kind: Literal["neutron_cw"] = "neutron_cw"
+    #: Å.  **Fixed by default** — for one histogram a powder pattern cannot
+    #: separate λ from the cell (they enter d = λ/(2 sin θ) as a product),
+    #: which is why a certified standard is refined with its cell held to
+    #: calibrate λ rather than the other way round.  In a *joint* fit of
+    #: several histograms of one specimen the product splits: see
+    #: :class:`EmissionLine` and
+    #: :func:`rietx.params.multi.check_wavelength_freedom`.  A bare number is
+    #: accepted and becomes a fixed parameter.
+    wavelength: Parameter
+
+    @field_validator("wavelength", mode="before")
+    @classmethod
+    def _coerce_wavelength(cls, v):
+        return _as_wavelength(v)
+
+    @model_validator(mode="after")
+    def _positive_wavelength(self) -> "NeutronSource":
+        if self.wavelength.value <= 0.0:
+            raise ValueError(
+                f"wavelength must be positive, got {self.wavelength.value}")
+        return self
+
+    #: λ/n components the monochromator does not filter (:class:`Harmonic`).
+    #: **Empty is off and off is exact**: with no harmonic declared
+    #: :attr:`lines` is the single line it has always been, so every number
+    #: measured before this field existed is reproduced bit for bit.  This is
+    #: where a harmonic normally belongs — a CW neutron monochromator is the
+    #: usual offender, and unlike :class:`Source` there is no anomalous
+    #: dispersion here for the λ/n line to disagree with.
+    harmonics: list[Harmonic] = Field(default_factory=list)
+
+    #: True here — the counterpart of :attr:`Source.harmonics_supported`, and
+    #: for the reason that attribute gives: there is no dispersion channel on
+    #: this radiation, so one |F|² serves λ and λ/n exactly.
+    harmonics_supported: ClassVar[bool] = True
+
+    @model_validator(mode="after")
+    def _harmonics_are_admissible(self) -> "NeutronSource":
+        check_harmonics(self.harmonics, kind="constant-wavelength neutron",
+                        supported=self.harmonics_supported)
+        return self
+
+    @property
+    def lines(self) -> list[EmissionLine]:
+        """The fundamental, then one line per declared harmonic at λ/n.
+
+        The fundamental's weight is structurally 1: with one line there is
+        nothing for a relative weight to be relative to, and it would be
+        degenerate with the phase scales in any case.  A harmonic's weight is
+        the *stored* :class:`Parameter` off :attr:`harmonics`, passed by
+        reference rather than copied, which is what makes a refined value
+        survive the write-back (``params.vector.ParameterTable.write_back``
+        reaches it as ``instrument.source.lines.i.weight``).
+
+        Building the list here rather than materialising the extra lines into a
+        field is what keeps the *declaration* and the *spectrum* one fact: an
+        order can never be listed twice under two weights, the wavelength is
+        never stored as a number that could drift from λ/n, and nothing
+        downstream needs to know a line is a harmonic — it is an emission line,
+        so the reflection generator, the per-line Lorentz factor, the frozen
+        windows and ``RefinementResult.ticks`` all serve it already.
+
+        **A fresh object every access**, so this is a read-only view: the
+        wavelength a table writes back to lives at ``self.wavelength``, and the
+        one authority for reaching it either way is
+        :attr:`wavelength_parameters`.
+
+        **A harmonic's λ is derived and therefore never free**, even when the
+        fundamental is.  It is λ/n by construction, so a second free handle on
+        it would be a second name for one number — the degeneracy this whole
+        class is written to avoid.  Deriving it here rather than storing it is
+        also what makes a *refined* fundamental propagate: the table writes
+        λ back to ``self.wavelength``, and the next access rebuilds every λ/n
+        from the new value.  A stored harmonic wavelength would silently keep
+        the old one.
+        """
+        out = [EmissionLine(wavelength=self.wavelength.model_copy(),
+                            weight=Parameter(value=1.0, vary=False))]
+        out += [EmissionLine(
+                    wavelength=Parameter(
+                        value=self.wavelength.value * h.wavelength_factor,
+                        vary=False, unit=self.wavelength.unit),
+                    weight=h.weight)
+                for h in self.harmonics]
+        return out
+
+    @property
+    def wavelength_parameters(self) -> list[Parameter]:
+        """The live, *independently refinable* wavelengths, in line order.
+
+        The one authority for *writing* a refined wavelength back, and the
+        reason it exists: :attr:`lines` is a property here and a stored field
+        on :class:`Source`, so a write through ``source.lines[i].wavelength``
+        lands on a throwaway object for a neutron source and on the model for
+        an X-ray one.  ``params/vector.py`` reads and writes through this
+        instead, which is what keeps a refined λ from silently vanishing at the
+        next recompile.
+
+        **Shorter than** :attr:`lines` **whenever a harmonic is declared, and
+        that is the point.**  A λ/n line has no independent wavelength to write
+        back to — it is derived in :attr:`lines` from this one — so listing it
+        here would offer a handle whose writes go nowhere.  Anything pairing
+        the two must key by the fundamental rather than zip them.
+        """
+        return [self.wavelength]
+
+    @property
+    def primary_wavelength(self) -> float:
+        return self.wavelength.value
+
+    @property
+    def polarization(self) -> Parameter:
+        """K = 1, force-fixed — the docstring above says why."""
+        return Parameter(value=1.0, vary=False, min=1.0, max=1.0)
+
+    @property
+    def dispersion(self) -> None:
+        """Always ``None``; the X-ray path tests this to decide f′/f″."""
+        return None
 
 
 class Dispersion(Base):
@@ -114,6 +467,8 @@ class Source(Base):
     """
 
     kind: Literal["xray_cw"] = "xray_cw"
+    #: The *declared* lines.  Harmonics are appended by :attr:`spectrum`, not
+    #: stored here — see :attr:`harmonics`.
     lines: list[EmissionLine]
     polarization: Parameter = Field(
         default_factory=lambda: Parameter(value=0.5, min=0.0, max=1.0)
@@ -122,6 +477,25 @@ class Source(Base):
     #: bit-identical to the non-anomalous model and to every number recorded
     #: in ``docs/milestones/`` through v0.6 (see :class:`Dispersion`)
     dispersion: Dispersion | None = Field(default_factory=Dispersion)
+    #: Declared λ/n harmonics — **refused on this radiation**, and the field
+    #: exists so that the refusal can name the reason instead of arriving as
+    #: pydantic's "extra inputs are not permitted".  See
+    #: :attr:`harmonics_supported` and :func:`check_harmonics`.
+    harmonics: list[Harmonic] = Field(default_factory=list)
+
+    #: One authority, two consumers: :func:`check_harmonics` refuses a declared
+    #: harmonic when this is False, and ``capabilities()`` reports it — so the
+    #: flag and the behaviour cannot disagree, and X-ray support would land as
+    #: one edit here rather than as a capability that lies.
+    #:
+    #: False for X-rays because ``f_anom`` is resolved once per phase and
+    #: shared across the emission lines, which the λ/n line breaks: f′/f″ are
+    #: functions of λ alone and λ against λ/2 is a 100 % change.  Supporting it
+    #: honestly means a per-line ``PhaseSites`` and a per-line |F|², i.e.
+    #: giving up the sharing this correction otherwise depends on — a different
+    #: change, not a flag.  The route that needs no new code is in
+    #: :func:`check_harmonics`'s message.
+    harmonics_supported: ClassVar[bool] = False
 
     @model_validator(mode="after")
     def _nonempty(self) -> "Source":
@@ -129,9 +503,24 @@ class Source(Base):
             raise ValueError("source has no emission lines")
         return self
 
+    @model_validator(mode="after")
+    def _harmonics_are_admissible(self) -> "Source":
+        check_harmonics(self.harmonics, kind="constant-wavelength X-ray",
+                        supported=self.harmonics_supported)
+        return self
+
+    @property
+    def wavelength_parameters(self) -> list[Parameter]:
+        """The live wavelength :class:`Parameter` of each line, in line order.
+
+        The peer of :attr:`NeutronSource.wavelength_parameters` — that
+        docstring says why both exist.
+        """
+        return [line.wavelength for line in self.lines]
+
     @property
     def primary_wavelength(self) -> float:
-        return self.lines[0].wavelength
+        return self.lines[0].wavelength.value
 
 
 class RoughnessSuortti(Base):
@@ -642,7 +1031,10 @@ Background = BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpl
 class Instrument(Base):
     """Everything about the measurement except the sample."""
 
-    source: Source
+    #: Discriminated on ``kind``: ``"xray_cw"`` is :class:`Source`,
+    #: ``"neutron_cw"`` is :class:`NeutronSource`.  A union rather than one
+    #: class with inert fields — see :class:`NeutronSource`.
+    source: Source | NeutronSource = Field(discriminator="kind")
     geometry: Geometry = Field(default_factory=Geometry)
     zero_shift: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=-0.5, max=0.5, unit="deg")
@@ -651,6 +1043,88 @@ class Instrument(Base):
     background: Background = Field(
         default_factory=lambda: BackgroundChebyshev(), discriminator=None
     )
+
+    @model_validator(mode="after")
+    def _radiation_admits_its_corrections(self) -> "Instrument":
+        """Refuse a correction whose derivation assumes the other radiation.
+
+        ``Geometry`` already refuses ``surface_roughness`` outside
+        ``bragg_brentano`` — that is a *geometry* fence, and this is the
+        radiation one beside it.  Both roughness models depress the low-angle
+        intensity because the beam samples less material where an irregular
+        surface turns away from it, which needs the penetration depth to be
+        comparable to the surface relief: microns for X-rays.  A thermal neutron
+        beam penetrates centimetres of the same specimen, so the correction has
+        no regime here rather than merely a small coefficient, and fitting it
+        would buy Rwp from a parameter with nothing behind it.
+
+        Refused rather than diagnosed because there is no legitimate reason to
+        set it — unlike ``dispersion = None``, which has two — and because a
+        stored roughness block is a claim, not a default.
+        """
+        if (self.source.kind != "xray_cw"
+                and self.geometry.surface_roughness is not None):
+            raise ValueError(
+                f"surface_roughness is an X-ray correction and this source is "
+                f"{self.source.kind!r}: both models (Suortti 1972, Pitschke "
+                f"1993) depress the low-angle intensity of a beam that "
+                f"penetrates microns, while a thermal neutron beam penetrates "
+                f"centimetres — set geometry.surface_roughness = None")
+        return self
+
+    @classmethod
+    def constant_wavelength_neutron(
+            cls, wavelength: float, *,
+            goniometer_radius_mm: float | None = None,
+            capillary_radius_mm: float | None = None,
+            mu_r: float | None = None,
+            fwhm_deg: float | None = None,
+            harmonics: bool | list[int] = False) -> "Instrument":
+        """Constant-wavelength neutron powder diffractometer.
+
+        Debye-Scherrer geometry, because that is what a CW neutron
+        diffractometer is — a can of powder in a beam with detectors on a
+        circle — so the cylindrical absorption correction and the eq (4)
+        capillary offsets apply unchanged.
+
+        ``fwhm_deg`` seeds the Caglioti terms from an observed peak width, which
+        matters more here than on a lab X-ray: a neutron instrument's lines are
+        typically 0.2-0.5° where the ``ProfileTCHZ`` default is a *synchrotron*
+        line of ~0.03°, and the frozen per-stage evaluation windows are sized
+        from the seed.  Left ``None``, the default stands and a 0.3° line will
+        not be found.
+
+        Note the profile itself needs no neutron-specific code: the Caglioti
+        law U·tan²θ + V·tanθ + W *is* the neutron resolution function (Caglioti,
+        Paoletti & Ricci, 1958, *Nucl. Instrum.* **3**, 223), and the X-ray path
+        is the borrower.
+
+        ``harmonics`` declares the λ/n components a monochromator that does not
+        filter its own orders lets through (:class:`Harmonic`).  ``True`` is the
+        second order alone, which is the one that normally carries measurable
+        intensity; a list of orders is the general form (``harmonics=[2, 3]``).
+        ``False``, the default, leaves the source with the single line it has
+        always had, so every number measured before this argument existed is
+        reproduced bit for bit.  The declared weights arrive **fixed** — free
+        them with the ``instrument.source.lines.*.weight`` glob once the profile
+        and the scale are settled, never in the opening stage.
+        """
+        orders: list[int] = []
+        if harmonics is True:
+            orders = [DEFAULT_HARMONIC_ORDER]
+        elif harmonics is not False:
+            orders = list(harmonics)
+        inst = cls(source=NeutronSource(
+                       wavelength=wavelength,
+                       harmonics=[Harmonic(order=n) for n in orders]),
+                   geometry=Geometry(kind="debye_scherrer",
+                                     goniometer_radius_mm=goniometer_radius_mm,
+                                     capillary_radius_mm=capillary_radius_mm,
+                                     mu_r=mu_r))
+        if fwhm_deg is not None:
+            inst.profile.w.value = (0.5 * fwhm_deg) ** 2
+            inst.profile.x.value = fwhm_deg
+        return inst
 
     @classmethod
     def debye_scherrer(cls, wavelength: float, *, polarization: float = 0.99,
