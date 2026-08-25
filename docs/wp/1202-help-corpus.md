@@ -84,7 +84,7 @@ by one for the added field, comment beside the constant.
 
 ## Tasks
 
-- [ ] `src/rietx/help.py`: `HelpEntry`, the family registry, `help_for(path)`,
+- [x] `src/rietx/help.py`: `HelpEntry`, the family registry, `help_for(path)`,
       the named arms; exported from `rietx` and documented in Part 1.
 - [ ] `ParameterRow.help` + `session.params` fill; `SCHEMA_VERSION` bump with
       its reason; `GET /api/help` route (in `server.ROUTES`, disjointness
@@ -94,9 +94,9 @@ by one for the added field, comment beside the constant.
       `PLAN_INFO` key, every `StageSpec` field, every `READER_OPTIONS` name
       and every wizard preset field has an entry; every entry's `anchor`
       resolves in the built manual (the dead-link guard WP-1017 planned).
-- [ ] `docs/manual/using/glossary.md` generated in `conf.py`; toctree wired;
+- [x] `docs/manual/using/glossary.md` generated in `conf.py`; toctree wired;
       `-W` build green; `test_manual_api` partition green for the new names.
-- [ ] Write the entries (the long part): parameters, flags, stage fields,
+- [x] Write the entries (the long part): parameters, flags, stage fields,
       reader options, preset fields. Each under `/yue-docs-style`.
 
 ## Acceptance
