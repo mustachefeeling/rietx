@@ -1412,6 +1412,121 @@ def test_a_stated_beq_is_kept_verbatim_and_not_confused_with_the_seed(tmp_path):
     assert read_topas_inp(inp).phases[0].sites[0].beq == pytest.approx(0.5)
 
 
+# ------------- round-five finding 1: a stated tensor is carried, built on
+# opt-in, and never silently replaced by the isotropic seed
+
+ADP_TAIL = 'u11 0.013 u22 0.013 u33 0.013 u12 0 u13 0 u23 0'
+
+
+@pytest.mark.parametrize("line", [
+    'site Na1 x 0 y 0 z 0 occ Na+1 1 adps ' + ADP_TAIL,
+    'site Na1 x 0 y 0 z 0 occ Na+1 1 ' + ADP_TAIL,   # bare u11…, no `adps`
+])
+def test_a_stated_adp_tensor_is_carried_on_the_model(tmp_path, line):
+    """`u11 0.013 …` came back with no tensor and `beq` None, and `to_structure`
+    then seeded biso 0.5 — for NaCl at U = 0.013 that is B_eq = 8π²·0.013 =
+    1.026 read as 0.5, which the reviewer measured at max |ΔI|/I_max 3.6 % and
+    +34.7 % on the strongest 90-140° peak, nothing raised (round-five finding
+    1). The tensor is carried now, `adps` keyword or not. Convention: TOPAS's
+    u_ij are U^ij in Å² — the CIF `_atom_site_aniso_U_ij` convention `AnisoU`
+    holds — so the numbers transfer unchanged."""
+    inp = _inp(tmp_path, "adp.inp",
+               'str\nphase_name "NaCl"\nspace_group "Fm-3m"\na 5.64\n' + line + "\n")
+    site = read_topas_inp(inp).phases[0].sites[0]
+    assert site.adps == {"u11": 0.013, "u22": 0.013, "u33": 0.013,
+                         "u12": 0.0, "u13": 0.0, "u23": 0.0}
+    assert site.beq is None
+
+
+def test_a_stated_tensor_the_caller_did_not_ask_for_is_refused_not_seeded(tmp_path):
+    """The hard constraint: what the build may not do is seed 0.5 in silence.
+    `to_structure` without `aniso=True` refuses a tensor-stating site by name,
+    the same opt-in shape as `structure_from_cif(aniso=...)`."""
+    inp = _inp(tmp_path, "adp.inp",
+               'str\nphase_name "NaCl"\nspace_group "Fm-3m"\na 5.64\n'
+               'site Na1 x 0 y 0 z 0 occ Na+1 1 ' + ADP_TAIL + "\n")
+    with pytest.raises(TopasInpError) as exc:
+        to_structure(read_topas_inp(inp))
+    msg = str(exc.value)
+    assert "'Na1'" in msg and "anisotropic" in msg and "aniso=True" in msg
+
+
+def test_the_opt_in_builds_the_tensor_in_the_cif_u_convention(tmp_path):
+    """`aniso=True` builds the `AnisoU` block; biso becomes the schema's inert
+    record (vary False), valued at the file's beq where stated, else 8π²·U_eq
+    from the trace — the CIF path's own fallback — never the 0.5 seed."""
+    import math
+
+    inp = _inp(tmp_path, "adp.inp",
+               'str\nphase_name "NaCl"\nspace_group "Fm-3m"\na 5.64\n'
+               'site Na1 x 0 y 0 z 0 occ Na+1 1 ' + ADP_TAIL + "\n")
+    atom = to_structure(read_topas_inp(inp), aniso=True).phases[0].atoms[0]
+    assert atom.aniso is not None
+    assert atom.aniso.u11.value == pytest.approx(0.013)
+    assert atom.aniso.u23.value == pytest.approx(0.0)
+    assert atom.biso.value == pytest.approx(8 * math.pi ** 2 * 0.013)  # 1.026
+    assert atom.biso.vary is False
+
+
+def test_a_beq_beside_the_tensor_keeps_both_numbers(tmp_path):
+    """`beq` beside the tensor used to keep B and silently drop the anisotropy.
+    Both are the file's: the tensor builds, and the stated beq is the inert
+    isotropic record."""
+    inp = _inp(tmp_path, "adpbeq.inp",
+               'str\nphase_name "NaCl"\nspace_group "Fm-3m"\na 5.64\n'
+               'site Na1 x 0 y 0 z 0 occ Na+1 1 beq b 0.7 ' + ADP_TAIL + "\n")
+    model = read_topas_inp(inp)
+    assert model.phases[0].sites[0].beq == pytest.approx(0.7)
+    assert model.phases[0].sites[0].adps["u11"] == pytest.approx(0.013)
+    atom = to_structure(model, aniso=True).phases[0].atoms[0]
+    assert atom.aniso.u11.value == pytest.approx(0.013)
+    assert atom.biso.value == pytest.approx(0.7)
+
+
+def test_a_tensor_free_site_is_untouched_by_the_opt_in(tmp_path):
+    """A mixed file yields a mixed structure, exactly as the CIF path: the
+    opt-in changes nothing for a site that states no tensor."""
+    inp = _inp(tmp_path, "mixadp.inp",
+               'str\nphase_name "P"\nspace_group "Fm-3m"\na 5.64\n'
+               'site Na1 x 0 y 0 z 0 occ Na+1 1 ' + ADP_TAIL + "\n"
+               'site Cl1 x 0.5 y 0.5 z 0.5 occ Cl-1 1 beq b 1.2\n')
+    na, cl = to_structure(read_topas_inp(inp), aniso=True).phases[0].atoms
+    assert na.aniso is not None
+    assert cl.aniso is None and cl.biso.value == pytest.approx(1.2)
+
+
+def test_an_adp_components_refine_flag_travels_with_its_value(tmp_path):
+    inp = _inp(tmp_path, "adpflag.inp",
+               'str\nphase_name "P"\nspace_group "Fm-3m"\na 5.64\n'
+               'site Na1 x 0 y 0 z 0 occ Na+1 1 '
+               'u11 @ 0.013 u22 0.013 u33 !u33f 0.013 u12 0 u13 0 u23 0\n')
+    atom = to_structure(read_topas_inp(inp), aniso=True).phases[0].atoms[0]
+    assert atom.aniso.u11.vary is True
+    assert atom.aniso.u33.vary is False
+
+
+def test_a_stated_tensor_component_the_reader_cannot_resolve_refuses(tmp_path):
+    """Finding 4's rule reaches the tensor: a stated u_ij that cannot be read
+    refuses naming the component and the line, rather than becoming a 0."""
+    inp = _inp(tmp_path, "adpbad.inp",
+               'str\nphase_name "P"\nspace_group "Fm-3m"\na 5.64\n'
+               'site Na1 x 0 y 0 z 0 occ Na+1 1 u11 =mystery; u22 0.01 u33 0.01\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert "cannot read u11" in str(exc.value)
+
+
+def test_a_partial_tensor_with_a_missing_diagonal_is_refused(tmp_path):
+    """An off-diagonal the file omits is 0 by the format's convention; a
+    *diagonal* it omits has no default this reader may invent."""
+    inp = _inp(tmp_path, "adppart.inp",
+               'str\nphase_name "P"\nspace_group "Fm-3m"\na 5.64\n'
+               'site Na1 x 0 y 0 z 0 occ Na+1 1 u11 0.013 u22 0.013\n')
+    with pytest.raises(TopasInpError) as exc:
+        to_structure(read_topas_inp(inp), aniso=True)
+    assert "partial anisotropic tensor" in str(exc.value)
+
+
 # ------------- round-five finding 4: a stated occ/beq that cannot be read refuses
 
 @pytest.mark.parametrize("line, key", [

@@ -70,6 +70,7 @@ tri-state reads as "held", which is a confident wrong protocol.
 from __future__ import annotations
 
 import ast
+import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -120,9 +121,18 @@ class TopasSite:
     #: default stays — it is the *format's* own default, measured on three
     #: files, not a value this reader invents.
     beq: float | None = None
+    #: The anisotropic displacement tensor exactly as the file states it, keyed
+    #: ``"u11"``…``"u23"`` (WP-1118). TOPAS's ``u_ij`` are U^ij in Å² — the CIF
+    #: ``_atom_site_aniso_U_ij`` convention rietx's :class:`~rietx.AnisoU` holds,
+    #: so no 8π² conversion. ``None`` where the site states no tensor. Like
+    #: ``beq``, this is *what the file states*: the isotropic 0.5 seed a
+    #: tensor-free site needs and the :class:`~rietx.AnisoU` a tensor-bearing one
+    #: needs are both :func:`to_structure`'s, behind its ``aniso=`` opt-in.
+    adps: dict | None = None
     #: Which of this site's parameters the file records as having been free.
-    #: Keyed by field name (``"x"``, ``"beq"``, …); a key is absent where the
-    #: file said nothing, which is not the same as "held" — see :func:`refined`.
+    #: Keyed by field name (``"x"``, ``"beq"``, ``"u11"``…, …); a key is absent
+    #: where the file said nothing, which is not the same as "held" — see
+    #: :func:`refined`.
     vary: dict = field(default_factory=dict)
 
 
@@ -448,6 +458,17 @@ def _read_tail(tail: str, symbols: dict[str, float]) -> _Read | None:
 #: value is the next keyword's: ``occ Sr+2 beq 0.765`` is a full occupancy and a
 #: B of 0.765, and reading the token after the species gave it occupancy 0.765.
 _SITE_KEYWORDS = r"\b(?:beq|ADPs|vcocc|rand_xyz|num_posns|u\d\d|site)\b"
+
+#: The six anisotropic displacement components TOPAS writes, in the order
+#: :meth:`rietx.AnisoU.from_values` expects. TOPAS's ``u_ij`` are U^ij in Å² —
+#: the CIF ``_atom_site_aniso_U_ij`` convention, crystal frame — the same
+#: numbers rietx's :class:`~rietx.AnisoU` holds, so no 8π² conversion (a
+#: NaCl u11 = 0.013 is B_eq = 8π²·0.013 = 1.026, not 0.013).
+_ADP_KEYS = ("u11", "u22", "u33", "u12", "u13", "u23")
+
+#: Any anisotropic component marks a site anisotropic — with or without the
+#: ``adps`` keyword, which introduces the tensor but carries no value itself.
+_ADP_TOKEN = re.compile(r"\bu(?:11|22|33|12|13|23)\b")
 
 
 def _read(name: str, text: str, symbols: dict[str, float] | None = None) -> _Read | None:
@@ -1102,6 +1123,29 @@ def read_topas_inp(path: str | Path) -> TopasModel:
             if beq_read is not None:
                 reads["beq"] = beq_read
             beq = beq_read.value if beq_read is not None else None
+            # The anisotropic displacement tensor, carried as what the file
+            # states (WP-1118, finding 1). A component the site states but this
+            # reader cannot resolve refuses, naming the line — the same rule beq
+            # and x follow, extended to the tensor: defaulting it would put 0 in
+            # for a stated U^ij. `to_structure` builds it behind `aniso=True` and
+            # refuses to seed 0.5 over it otherwise.
+            adps: dict | None = None
+            if _ADP_TOKEN.search(text):
+                adps = {}
+                for u in _ADP_KEYS:
+                    if not re.search(rf"\b{u}\b", text):
+                        continue                 # off-diagonal absent -> 0 later
+                    uread = _read(u, text, symbols)
+                    if uread is None or uread.value is None:
+                        raise TopasInpError(
+                            f"{path}: {phase.name}: cannot read {u} from site "
+                            f"line: {text.strip()!r} — the site states an "
+                            f"anisotropic tensor and this reader could not "
+                            f"resolve {u}, so building it would substitute 0 for "
+                            f"a number the file states.")
+                    adps[u] = uread.value
+                    if uread.vary is not None:
+                        reads[u] = uread
             # A site carrying several `occ` tokens is a **mixed** site: one atom
             # per species, sharing this site's label, coordinates and B, exactly
             # as the two-`site`-line spelling already builds (WP-1118, finding 2).
@@ -1130,7 +1174,8 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                 phase.sites.append(TopasSite(
                     label=label.group(1), species=normalize_species(species),
                     occupancy=occupancy if occupancy is not None else 1.0,
-                    beq=beq, vary=vary,
+                    beq=beq, adps=dict(adps) if adps is not None else None,
+                    vary=vary,
                     **{axis: reads[axis].value for axis in "xyz"}))
         # A site token that read no atom is a silently wrong structure factor, so
         # every segment produced at least one atom above or raised; the count of
@@ -1162,7 +1207,8 @@ def read_topas_inp(path: str | Path) -> TopasModel:
     return model
 
 
-def to_structure(model: TopasModel, *, cell_limits: bool = True):
+def to_structure(model: TopasModel, *, cell_limits: bool = True,
+                 aniso: bool = False):
     """Build a :class:`~rietx.schemas.Structure` from a parsed model.
 
     ``beq`` is TOPAS's B and rietx's ``biso`` is also B — no 8π² conversion. A
@@ -1171,6 +1217,22 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
     caller cannot tell from a stated value is the silent-default class this
     reader avoids (WP-1118).
     ``cell_limits`` applies the file's own ``min``/``max`` where it stated them.
+
+    ``aniso`` is the opt-in for the **anisotropic displacement tensor**, the same
+    one :func:`~rietx.crystallography.cif.structure_from_cif` uses and for the
+    same reason: reading a file must not silently change which parameters a
+    refinement plan will free. TOPAS's ``u11``…``u23`` are U^ij in Å² — the CIF
+    ``_atom_site_aniso_U_ij`` convention rietx's :class:`~rietx.AnisoU` holds, so
+    the numbers transfer unchanged (a NaCl ``u11 = 0.013`` is B_eq = 8π²·0.013 =
+    1.026, not the 0.5 an ADP-blind reader seeds). With ``aniso=True`` a site's
+    tensor becomes an :class:`~rietx.AnisoU` block that alone drives the
+    Debye-Waller factor (``biso`` is then the inert record the schema requires,
+    ``vary=False``); a site without a tensor stays isotropic either way, so a
+    mixed file yields a mixed structure. **What it may not do is seed 0.5 in
+    silence:** with the default ``aniso=False``, a site that *states* a tensor is
+    refused, naming the site — the same report-or-refuse this reader applies to a
+    dropped phase — rather than built isotropic with the anisotropy discarded.
+    The numbers stay readable on ``model.phases`` either way.
 
     A **negative** ``beq`` is refused, naming the site. It is not a parse error:
     a slightly negative refined B is an ordinary outcome of a converged
@@ -1208,6 +1270,34 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
                 f"weight_percent reporting for a phase the Structure lacks. "
                 f"Read `model.phases` for what the file does state.")
         for s in ph.sites:
+            # A stated tensor the caller did not ask for is refused, never
+            # collapsed to the isotropic seed in silence (WP-1118, finding 1):
+            # NaCl at U = 0.013 is B_eq = 8π²·0.013 = 1.026 against the seeded
+            # 0.5 — max |ΔI|/I_max 3.6 % across the pattern and +34.7 % on the
+            # strongest 90-140° peak, with nothing raised. Same opt-in shape as
+            # `structure_from_cif(aniso=...)`, and for the same reason: reading
+            # a file must not silently change which parameters a plan will free.
+            if s.adps is not None and not aniso:
+                raise TopasInpError(
+                    f"{model.path or '<model>'}: phase {ph.name!r}: site "
+                    f"{s.label!r} states an anisotropic displacement tensor "
+                    f"({', '.join(k for k in _ADP_KEYS if k in s.adps)}) and "
+                    f"this build was not asked to carry one — building it "
+                    f"isotropic would discard the stated anisotropy"
+                    f"{' and seed 0.5 over it' if s.beq is None else ''} in "
+                    f"silence. Pass aniso=True to build the tensor, or read "
+                    f"`model.phases` for the file's own numbers.")
+            if s.adps is not None and any(u not in s.adps
+                                          for u in ("u11", "u22", "u33")):
+                # An off-diagonal the file omits is 0 by the format's own
+                # convention; a *diagonal* it omits has no such default, and
+                # filling one in would be a number no file states.
+                raise TopasInpError(
+                    f"{model.path or '<model>'}: phase {ph.name!r}: site "
+                    f"{s.label!r} states a partial anisotropic tensor "
+                    f"({', '.join(k for k in _ADP_KEYS if k in s.adps)}) — a "
+                    f"missing off-diagonal is 0 by convention, but a missing "
+                    f"diagonal U has no default this reader may invent.")
             if s.beq is not None and s.beq < biso_window["min"]:
                 raise TopasInpError(
                     f"{model.path or '<model>'}: phase {ph.name!r}: site "
@@ -1245,6 +1335,36 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
                 kw["vary"] = free
             return rx.Parameter(value=value, **kw)
 
+        def _atom(s):
+            """One atom; a tensor site builds its `AnisoU` (guarded above)."""
+            if s.adps is not None and aniso:
+                # TOPAS u_ij are U^ij (Å², CIF convention) — see `_ADP_KEYS`.
+                # `biso` is the schema's inert record when `aniso` is present
+                # (vary must be False): the file's own beq where stated, else
+                # 8π²·U_eq from the trace — the same fallback the CIF path
+                # uses — never the 0.5 seed over a stated tensor.
+                b_record = (s.beq if s.beq is not None else
+                            8.0 * math.pi ** 2
+                            * (s.adps["u11"] + s.adps["u22"] + s.adps["u33"]) / 3.0)
+                block = rx.AnisoU(**{
+                    u: rx.Parameter(value=s.adps.get(u, 0.0), unit="A^2",
+                                    **({"vary": s.vary[u]} if u in s.vary else {}))
+                    for u in _ADP_KEYS})
+                displacement = {
+                    "biso": rx.Parameter(value=b_record, vary=False, **biso_window),
+                    "aniso": block}
+            else:
+                # The file's own number, not `max(beq, 0.0)`: a negative one is
+                # refused above rather than moved. A site that stated none is
+                # seeded 0.5 here, at build time — the model keeps it as None.
+                displacement = {"biso": _sp(s, "beq",
+                                            0.5 if s.beq is None else s.beq,
+                                            **biso_window)}
+            return rx.Atom(label=s.label, species=s.species,
+                           x=_sp(s, "x", s.x), y=_sp(s, "y", s.y),
+                           z=_sp(s, "z", s.z),
+                           occ=_sp(s, "occ", s.occupancy), **displacement)
+
         # Every schema refusal from here is converted at this boundary: a
         # reader raises naming the file, and pydantic's report names a field.
         # Reached in practice by a phase whose site lines all sat inside a
@@ -1260,18 +1380,7 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
             cell = rx.Cell(a=_p("a", c["a"]), b=_p("b", c["a"]), c=_p("c", c["a"]),
                            alpha=_p("al", 90.0), beta=_p("be", 90.0),
                            gamma=_p("ga", 90.0))
-            atoms = [rx.Atom(label=s.label, species=s.species,
-                             x=_sp(s, "x", s.x), y=_sp(s, "y", s.y),
-                             z=_sp(s, "z", s.z),
-                             occ=_sp(s, "occ", s.occupancy),
-                             # The file's own number, not `max(beq, 0.0)`: a
-                             # negative one is refused above rather than moved.
-                             # A site that stated none is seeded 0.5 here, at
-                             # build time — the model keeps it as None.
-                             biso=_sp(s, "beq",
-                                      0.5 if s.beq is None else s.beq,
-                                      **biso_window))
-                     for s in ph.sites]
+            atoms = [_atom(s) for s in ph.sites]
             phases.append(rx.Phase(
                 name=ph.name, space_group=ph.space_group, cell=cell, atoms=atoms,
                 # `or 1e-4` substituted the seed for a *stated* zero: 20 real
