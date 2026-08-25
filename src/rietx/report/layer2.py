@@ -184,15 +184,15 @@ def _size_clause(name: str, coefficient: float, wavelength: float | None) -> str
     action is still emitted; only this clause is withheld.
 
     Why the clause exists at all: the coefficient is in degrees, which is not
-    transferable between instruments — 0.05 deg is a 15 nm crystallite on Cu and
+    transferable between instruments — 0.5 deg is a 15 nm crystallite on Cu and
     a 4 nm one on 11-BM — so the number the reader can act on is the size.
     """
     if name != _SIZE_TEMPLATE or wavelength is None or not coefficient > 0.0:
         return ""
     size_a = apparent_size_from_size_coefficient(coefficient, wavelength)
-    return (f"; the coefficient is the 1/cosθ size term, so it reads as one "
-            f"apparent crystallite size for the whole pattern — L ≈ "
-            f"{size_a:.0f} Å at λ = {wavelength:.4f} Å (Scherrer, K = "
+    return (f"; the coefficient is the 1/cosθ size term, so across the whole "
+            f"pattern it reads as the size that would account for the missing "
+            f"width — L ≈ {size_a:.0f} Å at λ = {wavelength:.4f} Å (Scherrer, K = "
             f"{SCHERRER_K}, an order-of-magnitude statement: shape moves K by "
             f"10-20 %). Degrees are not transferable between instruments; this "
             f"is the same width in the unit a specimen can be judged in")
