@@ -54,13 +54,33 @@ PATTERN = DATA / "11BM_LaB6_cBN_mg2044.xye"
 
 WAVELENGTH = 0.413680          # .prm ICONS, and `la 1 lo 0.413680` in the .inp
 LIMITS = (5.1, 50.0)           # start_X 5.1
-A_LAB6 = 4.15689               # NIST SRM 660b certificate; HELD
+#: NIST SRM 660b certificate, read from the certificate PDF that ships beside
+#: the data: a = 0.415689 nm +- 0.000008 nm at 22.5 C (k = 2).  **HELD** — that
+#: is what makes it an internal standard rather than a second unknown.
+#:
+#: The scan header records 295.0 K = 21.85 C, so the certificate temperature is
+#: 0.65 K away.  At LaB6's expansion that is of order 4 ppm in a — below every
+#: band this suite asserts, but stated because the SRM 660c suite documents the
+#: same gap and a silent one reads as no gap at all.
+A_LAB6 = 4.15689
+A_LAB6_CERT_SD = 0.00008
 
 #: The converged TOPAS values, read from the .inp's own recorded numbers.
 TOPAS = {
     "rwp": 0.0809856, "rexp": 0.0529264, "gof": 1.53015,
     "a_cbn": 3.616463, "x_b_lab6": 0.19890, "w_lab6": 17.950,
 }
+
+#: The composition reference, per the data owner (2026-08-25): the weight
+#: fractions in the folder's ``simulation_quant.txt``, LaB6 17.90681 /
+#: cBN 82.09319.  Recorded here with what it is and is not — those digits are
+#: TOPAS's own output (they match the ``IB-size-strain`` model's refined
+#: ``weight_percent ph1_wtpct 17.907``, and both .inp files mark the field with
+#: TOPAS's backtick), so this stays a **cross-code** reference.  No balance
+#: record exists.  For the curious: 17.90681 wt % is a molar ratio of
+#: LaB6 : cBN = 1 : 37.64 and a mass ratio of 1 : 4.58, neither of which is
+#: round, so the composition was measured rather than targeted.
+COMPOSITION_SOURCE = "simulation_quant.txt"
 
 #: TOPAS's **own** spread across its two shipped models of this histogram —
 #: ``…_cs_mustr`` and ``…_IB-size-strain``.  Quoted rather than averaged,
@@ -132,13 +152,27 @@ _TAIL = [
     rx.Stage("biso", ["phases.*.atoms.*.biso"]),
 ]
 
-#: **The protocol this suite trusts.** One Lorentzian broadening, carried by
-#: the instrument and shared by both phases.  Physically right here — SRM 660b
-#: is certified as having negligible size/strain broadening and cBN is a
-#: well-crystallised abrasive, so at 11-BM both are resolution-limited — and,
-#: more decisively, it is the only one of the three that is *identifiable*:
-#: Lorentzian FWHMs add, so instrument X,Y and per-phase lor_size/lor_strain
-#: are one number split three ways.
+#: **The protocol this suite trusts**, and the reason is identifiability rather
+#: than physics.  One Lorentzian broadening, carried by the instrument and
+#: shared by both phases.  Lorentzian FWHMs add, so instrument ``X,Y`` and
+#: per-phase ``lor_size``/``lor_strain`` are one quantity split three ways —
+#: measured at |ρ| = 1.000 — and this is the only one of the three tried that
+#: is not degenerate.
+#:
+#: **It is not the physically complete model, and saying so is the point.**
+#: SRM 660b's certificate carries Information Values from NIST's own
+#: fundamental-parameters analysis: a Lorentzian FWHM refined for
+#: sample-induced broadening, whose 1/cos θ term is *"consistent with a domain
+#: size of approximately 0.7 µm"* while the tan θ term *"refined to zero"*.  So
+#: the strain half of the shared model is right by certificate, and the size
+#: half is an approximation — 0.7 µm domains are finer than SRM 640c Si's
+#: 1.4 µm, and at 11-BM's resolution that is not obviously negligible.
+#:
+#: The better protocol, once someone wants it, is to **hold** each phase's
+#: ``lor_size`` at its certificate value rather than free it or zero it: that
+#: breaks the degeneracy with a measured number instead of by fiat.  Recorded
+#: rather than done, because it needs cBN's domain size, which no certificate
+#: here supplies.
 PLAN_SHARED = rx.RefinementPlan(stages=[
     *_BASE,
     rx.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
