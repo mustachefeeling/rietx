@@ -552,6 +552,18 @@ a file added to the wheel adds an example.
 - **Never spell the distribution name, a format token or the state dir — import
   it from `_about.py`** (WP-1062; 1066 renamed the brand again, format tokens
   unmoved): its docstring says which is which, and why no test can enforce it.
+- **What a name *is* is written in `src/rietx/help.py` and nowhere else**
+  (WP-1202) — parameters, peak flags, stage fields, reader options, instrument
+  preset fields, with unit, default and typical range. Every arm is crossed
+  against its live vocabulary **both ways**, so a new member fails
+  `tests/test_help.py` and a rename cannot leave an entry behind describing a
+  name that is gone; `unit` and `default` are the schema's own through
+  `UNIT_DISPLAY`, and `typical` is the only authored field. A `ParameterRow`
+  carries `help_key`, the family glob, and never the entry: an entry describes
+  a *family*, so inlining one repeats a paragraph once per atom (3.4× the
+  `/api/params` payload, measured). `docs/manual/using/glossary.md` is
+  generated from it in `conf.py`, and every `anchor` is checked against the
+  built HTML, not the sources.
 - Parameter paths are dot-separated, glob-matched with fnmatch in stage plans
   (`"phases.*.cell.*"`). No brackets in paths (fnmatch treats `[..]` as class).
 - Schemas: `extra="forbid"`, `ser_json_inf_nan="strings"` (±inf bounds must

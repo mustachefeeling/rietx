@@ -270,7 +270,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # placement and the traversal refusal are in gui/CLAUDE.md, the per-file
     # licence table is `tests/test_example_projects.py`'s, and the measured
     # wheel sizes are in the WP's handover.
-    "CLAUDE.md": 869,
+    # 869 -> 882 for WP-1202 (2026-08-25): the help corpus.  The operating
+    # detail went down a rank as this comment requires — the registry's own
+    # rules are in `help.py`'s docstring, the entries are the corpus, the
+    # measurements are in the WP.  What cannot go down a rank is the one clause
+    # a session adding a parameter, a flag or a stage field will otherwise miss:
+    # the description goes in `rietx.help`, not in a `title=` beside a control
+    # or a second `Field(description=)`, and the row carries the family key
+    # rather than the entry.
+    "CLAUDE.md": 882,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one
