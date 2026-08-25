@@ -591,10 +591,14 @@ class GuiSession:
 
             # drop it from the session first: between the removal and the open
             # the directory does not exist, and a reader finding NO_PROJECT is
-            # better than one finding half a project
+            # better than one finding half a project.  The run frame goes with
+            # it — most of what a reader reaches here is in memory and would
+            # answer happily about a project that no longer exists, which is
+            # WP-1201's "a statistic outlives the thing it describes"
             if self.project is not None and self.project.path == root:
                 with self._cond:
                     self.project = None
+                    self._run = _idle_run()
                     self._cond.notify_all()
             shutil.rmtree(root)
         self._build_example(name, root)

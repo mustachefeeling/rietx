@@ -2749,6 +2749,9 @@ def test_resetting_an_example_discards_the_edits_and_builds_it_again(examples):
     assert status == 200, doc
     assert doc["doc"]["mode"] == "rietveld"
     assert doc["n_nodes"] == 1  # a fresh tree, not the edited one
+    # the run frame went with the directory: most of what a reader reaches is
+    # in memory and would happily describe a project that no longer exists
+    assert client.get("/api/run/state")[1]["run"]["rwp"] is None
 
 
 def test_an_unknown_example_is_refused_and_says_what_there_is(examples):
