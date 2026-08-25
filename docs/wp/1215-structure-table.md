@@ -59,6 +59,24 @@ Design:
 - ADPs in a per-atom disclosure on the `aniso` cell; the sub-rows go, and
   with them the separator.
 
+### Inherited
+
+From **WP-1201** (2026-08-25, shipped):
+
+- The phase selector `nav.phases` is the `.segmented` register now. It used to
+  be N plain buttons, so every phase wore the primary fill and `class:on` was
+  invisible — a two-phase model showed no selection at all. Keep it segmented
+  if this WP reworks the structure column.
+- The atom table is `var(--text-sm)`, its `th` and the `MOVES ALONG`
+  sub-labels are `var(--text-xs)`, and the per-row remove button is a plain
+  `button.ghost` at the one button size (~22 px, chosen so the register fits a
+  table row). A literal `font-size`, `padding` or `border-radius` on a
+  register in this panel fails `gui/src/lib/style.test.ts`.
+- A field is control-sized with **no exception** — a field that needs to feel
+  prominent gets width and padding, never a step of its own. Two panels had
+  put the size back with `font: inherit` on `input`; that is the shape to
+  avoid.
+
 ## Non-goals
 
 - Adding or removing atoms differently (the existing whole-model edit).

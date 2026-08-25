@@ -64,8 +64,8 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**v1.2 — the GUI for a crystallographer, opened 2026-08-25** ([record](milestones/v1.2.md)). The maintainer's notes from using the GUI the way a first-time crystallographer would, triaged against three read-only passes over `gui/src` and `src/rietx/gui`: every note has a cause in code, and the causes are one WP each, **17 new (1201-1217) plus [1017](wp/1017-gui-manual-onboarding.md) re-scoped** as the manual and its sync mechanism. Two orderings are fixed. [1201](wp/1201-gui-house-style.md) (tokens and registers) lands **first**, because every other panel change builds on one control vocabulary; 1017 lands **last**, its own rule since 2026-08-14. Between them the order is the § v1.2 table: developer mode and shipped examples (1204), the help corpus and its popover (1202, 1203), the wizard (1205-1207), Plan (1208), Peaks and the plot (1209-1213), Model (1214-1216), History (1217).
-Decisions taken at the opening: help is cursor-only with a click popover and no visible mark; a project without a CIF is two WPs (a typed cell, then pattern-only projects, which is a library change); a ~3.2 MB example set ships in the wheel; chips become non-interactive facts; the hover tooltip becomes a readout strip under the plot. Free-standing peaks (1101-1103) shift to **v1.3**, the precedent v1.1 set. `pyproject.version` is `1.2.0.dev0`.
+**v1.2 — the GUI for a crystallographer** ([record](milestones/v1.2.md)); the maintainer's use notes triaged into 17 WPs (1201-1217) plus [1017](wp/1017-gui-manual-onboarding.md), the manual, last. **[1201](wp/1201-gui-house-style.md) shipped 2026-08-25**: one token layer and nine control registers in `gui/src/app.css`, with `gui/CLAUDE.md` § House style as the vocabulary every later panel WP writes markup against and `lib/style.test.ts` as the guard. **Next: [1204](wp/1204-developer-mode-example-projects.md)** (developer mode and shipped example projects) — it depends on 1201 only softly, so it starts cold — then [1202](wp/1202-help-corpus.md)/[1203](wp/1203-help-popover.md), which attach the popover to the `.help` register 1201 declared. After that the § v1.2 table's order: the wizard (1205-1207), Plan (1208), Peaks and the plot (1209-1213), Model (1214-1216), History (1217).
+Free-standing peaks (1101-1103) shift to **v1.3**, the precedent v1.1 set. `pyproject.version` is `1.2.0.dev0`.
 
 **v1.1 shipped 2026-08-23** ([record](milestones/v1.1.md), [notes](releases/1.1.0.md)): the trigger-shaped cold fit 50.11-50.43 → 5.69-5.72 s and the 10-pattern warm series 266.78-269.61 → 49.24-49.30 s, each WP with its own equivalence bar and none an Rwp comparison. Three consumer-visible changes rode with it: numba as a core dependency (`RIETX_COMPILED=0` is the way out), intermediate stages at `ftol=1e-6` (`intermediate_ftol=None` is bit-identical), and the ladder's first rung bounded at `first_rung_factor=3.0`. **1.0.2 was folded in and never published**, so an upgrade from 1.0.1 crosses both and 1.1.0's § Upgrading is the authority. Two speed fronts stay unowned and recorded: the per-reflection 19.4 % and the `refit=` choice (50 % of the trigger series wall is still discarded ladder rungs).
 
@@ -312,7 +312,7 @@ decisions are the [v1.2 record](milestones/v1.2.md) § Scope.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1201](wp/1201-gui-house-style.md) | GUI house style: tokens and registers | ⬜ | — (first) |
+| [1201](wp/1201-gui-house-style.md) | GUI house style: tokens and registers | ✅ 2026-08-25 | — (first) |
 | [1204](wp/1204-developer-mode-example-projects.md) | Developer mode and example projects | ⬜ | — (1201 soft) |
 | [1202](wp/1202-help-corpus.md) | The help corpus, served and meta-tested | ⬜ | — |
 | [1203](wp/1203-help-popover.md) | The help popover: one mechanism across the panels | ⬜ | 1201, 1202 |

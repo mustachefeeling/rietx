@@ -31,7 +31,7 @@ on a register, and on a `font-size` that is not a step of the scale.
 Three type steps and no fourth: `--text` is prose, `--text-sm` is a control
 **and everything on its row** (a field's label, a count beside a button, a table
 cell), `--text-xs` is a chip and a section heading. "Secondary" is said by
-`.muted`, once — `.small`/`.tiny` were saying it as a *size*, in fourteen panels
+`.muted`, once — `.small`/`.tiny` were saying it as a *size*, in eleven files
 at three values. Mono is a family, not a size. A chip's tone comes from one
 vocabulary (`note` the default, `ok`, `warn`, `bad`, `accent`) and
 `lib/peaks.ts`'s tone functions return members of it. Two cascade traps, both

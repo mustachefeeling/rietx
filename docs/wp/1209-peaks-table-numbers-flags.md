@@ -52,6 +52,30 @@ Number policy (in `lib/peaks.ts`, pure, tested): intensity shown as
 the value alone and the flag says why; `d` at 4 places. `formatValue` gains
 the esd ≥ 1 guard for every caller (History and Params included).
 
+### Inherited
+
+From **WP-1201** (2026-08-25, shipped):
+
+- Chip tones are now one app-wide vocabulary — `note` (the neutral default),
+  `ok`, `warn`, `bad`, `accent` — declared in `app.css`, and `lib/peaks.ts`
+  returns members of it: `flagTone` (its private `"out"` is gone),
+  `caveatTone`, and a new `confidenceTone`. A new flag colour is a call to one
+  of those, never a `.chip.<something>` rule in this panel.
+- **A chip is a fact and never acts.** The space-group adopt chips and the
+  centring toggles are `button.ghost` now, and the drop-this-prior `×` sits
+  *beside* its chip in a `.tagged` wrapper rather than inside it. A row's flag
+  cell may hold chips; it may not hold a chip that is clickable.
+- **Left for this WP, seen in a browser**: the twelve centring toggles are all
+  engaged by default, so the search form now shows twelve filled accent
+  buttons. That is what `button.on` says, and it is loud. If this WP re-styles
+  the search form, that is the place to decide whether a multi-select of
+  defaults-on wants a quieter engaged state — the decision belongs in
+  `app.css`, not in `Peaks.svelte`.
+- The panel no longer declares `button`, `.chip`, `.pill`, `.small` or
+  `.tiny`, and a literal `font-size` in its `<style>` fails
+  `lib/style.test.ts`. Its table is `var(--text-sm)`; a control's label rides
+  at the control's size, prose is `var(--text)`.
+
 ## Non-goals
 
 - The peak layer on the plot (WP-1210), candidates (WP-1211).
