@@ -470,6 +470,63 @@ _ADP_KEYS = ("u11", "u22", "u33", "u12", "u13", "u23")
 #: ``adps`` keyword, which introduces the tensor but carries no value itself.
 _ADP_TOKEN = re.compile(r"\bu(?:11|22|33|12|13|23)\b")
 
+#: The ``ADPs`` keyword, in any case the archive spells it. ``ADPs_Keep_PD``
+#: does not match — the ``_`` is a word character, so ``\b`` refuses it.
+_ADPS_KW = re.compile(r"\badps\b", re.I)
+
+#: The archive's live anisotropic spelling: a six-slot positional brace block,
+#: ``ADPs { u11 u22 u33 u12 u13 u23 }``, each slot any spelling of the one
+#: grammar (named, flagged, equation, evaluated tail). The slot order is an
+#: archive-evidenced **specification fact** (`io/CLAUDE.md`'s rule 2):
+#: `Gd12Co5Bi.inp:187` names its slots ``Ho1_u11 … Ho1_u23`` in exactly that
+#: order, and `SXC223C_seed_01.inp:73` names slots 1, 2, 3 and 6
+#: ``u11Se``/``u22Se``/``u33Se``/``u23Se`` with the two zeros in the
+#: ``u12``/``u13`` positions.
+_ADPS_BRACE = re.compile(r"\badps\b\s*\{([^}]*)\}", re.I)
+
+#: An ``_esd``/``_LIMIT_*`` annotation attached to the previous value with no
+#: whitespace — ``0.01835`_0.00053`` — which sequential slot reading must skip.
+#: Anchored (used with ``.match``), so a *name* after whitespace never matches.
+_ADP_ANNOTATION = re.compile(r"_[^\s;{}]*")
+
+#: A ``min``/``max`` window between slots — ``min 0.0001 max=0.1;`` — the
+#: author's search box, inert on rietx's AnisoU components (the schema refines
+#: tensor patterns, not boxes), so it is skipped rather than carried.
+_ADP_WINDOW = re.compile(rf"\s*\b(?:min|max)\b\s*(?:=[^;\n]*;|{_NUM})")
+
+
+def _read_adps_slots(inner: str, symbols: dict[str, float]) -> list[_Read] | None:
+    """The six slot reads of an ``ADPs { … }`` block, in slot order, or None
+    where the block does not read as exactly six values of the one grammar."""
+    reads: list[_Read] = []
+    text = inner
+    while len(reads) < 6:
+        while True:
+            if m := _ADP_ANNOTATION.match(text):
+                text = text[m.end():]
+                continue
+            if m := _ADP_WINDOW.match(text):
+                text = text[m.end():]
+                continue
+            break
+        if not text.strip():
+            break
+        if (read := _read_tail(text, symbols)) is None:
+            return None
+        reads.append(read)
+        text = read.rest
+    while True:
+        if m := _ADP_ANNOTATION.match(text):
+            text = text[m.end():]
+            continue
+        if m := _ADP_WINDOW.match(text):
+            text = text[m.end():]
+            continue
+        break
+    if len(reads) != 6 or text.strip():
+        return None
+    return reads
+
 
 def _read(name: str, text: str, symbols: dict[str, float] | None = None) -> _Read | None:
     """What ``text`` states for the keyword ``name``, value and flag together.
@@ -1124,18 +1181,37 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                 reads["beq"] = beq_read
             beq = beq_read.value if beq_read is not None else None
             # The anisotropic displacement tensor, carried as what the file
-            # states (WP-1118, finding 1). A component the site states but this
-            # reader cannot resolve refuses, naming the line — the same rule beq
-            # and x follow, extended to the tensor: defaulting it would put 0 in
-            # for a stated U^ij. `to_structure` builds it behind `aniso=True` and
-            # refuses to seed 0.5 over it otherwise.
+            # states (WP-1118, finding 1), in both spellings: the six-slot
+            # positional `ADPs { … }` block (the archive's live form, 6 files)
+            # and the named `u11 … u23` site keywords. A component the site
+            # states but this reader cannot resolve refuses, naming the line —
+            # the same rule beq and x follow, extended to the tensor: defaulting
+            # it would put 0 in for a stated U^ij. `to_structure` builds it
+            # behind `aniso=True` and refuses to seed 0.5 over it otherwise.
             adps: dict | None = None
-            if _ADP_TOKEN.search(text):
+            brace = _ADPS_BRACE.search(text)
+            named_scan = (text if brace is None
+                          else text[:brace.start()] + text[brace.end():])
+            if brace is not None:
+                slots = _read_adps_slots(brace.group(1), symbols)
+                if slots is None or any(r.value is None for r in slots):
+                    raise TopasInpError(
+                        f"{path}: {phase.name}: cannot read the ADPs block on "
+                        f"site line: {text.strip()!r} — the site states a "
+                        f"six-slot anisotropic tensor and this reader could not "
+                        f"resolve every slot (a `Get(...)` reference, or a slot "
+                        f"that is not a value of the grammar), so building it "
+                        f"would substitute a number the file does not state.")
+                adps = dict(zip(_ADP_KEYS, (r.value for r in slots)))
+                for u, r in zip(_ADP_KEYS, slots):
+                    if r.vary is not None:
+                        reads[u] = r
+            elif _ADP_TOKEN.search(named_scan):
                 adps = {}
                 for u in _ADP_KEYS:
-                    if not re.search(rf"\b{u}\b", text):
+                    if not re.search(rf"\b{u}\b", named_scan):
                         continue                 # off-diagonal absent -> 0 later
-                    uread = _read(u, text, symbols)
+                    uread = _read(u, named_scan, symbols)
                     if uread is None or uread.value is None:
                         raise TopasInpError(
                             f"{path}: {phase.name}: cannot read {u} from site "
@@ -1146,6 +1222,15 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                     adps[u] = uread.value
                     if uread.vary is not None:
                         reads[u] = uread
+            elif _ADPS_KW.search(text):
+                # `ADPs` with no brace and no named component: TOPAS generates
+                # the tensor at run time, so the file says "anisotropic" and
+                # states no numbers this reader could carry.
+                raise TopasInpError(
+                    f"{path}: {phase.name}: site line states `ADPs` but no "
+                    f"tensor components this reader can read: {text.strip()!r} "
+                    f"— building it isotropic would discard a stated "
+                    f"anisotropy.")
             # A site carrying several `occ` tokens is a **mixed** site: one atom
             # per species, sharing this site's label, coordinates and B, exactly
             # as the two-`site`-line spelling already builds (WP-1118, finding 2).

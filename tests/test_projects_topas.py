@@ -1527,6 +1527,80 @@ def test_a_partial_tensor_with_a_missing_diagonal_is_refused(tmp_path):
     assert "partial anisotropic tensor" in str(exc.value)
 
 
+# The archive's live anisotropic spelling is the six-slot positional
+# `ADPs { u11 u22 u33 u12 u13 u23 }` brace block (6 files), not the named
+# form. The slot order is archive-evidenced: `Gd12Co5Bi.inp:187` names its
+# slots `Ho1_u11 … Ho1_u23` in exactly that order, and `SXC223C_seed_01.inp:73`
+# names slots 1, 2, 3 and 6 `u11Se`/`u22Se`/`u33Se`/`u23Se` with the two zeros
+# in the u12/u13 positions. Each fixture below is a real file's spelling.
+
+def test_the_positional_adps_brace_block_reads_in_slot_order(tmp_path):
+    """`Gd12Co5Bi.inp`'s spelling: named slots, each with a `min … max=…;`
+    window (inert on AnisoU, skipped) and `_LIMIT_*` annotations."""
+    inp = _inp(tmp_path, "gd12.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site Ho1 x 0.28707 y 0.18406 z 0 occ Gd 1.0 ADPs { '
+               'Ho1_u11  0.02159` min 0.0001 max=0.1; '
+               'Ho1_u22  0.00709` min 0.0001 max=0.1; '
+               'Ho1_u33  0.00830` min 0.0001 max=0.1; '
+               'Ho1_u12  0.00343`_LIMIT_MIN_0.0001 min 0.0001 max=0.1; '
+               'Ho1_u13  0.01501` min 0.0001 max=0.1; '
+               'Ho1_u23  0.00112`_LIMIT_MIN_0.0001 min 0.0001 max=0.1; }\n')
+    site = read_topas_inp(inp).phases[0].sites[0]
+    assert site.adps == pytest.approx({"u11": 0.02159, "u22": 0.00709,
+                                       "u33": 0.00830, "u12": 0.00343,
+                                       "u13": 0.01501, "u23": 0.00112})
+    assert site.vary["u11"] is True          # the write-back backtick
+
+
+def test_a_positional_slot_carries_its_own_flag_and_evaluated_tail(tmp_path):
+    """`SXC223C_seed_01.inp`'s second spelling: `=u11Se;: 0.00737` evaluated
+    tails, bare `0 0` for the u12/u13 slots, and a named sixth slot."""
+    inp = _inp(tmp_path, "sxc.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site Se2 x 0.25 y 0.59643 z 0.25 occ Se 1 ADPs { '
+               '=u11Se;:  0.00737`_0.00040 =u22Se;:  0.00000`_0.00035 '
+               '=u33Se;:  0.00200`_0.00035 0 0 u23Se -0.00151`_0.00059 }\n')
+    site = read_topas_inp(inp).phases[0].sites[0]
+    assert site.adps == pytest.approx({"u11": 0.00737, "u22": 0.0,
+                                       "u33": 0.002, "u12": 0.0,
+                                       "u13": 0.0, "u23": -0.00151})
+
+
+def test_an_adps_slot_this_reader_cannot_resolve_refuses(tmp_path):
+    """`lasf_longruns_riet_07.inp`'s spelling ties slots with `= Get(u33);`, a
+    TOPAS function this reader does not have — a stated slot it cannot resolve,
+    refused by finding 4's rule rather than substituted."""
+    inp = _inp(tmp_path, "lasf.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site O1 x 0.5 y 0 z 0 occ O-2 1 ADPs { '
+               'o1_u11  0.01835`_0.00053 = Get(u33); o1_u33  0.06084`_0.00046 '
+               '= 0; = 0; = 0; }\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert "ADPs block" in str(exc.value)
+
+
+def test_an_adps_block_that_is_not_six_slots_refuses(tmp_path):
+    inp = _inp(tmp_path, "five.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site X1 x 0 y 0 z 0 occ O 1 ADPs { 0.01 0.01 0.01 0 0 }\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert "ADPs block" in str(exc.value)
+
+
+def test_a_bare_adps_keyword_with_no_readable_components_refuses(tmp_path):
+    """`ADPs` alone tells TOPAS to generate the tensor at run time: the file
+    says "anisotropic" and states no numbers this reader could carry."""
+    inp = _inp(tmp_path, "bare.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site X1 x 0 y 0 z 0 occ O 1 adps\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert "no tensor components" in str(exc.value)
+
+
 # ------------- round-five finding 4: a stated occ/beq that cannot be read refuses
 
 @pytest.mark.parametrize("line, key", [
