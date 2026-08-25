@@ -90,7 +90,7 @@ by one for the added field, comment beside the constant.
       handover) filled in `Refinement.parameters`; `SCHEMA_VERSION` bump with
       its reason; `GET /api/help` route (in `server.ROUTES`, disjointness
       test still green).
-- [ ] `tests/test_help.py`: every family the fnmatch corpus vocabulary
+- [x] `tests/test_help.py`: every family the fnmatch corpus vocabulary
       produces matches exactly one entry; every `PeakFlag`, every
       `PLAN_INFO` key, every `StageSpec` field, every `READER_OPTIONS` name
       and every wizard preset field has an entry; every entry's `anchor`

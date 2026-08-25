@@ -77,11 +77,11 @@ class HelpEntry:
 #: the two spellings with it: a schema unit absent from this table is a unit
 #: nothing has decided how to print.
 UNIT_DISPLAY: dict[str, str] = {
+    "A": "Å",
     "deg": "deg 2θ",
     "deg^2": "deg² 2θ",
     "mm": "mm",
     "A^2": "Å²",
-    "A^-4": "Å⁻⁴",
     "1e-12 A^-4": "10⁻¹² Å⁻⁴",
 }
 
