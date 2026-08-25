@@ -78,7 +78,7 @@ Design:
       extended to assert the examples are in it and under a size ceiling.
       (No `pyproject` entry was needed: hatchling takes a package directory's
       non-ignored files, which is exactly why the wheel test is not optional.)
-- [ ] `tests/test_example_projects.py`: every example builds under
+- [x] `tests/test_example_projects.py`: every example builds under
       `tmp_path`, its protocol asserted field by field against `compare.py`'s
       registry, and `list_examples()` is in bijection with the data directory.
       (**Not** `tests/test_examples.py`, which the WP named and which already
