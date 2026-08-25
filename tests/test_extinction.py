@@ -10,6 +10,7 @@ Laue branches) to ~1e-10.
 from __future__ import annotations
 
 import math
+import warnings
 
 import numpy as np
 import pytest
@@ -378,6 +379,139 @@ def test_series_and_asymptote_jump_at_x_equals_one():
     el_above, _ = _laue_and_deriv(np.array([1.0 + 1e-9]))  # asymptote just above
     assert el_below[0] == pytest.approx(0.6742039, abs=1e-6)
     assert el_above[0] == pytest.approx(0.6981490, abs=1e-6)
+
+
+# -- the branchless select computes both arms, so both must stay finite ---
+#
+# ``_laue_and_deriv`` evaluates the series *and* the asymptote at every x and
+# throws one away.  Neither arm is finite over the whole line, so each is
+# clamped to its own domain (both boundaries are x = 1, the value the Sabine
+# expression itself splits on).  Without that, the discarded arm raises numpy
+# RuntimeWarnings out of a converged refinement — the bug these three pin.
+
+
+#: numpy's default error state.  ``under='ignore'`` is deliberate and is
+#: numpy's own default: x⁶ → 0 for tiny x is the *correct* answer, not a
+#: defect, and the reported bug was over/divide, which are 'warn'.
+_NUMPY_DEFAULT_ERRSTATE = dict(divide="warn", over="warn",
+                               under="ignore", invalid="warn")
+
+
+def _warnings_from(fn, *args):
+    """Every warning ``fn`` raises under numpy's default error state."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        old = np.seterr(**_NUMPY_DEFAULT_ERRSTATE)
+        try:
+            fn(*args)
+        finally:
+            np.seterr(**old)
+    return [str(w.message) for w in caught]
+
+
+def test_laue_branches_are_warning_free_across_the_reachable_domain():
+    """No RuntimeWarning for any x a refinement can produce.
+
+    x = ext·|F|²·(λ/V)²·Xpol is ≥ 0 (softplus ext ≥ 0, |F|² ≥ 0, Xpol > 0), so
+    the domain is [0, ∞).  The regression lives in the denormal window: the
+    asymptote's 1/x² term underflows to *exactly zero* below x ≈ 1.5e-162 and
+    then divides by it, and its x^{-3/2} prefactor overflows below x ≈ 1e-206.
+    Both are reached while ``ext`` — softplus with ``min=0.0``, so unbounded
+    below internally — is driven to the exact zero that switches the
+    correction off.
+    """
+    rng = np.random.default_rng(0)
+    x = np.concatenate([
+        # exact zero, the subnormal floor, and both warning thresholds
+        np.array([0.0, 5e-324, 1e-320, 1e-300, 1e-206, 1e-162, 1e-100,
+                  1e-20, 1e-6, 0.5, 1.0, np.nextafter(1.0, 2.0), 2.0, 1e6]),
+        10.0 ** rng.uniform(-323.0, 12.0, 20000),
+    ])
+    assert _warnings_from(_laue_and_deriv, x) == []
+
+
+def test_laue_clamp_never_moves_a_value_that_is_actually_selected():
+    """The clamp is the identity wherever its arm is the one chosen.
+
+    Guards the fix against being replaced by a *tuned* floor: an epsilon-based
+    clamp would silently move converged numbers, because it would bite inside
+    the region the value is read from.  Here the clamp sits exactly on the
+    branch boundary, so it can only ever alter a discarded value.
+    """
+    rng = np.random.default_rng(7)
+    x = np.concatenate([rng.uniform(0.0, 1.0, 5000),    # series arm
+                        rng.uniform(1.0, 50.0, 5000)])  # asymptote arm
+    el, dl = _laue_and_deriv(x)
+
+    # recompute each arm unclamped, at the x it is selected for
+    ser = x[x <= 1.0]
+    one = np.ones_like(ser)
+    series, dseries = one.copy(), np.zeros_like(ser)
+    for i in range(6):
+        series = series + _COEF[i] * ser ** (i + 1)
+        dseries = dseries + (i + 1) * _COEF[i] * ser ** i
+    asy = x[x > 1.0]
+    pi2 = math.sqrt(2.0 / math.pi)
+    inv = 1.0 / np.sqrt(asy)
+    asym = pi2 * (1.0 - 0.125 / asy) * inv
+    dasym = pi2 * inv * (-0.5 / asy + 0.1875 / asy ** 2)
+
+    # bit-identical, not approx: a moved bit here moves every converged fit
+    assert np.array_equal(el[x <= 1.0], np.where(ser <= 0.0, 1.0, series))
+    assert np.array_equal(dl[x <= 1.0], np.where(ser <= 0.0, 0.0, dseries))
+    assert np.array_equal(el[x > 1.0], asym)
+    assert np.array_equal(dl[x > 1.0], dasym)
+
+
+def test_a_negligible_structure_factor_is_not_what_triggers_the_warning():
+    """Records a *refuted* diagnosis, so it is not re-derived.
+
+    The obvious reading — "reflections with zero or negligible |F|² overflow
+    the asymptote" — is wrong, in the one detail that decides the fix.  An
+    exactly-zero |F|² gives x = 0, which the branch guard already catches, and
+    a |F|² that is merely negligible floors at the fp64 cancellation limit of a
+    systematic absence (~1e-29 for a real structure), some 130 orders of
+    magnitude above the ~1.5e-162 the asymptote needs to misbehave.  So no
+    reflection list, however long, reaches it at a physical ext: the collapse
+    has to be in the *coefficient*.  A test built on zero-|F|² members would
+    therefore pass against the unfixed code and pin nothing.
+    """
+    f2 = np.array([0.0, 0.0, 1.0e-29, 1.0e-20, 1.0e3, 9.0e4])
+    tt = np.array([8.0, 44.0, 63.0, 92.0, 121.0, 158.0])
+
+    _, _, x = sabine_extinction_and_dx(f2, WAVE, VOL, tt, 1.0e-3)
+    assert np.all(x[f2 == 0.0] == 0.0), "zero |F|² must give exactly x = 0"
+    smallest = x[f2 > 0.0].min()
+    assert smallest > 1.0e-162, "a negligible |F|² does not reach the window"
+
+    # and the whole list is quiet on the *unclamped* asymptote, which is what
+    # makes the zero-|F|² framing vacuous as a regression test
+    assert _warnings_from(sabine_extinction_and_dx,
+                          f2, WAVE, VOL, tt, 1.0e-3) == []
+
+
+def test_extinction_collapsing_to_its_off_state_is_warning_free():
+    """The real trigger: ``ext`` walking down to the softplus floor.
+
+    ``Phase.extinction`` is softplus with ``min=0.0``, so ``internal_bounds``
+    maps its lower bound to −∞ and log(1+eᵘ) underflows to exactly 0.0 only
+    below u ≈ −745.  The window u ∈ (−745, −370) is a *legitimate* place for a
+    trial step to land — the extinction stage is cumulative, so ext stays free
+    alongside the phase scale and the emission-line weights, and those three
+    scale intensity together — and every ext in it warned before the clamp.
+    """
+    f2 = np.array([9.0e4, 4.2e4, 2.1e4, 8.0e3, 3.0e3, 1.1e3, 4.0e2, 1.2e2])
+    for ext in (1.0e-3, 1.0e-40, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-300,
+                5.0e-324, 0.0):
+        assert _warnings_from(sabine_extinction, f2, WAVE, VOL, TT, ext) == [], \
+            f"forward path warned at ext={ext!r}"
+        assert _warnings_from(sabine_extinction_and_dx,
+                              f2, WAVE, VOL, TT, ext) == [], \
+            f"derivative path warned at ext={ext!r}"
+        E = sabine_extinction(f2, WAVE, VOL, TT, ext)
+        assert np.all(np.isfinite(E))
+    # the off state is still exactly the identity
+    assert np.all(sabine_extinction(f2, WAVE, VOL, TT, 0.0) == 1.0)
 
 
 # -- angular limits (the sin²θ / cos²θ convention trap) ----------------

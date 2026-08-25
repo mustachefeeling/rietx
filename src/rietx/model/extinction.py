@@ -97,21 +97,48 @@ def _extinction_x(f2: np.ndarray, wavelength: float, volume: float,
 def _laue_and_deriv(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """E_L(x) and dE_L/dx over the three Sabine regimes (branchless select).
 
-    The series (a polynomial) is safe to evaluate everywhere; the x>1
-    asymptote is evaluated on a clamped ``xsafe`` so its 1/x terms never
-    divide by zero in the discarded branch.  At x ≤ 0 the Laue factor is 1 and
-    its reported derivative is 0 (GSAS-II's convention — the value is
-    continuous there, the derivative has a step of c₁ that is harmless because
-    the chain factor multiplies it by x → 0).
+    At x ≤ 0 the Laue factor is 1 and its reported derivative is 0 (GSAS-II's
+    convention — the value is continuous there, the derivative has a step of c₁
+    that is harmless because the chain factor multiplies it by x → 0).
+
+    **Each branch is evaluated on x clamped to its own domain**, because a
+    branchless select computes both arms everywhere and discards one.  Neither
+    arm is finite over the whole line, so an unclamped evaluation raises numpy
+    RuntimeWarnings from values that are then thrown away:
+
+    * the asymptote's 1/x and 1/x² terms are consumed only on x > 1, where
+      they are bounded by 0.125 and 0.1875; evaluated on x ↓ 0 they overflow
+      (``x^{-3/2}`` passes 1.8e308 near x ≈ 1e-206) and ``x²`` underflows to
+      exactly zero below x ≈ 1.5e-162, dividing by it;
+    * the six-term series is consumed only on 0 < x ≤ 1, where every power is
+      ≤ 1; evaluated on large x its x⁶ term overflows past x ≈ 4.6e51.
+
+    So both clamp to **x = 1** — each branch's own domain boundary, not a
+    tuned epsilon.  The Sabine expression supplies the constant: the two arms
+    are *defined* on either side of x = 1, and the discarded values the clamp
+    produces are exactly the module docstring's E_L(1⁻) ≈ 0.6742 and
+    E_L(1⁺) ≈ 0.6981.  Wherever a value is actually selected the clamp is the
+    identity, so every consumed number is bit-identical to the unclamped form.
+
+    Reaching the ill-conditioned region needs x far below anything |F|² can
+    produce — a numerically-cancelling systematic absence floors at |F|² ~ 1e-29
+    in fp64, some 130 orders above the threshold — so it takes a *coefficient*
+    collapse: ``ext`` is softplus with ``min=0.0``, hence unbounded below
+    internally, and a trial step down a degenerate intensity direction (scale ⊗
+    emission-line weight ⊗ extinction) lands it in the denormal window on its
+    way to the exact zero that switches the correction off.
     """
     xp = get_backend()
     x = xp.asarray(x, dtype=np.float64)
+    # series arm: consumed on 0 < x ≤ 1, so cap above at the branch boundary
+    xser = xp.where(x <= 1.0, x, 1.0)
     series = xp.full_like(x, 1.0)
     dseries = xp.zeros_like(x)
     for i in range(6):
-        series = series + _LAUE_COEF[i] * x ** (i + 1)
-        dseries = dseries + (i + 1) * _LAUE_COEF[i] * x ** i
-    xsafe = xp.where(x > 0.0, x, 1.0)
+        series = series + _LAUE_COEF[i] * xser ** (i + 1)
+        dseries = dseries + (i + 1) * _LAUE_COEF[i] * xser ** i
+    # asymptote arm: consumed on x > 1, so floor at the same boundary
+    xsafe = xp.where(x > 1.0, x, 1.0)
     inv_sqrt = 1.0 / xp.sqrt(xsafe)
     asym = _PI2 * (1.0 - 0.125 / xsafe) * inv_sqrt
     dasym = _PI2 * inv_sqrt * (-0.5 / xsafe + 0.1875 / xsafe ** 2)
