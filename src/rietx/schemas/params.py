@@ -85,8 +85,8 @@ class ParameterRow(Base):
     The first eight fields are ``Entry``'s, name for name;
     ``tests/test_params_surface.py`` asserts that against
     ``dataclasses.fields(Entry)`` so a new ``Entry`` field cannot go unexposed.
-    The last two are **deliberate additions**, listed in that same test rather
-    than special-cased silently:
+    The rest are **deliberate additions**, listed in that same test's
+    ``DELIBERATE_EXTRAS`` rather than special-cased silently:
 
     ``esd``
         the standard uncertainty from the most recent fit, if this parameter was
@@ -124,6 +124,15 @@ class ParameterRow(Base):
     #: be false while ``held_because`` said nothing (the defaulted-``False``
     #: failure WP-1076 removes).
     needs_held_cell: bool = False
+    #: The :data:`rietx.help.PARAMETER_HELP` glob whose entry describes this
+    #: path, or ``None`` when no family claims it.  The only extra that is not
+    #: a held-reason: it says what the parameter *is*, and it is a key rather
+    #: than the entry because an entry describes a family and a table repeats
+    #: each one once per atom (``help.help_key_for`` has the measurement).
+    #: Filled here rather than by whichever surface displays it, so ``None``
+    #: means "no family claims this" for every caller and not "nobody looked" —
+    #: the defaulted-answer failure WP-1076 went through the result rows for.
+    help_key: str | None = None
 
     @property
     def refinable(self) -> bool:

@@ -56,7 +56,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: and a fit that declares no harmonic and frees no wavelength is bit-identical.
 #: One bump rather than three: the ladder counts *observable releases*, and
 #: these three reach a consumer in the same one.
-SCHEMA_VERSION = "0.7"
+#: 0.7 → 0.8 (WP-1202): ``ParameterRow.help_key`` added, naming the help-corpus
+#: family that describes the path (``rietx.help``).  Additive and defaulted, and
+#: it bumps for the reason 0.6 → 0.7 did: a new key on a response arm is
+#: something a consumer notices.  ``None`` is a real answer here (no family
+#: claims the path) rather than an unfilled default, because
+#: ``Refinement.parameters`` fills it for every caller.
+SCHEMA_VERSION = "0.8"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

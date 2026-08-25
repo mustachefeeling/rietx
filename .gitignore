@@ -60,3 +60,6 @@ docs/manual/_build/
 # worktrees/ holds live checkouts and settings.local.json is per-machine.
 .claude/worktrees/
 .claude/settings.local.json
+
+# Generated at Sphinx build time from rietx.help (docs/manual/conf.py).
+docs/manual/_generated/

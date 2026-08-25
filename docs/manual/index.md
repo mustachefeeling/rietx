@@ -113,6 +113,7 @@ using/exports
 using/cli
 using/agents
 using/compatibility
+using/glossary
 ```
 
 ## Part 2: Theory

@@ -61,6 +61,38 @@ Design:
 
 ### Inherited
 
+From **WP-1202** (2026-08-25, shipped):
+
+- **The row carries `help_key`, not `help`.** `ParameterRow.help_key` is the
+  family glob (`phases.*.atoms.*.biso`); the entry itself is in the
+  `parameters` arm of `GET /api/help`, where each object lists every glob that
+  reaches it, so a key indexes it directly and no client needs `lib/fnmatch.ts`
+  for this. Measured reason: inlining an entry on every row is 3.4x the
+  `/api/params` payload (20.8 kB → 70.0 kB on the NAC example), against 40.7 kB
+  for the whole registry fetched once. Fetch `/api/help` once at startup, like
+  `/api/capabilities`; it needs no project and is not behind the in-flight 409.
+- `help_key` is `None` only when no family claims the path, never "nobody
+  looked": `Refinement.parameters` fills it for every caller. On both example
+  models every row carries one (95/95 and 82/82).
+- The arms and their keys: `parameters` (list, grouped by entry),
+  `peak_flags` (13, keyed by `PeakFlag`), `peak_diagnostics` (12 `PEAK_*`
+  codes), `stage_fields` (9 `StageSpec` fields), `reader_options` (2),
+  `instrument_fields` (11, the union of `INSTRUMENT_PRESETS`) and `plans` (7,
+  each carrying `modes`). Six fields per entry: `title`, `description`,
+  `unit`, `default`, `typical`, `anchor`.
+- `anchor` is a heading id in the **built** manual, checked by
+  `tests/test_help.py`. It is what the popover's "link into the manual" needs;
+  nothing renders it yet, so this WP picks the URL shape.
+- The two meta-tests this WP converts (`wizard.test.ts:178-207`,
+  `controls.test.ts:55-60`) have their target set ready: every
+  `INSTRUMENT_PRESETS` field and every `StageSpec` field already has an entry,
+  crossed both ways, so "carries a help key that resolves in the corpus" is a
+  check that can pass on day one.
+- **`gui/CLAUDE.md` has no help rule yet, deliberately.** 1202 changed nothing
+  under `gui/src` and left the client-side rule to this WP: where a description
+  comes from, and that a new `title=` on a non-button is not the way to add one.
+  The root CLAUDE.md carries only the package-side half.
+
 From **WP-1201** (2026-08-25, shipped):
 
 - The `.help` register exists and is **cursor only**: `app.css` declares

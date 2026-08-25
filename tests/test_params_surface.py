@@ -23,13 +23,17 @@ SHORT = rx.RefinementPlan(stages=[
 #: Fields ``ParameterRow`` adds to ``Entry``'s, declared here so the anti-drift
 #: test asserts the addition rather than silently tolerating any difference.
 #:
-#: All three are held-reasons an ``Entry`` cannot carry, for the same reason:
-#: they are not facts about the parameter.  ``esd`` comes from the last fit,
-#: ``mode_fixed`` from the intensity mode, and ``needs_held_cell`` from whether
-#: this histogram's *cell* is currently free — the only one that changes with
-#: another parameter's state, which is why it cannot be an ``Entry.locked``
+#: The first three are held-reasons an ``Entry`` cannot carry, for the same
+#: reason: they are not facts about the parameter.  ``esd`` comes from the last
+#: fit, ``mode_fixed`` from the intensity mode, and ``needs_held_cell`` from
+#: whether this histogram's *cell* is currently free — the only one that changes
+#: with another parameter's state, which is why it cannot be an ``Entry.locked``
 #: flag and has to be recomputed each time the surface is read.
-DELIBERATE_EXTRAS = {"esd", "mode_fixed", "needs_held_cell"}
+#:
+#: ``help_key`` (WP-1202) is not a held-reason at all: it names the
+#: ``rietx.help`` family that describes the path, which is a fact about the
+#: path's *shape* and so belongs to no single entry.
+DELIBERATE_EXTRAS = {"esd", "mode_fixed", "needs_held_cell", "help_key"}
 
 
 @pytest.fixture(scope="module")

@@ -189,6 +189,10 @@ def _report(s: GuiSession, q: dict, _body: dict) -> dict:
 ROUTES: dict[tuple[str, str], Any] = {
     ("GET", "/api/capabilities"): lambda s, q, b: s.capabilities(),
     ("GET", "/api/version"): lambda s, q, b: s.version(),
+    # the help corpus (WP-1202), beside capabilities for the same reason: it is
+    # a fact about the build, not about a project, so it needs no project open
+    # and is not behind the in-flight 409
+    ("GET", "/api/help"): lambda s, q, b: s.help(),
 
     ("POST", "/api/project/new"): lambda s, q, b: s.project_new(b),
     ("POST", "/api/project/open"): lambda s, q, b: s.project_open(b),
