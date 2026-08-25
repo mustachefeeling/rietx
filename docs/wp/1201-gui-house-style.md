@@ -92,7 +92,7 @@ phrase (this WP writes that rule into `gui/CLAUDE.md`).
       `.pill`, `.small`, `.tiny` rules and literal font sizes; replace call
       sites (`class="ghost tiny"` → `class="ghost"`, `button.chip.act` →
       `button.ghost`, `chip tiny` → `chip`), keeping every existing tone.
-- [ ] `gui/src/lib/style.test.ts`: reads every `panels/*.svelte` and
+- [x] `gui/src/lib/style.test.ts`: reads every `panels/*.svelte` and
       `App.svelte` `<style>` block (a regex over the file, no compiler) and
       fails on `font-size`, `padding` or `border-radius` declared on a
       selector containing `button`, `.chip`, `.pill`, `.segmented` or `.tab`,
