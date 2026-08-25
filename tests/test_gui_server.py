@@ -2677,3 +2677,298 @@ def test_listing_the_scans_of_a_format_that_has_none_is_refused_by_name(blank):
         f"/api/upload/pattern/scans?upload={payload['upload']}")
     assert status == 400
     assert "one measurement per file" in refusal["error"]["message"]
+
+
+# ----------------------------------------------------------------------
+# example projects (WP-1204)
+# ----------------------------------------------------------------------
+#: the cheapest one to build (46 kB), so route behaviour is tested without
+#: copying and re-reading 2.5 MB per test
+SMALL_EXAMPLE = "fap"
+
+
+@pytest.fixture()
+def examples(tmp_path):
+    """A blank server with a state directory of its own.
+
+    Not the module's shared one: an example is *built into* the state
+    directory, so a test that opens one would otherwise leave a project behind
+    for the recent-list tests to find.
+    """
+    session = GuiSession(state_dir=tmp_path / "state")
+    httpd = _start(session)
+    try:
+        yield session, Client(httpd.server_address[1])
+    finally:
+        session.close()
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_the_examples_list_is_what_this_build_carries(examples):
+    from rietx.examples import list_examples
+
+    _, client = examples
+    status, payload = client.get("/api/examples")
+    assert status == 200, payload
+    listed = payload["examples"]
+    assert [e["name"] for e in listed] == [e.name for e in list_examples()]
+    # nothing is built until something is opened, which is what makes the
+    # empty state honest about what a first click costs
+    assert all(e["built"] is False for e in listed)
+    assert all(e["description"] and e["bytes"] > 0 for e in listed)
+
+
+def test_opening_an_example_builds_it_once_and_then_reuses_it(examples):
+    session, client = examples
+    status, doc = client.post("/api/examples/open", {"name": SMALL_EXAMPLE})
+    assert status == 200, doc
+    root = Path(doc["path"])
+    assert root == session.state_dir / "examples" / f"{SMALL_EXAMPLE}.rex"
+    listed = {e["name"]: e for e in client.get("/api/examples")[1]["examples"]}
+    assert listed[SMALL_EXAMPLE]["built"] is True
+    assert [e["built"] for n, e in listed.items() if n != SMALL_EXAMPLE] == \
+        [False] * (len(listed) - 1), "opening one example built the others"
+
+    # an example is a project like any other from the moment it exists
+    assert doc["doc"]["plan"]["stages"], doc
+    stamp = (root / "project.json").stat().st_mtime_ns
+
+    assert client.post("/api/examples/open", {"name": SMALL_EXAMPLE})[0] == 200
+    assert (root / "project.json").stat().st_mtime_ns == stamp, \
+        "a second open rebuilt the example instead of reopening it"
+
+
+def test_resetting_an_example_discards_the_edits_and_builds_it_again(examples):
+    _, client = examples
+    assert client.post("/api/examples/open", {"name": SMALL_EXAMPLE})[0] == 200
+    assert client.post("/api/project", {"mode": "lebail"})[0] == 200
+    assert client.get("/api/project")[1]["doc"]["mode"] == "lebail"
+
+    status, doc = client.post("/api/examples/reset", {"name": SMALL_EXAMPLE})
+    assert status == 200, doc
+    assert doc["doc"]["mode"] == "rietveld"
+    assert doc["n_nodes"] == 1  # a fresh tree, not the edited one
+    # the run frame went with the directory: most of what a reader reaches is
+    # in memory and would happily describe a project that no longer exists
+    assert client.get("/api/run/state")[1]["run"]["rwp"] is None
+
+
+def test_an_unknown_example_is_refused_and_says_what_there_is(examples):
+    _, client = examples
+    status, payload = client.post("/api/examples/open", {"name": "corundum"})
+    assert status == 400, payload
+    assert payload["error"]["code"] == "UNKNOWN_EXAMPLE"
+    # the four the round-robin licence keeps out are exactly the ones a reader
+    # of the comparison UI would ask for by name, so say what there is instead
+    assert "this build carries" in payload["error"]["message"]
+    assert payload["error"]["where"] == ["name"]
+
+    # a missing name is the body's own complaint, not this verb's
+    status, payload = client.post("/api/examples/open", {})
+    assert status == 400 and payload["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_an_example_name_cannot_reach_outside_the_state_directory(examples,
+                                                                  tmp_path):
+    """``name`` arrives in a request body and is joined into a path, so it is
+    checked against the *list* rather than sanitised — there is no escaping a
+    membership test."""
+    session, client = examples
+    outside = tmp_path / "outside.rex"
+    _project(outside, _write_xye(tmp_path / "p.xye", synthesize()))
+    for name in ("../../outside", f"../../{outside.name}", "/etc/passwd",
+                 "..\\..\\outside"):
+        status, payload = client.post("/api/examples/reset", {"name": name})
+        assert status == 400, (name, status, payload)
+        assert payload["error"]["code"] == "UNKNOWN_EXAMPLE"
+    assert (outside / "project.json").is_file()  # untouched
+    assert session.project is None
+
+
+def test_the_example_verbs_refuse_while_a_run_is_in_flight(blocked):
+    """Building or resetting an example replaces the session's project, which
+    is a mutation like any other — frozen-per-stage discreteness enforced
+    structurally."""
+    _, client, started, release, _ = blocked
+    assert client.post("/api/run", {"kind": "fit"})[1]["state"] == "running"
+    assert started.wait(5)
+
+    for path in ("/api/examples/open", "/api/examples/reset"):
+        status, payload = client.post(path, {"name": SMALL_EXAMPLE})
+        assert status == 409, (path, status, payload)
+        assert payload["error"]["code"] == "RUN_IN_FLIGHT", (path, payload)
+    # …and listing them is a read, so it is not behind the refusal
+    assert client.get("/api/examples")[0] == 200
+
+
+# ----------------------------------------------------------------------
+# the command line: --scratch, --state-dir and where a new project is
+# suggested (WP-1204)
+# ----------------------------------------------------------------------
+def _fingerprint(root: Path) -> dict[str, bytes]:
+    """Every file under ``root``, by content.  A project directory is written
+    to *incrementally* — settings persist on the verb, the log is appended —
+    so "unchanged" has to mean the bytes, not the directory listing."""
+    import hashlib
+
+    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).digest()
+            for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+@pytest.fixture()
+def cli(monkeypatch):
+    """``rietx gui``'s ``main`` with the serving stubbed out.
+
+    ``serve`` blocks until Ctrl-C, so what is testable about ``main`` is
+    everything it decides *before* that: which directory got opened, which
+    state directory the session was given, and what the boot line will be told.
+    The boot line itself is tested against the real ``serve`` below.
+    """
+    from rietx.gui import server as server_mod
+
+    seen: dict = {}
+
+    def fake_serve(session, **kw):
+        seen["session"] = session
+        seen["kw"] = kw
+
+    monkeypatch.setattr(server_mod, "serve", fake_serve)
+    yield server_mod.main, seen
+    session = seen.get("session")
+    if session is not None:
+        session.close()
+
+
+def test_a_scratch_copy_is_byte_for_byte(tmp_path, pattern_file):
+    """Which is what keeps it openable: ``DataRef`` carries sha256 of the
+    pattern bytes *and* the parsed-array fingerprint, so a copy that
+    re-serialised anything would be refused as a reader change."""
+    from rietx.gui.server import scratch_copy
+
+    root = tmp_path / "src.rex"
+    _project(root, pattern_file)
+    copy = scratch_copy(root)
+
+    assert copy != root and not copy.is_relative_to(tmp_path)
+    assert copy.name == root.name  # the name the GUI header shows
+    assert _fingerprint(copy) == _fingerprint(root)
+    assert rx.Project.open(copy).path == copy
+
+
+def test_scratch_opens_a_copy_and_the_named_project_is_never_written_to(
+        cli, tmp_path, pattern_file):
+    """The flag's whole promise, tested by *doing* the thing it protects
+    against.  Note where the first assertion lands: **opening** a project
+    already appends a head annotation to its log, before any verb is called,
+    so there is no such thing as looking at one without writing to it."""
+    main, seen = cli
+    root = tmp_path / "under-git.rex"
+    _project(root, pattern_file)
+    before = _fingerprint(root)
+    log_lines = len((root / "history.jsonl").read_text(encoding="utf-8").splitlines())
+
+    assert main([str(root), "--scratch", "--no-open",
+                 "--state-dir", str(tmp_path / "state")]) == 0
+    session = seen["session"]
+    copy = session.project.path
+    assert len((copy / "history.jsonl").read_text(encoding="utf-8").splitlines()) > log_lines
+
+    session.project_patch({"mode": "lebail"})
+
+    assert _fingerprint(root) == before
+    assert _fingerprint(copy) != before
+    # and the source is what the boot line names, because the copy's path is
+    # already there as ``project``
+    assert seen["kw"]["scratch_of"] == str(root)
+
+
+def test_without_scratch_the_named_project_is_the_one_opened(cli, tmp_path,
+                                                             pattern_file):
+    main, seen = cli
+    root = tmp_path / "mine.rex"
+    _project(root, pattern_file)
+
+    assert main([str(root), "--no-open", "--state-dir", str(tmp_path / "s")]) == 0
+    assert seen["session"].project.path == root
+    assert seen["kw"]["scratch_of"] is None
+
+
+def test_scratch_without_a_project_is_refused_rather_than_ignored(cli, capsys):
+    """Ignoring it would start a session that looks like a scratch run and
+    writes to whatever is opened from inside it."""
+    main, _ = cli
+    assert main(["--scratch", "--no-open"]) == 2
+    assert "needs a project to copy" in capsys.readouterr().out
+
+
+def test_a_scratch_of_something_that_is_not_a_project_names_the_path(
+        cli, tmp_path, capsys):
+    main, _ = cli
+    missing = tmp_path / "nope.rex"
+    assert main([str(missing), "--scratch", "--no-open"]) == 2
+    assert str(missing) in capsys.readouterr().out
+
+
+def test_state_dir_keeps_the_recent_list_out_of_the_real_home(cli, tmp_path,
+                                                             pattern_file):
+    """``GuiSession(state_dir=)`` has existed since WP-1008 and only the tests
+    could reach it; the env var is the other way in.  A developer running two
+    checkouts wants two recent lists, and neither of them the one they use."""
+    main, seen = cli
+    root = tmp_path / "kept.rex"
+    _project(root, pattern_file)
+    state = tmp_path / "elsewhere"
+
+    assert main([str(root), "--no-open", "--state-dir", str(state)]) == 0
+    assert seen["session"].state_dir == state
+    assert (state / "recent.json").is_file()
+
+
+def test_the_machine_boot_line_carries_the_project_the_copy_was_made_from(
+        tmp_path, pattern_file, capsys):
+    """The real ``serve``, not the stub: ``--machine`` is a wire contract for a
+    supervising process, so what it prints is asserted as JSON."""
+    root = tmp_path / "src.rex"
+    _project(root, pattern_file)
+    from rietx.gui.server import scratch_copy, serve
+
+    copy = scratch_copy(root)
+    session = GuiSession(rx.Project.open(copy), state_dir=tmp_path / "state")
+    httpd = serve(session, port=0, open_browser=False, machine=True,
+                  block=False, scratch_of=root)
+    try:
+        line = json.loads(capsys.readouterr().out.strip())
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        session.close()
+    assert line["project"] == str(copy)
+    assert line["scratch_of"] == str(root)
+    assert set(line) == {"url", "port", "project", "pid", "scratch_of"}
+
+
+def test_a_new_project_is_suggested_outside_the_working_directory(
+        blank, tmp_path, monkeypatch):
+    """Run from a checkout, the working directory is the repository root, and
+    every project the wizard makes there lands untracked in someone's source
+    tree.  Home is redirected so the assertion is about *where*, and so the
+    second half — that a preview creates nothing — can be made at all."""
+    from rietx._about import PROJECT_SUFFIX
+    from rietx.gui.imports import default_project_dir
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    _, client = blank
+    status, payload = client.upload("pattern", b"10 1\n20 2\n30 3\n",
+                                    filename="unknown.xy")
+    assert status == 200, payload
+
+    suggested = Path(payload["suggested_project"])
+    assert suggested.parent == default_project_dir()
+    assert suggested.parent.parent == home  # not cwd, which is the checkout
+    assert suggested.name == f"unknown{PROJECT_SUFFIX}"
+    # a suggestion and nothing more: a preview that made the directory would
+    # leave one behind for every file dropped on the wizard and never committed
+    assert list(home.iterdir()) == []

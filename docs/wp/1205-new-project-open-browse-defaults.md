@@ -57,6 +57,40 @@ assumed, so the choice is made by seeing it. A directory browser is a
 read-only server route on a localhost server; roots are the home directory
 and cwd, and a listing never leaves them.
 
+### Inherited
+
+**From [1204](1204-developer-mode-example-projects.md), 2026-08-25 — half of
+"sensible defaults" already landed, and the empty state now has two lists.**
+Three things to fold in before writing this WP's tasks.
+
+1. **The suggested project path is no longer the working directory.**
+   `imports.default_project_dir()` is the one authority and answers
+   `~/rietx-projects` (`_about.PROJECTS_DIR_NAME`); `preview_pattern`'s
+   `suggest_in=` is still the seam for a caller with a better idea, and
+   `session.upload` still does not pass it. Nothing is created at preview time
+   — `Project.create` makes the parents — so if this WP adds a *browse*
+   control, "the directory does not exist yet" is the normal case rather than
+   an error to report.
+2. **The empty state is no longer wizard-only.** `Model.svelte`'s wizard now
+   carries a `section.examples` beside `section.recent`, both fetched by the
+   shell (`App.svelte`: `loadRecent`, `loadExamples`) because opening either is
+   the shell's verb. This WP's "Open any project" control lands as a third
+   thing in that block, and the ordering question (Recent / Examples / Open /
+   New) is now a real design choice rather than an implicit one.
+3. **`rietx gui --scratch` and `--state-dir` exist**, which changes what this
+   WP has to solve. "Open a project without messing it up" is answered at the
+   CLI; what is *not* answered is opening one from inside the app without
+   changing it, and the honest options are to leave that to the CLI or to add a
+   scratch checkbox to the Open control. `gui.server.scratch_copy` is the
+   function either way.
+
+Also worth knowing: the wire surface gained `GET /api/examples` and
+`POST /api/examples/open|reset`, and `POST /api/examples/reset` is the only
+destructive verb on the GUI surface. Its `name` is checked against the example
+list rather than sanitised — the same shape any `GET /api/fs?path=` this WP
+adds will need, except that a filesystem path has no list to check against, so
+the confinement has to be a real containment test.
+
 ## Non-goals
 
 - The CIF requirement (WP-1206, WP-1207).

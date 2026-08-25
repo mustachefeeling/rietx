@@ -7,6 +7,53 @@ diffractometer. The package returns a `RefinementResult`.
 Throughout this manual, the `examples/` scripts, and the API calls the history
 prints back at you, `rietx` is imported as `rx`.
 
+## If you have no data yet
+
+Three example projects ship inside the package. Each is a real specimen with a
+published reference value, and each carries the refinement protocol its
+acceptance suite measures, so a fit of one is comparable with a number
+somebody else recorded.
+
+```python
+from rietx.examples import list_examples
+
+for example in list_examples():
+    print(f"{example.name:8} {example.title}")
+```
+
+```text
+fap      GSAS-II LabData — fluorapatite (lab CuKα doublet)
+nac      APS 11-BM — NAC + CaF₂ (synchrotron capillary)
+```
+
+One ordinary laboratory pattern and one synchrotron one;
+`ExampleInfo.description` says what each teaches.
+
+`rietx.examples.build_example` writes one out as a `.rex` project directory
+([](files.md)) at its starting values. Nothing is fitted: the refinement is
+yours to run.
+
+```python
+import tempfile
+
+from rietx.examples import build_example
+
+with tempfile.TemporaryDirectory() as parent:
+    project = build_example("fap", parent)
+    print(project.path.name)
+    print(project.doc.mode, len(project.doc.plan.stages), "stages")
+    print(len(project.data.two_theta), "points")
+```
+
+```text
+fap.rex
+rietveld 6 stages
+5753 points
+```
+
+In the GUI the same three are listed in the empty state and open with one
+click, the first open making your own copy ([](cli.md)).
+
 ## The minimal call
 
 The files here are the ones the worked example below uses: an APS 11-BM pattern

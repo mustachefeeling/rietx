@@ -467,6 +467,18 @@ const SERIES_ANSWER = {
   running: false,
 };
 
+/** What `GET /api/examples` answers (WP-1204): the shipped example projects,
+ *  `built` saying whether opening one costs a build first. */
+const EXAMPLES = [
+  { name: "fap", title: "GSAS-II LabData — fluorapatite (lab CuK\u03b1 doublet)",
+    description: "seven atomic sites with real positional freedom",
+    bytes: 47104, built: false, path: "/home/me/.rietx/examples/fap.rex" },
+  { name: "nac", title: "APS 11-BM — NAC + CaF\u2082 (synchrotron capillary)",
+    description: "two phases, and one of them you did not ask for",
+    bytes: 2562048, built: true, path: "/home/me/.rietx/examples/nac.rex" },
+];
+
+
 /** A stub server that also records what was asked of it. */
 /** A handler may return a `gate` to hold its answer open — which is the only
  *  way to put two requests in flight at once and choose the order they land in. */
@@ -519,6 +531,9 @@ function boot(project: any = PROJECT, run: any = IDLE_RUN,
               : project }
         : { status: 409, body: { error: { code: "NO_PROJECT", message: "no project" } } },
     "/api/run/state": () => ({ body: run }),
+    // WP-1204: answered rather than 404'd, so a test that is not about the
+    // examples sees the same empty section a build without them shows
+    "/api/examples": () => ({ body: { examples: [] } }),
     "/api/result": () => ({ status: 409, body: { error: { code: "NO_RESULT", message: "none" } } }),
     "/api/events": () => ({ body: { events: [], next: 0, oldest: 1, ...run } }),
     "/api/params": () => ({ body: PARAMS }),
@@ -2066,6 +2081,78 @@ describe("the import wizard", () => {
     expect(host.textContent).toContain("nac.fxye");
     expect(host.querySelector("nav.tabs button.on")?.textContent?.trim()).toBe("Parameters");
     expect(host.textContent).toContain("project.open(/tmp/nac.rex)");
+  });
+
+  it("lists the shipped examples and opens one, building it on the way", async () => {
+    // WP-1204: the other half of the empty state.  A new user has no recent
+    // list, so without this the first screen offers only "choose a data file"
+    // to someone who has no data file.
+    const built = { ...PROJECT, path: "/home/me/.rietx/examples/fap.rex",
+                    data: { ...PROJECT.data, filename: "FAP.XRA" } };
+    const stub = server({
+      ...boot(null),
+      "/api/recent": () => ({ body: { recent: [] } }),
+      "/api/examples": () => ({ body: { examples: EXAMPLES } }),
+      "/api/examples/open": () => ({ body: built }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    expect(host.textContent).toContain("Open an example");
+    expect(host.textContent).toContain("APS 11-BM");
+    // the description is what says which one to pick, so it is on the row
+    expect(host.textContent).toContain("one of them you did not ask for");
+    // Reset appears only where there is a copy to throw away
+    expect(button("Reset")).toBeTruthy();
+    expect(host.querySelectorAll("section.examples button.ghost")).toHaveLength(1);
+
+    [...host.querySelectorAll<HTMLButtonElement>("section.examples button.pick")]
+      .find((b) => b.textContent?.includes("fluorapatite"))!.click();
+    await flush();
+
+    const opened = stub.calls.find((c) => c.path === "/api/examples/open")!;
+    expect(opened.body).toEqual({ name: "fap" });
+    // an example is a project like any other from the moment it exists
+    expect(host.textContent).toContain("FAP.XRA");
+    expect(host.querySelector("nav.tabs button.on")?.textContent?.trim()).toBe("Parameters");
+  });
+
+  it("resets an example through its own verb, not by opening it again", async () => {
+    const fresh = { ...PROJECT, path: "/home/me/.rietx/examples/nac.rex" };
+    const stub = server({
+      ...boot(null),
+      "/api/recent": () => ({ body: { recent: [] } }),
+      "/api/examples": () => ({ body: { examples: EXAMPLES } }),
+      "/api/examples/reset": () => ({ body: fresh }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    button("Reset")!.click();
+    await flush();
+    expect(stub.calls.find((c) => c.path === "/api/examples/reset")!.body)
+      .toEqual({ name: "nac" });
+    expect(stub.calls.some((c) => c.path === "/api/examples/open")).toBe(false);
+  });
+
+  it("shows a refused example beside the list that asked for it", async () => {
+    const message = "could not build the nac example: [Errno 28] No space left";
+    const stub = server({
+      ...boot(null),
+      "/api/recent": () => ({ body: { recent: [] } }),
+      "/api/examples": () => ({ body: { examples: EXAMPLES } }),
+      "/api/examples/open": () => ({ status: 500, body: {
+        error: { code: "EXAMPLE_BUILD_FAILED", message } } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    host.querySelector<HTMLButtonElement>("section.examples button.pick")!.click();
+    await flush();
+    expect(host.textContent).toContain(message);
   });
 
   it("shows a refused open beside the list that asked for it", async () => {

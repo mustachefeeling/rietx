@@ -80,9 +80,11 @@
     active = true,
     columns = null,
     recent = [],
+    examples = [],
     theme = "light",
     say = (_line: string) => {},
     onopen = async (_path: string) => "",
+    onexample = async (_name: string, _reset?: boolean) => "",
     onopened = (_doc: any) => {},
     oncolumns = (_widths: number[], _done: boolean) => {},
     onmoved = () => {},
@@ -96,6 +98,9 @@
     /** what `GET /api/recent` last answered — the shell owns the fetch, because
      *  opening one of these is the shell's verb (WP-1034) */
     recent?: any[];
+    /** what `GET /api/examples` last answered (WP-1204) — the shipped example
+     *  projects, each with whether it has been built yet */
+    examples?: any[];
     /** the first two columns' widths in px, or `null` while the flex defaults
      *  hold — the shell owns the `ui` key, this pane only reports drags */
     columns?: number[] | null;
@@ -104,6 +109,8 @@
     say?: (line: string) => void;
     /** open a recent project; resolves to the refusal, or "" if it opened */
     onopen?: (path: string) => Promise<string>;
+    /** open an example, building it first; `reset` throws the built copy away */
+    onexample?: (name: string, reset?: boolean) => Promise<string>;
     onopened?: (doc: any) => void;
     oncolumns?: (widths: number[], done: boolean) => void;
     onmoved?: () => void;
@@ -673,6 +680,37 @@
           {#if openError}<p class="bad">{openError}</p>{/if}
           <p class="muted">
             Opening one replaces the project in this session; nothing is unsaved.
+          </p>
+        </section>
+      {/if}
+      <!-- The other half of the empty state (WP-1204): projects that already
+           exist, for someone who has nothing of their own to open yet.  The
+           first open copies one into the state directory, so what a person
+           then does to it is theirs and the shipped inputs stay read-only. -->
+      {#if examples.length}
+        <section class="examples">
+          <h2>Open an example</h2>
+          <ul>
+            {#each examples as ex (ex.name)}
+              <li>
+                <button class="pick" disabled={busy}
+                  title="open this example"
+                  onclick={async () => { openError = await onexample(ex.name); }}>
+                  <strong>{ex.title}</strong>
+                  <span class="muted">{ex.description}</span>
+                </button>
+                {#if ex.built}
+                  <button class="ghost" disabled={busy}
+                    title="throw this copy away and build it again"
+                    onclick={async () => {
+                      openError = await onexample(ex.name, true); }}>Reset</button>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+          <p class="muted">
+            The first open makes your own copy, so anything you change stays
+            yours. Reset builds it again.
           </p>
         </section>
       {/if}
@@ -1297,6 +1335,51 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  section.examples {
+    max-width: 90ch;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  section.examples ul {
+    margin: 2px 0 4px;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* `.pick` gives up its box because the *row* is the target, which means the
+     row has to say so — "what says selected is the row's background, not a
+     control's chrome" (app.css).  Without this the three examples read as
+     three paragraphs of prose that happen to be clickable; found by looking at
+     the page, and invisible to jsdom, which has no hover and no cursor. */
+  section.examples li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 1px 0;
+    padding: 4px 6px;
+    border-radius: var(--r-control);
+    min-width: 0;
+  }
+
+  section.examples li:hover:has(.pick:not(:disabled)) {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+
+  /* the row is the target, and `.pick` is the one register app.css lets a
+     panel lay out — a block, not a flex row, because the description is a
+     sentence that has to wrap rather than a label that can be clipped */
+  section.examples li .pick {
+    flex: 1;
+    min-width: 0;
+    display: block;
+  }
+
+  section.examples li .pick strong {
+    display: block;
   }
 
   ol.steps li {

@@ -178,8 +178,25 @@ whole value of the refusal messages.
 |---|---|
 | `--port N` | serve somewhere else |
 | `--no-open` | do not open a browser |
-| `--machine` | print one JSON boot line (url, port, project, pid) and nothing else, for a supervising process |
+| `--scratch` | open a copy of the project in a temporary directory; the one you named is not written to |
+| `--state-dir PATH` | keep the recent list and the theme here instead of `~/.rietx` |
+| `--machine` | print one JSON boot line (url, port, project, pid, scratch_of) and nothing else, for a supervising process |
 | `--backend`, `--solver` | the Jacobian backend and the least-squares driver the session runs with, the same names `capabilities()` reports |
+
+Every GUI verb writes to the project as you click it, and opening one appends a
+line to its log before you click anything. `--scratch` is how you look at a
+project you do not want changed:
+
+```console
+$ rietx gui my_sample.rex --scratch
+rietx gui — http://127.0.0.1:8731/
+  project: /var/folders/8r/qnc8y_5j.../T/rietx-scratch-xe9arpn1/my_sample.rex
+  scratch copy — my_sample.rex is not written to
+  Ctrl-C to stop
+```
+
+The copy is byte-for-byte, so it opens exactly as the original does. Nothing
+deletes it: the point of a scratch run is usually to look at what happened.
 
 The GUI needs the `gui` extra ([](install.md)), which is plotly only: the built
 front end is committed inside the package, so installing it never needs node.

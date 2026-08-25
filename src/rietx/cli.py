@@ -21,7 +21,7 @@ def main(argv: list[str] | None = None) -> int:
     if not argv or argv[0] in ("-h", "--help"):
         print("usage: rietx <command> [...]\n\n"
               "commands:\n"
-              "  gui [PROJECT.rex] [--port N] [--no-open] [--machine]\n"
+              "  gui [PROJECT.rex] [--scratch] [--port N] [--no-open]\n"
               "                                    the refinement GUI (localhost)\n"
               "  watch <dir> [--port N] [--open]   live viewer for a LiveSession directory\n"
               "  html <result.json> <out.html>     render a saved RefinementResult to HTML\n"

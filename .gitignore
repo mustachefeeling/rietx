@@ -36,6 +36,12 @@ gui/.vite/
 # committed, so ignore the directory rather than the extensions that happen
 # to land in it.
 tests/output/
+# a GUI project is a DIRECTORY, and every GUI verb writes into it as it is
+# clicked (settings persist on the verb), so a project opened from a checkout
+# is an untracked directory that grows while you work.  `rietx gui --scratch`
+# opens a copy in a temp dir instead; this is the second line of defence, for
+# a project made from inside the app.
+*.rex/
 # kept agent-eval run records (eval-runs/README.md).  A round's calls.jsonl,
 # answers and transcripts outlive the session that produced them so the
 # harness can be iterated on, and are deleted by hand when it is not.  The

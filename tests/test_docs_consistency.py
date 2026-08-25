@@ -254,7 +254,23 @@ SIZE_CAPS: dict[str, int | None] = {
     # a threshold set for effect rather than for margin, which two of four
     # python versions on the other platform caught and a green local full suite
     # did not.
-    "CLAUDE.md": 855,
+    # 855 -> 869 for WP-1204 (2026-08-25): developer mode and the shipped
+    # example projects.  Two clauses cannot go down a rank.  The first is a
+    # property of the *project format*, not of the GUI: there is no read-only
+    # way to open one, because every verb writes into the directory as it runs
+    # and `Project.open` appends a head annotation before any verb is called —
+    # a session that never opens gui/ still has to know that opening a checked-
+    # in project dirties it, and what to reach for instead.  The second is
+    # where an example's protocol comes from: an example IS a `compare.py`
+    # standard, so a WP tempted to write a project builder has to know the
+    # registry is the authority.  The third is the data licence fence, which
+    # belongs in the Licensing invariant beside the code one because the two
+    # are asked at the same moment and only one of them existed.  The operating
+    # detail went down a rank as rule 4 requires: the routes, the state-dir
+    # placement and the traversal refusal are in gui/CLAUDE.md, the per-file
+    # licence table is `tests/test_example_projects.py`'s, and the measured
+    # wheel sizes are in the WP's handover.
+    "CLAUDE.md": 869,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one
@@ -326,7 +342,18 @@ SIZE_CAPS: dict[str, int | None] = {
     # The vocabulary has to be here because every later v1.2 panel WP writes
     # markup against it, and a table is the compressed form — the inventory,
     # the measurements and the three misuses it exposed are in the WP.
-    "gui/CLAUDE.md": 612,
+    # 612 -> 628 for WP-1204 (2026-08-25): the examples surface.  Here rather
+    # than in root because it is the *empty state's* second list and its rules
+    # are the GUI's own — where a built example lives and why, that the open
+    # verb ends in `project_open` so nothing downstream can tell an example
+    # from a project, and that `name` is checked against the list rather than
+    # sanitised.  The last of the five is a house-style consequence the WP-1201
+    # table above could not have carried: `.pick` gives up its box because the
+    # row is the target, so a list that gives the row no hover reads as prose.
+    # The operating detail went down a rank as rule 4 requires — the licence
+    # table is `tests/test_example_projects.py`'s, the protocol-quoting rule is
+    # root's, and the browser session that found the missing hover is the WP's.
+    "gui/CLAUDE.md": 628,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

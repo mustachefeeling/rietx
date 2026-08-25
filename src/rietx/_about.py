@@ -9,9 +9,10 @@ Two rules the values below follow, and they point in opposite directions:
 
 * **The brand tokens track the distribution.**  :data:`DIST_NAME` is what
   ``importlib.metadata.version`` is asked for, and :data:`STATE_DIR_NAME`,
-  :data:`STATE_DIR_ENV`, :data:`AGENT_TOOL_NAME`, :data:`DATA_PACKAGE`,
-  :data:`SERVER_TOKEN` and :data:`DOCS_URL` are user-visible spellings of the
-  same name.  Renaming the package moves all seven together.
+  :data:`STATE_DIR_ENV`, :data:`PROJECTS_DIR_NAME`, :data:`AGENT_TOOL_NAME`,
+  :data:`DATA_PACKAGE`, :data:`SERVER_TOKEN` and :data:`DOCS_URL` are
+  user-visible spellings of the same name.  Renaming the package moves all
+  eight together.
 * **The format tokens do not.**  :data:`PROJECT_SUFFIX`, :data:`TEXTDOC_MAGIC`
   and :data:`PROFILE_FORMAT_KEY` name *versioned contracts*
   (``schemas.project.PROJECT_FORMAT_VERSION``, ``gui.textdoc.FORMAT_VERSION``,
@@ -59,6 +60,13 @@ PROFILE_FORMAT_KEY = "instrument_profile"
 #: sandboxed build never touch a real home directory.
 STATE_DIR_NAME = ".rietx"
 STATE_DIR_ENV = "RIETX_STATE_DIR"
+
+#: Where the GUI offers to put a *new* project, under ``$HOME``.  Not hidden and
+#: not inside :data:`STATE_DIR_NAME`: these are the person's documents, not the
+#: app's state, and a wizard suggesting a dot-directory would be suggesting
+#: somewhere nobody looks.  Only ever a *suggestion* — the wizard's path field
+#: is editable, and ``Project.create`` makes the parents on first use.
+PROJECTS_DIR_NAME = "rietx-projects"
 
 #: Switches the compiled kernel tier off (``0``/``off``/``no``/``false``), which
 #: makes every residual take the pure-numpy path.  A *runtime* knob and not a

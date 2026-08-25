@@ -48,6 +48,7 @@
   let capabilities = $state<any>(null);
   let project = $state<any>(null);
   let recent = $state<any[]>([]);
+  let examples = $state<any[]>([]);
   let openError = $state<string>("");
 
   let run = $state<RunState | null>(null);
@@ -268,6 +269,7 @@
       project = null;
       if (error instanceof ApiError && error.code === "NO_PROJECT") {
         await loadRecent();
+        await loadExamples();
       } else {
         openError = (error as Error).message;
       }
@@ -340,6 +342,38 @@
       recent = (await api.recent()).recent ?? [];
     } catch {
       recent = [];   // an unreadable state directory is an empty list, not an error
+    }
+  }
+
+  /** The examples this build ships (WP-1204), fetched beside the recent list.
+   *
+   * Same shape and the same reason: the shell owns the fetch because opening
+   * one is the shell's verb.  A build with no examples is an empty list, not
+   * an error — the section simply does not appear. */
+  async function loadExamples() {
+    try {
+      examples = (await api.examples()).examples ?? [];
+    } catch {
+      examples = [];
+    }
+  }
+
+  /** Open an example, building it on first use.
+   *
+   * Ends in the same document `openProject` returns, so it adopts through the
+   * same path — an example is a project like any other from the moment it
+   * exists.  Returns the refusal for the button that was clicked, as `open`
+   * does, and refreshes the list because `built` has just changed. */
+  async function openExample(name: string, reset = false): Promise<string> {
+    try {
+      const doc = reset ? await api.resetExample(name) : await api.openExample(name);
+      await opened(doc);
+      await loadExamples();
+      say(`project.open("${doc.path}")  # ${name} example`);
+      return "";
+    } catch (error) {
+      openError = (error as Error).message;
+      return openError;
     }
   }
 
@@ -504,6 +538,7 @@
   function startImport() {
     tab = "model";
     loadRecent();
+    loadExamples();
     modelPanel?.startImport();
   }
 
@@ -752,8 +787,8 @@
          is one of it whether or not a project is open. -->
     <section class="empty">
       {#if openError}<p class="bad">{openError}</p>{/if}
-      <Model bind:this={modelPanel} {capabilities} {busy} {recent} {say}
-        onopen={open} onopened={opened} />
+      <Model bind:this={modelPanel} {capabilities} {busy} {recent} {examples} {say}
+        onopen={open} onopened={opened} onexample={openExample} />
     </section>
   {:else}
     <div class="panes">
@@ -802,7 +837,8 @@
              not showing, and what builds the CodeMirror editor on first entry. -->
         <div class="panel" class:hidden={!modelTab}>
           <Model bind:this={modelPanel} {project} {capabilities} {head} {busy} {simple}
-            {theme} {recent} {say} active={modelTab} columns={modelColumns}
+            {theme} {recent} {examples} {say} onexample={openExample}
+            active={modelTab} columns={modelColumns}
             oncolumns={modelSized} onopen={open} onopened={opened} onmoved={moved} />
         </div>
         <div class="panel" class:hidden={!textTab}>

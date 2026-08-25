@@ -521,6 +521,101 @@ class GuiSession:
             pass
         return {"ui": ui}
 
+    # ------------------------------------------------------------------
+    # examples (WP-1204)
+    # ------------------------------------------------------------------
+    def examples(self) -> dict:
+        """The example projects this build carries, and whether each is built.
+
+        ``built`` is what makes the empty state honest about cost: the first
+        open of the 11-BM example copies 2.5 MB and reads it, and every later
+        one is a plain :meth:`project_open`.
+
+        They are built into the **state directory** rather than beside the
+        packaged data, for the reason ``recent.json`` lives there: an example
+        is a project the person then edits, and package data is read-only,
+        shared between virtual environments, and replaced by the next upgrade.
+        """
+        from ..examples import list_examples
+
+        return {"examples": [
+            {"name": e.name, "title": e.title, "description": e.description,
+             "bytes": e.bytes, "path": str(self._example_path(e.name)),
+             "built": (self._example_path(e.name) / "project.json").is_file()}
+            for e in list_examples()]}
+
+    def _example_path(self, name: str) -> Path:
+        """Where ``name`` is built, refusing any name this build does not carry.
+
+        The refusal is what makes the path safe to join: ``name`` reaches here
+        from a request body, and it is checked against the *list* rather than
+        sanitised, so there is no traversal to get wrong.
+        """
+        from ..examples import list_examples
+
+        known = [e.name for e in list_examples()]
+        if name not in known:
+            raise GuiError(
+                f"unknown example {name!r}; this build carries {known}",
+                code="UNKNOWN_EXAMPLE", where=["name"])
+        return self.state_dir / "examples" / f"{name}{_about.PROJECT_SUFFIX}"
+
+    def example_open(self, body: dict) -> dict:
+        """Open an example, building it first if this is its first open.
+
+        Returns exactly what :meth:`project_open` returns, because that is what
+        it ends in — an example is a project like any other from the moment it
+        exists, and nothing downstream should be able to tell.
+        """
+        self._require_idle()
+        name = str(_need(body, "name"))
+        root = self._example_path(name)
+        if not (root / "project.json").is_file():
+            self._build_example(name, root)
+        return self.project_open({"path": str(root)})
+
+    def example_reset(self, body: dict) -> dict:
+        """Throw away this example's copy and build it again.
+
+        The one destructive verb on this surface, and deliberately narrow: it
+        removes a directory under ``state_dir/examples`` whose name came from
+        the example list, never a path a client chose.  What it discards is the
+        person's edits to *the example*, which is the whole request — the
+        confirmation belongs in the UI, not in a refusal here.
+        """
+        self._require_idle()
+        name = str(_need(body, "name"))
+        root = self._example_path(name)
+        if (root / "project.json").is_file():
+            import shutil
+
+            # drop it from the session first: between the removal and the open
+            # the directory does not exist, and a reader finding NO_PROJECT is
+            # better than one finding half a project.  The run frame goes with
+            # it — most of what a reader reaches here is in memory and would
+            # answer happily about a project that no longer exists, which is
+            # WP-1201's "a statistic outlives the thing it describes"
+            if self.project is not None and self.project.path == root:
+                with self._cond:
+                    self.project = None
+                    self._run = _idle_run()
+                    self._cond.notify_all()
+            shutil.rmtree(root)
+        self._build_example(name, root)
+        return self.project_open({"path": str(root)})
+
+    def _build_example(self, name: str, root: Path) -> None:
+        from ..examples import build_example
+
+        try:
+            root.parent.mkdir(parents=True, exist_ok=True)
+            build_example(name, root.parent)
+        except OSError as exc:
+            # unlike the recent list, this one cannot be swallowed: there is no
+            # project at the end of it, and the person clicked to get one
+            raise GuiError(f"could not build the {name} example: {exc}",
+                           code="EXAMPLE_BUILD_FAILED") from None
+
     def recent(self) -> list[dict]:
         """Recently opened projects, newest first (missing ones filtered out)."""
         try:

@@ -88,6 +88,13 @@ export const api = {
   version: () => call("GET", "/api/version"),
   recent: () => call("GET", "/api/recent"),
 
+  /** The example projects shipped in the wheel (WP-1204).  `built` says
+   *  whether opening one is a plain open or a build first, which is what lets
+   *  the empty state be honest about what a first click costs. */
+  examples: () => call("GET", "/api/examples"),
+  openExample: (name: string) => call("POST", "/api/examples/open", { name }),
+  resetExample: (name: string) => call("POST", "/api/examples/reset", { name }),
+
   /** The app's own `ui` keys — the person's, not a project's (WP-1044).  Same
    *  grammar as `patchProject`'s `ui`: a top-level merge, `null` drops a key,
    *  and it persists on the verb rather than on a save. */
