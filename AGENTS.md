@@ -20,3 +20,9 @@ agent — and any human — changing this code.
 Maintainer-only: the ROADMAP/WP session protocol, the memory conventions
 and the paper-corpus references in `CLAUDE.md` serve the maintainer's own
 workflow. An external agent can ignore them and must not require them.
+
+`docs/ROADMAP.md` and `docs/wp/NNNN-*.md` are also maintainer-only to
+*write*: they schedule work, and scheduling is the maintainer's. Add to the
+handover log of a WP whose work you did, and take unscheduled design to a
+[design proposal](https://github.com/yue-here/rietx/issues/new?template=design-proposal.md)
+instead. `CONTRIBUTING.md` has both rules in full.
