@@ -435,6 +435,34 @@ def test_a_declared_atom_count_the_phase_cannot_satisfy_is_refused(tmp_path):
         read_fullprof_pcr(pcr)
 
 
+@pytest.mark.parametrize("corrupt, expected", [
+    ("0.30294  0.30294  0.34087  0.18463   1.0x000", "'occ'"),
+    ("0.30294  0.30294  0.34087  0.1x463   1.00000", "'biso'"),
+    ("0.30294  0.3x294  0.34087  0.18463   1.00000", "'y'"),
+])
+def test_an_unreadable_stated_site_value_is_refused_naming_the_column(
+        tmp_path, corrupt, expected):
+    """Finding 4: a *stated* site value that cannot be read refuses naming
+    **which** column it was, not merely the line.
+
+    A ``.pcr`` is positional, so unlike a TOPAS ``.inp`` the reader can never
+    silently default the value — the token is always refused — but naming the
+    line alone left a reviewer counting tokens to see whether it was ``x``, the
+    occupancy or a trailing flag. The rows corrupt O2's ``occ``, ``biso`` and
+    ``y`` in turn; the refusal names each, and the absent case (a short codeword
+    column, tri-state ``None``) is the pair tested separately above.
+    """
+    atoms = _CR2WO6_SITES.replace(
+        "0.30294  0.30294  0.34087  0.18463   1.00000", corrupt, 1)
+    pcr = _pcr(tmp_path, "badval.pcr", _phase(atoms=atoms))
+    with pytest.raises(FullProfPcrError) as exc:
+        read_fullprof_pcr(pcr)
+    message = str(exc.value)
+    assert "badval.pcr" in message
+    assert expected in message
+    assert "is not a number for the" in message
+
+
 def test_the_magnetic_symmetry_counts_are_asserted(tmp_path):
     """``Nsym``, ``|Ireps|`` and ``3 x N_Bas`` — the three counts that make the
     walk *past* an unmodelled block safe.

@@ -1281,6 +1281,33 @@ def _read_magnetic_symmetry(cur: _Cursor, where: str, isy: int) -> MagneticSymme
     return block
 
 
+def _atom_floats(tokens: list, value_names: tuple, where: str,
+                 line: _Line) -> list:
+    """Parse an atom line's numeric tokens, naming the column a bad one sits in.
+
+    Finding 4, the TOPAS reader's rigor: a *stated* site value that cannot be
+    read is refused naming **which** column it was, not merely that some token on
+    the line is not a number. A positional format cannot silently default a value
+    the way a TOPAS ``.inp`` fell back on ``c["a"]`` — the token is always
+    refused — so what naming the column buys is a reviewer being able to see
+    whether it was ``x``, the ``occ`` or a trailing flag, rather than counting
+    tokens by hand. Positions past the named columns are the trailing integer
+    flags (``In Fin N_t Spc``), named generically.
+    """
+    numbers: list[float] = []
+    for j, token in enumerate(tokens):
+        try:
+            numbers.append(float(token))
+        except ValueError as exc:
+            col = (f"{value_names[j]!r}" if j < len(value_names)
+                   else f"trailing integer {j - len(value_names) + 1}")
+            raise FullProfPcrError(
+                f"{where}: line {line.number}: {token!r} is not a number for the "
+                f"{col} column in {line.text!r} — a stated site value that "
+                f"cannot be read is refused, never defaulted") from exc
+    return numbers
+
+
 def _read_nuclear_atom(cur: _Cursor, where: str, i: int, nat: int) -> FullProfAtom:
     """One nuclear site: a value line, a codeword line, and ``N_t``'s extras."""
     line = cur.take(f"atom {i} of {nat}")
@@ -1290,14 +1317,7 @@ def _read_nuclear_atom(cur: _Cursor, where: str, i: int, nat: int) -> FullProfAt
             f"{where}: line {line.number}: an atom line needs a label, a "
             f"species and {len(_ATOM_COLUMNS)} numbers; found {len(tokens)} "
             f"tokens in {line.text!r}")
-    numbers: list[float] = []
-    for token in tokens[2:]:
-        try:
-            numbers.append(float(token))
-        except ValueError as exc:
-            raise FullProfPcrError(
-                f"{where}: line {line.number}: {token!r} is not a number in "
-                f"{line.text!r}") from exc
+    numbers = _atom_floats(tokens[2:], _ATOM_COLUMNS, where, line)
     _, codewords = cur.floats(f"atom {i} codewords", at_least=1)
     atom = FullProfAtom(
         label=tokens[0], species_raw=tokens[1],
@@ -1339,14 +1359,8 @@ def _read_magnetic_atom(cur: _Cursor, where: str, i: int, nat: int) -> FullProfA
             f"{where}: line {line.number}: a magnetic atom line needs a label, "
             f"a species, Mag, Vek and {len(_MAGNETIC_COLUMNS)} numbers; found "
             f"{len(tokens)} tokens in {line.text!r}")
-    numbers: list[float] = []
-    for token in tokens[2:]:
-        try:
-            numbers.append(float(token))
-        except ValueError as exc:
-            raise FullProfPcrError(
-                f"{where}: line {line.number}: {token!r} is not a number in "
-                f"{line.text!r}") from exc
+    numbers = _atom_floats(tokens[2:], ("Mag", "Vek") + _MAGNETIC_COLUMNS,
+                           where, line)
     _, codewords = cur.floats(f"magnetic atom {i} codewords", at_least=1)
     _, continuation = cur.floats(f"magnetic atom {i} continuation",
                                  at_least=len(_MAGNETIC_CONTINUATION))
