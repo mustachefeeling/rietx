@@ -83,7 +83,7 @@ Design:
       registry, and `list_examples()` is in bijection with the data directory.
       (**Not** `tests/test_examples.py`, which the WP named and which already
       exists — it runs the `examples/` scripts the manual includes.)
-- [ ] Routes + the empty-state Examples list (docs-style one-liners); the
+- [x] Routes + the empty-state Examples list (docs-style one-liners); the
       `RESERVED_ROUTES`/`ROUTES` disjointness test green.
 - [ ] Manual: `using/quickstart.md` gains "open an example"; `files.md`
       names `--scratch`.

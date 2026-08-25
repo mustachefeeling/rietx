@@ -196,6 +196,11 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("POST", "/api/project"): lambda s, q, b: s.project_patch(b),
     ("POST", "/api/project/save"): lambda s, q, b: s.project_save(),
     ("GET", "/api/recent"): lambda s, q, b: {"recent": s.recent()},
+    # the empty state's other list (WP-1204): example projects shipped in the
+    # wheel, built into the state directory on first open
+    ("GET", "/api/examples"): lambda s, q, b: s.examples(),
+    ("POST", "/api/examples/open"): lambda s, q, b: s.example_open(b),
+    ("POST", "/api/examples/reset"): lambda s, q, b: s.example_reset(b),
     # the app's own `ui` keys, beside the recent list because both are the
     # *person's* rather than a project's (WP-1044)
     ("GET", "/api/settings"): lambda s, q, b: s.settings(),

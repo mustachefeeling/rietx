@@ -2680,6 +2680,126 @@ def test_listing_the_scans_of_a_format_that_has_none_is_refused_by_name(blank):
 
 
 # ----------------------------------------------------------------------
+# example projects (WP-1204)
+# ----------------------------------------------------------------------
+#: the cheapest one to build (46 kB), so route behaviour is tested without
+#: copying and re-reading 2.5 MB per test
+SMALL_EXAMPLE = "fap"
+
+
+@pytest.fixture()
+def examples(tmp_path):
+    """A blank server with a state directory of its own.
+
+    Not the module's shared one: an example is *built into* the state
+    directory, so a test that opens one would otherwise leave a project behind
+    for the recent-list tests to find.
+    """
+    session = GuiSession(state_dir=tmp_path / "state")
+    httpd = _start(session)
+    try:
+        yield session, Client(httpd.server_address[1])
+    finally:
+        session.close()
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_the_examples_list_is_what_this_build_carries(examples):
+    from rietx.examples import list_examples
+
+    _, client = examples
+    status, payload = client.get("/api/examples")
+    assert status == 200, payload
+    listed = payload["examples"]
+    assert [e["name"] for e in listed] == [e.name for e in list_examples()]
+    # nothing is built until something is opened, which is what makes the
+    # empty state honest about what a first click costs
+    assert all(e["built"] is False for e in listed)
+    assert all(e["description"] and e["bytes"] > 0 for e in listed)
+
+
+def test_opening_an_example_builds_it_once_and_then_reuses_it(examples):
+    session, client = examples
+    status, doc = client.post("/api/examples/open", {"name": SMALL_EXAMPLE})
+    assert status == 200, doc
+    root = Path(doc["path"])
+    assert root == session.state_dir / "examples" / f"{SMALL_EXAMPLE}.rex"
+    listed = {e["name"]: e for e in client.get("/api/examples")[1]["examples"]}
+    assert listed[SMALL_EXAMPLE]["built"] is True
+    assert [e["built"] for n, e in listed.items() if n != SMALL_EXAMPLE] == \
+        [False] * (len(listed) - 1), "opening one example built the others"
+
+    # an example is a project like any other from the moment it exists
+    assert doc["doc"]["plan"]["stages"], doc
+    stamp = (root / "project.json").stat().st_mtime_ns
+
+    assert client.post("/api/examples/open", {"name": SMALL_EXAMPLE})[0] == 200
+    assert (root / "project.json").stat().st_mtime_ns == stamp, \
+        "a second open rebuilt the example instead of reopening it"
+
+
+def test_resetting_an_example_discards_the_edits_and_builds_it_again(examples):
+    _, client = examples
+    assert client.post("/api/examples/open", {"name": SMALL_EXAMPLE})[0] == 200
+    assert client.post("/api/project", {"mode": "lebail"})[0] == 200
+    assert client.get("/api/project")[1]["doc"]["mode"] == "lebail"
+
+    status, doc = client.post("/api/examples/reset", {"name": SMALL_EXAMPLE})
+    assert status == 200, doc
+    assert doc["doc"]["mode"] == "rietveld"
+    assert doc["n_nodes"] == 1  # a fresh tree, not the edited one
+
+
+def test_an_unknown_example_is_refused_and_says_what_there_is(examples):
+    _, client = examples
+    status, payload = client.post("/api/examples/open", {"name": "corundum"})
+    assert status == 400, payload
+    assert payload["error"]["code"] == "UNKNOWN_EXAMPLE"
+    # the four the round-robin licence keeps out are exactly the ones a reader
+    # of the comparison UI would ask for by name, so say what there is instead
+    assert "this build carries" in payload["error"]["message"]
+    assert payload["error"]["where"] == ["name"]
+
+    # a missing name is the body's own complaint, not this verb's
+    status, payload = client.post("/api/examples/open", {})
+    assert status == 400 and payload["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_an_example_name_cannot_reach_outside_the_state_directory(examples,
+                                                                  tmp_path):
+    """``name`` arrives in a request body and is joined into a path, so it is
+    checked against the *list* rather than sanitised — there is no escaping a
+    membership test."""
+    session, client = examples
+    outside = tmp_path / "outside.rex"
+    _project(outside, _write_xye(tmp_path / "p.xye", synthesize()))
+    for name in ("../../outside", f"../../{outside.name}", "/etc/passwd",
+                 "..\\..\\outside"):
+        status, payload = client.post("/api/examples/reset", {"name": name})
+        assert status == 400, (name, status, payload)
+        assert payload["error"]["code"] == "UNKNOWN_EXAMPLE"
+    assert (outside / "project.json").is_file()  # untouched
+    assert session.project is None
+
+
+def test_the_example_verbs_refuse_while_a_run_is_in_flight(blocked):
+    """Building or resetting an example replaces the session's project, which
+    is a mutation like any other — frozen-per-stage discreteness enforced
+    structurally."""
+    _, client, started, release, _ = blocked
+    assert client.post("/api/run", {"kind": "fit"})[1]["state"] == "running"
+    assert started.wait(5)
+
+    for path in ("/api/examples/open", "/api/examples/reset"):
+        status, payload = client.post(path, {"name": SMALL_EXAMPLE})
+        assert status == 409, (path, status, payload)
+        assert payload["error"]["code"] == "RUN_IN_FLIGHT", (path, payload)
+    # …and listing them is a read, so it is not behind the refusal
+    assert client.get("/api/examples")[0] == 200
+
+
+# ----------------------------------------------------------------------
 # the command line: --scratch, --state-dir and where a new project is
 # suggested (WP-1204)
 # ----------------------------------------------------------------------
