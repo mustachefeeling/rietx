@@ -231,12 +231,13 @@ def test_a_fresh_clone_can_rebuild_the_frontend():
 
 
 @pytest.fixture(scope="module")
-def wheel_names(tmp_path_factory):
-    """The built wheel's namelist, built once — every consumer carries the group.
+def wheel_entries(tmp_path_factory):
+    """``{name: uncompressed size}`` of the built wheel, built once.
 
-    Two questions are asked of it (what must be in, what must not), and a wheel
-    build is seconds rather than milliseconds, so the module fixture is pinned
-    to one worker by ``xdist_group`` like every other shared build here.
+    Several questions are asked of it (what must be in, what must not, how big
+    the package data is), and a wheel build is seconds rather than
+    milliseconds, so the module fixture is pinned to one worker by
+    ``xdist_group`` like every other shared build here.
     """
     import glob
     import subprocess
@@ -251,7 +252,12 @@ def wheel_names(tmp_path_factory):
         cwd=ROOT, capture_output=True, text=True)
     assert build.returncode == 0, build.stderr[-2000:]
     wheel = glob.glob(str(out / "*.whl"))[0]
-    return set(zipfile.ZipFile(wheel).namelist())
+    return {i.filename: i.file_size for i in zipfile.ZipFile(wheel).infolist()}
+
+
+@pytest.fixture(scope="module")
+def wheel_names(wheel_entries):
+    return set(wheel_entries)
 
 
 @pytest.mark.xdist_group("wheel-build")
@@ -282,6 +288,44 @@ def test_the_dist_is_in_the_wheel(wheel_names):
     wanted += ["rietx/gui/__init__.py", "rietx/gui/textdoc.py"]
     for name in wanted:
         assert name in inside, f"{name} is missing from the wheel"
+
+
+@pytest.mark.xdist_group("wheel-build")
+def test_the_example_inputs_are_in_the_wheel(wheel_entries):
+    """The empty state's examples are package data, so they have to ship.
+
+    Hatchling takes a package directory's non-ignored files, so this needed no
+    ``pyproject`` entry — which is exactly why it needs a test: the examples
+    are in the wheel by a default that a future exclude pattern could take
+    away silently, the way WP-1110's ``**/CLAUDE.md`` exclude nearly did to the
+    dist above.
+
+    Asserted against ``list_examples()`` rather than a list of filenames: the
+    example list is *derived* from what is in the directory, so a file that
+    failed to ship would otherwise take its example out of the list and out of
+    the assertion together.
+    """
+    from rietx.examples import _standards
+
+    for std in _standards():
+        for name in std.files:
+            assert f"rietx/data/examples/{name}" in wheel_entries, (
+                f"{name} is missing from the wheel")
+
+
+@pytest.mark.xdist_group("wheel-build")
+def test_the_example_inputs_stay_under_their_ceiling(wheel_entries):
+    """A ceiling on the *examples*, not on the wheel.
+
+    3.5 MB uncompressed against the ~600 kB they add deflated (2026-08-25:
+    2.90 MB of examples in a 2.79 MB wheel).  The ceiling is here to make
+    adding a large pattern a decision rather than an accident — 11-BM's SRM
+    660a alone is 5.6 MB, and it was left out for that reason as much as any
+    other.  Raise it deliberately; do not let it drift.
+    """
+    total = sum(size for name, size in wheel_entries.items()
+                if name.startswith("rietx/data/examples/"))
+    assert total <= 3.5 * 1024 * 1024, f"examples are {total / 1048576:.2f} MB"
 
 
 @pytest.mark.xdist_group("wheel-build")
