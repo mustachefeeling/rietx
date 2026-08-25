@@ -317,8 +317,8 @@ def test_the_example_inputs_are_in_the_wheel(wheel_entries):
 def test_the_example_inputs_stay_under_their_ceiling(wheel_entries):
     """A ceiling on the *examples*, not on the wheel.
 
-    3.5 MB uncompressed against the ~600 kB they add deflated (2026-08-25:
-    2.90 MB of examples in a 2.79 MB wheel).  The ceiling is here to make
+    3.5 MB uncompressed against the ~520 kB they add deflated (2026-08-25:
+    2.49 MB of examples in a 2.71 MB wheel).  The ceiling is here to make
     adding a large pattern a decision rather than an accident — 11-BM's SRM
     660a alone is 5.6 MB, and it was left out for that reason as much as any
     other.  Raise it deliberately; do not let it drift.

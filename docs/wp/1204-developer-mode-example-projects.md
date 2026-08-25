@@ -103,52 +103,51 @@ git status --short   # clean after the run
 
 ## Handover log
 
-### 2026-08-25 (3rd session) — the gapped example is not the first one
+### 2026-08-25 (3rd session) — SRM 660c is not an example
 
 Maintainer's question after the merge: SRM 660c's pattern has huge gaps between
-the peaks, and a stranger who does not know the provenance will read that as
-broken data. Measured: it is **24 separate step-scan windows**, one per peak,
-covering 38.7 % of its 20.3-150.9° span, because a certification measurement
-spends its counting time on the peaks and none on the background. Three of the
-four widest gaps straddle a *systematically absent* reflection — LaB₆ is
-primitive cubic so 2θ is set by N = h²+k²+l², and N = 7, 15, 23 are not sums of
-three squares (Legendre), so there is no peak at 58.7°, 91.7° or 125.4°. It is
-the **only** gapped pattern in the repo; every other candidate, shipped or not,
-is a single continuous region.
+the peaks, and a stranger who does not know the provenance reads that as broken
+data. Measured: it is **24 separate step-scan windows**, one per peak, covering
+38.7 % of its 20.3-150.9° span, because a certification measurement spends its
+counting time on the peaks and none on the background. Three of the four widest
+gaps straddle a *systematically absent* reflection — LaB₆ is primitive cubic so
+2θ is set by N = h²+k²+l², and N = 7, 15, 23 are not sums of three squares
+(Legendre), so there is no peak at 58.7°, 91.7° or 125.4°. It is the **only**
+gapped pattern in the repo; every other candidate, shipped or not, is a single
+continuous region.
 
-So the data is right and the presentation was wrong, and it is fixed where a
-person actually reads: the blurb now says the pattern has gaps by design and
-why, and the list is reordered so the first thing a new user clicks is an
-ordinary continuous lab pattern (fluorapatite) rather than the gapped one.
+**It is no longer an example.** The first attempt kept it and explained the
+gaps in its description, ordered so it was not clicked first, and added two
+tests to hold that in place. The maintainer's call was simpler and better: a
+dataset that needs a paragraph of provenance before it stops looking broken
+should not be the thing a stranger meets the package through. So the file left
+the wheel, the two guards went with it, and the ordering rule was unnecessary
+once the gapped one was gone.
+
+**The rule that survives** is in `examples.py`'s own comment: a standard can be
+worth shipping and wrong to offer as an example. SRM 660c remains the package's
+absolute cell anchor, a `STANDARDS` entry, a `rietx compare` row and an
+acceptance suite — none of which is a stranger's first screen. The bar for an
+example is higher than "a good dataset".
 
 Done:
 
-- `BLURBS`' **key order is the list order**. Which example a stranger clicks
-  first is a fact about teaching, not about the comparison registry, so it
-  belongs to this module — but only the *order*: membership stays derived from
-  the directory, so a file shipped without a blurb still reaches
-  `list_examples()` and still fails there rather than being filtered out of the
-  list it is missing from.
-- Two guards, both made to fail on purpose first (`tests/CLAUDE.md`):
-  `test_the_first_example_is_a_continuous_scan` ("the first example (srm660c)
-  is a stitched multi-region scan") and
-  `test_a_gapped_example_says_so_before_it_is_opened` ("srm660c is a stitched
-  scan and its blurb does not mention it"). Both bind to a shared
-  `_scan_regions` helper — a step more than 5× the median, which separates a
-  skipped stretch from SRM 660c's own step schedule (0.008 → 0.016 across its
-  windows).
-- `quickstart.md`'s listing output and a sentence on the order; the vitest
-  fixture reordered to match.
+- `nist_srm660c_100a.cif` removed from `src/rietx/data/examples/`; two examples
+  ship, fluorapatite (lab, continuous) and NAC (synchrotron, two phases).
+- `BLURBS` renamed **`DESCRIPTIONS`** — it fills `ExampleInfo.description`, and
+  the old name did not say so. `_standards()` is back to plain `STANDARDS`
+  order.
+- The two guards, the ordering test and their `_scan_regions` helper deleted;
+  the licence table loses its SRM 660c row and gains one line saying that row
+  left for a reason that is *not* a licence.
+- `quickstart.md`'s listing and worked build re-run against the new set; the
+  vitest fixture's second example is NAC.
 
-Measured: `tests/test_example_projects.py` 21 → **24**; vitest unchanged at 415
-(the fixture was reordered, not extended). Suites re-run green: 178 passed
-across `test_example_projects`, `test_gui_server`, `test_gui_dist`,
-`test_compare_ui`.
-
-Gotcha for whoever adds a fourth example: the continuity guard binds to
-`NAMES[0]`, so **reordering `BLURBS` is now a tested decision**, not a
-cosmetic one. And a new gapped dataset must spend a blurb sentence on its
-shape or the second guard fails by name.
+Measured: wheel **2.79 → 2.71 MB**, examples 2.90 → **2.49 MB** uncompressed
+(~520 kB deflated); the ceiling comment in `test_gui_dist.py` re-measured.
+`tests/test_example_projects.py` 24 → **17** (net **+17** on the WP, not +21);
+vitest unchanged at 415. 171 passed across the four affected suites, ruff clean,
+manual `-W` clean, and the empty state checked in Chromium — two rows.
 
 Next: unchanged — [1202](1202-help-corpus.md)/[1203](1203-help-popover.md).
 

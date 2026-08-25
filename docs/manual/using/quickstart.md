@@ -23,15 +23,11 @@ for example in list_examples():
 
 ```text
 fap      GSAS-II LabData — fluorapatite (lab CuKα doublet)
-srm660c  NIST SRM 660c — LaB₆ (lab CuKα)
 nac      APS 11-BM — NAC + CaF₂ (synchrotron capillary)
 ```
 
-They are listed in the order they are worth opening: an ordinary lab pattern
-first, then the certified standard, then a two-phase synchrotron one.
-`ExampleInfo.description` says what each teaches, and what about it is
-unusual — SRM 660c is 24 step-scan windows with nothing measured between them,
-which is what a certification measurement spends its counting time on.
+One ordinary laboratory pattern and one synchrotron one;
+`ExampleInfo.description` says what each teaches.
 
 `rietx.examples.build_example` writes one out as a `.rex` project directory
 ([](files.md)) at its starting values. Nothing is fitted: the refinement is
@@ -43,16 +39,16 @@ import tempfile
 from rietx.examples import build_example
 
 with tempfile.TemporaryDirectory() as parent:
-    project = build_example("srm660c", parent)
+    project = build_example("fap", parent)
     print(project.path.name)
     print(project.doc.mode, len(project.doc.plan.stages), "stages")
     print(len(project.data.two_theta), "points")
 ```
 
 ```text
-srm660c.rex
-rietveld 7 stages
-5332 points
+fap.rex
+rietveld 6 stages
+5753 points
 ```
 
 In the GUI the same three are listed in the empty state and open with one

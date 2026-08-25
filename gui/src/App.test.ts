@@ -473,9 +473,9 @@ const EXAMPLES = [
   { name: "fap", title: "GSAS-II LabData — fluorapatite (lab CuK\u03b1 doublet)",
     description: "seven atomic sites with real positional freedom",
     bytes: 47104, built: false, path: "/home/me/.rietx/examples/fap.rex" },
-  { name: "srm660c", title: "NIST SRM 660c — LaB\u2086 (lab CuK\u03b1)",
-    description: "the cell is certified, so you can check the answer",
-    bytes: 433024, built: true, path: "/home/me/.rietx/examples/srm660c.rex" },
+  { name: "nac", title: "APS 11-BM — NAC + CaF\u2082 (synchrotron capillary)",
+    description: "two phases, and one of them you did not ask for",
+    bytes: 2562048, built: true, path: "/home/me/.rietx/examples/nac.rex" },
 ];
 
 
@@ -2100,9 +2100,9 @@ describe("the import wizard", () => {
     await flush();
 
     expect(host.textContent).toContain("Open an example");
-    expect(host.textContent).toContain("NIST SRM 660c");
+    expect(host.textContent).toContain("APS 11-BM");
     // the description is what says which one to pick, so it is on the row
-    expect(host.textContent).toContain("certified, so you can check the answer");
+    expect(host.textContent).toContain("one of them you did not ask for");
     // Reset appears only where there is a copy to throw away
     expect(button("Reset")).toBeTruthy();
     expect(host.querySelectorAll("section.examples button.ghost")).toHaveLength(1);
@@ -2119,7 +2119,7 @@ describe("the import wizard", () => {
   });
 
   it("resets an example through its own verb, not by opening it again", async () => {
-    const fresh = { ...PROJECT, path: "/home/me/.rietx/examples/srm660c.rex" };
+    const fresh = { ...PROJECT, path: "/home/me/.rietx/examples/nac.rex" };
     const stub = server({
       ...boot(null),
       "/api/recent": () => ({ body: { recent: [] } }),
@@ -2133,7 +2133,7 @@ describe("the import wizard", () => {
     button("Reset")!.click();
     await flush();
     expect(stub.calls.find((c) => c.path === "/api/examples/reset")!.body)
-      .toEqual({ name: "srm660c" });
+      .toEqual({ name: "nac" });
     expect(stub.calls.some((c) => c.path === "/api/examples/open")).toBe(false);
   });
 

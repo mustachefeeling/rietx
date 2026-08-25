@@ -20,7 +20,7 @@ import pytest
 
 import rietx as rx
 from rietx.examples import (
-    BLURBS,
+    DESCRIPTIONS,
     ExampleInfo,
     build_example,
     examples_dir,
@@ -37,9 +37,11 @@ NAMES = [e.name for e in EXAMPLES]
 #: file cannot enter the wheel without someone stating its licence.  The IUCr
 #: CPD round-robin patterns carry no explicit licence and are already excluded
 #: from the sdist, which is why the four pure-phase standards built on them are
-#: not examples however small and useful they are.
+#: not examples however small and useful they are.  SRM 660c is out for a
+#: different reason and it is not a licence one — see `rietx.examples`' own
+#: comment: its pattern is 24 scan windows and reads as broken data to someone
+#: who does not know that.
 LICENCES = {
-    "nist_srm660c_100a.cif": "NIST open data licence (U.S. Government work)",
     "11BM_NAC.fxye": "Argonne/APS tutorial data (U.S. Government work)",
     "cod_1000236.cif": "COD (public domain dedication)",
     "FAP.XRA": "Argonne/APS tutorial data (U.S. Government work)",
@@ -73,55 +75,12 @@ def test_every_shipped_file_has_a_stated_licence():
         "kept out of the sdist; a wheel on PyPI publishes them harder still")
 
 
-def _scan_regions(two_theta) -> int:
-    """Contiguous scan regions in a pattern — 1 for an ordinary continuous scan.
-
-    A gap is a step more than 5x the median, which separates "the file skips a
-    stretch" from ordinary step jitter and from a step that changes smoothly
-    with angle (SRM 660c's own goes 0.008 -> 0.016 across its 24 windows).
-    """
-    step = np.diff(np.asarray(two_theta, dtype=float))
-    return 1 + int((step > 5 * np.median(step)).sum())
-
-
-def test_the_first_example_is_a_continuous_scan():
-    """Gaps in a pattern read as broken data to a stranger, and the first
-    example is the one clicked by someone with no way to know otherwise.
-
-    SRM 660c is 24 step-scan windows with nothing measured between them (39 %
-    of its 20.3-150.9° span) because that is what a certification measurement
-    spends its counting time on.  That is worth shipping and worth explaining;
-    it is not worth putting first.  The order is `BLURBS`', which is why this
-    assertion has somewhere to bind.
-    """
-    first = STANDARD_BY_KEY[NAMES[0]].build(examples_dir()).data
-    assert _scan_regions(first.two_theta) == 1, (
-        f"the first example ({NAMES[0]}) is a stitched multi-region scan")
-
-
-def test_a_gapped_example_says_so_before_it_is_opened():
-    """The blurb is the only thing a person reads before clicking, so a dataset
-    whose own shape would surprise them has to spend a sentence on it."""
+def test_every_example_has_a_description_and_every_description_an_example():
+    """``DESCRIPTIONS`` is the one hand-written half of ``ExampleInfo``, so it
+    is the half that can drift."""
+    assert set(DESCRIPTIONS) == set(NAMES)
     for e in EXAMPLES:
-        data = STANDARD_BY_KEY[e.name].build(examples_dir()).data
-        if _scan_regions(data.two_theta) > 1:
-            assert "gap" in e.description or "window" in e.description, (
-                f"{e.name} is a stitched scan and its blurb does not mention it")
-
-
-def test_the_list_is_ordered_by_the_blurbs():
-    """Membership is derived from the directory and order is `BLURBS`', so a
-    shipped file with no blurb is still listed — and still fails the bijection
-    above — rather than being filtered out of the list it is missing from."""
-    assert NAMES == [k for k in BLURBS if k in {e.name for e in EXAMPLES}]
-
-
-def test_every_example_has_a_blurb_and_every_blurb_an_example():
-    """``BLURBS`` is the one hand-written half of ``ExampleInfo``, so it is the
-    half that can drift."""
-    assert set(BLURBS) == set(NAMES)
-    for e in EXAMPLES:
-        assert e.description == BLURBS[e.name]
+        assert e.description == DESCRIPTIONS[e.name]
         assert e.title == STANDARD_BY_KEY[e.name].title
         assert e.bytes > 0
 
