@@ -99,7 +99,7 @@ phrase (this WP writes that rule into `gui/CLAUDE.md`).
       and on any `font-size:` whose value is not `var(--text`; a second
       assertion greps `gui/src` for `.small`/`.tiny` selectors and class
       names and expects none.
-- [ ] `gui/CLAUDE.md` § House style: the register table compressed to one
+- [x] `gui/CLAUDE.md` § House style: the register table compressed to one
       rule per register, the token rule, the docs-style rule for GUI prose.
 - [x] Browser pass (playwright-core in the scratchpad, `gui/CLAUDE.md`):
       light/dark screenshots of the header and of each panel at the sidebar

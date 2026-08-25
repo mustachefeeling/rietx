@@ -7,6 +7,40 @@ pipeline and package-wide invariants; `docs/milestones/v1.0.md` holds the
 narrative of how these panels landed; the WP files (1008…1015, 1029) hold the
 measured detail behind each rule below.
 
+## House style
+
+**One token layer and nine registers** (WP-1201, `gui/src/app.css`). A register
+means one thing and is drawn one way everywhere, so **size, padding and radius
+belong to the register and never to the call site**: a panel wanting a smaller
+button wants a different register, and `app.css` is the one place that argument
+can be had. `lib/style.test.ts` fails on a panel that declares any of the three
+on a register, and on a `font-size` that is not a step of the scale.
+
+| Register | Means |
+|---|---|
+| `button` | the one state-changing action in its region |
+| `button.ghost` | any other action — same size, only the fill differs |
+| `.segmented` | choose one of N views or modes |
+| `.tab` | choose one of N panels |
+| `.chip` | a fact: a flag, a tag, a grade. **Never acts** — a chip that would is a `button.ghost`, and a verb *on* a chip sits beside it, not inside |
+| `.pill` | a live mono readout |
+| `.pick` | select this row: a button that has given up its box, because the row is the target |
+| `.link` | inline navigation, at the size of the line it sits in |
+| `.help` | an explanation is one click away, and the cursor is the whole mark (popover: WP-1203) |
+
+Three type steps and no fourth: `--text` is prose, `--text-sm` is a control
+**and everything on its row** (a field's label, a count beside a button, a table
+cell), `--text-xs` is a chip and a section heading. "Secondary" is said by
+`.muted`, once — `.small`/`.tiny` were saying it as a *size*, in fourteen panels
+at three values. Mono is a family, not a size. A chip's tone comes from one
+vocabulary (`note` the default, `ok`, `warn`, `bad`, `accent`) and
+`lib/peaks.ts`'s tone functions return members of it. Two cascade traps, both
+found in a browser and neither visible to jsdom: a *state* like `button.on` is
+`(0,1,1)`, so a more specific rule still loses every property it does not
+declare (a selected `.tab` wore the segmented fill); and `text-transform` and
+`letter-spacing` inherit into a button, so a label inside a heading wears the
+heading's case unless its register says otherwise.
+
 Two rules for anything a person reads here (v1.2, WP-1201/1202/1203):
 **GUI prose is written under `/yue-docs-style`** (help entries, wizard lines,
 empty states, error text), and **a button's `title=` is a verb phrase; every
