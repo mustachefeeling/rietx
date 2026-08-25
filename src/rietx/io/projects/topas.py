@@ -112,7 +112,14 @@ class TopasSite:
     y: float
     z: float
     occupancy: float = 1.0
-    beq: float = 0.5
+    #: TOPAS's B, exactly as the file states it — ``None`` where the site line
+    #: gives no ``beq`` (WP-1118). :class:`TopasModel` is "what a ``.inp``
+    #: states", and a seeded 0.5 a caller cannot tell from a stated 0.5 is the
+    #: silent-default class this reader exists to avoid; the 0.5 seed a builder
+    #: needs is applied in :func:`to_structure`, not stored here. ``occ``'s 1.0
+    #: default stays — it is the *format's* own default, measured on three
+    #: files, not a value this reader invents.
+    beq: float | None = None
     #: Which of this site's parameters the file records as having been free.
     #: Keyed by field name (``"x"``, ``"beq"``, …); a key is absent where the
     #: file said nothing, which is not the same as "held" — see :func:`refined`.
@@ -134,6 +141,35 @@ class TopasPhase:
 
 
 @dataclass
+class SkippedBlock:
+    """A ``str`` block this reader saw but could not read as a phase — it stated
+    no ``phase_name`` or no ``space_group``, so naming it would be the
+    neighbour's-name bleed :data:`_BLOCK` fixes. Recorded rather than passed
+    over in silence (WP-1118), and recording *what it lacked and what it did
+    carry*, so :func:`to_structure` can tell a block that plainly states a cell
+    or a site — a phase in all but its name, whose loss unbalances the weight
+    fractions — from an empty one."""
+
+    lacked: str                       # "phase_name", "space_group", or both
+    n_sites: int
+    cell: dict = field(default_factory=dict)
+    scale: float | None = None
+    weight_percent: float | None = None
+
+    def __str__(self) -> str:
+        carried = []
+        if self.cell:
+            carried.append("a cell (" + ", ".join(sorted(self.cell)) + ")")
+        if self.scale is not None:
+            carried.append(f"scale {self.scale}")
+        if self.weight_percent is not None:
+            carried.append(f"weight_percent {self.weight_percent}")
+        tail = f", carrying {', '.join(carried)}" if carried else ""
+        return (f"a `str` block stating {self.n_sites} site line"
+                f"{'' if self.n_sites == 1 else 's'} but no {self.lacked}{tail}")
+
+
+@dataclass
 class TopasModel:
     """What a ``.inp`` states. Deliberately not a :class:`Structure` yet — the
     caller decides which phases to keep and how to seed what the file omits."""
@@ -152,8 +188,9 @@ class TopasModel:
     gof: float | None = None
     data_files: list = field(default_factory=list)
     background_terms: int | None = None
-    #: One sentence per ``str`` block that states no ``phase_name`` or no
-    #: ``space_group``, saying what it lacked and what it did carry. Such a
+    #: One :class:`SkippedBlock` per ``str`` block that states no ``phase_name``
+    #: or no ``space_group``, saying what it lacked and what it did carry (its
+    #: cell, scale and weight_percent). Such a
     #: block cannot be read as a phase and is not one this reader may name —
     #: taking the name from the next block is exactly the bleed :data:`_BLOCK`
     #: fixes. But *silence* about it is the other half of that bug, because the
@@ -173,19 +210,49 @@ def strip_comments(text: str) -> str:
     loud failure later, but a truncated ``phase_name`` is a silently
     mislabelled phase, which is the class this reader exists to avoid. Nothing
     in the 606-file archive carries one, so this is latent rather than measured.
+
+    The block and line comments are stripped in **one pass**, not block-first,
+    because the two interact: the ``'/*`` idiom comments out the block-comment
+    *delimiter itself*, so the phase between a ``'/*`` and a ``'*/`` is **live**
+    (real, measured — ``TOF neutron input LSF.inp`` in the ORNL NOMAD archive
+    uses it to enable one of three refinements). Stripping ``/* */`` first with
+    a regex read the ``/*`` in ``'/*`` as opening a block and deleted that live
+    phase. So a ``/*`` or ``*/`` preceded on its line by an unquoted ``'`` is
+    itself comment text and opens/closes nothing: the ``'`` line comment is
+    seen first, char by char, and the delimiter never reached.
     """
-    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
-    kept: list[str] = []
+    out_lines: list[str] = []
+    in_block = False
     for line in text.split("\n"):
-        quoted, cut = False, len(line)
-        for i, ch in enumerate(line):
+        result: list[str] = []
+        i, n, quoted = 0, len(line), False
+        while i < n:
+            if in_block:
+                end = line.find("*/", i)
+                if end == -1:
+                    i = n
+                else:
+                    in_block = False
+                    i = end + 2
+                continue
+            ch = line[i]
             if ch == '"':
                 quoted = not quoted
-            elif ch == "'" and not quoted:
-                cut = i
-                break
-        kept.append(line[:cut])
-    return "\n".join(kept)
+                result.append(ch)
+                i += 1
+            elif quoted:
+                result.append(ch)
+                i += 1
+            elif ch == "'":
+                break  # line comment: the rest of the line is dead
+            elif line.startswith("/*", i):
+                in_block = True
+                i += 2
+            else:
+                result.append(ch)
+                i += 1
+        out_lines.append("".join(result))
+    return "\n".join(out_lines)
 
 
 def resolve_ifdefs(text: str) -> str:
@@ -557,13 +624,19 @@ _UNEVIDENCED_MACROS = ("Rhombohedral", "Orthorhombic", "Monoclinic", "Triclinic"
 #: `weight_percent` the ``str`` block itself omits is still read off the block
 #: below with nothing raised. Each opener is a **specification fact**
 #: (`io/CLAUDE.md`'s rule 2) and the ones with a count are what the archive
-#: states at the start of a line: ``str`` (1601), ``xdd`` (609), ``macro``
-#: (584), ``xo_Is`` (277), ``hkl_Is`` (139), ``STR`` (7), ``fit_obj`` (2).
+#: states at the start of a line: ``str`` (1601), ``xdd`` (609),
+#: ``xo_Is`` (277), ``hkl_Is`` (139), ``STR`` (7), ``fit_obj`` (2).
 #: ``d_Is``, ``xdd_scr`` and ``xdd_sum`` occur in no file here and are listed
 #: because they open a block of the same two kinds — a peak-phase and a
-#: dataset — so leaving them out could only re-create the bleed.
+#: dataset — so leaving them out could only re-create the bleed. ``macro`` is
+#: **not** here (WP-1118): it opens no phase and no dataset — it is a reusable
+#: *definition* — so treating it as an opener truncated any ``str`` a ``macro
+#: dummy { 1 }`` sat inside, dropping every site below it, and the per-phase
+#: count guard was blind to it because both sides of that guard read the same
+#: truncated chunk. Macro definitions are excised whole by
+#: :func:`_excise_macro_defs` before the file is split, braces and body and all.
 _BLOCK_OPENERS = ("str", "hkl_Is", "xo_Is", "d_Is", "xdd_scr", "xdd_sum",
-                  "xdd", "macro", "fit_obj", "STR")
+                  "xdd", "fit_obj", "STR")
 
 #: ``xdd`` must follow ``xdd_scr``/``xdd_sum`` in the alternation above, and the
 #: pattern is anchored with ``[ \t]`` rather than ``\s`` because ``\s`` matches
@@ -614,6 +687,96 @@ def _lattice_macro(chunk: str, symbols: dict[str, float]) -> tuple[dict, dict] |
     return None
 
 
+# --------------------------------------------------- whitespace-insensitive scan
+
+#: A ``macro name [(...)] { ... }`` definition head. The body is brace-balanced
+#: and excised by :func:`_excise_macro_defs`, so this only has to find the open.
+_MACRO_DEF = re.compile(r"\bmacro\b\s*\w*\s*(?:\([^)]*\))?\s*\{")
+
+
+def _blank(text: str) -> str:
+    """Replace every non-newline character with a space, so a span can be
+    removed from a token scan without moving any line or shifting any offset."""
+    return re.sub(r"[^\n]", " ", text)
+
+
+def _excise_macro_defs(text: str) -> str:
+    """Blank ``macro name [(...)] { ...balanced... }`` definitions (WP-1118).
+
+    A macro definition is neither a phase nor a dataset, so it must not open or
+    end a block — and its body's ``site`` and cell tokens must not be swept into
+    whatever phase held it. Removed here, before the file is split, with a
+    brace counter rather than a regex because a macro body may itself nest
+    braces. An unterminated definition (a truncated file) blanks to EOF, which
+    is a loud absence rather than a bad parse.
+    """
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        m = _MACRO_DEF.search(text, i)
+        if not m:
+            out.append(text[i:])
+            break
+        out.append(text[i:m.start()])
+        depth, j = 0, m.end() - 1          # j points at the opening '{'
+        while j < n:
+            if text[j] == "{":
+                depth += 1
+            elif text[j] == "}":
+                depth -= 1
+                if depth == 0:
+                    j += 1
+                    break
+            j += 1
+        out.append(_blank(text[m.start():j]))
+        i = j
+    return "".join(out)
+
+
+def _cell_search_text(chunk: str) -> str:
+    """The chunk with everything a cell key must **not** be read from blanked.
+
+    TOPAS is whitespace-insensitive, so ``a 5.4 b 6.1 c 7.2`` is a whole
+    orthorhombic cell on one line and a scan anchored at line start (as the
+    predecessor's ``re.match(rf"\\s*{key}\\b", ln)`` was) reads only ``a`` and
+    silently builds a=b=c (WP-1118). The scan is therefore token-oriented — the
+    key wherever it sits — which is safe only once three spans are blanked:
+
+    * a macro's parenthesised arguments, so a named ``a`` in ``Cubic_(a, …)`` is
+      the macro's argument and not an ``a`` line (the reason the anchor existed);
+    * a ``site`` declaration to end of line, so the ``b`` naming ``beq``'s value
+      in ``… beq b 0.5`` is not read as the cell edge ``b``;
+    * a ``prm``/``local`` declaration to end of line, so ``prm a 0.9`` declares a
+      symbol and is not an ``a`` line;
+    * a ``"…"`` string, so the ``a`` in ``space_group "P21/a"`` (or a phase name,
+      or a path) is not a cell line — the only cell keys the archive puts off
+      line start, measured.
+    """
+    masked = re.sub(r'"[^"\n]*"', lambda m: _blank(m.group()), chunk)
+    masked = re.sub(r"\w+\([^)]*\)", lambda m: _blank(m.group()), masked)
+    masked = re.sub(r"\b(?:site|prm|local)\b[^\n]*", lambda m: _blank(m.group()),
+                    masked)
+    return masked
+
+
+_CELL_KEYS = ("a", "b", "c", "al", "be", "ga")
+
+
+def _cell_reads(chunk: str, symbols: dict[str, float]) -> dict[str, float]:
+    """Best-effort ``{key: value}`` for the cell keys a chunk states, raising
+    nothing — for recording what a :class:`SkippedBlock` carried."""
+    masked = _cell_search_text(chunk)
+    out: dict[str, float] = {}
+    for key in _CELL_KEYS:
+        for line in masked.split("\n"):
+            if re.search(rf"\b{key}\b", line):
+                read = _read(key, line, symbols)
+                if read is not None and read.value is not None:
+                    out[key] = read.value
+                    break
+    return out
+
+
 def read_topas_inp(path: str | Path) -> TopasModel:
     """Parse a ``.inp``. Raises :class:`TopasInpError` naming the file and line."""
     path = Path(path)
@@ -636,7 +799,10 @@ def read_topas_inp(path: str | Path) -> TopasModel:
             f"{path}: not text this reader can decode — NUL bytes survive a "
             f"{codec} decode, which is what an ASCII-range UTF-16 export with "
             f"no byte-order mark looks like. Re-save it as UTF-8.")
-    active = resolve_ifdefs(strip_comments(raw))
+    # Macro definitions are excised before anything reads the text: they open no
+    # block (so they may not end a `str`), and their bodies' `site`/cell tokens
+    # are not any phase's — see `_excise_macro_defs`.
+    active = _excise_macro_defs(resolve_ifdefs(strip_comments(raw)))
     model = TopasModel(path=str(path))
     symbols = symbol_table(active)
 
@@ -699,30 +865,40 @@ def read_topas_inp(path: str | Path) -> TopasModel:
             # `phase_name`, and it used to arrive named "CaO" with scale 1.0 —
             # both read off the `hkl_Is` block below it. Naming it is the
             # neighbour's number again; saying nothing about it is the
-            # confident wrong diagnosis. `to_structure` quotes this list.
-            sites = len([ln for ln in chunk.split("\n")
-                         if re.match(r"\s*site\s", ln)])
+            # confident wrong diagnosis. It records what it lacked *and* what it
+            # carried (cell/scale/weight_percent), because that is what lets
+            # `to_structure` tell a phase in all but its name from an empty
+            # block — and `to_structure` refuses where such a block is dropped.
+            n_sites = len(re.findall(r"\bsite\b", chunk))
             lacks = " or ".join(w for w, got in
                                 (("phase_name", name), ("space_group", sg))
                                 if not got)
-            model.skipped_blocks.append(
-                f"a `str` block stating {sites} site line"
-                f"{'' if sites == 1 else 's'} but no {lacks}")
+            scale_read = _read("scale", chunk, symbols)
+            model.skipped_blocks.append(SkippedBlock(
+                lacked=lacks, n_sites=n_sites,
+                cell=_cell_reads(chunk, symbols),
+                scale=scale_read.value if scale_read else None,
+                weight_percent=_field("weight_percent", chunk, symbols)))
             continue
         phase = TopasPhase(name=name.group(1).strip(),
                            space_group=normalize_space_group(sg.group(1)))
-        for key in ("a", "b", "c", "al", "be", "ga"):
-            # Anchored at the start of a line so the cell edge is the line's own
-            # keyword: `lpa` inside `Cubic_(lpa …)` is a macro argument, not an
-            # `a` line. Everything after that anchor goes through the one
-            # grammar — the cell's own regex was the sixth spelling of it, and
-            # it rejected the `= expr;: value` tail `_read` reads fine, which
-            # left `a` out of the cell and dropped the phase in `to_structure`.
-            stated = [ln for ln in chunk.split("\n")
-                      if re.match(rf"\s*{key}\b", ln)]
+        # The cell keys are read token-wise (WP-1118): the grammar is unified per
+        # keyword but the scan was still per line, and TOPAS is whitespace-
+        # insensitive, so `a 5.4 b 6.1 c 7.2` on one line read only `a` and built
+        # a=b=c — an orthorhombic phase arrived cubic with nothing raised, and
+        # `al 90 be 90 ga 120` read only `al` so a P6/mmm built with gamma 90.
+        # The line anchor existed to keep `lpa` inside `Cubic_(lpa …)` off the
+        # `a` scan; that job moves to `_cell_search_text`, which blanks macro
+        # parentheses (and `site`/`prm`/`local` lines) so the key can then be
+        # read wherever it sits in what is left.
+        masked_lines = list(zip(chunk.split("\n"),
+                                _cell_search_text(chunk).split("\n")))
+        for key in _CELL_KEYS:
+            stated = [(orig, mask) for orig, mask in masked_lines
+                      if re.search(rf"\b{key}\b", mask)]
             read = None
-            for line in stated:
-                if (read := _read(key, line, symbols)) is not None \
+            for _orig, mask in stated:
+                if (read := _read(key, mask, symbols)) is not None \
                         and read.value is not None:
                     break
                 read = None
@@ -738,7 +914,7 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                 if stated:
                     raise TopasInpError(
                         f"{path}: {phase.name}: cannot read {key} from cell "
-                        f"line: {stated[0].strip()!r} — the phase states {key} "
+                        f"line: {stated[0][0].strip()!r} — the phase states {key} "
                         f"and this reader could not resolve its value, so "
                         f"building it would substitute "
                         f"{'90 deg' if key in ('al', 'be', 'ga') else 'a'} for "
@@ -774,47 +950,78 @@ def read_topas_inp(path: str | Path) -> TopasModel:
             phase.vary["scale"] = read.vary
         phase.weight_percent = _field("weight_percent", chunk, symbols)
 
-        site_lines = [ln for ln in chunk.split("\n") if re.match(r"\s*site\s", ln)]
-        for line in site_lines:
-            label = re.match(r"\s*site\s+(\S+)", line)
-            occ = re.search(r"\bocc\s+(\S+)", line)
+        # Sites are split token-wise, not per line (WP-1118): TOPAS is
+        # whitespace-insensitive, so `site A1 … beq b 0.5 site B1 x 0.5 …` is
+        # two atoms on one line and a per-line scan read one, dropping the
+        # second silently — `_SITE_KEYWORDS` already lists `site` as an
+        # occupancy terminator, so the grammar half knew. Each segment runs from
+        # a `site` token to the next, so `_read` on it sees only that atom.
+        site_texts = [s for s in re.split(r"(?=\bsite\b)", chunk)
+                      if re.match(r"\s*site\b", s)]
+        for text in site_texts:
+            label = re.match(r"\s*site\s+(\S+)", text)
+            occ = re.search(r"\bocc\s+(\S+)", text)
             if not (label and occ):
                 raise TopasInpError(
-                    f"{path}: {phase.name}: no label/occ in site line: {line.strip()!r}")
+                    f"{path}: {phase.name}: no label/occ in site: {text.strip()!r}")
             # One read per field, so the value and its flag come off one match.
             reads: dict[str, _Read] = {}
             for axis in "xyz":
-                read = _read(axis, line, symbols)
+                read = _read(axis, text, symbols)
                 if read is None or read.value is None:
                     raise TopasInpError(
                         f"{path}: {phase.name}: cannot read {axis} from "
-                        f"site line: {line.strip()!r}")
+                        f"site line: {text.strip()!r}")
                 reads[axis] = read
             for other in ("beq", "occ"):
-                if (read := _read(other, line, symbols)) is not None:
+                if (read := _read(other, text, symbols)) is not None:
                     reads[other] = read
+            # `beq` stays None where the line states none — the 0.5 seed is
+            # `to_structure`'s, at build time, so `model.phases` is what the file
+            # states and a caller can tell a seed from a stated value.
             beq = reads["beq"].value if "beq" in reads else None
             occupancy = reads["occ"].value if "occ" in reads else None
             phase.sites.append(TopasSite(
                 label=label.group(1), species=normalize_species(occ.group(1)),
                 occupancy=occupancy if occupancy is not None else 1.0,
-                beq=beq if beq is not None else 0.5,
+                beq=beq,
                 vary={f: r.vary for f, r in reads.items() if r.vary is not None},
                 **{axis: reads[axis].value for axis in "xyz"}))
         # A dropped site is a silently wrong structure factor, so the count is
-        # an invariant rather than something the regex is trusted to get right.
-        if len(phase.sites) != len(site_lines):
+        # an invariant rather than something the split is trusted to get right.
+        if len(phase.sites) != len(site_texts):
             raise TopasInpError(
                 f"{path}: {phase.name}: parsed {len(phase.sites)} sites from "
-                f"{len(site_lines)} site lines")
+                f"{len(site_texts)} site segments")
         model.phases.append(phase)
+
+    # A file-level count of `site` tokens, computed over `active` and so
+    # independent of how the file was split into blocks (WP-1118). The per-phase
+    # guard above reads both its numbers off the same chunk, so a splitter error
+    # — a `macro` truncating a `str`, a `str` chunk cut short — that drops sites
+    # is invisible to it. This one is not: every `site` token the reader saw
+    # must land in a phase or be recorded on a skipped block.
+    declared = len(re.findall(r"\bsite\b", active))
+    parsed = sum(len(ph.sites) for ph in model.phases)
+    skipped = sum(sb.n_sites for sb in model.skipped_blocks)
+    if declared != parsed + skipped:
+        raise TopasInpError(
+            f"{path}: counted {declared} `site` tokens in the file but read "
+            f"{parsed} into phases and recorded {skipped} on blocks that could "
+            f"not be named as phases — the {declared - parsed - skipped} "
+            f"unaccounted for are sites dropped by how the file split into "
+            f"blocks. Read `model.phases` for what was parsed.")
     return model
 
 
 def to_structure(model: TopasModel, *, cell_limits: bool = True):
     """Build a :class:`~rietx.schemas.Structure` from a parsed model.
 
-    ``beq`` is TOPAS's B and rietx's ``biso`` is also B — no 8π² conversion.
+    ``beq`` is TOPAS's B and rietx's ``biso`` is also B — no 8π² conversion. A
+    site that states no ``beq`` gets a **0.5 seed here**, at build time, not on
+    ``model.phases`` — the model is "what the ``.inp`` states", and a seed a
+    caller cannot tell from a stated value is the silent-default class this
+    reader avoids (WP-1118).
     ``cell_limits`` applies the file's own ``min``/``max`` where it stated them.
 
     A **negative** ``beq`` is refused, naming the site. It is not a parse error:
@@ -824,9 +1031,12 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
     declares ``biso`` on [0, 25] Å², and ``max(beq, 0.0)`` moved the file's
     −0.42 to 0 with nothing said — a *repair the reader cannot say it made*,
     which changes every high-Q intensity. The number stays readable on
-    ``model.phases``; the sibling ``.pcr`` reader refuses the same value with
-    the same sentence, so a caller meeting a negative B gets one story whichever
-    code wrote the file.
+    ``model.phases``. The refusal is the same one a sibling structure reader
+    (say a FullProf ``.pcr`` reader) follows for the same value, so a caller
+    meeting a negative B gets one story whichever code wrote the file — stated
+    as the rule a future reader keeps rather than as a claim about a file, since
+    no such sibling exists on this tree yet (WP-1076: a declared name is a
+    claim).
     """
     import rietx as rx
 
@@ -850,7 +1060,7 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
                 f"weight_percent reporting for a phase the Structure lacks. "
                 f"Read `model.phases` for what the file does state.")
         for s in ph.sites:
-            if s.beq < biso_window["min"]:
+            if s.beq is not None and s.beq < biso_window["min"]:
                 raise TopasInpError(
                     f"{model.path or '<model>'}: phase {ph.name!r}: site "
                     f"{s.label!r} has beq = {s.beq}, and rietx bounds biso at "
@@ -908,7 +1118,11 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
                              occ=_sp(s, "occ", s.occupancy),
                              # The file's own number, not `max(beq, 0.0)`: a
                              # negative one is refused above rather than moved.
-                             biso=_sp(s, "beq", s.beq, **biso_window))
+                             # A site that stated none is seeded 0.5 here, at
+                             # build time — the model keeps it as None.
+                             biso=_sp(s, "beq",
+                                      0.5 if s.beq is None else s.beq,
+                                      **biso_window))
                      for s in ph.sites]
             phases.append(rx.Phase(
                 name=ph.name, space_group=ph.space_group, cell=cell, atoms=atoms,
@@ -925,6 +1139,28 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
         except Exception as exc:
             raise TopasInpError(
                 f"{model.path or '<model>'}: phase {ph.name!r}: {exc}") from exc
+
+    # Report or refuse, never drop — the skipped-block half (WP-1118). A `str`
+    # block that could not be read as a phase but *plainly states a cell or a
+    # site* is a phase in all but its name, and `skipped_blocks` was quoted only
+    # in the zero-phase branch below — so when another phase read, the nameless
+    # one vanished and the weight fractions no longer summed, silently. There is
+    # no diagnostics channel on this branch to report through on a successful
+    # return (io/CLAUDE.md: a reader repairs only where it can say it did), so
+    # the choice consistent with "report or refuse, never drop" and with the
+    # dropped-site and no-cell hard errors this reader already raises is to
+    # refuse, naming what was dropped.
+    carrying = [sb for sb in model.skipped_blocks if sb.cell or sb.n_sites]
+    if phases and carrying:
+        raise TopasInpError(
+            f"{model.path or '<model>'}: {len(carrying)} `str` block"
+            f"{'' if len(carrying) == 1 else 's'} here state a cell or a site "
+            f"but no phase_name/space_group, so they cannot be built — and "
+            f"dropping them while {len(phases)} other phase"
+            f"{'' if len(phases) == 1 else 's'} build would leave the weight "
+            f"fractions no longer summing. " + "; ".join(str(sb) for sb in carrying)
+            + ". Read `model.phases` for what the file does state.")
+
     if not phases:
         # Never "this file has no phases" about a file whose `str` blocks this
         # reader saw and could not name: that is the same confident wrong
@@ -933,7 +1169,8 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
                if not model.skipped_blocks else
                f"{len(model.skipped_blocks)} `str` block"
                f"{'' if len(model.skipped_blocks) == 1 else 's'} here could not "
-               f"be read as a phase — " + "; ".join(model.skipped_blocks))
+               f"be read as a phase — "
+               + "; ".join(str(sb) for sb in model.skipped_blocks))
         raise TopasInpError(
             f"{model.path or '<model>'}: no phase carries a cell, so there is no "
             f"structure to build. {why} — read `model.phases` directly for what "

@@ -1001,14 +1001,15 @@ def test_a_trailing_pawley_block_lends_the_phase_above_nothing(tmp_path):
     "hkl_Is",           # 139 line-initial occurrences in the archive
     "xo_Is",            # 277
     "xdd \"next.xye\"",  # 609 — a new dataset ends the phase too
-    "macro m_x { 1 }",  # 584
     "fit_obj",          # 2
     "str",              # the one it already ended at
 ])
 def test_every_block_opener_ends_the_phase_above_it(tmp_path, opener):
     """A `.inp` has no closing brace, so a phase's text runs to the next block
     opener — of *any* kind, not to the next `str`. The counts are the archive's,
-    line-initial and after comment stripping."""
+    line-initial and after comment stripping. `macro` is deliberately **not**
+    here: it is excised as a definition, not treated as an opener (see
+    `test_a_macro_definition_inside_a_str_block_does_not_truncate_the_phase`)."""
     inp = _inp(tmp_path, "openers.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 4.0\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
@@ -1051,8 +1052,12 @@ def test_a_str_block_with_no_phase_name_is_recorded_not_passed_over(tmp_path):
                '  a 4.8152\n#endif\n')
     model = read_topas_inp(inp)
     assert model.phases == []
-    assert model.skipped_blocks == ["a `str` block stating 2 site lines but no "
-                                    "phase_name"]
+    (sb,) = model.skipped_blocks
+    # It records what it lacked *and* what it carried (finding 4): the cell it
+    # states is exactly what makes it a phase in all but its name.
+    assert (sb.lacked, sb.n_sites, sb.cell) == ("phase_name", 2, {"a": 4.8152})
+    assert str(sb) == ("a `str` block stating 2 site lines but no phase_name, "
+                       "carrying a cell (a)")
     with pytest.raises(TopasInpError) as exc:
         to_structure(model)
     assert "2 site lines but no phase_name" in str(exc.value)
@@ -1152,3 +1157,228 @@ def test_a_truncated_inp_never_escapes_as_anything_but_a_topas_error(tmp_path):
             raise AssertionError(
                 f"truncation at {n} of {len(raw)} bytes escaped as "
                 f"{type(exc).__name__}: {exc}") from exc
+
+
+# ============================================================ round-three review
+# The grammar is unified per keyword; the scan was still per line, and TOPAS is
+# whitespace-insensitive — so a cell or a second site packed onto one line was
+# read wrong or dropped. Each reproduction below is the reviewer's own.
+
+# ---------------------------- finding 1: a cell packed onto one line
+
+@pytest.mark.parametrize("cell_line, expected", [
+    # `a 5.4 b 6.1 c 7.2` read only `a` and built a=b=c — orthorhombic arrived
+    # cubic with nothing raised.
+    ("a 5.4 b 6.1 c 7.2", {"a": 5.4, "b": 6.1, "c": 7.2}),
+    # the same with parameter names, so `b` is not the line's first token.
+    ("a lpa 5.4 b lpb 6.1 c lpc 7.2", {"a": 5.4, "b": 6.1, "c": 7.2}),
+    # `al 90 be 90 ga 120` read only `al`, so `ga` defaulted to 90.
+    ("a 5.4\nal 90 be 90 ga 120", {"a": 5.4, "al": 90.0, "be": 90.0, "ga": 120.0}),
+])
+def test_a_cell_packed_onto_one_line_reads_every_key(tmp_path, cell_line, expected):
+    """The stated-key refusal was gated on `re.match(rf"\\s*{key}\\b", ln)`, a
+    line anchor, so a cell key mid-line was invisible to both the read and the
+    refusal. The scan is token-oriented now, after `_cell_search_text` blanks
+    the macro parentheses the anchor existed to protect."""
+    inp = _inp(tmp_path, "packed.inp",
+               f'str\nphase_name "P"\nspace_group "P1"\n{cell_line}\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    phase = read_topas_inp(inp).phases[0]
+    for key, value in expected.items():
+        assert phase.cell[key] == pytest.approx(value)
+
+
+def test_an_orthorhombic_cell_on_one_line_does_not_arrive_cubic(tmp_path):
+    """`a 5.4 b 6.1 c 7.2` built a=b=c=5.4 and an orthorhombic phase arrived
+    cubic with nothing raised — the reviewer's first example, through the
+    build."""
+    inp = _inp(tmp_path, "ortho.inp",
+               'str\nphase_name "ortho"\nspace_group "Pmmm"\n'
+               'a 5.4 b 6.1 c 7.2\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    cell = to_structure(read_topas_inp(inp)).phases[0].cell
+    assert (cell.a.value, cell.b.value, cell.c.value) == \
+        pytest.approx((5.4, 6.1, 7.2))
+
+
+def test_a_hexagonal_gamma_on_a_packed_angle_line_is_not_ninety(tmp_path):
+    """`al 90 be 90 ga 120` read `ga` as 90, so a P6/mmm built with gamma 90 and
+    the eventual refusal was ParameterTable's, naming the cell rather than the
+    file. Read correctly, gamma is 120 and no refusal follows."""
+    inp = _inp(tmp_path, "hex.inp",
+               'str\nphase_name "hex"\nspace_group "P6/mmm"\n'
+               'a 3.6 b 3.6 c 5.9\nal 90 be 90 ga 120\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    cell = to_structure(read_topas_inp(inp)).phases[0].cell
+    assert cell.gamma.value == pytest.approx(120.0)
+
+
+def test_a_named_macro_argument_is_not_read_as_a_cell_line(tmp_path):
+    """The line anchor kept `lpa` inside `Cubic_(lpa …)` off the `a` scan; the
+    token scan keeps that by blanking macro parentheses, so even a macro whose
+    argument is *literally* `a` is the macro's, not an `a` line."""
+    inp = _inp(tmp_path, "namedarg.inp",
+               'str\nphase_name "P"\nspace_group "Pm-3m"\n'
+               'Cubic_(a 4.15689)\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    cell = read_topas_inp(inp).phases[0].cell
+    assert cell["a"] == pytest.approx(4.15689)   # from the macro, filling b, c
+    assert cell["b"] == pytest.approx(4.15689)
+
+
+# ---------------------------- finding 2: a second site on one line
+
+def test_a_second_site_on_one_line_is_a_second_atom(tmp_path):
+    """`site A1 … beq b 0.5 site B1 x 0.5 …` gave one atom, nothing raised — the
+    per-line scan matched the line once, and the count guard `len(sites) !=
+    len(site_lines)` counted lines, so the missing site was never a line.
+    `_SITE_KEYWORDS` already lists `site` as an occupancy terminator, so the
+    grammar half knew; the sites are split token-wise now (finding 2)."""
+    inp = _inp(tmp_path, "twosite.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq bA 0.5 '
+               'site B1 x 0.5 y 0.5 z 0.5 occ Cl-1 1 beq bB 0.8\n')
+    sites = read_topas_inp(inp).phases[0].sites
+    assert [s.label for s in sites] == ["A1", "B1"]
+    assert (sites[1].x, sites[1].y, sites[1].z) == pytest.approx((0.5, 0.5, 0.5))
+    assert sites[1].beq == pytest.approx(0.8)
+    atoms = to_structure(read_topas_inp(inp)).phases[0].atoms
+    assert [a.label for a in atoms] == ["A1", "B1"]
+
+
+# ---------------------------- finding 3: the splitter's own guard is blind
+
+def test_a_macro_definition_inside_a_str_block_does_not_truncate_the_phase(tmp_path):
+    """A `macro dummy { 1 }` DEFINITION inside a `str` block truncated the phase
+    (one atom, `weight_percent None`, silent) because `macro` was treated as a
+    block opener, and the per-phase count guard was blind by construction — both
+    its numbers came off the same truncated chunk. A macro is excised as a
+    definition now, so the phase continues past it (finding 3)."""
+    inp = _inp(tmp_path, "macrodef.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'macro dummy { 1 }\n'
+               'weight_percent wp 42.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'site B1 x 0.5 y 0.5 z 0.5 occ Cl-1 1 beq b 0.5\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert [s.label for s in phase.sites] == ["A1", "B1"]
+    assert phase.weight_percent == pytest.approx(42.0)
+
+
+def test_the_file_level_site_guard_counts_over_the_whole_file(tmp_path):
+    """The per-phase guard is computed from the splitter's own output, so it
+    cannot see a splitter error. The file-level guard counts `site` tokens over
+    `active`, independent of the split (finding 3): a `site` the reader neither
+    parsed into a phase nor recorded on a skipped block is refused, naming the
+    file."""
+    inp = _inp(tmp_path, "guard.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'hkl_Is\nphase_name "pawley"\n'
+               'site STRAY x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert "guard.inp" in str(exc.value) and "site` tokens" in str(exc.value)
+
+
+# ---------------------------- finding 4: a skipped phase dropped while one builds
+
+def test_a_nameless_phase_that_carries_a_cell_is_not_dropped_while_another_builds(
+        tmp_path):
+    """`to_structure` quoted `skipped_blocks` only in the zero-phase branch, so
+    a nameless second phase (60 wt%) vanished when the first phase read and the
+    totals no longer summed (finding 4). It refuses instead — the choice
+    consistent with io/CLAUDE.md's "report or refuse, never drop" where there is
+    no diagnostics channel — and the skipped block records the cell, scale and
+    weight_percent it carried, not only its site count."""
+    inp = _inp(tmp_path, "twophase.inp",
+               'str\nphase_name "A"\nspace_group "P1"\na 5.0\n'
+               'weight_percent wpA 40.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'str\nspace_group "Fm-3m"\na 4.2\n'
+               'scale scB 0.01\nweight_percent 60.0\n'
+               'site B1 x 0 y 0 z 0 occ Cl-1 1 beq b 0.5\n')
+    model = read_topas_inp(inp)
+    assert [p.name for p in model.phases] == ["A"]
+    (sb,) = model.skipped_blocks
+    assert sb.lacked == "phase_name"
+    assert sb.cell["a"] == pytest.approx(4.2)
+    assert sb.scale == pytest.approx(0.01)
+    assert sb.weight_percent == pytest.approx(60.0)
+    with pytest.raises(TopasInpError) as exc:
+        to_structure(model)
+    assert "twophase.inp" in str(exc.value)
+    assert "no longer summing" in str(exc.value)
+
+
+# ---------------------------- finding 5: beq's 0.5 seed is a builder's, not a fact
+
+def test_a_site_that_states_no_beq_is_none_on_the_model_and_seeded_at_build(tmp_path):
+    """`beq` substituted 0.5 where the site line stated none, and a caller could
+    not tell it from a stated value though `TopasModel` is "what a .inp states"
+    (finding 5). `beq` is `None` on the model now; the 0.5 seed moves to
+    `to_structure`. `occ` defaulting to 1.0 is the format's own default and is
+    left alone."""
+    inp = _inp(tmp_path, "nobeq.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1\n')
+    site = read_topas_inp(inp).phases[0].sites[0]
+    assert site.beq is None
+    assert site.occupancy == pytest.approx(1.0)
+    biso = to_structure(read_topas_inp(inp)).phases[0].atoms[0].biso
+    assert biso.value == pytest.approx(0.5)
+
+
+def test_a_stated_beq_is_kept_verbatim_and_not_confused_with_the_seed(tmp_path):
+    """The other half: a *stated* beq — including a stated 0.5 — is the file's,
+    read as-is, and distinguishable from the absent case above only because the
+    absent one is `None`."""
+    inp = _inp(tmp_path, "yesbeq.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    assert read_topas_inp(inp).phases[0].sites[0].beq == pytest.approx(0.5)
+
+
+# ---------------------------- finding 6: an absent writer is not a claim
+
+def test_the_negative_beq_docstring_does_not_claim_a_pcr_reader_exists():
+    """WP-1076: a declared name is a claim. The sibling `.pcr` reader lives on a
+    *different* open PR (#111, `fullprof-pcr-reader`), not this tree, so
+    `to_structure`'s docstring must state the rule a future/sibling reader keeps,
+    not claim a file on this tree refuses the value (finding 6). The sentence
+    becomes true when #111 merges."""
+    doc = to_structure.__doc__
+    assert "the sibling `.pcr` reader refuses the same value" not in doc
+    assert "WP-1076" in doc
+
+
+# ---------------------------- the `'/*` idiom (coordinator finding)
+
+def test_strip_comments_apostrophe_delimiters_are_not_block_comments():
+    """A `/*` or `*/` preceded on its line by an unquoted `'` is comment text,
+    not a delimiter — the `'/*` idiom comments out the block-comment delimiter
+    itself, so the text between `'/*` and `'*/` is live. Stripping `/* */` first
+    deleted it; the one-pass scan sees the `'` first."""
+    out = strip_comments("'/*\nkeepme\n'*/")
+    assert "keepme" in out
+    # a real /* */ block is still removed, and a real trailing ' still cuts
+    assert "gone" not in strip_comments("/* gone */\nkeepme")
+    assert strip_comments('"/*not a comment*/"') == '"/*not a comment*/"'
+
+
+def test_the_apostrophe_block_comment_idiom_keeps_the_phase_active(tmp_path):
+    """Built from a minimal reproduction of `TOF neutron input LSF.inp` (ORNL
+    NOMAD), where `'/*` and `'*/` enable one of three refinements. `strip_comments`
+    removed `/* */` first and deleted the active phase; the fix reads it."""
+    inp = _inp(tmp_path, "idiom.inp",
+               "' a header\n"
+               "/* la 1 lo 0.7093 */\n"          # a real block comment: dead
+               "'/*\n"
+               'str\nphase_name "LSF rhombohedral"\nspace_group "R-3cH"\n'
+               'a 5.537319`\nb 5.537319`\nc 13.561602`\nal 90 be 90 ga 120\n'
+               'site La1 x 0 y 0 z 0.25 occ La+3 .6 beq bl 1.14\n'
+               "'*/\n")
+    model = read_topas_inp(inp)
+    assert [p.name for p in model.phases] == ["LSF rhombohedral"]
+    assert model.wavelength is None          # the real /* */ block was stripped
+    assert model.phases[0].cell["c"] == pytest.approx(13.561602)
