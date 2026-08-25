@@ -75,5 +75,31 @@ GPL: concepts only, never code. TOPAS and FullProf are closed: papers only.
 Parts of `CLAUDE.md` serve the maintainer's own workflow and do not bind an
 external contribution: the ROADMAP/WP session protocol and its handover
 logs, the memory conventions, and the references to a local paper corpus.
-If a rule points at something you cannot have — a local corpus path, a WP
-file's history — say so in the PR rather than guessing around it.
+If a rule points at something you cannot have (a local corpus path, a WP
+file's history), say so in the PR rather than guessing around it.
+
+Two of those files are the maintainer's to write:
+
+- `docs/ROADMAP.md`, which says what is scheduled and in what order.
+- `docs/wp/NNNN-*.md`, a work package. Every WP file needs a matching
+  ROADMAP index row, enforced by
+  `test_wp_files_and_roadmap_rows_are_a_bijection`, so a new WP file cannot
+  land without also scheduling the work.
+
+Adding to the handover log of a WP whose work you did is welcome. That log
+is the record of what you measured and where you stopped, and it belongs in
+the same change as the code.
+
+## Proposing something that is not scheduled
+
+Open a [design proposal][proposal] and write the design there. A proposal
+does not need an implementation, and unscheduled design does not go into a
+WP file: the maintainer opens the work package and the ROADMAP row when the
+work is scheduled, and links back to the proposal. The design then exists in
+one place at each stage instead of two that drift apart.
+
+Proposals are read and answered, not queued silently. The answer may be that
+the work sits behind a version fence in `docs/ROADMAP.md`, in which case the
+proposal records why for whoever asks next.
+
+[proposal]: https://github.com/yue-here/rietx/issues/new?template=design-proposal.md
