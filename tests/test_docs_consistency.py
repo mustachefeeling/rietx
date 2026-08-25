@@ -297,7 +297,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # are distinguished by the wavelength and nothing else, and the measured
     # size of it.  Without them the row reads as a reporting feature, which is
     # the half of the WP that is not a correctness bug.
-    "docs/ROADMAP.md": 473,
+    # 473 -> 480 for the v1.2 opening (2026-08-25): a milestone section with
+    # eighteen index rows (1201-1217 and 1017 moved in), which the bijection
+    # test requires one line each, net +7 after Current focus was rewritten
+    # from 30 lines to 12 and the peaks section was retitled v1.3 in place.
+    # The per-note assessment went down a rank into milestones/v1.2.md.
+    "docs/ROADMAP.md": 480,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
