@@ -47,7 +47,7 @@ from typing import Any
 # the one package import at module level: every other one here is deferred into
 # its function, and ``_about`` imports nothing itself, so it cannot cost what
 # those defer
-from .._about import PROJECT_SUFFIX, SERVER_TOKEN
+from .._about import PROJECT_SUFFIX, PROJECTS_DIR_NAME, SERVER_TOKEN
 
 #: A refusal, not a limit anyone will meet: the largest patterns here are a few
 #: MB and a CIF is smaller.  It exists because ``Content-Length`` is a number the
@@ -219,6 +219,17 @@ def _safe_name(filename: str) -> str:
 # ----------------------------------------------------------------------
 # previews
 # ----------------------------------------------------------------------
+def default_project_dir() -> Path:
+    """Where a new project is suggested, absent a caller with a better idea.
+
+    A *path*, not a directory: nothing is created here.  A preview is a read,
+    and a read that makes a directory in someone's home as a side effect would
+    leave one behind for every file dropped on the wizard and never committed.
+    ``Project.create`` makes the parents when a project is actually made.
+    """
+    return Path.home() / PROJECTS_DIR_NAME
+
+
 def preview_pattern(upload: Upload, *, reader_options: dict[str, Any] | None = None,
                     suggest_in: Path | None = None) -> dict:
     """Read a staged pattern and describe it — reader included.
@@ -290,10 +301,13 @@ def preview_pattern(upload: Upload, *, reader_options: dict[str, Any] | None = N
         "curve": {"two_theta": tt[idx].tolist(), "intensity": y[idx].tolist(),
                   "n_returned": int(len(idx))},
         # a project is a directory on *this* machine and the browser cannot pick
-        # one; the server's working directory is where ``rietx gui`` was
-        # started, which is the only place a user has already pointed at
+        # one, so the server suggests where.  NOT the working directory, which
+        # is only "somewhere the user has pointed at" for a person who typed
+        # ``rietx gui`` there on purpose: run from a checkout it is the
+        # repository root, and every project the wizard makes lands untracked
+        # in someone's source tree (WP-1204).
         "suggested_project": str(
-            (Path(suggest_in) if suggest_in is not None else Path.cwd())
+            (Path(suggest_in) if suggest_in is not None else default_project_dir())
             / f"{Path(upload.filename).stem}{PROJECT_SUFFIX}"),
     }
 

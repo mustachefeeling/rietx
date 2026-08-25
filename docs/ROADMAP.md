@@ -313,7 +313,7 @@ decisions are the [v1.2 record](milestones/v1.2.md) § Scope.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1201](wp/1201-gui-house-style.md) | GUI house style: tokens and registers | ✅ 2026-08-25 | — (first) |
-| [1204](wp/1204-developer-mode-example-projects.md) | Developer mode and example projects | ⬜ | — (1201 soft) |
+| [1204](wp/1204-developer-mode-example-projects.md) | Developer mode and example projects | 🔄 2026-08-25 | — (1201 soft) |
 | [1202](wp/1202-help-corpus.md) | The help corpus, served and meta-tested | ⬜ | — |
 | [1203](wp/1203-help-popover.md) | The help popover: one mechanism across the panels | ⬜ | 1201, 1202 |
 | [1205](wp/1205-new-project-open-browse-defaults.md) | New project: open any project, browse, sensible defaults, the wizard bug | ⬜ | 1201, 1203, 1204 |

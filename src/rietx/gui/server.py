@@ -26,15 +26,17 @@ from __future__ import annotations
 import http.server
 import json
 import math
+import shutil
 import socket
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from .._about import DIST_NAME, SERVER_TOKEN
+from .._about import DIST_NAME, SERVER_TOKEN, STATE_DIR_ENV, STATE_DIR_NAME
 from ..project import Project
 from .imports import MAX_UPLOAD_BYTES, UPLOAD_KINDS
 from .session import RESERVED_ROUTES, GuiError, GuiSession
@@ -579,8 +581,15 @@ def build_server(session: GuiSession, *, port: int = DEFAULT_PORT):
 
 def serve(session: GuiSession, *, port: int = DEFAULT_PORT,
           open_browser: bool = True, machine: bool = False,
-          block: bool = True):
-    """Serve ``session``; returns the server when ``block=False`` (tests)."""
+          block: bool = True, scratch_of: str | Path | None = None):
+    """Serve ``session``; returns the server when ``block=False`` (tests).
+
+    ``scratch_of`` is the project a :func:`scratch_copy` was made *from*, when
+    the session is running on one.  The **source**, not the copy: the copy is
+    already the boot line's ``project``, and the source is the fact a path
+    cannot carry — that whatever happens in here, the directory the person
+    named on the command line is not written to.
+    """
     httpd = build_server(session, port=port)
     actual = httpd.server_address[1]
     url = f"http://127.0.0.1:{actual}/"
@@ -589,13 +598,19 @@ def serve(session: GuiSession, *, port: int = DEFAULT_PORT,
         # without parsing prose
         print(json.dumps({"url": url, "port": actual,
                           "project": session.version()["project"],
-                          "pid": session.version()["pid"]}), flush=True)
+                          "pid": session.version()["pid"],
+                          "scratch_of": (str(scratch_of) if scratch_of
+                                         else None)}),
+              flush=True)
     else:
         project = session.version()["project"]
         # flush: redirecting the banner to a log file otherwise buffers it until
         # the process exits, which is exactly when nobody needs to read the port
         print(f"rietx gui — {url}", flush=True)
         print(f"  project: {project or '(none open yet)'}", flush=True)
+        if scratch_of is not None:
+            print(f"  scratch copy — {scratch_of} is not written to",
+                  flush=True)
         if not (STATIC_DIR / "index.html").is_file():
             print("  frontend: not built — run `npm --prefix gui run build`; "
                   "the HTTP API is live either way", flush=True)
@@ -617,6 +632,34 @@ def serve(session: GuiSession, *, port: int = DEFAULT_PORT,
     return httpd
 
 
+def scratch_copy(project: str | Path) -> Path:
+    """A throwaway copy of a project directory, opened instead of the original.
+
+    There is no read-only way to open a project: **settings persist on the
+    verb** (``gui/CLAUDE.md``), and the history log is appended to as the tree
+    grows, so a click writes into the ``.rex`` directory it was opened from.
+    That is right for the person refining their own data and wrong for anyone
+    poking at a project under version control — which is every developer of
+    this package, and everyone opening one of the shipped examples.
+
+    The copy is byte-for-byte, so ``DataRef``'s sha256 and its parsed-array
+    fingerprint both still match and ``Project.open`` cannot tell the
+    difference.  It keeps the source's own directory name, because that name is
+    what the GUI's header shows.
+
+    Nothing removes it.  The point of a scratch run is usually to look at what
+    happened, and a copy deleted on exit would take the answer with it; the
+    temp directory is the operating system's to reap.
+    """
+    src = Path(project).expanduser()
+    if not src.is_dir():
+        raise NotADirectoryError(f"not a project directory: {src}")
+    root = Path(tempfile.mkdtemp(prefix=f"{SERVER_TOKEN}-scratch-"))
+    dest = root / src.name
+    shutil.copytree(src, dest)
+    return dest
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -629,25 +672,49 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-open", action="store_false", dest="open_browser",
                         help="do not open a browser window")
     parser.add_argument("--machine", action="store_true",
-                        help="print one JSON boot line (url, port, project, pid)")
+                        help="print one JSON boot line (url, port, project, pid, scratch_of)")
     parser.add_argument("--backend", default="numpy",
                         help="Jacobian backend (see rietx.capabilities())")
     parser.add_argument("--solver", default="trf")
+    parser.add_argument("--scratch", action="store_true",
+                        help="open a throwaway copy of the project; the "
+                             "directory named on the command line is never "
+                             "written to")
+    parser.add_argument("--state-dir", default=None, metavar="PATH",
+                        help="where the recent list and the theme are kept "
+                             f"(default: ${STATE_DIR_ENV}, else "
+                             f"~/{STATE_DIR_NAME})")
     args = parser.parse_args(argv)
 
     project = None
-    if args.project is not None:
+    scratch_of = None
+    if args.project is None:
+        if args.scratch:
+            # silently ignoring it would start a session that looks scratch and
+            # writes to whatever is opened from inside it
+            print("rietx gui: --scratch needs a project to copy")
+            return 2
+    else:
+        source = args.project
+        if args.scratch:
+            try:
+                source = scratch_copy(args.project)
+            except OSError as exc:
+                print(f"rietx gui: {exc}")
+                return 2
+            scratch_of = args.project
         try:
-            project = Project.open(args.project, backend=args.backend,
+            project = Project.open(source, backend=args.backend,
                                    solver=args.solver)
         except (FileNotFoundError, ValueError) as exc:
             # the refusal messages name seven different remedies; printing the
             # one that applies is the whole value of them
             print(f"rietx gui: {exc}")
             return 2
-    session = GuiSession(project, backend=args.backend, solver=args.solver)
+    session = GuiSession(project, backend=args.backend, solver=args.solver,
+                         state_dir=args.state_dir)
     serve(session, port=args.port, open_browser=args.open_browser,
-          machine=args.machine)
+          machine=args.machine, scratch_of=scratch_of)
     return 0
 
 

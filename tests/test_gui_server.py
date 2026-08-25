@@ -2677,3 +2677,175 @@ def test_listing_the_scans_of_a_format_that_has_none_is_refused_by_name(blank):
         f"/api/upload/pattern/scans?upload={payload['upload']}")
     assert status == 400
     assert "one measurement per file" in refusal["error"]["message"]
+
+
+# ----------------------------------------------------------------------
+# the command line: --scratch, --state-dir and where a new project is
+# suggested (WP-1204)
+# ----------------------------------------------------------------------
+def _fingerprint(root: Path) -> dict[str, bytes]:
+    """Every file under ``root``, by content.  A project directory is written
+    to *incrementally* — settings persist on the verb, the log is appended —
+    so "unchanged" has to mean the bytes, not the directory listing."""
+    import hashlib
+
+    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).digest()
+            for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+@pytest.fixture()
+def cli(monkeypatch):
+    """``rietx gui``'s ``main`` with the serving stubbed out.
+
+    ``serve`` blocks until Ctrl-C, so what is testable about ``main`` is
+    everything it decides *before* that: which directory got opened, which
+    state directory the session was given, and what the boot line will be told.
+    The boot line itself is tested against the real ``serve`` below.
+    """
+    from rietx.gui import server as server_mod
+
+    seen: dict = {}
+
+    def fake_serve(session, **kw):
+        seen["session"] = session
+        seen["kw"] = kw
+
+    monkeypatch.setattr(server_mod, "serve", fake_serve)
+    yield server_mod.main, seen
+    session = seen.get("session")
+    if session is not None:
+        session.close()
+
+
+def test_a_scratch_copy_is_byte_for_byte(tmp_path, pattern_file):
+    """Which is what keeps it openable: ``DataRef`` carries sha256 of the
+    pattern bytes *and* the parsed-array fingerprint, so a copy that
+    re-serialised anything would be refused as a reader change."""
+    from rietx.gui.server import scratch_copy
+
+    root = tmp_path / "src.rex"
+    _project(root, pattern_file)
+    copy = scratch_copy(root)
+
+    assert copy != root and not copy.is_relative_to(tmp_path)
+    assert copy.name == root.name  # the name the GUI header shows
+    assert _fingerprint(copy) == _fingerprint(root)
+    assert rx.Project.open(copy).path == copy
+
+
+def test_scratch_opens_a_copy_and_the_named_project_is_never_written_to(
+        cli, tmp_path, pattern_file):
+    """The flag's whole promise, tested by *doing* the thing it protects
+    against.  Note where the first assertion lands: **opening** a project
+    already appends a head annotation to its log, before any verb is called,
+    so there is no such thing as looking at one without writing to it."""
+    main, seen = cli
+    root = tmp_path / "under-git.rex"
+    _project(root, pattern_file)
+    before = _fingerprint(root)
+    log_lines = len((root / "history.jsonl").read_text(encoding="utf-8").splitlines())
+
+    assert main([str(root), "--scratch", "--no-open",
+                 "--state-dir", str(tmp_path / "state")]) == 0
+    session = seen["session"]
+    copy = session.project.path
+    assert len((copy / "history.jsonl").read_text(encoding="utf-8").splitlines()) > log_lines
+
+    session.project_patch({"mode": "lebail"})
+
+    assert _fingerprint(root) == before
+    assert _fingerprint(copy) != before
+    # and the source is what the boot line names, because the copy's path is
+    # already there as ``project``
+    assert seen["kw"]["scratch_of"] == str(root)
+
+
+def test_without_scratch_the_named_project_is_the_one_opened(cli, tmp_path,
+                                                             pattern_file):
+    main, seen = cli
+    root = tmp_path / "mine.rex"
+    _project(root, pattern_file)
+
+    assert main([str(root), "--no-open", "--state-dir", str(tmp_path / "s")]) == 0
+    assert seen["session"].project.path == root
+    assert seen["kw"]["scratch_of"] is None
+
+
+def test_scratch_without_a_project_is_refused_rather_than_ignored(cli, capsys):
+    """Ignoring it would start a session that looks like a scratch run and
+    writes to whatever is opened from inside it."""
+    main, _ = cli
+    assert main(["--scratch", "--no-open"]) == 2
+    assert "needs a project to copy" in capsys.readouterr().out
+
+
+def test_a_scratch_of_something_that_is_not_a_project_names_the_path(
+        cli, tmp_path, capsys):
+    main, _ = cli
+    missing = tmp_path / "nope.rex"
+    assert main([str(missing), "--scratch", "--no-open"]) == 2
+    assert str(missing) in capsys.readouterr().out
+
+
+def test_state_dir_keeps_the_recent_list_out_of_the_real_home(cli, tmp_path,
+                                                             pattern_file):
+    """``GuiSession(state_dir=)`` has existed since WP-1008 and only the tests
+    could reach it; the env var is the other way in.  A developer running two
+    checkouts wants two recent lists, and neither of them the one they use."""
+    main, seen = cli
+    root = tmp_path / "kept.rex"
+    _project(root, pattern_file)
+    state = tmp_path / "elsewhere"
+
+    assert main([str(root), "--no-open", "--state-dir", str(state)]) == 0
+    assert seen["session"].state_dir == state
+    assert (state / "recent.json").is_file()
+
+
+def test_the_machine_boot_line_carries_the_project_the_copy_was_made_from(
+        tmp_path, pattern_file, capsys):
+    """The real ``serve``, not the stub: ``--machine`` is a wire contract for a
+    supervising process, so what it prints is asserted as JSON."""
+    root = tmp_path / "src.rex"
+    _project(root, pattern_file)
+    from rietx.gui.server import scratch_copy, serve
+
+    copy = scratch_copy(root)
+    session = GuiSession(rx.Project.open(copy), state_dir=tmp_path / "state")
+    httpd = serve(session, port=0, open_browser=False, machine=True,
+                  block=False, scratch_of=root)
+    try:
+        line = json.loads(capsys.readouterr().out.strip())
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        session.close()
+    assert line["project"] == str(copy)
+    assert line["scratch_of"] == str(root)
+    assert set(line) == {"url", "port", "project", "pid", "scratch_of"}
+
+
+def test_a_new_project_is_suggested_outside_the_working_directory(
+        blank, tmp_path, monkeypatch):
+    """Run from a checkout, the working directory is the repository root, and
+    every project the wizard makes there lands untracked in someone's source
+    tree.  Home is redirected so the assertion is about *where*, and so the
+    second half — that a preview creates nothing — can be made at all."""
+    from rietx._about import PROJECT_SUFFIX
+    from rietx.gui.imports import default_project_dir
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    _, client = blank
+    status, payload = client.upload("pattern", b"10 1\n20 2\n30 3\n",
+                                    filename="unknown.xy")
+    assert status == 200, payload
+
+    suggested = Path(payload["suggested_project"])
+    assert suggested.parent == default_project_dir()
+    assert suggested.parent.parent == home  # not cwd, which is the checkout
+    assert suggested.name == f"unknown{PROJECT_SUFFIX}"
+    # a suggestion and nothing more: a preview that made the directory would
+    # leave one behind for every file dropped on the wizard and never committed
+    assert list(home.iterdir()) == []

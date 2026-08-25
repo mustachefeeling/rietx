@@ -1,6 +1,6 @@
 # WP-1204 — Developer mode and example projects
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.2 · Status: 🔄 2026-08-25
 Depends on: — (WP-1201 for the empty-state list's styling, soft)
 
 ## Goal
@@ -72,13 +72,15 @@ Design:
 
 ## Tasks
 
-- [ ] `rietx gui --scratch` and `--state-dir`; `suggested_project` default
+- [x] `rietx gui --scratch` and `--state-dir`; `suggested_project` default
       moved out of cwd; `.gitignore` `*.rex/`; `cli.md` option table updated.
 - [ ] Package data + `examples.py` + `pyproject` package-data; the wheel test
       extended to assert the examples are in it and under a size ceiling.
-- [ ] `tests/test_examples.py`: every example builds under `tmp_path`, its
-      protocol asserted field by field against `compare.py`'s registry, and
-      `list_examples()` is in bijection with the data directory.
+- [ ] `tests/test_example_projects.py`: every example builds under
+      `tmp_path`, its protocol asserted field by field against `compare.py`'s
+      registry, and `list_examples()` is in bijection with the data directory.
+      (**Not** `tests/test_examples.py`, which the WP named and which already
+      exists — it runs the `examples/` scripts the manual includes.)
 - [ ] Routes + the empty-state Examples list (docs-style one-liners); the
       `RESERVED_ROUTES`/`ROUTES` disjointness test green.
 - [ ] Manual: `using/quickstart.md` gains "open an example"; `files.md`
@@ -87,7 +89,7 @@ Design:
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_examples.py tests/test_gui_server.py tests/test_gui_dist.py -q
+.venv/bin/python -m pytest tests/test_example_projects.py tests/test_gui_server.py tests/test_gui_dist.py
 .venv/bin/rietx gui --scratch "$(.venv/bin/python -c 'import rietx.examples as e, tempfile; print(e.build_example("nac", tempfile.mkdtemp()).path)')" --no-open --machine
 git status --short   # clean after the run
 ```
