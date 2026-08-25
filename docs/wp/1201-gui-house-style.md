@@ -201,9 +201,12 @@ does not act.
   start — +1 file and +4 tests (three in `style.test.ts`, one tone-vocabulary
   test in `peaks.test.ts`), which is exactly the arithmetic.
   `svelte-check`: 373 files, 0 errors, 0 warnings.
-- Fast python selection on the final tree: **2640 passed, 117 skipped,
-  308.80 s**. No python test was added or removed — the only python change is
-  the `SIZE_CAPS` constant — so nothing moved there by construction.
+- Fast python selection: **2640 passed, 117 skipped** on the branch before it
+  took `main`, and **2761 passed, 117 skipped** after — the +121 is PR #108's
+  (WP-1134, constant-wavelength neutron), which landed on `main` mid-session.
+  No python test was added or removed *here*: the only python change this WP
+  makes is the `SIZE_CAPS` constant, so nothing moved by construction, and the
+  skips are unchanged across the merge.
 - `npm run build` then `git diff --exit-code src/rietx/gui/static` is clean:
   the committed dist is the tree.
 
@@ -246,6 +249,14 @@ missed, plus four ways the guard failed open. All fixed on the branch:
   nothing on a span; `button.ghost` had no hover anywhere in the app after the
   one panel that owned it was cleaned out (the register owns it now); `.hint`
   was a fresh triplicate at two values (hoisted).
+
+**`main` moved under the branch** (PR #108, WP-1134) and the PR went `DIRTY`
+with no CI run at all — GitHub does not run `pull_request` workflows it cannot
+compute a merge commit for, so *green checks on an older head* was the only
+signal on screen and it was stale. The conflict was one hunk: both sides had
+bumped a cap in `SIZE_CAPS`, measured against different parents. Resolved by
+taking `main`'s ROADMAP history and cap (482, its two new index rows) beside
+this WP's `gui/CLAUDE.md` 612; the merged files measure 482 and 610.
 
 Two review findings were **not** changed, and both are now stated in `app.css`
 so the next reader does not re-raise them: `.pick` renders at two sizes across
