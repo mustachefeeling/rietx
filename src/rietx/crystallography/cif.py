@@ -127,6 +127,29 @@ def normalize_cif_species(species: str) -> tuple[str, str | None]:
     return candidate, note
 
 
+def species_spelling_hint(species: str) -> str:
+    """A refusal-message suffix naming the spelling that would resolve, or ``""``.
+
+    Only the **sign-first charge** form (``"O-2"``, ``"Cu+1"`` — what ICSD
+    exports and TOPAS writes) earns a hint: it is by far the commonest wild
+    spelling reaching a hand-built structure, and the fix is unambiguous
+    (``O2-``, ``Cu1+``).  Everything else returns empty — a three-letter typo
+    (``"Wat"``) or a bare label (``"O1"``) has no single obvious correction to
+    offer.
+
+    Kept here, beside :data:`_SIGN_FIRST_CHARGE`, so the pattern is spelled once
+    and shared: :func:`normalize_cif_species` *repairs* this form at read (with a
+    ``CIF_SPECIES_NORMALISED`` diagnostic to record it), and the model-compile
+    boundary — which has no diagnostics channel, so it raises rather than
+    repairs — reuses the same pattern only to *name* the fix in its refusal.
+    """
+    m = _SIGN_FIRST_CHARGE.match(species.strip())
+    if not m:
+        return ""
+    element, sign, digits = m.group(1).capitalize(), m.group(2), m.group(3)
+    return f"; the charge is written after the digits, so {element}{digits}{sign}"
+
+
 def structure_from_cif(path: str, *, phase_name: str | None = None,
                        aniso: bool = False,
                        diagnostics: list[Diagnostic] | None = None) -> Structure:

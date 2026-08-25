@@ -13,8 +13,8 @@ from typing import get_args
 import numpy as np
 import pytest
 
-from rietx import Instrument, PatternData
-from rietx.schemas.structure import Structure
+from rietx import Instrument, Parameter, PatternData
+from rietx.schemas.structure import Atom, Cell, Phase, Structure
 
 # ----------------------------------------------------------------------
 # (a) species syntaxes that reject valid CIFs — at two lookups, not one
@@ -116,6 +116,217 @@ def test_normalised_species_compile_under_both_dispersion_settings(
     pattern = PatternData(two_theta=tt.tolist(),
                           intensity=np.zeros_like(tt).tolist())
     compile_model(structure, ins, pattern, mode="rietveld")
+
+
+# ----------------------------------------------------------------------
+# (a′) a bad species in a *hand-built* structure is named at the compile
+#      boundary — the phase, the atom index and the label, for both halves of
+#      the affected population.  This is the WP-1036 story's other end: a CIF
+#      is repaired at read (normalize_cif_species, recorded), but a structure
+#      assembled in code never passed a reader, so the two X-ray form-factor
+#      lookups at compile are the authority.  They fire two lines apart and
+#      each names only the species; the wrapper names where it is.
+# ----------------------------------------------------------------------
+def _hand_structure(species, *, label="A1", space_group="P 1"):
+    """A one-atom structure with a chosen species, built in code, not read."""
+    return Structure(phases=[Phase(
+        name="Cr2WO6", space_group=space_group, cell=Cell.cubic(5.0),
+        scale=Parameter(value=5e-3),
+        atoms=[Atom(label=label, species=species, x=Parameter(value=0.0),
+                    y=Parameter(value=0.0), z=Parameter(value=0.0))])])
+
+
+def _compile(structure, *, dispersion_on=True):
+    from rietx.model.forward import compile_model
+
+    ins = Instrument.bragg_brentano(radiation="CuKa")
+    if not dispersion_on:
+        ins.source.dispersion = None
+    tt = np.arange(20.0, 60.0, 0.05)
+    pattern = PatternData(two_theta=tt.tolist(),
+                          intensity=np.zeros_like(tt).tolist())
+    return compile_model(structure, ins, pattern, mode="rietveld")
+
+
+@pytest.mark.parametrize("dispersion_on", [True, False],
+                         ids=["dispersion-on", "dispersion-none"])
+@pytest.mark.parametrize("species", [
+    "Cu+1", "O-2", "Ni+3",   # sign-first, what ICSD exports and TOPAS writes
+    "Wat", "Cu++", "Cu 1+",  # not readable as a symbol plus optional charge
+])
+def test_a_malformed_species_is_named_at_compile(species, dispersion_on):
+    """Whichever lookup gets there first, the refusal names phase, atom, label.
+
+    Both lookups run at the first stage compile — ``resolve_dispersion`` with
+    the block on, ``normalize_species`` either way — and each raises naming the
+    species alone.  The wrapper prefixes the phase name, the atom index and the
+    label, so the caller learns which atom of which phase to fix, under both
+    dispersion settings.
+    """
+    with pytest.raises(ValueError) as excinfo:
+        _compile(_hand_structure(species, label="A1"), dispersion_on=dispersion_on)
+    message = str(excinfo.value)
+    assert "Cr2WO6" in message, "the phase is not named"
+    assert "A1" in message, "the atom label is not named"
+    assert "atom 0" in message, "the atom index is not named"
+    assert repr(species) in message, "the offending species is not quoted"
+
+
+@pytest.mark.parametrize("dispersion_on", [True, False],
+                         ids=["dispersion-on", "dispersion-none"])
+def test_a_sign_first_charge_is_told_the_right_spelling_at_compile(dispersion_on):
+    """The commonest wild form carries its fix into the refusal, either way."""
+    with pytest.raises(ValueError, match=r"Cu1\+"):
+        _compile(_hand_structure("Cu+1"), dispersion_on=dispersion_on)
+    with pytest.raises(ValueError, match=r"O2-"):
+        _compile(_hand_structure("O-2"), dispersion_on=dispersion_on)
+
+
+@pytest.mark.parametrize("dispersion_on", [True, False],
+                         ids=["dispersion-on", "dispersion-none"])
+def test_a_well_formed_symbol_with_no_table_row_is_also_named(dispersion_on):
+    """The other half of the population: ``Xx`` reads as a symbol and has no row.
+
+    A schema-level well-formedness check would pass ``Xx`` (it is spelled like a
+    species) and leave this half to raise the old anonymous ``KeyError`` naming
+    neither atom nor phase.  At the compile boundary both halves are named the
+    same way, so a caller with a bad species cannot land on a worse message by
+    luck of whether the typo happened to spell a real element.
+    """
+    with pytest.raises(ValueError) as excinfo:
+        _compile(_hand_structure("Xx", label="A1"), dispersion_on=dispersion_on)
+    message = str(excinfo.value)
+    assert "Cr2WO6" in message and "atom 0" in message and "A1" in message
+    assert repr("Xx") in message
+
+
+def test_sign_first_charge_reproduction_names_the_first_bad_atom_at_compile():
+    """The cross-code reproduction: TOPAS/ICSD sign-first ``Mg+2`` / ``O-2``.
+
+    A hand-built MgO with these labels was refused at *compile* by
+    ``normalize_element`` with a bare ``KeyError: cannot read an element symbol
+    from species 'Mg+2'`` — raised at compile time, naming neither the atom nor
+    the phase.  Now the first atom the lookups choke on is named, with the
+    spelling that resolves.
+    """
+    structure = Structure(phases=[Phase(
+        name="MgO", space_group="P 1", cell=Cell.cubic(4.212),
+        scale=Parameter(value=5e-3),
+        atoms=[
+            Atom(label="Mg1", species="Mg+2", x=Parameter(value=0.0),
+                 y=Parameter(value=0.0), z=Parameter(value=0.0)),
+            Atom(label="O1", species="O-2", x=Parameter(value=0.5),
+                 y=Parameter(value=0.5), z=Parameter(value=0.5)),
+        ])])
+    with pytest.raises(ValueError) as excinfo:
+        _compile(structure)
+    message = str(excinfo.value)
+    assert "MgO" in message
+    assert "Mg1" in message and "atom 0" in message   # the first bad atom
+    assert "'Mg+2'" in message
+    assert "Mg2+" in message                           # the spelling that works
+
+
+def test_a_fault_that_is_no_atoms_species_is_re_raised_untouched():
+    """A failure that belongs to no atom keeps its original message.
+
+    The compile boundary catches ``(KeyError, ValueError)`` around the two
+    lookups, but not every such error is a bad species: the emission-line
+    dispersion-edge guard raises ``ValueError`` naming a *valid* element and two
+    wavelengths, because one structure factor cannot serve both across an edge.
+    The locator must not dress that up as an atom's fault — it re-walks the
+    atoms, finds every species resolves, and re-raises the original object
+    unchanged.  Pinned on the locator directly so it does not depend on which
+    anode straddles which edge.
+    """
+    from rietx.model.forward import _reraise_species_fault
+
+    phase = _hand_structure("Fe").phases[0]       # a valid, tabulated species
+    sentinel = ValueError(
+        "Fe dispersion differs by 3.4 e between the source's 1.79 A and "
+        "1.62 A lines: an absorption edge lies between them")
+    with pytest.raises(ValueError) as excinfo:
+        _reraise_species_fault(phase, None, (1.79, 1.62), sentinel)
+    assert excinfo.value is sentinel              # untouched, not re-wrapped
+
+
+# (a″) the same boundary on a neutron source, which resolves a *third* table.
+#      ``compile_phase_sites`` now takes ``neutron=``: a neutron_cw source reads
+#      bound coherent scattering lengths (``neutron.b_coh``, keyed by nuclide),
+#      not X-ray form factors.  The locator must re-walk whichever table the
+#      compile consulted — re-walking the X-ray table on a neutron compile stops
+#      at the first nuclide the X-ray table cannot read (``2H``) and blames it
+#      for a fault in a table this compile never touched.
+# ----------------------------------------------------------------------
+def _neutron_structure(first_species, first_label, *, second="Xx",
+                       second_label="Q1", name="D2O"):
+    """A two-atom structure: a nuclide the X-ray table cannot read, then a fault.
+
+    The first atom is readable by the neutron table and *not* by the X-ray one
+    (``2H``, ``157Gd``); the second is the atom that actually has no row.  An
+    X-ray re-walk would stop at the first; a neutron re-walk reaches the second.
+    """
+    return Structure(phases=[Phase(
+        name=name, space_group="P 1", cell=Cell.cubic(5.0),
+        scale=Parameter(value=5e-3),
+        atoms=[
+            Atom(label=first_label, species=first_species, x=Parameter(value=0.0),
+                 y=Parameter(value=0.0), z=Parameter(value=0.0)),
+            Atom(label=second_label, species=second, x=Parameter(value=0.5),
+                 y=Parameter(value=0.5), z=Parameter(value=0.5)),
+        ])])
+
+
+def _compile_neutron(structure):
+    from rietx.model.forward import compile_model
+
+    ins = Instrument.constant_wavelength_neutron(wavelength=1.5, fwhm_deg=0.3)
+    tt = np.arange(20.0, 60.0, 0.05)
+    pattern = PatternData(two_theta=tt.tolist(),
+                          intensity=np.zeros_like(tt).tolist())
+    return compile_model(structure, ins, pattern, mode="rietveld")
+
+
+@pytest.mark.parametrize("nuclide, nuclide_label", [
+    ("2H", "D1"), ("157Gd", "Gd1"),   # readable by b_coh, refused by the X-ray table
+])
+def test_a_neutron_compile_names_the_atom_its_own_table_choked_on(
+        nuclide, nuclide_label):
+    """The locator follows the radiation, so it names ``Q1`` and not the nuclide.
+
+    ``2H``/``157Gd`` resolve against ``neutron.b_coh`` (that is the headline
+    neutron case: a table that has always had b(2H)); ``Xx`` is the atom with no
+    row.  An X-ray re-walk would refuse ``2H`` for "no Waasmaier-Kirfel
+    coefficients" — wrong atom, wrong label, and a reason true of a table this
+    compile never consulted, which also hides the real fault.  The neutron
+    re-walk names atom 1 (``Q1``) with the neutron table's own reason.
+    """
+    with pytest.raises(ValueError) as excinfo:
+        _compile_neutron(_neutron_structure(nuclide, nuclide_label))
+    message = str(excinfo.value)
+    assert "atom 1" in message and "'Q1'" in message   # the real fault, not the nuclide
+    assert "'Xx'" in message
+    assert "neutron scattering length" in message       # the table actually consulted
+    assert nuclide_label not in message                 # the nuclide is not blamed
+    assert "Waasmaier" not in message                   # nor the X-ray table it never touched
+
+
+@pytest.mark.parametrize("spelling", ["Cu+1", "Fe+3"])
+def test_a_sign_first_charge_compiles_on_a_neutron_source(spelling):
+    """The neutron parser accepts the sign-first charge the X-ray tables refuse.
+
+    ``neutron.normalize_species`` discards either charge spelling and keeps the
+    nuclide, so ``Cu+1`` resolves to ``Cu`` and compiles — it is not a fault on
+    this radiation.  The locator must not manufacture one, nor append the
+    sign-first spelling hint (``Cu1+``), which is an X-ray-table artifact: on a
+    table that accepted the spelling, naming a rewrite of it would be false.
+    """
+    structure = Structure(phases=[Phase(
+        name="cell", space_group="P 1", cell=Cell.cubic(3.6),
+        scale=Parameter(value=5e-3),
+        atoms=[Atom(label="M1", species=spelling, x=Parameter(value=0.0),
+                    y=Parameter(value=0.0), z=Parameter(value=0.0))])])
+    _compile_neutron(structure)   # compiles clean; no raise, no hint
 
 
 # ----------------------------------------------------------------------

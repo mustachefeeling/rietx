@@ -48,13 +48,22 @@ from ..background.models import (
     second_difference_matrix,
 )
 from ..crystallography.adp import U_NAMES, reciprocal_axis_lengths
-from ..crystallography.dispersion import resolve as resolve_dispersion
+from ..crystallography.cif import species_spelling_hint
+from ..crystallography.dispersion import (
+    dispersion,
+    normalize_element,
+)
+from ..crystallography.dispersion import (
+    resolve as resolve_dispersion,
+)
 from ..crystallography.lattice import (
     cell_volume,
     d_spacings,
     reciprocal_metric_tensor,
     two_theta_deg,
 )
+from ..crystallography.neutron import b_coh as neutron_b_coh
+from ..crystallography.scattering import normalize_species
 from ..crystallography.stephens import S_NAMES, monomial_matrix, strain_width_deg
 from ..crystallography.structure_factor import (
     PhaseSites,
@@ -2169,6 +2178,61 @@ class DerivativeBases:
         return self._entries
 
 
+def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
+    """Name the phase, atom and label behind a species lookup that failed.
+
+    ``species`` is validated when the model *compiles*, not when the object is
+    built (``docs/manual/using/data.md`` § Atom): the scattering lookups are the
+    authority on what they can read, and duplicating their grammar in a schema
+    would put a periodic table in ``pydantic`` and, worse, refuse for one
+    radiation's sake a spelling the other reads — a neutron nuclide (``2H``) has
+    no X-ray table row, and a sign-first charge (``Cu+1``) the X-ray table
+    refuses is one the neutron parser accepts.  The cost of validating at
+    compile is that the raise names only the *species* — not the atom, the
+    phase, nor that the caller's own structure is at fault.
+
+    So this re-walks the atoms **in whichever table the compile actually
+    consulted**, to find the one it choked on, and re-raises naming the index,
+    label and species.  That table is decided by the source, exactly as
+    ``compile_phase_sites`` decides it: a ``neutron_cw`` source resolves bound
+    coherent scattering lengths (``neutron.b_coh``, keyed by nuclide), and every
+    other source resolves X-ray form factors (``resolve_dispersion`` then
+    ``normalize_species``).  Re-walking the X-ray tables on a neutron compile
+    would stop at the first nuclide the X-ray table cannot read — ``2H`` — and
+    blame it for a fault in a table this compile never touched, hiding the real
+    one; the boundary must ask the same question the compile asked.
+
+    The sign-first spelling hint (``Cu+1`` → ``Cu1+``) is an X-ray-table
+    artifact and is added on the X-ray arm only: the neutron parser accepts the
+    sign-first charge, so on that arm the charge is never the fault and naming a
+    rewrite of it would be false advice.  A failure that belongs to *no* atom
+    (the emission-line dispersion-edge guard, which is about two wavelengths and
+    not a spelling) matches no atom here and is re-raised untouched.
+    """
+    overrides = disp.overrides if disp is not None else None
+    for index, atom in enumerate(phase.atoms):
+        try:
+            if neutron:
+                # b_coh normalises (nuclide-keyed) then looks up in one call, so
+                # this reproduces both neutron failure modes: an unreadable label
+                # and a readable one with no tabulated length.
+                neutron_b_coh(atom.species)
+            else:
+                if disp is not None:
+                    sym = normalize_element(atom.species)
+                    if not overrides or sym not in overrides:
+                        dispersion(sym, lams[0])
+                normalize_species(atom.species)
+        except (KeyError, ValueError) as atom_exc:
+            # ``str(KeyError(...))`` re-quotes its arg; take the message itself
+            reason = atom_exc.args[0] if atom_exc.args else str(atom_exc)
+            hint = "" if neutron else species_spelling_hint(atom.species)
+            raise ValueError(
+                f"phase {phase.name!r} atom {index} ({atom.label!r}): "
+                f"{reason}{hint}") from exc
+    raise exc
+
+
 def compile_model(structure: Structure, instrument: Instrument, pattern: PatternData,
                   *, mode: Mode = "rietveld",
                   two_theta_limits: tuple[float, float] | None = None,
@@ -2303,15 +2367,17 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         refl = generate_reflections(phase.space_group, cell, lam_gen,
                                     two_theta_max=hi_eff, two_theta_min=gen_min)
         f_anom = None
-        if disp is not None:
-            f_anom = resolve_dispersion([a.species for a in phase.atoms], lams,
-                                        disp.overrides)
         # The source decides the radiation, exactly as it decides f_anom: a
         # neutron source resolves bound coherent scattering lengths instead of
         # X-ray form factors, and the two are mutually exclusive.
-        sites = compile_phase_sites(
-            phase, f_anom,
-            neutron=(instrument.source.kind == "neutron_cw"))
+        neutron = instrument.source.kind == "neutron_cw"
+        try:
+            if disp is not None:
+                f_anom = resolve_dispersion([a.species for a in phase.atoms],
+                                            lams, disp.overrides)
+            sites = compile_phase_sites(phase, f_anom, neutron=neutron)
+        except (KeyError, ValueError) as exc:
+            _reraise_species_fault(phase, disp, lams, exc, neutron=neutron)
 
         n = len(refl)
         n_lines = len(lams)
