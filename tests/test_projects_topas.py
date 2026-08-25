@@ -12,12 +12,15 @@ fraction read as 0.596 wt% when the file said 11.596, and one read as 0.931 when
 the file said 60.931.
 """
 
+import re
 from pathlib import Path
 
 import pytest
 
 from rietx.io.projects.topas import (
     TopasInpError,
+    _cell_search_text,
+    _masked,
     normalize_space_group,
     normalize_species,
     read_topas_inp,
@@ -1382,3 +1385,184 @@ def test_the_apostrophe_block_comment_idiom_keeps_the_phase_active(tmp_path):
     assert [p.name for p in model.phases] == ["LSF rhombohedral"]
     assert model.wavelength is None          # the real /* */ block was stripped
     assert model.phases[0].cell["c"] == pytest.approx(13.561602)
+
+
+# ============================================================= round-four review
+# The token scan put the whole safety of the scan onto the mask, and the mask was
+# line-wise while the scan was token-wise — this round's own asymmetry one level
+# down. One masked text is built once and every token scan reads it; the tests
+# here pin what survives it, and the three regressions the hole let through.
+# Each reproduction is the reviewer's own, measured against round two `2a69f76`.
+
+
+# ---------------------------- the mask, pinned directly
+
+def test_the_mask_blanks_the_space_group_value_so_a_letter_is_not_a_cell_key():
+    """The invariant is the mask now, so it is pinned without a whole file: an
+    unquoted Hermann-Mauguin symbol's value is blanked over the same span the
+    reader's `space_group` regex reads, so `/c 1` is never a `c` token — while
+    the real `a`/`b`/`c` lines and the `site` token survive for the scans that
+    need them."""
+    chunk = ('phase_name x\nspace_group P 1 21/c 1\n'
+             'a 5.0\nb 6.0\nc 7.0\nsite A1 x 0 y 0 z 0 occ Na+1 1\n')
+    base = _masked(chunk)
+    assert "21/c" not in base                       # the symbol's value is gone
+    assert "\na 5.0\n" in "\n" + base + "\n"         # real cell lines survive
+    assert "b 6.0" in base and "c 7.0" in base
+    assert "site A1" in base                         # the site token survives
+
+
+def test_the_cell_mask_blanks_a_site_segment_not_a_site_line():
+    """A site whose fields continue on the next line has the whole *segment*
+    blanked for the cell scan — the `b` naming `beq`'s value is gone — but a real
+    `b`/`c` line resuming below the site block is not, because the segment ends
+    where the edges resume at a line start."""
+    chunk = ('site A1 x 0 y 0 z 0 occ Na+1 1\n     beq b 0.5\n'
+             'a 5.0\nb 6.0\nc 7.0\n')
+    cell = _cell_search_text(chunk)
+    assert "beq" not in cell                          # the continuation is gone
+    assert "b 6.0" in cell and "c 7.0" in cell        # the cell resuming survives
+    # but the base mask keeps the site token, for the split and the count
+    assert "site A1" in _masked(chunk)
+
+
+def test_the_mask_blanks_the_word_site_in_a_path_or_macro_but_keeps_a_real_one():
+    """A `site` inside a quoted path or a macro argument is not a site token, so
+    neither the file-level count nor the split may see it; a real one must."""
+    base = _masked('xdd "C:\\data\\site\\run1.xy"\nOut_X_Ycalc("site.xy")\n'
+                   'site A1 x 0 y 0 z 0 occ Na+1 1\n')
+    assert len(re.findall(r"\bsite\b", base)) == 1    # only the real one
+
+
+# ---------------------------- finding 1: an unquoted Hermann-Mauguin symbol
+
+@pytest.mark.parametrize("sg, key, value", [
+    # the full monoclinic spellings TOPAS and GSAS write out carry a lattice
+    # letter immediately followed by a number, so `/c 1` read c = 1.0 and `/a 1`
+    # read a = 1.0 — every d-spacing wrong, nothing raised.
+    ("P 1 21/c 1", "c", 7.0),
+    ("P 1 21/a 1", "a", 5.0),
+])
+def test_an_unquoted_hermann_mauguin_symbol_is_not_read_as_a_cell_key(
+        tmp_path, sg, key, value):
+    """`space_group P 1 21/c 1` read `/c 1` as c = 1.0: the symbol sits above the
+    cell and the loop takes the first line that reads, so it won. The mask blanks
+    the value over the span the reader's own regex consumes, so the real `c 7.0`
+    line is the first `c` left (finding 1)."""
+    inp = _inp(tmp_path, "hm.inp",
+               f'str\nphase_name x\nspace_group {sg}\n'
+               'a 5.0\nb 6.0\nc 7.0\nbe 99.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert phase.cell[key] == pytest.approx(value)
+    assert phase.space_group == sg                # the symbol itself is preserved
+
+
+def test_a_quoted_hermann_mauguin_symbol_stays_safe(tmp_path):
+    """Quoted symbols were already safe, because strings are blanked; keep it."""
+    inp = _inp(tmp_path, "hmq.inp",
+               'str\nphase_name x\nspace_group "P21/a"\n'
+               'a 5.0\nb 6.0\nc 7.0\nbe 99.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert (phase.cell["a"], phase.cell["c"]) == pytest.approx((5.0, 7.0))
+
+
+# ---------------------------- finding 2: a site declaration continues past the line
+
+def test_a_beq_name_on_a_continuation_line_is_not_read_as_a_cell_edge(tmp_path):
+    """`beq b 0.5` on its own line left the `b` naming the parameter exposed, and
+    a cubic phase — which states no `b` line for the real value to win with —
+    read b = 0.5 as a cell edge. Blanked as a site *segment*, `b` stays tied to
+    `a` (finding 2)."""
+    inp = _inp(tmp_path, "cont_b.inp",
+               'str\nphase_name cubic\nspace_group Fm-3m\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1\n     beq b 0.5\n')
+    model = read_topas_inp(inp)
+    assert "b" not in model.phases[0].cell        # not stated; not leaked
+    assert to_structure(model).phases[0].cell.b.value == pytest.approx(4.0)
+
+
+def test_a_beq_name_ga_on_a_continuation_line_is_not_read_as_an_angle(tmp_path):
+    """The same for `beq ga 0.5` on a gallium site: `ga` stayed 90°, not 0.5°."""
+    inp = _inp(tmp_path, "cont_ga.inp",
+               'str\nphase_name cubic\nspace_group Fm-3m\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Ga+3 1\n     beq ga 0.5\n')
+    model = read_topas_inp(inp)
+    assert "ga" not in model.phases[0].cell
+    assert to_structure(model).phases[0].cell.gamma.value == pytest.approx(90.0)
+
+
+def test_a_site_block_above_the_cell_lines_does_not_leak_into_the_cell(tmp_path):
+    """The site block sits *above* the cell here, so `beq b 0.5` was read as
+    b = 0.5 before the real `b 6.0` below it. The segment ends where the edges
+    resume at a line start, so `b` is 6.0 — the one place "blank to block end"
+    would have blanked the real cell and defaulted it (finding 2)."""
+    inp = _inp(tmp_path, "above.inp",
+               'str\nphase_name ortho\nspace_group Pmmm\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1\n     beq b 0.5\n'
+               'a 5.0\nb 6.0\nc 7.0\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert (phase.cell["a"], phase.cell["b"], phase.cell["c"]) == \
+        pytest.approx((5.0, 6.0, 7.0))
+    assert phase.sites[0].beq == pytest.approx(0.5)   # still read as the site's B
+
+
+# ---------------------------- finding 3: the other scans must use the mask too
+
+def test_a_path_containing_site_above_a_block_does_not_trigger_the_count(tmp_path):
+    """`xdd "C:\\data\\site\\run1.xy"` above the block had the file-level guard
+    count a `site` token the file never stated and refuse a file that dropped no
+    site — the confident wrong diagnosis with its sign flipped. The count reads
+    the mask now, so the word in the path is gone (finding 3)."""
+    inp = _inp(tmp_path, "pathsite.inp",
+               'xdd "C:\\data\\site\\run1.xy"\n'
+               'str\nphase_name P\nspace_group P1\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    model = read_topas_inp(inp)                    # no refusal
+    assert [s.label for s in model.phases[0].sites] == ["A1"]
+
+
+def test_a_macro_string_containing_site_inside_a_block_is_not_split_as_a_site(
+        tmp_path):
+    """`Out_X_Ycalc("site.xy")` inside the block had the split cut a bogus segment
+    and raise "no label/occ in site: 'site.xy\\")'". The split takes its
+    boundaries off the mask, where the macro's string is blanked, so only the
+    real site is a site (finding 3)."""
+    inp = _inp(tmp_path, "macrostr.inp",
+               'str\nphase_name P\nspace_group P1\na 5.0\n'
+               'Out_X_Ycalc("site.xy")\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    model = read_topas_inp(inp)                    # no refusal
+    assert [s.label for s in model.phases[0].sites] == ["A1"]
+
+
+# ---------------------------- housekeeping: the refusal agrees with itself
+
+@pytest.mark.parametrize("second_blocks, n_carrying, n_building, singular", [
+    # one nameless block carrying a cell, one named phase building: both singular.
+    ('str\nspace_group "Fm-3m"\na 4.2\nsite B1 x 0 y 0 z 0 occ Cl-1 1 beq b 0.5\n',
+     1, 1, True),
+    # two nameless blocks carrying a cell: the noun and the verb both pluralise.
+    ('str\nspace_group "Fm-3m"\na 4.2\nsite B1 x 0 y 0 z 0 occ Cl-1 1 beq b 0.5\n'
+     'str\nspace_group "Im-3m"\na 3.9\nsite C1 x 0 y 0 z 0 occ Cl-1 1 beq b 0.5\n',
+     2, 1, False),
+])
+def test_the_dropped_block_refusal_agrees_in_number(
+        tmp_path, second_blocks, n_carrying, n_building, singular):
+    """The refusal pluralised its nouns but not its verbs — "1 `str` block here
+    state a cell" and "1 other phase build". Both agree now, singular and
+    plural."""
+    inp = _inp(tmp_path, "agree.inp",
+               'str\nphase_name "A"\nspace_group "P1"\na 5.0\n'
+               'weight_percent wpA 40.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n' + second_blocks)
+    with pytest.raises(TopasInpError) as exc:
+        to_structure(read_topas_inp(inp))
+    msg = str(exc.value)
+    if singular:
+        assert "block here states a cell" in msg
+        assert "other phase builds would" in msg
+    else:
+        assert "blocks here state a cell" in msg
+        assert "other phase builds would" in msg

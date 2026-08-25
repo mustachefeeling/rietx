@@ -733,42 +733,101 @@ def _excise_macro_defs(text: str) -> str:
     return "".join(out)
 
 
-def _cell_search_text(chunk: str) -> str:
-    """The chunk with everything a cell key must **not** be read from blanked.
+#: A cell key at the **start of its own line** — where the real cell edges
+#: resume below a site block. It ends a ``site`` segment (see :func:`_blank_sites`):
+#: a continuation like ``beq b 0.5`` starts with ``beq`` and is site text, while
+#: ``b 6.0`` starts with the edge itself and is the cell. The two-letter keys
+#: precede the one-letter ones so ``\b`` never truncates ``al``/``be``/``ga``.
+_CELL_LINE_START = re.compile(r"(?m)^[ \t]*(?:al|be|ga|a|b|c)\b")
 
-    TOPAS is whitespace-insensitive, so ``a 5.4 b 6.1 c 7.2`` is a whole
-    orthorhombic cell on one line and a scan anchored at line start (as the
-    predecessor's ``re.match(rf"\\s*{key}\\b", ln)`` was) reads only ``a`` and
-    silently builds a=b=c (WP-1118). The scan is therefore token-oriented — the
-    key wherever it sits — which is safe only once three spans are blanked:
 
+def _masked(text: str) -> str:
+    """**The** masked text every token scan reads (WP-1118).
+
+    The scan is token-oriented — a key wherever it sits, because TOPAS is
+    whitespace-insensitive and ``a 5.4 b 6.1 c 7.2`` is a whole cell on one
+    line. With the line anchor gone, the *only* safety is that every span a key
+    (or a ``site`` token) must not be read from is blanked first, once, into a
+    text every scan shares — the cell-key scan, the site split, and the
+    file-level site count — so a span nobody blanked cannot be read by one scan
+    while another is safe. The unmasked text stays for the messages, which quote
+    the original line. Blanked here, offset-for-offset (:func:`_blank`):
+
+    * a ``"…"`` string, so the ``a`` in ``space_group "P21/a"``, or the word in
+      ``xdd "C:\\data\\site\\run1.xy"``, or a phase name, is not a token;
     * a macro's parenthesised arguments, so a named ``a`` in ``Cubic_(a, …)`` is
-      the macro's argument and not an ``a`` line (the reason the anchor existed);
-    * a ``site`` declaration to end of line, so the ``b`` naming ``beq``'s value
-      in ``… beq b 0.5`` is not read as the cell edge ``b``;
+      the macro's argument and ``site`` in ``Out_X_Ycalc("site.xy")`` is not a
+      site (the reason the cell scan's line anchor once existed);
     * a ``prm``/``local`` declaration to end of line, so ``prm a 0.9`` declares a
       symbol and is not an ``a`` line;
-    * a ``"…"`` string, so the ``a`` in ``space_group "P21/a"`` (or a phase name,
-      or a path) is not a cell line — the only cell keys the archive puts off
-      line start, measured.
+    * the ``space_group`` and ``phase_name`` **values**, over the same span the
+      reader's own value-regexes consume, so an unquoted Hermann-Mauguin symbol
+      ``P 1 21/c 1`` does not read ``/c 1`` as ``c = 1.0`` — legal, and the
+      reader's own regex accepts it, so the mask has to know the spelling too.
+
+    A ``site`` **segment** is not blanked here — the site split and the count
+    need the ``site`` tokens to survive. :func:`_blank_sites` blanks the segments
+    on top of this, for the cell scan alone.
     """
-    masked = re.sub(r'"[^"\n]*"', lambda m: _blank(m.group()), chunk)
+    masked = re.sub(r'"[^"\n]*"', lambda m: _blank(m.group()), text)
     masked = re.sub(r"\w+\([^)]*\)", lambda m: _blank(m.group()), masked)
-    masked = re.sub(r"\b(?:site|prm|local)\b[^\n]*", lambda m: _blank(m.group()),
+    masked = re.sub(r"\b(?:prm|local)\b[^\n]*", lambda m: _blank(m.group()),
                     masked)
+    # `[ \t]+`, not `\s+`: the reader's own value-regex (`\s+`) never crosses a
+    # newline on the original text, because a quote or the symbol's first letter
+    # follows the space — but here the value has already been quote-blanked to
+    # spaces, so `\s+` would run through the newline and blank the next line's
+    # `a 5.0`. Confined to one line, this blanks exactly the span the reader reads.
+    for kw in ("space_group", "phase_name"):
+        masked = re.sub(rf'(\b{kw}[ \t]+"?)([^"\n]+)',
+                        lambda m: m.group(1) + _blank(m.group(2)), masked)
     return masked
+
+
+def _blank_sites(masked: str) -> str:
+    """``masked`` with each ``site`` **segment** blanked, for the cell-key scan.
+
+    A ``site`` declaration does not end at the newline: its fields may continue
+    on the next line (``beq b 0.5`` on its own), and the ``b`` there naming the
+    ``beq`` parameter is not the cell edge ``b`` (WP-1118). So the segment runs
+    from a ``site`` token to the next ``site``, the chunk end, **or** the next
+    line that begins with a cell edge — whichever comes first. The last of those
+    is the one refinement to the reviewer's "to the next site or block end":
+    where the site block sits *above* the cell lines, "block end" would blank the
+    real ``a``/``b``/``c`` below it and default the cell, so the segment stops
+    where the edges resume at a line start instead.
+    """
+    site_pos = [m.start() for m in re.finditer(r"\bsite\b", masked)]
+    if not site_pos:
+        return masked
+    cell_pos = [m.start() for m in _CELL_LINE_START.finditer(masked)]
+    chars = list(masked)
+    for i, start in enumerate(site_pos):
+        nxt_site = site_pos[i + 1] if i + 1 < len(site_pos) else len(masked)
+        nxt_cell = next((p for p in cell_pos if p > start), len(masked))
+        for j in range(start, min(nxt_site, nxt_cell)):
+            if chars[j] != "\n":
+                chars[j] = " "
+    return "".join(chars)
+
+
+def _cell_search_text(chunk: str) -> str:
+    """The cell-scan view of a chunk: :func:`_masked` with the ``site`` segments
+    blanked on top (:func:`_blank_sites`). Kept as a named successor so a test
+    can pin what survives a chunk without a whole file per hole."""
+    return _blank_sites(_masked(chunk))
 
 
 _CELL_KEYS = ("a", "b", "c", "al", "be", "ga")
 
 
-def _cell_reads(chunk: str, symbols: dict[str, float]) -> dict[str, float]:
-    """Best-effort ``{key: value}`` for the cell keys a chunk states, raising
-    nothing — for recording what a :class:`SkippedBlock` carried."""
-    masked = _cell_search_text(chunk)
+def _cell_reads(cell_scan: str, symbols: dict[str, float]) -> dict[str, float]:
+    """Best-effort ``{key: value}`` for the cell keys an *already cell-masked*
+    text states, raising nothing — for recording what a :class:`SkippedBlock`
+    carried."""
     out: dict[str, float] = {}
     for key in _CELL_KEYS:
-        for line in masked.split("\n"):
+        for line in cell_scan.split("\n"):
             if re.search(rf"\b{key}\b", line):
                 read = _read(key, line, symbols)
                 if read is not None and read.value is not None:
@@ -803,6 +862,11 @@ def read_topas_inp(path: str | Path) -> TopasModel:
     # block (so they may not end a `str`), and their bodies' `site`/cell tokens
     # are not any phase's — see `_excise_macro_defs`.
     active = _excise_macro_defs(resolve_ifdefs(strip_comments(raw)))
+    # THE masked text, built once and sliced by every token scan below (the
+    # cell-key scan, the site split, the file-level site count) — offset-for-
+    # offset with `active`, so a slice of one indexes the other. The mask is the
+    # invariant that keeps a token-oriented scan honest; see `_masked`.
+    masked = _masked(active)
     model = TopasModel(path=str(path))
     symbols = symbol_table(active)
 
@@ -847,6 +911,7 @@ def read_topas_inp(path: str | Path) -> TopasModel:
         end = (openers[index + 1].start() if index + 1 < len(openers)
                else len(active))
         chunk = active[opener.end():end]
+        mchunk = masked[opener.end():end]      # the same span of THE masked text
         name = re.search(r'phase_name\s+"?([^"\n]+)', chunk)
         sg = re.search(r'\bspace_group\s+"?([^"\n]+)', chunk)
         # A *magnetic* space group is a construct this package has no model for,
@@ -869,14 +934,14 @@ def read_topas_inp(path: str | Path) -> TopasModel:
             # carried (cell/scale/weight_percent), because that is what lets
             # `to_structure` tell a phase in all but its name from an empty
             # block — and `to_structure` refuses where such a block is dropped.
-            n_sites = len(re.findall(r"\bsite\b", chunk))
+            n_sites = len(re.findall(r"\bsite\b", mchunk))
             lacks = " or ".join(w for w, got in
                                 (("phase_name", name), ("space_group", sg))
                                 if not got)
             scale_read = _read("scale", chunk, symbols)
             model.skipped_blocks.append(SkippedBlock(
                 lacked=lacks, n_sites=n_sites,
-                cell=_cell_reads(chunk, symbols),
+                cell=_cell_reads(_blank_sites(mchunk), symbols),
                 scale=scale_read.value if scale_read else None,
                 weight_percent=_field("weight_percent", chunk, symbols)))
             continue
@@ -888,11 +953,12 @@ def read_topas_inp(path: str | Path) -> TopasModel:
         # a=b=c — an orthorhombic phase arrived cubic with nothing raised, and
         # `al 90 be 90 ga 120` read only `al` so a P6/mmm built with gamma 90.
         # The line anchor existed to keep `lpa` inside `Cubic_(lpa …)` off the
-        # `a` scan; that job moves to `_cell_search_text`, which blanks macro
-        # parentheses (and `site`/`prm`/`local` lines) so the key can then be
-        # read wherever it sits in what is left.
+        # `a` scan; that job is THE mask's now — `_blank_sites(mchunk)` is the
+        # shared masked span with the `site` segments blanked on top, so the key
+        # is read wherever it sits in what is left and no `beq b`/`space_group`
+        # letter is read as a cell edge.
         masked_lines = list(zip(chunk.split("\n"),
-                                _cell_search_text(chunk).split("\n")))
+                                _blank_sites(mchunk).split("\n")))
         for key in _CELL_KEYS:
             stated = [(orig, mask) for orig, mask in masked_lines
                       if re.search(rf"\b{key}\b", mask)]
@@ -954,10 +1020,15 @@ def read_topas_inp(path: str | Path) -> TopasModel:
         # whitespace-insensitive, so `site A1 … beq b 0.5 site B1 x 0.5 …` is
         # two atoms on one line and a per-line scan read one, dropping the
         # second silently — `_SITE_KEYWORDS` already lists `site` as an
-        # occupancy terminator, so the grammar half knew. Each segment runs from
-        # a `site` token to the next, so `_read` on it sees only that atom.
-        site_texts = [s for s in re.split(r"(?=\bsite\b)", chunk)
-                      if re.match(r"\s*site\b", s)]
+        # occupancy terminator, so the grammar half knew. The boundaries come
+        # off THE masked chunk, so a `site` inside a quoted path or a macro
+        # (`Out_X_Ycalc("site.xy")`) is not one; the segments are sliced from the
+        # *original* chunk, so an `x`/`y`/`z` written as an `A1(…)` coordinate
+        # macro — which the mask blanks — is still there to read.
+        site_pos = [m.start() for m in re.finditer(r"\bsite\b", mchunk)]
+        bounds = site_pos + [len(chunk)]
+        site_texts = [chunk[site_pos[i]:bounds[i + 1]]
+                      for i in range(len(site_pos))]
         for text in site_texts:
             label = re.match(r"\s*site\s+(\S+)", text)
             occ = re.search(r"\bocc\s+(\S+)", text)
@@ -995,13 +1066,15 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                 f"{len(site_texts)} site segments")
         model.phases.append(phase)
 
-    # A file-level count of `site` tokens, computed over `active` and so
+    # A file-level count of `site` tokens, computed over THE masked text and so
     # independent of how the file was split into blocks (WP-1118). The per-phase
     # guard above reads both its numbers off the same chunk, so a splitter error
     # — a `macro` truncating a `str`, a `str` chunk cut short — that drops sites
     # is invisible to it. This one is not: every `site` token the reader saw
-    # must land in a phase or be recorded on a skipped block.
-    declared = len(re.findall(r"\bsite\b", active))
+    # must land in a phase or be recorded on a skipped block. Over the mask, not
+    # `active`, so a `site` inside a quoted path (`xdd "C:\data\site\run1.xy"`)
+    # or a macro is not counted and does not refuse a file that dropped nothing.
+    declared = len(re.findall(r"\bsite\b", masked))
     parsed = sum(len(ph.sites) for ph in model.phases)
     skipped = sum(sb.n_sites for sb in model.skipped_blocks)
     if declared != parsed + skipped:
@@ -1154,10 +1227,12 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True):
     if phases and carrying:
         raise TopasInpError(
             f"{model.path or '<model>'}: {len(carrying)} `str` block"
-            f"{'' if len(carrying) == 1 else 's'} here state a cell or a site "
+            f"{'' if len(carrying) == 1 else 's'} here state"
+            f"{'s' if len(carrying) == 1 else ''} a cell or a site "
             f"but no phase_name/space_group, so they cannot be built — and "
             f"dropping them while {len(phases)} other phase"
-            f"{'' if len(phases) == 1 else 's'} build would leave the weight "
+            f"{'' if len(phases) == 1 else 's'} build"
+            f"{'s' if len(phases) == 1 else ''} would leave the weight "
             f"fractions no longer summing. " + "; ".join(str(sb) for sb in carrying)
             + ". Read `model.phases` for what the file does state.")
 
