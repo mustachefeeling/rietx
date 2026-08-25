@@ -122,8 +122,10 @@ SAMPLING_PROMINENCE_SIGMA = 5.0
 #: measure exists to find — and **every one of them is exactly one channel long**
 #: (3 and 4 such channels respectively), while a median over 11 channels leaves
 #: nothing above even 1.3 there.  Measured at 11, 21 and 41 channels: the regions
-#: come back the same, so the width is a floor and not a tuning.  1.0° is 21
-#: channels at those files' 0.05° step.
+#: come back the same, so the width is a floor and not a tuning.  1.0° is
+#: ``int(1.0 / 0.05)`` = 20 channels at those files' 0.05° step — an even width,
+#: so ``median_filter`` takes the lower of the two central values, half a channel
+#: below centre.  Neither the count nor the off-by-half moves a reported region.
 COVERAGE_SMOOTH_DEG = 1.0
 
 #: How many times the plateau's variance-per-count a smoothed channel must carry
@@ -280,15 +282,23 @@ class CoverageRegion(Base):
     detectors saw each angle, and about nothing to do with the specimen.
 
     The four numbers are the four separate questions: where it is, how much
-    variance per count it carries relative to the bulk (``inflation``), how much
-    of the pattern that is (``n_channels`` — a 3-channel region and a 700-channel
-    one are different facts about the same ratio), and *where in the range* it
-    sits.  ``edge`` is not a hint to do anything: a region at either end of the
-    scan is the detector bank's coverage running out, the ordinary geometry of a
-    multi-detector instrument, while an interior one has a different cause
-    entirely (a dead or excluded detector, two scans stitched together), so the
-    two must not be read as the same observation.  Both ends cannot be one
-    region, because the plateau is measured in the middle.
+    variance per count it carries relative to the bulk (``inflation``), how wide
+    it is (``n_channels`` — a 3-channel region and a 700-channel one are
+    different facts about the same ratio; and it is the region's *span*, bridged
+    sub-threshold gaps included, not a count of channels each over the
+    threshold), and *where in the range* it sits.  ``edge`` is not a hint to do
+    anything and it is not a diagnosis of the cause: it says only whether the run
+    reached an end of the range or sat inside it.  The causes it does **not**
+    separate are several.  An end region can be the detector bank's coverage
+    running out (a quantised falloff, detectors being integers) *or* a smooth
+    high-angle taper of a synchrotron analyser bank (11-BM rises over its last
+    third rather than stepping); an interior one can be a dead or excluded
+    detector, two scans stitched together, a variable counting-time or slit
+    schedule (a non-monotonic ladder, as SRM 660c shows), or mere
+    threshold-crossing chatter a channel or two wide.  ``counting_coverage`` and
+    the manual carry the bundled-pattern readings; ``edge`` is the coarse
+    location and nothing finer.  Both ends cannot be one region, because the
+    plateau is measured in the middle.
 
     ``inflation`` is a **median** over the region, so it summarises rather than
     resolves: a region can hold finer steps of its own (on ``Al2O3023.xye`` the
@@ -773,6 +783,24 @@ def counting_coverage(
     a step rather than a gradual falloff, and they are not monotonic in 2θ
     (Al2O3023 sits at ≈4× over 11.3-13.0°, between two ≈2.2× stretches).
     Neither pattern's plateau contains a region at all.
+
+    **Where it fires on the bundled patterns**, and why a detector-count reading
+    of ``edge`` is too narrow for all of them (pinned in ``test_background_auto``,
+    tabulated in the manual).  Three of the repo's patterns with a measured σ
+    fire, none of them a plain detector-bank falloff.  The two 11-BM synchrotron
+    scans (``11BM_NAC.fxye`` high 46-60°, 2.80×; ``11BM_LaB6_660a.fxye`` high
+    53-67°, 2.82×) rise *smoothly* over the last third — an analyser bank tapering
+    out, not the quantised step the BT-1 ends show, so "detectors are integers"
+    is the wrong mechanism there.  ``nist_srm660c_100a.cif`` fires on a broad low
+    region (20.3-62.5°, 5.50×) and two interior ones (66.7-75.0°, 2.74×;
+    140.5-147.5°, 1.58×); its ladder is non-monotonic in both directions, which
+    reads as a variable counting-time or slit schedule rather than detector
+    count, and the two interior regions are the same threshold-crossing chatter
+    the measure declares elsewhere.  The measure is right that σ is structured on
+    all three; ``edge`` locates the structure and does not name its cause, and
+    the manual's table is where a reader gets the cause.  It stays silent on the
+    one other σ-bearing bundled pattern (``panalytical_attenuator.xrdml``) and
+    returns ``None`` on the two with no σ column.
 
     **What it is for, and what it is not.** It reports that the pattern's
     statistical weight is not uniform across its range — a fact about the

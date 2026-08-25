@@ -368,6 +368,54 @@ def test_diagnose_reports_the_same_coverage_as_the_function():
     assert d.coverage_regions == regions
 
 
+def test_counting_coverage_on_the_bundled_patterns_that_fire():
+    """The measure fires on real bundled patterns, and none is a plain
+    detector-bank falloff — so the reading is documented rather than left for a
+    caller to rediscover (the manual carries the causes; this pins the numbers).
+
+    The synthetic fixtures above set the *constants*; this pins what the measure
+    actually reports on the σ-bearing patterns shipped in ``tests/data``, so a
+    later change that moves a boundary or a level has to say so here.  The 11-BM
+    ends rise smoothly (an analyser bank tapering, not a quantised step) and the
+    SRM 660c ladder is non-monotonic (a counting schedule, not a detector count);
+    ``edge`` locates each and does not claim its cause.
+    """
+    from rietx.background import counting_coverage
+
+    data_dir = Path(__file__).parent / "data"
+
+    def _fire(name):
+        data = rx.read_pattern(str(data_dir / name))
+        assert data.sigma is not None, f"{name} has no σ column to read"
+        return counting_coverage(data.tt(), data.y(), data.sig())
+
+    # 11-BM: one high-angle region each, ≈2.8× the plateau, smooth taper.
+    for name, lo_deg in (("11BM_NAC.fxye", 46.0), ("11BM_LaB6_660a.fxye", 53.0)):
+        regions, plateau = _fire(name)
+        assert [r.edge for r in regions] == ["high"], (name, regions)
+        assert regions[0].two_theta_min == pytest.approx(lo_deg, abs=1.0), name
+        assert regions[0].inflation == pytest.approx(2.8, rel=0.1), name
+
+    # SRM 660c: a broad low region and two interior ones — the interior pair is
+    # threshold-crossing chatter, the low one the counting schedule.
+    regions, plateau = _fire("nist_srm660c_100a.cif")
+    assert [r.edge for r in regions] == ["low", "interior", "interior"], regions
+    low = regions[0]
+    assert low.two_theta_min == pytest.approx(20.3, abs=0.5)
+    assert low.two_theta_max == pytest.approx(62.5, abs=1.0)
+    assert low.inflation == pytest.approx(5.5, rel=0.1)
+    assert regions[1].inflation == pytest.approx(2.74, rel=0.1)
+    assert regions[2].inflation == pytest.approx(1.58, rel=0.1)
+
+    # and silent where σ is measured but coverage is uniform — the control that
+    # keeps the three above from being "fires on everything".
+    clean = rx.read_pattern(str(data_dir / "panalytical_attenuator.xrdml"))
+    assert clean.sigma is not None
+    regions, plateau = counting_coverage(clean.tt(), clean.y(), clean.sig())
+    assert regions == [], regions
+    assert plateau is not None
+
+
 # ----------------------------------------------------------------------
 # auto-selection
 # ----------------------------------------------------------------------

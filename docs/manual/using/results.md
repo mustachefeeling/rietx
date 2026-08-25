@@ -366,8 +366,8 @@ gradual falloff.
 | Field | Is |
 |---|---|
 | `CoverageRegion.two_theta_min`, `CoverageRegion.two_theta_max` | where the region runs, in degrees |
-| `CoverageRegion.inflation` | the median σ²/max(y, 1) over the region, divided by the plateau — how many times the bulk's variance per count it carries |
-| `CoverageRegion.n_channels` | how much of the pattern that is |
+| `CoverageRegion.inflation` | the median σ²/max(y, 1) over the region, divided by the plateau — how many times the bulk's variance per count it carries. A median over the whole span, so any bridged sub-threshold channels (below) are in it |
+| `CoverageRegion.n_channels` | the region's width in channels. Runs closer together than the smoothing window are merged into one, so this is the region's **span** — bridged in-region dips back below the threshold included — not a count of channels each individually over it |
 | `CoverageRegion.edge` | `"low"`, `"high"` or `"interior"` — whether it sits at an end of the scanned range or inside it |
 
 :::{warning}
@@ -380,11 +380,28 @@ the specimen. Where it disagrees with a hand-chosen fit range, that is
 information about the range, in either direction and with no recommendation
 attached.
 
-Read `CoverageRegion.edge` the same way. A region at either end is the detector
-bank's coverage running out, the ordinary geometry of a multi-detector
-instrument; an interior one has a different cause (a dead or excluded detector,
-two scans stitched together), and the statistic cannot tell the two apart on its
-own.
+Read `CoverageRegion.edge` as a location, not a diagnosis. It says whether the
+run reached an end of the range or sat inside it, and no more — the causes it
+does *not* separate are several. An end region can be a detector bank's coverage
+running out (a quantised falloff), or a synchrotron analyser bank tapering out
+smoothly at high angle; an interior one can be a dead or excluded detector, two
+scans stitched together, a variable counting-time or slit schedule, or
+threshold-crossing chatter a channel or two wide. The table below is where those
+readings live.
+
+On the bundled patterns, three with a measured σ fire — none of them the plain
+detector falloff the BT-1 provenance shows:
+
+| pattern | fires | how to read it |
+|---|---|---|
+| `11BM_NAC.fxye` | high 46.0–60.0°, 2.80× | a synchrotron analyser bank tapering out — the ratio rises *smoothly* across the last third, not the quantised step a detector count makes |
+| `11BM_LaB6_660a.fxye` | high 53.0–67.0°, 2.82× | the same taper |
+| `nist_srm660c_100a.cif` | low 20.3–62.5°, 5.50×; interior 66.7–75.0°, 2.74×; interior 140.5–147.5°, 1.58× | a ladder non-monotonic in both directions, which reads as a variable counting-time or slit schedule rather than a detector count; the two interior regions are threshold-crossing chatter |
+
+It is silent on the one other σ-bearing bundled pattern
+(`panalytical_attenuator.xrdml`) and returns `null` on the two with no σ column.
+The point is not that any of these is wrong — the σ column *is* structured on all
+three — but that `edge` locates the structure and this table names its cause.
 
 One thing it genuinely settles: a σ column that shows this structure was
 measured. The Poisson fallback σ = √max(y, 1) makes the ratio identically 1, so
