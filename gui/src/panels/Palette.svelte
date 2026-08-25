@@ -82,10 +82,10 @@
     overflow: hidden;
   }
 
+  /* the modal's subject, and it is prominent by width and padding — a field
+     is control-sized like every other (WP-1201) */
   input {
     width: 100%;
-    font: inherit;
-    font-size: var(--text);
     padding: 10px 12px;
     border: 0;
     border-bottom: 1px solid var(--line);

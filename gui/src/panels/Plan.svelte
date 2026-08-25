@@ -247,7 +247,6 @@
   select {
     flex: 1 1 auto;
     min-width: 0;
-    font: inherit;
     padding: 3px 4px;
     border: 1px solid var(--line);
     border-radius: 4px;
@@ -292,7 +291,6 @@
   }
 
   input {
-    font: inherit;
     border: 1px solid transparent;
     background: transparent;
     color: inherit;

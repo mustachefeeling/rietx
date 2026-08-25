@@ -44,9 +44,13 @@
      were different objects.  Each step means a *role*, not a degree of
      smallness:
 
-       --text     prose — a sentence a person reads, and a form field
-       --text-sm  every control and every table row: dense, one line each
+       --text     prose — a sentence a person reads
+       --text-sm  a control and everything on its row: a field, a field's
+                  label, a count beside a button, a table cell
        --text-xs  a chip and a section heading: a label on something else
+
+     A field is control-sized with no exception: a field that needs to feel
+     prominent gets width and padding, never a step of its own.
 
      `gui/src/lib/style.test.ts` fails on a literal `font-size` in `App.svelte`
      or any panel, which is what keeps a fourth step from arriving by accident. */
