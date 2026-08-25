@@ -27,6 +27,7 @@ from .optimize.statistics import background_absorption, compute_statistics
 from .params.multi import MultiParameterTable, SharingMap
 from .refine import (
     _VERSION,
+    _WAVELENGTH_PINNED_BY_HELD_HISTOGRAM,
     _absorption_diagnostics,
     _absorption_record,
     _constraint_diagnostics,
@@ -35,6 +36,7 @@ from .refine import (
     _qpa_unavailable_diagnostics,
     _resolve_specimen_absorption,
     _utcnow,
+    _wavelength_calibration_diagnostics,
 )
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
@@ -115,6 +117,14 @@ class MultiHistogramRefinement:
                     for ins in self.mtable.instruments]
         self._mu_r_source: list[str] = [src for src, _ in resolved]
         self._mu_r_skipped: list[str | None] = [why for _, why in resolved]
+        #: λ per line as *declared*, per histogram, taken before any stage runs.
+        #: The ``WAVELENGTH_CALIBRATION`` diagnostic reports the refined value
+        #: against this, and it has to be snapshotted here: ``mtable`` writes
+        #: refined values back into its own instrument copies at every stage, so
+        #: by the time the result is built there is nothing left to compare to.
+        self._declared_wavelengths: list[list[float]] = [
+            [p.value for p in ins.source.wavelength_parameters]
+            for ins in self.mtable.instruments]
         self.result_: RefinementResult | None = None
         self._models = None
 
@@ -235,6 +245,8 @@ class MultiHistogramRefinement:
             cm = mt.col_map(h)
             s_h = stderr[cm] if stderr is not None else None
             corr_h = corr[np.ix_(cm, cm)] if corr is not None else None
+            esd_h = (table.stderr_physical(thetas[h], s_h, corr_h)
+                     if s_h is not None else {})
 
             n_free_h = mt.n_shared + len(mt.per_hist_paths[h])
             stats = compute_statistics(model.y_obs, y_calc, model.sigma,
@@ -269,6 +281,9 @@ class MultiHistogramRefinement:
                                             self._mu_r_skipped[h], values)
             if absorption is not None:
                 diags.extend(_absorption_diagnostics(absorption))
+            diags.extend(_wavelength_calibration_diagnostics(
+                self._declared_wavelengths[h], table, values, esd_h,
+                pinned_by=_WAVELENGTH_PINNED_BY_HELD_HISTOGRAM, h=h))
 
             histograms.append(HistogramResult(
                 label=model.meta.get("label", "") or f"hist{h}",

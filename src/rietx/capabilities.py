@@ -142,6 +142,42 @@ class AnodeCapability(Base):
     kbeta: float | None
 
 
+class RadiationCapability(Base):
+    """One kind of source this build can refine against, and what differs.
+
+    Not a feature flag, because "neutron: true" answers no question a caller
+    has.  What a caller needs is which discriminator value to write and what
+    changes underneath it, since the *shape* of a source differs between the
+    two: an X-ray source carries an emission-line list and a dispersion
+    channel, a neutron source carries one wavelength and neither.
+    """
+
+    #: the ``kind`` discriminator, written verbatim into ``Instrument.source``
+    kind: str
+    title: str
+    #: what does the scattering, and therefore whether the amplitude falls off
+    #: with Q — the single physical difference the rest follows from
+    scatterer: str
+    #: ``True`` where the source carries a ``Dispersion`` channel.  Derived
+    #: from the class, never asserted: f′/f″ is an X-ray core-level effect, and
+    #: a neutron source has no field for it to be set on
+    anomalous_dispersion: bool
+    #: how many emission lines the source can carry.  ``None`` is unbounded —
+    #: an anode with a Kα doublet declares its own list, and a source that can
+    #: declare λ/n harmonics grows its spectrum the same way, so this stopped
+    #: being 1 for neutrons the moment harmonics landed.  1 means the spectrum
+    #: is one wavelength and can be nothing else.
+    max_emission_lines: int | None
+    #: ``True`` where the Lorentz-polarisation K is refinable.  For neutrons it
+    #: is pinned at 1, which collapses the factor to the bare Lorentz factor
+    polarization_refinable: bool
+    #: ``True`` where the source accepts declared λ/n monochromator harmonics.
+    #: Read off ``Source.harmonics_supported`` — the same attribute the schema's
+    #: own refusal reads — so this cannot claim a support the validator denies.
+    #: False for X-rays, where one shared f′/f″ cannot serve λ and λ/n.
+    harmonic_contamination: bool
+
+
 class ReaderCapability(Base):
     """A pattern format, how it is recognised, and where its σ comes from."""
 
@@ -214,6 +250,10 @@ class Capabilities(Base):
     centrings: dict[str, list[str]] = Field(default_factory=dict)
     shift_templates: list[str] = Field(default_factory=list)
     modes: list[Mode] = Field(default_factory=list)
+    #: the source kinds ``Instrument.source`` discriminates on, derived from the
+    #: union itself.  ``anodes`` below is a *sub*-vocabulary of the X-ray entry
+    #: and says nothing about the others, which is why both arms are here
+    radiations: list[RadiationCapability] = Field(default_factory=list)
     anodes: list[AnodeCapability] = Field(default_factory=list)
     reader_formats: list[ReaderCapability] = Field(default_factory=list)
     #: every keyword ``read_pattern`` accepts, across all formats — the
@@ -262,6 +302,7 @@ def capabilities() -> Capabilities:
                    for system, letters in CENTRINGS.items()},
         shift_templates=list(SHIFT_TEMPLATES),
         modes=list(get_args(Mode)),
+        radiations=[_radiation(cls) for cls in _source_classes()],
         anodes=[_anode(name) for name in sorted(_RADIATIONS)],
         reader_formats=[
             ReaderCapability(name=f.name, title=f.title,
@@ -284,6 +325,57 @@ def _backend(name: str) -> BackendCapability:
         experimental=name in EXPERIMENTAL_BACKENDS,
         requires=requires,
         dtype=backend_dtype_note(name),
+    )
+
+
+#: What is physically different about each radiation, one line each.  Prose
+#: only — every *derivable* field of :class:`RadiationCapability` is read off
+#: the class below, so a new source kind with no entry here still appears in the
+#: arm (titled by its own discriminator) rather than being silently absent.
+_RADIATION_NOTES: dict[str, tuple[str, str]] = {
+    "xray_cw": ("Constant-wavelength X-ray",
+                "the electron density, so f falls off with Q"),
+    "neutron_cw": ("Constant-wavelength neutron",
+                   "the nucleus, a point scatterer, so b is independent of Q"),
+}
+
+
+def _source_classes() -> list[type]:
+    """The ``Instrument.source`` union, in declaration order.
+
+    Read off the annotation rather than listed, so a source kind added to the
+    union cannot be missing from the arm — the ``_SURFACE_FLAGS`` lesson
+    (WP-1037) applied to a vocabulary instead of a flag.  A single class, before
+    a second radiation existed, is not a union and is handled as one member.
+    """
+    from .schemas.instrument import Instrument
+
+    annotation = Instrument.model_fields["source"].annotation
+    members = get_args(annotation)
+    return list(members) if members else [annotation]
+
+
+def _radiation(cls: type) -> RadiationCapability:
+    kind = get_args(cls.model_fields["kind"].annotation)[0]
+    title, scatterer = _RADIATION_NOTES.get(kind, (kind, "undocumented"))
+    lines_field = cls.model_fields.get("lines")
+    # Not "does the class have a harmonics field" — both source classes do, so
+    # that predicate would report X-ray support the validator refuses.  The
+    # class attribute is the one authority for the answer and
+    # ``check_harmonics`` reads the same one.
+    harmonics = bool(getattr(cls, "harmonics_supported", False))
+    return RadiationCapability(
+        kind=kind,
+        title=title,
+        scatterer=scatterer,
+        # all derived predicates, never literals: a source that grows a
+        # dispersion channel flips its own flag
+        anomalous_dispersion="dispersion" in cls.model_fields,
+        # a declared spectrum *or* a harmonic declaration lifts the cap: a
+        # single-wavelength source that can carry λ/n is not a one-line source
+        max_emission_lines=None if (lines_field is not None or harmonics) else 1,
+        polarization_refinable="polarization" in cls.model_fields,
+        harmonic_contamination=harmonics,
     )
 
 

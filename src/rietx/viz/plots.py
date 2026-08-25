@@ -295,7 +295,8 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
     ``wavelength`` puts λ on the 2θ axis, which is meaningless without it.  It
     is a parameter rather than a lookup because a :class:`RefinementResult`
     does not carry the emission line — pass
-    ``instrument.source.lines[0].wavelength``, or leave it off and say the
+    ``instrument.source.lines[0].wavelength.value`` (a ``Parameter`` since
+    WP-1134, so ``.value`` is required here), or leave it off and say the
     source in the caption.
 
     ``figsize``/``font_size`` are the exposure surface: build the figure at the

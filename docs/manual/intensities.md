@@ -48,6 +48,58 @@ those numbers bit-identically; `DISPERSION_NEGLECTED` then says so, because
 having declined a correction that needs nothing but the species and the
 wavelength is a modelling statement rather than a silence.
 
+(int-neutron-b)=
+### The neutron scattering length
+
+For neutrons the whole of {eq}`int-species` collapses to one number per
+species:
+
+```{math}
+:label: int-b
+
+b \;=\; b_{\mathrm{coh}}\ [\text{fm}],
+\qquad \frac{\partial b}{\partial k} = 0.
+```
+
+*Source:* `rietx.crystallography.neutron`
+
+The derivative is the content of the equation. An X-ray form factor falls off
+with $k$ because the electron cloud has spatial extent comparable to $1/k$; a
+nucleus is a point scatterer on this scale, so the bound coherent scattering
+length carries no angular dependence at all. There is no five-Gaussian
+expansion, no $f'/f''$, and $b$ is real for every nuclide this table covers.
+
+Values are the Sears tabulation {cite}`sears1992`, which is what {cite}`itc-c`
+§4.4.4 Table 4.4.4.1 reproduces — the same volume this package already relies on
+for dispersion, flat-plate absorption and the Lorentz-polarisation factor. Three
+properties have no X-ray counterpart, and each breaks an assumption the X-ray
+path is entitled to make:
+
+- **$b$ may be negative** — H, Li, Ti, V and Mn among the natural-abundance
+  elements. It is a 180° phase shift on scattering, not an error state.
+  $|F|^2$ stays positive; individual terms of the sum do not, so anything
+  taking an absolute value or a square root of a *single* species' amplitude is
+  wrong here.
+- **$b$ depends on isotope, not element** — $b(^{1}\mathrm{H}) = -3.741$ fm
+  against $b(^{2}\mathrm{H}) = +6.671$ fm is a change of sign, which is why
+  deuteration is routine. So an isotope resolves to its own row and a mass
+  number is *kept*, while an ionic charge is discarded because the nucleus does
+  not care about valence electrons. That is the opposite convention to
+  {eq}`int-species`, where an ion resolves to its element because $f'/f''$ is a
+  core-level effect: there the element is the identity, here the isotope is.
+- **The table is thermal.** For the resonant absorbers — Cd, Sm, Eu, Gd, and
+  notably $^{113}$Cd and $^{157}$Gd — $b$ is complex and varies with wavelength
+  near a resonance, the neutron analogue of an X-ray edge. At one constant
+  wavelength a single thermal value is the right number; an instrument spanning
+  a range of wavelengths would need $b(\lambda)$, which this table cannot give.
+
+Everything downstream of the amplitude is unchanged. {eq}`int-F` takes $b$ where
+it took $f$, the Debye-Waller factors of {eq}`int-dw-aniso` are properties of
+the displacement and not of the probe, and {eq}`int-friedel` is trivially
+satisfied because $B \equiv 0$ when the amplitude is real. The
+Lorentz-polarisation factor {eq}`corr-lp` reduces to the bare Lorentz factor,
+since an unpolarised neutron beam sets $K = 1$.
+
 ## The structure factor
 
 ```{math}

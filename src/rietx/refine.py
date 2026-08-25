@@ -46,7 +46,7 @@ from .optimize.statistics import (
     data_support,
     structure_r_factors,
 )
-from .params.vector import AffineTie, ParameterTable
+from .params.vector import AffineTie, ParameterTable, _is_wavelength
 from .report.schemas import THRESHOLDS_VERSION, StageReport
 from .schemas.common import Diagnostic, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
@@ -392,8 +392,13 @@ class Refinement:
         esd = ({p.path: p.stderr for p in self.result_.parameters}
                if self.result_ is not None else {})
         mode = mode or self._mode
+        table = self._working_table()
+        # Whether a wavelength could be freed depends on the cell's *current*
+        # state, so it is read here rather than stored on the entry.
+        blocked = (table._wavelength_paths()
+                   if table._cell_is_free() else frozenset())
         rows = []
-        for e in self._working_table().entries:
+        for e in table.entries:
             rows.append(ParameterRow(
                 path=e.path, value=e.value, vary=e.vary, lo=e.lo, hi=e.hi,
                 transform=e.transform,
@@ -402,6 +407,7 @@ class Refinement:
                 locked=e.locked,
                 esd=esd.get(e.path),
                 mode_fixed=mode_fixed_path(e.path, mode),
+                needs_held_cell=e.path in blocked,
             ))
         return rows
 
@@ -1211,6 +1217,9 @@ class Refinement:
         # …but the staged plan drives the turn-on sequence explicitly
         table = self._prepare_table(restore=False)
 
+        # taken before any stage writes a refined λ back (WP-1134)
+        declared_wavelengths = _declared_wavelengths(self.instrument)
+
         diagnostics: list[Diagnostic] = _dispersion_diagnostics(
             self.structure, self.instrument)
         stage_results: list[StageResult] = []
@@ -1248,7 +1257,8 @@ class Refinement:
             correlation=outcome.correlation, backend=self._backend,
             solver=self._solver,
             mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
-            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd)
+            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
+            declared_wavelengths=declared_wavelengths)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         if stream is not None:
@@ -1379,6 +1389,8 @@ class Refinement:
         stream = as_event_stream(events)
 
         table = self._prepare_table(restore=True)
+        # taken before this stage writes a refined λ back (WP-1134)
+        declared_wavelengths = _declared_wavelengths(self.instrument)
         try:
             with self._abandon_on_cancel(cancel, stage.name, [], stream):
                 model, outcome, guard, freed = self._run_stage(
@@ -1422,7 +1434,8 @@ class Refinement:
             correlation=outcome.correlation, backend=self._backend,
             solver=self._solver,
             mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
-            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd)
+            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
+            declared_wavelengths=declared_wavelengths)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         return self.result_
@@ -1692,6 +1705,34 @@ def _apply_esds(table: ParameterTable, result: RefinementResult,
         p.path: p.stderr for p in result.parameters if p.stderr is not None})
 
 
+#: Why the composition estimator declines on a source that is not X-ray.
+#:
+#: :mod:`rietx.crystallography.attenuation` is an **X-ray** compilation —
+#: photoabsorption plus scattering, cross-checked against the Cromer-Liberman
+#: f'' table — and a neutron does not attenuate that way at all.  Neutron
+#: attenuation is σ_abs(λ) + σ_coh + σ_inc, where σ_abs is quoted at 2200 m/s
+#: (λ = 1.798 Å) and scales as 1/v, i.e. **linearly in λ**, while X-ray µ/ρ
+#: falls roughly as λ⁻³ between edges and has edges at all.  The two are
+#: unrelated numbers: hydrogen is nearly transparent to X-rays and one of the
+#: strongest neutron attenuators there is.
+#:
+#: So this is not a coarse estimate, it is the wrong physical quantity, and
+#: writing it into ``Geometry.mu_r`` would apply a confidently wrong correction
+#: with nothing said — the outcome the docstring below calls the worst of the
+#: three.  It declines and reports instead.  A neutron estimator is buildable
+#: from the table this package already ships (WP-1132); until it exists an
+#: explicit ``mu_r``/``mu_t`` is how to apply the correction on a neutron
+#: instrument, and an explicit value always won anyway.
+_NON_XRAY_ABSORPTION_ESTIMATE = (
+    "specimen absorption was not estimated: the composition estimator is X-ray "
+    "photoabsorption (McMaster tables), and neutron attenuation is a different "
+    "quantity from a different table — sigma_abs scales as lambda rather than "
+    "as lambda^-3, and the scattering cross-sections dominate for light "
+    "elements. Declare Geometry.mu_r (capillary) or Geometry.mu_t (flat plate) "
+    "explicitly to apply the correction; see WP-1132 for a neutron estimator."
+)
+
+
 def _resolve_specimen_absorption(structure: Structure,
                             instrument: Instrument) -> tuple[str, str | None]:
     """Fill in ``Geometry.mu_r`` **or** ``Geometry.mu_t`` from composition, in
@@ -1709,6 +1750,11 @@ def _resolve_specimen_absorption(structure: Structure,
     if geom.kind == "debye_scherrer":
         if geom.capillary_radius_mm is None or geom.mu_r is not None:
             return "given", None
+        # Asked *after* the explicit-value check, so declaring µR on a neutron
+        # capillary still works — only the X-ray table is fenced off, not the
+        # correction (:data:`_NON_XRAY_ABSORPTION_ESTIMATE`).
+        if instrument.source.kind != "xray_cw":
+            return "estimated", _NON_XRAY_ABSORPTION_ESTIMATE
         table = ParameterTable(structure, instrument)
         mu_r, reason = estimate_capillary_mu_r(
             structure, table.decode(table.x0()),
@@ -1721,6 +1767,8 @@ def _resolve_specimen_absorption(structure: Structure,
 
     if geom.thickness_mm is None or geom.mu_t is not None:
         return "given", None
+    if instrument.source.kind != "xray_cw":
+        return "estimated", _NON_XRAY_ABSORPTION_ESTIMATE
     table = ParameterTable(structure, instrument)
     mu_t, reason = estimate_flat_plate_mu_t(
         structure, table.decode(table.x0()),
@@ -1890,7 +1938,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                   mu_r_source: str = "given",
                   mu_r_skipped: str | None = None,
                   guard=None,
-                  max_shift_over_esd: float | None = None) -> RefinementResult:
+                  max_shift_over_esd: float | None = None,
+                  declared_wavelengths: list[float] | None = None,
+                  ) -> RefinementResult:
     values = table.decode(theta)
     y_calc = model.evaluate(values)
     y_bkg = model.background(values)
@@ -1998,6 +2048,24 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # Surface-roughness regime fences (WP-0502): whether the fitted range can
     # see the correction at all, and whether it left its derivation's domain.
     diagnostics = diagnostics + _roughness_regime_diagnostics(model, values)
+
+    # A declared λ/n monochromator harmonic, and what fraction of the
+    # fundamental it refined to.  Empty unless the source declared one, so this
+    # is silent on every model built before harmonics existed.
+    diagnostics = diagnostics + _harmonic_diagnostics(
+        model, values, set(table.free_paths), stderr_phys)
+
+    # A refined wavelength, reported in ppm against its declared value — the
+    # single-histogram twin of the joint diagnostic in ``multi.py`` (WP-1134),
+    # for the case the held-cell fence exists to admit.  Empty unless a
+    # wavelength was actually freed, and only when the caller passed the
+    # pre-fit declared values: a wavelength refines against the *held cell*
+    # here, which is the clause that differs from the joint framing.  ``replay``
+    # passes nothing and reuses the node's recorded diagnostics instead.
+    if declared_wavelengths is not None:
+        diagnostics = diagnostics + _wavelength_calibration_diagnostics(
+            declared_wavelengths, table, values, stderr_phys,
+            pinned_by=_WAVELENGTH_PINNED_BY_HELD_CELL)
 
     # A phase the data cannot see, refined anyway (WP-1110).  Named here rather
     # than left to HIGH_CORRELATION, which reports the ρ≈1 between the phase's
@@ -2195,6 +2263,13 @@ def _dispersion_diagnostics(structure: Structure,
 
     from .crystallography.dispersion import dispersion, normalize_element
 
+    # A neutron source has no anomalous dispersion to neglect: f'/f'' is an
+    # X-ray core-level effect, so this diagnostic would be advising a caller to
+    # restore a correction that does not exist for their radiation. The neutron
+    # analogue -- complex b near a nuclear resonance -- belongs to a handful of
+    # nuclides rather than to the source, and lives in crystallography.neutron.
+    if instrument.source.kind != "xray_cw":
+        return []
     if instrument.source.dispersion is not None:
         return []
     lam = instrument.source.primary_wavelength
@@ -2231,6 +2306,206 @@ def _dispersion_diagnostics(structure: Structure,
                    "wavelength sits in an absorption-edge interval, supply the "
                    "measured pair through Dispersion.overrides instead",
     )]
+
+
+#: Below this refined fraction a declared λ/n harmonic is reported as **not
+#: detected** rather than measured.  Not a tuning and not a detection limit:
+#: the weight's own esd is the detection limit and the diagnostic quotes it.
+#: This is the band inside which the fitted value is indistinguishable from the
+#: zero its bound sits at, so calling it a measurement of the beam would be the
+#: confident wrong singleton the FitReport rules exist to prevent.  0.1 % is one
+#: tenth of :data:`~rietx.schemas.instrument.HARMONIC_WEIGHT_SEED`, i.e. the
+#: refinement travelled *away* from its seed toward zero and stayed there.
+HARMONIC_ABSENT_FRAC = 1e-3
+
+#: Above this refined fraction the number is reported as evidence about the
+#: **model**, not about the beam.  Reported values for real monochromators are a
+#: few per cent — the published Nd₂Ru₂O₇ pyrochlore refinement carried its λ/2
+#: entry at 1.2 % of the fundamental's scale — and a harmonic an order above
+#: that is a line being used as a general-purpose intensity sink for peaks the
+#: model puts nowhere: an unindexed impurity, a magnetic contribution, a
+#: background too stiff to follow. Placed an order of magnitude above the
+#: reported band rather than at its edge, so a genuinely strong harmonic is
+#: still reported as one.
+HARMONIC_IMPLAUSIBLE_FRAC = 0.15
+
+
+def _harmonic_diagnostics(model: CompiledModel, values: dict[str, float],
+                          free_paths: set[str],
+                          stderr: dict[str, float]) -> list[Diagnostic]:
+    """``HARMONIC_FRACTION``: what a declared λ/n line refined to, in per cent.
+
+    The number a user judges this correction by is the fraction of the
+    fundamental the harmonic carries, so that is what is reported — not the
+    internal weight, and never an Rwp comparison (which is not evidence for a
+    correction; see CLAUDE.md).  Three distinct statements, because a fitted
+    fraction can fail in three different ways and only one of them is a
+    measurement:
+
+    * **held** — the weight never entered θ, so the value is the caller's
+      assumption dressed as a result.  Reported so it cannot be quoted.
+    * **absent** — refined to within :data:`HARMONIC_ABSENT_FRAC` of zero.  A
+      *positive* result about the beam, and the one this correction's negative
+      control turns on: a Ge monochromator cut on all-odd indices has an
+      extinct second order, and the fit should find nothing.
+    * **implausible** — past :data:`HARMONIC_IMPLAUSIBLE_FRAC`, or sitting on
+      the parameter's upper bound.  The line is absorbing something that is not
+      a harmonic.
+
+    This is the *post-fit, refined* counterpart of the **pre-fit, model-free**
+    contamination flags in :mod:`rietx.background.diagnostics`
+    (``ContaminationFlag``, ``kind="kbeta"``/``"tungsten_la"``), and the
+    difference is what each can be used for.  Those look for a weak peak at a
+    known ghost wavelength in the *raw* pattern, need no structure and no
+    refinement, and answer "is there something here that looks like a known
+    contaminant?".  This one needs a converged model and answers "how much of
+    the intensity did the model attribute to the harmonic once everything else
+    had its chance?".  Neither substitutes for the other: the pre-fit check
+    fires on a pattern nobody has modelled, and this one sees a contamination
+    whose peaks overlap the fundamental's too closely for a peak search to
+    separate.
+    """
+    out: list[Diagnostic] = []
+    for il, order in sorted(model.harmonic_orders.items()):
+        path = f"instrument.source.lines.{il}.weight"
+        frac = float(values.get(path, 0.0))
+        # ``line_lambdas`` and not ``line_wavelengths``: the latter is the
+        # compile-time tuple, and a derived harmonic's entry in it goes stale
+        # as soon as the fundamental refines.  Reporting a lambda/n the fit did
+        # not use is the shape this package's evidence rule exists to prevent.
+        lam = model.line_lambdas(values)[il]
+        esd = stderr.get(path)
+        pct = 100.0 * frac
+        where = [path]
+        esd_txt = f" ± {100.0 * esd:.2f}" if esd is not None else ""
+        head = (f"lambda/{order} = {lam:.5f} A carries {pct:.2f}{esd_txt} % of "
+                f"the fundamental")
+        if path not in free_paths:
+            out.append(Diagnostic(
+                level="info", code="HARMONIC_HELD", where=where,
+                message=(f"{head}, but the weight was never refined -- that is "
+                         f"the declared value, not a measured one"),
+                suggestion=("free instrument.source.lines.*.weight in a stage "
+                            "after the profile and the scale have settled; a "
+                            "held harmonic weight must not be quoted as a "
+                            "property of the beam")))
+            continue
+        if frac < HARMONIC_ABSENT_FRAC:
+            out.append(Diagnostic(
+                level="info", code="HARMONIC_ABSENT", where=where,
+                message=(f"the declared lambda/{order} line refined to "
+                         f"{pct:.3f}{esd_txt} % of the fundamental, i.e. to "
+                         f"nothing"),
+                suggestion=("this is a result, not a failure: the beam carries "
+                            "no measurable order-n contamination, which is what "
+                            "a monochromator whose nth order is extinct should "
+                            "give. Dropping the declaration reproduces the fit "
+                            "and removes a parameter the data does not support")))
+            continue
+        implausible = frac > HARMONIC_IMPLAUSIBLE_FRAC
+        out.append(Diagnostic(
+            level="warning" if implausible else "info",
+            code="HARMONIC_FRACTION", where=where,
+            message=(head + (", which is far above the few per cent a "
+                             "monochromator harmonic is reported at"
+                             if implausible else "")),
+            suggestion=(("a fraction this large is evidence about the model "
+                         "rather than about the beam -- the line is absorbing "
+                         "intensity the model puts nowhere (an unindexed "
+                         "impurity, a magnetic contribution, a background too "
+                         "stiff to follow). Check the tick marks against the "
+                         "unfitted peaks before believing it")
+                        if implausible else
+                        ("quote this as a property of this beam on this "
+                         "monochromator, never as one of the specimen, and "
+                         "never transfer it to another histogram -- it is a "
+                         "refined scale ratio between two wavelength "
+                         "components of one measurement"))))
+    return out
+
+
+def _wavelength_calibration_diagnostics(
+        declared: list[float], table, values: dict[str, float],
+        esd: dict[str, float], *, pinned_by: str,
+        h: int | None = None) -> list[Diagnostic]:
+    """``WAVELENGTH_CALIBRATION`` — how far a refined λ moved, in ppm.
+
+    A refined wavelength is a **measurement of the monochromator's calibration
+    error**, and ppm is the unit it is quoted in: 100-200 ppm is a real
+    take-off-angle or lattice-constant error on a CW instrument, and it is the
+    same size as the cell discrepancies that motivate freeing it at all.  The
+    package's rule is that a new correction ships with a record field or a
+    diagnostic saying what it changed and never with an Rwp comparison as its
+    evidence (root ``CLAUDE.md``); this is that statement for this one, and it
+    is deliberately the *only* number the feature is defended with.
+
+    Reported at ``info`` with no threshold, because there is no published band
+    to quote and a tuned one would pretend to a judgement the diagnostic cannot
+    make — whether a 300 ppm move is a calibration error or a wrong wavelength
+    depends on the beamline, not on the fit.  What it does carry is Δλ/σ, so a
+    reader can see whether the move is resolved at all: a freed λ that comes
+    back inside its own esd measured nothing, which is a different (and
+    commoner) outcome from one that measured a calibration error.
+
+    Two callers, one function.  ``h`` selects the histogram framing —
+    ``None`` for a single-histogram fit (``refine.py``), an index for a joint
+    one (``multi.py``), which is the whole difference in the message's *head*
+    and its ``where`` addressing.  The message's *last clause* is passed in as
+    ``pinned_by`` because the two are false of each other: a single histogram
+    measures λ against the **held cell**, a joint fit against the cell pinned by
+    the histogram whose λ is held.  ``declared`` is λ per line as taken off the
+    **pre-fit** instrument — the refined values have been written back by the
+    time a result is built, so there is nothing left to compare to otherwise —
+    and is indexed by line, matching the ``.lines.<il>.`` path segment.
+    """
+    out: list[Diagnostic] = []
+    for e in table.entries:
+        if not (_is_wavelength(e.path) and e.vary):
+            continue
+        il = int(e.path.split(".")[3])
+        lam0 = declared[il]
+        lam = values[e.path]
+        ppm = 1e6 * (lam - lam0) / lam0
+        sigma = esd.get(e.path)
+        resolved = ("" if sigma in (None, 0.0)
+                    else f", {abs(lam - lam0) / sigma:.1f}× its own esd "
+                         f"({sigma:.2e} A)")
+        head = f"line {il}" if h is None else f"histogram {h} line {il}"
+        where = [e.path] if h is None else [f"hist.{h}.{e.path}"]
+        out.append(Diagnostic(
+            level="info", code="WAVELENGTH_CALIBRATION",
+            message=(f"{head}: wavelength refined from the "
+                     f"declared {lam0:.6f} A to {lam:.6f} A, {ppm:+.1f} ppm"
+                     f"{resolved}.  This is a measurement of that "
+                     f"monochromator's calibration error, {pinned_by}"),
+            where=where, value=float(ppm),
+            suggestion=("compare it with the instrument's own calibration "
+                        "history before quoting the cell: a wavelength that "
+                        "moved further than the beamline's known drift is more "
+                        "likely a modelling error in this histogram (an "
+                        "unmodelled harmonic, a zero-shift traded against λ) "
+                        "than a real calibration shift")))
+    return out
+
+
+#: the ``WAVELENGTH_CALIBRATION`` clause naming what pins the scale the refined
+#: λ is measured against — the held cell for a single histogram, the cell a
+#: held wavelength pins for a joint fit (the two are false of each other, so
+#: each caller states its own; see :func:`_wavelength_calibration_diagnostics`).
+_WAVELENGTH_PINNED_BY_HELD_CELL = "taken against the held cell"
+_WAVELENGTH_PINNED_BY_HELD_HISTOGRAM = (
+    "taken against the cell pinned by the histogram whose wavelength is held")
+
+
+def _declared_wavelengths(instrument: Instrument) -> list[float]:
+    """λ per emission line as it stands, in line order.
+
+    Snapshotted *before* a plan runs and handed to :func:`_build_result`,
+    because a stage writes the refined value back onto the instrument, so by the
+    time the result is built there is nothing left to compare a refined λ to —
+    the joint path snapshots the same list at construction for the same reason.
+    """
+    return [p.value for p in instrument.source.wavelength_parameters]
 
 
 #: a soft restraint is flagged in tension when its computed value sits more
@@ -2686,10 +2961,19 @@ def estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None:
     no capillary radius.  Use it to *populate* ``Geometry.mu_r``; a refinement
     will do the same thing itself at compile time if ``mu_r`` is left ``None``.
 
+    **X-ray sources only**, and ``None`` on any other — the tables are X-ray
+    photoabsorption and neutron attenuation is a different quantity entirely
+    (:data:`_NON_XRAY_ABSORPTION_ESTIMATE` has the physics and names the WP).
+    Returning a number here would be worse than returning nothing: the caller
+    asked for a starting µR and would have no way to tell that it came from
+    the wrong radiation.
+
     µR is not refinable, deliberately — see :mod:`rietx.model.absorption`.
     """
     geom = instrument.geometry
     if geom.kind != "debye_scherrer" or geom.capillary_radius_mm is None:
+        return None
+    if instrument.source.kind != "xray_cw":
         return None
     table = ParameterTable(structure, instrument)
     mu_r, _ = estimate_capillary_mu_r(
