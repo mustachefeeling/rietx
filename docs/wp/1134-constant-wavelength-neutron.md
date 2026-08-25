@@ -75,6 +75,22 @@ contribution.  The refinable λ recovers XND 1.42's calibration on NIST SRM
 640c Si to **1.26 ppm** — λ = 0.412375557 against 0.412376076(379), both about
 41 ppm above the beamline's own stated 0.412359.
 
+**Inert where it should be — the two negative controls beside the +0.2 %.**
+The +0.2 % harmonic-tracking measurement in finding 1 shows the fix *acts*; two
+equivalence measurements show it changes nothing where nothing should change,
+which is the other half of the evidence a change inside the residual owes.
+**No shipped preset frees a wavelength**: `fnmatch` of every stage's `turn_on`
+glob across all seven `PLAN_PRESETS`, against
+`instrument.source.lines.0.wavelength`, matches nothing — so no default plan's
+behaviour moves, and a free λ is only ever a deliberate stage or a declared
+`vary=True`.  **With λ held the harmonic tuple is bit-identical**:
+`line_lambdas({})` `==` the compile-time `line_wavelengths` (checked with `==`,
+not `approx`) for `harmonics=[2]` → (1.5, 0.75) and `[2, 3]` → (1.5, 0.75, 0.5),
+so a fit that refines no fundamental reads exactly the frozen λ/n it always did.
+That is the equivalence bar for a change inside the residual, and it belongs
+here beside the +0.2 %: one shows the fix acts, the pair show it is silent where
+it must be.
+
 ## Deliberately not in scope
 
 - **TOF.** A bank spans a range of λ, so b(λ) would be needed near a resonance
@@ -94,6 +110,34 @@ contribution.  The refinable λ recovers XND 1.42's calibration on NIST SRM
   the stale harmonic λ, the deuterium path, a red in the slow tier
   (`EmissionLine.wavelength` type change reaching an un-migrated reader), the
   WP-number collision this file resolves, and an orphan 1.5 MB data file
-  committed by an over-broad `git add`. All fixed. `WAVELENGTH_CALIBRATION` for
-  the single-histogram case is still a gap: the diagnostic is emitted only from
-  `multi.py`, so the calibration this feature now admits reports nothing.
+  committed by an over-broad `git add`. All fixed.
+- **2026-08-25** — Closed the before-merge item on his 25 Aug review:
+  `WAVELENGTH_CALIBRATION` now fires for the **single-histogram** held-cell case,
+  not only for joint fits.  `_wavelength_calibration_diagnostics` moved to
+  `refine.py` (shared with `multi.py`, which already imports its diagnostics
+  from there) and grew a `pinned_by` clause and an optional `h`, because the
+  message's last clause is false across the two: a single histogram measures λ
+  against the **held cell**, a joint fit against the cell a held wavelength
+  pins.  `refine.py` snapshots the declared λ off the pre-fit instrument and
+  emits in `_build_result` for both `fit` and `run_stage`; `replay` passes none
+  and reuses the node's recorded diagnostics.  `AGENT_PROTOCOL.md`'s row lost
+  its `(joint fits only)`.  Measured on the Si-protocol shape (a held cell, one
+  histogram generated at the true λ with the instrument declared 400 ppm below
+  it): exactly one diagnostic, +417 ppm at 32× its esd, addressed at the plain
+  path; a fit that frees no λ emits none; the joint tests are unchanged.  The
+  two negative controls he contributed are folded into Findings above.
+- **Follow-up designed, not implemented — an internal standard calibrates λ.**
+  He found while verifying the fence that with **two** phases — an internal
+  standard's cell HELD and the specimen's cell FREE, single histogram — a free λ
+  is currently refused (declined by `set_vary`, and `check_wavelength_against_cell`
+  raises naming `phases.1.cell.a`).  But λ → sλ is **not** flat there: it would
+  have to scale the held standard's reciprocal lattice too, and that is held, so
+  λ is genuinely measurable from the standard's positions while the specimen's
+  cell refines against it.  This is the same shape as the over-restriction
+  `f8e213e` fixed, one rank up: the rule should be about **which** cell is free,
+  not whether *any* is.  Mixing a certified standard into the specimen is one of
+  the commonest ways a wavelength is calibrated at all.  It refuses rather than
+  answering wrong, so it is not a blocker — but after the last two folds it
+  should be **designed, not patched**: its own future WP, in which the refusal
+  message grows a third option beside "hold the cell" and "hold λ" (hold the
+  cell of one phase and let λ measure against it).  Not implemented here.

@@ -46,7 +46,7 @@ from .optimize.statistics import (
     data_support,
     structure_r_factors,
 )
-from .params.vector import AffineTie, ParameterTable
+from .params.vector import AffineTie, ParameterTable, _is_wavelength
 from .report.schemas import THRESHOLDS_VERSION, StageReport
 from .schemas.common import Diagnostic, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
@@ -1217,6 +1217,9 @@ class Refinement:
         # …but the staged plan drives the turn-on sequence explicitly
         table = self._prepare_table(restore=False)
 
+        # taken before any stage writes a refined λ back (WP-1134)
+        declared_wavelengths = _declared_wavelengths(self.instrument)
+
         diagnostics: list[Diagnostic] = _dispersion_diagnostics(
             self.structure, self.instrument)
         stage_results: list[StageResult] = []
@@ -1254,7 +1257,8 @@ class Refinement:
             correlation=outcome.correlation, backend=self._backend,
             solver=self._solver,
             mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
-            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd)
+            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
+            declared_wavelengths=declared_wavelengths)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         if stream is not None:
@@ -1385,6 +1389,8 @@ class Refinement:
         stream = as_event_stream(events)
 
         table = self._prepare_table(restore=True)
+        # taken before this stage writes a refined λ back (WP-1134)
+        declared_wavelengths = _declared_wavelengths(self.instrument)
         try:
             with self._abandon_on_cancel(cancel, stage.name, [], stream):
                 model, outcome, guard, freed = self._run_stage(
@@ -1428,7 +1434,8 @@ class Refinement:
             correlation=outcome.correlation, backend=self._backend,
             solver=self._solver,
             mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
-            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd)
+            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
+            declared_wavelengths=declared_wavelengths)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         return self.result_
@@ -1931,7 +1938,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                   mu_r_source: str = "given",
                   mu_r_skipped: str | None = None,
                   guard=None,
-                  max_shift_over_esd: float | None = None) -> RefinementResult:
+                  max_shift_over_esd: float | None = None,
+                  declared_wavelengths: list[float] | None = None,
+                  ) -> RefinementResult:
     values = table.decode(theta)
     y_calc = model.evaluate(values)
     y_bkg = model.background(values)
@@ -2045,6 +2054,18 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # is silent on every model built before harmonics existed.
     diagnostics = diagnostics + _harmonic_diagnostics(
         model, values, set(table.free_paths), stderr_phys)
+
+    # A refined wavelength, reported in ppm against its declared value — the
+    # single-histogram twin of the joint diagnostic in ``multi.py`` (WP-1134),
+    # for the case the held-cell fence exists to admit.  Empty unless a
+    # wavelength was actually freed, and only when the caller passed the
+    # pre-fit declared values: a wavelength refines against the *held cell*
+    # here, which is the clause that differs from the joint framing.  ``replay``
+    # passes nothing and reuses the node's recorded diagnostics instead.
+    if declared_wavelengths is not None:
+        diagnostics = diagnostics + _wavelength_calibration_diagnostics(
+            declared_wavelengths, table, values, stderr_phys,
+            pinned_by=_WAVELENGTH_PINNED_BY_HELD_CELL)
 
     # A phase the data cannot see, refined anyway (WP-1110).  Named here rather
     # than left to HIGH_CORRELATION, which reports the ρ≈1 between the phase's
@@ -2401,6 +2422,90 @@ def _harmonic_diagnostics(model: CompiledModel, values: dict[str, float],
                          "refined scale ratio between two wavelength "
                          "components of one measurement"))))
     return out
+
+
+def _wavelength_calibration_diagnostics(
+        declared: list[float], table, values: dict[str, float],
+        esd: dict[str, float], *, pinned_by: str,
+        h: int | None = None) -> list[Diagnostic]:
+    """``WAVELENGTH_CALIBRATION`` — how far a refined λ moved, in ppm.
+
+    A refined wavelength is a **measurement of the monochromator's calibration
+    error**, and ppm is the unit it is quoted in: 100-200 ppm is a real
+    take-off-angle or lattice-constant error on a CW instrument, and it is the
+    same size as the cell discrepancies that motivate freeing it at all.  The
+    package's rule is that a new correction ships with a record field or a
+    diagnostic saying what it changed and never with an Rwp comparison as its
+    evidence (root ``CLAUDE.md``); this is that statement for this one, and it
+    is deliberately the *only* number the feature is defended with.
+
+    Reported at ``info`` with no threshold, because there is no published band
+    to quote and a tuned one would pretend to a judgement the diagnostic cannot
+    make — whether a 300 ppm move is a calibration error or a wrong wavelength
+    depends on the beamline, not on the fit.  What it does carry is Δλ/σ, so a
+    reader can see whether the move is resolved at all: a freed λ that comes
+    back inside its own esd measured nothing, which is a different (and
+    commoner) outcome from one that measured a calibration error.
+
+    Two callers, one function.  ``h`` selects the histogram framing —
+    ``None`` for a single-histogram fit (``refine.py``), an index for a joint
+    one (``multi.py``), which is the whole difference in the message's *head*
+    and its ``where`` addressing.  The message's *last clause* is passed in as
+    ``pinned_by`` because the two are false of each other: a single histogram
+    measures λ against the **held cell**, a joint fit against the cell pinned by
+    the histogram whose λ is held.  ``declared`` is λ per line as taken off the
+    **pre-fit** instrument — the refined values have been written back by the
+    time a result is built, so there is nothing left to compare to otherwise —
+    and is indexed by line, matching the ``.lines.<il>.`` path segment.
+    """
+    out: list[Diagnostic] = []
+    for e in table.entries:
+        if not (_is_wavelength(e.path) and e.vary):
+            continue
+        il = int(e.path.split(".")[3])
+        lam0 = declared[il]
+        lam = values[e.path]
+        ppm = 1e6 * (lam - lam0) / lam0
+        sigma = esd.get(e.path)
+        resolved = ("" if sigma in (None, 0.0)
+                    else f", {abs(lam - lam0) / sigma:.1f}× its own esd "
+                         f"({sigma:.2e} A)")
+        head = f"line {il}" if h is None else f"histogram {h} line {il}"
+        where = [e.path] if h is None else [f"hist.{h}.{e.path}"]
+        out.append(Diagnostic(
+            level="info", code="WAVELENGTH_CALIBRATION",
+            message=(f"{head}: wavelength refined from the "
+                     f"declared {lam0:.6f} A to {lam:.6f} A, {ppm:+.1f} ppm"
+                     f"{resolved}.  This is a measurement of that "
+                     f"monochromator's calibration error, {pinned_by}"),
+            where=where, value=float(ppm),
+            suggestion=("compare it with the instrument's own calibration "
+                        "history before quoting the cell: a wavelength that "
+                        "moved further than the beamline's known drift is more "
+                        "likely a modelling error in this histogram (an "
+                        "unmodelled harmonic, a zero-shift traded against λ) "
+                        "than a real calibration shift")))
+    return out
+
+
+#: the ``WAVELENGTH_CALIBRATION`` clause naming what pins the scale the refined
+#: λ is measured against — the held cell for a single histogram, the cell a
+#: held wavelength pins for a joint fit (the two are false of each other, so
+#: each caller states its own; see :func:`_wavelength_calibration_diagnostics`).
+_WAVELENGTH_PINNED_BY_HELD_CELL = "taken against the held cell"
+_WAVELENGTH_PINNED_BY_HELD_HISTOGRAM = (
+    "taken against the cell pinned by the histogram whose wavelength is held")
+
+
+def _declared_wavelengths(instrument: Instrument) -> list[float]:
+    """λ per emission line as it stands, in line order.
+
+    Snapshotted *before* a plan runs and handed to :func:`_build_result`,
+    because a stage writes the refined value back onto the instrument, so by the
+    time the result is built there is nothing left to compare a refined λ to —
+    the joint path snapshots the same list at construction for the same reason.
+    """
+    return [p.value for p in instrument.source.wavelength_parameters]
 
 
 #: a soft restraint is flagged in tension when its computed value sits more

@@ -45,7 +45,8 @@ from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physic
 
 #: Dot-path suffix of a source line's wavelength row.  One authority for the
 #: spelling, since three places test for it: the collector, the freedom check
-#: below and the ``WAVELENGTH_CALIBRATION`` diagnostic in ``multi.py``.
+#: below and the ``WAVELENGTH_CALIBRATION`` diagnostic in ``refine.py`` (shared
+#: with the joint path in ``multi.py``).
 WAVELENGTH_SUFFIX = ".wavelength"
 
 
@@ -861,7 +862,15 @@ class ParameterTable:
         loop it is one call stale — which made a single call carrying both a
         cell glob and a λ glob free both, because the cell had not been seen to
         move yet.  Reading ``e.vary`` sees the in-progress state and makes the
-        decision order-independent.
+        decision order-independent — but only *given* that the build order puts
+        every phase entry before every instrument entry in ``entries``.  The
+        cell is entry 0 and λ sits among the instrument entries well after it
+        (index 26 with a single line, 27/28 with a Kα doublet), so within one
+        call the cell is always freed before λ is tested.  Flip that order and a
+        single ``*`` glob would free both again;
+        ``test_a_glob_skips_it_while_the_cell_is_free_but_not_when_held``'s
+        ``WL not in hits`` assertion on the held-cell table goes red on the
+        flip, which is where the dependence is pinned.
         """
         return any(e.vary and e.tie is None and ".cell." in e.path
                    and e.path.rsplit(".", 1)[-1] in self._CELL_SUFFIXES

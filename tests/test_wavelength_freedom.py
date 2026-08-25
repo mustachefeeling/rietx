@@ -411,6 +411,55 @@ def test_a_joint_fit_reports_the_calibration_move_in_ppm():
     assert diags[0].where == [f"hist.1.{WL}"]
     assert diags[0].value == pytest.approx(500.0, rel=0.25)
     assert "ppm" in diags[0].message
+    # the joint framing names the histogram whose λ is held, not the cell
+    assert "the histogram whose wavelength is held" in diags[0].message
+
+
+def test_a_single_histogram_held_cell_fit_reports_the_calibration_move():
+    """``WAVELENGTH_CALIBRATION`` on the case the fence fix exists for.
+
+    A held certified cell pins the scale for one histogram, so a free λ is
+    admissible and its move *is* the calibration measurement — the SRM 640c
+    shape.  One pattern generated at the true λ, its instrument declared 400 ppm
+    below it: the diagnostic must fire exactly once, report roughly +400 ppm,
+    carry it as ``Diagnostic.value``, resolve the move against its own esd, and
+    address the plain (un-prefixed) path.  Its clause is the held **cell**, not
+    a held histogram — the joint framing is false here.  A fit that frees no λ
+    emits none.
+    """
+    from rietx.strategy.staged import RefinementPlan, Stage
+    from tests.test_multi_histogram import synthesize
+
+    true_lam = 1.5406
+    data = synthesize(true_lam, 20.0, 120.0, scale=1e4, zero=0.0,
+                      bkg=[50.0, 0.0])
+    ins = Instrument.debye_scherrer(wavelength=true_lam * (1.0 - 400e-6))
+    ins.profile.w.value = 3e-4
+
+    free = RefinementPlan(stages=[
+        Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        Stage("wavelength", [WL]),
+    ])
+    ref = Refinement(_held_cell(), ins.model_copy(deep=True), history=False)
+    result = ref.fit(data, plan=free)
+    diags = [d for d in result.diagnostics
+             if d.code == "WAVELENGTH_CALIBRATION"]
+    assert len(diags) == 1
+    assert diags[0].where == [WL]                       # no hist. prefix
+    assert diags[0].value == pytest.approx(400.0, rel=0.25)
+    assert "ppm" in diags[0].message
+    assert "its own esd" in diags[0].message            # the move is resolved
+    assert "taken against the held cell" in diags[0].message
+
+    # a fit that frees no wavelength says nothing — the diagnostic keys off the
+    # entry's ``vary``, not off the wavelength row merely existing
+    held = RefinementPlan(stages=[
+        Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+    ])
+    ref2 = Refinement(_held_cell(), ins.model_copy(deep=True), history=False)
+    result2 = ref2.fit(data, plan=held)
+    assert not [d for d in result2.diagnostics
+                if d.code == "WAVELENGTH_CALIBRATION"]
 
 
 def test_the_glob_skip_does_not_depend_on_how_the_caller_batched_it():
