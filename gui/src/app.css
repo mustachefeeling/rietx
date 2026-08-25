@@ -139,7 +139,7 @@ body {
    used: a panel that wants a smaller button wants a different register, and
    there is exactly one place — here — where that argument can be had.
 
-   Eight of them:
+   Nine of them — the plan named eight and the inventory found `.pick`:
 
      button          the one state-changing action in its region (Run, Apply)
      button.ghost    any other action.  Same size — only the fill differs
@@ -147,6 +147,7 @@ body {
      .tab            choose one of N panels
      .chip           a fact: a flag, a tag, a status.  Never acts
      .pill           a live mono readout (the run state, a validity phase)
+     .pick           select this row: a button that has given up its box
      .link           inline navigation, inside a line of prose
      .help           an explanation is one click away (popover: WP-1203)
 
@@ -164,6 +165,12 @@ button {
   font-size: var(--text-sm);
   line-height: 1.4;
   font-weight: 600;
+  /* a button's label is its own, not the heading's it happens to sit in — the
+     model pane's `Replace from CIF…` read as REPLACE FROM CIF… inside an `h2`
+     (found in the browser).  `Console`'s caret opts back in, because there the
+     button *is* the heading. */
+  text-transform: none;
+  letter-spacing: normal;
   padding: var(--s1) var(--s3);
   border-radius: var(--r-control);
   border: 1px solid var(--accent);
@@ -208,6 +215,8 @@ button:disabled {
   font-size: var(--text-sm);
   line-height: 1.4;
   font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
   padding: var(--s1) var(--s3);
   border-radius: var(--r-control);
   border: 1px solid var(--accent);
@@ -259,7 +268,12 @@ button:disabled {
   border-bottom: 2px solid transparent;
 }
 
+/* `background` has to be said here: `button.on` (0,1,1) would otherwise paint
+   the selected tab as a filled control, which is the segmented register — a
+   tab is underlined, and a browser pass is what showed it (every tab strip
+   rendered as a segmented group). */
 .tab.on {
+  background: transparent;
   color: var(--fg);
   border-bottom-color: var(--accent);
   font-weight: 600;

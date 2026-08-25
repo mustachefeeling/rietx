@@ -1000,14 +1000,16 @@
     margin-top: 6px;
     padding-top: 6px;
     border-top: 1px solid var(--line);
+    /* a strip of controls, so everything on it is control-sized — including
+       the channel count, which is a readout on the strip rather than prose
+       about it (it read a step larger than the fields it belongs to) */
+    font-size: var(--text-sm);
   }
 
-  /* a row of controls, so it is control-sized: the label rides with the field */
   .field {
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: var(--text-sm);
     color: var(--muted);
   }
 

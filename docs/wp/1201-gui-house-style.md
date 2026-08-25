@@ -101,7 +101,7 @@ phrase (this WP writes that rule into `gui/CLAUDE.md`).
       names and expects none.
 - [ ] `gui/CLAUDE.md` § House style: the register table compressed to one
       rule per register, the token rule, the docs-style rule for GUI prose.
-- [ ] Browser pass (playwright-core in the scratchpad, `gui/CLAUDE.md`):
+- [x] Browser pass (playwright-core in the scratchpad, `gui/CLAUDE.md`):
       light/dark screenshots of the header and of each panel at the sidebar
       floor and ceiling (WP-1034's widths), compared by eye against the
       register table; rebuild the committed dist.
