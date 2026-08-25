@@ -222,8 +222,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.geometry.sample_displacement": HelpEntry(
         title="Specimen displacement",
         description=(
-            "How far the specimen surface sits off the focusing circle, "
-            "positive below it. On a Bragg-Brentano mount it shifts every "
+            "How far the specimen surface sits off the goniometer axis, "
+            "positive toward the source and detector side of the focusing "
+            "circle. On a Bragg-Brentano mount it shifts every "
             "line by −2s·cosθ/R (McCusker eq 3), which is the largest "
             "systematic position error a laboratory pattern usually carries. "
             "The cosθ shape is close to the constant shape of `zero_shift`, "
@@ -1054,7 +1055,8 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
             "100 ppm hides behind. Read it off the instrument rather than "
             "guessing from the peak positions."
         ),
-        typical="Cu, Mo, Co, Cr, Ag",
+        typical="`CuKa`, `MoKa`, `CoKa`, `CrKa`, `FeKa`, `AgKa`, or the "
+                "`…Ka1` variant of any of them for a Kα1-only beam",
         anchor="wavelength-scales",
     ),
     "wavelength": HelpEntry(
@@ -1072,11 +1074,14 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "polarization": HelpEntry(
         title="Polarization",
         description=(
-            "The K of the Lorentz-polarisation correction. Leave it empty to "
-            "take the default for the geometry: 0.5 unpolarised, or the value "
-            "the monochromator angle implies when one is declared."
+            "The K of the Lorentz-polarisation correction. Only the "
+            "Debye-Scherrer preset takes it, and leaving it empty there gives "
+            "0.99, the APS 11-BM instrument-parameter value, not the 0.5 of an "
+            "unpolarised laboratory beam. Neither flat-plate preset has the "
+            "field: Bragg-Brentano derives K from `monochromator_two_theta` "
+            "and transmission is unpolarised, K = 0.5."
         ),
-        typical="0.5 lab, 0.9-1.0 synchrotron",
+        typical="0.99 is the preset default; 0.5 is an unpolarised lab beam",
         anchor="lorentz-polarisation",
     ),
     "goniometer_radius_mm": HelpEntry(
@@ -1154,13 +1159,16 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         title="µt",
         description=(
             "The flat-plate absorption parameter, the linear attenuation "
-            "coefficient times the specimen thickness. Leave it empty for a "
-            "thick specimen, which is the off state here: µt = 0 is a "
-            "specimen of no thickness and is refused. Declaring a thickness "
-            "wrongly on a genuinely thick specimen makes the fit worse and "
-            "biases every B downwards."
+            "coefficient times the specimen thickness. The off state belongs "
+            "to the geometry. On a Bragg-Brentano mount leaving it empty is "
+            "the thick specimen, and µt = 0 there is a specimen of no "
+            "thickness and is refused. In transmission µt = 0 is legal and is "
+            "what empty means: a non-absorbing plate, still carrying the sec θ "
+            "footprint factor. Declaring a thickness wrongly on a genuinely "
+            "thick specimen makes the fit worse and biases every B downwards."
         ),
-        typical="empty for a thick specimen; 1-5 for a thin transmission mount",
+        typical="empty for a thick reflection specimen; 1-5 for a thin "
+                "transmission mount",
         anchor="flat-plate-absorption",
     ),
     "thickness_mm": HelpEntry(
