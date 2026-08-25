@@ -4,6 +4,7 @@
 |---|---|---|---|
 | `11BM_NAC.fxye` | Na2Ca3Al2F14 (NAC) powder pattern, APS beamline 11-BM, λ = 0.4139090 Å (from the accompanying `.prm`), 54000 points, GSAS ESD (fxye) format | GSAS-II tutorials repo, `TOF-CW Joint Refinement/data/` (github.com/AdvancedPhotonSource/GSAS-II-tutorials) | Argonne/APS tutorial data (U.S. Government work; publicly distributed) |
 | `11bm_gsas.prm` | GSAS instrument parameter file for the above (profile from SRM 660a LaB6 fit) | same | same |
+| `11BM_Si640c.xy` | NIST SRM 640c silicon powder pattern, APS beamline 11-BM run 4918 (25 Feb 2010), λ seeded at the header's stated 0.412359 Å, 48000 points, 1.996–49.995° 2θ at 0.001°, three columns (2θ, I, propagated σ). Header: `Sample name = Silicon (Si) NIST SRM 640c, certified cell length of 5.4311946 Angstroms` / `Run no. = 4918` / `Calibration file = feb10/11bmb_4917.calib` / `Calibrated wavelength = 0.412359`. The single-histogram refinable-wavelength anchor (`test_acceptance_si640c.py`) — see the section below | APS 11-BM beamline-provided standard scan; published with the data owner's authorisation | Argonne/APS standard-reference scan (U.S. Government work; publicly distributed) |
 | `11BM_LaB6_660a.fxye` | NIST SRM 660a LaB6 powder pattern, APS beamline 11-BM, λ = 0.4131280 Å (from the accompanying `.prm`), 132992 points, 0.4995-66.995° 2θ at 0.0005°, 295.0 K, GSAS ESD (fxye) format — the **capillary** specimen of the v0.5 absorption acceptance (`test_acceptance_capillary.py`). Its own header identifies it: `sample_name, "SRM 660a"` / `chemical_formula, "Lanthanum Hexaboride (LaB6)"` / `comment1, "robotic collection"` | GSAS-II tutorials repo, `FitPeaks/data/11bmb_3844.fxye` (github.com/AdvancedPhotonSource/GSAS-II-tutorials) | Argonne/APS tutorial data (U.S. Government work; publicly distributed) |
 | `11bm_lab6_gsas.prm` | GSAS instrument parameter file for the above (λ = 0.4131280 Å, POLA 0.99, profile from the same Feb-2009 SRM 660a fit as `11bm_gsas.prm`) | same, `11bmb_3844.prm` | same |
 | `11BM_LaB6_cBN_mg2044.xye` | NIST **SRM 660b LaB₆** + cubic BN two-phase mixture, APS beamline 11-BM, λ = 0.413680 Å (`.prm` ICONS; POLA 0.990), 49 496 points, 0.5–49.99° 2θ at 0.001°, three-column `xye` with **propagated esds** (twelve analyser crystals summed, so column 3 is not √I). From the file header: run **3095**, scanned **17 Feb 2014**, proposal **31405**, user sample name **mg2044**, **295.0 K**, 0.1 s/step, goniometer radius 1000 mm, robotic mail-in collection. (The header's e-mail and sample-barcode fields are redacted in the committed copy — personal contact detail and facility bookkeeping; every data channel is byte-identical to the original.) **No weighed composition is recorded** — the header gives only "Boron Nitride and lanthanum hexaboride" — so every claim referenced to this file is cross-code against two solved TOPAS refinements of it (`lab6_pvii_absorb_cs_mustr` → LaB₆ 17.950 wt %, cBN a = 3.616463 Å; `lab6_pvii_absorb_IB-size-strain` → 17.907 wt %, a = 3.616466 Å; `simulation_quant.txt` → 17.90681). **Those TOPAS `.inp`/`.out`/`.txt` reference files are not committed — they live on the data owner's archive, not in this directory**: the protocol is transcribed into `test_acceptance_lab6_cbn.py`'s docstring and the values recorded in `tests/validation_matrix.py`, but the source files are not in this repo. Two-phase QPA and identifiability acceptance (`test_acceptance_lab6_cbn.py`) | Collected at APS 11-BM under proposal 31405 (M. W. Gaultois, then UC Santa Barbara); robotic mail-in collection, run 3095 | Contributed by the data owner, M. W. Gaultois, for redistribution with this package under the repository's terms. Not a beamline standard scan and not publicly distributed by APS — unlike `11BM_Si640c.xy`, whose row cites a public route; measured Pearson r = 0.499 against the beamline's published single-phase SRM 660b, i.e. a different specimen (a two-phase 660b + cBN mixture) |
@@ -298,6 +299,73 @@ published wavelength shift and the +258 ppm the acceptance suite measures — th
 same sign and order from a different code and a different model. Read the two as
 agreeing about the *existence and size* of a calibration error, not as two
 measurements of one number.
+
+## Single-histogram refinable-wavelength acceptance data — Si SRM 640c
+
+`11BM_Si640c.xy`, **1 517 979 bytes**: one APS 11-BM synchrotron pattern of NIST
+SRM 640c silicon, and the flagship of the *single-histogram* refinable wavelength
+(WP-1128 made a free λ admissible when the cell is held; WP-1134 gave it the
+`WAVELENGTH_CALIBRATION` record). `test_acceptance_si640c.py`.
+
+**Provenance, from the file's own header.** Run 4918, `11bmb_4918.mda` processed
+2010-02-10, scan collected 25 Feb 2010; calibration file `11bmb_4917.calib`;
+`Sample name = Silicon (Si) NIST SRM 640c, certified cell length of 5.4311946
+Angstroms`; `Calibrated wavelength = 0.412359`. It is the beamline's provided
+standard scan, published here with the data owner's authorisation. 48 000 points,
+1.996–49.995° 2θ at 0.001°, three columns. The third column is a **real
+propagated esd** (11-BM sums twelve analyser crystals; median σ/√I = 0.9675 over
+the range, so it is not √I), and `read_pattern` uses it.
+
+**No weighed anything — the certificate is the cell, XND is the cross-code.**
+This dataset has two references and they answer different questions:
+
+| reference | what it fixes | tier |
+|---|---|---|
+| NIST SRM 640c certificate | a = 5.4311946 ± 0.0000092 Å at 22.5 °C, **held** | certificate (identity) |
+| XND 1.42 (Bérar & Baldinozzi) | the refined λ, zero, Biso of the same `.xy` | cross-code |
+
+The held certificate cell is what licenses a free λ (a powder measures only the
+product λ·(1/d), so one of the two must be pinned), and it is asserted as an
+*identity*, not measured. Everything the fit *refines* — λ above all — is
+referenced to **XND 1.42**, an independent code that refined this exact scan;
+its files (`Si640c.k`/`.new` inputs, `Si640c.lst` log) live beside the data on
+the owner's archive. XND's Bérar is the same one rietx's Bérar–Lelann esd
+inflation implements, so the esds are comparable.
+
+**XND's converged numbers** (`Si640c.lst`, cell held at 5.4311948 Å — 0.4 ppm
+above the certificate rietx holds, negligible):
+
+| quantity | XND |
+|---|---|
+| λ (Å) | 0.412376076 ± 0.000000379 (+41.4 ppm off the header's 0.412359) |
+| zero (°) | −0.00048302 ± 0.00001424 |
+| Biso(Si) (Å²) | 0.438984 ± 0.001711 |
+| Rwp / Rp / GoF | 0.0961 / 0.0691 / 1.49 (Rexp 0.065) |
+| correlations > 0.6 | λ~zero −0.897, zero~asym +0.941, λ~asym −0.738, scale~Biso +0.691 |
+
+**What rietx does differently, and why the headline is a pair.** rietx co-refines
+a penalized P-spline background rather than XND's eleven interpolated points
+(measured to move λ < 0.1 ppm; Si is far above its K edge so dispersion is inert
+too), and models the low-angle asymmetry as **Finger–Cox–Jephcoat** axial
+divergence (tied `axial_sl` = `axial_hl`) rather than XND's empirical A_T2. The
+asymmetry is the whole story: on XND's own 2–50° range rietx lands λ at +30 ppm,
+11 ppm short of XND, and that gap **is** the FCJ-vs-A_T2 convention — λ trades it
+against zero along a ρ = −0.9 ridge. Restrict to the *symmetric* peaks (≥ 8°,
+below which the (111) sits) where neither code applies a consequential asymmetry
+correction, and the agreement collapses to −0.4 ppm. The sub-ppm number lives
+where the two codes model the same physics; the residual is named, not tuned
+away. Either way λ moves +30 to +41 ppm off the beamline's stated 0.412359 at
+many σ — the calibration error the feature exists to detect.
+
+**Certificate Information Values, used as a NOTE only.** SRM 640c's certificate
+carries NIST's own fundamental-parameters Lorentzian sample-broadening FWHM
+(°2θ) = 0.0065(5)/cos θ + 0.0086(6)·tan θ (a ~1.4 µm crystallite size, ~0.02° on
+(533)), which maps unit-for-unit onto rietx's `lor_size` and `lor_strain`. No
+equality is asserted: NIST's split is FPA-based and taken at its Cu Kα
+instrument, not at 11-BM, so the instrument/sample division differs by
+convention. The certificate's median particle size (4.9 µm) is of **agglomerates**
+and is not a broadening input. Measured here: `lor_size` ≈ 0.0023, `lor_strain`
+≈ 0.015 — the same order, apportioned differently.
 
 ## backend_goldens/ — WP-0401 bit-identity baseline
 
