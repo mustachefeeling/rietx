@@ -59,6 +59,25 @@ steps below run unchanged.
    and run the count check there: passed+skipped moved by exactly the tests
    this session added, in both the fast and full selections, and any new
    skip is named as a skip, not a pass.
+
+   Then **audit the names this session declared**, for the classes that have
+   already gone wrong here and that no test catches. Only the ones the
+   session actually triggered; the mechanised classes need no second opinion
+   (`test_manual_api.py` already fails on an undocumented public surface,
+   `test_docs_consistency.py` on glyphs and links, the `capabilities`
+   meta-tests on a registry member missing from its arm). Did this session
+   add physics with Part 1 prose but no Part 2 manual equation — **four of
+   the six McCusker WPs** did exactly that (WP-1067's log)? A diagnostic code
+   or a correction with no `docs/AGENT_PROTOCOL.md` row? A declared name with
+   no writer — a defaulted `False`/`0` that reads as an *answer* about
+   something nothing checked, a `Literal` member no code produces (**nine in
+   WP-1076 alone**, and they were found by writing a manual chapter over the
+   type, never by reading the code)? A correction whose evidence is an Rwp
+   comparison? A physics function without its citation?
+
+   Reading your own diff for these is weaker than reading someone else's, so
+   name the trigger rather than scanning: this is a checklist against what
+   the session *added*, not a re-review of it.
 7. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
    section, rewrite ROADMAP's "Current focus" for the successor (within
    `CURRENT_FOCUS_CAP`, tests/test_docs_consistency.py), and MOVE the
@@ -81,6 +100,22 @@ steps below run unchanged.
    merged is stranded on a dead branch — the merge cannot carry it and the
    session-start hook only compares dates, so nothing detects it (measured
    2026-08-18: `11ec1cd5` sat there until the next session's repair).
+
+   **And green on this branch is not green on what lands.** Where the session
+   ran the full suite at all — step 6's rule, when the change could move a
+   measured number — run it on **current main merged into this branch**, not
+   on the bare branch: `git fetch origin main` and merge it in first. Nothing
+   else ever tests that tree. Branch protection is `strict: false`, so a PR
+   merges green without ever having been built against the main it lands on,
+   and `nightly.yml` has no `pull_request` trigger, so the acceptance suites
+   do not run on a PR at all. `tests/CLAUDE.md` states the half of this that
+   was already known: when main has moved under a branch, that branch's
+   counts are not the merged tree's and the two parents' additions cannot
+   simply be summed. The counts quoted in the handover entry are then the
+   merged tree's, and say so.
+
+   This is the same class as the stranded commit above, one rank out: what
+   you verified and what the repository will hold are not the same object.
 10. **Open or update the pull request.** A session's work is not handed over
     until it is reviewable, so the PR is part of the ritual rather than a
     follow-up request. Skip it — saying so in one line — when the branch is
