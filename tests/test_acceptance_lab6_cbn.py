@@ -3,8 +3,16 @@
 Real data, real esds, and a solved TOPAS refinement to check against —
 ``11BM_LaB6_cBN_mg2044.xye``, APS 11-BM, λ = 0.413680 Å from the ``.prm``
 ICONS record, 49 496 channels at 0.001° over 0.5–49.99° 2θ.  The specimen is
-NIST **SRM 660b LaB6** mixed with cubic BN, and LaB6's certified cell is the
-internal standard that makes cBN's measurable.
+NIST **SRM 660b LaB6** at ~18 wt % in a cubic-BN matrix, and LaB6's certified
+cell is the internal standard that makes cBN's measurable.
+
+**cBN is a diluent, not a second standard**, and that is why the specimen looks
+the way it does.  It is light (B, N against La), so it cuts the absorption of an
+otherwise very absorbing LaB6 packing without contributing much intensity of its
+own; it is hard and well-crystallised, so it gives sharp peaks that do not smear
+the standard's; and it is chemically inert against LaB6.  Those are the
+properties a diluent is chosen for, and none of them is a certified quantity —
+which is the whole reason every claim below is cross-code.
 
 **There is no weighed composition, so the QPA claim is cross-code only.**  The
 ``.inp``'s ``weight_percent … 17.950`` carries TOPAS's backtick — it is a
@@ -77,9 +85,12 @@ TOPAS = {
 #: TOPAS's own output (they match the ``IB-size-strain`` model's refined
 #: ``weight_percent ph1_wtpct 17.907``, and both .inp files mark the field with
 #: TOPAS's backtick), so this stays a **cross-code** reference.  No balance
-#: record exists.  For the curious: 17.90681 wt % is a molar ratio of
-#: LaB6 : cBN = 1 : 37.64 and a mass ratio of 1 : 4.58, neither of which is
-#: round, so the composition was measured rather than targeted.
+#: record exists, and per the owner none is expected: LaB6 is the ~18 wt %
+#: internal standard scooped into the cBN matrix, at textbook internal-standard
+#: loading, and the exact figure was never the point since neither the loading
+#: nor the cBN is certified.  For the curious it is a molar ratio of
+#: LaB6 : cBN = 1 : 37.64 and a mass ratio of 1 : 4.58 — neither round, which
+#: is what "scooped" looks like and is why no target is recoverable from it.
 COMPOSITION_SOURCE = "simulation_quant.txt"
 
 #: TOPAS's **own** spread across its two shipped models of this histogram —
@@ -168,11 +179,22 @@ _TAIL = [
 #: half is an approximation — 0.7 µm domains are finer than SRM 640c Si's
 #: 1.4 µm, and at 11-BM's resolution that is not obviously negligible.
 #:
-#: The better protocol, once someone wants it, is to **hold** each phase's
-#: ``lor_size`` at its certificate value rather than free it or zero it: that
-#: breaks the degeneracy with a measured number instead of by fiat.  Recorded
-#: rather than done, because it needs cBN's domain size, which no certificate
-#: here supplies.
+#: The symmetric fix — hold *each* phase's ``lor_size`` at its certificate
+#: value — is **impossible**, and for a reason worth stating: LaB6 is the
+#: certified standard, the cBN came out of a bottle.  It was chosen for sharp
+#: peaks, and the measurement existed to *determine* cBN's cell for later use
+#: on lab instruments.  There is no cBN certificate and there will not be one.
+#:
+#: The asymmetric version — pin the standard's broadening, free the unknown's —
+#: **was tried and is not better** (measured, see this suite's PR).  LaB6's
+#: ``lor_size`` held at the certificate's 0.7 µm gives the closest cBN cell of
+#: any variant (+6.7 ppm against TOPAS, versus +14 here) and stays identifiable,
+#: but Rwp is 40 % worse and the QPA moves 3.2σ out — and *both* of cBN's
+#: broadening terms refine to exactly their softplus floor, i.e. the fit wants
+#: negative broadening for cBN once the instrument has absorbed the pinned
+#: LaB6 value.  That says the certificate's 0.7 µm is inconsistent with this
+#: instrument's resolution *as this profile parameterises it*, which points at
+#: the PVII/FPA gap below rather than at a different held number.
 PLAN_SHARED = rx.RefinementPlan(stages=[
     *_BASE,
     rx.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
