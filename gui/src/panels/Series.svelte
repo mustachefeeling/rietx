@@ -417,7 +417,7 @@
       than {sigmaBar}σ, so {flagged.length === 1 ? "its" : "their"} trajector{flagged.length === 1 ? "y is" : "ies are"}
       an artefact of the order the series was refined in, not a measurement.
       {#each flagged.slice(0, 6) as path (path)}
-        <button class="chip warn" onclick={() => showTrajectory(path)}
+        <button class="ghost" onclick={() => showTrajectory(path)}
           title="show this trajectory with the backward chain beside it">{path}</button>
       {/each}
       {#if flagged.length > 6}<span class="muted">+{flagged.length - 6}</span>{/if}
@@ -429,11 +429,11 @@
     </p>
   {/if}
 
-  {#if failure}<p class="bad small">{failure}</p>{/if}
+  {#if failure}<p class="bad">{failure}</p>{/if}
 
   <h2>Patterns</h2>
   {#if setup}
-    <p class="muted small">
+    <p class="muted">
       A series is N separate refinements chained by a warm start — one history
       tree each, not one joint residual. It runs under <em>this project's</em>
       protocol ({setup.protocol.mode}{#if setup.protocol.plan}, {setup.protocol.plan}{/if},
@@ -453,11 +453,11 @@
         title="order the series by its coordinate — patterns with none keep their places at the end"
         >Sort by {settings?.x_label ?? "x"}</button>
     {/if}
-    {#if staging}<span class="muted small">{staging}</span>{/if}
+    {#if staging}<span class="muted">{staging}</span>{/if}
   </div>
 
   {#if setup?.sigma_mixed}
-    <p class="small warn" title="the fit weights by the file's esd column when it
+    <p class="warn" title="the fit weights by the file's esd column when it
 has one and by the Poisson √max(y,1) fallback otherwise, so a mixed series is
 fitted under two weighting policies — a correctness property that is invisible
 once the files are read">
@@ -467,7 +467,7 @@ once the files are read">
   {/if}
 
   {#if !patterns.length}
-    <p class="muted note">
+    <p class="muted hint">
       No patterns staged. <strong>Add patterns…</strong> takes the ramp's files in
       one go; give each a coordinate (temperature, time, pressure) or leave them
       blank and the pattern index is the axis.
@@ -514,11 +514,11 @@ once the files are read">
                 <td>{p.has_sigma ? "file" : "Poisson"}</td>
               {/if}
               <td class="acts">
-                <button class="ghost tiny" disabled={busy || i === 0}
+                <button class="ghost" disabled={busy || i === 0}
                   title="earlier in the series" onclick={() => move(i, -1)}>↑</button>
-                <button class="ghost tiny" disabled={busy || i === patterns.length - 1}
+                <button class="ghost" disabled={busy || i === patterns.length - 1}
                   title="later in the series" onclick={() => move(i, 1)}>↓</button>
-                <button class="ghost tiny" disabled={busy}
+                <button class="ghost" disabled={busy}
                   title="remove from the series" onclick={() => remove(i)}>×</button>
               </td>
             </tr>
@@ -549,7 +549,7 @@ second pass">
       {answer ? "Re-run series" : "Run series"}
     </button>
     {#if running}
-      <span class="muted small">
+      <span class="muted">
         {run?.run.stage ?? "starting"}
         {#if run?.run.stage_index}({run.run.stage_index}/{run.run.n_stages}){/if}
       </span>
@@ -586,7 +586,7 @@ plot's x-axis title, and the column above">
           onchange={(ev) => setSetting("x_label", (ev.currentTarget as HTMLInputElement).value)} />
       </label>
     </div>
-    <p class="muted small">{setup?.carry_help ?? ""}</p>
+    <p class="muted">{setup?.carry_help ?? ""}</p>
   {/if}
 
   {#if answer}
@@ -614,7 +614,7 @@ plot's x-axis title, and the column above">
       {/if}
     </div>
     {#if selectedPattern === null && current}
-      <p class="small" class:warn={current.path_dependent}>
+      <p class:warn={current.path_dependent}>
         {trajectoryNote(current, sigmaBar)}
       </p>
     {/if}
@@ -672,7 +672,7 @@ different starting point could not fix">hard</span>
               {/if}
               <td>{e.n_iterations}</td>
               <td>
-                <button class="ghost tiny" disabled={busy || !answer.curves[i]}
+                <button class="ghost" disabled={busy || !answer.curves[i]}
                   title="this pattern's own fit and its own history tree"
                   onclick={() => openPattern(i)}>
                   {selectedPattern === i ? "▾" : "▸"}
@@ -683,14 +683,14 @@ different starting point could not fix">hard</span>
         </tbody>
       </table>
     </div>
-    <p class="muted small tabular">
+    <p class="muted tabular">
       {answer.n_iterations} iterations over the whole series
       {#if answer.has_backward}· plus a backward verification pass{/if}
     </p>
 
     {#if memberHistory}
       <h2>History — {memberHistory.label}</h2>
-      <p class="muted small">
+      <p class="muted">
         One tree per pattern, pinned to that pattern by its data fingerprint — so
         these nodes are <strong>read-only here</strong>: checking one out would
         restore a state fitted against different data. The chain itself is
@@ -727,7 +727,7 @@ different starting point could not fix">hard</span>
       </ul>
     {/if}
   {:else if patterns.length >= 2}
-    <p class="muted note">
+    <p class="muted hint">
       Nothing has run yet. <strong>Run series</strong> chains the patterns above,
       each warm-started from its predecessor; with <code>direction=both</code> it
       runs the chain each way and reports every parameter the two disagree on.
@@ -747,12 +747,7 @@ different starting point could not fix">hard</span>
   }
 
   h2 {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    margin: 8px 0 2px;
-    font-weight: 600;
+    margin: var(--s3) 0 var(--s1);
   }
 
   .controls {
@@ -763,38 +758,13 @@ different starting point could not fix">hard</span>
     flex: 0 0 auto;
   }
 
+  /* a row of controls, so it is control-sized */
   .field {
     display: flex;
     gap: 4px;
     align-items: center;
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     color: var(--muted);
-  }
-
-  /* the native file input is unstylable and says "no file chosen"; the label is
-     the button and the input is the mechanism */
-  .file input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-  }
-
-  .file {
-    position: relative;
-    display: inline-flex;
-  }
-
-  .file span {
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    padding: 3px 9px;
-    cursor: pointer;
-    background: var(--panel);
-  }
-
-  .file span:hover {
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   .banner {
@@ -803,7 +773,7 @@ different starting point could not fix">hard</span>
     border: 1px solid var(--line);
     border-left-width: 3px;
     border-radius: 3px;
-    font-size: 12px;
+    font-size: var(--text-sm);
     flex: 0 0 auto;
   }
 
@@ -828,7 +798,7 @@ different starting point could not fix">hard</span>
 
   table {
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: var(--text-sm);
     width: 100%;
   }
 
@@ -891,7 +861,7 @@ different starting point could not fix">hard</span>
     list-style: none;
     margin: 0;
     padding: 0;
-    font-size: 11px;
+    font-size: var(--text-sm);
     flex: 0 0 auto;
   }
 
@@ -914,26 +884,5 @@ different starting point could not fix">hard</span>
   .strip li.warning { color: var(--warn); }
   .strip li.error { color: var(--bad); }
 
-  .chip {
-    font-size: 10px;
-    padding: 0 5px;
-    border-radius: 7px;
-    border: 1px solid var(--line);
-    color: var(--muted);
-    white-space: nowrap;
-  }
-
-  button.chip.warn {
-    color: var(--warn);
-    border-color: var(--warn);
-    background: none;
-    cursor: pointer;
-  }
-
-  .chip.warn { color: var(--warn); border-color: var(--warn); }
-
-  .small { font-size: 11.5px; margin: 2px 0; }
-  .note { margin: 4px 0; font-size: 12px; }
-  .bad { color: var(--bad); }
-  .warn { color: var(--warn); }
+  p { margin: var(--s1) 0; }
 </style>

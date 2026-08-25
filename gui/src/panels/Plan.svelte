@@ -155,20 +155,20 @@
       {/each}
     </select>
     {#if dirty}
-      <button class="small" disabled={busy} onclick={save}>Save plan</button>
-      <button class="ghost small" disabled={busy} onclick={load}>Revert</button>
+      <button disabled={busy} onclick={save}>Save plan</button>
+      <button class="ghost" disabled={busy} onclick={load}>Revert</button>
     {/if}
   </header>
 
   {#if chosen}
-    <p class="muted small blurb" title={chosen.description}>{chosen.when_to_use}</p>
+    <p class="muted blurb" title={chosen.description}>{chosen.when_to_use}</p>
   {:else}
-    <p class="muted small blurb">
+    <p class="muted blurb">
       Edited — no preset matches these stages. Saving stores them as they stand.
     </p>
   {/if}
 
-  {#if error}<p class="bad small">{error}</p>{/if}
+  {#if error}<p class="bad">{error}</p>{/if}
 
   <ol class="stages">
     {#each stages as stage, index (index)}
@@ -185,11 +185,11 @@
           <input class="name mono" bind:value={stage.name} oninput={touch} disabled={busy}
             onfocus={() => (selected = index)} />
           <button
-            class="ghost small"
+            class="ghost"
             disabled={busy}
             title="run only this stage, through the same machinery a fit uses"
             onclick={() => runStage(index)}>Run</button>
-          <button class="ghost small" disabled={busy} onclick={() => remove(index)} title="remove"
+          <button class="ghost" disabled={busy} onclick={() => remove(index)} title="remove"
             >×</button>
         </div>
         <input
@@ -218,7 +218,7 @@
   </ol>
 
   {#if !simple}
-    <p class="muted small blurb">
+    <p class="muted blurb">
       <label title="report a parameter pair correlated above this after each stage">
         correlation guard
         <input class="mono guard" type="number" step="0.01" min="0" max="1" bind:value={guard}
@@ -247,16 +247,11 @@
   select {
     flex: 1 1 auto;
     min-width: 0;
-    font: inherit;
     padding: 3px 4px;
     border: 1px solid var(--line);
     border-radius: 4px;
     background: var(--bg);
     color: var(--fg);
-  }
-
-  .small {
-    font-size: 11.5px;
   }
 
   .blurb {
@@ -296,7 +291,6 @@
   }
 
   input {
-    font: inherit;
     border: 1px solid transparent;
     background: transparent;
     color: inherit;
@@ -321,7 +315,6 @@
     width: 100%;
     border-color: var(--line);
     margin-top: 3px;
-    font-size: 11.5px;
   }
 
   /* four fields of one kind, so four columns — inline labels of four different
@@ -331,7 +324,7 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 2px 8px;
     margin-top: 3px;
-    font-size: 11px;
+    font-size: var(--text-sm);
   }
 
   .advanced label {

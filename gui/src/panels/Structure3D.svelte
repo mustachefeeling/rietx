@@ -322,7 +322,7 @@
     </div>
     <span class="spacer"></span>
     {#if geo && geo.phases.length > 1}
-      <select class="tiny" bind:value={phase}>
+      <select bind:value={phase}>
         {#each geo.phases as name, i (i)}<option value={i}>{name}</option>{/each}
       </select>
     {/if}
@@ -331,13 +331,13 @@
   <div class="plot" bind:this={node}></div>
 
   {#if error}
-    <p class="bad tiny">{error}</p>
+    <p class="bad">{error}</p>
   {:else if !geo}
-    <p class="muted tiny">{ready ? "no structure yet" : "loading the structure…"}</p>
+    <p class="muted">{ready ? "no structure yet" : "loading the structure…"}</p>
   {:else}
     <div class="legend">
       {#each entries as entry (entry.species)}
-        <button class="chip tiny" class:off={hidden.has(entry.species)}
+        <button class="ghost" class:off={hidden.has(entry.species)}
           onclick={() => toggleSpecies(entry.species)}
           title={entry.sites.map((s) => `${s.label} ×${s.multiplicity}`
             + (s.special ? " (special)" : "")).join(", ")}>
@@ -347,16 +347,16 @@
     </div>
 
     <div class="knobs">
-      <span class="inline tiny" title="look straight down a lattice vector: down a
+      <span class="inline" title="look straight down a lattice vector: down a
         puts c up and b right, and so round — the projections a structure is
         normally drawn in">view down
-        <button class="tiny" onclick={() => look(0)}>a</button>
-        <button class="tiny" onclick={() => look(1)}>b</button>
-        <button class="tiny" onclick={() => look(2)}>c</button>
-        <button class="tiny" onclick={home}>reset</button>
+        <button class="ghost" onclick={() => look(0)}>a</button>
+        <button class="ghost" onclick={() => look(1)}>b</button>
+        <button class="ghost" onclick={() => look(2)}>c</button>
+        <button class="ghost" onclick={home}>reset</button>
       </span>
       <span class="spacer"></span>
-      <button class="ghost tiny" class:on={knobsOpen}
+      <button class="ghost" class:on={knobsOpen}
         onclick={() => (knobsOpen = !knobsOpen)}
         title="drawing thresholds — none of them is a fact about the sample, so
                none is stored in the project">{knobsOpen ? "▾" : "▸"} drawing</button>
@@ -369,15 +369,15 @@
            changes drawing (a probability rescale, an exaggeration). -->
       <div class="knobs drawer">
         {#if mode === "ellipsoid"}
-          <label class="inline tiny">probability
-            <select class="tiny" value={String(geo.probability)}
+          <label class="inline">probability
+            <select value={String(geo.probability)}
               onchange={(e) => setProbability((e.currentTarget as HTMLSelectElement).value)}>
               {#each levels as key (key)}
                 <option value={key}>{(Number(key) * 100).toFixed(0)} %</option>
               {/each}
             </select>
           </label>
-          <label class="inline tiny" title="a drawing scale, not a probability: k(p)
+          <label class="inline" title="a drawing scale, not a probability: k(p)
             = √χ²₃(p) diverges as p → 1, so there is no ellipsoid above 100 % to
             ask for — this makes them bigger and the caption says so">× size
             <input type="range" min="1" max="4" step="0.25" value={exaggeration}
@@ -386,7 +386,7 @@
             <span class="mono">{exaggeration.toFixed(2)}×</span>
           </label>
         {/if}
-        <label class="inline tiny" title="a drawing threshold, not physics: a bond is
+        <label class="inline" title="a drawing threshold, not physics: a bond is
           drawn at d ≤ tol·(rᵢ+rⱼ) on covalent radii, and no fixed value is right
           for both a large cation and an organic">bonds ≤
           <!-- the *label* follows the drag and the *fetch* waits for the release:
@@ -399,7 +399,7 @@
               Number((e.currentTarget as HTMLInputElement).value))} />
           <span class="mono">{toleranceShown.toFixed(2)}×</span>
         </label>
-        <label class="inline tiny" title="the same atom at the opposite face (a corner
+        <label class="inline" title="the same atom at the opposite face (a corner
           site drawn at all eight corners) and the bonded neighbours just outside —
           off leaves the cell's own contents and sticks that end in mid-air">
           <input type="checkbox" checked={showBoundary}
@@ -409,9 +409,9 @@
       </div>
     {/if}
 
-    <p class="muted tiny">{caption(geo, mode, exaggeration)}</p>
-    {#if geo.note}<p class="warn tiny">{geo.note}</p>{/if}
-    <p class="muted tiny mono">{geo.space_group} · V = {geo.volume.toFixed(2)} Å³</p>
+    <p class="muted">{caption(geo, mode, exaggeration)}</p>
+    {#if geo.note}<p class="warn">{geo.note}</p>{/if}
+    <p class="muted mono">{geo.space_group} · V = {geo.volume.toFixed(2)} Å³</p>
   {/if}
 </section>
 
@@ -432,14 +432,9 @@
   }
 
   h2 {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
     /* the row centers its items; a margin here would push the title off the
        buttons' centerline (its tops sat above the title once) */
     margin: 0;
-    font-weight: 600;
   }
 
   .spacer {
@@ -458,14 +453,15 @@
     margin: 4px 0 2px;
   }
 
-  .chip {
+  /* the species legend acts, so it is `button.ghost` (WP-1201) — laid out
+     here only because each one carries its colour swatch */
+  .legend button {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 1px 6px;
+    gap: var(--s2);
   }
 
-  .chip.off {
+  .off {
     opacity: 0.4;
     text-decoration: line-through;
   }
@@ -493,36 +489,19 @@
     background: var(--panel);
   }
 
+  /* a row of controls, so it is control-sized */
   .inline {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--s2);
+    font-size: var(--text-sm);
   }
 
   input[type="range"] {
     width: 84px;
   }
 
-  select.tiny,
-  button.tiny {
-    font: inherit;
-    font-size: 11px;
-    padding: 0 5px;
-  }
-
   p {
-    margin: 2px 0;
-  }
-
-  .tiny {
-    font-size: 11px;
-  }
-
-  .bad {
-    color: var(--bad);
-  }
-
-  .warn {
-    color: var(--warn);
+    margin: var(--s1) 0;
   }
 </style>

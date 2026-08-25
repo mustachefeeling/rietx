@@ -31,6 +31,7 @@
     caveatTone,
     cellText,
     collectTo,
+    confidenceTone,
     flagTone,
     fomColumns,
     fomOf,
@@ -327,19 +328,19 @@
 (the plot's click does the same)" />
     {/if}
     {#if indexing}
-      <span class="muted small">
+      <span class="muted">
         {run?.run?.stage ?? "starting"}
         {#if run?.run?.stage_index}({run.run.stage_index}/{run.run.n_stages}){/if}
       </span>
     {/if}
   </div>
-  {#if failure}<p class="bad small">{failure}</p>{/if}
+  {#if failure}<p class="bad">{failure}</p>{/if}
 
   {#if draft}
     <details class="search">
       <summary>
         Search controls
-        {#if digest}<span class="muted small">· {digest}</span>{/if}
+        {#if digest}<span class="muted">· {digest}</span>{/if}
       </summary>
 
       <div class="grid" class:frozen={busy}>
@@ -370,7 +371,7 @@
                 {#each centringsVocab[s] as letter (letter)}
                   {@const cOn = !draft.search.centrings?.[s]
                     || draft.search.centrings[s].includes(letter)}
-                  <button class="chip act tiny" class:out={!cOn} disabled={busy}
+                  <button class="ghost" class:on={cOn} disabled={busy}
                     title={field("centrings").title}
                     onclick={() => toggleCentring(s, letter)}>{letter}</button>
                 {/each}
@@ -482,34 +483,38 @@
         <div class="block" title={field("prior_cells").title}>
           <span class="lab">{field("prior_cells").label}</span>
           {#each draft.search.prior_cells ?? [] as cell, i (i)}
-            <span class="chip note">{priorCellText(cell)}
-              <button class="ghost tiny" disabled={busy}
+            <span class="tagged">
+              <span class="chip note">{priorCellText(cell)}</span>
+              <button class="ghost" disabled={busy}
                 title="drop this prior"
-                onclick={() => removePriorCell(i)}>×</button></span>
+                onclick={() => removePriorCell(i)}>×</button>
+            </span>
           {/each}
           <input class="add" type="text" disabled={busy}
             placeholder="a b c α β γ…" bind:value={priorText}
             onkeydown={(ev) => ev.key === "Enter" && addPriorCell()} />
-          <button class="tiny" disabled={busy || !priorText.trim()}
+          <button disabled={busy || !priorText.trim()}
             onclick={addPriorCell}>add</button>
         </div>
 
         <div class="block" title={field("prior_spacegroups").title}>
           <span class="lab">{field("prior_spacegroups").label}</span>
           {#each draft.search.prior_spacegroups ?? [] as sg, i (sg + i)}
-            <span class="chip note">{sg}
-              <button class="ghost tiny" disabled={busy}
+            <span class="tagged">
+              <span class="chip note">{sg}</span>
+              <button class="ghost" disabled={busy}
                 title="drop this prior"
-                onclick={() => removePriorSg(i)}>×</button></span>
+                onclick={() => removePriorSg(i)}>×</button>
+            </span>
           {/each}
           <input class="add" type="text" disabled={busy}
             placeholder="e.g. R -3 c" bind:value={sgText}
             onkeydown={(ev) => ev.key === "Enter" && addPriorSg()} />
-          <button class="tiny" disabled={busy || !sgText.trim()}
+          <button disabled={busy || !sgText.trim()}
             onclick={addPriorSg}>add</button>
         </div>
       </div>
-      {#if controlsError}<p class="bad small">{controlsError}</p>{/if}
+      {#if controlsError}<p class="bad">{controlsError}</p>{/if}
     </details>
   {/if}
 
@@ -517,7 +522,7 @@
     <div class="stream">
       <h2>{indexing ? "Streaming — completed systems" : "Streamed shortlists"}</h2>
       {#each shortlists as snap (snap.system)}
-        <p class="small tabular">
+        <p class="tabular">
           <strong>{snap.system}</strong>
           {#if !snap.candidates.length}
             <span class="muted">— nothing of this symmetry fits</span>
@@ -534,13 +539,13 @@ can rise when validation and ambiguity run, never fall">
   {/if}
 
   {#if !peaks?.peaks}
-    <p class="muted note">
+    <p class="muted hint">
       No peak list yet. <strong>Pick peaks</strong> fits every detectable line;
       afterwards, click the plot to add one the fitter missed, drag a marker to
       correct one, shift-click to exclude.
     </p>
   {:else}
-    <p class="muted small tabular">
+    <p class="muted tabular">
       {peaks.n_usable} of {peaks.n_total} lines usable for indexing
       {#if peaks.source === "positions"}
         · <span class="chip warn" title="positions were supplied, so every σ is an
@@ -578,7 +583,7 @@ can rise when validation and ambiguity run, never fall">
               <td>{Number(p.intensity.toPrecision(3))}</td>
               <td class="flags">
                 {#if p.origin !== "fitted"}
-                  <span class="chip origin" title="a human placed or moved this line">{p.origin}</span>
+                  <span class="chip accent" title="a human placed or moved this line">{p.origin}</span>
                 {/if}
                 {#each p.flags as f (f)}
                   <span class="chip {flagTone(f, unusable)}">{f}</span>
@@ -590,11 +595,11 @@ can rise when validation and ambiguity run, never fall">
                          "use for indexing (overrules the fitter's flags)"}
                   onchange={() => toggleUse(p.index, p.usable)} />
                 {#if p.n_in_group > 1}
-                  <button class="ghost tiny" disabled={busy}
+                  <button class="ghost" disabled={busy}
                     title="refit group {p.group} ({p.n_in_group} components) under the picker's own judgement"
                     onclick={() => refit(p.group)}>↻</button>
                 {/if}
-                <button class="ghost tiny" disabled={busy} title="remove this line"
+                <button class="ghost" disabled={busy} title="remove this line"
                   onclick={() => remove(p.index)}>×</button>
               </td>
             </tr>
@@ -607,7 +612,7 @@ can rise when validation and ambiguity run, never fall">
   {#if indexAnswer}
     <h2>Indexing</h2>
     {#if !candidates.length}
-      <p class="note muted">
+      <p class="hint muted">
         No candidate cells.
         {#if quality?.abstained_reason}{quality.abstained_reason}{/if}
       </p>
@@ -618,7 +623,7 @@ can rise when validation and ambiguity run, never fall">
       </ul>
     {:else}
       {#if best < 0}
-        <p class="note muted" title="best_or_none() returned None — the expected
+        <p class="hint muted" title="best_or_none() returned None — the expected
           outcome until the evidence singles one cell out">
           No candidate reaches the gate; the list below is ranked, not chosen.
         </p>
@@ -638,14 +643,14 @@ can rise when validation and ambiguity run, never fall">
             {#each candidates as c, i (i)}
               <tr class:best={i === best}>
                 <td>
-                  <button class="ghost tiny" title="details, caveats and ambiguity"
+                  <button class="ghost" title="details, caveats and ambiguity"
                     onclick={() => (expanded = expanded === i ? null : i)}>
                     {expanded === i ? "▾" : "▸"}
                   </button>
                 </td>
                 <td class="cell">{cellText(c.cell)}
-                  <span class="chip conf {c.confidence}">{c.confidence}</span>
-                  {#if i === best}<span class="chip best">best_or_none()</span>{/if}
+                  <span class="chip {confidenceTone(c.confidence)}">{c.confidence}</span>
+                  {#if i === best}<span class="chip ok">best_or_none()</span>{/if}
                 </td>
                 <td>{c.centring} {c.system}<br /><span class="muted">{c.volume.toFixed(1)} Å³</span></td>
                 {#each columns as name (name)}
@@ -677,7 +682,7 @@ can rise when validation and ambiguity run, never fall">
                       </p>
                     {/if}
                     {#each c.ambiguity as partner, k (k)}
-                      <p class="small">
+                      <p>
                         geometrically indistinguishable: {cellText(partner.cell)}
                         ({partner.system}, index {partner.index})
                         {#if partner.discriminating_two_theta?.length}
@@ -687,12 +692,12 @@ can rise when validation and ambiguity run, never fall">
                       </p>
                     {/each}
                     {#if collectTo(c) !== null}
-                      <p class="small warn">collect to 2θ ≈ {collectTo(c)?.toFixed(1)}°
+                      <p class="warn">collect to 2θ ≈ {collectTo(c)?.toFixed(1)}°
                         to break the ambiguity — the discriminating lines are beyond
                         the measured range</p>
                     {/if}
-                    <p class="small">
-                      <button class="tiny" disabled={busy}
+                    <p>
+                      <button disabled={busy}
                         title="rank the extinction classes this lattice allows: one shared
 profile fit, then one Le Bail per class — the answer is a ranked list of
 classes, and every class lists all its space groups (WP-1025)"
@@ -716,17 +721,17 @@ classes, and every class lists all its space groups (WP-1025)"
     {/if}
 
     {#if screening && !screen}
-      <p class="muted small">screening extinction classes…</p>
+      <p class="muted">screening extinction classes…</p>
     {/if}
     {#if screen}
       <h2>Extinction — candidate {extinction.candidate}</h2>
-      <p class="muted small tabular">
+      <p class="muted tabular">
         reference {screen.lattice_group} (absence-free) ·
         {screen.n_screened} of {screen.n_classes} classes fitted ·
         2θ {screen.two_theta_range[0].toFixed(1)}–{screen.two_theta_range[1].toFixed(1)}°
       </p>
       {#if extinction.best === null}
-        <p class="note muted" title="best_or_none() returned None — refuted
+        <p class="hint muted" title="best_or_none() returned None — refuted
           classes, an indecisive ΔBIC margin, or unfitted classes leave an
           unasked question, which must not read as a clean answer">
           No class is singled out; the list below is ranked, not chosen.
@@ -751,7 +756,7 @@ distinguish them, so a singleton here would be unmeasurable">space groups</th>
             {#each screen.candidates as cls, k (cls.symbol + k)}
               <tr class:out={cls.refuted} class:best={extinction.best === k}>
                 <td class="mono">{cls.symbol}
-                  {#if extinction.best === k}<span class="chip best">best_or_none()</span>{/if}
+                  {#if extinction.best === k}<span class="chip ok">best_or_none()</span>{/if}
                   {#if cls.refuted}
                     <span class="chip bad" title={cls.refuted_reason ?? ""}>refuted</span>
                   {:else if !cls.screened}
@@ -773,7 +778,7 @@ an unasked question, so the gate abstains">not screened</span>
                 <td class="flags">
                   {#each cls.space_groups as sg (sg)}
                     {#if screenAdoptable && !cls.refuted}
-                      <button class="chip act" disabled={busy}
+                      <button class="ghost" disabled={busy}
                         title="adopt candidate {extinction.candidate} as a Le Bail scaffold
 in {sg} — the class cannot distinguish its members, so this choice is a
 convention, not a measurement"
@@ -830,7 +835,7 @@ convention, not a measurement"
 
   details.search summary {
     cursor: pointer;
-    font-size: 12px;
+    font-size: var(--text-sm);
     user-select: none;
   }
 
@@ -846,17 +851,18 @@ convention, not a measurement"
     opacity: 0.6;
   }
 
+  /* rows of controls, so they are control-sized: a field's label rides with
+     the field rather than reading as prose about it */
   .block {
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
     align-items: center;
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
 
   .lab {
     color: var(--muted);
-    font-size: 11px;
     min-width: 108px;
   }
 
@@ -878,14 +884,13 @@ convention, not a measurement"
     gap: 10px;
     flex-wrap: wrap;
     align-items: flex-end;
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
 
   .num {
     display: inline-flex;
     flex-direction: column;
     gap: 1px;
-    font-size: 11px;
     color: var(--muted);
   }
 
@@ -898,21 +903,12 @@ convention, not a measurement"
     align-self: flex-start;
   }
 
-  .chip.act.out {
-    opacity: 0.4;
-  }
-
   .stream {
     flex: 0 0 auto;
   }
 
   h2 {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    margin: 8px 0 2px;
-    font-weight: 600;
+    margin: var(--s3) 0 var(--s1);
   }
 
   /* Each table gets a bounded window of its own rather than a share of the
@@ -929,7 +925,7 @@ convention, not a measurement"
 
   table {
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: var(--text-sm);
     width: 100%;
   }
 
@@ -979,6 +975,14 @@ convention, not a measurement"
     font: inherit;
   }
 
+  /* a fact and the verb that acts on it, side by side: a chip is
+     non-interactive, so a control inside one would be two registers in one box */
+  .tagged {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s1);
+  }
+
   .flags {
     display: flex;
     gap: 3px;
@@ -986,33 +990,11 @@ convention, not a measurement"
     align-items: center;
   }
 
-  .chip {
-    font-size: 10px;
-    padding: 0 5px;
-    border-radius: 7px;
-    border: 1px solid var(--line);
-    color: var(--muted);
-    white-space: nowrap;
-  }
-
-  .chip.out { color: var(--bad); border-color: var(--bad); }
-  .chip.bad { color: var(--bad); border-color: var(--bad); }
-  /* a space-group chip that *acts* (adopt in this group) keeps the chip's
-     shape and gains a button's affordance */
-  button.chip.act { cursor: pointer; color: var(--accent); border-color: var(--accent); background: none; }
-  button.chip.act:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-  .chip.warn { color: var(--warn); border-color: var(--warn); }
-  .chip.origin { color: var(--accent); border-color: var(--accent); }
-  .chip.conf.high { color: var(--ok); border-color: var(--ok); }
-  .chip.conf.medium { color: var(--warn); border-color: var(--warn); }
-  .chip.conf.low { color: var(--muted); }
-  .chip.best { color: var(--ok); border-color: var(--ok); font-weight: 600; }
-
   .strip {
     list-style: none;
     margin: 0;
     padding: 0;
-    font-size: 11px;
+    font-size: var(--text-sm);
     flex: 0 0 auto;
   }
 
@@ -1030,14 +1012,6 @@ convention, not a measurement"
     align-items: center;
   }
 
-  .tiny {
-    padding: 0 4px;
-    font-size: 11px;
-  }
-
-  .small { font-size: 11.5px; margin: 2px 0; }
-  .note { margin: 4px 0; font-size: 12px; }
-  .bad { color: var(--bad); }
-  .warn { color: var(--warn); }
+  p { margin: var(--s1) 0; }
   td.cell { white-space: normal; min-width: 150px; }
 </style>

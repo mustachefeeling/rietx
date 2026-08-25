@@ -244,7 +244,7 @@
   {/if}
 
   {#if addedComments > 0}
-    <p class="banner muted small">
+    <p class="banner muted">
       {addedComments} comment line(s) you added will not survive the next render —
       comments parse but are not stored (WP-1009). Apply, then re-read.
     </p>
@@ -265,7 +265,7 @@
     </ul>
   {/if}
 
-  <footer class="muted small">
+  <footer class="muted">
     Rectangular selection: <kbd>⌥</kbd>-drag. Everything applies through the same
     verbs the forms call, so a bulk edit lands as history nodes and is undone by
     a checkout.
@@ -294,13 +294,6 @@
     margin-left: auto;
   }
 
-  .pill {
-    padding: 2px 8px;
-    border-radius: 10px;
-    border: 1px solid var(--line);
-    color: var(--muted);
-  }
-
   .pill[data-phase="stale"] {
     color: var(--warn);
     border-color: var(--warn);
@@ -324,14 +317,6 @@
     flex: 0 0 auto;
   }
 
-  .banner.bad {
-    color: var(--bad);
-  }
-
-  .small {
-    font-size: 11.5px;
-  }
-
   .editor {
     flex: 1 1 auto;
     min-height: 0;
@@ -351,15 +336,6 @@
 
   .problems li {
     margin: 2px 0;
-  }
-
-  button.link {
-    border: 0;
-    background: transparent;
-    color: var(--accent);
-    padding: 0 4px 0 0;
-    font-weight: 600;
-    cursor: pointer;
   }
 
   footer {

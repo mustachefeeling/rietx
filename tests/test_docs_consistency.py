@@ -318,7 +318,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # neither survives the merge; 482 is the merged file, both index
     # rows on top of the v1.2 section.
     "docs/ROADMAP.md": 482,
-    "gui/CLAUDE.md": 580,
+    # 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
+    # and the nine control registers, as a table of one rule each.  This file
+    # grows for a rule nothing else in it carried, same as the bumps above: a
+    # panel's `<style>` block was the authority on its own controls, so six
+    # button geometries and three chip geometries were all locally correct.
+    # The vocabulary has to be here because every later v1.2 panel WP writes
+    # markup against it, and a table is the compressed form — the inventory,
+    # the measurements and the three misuses it exposed are in the WP.
+    "gui/CLAUDE.md": 612,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

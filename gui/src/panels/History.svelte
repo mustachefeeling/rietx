@@ -184,7 +184,7 @@
 </script>
 
 <section>
-  <div class="bar small">
+  <div class="bar">
     <span class="muted">
       {nodes.length} node{nodes.length === 1 ? "" : "s"}
       {#if graph.lanes > 1}· {graph.lanes} lanes{/if}
@@ -195,11 +195,11 @@
     </span>
   </div>
 
-  {#if error}<p class="bad small">{error}</p>{/if}
+  {#if error}<p class="bad">{error}</p>{/if}
 
   <div class="scroller">
     {#if !nodes.length}
-      <p class="muted small pad">No history yet — the tree exists from the project's
+      <p class="muted pad">No history yet — the tree exists from the project's
         first node, so this fills in as soon as one is open.</p>
     {:else}
       <div class="graph" style:padding-left="{rail}px" style:--row="{ROW}px">
@@ -223,7 +223,7 @@
               title={n.api_call}>
               <span class="id mono muted">{n.id}</span>
               <span class="what">{nodeLabel(n)}</span>
-              {#if n.id === head}<span class="chip head">HEAD</span>{/if}
+              {#if n.id === head}<span class="chip accent">HEAD</span>{/if}
               {#each n.tags as label (label)}<span class="chip">{label}</span>{/each}
               {#if n.n_diagnostics}
                 <span class="chip warn" title="{n.n_diagnostics} diagnostic(s)">
@@ -243,7 +243,7 @@
                 <span class="rwp muted">—</span>
               {/if}
             </button>
-            <button class="ghost tiny" title="compare with the selected node"
+            <button class="ghost" title="compare with the selected node"
               onclick={() => pickAgainst(n.id)}>⇄</button>
           </div>
         {/each}
@@ -254,7 +254,7 @@
   {#if node}
     <footer>
       <p class="call mono" title="this node's equivalent public-API call">{node.api_call}</p>
-      <p class="muted small tabular">
+      <p class="muted tabular">
         {node.kind}{node.status ? ` · ${node.status}` : ""}
         {#if node.n_iterations}· {node.n_iterations} iter{/if}
         {#if node.n_free !== null}· {node.n_free} free{/if}
@@ -262,7 +262,7 @@
         · {node.created_utc}
       </p>
       {#each node.diagnostics as d (d.code + d.message)}
-        <p class="small diag" data-level={d.level}>
+        <p class="diag" data-level={d.level}>
           <span class="mono">{d.code}</span>
           {#if d.where?.length}<span class="mono muted">{d.where.join(" ")}</span>{/if}
           {d.message}
@@ -271,21 +271,21 @@
       <div class="verbs">
         <input class="mono" placeholder="tag or branch name" bind:value={name}
           disabled={busy} />
-        <button class="small" disabled={busy || node.id === head}
+        <button disabled={busy || node.id === head}
           onclick={() => checkout(node.id)}
           title="restore this node's state as the working state">Checkout</button>
-        <button class="ghost small" disabled={busy || !name.trim()}
+        <button class="ghost" disabled={busy || !name.trim()}
           onclick={() => tag(node.id)}>Tag</button>
-        <button class="ghost small" disabled={busy}
+        <button class="ghost" disabled={busy}
           onclick={() => branch(node.id)}
           title="checkout and name the fork point — this DAG has no moving refs">
           Branch</button>
-        <button class="ghost small" disabled={busy || !name.trim()}
+        <button class="ghost" disabled={busy || !name.trim()}
           onclick={() => annotate(node.id, name.trim())}
           title="rename this node">Label</button>
       </div>
       {#if node.id !== head}
-        <p class="muted tiny">Checking out discards the fitted curves: they described
+        <p class="muted">Checking out discards the fitted curves: they described
           the values this would replace. Re-run to get a result back.</p>
       {/if}
     </footer>
@@ -293,20 +293,20 @@
 
   {#if diff !== null}
     <div class="diff">
-      <div class="bar small">
+      <div class="bar">
         <strong class="mono">{selected} → {against}</strong>
         <span class="spacer"></span>
         <input class="mono" placeholder="filter paths" bind:value={query} />
-        <button class="ghost tiny" onclick={() => { diff = null; against = ""; }}>×</button>
+        <button class="ghost" onclick={() => { diff = null; against = ""; }}>×</button>
       </div>
       {#if metrics.length === 2}
-        <p class="muted small tabular">
+        <p class="muted tabular">
           Rwp {pct(metrics[0].rwp)} → {pct(metrics[1].rwp)}
           · free {metrics[0].n_free ?? "—"} → {metrics[1].n_free ?? "—"}
           · {metrics[0].action} → {metrics[1].action}
         </p>
       {/if}
-      <p class="muted tiny">
+      <p class="muted">
         {rows.length} path{rows.length === 1 ? "" : "s"} differ — the route returns
         only what changed, so there is nothing to filter out; biggest relative move
         first, an appearing parameter on top.
@@ -335,24 +335,17 @@
     flex: 1 1 auto;
   }
 
+  /* a row of controls, so it is control-sized */
   .bar {
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 5px 8px 4px;
+    font-size: var(--text-sm);
   }
 
   .spacer {
     flex: 1 1 auto;
-  }
-
-  .small {
-    font-size: 11.5px;
-  }
-
-  .tiny {
-    font-size: 11px;
-    margin: 3px 0 0;
   }
 
   .scroller {
@@ -417,25 +410,20 @@
     background: color-mix(in srgb, var(--warn) 12%, transparent);
   }
 
-  button.pick {
+  /* the `.pick` register (app.css) laid out for this list */
+  .pick {
     flex: 1 1 auto;
     min-width: 0;
     display: flex;
     align-items: center;
     gap: 6px;
-    background: transparent;
-    border: 0;
-    border-radius: 0;
-    color: inherit;
-    font-weight: 400;
-    text-align: left;
-    padding: 0 4px;
+    padding: 0 var(--s2);
     height: 100%;
   }
 
   .id {
     flex: 0 0 auto;
-    font-size: 11px;
+    font-size: var(--text-xs);
   }
 
   .what {
@@ -445,32 +433,16 @@
   }
 
   .chip {
-    font: var(--mono);
-    font-size: 10px;
-    padding: 0 4px;
-    border-radius: 8px;
-    border: 1px solid var(--line);
-    color: var(--muted);
     flex: 0 0 auto;
   }
 
-  .chip.head {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
-  .chip.warn {
-    border-color: var(--warn);
-    color: var(--warn);
-  }
-
   .rwp {
-    font-size: 11.5px;
+    font-size: var(--text-sm);
     flex: 0 0 auto;
   }
 
   .delta {
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     flex: 0 0 44px;
     text-align: right;
     color: var(--muted);
@@ -491,9 +463,13 @@
     flex: 0 0 auto;
   }
 
+  footer p {
+    margin: 3px 0 0;
+  }
+
   .call {
     margin: 0 0 3px;
-    font-size: 11px;
+    font-size: var(--text-sm);
     overflow: auto;
     white-space: nowrap;
     color: var(--fg);
@@ -524,7 +500,6 @@
     background: var(--bg);
     color: var(--fg);
     padding: 2px 5px;
-    font-size: 11.5px;
   }
 
   .diff {
@@ -549,7 +524,7 @@
     display: flex;
     gap: 6px;
     padding: 0 8px;
-    font-size: 11px;
+    font-size: var(--text-sm);
     line-height: 18px;
   }
 
@@ -568,8 +543,7 @@
   }
 
   .bad {
-    color: var(--bad);
     padding: 0 8px;
-    margin: 2px 0;
+    margin: var(--s1) 0;
   }
 </style>

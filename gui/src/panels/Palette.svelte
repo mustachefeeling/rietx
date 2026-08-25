@@ -47,7 +47,7 @@
     <ul>
       {#each shown as command, index (command.id)}
         <li class:on={index === cursor} class:off={command.disabled}>
-          <button onclick={() => choose(command)} disabled={command.disabled}>
+          <button class="pick" onclick={() => choose(command)} disabled={command.disabled}>
             <span class="label">{command.label}</span>
             {#if command.key}<kbd>{command.key}</kbd>{/if}
             <span class="echo mono muted">{command.echo}</span>
@@ -82,10 +82,10 @@
     overflow: hidden;
   }
 
+  /* the modal's subject, and it is prominent by width and padding — a field
+     is control-sized like every other (WP-1201) */
   input {
     width: 100%;
-    font: inherit;
-    font-size: 15px;
     padding: 10px 12px;
     border: 0;
     border-bottom: 1px solid var(--line);
@@ -102,18 +102,15 @@
     overflow-y: auto;
   }
 
-  li button {
+  /* the `.pick` register (app.css) — a whole row is the target — with the
+     modal's own rounded highlight */
+  li .pick {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    gap: var(--s3);
     width: 100%;
-    text-align: left;
-    background: transparent;
-    border: 0;
-    border-radius: 5px;
-    color: var(--fg);
-    font-weight: 400;
-    padding: 5px 8px;
+    border-radius: var(--r-control);
+    padding: var(--s2) var(--s3);
   }
 
   li.on button {

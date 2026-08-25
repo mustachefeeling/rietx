@@ -781,16 +781,16 @@
 
 <section>
   {#if error}
-    <p class="note bad">{error}</p>
+    <p class="hint bad">{error}</p>
   {:else if !result && !peaks?.peaks?.length}
-    <p class="note muted">
+    <p class="hint muted">
       No fitted curves yet. Press <strong>Run</strong> — or, if you just moved the
       history, run again: a checkout restores parameter values, not a fit.
     </p>
   {:else if !result && peaksActive}
-    <p class="note muted">Raw pattern — no fit yet, which is when peaks are picked.</p>
+    <p class="hint muted">Raw pattern — no fit yet, which is when peaks are picked.</p>
   {:else if loadError}
-    <p class="note bad">{loadError} — install the plot extra: <code>pip install 'rietx[gui]'</code></p>
+    <p class="hint bad">{loadError} — install the plot extra: <code>pip install 'rietx[gui]'</code></p>
   {/if}
   <!-- The gestures, stated whenever the tab that owns them is showing — fit or
        no fit (WP-1032).  This line used to render only in the *raw* state, so
@@ -800,13 +800,13 @@
   {#if arm}
     <!-- While a range gesture is armed it owns the canvas, and this line is
          where that is said: the peak verbs are suspended, not competing. -->
-    <p class="note arming">
+    <p class="hint arming">
       <strong>Drag on the plot</strong> to {arm === "limits"
         ? "set the fitted 2θ range" : "exclude a 2θ region"}
       <span class="muted">— the peak gestures are suspended; Esc cancels</span>
     </p>
   {:else if peaksActive && peaks?.peaks?.length}
-    <p class="note muted gestures">
+    <p class="hint muted gestures">
       <strong>Click</strong> to add a line <span class="muted">(or the panel's 2θ box)</span> ·
       <strong>drag</strong> a marker to move it <span class="muted">(or the Text pane's 2θ column)</span> ·
       <strong>shift-click</strong> to exclude <span class="muted">(or the row's checkbox)</span> ·
@@ -845,7 +845,7 @@
           {/each}
         </div>
       {/if}
-      <p class="note muted tabular">
+      <p class="hint muted tabular">
         {shown.n} of {shown.total} points drawn, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
         · min/max decimated server-side · zoom refetches the window
       </p>
@@ -874,9 +874,9 @@
           placeholder={extent[1].toFixed(3)} disabled={busy}
           onkeydown={(ev) => { if (ev.key === "Enter") applyLimits(); }} />
       </label>
-      <button class="ghost small" onclick={applyLimits} disabled={busy}
+      <button class="ghost" onclick={applyLimits} disabled={busy}
         title="send the typed range — project.doc.two_theta_limits">Set</button>
-      <button class="ghost small" onclick={() => onprotocol({ two_theta_limits: null })}
+      <button class="ghost" onclick={() => onprotocol({ two_theta_limits: null })}
         disabled={busy || !protocol.limits}
         title="fit the whole measured pattern again">All</button>
 
@@ -896,11 +896,12 @@
       {#if protocol.regions.length}
         <ul class="regions" aria-label="excluded regions">
           {#each protocol.regions as region, i (formatRegion(region))}
-            <li class="pill tabular" title="excluded from the residual — click ×
-              to fit these channels again">
-              {formatRegion(region)}
-              <button class="ghost tiny" disabled={busy}
+            <li>
+              <span class="pill tabular"
+                title="excluded from the residual">{formatRegion(region)}</span>
+              <button class="ghost" disabled={busy}
                 aria-label="stop excluding {formatRegion(region)}"
+                title="fit these channels again"
                 onclick={() => onprotocol({
                   excluded_regions: protocol.regions.filter((_, k) => k !== i) })}
                 >×</button>
@@ -913,17 +914,17 @@
            than only in the acceptance run: a band over channels still in the
            residual is worse than no band at all. -->
       {#if channels}
-        <p class="note muted tabular count">
+        <p class="hint muted tabular count">
           {channels[0].toLocaleString()} of {channels[1].toLocaleString()} channels fitted
         </p>
       {/if}
       {#if held?.stale}
-        <p class="note warn">
+        <p class="hint warn">
           the curves shown were fitted over a different set of channels — re-run
         </p>
       {/if}
       {#if protocolError}
-        <p class="note bad">{protocolError}</p>
+        <p class="hint bad">{protocolError}</p>
       {/if}
     </div>
   {/if}
@@ -970,11 +971,6 @@
     white-space: nowrap;
   }
 
-  .note {
-    margin: 4px 2px;
-    font-size: 11.5px;
-  }
-
   .gestures strong {
     font-weight: 600;
     color: var(--fg);
@@ -1000,13 +996,16 @@
     margin-top: 6px;
     padding-top: 6px;
     border-top: 1px solid var(--line);
+    /* a strip of controls, so everything on it is control-sized — including
+       the channel count, which is a readout on the strip rather than prose
+       about it (it read a step larger than the fields it belongs to) */
+    font-size: var(--text-sm);
   }
 
   .field {
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 11.5px;
     color: var(--muted);
   }
 
@@ -1030,11 +1029,12 @@
     padding: 0;
   }
 
+  /* the readout and the verb that acts on it, side by side: a pill is
+     non-interactive, so the × is a control of its own rather than one inside it */
   .regions li {
     display: flex;
     align-items: center;
-    gap: 2px;
-    padding: 1px 4px 1px 8px;
+    gap: var(--s1);
   }
 
   .count {

@@ -36,7 +36,50 @@
      so it carries no hue anything else could be confused with, and it is weak
      enough that the recessive grey observations stay readable through it. */
   --plot-mask: #1b1b1b14;
-  --mono: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ---- the type scale (WP-1201) ---------------------------------------
+     Three steps, and no call site declares a fourth.  Before this WP the app
+     used eight literal sizes (10, 10.5, 11, 11.5, 12, 12.5, 13, 15 px) across
+     68 `font-size` declarations, so a chip in one panel and a chip in the next
+     were different objects.  Each step means a *role*, not a degree of
+     smallness:
+
+       --text     prose — a sentence a person reads
+       --text-sm  a control and everything on its row: a field, a field's
+                  label, a count beside a button, a table cell
+       --text-xs  a chip and a section heading: a label on something else
+
+     A field is control-sized with no exception: a field that needs to feel
+     prominent gets width and padding, never a step of its own.
+
+     `gui/src/lib/style.test.ts` fails on a literal `font-size` in `App.svelte`
+     or any panel, which is what keeps a fourth step from arriving by accident. */
+  --text: 13px;
+  --text-sm: 11.5px;
+  --text-xs: 10.5px;
+
+  /* ---- the space scale ------------------------------------------------
+     Three steps, and every control's padding is two of them.  A register's
+     geometry is written once, below; a panel never sets one.  Three and not
+     four: a `--s4: 12px` was declared here and used nowhere, which is a
+     claim with no writer (root CLAUDE.md), so it went rather than waiting for
+     a use to justify it. */
+  --s1: 2px;
+  --s2: 4px;
+  --s3: 8px;
+
+  /* Two radii, because there are two shapes: a control is a rounded box and a
+     chip or a pill is a lozenge. */
+  --r-control: 5px;
+  --r-chip: 8px;
+
+  /* Mono is a *family*, not a size — `.mono` below sets only the family, so a
+     mono chip is chip-sized and a mono cell is row-sized.  `--mono` is the
+     shorthand for the places that want the whole stack (an input, `<pre>`,
+     `code`, `kbd`), and it takes its size from the scale like everything
+     else. */
+  --mono-family: ui-monospace, "SF Mono", Menlo, monospace;
+  --mono: var(--text-sm) / 1.5 var(--mono-family);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -85,7 +128,7 @@ body {
   margin: 0;
   color: var(--fg);
   background: var(--bg);
-  font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font: var(--text) / 1.45 ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 #app {
@@ -94,32 +137,52 @@ body {
   height: 100vh;
 }
 
-/* ------------------------------------------------------------------
-   Control registers (WP-1029).
+/* ==================================================================
+   Control registers (WP-1029, rewritten WP-1201).
 
-   One header row used to hold six visual registers — two toggle buttons, a
-   segmented pair, a status pill, a primary Run, a secondary Cancel and a ⌘K
-   chip — each styled where it happened to be written.  There are now five, they
-   live here, and a panel that wants a sixth should be changing one of these
-   instead.  `.small`/`.tiny` are *sizes*, not registers: they scale a register
-   down without changing what it means.
+   A register means **one thing** and is drawn **one way everywhere**.  Size,
+   padding and radius are properties of the register, never of the place it is
+   used: a panel that wants a smaller button wants a different register, and
+   there is exactly one place — here — where that argument can be had.
 
-   - `button`          primary — the one action a view exists for
-   - `button.ghost`    secondary — everything else that acts
-   - `button.on`       a toggle that is engaged
-   - `.segmented`      one choice among N, where the options are the control
-   - `.pill`           a *state*.  Never a control: it does not respond to a
-                       click, so it must not look like something that would.
-   ------------------------------------------------------------------ */
+   Nine of them — the plan named eight and the inventory found `.pick`:
+
+     button          the one state-changing action in its region (Run, Apply)
+     button.ghost    any other action.  Same size — only the fill differs
+     .segmented      choose one of N views or modes
+     .tab            choose one of N panels
+     .chip           a fact: a flag, a tag, a status.  Never acts
+     .pill           a live mono readout (the run state, a validity phase)
+     .pick           select this row: a button that has given up its box
+     .link           inline navigation, inside a line of prose
+     .help           an explanation is one click away (popover: WP-1203)
+
+   `button.on`, `:disabled` and the chip tones are *states* of a register, not
+   registers of their own — they say something about one instance, where a
+   register says what kind of thing it is.
+   ================================================================== */
+
+/* The primary: filled, because fill is what says "this is the action".  Size
+   does not get to say it a second time, which is why every other button here
+   is exactly this tall.  22 px — chosen so the same button fits a table row,
+   since a register that cannot live in a row would need a second one. */
 button {
-  font: inherit;
-  padding: 5px 12px;
-  border-radius: 5px;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  font-weight: 600;
+  /* a button's label is its own, not the heading's it happens to sit in — the
+     model pane's `Replace from CIF…` read as REPLACE FROM CIF… inside an `h2`
+     (found in the browser).  `Console`'s caret opts back in, because there the
+     button *is* the heading. */
+  text-transform: none;
+  letter-spacing: normal;
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-control);
   border: 1px solid var(--accent);
   background: var(--accent);
   color: #fff;
   cursor: pointer;
-  font-weight: 600;
 }
 
 button.ghost {
@@ -128,6 +191,16 @@ button.ghost {
   font-weight: 400;
 }
 
+/* The one hover in the app, and it belongs to the register rather than to the
+   one panel that had written it out (`Peaks`' adopt chips).  A ghost is a
+   transparent box, so without this a control that acts is pointer-identical to
+   a chip that does not. */
+button.ghost:hover:not(:disabled),
+.file > span:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* a toggle that is engaged — a state, and it reads as the primary does */
 button.on {
   background: var(--accent);
   border-color: var(--accent);
@@ -140,20 +213,45 @@ button:disabled {
   cursor: default;
 }
 
-button.small {
-  padding: 2px 7px;
-  font-size: 11.5px;
+/* A `<label class="file">` is a ghost button with a file input hidden inside
+   it: the native control is unstylable and says "no file chosen", so the label
+   is the button and the input is only the mechanism.  It is drawn here rather
+   than in the two panels that use it, because a label is not a `button` and
+   the register would otherwise be written twice with two geometries — which is
+   what it was before WP-1201 (4px 10px dashed in Model, 3px 9px solid in
+   Series). */
+.file {
+  position: relative;
+  display: inline-flex;
 }
 
-button.tiny {
-  padding: 0 5px;
-  font-size: 11px;
+.file > span {
+  display: inline-block;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-control);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  cursor: pointer;
 }
 
+.file > input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+/* One choice among N, where the options *are* the control.  The buttons inside
+   take the register's geometry above; only their chrome changes. */
 .segmented {
   display: flex;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--r-control);
   overflow: hidden;
 }
 
@@ -163,8 +261,6 @@ button.tiny {
   background: transparent;
   color: var(--muted);
   font-weight: 400;
-  padding: 3px 9px;
-  font-size: 11.5px;
 }
 
 .segmented button.on {
@@ -172,12 +268,160 @@ button.tiny {
   color: #fff;
 }
 
-.pill {
-  font: var(--mono);
-  padding: 2px 8px;
-  border-radius: 10px;
+/* One choice among N *panels*.  A tab is not a segmented option: it names
+   where you are rather than how the thing in front of you is drawn, so it is
+   underlined rather than boxed — and it never grows to fill the strip, because
+   a lone wrapped tab that stretched read as a banner (WP-1034). */
+.tab {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 400;
+  padding: var(--s2) var(--s3);
+  border-bottom: 2px solid transparent;
+}
+
+/* `background` has to be said here: `button.on` (0,1,1) would otherwise paint
+   the selected tab as a filled control, which is the segmented register — a
+   tab is underlined, and a browser pass is what showed it (every tab strip
+   rendered as a segmented group). */
+.tab.on {
+  background: transparent;
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* A **fact**: a flag, a tag, a grade, a status.  Non-interactive by
+   construction — no cursor, no hover — so a chip that acts is a `button.ghost`
+   instead.  Proportional, not mono: a chip is a *label*, and two panels that
+   had made theirs mono lost it here on purpose.  A chip whose content really
+   is code takes `.mono` at the call site, which is a statement about the
+   content and not about the size.  Before WP-1201 there were three chip geometries and two of them
+   were also buttons; the "different-sized chips" that started this WP were
+   `.chip` (10 px) losing to a same-specificity `.note` (12 px) declared later
+   in the same panel, which is a class of bug a register cannot have. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  padding: 0 var(--s2);
+  border-radius: var(--r-chip);
   border: 1px solid var(--line);
   color: var(--muted);
+  white-space: nowrap;
+}
+
+/* One tone set, and a chip with no tone is `note`.  A tone is a judgement
+   about the fact, so the vocabulary is the app's five and not a per-panel
+   invention: `lib/peaks.ts`'s `flagTone`/`caveatTone`/`confidenceTone` return
+   members of it. */
+.chip.note {
+  color: var(--muted);
+  border-color: var(--line);
+}
+
+.chip.ok {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.chip.warn {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.chip.bad {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.chip.accent {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* A live mono readout — the run state, a validity phase.  Never a control: it
+   does not respond to a click, so it must not look like something that would.
+   Mono because it changes under the eye and a proportional font would move the
+   text around it. */
+.pill {
+  font: var(--mono);
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-chip);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+/* Select this row.  A button that has given up its box, because the target is
+   the whole row and a box inside a row is a second thing to aim at: History's
+   node list, Params' group headers, Report's region and peak tables.  It keeps
+   the row's own type and colour — what says "selected" is the row's
+   background, not a control's chrome.  So it renders at 13 px in one panel and
+   11.5 in another, and that is the register working rather than drifting: the
+   size it takes is the row's, which is why `.pick` is the one register the
+   style test does not forbid a panel from laying out.  The ninth register, found by the
+   WP-1201 inventory rather than named in the plan: three panels had written it
+   out by hand. */
+.pick {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  padding: 0;
+}
+
+/* Inline navigation: it takes the size of the line it sits in, which is what
+   separates it from a button. */
+.link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* The help register (WP-1201; the popover itself is WP-1203).  The cursor is
+   the whole mark — no glyph, no underline — so an explanation costs nothing on
+   a screen someone is reading past. */
+.help {
+  cursor: help;
+}
+
+/* Form fields are not a register: a panel owns their chrome, because a field
+   in a table row and a field in a wizard are different boxes.  What they do
+   not own is the size — they are controls, so they are control-sized. */
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: var(--text-sm);
+}
+
+/* A section heading, which every panel had its own copy of (six identical
+   rules before WP-1201).  Uppercase and tracked, so it reads as a label on the
+   block below rather than as a line of the prose. */
+h2,
+h3 {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+  margin: var(--s3) 0 var(--s1);
 }
 
 code,
@@ -189,12 +433,35 @@ kbd {
   color: var(--muted);
 }
 
+/* the *family*, not the size — see `--mono-family` above */
 .mono {
-  font: var(--mono);
+  font-family: var(--mono-family);
+}
+
+/* A line of explanation under a control: prose, so prose-sized, and the only
+   thing it declares is that it sits closer than a paragraph would.  Written
+   here because three panels had written it out, at two values. */
+.hint {
+  margin: var(--s2) 0;
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* The three judgement colours as one-word utilities, so a panel that needs
+   "this line is bad" does not re-derive it.  Colour only: a panel that also
+   wants a box around it keeps that part locally. */
+.ok {
+  color: var(--ok);
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.bad {
+  color: var(--bad);
 }
 
 /* The `.rxt` highlighter (WP-1013).  Global rather than scoped to the panel

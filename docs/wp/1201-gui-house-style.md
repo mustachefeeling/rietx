@@ -1,6 +1,6 @@
 # WP-1201 — GUI house style: tokens and registers
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.2 · Status: ✅ 2026-08-25 — one token layer and **nine** registers (the plan named eight; the inventory found `.pick`), no size at any call site, and three register misuses repaired
 Depends on: —
 
 ## Goal
@@ -81,27 +81,27 @@ phrase (this WP writes that rule into `gui/CLAUDE.md`).
 
 ## Tasks
 
-- [ ] `app.css`: the type/space/radius tokens; the eight registers written
-      once, each with a one-line comment saying what it means; delete
+- [x] `app.css`: the type/space/radius tokens; the registers written
+      once (**nine**, not the eight planned — see the handover entry), each with a one-line comment saying what it means; delete
       `.small`/`.tiny`; chip tones as one set.
-- [ ] `App.svelte`: the header on the registers (`Open…` ghost, the three
+- [x] `App.svelte`: the header on the registers (`Open…` ghost, the three
       segmented controls at register size, the status pill, `Run` primary,
       `Cancel`/`⌘K` ghost, `⚠ not a fit yet` as a `chip bad`); the tab strip
       as `.tab`.
-- [ ] Every `panels/*.svelte` `<style>`: delete local `button`, `.chip`,
+- [x] Every `panels/*.svelte` `<style>`: delete local `button`, `.chip`,
       `.pill`, `.small`, `.tiny` rules and literal font sizes; replace call
       sites (`class="ghost tiny"` → `class="ghost"`, `button.chip.act` →
       `button.ghost`, `chip tiny` → `chip`), keeping every existing tone.
-- [ ] `gui/src/lib/style.test.ts`: reads every `panels/*.svelte` and
+- [x] `gui/src/lib/style.test.ts`: reads every `panels/*.svelte` and
       `App.svelte` `<style>` block (a regex over the file, no compiler) and
       fails on `font-size`, `padding` or `border-radius` declared on a
       selector containing `button`, `.chip`, `.pill`, `.segmented` or `.tab`,
       and on any `font-size:` whose value is not `var(--text`; a second
       assertion greps `gui/src` for `.small`/`.tiny` selectors and class
       names and expects none.
-- [ ] `gui/CLAUDE.md` § House style: the register table compressed to one
+- [x] `gui/CLAUDE.md` § House style: the register table compressed to one
       rule per register, the token rule, the docs-style rule for GUI prose.
-- [ ] Browser pass (playwright-core in the scratchpad, `gui/CLAUDE.md`):
+- [x] Browser pass (playwright-core in the scratchpad, `gui/CLAUDE.md`):
       light/dark screenshots of the header and of each panel at the sidebar
       floor and ceiling (WP-1034's widths), compared by eye against the
       register table; rebuild the committed dist.
@@ -125,5 +125,148 @@ segmented, pill); the style test is green.
 - The user's notes of 2026-08-25 (the plan file for this milestone's opening).
 
 ## Handover log
+
+### 2026-08-25 — one control vocabulary, and the three defects it exposed
+
+The GUI now has exactly one place where a control's size is decided. Before
+this it had fourteen: each panel styled its own buttons and chips, which is why
+one header row carried five button geometries and why the same "flag" chip
+rendered at two different sizes inside a single table — every one of them
+locally correct, and none of them a decision anybody took. `app.css` now holds
+nine registers, each meaning one thing and drawn one way everywhere, plus a
+test that fails a panel which gives one its own size, padding or radius.
+Applying the vocabulary turned out not to be tidying: it exposed three real
+defects, the plainest being that a two-phase model drew *every* phase button in
+the primary register, so nothing on screen said which phase you were looking
+at. One thing was deliberately given up — `⚠ not a fit yet` was a click-through
+to the Report tab (WP-1029) and is now a chip, because a chip is a fact and
+does not act.
+
+**Done** — all six tasks.
+
+- `app.css`: a three-step type scale (`--text` 13, `--text-sm` 11.5, `--text-xs`
+  10.5), a three-step space scale, two radii, and mono as a *family* so a mono
+  chip is chip-sized. The registers, each with a sentence: `button`,
+  `button.ghost`, `.segmented`, `.tab`, `.chip` (+ five tones), `.pill`,
+  `.pick`, `.link`, `.help`. Also `.file > span`, the label-as-button that two
+  panels had drawn with two geometries.
+- **`.pick` is the ninth register and was not in the plan.** The inventory
+  found "a button that has given up its box, because the row is the target"
+  written out by hand in History, Params, Report and the command palette. It
+  had to be named: without it the style test is satisfied by dropping `button`
+  from the selector, which is a textual dodge rather than a rule.
+- Every panel's local `button`/`.chip`/`.pill`/`.small`/`.tiny` rule deleted,
+  and all 166 class attributes that named a size. `.small` is not replaced by
+  another size — a control is control-sized by *being* a control, and
+  "secondary" is said by `.muted`, once.
+- `lib/style.test.ts`, three assertions, each checked against a deliberate
+  violation before it was believed. `lib/peaks.ts` gained `Tone` and
+  `confidenceTone` so the three tone functions return members of the one
+  vocabulary (`flagTone`'s `"out"` was the last private word).
+- `gui/CLAUDE.md` § House style; cap 580 → 612 with the reason beside it.
+
+**Three register misuses the vocabulary exposed**, none cosmetic:
+
+1. `nav.phases` drew N *primary* buttons and `class:on` added nothing visible,
+   so a multi-phase model showed no selection. It is `.segmented` now.
+2. The structure viewer's `a b c reset` were four filled primaries in one row,
+   which cannot each be "the one action in its region" → ghosts.
+3. A chip and a pill each *contained* a button (drop-this-prior,
+   stop-excluding) — two registers in one box. The verb now sits beside the
+   fact.
+
+**Three defects only the browser found** (jsdom cannot see cascade):
+
+1. Every tab strip rendered as a segmented group. `.tab.on` (0,2,0) beats
+   `button.on` (0,1,1) on what it declares — but it did not declare
+   `background`, so the accent fill survived. **A state selector loses every
+   property a more specific rule does not restate.**
+2. `Replace from CIF…` read as REPLACE FROM CIF…: `text-transform` and
+   `letter-spacing` inherit into a button, and both file labels sit inside an
+   uppercase-tracked `h2`. The register resets both; `Console`'s caret opts
+   back in, because there the button *is* the heading.
+3. Two panels put the size back at the call site by another route — `font:
+   inherit` on `input`/`select` (Plan) and an explicit `font-size` (the command
+   palette) both beat the global control size. The rule is now written in both
+   places: **a field is control-sized with no exception; prominence is width
+   and padding.**
+
+**Measured** (`[dev]`, darwin/arm64, node 26.3.1):
+
+- `font-size` declarations in `gui/src`: **69 across 15 files → 34 across 10**,
+  and the *values* went from seven literals (10, 10.5, 11, 11.5, 12, 13, 15 px)
+  to the three tokens. Eleven files declared `.small`/`.tiny`; none do.
+- Panels + `App.svelte`: **331 added / 594 deleted**; `app.css` +278 / −35.
+- `npm --prefix gui test`: **20 files / 411 tests**, against 19 / 407 at session
+  start — +1 file and +4 tests (three in `style.test.ts`, one tone-vocabulary
+  test in `peaks.test.ts`), which is exactly the arithmetic.
+  `svelte-check`: 373 files, 0 errors, 0 warnings.
+- Fast python selection: **2640 passed, 117 skipped** on the branch before it
+  took `main`, and **2761 passed, 117 skipped** after — the +121 is PR #108's
+  (WP-1134, constant-wavelength neutron), which landed on `main` mid-session.
+  No python test was added or removed *here*: the only python change this WP
+  makes is the `SIZE_CAPS` constant, so nothing moved by construction, and the
+  skips are unchanged across the merge.
+- `npm run build` then `git diff --exit-code src/rietx/gui/static` is clean:
+  the committed dist is the tree.
+
+**Gotchas for a successor**
+
+- `rietx gui` binds **8731 by default and the maintainer may be on it** — check
+  before binding, and pass `--port`. `#app > header .pill` is the header's
+  pill; the Text pane has a `header` and a `.pill` of its own.
+- The browser fixture that made the pass worth doing: a two-phase 11-BM NAC
+  project with an excluded region, fitted, so tables, chips, tones, a phase nav
+  and a mask are all on screen. A one-phase unfitted project shows almost none
+  of it — the phase-nav defect is invisible without a second phase.
+- **An "on" state that is the default reads as a wall of fill.** The Peaks
+  search form has twelve centring toggles, all engaged out of the box, and they
+  are now twelve filled accent buttons. It is what the register says and it is
+  loud; filed into WP-1209.
+
+**Review addendum (same day)** — a review agent re-measured the branch in a
+real browser (a 2529-element computed-style census against `main`'s dist) and
+found one blocker the session's own screenshot pass had looked straight at and
+missed, plus four ways the guard failed open. All fixed on the branch:
+
+- **`nav.phases` filled the column with 394 px of empty bordered strip.**
+  `.segmented` is `display: flex`, the `nav` is a block-level child of a
+  *block* column, and the `align-self: flex-start` written against that was
+  inert — there is no flex parent to align in. `width: fit-content` takes it to
+  143 px against 141 px of buttons (measured). The lesson generalises: **giving
+  a block-level element a flex register hands it the container's width**, and
+  the screenshot shows it as an empty box that reads like a background.
+- **The style guard failed open four ways**, each reproduced then re-checked:
+  `<style lang="css">` made the block regex miss and the file was skipped in
+  *silence* (every assertion is "this list is empty"); `padding-left` and
+  `border-top-left-radius` dodged the property list; the `font` shorthand sets
+  a size and was invisible to both assertions; and `.file` was a register in
+  `app.css` with no entry in the guard's list. All eight violations now fire,
+  and the file-parse itself is asserted.
+- Smaller: `.mono` losing its size left three sizes on one Params row (the row
+  is control-sized now); `--s4` was declared and used nowhere (deleted — a
+  claim with no writer); two `<span class="ghost">` had a class that matches
+  nothing on a span; `button.ghost` had no hover anywhere in the app after the
+  one panel that owned it was cleaned out (the register owns it now); `.hint`
+  was a fresh triplicate at two values (hoisted).
+
+**`main` moved under the branch** (PR #108, WP-1134) and the PR went `DIRTY`
+with no CI run at all — GitHub does not run `pull_request` workflows it cannot
+compute a merge commit for, so *green checks on an older head* was the only
+signal on screen and it was stale. The conflict was one hunk: both sides had
+bumped a cap in `SIZE_CAPS`, measured against different parents. Resolved by
+taking `main`'s ROADMAP history and cap (482, its two new index rows) beside
+this WP's `gui/CLAUDE.md` 612; the merged files measure 482 and 610.
+
+Two review findings were **not** changed, and both are now stated in `app.css`
+so the next reader does not re-raise them: `.pick` renders at two sizes across
+panels *by contract* (it takes the row's), and chips lost their mono family in
+History and Report on purpose (a chip is a label; `.mono` at the call site is
+the way back for content that really is code).
+
+**Next**: WP-1204 (developer mode and shipped example projects) is next in the
+v1.2 order — it depends on 1201 only softly, so it can start immediately.
+1202/1203 follow and attach the popover to the `.help` register this WP
+declared (`cursor: help`, no visible mark, as decided at the opening).
 
 - **2026-08-25** — created from the v1.2 triage.

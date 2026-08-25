@@ -59,6 +59,34 @@ Design:
   or deleted; buttons keep a verb phrase. A vitest greps the compiled
   components for `title=` on non-button elements and expects none.
 
+### Inherited
+
+From **WP-1201** (2026-08-25, shipped):
+
+- The `.help` register exists and is **cursor only**: `app.css` declares
+  `.help { cursor: help }` and nothing else, which is the "no visible mark"
+  decision taken at the milestone opening. Attach the popover to that class;
+  do not add a glyph, an underline or a second class beside it.
+- Size, padding and radius belong to a register, not to a call site, and
+  `gui/src/lib/style.test.ts` fails a panel that says any of the three on
+  `button`, `.chip`, `.pill`, `.segmented`, `.tab` or `.link`, or a
+  `font-size` that is not `var(--text…)`. A popover is a *new* thing, so it
+  gets its own rule in `app.css` — not a size in the panel that opens it.
+- Two cascade traps this WP measured in a browser and jsdom could not see: a
+  state selector (`button.on`, `(0,1,1)`) keeps every property a more
+  specific rule does not restate, and `text-transform`/`letter-spacing`
+  inherit into a button. Both bit a register that looked correct in the
+  source.
+- **A named case for the popover, and it is a regression this WP left behind.**
+  `App.svelte`'s `⚠ not a fit yet` was a `<button>` carrying the maturity
+  message as its `title`, and is now `<span class="chip bad" title=…>` —
+  correct under the register rule (a chip does not act) but the message is on
+  a non-focusable element, so it is out of reach of the keyboard and largely
+  of assistive tech. 1201's non-goals fenced it off ("`title=` strings stay
+  where they are"), so it is owed here: the header chip should be among the
+  first things the popover covers, and whatever mechanism it uses has to be
+  reachable without a pointer.
+
 ## Non-goals
 
 - No help *content*: entries are WP-1202's; a missing entry renders the

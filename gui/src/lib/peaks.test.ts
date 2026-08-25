@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   caveatTone,
+  confidenceTone,
   cellText,
   collectTo,
   flagTone,
@@ -24,17 +25,34 @@ import {
 describe("flag and caveat tones come from the served lists", () => {
   it("marks a flag as out only when the server says it is unusable", () => {
     const unusable = ["ghost_kbeta", "excluded", "not_separable"];
-    expect(flagTone("excluded", unusable)).toBe("out");
-    expect(flagTone("not_separable", unusable)).toBe("out");
+    expect(flagTone("excluded", unusable)).toBe("bad");
+    expect(flagTone("not_separable", unusable)).toBe("bad");
     expect(flagTone("sigma_assumed", unusable)).toBe("note");
     // a grown vocabulary changes nothing here — the split is the argument
-    expect(flagTone("some_future_flag", [...unusable, "some_future_flag"])).toBe("out");
+    expect(flagTone("some_future_flag", [...unusable, "some_future_flag"])).toBe("bad");
   });
 
   it("colours a caveat red only when the served refuting set holds it", () => {
     const refuting = ["predicted_but_absent", "validation_failed"];
     expect(caveatTone("predicted_but_absent", refuting)).toBe("bad");
     expect(caveatTone("shift_allowance_assumed", refuting)).toBe("warn");
+  });
+
+  // every tone a component asks for has to be a member of the one set the
+  // stylesheet declares (WP-1201) — a chip with an unknown tone is not a
+  // failure a browser reports, it is a chip drawn in the neutral tone
+  it("returns members of the app's tone vocabulary", () => {
+    const tones = ["note", "ok", "warn", "bad", "accent"];
+    expect(tones).toContain(flagTone("excluded", ["excluded"]));
+    expect(tones).toContain(flagTone("sigma_assumed", ["excluded"]));
+    expect(tones).toContain(caveatTone("x", ["x"]));
+    expect(tones).toContain(caveatTone("y", ["x"]));
+    for (const grade of ["high", "medium", "low"] as const) {
+      expect(tones).toContain(confidenceTone(grade));
+    }
+    expect(confidenceTone("high")).toBe("ok");
+    expect(confidenceTone("medium")).toBe("warn");
+    expect(confidenceTone("low")).toBe("note");
   });
 });
 

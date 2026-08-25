@@ -33,17 +33,17 @@
       {/each}
     </ul>
   {:else}
-    <p class="small muted">
+    <p class="muted">
       None — every panel the v1.0 GUI plan named is built.
     </p>
   {/if}
 
   <h2>This build</h2>
-  <p class="muted small">
+  <p class="muted">
     {#if project}plan: <span class="mono">{project.doc.plan ? "selected" : "default"}</span> ·{/if}
     {features.length} features
   </p>
-  <p class="small muted">{features.join(" · ")}</p>
+  <p class="muted">{features.join(" · ")}</p>
 </section>
 
 <style>
@@ -55,12 +55,7 @@
   }
 
   h2 {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    margin: 6px 0 4px;
-    font-weight: 600;
+    margin: 6px 0 var(--s2);
   }
 
   ul.owed {
@@ -72,8 +67,7 @@
     margin: 1px 0;
   }
 
-  .small {
-    font-size: 11.5px;
-    margin: 2px 0;
+  p {
+    margin: var(--s1) 0;
   }
 </style>
