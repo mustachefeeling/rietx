@@ -1913,6 +1913,29 @@ def _capillary_offset_diagnostics(model: CompiledModel,
     a degeneracy the fit rides to a bound while Rwp *improves* and the cell moves
     1117 ppm.  So they stay report-driven, and this says only that the door is
     shut and which field opens it.
+
+    **What it covers, and what it does not.**  The condition is *could not
+    express* — a capillary geometry with no radius for eq (4) to divide by — not
+    *declared a radius and chose not to free the pair*.  A capillary that carries
+    an R and whose plan never frees the offsets leaves the cell in exactly the
+    same place and stays **silent** here: that case has a route already (Layer 2
+    reads it off the plan signature), and firing on it would fire on nearly every
+    capillary fit.  This one fact is about the model being unable to hold the
+    aberration at all.
+
+    **The breadth is intended, including on a calibrated instrument.**  Every
+    ``Instrument.debye_scherrer(wavelength=…)`` built with no radius trips it —
+    the bundled 11-BM references (``examples/nac_11bm.py``, the NAC and SRM 660a
+    standards on the ``rietx compare`` page) among them — because the statement
+    is true there too: the offsets *were* held for want of an R.  What the
+    diagnostic cannot see is whether that is harmless.  On a calibrated
+    synchrotron the 2θ scale is pinned and a certified cell reproduces to spec,
+    so the held offsets cost nothing and the info is noted and dismissed; on a
+    laboratory capillary the same silence is a real accuracy gap (measured, a
+    corundum fit with the displacement force-fixed: both axes off by +500 ppm
+    together while c/a held to +34.5 ppm).  The message names the field rather
+    than the verdict for exactly that reason — the protocol row (§7) carries the
+    clause on how to read it on a calibrated instrument.
     """
     if model.geometry_kind != "debye_scherrer":
         return []

@@ -1,13 +1,23 @@
-"""The aberrations a geometry has and could not express."""
+"""The aberrations a geometry has and could not express.
+
+The condition is keyed on the *geometry* (a Debye-Scherrer capillary with no
+goniometer radius), not on the radiation, so the fire and silence cases build
+``Instrument.debye_scherrer`` — an X-ray capillary that stands on ``main`` with
+no dependency on the neutron source.  One neutron case is kept, on the BT-1
+instrument that motivated the diagnostic, to hold that the same geometry reached
+through ``constant_wavelength_neutron`` reads the same gate.
+"""
 
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 import rietx as rx
 
 CODE = "CAPILLARY_OFFSET_UNAVAILABLE"
+
+#: An X-ray capillary wavelength (Ag Kα-ish), only so the preset is not neutron.
+_XRAY_LAMBDA = 0.5594
 
 
 def _corundum() -> rx.Structure:
@@ -38,15 +48,18 @@ def _codes(instrument: rx.Instrument) -> set[str]:
 
 def test_a_capillary_without_a_radius_says_the_offsets_were_unavailable():
     """The offsets are correctly held — the diagnostic is that "held" and
-    "measured to be zero" are different statements (WP-1073)."""
-    assert CODE in _codes(
-        rx.Instrument.constant_wavelength_neutron(2.0780, fwhm_deg=0.4))
+    "measured to be zero" are different statements (WP-1073).
+
+    On an X-ray Debye-Scherrer instrument, which is the claim in the PR body:
+    the condition is the geometry, not the radiation.
+    """
+    assert CODE in _codes(rx.Instrument.debye_scherrer(_XRAY_LAMBDA))
 
 
 def test_declaring_the_radius_silences_it():
     """The condition is the missing field, not the geometry."""
-    assert CODE not in _codes(rx.Instrument.constant_wavelength_neutron(
-        2.0780, fwhm_deg=0.4, goniometer_radius_mm=1711.0))
+    assert CODE not in _codes(
+        rx.Instrument.debye_scherrer(_XRAY_LAMBDA, goniometer_radius_mm=1711.0))
 
 
 def test_a_flat_plate_is_not_told_about_a_capillary_aberration():
@@ -62,6 +75,10 @@ def test_it_reads_the_gate_off_the_table_rather_than_the_geometry():
 
     Asserted rather than described, because a second opinion here is exactly
     the drift the docstring says it avoids.
+
+    This is the one neutron case kept: the geometry the diagnostic exists for is
+    a BT-1 constant-wavelength scan, so the gate is pinned on the instrument that
+    reached it rather than only on the X-ray preset the other cases use.
     """
     from rietx.params.vector import ParameterTable
 
@@ -76,11 +93,11 @@ def test_it_reads_the_gate_off_the_table_rather_than_the_geometry():
         assert (CODE in _codes(instrument)) is expect_locked
 
 
-@pytest.mark.parametrize("field", ["goniometer_radius_mm"])
-def test_the_diagnostic_names_the_field_that_opens_the_door(field):
+def test_the_diagnostic_names_the_field_that_opens_the_door():
     """A diagnostic that cannot be acted on is noise."""
+    field = "goniometer_radius_mm"
     result = rx.refine(_flat_pattern(), _corundum(),
-                       rx.Instrument.constant_wavelength_neutron(2.0780, fwhm_deg=0.4),
+                       rx.Instrument.debye_scherrer(_XRAY_LAMBDA),
                        plan="profile_only")
     hit = next(d for d in result.diagnostics if d.code == CODE)
     assert hit.where == [f"instrument.geometry.{field}"]
