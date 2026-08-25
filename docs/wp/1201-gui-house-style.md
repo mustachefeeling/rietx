@@ -145,7 +145,7 @@ does not act.
 **Done** — all six tasks.
 
 - `app.css`: a three-step type scale (`--text` 13, `--text-sm` 11.5, `--text-xs`
-  10.5), a four-step space scale, two radii, and mono as a *family* so a mono
+  10.5), a three-step space scale, two radii, and mono as a *family* so a mono
   chip is chip-sized. The registers, each with a sentence: `button`,
   `button.ghost`, `.segmented`, `.tab`, `.chip` (+ five tones), `.pill`,
   `.pick`, `.link`, `.help`. Also `.file > span`, the label-as-button that two
@@ -220,6 +220,38 @@ does not act.
   search form has twelve centring toggles, all engaged out of the box, and they
   are now twelve filled accent buttons. It is what the register says and it is
   loud; filed into WP-1209.
+
+**Review addendum (same day)** — a review agent re-measured the branch in a
+real browser (a 2529-element computed-style census against `main`'s dist) and
+found one blocker the session's own screenshot pass had looked straight at and
+missed, plus four ways the guard failed open. All fixed on the branch:
+
+- **`nav.phases` filled the column with 394 px of empty bordered strip.**
+  `.segmented` is `display: flex`, the `nav` is a block-level child of a
+  *block* column, and the `align-self: flex-start` written against that was
+  inert — there is no flex parent to align in. `width: fit-content` takes it to
+  143 px against 141 px of buttons (measured). The lesson generalises: **giving
+  a block-level element a flex register hands it the container's width**, and
+  the screenshot shows it as an empty box that reads like a background.
+- **The style guard failed open four ways**, each reproduced then re-checked:
+  `<style lang="css">` made the block regex miss and the file was skipped in
+  *silence* (every assertion is "this list is empty"); `padding-left` and
+  `border-top-left-radius` dodged the property list; the `font` shorthand sets
+  a size and was invisible to both assertions; and `.file` was a register in
+  `app.css` with no entry in the guard's list. All eight violations now fire,
+  and the file-parse itself is asserted.
+- Smaller: `.mono` losing its size left three sizes on one Params row (the row
+  is control-sized now); `--s4` was declared and used nowhere (deleted — a
+  claim with no writer); two `<span class="ghost">` had a class that matches
+  nothing on a span; `button.ghost` had no hover anywhere in the app after the
+  one panel that owned it was cleaned out (the register owns it now); `.hint`
+  was a fresh triplicate at two values (hoisted).
+
+Two review findings were **not** changed, and both are now stated in `app.css`
+so the next reader does not re-raise them: `.pick` renders at two sizes across
+panels *by contract* (it takes the row's), and chips lost their mono family in
+History and Report on purpose (a chip is a label; `.mono` at the call site is
+the way back for content that really is code).
 
 **Next**: WP-1204 (developer mode and shipped example projects) is next in the
 v1.2 order — it depends on 1201 only softly, so it can start immediately.

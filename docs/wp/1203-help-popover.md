@@ -77,6 +77,15 @@ From **WP-1201** (2026-08-25, shipped):
   specific rule does not restate, and `text-transform`/`letter-spacing`
   inherit into a button. Both bit a register that looked correct in the
   source.
+- **A named case for the popover, and it is a regression this WP left behind.**
+  `App.svelte`'s `⚠ not a fit yet` was a `<button>` carrying the maturity
+  message as its `title`, and is now `<span class="chip bad" title=…>` —
+  correct under the register rule (a chip does not act) but the message is on
+  a non-focusable element, so it is out of reach of the keyboard and largely
+  of assistive tech. 1201's non-goals fenced it off ("`title=` strings stay
+  where they are"), so it is owed here: the header chip should be among the
+  first things the popover covers, and whatever mechanism it uses has to be
+  reachable without a pointer.
 
 ## Non-goals
 

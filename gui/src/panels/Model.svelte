@@ -876,11 +876,11 @@
         <h2>Structure
           <label class="file inline-file">
             <input type="file" accept=".cif" onchange={(e) => replaceFrom("cif", e)} />
-            <span class="ghost">Replace from CIF…</span>
+            <span>Replace from CIF…</span>
           </label>
         </h2>
         {#if structure.phases.length > 1}
-          <nav class="phases segmented">
+          <nav class="phases segmented" role="group" aria-label="phase">
             {#each structure.phases as p, i (i)}
               <button class:on={phase === i} onclick={() => (phase = i)}>{p.name}</button>
             {/each}
@@ -1115,7 +1115,7 @@
         <h2>Instrument
           <label class="file inline-file">
             <input type="file" onchange={(e) => replaceFrom("instrument", e)} />
-            <span class="ghost">Load profile…</span>
+            <span>Load profile…</span>
           </label>
         </h2>
         {#if warning}
@@ -1421,10 +1421,15 @@
 
   /* choosing one of N phases is the `.segmented` register (app.css) — as N
      plain buttons every phase wore the primary fill and `class:on` said
-     nothing, so a two-phase model showed no selection at all */
+     nothing, so a two-phase model showed no selection at all.  `width:
+     fit-content` because the register is `display: flex` and this `nav` is a
+     block-level child of a *block* column, so it filled the column with 394 px
+     of empty bordered strip (measured in Chrome; `align-self` is inert here,
+     there being no flex parent to align in). */
   nav.phases {
     margin: var(--s2) 0;
-    align-self: flex-start;
+    width: fit-content;
+    max-width: 100%;
   }
 
   .grid {

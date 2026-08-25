@@ -971,10 +971,6 @@
     white-space: nowrap;
   }
 
-  .hint {
-    margin: var(--s2) var(--s1);
-  }
-
   .gestures strong {
     font-weight: 600;
     color: var(--fg);

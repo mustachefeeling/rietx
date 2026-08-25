@@ -12,7 +12,7 @@
  *
  * This is a regex over the source, deliberately: a CSS parser would tell us
  * about cascade and specificity, and what is wanted is much cruder — that a
- * panel does not *say* these words at all.  Two consequences to know before
+ * panel does not *say* these words at all.  Three consequences to know before
  * adding a rule:
  *
  *   * `.pick` is not on the forbidden list, because its whole content is that
@@ -21,6 +21,15 @@
  *   * a fourth type step is caught by the value check, not by a size list, so
  *     `font-size: 12px` fails wherever it is written and `var(--text-sm)`
  *     passes wherever it is.
+ *   * the geometry check covers the `font` shorthand and the long-hand
+ *     paddings and corner radii, because `button { font: 9px/1.2 serif }` and
+ *     `.chip { padding-left: 30px }` are the same violation spelled around the
+ *     property names (all four dodges measured in review, 2026-08-25).
+ *
+ * What it still does **not** see, stated rather than assumed: CSS nesting.  A
+ * nested `& .ghost { padding: … }` is parsed as the selector `& .ghost`, which
+ * matches no register name.  Nothing in `gui/` nests today; a panel that
+ * starts to needs this parser replaced, not extended.
  *
  * `app.css` itself is exempt: it is where the argument is had.
  */
@@ -61,9 +70,17 @@ function allSources(): string[] {
 
 const read = (rel: string) => readFileSync(`${SRC}${rel}`, "utf-8");
 
-/** The `<style>` block with its comments stripped, or "" when there is none. */
+/**
+ * The `<style>` block with its comments stripped, or "" when there is none.
+ *
+ * `<style[^>]*>`, not `<style>`: an attribute (`<style lang="css">`) made the
+ * match fail, and a failed match is a *silently skipped file* — every
+ * assertion below passes for a panel this cannot read.  A guard that fails
+ * open on one extra character is worse than no guard, so
+ * `every_styled_file_yields_a_block` asserts the parse as well.
+ */
 function styleBlock(source: string): string {
-  const block = source.match(/<style>([\s\S]*?)<\/style>/);
+  const block = source.match(/<style[^>]*>([\s\S]*?)<\/style>/);
   return block ? block[1].replace(/\/\*[\s\S]*?\*\//g, "") : "";
 }
 
@@ -92,11 +109,26 @@ const REGISTERS: Array<[string, RegExp]> = [
   [".segmented", /\.segmented(?![\w-])/],
   [".tab", /\.tab(?![\w-])/],
   [".link", /\.link(?![\w-])/],
+  // the label-as-button: `app.css` draws it, and it is here because it is the
+  // one register that *was* written twice at two geometries before WP-1201
+  [".file", /\.file(?![\w-])/],
 ];
 
-const GEOMETRY = /^(font-size|padding|border-radius)\s*:/;
+// `font` is the shorthand and sets a size; the long-hand paddings and corner
+// radii are the same declaration spelled longer.
+const GEOMETRY =
+  /^(font|font-size|padding(-[\w-]+)?|border(-[\w-]+)?-radius)\s*:/;
 
 describe("the control registers are declared once, in app.css", () => {
+  it("reads a style block out of every file it claims to check", () => {
+    // The assertions below are all of the form "this list is empty", so a file
+    // whose block failed to parse passes every one of them.  Without this, the
+    // guard's coverage is a silent property of a regex.
+    const empty = styledFiles().filter((rel) => styleBlock(read(rel)).trim() === "");
+    expect(empty).toEqual([]);
+    expect(styledFiles().length).toBeGreaterThanOrEqual(14);
+  });
+
   it("no panel gives a register its own size, padding or radius", () => {
     const found: string[] = [];
     for (const rel of styledFiles()) {

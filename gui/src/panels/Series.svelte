@@ -767,11 +767,6 @@ different starting point could not fix">hard</span>
     color: var(--muted);
   }
 
-  /* the label-as-button register lives in app.css; this is only its hover */
-  .file > span:hover {
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-  }
-
   .banner {
     margin: 2px 0;
     padding: 5px 8px;
@@ -890,5 +885,4 @@ different starting point could not fix">hard</span>
   .strip li.error { color: var(--bad); }
 
   p { margin: var(--s1) 0; }
-  .hint { margin: var(--s2) 0; }
 </style>

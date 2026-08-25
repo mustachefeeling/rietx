@@ -302,11 +302,14 @@
     flex: 1 1 auto;
   }
 
+  /* a row of controls, so it is control-sized: the glob echo beside the filter
+     field read a step larger than the field it describes */
   header {
     display: flex;
     gap: 6px;
     align-items: center;
     padding: 6px 8px 4px;
+    font-size: var(--text-sm);
   }
 
   header input {
@@ -351,6 +354,8 @@
     padding: 10px;
   }
 
+  /* one row of the parameter table, so everything on it is control-sized —
+     the path, the esd and the editable value were 13/13/11.5 in a 22 px row */
   .group,
   .row {
     display: flex;
@@ -359,6 +364,7 @@
     height: 22px;
     padding: 0 8px;
     box-sizing: border-box;
+    font-size: var(--text-sm);
   }
 
   /* the `.pick` register (app.css) with the group header's own surface */

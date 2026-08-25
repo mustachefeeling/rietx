@@ -1013,6 +1013,5 @@ convention, not a measurement"
   }
 
   p { margin: var(--s1) 0; }
-  .hint { margin: var(--s2) 0; }
   td.cell { white-space: normal; min-width: 150px; }
 </style>

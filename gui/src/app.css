@@ -59,12 +59,14 @@
   --text-xs: 10.5px;
 
   /* ---- the space scale ------------------------------------------------
-     Four steps, and every control's padding is two of them.  A register's
-     geometry is written once, below; a panel never sets one. */
+     Three steps, and every control's padding is two of them.  A register's
+     geometry is written once, below; a panel never sets one.  Three and not
+     four: a `--s4: 12px` was declared here and used nowhere, which is a
+     claim with no writer (root CLAUDE.md), so it went rather than waiting for
+     a use to justify it. */
   --s1: 2px;
   --s2: 4px;
   --s3: 8px;
-  --s4: 12px;
 
   /* Two radii, because there are two shapes: a control is a rounded box and a
      chip or a pill is a lozenge. */
@@ -189,6 +191,15 @@ button.ghost {
   font-weight: 400;
 }
 
+/* The one hover in the app, and it belongs to the register rather than to the
+   one panel that had written it out (`Peaks`' adopt chips).  A ghost is a
+   transparent box, so without this a control that acts is pointer-identical to
+   a chip that does not. */
+button.ghost:hover:not(:disabled),
+.file > span:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 /* a toggle that is engaged — a state, and it reads as the primary does */
 button.on {
   background: var(--accent);
@@ -285,7 +296,10 @@ button:disabled {
 
 /* A **fact**: a flag, a tag, a grade, a status.  Non-interactive by
    construction — no cursor, no hover — so a chip that acts is a `button.ghost`
-   instead.  Before WP-1201 there were three chip geometries and two of them
+   instead.  Proportional, not mono: a chip is a *label*, and two panels that
+   had made theirs mono lost it here on purpose.  A chip whose content really
+   is code takes `.mono` at the call site, which is a statement about the
+   content and not about the size.  Before WP-1201 there were three chip geometries and two of them
    were also buttons; the "different-sized chips" that started this WP were
    `.chip` (10 px) losing to a same-specificity `.note` (12 px) declared later
    in the same panel, which is a class of bug a register cannot have. */
@@ -347,7 +361,10 @@ button:disabled {
    the whole row and a box inside a row is a second thing to aim at: History's
    node list, Params' group headers, Report's region and peak tables.  It keeps
    the row's own type and colour — what says "selected" is the row's
-   background, not a control's chrome.  The ninth register, found by the
+   background, not a control's chrome.  So it renders at 13 px in one panel and
+   11.5 in another, and that is the register working rather than drifting: the
+   size it takes is the row's, which is why `.pick` is the one register the
+   style test does not forbid a panel from laying out.  The ninth register, found by the
    WP-1201 inventory rather than named in the plan: three panels had written it
    out by hand. */
 .pick {
@@ -419,6 +436,13 @@ kbd {
 /* the *family*, not the size — see `--mono-family` above */
 .mono {
   font-family: var(--mono-family);
+}
+
+/* A line of explanation under a control: prose, so prose-sized, and the only
+   thing it declares is that it sits closer than a paragraph would.  Written
+   here because three panels had written it out, at two values. */
+.hint {
+  margin: var(--s2) 0;
 }
 
 .tabular {
