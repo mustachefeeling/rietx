@@ -415,6 +415,24 @@ project replaces the session's** with no prompt and no dialog: settings persist
 on the verb and the log is on disk, so there is nothing unsaved, and a run in
 flight is already refused by `project_open`'s 409.
 
+The **examples** (WP-1204, `rietx.examples`; `GET /api/examples`, `POST
+/api/examples/open`, `POST /api/examples/reset`) are the empty state's other
+list, for the person who has nothing of their own to open. Five rules. An
+**example is a project like any other from the moment it exists** — the open
+verb *ends in* `project_open` and returns exactly what it returns, so nothing
+downstream can tell. They build into **`state_dir/examples/`**, for the reason
+`recent.json` lives there: an example is a project the person then edits, while
+package data is read-only, shared between environments and replaced by the next
+upgrade. `name` arrives in a request body and is joined into a path, so it is
+**checked against the example list, never sanitised** — a membership test
+cannot be escaped, and `example_reset` is the one destructive verb on this
+surface. `built` rides on the listing because a first click is not free (the
+11-BM example copies and re-reads 2.5 MB) and the empty state has to be able to
+say so. And **a `.pick` row has to carry its own hover**: the register gives up
+its box because the row is the target, so a list that gives the row no
+background reads as prose that happens to be clickable — found in the browser,
+and invisible to jsdom, which has neither hover nor cursor.
+
 **Symmetry, surfaced and editable** (WP-1035, `src/rietx/gui/symmetry.py`,
 `gui/src/lib/symmetry.ts`) is the phase's space group stopping being one
 read-only string quoted in three places while everything it *does* — a tied `b`,

@@ -20,7 +20,7 @@ uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch ba
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
-.venv/bin/rietx gui my_sample.rex                   # the refinement GUI (localhost:8731)
+.venv/bin/rietx gui my_sample.rex [--scratch]      # the refinement GUI (localhost:8731); --scratch works on a temp-dir copy
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
 npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot/peaks logic; count: § Numbers) + svelte-check
 .venv/bin/rietx watch <live-dir>                     # live viewer for a LiveSession run
@@ -239,13 +239,23 @@ from a result, so it rides *beside* one, never inside.
 The **GUI** is `rietx gui [PROJECT.rex]` — stdlib `http.server` on 127.0.0.1
 serving a committed Svelte 5 dist. Its rulebook — the session/wire split, the
 server contract, the `.rxt` document, the editors, the nine panels, the 3D
-viewer, theming — is `gui/CLAUDE.md`, which loads under `gui/`. Three rules
+viewer, theming — is `gui/CLAUDE.md`, which loads under `gui/`. Four rules
 matter outside the GUI too: mutating verbs return **409 while
 a run is in flight** (frozen-per-stage discreteness enforced structurally); the
 **run state is not an event** — `EventKind` is closed, and `live/events.jsonl`
-stays the one stream `watch` tails; and a **project setting is one that is about
+stays the one stream `watch` tails; a **project setting is one that is about
 the project** — the theme is the person's, lives in `/api/settings` beside the
-recent list, and is therefore not behind the 409 (WP-1044).
+recent list, and is therefore not behind the 409 (WP-1044); and **there is no
+read-only way to open a project** — every verb writes into the directory as it
+runs and `Project.open` appends a head annotation before any verb is called, so
+looking without changing means a copy: `rietx gui --scratch` (byte-for-byte,
+temp dir), `--state-dir` for the recent list, `*.rex/` in `.gitignore` (1204).
+
+**An example project *is* a `compare.py` standard** (WP-1204,
+`src/rietx/examples.py`), so no protocol is restated — `test_compare_ui.py`
+already pins those to the acceptance suites — and `list_examples()` is
+`STANDARDS` filtered by what is in `src/rietx/data/examples/`, so a file added
+to the wheel adds an example.
 
 ## Invariants (do not break)
 - **Frozen-per-stage discreteness**: the hkl list, symmetry-op subsets, FCJ
@@ -531,7 +541,11 @@ recent list, and is therefore not behind the 409 (WP-1044).
   own obs/calc count ratio, so it flatters whatever model partitioned it.
 - **Licensing**: port code only from permissive sources with ATTRIBUTION.md
   updates. BGMN/Profex/xrayutilities are GPL — concepts only, never code.
-  TOPAS/FullProf are closed — papers only.
+  TOPAS/FullProf are closed — papers only. **Data carries its own fence and it
+  is per file**: a PyPI upload publishes harder than a repository does, so a
+  file entering the *wheel* (`src/rietx/data/`) states its status where it
+  ships — `qarr/*.prn` have none, which is why the four round-robin standards
+  cannot be example projects however small (WP-1204).
 
 ## Conventions
 
