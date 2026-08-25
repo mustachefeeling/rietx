@@ -1253,8 +1253,10 @@ class Refinement:
 
         # the λ this Refinement was constructed with (or last edited to), so a
         # second λ-freeing call reports the cumulative move from the truly
-        # declared value rather than from the first call's answer (WP-1134)
-        declared_wavelengths = self._declared_wavelengths
+        # declared value rather than from the first call's answer (WP-1134).
+        # Copied, never aliased: ``_build_result`` is only a reader today, but a
+        # snapshot handed out by reference is a mutation waiting to happen.
+        declared_wavelengths = list(self._declared_wavelengths)
 
         diagnostics: list[Diagnostic] = _dispersion_diagnostics(
             self.structure, self.instrument)
@@ -1427,8 +1429,10 @@ class Refinement:
         table = self._prepare_table(restore=True)
         # the constructed (or last-edited) λ, not the value the previous stage
         # left behind: a second λ-freeing stage reports cumulatively, matching
-        # the joint path, rather than a delta from its own predecessor (WP-1134)
-        declared_wavelengths = self._declared_wavelengths
+        # the joint path, rather than a delta from its own predecessor (WP-1134).
+        # Copied, never aliased (see fit's call site) — the snapshot stays the
+        # construction fact whatever a reader does with the list it is handed.
+        declared_wavelengths = list(self._declared_wavelengths)
         try:
             with self._abandon_on_cancel(cancel, stage.name, [], stream):
                 model, outcome, guard, freed = self._run_stage(
