@@ -482,6 +482,44 @@ def _read(name: str, text: str, symbols: dict[str, float] | None = None) -> _Rea
     return None
 
 
+#: An occupancy value is bounded by the **next ``occ``** as well as by the site
+#: keywords, so each ``occ`` token on a mixed site reads its own value and no
+#: other's — ``occ Al+3 0.9 occ Cr+3 0.1`` is two pairs, not one value read off
+#: whichever match a separate walk reached first.
+_OCC_TERMINATOR = re.compile(r"\bocc\b|" + _SITE_KEYWORDS)
+
+
+def _site_occupancies(text: str, symbols: dict[str, float]) -> list[tuple[str, "_Read | None"]]:
+    """Every ``(species, value-read)`` the ``occ`` tokens of a site segment state,
+    in file order (WP-1118, findings 2 and 3).
+
+    A mixed site is written either as two ``site`` lines sharing a label or as
+    **one** line carrying several ``occ`` tokens — ``occ Al+3 0.9 occ Cr+3 0.1``.
+    The predecessor read the species off the *first* ``\\bocc\\b`` match and the
+    value off a *separate* walk that returned the first tail to parse, so three
+    things went wrong at once: every species after the first was dropped, and
+    ``occ Al+3 occ Cr+3 0.1`` gave **Al** the 0.1 that is Cr's (species from
+    match one, value from match two). Here each ``occ`` token is read **once**:
+    its species is the token immediately after it, and its value travels with
+    that same species, bounded by the next ``occ`` or site keyword so one pair's
+    value can never be read off the next.
+
+    The second element is ``None`` where the token states no value at all
+    (``occ Al+3`` with nothing after) — the format's own 1.0 default, established
+    in round two. A :class:`_Read` whose ``value`` is ``None`` is a *stated*
+    value that could not be resolved (``occ Na+1 =mystery;``), which the site
+    loop refuses rather than defaulting (finding 4).
+    """
+    out: list[tuple[str, "_Read | None"]] = []
+    for m in re.finditer(r"\bocc\b", text):
+        tail = text[m.end():]
+        if not (species := re.match(r"\s*(\S+)", tail)):
+            continue
+        rest = _OCC_TERMINATOR.split(tail[species.end():], maxsplit=1)[0]
+        out.append((species.group(1), _read_tail(rest, symbols)))
+    return out
+
+
 def _field(name: str, line: str, symbols: dict[str, float] | None = None) -> float | None:
     """One field's value, or None where the line does not state one (rule 3).
 
@@ -905,6 +943,7 @@ def read_topas_inp(path: str | Path) -> TopasModel:
     # for the neighbour's cell, scale and weight_percent this stops arriving on
     # the phase above.
     openers = list(_BLOCK.finditer(active))
+    parsed_site_tokens = 0        # site *tokens* read into phases, not atoms
     for index, opener in enumerate(openers):
         if opener["kw"] != "str":
             continue
@@ -1031,8 +1070,8 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                       for i in range(len(site_pos))]
         for text in site_texts:
             label = re.match(r"\s*site\s+(\S+)", text)
-            occ = re.search(r"\bocc\s+(\S+)", text)
-            if not (label and occ):
+            occs = _site_occupancies(text, symbols)
+            if not (label and occs):
                 raise TopasInpError(
                     f"{path}: {phase.name}: no label/occ in site: {text.strip()!r}")
             # One read per field, so the value and its flag come off one match.
@@ -1044,38 +1083,49 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                         f"{path}: {phase.name}: cannot read {axis} from "
                         f"site line: {text.strip()!r}")
                 reads[axis] = read
-            for other in ("beq", "occ"):
-                if (read := _read(other, text, symbols)) is not None:
-                    reads[other] = read
+            if (read := _read("beq", text, symbols)) is not None:
+                reads["beq"] = read
             # `beq` stays None where the line states none — the 0.5 seed is
             # `to_structure`'s, at build time, so `model.phases` is what the file
             # states and a caller can tell a seed from a stated value.
             beq = reads["beq"].value if "beq" in reads else None
-            occupancy = reads["occ"].value if "occ" in reads else None
-            phase.sites.append(TopasSite(
-                label=label.group(1), species=normalize_species(occ.group(1)),
-                occupancy=occupancy if occupancy is not None else 1.0,
-                beq=beq,
-                vary={f: r.vary for f, r in reads.items() if r.vary is not None},
-                **{axis: reads[axis].value for axis in "xyz"}))
-        # A dropped site is a silently wrong structure factor, so the count is
-        # an invariant rather than something the split is trusted to get right.
-        if len(phase.sites) != len(site_texts):
-            raise TopasInpError(
-                f"{path}: {phase.name}: parsed {len(phase.sites)} sites from "
-                f"{len(site_texts)} site segments")
+            # A site carrying several `occ` tokens is a **mixed** site: one atom
+            # per species, sharing this site's label, coordinates and B, exactly
+            # as the two-`site`-line spelling already builds (WP-1118, finding 2).
+            # The species and its occupancy travel together off
+            # `_site_occupancies`, so `occ Al+3 occ Cr+3 0.1` no longer gives Al
+            # the value that is Cr's (finding 3); a species stating no value at
+            # all keeps the format's own 1.0.
+            base_vary = {f: r.vary for f, r in reads.items() if r.vary is not None}
+            for species, occ_read in occs:
+                occupancy = occ_read.value if occ_read is not None else None
+                vary = dict(base_vary)
+                if occ_read is not None and occ_read.vary is not None:
+                    vary["occ"] = occ_read.vary
+                phase.sites.append(TopasSite(
+                    label=label.group(1), species=normalize_species(species),
+                    occupancy=occupancy if occupancy is not None else 1.0,
+                    beq=beq, vary=vary,
+                    **{axis: reads[axis].value for axis in "xyz"}))
+        # A site token that read no atom is a silently wrong structure factor, so
+        # every segment produced at least one atom above or raised; the count of
+        # site *tokens* landed in phases is what the file-level guard balances.
+        parsed_site_tokens += len(site_texts)
         model.phases.append(phase)
 
     # A file-level count of `site` tokens, computed over THE masked text and so
-    # independent of how the file was split into blocks (WP-1118). The per-phase
-    # guard above reads both its numbers off the same chunk, so a splitter error
-    # — a `macro` truncating a `str`, a `str` chunk cut short — that drops sites
-    # is invisible to it. This one is not: every `site` token the reader saw
-    # must land in a phase or be recorded on a skipped block. Over the mask, not
+    # independent of how the file was split into blocks (WP-1118). A splitter
+    # error — a `macro` truncating a `str`, a `str` chunk cut short — that drops
+    # sites is invisible to a per-phase count read off that same truncated chunk;
+    # this one is not: every `site` token the reader saw must land in a phase (as
+    # one or more atoms) or be recorded on a skipped block. Over the mask, not
     # `active`, so a `site` inside a quoted path (`xdd "C:\data\site\run1.xy"`)
     # or a macro is not counted and does not refuse a file that dropped nothing.
+    # Counted in `site` **tokens**, not atoms: a mixed site (`occ A occ B`) is
+    # one token and several atoms (WP-1118, finding 2), so the balance is over
+    # the tokens landed in phases (`parsed_site_tokens`), not `len(ph.sites)`.
     declared = len(re.findall(r"\bsite\b", masked))
-    parsed = sum(len(ph.sites) for ph in model.phases)
+    parsed = parsed_site_tokens
     skipped = sum(sb.n_sites for sb in model.skipped_blocks)
     if declared != parsed + skipped:
         raise TopasInpError(

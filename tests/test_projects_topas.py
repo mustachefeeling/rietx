@@ -1249,6 +1249,76 @@ def test_a_second_site_on_one_line_is_a_second_atom(tmp_path):
     assert [a.label for a in atoms] == ["A1", "B1"]
 
 
+# ---------------------- finding 2: a mixed site keeps every species
+
+def test_a_mixed_site_with_several_occ_tokens_builds_one_atom_per_species(tmp_path):
+    """`occ Al+3 0.9 occ Cr+3 0.1` on one line is a mixed site — the two-`site`-
+    line spelling already builds two atoms, and this maps to the same
+    representation (round-five finding 2). The predecessor returned Al alone,
+    silently, and the phase's Z·M was then that of the wrong composition. Three
+    occ tokens, same."""
+    inp = _inp(tmp_path, "mixed.inp",
+               'str\nphase_name "M"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0.1 y 0.2 z 0.3 occ Al+3 0.9 occ Cr+3 0.1 beq b 0.5\n')
+    sites = read_topas_inp(inp).phases[0].sites
+    assert [(s.species, s.occupancy) for s in sites] == [("Al3+", 0.9), ("Cr3+", 0.1)]
+    # the label, coordinates and B are shared, exactly as the two-line form
+    assert all(s.label == "A1" for s in sites)
+    assert all((s.x, s.y, s.z) == pytest.approx((0.1, 0.2, 0.3)) for s in sites)
+    assert all(s.beq == pytest.approx(0.5) for s in sites)
+    atoms = to_structure(read_topas_inp(inp)).phases[0].atoms
+    assert [a.species for a in atoms] == ["Al3+", "Cr3+"]
+
+
+def test_three_occ_tokens_on_one_site_build_three_atoms(tmp_path):
+    inp = _inp(tmp_path, "tri.inp",
+               'str\nphase_name "M"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Al+3 0.8 occ Cr+3 0.1 occ Fe+3 0.1 beq b 0.5\n')
+    sites = read_topas_inp(inp).phases[0].sites
+    assert [(s.species, s.occupancy) for s in sites] == \
+        [("Al3+", 0.8), ("Cr3+", 0.1), ("Fe3+", 0.1)]
+
+
+def test_a_dropped_second_species_is_a_wrong_cell_mass(tmp_path):
+    """The QPA cost the reviewer measured, pinned as a Z·M (= cell_mass): the
+    mixed site's second species carries mass, and dropping it changes the
+    phase's Z·M and so its Hill-Howard weight fraction. On a constructed two-
+    phase mixture the reviewer measured Z·M 147.986 (both species) against
+    89.874 (the first alone), a 10.2 wt% error. The construction here is an
+    Fm-3m 4a site half Al half Cr: Z·M 157.9553 with both species against
+    53.9631 with Al alone."""
+    from rietx.optimize.qpa import phase_zmv
+
+    def _zm(line):
+        st = to_structure(read_topas_inp(_inp(
+            tmp_path, "zm.inp",
+            'str\nphase_name "M"\nspace_group "Fm-3m"\na 4.2\n' + line + "\n")))
+        ph = st.phases[0]
+        return phase_zmv(ph.space_group, ph.cell.lengths_angles(),
+                         [(a.species, a.x.value, a.y.value, a.z.value, a.occ.value)
+                          for a in ph.atoms]).cell_mass
+
+    both = _zm('site A1 x 0 y 0 z 0 occ Al+3 0.5 occ Cr+3 0.5 beq b 0.5')
+    al_only = _zm('site A1 x 0 y 0 z 0 occ Al+3 0.5 beq b 0.5')
+    assert both == pytest.approx(157.9553, abs=1e-3)
+    assert al_only == pytest.approx(53.9631, abs=1e-3)
+    assert both > al_only            # the dropped species was mass, not noise
+
+
+# ------------------ finding 3: species and occupancy travel together
+
+def test_a_species_takes_its_own_value_not_the_next_occs(tmp_path):
+    """`occ Al+3 occ Cr+3 0.1` — the predecessor read the species off match one
+    and the value off match two, so **Al** arrived at 0.1, Cr's value (round-
+    five finding 3). Each occ token is read once now: Al states no value and
+    keeps the format's own 1.0, Cr states 0.1 and keeps it."""
+    inp = _inp(tmp_path, "pair.inp",
+               'str\nphase_name "M"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Al+3 occ Cr+3 0.1 beq b 0.5\n')
+    sites = read_topas_inp(inp).phases[0].sites
+    assert [(s.species, s.occupancy) for s in sites] == [("Al3+", 1.0), ("Cr3+", 0.1)]
+
+
 # ---------------------------- finding 3: the splitter's own guard is blind
 
 def test_a_macro_definition_inside_a_str_block_does_not_truncate_the_phase(tmp_path):
