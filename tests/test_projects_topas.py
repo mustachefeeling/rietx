@@ -1412,6 +1412,39 @@ def test_a_stated_beq_is_kept_verbatim_and_not_confused_with_the_seed(tmp_path):
     assert read_topas_inp(inp).phases[0].sites[0].beq == pytest.approx(0.5)
 
 
+# ------------- round-five finding 4: a stated occ/beq that cannot be read refuses
+
+@pytest.mark.parametrize("line, key", [
+    ('site A1 x 0 y 0 z 0 occ Na+1 =mystery; beq b 0.5', "occ"),
+    ('site A1 x 0 y 0 z 0 occ Na+1 1 beq =mystery;', "beq"),
+])
+def test_a_stated_occ_or_beq_the_reader_cannot_resolve_refuses(tmp_path, line, key):
+    """`x =mystery;` already refuses, naming the line; `occ =mystery;` returned
+    1.0 and `beq =mystery;` returned None → seeded 0.5, both silently (round-five
+    finding 4). The established rule — a stated key that could not be read refuses
+    naming the key and the line, an absent key keeps its default — now reaches
+    occ and beq."""
+    inp = _inp(tmp_path, "unresolvable.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n' + line + "\n")
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    msg = str(exc.value)
+    assert "unresolvable.inp" in msg
+    assert f"cannot read {key}" in msg
+    assert line in msg                       # the offending line, named
+
+
+def test_an_absent_occ_or_beq_still_keeps_its_default_not_a_refusal(tmp_path):
+    """The other side of the same rule: a site that *omits* beq keeps the None
+    that seeds 0.5, and an occupancy the file omits keeps 1.0 — an absent key is
+    the file's own claim, not a value the reader could not read."""
+    inp = _inp(tmp_path, "absent.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1\n')     # no beq, no occ value
+    site = read_topas_inp(inp).phases[0].sites[0]
+    assert site.beq is None and site.occupancy == pytest.approx(1.0)
+
+
 # ---------------------------- finding 6: an absent writer is not a claim
 
 def test_the_negative_beq_docstring_does_not_claim_a_pcr_reader_exists():

@@ -1083,12 +1083,25 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                         f"{path}: {phase.name}: cannot read {axis} from "
                         f"site line: {text.strip()!r}")
                 reads[axis] = read
-            if (read := _read("beq", text, symbols)) is not None:
-                reads["beq"] = read
-            # `beq` stays None where the line states none — the 0.5 seed is
-            # `to_structure`'s, at build time, so `model.phases` is what the file
-            # states and a caller can tell a seed from a stated value.
-            beq = reads["beq"].value if "beq" in reads else None
+            # A **stated** `beq` the reader cannot resolve refuses, naming the
+            # line, exactly as `x` on the same line already does — defaulting it
+            # is seeding 0.5 for a number the file states, the silent-default
+            # class this reader exists to avoid (WP-1118, finding 4). A site that
+            # states no `beq` at all is a different fact: it keeps the None that
+            # becomes the 0.5 seed at build time, so `model.phases` stays "what
+            # the file states" and a caller can tell a seed from a stated value.
+            beq_read = _read("beq", text, symbols)
+            if re.search(r"\bbeq\b", text) and (beq_read is None
+                                                or beq_read.value is None):
+                raise TopasInpError(
+                    f"{path}: {phase.name}: cannot read beq from site line: "
+                    f"{text.strip()!r} — the site states beq and this reader "
+                    f"could not resolve its value, so building it would seed 0.5 "
+                    f"for a number the file states. A site that states no beq at "
+                    f"all is a different fact and keeps that seed.")
+            if beq_read is not None:
+                reads["beq"] = beq_read
+            beq = beq_read.value if beq_read is not None else None
             # A site carrying several `occ` tokens is a **mixed** site: one atom
             # per species, sharing this site's label, coordinates and B, exactly
             # as the two-`site`-line spelling already builds (WP-1118, finding 2).
@@ -1098,6 +1111,18 @@ def read_topas_inp(path: str | Path) -> TopasModel:
             # all keeps the format's own 1.0.
             base_vary = {f: r.vary for f, r in reads.items() if r.vary is not None}
             for species, occ_read in occs:
+                # A stated occupancy the reader cannot resolve refuses too — the
+                # 1.0 default is for an occupancy the file *omits*, not for one it
+                # states and this reader could not read (finding 4).
+                if occ_read is not None and occ_read.value is None:
+                    raise TopasInpError(
+                        f"{path}: {phase.name}: cannot read occ for species "
+                        f"{species!r} from site line: {text.strip()!r} — the "
+                        f"site states this occupancy and this reader could not "
+                        f"resolve its value, so building it would substitute the "
+                        f"format's 1.0 default for a number the file states. An "
+                        f"occupancy the file omits is a different fact and keeps "
+                        f"1.0.")
                 occupancy = occ_read.value if occ_read is not None else None
                 vary = dict(base_vary)
                 if occ_read is not None and occ_read.vary is not None:
