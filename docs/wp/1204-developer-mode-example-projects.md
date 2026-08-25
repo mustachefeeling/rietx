@@ -85,7 +85,7 @@ Design:
       exists — it runs the `examples/` scripts the manual includes.)
 - [x] Routes + the empty-state Examples list (docs-style one-liners); the
       `RESERVED_ROUTES`/`ROUTES` disjointness test green.
-- [ ] Manual: `using/quickstart.md` gains "open an example"; `files.md`
+- [x] Manual: `using/quickstart.md` gains "open an example"; `files.md`
       names `--scratch`.
 
 ## Acceptance

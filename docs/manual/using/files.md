@@ -180,6 +180,13 @@ An open project holds the session as six attributes.
 The repairs are a function of the bytes, the reader and its options, and the
 data reference below already records all three.
 
+Every verb that changes a project writes into its directory as it runs, and
+`Project.open` appends a line to the log before any verb is called. There is
+no read-only way to open one. To look at a project without changing it, open a
+copy: `rietx gui PROJECT.rex --scratch` copies the directory to a temporary
+one and opens that, printing where it went ([](cli.md)). The copy is
+byte-for-byte, so it opens exactly as the original does.
+
 Each fact has one authority. `project.json` holds the *settings*: the selected
 plan and mode, the 2θ limits, the excluded regions, and the GUI's own `ui` keys.
 `history.jsonl` holds the model state, and its head *is* the working state. No
