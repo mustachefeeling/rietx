@@ -47,7 +47,15 @@ from rietx.io.formats.base import READER_OPTIONS
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.indexing import PeakFlag
-from rietx.schemas.instrument import EmissionLine, Instrument, Source
+from rietx.schemas.instrument import (
+    BackgroundPSpline,
+    EmissionLine,
+    Geometry,
+    Instrument,
+    RoughnessPitschke,
+    RoughnessSuortti,
+    Source,
+)
 from rietx.schemas.plan import StageSpec
 from rietx.schemas.structure import (
     Atom,
@@ -74,10 +82,13 @@ def _default_models() -> tuple[Structure, Instrument]:
     *is* the schema default, which is what lets :func:`test_defaults_are_the_schemas_own`
     read the defaults off a table instead of restating them.
 
-    Every optional block is present on purpose.  ``tests/data/gui/
-    fnmatch_cases.json`` is built from two models that carry no
+    Every optional block that *this* model can carry is present on purpose.
+    ``tests/data/gui/fnmatch_cases.json`` is built from two models that carry no
     preferred-orientation block, so its path list has a hole exactly where a
     family would go unchecked; this is the coverage authority, and it closes it.
+    The blocks one instrument cannot hold at once — the two roughness models are
+    alternatives and a background is one of three — are :func:`_variant_models`,
+    and everything here reads both.
     """
     def p(value: float) -> Parameter:
         return Parameter(value=value)
@@ -103,10 +114,49 @@ def _default_models() -> tuple[Structure, Instrument]:
     return Structure(phases=[phase]), instrument
 
 
+def _variant_models() -> list[tuple[Structure, Instrument]]:
+    """The optional blocks :func:`_default_models` structurally cannot carry.
+
+    A ``Geometry`` holds at most one surface-roughness model and an
+    ``Instrument`` one background, and roughness is refused outside
+    ``bragg_brentano``, so "every optional block present" needs more than one
+    instrument.  Without these the coverage tests are blind to five live
+    parameter families — the four roughness fields and the P-spline's air
+    term — which is the same hole the preferred-orientation block was in.
+
+    Every ``Parameter`` here still sits at its schema default, so these models
+    feed :func:`_schema_parameters` on the same terms as the default pair.
+    """
+    structure, _ = _default_models()
+    spline = BackgroundPSpline(
+        breakpoints=[10.0, 20.0, 30.0, 40.0],
+        coefficients=[Parameter(value=0.0) for _ in range(6)])
+    return [
+        (structure, Instrument(
+            source=Source(lines=[EmissionLine(wavelength=1.540598)]),
+            geometry=Geometry(kind="bragg_brentano",
+                              goniometer_radius_mm=217.5,
+                              surface_roughness=RoughnessSuortti()),
+            background=spline)),
+        (structure, Instrument(
+            source=Source(lines=[EmissionLine(wavelength=1.540598)]),
+            geometry=Geometry(kind="bragg_brentano",
+                              goniometer_radius_mm=217.5,
+                              surface_roughness=RoughnessPitschke()))),
+    ]
+
+
+def _all_models() -> list[tuple[Structure, Instrument]]:
+    return [_default_models(), *_variant_models()]
+
+
 def _vocabulary() -> list[str]:
     """Every parameter path the models above produce, in table order."""
-    structure, instrument = _default_models()
-    return [e.path for e in ParameterTable(structure, instrument).entries]
+    seen: dict[str, None] = {}
+    for structure, instrument in _all_models():
+        for e in ParameterTable(structure, instrument).entries:
+            seen.setdefault(e.path, None)
+    return list(seen)
 
 
 def _peak_diagnostic_codes() -> set[str]:
@@ -270,14 +320,14 @@ def test_the_plan_arm_is_plan_info_projected_not_restated():
 #: itself: the ADP rule was found by it, not by reading the table.
 _PATH_RENAMES = {
     "instrument.source.polarization": "instrument.polarization",
+    "instrument.background.air_scatter": "instrument.background.air",
 }
 _COEFFICIENT = re.compile(r"^instrument\.background\.coefficients\.(\d+)$")
 _ANISO = re.compile(r"^(phases\.\d+\.atoms\.\d+)\.aniso\.(u\d\d)$")
 
 
 def _schema_parameters() -> dict[str, Parameter]:
-    """Every ``Parameter`` the default models hold, keyed by its table path."""
-    structure, instrument = _default_models()
+    """Every ``Parameter`` the models hold, keyed by its table path."""
     walked: dict[str, Parameter] = {}
 
     def walk(obj: BaseModel, prefix: str) -> None:
@@ -295,8 +345,9 @@ def _schema_parameters() -> dict[str, Parameter]:
                     elif isinstance(item, BaseModel):
                         walk(item, f"{path}.{i}")
 
-    walk(instrument, "instrument")
-    walk(structure.phases[0], "phases.0")
+    for structure, instrument in _all_models():
+        walk(instrument, "instrument")
+        walk(structure.phases[0], "phases.0")
 
     out: dict[str, Parameter] = {}
     for path, param in walked.items():
@@ -308,7 +359,7 @@ def _schema_parameters() -> dict[str, Parameter]:
             path = f"{aniso.group(1)}.{aniso.group(2)}"
         out[_PATH_RENAMES.get(path, path)] = param
 
-    live = {e.path for e in ParameterTable(structure, instrument).entries}
+    live = set(_vocabulary())
     strayed = sorted(set(out) - live)
     assert not strayed, (
         f"schema field paths the parameter table does not produce: {strayed} — "
@@ -325,8 +376,9 @@ def test_units_are_the_schemas_own():
     is the crossing, so a schema unit with no display spelling fails here rather
     than reaching a reader as ``A^-4``.
     """
+    schema = _schema_parameters()
     unknown, wrong = [], []
-    for path, param in _schema_parameters().items():
+    for path, param in schema.items():
         entry = rx.help_for(path)
         assert entry is not None, f"{path} has no entry"
         if param.unit is None:
@@ -343,7 +395,7 @@ def test_units_are_the_schemas_own():
         "entries whose unit disagrees with the schema "
         f"(path, entry, expected): {wrong}")
 
-    reached = {p.unit for p in _schema_parameters().values() if p.unit}
+    reached = {p.unit for p in schema.values() if p.unit}
     assert set(UNIT_DISPLAY) == reached, (
         f"display spellings for units no schema declares: "
         f"{sorted(set(UNIT_DISPLAY) - reached)} — a table nothing reads is a "
@@ -392,14 +444,14 @@ def test_every_row_of_a_real_model_carries_its_family_key():
     this path" for every caller.  A row whose key is missing would report the
     same ``None`` and mean something else entirely.
     """
-    structure, instrument = _default_models()
-    rows = rx.Refinement(structure, instrument).parameters()
-    assert rows
-    missing = [r.path for r in rows if r.help_key is None]
-    assert not missing, f"rows with no help_key: {missing}"
-    for row in rows:
-        assert row.help_key == help_key_for(row.path)
-        assert row.help_key in PARAMETER_HELP
+    for structure, instrument in _all_models():
+        rows = rx.Refinement(structure, instrument).parameters()
+        assert rows
+        missing = [r.path for r in rows if r.help_key is None]
+        assert not missing, f"rows with no help_key: {missing}"
+        for row in rows:
+            assert row.help_key == help_key_for(row.path)
+            assert row.help_key in PARAMETER_HELP
 
 
 # ----------------------------------------------------------------- the registry
@@ -431,7 +483,7 @@ def test_the_help_route_serves_the_registry():
 def test_every_parameter_family_carries_a_range_and_a_chapter():
     """A parameter entry must have both ``typical`` and ``anchor``; an arm need not.
 
-    All 33 families already do, and this is the audit turning that accident
+    All 38 families already do, and this is the audit turning that accident
     into a checked claim: a range to compare a refined number against, and the
     chapter with the equation, are the two things a parameter entry is *for*.
     ``None`` on either would read as "nothing covers this" about a family

@@ -295,6 +295,66 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         typical="|d| < 0.05 mm on an aligned spinner",
         anchor="aberration-shifts",
     ),
+    # Surface roughness is an opt-in Bragg-Brentano block and the two models
+    # are alternatives, so each field is its own family: one entry over
+    # `surface_roughness.*` would have to quote four different schema defaults.
+    "instrument.geometry.surface_roughness.a": HelpEntry(
+        title="Suortti roughness: surviving fraction",
+        description=(
+            "The a of the Suortti (1972) surface-roughness correction, "
+            "R = [a + (1 − a)·exp(−b/sinθ)] / [a + (1 − a)·exp(−b)]. It is the "
+            "intensity fraction that survives even at grazing incidence, so "
+            "1 − a bounds how deep the low-angle depression can go. Refine it "
+            "with `b` and never alone: b = 0 is exactly the identity whatever "
+            "a is."
+        ),
+        unit=None, default="0.5",
+        typical="0.5-1; the default is interior because at a = 1 the gradient "
+                "of b vanishes identically and it could never lift off",
+        anchor="surface-roughness",
+    ),
+    "instrument.geometry.surface_roughness.b": HelpEntry(
+        title="Suortti roughness: layer depth",
+        description=(
+            "The dimensionless optical depth of the depleted surface layer in "
+            "the Suortti (1972) correction. It sets where in angle the "
+            "depression falls, not how deep it goes. Both limits return the "
+            "identity, so any one depression is reproducible by two values of "
+            "b, and `ROUGHNESS_UNCONSTRAINED` measures the modelled depression "
+            "rather than b itself. b = 0 is a dead gradient, so a stage that "
+            "frees it seeds it."
+        ),
+        unit=None, default="0.0",
+        typical="0.1-0.5; past about 3 the correction is dead and its gradient flat",
+        anchor="surface-roughness",
+    ),
+    "instrument.geometry.surface_roughness.c": HelpEntry(
+        title="Pitschke roughness: strength",
+        description=(
+            "The strength of the Pitschke et al. (1993) surface-roughness "
+            "correction, R = 1 − c·u·(1 − u) with u = τ/sinθ. c = 0 is exactly "
+            "no correction. The paper's angle-independent porosity term is "
+            "deliberately absent here, because a constant prefactor is exactly "
+            "degenerate with the phase scale."
+        ),
+        unit=None, default="0.0",
+        typical="0-4; beyond 4 R can go negative inside the valid range",
+        anchor="surface-roughness",
+    ),
+    "instrument.geometry.surface_roughness.tau": HelpEntry(
+        title="Pitschke roughness: τ",
+        description=(
+            "The dimensionless surface-roughness parameter τ = t₀/β of the "
+            "Pitschke et al. (1993) correction, refined directly rather than "
+            "through a particle size the diffraction data cannot constrain. "
+            "The correction is monotone only while sinθ ≥ 2τ and would amplify "
+            "beyond sinθ = τ, which `ROUGHNESS_OUTSIDE_REGIME` reports: a box "
+            "bound cannot express a fence that depends on the fitted range."
+        ),
+        unit=None, default="0.05",
+        typical="0.005-0.12, the span of the paper's own four specimens",
+        anchor="surface-roughness",
+    ),
     "instrument.profile.u": HelpEntry(
         title="Caglioti U",
         description=(
@@ -375,6 +435,20 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         typical="4-8 terms for a flat laboratory background; c0 is of the "
                 "order of the observed background counts",
         anchor="choosing-the-flexibility",
+    ),
+    "instrument.background.air": HelpEntry(
+        title="Air-scatter term",
+        description=(
+            "Scales an additive 1/(2θ) term for the low-angle air-scatter "
+            "rise, carried by the P-spline background beside its spline "
+            "coefficients. 0 is exactly no term, and that is where it belongs "
+            "unless `rietx.background.diagnose` reports the rise: the shape is "
+            "broad, so freeing it without cause gives the background one more "
+            "way to imitate a peak."
+        ),
+        unit=None, default="0.0",
+        typical="0 unless the pattern diagnostics report a low-angle rise",
+        anchor="additive-models-never-subtraction",
     ),
     # -- phase -------------------------------------------------------
     "phases.*.cell.a": _CELL_LENGTH,
