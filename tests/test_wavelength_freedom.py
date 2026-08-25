@@ -543,6 +543,71 @@ def test_an_instrument_edit_redefines_declared_but_a_checkout_does_not():
     assert ref._declared_wavelengths == [pytest.approx(1.0000)]
 
 
+def test_a_branch_inherits_the_declared_reference_from_the_root():
+    """A branch does not re-declare a refined λ as its reference (WP-1134).
+
+    ``branch()`` constructs a fresh ``Refinement`` from ``self.instrument``,
+    which by then carries the *refined* λ of the stage just run.  A naive
+    construction snapshot would make the branch declare that refined value, so
+    its own ``WAVELENGTH_CALIBRATION`` would report a near-zero delta from a
+    number nobody declared — exactly the per-verb bug the construction snapshot
+    fixed, one level up.  A branch is a rival strategy over one physical
+    instrument, and the diagnostic exists to compare rivals against a common
+    reference, so the branch **inherits** the root's declared λ.
+
+    His measured shape (per-verb / naive-branch bug): parent stage ``+417 ppm``
+    from the declared 1.539984, the branch stage ``−18 ppm`` from the refined
+    1.540626.  With inheritance the branch must quote the *root* declared value
+    and report the cumulative ``~+400 ppm``, same sign and size as the parent.
+    """
+    from rietx.strategy.staged import Stage
+    from tests.test_multi_histogram import synthesize
+
+    true_lam = 1.5406
+    declared_lam = true_lam * (1.0 - 400e-6)            # 1.539984 Å
+    data = synthesize(true_lam, 20.0, 120.0, scale=1e4, zero=0.0,
+                      bkg=[50.0, 0.0])
+    ins = Instrument.debye_scherrer(wavelength=declared_lam)
+    ins.profile.w.value = 3e-4
+
+    ref = Refinement(_held_cell(), ins, history=True)
+    ref.run_stage(data, Stage("scale_bkg",
+                              ["phases.*.scale", "instrument.background.*"]))
+    parent = ref.run_stage(data, Stage("wavelength", [WL]))
+
+    # the branch is built from an instrument already carrying the refined λ…
+    child = ref.branch()
+    assert ref.instrument.source.lines[0].wavelength.value != pytest.approx(
+        declared_lam), "the parent stage did not move λ, so the test is inert"
+
+    # …yet its declared reference is the ROOT's, not that refined value
+    assert child._declared_wavelengths == [pytest.approx(declared_lam)]
+    assert child._declared_wavelengths == ref._declared_wavelengths
+
+    second = child.run_stage(data, Stage("wavelength_2", [WL]))
+
+    def _cal(result):
+        hits = [d for d in result.diagnostics
+                if d.code == "WAVELENGTH_CALIBRATION"]
+        assert len(hits) == 1
+        return hits[0]
+
+    dp, dc = _cal(parent), _cal(second)
+
+    # the branch reports the CUMULATIVE move from the root's declared value —
+    # same sign and comparable size as the parent, not a near-zero bounce off
+    # the refined intermediate (which would sit well under 100 ppm)
+    assert dc.value > 100.0, "the branch reported a delta, not the cumulative move"
+    assert dc.value == pytest.approx(dp.value, rel=0.2)
+    assert f"declared {declared_lam:.6f}" in dc.message
+
+    # an edit ON THE BRANCH still re-declares (a genuine re-declaration), so the
+    # inheritance is only over shared history, not a freeze
+    child.edit(instrument=Instrument.debye_scherrer(wavelength=1.0000))
+    assert child._declared_wavelengths == [pytest.approx(1.0000)]
+    assert ref._declared_wavelengths == [pytest.approx(declared_lam)]
+
+
 def test_the_glob_skip_does_not_depend_on_how_the_caller_batched_it():
     """One call carrying both globs must behave like two calls in sequence.
 

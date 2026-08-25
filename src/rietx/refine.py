@@ -155,7 +155,9 @@ class Refinement:
         #: answer, matching the joint path (``multi.py`` snapshots at
         #: construction for the same reason).  A deliberate model ``edit`` that
         #: replaces the instrument redefines it; a ``checkout`` to an earlier
-        #: node does **not** — see ``_wavelength_calibration_diagnostics``.
+        #: node does **not**, and a ``branch`` inherits the root's reference
+        #: rather than re-declaring its own — see
+        #: ``_wavelength_calibration_diagnostics``.
         self._declared_wavelengths = _declared_wavelengths(self.instrument)
         # Resolve a capillary µR from composition once, here, rather than per
         # stage: µR is a property of the specimen as mounted, so it must not
@@ -304,6 +306,21 @@ class Refinement:
         ref._ties = {p: s.model_copy(deep=True) for p, s in self._ties.items()}
         ref._head_id = self._head_id
         ref._pending_reflections = [r.model_copy(deep=True) for r in self._pending_reflections]
+        # The branch is built from ``self.instrument``, which carries the last
+        # stage's *refined* λ — so its own ``__init__`` snapshot would declare a
+        # refined value.  A branch is "a second working tree over the same
+        # history, for a rival strategy", and the calibration diagnostic exists
+        # to compare strategies against one reference; two rivals quoting
+        # different declared λ for the same physical instrument would make that
+        # comparison meaningless.  So the declared reference is inherited from
+        # the root, exactly as ``_free_paths`` and the ties are (WP-1134).  An
+        # ``edit`` on the branch still re-snapshots — a branch that swaps the
+        # anode genuinely re-declares — so "declared = the instrument this
+        # Refinement is built with, as last set" survives, with "built with"
+        # meaning the root construction, inherited through branching.  Copied
+        # rather than aliased so a later ``edit`` on either side cannot mutate
+        # the other's reference.
+        ref._declared_wavelengths = list(self._declared_wavelengths)
         if node_id is not None:
             ref.checkout(node_id)
         return ref
@@ -2480,10 +2497,15 @@ def _wavelength_calibration_diagnostics(
     there is nothing left to compare to otherwise — and is indexed by line,
     matching the ``.lines.<il>.`` path segment.  Because the reference is fixed
     at construction, a :meth:`~Refinement.checkout` to an earlier node does
-    **not** reset it: the ppm is a fact about the built instrument, not about
-    whatever node the working state currently stands on, so a second λ-freeing
-    call reports the cumulative move from the declared value, never a delta from
-    the previous call.
+    **not** reset it, and a :meth:`~Refinement.branch` **inherits** the root's
+    reference rather than re-declaring its own (both are history navigation over
+    one physical instrument, and a rival strategy the diagnostic exists to
+    compare must quote the same reference): the ppm is a fact about the built
+    instrument, not about whatever node the working state currently stands on,
+    so a second λ-freeing call — on this Refinement or on a branch of it —
+    reports the cumulative move from the declared value, never a delta from the
+    previous call.  Only an :meth:`~Refinement.edit` that replaces the
+    instrument re-declares.
     """
     out: list[Diagnostic] = []
     for e in table.entries:
@@ -2533,7 +2555,9 @@ def _declared_wavelengths(instrument: Instrument) -> list[float]:
     writes the refined value back onto the instrument, so by the time the result
     is built there is nothing left to compare a refined λ to, and snapshotting
     per call would make a second λ-freeing call report against the first call's
-    answer rather than against the declared value.  The joint path
+    answer rather than against the declared value.  A :meth:`~Refinement.branch`
+    inherits the reference rather than re-snapshotting it, because it is built
+    from an instrument already carrying a refined λ.  The joint path
     (``multi.py``) snapshots the same list at construction for the same reason.
     """
     return [p.value for p in instrument.source.wavelength_parameters]
