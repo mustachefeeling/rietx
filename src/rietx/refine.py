@@ -392,8 +392,13 @@ class Refinement:
         esd = ({p.path: p.stderr for p in self.result_.parameters}
                if self.result_ is not None else {})
         mode = mode or self._mode
+        table = self._working_table()
+        # Whether a wavelength could be freed depends on the cell's *current*
+        # state, so it is read here rather than stored on the entry.
+        blocked = (table._wavelength_paths()
+                   if table._cell_is_free() else frozenset())
         rows = []
-        for e in self._working_table().entries:
+        for e in table.entries:
             rows.append(ParameterRow(
                 path=e.path, value=e.value, vary=e.vary, lo=e.lo, hi=e.hi,
                 transform=e.transform,
@@ -402,6 +407,7 @@ class Refinement:
                 locked=e.locked,
                 esd=esd.get(e.path),
                 mode_fixed=mode_fixed_path(e.path, mode),
+                needs_held_cell=e.path in blocked,
             ))
         return rows
 

@@ -115,7 +115,8 @@ They are distinguishable on purpose, because the fix differs.
 
 | Reason | What it means | Can you release it |
 |---|---|---|
-| `locked` | structurally fixed: a symmetry-fixed cell angle, a fully fixed special position, the first emission line's weight, a wavelength in a single-histogram fit ({ref}`a-refinable-wavelength`), `biso` on a site that declares an anisotropic tensor | no |
+| `locked` | structurally fixed: a symmetry-fixed cell angle, a fully fixed special position, the first emission line's weight, a non-primary emission line's wavelength, `biso` on a site that declares an anisotropic tensor | no |
+| `ParameterRow.needs_held_cell` | bool | a wavelength that cannot be freed **right now** because this histogram's cell is free — the two are an exactly flat direction. The only *dynamic* held-reason: hold the cell and the same row becomes refinable ({ref}`a-refinable-wavelength`) | no |
 | `tie` | an affine function of other rows, so the freedom lives in its sources | only if it is your own tie |
 | `mode_fixed` | refinable in principle, but the current intensity mode force-fixes it | switch back to `rietveld` |
 

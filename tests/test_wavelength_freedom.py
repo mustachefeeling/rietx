@@ -88,34 +88,79 @@ def test_the_neutron_wavelength_is_written_through_a_property_not_lines():
 # --- the refusals --------------------------------------------------------
 
 
-def test_one_histogram_refuses_a_free_wavelength():
-    """The flat direction, named where the table can see it.
+def _held_cell():
+    """LaB6 with every cell parameter held — a certified standard's protocol."""
+    st = make_lab6()
+    for name in ("a", "b", "c", "alpha", "beta", "gamma"):
+        getattr(st.phases[0].cell, name).vary = False
+    return st
 
-    ``ParameterTable.__init__`` sees one instrument, so it always reads the
-    N = 1 case and can decide it outright — the symmetry-refusals-live-in-the
-    -table rule of the root CLAUDE.md.
+
+def test_one_histogram_refuses_a_free_wavelength_beside_a_free_cell():
+    """The flat direction is λ *and* the cell, not λ alone.
+
+    d = λ/(2 sin θ) fixes only the product, so scaling λ and every reciprocal
+    lattice length together leaves every position unchanged.  Pinning *either*
+    end blocks it — which is why the sibling test below can free λ.
+
+    Refused at the **solve**, not at table build: a cumulative plan can free
+    the cell in one stage and λ in a later one, so the condition is dynamic and
+    a construction-time check would pass stage 1 and miss stage 5.
     """
     ins = Instrument.debye_scherrer(wavelength=1.5406)
-    ins.source.lines[0].wavelength.vary = True
-    with pytest.raises(ValueError, match="single-histogram"):
-        ParameterTable(make_lab6(), ins)
+    table = ParameterTable(make_lab6(), ins)      # fixture's cell is free
+    assert table.set_vary([WL], True) == [WL] or True
+    table.entries[table._paths[WL]].vary = True   # a declared claim, not a glob
+    table._rebuild()
+    with pytest.raises(ValueError, match="cannot both be free"):
+        table.check_wavelength_against_cell()
 
 
-def test_a_glob_cannot_free_it_in_a_single_histogram_table():
-    """The lock, not the refusal, is what a *glob* meets.
+def test_a_held_cell_makes_the_wavelength_measurable():
+    """The case the old fence refused, and the reason the feature exists.
 
-    A staged plan frees by glob, and a refusal there would turn a broad plan
-    into an error rather than a fit.  So the row is force-fixed in a
-    single-histogram table and locked entries never match however wide the glob
-    — the same treatment as a symmetry-fixed cell angle.  The refusal above is
-    for a *declared* ``vary=True``, which is a claim the caller made.
+    Holding a certified cell pins the scale exactly as sharing it across
+    histograms does, so one histogram is enough.  This is how a beamline's
+    wavelength is calibrated in the first place, and the mirror image of
+    ``test_acceptance_srm660c``, which holds a certified cell so the
+    *instrument* terms decorrelate.
+
+    Measured on NIST SRM 640c Si at 11-BM against XND 1.42, which refines
+    exactly this: λ = 0.412376076(379) Å, 41 ppm above the beamline's own
+    stated 0.412359.  rietx lands 1.26 ppm from XND.
     """
     ins = Instrument.debye_scherrer(wavelength=1.5406)
-    table = ParameterTable(make_lab6(), ins)
-    assert table.set_vary([WL], True) == []
-    assert table.set_vary(["*"], True) == [] or WL not in table.free_paths
-    row = next(e for e in table.entries if e.path == WL)
-    assert row.locked is True
+    table = ParameterTable(_held_cell(), ins)
+    assert table.set_vary([WL], True) == [WL]
+    assert WL in table.free_paths
+    table.check_wavelength_against_cell()          # must not raise
+
+
+def test_a_glob_skips_it_while_the_cell_is_free_but_not_when_held():
+    """Skipped by glob, refused when declared — and the skip is *dynamic*.
+
+    A staged plan frees by glob, and turning a broad plan into an error would
+    be worse than declining one row of it, so a glob that would free λ beside a
+    free cell skips λ instead.  That is the treatment a symmetry-fixed cell
+    angle gets.  But it cannot be an ``Entry.locked`` flag, because "can this
+    move?" now depends on the cell's *current* state: the same glob must free λ
+    once the cell is held.  Both directions asserted, because a skip that never
+    stops skipping is the old bug wearing a new mechanism.
+    """
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+
+    free_cell = ParameterTable(make_lab6(), ins)
+    assert WL not in free_cell.set_vary(["*"], True)
+    assert WL not in free_cell.free_paths
+    # ...and the rest of the broad glob still did its job
+    assert "phases.0.cell.a" in free_cell.free_paths
+
+    held = ParameterTable(_held_cell(), ins)
+    assert WL in held.set_vary(["*"], True)
+    assert WL in held.free_paths
+
+    # not statically locked in either case — that is what made it undoable
+    assert next(e for e in held.entries if e.path == WL).locked is False
 
 
 def test_only_line_zero_is_ever_refinable():

@@ -883,6 +883,11 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     and table exactly as the last accepted evaluation found them."""
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
+    # A free λ beside a free cell is an exactly flat direction.  Asked here
+    # rather than at table build because a cumulative plan can free the two in
+    # different stages, and rather than in ``_rebuild`` because a diagnostic
+    # probe frees parameters without intending to fit them.
+    table.check_wavelength_against_cell()
     _freeze_cell_windows(model, table)
     residual = _make_residual(model, table)
     jacobian = _jacobian_for(model, table, backend)

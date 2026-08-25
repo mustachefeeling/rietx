@@ -114,11 +114,22 @@ class ParameterRow(Base):
     locked: bool = False
     esd: float | None = None
     mode_fixed: bool = False
+    #: A wavelength that cannot be freed **right now** because this histogram's
+    #: cell is free, making the two an exactly flat direction.  The fourth
+    #: held-reason, and the only *dynamic* one: unlike ``locked`` it is not a
+    #: fact about the parameter, and unlike ``mode_fixed`` it is undone by
+    #: holding the cell rather than by changing the mode.  It exists because
+    #: ``refinable`` promises "``set_vary`` could free this", and with a free
+    #: cell ``set_vary`` skips the row — so without this flag the promise would
+    #: be false while ``held_because`` said nothing (the defaulted-``False``
+    #: failure WP-1076 removes).
+    needs_held_cell: bool = False
 
     @property
     def refinable(self) -> bool:
         """Whether ``set_vary`` could free this row in the current mode."""
-        return not self.locked and self.tie is None and not self.mode_fixed
+        return (not self.locked and self.tie is None and not self.mode_fixed
+                and not self.needs_held_cell)
 
     @property
     def held_because(self) -> str:
@@ -129,4 +140,7 @@ class ParameterRow(Base):
             return f"tied: = {self.tie.describe()}"
         if self.mode_fixed:
             return "force-fixed by the intensity mode (lebail/pawley)"
+        if self.needs_held_cell:
+            return ("a free wavelength needs this histogram's cell held: "
+                    "d = lambda/(2 sin theta) fixes only the product")
         return ""

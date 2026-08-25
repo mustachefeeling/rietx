@@ -590,14 +590,22 @@ class ParameterTable:
         # a *declared* ``vary=True`` there is refused by name rather than
         # quietly swallowed, because it is a claim the caller made.
         wl_params = list(instrument.source.wavelength_parameters)
-        if not self._joint:
-            check_wavelength_freedom(
-                [f"instrument.source.lines.{il}.wavelength"
-                 for il, p in enumerate(wl_params) if p.vary],
-                len(wl_params), 1)
+        # No single-histogram check here: ``_rebuild`` runs at the end of
+        # ``__init__`` and at every stage boundary, and it is the only place
+        # that sees both free sets at once.  Checking here as well would be a
+        # second authority for one fact, and the weaker of the two — it cannot
+        # see a cell freed by a later stage.
         for il, wl in enumerate(wl_params):
+            # Line 0 is NOT force-fixed even in a single-histogram table.  A
+            # free λ there is admissible whenever the *cell* is held — which is
+            # what a certified standard is for — so "can never legitimately
+            # move", which is what force_fixed asserts, would be false.  The
+            # λ-versus-cell condition is dynamic (stages call ``set_vary``), so
+            # it is enforced in ``_rebuild`` where the free set is known rather
+            # than frozen here.  Line > 0 keeps it: a Kα2 wavelength is a
+            # physical constant, not a calibration target.
             self._add(f"instrument.source.lines.{il}.wavelength", wl,
-                      force_fixed=(il > 0 or not self._joint))
+                      force_fixed=il > 0)
         geom = instrument.geometry
         for name in ("sample_displacement", "sample_transparency",
                      "axial_sl", "axial_hl"):
@@ -695,6 +703,56 @@ class ParameterTable:
         self._C = sparse.csr_matrix((c_vals, (c_rows, c_cols)), shape=(n, m))
         self._d = d
 
+    #: Paths whose freedom λ trades against.  A cell *angle* is included: a
+    #: monoclinic β scales no length on its own, but the metric it enters is
+    #: what d is computed from, so freeing it alongside λ is the same family.
+    _CELL_SUFFIXES = ("a", "b", "c", "alpha", "beta", "gamma")
+
+    def check_wavelength_against_cell(self) -> None:
+        """Refuse a free λ beside a free cell.  Called once per **solve**.
+
+        The condition is *dynamic* — a cumulative plan can free the cell in one
+        stage and λ in a later one — so it cannot be frozen at construction,
+        and ``force_fixed`` (which asserts a parameter can *never* legitimately
+        move) is the wrong mechanism for it.
+
+        **Why the solve entry and not** ``_rebuild``.  ``_rebuild`` sees every
+        vary change, which makes it the tempting seam, but not every vary
+        change is a request to fit: ``identifiability.exchangeability_scan``
+        frees candidate parameters temporarily to measure whether the data can
+        tell them apart, and *that* probe is exactly how a caller finds out λ
+        and the cell are exchangeable.  Refusing it there would break the
+        diagnostic that diagnoses this very degeneracy.  A raise belongs where
+        an answer would otherwise be produced from a flat direction, which is
+        the solve.
+
+        Single-histogram only.  The joint case is ``MultiParameterTable``'s,
+        where the rule is "exactly one held, at most N − 1 free" and the shared
+        cell is the mechanism; that check runs there and this one must not
+        second-guess it.
+        """
+        if getattr(self, "_joint", False):
+            return
+        free = {self.entries[i].path for i in self._free_idx}
+        lam = sorted(p for p in free
+                     if p.startswith("instrument.source.lines.")
+                     and p.endswith(".wavelength"))
+        if not lam:
+            return
+        cell = sorted(p for p in free
+                      if ".cell." in p and p.rsplit(".", 1)[-1] in self._CELL_SUFFIXES)
+        if cell:
+            raise ValueError(
+                f"{lam[0]} and {cell[0]} cannot both be free: d = λ/(2 sin θ) "
+                "fixes only the product, so scaling λ and every reciprocal "
+                "lattice length together leaves every computed position "
+                "unchanged — an exactly flat direction no amount of data "
+                "removes.  Hold the cell (what a certified standard is for, "
+                "and how a wavelength is calibrated) or hold λ.  Across "
+                "several histograms of one specimen sharing a cell the "
+                "degeneracy breaks and N − 1 wavelengths are measurable: "
+                "rietx.refine_multi")
+
     def constraint_block(self) -> tuple[sparse.csr_matrix, np.ndarray]:
         """The current (C, d) with rows in entry order, columns in θ order."""
         return self._C, self._d
@@ -761,14 +819,36 @@ class ParameterTable:
         """
         import fnmatch
 
+        # A wavelength is freeable only while the cell is held, and that is a
+        # *dynamic* fact, so it cannot be an ``Entry.locked`` flag.  Skipping it
+        # by glob rather than raising is the same treatment a symmetry-fixed
+        # cell angle gets, and for the reason this method's docstring gives: a
+        # staged plan frees by glob, and turning a broad plan into an error
+        # would be worse than declining one row of it.  A *declared*
+        # ``vary=True`` is a claim rather than a broad sweep, and is refused
+        # loudly instead — at the solve, by
+        # :meth:`check_wavelength_against_cell`.
+        skip = (self._wavelength_paths()
+                if (vary and not getattr(self, "_joint", False)
+                    and self._cell_is_free()) else frozenset())
         hits = []
         for e in self.entries:
             if any(fnmatch.fnmatchcase(e.path, g) for g in path_globs):
-                if e.tie is None and not e.locked:
+                if e.tie is None and not e.locked and e.path not in skip:
                     e.vary = vary
                     hits.append(e.path)
         self._rebuild()
         return hits
+
+    def _wavelength_paths(self) -> frozenset[str]:
+        return frozenset(e.path for e in self.entries
+                         if e.path.startswith("instrument.source.lines.")
+                         and e.path.endswith(".wavelength"))
+
+    def _cell_is_free(self) -> bool:
+        return any(self.entries[i].path.rsplit(".", 1)[-1] in self._CELL_SUFFIXES
+                   and ".cell." in self.entries[i].path
+                   for i in self._free_idx)
 
     def seed_softplus(self, paths: list[str], value: float) -> list[str]:
         """Lift softplus-bounded free params sitting below ``value`` up to it.
