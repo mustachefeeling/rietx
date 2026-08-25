@@ -83,6 +83,19 @@ not against the notes.
 
 ### Inherited
 
+**From [1204](1204-developer-mode-example-projects.md), 2026-08-25 — Part 1
+now tells a reader with no data what to open.** `using/quickstart.md` opens
+with "If you have no data yet", listing the three shipped example projects and
+building one; both code blocks *execute* under `tests/test_manual_api.py`, the
+build inside a `TemporaryDirectory`. `using/cli.md` documents `--scratch` and
+`--state-dir` with a real transcript, and `using/files.md` states the fact
+underneath them: every verb writes into a project directory as it runs and
+`Project.open` appends to the log before any verb is called, so there is no
+read-only way to open one. Two consequences for the GUI chapters this WP
+writes. The onboarding path a chapter should describe now starts at an example
+rather than at "load your pattern", and the first-run checklist in Tasks below
+should say so. And the empty state it screenshots has two lists, not one.
+
 **From [1078](1078-indexing-provisional.md), 2026-08-18 — a chapter that
 documents a name now freezes it, and there is a mechanism for saying it does
 not.** Two things to carry when the GUI chapters land. First, the rule the
