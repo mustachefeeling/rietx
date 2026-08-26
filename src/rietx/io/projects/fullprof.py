@@ -13,7 +13,8 @@ Why the format is worth reading: a ``.pcr`` carries the whole solved model — t
 phases, the sites, the cell, the instrument resolution function and, in the
 header comments FullProf rewrites on every cycle, the converged χ² and per-phase
 R_Bragg. That makes it the cheapest possible source of a *validated* refinement
-to test against, exactly as a TOPAS ``.inp`` is (``projects/topas.py``).
+to test against, exactly as a TOPAS ``.inp`` is (the sibling ``projects/topas.py``
+reader, where it has landed — PR #98).
 
 Scope — what this reader claims
 -------------------------------
@@ -21,7 +22,7 @@ Scope — what this reader claims
 **Handled completely: the single-pattern, constant-wavelength, nuclear case**
 (``Job`` 0 or 1, one diffraction pattern, ``Jbt = 0`` phases). For those, every
 value and every refinement codeword is read, the counts the file declares are
-asserted against the lines actually parsed, and :func:`to_structure` builds a
+asserted against the lines actually parsed, and :func:`structure_from_fullprof_pcr` builds a
 :class:`~rietx.schemas.Structure`.
 
 **Read but not modelled: magnetic phases** (``Jbt = 1``, both ``Isy = -1`` and
@@ -29,7 +30,7 @@ asserted against the lines actually parsed, and :func:`to_structure` builds a
 magnetic phase cannot become a :class:`~rietx.schemas.Phase`. It is neither
 dropped nor allowed to make the file unreadable: :func:`read_fullprof_pcr`
 returns it in full on :attr:`FullProfModel.phases`, and
-:func:`to_structure` **refuses**, naming every magnetic phase it would have
+:func:`structure_from_fullprof_pcr` **refuses**, naming every magnetic phase it would have
 had to omit. See the design note below — four of the six real files this
 reader was written against have a magnetic phase, so silently returning their
 nuclear half is the single most damaging thing it could do.
@@ -52,7 +53,7 @@ The three design decisions, and why
    wavelength, the agreement factors — because of a phase nobody asked it to
    build; and it would make 4 of the 6 real files simply unreadable, which is a
    reader nobody can use on the archive it was written for. Refusing at
-   :func:`to_structure` puts the refusal exactly where the impossible thing is
+   :func:`structure_from_fullprof_pcr` puts the refusal exactly where the impossible thing is
    asked for, and :attr:`FullProfModel.magnetic_phases` is how the model
    *says* what it read. A caller who genuinely wants the nuclear subset passes
    ``nuclear_only=True``: the omission is then a caller's declared choice, named
@@ -79,7 +80,7 @@ The three design decisions, and why
    common factor*, and the corpus proves the factor is not conventional: the
    Cr₂WO₆ and Cr₂O₃ files carry a factor of 2 where the Co₃O₄ and YAG files
    carry 1. What is recoverable is the *ratio* between sites, so
-   :func:`to_structure` divides each ``Occ`` by its site multiplicity, and
+   :func:`structure_from_fullprof_pcr` divides each ``Occ`` by its site multiplicity, and
    **requires the result to be the same for every atom in the phase** — which
    is the statement "this phase is fully occupied", the only case where the
    arbitrary factor cancels. A phase where it is not constant is **refused**,
@@ -152,6 +153,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ...schemas.common import Diagnostic
 from ..formats.base import decode
 
 # --------------------------------------------------------------------- errors
@@ -292,7 +294,7 @@ _MAGNETIC_CONTINUATION = ("m4", "m5", "m6", "m7", "m8", "m9", "magph")
 _N_T_EXTRA_LINES = {0: 0, 2: 2}
 
 #: FullProf writes ``beta11 beta22 beta33 beta12 beta13 beta23`` in this order
-#: (yag_xpress_072_new.pcr:186). Read, and refused at :func:`to_structure` —
+#: (yag_xpress_072_new.pcr:186). Read, and refused at :func:`structure_from_fullprof_pcr` —
 #: the β → U^ij conversion needs a convention (whether the stored off-diagonal
 #: already carries the factor 2 of the exponent) that no file here settles, and
 #: a wrong factor is a silently wrong Debye-Waller factor at high Q.
@@ -637,14 +639,15 @@ def normalize_species(token: str) -> str:
     typed — ``CR``, ``AL``, ``Co``, ``W`` all appear in the corpus — and rietx's
     species are element symbols in IUCr spelling. Title-casing a one- or
     two-letter element token is unambiguous, and the charge is reordered
-    digit-first exactly as ``projects/topas.py`` does, so the two readers hand
-    back one spelling.
+    digit-first to the IUCr house convention — the same spelling the sibling
+    ``projects/topas.py`` reader hands back where it has landed (PR #98), so a
+    species reads identically whichever project file it came from.
 
     A token that does not look like an element with an optional charge —
     ``MCR3``, a magnetic form-factor table name — is returned **verbatim**.
     rietx has no magnetic form factors, so inventing ``Mc`` + charge from it
     would be a species that means nothing, and the phase carrying it is refused
-    at :func:`to_structure` anyway.
+    at :func:`structure_from_fullprof_pcr` anyway.
     """
     stripped = re.sub(r"[^A-Za-z0-9+-]", "", token)
     if m := re.fullmatch(r"([A-Za-z]{1,2})([+-])(\d*)", stripped):
@@ -677,7 +680,7 @@ def normalize_space_group(symbol: str) -> str:
     preferred wherever the bare symbol lands on choice 1.
 
     That preference is a *convention*, so it is not left to be trusted:
-    :func:`to_structure` re-derives every site's multiplicity under whichever
+    :func:`structure_from_fullprof_pcr` re-derives every site's multiplicity under whichever
     setting this returns and refuses the phase unless the occupancy column
     reduces consistently (module docstring, decision 3). A wrong origin gives
     wrong multiplicities and is refused, not returned.
@@ -895,7 +898,8 @@ def read_fullprof_pcr(path: str | Path) -> FullProfModel:
     except OSError as exc:
         raise FullProfPcrError(f"{path}: cannot read: {exc}") from exc
     # `base.decode` is the seam `head()` already goes through, shared rather
-    # than duplicated — the same reasoning as `projects/topas.py`'s.
+    # than duplicated — the same reasoning the sibling `projects/topas.py`
+    # reader uses where it has landed.
     raw, codec, _bom = decode(raw_bytes)
     if "\x00" in raw:
         # `io/CLAUDE.md`'s `xy` row: ASCII-range UTF-16 is valid UTF-8 with
@@ -1438,7 +1442,7 @@ def _read_trailing(cur: _Cursor, path: Path, model: FullProfModel) -> None:
     model.fitted_range = ranges[0] if ranges else None
 
 
-# ------------------------------------------------------------- to_structure
+# --------------------------------------------------- structure_from_fullprof_pcr
 
 
 #: How far the per-site occupancy ratios may spread and still be called
@@ -1509,12 +1513,26 @@ def occupancy_factor(phase: FullProfPhase, where: str | None = None) -> float:
     return reference
 
 
-def to_structure(model: FullProfModel, *, nuclear_only: bool = False):
+def structure_from_fullprof_pcr(model: FullProfModel, *, nuclear_only: bool = False,
+                                diagnostics: list[Diagnostic] | None = None):
     """Build a :class:`~rietx.schemas.Structure` from a parsed ``.pcr``.
 
     ``Biso`` is FullProf's B and rietx's ``biso`` is also B — no 8π²
     conversion. The cell, the coordinates, the displacement parameters and the
     scale all carry the file's own refine flags, decoded from the codewords.
+
+    The one repair this reader makes on a value it hands to the ``Structure`` is
+    the species spelling: :func:`normalize_species` reads FullProf's ``CR`` as
+    ``Cr`` and ``CA+2`` as ``Ca2+``, because rietx's species are IUCr-spelled
+    element symbols. :func:`read_fullprof_pcr` reports that repair *structurally*
+    — ``species_raw`` sits beside ``species`` on every
+    :class:`FullProfAtom`, so the model is checkable against the file — but a
+    :class:`~rietx.schemas.Structure` carries only the one spelling, so the raw
+    token is dropped here. Pass ``diagnostics=`` a list to record it: each
+    distinct rewrite appends one ``FULLPROF_SPECIES_NORMALISED`` diagnostic
+    naming the substitution, with ``where`` carrying every affected atom path —
+    the same channel and code shape as ``crystallography.cif.structure_from_cif``
+    (``CIF_SPECIES_NORMALISED``). A file that needs no rewrite appends nothing.
 
     Four refusals, each naming what it would otherwise have dropped:
 
@@ -1557,7 +1575,13 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False):
             f"nuclear subset is what you want.")
 
     phases = []
-    for ph in model.nuclear_phases:
+    # Keyed by the raw file token, so ``CR`` on two sites is one diagnostic
+    # carrying both atom paths — the shape ``structure_from_cif`` uses. The
+    # index is the phase's position in the *built* Structure, not the file's
+    # ``Nph`` ordinal, because that is what a ``where`` path has to resolve
+    # against on the object handed back.
+    rewrites: dict[str, tuple[str, list[str]]] = {}
+    for structure_index, ph in enumerate(model.nuclear_phases):
         where = f"{model.path or '<model>'}: phase {ph.index} ({ph.name!r})"
         missing = [k for k in _CELL_COLUMNS if k not in ph.cell]
         if missing:
@@ -1609,6 +1633,12 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False):
                     occ=rx.Parameter(value=1.0, min=0.0, max=1.5),
                     biso=_p(atom.values["biso"], min=0.0, max=25.0))
             for atom in ph.atoms]
+        # Every atom above is past the beta/biso/occupancy refusals, so it is on
+        # the Structure — collect its species rewrite now that its path is real.
+        for atom_index, atom in enumerate(ph.atoms):
+            if atom.species != atom.species_raw:
+                rewrites.setdefault(atom.species_raw, (atom.species, []))[1].append(
+                    f"phases.{structure_index}.atoms.{atom_index}.species")
         scale = ph.profile.get("scale")
         try:
             phases.append(rx.Phase(
@@ -1629,6 +1659,14 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False):
             f"{model.path or '<model>'}: no nuclear phase to build. The file "
             f"states {len(model.phases)} phase(s), all magnetic — read "
             f"`model.magnetic_phases` for what it does say about them.")
+    if diagnostics is not None:
+        for raw, (canonical, wheres) in rewrites.items():
+            diagnostics.append(Diagnostic(
+                level="info", code="FULLPROF_SPECIES_NORMALISED",
+                message=(f"species {raw!r} in {model.path or '<model>'} read as "
+                         f"{canonical!r} — FullProf writes the scattering token in "
+                         f"the author's case; normalised to IUCr spelling"),
+                where=wheres))
     try:
         return rx.Structure(phases=phases)
     except Exception as exc:

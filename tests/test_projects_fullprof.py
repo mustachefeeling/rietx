@@ -40,7 +40,7 @@ from rietx.io.projects.fullprof import (
     normalize_species,
     occupancy_factor,
     read_fullprof_pcr,
-    to_structure,
+    structure_from_fullprof_pcr,
 )
 
 # --------------------------------------------------------------- the fixtures
@@ -634,7 +634,7 @@ def test_two_sublattices_share_one_parameter_with_opposite_signs(tmp_path):
     assert down.values["m2"].value == pytest.approx(-0.800)
 
 
-def test_to_structure_refuses_a_magnetic_phase_naming_it(tmp_path):
+def test_structure_from_fullprof_pcr_refuses_a_magnetic_phase_naming_it(tmp_path):
     """rietx has no magnetic scattering model, so returning the nuclear phases
     alone would hand back a structure that looks complete while the file's
     magnetic contribution went unmentioned — the TOPAS reader's
@@ -647,7 +647,7 @@ def test_to_structure_refuses_a_magnetic_phase_naming_it(tmp_path):
     pcr = _pcr(tmp_path, "refuse.pcr", _phase(), _magnetic_isy1())
     model = read_fullprof_pcr(pcr)
     with pytest.raises(FullProfPcrError) as exc:
-        to_structure(model)
+        structure_from_fullprof_pcr(model)
     message = str(exc.value)
     assert "refuse.pcr" in message
     assert "1 of 2 phases are magnetic" in message
@@ -661,7 +661,7 @@ def test_nuclear_only_makes_the_omission_the_callers(tmp_path):
     stays inspectable rather than becoming invisible."""
     pcr = _pcr(tmp_path, "nuclearonly.pcr", _phase(), _magnetic_isy1())
     model = read_fullprof_pcr(pcr)
-    structure = to_structure(model, nuclear_only=True)
+    structure = structure_from_fullprof_pcr(model, nuclear_only=True)
     assert [p.name for p in structure.phases] == ["Cr2wO6"]
     assert len(model.magnetic_phases) == 1      # not lost, just not built
 
@@ -672,7 +672,7 @@ def test_a_file_of_nothing_but_magnetic_phases_refuses_either_way(tmp_path):
     pcr = _pcr(tmp_path, "allmag.pcr", _magnetic_isy1())
     model = read_fullprof_pcr(pcr)
     with pytest.raises(FullProfPcrError, match="no nuclear phase to build"):
-        to_structure(model, nuclear_only=True)
+        structure_from_fullprof_pcr(model, nuclear_only=True)
 
 
 @pytest.mark.parametrize("magnetic, block, expected, declared", [
@@ -970,10 +970,10 @@ def test_a_trailing_line_that_is_neither_production_is_refused(tmp_path):
         read_fullprof_pcr(pcr)
 
 
-# ------------------------------------------------------------- to_structure
+# ------------------------------------------------- structure_from_fullprof_pcr
 
 
-def test_to_structure_builds_and_carries_the_refine_flags(tmp_path):
+def test_structure_from_fullprof_pcr_builds_and_carries_the_refine_flags(tmp_path):
     """``Biso`` is FullProf's B and rietx's ``biso`` is also B — no 8π².
 
     The refine flags are the payload: a control file says which parameters were
@@ -983,7 +983,7 @@ def test_to_structure_builds_and_carries_the_refine_flags(tmp_path):
     is what the ``crwo6002_momcomp.pcr`` refinement actually did.
     """
     pcr = _pcr(tmp_path, "build.pcr", _phase())
-    (phase,) = to_structure(read_fullprof_pcr(pcr)).phases
+    (phase,) = structure_from_fullprof_pcr(read_fullprof_pcr(pcr)).phases
     assert phase.name == "Cr2wO6"
     assert phase.space_group == "P 42/m n m"
     assert phase.cell.a.value == pytest.approx(4.580088)
@@ -997,6 +997,33 @@ def test_to_structure_builds_and_carries_the_refine_flags(tmp_path):
     assert phase.atoms[0].biso.vary is False
     assert phase.scale.value == pytest.approx(6.4296)
     assert phase.scale.vary is True                    # codeword 71.00000
+
+
+def test_structure_from_fullprof_pcr_reports_a_species_rewrite_through_diagnostics(
+        tmp_path):
+    """The one repair that reaches the ``Structure`` is the species spelling.
+
+    ``read_fullprof_pcr`` reports it *structurally* — ``species_raw`` (``CR``)
+    sits beside ``species`` (``Cr``) on the atom — but the ``Structure`` carries
+    only the one spelling, so the raw token is dropped at the build. io/CLAUDE.md
+    (a reader repairs only where it can say it did) is honoured by the same
+    channel ``structure_from_cif`` uses: pass ``diagnostics=`` a list and the
+    rewrite is recorded, one ``FULLPROF_SPECIES_NORMALISED`` per distinct token,
+    with the affected atom path — and a clean spelling records nothing, which is
+    why W/O₁/O₂ leave no diagnostic though they too pass through the normaliser.
+    """
+    model = read_fullprof_pcr(_pcr(tmp_path, "diag.pcr", _phase()))
+    diagnostics = []
+    structure = structure_from_fullprof_pcr(model, diagnostics=diagnostics)
+    assert [d.code for d in diagnostics] == ["FULLPROF_SPECIES_NORMALISED"]
+    (recorded,) = diagnostics
+    assert recorded.level == "info"
+    assert recorded.where == ["phases.0.atoms.0.species"]
+    assert "'CR'" in recorded.message and "'Cr'" in recorded.message
+    assert structure.phases[0].atoms[0].species == "Cr"
+    # No list is the same build, and it is silent — the repair is opt-in to see,
+    # never suppressed for correctness.
+    assert structure_from_fullprof_pcr(model).phases[0].atoms[0].species == "Cr"
 
 
 def test_a_refined_coordinate_reaches_the_structure_as_refined(tmp_path):
@@ -1013,7 +1040,7 @@ def test_a_refined_coordinate_reaches_the_structure_as_refined(tmp_path):
         "O2     O       0.30498  0.30498  0.33853  0.23070   1.00000   0   0   0    1\n"
         "                571.00   571.00   581.00   621.00      0.00")
     pcr = _pcr(tmp_path, "flags.pcr", _phase(atoms=refined))
-    cr, w, o1, o2 = to_structure(read_fullprof_pcr(pcr)).phases[0].atoms
+    cr, w, o1, o2 = structure_from_fullprof_pcr(read_fullprof_pcr(pcr)).phases[0].atoms
     assert (cr.z.vary, cr.biso.vary) == (True, True)
     assert (w.z.vary, w.biso.vary) == (False, False)
     assert (o1.x.vary, o1.y.vary, o1.z.vary) == (True, True, False)
@@ -1035,7 +1062,7 @@ def test_the_built_structure_compiles_a_parameter_table(tmp_path):
     from rietx.params.vector import ParameterTable
 
     model = read_fullprof_pcr(_pcr(tmp_path, "table.pcr", _phase()))
-    structure = to_structure(model)
+    structure = structure_from_fullprof_pcr(model)
     table = ParameterTable(
         structure, rx.Instrument.constant_wavelength_neutron(model.lambda1))
     free = {p for p in table.free_paths if p.startswith("phases")}
@@ -1056,7 +1083,7 @@ def test_the_occupancy_column_reduces_to_a_common_factor(tmp_path):
     assert occupancy_factor(model.phases[0]) == pytest.approx(2.0, rel=1e-4)
     # Fully occupied, so every rietx occ is 1.0 — the arbitrary factor cancels
     # and none of it leaks into the structure factor.
-    atoms = to_structure(model).phases[0].atoms
+    atoms = structure_from_fullprof_pcr(model).phases[0].atoms
     assert [a.occ.value for a in atoms] == pytest.approx([1.0] * 4)
 
 
@@ -1076,7 +1103,7 @@ def test_an_occupancy_that_does_not_reduce_is_refused_naming_the_ratios(tmp_path
     model = read_fullprof_pcr(_pcr(tmp_path, "partial.pcr",
                                    _phase(atoms=partial)))
     with pytest.raises(FullProfPcrError) as exc:
-        to_structure(model)
+        structure_from_fullprof_pcr(model)
     message = str(exc.value)
     assert "partial.pcr" in message
     assert "does not reduce" in message
@@ -1095,7 +1122,7 @@ def test_a_phase_with_no_sites_is_refused_rather_than_dropped(tmp_path):
                                    _phase(nat=0, atoms="")))
     assert model.phases[0].atoms == []
     with pytest.raises(FullProfPcrError, match="Nat = 0"):
-        to_structure(model)
+        structure_from_fullprof_pcr(model)
 
 
 def test_a_negative_biso_is_refused_naming_the_atom(tmp_path):
@@ -1112,7 +1139,7 @@ def test_a_negative_biso_is_refused_naming_the_atom(tmp_path):
                                    _phase(atoms=negative)))
     assert model.phases[0].atoms[0].values["biso"].value == pytest.approx(-0.67266)
     with pytest.raises(FullProfPcrError) as exc:
-        to_structure(model)
+        structure_from_fullprof_pcr(model)
     assert "negb.pcr" in str(exc.value)
     assert "'Cr'" in str(exc.value) and "-0.67266" in str(exc.value)
 
@@ -1140,7 +1167,7 @@ def test_an_anisotropic_beta_block_is_read_and_refused(tmp_path):
     assert atom.betas["beta23"].vary is True             # codeword 431.00
     assert atom.betas["beta12"].vary is False
     with pytest.raises(FullProfPcrError) as exc:
-        to_structure(model)
+        structure_from_fullprof_pcr(model)
     assert "aniso.pcr" in str(exc.value) and "beta" in str(exc.value)
 
 
@@ -1235,7 +1262,7 @@ def test_a_truncated_pcr_never_escapes_as_anything_but_a_fullprof_error(tmp_path
         target.write_bytes(raw[:n])
         try:
             model = read_fullprof_pcr(target)
-            to_structure(model, nuclear_only=True)
+            structure_from_fullprof_pcr(model, nuclear_only=True)
         except FullProfPcrError:
             pass
         except Exception as exc:            # noqa: BLE001 — the point of the test
