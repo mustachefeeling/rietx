@@ -741,6 +741,90 @@ def test_a_bank_stating_no_type_flag_is_still_read_as_std(tmp_path, coeffs):
     assert d.metadata["format"] == "gsas-std"
 
 
+def _gsas_behind_long_time_map(path, *, table_rows, data_rows=40):
+    """A ``TIME_MAP`` bank behind a step table long enough to push its ``BANK``
+    record past the sniff window — the shape of a real HIPD@LANSCE file
+    (``vnb5053.dat`` from the GSAS distribution's examples), packed literally
+    here because that file cannot be vendored (its data carries the Regents of
+    the University of California's copyright, which the distribution's own notice
+    does not waive).
+
+    The layout is written out, never taken from the parser: a ``TIME_MAP``
+    header line, ``table_rows`` records of ten 8-column integers (the tabulated
+    step map), then a bank record naming ``TIME_MAP`` with its *one* coefficient
+    — the map number — and an ``STD`` flag, then counts.  The single coefficient
+    is the point: a real TIME_MAP bank writes a lone map number where a CONS
+    bank writes a start angle and a step, so its record does not fit the CONS
+    field count.
+    """
+    lines = ["TIME_MAP10   703   71 TIME_MAP  50 CONLOG[0.30:0.0005]"]
+    lines += ["".join(f"{1000 + r * 10 + k:8d}" for k in range(10))
+              for r in range(table_rows)]
+    bank_offset = len(("\n".join(lines) + "\n").encode("utf-8"))
+    lines.append("BANK  1  7550  755 TIME_MAP   1 STD 00000000")
+    lines += ["".join(f"{100 + r * 10 + k:8d}" for k in range(10))
+              for r in range(data_rows)]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path, bank_offset
+
+
+def test_a_bank_past_the_sniff_window_is_still_claimed_as_gsas(tmp_path):
+    """A ``TIME_MAP`` step table can push the first ``BANK`` record past the 4 kB
+    ``head`` window, and the sniff read only that window — so a real GSAS file
+    was not claimed and fell to the ``xy`` catch-all, which read its
+    fixed-format records as columns and refused with the wrong cause (a 2θ axis
+    it never had, and only a misread column running backwards kept that from
+    being a plausible *wrong pattern* instead).  The ``TIME_MAP`` token is
+    GSAS-shaped evidence and does land in the window, so a file showing it earns
+    one more bounded read to look past the table — the ``.chi`` count-check
+    discipline, not a widened window for every file.
+    """
+    from rietx.io.formats.base import HEAD_BYTES
+    p, bank_offset = _gsas_behind_long_time_map(
+        tmp_path / "vnb.dat", table_rows=HEAD_BYTES // 80 + 30)
+    assert bank_offset > HEAD_BYTES          # the fixture really is past-window
+    assert identify_format(p).name == "gsas"
+
+
+def test_a_time_map_bank_past_the_window_refuses_by_name_not_as_missing(tmp_path):
+    """Once the sniff claims it, the bank is refused for *what it is* — a
+    TIME_MAP flight-time bank — not as a 2θ-direction error (unfixed sniff, from
+    ``xy``) and not as a missing BANK record.
+
+    That last is why the bintype is read off a *loose* header match: a real
+    TIME_MAP bank writes one coefficient where the strict CONS record parse
+    needs two, so matching with that parse first skipped the bank and reported
+    it absent — a file plainly holding a ``BANK`` record told it had none, and
+    the by-name refusal #142 built never reached.
+    """
+    from rietx.io.formats.base import HEAD_BYTES
+    p, _ = _gsas_behind_long_time_map(
+        tmp_path / "vnb.dat", table_rows=HEAD_BYTES // 80 + 30)
+    with pytest.raises(ValueError) as e:
+        rx.read_pattern(p)
+    msg = str(e.value)
+    assert p.name in msg and "TIME_MAP" in msg
+    assert "no BANK record" not in msg
+
+
+def test_a_time_map_bank_writes_one_coefficient_and_is_refused_by_name(tmp_path):
+    """The bintype gate must not depend on the CONS coefficient count — and this
+    isolates that from the sniff, the bank sitting well inside the window.
+
+    A real TIME_MAP bank writes a single coefficient (the map number), so the
+    strict CONS record regex — a start angle and a step, two coefficients —
+    never matched it, and the by-name refusal sat behind a match a TIME_MAP bank
+    cannot make; before this it came back ``no BANK record found``.  The axis
+    decision is taken off the bank *header*, which every bintype shares, for
+    exactly this reason.
+    """
+    p = write_gsas(tmp_path / "onecoeff.gsa", bintype="TIME_MAP", flag="STD",
+                   body="     100     200     300\n", nchan=3, coeffs=(1,))
+    with pytest.raises(ValueError) as e:
+        rx.read_pattern(p)
+    assert p.name in str(e.value) and "TIME_MAP" in str(e.value)
+
+
 # ---------------------------------------------------------------------- ras
 DATA = Path(__file__).parent / "data"
 
