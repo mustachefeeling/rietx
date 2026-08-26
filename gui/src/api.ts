@@ -118,6 +118,12 @@ export const api = {
   /** Phase two: tokens become a project.  Nothing exists on disk until this. */
   newProject: (body: Record<string, unknown>) => call("POST", "/api/project/new", body),
 
+  /** A read-only directory listing for the "Open…" browser (WP-1205), confined
+   *  server-side to the home directory and the process's cwd. `path` omitted
+   *  lists the home directory. */
+  fs: (path?: string) =>
+    call("GET", path ? `/api/fs?path=${encodeURIComponent(path)}` : "/api/fs"),
+
   project: () => call("GET", "/api/project"),
   openProject: (path: string) => call("POST", "/api/project/open", { path }),
   patchProject: (settings: Record<string, unknown>) => call("POST", "/api/project", settings),

@@ -123,7 +123,7 @@ package, not from the form:
 - [x] `GET /api/fs?path=`: directories and `.rex` entries under a root,
       refusing paths outside the roots; `tests/test_gui_server.py`
       confinement tests (`..`, symlinks out, absolute paths elsewhere).
-- [ ] `Browse.svelte`: one modal used for opening a project and for picking
+- [x] `Browse.svelte`: one modal used for opening a project and for picking
       the project directory; a typed path field beside it; `Open…` in the
       empty-state header; `startImport` and the recent-list arm both settle
       `wizardOpen`; `Model` mounted once.

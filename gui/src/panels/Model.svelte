@@ -70,6 +70,7 @@
     structureSummary, applyInstrumentHint, scanCount,} from "../lib/wizard";
   import { fitColumns, modelStacks } from "../lib/resize";
   import type { Theme } from "../lib/theme";
+  import Browse from "./Browse.svelte";
   import Splitter from "./Splitter.svelte";
   import Structure3D from "./Structure3D.svelte";
 
@@ -172,7 +173,39 @@
    *  asked for it — separate from `wizError`, which is a *staging* failure: a
    *  verb's refusal and a panel's load error must not share one field (WP-1014) */
   let openError = $state("");
+  /** `"open"` browses for a project to open, `"pick"` browses for the wizard's
+   *  own directory field — one modal, `null` while closed */
+  let browseMode = $state<"open" | "pick" | null>(null);
   const showWizard = $derived(!project || wizardOpen);
+
+  /** Open a project and settle the wizard behind it.
+   *
+   * The bug this closes: `onopen` used to be called directly from the
+   * recent-list button with nothing clearing `wizardOpen`, so opening a
+   * *different* project from over an already-open one left the wizard painted
+   * on top of it — `project` stayed truthy the whole time, so nothing ever
+   * re-derived `showWizard`.  Every entry point that can open a project
+   * (the recent list, Browse) now goes through this one function instead of
+   * each carrying its own copy of "and then close the wizard".
+   */
+  async function openPath(path: string): Promise<string> {
+    const refusal = await onopen(path);
+    openError = refusal;
+    if (!refusal) wizardOpen = false;
+    return refusal;
+  }
+
+  /** Browse hands back a *directory to navigate into*, not a project path —
+   *  the browser cannot suggest a new folder's name, only find where it should
+   *  live.  So the trailing name (`<stem>.rex`, already suggested from the
+   *  staged pattern) survives and only its parent moves; a step-4 visit before
+   *  anything is staged has no name to keep, and the picked directory is used
+   *  as-is. */
+  function pickProjectDir(dir: string) {
+    const base = wiz.path.split("/").filter(Boolean).pop();
+    wiz.path = base && wiz.path !== dir ? `${dir}/${base}` : dir;
+    browseMode = null;
+  }
   const anodes = $derived<any[]>(capabilities?.anodes ?? []);
   const modes = $derived<string[]>(capabilities?.modes ?? ["rietveld"]);
   const plans = $derived<any[]>(capabilities?.plans ?? []);
@@ -643,6 +676,13 @@
     {:else if project}
       <button class="ghost" onclick={() => (wizardOpen = false)}>Back to the project</button>
     {/if}
+    <!-- The recent list only knows what this machine has opened before, and
+         "Open…" used to have nowhere else to point (WP-1205): Browse reads
+         the filesystem itself, confined server-side to home and cwd. -->
+    {#if showWizard}
+      <button class="ghost" disabled={busy} onclick={() => (browseMode = "open")}
+        >Open…</button>
+    {/if}
     <span class="spacer"></span>
     {#if !showWizard}
       <button class="ghost" class:on={viewer} onclick={() => (viewer = !viewer)}
@@ -673,7 +713,7 @@
             {#each recent as entry (entry.path)}
               <li>
                 <button class="ghost" disabled={busy}
-                  onclick={async () => { openError = await onopen(entry.path); }}
+                  onclick={() => openPath(entry.path)}
                   >{entry.name}</button>
                 <span class="muted mono">{entry.path}</span>
               </li>
@@ -884,6 +924,7 @@
             <span class="muted">directory</span>
             <input class="mono wide" bind:value={wiz.path}
               placeholder="/path/to/my_sample.rex" />
+            <button class="ghost" onclick={() => (browseMode = "pick")}>Browse…</button>
           </label>
           <div class="grid">
             <label class="cell"><span class="muted">mode</span>
@@ -1265,6 +1306,11 @@
     <p class="muted">{loadError || "loading…"}</p>
   {/if}
 </section>
+
+{#if browseMode}
+  <Browse mode={browseMode} onclose={() => (browseMode = null)}
+    onopen={openPath} onpick={pickProjectDir} />
+{/if}
 
 <style>
   section.model {
