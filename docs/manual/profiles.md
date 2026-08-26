@@ -43,6 +43,67 @@ Reading either $1/\cos\theta$ coefficient back as a crystallite size — and why
 $U$ and $W$ have no size to read — is {ref}`sec-width-as-size`. Anisotropic
 (hkl-dependent) sample broadening is deferred to {ref}`ch-microstructure`.
 
+(sec-strain-cap)=
+## How wide a strain term is allowed to get
+
+Nothing in $Y_s\tan\theta$ stops at a physical strain, and an unbounded $Y_s$
+is not a slightly wide peak: past some width the phase's lines are flat across
+the whole scan, it is degenerate with the background, it starves whatever it
+overlaps, and the covariance loses conditioning. Measured on a 248-pattern
+in-situ reduction series, $Y_s$ reached $1.1\times10^{5}$ where the reference
+protocol for the same data used 0.3.
+
+So $Y_s$ — and $U_s$, which is the same width squared, being a variance —
+carries a default upper bound derived from **the pattern itself** rather than
+from any material:
+
+```{math}
+:label: prof-strain-cap
+
+Y_s \;\le\; \frac{f\,(2\theta_{\max} - 2\theta_{\min})}{\tan\theta_{\max}},
+\qquad
+U_s \;\le\; \left(\frac{f\,(2\theta_{\max} - 2\theta_{\min})}
+{\tan\theta_{\max}}\right)^{\!2},
+\qquad f = {{ STRAIN_CAP_RANGE_FRACTION }}
+```
+
+*Source:* `rietx.params.vector.strain_cap`
+
+with $2\theta_{\min}, 2\theta_{\max}$ the ends of the **fitted** range —
+excluded regions removed, since an excluded interval was not measured. Read
+{eq}`prof-strain-cap` as the statement that *a line wider than the interval it
+was measured over is not a line*: at $f = 1$ the strain term alone contributes
+one whole range's worth of FWHM at the pattern's highest $\theta$. It is
+dimensional and self-scaling — a 15–80° lab scan and a 0.5–50° low-angle scan
+get different bounds out of one rule, and no calibrated constant enters.
+
+```{warning}
+This bounds **numerics, not strain**. It sits two orders of magnitude above
+anything a specimen produces (≈ 83 deg on a 10–80° scan), so it is not the
+judgement about whether a width is believable. That judgement is the
+`STRAIN_UNUSUALLY_LARGE` diagnostic, which fires above
+{{ STRAIN_FLAG_WIDTH }} deg — the top of a corpus of 606 solved refinements —
+and bounds *nothing*. Nanocrystalline and heavily defective specimens
+legitimately refine into that tail, and a flag there is a number to check
+rather than a fit to discard.
+```
+
+Two properties follow from *where* the bound is applied, which is at the
+optimiser interface for one stage and never on the stored parameter:
+
+* it is **armed only on a term that has already reached it**, because a finite
+  bound changes the trust-region step in a coordinate even where it is never
+  approached — so a fit whose strain stays inside {eq}`prof-strain-cap` gets no
+  bound at all and is bit-identical to an unbounded build;
+* a **finite stored `max` is the caller's claim and outranks it**, the same rule
+  the per-stage cell window follows, so declaring any ceiling — including a
+  deliberately enormous one — switches the default off.
+
+Enforcement is therefore per stage, not per iteration: a stage that starts
+below the bound may cross it, and the next stage pulls it back and reports
+`BOUND_HIT` on the path (`RefinedParameter.at_bound` carries the same finding
+on the row).
+
 ## Thompson-Cox-Hastings pseudo-Voigt
 
 The default profile approximates the Voigt (Gaussian ⊗ Lorentzian) as a

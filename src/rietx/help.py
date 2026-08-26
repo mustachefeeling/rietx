@@ -515,7 +515,14 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "The specimen's tanθ contribution to the Lorentzian FWHM, which is "
             "isotropic microstrain. It adds to the instrumental Y. Declaring a "
             "Stephens anisotropic strain block locks this parameter, because "
-            "the isotropic direction of that block is identically this column."
+            "the isotropic direction of that block is identically this column. "
+            "It carries a default upper bound derived from the fitted 2θ range "
+            "— a line cannot be wider than the interval it was measured over — "
+            "which sits two orders of magnitude above any specimen and reports "
+            "BOUND_HIT if reached. Setting max to any finite value, however "
+            "large, is your own claim and switches that default off. A width "
+            "past 1.5 deg raises STRAIN_UNUSUALLY_LARGE, which flags rather "
+            "than bounds."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg",
@@ -539,7 +546,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         description=(
             "The specimen's tan²θ contribution to the Gaussian variance, "
             "stacking on the instrumental U. Freeing it while U is also free "
-            "fits one quantity twice, and the guard reports the correlation."
+            "fits one quantity twice, and the guard reports the correlation. "
+            "It carries the same default upper bound as lor_strain, squared: "
+            "this is a variance, so the cap on the width it contributes "
+            "applies to its square root."
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 deg²",

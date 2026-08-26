@@ -41,7 +41,7 @@ from ..model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, DerivativeBases
 from ..model.forward import accumulate_planes as _accumulate
 from ..model.restraints import restraint_partials
 from ..params.transforms import dphys_dinternal
-from ..params.vector import ParameterTable
+from ..params.vector import ParameterTable, strain_cap
 from .cancel import RefinementCancelled
 
 if TYPE_CHECKING:
@@ -849,6 +849,44 @@ def _freeze_cell_windows(model: CompiledModel, table: ParameterTable) -> None:
                                if s < PHASE_SUPPORT_SIGMA})
 
 
+def _freeze_strain_cap(model: CompiledModel, table: ParameterTable) -> None:
+    """Declare the sample-strain cap for this stage, off the fitted 2θ extent.
+
+    ``model.tt_min``/``tt_max`` are the *in-range* fit grid's ends — excluded
+    regions already removed — which is the right authority, because the bound
+    says a line cannot be wider than the interval it was measured over and an
+    excluded interval was not measured
+    (:func:`~rietx.params.vector.strain_cap`).
+
+    Read where every other per-stage freeze happens, and armed inside
+    ``bounds()`` only on terms that have *already* reached it, so a fit whose
+    strain stays inside what the data can express gets no bound at all and is
+    bit-identical to an uncapped build.  That restriction is the same one
+    :func:`_freeze_cell_windows` makes and for the same measured reason: a
+    bound is never free, since TRF takes its per-coordinate trust-region scale
+    from the distance to it.
+    """
+    table.freeze_strain_cap(strain_cap(model.tt_min, model.tt_max))
+
+
+def _freeze_strain_cap_multi(models: list[CompiledModel],
+                             mtable: "MultiParameterTable") -> None:
+    """The freeze above for a joint refinement, where a phase is *shared*.
+
+    ``lor_strain`` is a phase parameter, so in a joint fit its column is
+    written once per histogram and the last write wins — harmless only while
+    the histograms agree (``MultiParameterTable.refresh_bounds``).  Here they
+    disagree by construction, each having its own 2θ extent, so the **widest**
+    cap governs: a line only has to be a line in *some* histogram, and a joint
+    fit is entitled to whichever one can express it.  Taking the narrowest
+    would let a short scan bound a width the long scan measures perfectly well.
+    """
+    caps = [strain_cap(m.tt_min, m.tt_max) for m in models]
+    cap = max(caps) if caps else None
+    for table in mtable.tables:
+        table.freeze_strain_cap(cap)
+
+
 def _freeze_cell_windows_multi(models: list[CompiledModel],
                                mtable: "MultiParameterTable") -> None:
     """The freeze above for a joint refinement, where a cell can be *shared*.
@@ -889,6 +927,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     # probe frees parameters without intending to fit them.
     table.check_wavelength_against_cell()
     _freeze_cell_windows(model, table)
+    _freeze_strain_cap(model, table)
     residual = _make_residual(model, table)
     jacobian = _jacobian_for(model, table, backend)
 
@@ -1107,6 +1146,10 @@ def run_multi_least_squares(models: list[CompiledModel],
         models, mtable, weights=weights, backend=backend)
     n_cols = len(mtable.free_paths)
 
+    # strain cap first: ``_freeze_cell_windows_multi`` ends in
+    # ``refresh_bounds``, which is what pushes *both* freezes into the combined
+    # bound vectors
+    _freeze_strain_cap_multi(models, mtable)
     _freeze_cell_windows_multi(models, mtable)
     x0 = mtable.x0()
     lo, hi = mtable.bounds()

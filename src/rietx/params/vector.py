@@ -19,6 +19,7 @@ matrix — no pydantic objects are touched per iteration.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -328,6 +329,150 @@ def cell_window(name: str, value: float, lo: float, hi: float) -> tuple[float, f
             window_hi if hi == np.inf else hi)
 
 
+#: The sample strain terms this cap covers, in the units each one is stored in:
+#: ``lor_strain`` is a Lorentzian **FWHM** coefficient (deg 2θ, multiplying
+#: tanθ) and ``gauss_strain`` a Gaussian **variance** coefficient (deg² 2θ,
+#: multiplying tan²θ) — see :mod:`rietx.model.profiles.caglioti`.  So one cap
+#: expressed as a width governs both, squared for the variance, and there is no
+#: second number to calibrate.
+_STRAIN_NAMES = ("lor_strain", "gauss_strain")
+
+#: How much of the **fitted** 2θ range one strain term's own FWHM contribution
+#: may reach at the pattern's highest θ.  1.0 is the statement that a line
+#: wider than the whole range it was measured over is not a line: at that width
+#: the phase has stopped being a set of peaks and become a second background,
+#: which is a numerical regime and not a strained sample.  Deliberately not
+#: calibrated to any material — see :func:`strain_cap`.
+STRAIN_CAP_RANGE_FRACTION = 1.0
+
+#: Hysteresis.  The cap is armed only where the term has already reached it
+#: (:func:`strain_cap_hi`), and TRF leaves a bounded iterate a hair *inside*
+#: its bound, so an exactly-equal test would disarm the cap on the stage after
+#: it fired and let the runaway restart.  Eight orders of magnitude above the
+#: ~1e-14 relative offset ``run_least_squares``' feasibility clip introduces,
+#: and far below any move a fit makes on purpose.
+STRAIN_CAP_ARM_RTOL = 1e-6
+
+#: tanθ has a pole at 90°, i.e. at 2θ = 180°, where the cap would collapse to
+#: zero for a reason that is about arithmetic and not about peak widths.  A
+#: pattern reaching there is clipped to this θ instead.
+_STRAIN_CAP_THETA_MAX_DEG = 89.0
+
+
+def _strain_parameter_name(path: str) -> str | None:
+    """``"phases.0.lor_strain"`` → ``"lor_strain"``, anything else → None.
+
+    Read off the path for the same reason :func:`_cell_parameter_name` is: the
+    cap is applied at the optimiser interface, where entries arrive from
+    :meth:`ParameterTable.bounds` with nothing but their paths to go on.
+    """
+    parts = path.split(".")
+    if len(parts) == 3 and parts[0] == "phases" and parts[2] in _STRAIN_NAMES:
+        try:
+            int(parts[1])
+        except ValueError:
+            return None
+        return parts[2]
+    return None
+
+
+def strain_cap(tt_min: float, tt_max: float) -> float:
+    """The widest ``lor_strain`` (deg 2θ) the *fitted range* can express.
+
+    **Why strain needs a bound at all.**  The sample strain terms enter the
+    profile as Γ_L = ``lor_strain``·tanθ and Γ_G² = ``gauss_strain``·tan²θ
+    (:mod:`rietx.model.profiles.caglioti`), and nothing in that arithmetic
+    stops at a physical strain.  Measured on a 248-pattern CuO→Cu reduction
+    series (issue #140): Cu's ``lor_strain`` exceeded 1 in 133 of 248 patterns
+    and peaked at 1.1e5, against 0.3 in the TOPAS protocol for the same data.
+    The consequences are not a slightly wide peak — at that width the phase's
+    lines are flat across the whole scan, so it is degenerate with the
+    background, a genuine 16 wt % support phase was starved below 1 wt % in
+    195 of 248 patterns, absolute weight fractions inflated ×1.19, and the
+    covariance overflowed until 179 of 248 patterns returned weight-fraction
+    esds above 100 wt % (worst 1.3e10).
+
+    **Where the number comes from.**  Not from a material and not from TOPAS's
+    0.3, both of which are claims about how strained a sample may be — a bound
+    on *that* would prejudge the physics, and nanocrystalline and heavily
+    defective specimens legitimately live far out in that tail.  It comes from
+    the measurement instead: a peak whose FWHM exceeds the 2θ interval it was
+    measured over carries no information the fit could have got from the data.
+    So the contribution the strain term alone makes at the pattern's highest θ
+    is held to :data:`STRAIN_CAP_RANGE_FRACTION` of the fitted range,
+
+        ``lor_strain`` · tan(θ_max) ≤ f · (2θ_max − 2θ_min),
+
+    and the Gaussian variance to the square of the same width.  This is
+    dimensional and self-scaling — a 15–80° lab scan and a 0.5–50° synchrotron
+    scan get different caps out of one rule, and no magic constant enters —
+    which is the same reasoning ``mu_t``'s off state and the observation counts
+    already use: a bound the measurement itself states.
+
+    It is also *generous by construction*.  On a 10–80° scan it is ≈ 83.4 deg:
+    278× the TOPAS protocol's 0.3, 56× the ``STRAIN_UNUSUALLY_LARGE`` flag
+    below, and still 1300× under the runaway above.  That separation is the
+    design and not slack — this fence is not the judgement about whether a
+    strain is *believable*, which is a question about the sample that only a
+    reader can settle.  That judgement is
+    :data:`~rietx.refine.STRAIN_FLAG_WIDTH`, set from the corpus of solved
+    refinements, which changes no number and only speaks.
+
+    **Enforced at stage granularity**, exactly like :func:`cell_window`, and
+    with the same consequence: a single stage that starts below the cap is
+    unbounded and can cross it, and the *next* stage — plans are cumulative,
+    so a strain term freed once stays free — pulls it back and reports
+    ``BOUND_HIT``.  A fence to be pulled back behind, not one it is forbidden
+    to cross.  That is also what keeps an untriggered fit bit-identical: a
+    finite bound is never free (TRF takes its per-coordinate trust-region scale
+    from the distance to the bounds), so it is spent only where the value has
+    already gone somewhere the data cannot express.
+
+    Returns ``inf`` when the range cannot state a bound — an empty or
+    degenerate fit range, or one that does not reach far enough in θ for tanθ
+    to be usable — because "no claim" is the honest output there.
+    """
+    span = float(tt_max) - float(tt_min)
+    if not span > 0.0:
+        return math.inf
+    theta = min(float(tt_max) / 2.0, _STRAIN_CAP_THETA_MAX_DEG)
+    tan_theta = math.tan(math.radians(theta)) if theta > 0.0 else 0.0
+    if not tan_theta > 0.0:
+        return math.inf
+    return STRAIN_CAP_RANGE_FRACTION * span / tan_theta
+
+
+def strain_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
+    """The upper bound one strain term takes this stage — ``hi`` unless capped.
+
+    ``cap`` is :func:`strain_cap`'s width; ``gauss_strain`` is a variance and
+    takes its square, so the two terms are held to the *same* width.
+
+    Two clauses, and both are load-bearing:
+
+    * **A finite stored bound is the caller's claim and is kept.**  ``±inf`` is
+      what a :class:`~rietx.schemas.common.Parameter` carries when nobody set
+      its bounds, so an infinite side is the only side on which no claim was
+      made — :func:`cell_window`'s rule, and TOPAS's *"user defined min/max
+      limits override the defaults"*.  Setting ``max`` on the parameter is
+      therefore also the one-line way to switch this cap off: any finite value,
+      including a deliberately enormous one, outranks it.
+    * **Armed only where the term has already reached the cap**
+      (:data:`STRAIN_CAP_ARM_RTOL`).  A bound changes the solver's step in a
+      coordinate even where it is never approached, so a fit whose strain stays
+      in the range the data can express must not pay for it, and does not: it
+      gets no bound at all and is bit-identical to an uncapped build.
+    """
+    if not math.isinf(hi):
+        return hi
+    if not math.isfinite(cap):
+        return hi
+    limit = cap * cap if name == "gauss_strain" else cap
+    if value >= limit * (1.0 - STRAIN_CAP_ARM_RTOL):
+        return limit
+    return hi
+
+
 class ParameterTable:
     def __init__(self, structure: Structure, instrument: Instrument, *,
                  joint: bool = False):
@@ -347,6 +492,9 @@ class ParameterTable:
         #: phases whose cells take the default window this stage, or None for
         #: "no claim made" — see :meth:`freeze_cell_windows`
         self._cell_window_phases: set[int] | None = None
+        #: the stage's strain cap, or ``None`` for "no claim made" —
+        #: see :meth:`freeze_strain_cap`
+        self._strain_cap: float | None = None
         self._collect(structure, instrument)
         self._rebuild()
 
@@ -978,19 +1126,35 @@ class ParameterTable:
         """
         self._cell_window_phases = phases
 
+    def freeze_strain_cap(self, cap: float | None) -> None:
+        """Declare the sample-strain cap (a width, deg 2θ) for this stage.
+
+        ``None`` means **no claim made** and caps nothing — the
+        ``freeze_cell_windows`` convention.  The number comes from the fitted
+        2θ range (:func:`strain_cap`), which is a property of the *data*, so it
+        is frozen where every other per-stage decision is and held on the table
+        for the same reason cell windows are: ``run_least_squares`` solves
+        against these bounds and ``staged.check_guards`` calls ``bounds()``
+        again afterwards to decide ``at_bounds``, and a cap the solver used but
+        the guard did not see would be a bound hit nothing could report.
+        """
+        self._strain_cap = cap
+
     def bounds(self) -> tuple[np.ndarray, np.ndarray]:
         """Internal-space bounds for the free vector, in ``free_paths`` order.
 
-        This is where :func:`cell_window` is applied, rather than on the
-        :class:`Entry`, and the distinction is the point: a window is a
-        **solver** bound for the stage about to run, not a fact about the
-        stored parameter.  Putting it on the entry would surface it through
-        ``ParameterRow`` and the ``.rxt`` document, both of which tell a reader
-        that bounds come from the schema — and there it would read as a claim
-        the caller never made.  ``bound_findings`` is fed from here, so a cell
-        that reaches its window is still reported.
+        This is where :func:`cell_window` and :func:`strain_cap_hi` are
+        applied, rather than on the :class:`Entry`, and the distinction is the
+        point: both are **solver** bounds for the stage about to run, not facts
+        about the stored parameter.  Putting either on the entry would surface
+        it through ``ParameterRow`` and the ``.rxt`` document, both of which
+        tell a reader that bounds come from the schema — and there it would
+        read as a claim the caller never made.  ``bound_findings`` is fed from
+        here, so a cell that reaches its window or a strain term held at its
+        cap is still reported.
         """
         windowed = getattr(self, "_cell_window_phases", None)
+        cap = getattr(self, "_strain_cap", None)
         lo, hi = [], []
         for i in self._free_idx:
             e = self.entries[i]
@@ -999,6 +1163,10 @@ class ParameterTable:
                 cell_name = _cell_parameter_name(e.path, phases=windowed)
                 if cell_name is not None:
                     e_lo, e_hi = cell_window(cell_name, e.value, e_lo, e_hi)
+            if cap is not None:
+                strain_name = _strain_parameter_name(e.path)
+                if strain_name is not None:
+                    e_hi = strain_cap_hi(strain_name, e.value, e_hi, cap)
             low, high = internal_bounds(e_lo, e_hi, e.transform)
             lo.append(low)
             hi.append(high)
