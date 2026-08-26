@@ -496,6 +496,25 @@ in a flex row already), and a **placeholder that is a plausible number reads as 
 value somebody filled in**, which is why the instrument form's say `default`, a
 word; where there is no default to name, the honest placeholder is none.
 
+**A project without a phase** (WP-1207) is the *third* answer to step 2 and the
+fifth `structure` form, `null` — decided ahead of the inline branch, where it
+used to fall through and be refused as a malformed model. Four rules.
+**Null is an answer; an absent key is not**: `dict.get` cannot tell them apart,
+so `project_new` requires the key and only the explicit null creates a
+phase-free project. It is the one route that **moves the mode nowhere** — a CIF
+implies `rietveld` and a typed cell `lebail` because each says what can be
+refined, and with no phase the run is refused whatever the mode says, so Adopt
+sets it on the way out. **`n_phases` rides on `project_doc`** — a derived
+summary beside `head`, never a second authority — because a client must know a
+run is refused *before* it offers one, and `moved()` reloads the document as
+well as the curves, since a move can add or remove the last phase (Adopt, a
+structure replace, a checkout across either). And the refusal is **on the verb,
+never on the model**: `Structure` takes `phases=[]`, so peak picking, indexing
+and `PATCH /api/structure` all work over one, while every run route raises
+`NoPhasesError` (`code = "NO_PHASES"`, the agent envelope's fourth) **in the
+route rather than the worker** — a run started is a 200 whose failure reaches
+only the event stream, and the caller asked a question that has an answer now.
+
 **Symmetry, surfaced and editable** (WP-1035, `src/rietx/gui/symmetry.py`,
 `gui/src/lib/symmetry.ts`) is the phase's space group stopping being one
 read-only string quoted in three places while everything it *does* — a tied `b`,

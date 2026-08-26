@@ -194,8 +194,13 @@ whatever `fit` decides.
       null` against the required key (`test_gui_server.py`), emptying a
       structure through `PATCH`, the `NO_PHASES` envelope code on all three
       refining tasks (`test_agent_surface.py`), and four vitest cases.
-- [ ] Manual (`using/files.md`, `quickstart.md`), AGENT_PROTOCOL row for
-      `NO_PHASES`.
+- [x] Manual: `using/files.md` § A project with no structure (the state, what
+      works over it, and `NoPhasesError.code` printed rather than described),
+      `quickstart.md` § Not even a cell beside 1206's § With no structure at
+      all. AGENT_PROTOCOL: the §6 row, and `NO_PHASES` named in §9c's envelope
+      paragraph. `gui/CLAUDE.md` 691 → 710 with the four rules and the cap
+      comment. Browser pass: four things jsdom cannot see, all correct —
+      below.
 
 ## Acceptance
 

@@ -397,7 +397,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # it — the typed cell was accepted by `PATCH /api/structure` too, where it
     # would leave a rietveld project refining a dummy carbon.  That is the
     # generalisable half, and it is what a later WP adding a third form needs.
-    "gui/CLAUDE.md": 691,
+    # 691 -> 710 for WP-1207 (2026-08-26): the third answer to step 2, whose
+    # four rules a later panel WP cannot read off the code.  Two of them are
+    # the earlier clause's own shape one turn further — the `structure` forms
+    # are told apart at one boundary, so the fifth (`null`) had to be decided
+    # *ahead* of the inline branch it used to fall through; and null is an
+    # answer where an absent key is not, which `dict.get` cannot express.  The
+    # other two are where the refusal lives (the verb, never the model — so
+    # peak picking and indexing keep working) and why `n_phases` rides on the
+    # project document, which is what lets a client disable Run rather than
+    # offer a click whose only outcome is a 400.
+    "gui/CLAUDE.md": 710,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

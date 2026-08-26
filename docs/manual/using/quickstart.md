@@ -205,6 +205,26 @@ structure, `ref.edit(structure=…)` replaces the scaffold, and the mode goes ba
 to `rietveld`. [](indexing.md) reaches the same scaffold from the other side,
 when the cell came from an indexing run rather than from you.
 
+### Not even a cell
+
+If you do not know the cell either, start from the pattern alone. The wizard's
+third answer to step 2 is **None yet**, and `Project.create` takes no
+`structure=` at all:
+
+<!-- api-doc: no-exec — it creates a directory from the reader's own files -->
+```python
+project = rx.Project.create("unknown.rex", pattern="unknown.xye",
+                            instrument=instrument)
+```
+
+That project has zero phases. Peak picking and indexing work over it, which is
+how you find the cell: pick the peaks, index them, adopt a candidate, and the
+project becomes the Le Bail one above ([](indexing.md) walks that loop). Until
+it has a phase, refining it raises `NoPhasesError` and the GUI's Run button is
+disabled — with no phase there is nothing but the background to fit, and a plan
+run over one would converge on the background and report success. [](files.md)
+has the detail.
+
 ## Worked example: NAC on 11-BM
 
 `examples/nac_11bm.py` refines Na₂Ca₃Al₂F₁₄ against APS 11-BM synchrotron data
