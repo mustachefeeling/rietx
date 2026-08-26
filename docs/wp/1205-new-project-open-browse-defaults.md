@@ -133,7 +133,7 @@ package, not from the form:
       with its one-line reason; the Create button's line rewritten.
 - [x] Scan control: "this file holds N scans; reading scan 1 of N (label)",
       labels fetched eagerly when N > 1; the default stated, not implied.
-- [ ] Browser pass from a blank state: open a project by browsing, create a
+- [x] Browser pass from a blank state: open a project by browsing, create a
       project without the CLI argument, open a recent one and confirm the
       Model tab shows the editor; rebuild the dist.
 
