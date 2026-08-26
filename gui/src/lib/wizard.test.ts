@@ -25,6 +25,7 @@ import {
   freeCellFields,
   structureArgument,
   typedCellArgument,
+  typedCellReady,
   useStructureFrom,
   structureSummary, applyInstrumentHint, scanCount } from "./wizard";
 
@@ -341,6 +342,19 @@ describe("a typed cell is the other answer to step 2", () => {
     // a mode that is legal either way is left alone
     const pawley = { ...typed(), mode: "pawley" };
     expect(useStructureFrom(pawley, "cif").mode).toBe("pawley");
+  });
+
+  it("is answered by the numbers, not by the symbol resolving", () => {
+    const state = useStructureFrom(staged(), "cell");
+    state.symbol = "R -3 c";
+    state.cellFacts = CORUNDUM;
+    expect(typedCellReady(state)).toBe(false);      // two empty boxes
+    state.cell = { a: "4.759091" };
+    expect(typedCellReady(state)).toBe(false);
+    state.cell = { a: "4.759091", c: "12.991779" };
+    expect(typedCellReady(state)).toBe(true);
+    // and a symbol that resolved to nothing is never answered
+    expect(typedCellReady(useStructureFrom(staged(), "cell"))).toBe(false);
   });
 
   it("blocks on the symbol, then on each free number", () => {

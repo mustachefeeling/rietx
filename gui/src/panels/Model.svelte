@@ -68,6 +68,7 @@
     patternSummary,
     presetHelp,
     seedPreset,
+    typedCellReady,
     useStructureFrom,
     structureSummary, applyInstrumentHint, scanCount,} from "../lib/wizard";
   import { fitColumns, modelStacks } from "../lib/resize";
@@ -870,13 +871,13 @@
         </li>
 
         <li class:done={wiz.structureFrom === "cell"
-          ? !!wiz.cellFacts : !!wiz.structure}>
+          ? typedCellReady(wiz) : !!wiz.structure}>
           <h2>2 · Structure</h2>
           <!-- Two answers to one step (WP-1206). A CIF says where the atoms
                are; a cell says only where the peaks are, which is all a powder
                pattern of an unknown phase supports — so it creates the same Le
                Bail scaffold the indexing panel's Adopt button lands. -->
-          <div class="segmented">
+          <div class="segmented" role="group" aria-label="structure source">
             <button class:on={wiz.structureFrom === "cif"}
               onclick={() => (wiz = useStructureFrom(wiz, "cif"))}>CIF file</button>
             <button class:on={wiz.structureFrom === "cell"}
@@ -889,23 +890,27 @@
                 placeholder="R -3 c" onchange={lookupSymbol} />
             </label>
             {#if wiz.cellFacts}
-              <!-- the server's own sentences about this symbol, from the same
-                   `symbol_facts` the model panel's phase summary rides on -->
-              <p class="muted">{wiz.cellFacts.setting}</p>
-              <p class="muted">holds: {wiz.cellFacts.constraints}</p>
+              <!-- the server's own two sentences about this symbol, from the
+                   same `symbol_facts` the model panel's phase summary rides on.
+                   Joined rather than labelled "holds:", which a triclinic
+                   symbol turns into "holds: every cell parameter is free". -->
+              <p class="muted">{wiz.cellFacts.setting}; {wiz.cellFacts.constraints}</p>
               <div class="grid">
                 {#each freeCellFields(wiz) as name (name)}
                   <label class="cell">
                     <span class="muted"><Help for="parameters:phases.*.cell.{name}"
                       >{CELL_GLYPH[name] ?? name}</Help>{name in CELL_GLYPH
                         ? " (°)" : " (Å)"}</span>
-                    <input class="mono" bind:value={wiz.cell[name]}
-                      placeholder={name in CELL_GLYPH ? "90" : "4.7591"} />
+                    <!-- no placeholder: the instrument form's say "default",
+                         a word, because a grey *number* reads as a value that
+                         was filled in for you (WP-1014's wrong-pre-fill rule).
+                         There is no default here, so there is nothing to say. -->
+                    <input class="mono" bind:value={wiz.cell[name]} />
                   </label>
                 {/each}
               </div>
               <p class="muted">
-                Only these are yours to give — the rest follow from the symmetry.
+                Only these are yours to give; the rest follow from the symmetry.
                 There are no atoms, so the fit extracts each reflection's
                 intensity instead of computing it.
               </p>
@@ -1552,6 +1557,16 @@
     border-left: 2px solid var(--line);
     padding: 0 0 10px 14px;
     margin: 0;
+  }
+
+  /* `.segmented` is `display: flex`, and every other use in the app sits in a
+     flex row already; a wizard step is a block, so the register stretched to
+     the full 90ch and drew a rule across the page (found in a browser, and
+     invisible to jsdom, which lays nothing out).  A width, not a size: what the
+     register owns is how tall the buttons are and how they are padded. */
+  ol.steps .segmented {
+    width: max-content;
+    max-width: 100%;
   }
 
   ol.steps li.done {

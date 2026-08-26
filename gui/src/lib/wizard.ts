@@ -165,6 +165,19 @@ export function freeCellFields(state: WizardState): string[] {
   return Array.isArray(free) ? free.map(String) : [];
 }
 
+/**
+ * Has the typed-cell step been answered?
+ *
+ * A resolved symbol is not an answer: it is what tells the form *which* boxes
+ * to draw, and until they carry numbers there is no cell. The step marked itself
+ * done on the symbol alone until a browser showed the green rule beside two
+ * empty boxes (WP-1206).
+ */
+export function typedCellReady(state: WizardState): boolean {
+  const free = freeCellFields(state);
+  return free.length > 0 && free.every((name) => !!(state.cell[name] ?? "").trim());
+}
+
 /** The `structure` argument for a typed cell: the symbol and the free numbers. */
 export function typedCellArgument(state: WizardState): Record<string, unknown> {
   const cell: Record<string, number> = {};

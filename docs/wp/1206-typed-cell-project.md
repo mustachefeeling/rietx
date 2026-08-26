@@ -60,7 +60,10 @@ and the project opens in `lebail` mode.
       (LaB6 against the module's own synthetic pattern — corundum against it
       would assert nothing); corundum `R -3 c` carries the shape assertions and
       every refusal, each with `where`. Five vitest cases for the client half.
-- [ ] Manual: `using/quickstart.md` names the route; browser pass; dist.
+- [x] Manual: `using/quickstart.md` § Le Bail before Rietveld gains "With no
+      structure at all" — the GUI route and `lebail_scaffold`, with the dummy
+      atom explained and `indexing.md` named as the other way to the same
+      scaffold. Browser pass: four defects, all fixed (below). Dist rebuilt.
 
 ## Acceptance
 
