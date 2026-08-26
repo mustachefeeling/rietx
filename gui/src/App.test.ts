@@ -30,6 +30,32 @@ const CAPABILITIES = {
   plans: [],
 };
 
+/** `GET /api/help` in the shape the route serves (WP-1202/1203).
+ *
+ * Three entries and the base, which is all the popover's behaviour needs: one
+ * parameter family (a glob key, a manual anchor and the detail rows), one
+ * stage field with neither, and `docs_url` so the link can be asserted as a
+ * whole URL rather than as a suffix. */
+const HELP = {
+  parameters: [
+    { paths: ["phases.*.cell.a", "phases.*.cell.b", "phases.*.cell.c"],
+      title: "Cell edge", description: "A unit-cell edge length.",
+      unit: "Å", default: null, typical: "3-40 Å for an inorganic phase",
+      anchor: "peak-positions.html#lattice-metric-and-bragg-s-law" },
+  ],
+  peak_flags: {},
+  peak_diagnostics: {},
+  stage_fields: {
+    max_iter: { title: "Iteration cap", description: "Least-squares iterations.",
+                unit: null, default: "100", typical: null, anchor: null },
+  },
+  reader_options: {},
+  instrument_fields: {},
+  search_fields: {},
+  plans: {},
+  docs_url: "https://rietx.org",
+};
+
 const PROJECT = {
   path: "/tmp/lab6.rex",
   doc: { mode: "rietveld", plan: null, ui: {}, two_theta_limits: null,
@@ -74,6 +100,9 @@ function param(path: string, over: Record<string, unknown> = {}) {
     path, value: 1, vary: false, lo: "-Infinity" as any, hi: "Infinity" as any,
     transform: "identity",
     tie: null as any, locked: false, esd: null as number | null, mode_fixed: false,
+    // the family glob the server matched (WP-1202); the table renders it as a
+    // help key and never re-derives the match
+    help_key: null as string | null,
     ...over,
   };
   return {
@@ -91,10 +120,12 @@ function param(path: string, over: Record<string, unknown> = {}) {
 
 const PARAMS = {
   parameters: [
-    param("phases.0.cell.a", { value: 4.15678, vary: true, esd: 0.00019, lo: 0.1 }),
-    param("phases.0.cell.b", { value: 4.15678, tie: { sources: ["phases.0.cell.a"] } }),
+    param("phases.0.cell.a", { value: 4.15678, vary: true, esd: 0.00019, lo: 0.1,
+                              help_key: "phases.*.cell.a" }),
+    param("phases.0.cell.b", { value: 4.15678, help_key: "phases.*.cell.b",
+                               tie: { sources: ["phases.0.cell.a"] } }),
     param("phases.0.cell.alpha", { value: 90, locked: true }),
-    param("phases.0.scale", { value: 1.02, vary: true }),
+    param("phases.0.scale", { value: 1.02, vary: true, help_key: "phases.*.scale" }),
     param("phases.0.atoms.0.biso", { value: 0.5, mode_fixed: true }),
     param("instrument.profile.w", { value: 0.004, lo: 0, hi: 1 }),
   ],
@@ -524,6 +555,7 @@ function boot(project: any = PROJECT, run: any = IDLE_RUN,
     },
     "/api/version": () => ({ body: { package_version: "1.0.0.dev0", project: project?.path ?? null } }),
     "/api/capabilities": () => ({ body: CAPABILITIES }),
+    "/api/help": () => ({ body: HELP }),
     "/api/project": (call: Call) =>
       project
         ? { body: call.method === "POST"
@@ -734,7 +766,17 @@ describe("the shell", () => {
     expect(flag).toBeTruthy();
     expect(flag.tagName).toBe("SPAN");
     expect(flag.classList.contains("bad")).toBe(true);
-    expect(flag.title).toContain("same specimen");
+    // …and the message is reachable (WP-1203).  It was this chip's `title=`,
+    // which is exactly what a chip cannot carry: WP-1201 moved the badge off a
+    // `<button>` and took the sentence out of reach of the keyboard with it.
+    // The term inside the chip is focusable and answers Enter.
+    const term = flag.querySelector<HTMLElement>(".help")!;
+    expect(term.getAttribute("tabindex")).toBe("0");
+    expect(flag.title).toBe("");
+    term.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await flush();
+    expect(host.ownerDocument.querySelector(".popover")?.textContent)
+      .toContain("same specimen");
     // the calm pill is still there and still says `converged` — untouched
     expect(host.querySelector(".pill")?.textContent?.trim()).toBe("idle");
   });
@@ -781,8 +823,13 @@ describe("the parameter table", () => {
     // …and each held row says which of the three reasons holds it
     const held = rowsInDom().filter((row) => row.classList.contains("held"));
     expect(held.map((row) => row.dataset.held).sort()).toEqual(["locked", "mode", "tied"]);
-    expect(host.querySelector('[data-held="tied"] .vary')?.getAttribute("title"))
-      .toContain("tied: =");
+    // …and the reason is reachable rather than hovered: WP-1203 moved it off
+    // `title=` onto the glyph itself, which a keyboard can get to
+    const glyph = host.querySelector<HTMLElement>('[data-held="tied"] .vary .help')!;
+    expect(glyph.getAttribute("tabindex")).toBe("0");
+    glyph.click();
+    await flush();
+    expect(host.querySelector(".popover")?.textContent).toContain("tied: =");
   });
 
   it("hides held rows in Simple mode and says how many", async () => {
@@ -3885,5 +3932,138 @@ describe("the search controls (WP-1045)", () => {
       (c) => c.method === "POST" && c.path === "/api/project").length)
       .toBe(stub.calls.slice(0, before).filter(
         (c) => c.method === "POST" && c.path === "/api/project").length);
+  });
+});
+
+describe("the help popover", () => {
+  /** The `.help` term inside the row whose leaf is `leaf`. */
+  function term(leaf: string): HTMLElement {
+    const row = rowsInDom().find(
+      (r) => r.querySelector(".path")?.textContent?.trim() === leaf);
+    return row!.querySelector<HTMLElement>(".path .help")!;
+  }
+
+  const popover = () => host.querySelector<HTMLElement>(".popover");
+
+  /** Boot, and show every row: Simple hides the held ones, and two of the
+   *  three things asserted here are about a held row. */
+  async function openTable(routes: Record<string, any> = {}) {
+    const stub = server({ ...boot(), ...routes });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Advanced")!.click();
+    await flush();
+    return stub;
+  }
+
+  it("renders the corpus entry a parameter row's family key names", async () => {
+    await openTable();
+    expect(popover()).toBeNull();
+
+    term("a").click();
+    await flush();
+
+    const shown = popover()!;
+    // the entry, not the path: a row carries the family glob and the family is
+    // what has a description (WP-1202's measured reason for the indirection)
+    expect(shown.textContent).toContain("Cell edge");
+    expect(shown.textContent).toContain("A unit-cell edge length.");
+    expect(shown.textContent).toContain("Å");
+    expect(shown.textContent).toContain("3-40 Å for an inorganic phase");
+    const link = shown.querySelector<HTMLAnchorElement>("a")!;
+    // the anchor is a page and a heading, joined to the base the same payload
+    // carries — nothing in the frontend knows where the manual lives
+    expect(link.href).toBe(
+      "https://rietx.org/peak-positions.html#lattice-metric-and-bragg-s-law");
+  });
+
+  it("says so rather than inventing one when the key names nothing", async () => {
+    await openTable();
+    // `phases.*.scale` is a live family the fixture corpus does not carry —
+    // exactly the shape of a key the corpus has not caught up with
+    term("scale").click();
+    await flush();
+    expect(popover()!.textContent).toContain("Not described yet");
+  });
+
+  it("is one popover: opening another term moves it rather than adding one", async () => {
+    await openTable();
+    term("a").click();
+    await flush();
+    term("scale").click();
+    await flush();
+    expect(host.querySelectorAll(".popover").length).toBe(1);
+    expect(popover()!.textContent).toContain("Not described yet");
+  });
+
+  it("closes on a second click, on Esc and on a click away", async () => {
+    await openTable();
+    const trigger = term("a");
+
+    trigger.click();
+    await flush();
+    expect(popover()).toBeTruthy();
+    trigger.click();
+    await flush();
+    expect(popover()).toBeNull();
+
+    trigger.click();
+    await flush();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await flush();
+    expect(popover()).toBeNull();
+    // Esc hands focus back to the term it came from, or a keyboard user is
+    // dropped at the top of the document
+    expect(document.activeElement).toBe(trigger);
+
+    trigger.click();
+    await flush();
+    host.querySelector<HTMLElement>("header")!.click();
+    await flush();
+    expect(popover()).toBeNull();
+  });
+
+  it("does not let a run be cancelled by the Esc that closes it", async () => {
+    // Esc means "close the thing that just opened"; cancelling a fit because a
+    // popover was open is not undone by pressing it again
+    const running = { ...IDLE_RUN, state: "running",
+                      run: { ...IDLE_RUN.run, kind: "fit", stage: "cell" } };
+    const stub = server({ ...boot(PROJECT, running),
+                          "/api/cancel": () => ({ body: running }) });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    const trigger = host.querySelector<HTMLElement>(".path .help")!;
+    trigger.click();
+    await flush();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await flush();
+    expect(popover()).toBeNull();
+    expect(stub.calls.some((c) => c.path === "/api/cancel")).toBe(false);
+
+    // …and a second Esc, with nothing open, still cancels
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await flush();
+    expect(stub.calls.some((c) => c.path === "/api/cancel")).toBe(true);
+  });
+
+  it("answers Enter and Space on a term, which a span does not do for free", async () => {
+    await openTable();
+    const trigger = term("a");
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+    await flush();
+    expect(popover()).toBeTruthy();
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("carries a held row's reason, which is the verb's own words", async () => {
+    await openTable();
+    const row = rowsInDom().find(
+      (r) => r.querySelector(".path")?.textContent?.trim() === "alpha")!;
+    row.querySelector<HTMLElement>(".vary .help")!.click();
+    await flush();
+    // no corpus can hold this: it is about one row, not about one name
+    expect(popover()!.textContent).toContain("structurally fixed by symmetry");
   });
 });

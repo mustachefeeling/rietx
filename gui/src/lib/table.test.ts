@@ -49,6 +49,7 @@ function row(path: string, over: Partial<ParamRow> = {}): ParamRow {
     mode_fixed: false,
     refinable: true,
     held_because: "",
+    help_key: null,
     ...over,
   };
   base.refinable = !base.locked && base.tie === null && !base.mode_fixed;

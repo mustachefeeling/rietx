@@ -85,6 +85,10 @@ async function upload(kind: string, file: File | null,
 
 export const api = {
   capabilities: () => call("GET", "/api/capabilities"),
+  /** The whole help corpus plus `docs_url` (WP-1202/1203).  Fetched once at
+   *  boot beside capabilities: it is static for the life of the build, needs
+   *  no project, and is therefore not behind the in-flight 409. */
+  help: () => call("GET", "/api/help"),
   version: () => call("GET", "/api/version"),
   recent: () => call("GET", "/api/recent"),
 

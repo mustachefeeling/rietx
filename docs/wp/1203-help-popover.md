@@ -107,8 +107,9 @@ Design:
 - [x] `lib/help.ts` (`resolve`, `place`) + `help.test.ts` on the placement
       numbers and the resolution order, plus `tests/test_gui_help.py` and the
       committed key set every literal `<Help for=…>` is crossed against.
-- [ ] `Help.svelte` + the single popover in `App.svelte`; the help cursor
-      and the popover styled on WP-1201's tokens.
+- [x] `Help.svelte` + the single popover in `App.svelte`; the help cursor
+      and the popover styled on WP-1201's tokens. Params is wired as its
+      first consumer, and the header chip's owed debt is paid.
 - [ ] Wire Params, Model (editor and wizard), Plan, Peaks (flags, headers,
       search controls), Report, History, Series, Plot, and every panel
       heading; move `lib/controls.ts` and `lib/wizard.ts` titles into corpus

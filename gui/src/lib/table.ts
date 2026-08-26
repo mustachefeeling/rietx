@@ -35,6 +35,12 @@ export interface ParamRow {
   mode_fixed: boolean;
   refinable: boolean;
   held_because: string;
+  /** the corpus family glob this path belongs to (WP-1202), or null when no
+   *  family claims it.  Matched server-side by `help_key_for`, so a client
+   *  never re-derives it — the row holds the key rather than the entry because
+   *  an entry describes a family and inlining one repeats a paragraph per
+   *  atom. */
+  help_key: string | null;
 }
 
 import { fnmatch } from "./fnmatch";

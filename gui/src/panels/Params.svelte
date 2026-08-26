@@ -15,6 +15,8 @@
    * stall.
    */
   import { ApiError, api } from "../api";
+  import Help from "../Help.svelte";
+  import { paramKey } from "../lib/help";
   import {
     asGlob,
     editState,
@@ -225,8 +227,14 @@
           {@const held = heldKind(row)}
           {@const bad = edits.has(row.path) ? validateEdit(row, edits.get(row.path)!) : ""}
           <div class="row" class:held={held !== ""} data-held={held}>
-            <span class="path mono" title={row.held_because || row.path}>
-              {leafName(row.path, groupOf(row.path))}
+            <!-- `title` here is the *value* this column truncates, not an
+                 explanation (WP-1203): the leaf is shown and the whole path is
+                 what a narrow sidebar cut off.  What the parameter *is* is the
+                 corpus's, reached from the leaf itself. -->
+            <span class="path mono" title={row.path}>
+              <Help for={paramKey(row.help_key)}
+                label="what {leafName(row.path, groupOf(row.path))} is"
+                >{leafName(row.path, groupOf(row.path))}</Help>
             </span>
             {#if row.tie}
               <span class="value mono muted" title={row.held_because}>
@@ -263,8 +271,10 @@
               <!-- no checkbox at all: a control that errors on click is worse
                    than an absent one, and `held_because` says which of the
                    three reasons holds it -->
-              <span class="vary muted" title={row.held_because}>
-                {held === "locked" ? "🔒" : held === "tied" ? "=" : "·"}
+              <span class="vary muted">
+                <Help text={row.held_because} title="This row is held"
+                  label="why this row is held"
+                  >{held === "locked" ? "🔒" : held === "tied" ? "=" : "·"}</Help>
               </span>
             {/if}
           </div>

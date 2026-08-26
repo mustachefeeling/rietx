@@ -396,9 +396,77 @@ button:disabled {
 
 /* The help register (WP-1201; the popover itself is WP-1203).  The cursor is
    the whole mark — no glyph, no underline — so an explanation costs nothing on
-   a screen someone is reading past. */
+   a screen someone is reading past.
+
+   `role="button"` on a `<span>` rather than a real `<button>` (Help.svelte says
+   why: it wraps running text), so the two things a button gives for free are
+   restored here: a visible focus ring, and no inherited pointer cursor from a
+   clickable row it may sit inside. */
 .help {
   cursor: help;
+}
+
+.help:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-control);
+}
+
+/* The help popover (WP-1203): the app's one explanation surface, and a new
+   *thing* rather than a state of a register, so its geometry is written here
+   and no panel restates it.  Positioned in viewport coordinates by
+   `lib/help.ts:place` — `position: fixed` because every panel is an
+   `overflow: auto` column and a popover inside one would be clipped by it.
+
+   The width is a *measure* rather than a fraction of anything: the body is
+   prose, and 44 characters is where a paragraph stops needing the eye to track
+   back. */
+.popover {
+  position: fixed;
+  z-index: 60;
+  width: min(22rem, calc(100vw - 16px));
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--panel);
+  color: var(--fg);
+  box-shadow: 0 4px 16px #00000024;
+  font-size: var(--text);
+  line-height: 1.45;
+}
+
+/* `h2` is the section-heading register, which is uppercase and muted — right
+   on a block of a panel and wrong on the *name* this popover is about, which
+   is the one thing on it that must read as a title. */
+.popover h2 {
+  font-size: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--fg);
+  font-weight: 600;
+  margin: 0 0 var(--s2);
+}
+
+.popover p {
+  margin: 0 0 var(--s3);
+}
+
+/* unit / default / typical: a label column narrow enough that the values line
+   up, so the three read as a table rather than as three more sentences */
+.popover dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s1) var(--s3);
+  margin: 0 0 var(--s3);
+  font-size: var(--text-sm);
+}
+
+.popover dt {
+  color: var(--muted);
+}
+
+.popover dd {
+  margin: 0;
 }
 
 /* Form fields are not a register: a panel owns their chrome, because a field

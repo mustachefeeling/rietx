@@ -16,9 +16,10 @@
    * `ProjectDoc.ui`, whose keys the frontend owns (WP-1005): it is a property of
    * the project a user comes back to, not of this browser tab.
    */
-  import { onMount } from "svelte";
+  import { onMount, setContext } from "svelte";
 
   import { ApiError, api } from "./api";
+  import Help from "./Help.svelte";
   import Console from "./panels/Console.svelte";
   import History from "./panels/History.svelte";
   import Model from "./panels/Model.svelte";
@@ -32,6 +33,12 @@
   import Splitter from "./panels/Splitter.svelte";
   import Stubs from "./panels/Stubs.svelte";
   import Text from "./panels/Text.svelte";
+  import {
+    HELP_CONTEXT,
+    type HelpOpener,
+    type HelpRequest,
+  } from "./lib/helpContext";
+  import { manualUrl, place, resolve, type HelpCorpus } from "./lib/help";
   import { isShortcutTarget, type Command } from "./lib/palette";
   import type { PeaksPayload } from "./lib/peaks";
   import { consoleLine, follow, type EngineEvent, type RunState } from "./lib/stream";
@@ -46,6 +53,7 @@
 
   let version = $state<any>(null);
   let capabilities = $state<any>(null);
+  let corpus = $state<HelpCorpus | null>(null);
   let project = $state<any>(null);
   let recent = $state<any[]>([]);
   let examples = $state<any[]>([]);
@@ -601,6 +609,12 @@
     // while the palette is open it owns the keyboard — Esc closes it there, and
     // `r` would otherwise start a fit from inside a search box
     if (paletteOpen) return;
+    // help first: Esc means "close the thing that just opened", and cancelling
+    // a run because a popover was open is not recoverable by pressing it again
+    if (event.key === "Escape" && helpRequest) {
+      closeHelp(true);
+      return;
+    }
     if (event.key === "Escape" && busy) {
       cancel();
       return;
@@ -613,10 +627,91 @@
     }
   }
 
+  /* ---- the help popover (WP-1203) -------------------------------------
+   *
+   * One instance for the whole app, anchored to whichever `<Help>` term was
+   * last activated.  One rather than one-per-term because two open
+   * explanations is a state nobody asked for, and because the popover has to
+   * escape every panel's `overflow: auto` — it is `position: fixed` in
+   * viewport coordinates, which is exactly what `getBoundingClientRect`
+   * returns and what `lib/help.ts:place` consumes.
+   *
+   * The size is *measured* rather than declared: the flip decision needs the
+   * rendered height, and a max-width in CSS plus a paragraph of prose is not a
+   * height anything here could compute.  The effect that measures runs after
+   * the DOM update and before the browser paints, so the correction is not a
+   * frame the eye can see; under jsdom every measurement is zero, which is why
+   * the arithmetic is tested in `lib/help.test.ts` and not here. */
+  let helpNode = $state<HTMLElement | null>(null);
+  let helpRequest = $state<HelpRequest | null>(null);
+  let helpAnchor = $state<DOMRect | null>(null);
+  let popoverEl = $state<HTMLElement | null>(null);
+  let popoverSize = $state({ width: 0, height: 0 });
+  let viewport = $state({ width: 1024, height: 768 });
+
+  const helpEntry = $derived(
+    helpRequest?.key ? resolve(corpus, helpRequest.key) : null);
+  const helpLink = $derived(manualUrl(corpus, helpEntry));
+  const helpTitle = $derived(
+    helpEntry?.title ?? helpRequest?.title ?? helpRequest?.key ?? "");
+  const helpBody = $derived(helpEntry?.description ?? helpRequest?.text ?? "");
+  const placement = $derived(helpAnchor
+    ? place(helpAnchor, viewport, popoverSize)
+    : { left: 0, top: 0, flipped: false });
+
+  function closeHelp(refocus = false) {
+    if (refocus) helpNode?.focus();
+    helpNode = null;
+    helpRequest = null;
+    helpAnchor = null;
+    popoverSize = { width: 0, height: 0 };
+  }
+
+  setContext<HelpOpener>(HELP_CONTEXT, {
+    isOpen: (node) => helpNode === node,
+    toggle(node, request) {
+      if (helpNode === node) {
+        closeHelp();
+        return;
+      }
+      helpNode = node;
+      helpRequest = request;
+      helpAnchor = node.getBoundingClientRect();
+      popoverSize = { width: 0, height: 0 };
+    },
+  });
+
+  $effect(() => {
+    if (!popoverEl || !helpRequest) return;
+    const width = popoverEl.offsetWidth;
+    const height = popoverEl.offsetHeight;
+    if (width !== popoverSize.width || height !== popoverSize.height) {
+      popoverSize = { width, height };
+    }
+  });
+
+  // A resize or a scroll moves the anchor out from under the popover, and
+  // there is nothing useful to do about it: re-measuring would chase a term
+  // that may have left the screen entirely.  Closing is honest and costs one
+  // click.
+  function reanchor() {
+    viewport = { width: window.innerWidth, height: window.innerHeight };
+    if (helpRequest) closeHelp();
+  }
+
+  /** A click outside the popover and its own term closes it. */
+  function clickAway(event: MouseEvent) {
+    if (!helpRequest) return;
+    const target = event.target as Node | null;
+    if (target && (popoverEl?.contains(target) || helpNode?.contains(target))) return;
+    closeHelp();
+  }
+
   // "system" has to keep meaning system: a machine that switches at dusk must
   // take the app with it, which is only true if the query is *listened* to
   // rather than read once at boot
   onMount(() => {
+    viewport = { width: window.innerWidth, height: window.innerHeight };
     const query = window.matchMedia?.("(prefers-color-scheme: dark)");
     if (!query) return;
     systemDark = query.matches;
@@ -629,6 +724,15 @@
     (async () => {
       version = await api.version();
       capabilities = await api.capabilities();
+      // the corpus is static for the life of the build and needs no project,
+      // so it is fetched once here beside capabilities.  A failure leaves it
+      // null and every term says "not described yet": help is not a reason to
+      // fail the boot.
+      try {
+        corpus = await api.help();
+      } catch {
+        corpus = null;
+      }
       // the person's settings, before the project's: the theme is applied on
       // the first paint rather than after one in the wrong one (WP-1044)
       try {
@@ -702,7 +806,8 @@
   });
 </script>
 
-<svelte:window onkeydown={keydown} />
+<svelte:window onkeydown={keydown} onclick={clickAway} onresize={reanchor}
+  onscrollcapture={reanchor} />
 
 <header>
   <div class="title">
@@ -730,7 +835,15 @@
       Rwp <strong>{(rwp * 100).toFixed(3)}%</strong>
       {#if gof !== null}<span class="muted">GoF {gof.toFixed(3)}</span>{/if}
       {#if immature}
-        <span class="chip bad" title={result.maturity.message}>⚠ not a fit yet</span>
+        <!-- WP-1201 moved this off a `<button>` (a chip states a fact and never
+             acts), which put its message out of reach of the keyboard and of
+             assistive tech.  `<Help text=…>` is that debt paid: the sentence is
+             the *report's*, so no corpus can hold it, and it is now reachable
+             by Tab and Enter like every other explanation. -->
+        <span class="chip bad">
+          <Help text={result.maturity.message} title="Not a fit yet"
+            label="why this is not a fit yet">⚠ not a fit yet</Help>
+        </span>
       {/if}
     {/if}
   </div>
@@ -877,6 +990,40 @@
 
 {#if paletteOpen}
   <Palette {commands} onclose={() => (paletteOpen = false)} />
+{/if}
+
+<!-- The app's one help popover (WP-1203).  It lives here, outside every panel,
+     because `position: fixed` inside a scrolling column would still be clipped
+     by an ancestor that establishes a containing block, and because two open
+     explanations is a state nobody asked for. -->
+{#if helpRequest}
+  <div class="popover" bind:this={popoverEl} role="dialog" aria-label={helpTitle}
+       tabindex="-1" style="left: {placement.left}px; top: {placement.top}px">
+    <h2>{helpTitle}</h2>
+    {#if helpBody}
+      <p>{helpBody}</p>
+    {:else}
+      <!-- a key that resolves to nothing.  Saying so is the honest empty
+           state: the corpus is where a description is owed, and inventing one
+           here would put a wrong sentence under a real name. -->
+      <p class="muted">Not described yet.</p>
+    {/if}
+    {#if helpEntry && (helpEntry.unit || helpEntry.default || helpEntry.typical
+                       || helpEntry.modes?.length)}
+      <dl>
+        {#if helpEntry.unit}<dt>Unit</dt><dd>{helpEntry.unit}</dd>{/if}
+        {#if helpEntry.default}<dt>Default</dt><dd class="mono">{helpEntry.default}</dd>{/if}
+        {#if helpEntry.modes?.length}
+          <dt>Modes</dt><dd class="mono">{helpEntry.modes.join(", ")}</dd>
+        {/if}
+        {#if helpEntry.typical}<dt>Typical</dt><dd>{helpEntry.typical}</dd>{/if}
+      </dl>
+    {/if}
+    {#if helpLink}
+      <a class="link" href={helpLink} target="_blank" rel="noreferrer noopener"
+        >in the manual →</a>
+    {/if}
+  </div>
 {/if}
 
 <style>
