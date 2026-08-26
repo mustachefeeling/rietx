@@ -373,6 +373,40 @@ def test_backend_unavailable_is_its_own_code(request_parts):
         assert "backend='numpy'" in out["error"]["suggestion"]
 
 
+def test_a_phase_free_model_is_its_own_code_not_a_failed_refinement(request_parts):
+    """`NO_PHASES` is the fourth envelope code, and neither neighbour (WP-1207).
+
+    The request is well-formed and the model is legal — a phase-free structure
+    is a real thing to hold — so `INVALID_REQUEST` would send a consumer back to
+    check its field spelling and `REFINEMENT_FAILED` would suggest the engine
+    might succeed on a retry. Neither is true: what is missing is a cell, and
+    the suggestion says where to get one.
+
+    Every task that refines is covered, because each reaches the refusal
+    through a different verb.
+    """
+    structure, instrument, pattern = request_parts
+    empty = {"phases": []}
+
+    out = ag.refine_json(dict(task="refine", structure=empty,
+                              instrument=instrument, pattern=pattern))
+    assert out["ok"] is False
+    assert out["error"]["code"] == "NO_PHASES"
+    assert "at least one phase" in out["error"]["message"]
+    assert 'task="index"' in out["error"]["suggestion"]
+
+    for request in (dict(task="refine_multi", structure=empty,
+                         instruments=[instrument] * 2, patterns=[pattern] * 2),
+                    dict(task="refine_sequential", structure=empty,
+                         instrument=instrument, patterns=[pattern] * 2)):
+        out = ag.refine_json(request)
+        assert out["error"]["code"] == "NO_PHASES", request["task"]
+
+    # …and the same model is fine to *hold*: only refining is refused, which is
+    # what makes the code worth branching on
+    assert rx.Structure(**empty).phases == []
+
+
 def test_an_unsupported_feature_is_not_a_missing_backend(request_parts):
     """`NotImplementedError` means the engine refused, never "install jax".
 

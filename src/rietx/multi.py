@@ -36,6 +36,7 @@ from .refine import (
     _guard_diagnostics,
     _phase_agreement,
     _qpa_unavailable_diagnostics,
+    _refuse_without_phases,
     _resolve_specimen_absorption,
     _utcnow,
     _wavelength_calibration_diagnostics,
@@ -146,6 +147,7 @@ class MultiHistogramRefinement:
             plan: RefinementPlan | str = "mccusker_default",
             two_theta_limits=None, weights: list[float] | None = None
             ) -> RefinementResult:
+        _refuse_without_phases(self.mtable.structures[0], "refine_multi")
         data = list(data)
         n = self.n_histograms
         if len(data) != n:

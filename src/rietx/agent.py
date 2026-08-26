@@ -12,13 +12,19 @@ envelope is deliberate:
   structurally distinct instead of being coerced into one.
 - failure: ``{"ok": false, "error": {code, message, suggestion, details}}`` —
   the same grammar as :class:`~rietx.schemas.common.Diagnostic`, so an agent
-  has one vocabulary for "the fit warns" and "the call failed".  Three codes,
+  has one vocabulary for "the fit warns" and "the call failed".  Four codes,
   closed: ``INVALID_REQUEST`` (any validation failure, with per-field
   dot-paths in ``details``), ``BACKEND_UNAVAILABLE`` (a valid backend name
   whose optional dependency is not importable here — refused *before*
   dispatch, from the same answer :func:`~rietx.capabilities.capabilities`
-  publishes), ``REFINEMENT_FAILED`` (the request was valid, this build could
-  run it, and the engine raised anyway).
+  publishes), ``NO_PHASES`` (the model carries no phase, so there is nothing
+  but the background to fit — a pattern-only project, WP-1207), and
+  ``REFINEMENT_FAILED`` (the request was valid, this build could run it, and
+  the engine raised anyway).  ``NO_PHASES`` is its own code rather than either
+  neighbour because the consumer's next move is neither's: the request is
+  well-formed and the model is legal, so re-checking field spellings finds
+  nothing and retrying the fit reproduces it — what is needed is a cell, from
+  ``task="index"`` or from a typed symbol.
 
 Two asymmetries are answered here on purpose rather than by accident:
 ``task="refine_multi"`` runs **without** the history DAG (a multi-pattern
@@ -112,6 +118,7 @@ from .indexing import (
 )
 from .optimize.least_squares import SOLVERS
 from .params.multi import SharingMap
+from .refine import NoPhasesError
 from .report.schemas import FitReport, StageReport
 from .schemas.common import Base, Mode
 from .schemas.indexing import (
@@ -452,7 +459,8 @@ _REQUEST: TypeAdapter = TypeAdapter(AgentRequest)
 # ----------------------------------------------------------------------
 # response envelope
 # ----------------------------------------------------------------------
-ERROR_CODES = ("INVALID_REQUEST", "BACKEND_UNAVAILABLE", "REFINEMENT_FAILED")
+ERROR_CODES = ("INVALID_REQUEST", "BACKEND_UNAVAILABLE", "NO_PHASES",
+               "REFINEMENT_FAILED")
 
 
 class AgentErrorDetail(Base):
@@ -466,7 +474,8 @@ class AgentErrorDetail(Base):
 class AgentError(Base):
     """Same grammar as :class:`Diagnostic`: a code to branch on, never text."""
 
-    code: Literal["INVALID_REQUEST", "BACKEND_UNAVAILABLE", "REFINEMENT_FAILED"]
+    code: Literal["INVALID_REQUEST", "BACKEND_UNAVAILABLE", "NO_PHASES",
+                  "REFINEMENT_FAILED"]
     message: str
     suggestion: str | None = None
     details: list[AgentErrorDetail] = Field(default_factory=list)
@@ -644,6 +653,17 @@ def refine_json(request: dict) -> dict:
 
     try:
         response = _dispatch(req)
+    except NoPhasesError as exc:
+        # Ahead of the blanket handler because the engine's own refusal already
+        # carries the code, and `REFINEMENT_FAILED` would tell a consumer to
+        # read the engine's message and consider retrying — neither of which
+        # applies to a model that has no phase to refine (WP-1207).
+        return _failure(
+            "NO_PHASES", str(exc),
+            suggestion="index the pattern first (task=\"index\", then adopt a "
+                       "candidate cell), or supply a structure — a symbol and "
+                       "a cell are enough for a Le Bail scaffold. Peak picking "
+                       "and indexing need no phase; only refining does")
     except Exception as exc:  # noqa: BLE001 — the envelope IS the error channel
         return _failure(
             "REFINEMENT_FAILED", f"{type(exc).__name__}: {exc}",

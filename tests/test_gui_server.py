@@ -1764,8 +1764,38 @@ def test_a_whole_model_patch_records_an_edit_node(blank, tmp_path, pattern_file)
     node = project.history[payload["node_id"]]
     assert node.action.kind == "edit_model" and node.label == "zero guess"
 
-    status, payload = client.patch("/api/structure", {"structure": {"phases": []}})
+    # a model the crystallography refuses is still a 400 that names the field
+    # (`{"phases": []}` was this assertion's model until WP-1207 made a
+    # phase-free structure legal — see the next test)
+    bad = client.get("/api/structure")[1]["structure"]
+    bad["phases"][0]["atoms"] = []
+    status, payload = client.patch("/api/structure", {"structure": bad})
     assert status == 400 and payload["error"]["where"]
+
+
+def test_emptying_the_structure_leaves_a_pattern_only_project(blank, tmp_path,
+                                                              pattern_file):
+    """A phase can be taken back out, and what is left is a legal project.
+
+    WP-1207: `Structure` allows zero phases, so every verb crossing
+    ``_as_structure`` accepts one — the review round's rule from WP-1206, and
+    here the answer is that it should. "This phase was wrong, start again from
+    the pattern" is a real move, the project it lands in is the one the wizard's
+    third route creates, and the refusal that matters is on the *run*.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "unphase.rex", pattern_file)
+
+    status, payload = client.patch("/api/structure", {"structure": {"phases": []}})
+    assert status == 200, payload
+    assert payload["structure"]["phases"] == []
+    assert project.history[payload["node_id"]].action.kind == "edit_model"
+    assert client.get("/api/structure")[1]["structure"]["phases"] == []
+
+    # …and the run is what refuses, by name
+    status, payload = client.post("/api/run", {"kind": "fit"})
+    assert status == 400, payload
+    assert payload["error"]["code"] == "NO_PHASES"
 
 
 # ----------------------------------------------------------------------
@@ -3301,3 +3331,30 @@ def test_a_new_project_is_suggested_outside_the_working_directory(
     # a suggestion and nothing more: a preview that made the directory would
     # leave one behind for every file dropped on the wizard and never committed
     assert list(home.iterdir()) == []
+
+
+def test_the_wizard_creates_a_project_from_no_structure_at_all(blank, tmp_path,
+                                                               pattern_file):
+    """`structure: null` is the wizard's third route (WP-1207).
+
+    And the key stays *required*: absent and null are the same thing to
+    ``dict.get``, so only one of them may create a phase-free project quietly.
+    """
+    session, client = blank
+    pat = client.upload("pattern", pattern_file.read_bytes(),
+                        filename="synth.xye")[1]
+
+    body = {"path": str(tmp_path / "blank.rex"),
+            "pattern": {"upload": pat["upload"]},
+            "instrument": {"preset": "debye_scherrer", "wavelength": 1.5406}}
+    status, refused = client.post("/api/project/new", body)
+    assert status == 400, refused
+    assert refused["error"]["where"] == ["structure"]
+    assert "null for a pattern-only project" in refused["error"]["message"]
+
+    status, doc = client.post("/api/project/new", {**body, "structure": None})
+    assert status == 200, doc
+    assert doc["n_phases"] == 0
+    assert session.project.refinement.structure.phases == []
+    # mode is not forced either way: with no phase there is nothing to govern
+    assert doc["doc"]["mode"] == "rietveld"

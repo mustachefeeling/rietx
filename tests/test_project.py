@@ -120,7 +120,7 @@ def test_document_round_trip_including_infinite_bounds(tmp_path, pattern_file):
     project.save()
 
     raw = json.loads((project.path / PROJECT_JSON).read_text(encoding="utf-8"))
-    assert raw["format_version"] == "1.2"   # WP-1123: the plan grew a schedule
+    assert raw["format_version"] == "1.3"   # WP-1207: a project may hold no phase
     assert raw["patterns"][0]["reader"] == "xy"
 
     reopened = rx.Project.open(project.path)
@@ -272,6 +272,55 @@ def test_a_future_format_version_is_refused_by_name(tmp_path, pattern_file):
     doc_path.write_text(json.dumps(raw), encoding="utf-8")
     with pytest.raises(ValueError, match="another version of rietx"):
         rx.Project.open(project.path)
+
+
+def test_a_project_written_before_the_bump_still_opens(tmp_path, pattern_file):
+    """The compatibility direction: old files must always open (WP-1207).
+
+    The 1.2 → 1.3 bump added no key — what grew is the set of legal documents,
+    since a project may now hold no phase. So a 1.2 document is a 1.3 document
+    that happens to have one, and it must open unchanged rather than be
+    migrated: the major gate is what refuses, and it still opens every 1.x.
+    """
+    project = _create(tmp_path / "s.rex", pattern_file)
+    doc_path = project.path / PROJECT_JSON
+    raw = json.loads(doc_path.read_text(encoding="utf-8"))
+    raw["format_version"] = "1.2"
+    doc_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    reopened = rx.Project.open(project.path)
+    assert reopened.doc.format_version == "1.2"     # read back, not rewritten
+    assert len(reopened.refinement.structure.phases) == 1
+    # …and 1.0, the version every earlier project carries
+    raw["format_version"] = "1.0"
+    doc_path.write_text(json.dumps(raw), encoding="utf-8")
+    assert rx.Project.open(project.path).doc.format_version == "1.0"
+
+
+def test_a_pattern_only_project_is_created_saved_and_reopened(tmp_path, pattern_file):
+    """``structure=None`` is a project, not an unfinished one (WP-1207).
+
+    It round-trips through the directory like any other, its parameter table
+    holds the instrument and the background, and the refusal is on the verb:
+    ``fit`` raises before a stage compiles, while ``predict`` — which refines
+    nothing — still answers.
+    """
+    project = rx.Project.create(tmp_path / "unknown.rex", pattern=pattern_file,
+                                instrument=perturbed_models()[1])
+    assert project.refinement.structure.phases == []
+    project.save()
+
+    reopened = rx.Project.open(project.path)
+    assert reopened.refinement.structure.phases == []
+    paths = [row.path for row in reopened.refinement.parameters()]
+    assert paths and all(p.startswith("instrument.") for p in paths)
+    assert not any(p.startswith("phases.") for p in paths)
+
+    with pytest.raises(rx.NoPhasesError, match="needs at least one phase") as exc:
+        reopened.fit()
+    assert exc.value.code == "NO_PHASES"
+    # evaluating the background as it stands is not a refinement
+    assert len(reopened.refinement.predict(reopened.data)) == len(reopened.data.two_theta)
 
 
 def test_multi_pattern_projects_are_refused_not_truncated(tmp_path, pattern_file):

@@ -408,14 +408,17 @@ def geometry_table(model, table, theta: np.ndarray, structure, *,
     """The converged model's distances and angles, or ``None``.
 
     ``None`` outside Rietveld mode, where the mandatory dummy atom of a Le Bail
-    or Pawley phase is not a structure to measure.  Without ``stderr_internal``
+    or Pawley phase is not a structure to measure — and ``None`` with no phase
+    at all (WP-1207), for the same reason one rank up: an empty table reads as
+    "the geometry was measured and this structure has no bonds", which is a
+    claim about a structure that is not there.  Without ``stderr_internal``
     (a replay, an evaluate-only pass) the geometry is still reported and every
     esd is ``None`` — the values are recomputable from the model, the
     covariance is not.
     """
     from ..schemas.results import GeometryAngle, GeometryDistance, GeometryTable
 
-    if model.mode != "rietveld":
+    if model.mode != "rietveld" or not model.phases:
         return None
     values = table.decode(theta)
     notes: list[str] = []

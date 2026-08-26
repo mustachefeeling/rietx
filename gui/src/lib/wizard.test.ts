@@ -375,3 +375,39 @@ describe("a typed cell is the other answer to step 2", () => {
     expect(blocked(state)).toBe("");
   });
 });
+
+describe("no structure at all is the third answer to step 2", () => {
+  it("sends null, which the server reads as an answer and not a missing key", () => {
+    const state = useStructureFrom(staged(), "none");
+    expect(structureArgument(state)).toBeNull();
+    expect(createBody(state).structure).toBeNull();
+    // …and `structure` is still a key in the body: the server refuses one
+    // that leaves it out, so a typo cannot create a phase-free project
+    expect("structure" in createBody(state)).toBe(true);
+  });
+
+  it("blocks on nothing, because there is nothing to answer", () => {
+    const state = useStructureFrom(staged(), "none");
+    expect(blocked(state)).toBe("");
+    // the pattern is still required, and so is the path — the step this
+    // route skips is the only one it skips
+    const bare = useStructureFrom(emptyWizard(), "none");
+    expect(blocked(bare)).toMatch(/pattern file/);
+  });
+
+  it("leaves the mode alone, unlike the other two", () => {
+    // with no phase there is nothing for a mode to govern: the run is refused
+    // whatever it says, and Adopt sets the mode itself on the way out
+    expect(useStructureFrom(staged(), "none").mode).toBe("rietveld");
+    expect(useStructureFrom(typed(), "none").mode).toBe("lebail");
+    const pawley = { ...typed(), mode: "pawley" };
+    expect(useStructureFrom(pawley, "none").mode).toBe("pawley");
+  });
+
+  it("keeps both other answers, so the choice is reversible", () => {
+    const back = useStructureFrom(useStructureFrom(typed(), "none"), "cell");
+    expect(typedCellReady(back)).toBe(true);
+    expect(structureArgument(useStructureFrom(useStructureFrom(typed(), "none"), "cif")))
+      .toEqual({ upload: "c1", aniso: false });
+  });
+});

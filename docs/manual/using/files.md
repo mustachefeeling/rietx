@@ -165,6 +165,45 @@ bytes to the recorded numbers, and the history was recorded against that same
 pattern. Each of the four raises with its own message, because each has a
 different cause and a different fix.
 
+### A project with no structure
+
+`structure=` may be left out. What you get is a **pattern-only** project: zero
+phases, for a pattern whose phase you do not know yet.
+
+<!-- api-doc: no-exec — it creates a directory from the reader's own files -->
+```python
+project = rx.Project.create("unknown.rex", pattern="unknown.xye",
+                            instrument=instrument)
+```
+
+Peak picking and indexing work over it, the parameter table holds the instrument
+and the background, and the routes out of it both end in a phase: index the
+peaks and adopt a candidate cell ([](indexing.md)), or build a Le Bail scaffold
+from a space-group symbol and the cell parameters that setting leaves free
+(`rietx.schemas.structure.lebail_scaffold`). In the GUI it is the third answer
+to the wizard's structure step.
+
+What it cannot do is refine. A phase reaches the pattern only through
+`scale × |F|² × profile`, so with no phase there is nothing but the background
+to fit — and a plan run over one *converges on the background* and reports
+success. `fit`, `run_stage`, `refine_multi` and `refine_sequential` therefore
+raise `NoPhasesError` before they start. `NoPhasesError.code` is the string
+`NO_PHASES` on every surface: the agent envelope's fourth error code, and the
+GUI's reason for a disabled Run button.
+
+```python
+import rietx as rx
+
+print(rx.NoPhasesError.code)
+```
+
+```text
+NO_PHASES
+```
+
+`Refinement.predict` still works, because evaluating the background as it stands
+is not a refinement.
+
 An open project holds the session as six attributes.
 
 | Attribute | Holds |

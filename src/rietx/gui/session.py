@@ -59,7 +59,7 @@ from ..help import help_registry as _help_registry
 from ..history.events import EventStream
 from ..optimize.cancel import CancelToken, RefinementCancelled
 from ..project import Project
-from ..refine import _VERSION
+from ..refine import _VERSION, NoPhasesError, _refuse_without_phases
 from ..report.apply import api_call, describe_action, refusal, stage_for
 from ..schemas.instrument import Instrument
 from ..schemas.plan import PlanSpec, StageSpec
@@ -350,7 +350,10 @@ class GuiSession:
 
         ``structure`` takes a fourth form since WP-1206: ``{"space_group":
         symbol, "cell": {…}}``, the Le Bail scaffold a person types when there
-        is no CIF.  ``mode`` is then **refused** at ``"rietveld"`` rather than
+        is no CIF; and a fifth since WP-1207: ``null``, a **pattern-only**
+        project with no phase at all, whose phase you find by indexing it.
+        The key itself stays required — a client that forgot it is told so
+        rather than handed a phase-free project.  ``mode`` is then **refused** at ``"rietveld"`` rather than
         overridden — a Rietveld fit over a dummy carbon is not a thing to offer,
         and a mode the caller chose is not a mode to change behind them.  (Adopt
         does set the mode, because there the caller chose a *candidate*, not a
@@ -359,6 +362,15 @@ class GuiSession:
         self._require_idle()
         path = _need(body, "path")
         pattern = self._as_pattern_path(_need(body, "pattern"))
+        if "structure" not in body:
+            # Absent is a mistake; `null` is an answer.  `dict.get` cannot tell
+            # them apart, and only one of them should create a phase-free
+            # project silently (WP-1207).
+            raise GuiError(
+                "structure is required: pass a CIF, an upload token, an inline "
+                "model or a typed cell — or null for a pattern-only project, "
+                "whose phase you find by indexing it",
+                where=["structure"])
         structure = _as_structure(body.get("structure"), self.uploads)
         if _is_typed_cell(body.get("structure")) and body.get("mode") in (
                 None, "rietveld"):
@@ -443,6 +455,13 @@ class GuiSession:
             },
             "head": p.refinement._head_id,
             "n_nodes": len(p.history),
+            # A model fact on the settings document, like `head` beside it and
+            # for the same reason: a client needs to know a *run* is refused
+            # before it offers one (WP-1207), and the alternative is fetching
+            # the whole structure to count a list.  Derived on every read, so
+            # it is a summary rather than a second authority — the phases live
+            # in the history like every other model fact.
+            "n_phases": len(p.refinement.structure.phases),
         }
 
     def project_patch(self, body: dict) -> dict:
@@ -1241,6 +1260,15 @@ class GuiSession:
             raise GuiError(f"unknown run kind {kind!r}; expected 'fit', "
                            "'stage', 'index', 'extinction' or 'series'",
                            where=["kind"])
+        if kind in ("fit", "stage", "extinction", "series"):
+            # Up here rather than in the worker: the refusal is knowable before
+            # anything starts, and a run *started* is a 200 whose failure only
+            # ever reaches the event stream — the caller asked a question that
+            # has an answer now (WP-1207).
+            try:
+                _refuse_without_phases(p.refinement.structure, f"a {kind} run")
+            except NoPhasesError as exc:
+                raise GuiError(str(exc), code=exc.code, where=["kind"]) from None
         summarize = _summarize_refinement
         if kind == "stage":
             stage_spec = _validate(StageSpec, _need(body, "stage"), "stage")
@@ -2918,7 +2946,8 @@ def _typed_cell_structure(payload: dict) -> Structure:
 
 
 def _as_structure(payload, uploads=None) -> Structure:
-    """A :class:`Structure` from an inline dict, a typed cell, a CIF or an upload.
+    """A :class:`Structure` from ``None``, an inline dict, a typed cell, a CIF
+    or an upload.
 
     Every route into the model passes through here, which is where the species
     check belongs: a structure carrying a scattering species no form-factor table
@@ -2926,8 +2955,19 @@ def _as_structure(payload, uploads=None) -> Structure:
     it was typed in.  Refusing at the boundary is a GUI judgement, not a schema
     change — the Python API still accepts it — and the message names the atom.
 
-    The four forms are told apart by their keys — see :func:`_is_typed_cell`.
+    The four dict forms are told apart by their keys — see
+    :func:`_is_typed_cell`.  ``None`` is the fifth and is decided **first**
+    (WP-1207): it means a pattern-only project, and it has to be caught before
+    the inline branch, where it used to fall through to
+    ``_validate(Structure, None, …)`` and be refused as a malformed model.
+
+    Callers that want ``structure`` to be *required* must check for the key
+    themselves — ``project_new`` does — because the absence of a key and a
+    ``null`` value are the same thing to ``dict.get`` and only one of them is a
+    deliberate answer.
     """
+    if payload is None:
+        return Structure(phases=[])
     if _is_typed_cell(payload):
         structure = _typed_cell_structure(payload)
     elif isinstance(payload, dict) and ("cif" in payload or "upload" in payload):

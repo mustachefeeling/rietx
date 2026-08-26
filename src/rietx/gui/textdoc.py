@@ -357,6 +357,13 @@ def render(project) -> str:
 
     lines.extend(["", *_render_plan(doc)])
     rows = project.parameters()
+    if not ref.structure.phases:
+        # Said rather than left blank (WP-1207): a document with no phase block
+        # and no line about it reads as one whose phases went missing, and this
+        # is a document a person edits by hand.  A comment, so the grammar and
+        # FORMAT_VERSION hold and the round trip is unaffected.
+        lines.extend(["", "# no phase yet — index the pattern and adopt a cell "
+                          "(a fit is refused until then)"])
     for index, phase in enumerate(ref.structure.phases):
         header = f'phase {index} "{phase.name}"'
         note = _phase_comment(phase)

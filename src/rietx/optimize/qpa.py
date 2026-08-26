@@ -345,7 +345,8 @@ def compute_qpa(structure: Structure, values: dict[str, float],
     input or an unavailable µ records ``microabsorption_skipped`` instead of
     guessing, and the uncorrected fractions are always reported either way.
 
-    Returns ``None`` when the scales cannot form fractions at all (WP-1028
+    Returns ``None`` when there is no composition to report — a phase-free
+    model (WP-1207) — and when the scales cannot form fractions at all (WP-1028
     §(f)).  This used to raise from inside ``_build_result``, which meant one
     pattern whose scale hit zero destroyed **all 157 refinements** of a
     ``refine_sequential`` run — a fit that produced a bad number took down
@@ -356,6 +357,14 @@ def compute_qpa(structure: Structure, values: dict[str, float],
     model never reaches that path: its answer is 100 % by definition, so the
     scale — a brightness, not a composition — cannot make it unanswerable.
     """
+    if not structure.phases:
+        # Zero phases is neither case the test below tells apart (WP-1207).
+        # Σ zmv·s is 0 there, so a phase-free model fell through `> 1` into the
+        # *single-phase* branch — "one phase is 100 % whatever its scale did" —
+        # and returned an empty table, which reads as "QPA was done, the
+        # specimen holds no crystalline phase".  There is no composition to
+        # report and none was measured, so the answer is the absence.
+        return None
     zmvs, scales = [], []
     for ip, phase in enumerate(structure.phases):
         base = f"phases.{ip}"

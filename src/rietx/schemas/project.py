@@ -47,7 +47,14 @@ from .plan import PlanSpec
 #: refuses.  Minor for the same reason 1.1 was: the major gate still opens
 #: every 1.x, nothing already written means anything different, and what the
 #: bump records is that the vocabulary grew.
-PROJECT_FORMAT_VERSION = "1.2"
+#: ``1.3`` (WP-1207): a project may hold **no phase** — ``project.json`` itself
+#: is unchanged, and what moved is one rank down, in the ``history.jsonl`` state
+#: an older build's ``Structure`` validator refuses to construct.  Minor, and
+#: for the same reason 1.1 and 1.2 were: the major gate still opens every 1.x
+#: and nothing already written means anything different.  The version is the
+#: only field that can say so *before* the log is read, which is the whole
+#: reason it moves for a change that added no key here.
+PROJECT_FORMAT_VERSION = "1.3"
 
 
 def check_interval(kind: str, lo: float, hi: float) -> None:
