@@ -202,7 +202,14 @@ class TopasModel:
     path: str | None = None
     anode: str | None = None          # "CuKa" from a CuKa5(...) macro
     emission_macro: str | None = None  # "CuKa5" verbatim, for provenance
-    wavelength: float | None = None    # only if written as an explicit la/lo
+    #: The profile's **reference** wavelength — the ``lo`` of the ``lo_ref``
+    #: line, else of the line with the largest ``la`` (the reference's own rule
+    #: for what ``Lam`` takes), and ``None`` where the file states no
+    #: ``la``/``lo`` profile at all. Not the first line written.
+    wavelength: float | None = None
+    #: Every emission line the file states, in file order — the grammar makes
+    #: ``la``/``lo`` an array, and a doublet is two of them.
+    emission_lines: list = field(default_factory=list)
     goniometer_radius_mm: float | None = None
     geometry: str | None = None
     r_wp: float | None = None
@@ -825,6 +832,77 @@ _STR_MACRO = re.compile(r"^[ \t]*STR\s*\(([^)\n]*)\)", re.M)
 _CAPILLARY = re.compile(r"^[ \t]*(?:capillary_\w+|Cylindrical_\w*\s*\()", re.M)
 
 
+#: One emission-profile line, exactly as the file states it. The technical
+#: reference's ``Tcomm_2`` grammar is ``[la E lo E [lh E] | [lg E] [lo_ref]]...``
+#: — an **array**, one entry per line of the profile — and it names what each
+#: slot means: ``la`` is the *area* under the line, ``lo`` its wavelength in Å,
+#: ``lh``/``lg`` the Lorentzian/Gaussian half-widths in mÅ.
+@dataclass(frozen=True)
+class TopasEmissionLine:
+    area: float | None
+    wavelength: float | None
+    lo_ref: bool = False
+
+
+def _emission_lines(active: str, masked: str,
+                    symbols: dict[str, float]) -> list:
+    """Every ``la … lo …`` line of the emission profile, in file order.
+
+    Located on THE masked text — so an ``la`` inside a quoted path or a macro's
+    arguments is not one — and read off ``active`` at the same offsets, which is
+    the invariant :func:`_masked` exists to provide.
+
+    Each line's text runs to the next ``la`` token, so one line's ``lo`` can
+    never be read off the next's; both values go through :func:`_read_tail`, the
+    one grammar, rather than through a bare-number regex. The predecessor's
+    ``\\bla\\s+NUM\\s+lo\\s+(NUM)`` demanded a literal number for ``la`` and so
+    matched no profile whose lines are named or flagged — **16 of the 606
+    archive files** state an emission profile and came back with no wavelength
+    at all.
+    """
+    starts = [m.start() for m in re.finditer(r"\bla\b", masked)]
+    lines = []
+    for i, start in enumerate(starts):
+        end = starts[i + 1] if i + 1 < len(starts) else len(active)
+        segment, mseg = active[start:end], masked[start:end]
+        area = _read_tail(segment[len("la"):], symbols)
+        wavelength = None
+        if lo := re.search(r"\blo\b", mseg):
+            wavelength = _read_tail(segment[lo.end():], symbols)
+        lines.append(TopasEmissionLine(
+            area=area.value if area else None,
+            wavelength=wavelength.value if wavelength else None,
+            lo_ref=bool(re.search(r"\blo_ref\b", mseg))))
+    return lines
+
+
+def _reference_wavelength(lines: list) -> float | None:
+    """The profile's *reference* wavelength — the one TOPAS's ``Lam`` takes.
+
+    The reference is explicit about which line that is: ``Lam`` "is taken from
+    the emission profile line with the **largest ``la`` value**", and ``lo_ref``
+    "marks a specific line's ``lo`` as the one to use as the reference
+    wavelength instead". Neither rule is "the first one written".
+
+    Taking ``lo[0]`` was right in the archive by accident — a CuKα doublet is
+    conventionally written ``la 0.6605`` then ``la 0.3395``, so the larger area
+    happens to come first — and **51 of the 606 files** state more than one
+    line, none of which is obliged to be ordered that way. An accident that
+    survives a test suite is the class this reader keeps finding.
+
+    A line whose own ``lo`` could not be read contributes nothing rather than a
+    guess; a profile no line of which states a wavelength is ``None``, which is
+    what "the file states no explicit ``la``/``lo``" already meant.
+    """
+    stated = [ln for ln in lines if ln.wavelength is not None]
+    if not stated:
+        return None
+    if marked := [ln for ln in stated if ln.lo_ref]:
+        return marked[0].wavelength
+    return max(stated, key=lambda ln: (ln.area if ln.area is not None
+                                       else -math.inf)).wavelength
+
+
 def _lattice_macro(chunk: str, symbols: dict[str, float]) -> tuple[dict, dict] | None:
     """The cell and refine flags a lattice macro states, or None if it states no
     complete one. The first macro in :data:`_LATTICE_MACROS` that reads
@@ -1062,8 +1140,8 @@ def read_topas_inp(path: str | Path, *,
     if m := re.search(r"\b((?:Cu|Co|Cr|Fe|Mo|Ag)Ka\d?)\s*\(", active):
         model.emission_macro = m.group(1)
         model.anode = re.sub(r"\d$", "", m.group(1))
-    if lo := re.findall(rf"\bla\s+{_NUM}\s+lo\s+({_NUM})", active):
-        model.wavelength = float(lo[0])
+    model.emission_lines = _emission_lines(active, masked, symbols)
+    model.wavelength = _reference_wavelength(model.emission_lines)
     if m := re.search(rf"Radius\(\s*({_NUM})", active):
         model.goniometer_radius_mm = float(m.group(1))
     model.geometry = ("debye_scherrer" if _CAPILLARY.search(active)

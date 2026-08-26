@@ -2009,3 +2009,72 @@ def test_the_ADPs_spelling_still_terminates_an_occupancy(tmp_path):
     (site,) = phase.sites
     assert site.occupancy == pytest.approx(1.0)
     assert site.adps["u11"] == pytest.approx(0.01)
+
+
+# ------------- round-six: the emission profile's reference line (F6)
+
+
+def test_the_reference_wavelength_is_the_largest_la_not_the_first(tmp_path):
+    """`Tcomm_2`'s `[la E lo E [lh E] | [lg E] [lo_ref]]...` is an array, and
+    the reference says which line `Lam` takes: "the emission profile line with
+    the largest `la` value".
+
+    The archive writes a CuKα doublet largest-first, so reading `lo[0]` was
+    right there by accident. Written the other way round — legal, and nothing in
+    the format forbids it — `lo[0]` is the Kα2 wavelength, a 2.5e-3 Å error that
+    moves every d-spacing and raises nothing.
+    """
+    inp = _inp(tmp_path, "kalpha.inp",
+               'lam ymin_on_ymax 0.001\n'
+               '  la 0.3395 lo 1.544426 lh 0.5\n'
+               '  la 0.6605 lo 1.540598 lh 0.5\n'
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    model = read_topas_inp(inp)
+    assert [ln.wavelength for ln in model.emission_lines] == pytest.approx(
+        [1.544426, 1.540598])
+    assert model.wavelength == pytest.approx(1.540598)
+
+
+def test_lo_ref_outranks_the_largest_la(tmp_path):
+    """"`lo_ref` marks a specific line's `lo` as the one to use as the reference
+    wavelength instead" — so a file that marks one has settled the question and
+    the area no longer decides."""
+    inp = _inp(tmp_path, "loref.inp",
+               'lam\n  la 0.6605 lo 1.540598 lh 0.5\n'
+               '  la 0.3395 lo 1.544426 lh 0.5 lo_ref\n'
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    assert read_topas_inp(inp).wavelength == pytest.approx(1.544426)
+
+
+@pytest.mark.parametrize("profile", [
+    "la !la1 0.6605 lo !lo1 1.540598",     # named and held
+    "la @ 0.6605 lo @ 1.540598",           # refined
+    "la 0.6605` lo 1.540598`",             # written back after refining
+    "la = 1 - 0.3395;: 0.6605 lo = 1.540598;: 1.540598",   # evaluated tails
+])
+def test_an_emission_line_reads_in_every_spelling_of_the_one_grammar(
+        tmp_path, profile):
+    """`la` and `lo` are ordinary parameters, so they take every spelling the
+    one grammar admits. The predecessor demanded a *bare number* for `la` and so
+    saw none of these: **16 of the 606 archive files** state an emission profile
+    and came back `wavelength=None`, which a caller cannot tell from a file that
+    states no profile at all."""
+    inp = _inp(tmp_path, "spell.inp",
+               f'lam\n  {profile} lh 0.5\n'
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    assert read_topas_inp(inp).wavelength == pytest.approx(1.540598)
+
+
+def test_an_la_inside_a_quoted_path_is_not_an_emission_line(tmp_path):
+    """Located on THE masked text, so the `la` in a filename is not a line —
+    the same invariant that keeps `site` out of `Out_X_Ycalc("site.xy")`."""
+    inp = _inp(tmp_path, "quoted.inp",
+               'xdd "C:\\data\\la lo runs\\scan1.xy"\n'
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    model = read_topas_inp(inp)
+    assert model.emission_lines == []
+    assert model.wavelength is None
