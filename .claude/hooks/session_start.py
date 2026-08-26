@@ -22,8 +22,9 @@ share HEAD, the index, the stash and the working tree, so one session's
 (measured 2026-08-26, four times in one day).  Which tree a session is in is
 observable — every ``claude`` process has a cwd — so the scan reports the other
 sessions whose cwd resolves to this worktree, excluding the one running it, and
-``/wp-start`` step 3 says what to do about it: relaunch in a free slot, never
-work a second tree from here by ``git -C``.
+``/wp-start`` step 3 says what to do about it: ``EnterWorktree`` before
+editing, never work a second tree from here by ``git -C``.  The gate that makes
+the rule hold without being read is ``worktree_only.py``.
 
 The tree scanned is the one Claude Code passes on the hook's stdin (``cwd``),
 falling back to the process's own: with ``claude --worktree`` the hook's
@@ -63,7 +64,7 @@ from typing import NamedTuple, Optional
 
 VENV_FIX = 'uv venv --python 3.12 && uv pip install -e ".[dev]"'
 REPAIR_HINT = "repair first (/wp-handover, repair mode)"
-SHARED_HINT = "one session per tree: relaunch in a free slot (/wp-start step 3)"
+SHARED_HINT = "one session per tree: EnterWorktree before editing (/wp-start step 3)"
 
 _WP_COMMIT_RE = re.compile(r"^WP-(\d{4}):")
 _STATUS_RE = re.compile(r"Status:\s*(⬜|🔄|✅|🛑)")

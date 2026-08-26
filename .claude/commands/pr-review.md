@@ -28,28 +28,13 @@ about to run and familiarity is not provenance.
 
 ## Where this command runs
 
-**Inside the bench, in a terminal of its own:**
-
-```sh
-(cd .claude/worktrees/pr-bench && claude)
-```
-
-Triage reads the remote and runs from anywhere. Everything from step 4 on, and
-the whole `all` mode, first checks that it is where it thinks —
-`git rev-parse --show-toplevel` ends in `/pr-bench` — and otherwise stops with
-the launch line above rather than reaching for the bench from wherever it is.
-
-One session, one tree. Four of the eight commits this file took in its first
-two days, and both hook commits beside them, were the cost of the other
-arrangement — a session parked in the main checkout addressing the bench by
-hand: a stray `cd` sent `reset --hard` into a live WP session's tree,
-`FETCH_HEAD` split between two trees, a lock file to say who held the bench,
-and this file's own edits swept into another session's closing commit by its
-`git add -A`. Launched in the bench, the session cannot reach the main
-checkout without naming it, and `.claude/hooks/session_start.py` says at
-startup when a tree already has a live session. Not `claude --worktree`, which
-makes a fresh tree per session; the bench is one tree with one venv, and
-`/wp-start` step 3 has the slot rule it is one instance of.
+Triage reads the remote and runs from anywhere. Before step 4, and before the
+`all` mode's pass B, enter the bench: `EnterWorktree` with
+`path: .claude/worktrees/pr-bench` — a persistent worktree with a `[dev,jax]`
+venv, created once by `git worktree add --detach .claude/worktrees/pr-bench
+origin/main` and step 4's venv line. From then on every command reads the
+bench, `BENCH=.`, and the main checkout is never named; `worktree_only.py`
+keeps it read-only for every session anyway.
 
 ## Triage — the no-argument mode
 
@@ -305,8 +290,8 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    `.claude/worktrees/pr-bench` with one venv — not one per PR, which would cost
    several hundred megabytes each and, on the evidence of the ten stale trees
    already in that directory, never be reclaimed. This session is *in* it
-   (§ Where this command runs — check now), so `BENCH=.` and every command in
-   this ritual reads the bench unless it names another tree.
+   (§ Where this command runs — enter it now if not), so `BENCH=.` and every
+   command in this ritual reads the bench unless it names another tree.
 
    **Read before you execute.** Building the bench *runs the branch's code*:
    `uv pip install -e .` executes its build configuration, and pytest imports its

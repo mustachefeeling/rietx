@@ -223,6 +223,67 @@ def test_hook_cwd_without_a_payload_is_none() -> None:
     assert hook.hook_cwd() is None
 
 
+# --------------------------------------------------------------------------- #
+# The worktree-only gate (.claude/hooks/worktree_only.py): the main checkout is
+# read-only for a session.
+# --------------------------------------------------------------------------- #
+
+_gate_spec = importlib.util.spec_from_file_location(
+    "worktree_only_hook", ROOT / ".claude" / "hooks" / "worktree_only.py"
+)
+gate = importlib.util.module_from_spec(_gate_spec)
+_gate_spec.loader.exec_module(gate)
+
+
+@pytest.fixture
+def repo_with_worktree(repo: Path) -> tuple[Path, Path]:
+    (repo / "README").write_text("x\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "init")
+    wt = repo / ".claude" / "worktrees" / "wp9001"
+    _git(repo, "worktree", "add", "-q", "-b", "wp9001", str(wt))
+    return repo, wt
+
+
+def _edit(path: Path) -> dict:
+    return {"tool_name": "Edit", "tool_input": {"file_path": str(path)}}
+
+
+def _bash(command: str, cwd: Path) -> dict:
+    return {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)}
+
+
+def test_gate_refuses_edits_in_the_main_checkout_only(
+    repo_with_worktree: tuple[Path, Path], tmp_path: Path
+) -> None:
+    main, wt = repo_with_worktree
+    assert gate.refusal(_edit(main / "src" / "new.py")) is not None  # dir need not exist
+    assert gate.refusal(_edit(main / "README")) is not None
+    assert gate.refusal(_edit(wt / "README")) is None  # a worktree under the checkout
+    assert gate.refusal(_edit(tmp_path / "elsewhere" / "note.md")) is None  # no repo
+    assert gate.refusal({"tool_name": "Read", "tool_input": {"file_path": str(main / "README")}}) is None
+
+
+def test_gate_refuses_head_moving_git_in_the_main_checkout_only(
+    repo_with_worktree: tuple[Path, Path],
+) -> None:
+    main, wt = repo_with_worktree
+    assert gate.refusal(_bash("git add -A && git commit -m x", main)) is not None
+    assert gate.refusal(_bash("git checkout -b feature", main)) is not None
+    assert gate.refusal(_bash("git stash push -u", main)) is not None
+    assert gate.refusal(_bash("git log --oneline -3 && gh pr list", main)) is None
+    assert gate.refusal(_bash("git fetch origin main && git worktree list", main)) is None
+    assert gate.refusal(_bash("git commit -m x", wt)) is None
+    # addressed at another tree by -C: that tree's business, not this gate's
+    assert gate.refusal(_bash(f"git -C {wt} reset --hard origin/main", main)) is None
+
+
+def test_gate_reason_names_the_fix(repo_with_worktree: tuple[Path, Path]) -> None:
+    main, _ = repo_with_worktree
+    reason = gate.refusal(_edit(main / "README"))
+    assert "EnterWorktree" in reason and "claude -w" in reason
+
+
 def test_venv_pointer_resolution(repo: Path, tmp_path: Path) -> None:
     assert "no .venv" in hook.venv_flag(repo)
     make_venv(repo, tmp_path / "other-tree" / "src")
