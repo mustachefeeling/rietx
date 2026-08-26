@@ -733,10 +733,12 @@ class GuardReport:
     measured_exchangeability: list = field(default_factory=list)
 
     def findings(self) -> list[GuardFinding]:
-        """Every finding, in the order the diagnostics are emitted in."""
+        """Every finding, in the order the diagnostics are emitted in
+        (``refine._guard_diagnostics``): narrow peaks come *before* the
+        background/roughness absorption findings, matching that loop order."""
         return [*self.high_correlations, *self.at_bounds, *self.nonpositive_adps,
-                *self.nonpositive_strain, *self.background_correlations,
-                *self.roughness_correlations, *self.narrow_background_peaks]
+                *self.nonpositive_strain, *self.narrow_background_peaks,
+                *self.background_correlations, *self.roughness_correlations]
 
 
 #: R² beyond which the background block is reported as able to imitate a
@@ -817,7 +819,28 @@ def check_background_peak_width(table, model) -> list[GuardFinding]:
 
     Needs the compiled model for the frozen peak paths, so it returns ``[]``
     without one — the ``check_stephens_positive`` convention one function up.
+
+    **Abstains where the resolution is not evaluable.**  Γ_instrument is only a
+    real width while the Caglioti quadratic Γ_G² = U·tan²θ + V·tanθ + W stays
+    positive; a schema-legal but ill-conditioned refinement can drive it
+    negative at some angle, and ``gaussian_fwhm`` then clamps Γ_G² to the
+    numerical floor ``caglioti._MIN_GAMMA_G2`` (≈ (1e-4°)²) to keep the forward
+    model's √ real.  A background peak sitting at such an angle would be judged
+    against a resolution of ~1e-4° — a threshold any real width clears, so the
+    guard would silently *endorse* a peak it cannot actually assess.  That is a
+    guess, and this package's rule is report-or-abstain, never guess: when the
+    total Γ_instrument has collapsed to the floor (both the Gaussian quadratic
+    floored *and* no Lorentzian X/Y left to carry a physical width), the peak is
+    skipped rather than passed.  The instrument model being unphysical at that
+    angle is a separate, more fundamental defect and not this guard's to name.
     """
+    from ..model.profiles.caglioti import _MIN_GAMMA_G2
+
+    # Ten times the Γ_G² floor's own √ — a decade above the numerical floor
+    # (1e-4°) and a decade below the finest real resolution (~1e-2° at a
+    # synchrotron), so it fires only when nothing physical survived.
+    resolution_floor = 10.0 * (_MIN_GAMMA_G2 ** 0.5)
+
     if model is None or not model.bkg_peak_paths:
         return []
     values = {e.path: e.value for e in table.entries}
@@ -828,6 +851,9 @@ def check_background_peak_width(table, model) -> list[GuardFinding]:
         if position is None or fwhm is None:
             continue
         gamma = float(model.instrument_fwhm_deg(position, values))
+        if gamma <= resolution_floor:
+            # not evaluable here — abstain, do not endorse (see docstring)
+            continue
         if fwhm < BACKGROUND_PEAK_MIN_WIDTH_MULT * gamma:
             out.append(GuardFinding.narrow_background_peak(
                 fwhm_path, float(fwhm), gamma, float(position)))

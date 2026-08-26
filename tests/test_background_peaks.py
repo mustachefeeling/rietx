@@ -181,6 +181,24 @@ def test_the_restated_softplus_floor_still_equals_the_one_that_decides():
     assert _STRUCTURE_FLOOR == _SOFTPLUS_MIN
 
 
+def test_the_restated_four_ln2_still_equals_the_profiles_own():
+    """One number, four spellings, pinned — the softplus-floor idiom above.
+
+    ``FOUR_LN2_NEG`` in ``background/models.py`` is a fourth restatement of the
+    Gaussian's −4 ln2 normalisation, declared rather than imported so the
+    ``background`` package pulls no private out of ``model.profiles``.  Its own
+    docstring argues it has a single owner and no second spelling to reproduce —
+    which is exactly the state the softplus floor was in before it drifted.  Pin
+    it to the pseudo-Voigt and compiled-kernel copies so retuning one cannot
+    leave this one behind in silence.
+    """
+    from rietx.background.models import FOUR_LN2_NEG
+    from rietx.model._kernels_numba import _4LN2 as _KERNEL_4LN2
+    from rietx.model.profiles.pseudovoigt import _4LN2 as _PV_4LN2
+
+    assert FOUR_LN2_NEG == -_PV_4LN2 == -_KERNEL_4LN2
+
+
 def test_the_curve_is_a_gaussian_of_the_declared_fwhm():
     """Half height at ±Γ/2 — the property the −4 ln2 constant exists for."""
     xp = rx.backend.get_backend()
@@ -391,6 +409,59 @@ def test_the_guard_is_silent_without_a_model_or_without_peaks():
     assert check_background_peak_width(table, None) == []
 
 
+def test_the_width_guard_abstains_where_the_resolution_is_not_evaluable():
+    """Report-or-abstain, never guess a physical floor.
+
+    A schema-legal but ill-conditioned Caglioti quadratic Γ_G² = U·tan²θ +
+    V·tanθ + W can dip negative; ``gaussian_fwhm`` then clamps Γ_G² to its
+    numerical floor, and with no Lorentzian X/Y left to carry a width the total
+    instrumental resolution collapses to ~1e-4°.  Judging a peak against that
+    would silently *endorse* it (any real width clears 4·1e-4°), so the guard
+    abstains rather than pass.  Pins the abstention against the rejected
+    alternative — flooring Γ_instrument at an invented physical value, which
+    would start flagging here.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = rx.Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    ins.source.dispersion = None
+    ins.profile.u.value = 0.05
+    ins.profile.v.value = -0.5      # drives Γ_G² negative across the range
+    ins.profile.w.value = 0.001
+    ins.profile.x.value = 0.0       # no Lorentzian width to recover it
+    ins.profile.y.value = 0.0
+    # 0.15° is near a genuine resolution and would be flagged at a healthy angle
+    ins.background_peaks = [_peak(position=150.0, height=50.0, fwhm=0.15,
+                                  vary=False)]
+    tt = np.arange(15.0, 160.0, 0.05)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 200.0).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    values = {e.path: e.value for e in table.entries}
+    assert float(model.instrument_fwhm_deg(150.0, values)) < 1e-3  # collapsed
+    assert check_background_peak_width(table, model) == []          # abstained
+
+
+def test_findings_are_in_the_diagnostic_emission_order():
+    """``findings()`` promises 'the order the diagnostics are emitted in'
+    (``refine._guard_diagnostics``): a narrow-peak finding is emitted *before*
+    the background- and roughness-absorption findings, so it must sort there."""
+    from rietx.strategy.staged import GuardFinding, GuardReport
+
+    r = GuardReport()
+    narrow = GuardFinding.narrow_background_peak(
+        "instrument.background_peaks.0.fwhm", 0.2, 0.1, 30.0)
+    bg = GuardFinding.background_absorption("phases.0.scale", 0.9)
+    rough = GuardFinding.background_absorption("phases.0.atoms.0.biso", 0.95)
+    r.narrow_background_peaks = [narrow]
+    r.background_correlations = [bg]
+    r.roughness_correlations = [rough]
+    flat = r.findings()
+    assert flat.index(narrow) < flat.index(bg) < flat.index(rough)
+
+
 def test_the_width_bound_is_measured_against_the_instrument_alone():
     """Γ_inst must not depend on which phase one asks about — the question is
     how narrow a *real* reflection can be at that angle."""
@@ -464,6 +535,25 @@ def test_peak_columns_join_the_background_block():
                                           "phases.0.scale"])
     assert with_peak["phases.0.scale"] == pytest.approx(0.5)
     assert without == {}       # no background column at all, nothing to project
+
+
+def test_a_background_peak_is_a_roughness_nuisance_too():
+    """The sibling of ``background_absorption`` folding peaks into its block
+    (candidate 3): a declared peak is background flexibility that refines
+    regardless, so the roughness/ADP comparison projects it out first — three
+    columns per peak left in would swamp the partial R² exactly as the scale
+    does.  Was matched only for ``instrument.background.`` while its sibling
+    already matched ``instrument.background_peaks.``.
+    """
+    from rietx.optimize.statistics import _roughness_nuisance
+
+    assert _roughness_nuisance("instrument.background_peaks.0.height")
+    assert _roughness_nuisance("instrument.background_peaks.3.position")
+    assert _roughness_nuisance("instrument.background.c2")
+    assert _roughness_nuisance("phases.0.scale")
+    assert not _roughness_nuisance("phases.0.atoms.0.biso")
+    assert not _roughness_nuisance(
+        "instrument.geometry.surface_roughness.suortti_b")
 
 
 # ----------------------------------------------------------------------
