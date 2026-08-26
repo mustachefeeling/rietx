@@ -220,8 +220,10 @@ CLAIMS: tuple[Claim, ...] = (
         reference="Rexp depends only on the data, its esds and the free "
                   "parameter count, so agreement is a protocol check and not "
                   "a model one; TOPAS records 0.0529264 over start_X 5.1",
-        measured="Rexp 0.052929 against 0.0529264, 4e-6 relative; 44895 of "
-                 "the file's 49496 channels fitted",
+        measured="Rexp 0.0529317 against TOPAS's 0.0529264, 1.0e-4 relative "
+                 "(P = 29 free here; the fit answers are bit-stable, only "
+                 "Rexp moved with main's parameter count); 44895 of the "
+                 "file's 49496 channels fitted",
     ),
     Claim(
         "test_acceptance_lab6_cbn", "test_the_file_esds_are_used_rather_than_poisson",
@@ -232,8 +234,9 @@ CLAIMS: tuple[Claim, ...] = (
                   "propagated esd; the package's weighting invariant says the "
                   "file's column wins wherever there is one",
         measured="data.sig() equals column 3 exactly; the ratio to sqrt(I) is "
-                 "0.98 over the fitted range and 1.42 below 2.5 deg, i.e. "
-                 "angle-dependent in a way Poisson cannot be",
+                 "0.94 over the fitted range and 1.45 below 2.5 deg (0.98 is "
+                 "the whole-file median), i.e. angle-dependent in a way "
+                 "Poisson cannot be",
     ),
     Claim(
         "test_acceptance_lab6_cbn", "test_the_cbn_cell_agrees_with_topas_to_better_than_50_ppm",

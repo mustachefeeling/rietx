@@ -25,10 +25,19 @@ model-to-model spread — and **cBN a = 3.616463 and 3.616466 Å**, 0.8 ppm apar
 That spread, not an invented tolerance, is what "agreement" has to mean here.
 
 **σ is the file's, and it is not Poisson** — 11-BM sums twelve analyser
-crystals, so the third column is a propagated esd (median σ/√I = 0.98 over the
-fitted range but 1.42 below 2.5°, i.e. angle-dependent in a way √I cannot be).
-``read_pattern`` uses it; this suite would be measuring a different quantity if
-it did not.
+crystals, so the third column is a propagated esd (median σ/√I = 0.94 over the
+fitted range but 1.45 below 2.5°, i.e. angle-dependent in a way √I cannot be;
+0.98 is the whole-file median, and the fitted-range figure is the right one to
+pair against 1.45 here).  ``read_pattern`` uses it; this suite would be
+measuring a different quantity if it did not.
+
+The three TOPAS reference files this suite is referenced to —
+``lab6_pvii_absorb_cs_mustr.inp``/``.out``, ``lab6_pvii_absorb_IB-size-strain``
+``.inp``/``.out`` and ``simulation_quant.txt`` — are **not committed**: they
+live on the data owner's archive, not in ``tests/data/``.  The protocol is
+transcribed below and the reference values into ``tests/validation_matrix.py``,
+so nothing here reads them at run time, but the source files themselves are not
+in this repo (see tests/data/README.md).
 
 Protocol, mirrored from ``lab6_pvii_absorb_cs_mustr.inp`` (see
 tests/data/README.md):
