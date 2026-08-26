@@ -46,9 +46,8 @@ Two rules for anything a person reads here (v1.2, WP-1201/1202/1203):
 empty states, error text), and **what a name *means* is an entry in
 `rietx.help` reached through `<Help>`; `title=` is what is left over.** The
 popover is WP-1203 (`Help.svelte`, `lib/help.ts`, one instance in `App`), with
-five rules. A key is **`arm:name`**: the arms' vocabularies overlap (`seed` is
-a stage field *and* a search control), so a bare key would resolve by
-declaration order; each literal one is crossed against
+six rules. A key is **`arm:name`**: the arms' vocabularies overlap, so a
+bare key would resolve by declaration order; each is crossed against
 `tests/data/gui/help_keys.json`. A field inventory **derives** its key from the
 field's own name where the arm is keyed by the same vocabulary (`controls.ts`,
 `wizard.ts`) and carries it as **data** where it is not (`lib/model.ts`). `<Help
@@ -60,9 +59,11 @@ holds that to an exact per-file count failing both ways, so the debt stays
 countable and its list cannot outlive it. And a term is a `<span
 role="button">` because it wraps running text: sound only while it stays
 focusable, answers Enter and Space, and is **hittable** — a flex item's
-automatic minimum is its content size, which floored `input.value` 65 % over
-its declared basis and left `.path` at zero width in a 340 px sidebar (1203's
-browser pass; an unclickable name is a control that does nothing).
+automatic minimum is its content size, which left `.path` at zero width in a
+340 px sidebar (v1.2's record has the numbers). It is **named by its
+children, never by an `aria-label`**, which renames the `<label>` or `<th>`
+enclosing it; `aria-haspopup="dialog"` carries the role hint instead, and the
+popover **takes focus**, a `role="dialog"` nobody is in announcing nothing.
 
 The **GUI** (WP-1008, `gui/`) is `rietx gui [PROJECT.rex]` — stdlib
 `http.server` on 127.0.0.1, the third such app here after `watch` and `compare`.

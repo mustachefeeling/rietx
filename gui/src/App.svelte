@@ -659,12 +659,20 @@
     ? place(helpAnchor, viewport, popoverSize)
     : { left: 0, top: 0, flipped: false });
 
+  /** `refocus` is the caller's claim (Esc); holding focus is the popover's own.
+   *
+   *  A click away must not steal focus back from whatever was clicked, so the
+   *  second test is `contains(activeElement)` rather than "was open": the only
+   *  time closing owes the term its focus is when the popover had it, which
+   *  since the popover takes focus on open is every keyboard route out. */
   function closeHelp(refocus = false) {
-    if (refocus) helpNode?.focus();
+    const held = popoverEl?.contains(document.activeElement) === true;
+    if (refocus || held) helpNode?.focus({ preventScroll: true });
     helpNode = null;
     helpRequest = null;
     helpAnchor = null;
     popoverSize = { width: 0, height: 0 };
+    focusedFor = null;
   }
 
   setContext<HelpOpener>(HELP_CONTEXT, {
@@ -683,11 +691,38 @@
 
   $effect(() => {
     if (!popoverEl || !helpRequest) return;
+    // the *rendered* body, not only the request: what `place` flips on is the
+    // height, and the height is whatever is drawn.  Today that is the same
+    // thing — `onMount` awaits `api.help()` before `loadProject`, so no term
+    // exists until the corpus has landed or failed, and holding `/api/help`
+    // for 15 s in a browser produced no term to click.  Declared here, that
+    // boot order stops being load-bearing: a corpus arriving late would grow
+    // the body under a height measured from "Not described yet.", and this
+    // effect would re-measure rather than leaving `place` a stale number.
+    void [helpTitle, helpBody, helpEntry, helpLink];
     const width = popoverEl.offsetWidth;
     const height = popoverEl.offsetHeight;
     if (width !== popoverSize.width || height !== popoverSize.height) {
       popoverSize = { width, height };
     }
+  });
+
+  /* The popover takes focus, because it is a `role="dialog"` and a dialog
+   * nobody is in announces nothing: Tab from an activated term went to the next
+   * input in the row, leaving the popover open behind the cursor and its
+   * `in the manual →` link reachable only by tabbing the whole app.  Esc and a
+   * second activation hand focus back to the term (`closeHelp`).
+   *
+   * `preventScroll` is load-bearing rather than tidy — `onscrollcapture` closes
+   * the popover, so a focus that scrolled anything would close what it just
+   * opened.  `focusedFor` is a plain `let`, not `$state`: it must not be a
+   * dependency of the effect that writes it. */
+  let focusedFor: HTMLElement | null = null;
+  $effect(() => {
+    if (!popoverEl || !helpNode) return;
+    if (focusedFor === helpNode) return;
+    focusedFor = helpNode;
+    popoverEl.focus({ preventScroll: true });
   });
 
   // A resize or a scroll moves the anchor out from under the popover, and
@@ -842,7 +877,7 @@
              by Tab and Enter like every other explanation. -->
         <span class="chip bad">
           <Help text={result.maturity.message} title="Not a fit yet"
-            label="why this is not a fit yet">⚠ not a fit yet</Help>
+            >⚠ not a fit yet</Help>
         </span>
       {/if}
     {/if}

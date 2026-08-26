@@ -24,6 +24,24 @@
    * running text (a table header, a field's label, a chip's words) and a real
    * button would take the register's fill, weight and padding with it.  What
    * matters is that it is focusable and answers Enter and Space, which it does.
+   *
+   * **A term is named by its own words, and `label` is the exception.**  It was
+   * `aria-label="explain"` by default until a browser pass measured what that
+   * does: a name on a term *renames whatever encloses it*.  Accname computes a
+   * `<label>`'s or a `<th>`'s name from its contents, and a descendant with an
+   * `aria-label` contributes that string instead of its text (accname 1.2 step
+   * 2C, and 2E again for the same node read as an embedded control).  So
+   * wrapping `zero` in a `<Help>` renamed the instrument editor's input from
+   * `zero (°2θ)` to `explain (°2θ)`, the atom table's four column headers to
+   * `explain`, and the cell edges to `what a is` — this WP's own subject,
+   * inverted, on every labelled field it touched.
+   *
+   * Hence `label = null`: the term's children are its name, which is what a
+   * `<label>` wants anyway, and **`aria-haspopup="dialog"` is what says an
+   * explanation opens** — that channel does not take part in a name.  Pass
+   * `label` only where the children are a *glyph* (`🔒`, `=`, `·`), which names
+   * nothing, and only where no `<label>` or `<th>` encloses the term; there is
+   * one such site, and `App.test.ts` fails on a second one that is enclosed.
    */
   import { getContext } from "svelte";
 
@@ -33,14 +51,14 @@
     for: key = null,
     text = null,
     title = null,
-    label = "explain",
+    label = null,
     children,
   }: {
     for?: string | null;
     text?: string | null;
     title?: string | null;
-    /** what a screen reader announces the trigger as */
-    label?: string;
+    /** a name for a term whose children are a glyph; see the note above */
+    label?: string | null;
     children?: import("svelte").Snippet;
   } = $props();
 

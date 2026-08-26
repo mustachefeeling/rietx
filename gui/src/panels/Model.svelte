@@ -736,8 +736,7 @@
             {#each readerOptions.filter((o: any) =>
                 wiz.pattern.format.options.includes(o.name)) as opt (opt.name)}
               <label class="inline">
-                <Help for="reader_options:{opt.name}"
-                  label="what the {opt.name} option does">{opt.name}</Help>
+                <Help for="reader_options:{opt.name}">{opt.name}</Help>
                 {#if opt.name === "scan" && scanCount(wiz.pattern) > 1}
                   <!-- a picker, not a number box: "scan 1" tells nobody which
                        measurement it is, which is why ScanInfo carries a label.
@@ -1022,7 +1021,7 @@
                  about this phase; what a cell edge *is* comes from the corpus. -->
             <label class="cell" title={why(path)}>
               <span class="muted"><Help for="parameters:phases.*.cell.{edge}"
-                label="what {edge} is">{CELL_GLYPH[edge] ?? edge}</Help></span>
+                >{CELL_GLYPH[edge] ?? edge}</Help></span>
               {#if !editableValue(row)}
                 <span class="mono fixed">{formatValue(row!.value, row!.esd)}</span>
               {:else}

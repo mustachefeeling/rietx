@@ -233,7 +233,6 @@
                  corpus's, reached from the leaf itself. -->
             <span class="path mono" title={row.path}>
               <Help for={paramKey(row.help_key)}
-                label="what {leafName(row.path, groupOf(row.path))} is"
                 >{leafName(row.path, groupOf(row.path))}</Help>
             </span>
             {#if row.tie}
@@ -270,7 +269,12 @@
             {:else}
               <!-- no checkbox at all: a control that errors on click is worse
                    than an absent one, and `held_because` says which of the
-                   three reasons holds it -->
+                   three reasons holds it.
+
+                   The one `<Help label=…>` in the app, because it is the one
+                   term whose children are a glyph: `·` names nothing, and no
+                   `<label>` or `<th>` encloses this span for the name to leak
+                   into (`Help.svelte` has the measurement). -->
               <span class="vary muted">
                 <Help text={row.held_because} title="This row is held"
                   label="why this row is held"

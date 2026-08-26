@@ -571,8 +571,7 @@ can rise when validation and ambiguity run, never fall">
         {#each diagnostics as d (d.code + d.message)}
           <li class={d.level}>
             <span class="mono">
-              <Help for="peak_diagnostics:{d.code}"
-                label="what {d.code} means">{d.code}</Help>
+              <Help for="peak_diagnostics:{d.code}">{d.code}</Help>
             </span> {d.message}
           </li>
         {/each}
@@ -605,8 +604,7 @@ can rise when validation and ambiguity run, never fall">
                 {/if}
                 {#each p.flags as f (f)}
                   <span class="chip {flagTone(f, unusable)}">
-                    <Help for="peak_flags:{f}" label="what the {f} flag means"
-                      >{f}</Help>
+                    <Help for="peak_flags:{f}">{f}</Help>
                   </span>
                 {/each}
               </td>

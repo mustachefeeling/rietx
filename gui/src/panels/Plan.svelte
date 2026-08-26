@@ -166,8 +166,7 @@
          `PLAN_INFO` — the line shown is `when_to_use`, and the description
          behind it is one click away rather than one hover (WP-1203) -->
     <p class="muted blurb">
-      <Help for="plans:{chosen.name}" label="what the {chosen.title} plan does"
-        >{chosen.when_to_use}</Help>
+      <Help for="plans:{chosen.name}">{chosen.when_to_use}</Help>
     </p>
   {:else}
     <p class="muted blurb">

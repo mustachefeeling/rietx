@@ -1452,6 +1452,7 @@ SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
     ),
 }
 
+
 def plan_help() -> dict[str, HelpEntry]:
     """The plan presets as help entries, projected from ``PLAN_INFO``.
 

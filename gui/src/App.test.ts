@@ -4061,6 +4061,47 @@ describe("the help popover", () => {
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
   });
 
+  it("names a term by its own words, so it cannot rename what encloses it",
+     async () => {
+    // Measured in Chromium before this was fixed: `aria-label="explain"` on a
+    // term renamed every control that computes its own name from its contents
+    // — accname descends into the term and takes the label instead of the text
+    // — so the instrument editor's inputs were named `explain (mm)` and the
+    // atom table's headers `explain`.  jsdom has no accname, so what is
+    // asserted is the cause: inside a naming context a term declares no name.
+    await openTable();
+    button("Model")!.click();
+    await flush();
+    const enclosed = [...host.querySelectorAll<HTMLElement>(".help")]
+      .filter((el) => el.closest("label, th") !== null);
+    expect(enclosed.length).toBeGreaterThan(0);
+    expect(enclosed.filter((el) => el.hasAttribute("aria-label"))).toEqual([]);
+    // and every one still says an explanation opens, in the channel that does
+    // not take part in a name
+    expect(enclosed.every((el) => el.getAttribute("aria-haspopup") === "dialog"))
+      .toBe(true);
+    // the term the popover reads from keeps its text as its name
+    expect(term("a").textContent?.trim()).toBe("a");
+    expect(term("a").hasAttribute("aria-label")).toBe(false);
+  });
+
+  it("moves focus into the popover, and hands it back on the way out", async () => {
+    // a `role="dialog"` nobody is in announces nothing: before this, Tab from
+    // an activated term went to the next input in the row and the popover's
+    // `in the manual →` link was reachable only by tabbing the whole app
+    await openTable();
+    const trigger = term("a");
+
+    trigger.click();
+    await flush();
+    expect(document.activeElement).toBe(popover());
+
+    // a click away must not steal focus back from whatever was clicked
+    trigger.click();
+    await flush();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it("carries a held row's reason, which is the verb's own words", async () => {
     await openTable();
     const row = rowsInDom().find(

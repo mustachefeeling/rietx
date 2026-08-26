@@ -4,9 +4,12 @@
  * Two halves that fail differently.  **Resolution** is a vocabulary question,
  * so it is held to `tests/data/gui/help_keys.json` — the committed key set
  * written from the live registry by `tests/test_gui_help.py`, the same device
- * `fnmatch.test.ts` uses — and every literal `<Help for=…>` in the app is
+ * `fnmatch.test.ts` uses — and every quoted `<Help for=…>` in the app is
  * crossed against it: a key naming nothing renders "not yet described" under a
- * real control while nothing goes red.  **Placement** is arithmetic, and it is
+ * real control while nothing goes red.  An *interpolated* key is crossed by its
+ * literal prefix and the five sites are named, because the brace-excluding
+ * pattern this started as matched none of them and said nothing about it.
+ * **Placement** is arithmetic, and it is
  * asserted on numbers because jsdom has no layout: every
  * `getBoundingClientRect` there is zeros, so a popover positioned in a
  * component test would be "correct" wherever it went.
@@ -172,18 +175,45 @@ describe("every key the app writes down names something", () => {
     expect([...ARMS]).toEqual(FIXTURE.arms);
   });
 
-  it("resolves every literal <Help for=…> against the committed key set", () => {
+  it("resolves every quoted <Help for=…> against the committed key set", () => {
     const known = new Set(FIXTURE.keys);
     const unknown: string[] = [];
     for (const [rel, source] of markup()) {
-      for (const m of source.matchAll(/<Help\b[^>]*?\bfor="([^"{}]+)"/g)) {
-        if (!known.has(m[1])) unknown.push(`${rel}: ${m[1]}`);
+      for (const m of source.matchAll(/<Help\b[^>]*?\bfor="([^"]+)"/g)) {
+        // An interpolated key — `peak_flags:{f}`, `parameters:phases.*.cell.
+        // {edge}` — names its member at runtime, so what is checkable here is
+        // the *literal prefix*: it is what a vocabulary rename breaks, and the
+        // arm it points into is exactly what a rename leaves behind.  The
+        // brace-excluding form of this pattern skipped all five of them.
+        const brace = m[1].indexOf("{");
+        const key = brace === -1 ? m[1] : m[1].slice(0, brace);
+        const hit = brace === -1
+          ? known.has(key)
+          : [...known].some((k) => k.startsWith(key) && k.length > key.length);
+        if (!hit) unknown.push(`${rel}: ${m[1]}`);
       }
     }
     // A key naming nothing is silent at runtime — the popover says "not yet
     // described" under a control that has a perfectly good entry with a
     // slightly different name.
     expect(unknown).toEqual([]);
+  });
+
+  it("checks the interpolated keys too, which is where a rename lands", () => {
+    // The gate above is only worth its comment if it *sees* these: a regex
+    // that stopped matching them would pass by matching nothing, which is how
+    // all five went unchecked.  Naming them is also what makes a sixth site
+    // arrive with its prefix declared rather than silently.
+    const interpolated = markup().flatMap(([rel, source]) =>
+      [...source.matchAll(/<Help\b[^>]*?\bfor="([^"]*\{[^"]*)"/g)]
+        .map((m) => `${rel}: ${m[1]}`));
+    expect(interpolated.sort()).toEqual([
+      "panels/Model.svelte: parameters:phases.*.cell.{edge}",
+      "panels/Model.svelte: reader_options:{opt.name}",
+      "panels/Peaks.svelte: peak_diagnostics:{d.code}",
+      "panels/Peaks.svelte: peak_flags:{f}",
+      "panels/Plan.svelte: plans:{chosen.name}",
+    ]);
   });
 });
 
