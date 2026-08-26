@@ -2048,8 +2048,16 @@ describe("the import wizard", () => {
     await flush();
     // the reader that claimed it, in its own words — not the extension
     expect(host.textContent).toContain("GSAS raw powder data");
-    expect(host.textContent).toContain("BANK record");
     expect(host.textContent).toContain("σ from the file");
+    // …and how it was recognised is behind the popover, not always-on prose
+    // (WP-1205): the trigger is the format's short name, "gsas".
+    const sniff = [...host.querySelectorAll<HTMLElement>(".help")]
+      .find((el) => el.textContent?.trim() === "gsas")!;
+    expect(sniff).toBeTruthy();
+    sniff.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await flush();
+    expect(host.ownerDocument.querySelector(".popover")?.textContent)
+      .toContain("BANK record");
     // …and the filename went in the query, while the bytes went in the body
     const staged = stub.calls.find((c) => c.path === "/api/upload/pattern")!;
     expect(staged.url).toContain("filename=nac.fxye");
@@ -2222,6 +2230,142 @@ describe("the import wizard", () => {
     // every Project.open refusal names a different remedy (WP-1008)
     expect(host.querySelector(".wizard .bad")?.textContent).toContain("sha256 1a2b3c4d");
     expect(host.textContent).toContain("synth.xye");
+  });
+
+  // ------------------------------------------------------------------
+  // the filesystem browser (WP-1205)
+  // ------------------------------------------------------------------
+  const FS_HOME = {
+    path: "/home/me", parent: null, roots: ["/home/me", "/home/me/work"],
+    entries: [
+      { name: "rietx-projects", path: "/home/me/rietx-projects", is_project: false },
+      { name: "nac.rex", path: "/home/me/nac.rex", is_project: true },
+    ],
+  };
+
+  it("browses the filesystem and opens a project directly", async () => {
+    const other = { ...PROJECT, path: "/home/me/nac.rex",
+                    data: { ...PROJECT.data, filename: "nac.fxye" } };
+    const stub = server({
+      ...boot(null),
+      "/api/recent": () => ({ body: { recent: [] } }),
+      "/api/fs": () => ({ body: FS_HOME }),
+      "/api/project/open": () => ({ body: other }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    expect(host.querySelector(".backdrop")).toBeNull();   // not until asked
+
+    button("Open…")!.click();
+    await flush();
+    expect(stub.calls.some((c) => c.path === "/api/fs")).toBe(true);
+    // a plain directory and a project are different rows: only the project
+    // gets a `.pick` "open" affordance
+    expect(host.querySelector(".backdrop ul")?.textContent).toContain("rietx-projects");
+    const openRow = [...host.querySelectorAll<HTMLButtonElement>(".backdrop button.pick")]
+      .find((b) => b.textContent?.includes("nac.rex"))!;
+    expect(openRow).toBeTruthy();
+
+    openRow.click();
+    await flush();
+    expect(stub.calls.find((c) => c.path === "/api/project/open")!.body)
+      .toEqual({ path: "/home/me/nac.rex" });
+    expect(host.querySelector(".backdrop")).toBeNull();    // closed on success
+    expect(host.textContent).toContain("nac.fxye");
+  });
+
+  it("navigates a plain directory instead of opening it", async () => {
+    const inner = { path: "/home/me/rietx-projects", parent: "/home/me",
+                    roots: FS_HOME.roots, entries: [] };
+    const stub = server({
+      ...boot(null),
+      "/api/recent": () => ({ body: { recent: [] } }),
+      "/api/fs": (call) => ({ body: call.url.includes("rietx-projects") ? inner : FS_HOME }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Open…")!.click();
+    await flush();
+
+    button("rietx-projects/")!.click();
+    await flush();
+    const calls = stub.calls.filter((c) => c.path === "/api/fs");
+    expect(calls[calls.length - 1].url).toContain("rietx-projects");
+    expect(host.querySelector(".backdrop")).toBeTruthy();   // still open — a navigation, not a project
+    expect(host.querySelector(".backdrop .none")?.textContent).toBe("nothing here");
+  });
+
+  it("settles the wizard after opening a different project from over one already open", async () => {
+    // The bug this closes (WP-1205): `Model` used to be mounted twice — the
+    // empty-state wizard and the Model tab were separate component
+    // instances, each its own `wizardOpen`.  Opening a *different* project
+    // from the tab instance's own wizard left it painted over the freshly
+    // opened one, because `project` stayed truthy the whole time and nothing
+    // ever tore the instance down to reset it.
+    const other = { ...PROJECT, path: "/home/me/nac.rex",
+                    data: { ...PROJECT.data, filename: "nac.fxye" } };
+    const stub = server({
+      ...boot(),   // a project is already open
+      "/api/recent": () => ({ body: { recent: [] } }),
+      "/api/fs": () => ({ body: FS_HOME }),
+      "/api/project/open": () => ({ body: other }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    expect(host.textContent).toContain("Structure & instrument");   // not the wizard
+
+    button("Model")!.click();
+    await flush();
+    button("Open…")!.click();      // the App-level header button (startImport)
+    await flush();
+    expect(host.textContent).toContain("New project");
+
+    button("Browse for a project…")!.click();
+    await flush();
+    const openRow = [...host.querySelectorAll<HTMLButtonElement>(".backdrop button.pick")]
+      .find((b) => b.textContent?.includes("nac.rex"))!;
+    openRow.click();
+    await flush();
+
+    // the wizard is gone — the panel shows the freshly-opened project's model,
+    // never the wizard painted over it (checked on the heading and the wizard
+    // markup itself, not a text search: "New project…" is also the button
+    // that reopens it, and stays in the DOM whenever the wizard is closed)
+    expect(host.querySelector(".model header h1")?.textContent).toBe("Structure & instrument");
+    expect(host.querySelector(".model .wizard")).toBeNull();
+  });
+
+  it("browses to a different directory for a new project, keeping the suggested name", async () => {
+    // A browser cannot suggest a new folder's name, only where it should
+    // live — so picking a directory swaps the *parent* of the path the
+    // staged pattern already suggested, rather than replacing it outright.
+    const stub = server({
+      ...boot(null),
+      "/api/recent": () => ({ body: { recent: [] } }),
+      "/api/upload/pattern": () => ({ body: PATTERN_PREVIEW }),
+      "/api/fs": () => ({ body: FS_HOME }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const fileInput = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+    chooseFile(fileInput, "nac.fxye");
+    await flush();
+    const pathInput = () => host.querySelector<HTMLInputElement>(".steps input.wide")!;
+    expect(pathInput().value).toBe("/work/nac.rex");   // PATTERN_PREVIEW's suggestion
+
+    button("Browse…")!.click();
+    await flush();
+    expect(host.querySelector(".backdrop")).toBeTruthy();
+
+    button("Use this directory")!.click();
+    await flush();
+    expect(host.querySelector(".backdrop")).toBeNull();
+    expect(pathInput().value).toBe("/home/me/nac.rex");   // the parent moved, the name did not
   });
 });
 

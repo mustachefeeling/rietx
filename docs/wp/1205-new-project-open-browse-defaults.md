@@ -127,11 +127,11 @@ package, not from the form:
       the project directory; a typed path field beside it; `Open…` in the
       empty-state header; `startImport` and the recent-list arm both settle
       `wizardOpen`; `Model` mounted once.
-- [ ] Wizard prose: one docs-style line per step; `sniff`/`sigma`/option
+- [x] Wizard prose: one docs-style line per step; `sniff`/`sigma`/option
       `help` behind the popover (WP-1203 keys); the `Model.svelte:790-794`
       literal deleted; `blocked()` sentences rewritten; instrument pre-fill
       with its one-line reason; the Create button's line rewritten.
-- [ ] Scan control: "this file holds N scans; reading scan 1 of N (label)",
+- [x] Scan control: "this file holds N scans; reading scan 1 of N (label)",
       labels fetched eagerly when N > 1; the default stated, not implied.
 - [ ] Browser pass from a blank state: open a project by browsing, create a
       project without the CLI argument, open a recent one and confirm the
