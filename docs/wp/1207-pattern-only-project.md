@@ -286,7 +286,7 @@ whatever `fit` decides.
   paragraph when there is no phase; it reads acceptably and the splitter is the
   user's control, so it was left alone rather than special-cased.
 
-  *Not this WP's.* The closing commit `a24f599e` also carries the PreToolUse cd gate (`.claude/hooks/no_top_level_cd.py`), the pr-review corrections and the `.claude/settings.json` change — a concurrent session's uncommitted tooling work, swept in by a broad `git add -A` here and left in place rather than force-pushed apart; `5bbc0a43` records it.
+  *Not this WP's.* The closing commit `a24f599e` also carries the PreToolUse cd gate (`.claude/hooks/no_top_level_cd.py`), the pr-review corrections and the `.claude/settings.json` change — a concurrent session's uncommitted tooling work, swept in by a broad `git add -A` here and left in place rather than force-pushed apart; `5bbc0a43` records it. The same `git add -A` put 1.2 MB of that session's scratch run output (`obs.npy`, `events.json`, `grid.npy`, `series.json`) at the repo root in `fb4f8732`; a code-review round removed them, and they stay recoverable from that commit.
 
   *Next.* [WP-1208](1208-plan-introduction.md) (the Plan panel). Nothing is
   pushed into its `### Inherited`: this WP left no seam a Plan WP has to know

@@ -282,7 +282,7 @@ vocabulary for "the fit warns" and "the call failed".
 
 | Key | Type | Meaning |
 |---|---|---|
-| `AgentError.code` | one of three strings | what to branch on |
+| `AgentError.code` | one of four strings | what to branch on |
 | `AgentError.message` | str | what happened, for a person |
 | `AgentError.suggestion` | str | what to do about it, when the package knows |
 | `AgentError.details` | list of `AgentErrorDetail` | one entry per field-level failure |
@@ -291,6 +291,7 @@ vocabulary for "the fit warns" and "the call failed".
 |---|---|
 | `INVALID_REQUEST` | the request did not validate. `AgentError.details` names the fields |
 | `BACKEND_UNAVAILABLE` | a valid backend name whose optional dependency is not importable here. Refused before dispatch, from the same answer `capabilities()` gives |
+| `NO_PHASES` | the model carries no phase, so there is nothing but the background to fit. The request is well-formed and the model is legal — what is missing is a cell, from `task="index"` or from a typed symbol. Retrying reproduces it |
 | `REFINEMENT_FAILED` | the request was valid, this build could run it, and the engine raised anyway |
 
 | Key | Type | Meaning |

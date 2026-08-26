@@ -48,7 +48,7 @@ are the six contracts `capabilities()` reports, tabulated in [](agents.md):
   history node, project document.
 - **The agent envelope.** `agent.refine_json`'s request union and response
   arms, and its error grammar: `ok: false` with a structured error whose
-  `code` is one of the three in `agent.ERROR_CODES`, a closed list.
+  `code` is one of the four in `agent.ERROR_CODES`, a closed list.
 - **The `.rex` project directory** (`Capabilities.project_format_version`).
 - **The streaming event ladder** (`Capabilities.event_schema_version`). An
   event's `data` dict is declared open on both sides, so a new key in it is
