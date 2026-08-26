@@ -8,6 +8,44 @@ with a zoo of extensions (``.fxye``, ``.gsas``, ``.gda``, ``.xra``, ``.raw``, �
 and the record is unambiguous.  That is also what keeps it disjoint from the
 Bruker binary ``.raw``, which is claimed by magic bytes — a GSAS file named
 ``.raw`` still reaches this reader, and a Bruker file named ``.gsas`` does not.
+
+**The bank record makes two independent declarations and they are read as two.**
+The **bintype** says how the x axis is computed; the **type flag** (``STD``,
+``ESD``, ``FXYE``, and also ``ALT`` and ``FXY``) says how one data record is laid
+out.  Nothing couples them — an ``ESD`` record holds (intensity, esd) pairs
+whichever bintype it sits under — so a reader that lets one decide the other
+returns a wrong pattern rather than a refusal.  This one did: a non-``CONS`` bank
+was *forced* into the FXYE branch behind a divisible-by-three check on its value
+count, which a ``RALF`` bank carrying ESD data passes whenever its pair count is
+a multiple of three.
+
+**``CONS``/``CONST`` is the only bintype whose x axis is 2θ, so it is the only
+one read; every other one is refused by name.**  The two spellings are one rule
+— a start angle and a step, both in centidegrees — and that rule is what the
+centidegree fold below rests on.  The manual's other eight put something else
+entirely on the x axis: a flight time (``RALF``, ``SLOG``, ``LOG6``,
+``TIME_MAP``), a d-spacing (``COND``), a Q (``CONQ``), a detector position
+(``LPSD``) or a photon energy (``EDS``).  Refusing them is the third row of the
+axis policy (``io/CLAUDE.md`` § The axis is never trusted) reached through the
+bintype instead of through an axis label — *recognisably something else, so raise
+naming what the file actually holds* — and it is a matter of **scope** rather
+than of evidence: ``PatternData`` carries 2θ, so supporting any of these is a
+schema change before it is a parser change.
+
+The match is **exact and never a prefix**, because ``COND`` and ``CONQ`` share
+three characters with ``CONS`` and are two of the axes this refuses.
+
+Real files are not scarce, which is why none of this is hypothetical: GSAS-II's
+own tutorial data ships ``SLOG`` and ``RALF`` banks, and on the code this
+replaces several read as plausible wrong 2θ patterns — an ISIS PEARL ``RALF``
+bank came back as a flawless-looking 2528-point scan from 15.00° to 194.88°,
+which no caller could have told from a real one.  **The reference implementation
+has the same bug**: the manual says an FXYE x column is *"centidegrees for CW
+data or microseconds for TOF data"*, and GSAS-II's ``G2pwd_fxye`` divides by 100
+unconditionally, with no bintype branch anywhere in the module.  So "implement it
+the way GSAS-II does" was never available — it would have shipped this exact
+wrong answer.
+
 """
 
 from __future__ import annotations
@@ -21,6 +59,43 @@ from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
 from .base import PatternFormat, ascending, head, pattern_data
 
+#: The bintypes read: a start angle and a step, both in centidegrees.  The
+#: manual's token is ``CONS`` and real files write both spellings; they are the
+#: same rule, so they are one entry's worth of fact rather than two.  Matched
+#: **exactly** — ``COND`` and ``CONQ`` below share three characters with these
+#: and are different axes, so a prefix test would swallow them.
+_ANGLE_BINTYPES = frozenset({"CONS", "CONST"})
+
+#: Every other bintype the manual defines, and what each one actually puts on the
+#: x axis.  None is 2θ, which is the whole reason they are refused: they are out
+#: of **scope** for a package whose ``PatternData`` carries 2θ, not short of
+#: evidence — real files are abundant (§ the module docstring).  Sources for the
+#: descriptions, since a wrong one in a refusal is still a wrong statement: the
+#: bintype list and each definition are the GSAS manual's (LAUR 86-748,
+#: §"Powder data file formats"), corroborated by real bank records where one was
+#: obtainable.  ``SLOG``'s third coefficient is 4e-4 … 3e-3 across four
+#: independent files and the channel ratio matches it, so it really is Δt/t and
+#: not Δt.  ``RALF`` is deliberately *not* called log-step: it is constant-width
+#: at short flight times and only pseudo-Δt/t beyond a coefficient that says
+#: where.  A ``TIME_MAP`` bank carries a map *number* where the others carry
+#: coefficients (``BANK 1 7550 755 TIME_MAP 1 STD``), so its steps are tabulated
+#: elsewhere in the file.  And ``EDS`` is energy-dispersive, not time-of-flight,
+#: which is why this is one table of eight rather than a "TOF" set.
+_NON_ANGLE_BINTYPES = {
+    "COND": "a constant-Δd binning, so its x axis is a d-spacing",
+    "CONQ": "a constant-ΔQ binning, so its x axis is a Q",
+    "EDS": "an energy-dispersive binning, so its x axis is a photon energy",
+    "LOG6": "a logarithmic time-of-flight binning for the Los Alamos Model 6 "
+            "clock, so its x axis is a flight time",
+    "LPSD": "a linear position-sensitive-detector binning, so its x axis is a "
+            "detector position",
+    "RALF": "a time-of-flight binning (constant step at short flight times, "
+            "pseudo-constant Δt/t beyond), so its x axis is a flight time",
+    "SLOG": "a constant-Δt/t (log-step) time-of-flight binning, so its x axis "
+            "is a flight time",
+    "TIME_MAP": "a time-of-flight binning whose step table is a separate "
+                "TIME_MAP record elsewhere in the file",
+}
 
 def looks_gsas(p: Path) -> bool:
     return bool(re.search(r"^BANK\s+\d+", head(p).text, re.M))
@@ -28,7 +103,11 @@ def looks_gsas(p: Path) -> bool:
 
 def read_gsas(path: str | Path, *,
               diagnostics: list[Diagnostic] | None = None) -> PatternData:
-    """GSAS raw powder data, CONST or ESD/FXYE variants."""
+    """GSAS raw powder data, a CONS/CONST bank in its STD, ESD or FXYE flavour.
+
+    The bintype and the type flag are two independent decisions and are taken
+    as two: ``_check_bintype`` settles the x axis, the flag the record layout.
+    """
     p = Path(path)
     lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
     bank = None
@@ -46,8 +125,11 @@ def read_gsas(path: str | Path, *,
         raise ValueError(f"no BANK record found in {p}")
 
     nchan = int(bank.group(2))
-    bintype = bank.group(4).upper()
+    # decision one: how the x axis is computed.  Refused before the data is
+    # parsed, since a bintype nobody can read is not made readable by its rows.
+    _check_bintype(bank.group(4).upper(), p)
     c1, c2 = float(bank.group(5)), float(bank.group(6))
+    # decision two, and independent of the first: how one record is laid out
     type_flag = (bank.group(9) or "STD").upper()
 
     values: list[float] = []
@@ -56,12 +138,6 @@ def read_gsas(path: str | Path, *,
             break
         # FXYE files are free-format; STD files are fixed 8-column format
         values.extend(float(v) for v in line.split())
-
-    if bintype not in ("CONS", "CONST"):
-        # FXYE: explicit x column (centidegrees), then y, esd
-        if type_flag != "FXYE" and len(values) % 3 != 0:
-            raise ValueError(f"unsupported GSAS bintype {bintype!r} in {p}")
-        type_flag = "FXYE"
 
     if type_flag == "FXYE":
         arr = _reshape(values, 3, p, type_flag)
@@ -93,6 +169,34 @@ def read_gsas(path: str | Path, *,
                    format=f"gsas-{type_flag.lower()}")
 
 
+def _check_bintype(bintype: str, p: Path) -> None:
+    """Pass a ``CONS``/``CONST`` bank; refuse any other bintype **by name**.
+
+    This is the x-axis decision and nothing else — the type flag is read
+    separately, because a bank's binning says nothing about how its records are
+    packed.  Conflating the two is what let a ``RALF`` bank holding ESD pairs be
+    read as three-column FXYE whenever its pair count divided by three.
+    """
+    if bintype in _ANGLE_BINTYPES:
+        return
+    what = _NON_ANGLE_BINTYPES.get(bintype)
+    if what is not None:
+        raise ValueError(
+            f"{p.name}: this is a GSAS {bintype} bank — {what}, not a 2θ.  "
+            f"CONS/CONST (a constant 2θ step) is the only bintype read, because "
+            f"it is the only one whose axis is an angle: this package holds 2θ "
+            f"patterns, so there is nowhere for that quantity to go, and "
+            f"reading it as an angle anyway is a plausible wrong answer rather "
+            f"than a near miss.  Convert the pattern to 2θ first.")
+    raise ValueError(
+        f"{p.name}: unrecognised GSAS bintype {bintype!r} in the bank record — "
+        f"only CONS/CONST (a constant 2θ step) is read.  The manual's other "
+        f"bintypes ({', '.join(sorted(_NON_ANGLE_BINTYPES))}) are recognised "
+        f"and refused, each naming what its x axis holds; this is not one of "
+        f"those either, so what this file's x axis means is not established at "
+        f"all.")
+
+
 def _reshape(values: list[float], width: int, p: Path, flag: str) -> np.ndarray:
     """``values`` as N rows of ``width``, or a refusal that names the file.
 
@@ -114,7 +218,9 @@ GSAS = PatternFormat(
     name="gsas",
     title="GSAS raw powder data (FXYE / ESD / STD)",
     extensions=(".fxye", ".gsas", ".gda", ".xra", ".raw"),
-    sniff="a BANK record in the first 4 kB — by content, not by suffix",
+    sniff="a BANK record in the first 4 kB — by content, not by suffix; only a "
+          "CONS/CONST (constant 2θ step) bank is then read, and every other "
+          "bintype is named and refused with what its x axis holds",
     sigma=("the third column (FXYE) or second (ESD); an STD bank carries "
            "counts only and takes the Poisson fallback"),
     matches=looks_gsas,
