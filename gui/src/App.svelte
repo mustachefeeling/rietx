@@ -997,8 +997,13 @@
      by an ancestor that establishes a containing block, and because two open
      explanations is a state nobody asked for. -->
 {#if helpRequest}
+  <!-- `data-flipped` is the only way to tell a flip from a clamp that landed on
+       the same pixel — a popover taller than the viewport is clamped to the top
+       margin, which is exactly where flipping it would also put it — so it is
+       what a browser pass reads to check the rule (WP-1203). -->
   <div class="popover" bind:this={popoverEl} role="dialog" aria-label={helpTitle}
-       tabindex="-1" style="left: {placement.left}px; top: {placement.top}px">
+       tabindex="-1" data-flipped={placement.flipped}
+       style="left: {placement.left}px; top: {placement.top}px">
     <h2>{helpTitle}</h2>
     {#if helpBody}
       <p>{helpBody}</p>
