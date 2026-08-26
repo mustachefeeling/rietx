@@ -34,8 +34,16 @@ and the project opens in `lebail` mode.
 
 ## Tasks
 
-- [ ] Factor the Le Bail scaffold builder out of the adopt verb into one
-      function (`gui/session.py` or `schemas/structure.py`), used by both.
+- [x] Factor the Le Bail scaffold builder into one function, used by both.
+      It was already one — `indexing.workflow.structure_from_candidate` — but
+      keyed on a `CellCandidate`, which a typed cell is not. So the cell-plus-
+      dummy-atom half moved to `schemas.structure.lebail_scaffold` (with
+      `DUMMY_SPECIES`, re-exported from `workflow`) and the wrapper kept the one
+      thing a candidate adds: the absence-free lattice-group default.
+      Beside it, `crystallography.symmetry.free_cell_names` / `complete_cell`:
+      the typed route takes the parameters the **setting leaves free** and fills
+      the rest, so a contradicting `b` is unrepresentable rather than tied away
+      in silence (WP-1014's coordinate-DOF rule, one parameter family over).
 - [ ] `project_new` accepts `structure: {space_group, cell}` beside
       `{upload}`; refusals in gemmi's / the table's words with `where`.
 - [ ] Wizard UI: "CIF file | type a cell" in the structure step; six fields

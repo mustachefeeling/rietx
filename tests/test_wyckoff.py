@@ -217,6 +217,79 @@ def test_cell_constraints_reproduce_the_operators_for_every_gemmi_setting():
     assert checked > 500, f"only {checked} settings checked"
 
 
+# -- WP-1206: the free cell parameters, and completing a cell from them ---
+
+
+def test_complete_cell_rebuilds_every_gemmi_setting_from_its_free_parameters():
+    """``complete_cell`` must be the inverse of "drop what symmetry determines".
+
+    Over the whole table again, and for the same reason the test above runs
+    there: the round trip is exact for the wrong constraint table too *unless*
+    the cell it starts from came from the operators.  A tabulation that forgot
+    ``c ← a`` on rhombohedral axes would carry ``c`` as a free parameter, and
+    the round trip would still return the cell it was given.  What catches it is
+    that ``free_cell_names`` and the operator-derived cell disagree about how
+    many numbers there are.
+    """
+    import gemmi
+
+    from rietx.crystallography.symmetry import (
+        CELL_NAMES,
+        complete_cell,
+        free_cell_names,
+    )
+
+    checked = 0
+    for sg in gemmi.spacegroup_table():
+        cell = dict(zip(CELL_NAMES, _symmetry_compatible_cell(sg)))
+        free = free_cell_names(sg)
+        rebuilt = complete_cell(sg, {name: cell[name] for name in free})
+        assert list(rebuilt) == list(CELL_NAMES), f"{sg.xhm()!r}: wrong keys"
+        for name in CELL_NAMES:
+            assert rebuilt[name] == pytest.approx(cell[name], rel=1e-9, abs=1e-9), (
+                f"{sg.xhm()!r}: {name} came back {rebuilt[name]}, operators "
+                f"give {cell[name]} (free = {free})")
+        checked += 1
+
+    assert checked > 500, f"only {checked} settings checked"
+
+
+def test_free_cell_names_counts_the_degrees_of_freedom_each_setting_leaves():
+    from rietx.crystallography.symmetry import free_cell_names
+
+    assert free_cell_names(get_spacegroup("P m -3 m")) == ("a",)
+    assert free_cell_names(get_spacegroup("P 4/m m m")) == ("a", "c")
+    assert free_cell_names(get_spacegroup("R -3 c:H")) == ("a", "c")
+    # the setting, not the system: R on rhombohedral axes is one length and one
+    # angle, and both trigonal answers have two free parameters (WP-1036)
+    assert free_cell_names(get_spacegroup("R -3 c:R")) == ("a", "alpha")
+    assert free_cell_names(get_spacegroup("P 1 2/m 1")) == ("a", "b", "c", "beta")
+    assert free_cell_names(get_spacegroup("P 1 1 2/m")) == ("a", "b", "c", "gamma")
+    assert free_cell_names(get_spacegroup("P -1")) == (
+        "a", "b", "c", "alpha", "beta", "gamma")
+
+
+def test_complete_cell_refuses_a_parameter_the_symmetry_owns():
+    """A determined parameter is refused, never checked and never ignored.
+
+    Refused rather than ignored is the whole point: before WP-1206 a typed
+    ``b`` under ``P 4/m m m`` was tied away by ``ParameterTable`` and the number
+    read back was never the one entered.  Refused rather than tolerance-checked
+    because a tolerance on a *length* is a constant nothing else here needs.
+    """
+    from rietx.crystallography.symmetry import complete_cell
+
+    sg = get_spacegroup("R -3 c")
+    with pytest.raises(ValueError, match=r"ties b to a"):
+        complete_cell(sg, {"a": 4.76, "b": 4.76, "c": 12.99})
+    with pytest.raises(ValueError, match=r"fixes gamma at 120"):
+        complete_cell(sg, {"a": 4.76, "c": 12.99, "gamma": 120.0})
+    with pytest.raises(ValueError, match=r"missing c"):
+        complete_cell(sg, {"a": 4.76})
+    with pytest.raises(ValueError, match=r"not cell parameters: volume"):
+        complete_cell(sg, {"a": 4.76, "c": 12.99, "volume": 255.0})
+
+
 def test_rhombohedral_and_hexagonal_r_settings_differ_in_the_derived_cell():
     """The two descriptions of an R lattice are genuinely different cells.
 

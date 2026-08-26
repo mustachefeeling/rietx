@@ -15,6 +15,7 @@ Conventions
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 
 from pydantic import Field, model_validator
 
@@ -35,6 +36,18 @@ _SOFTPLUS_FLOOR = 1e-12
 #: → 13.2 % (WP-1028 §(e)).
 MARCH_R_MIN = 0.15
 MARCH_R_MAX = 6.0
+
+#: Species of the mandatory dummy atom a Le Bail-only phase carries
+#: (:func:`lebail_scaffold`).  Carbon because its K edge (284 eV) is nowhere near
+#: any laboratory or ordinary synchrotron wavelength, so ``dispersion.resolve`` —
+#: on by default since v1.0 — can never refuse it, and because the choice is
+#: inert: ``_run_stage`` force-fixes every ``.atoms.`` path in lebail mode, so the
+#: atom sets the *starting* per-hkl intensities and nothing else.
+#:
+#: Here rather than in :mod:`rietx.indexing.workflow`, which owned it first, only
+#: because the scaffold moved: a cell typed into the GUI reaches it without
+#: indexing (WP-1206).  That module re-exports the name.
+DUMMY_SPECIES = "C"
 
 
 class Cell(Base):
@@ -493,3 +506,40 @@ class Structure(Base):
         from ..crystallography.cif import structure_to_cif
 
         structure_to_cif(self, path)
+
+
+def lebail_scaffold(space_group: str, cell: Sequence[float], *,
+                    name: str = "phase") -> Structure:
+    """A single-phase :class:`Structure` carrying a cell and no structure.
+
+    ``cell`` is the six numbers in ``a, b, c, alpha, beta, gamma`` order.  The
+    result is what a Le Bail (or Pawley) fit needs and nothing more: the lattice
+    decides where the peaks are, and the intensities are extracted rather than
+    computed.
+
+    **The dummy atom is mandatory, not a convenience.**  ``Phase._nonempty``
+    raises on an empty atom list, and there is no structure here to list — that
+    is the whole point.  So the phase carries one atom that contributes nothing:
+    ``_run_stage`` force-fixes every ``.atoms.`` path, ``.scale`` and
+    ``.source.lines.`` in lebail/pawley mode, which is also what keeps the
+    parameter surface (WP-1004) from offering it for editing — it is reported
+    ``mode_fixed``, not ``locked``.
+
+    Two callers, one shape (WP-1206): the indexing panel's Adopt button, through
+    :func:`rietx.indexing.workflow.structure_from_candidate`, which resolves the
+    symbol from the candidate first; and a project typed from a cell, where the
+    symbol and the free cell parameters are the whole of what a person supplies.
+    Neither validates the symbol here — a ``Phase`` never has — so a caller that
+    wants a refusal against a *field* resolves it itself
+    (``crystallography.symmetry.get_spacegroup``).
+    """
+    a, b, c, alpha, beta, gamma = (float(v) for v in cell)
+    return Structure(phases=[Phase(
+        name=name, space_group=space_group,
+        cell=Cell(a=Parameter(value=a), b=Parameter(value=b),
+                  c=Parameter(value=c),
+                  alpha=Parameter(value=alpha), beta=Parameter(value=beta),
+                  gamma=Parameter(value=gamma)),
+        atoms=[Atom(label="X", species=DUMMY_SPECIES,
+                    x=Parameter(value=0.0), y=Parameter(value=0.0),
+                    z=Parameter(value=0.0))])])

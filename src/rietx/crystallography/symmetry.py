@@ -185,6 +185,68 @@ def check_cell_angles(sg: gemmi.SpaceGroup,
                 f"{name} free.")
 
 
+#: The cell parameters, in the order every surface in this package writes them.
+CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
+
+
+def free_cell_names(sg: gemmi.SpaceGroup) -> tuple[str, ...]:
+    """Which cell parameters a setting leaves free, in :data:`CELL_NAMES` order.
+
+    The complement of :class:`CellConstraints` — everything neither tied to
+    another edge nor held at an angle symmetry demands.  Two for a hexagonal
+    setting, one for a cubic one, four for a monoclinic one.
+    """
+    cons = cell_constraints(sg)
+    determined = set(cons.ties) | set(cons.fixed_angles)
+    return tuple(name for name in CELL_NAMES if name not in determined)
+
+
+def complete_cell(sg: gemmi.SpaceGroup,
+                  values: dict[str, float]) -> dict[str, float]:
+    """The whole cell from the parameters the setting leaves free.
+
+    ``values`` carries the :func:`free_cell_names` of ``sg`` and nothing else;
+    the tied edges and the symmetry-fixed angles are filled in from
+    :func:`cell_constraints`.  This is the constrained-cell shape TOPAS's
+    ``Tetragonal(a, c)`` / ``Rhombohedral(a, al)`` macros take (concept only —
+    that code is closed), and it is WP-1014's rule about coordinates one
+    parameter family over: the editor offers the degrees of freedom, so a
+    violation is **unrepresentable rather than refused**.
+
+    A parameter the symmetry determines is refused rather than checked against
+    what symmetry demands, and refused rather than quietly ignored.  Checking
+    would need a tolerance on a *length* — a constant nothing else in this
+    package needs, chosen from nothing — while ignoring is what the old
+    six-number route did: under ``P 4/m m m`` a typed ``b`` was tied away by
+    ``ParameterTable`` and the number the user read back was never the one they
+    entered.  The message names the source instead, so the refusal says what to
+    send.
+    """
+    cons = cell_constraints(sg)
+    free = free_cell_names(sg)
+    unknown = sorted(set(values) - set(CELL_NAMES))
+    if unknown:
+        raise ValueError(f"not cell parameters: {', '.join(unknown)}; "
+                         f"the cell is {', '.join(CELL_NAMES)}")
+    for name in sorted(set(values) - set(free)):
+        if name in cons.ties:
+            raise ValueError(
+                f"space group {sg.xhm()!r} ties {name} to {cons.ties[name]}, so "
+                f"{name} is not yours to give — send {', '.join(free)}")
+        raise ValueError(
+            f"space group {sg.xhm()!r} fixes {name} at "
+            f"{cons.fixed_angles[name]:g}° by symmetry, so {name} is not yours "
+            f"to give — send {', '.join(free)}")
+    missing = [name for name in free if name not in values]
+    if missing:
+        raise ValueError(f"space group {sg.xhm()!r} leaves "
+                         f"{', '.join(free)} free; missing {', '.join(missing)}")
+    cell = {name: float(values[name]) for name in free}
+    cell.update({name: cell[source] for name, source in cons.ties.items()})
+    cell.update(cons.fixed_angles)
+    return {name: cell[name] for name in CELL_NAMES}
+
+
 def rotation_matrices(sg: gemmi.SpaceGroup) -> np.ndarray:
     """Integer rotation parts of all symmetry operations, shape (M, 3, 3).
 
