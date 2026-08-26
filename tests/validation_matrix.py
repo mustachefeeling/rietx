@@ -135,6 +135,13 @@ DATASETS: dict[str, Dataset] = {
         "NIST SRM 676a corundum, lab Cu Ka; the round robin's pure-phase "
         "pattern doubles as the cell-anchor specimen",
         "absolute"),
+    "lab6_cbn": Dataset(
+        "11BM_LaB6_cBN_mg2044.xye",
+        "APS 11-BM synchrotron NIST SRM 660b LaB6 + cubic BN two-phase "
+        "mixture, lambda = 0.413680 A from the .prm; propagated esds from "
+        "twelve analyser crystals. No weighed composition exists, so every "
+        "row referenced to it is cross-code",
+        "cross_code"),
     "nac": Dataset(
         "11BM_NAC.fxye",
         "APS 11-BM synchrotron Na2Ca3Al2F14 with a CaF2 impurity, "
@@ -204,6 +211,104 @@ class Claim:
 
 
 CLAIMS: tuple[Claim, ...] = (
+    # ---- 11-BM LaB6 + cBN: identifiability decides, not Rwp -------------
+    Claim(
+        "test_acceptance_lab6_cbn", "test_the_protocol_matches_before_any_number_is_compared",
+        "lab6_cbn", ("identity", "ceiling"),
+        "Rexp reproduces TOPAS's, which is what shows both codes fitted the "
+        "same channels under the same weights before any model is compared",
+        reference="Rexp depends only on the data, its esds and the free "
+                  "parameter count, so agreement is a protocol check and not "
+                  "a model one; TOPAS records 0.0529264 over start_X 5.1",
+        measured="Rexp 0.0529317 against TOPAS's 0.0529264, 1.0e-4 relative "
+                 "(P = 29 free here; the fit answers are bit-stable, only "
+                 "Rexp moved with main's parameter count); 44895 of the "
+                 "file's 49496 channels fitted",
+    ),
+    Claim(
+        "test_acceptance_lab6_cbn", "test_the_file_esds_are_used_rather_than_poisson",
+        "lab6_cbn", ("identity", "ceiling"),
+        "read_pattern uses the file's propagated esd column rather than "
+        "falling back to sqrt(I)",
+        reference="11-BM sums twelve analyser crystals, so column 3 is a "
+                  "propagated esd; the package's weighting invariant says the "
+                  "file's column wins wherever there is one",
+        measured="data.sig() equals column 3 exactly; the ratio to sqrt(I) is "
+                 "0.94 over the fitted range and 1.45 below 2.5 deg (0.98 is "
+                 "the whole-file median), i.e. angle-dependent in a way "
+                 "Poisson cannot be",
+    ),
+    Claim(
+        "test_acceptance_lab6_cbn", "test_the_cbn_cell_agrees_with_topas_to_better_than_50_ppm",
+        "lab6_cbn", ("cross_code", "ceiling"),
+        "the second phase's cell, measured against the standard's held "
+        "certificate value and the beamline wavelength",
+        reference="TOPAS's two models give 3.616463 and 3.616466 A, 0.8 ppm "
+                  "apart; the 50 ppm band is cross-code consistency with "
+                  "headroom, the same status as the FAP suite's 300 ppm, and "
+                  "is NOT a truth claim about cBN's lattice parameter",
+        measured="a = 3.616514 A, +14 ppm from TOPAS",
+    ),
+    Claim(
+        "test_acceptance_lab6_cbn", "test_the_one_free_coordinate_agrees",
+        "lab6_cbn", ("cross_code", "ceiling"),
+        "LaB6's boron x, the only free positional parameter in either phase "
+        "and therefore the whole structural content of the fit",
+        reference="TOPAS refines it to 0.19890; the 2e-3 band is loose "
+                  "against this fit's own esd of 1.7e-3",
+        measured="x = 0.19839 (shared-broadening plan), 5.1e-4 from TOPAS",
+    ),
+    Claim(
+        "test_acceptance_lab6_cbn", "test_rwp_is_worse_than_topas_and_the_reason_is_the_peak_shape",
+        "lab6_cbn", ("characterisation", "ceiling"),
+        "rietx has no PVII, and on this instrument that costs about a factor "
+        "two in Rwp -- recorded as a characterised deficit rather than "
+        "asserted away",
+        reference="TOPAS fits PVII_Peak_Type with six free shape parameters; "
+                  "rietx offers TCHZ and a true Voigt. The band is one-sided "
+                  "and loose on purpose: it catches a regression, it does not "
+                  "certify the profile",
+        measured="Rwp 0.1648 against TOPAS's 0.0810; 84.5 % of chi2 sits in "
+                 "the 9 % of channels that are more than half Bragg, mean "
+                 "delta/sigma +0.49 -- a shape deficit at the peak tops, not "
+                 "a background or scale one",
+    ),
+    Claim(
+        "test_acceptance_lab6_cbn", "test_the_qpa_agrees_with_topas_within_its_own_esd",
+        "lab6_cbn", ("cross_code", "ceiling"),
+        "two-phase QPA on a synchrotron histogram with the standard's cell "
+        "held, referenced to TOPAS's own two-model interval",
+        reference="TOPAS's two shipped models of this histogram give LaB6 "
+                  "17.907 and 17.950 wt %, so the reference is an interval "
+                  "0.043 wt % wide, not a number; no weighed composition "
+                  "exists and none is claimed",
+        measured="LaB6 17.841 +- 0.340 wt %, 0.066 outside the interval, "
+                 "i.e. 0.19 of its own esd",
+    ),
+    Claim(
+        "test_acceptance_lab6_cbn", "test_the_lowest_rwp_is_the_worst_answer",
+        "lab6_cbn", ("characterisation", "ceiling"),
+        "freeing per-phase Lorentzian broadening alongside the instrument's "
+        "lowers Rwp and moves the QPA several sigma away from TOPAS",
+        reference="Lorentzian FWHMs add, so instrument X,Y and per-phase "
+                  "lor_size/lor_strain are one quantity split three ways; the "
+                  "expected signature is |rho| -> 1 and an Rwp that improves "
+                  "while the partition degrades",
+        measured="rho = -1.000 (phases.0.lor_strain ~ instrument.profile.y) "
+                 "and +1.000 between the two phases' strains; Rwp 0.1297 "
+                 "degenerate vs 0.1648 identifiable, QPA 16.574 vs 17.841 "
+                 "wt % -- the better Rwp is 4 sigma further from TOPAS",
+    ),
+    Claim(
+        "test_acceptance_lab6_cbn", "test_the_correlation_diagnostic_separates_the_two",
+        "lab6_cbn", ("characterisation", "ceiling"),
+        "HIGH_CORRELATION is silent on the identifiable fit and fires on the "
+        "degenerate one, without being told which is which",
+        reference="the diagnostic channel must separate an identifiable "
+                  "parameterisation from a flat one on its own evidence",
+        measured="0 findings on the shared-broadening plan, 12 on the "
+                 "degenerate plan",
+    ),
     # ---- SRM 660c: the absolute lab anchor -----------------------------
     Claim(
         "test_acceptance_srm660c", "test_srm660c_lab6_rietveld", "srm660c",
@@ -1715,6 +1820,19 @@ GAPS: tuple[tuple[str, str], ...] = (
 #: Suite-level narrative, keyed by module.  The per-row prose is in the
 #: ``Claim`` objects; this is the sentence that says what the *dataset* is for.
 SUITE_INTROS: dict[str, str] = {
+    "test_acceptance_lab6_cbn": (
+        "Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed "
+        "with cubic BN, with the standard's certified cell held so the second "
+        "phase's is measurable against it.  There is no weighed composition, "
+        "so every row here is cross-code against TOPAS, bounded by the "
+        "0.043 wt % spread between TOPAS's own two models of this pattern.  "
+        "The suite's real subject is identifiability: Lorentzian FWHMs add, "
+        "so freeing the instrument's X,Y alongside each phase's "
+        "lor_size/lor_strain is one quantity split three ways, and the "
+        "degenerate fit reaches a LOWER Rwp while its phase fractions move "
+        "several sigma away from the reference.  An Rwp comparison would have "
+        "chosen the wrong model."
+    ),
     "test_acceptance_indexing":
         "The only externally *graded* feature in the package. Bergmann et al. "
         "(2004) published both the data and every program's score, so the bar "
