@@ -450,19 +450,49 @@ class _Read:
     rest: str = ""
 
 
-def _flag(*tokens: str | None) -> bool | None:
-    """The refine tri-state a set of flag tokens and a write-back tick state.
+def _flag(*tokens: str | None, named: str | None = None) -> bool | None:
+    """The refine tri-state a set of flag tokens, a name and a write-back tick.
 
     ``!`` outranks everything: TOPAS writes the converged value back into a
     *held* parameter too, so a backtick beside a ``!`` is a write, not a claim
     that the parameter moved.
+
+    **A name is itself the refine flag.** Technical Reference §2.1, *When is a
+    parameter refined*, opens with the rule and gives all three spellings::
+
+        A parameter is flagged for refinement by giving it a name.
+            site Zr x 0 y 0 z 0 occ Zr+4 1 beq b1 0.5      ' b1 is refined
+            site Zr x 0 y 0 z 0 occ Zr+4 1 beq !b1 0.5     ' ! holds it
+            site Zr x 0 y 0 z 0 occ Zr+4 1 beq @ 0.5       ' @ refines it
+
+    So ``beq b1 0.5`` is *not* a file that says nothing about b1 — it is a file
+    that says b1 was free — and reading it as ``None`` made it arrive
+    ``vary=False``. **3891 named-but-unflagged values across 89 archive files**
+    were reported as unstated and built as held. That is this reader's own
+    headline claim ("the refine flags are the payload, not the numbers")
+    getting the payload backwards on the format's *primary* spelling, and no
+    archive sweep could find it: a wrong `vary` raises nothing and changes no
+    parsed number.
+
+    ``named`` is passed only where the file states a **value** — ``[name]
+    <number>`` and the ``A1(name, value)`` coordinate macro. It is deliberately
+    *not* passed for the ``= expr;`` forms: §2.4 makes an equation a
+    *constraint*, so a named equation is a dependent parameter rather than an
+    independent refined one, and its write-back backtick already says whether
+    it moved.
+
+    A bare number with no name and no flag stays ``None`` rather than becoming
+    ``False``. The reference calls it a constant, but the tri-state's caution is
+    worth keeping at the one boundary where nothing was written: a caller can
+    tell "the file did not flag this" from "the file held this", and
+    ``rx.Parameter`` defaults it to fixed either way.
     """
     joined = "".join(t or "" for t in tokens)
     if "!" in joined:
         return False
     if "@" in joined or "`" in joined:
         return True
-    return None
+    return True if named else None
 
 
 def _read_tail(tail: str, symbols: dict[str, float]) -> _Read | None:
@@ -482,7 +512,8 @@ def _read_tail(tail: str, symbols: dict[str, float]) -> _Read | None:
         return _Read(_resolve(m["expr"].strip(), symbols),
                      _flag(m["pre"], m["post"]), m["name"], tail[m.end():])
     if m := _TAIL_VALUE.match(tail):
-        return _Read(float(m["value"]), _flag(m["pre"], m["post"], m["tick"]),
+        return _Read(float(m["value"]),
+                     _flag(m["pre"], m["post"], m["tick"], named=m["name"]),
                      m["name"], tail[m.end():])
     return None
 
@@ -614,7 +645,8 @@ def _read(name: str, text: str, symbols: dict[str, float] | None = None) -> _Rea
     """
     symbols = symbols or {}
     if (macro := _AXIS_MACROS.get(name)) and (m := macro.search(text)):
-        return _Read(float(m["value"]), _flag(m["pre"], m["tick"]), m["name"],
+        return _Read(float(m["value"]),
+                     _flag(m["pre"], m["tick"], named=m["name"]), m["name"],
                      text[m.end():])
     for m in re.finditer(rf"\b{re.escape(name)}\b", text):
         tail = text[m.end():]

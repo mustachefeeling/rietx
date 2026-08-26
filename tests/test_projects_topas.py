@@ -527,7 +527,9 @@ def test_a_phase_whose_sites_were_all_disabled_refuses_naming_the_phase(tmp_path
 #: files**, 107 patterns of `parametric_04.inp` among them.
 CELL_SPELLINGS = [
     ("a 7.301139", 7.301139, None),
-    ("a lpa 7.301139", 7.301139, None),
+    # a *name* is itself the refine flag — Technical Reference 2.1, "A parameter
+    # is flagged for refinement by giving it a name".
+    ("a lpa 7.301139", 7.301139, True),
     ("a @ 7.301139", 7.301139, True),
     ("a !lpa 7.301139`", 7.301139, False),
     ("a =mlpa;:7.301139`", 7.301139, True),
@@ -575,8 +577,11 @@ def test_a_cell_min_max_still_reads_when_the_value_is_named(tmp_path):
 #: the file it came from. A macro is a *specification fact* (io/CLAUDE.md's
 #: rule 2), so the argument order is read off these lines and never guessed.
 LATTICE_MACROS = [
-    # Cubic_ with a named argument — the one form that already worked.
-    ("Cubic_(lpa 4.15689)", (4.15689,) * 3 + (90.0,) * 3, None),
+    # Cubic_ with a named argument — the one form that already worked. Naming
+    # the argument refines it: the reference's own macro chapter gives the three
+    # spellings side by side (19.1) — `Cubic(4.50671)`, `Cubic(a_lp 4.50671)`,
+    # `Cubic(!a_lp 4.50671)` — and 2.1 says which of them is free.
+    ("Cubic_(lpa 4.15689)", (4.15689,) * 3 + (90.0,) * 3, True),
     # nameless: `\w*` in front of the value ate the integer part and gave
     # a = 0.15689, the same class as `weight_percent 11.596` → 0.596.
     ("Cubic(10)", (10.0,) * 3 + (90.0,) * 3, None),              # rigidb.inp:37
@@ -585,6 +590,8 @@ LATTICE_MACROS = [
     ("Cubic(@  4.15692`)", (4.15692,) * 3 + (90.0,) * 3, True),  # LaB6_Riet_TCHZ_01.inp:54
     ("Cubic_(!lpa 4.15689)", (4.15689,) * 3 + (90.0,) * 3, False),
     # TOPAS's own evaluated tail, inside the macro's parenthesis.
+    # an *equation* is a constraint (2.4), not an independent parameter, so a
+    # name on one is not the refine flag — only its write-back tick is.
     ("Cubic(=a1;:  5.43416_0.00012)",                            # Si_in_cap_NOMAD_jue.inp:139
      (5.43416,) * 3 + (90.0,) * 3, None),
     ("Cubic(aLP  11.210591`)",                                   # i15-xpdf_…_pdfonly.inp:69
@@ -2176,3 +2183,63 @@ def test_one_dataset_still_reports_its_r_wp(tmp_path):
                'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
     assert read_topas_inp(inp).r_wp == pytest.approx(7.7)
+
+
+# ---- round-six: a name IS the refine flag (Technical Reference 2.1)
+
+
+@pytest.mark.parametrize("line, expected", [
+    # the reference's own three spellings, verbatim from 2.1:
+    ("site Zr x 0 y 0 z 0 occ Zr+4 1 beq b1 0.5", True),
+    ("site Zr x 0 y 0 z 0 occ Zr+4 1 beq !b1 0.5", False),
+    ("site Zr x 0 y 0 z 0 occ Zr+4 1 beq @ 0.5", True),
+    ("site Zr x 0 y 0 z 0 occ Zr+4 1 beq @b1 0.5", True),
+    # and the fourth, which the reference calls a constant: nothing is claimed
+    ("site Zr x 0 y 0 z 0 occ Zr+4 1 beq 0.5", None),
+])
+def test_a_name_is_itself_the_refine_flag(tmp_path, line, expected):
+    """"A parameter is flagged for refinement by giving it a name" — Technical
+    Reference 2.1, which then prints exactly these spellings.
+
+    This reader read a name as *no statement*, so `beq b1 0.5` arrived as
+    "the file said nothing" and built `vary=False`. **3891 named-but-unflagged
+    values across 89 archive files** were reported held when the file said
+    free. No sweep could have found it: a wrong `vary` raises nothing, moves no
+    parsed number, and only a reader of the specification can see it.
+
+    The bare-value row stays `None` rather than becoming `False`. The reference
+    calls it a constant and `rx.Parameter` fixes it either way, but the
+    tri-state's caution is worth keeping where the file wrote no flag at all.
+    """
+    inp = _inp(tmp_path, "flag.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n' + line + "\n")
+    (phase,) = read_topas_inp(inp).phases
+    (site,) = phase.sites
+    assert site.vary.get("beq") is expected
+
+
+def test_a_named_equation_is_a_constraint_not_a_refined_parameter(tmp_path):
+    """Section 2.4 makes an equation a *constraint*: a named one is a dependent
+    parameter, not an independent refined one, so the name is not the flag
+    there. Its write-back backtick still is."""
+    inp = _inp(tmp_path, "eqn.inp",
+               'str\nphase_name "P"\nspace_group "P1"\n'
+               'a lpa = 5.0;\nb lpb = 6.0;: 6.0`\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    (phase,) = read_topas_inp(inp).phases
+    assert phase.vary.get("a") is None      # named equation: no claim
+    assert phase.vary.get("b") is True      # written back: it moved
+
+
+def test_the_named_flag_reaches_the_structure(tmp_path):
+    """The point of reading a flag is that a plan inherits it, so the rule has
+    to survive the build and not only the model."""
+    inp = _inp(tmp_path, "reach.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na lpa 5.0\n'
+               'scale sc 0.001\n'
+               'site A1 x xA 0.25 y 0 z 0 occ Na+1 1 beq !bA 0.5\n')
+    (phase,) = to_structure(read_topas_inp(inp)).phases
+    assert phase.cell.a.vary is True
+    assert phase.scale.vary is True
+    assert phase.atoms[0].x.vary is True
+    assert phase.atoms[0].biso.vary is False
