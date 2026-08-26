@@ -209,8 +209,9 @@ transcript keeps what a compaction dropped, so after one it over-reads, and it
 holds no system prompt, so before one it under-reads.
 
 Ending means the whole ending: ask the batch, apply the answers, write the
-report, and name what is left with the command that resumes it — `/pr-review
-all`, after the user's `/compact` or `/clear`. **Nothing is carried in a file.**
+report, release the bench lock if this run claimed one, and name what is left
+with the command that resumes it — `/pr-review all`, after the user's
+`/compact` or `/clear`. **Nothing is carried in a file** but that one lock.
 The queue, the held drafts and the batch all die with the run, which is why the
 batch is asked *before* stopping and never after, and why a resumed run rebuilds
 everything from one `gh pr list` call plus pass A's skip check.
@@ -303,6 +304,23 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    the remote, and the bench has the same one) sent the next four commands into
    the main checkout.
 
+   **The bench is exclusive to this run, and the machine is not.** Two
+   different worries, and only the second needs a mechanism. One `/pr-review`
+   runs at a time, so no other session reaches for `$BENCH` — the WP commands
+   branch in whatever tree they are already in and never name this path, git
+   refuses to check a branch out in two worktrees at once, and the bench runs
+   detached anyway. What the bench inherits from a stale *previous* run is a
+   left-behind merge, and `reset --hard origin/main` below is already the cure.
+   So write `$BENCH.lock` (session id, time, PR) when the block below first
+   runs and delete it at the ending: it is there to be *read* when the bench
+   looks unexpected, not to arbitrate.
+
+   The contended resource is the **suite**, shared with every live WP session:
+   `.claude/suite-lock.sh claim "$SESSION_ID" "pr-review N"` before step 5's
+   ladder, `refresh` beside each long command, `release` at the ending. Exit 3
+   is another session holding it — report the holder and stop, the same as any
+   other blocker here. Never reclaim it yourself.
+
    ```sh
    BENCH=.claude/worktrees/pr-bench
    git -C "$BENCH" fetch origin main
@@ -362,7 +380,9 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
 
    The **whole** `-m slow` suite fires once, at the merge gate in step 9, not on
    every round. Quote every count with its venv **and** platform
-   (`tests/CLAUDE.md` § Quoting numbers), and as a range, never a record.
+   (`tests/CLAUDE.md` § Quoting numbers), and as a range, never a record — and
+   **hold the long-suite lock while any of this runs**, because a ladder
+   measured beside a WP session's own suite is a ladder about the machine.
 6. **Check conformance against `CLAUDE.md`, sized to the PR.** Under roughly 400
    reviewable lines, read the diff yourself — spawning agents costs more than it
    saves. Above it, write the reviewable diff to the scratch directory **once**
@@ -439,12 +459,26 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    matching the repo's merge-commit history, and only when **all** of these hold:
    required checks green and `mergeStateStatus` `CLEAN`; the step-5 ladder green
    on the merged tree with counts quoted; the **full `-m slow` suite green on the
-   merged tree**, and green against the main that is there *now* (§ The batch,
+   merged tree**, run **under the long-suite lock** (`tests/CLAUDE.md` § The
+   long-suite lock) and green against the main that is there *now* (§ The batch,
    for the way a deferral can rot that); no execution-shaped file touched without
    the step-4 read; no conformance finding; no new public surface left
    undocumented; every added data file carrying provenance, and a licence if it
    ships in the wheel; no maintainer-machinery edit; and no open question. Name
    which of these each merge satisfied, in the private report.
+
+   **A gate run beside another suite is not a gate either.** § The batch has the
+   way a *deferral* rots this one; load is the way a *concurrent session* does,
+   and it is worse because it fails in both directions — a red that is only the
+   machine, and § Budgets in tests' measured case of a real-data row reporting a
+   different centring under load, which is a green that means nothing. The lock
+   is the whole answer, and an unlocked slow run is a deferral, not a gate.
+
+   **Say in the report which PRs you merged**, beyond the per-PR decision lines.
+   A merge moves `origin/main` under every live WP session, and a branch's counts
+   are not the merged tree's once it has (`tests/CLAUDE.md` § Quoting numbers).
+   Those sessions cannot see the merge and their `/wp-handover` step 9 re-measures
+   against a main that moved for a reason only this run knows.
 
    Close only when the contributor asked for it, or when the work has been folded
    into another PR — #112 and #114 were closed into #108 that way, and neither

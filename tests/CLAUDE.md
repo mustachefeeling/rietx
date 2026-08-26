@@ -23,6 +23,15 @@ whole-suite run launched mid-edit and therefore repeated):
 4. **Re-measuring `main`** — don't. That is CI's job (§ CI), and a local
    baseline costs a second full run to answer a bookkeeping question.
 
+**Rung 3 is exclusive across sessions.** Several share this checkout (WP work
+and one `/pr-review`), and two suites at `-n auto` put twice the workers on the
+same cores — not a timing question, since § Budgets in tests has load turning a
+real-data row's *answer*. `.claude/suite-lock.sh claim|refresh|release` is the
+mechanism and its header the rationale; it is taken in `/pr-review` step 9 and
+`/wp-handover` steps 6 and 9. **A refused claim waits or defers and never
+measures anyway** — the count would not be quotable (§ Quoting numbers). Rungs
+1-2 stay unlocked: locking them means holding it all session.
+
 - `-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y`
   stays serial, so `-s` and pdb keep working. `--dist loadgroup` is not
   optional — it honours the `xdist_group` marks that keep a shared fixture on
@@ -160,6 +169,9 @@ and never a silent cap.
   one, and 12:40 while it also ran a headless browser, three vite builds and
   a second pytest. Machine state moves it further than most changes do;
   compare runs, not records.
+  That 12:40 is the same tree as the 5:44, so **say whether another session was
+  running** — and prefer the lock (§ Running), which makes "alone" the ordinary
+  case rather than a claim.
 - **Quote the extras with any count**: installing `[jax,torch]` converts
   most skips into passes, so a bare "N tests" figure means nothing without
   the venv it was measured in.
