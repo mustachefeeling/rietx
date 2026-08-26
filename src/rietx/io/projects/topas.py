@@ -55,6 +55,16 @@ schema refusal raised above the boundary that converts it; and a negative
 class one level up — a phase the reader cannot expand is refused by name
 (:data:`_STR_MACRO`), never answered with "this file has no phases".
 
+A cell edge *coupled* to another — ``b = a;``, or the spelling the archive
+actually uses, ``b = Get(a);``, for a tetragonal or cubic phase written without
+the lattice macro — is that same **stated-but-unreadable** cell key: TOPAS's
+``Get(...)`` is a built-in this reader does not evaluate, so the edge is refused
+by name rather than resolved to ``a``. It is a real case, not a hypothetical:
+the bare ``b = a;`` form occurs in **none** of the 606 archive files, but the
+``Get(a)`` coupling occurs in **4** (the PbPdO2/PdO fits), and all four refuse.
+Resolving it is a parser this reader deliberately does not add — refusing loudly
+is the same report-or-refuse the ``STR(...)`` and cell-key cases follow.
+
 **One grammar, read once, and it carries the flag with the value.** Every scalar
 in a ``.inp`` — a coordinate, a cell edge, a scale, an occupancy, a lattice
 macro's argument — is the same four spellings of one production, so
