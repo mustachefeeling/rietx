@@ -382,7 +382,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # pass measured are in `docs/wp/1203-help-popover.md`.  One rule *left*
     # this file in the same pass — WP-1032's "`title=` is these forms' only
     # help mechanism" is no longer true, and its no-mute-fields half stayed.
-    "gui/CLAUDE.md": 663,
+    # 663 -> 687 for WP-1206 (2026-08-26): a project without a CIF.  Four rules
+    # a later panel WP cannot read off the code — that `structure` now has four
+    # forms told apart by disjoint keys, that a constrained cell is *offered*
+    # rather than validated (which is where the free/determined split has to be
+    # decided, and it is a crystallography call, not a form's), that a mode is
+    # refused rather than overridden here while Adopt does override, and the two
+    # form-drawing facts a browser found: a register's width belongs to the call
+    # site, and a numeric placeholder reads as a filled value.  The measured
+    # detail — the fit, the four browser defects, TOPAS's macro shape — is in
+    # `docs/wp/1206-typed-cell-project.md`.
+    "gui/CLAUDE.md": 687,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

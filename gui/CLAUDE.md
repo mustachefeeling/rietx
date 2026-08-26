@@ -468,6 +468,30 @@ time and Svelte never tore the stale instance down. And **every opener settles
 `wizardOpen` on success through one function**, `Model.svelte`'s `openPath()`
 — the recent list's own handler never did, which is what let the bug ship.
 
+**A project without a CIF** (WP-1206, `GET /api/spacegroup`,
+`session._typed_cell_structure`, `lib/wizard.ts`) is the wizard's second answer
+to step 2: a symbol and a cell, built into the same Le Bail scaffold Adopt lands
+(`schemas.structure.lebail_scaffold`, shared with `structure_from_candidate`).
+Four rules. The `structure` argument has **four forms told apart by disjoint
+keys** — `phases`, `cif`/`upload`, `space_group` — and the typed one's `cell` is
+an **object keyed by parameter carrying only what the setting leaves free**:
+`crystallography.symmetry.free_cell_names` decides, the route serves it, and the
+form draws the boxes it names, so a `b` under `P 4/m m m` is unrepresentable
+rather than refused — WP-1014's coordinate-DOF rule one parameter family over,
+and TOPAS's `Tetragonal(a, c)` shape (concept only). A determined parameter is
+**refused, never tolerance-checked and never ignored**: a tolerance on a *length*
+is a constant nothing else here needs, and ignoring is what a six-number route
+does — under `P 4/m m m` a typed `b` was tied away by `ParameterTable` and the
+number read back was never the one entered. `mode` is **refused at `rietveld`,
+not overridden**, the form disabling the option so the refusal is unreachable —
+Adopt sets the mode because there the caller chose a *candidate*; here they chose
+a mode. And two browser facts about drawing a form, both invisible to jsdom: a
+**register's width is the call site's** (`.segmented` is `display: flex`, so in a
+block parent it stretches to the whole column — every other use in the app sits
+in a flex row already), and a **placeholder that is a plausible number reads as a
+value somebody filled in**, which is why the instrument form's say `default`, a
+word; where there is no default to name, the honest placeholder is none.
+
 **Symmetry, surfaced and editable** (WP-1035, `src/rietx/gui/symmetry.py`,
 `gui/src/lib/symmetry.ts`) is the phase's space group stopping being one
 read-only string quoted in three places while everything it *does* — a tied `b`,
