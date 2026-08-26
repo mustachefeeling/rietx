@@ -161,6 +161,26 @@ def test_a_stored_zero_width_bound_is_repaired_rather_than_deserialized():
     assert kept.fwhm.min == 1.0
 
 
+def test_the_restated_softplus_floor_still_equals_the_one_that_decides():
+    """Three spellings of one number, pinned to the one with the vote.
+
+    ``_SOFTPLUS_FLOOR`` in ``schemas/instrument.py`` (the repair above) and in
+    ``schemas/structure.py`` (``PreferredOrientation.r``, pre-existing on main)
+    are both restatements — declared rather than imported, to keep the schemas
+    importing nothing from ``params``.  The number that actually decides whether
+    a softplus lower bound exists is ``transforms._SOFTPLUS_MIN``: ``to_internal``
+    maps any ``min`` at or under it to −∞.  Nothing else asserts the copies track
+    it, so changing ``transforms`` would leave both repairs pointing at a bound
+    the transform no longer forgives, in silence.  Pin them.
+    """
+    from rietx.params.transforms import _SOFTPLUS_MIN
+    from rietx.schemas.instrument import _SOFTPLUS_FLOOR as _INSTRUMENT_FLOOR
+    from rietx.schemas.structure import _SOFTPLUS_FLOOR as _STRUCTURE_FLOOR
+
+    assert _INSTRUMENT_FLOOR == _SOFTPLUS_MIN
+    assert _STRUCTURE_FLOOR == _SOFTPLUS_MIN
+
+
 def test_the_curve_is_a_gaussian_of_the_declared_fwhm():
     """Half height at ±Γ/2 — the property the −4 ln2 constant exists for."""
     xp = rx.backend.get_backend()
