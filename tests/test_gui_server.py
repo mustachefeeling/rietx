@@ -1789,6 +1789,31 @@ def test_each_stage_carries_the_rwp_of_the_node_that_ran_it(fitted):
     assert got[-1] == project.refinement.result_.statistics.rwp
 
 
+def test_the_node_rwp_is_the_trajectory_rung_rwp(tmp_path, pattern_file):
+    """The equivalence the ladder's Rwp arm rests on (WP-1208).
+
+    ``fit(stage_reports=True)`` builds a :class:`~rietx.report.StageReport` per
+    stage boundary and a stage node caches its own statistics; both are read
+    off the model that stage compiled and the θ it landed on, so they are the
+    same number.  The route takes the node, because the node is already on
+    disk: measured on this fixture, the trajectory costs 7.7× the fit to build
+    (0.076 s → 0.582 s) for a figure that is written either way.
+
+    In-process rather than over HTTP — what is under test is the library's two
+    accounts of one stage, not a route.
+    """
+    structure, instrument = perturbed_models()
+    ref = rx.Refinement(structure, instrument, history=True)
+    ref.fit(synthesize(), plan="mccusker_default", stage_reports=True)
+
+    nodes = [n for n in ref.history.lineage(ref._head_id)
+             if n.action.kind == "stage"]
+    rungs = ref.stage_reports_
+    assert len(nodes) == len(rungs) > 1
+    assert [n.action.name for n in nodes] == [r.stage for r in rungs]
+    assert [n.metrics.statistics.rwp for n in nodes] == [r.rwp for r in rungs]
+
+
 def test_a_plan_edited_since_the_run_shows_no_stage_rwp(blank, tmp_path,
                                                         pattern_file):
     """Position *and* identity: a rung whose stage is not what the node ran

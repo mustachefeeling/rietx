@@ -145,6 +145,10 @@ export const api = {
    *  through the mode*, so what comes back is what will actually run. */
   putPlan: (body: { preset?: string; plan?: unknown }) => call("PUT", "/api/plan", body),
   plans: () => call("GET", "/api/plans"),
+  /** The stages resolved against the live parameter table (WP-1208): per stage
+   *  what its globs reach, what it frees on top of the last, what it cannot
+   *  free and why, and the Rwp of the node that ran it. */
+  planResolve: () => call("GET", "/api/plan/resolve"),
 
   /** The structure **plus** three derived arms: `sites` (which `…dof.k` moves
    *  each atom, and which have none at all — a fully fixed special position),

@@ -15,6 +15,7 @@ applied would be worse than no text pane at all.
 from __future__ import annotations
 
 import re
+import typing
 from pathlib import Path
 
 import numpy as np
@@ -707,6 +708,14 @@ def test_the_highlighter_quotes_the_parsers_words():
     # positional (`stage <name>  free <globs>`), plus the `free` that introduces them
     stage_keys = set(StageSpec.model_fields) - {"name", "turn_on"}
     assert set(words("STAGE_WORDS")) == stage_keys | {"free"}
+    # …and the two properties the plan editor's boxes need of each of them
+    # (WP-1208): which take an integer, and which admit an empty box.  Same
+    # bargain as the vocabulary above — restated there, pinned from here, so a
+    # new `StageSpec` field cannot reach the form as an untyped text box.
+    assert set(words("STAGE_INT_WORDS")) == set(td.STAGE_INT_KEYS)
+    assert set(words("STAGE_NULLABLE_WORDS")) == {
+        key for key in stage_keys
+        if type(None) in typing.get_args(StageSpec.model_fields[key].annotation)}
 
     # …and the negative half: the scanner may not have grown a way to say "wrong",
     # because only the server can know that (this is asserted from the JS side too,

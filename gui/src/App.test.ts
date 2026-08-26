@@ -23,6 +23,7 @@ import { mount, unmount } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App.svelte";
+import { STAGE_WORDS } from "./lib/rxt";
 
 const CAPABILITIES = {
   package_version: "1.0.0.dev0",
@@ -150,11 +151,34 @@ const PLAN = {
   mode: "rietveld",
 };
 
+/** `GET /api/plan/resolve` (WP-1208): what each of `PLAN`'s two stages will
+ *  free on the live table, in the shape the ladder draws. */
+const PLAN_RESOLVE = {
+  mode: "rietveld",
+  n_parameters: 12,
+  n_free_final: 5,
+  set_aside: [],
+  head: "n0002",
+  live: false,
+  stages: [
+    { name: "scale+bkg", turn_on: ["phases.*.scale", "instrument.background.*"],
+      frees: ["phases.0.scale", "instrument.background.c0"], already: [], held: [],
+      n_matched: 2, n_free: 2, rwp: 0.9535 },
+    { name: "cell", turn_on: ["phases.*.cell.*"],
+      frees: ["phases.0.cell.a"], already: [],
+      held: [{ path: "phases.0.cell.b",
+               held_because: "tied: = 1\u00b7phases.0.cell.a" }],
+      n_matched: 2, n_free: 3, rwp: 0.4457 },
+  ],
+};
+
 const PLANS = {
   plans: [
-    { name: "mccusker_default", title: "Standard (profile only)", description: "…",
+    { name: "mccusker_default", title: "Standard (profile only)",
+      description: "Scale and background, zero shift, cell, then the widths.",
       modes: ["rietveld"], when_to_use: "The default first fit of a known structure." },
-    { name: "profile_only", title: "Profile only", description: "…",
+    { name: "profile_only", title: "Profile only",
+      description: "Background, zero shift, cell and widths only.",
       modes: ["rietveld", "lebail"], when_to_use: "Le Bail, or a profile without a structure." },
   ],
 };
@@ -570,6 +594,7 @@ function boot(project: any = PROJECT, run: any = IDLE_RUN,
     "/api/events": () => ({ body: { events: [], next: 0, oldest: 1, ...run } }),
     "/api/params": () => ({ body: PARAMS }),
     "/api/plan": () => ({ body: PLAN }),
+    "/api/plan/resolve": () => ({ body: PLAN_RESOLVE }),
     "/api/plans": () => ({ body: PLANS }),
     "/api/history": () => ({ body: HISTORY }),
     "/api/report": () => ({ status: 409, body: { error: { code: "NO_RESULT", message: "none" } } }),
@@ -976,14 +1001,53 @@ describe("the plan editor", () => {
     const names = [...host.querySelectorAll<HTMLInputElement>(".name")].map((i) => i.value);
     expect(names).toEqual(["scale+bkg", "cell"]);
     expect(host.querySelector<HTMLSelectElement>("select")?.value).toBe("mccusker_default");
-    // the preset's guidance, from PLAN_INFO through /api/plans
-    expect(host.textContent).toContain("The default first fit of a known structure.");
+    // the preset's own words, from PLAN_INFO through /api/plans.  `description`
+    // is the visible one since WP-1208 and `when_to_use` is in the popover, so
+    // this is the line a person reads without clicking anything
+    expect(host.textContent).toContain("Scale and background, zero shift, cell,");
+    // …and the explainer above it, which is the panel's whole subject
+    expect(host.textContent).toContain("A plan is an ordered list of stages.");
+  });
+
+  it("resolves each stage against the live table, and says what it holds", async () => {
+    // WP-1208: the ladder is `GET /api/plan/resolve`, never a client-side glob
+    // match — what a stage frees is its matches minus what is tied, locked,
+    // mode-fixed or degenerate with a free cell
+    await openPlan();
+    const rungs = [...host.querySelectorAll("ol.stages > li .rung summary")]
+      .map((n) => n.textContent!.replace(/\s+/g, " ").trim());
+    expect(rungs).toEqual([
+      "+2 → 2 free · Rwp 95.35%",
+      "+1 → 3 free · 1 held · Rwp 44.57%",
+    ]);
+    expect(host.textContent).toContain("Ends with 5 of 12 parameters free.");
+    // the held row carries the server's own sentence, never one written here
+    expect(host.textContent).toContain("phases.0.cell.b");
+    const held = [...host.querySelectorAll(".rung .body .help")];
+    expect(held.map((n) => n.getAttribute("aria-haspopup"))).toEqual(["dialog"]);
+  });
+
+  it("hides the resolved facts while the plan on screen is not the server's", async () => {
+    await openPlan(PROJECT, {
+      "/api/plan": (call: Call) => ({ body: call.method === "PUT" ? { ...PLAN, preset: null } : PLAN }),
+    });
+    expect(host.querySelector(".rung summary")).not.toBeNull();
+    const first = host.querySelector<HTMLInputElement>("ol.stages > li input.globs")!;
+    first.value = "instrument.*";
+    first.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+
+    expect(host.querySelector(".rung summary")).toBeNull();
+    expect(host.textContent).toContain("Save the plan to see what its stages free");
+    // …and Run all is refused meanwhile, because it would run the saved plan
+    expect(button("Run all")!.disabled).toBe(true);
   });
 
   it("runs one stage through the same machinery a whole fit uses", async () => {
     const stub = await openPlan();
-    const runs = [...host.querySelectorAll<HTMLButtonElement>("li .head button")]
-      .filter((b) => b.textContent?.trim() === "Run");
+    const runs = [...host.querySelectorAll<HTMLButtonElement>("ol.stages > li .rung button")]
+      .filter((b) => b.textContent?.trim() === "Run this stage");
+    expect(runs).toHaveLength(2);
     runs[1].click();
     await flush();
 
@@ -1020,6 +1084,19 @@ describe("the plan editor", () => {
     expect(host.querySelector(".advanced")).not.toBeNull();
     expect(host.textContent).toContain("strain");           // Stage.strain_seed
     expect(host.textContent).toContain("correlation guard");
+
+    // …and it offers *every* stage field, because the list is derived from
+    // `lib/rxt.ts`'s stage words rather than typed out here (WP-1208).  Those
+    // are pinned to `StageSpec` from python, so a schema field cannot reach
+    // the `.rxt` document and miss this form.
+    const boxes = host.querySelectorAll("ol.stages > li .advanced label");
+    expect(boxes.length).toBe((STAGE_WORDS.length - 1) * PLAN.plan.stages.length);
+    const helped = [...host.querySelectorAll("ol.stages > li:first-child .advanced .help")]
+      .map((n) => n.textContent!.trim());
+    expect(helped).toHaveLength(STAGE_WORDS.length - 1);
+    // the two fields that were only reachable through the text document
+    expect(helped).toContain("ftol");
+    expect(helped).toContain("slack");
   });
 
   it("reorders stages by drag, and offers to save the edited plan", async () => {
@@ -1028,7 +1105,7 @@ describe("the plan editor", () => {
     });
     // jsdom has no DragEvent; the handlers read only the indices they were
     // bound with, so a plain Event of the same type drives them identically
-    const items = [...host.querySelectorAll("li")];
+    const items = [...host.querySelectorAll("ol.stages > li")];
     items[1].dispatchEvent(new Event("dragstart", { bubbles: true }));
     items[0].dispatchEvent(new Event("drop", { bubbles: true }));
     await flush();

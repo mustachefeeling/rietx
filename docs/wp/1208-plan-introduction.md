@@ -58,12 +58,13 @@ under `/yue-docs-style`; `StageSpec` field help from the corpus.
 - [x] `GET /api/plan/resolve` in `GuiSession` (a `ParameterTable` build per
       call; matched with `fnmatch` the way `set_vary` matches); tested
       against the fnmatch corpus vocabulary.
-- [ ] The ladder rendering, the per-stage disclosure, cumulative counts, held
+- [x] The ladder rendering, the per-stage disclosure, cumulative counts, held
       matches with their reason; the explainer and `description` visible;
       corpus help on every stage field; "Run this stage" / "Run all" named.
-- [ ] Stage Rwp on the ladder after a run (`stage_reports=True` from the
-      GUI's run verb; `tests/test_gui_server.py` asserts the run answer is
-      unchanged).
+- [x] Stage Rwp on the ladder after a run — off the **history nodes**, not a
+      `stage_reports=True` run verb: the two numbers are bit-identical (pinned
+      by `test_the_node_rwp_is_the_trajectory_rung_rwp`) and the trajectory
+      costs 7.7× the fit to rebuild, so the run verb is untouched.
 - [ ] Browser pass on the NAC example: read the ladder cold; dist rebuilt.
 
 ## Acceptance
