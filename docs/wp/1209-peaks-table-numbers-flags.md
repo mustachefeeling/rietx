@@ -76,6 +76,22 @@ From **WP-1201** (2026-08-25, shipped):
   `lib/style.test.ts`. Its table is `var(--text-sm)`; a control's label rides
   at the control's size, prose is `var(--text)`.
 
+From **WP-1203** (2026-08-26, shipped):
+
+- **A peak flag's meaning is already rendered.** Every chip in the flags column
+  and every `PEAK_*` code in the diagnostics strip is a `<Help>` term over
+  `rietx.help`'s `peak_flags` (13) and `peak_diagnostics` (12) arms, so what
+  this WP owes is the *label* — the short words on the chip — and not a
+  second explanation. Changing what a flag means is an edit to `help.py`.
+- `panels/Peaks.svelte` is allowed exactly **12** authored `title=` literals by
+  `lib/help.test.ts`'s per-file budget, and they are this panel's indexing
+  result columns and empty states. The count fails both ways: adding one fails,
+  and so does removing the last without deleting the row. Describing one
+  properly means an arm in `rietx.help` keyed by a live vocabulary, the way
+  `search_fields` was added in 1203.
+- The 21 search-control fields are done: `controls.ts` carries no prose and
+  `searchHelp(field)` derives `search_fields:<name>`.
+
 ## Non-goals
 
 - The peak layer on the plot (WP-1210), candidates (WP-1211).

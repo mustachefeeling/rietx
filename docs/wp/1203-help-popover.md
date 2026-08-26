@@ -1,6 +1,6 @@
 # WP-1203 — The help popover: one mechanism across the panels
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.2 · Status: ✅ 2026-08-26 — one popover over the corpus, and 51 authored tooltips left, counted
 Depends on: WP-1201 (the registers), WP-1202 (the corpus)
 
 ## Goal
@@ -143,5 +143,111 @@ panel.
   this WP retargets.
 
 ## Handover log
+
+### 2026-08-26 — one place to ask what a name means, and a countable list of where you still cannot
+
+A person using the GUI can now click almost any name and be told what it is:
+what the quantity means, its unit, the schema's own default, a range to compare
+their number against, and a link to the chapter with the equation. Hovering
+shows a question-mark cursor and nothing else, which was the decision at the
+milestone opening. It works from the keyboard, which the old `title=`
+mechanism never did — and one message had been *out* of reach since WP-1201
+moved the header's "not a fit yet" badge off a button. What it does not cover is
+named rather than hidden: 51 explanations are still hover-only tooltips,
+counted per file by a test, because they describe report statistics, series
+settings, indexing result columns and 3D drawing thresholds, and the corpus has
+no vocabulary for any of those yet. Those arrive with the WPs that own those
+panels; the mechanism is now waiting for them.
+
+**Two decisions taken against this WP's own written design**, both because the
+measurement said so, and both offered to the maintainer first (no answer, so
+the recommendation stands and is recorded here).
+
+- The WP said "no help content: entries are WP-1202's", and also "move
+  `lib/controls.ts` titles into corpus keys". Those contradict: WP-1202 covered
+  no indexing search setting, so those 21 strings had nowhere to go. The
+  `search_fields` arm landed here. The prose is the form's own, **moved**, not
+  rewritten — the form was the only place several of those measurements were
+  written down.
+- The WP said a vitest should grep for `title=` on non-button elements "and
+  expect none". Measured inventory: 151 attributes, 58 on `<button>`, and 18 of
+  the other 93 are not authored prose at all — 6 reveal a value a narrow column
+  truncated, 12 carry a sentence the *server* wrote. A ban would have deleted
+  working behaviour and forced `held_because` to be re-rendered through a
+  popover everywhere it appears. The rule is therefore about *what a title may
+  be*, and the guard is a **counted budget** rather than a ban.
+
+**Done.**
+
+- `HelpEntry.anchor` is `page.html#heading-id` (WP-1202 left this WP the
+  choice); `GET /api/help` carries `docs_url` beside the arms so no frontend
+  spells the site's address. `test_every_anchor_resolves_in_the_built_manual`
+  now checks the pair — an id on some *other* page used to pass.
+- `search_fields`, 21 entries, `IndexingControls` flattened one level and
+  crossed both ways against the document's own model. Its `default` is crossed
+  against the schema rendered as JSON, which closes the hole WP-1202 named and
+  left open (every other arm's default is prose restating a live constant).
+- `lib/help.ts` (`resolve`, `place`, `manualUrl`, `paramKey`), `Help.svelte`,
+  one popover in `App`, `.popover` in `app.css`, and `tests/test_gui_help.py`
+  writing the committed key set `tests/data/gui/help_keys.json`.
+- Wired: Params (paths, held rows), Model (cell edges, atom columns, wizard
+  preset fields, instrument editor, reader options), Plan (stage fields, the
+  preset), Peaks (13 flags, 12 diagnostics, 21 search controls).
+- `ControlField` and `PresetField` carry no `title` at all and **derive** their
+  key; `lib/model.ts`'s `Field` carries `help` as data plus `title` as an escape
+  held to a named list of two (`geometry.kind`, `profile.shape`).
+- One defect the browser found and jsdom cannot: the parameter row's width
+  budget. Repaired as three widths with the reason beside them.
+
+**Measured** (`[dev]`, darwin/arm64; main had not moved under the branch, so
+these are the merged tree's).
+
+- Fast suite **2980 passed / 72 skipped**, 5m14s. This WP adds exactly 7 python
+  tests, verified by collection: `test_help.py` 18 → 20, new `test_gui_help.py`
+  5. The rest of the move from WP-1202's 2814/117 is three PRs merged into main
+  since that measurement, not this branch.
+- vitest **441 passed** across 21 files, from 431 at the branch point: 16 in the
+  new `lib/help.test.ts` were already counted at 431, then +7 popover tests in
+  `App.test.ts` and +3 title-audit tests. `svelte-check` 377 files, 0 errors.
+  `ruff` clean.
+- No new skips. The full suite was **not** fired: no residual, Jacobian or
+  solver code was touched, and no slow test pins anything this changed.
+- The row budget, measured in Chrome before and after at 1400 / 1100 / 1000 /
+  900 / 760 px: `.path` 159 / 45 / 7 / 0 / 0 px → 219 / 105 / 68 / 55 / 54 px;
+  `.value` 152 px throughout → its declared 92.
+- Corpus 92 → 113 entries, 7 → 8 arms. `/api/help` is 59 kB; the committed key
+  set is 5 kB, which is why it carries names and not prose.
+
+**Gotchas for the successor.**
+
+- **A key is `arm:name` and a bare name is refused.** `seed` is a stage field
+  *and* a search control; `preset` is a search control *and* a word a plan owns.
+  A test asserts the collision is still real, so the rule cannot outlive its
+  reason.
+- **A parameter key is the family glob, never a path.** `resolve` does not run
+  fnmatch — the server matched it and the row carries the answer in `help_key`.
+  `parameters:phases.0.cell.b` deliberately resolves to nothing.
+- **A scroll closes the popover, on purpose**, which bites a browser driver: a
+  click issued while a smooth scroll is still settling closes what it just
+  opened. Scroll, wait ~900 ms, then click. Two sessions' worth of confusing
+  nulls came from that.
+- **`Placement.flipped` has a reader for a reason.** A popover taller than the
+  viewport clamps to the top margin, which is exactly where flipping would put
+  it, so the flag is the only thing separating the two cases; it is on the
+  popover as `data-flipped` and that is what a browser pass reads.
+- The chromium binary is at `chrome-mac-arm64/Google Chrome for Testing.app`,
+  not `Chromium.app`, in the cached playwright install.
+- `.bounds` is now the parameter row's shrinking column (120 → 93 px at the
+  sidebar floor). If a later WP wants it fixed-width again, the 44 px floor
+  under `.path` is what has to move with it.
+
+**Next: WP-1205**, the wizard's new-project defaults, which is the next row in
+the v1.2 table and the first WP that *uses* this component rather than building
+it. Its `### Inherited` now carries the two things it cannot read off the code:
+that a preset field's help key is derived from its own name (so a field it adds
+needs an `INSTRUMENT_FIELD_HELP` entry or it fails `test_help.py`, not a
+`title=`), and that the wizard's remaining authored tooltips are inside a
+counted budget. WP-1208 (Plan) and WP-1209-1213 (Peaks and the plot) carry the
+same note about their own panels' counts.
 
 - **2026-08-25** — created from the v1.2 triage.
