@@ -464,11 +464,44 @@ def _read_tail(tail: str, symbols: dict[str, float]) -> _Read | None:
     return None
 
 
-#: Keywords that can follow ``occ`` on a site line. They bound the occupancy's
-#: text, which is what makes an *absent* occupancy different from one whose
-#: value is the next keyword's: ``occ Sr+2 beq 0.765`` is a full occupancy and a
-#: B of 0.765, and reading the token after the species gave it occupancy 0.765.
-_SITE_KEYWORDS = r"\b(?:beq|ADPs|vcocc|rand_xyz|num_posns|u\d\d|site)\b"
+#: Every keyword the grammar allows *inside* a ``site``, and therefore every
+#: token that can follow ``occ`` and bound its text. That boundary is what makes
+#: an *absent* occupancy different from one whose value is the next keyword's:
+#: ``occ Sr+2 beq 0.765`` is a full occupancy and a B of 0.765, and reading the
+#: token after the species gave it occupancy 0.765.
+#:
+#: The list is the technical reference's own (``Tstr_details``), not a set
+#: collected from files, because a name that is missing here is a *silently
+#: wrong occupancy* and the archive cannot enumerate what it happens not to
+#: contain. The grammar states::
+#:
+#:     [site $site [x E] [y E] [z E]]...
+#:       [occ $atom E [beq E] [scale_occ E]]...
+#:       [num_posns #] [rand_xyz !E] [inter !E #]
+#:       [[adps] | [[u11 E] [u22 E] [u33 E] [u12 E] [u13 E] [u23 E]]]
+#:       Tmin_max_r                       ' min_r, max_r
+#:       [adps_scale E]
+#:       [mlx E] [mly E] [mlz E] [mg E]
+#:       [mag_only] [co #] [g !N] [q E] [s E] [track !E] [layer $layer]
+#:
+#: Thirteen of those were missing before this round. None of them misreads a
+#: file in the 606-file archive — every site there states its occupancy — so
+#: this is latent cover, closed from the specification rather than from a
+#: failure. ``vcocc`` is kept though the reference's table does not name it: it
+#: was already here, and a spurious terminator can only end an occupancy early,
+#: never lengthen one. ``site`` itself terminates because the next site's token
+#: bounds this one.
+#: ``adps`` is the one child the archive spells in two cases (``ADPs``/``adps``),
+#: so it carries a scoped case-insensitive flag rather than two entries — the
+#: same spelling :data:`_ADPS_KW` already reads. Longest first, so ``\b`` never
+#: truncates ``adps_scale`` to ``adps`` or ``min_r`` to ``min``.
+_SITE_CHILDREN = ("beq", "scale_occ", "num_posns", "rand_xyz", "inter",
+                  "(?i:adps_scale)", "(?i:adps)", "min_r", "max_r",
+                  "mlx", "mly", "mlz", "mg", "mag_only",
+                  "co", "g", "q", "s", "track", "layer",
+                  "vcocc", "site", r"u\d\d")
+_SITE_KEYWORDS = r"\b(?:" + "|".join(
+    sorted(_SITE_CHILDREN, key=len, reverse=True)) + r")\b"
 
 #: The six anisotropic displacement components TOPAS writes, in the order
 #: :meth:`rietx.AnisoU.from_values` expects. TOPAS's ``u_ij`` are U^ij in Å² —

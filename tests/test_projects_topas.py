@@ -1952,3 +1952,60 @@ def test_the_dropped_block_refusal_agrees_in_number(
         assert "so they cannot be built" in msg
         assert "dropping them while" in msg
         assert "other phase builds would" in msg
+
+
+# ------------- round-six: the grammar's own `site` keyword list (F5)
+
+
+@pytest.mark.parametrize("tail, occupancy", [
+    # the measured case that put `beq` on the list in the first place
+    ("occ Sr+2 beq 0.765", 1.0),
+    # the twelve the technical reference names and this reader did not:
+    # `[mlx E] [mly E] [mlz E] [mg E]`
+    ("occ Fe+3 mlx 2.5 mly 0 mlz 0", 1.0),
+    # `Tmin_max_r` — `[min_r #] [max_r #]`
+    ("occ Na+1 min_r 1.2", 1.0),
+    # `[occ $atom E [beq E] [scale_occ E]]` — scale_occ is occ's own child
+    ("occ Ca+2 scale_occ 0.5", 1.0),
+    # `[adps_scale E]`, and `[inter !E #]`, `[track !E]`, `[layer $layer]`
+    ("occ O-2 adps_scale 2.0", 1.0),
+    ("occ O-2 inter 3.0", 1.0),
+    ("occ O-2 track 1", 1.0),
+    # `[g !N] [q E] [s E]` and `[co #]` — one letter each, and each a number
+    ("occ Cl-1 q 0.5", 1.0),
+    ("occ Cl-1 co 6", 1.0),
+    # a stated occupancy still reads, in front of every one of them
+    ("occ Sr+2 0.75 mlx 2.5", 0.75),
+    ("occ Sr+2 0.75 min_r 1.2", 0.75),
+])
+def test_a_site_keyword_the_grammar_names_never_becomes_the_occupancy(
+        tmp_path, tail, occupancy):
+    """A site keyword missing from the terminator set is read as the
+    occupancy's value — the failure `beq` already had, generalised.
+
+    The list is the technical reference's `Tstr_details` `site` node, not a set
+    collected from the archive: every site in the 606 files states its
+    occupancy, so none of these misreads there and the archive could never have
+    found them. The format's own 1.0 default is what an `occ` stating no value
+    keeps (established in round two); the wrong answer is the neighbour's number
+    arriving in its place, silently, on a site the reader then builds.
+    """
+    inp = _inp(tmp_path, "sitekw.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               f'site A1 x 0 y 0 z 0 {tail}\n')
+    (phase,) = read_topas_inp(inp).phases
+    (site,) = phase.sites
+    assert site.occupancy == pytest.approx(occupancy)
+
+
+def test_the_ADPs_spelling_still_terminates_an_occupancy(tmp_path):
+    """`adps` carries a scoped case-insensitive flag rather than two entries,
+    because the archive spells it both ways — six files, `adps` and `ADPs`. A
+    case-sensitive list would have re-opened exactly the hole it closed."""
+    inp = _inp(tmp_path, "adpscase.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Ca+2 ADPs { 0.01 0.01 0.01 0 0 0 }\n')
+    (phase,) = read_topas_inp(inp).phases
+    (site,) = phase.sites
+    assert site.occupancy == pytest.approx(1.0)
+    assert site.adps["u11"] == pytest.approx(0.01)
