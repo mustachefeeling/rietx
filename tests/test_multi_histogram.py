@@ -149,6 +149,35 @@ def test_bad_histogram_shows_in_its_own_rwp(two_patterns):
         result.for_histogram(h).plot(OUT / f"multihist_bad_h{h}.png")
 
 
+def test_a_narrow_declared_peak_is_flagged_per_histogram(two_patterns):
+    """The joint path runs the width guard too (candidate 2).
+
+    A disguised-Bragg background peak — free position/height/width with a fitted
+    width at the resolution — declared on one histogram surfaces
+    ``BACKGROUND_PEAK_TOO_NARROW`` in *that histogram's* own diagnostics, the
+    channel a joint fit reports degeneracy evidence through.  Before this the
+    joint path was the only one that never called ``check_background_peak_width``,
+    so such a peak produced no warning anywhere.
+    """
+    from rietx.schemas.instrument import BackgroundPeak
+
+    structure, instruments = perturbed_inputs()
+    instruments[0].background_peaks = [BackgroundPeak(
+        label="disguised",
+        position=Parameter(value=12.0, unit="deg", vary=False),
+        height=Parameter(value=150.0, min=0.0, unit="counts",
+                         transform="softplus", vary=False),
+        fwhm=Parameter(value=0.02, min=0.01, unit="deg",
+                       transform="softplus", vary=False))]
+    result = refine_multi(two_patterns, structure, instruments,
+                          plan="mccusker_default")
+
+    codes0 = {d.code for d in result.histograms[0].diagnostics}
+    codes1 = {d.code for d in result.histograms[1].diagnostics}
+    assert "BACKGROUND_PEAK_TOO_NARROW" in codes0
+    assert "BACKGROUND_PEAK_TOO_NARROW" not in codes1   # no peak declared there
+
+
 def test_every_row_carries_a_bound_answer_or_says_it_has_none(two_patterns):
     """`multi.py` builds its own rows, so it needs its own at_bound pin.
 
