@@ -36,6 +36,7 @@ DATA = Path(__file__).parent / "data"
 REAL_FIXTURES = [
     ("11BM_NAC.fxye", "gsas"),            # GSAS FXYE, 2.5 MB, esd column
     ("FAP.XRA", "gsas"),                  # GSAS STD, fixed-format, Poisson
+    ("mg090.Cu311.gsas", "gsas"),         # GSAS ESD, 8-char positional fields
     ("nist_srm660c_100a.cif", "pdcif"),   # pdCIF through gemmi, two blocks
     ("qarr/corundum.prn", "xy"),          # two-column ASCII
     ("rigaku_nims.ras", "ras"),           # Rigaku text, marked sections
@@ -60,13 +61,27 @@ REAL_FIXTURES = [
 #: to fail at: the first range has already parsed and returned by then.
 #: ``raw3`` is the plainest case: **no** real file exists, from any source, so
 #: this arm is the only truncation coverage that format has.
-SYNTHETIC_FIXTURES = ["uxd", "rasx", "brml", "raw4", "raw3"]
+#: ``gsas_esd`` is a fifth reason: a real ESD bank *is* vendored and truncated
+#: above (``mg090.Cu311.gsas``), but the ESD field's failure mode only appears
+#: once a value **fills** all eight of its characters, and no vendored bank has
+#: one — ``mg090.Cu311.gsas`` peaks at 14 476 written without decimals
+#: (``14476.``, six characters).  The APS 11-BM patterns that do reach the edge
+#: are not redistributable (``tests/data/README.md`` § GSAS ESD), so the layout
+#: is packed here instead.
+SYNTHETIC_FIXTURES = ["uxd", "rasx", "brml", "raw4", "raw3", "gsas_esd"]
 
 
 def _synthesize(kind: str, path: Path) -> Path:
-    from tests.test_readers import write_brml, write_rasx, write_uxd
+    from tests.test_readers import write_brml, write_gsas_esd, write_rasx, write_uxd
     from tests.writers_xrd import write_raw3, write_raw4
 
+    if kind == "gsas_esd":
+        # every fifth channel fills its 8-character field, so a cut lands
+        # inside a fused pair as well as inside an ordinary one
+        return write_gsas_esd(
+            path,
+            [101641.3 if i % 5 == 4 else 500.0 + i % 7 for i in range(200)],
+            [318.8 if i % 5 == 4 else 22.0 + i % 3 for i in range(200)])
     if kind == "raw3":
         # extra records in the second range, so a cut can land between a header
         # and the data it declares rather than only inside one of them

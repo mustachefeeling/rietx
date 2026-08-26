@@ -784,3 +784,50 @@ own literal offset table, so the writer cannot drift with the reader.
 **v1 and v2 are refused**: GSAS-II describes v2 and nothing else corroborated
 does, and one description with no file is how a reader comes to return a
 plausible wrong pattern.
+
+### GSAS ESD — the 8-character field, and why no file here has a bright peak
+
+The GSAS `ESD` bank is **positional**: five (intensity, esd) pairs to an
+80-column record, eight characters to a field.  Three descriptions agree, and
+`src/rietx/io/formats/gsas.py` cites all three — APS 11-BM's own *Data Formats*
+page ("*the intensities and their uncertainties (esd) are alternated with five
+pair of numbers per line (8 characters per number), as described in the GSAS
+manual*"), the manual it points at (Larson & Von Dreele 2004, LAUR 86-748), and
+GSAS-II's `G2pwd_fxye.py`, whose ESD reader takes `S[i:i+8]` and `S[i+8:i+16]`
+on a 16-character stride.  The reader used to split the record on whitespace
+instead, which is right only while every value is at most seven characters
+wide.
+
+**Nothing is vendored for this.**  The files that establish it are APS 11-BM's
+published standards patterns, recovered from the Internet Archive; no
+redistribution grant was found for them.  What the beamline's pages state is
+about *acknowledgement in publications* — the APS acknowledgement statement,
+and the SRM-certificate page's "provided for the convenience of APS beamline
+11-BM users" — and acknowledgement is not redistribution.  So
+`tests/test_readers.py::write_gsas_esd` packs the layout instead, literally and
+without importing anything from the parser, and this section records what the
+real files established:
+
+| Established | Evidence |
+|---|---|
+| Every data record is exactly 80 characters holding exactly ten non-blank fields — the format is positional, not merely usually-spaced | all six real ESD/STD banks measured, on-disk: 9 900 records each in the four 11-BM files, 660 in `mg090.Cu311.gsas`, 576 in `FAP.XRA` |
+| A value that **fills** its field leaves no separating space, and the record then yields nine numbers where it holds ten | `11BM_LaB6.raw` record 1050: `… 64175.2   298.5101641.3   375.8`. 16 such records in that file, 4 in `11BM_Si640c.raw` |
+| The threshold is set by the **writer's decimal convention**, not by a universal count: at 11-BM's one decimal place an intensity of 100 000 is exactly eight characters | the 68 full-width fields measured across the two files run 100 130.4, 100 547.4, 101 641.3 … 560 731.2, and the smallest is 100 130.4 — nothing below 100 000 ever fuses. `mg090.Cu311.gsas` writes the same bank with **no** decimals (`14476.`), which puts its own threshold at 10 000 000 |
+| The positional read is **exact**, not merely parseable | all four 11-BM ESD banks reproduce the beamline's own `.fxye` of the identical scan channel for channel: max abs Δ2θ 1.4e-14, max abs ΔI and Δesd 0.050 — which is the half-step of the ESD container's own one-decimal rounding, so the residual is the container's, not the parser's |
+| A sibling file is **not** evidence for this: the same bug is invisible on a dim pattern | `11BM_Kapton.raw` (brightest channel 718.7) and `11BM_background_air_scatter.gsa` (49.4) parse identically either way, and so do the two committed banks, `mg090.Cu311.gsas` (14 476) and `FAP.XRA` (19 693). Zero full-width fields in any of the four |
+| Records are padded with **explicit zeros**, never with blanks, so a blank field is only ever a short final record | zero interior blank fields across all six banks; every real bank's tail reads `0.0` pairs |
+
+Two things the same corpus establishes about the *other* flavours, and both are
+reasons **not** to widen the change:
+
+* `FXYE` is genuinely free-format — the committed `mg090.fxye` writes tokens 9
+  and 10 characters wide on records of 31 to 34 characters, so 8-character
+  slicing would destroy it.  Whitespace splitting is the correct read there and
+  is left alone.
+* `STD`'s 8-character field is a 2-character repeat count plus a 6-character
+  value, so a value can never reach the field's left edge and fusion is
+  **structurally impossible** in a bank GSAS could have written.  `FAP.XRA`
+  confirms the uncompressed shape (every count subfield blank, values
+  right-justified in the low six characters).  The *compressed* variant — a
+  non-blank repeat count — is a question no obtainable file answers, and it is
+  not guessed at.

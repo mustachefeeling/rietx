@@ -61,6 +61,25 @@ decision earlier for its bintype and cannot exercise an ``ALT`` reader at all;
 and no ``FXY`` file was found anywhere.  A record layout is exactly the kind of
 fact a fixture is for, so both are named and declined rather than written against
 a description.
+
+**And the three layouts that are read differ in whether a field has a position
+or only a separator** — behaviour, not style, because it decides whether a
+full-width value can fuse with its neighbour:
+
+- **ESD** is positional, written by a Fortran ``FORMAT``: ten 8-character
+  fields to an 80-column record, five (intensity, esd) pairs.  Three
+  descriptions agree and so does every real file (§ ``_esd_fields``).
+- **FXYE** / **FXY** are free-format, one point to a line, and are read by
+  splitting on whitespace.  That is the spec's word (GSAS-II splits them) and
+  the fixtures corroborate it: ``mg090.fxye``'s tokens are 9 and 10 characters
+  wide and its lines run 31–34 characters, so 8-character slicing would
+  destroy it.
+- **STD** is positional too, but its 8-character field is a 2-character repeat
+  count followed by a 6-character value, so a value can never reach the field's
+  left edge and **fusion is structurally impossible** in a bank GSAS could have
+  written.  Whitespace splitting therefore reads an uncompressed STD bank
+  exactly, which is what ``FAP.XRA`` is; the compressed variant is a separate
+  question no obtainable file answers, and it is not silently guessed at here.
 """
 
 from __future__ import annotations
@@ -177,23 +196,31 @@ def read_gsas(path: str | Path, *,
     # decision two, and independent of the first: how one record is laid out
     type_flag = _type_flag(bank.group(9), p)
 
-    values: list[float] = []
+    body: list[str] = []
     for line in lines[data_start:]:
         if line.startswith("BANK"):
             break
-        # FXYE files are free-format; STD files are fixed 8-column format
-        values.extend(float(v) for v in line.split())
+        body.append(line)
 
+    # An ESD bank is positional and is read as such (§ ``_esd_fields``); FXYE
+    # and STD are free-format and split on whitespace.  Each flavour tokenises
+    # its own body, so the ESD path — the big one — never pays for the ~99 000
+    # throwaway tokens a whole-body split would build for a branch it never
+    # takes.  ``_check_bintype`` above has already refused every non-2θ
+    # bintype, so a bank reaching here is CONS/CONST and only the flag decides.
     if type_flag == "FXYE":
+        # FXYE: explicit x column (centidegrees), then y, esd
+        values = _floats([t for line in body for t in line.split()], p, type_flag)
         arr = _reshape(values, 3, p, type_flag)
         tt = arr[:, 0] / 100.0  # centidegrees → degrees
         y = arr[:, 1]
         sig = arr[:, 2]
     elif type_flag == "ESD":
-        arr = _reshape(values, 2, p, type_flag)
+        arr = _reshape(_esd_fields(body, p), 2, p, type_flag)
         tt = (c1 + c2 * np.arange(len(arr))) / 100.0
         y, sig = arr[:, 0], arr[:, 1]
     else:  # STD: counts only, Poisson esd
+        values = _floats([t for line in body for t in line.split()], p, type_flag)
         y = np.array(values, dtype=np.float64)[:nchan]
         tt = (c1 + c2 * np.arange(len(y))) / 100.0
         sig = None
@@ -280,6 +307,80 @@ def _type_flag(token: str | None, p: Path) -> str:
         f"{', '.join(sorted(_UNIMPLEMENTED_FLAGS))} are recognised and refused; "
         f"this is not one of those either, so how its records are laid out is "
         f"not established at all.")
+
+
+#: Width of one field of an **ESD** bank's data record, in characters.  A
+#: specification fact, and three descriptions state it: the beamline that wrote
+#: the files this fixes — APS 11-BM, *Data Formats*
+#: (https://11bm.xray.aps.anl.gov/users/filetypes), "*the intensities and their
+#: uncertainties (esd) are alternated with five pair of numbers per line (8
+#: characters per number), as described in the GSAS manual*"; the manual it
+#: points at, Larson & Von Dreele (2004), LAUR 86-748, §"Powder data file
+#: formats"; and GSAS-II's own ``G2pwd_fxye.py``, whose ESD reader takes
+#: ``S[i:i+8]`` and ``S[i+8:i+16]`` on a 16-character stride — read as a *fact*
+#: from a permissively-licensed code, per ``ATTRIBUTION.md`` § Format
+#: specifications, with no line of it transcribed.  The files agree
+#: independently: every data record of all six real ESD/STD banks obtainable
+#: here is exactly 80 characters holding exactly ten non-blank fields.
+ESD_FIELD_CHARS = 8
+
+
+def _esd_fields(body: list[str], p: Path) -> list[float]:
+    """An ESD bank's numbers, read **positionally** rather than by separator.
+
+    Splitting on whitespace is right until a value fills its field.  An
+    intensity of 100000.0 or more occupies all eight characters, leaves no
+    separating space, and fuses with the esd in front of it — real APS 11-BM
+    standards patterns do this (``11BM_LaB6.raw`` line 1050 pairs an esd of
+    298.5 with an intensity of 101641.3 as ``298.5101641.3``), and the line
+    then yields nine numbers instead of ten.  Whichever way that lands — a
+    refusal on the two dots, or a plausible wrong number on a bank whose
+    values carry no decimal point — the row has lost a value and every channel
+    after it is shifted.  So the field's *position* is what is read.
+
+    Blank fields: a data record is padded with explicit zeros in every real
+    file (measured on all six), so a blank field is only ever a truncated or
+    short final record and is skipped rather than read as a Fortran zero —
+    there is no obtainable file in which an interior field is blank, and
+    inventing a datum for a hole is the one repair a reader may not make.
+    """
+    out: list[float] = []
+    for lineno, raw in enumerate(body, start=1):
+        line = raw.rstrip()
+        for start in range(0, len(line), ESD_FIELD_CHARS):
+            field = line[start:start + ESD_FIELD_CHARS].strip()
+            if not field:
+                continue
+            try:
+                out.append(float(field))
+            except ValueError:
+                raise ValueError(
+                    f"{p.name}: characters {start + 1}-"
+                    f"{start + ESD_FIELD_CHARS} of data record {lineno} of the "
+                    f"ESD bank hold {field!r}, which is not a number — the "
+                    f"record is not the {ESD_FIELD_CHARS}-character fixed "
+                    "format an ESD bank is written in") from None
+    return out
+
+
+def _floats(tokens: list[str], p: Path, flag: str) -> list[float]:
+    """``tokens`` as floats, or a refusal that names the file.
+
+    ``float()``'s own complaint is ``could not convert string to float:
+    '298.5101641.3'`` — true, and it names neither the file nor the format, so
+    it reaches ``preview_pattern`` as a refusal a user cannot act on.  The
+    general rule (a reader raises ``ValueError`` **naming the file**) applied
+    at this parser's free-format boundary.
+    """
+    out: list[float] = []
+    for token in tokens:
+        try:
+            out.append(float(token))
+        except ValueError:
+            raise ValueError(
+                f"{p.name}: the {flag} bank holds {token!r} where a number "
+                "was expected") from None
+    return out
 
 
 def _reshape(values: list[float], width: int, p: Path, flag: str) -> np.ndarray:
