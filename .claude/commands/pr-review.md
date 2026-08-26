@@ -1,14 +1,16 @@
 ---
-description: Review an outside pull request — triage the backlog, test the merged tree, post findings, merge only the clear-cut
+description: Review outside pull requests — triage the backlog, or work it top-down: merge the clear-cut, batch every human call to the end
 ---
 
 Review pull requests from outside the repository. `$ARGUMENTS` is a list of PR
-numbers, or empty.
+numbers, the word `all`, or empty.
 
 **With numbers, review those, in the order given** — `/pr-review 126 116` does
-126 then 116. Your ordering never overrides the one you were handed. **With no
-argument, triage and stop**: print the ranked backlog and let the user choose.
-Do not start reviewing the top row on your own.
+126 then 116. Your ordering never overrides the one you were handed. **With
+`all`, work the ranked backlog top-down** without stopping at each row —
+§ Working the backlog. **With no argument, triage and stop**: print the ranked
+backlog and let the user choose. Do not start reviewing the top row on your own;
+`all` is how the user says otherwise.
 
 This command is for *other people's* PRs. The maintainer's own work is gated by
 `/wp-handover` steps 6 and 9, which run the same merged-tree suite from the
@@ -69,6 +71,91 @@ re-review, but the rank weighs them the same, so a trivial PR that touches a
 popular doc sinks further than it deserves (#126, ten lines, sits four rows below
 PRs a hundred times its size). The user overrules this with arguments; that is
 what arguments are for.
+
+## Working the backlog — the `all` mode
+
+`/pr-review all` triages, then works the ranked queue top-down without stopping
+at each row. Every disposition step 9 already calls clear-cut is made as it is
+reached; everything else is **deferred, not asked** — collected and put to the
+user in one batch at the end of the run. Invoking this mode authorises the merges
+step 9 admits and nothing beyond them: a PR failing any of its criteria goes into
+the batch, never into a judgement call about whether the criterion mattered.
+
+**Pass A — the dispositions that need no checkout.** Straight off the one triage
+call, before a worktree is built:
+
+- **Conflicts with main** → post the one-line rebase request (rank 3). It leaves
+  the queue.
+- **The maintainer's own PR** → one line saying it is gated by `/wp-handover`. It
+  leaves the queue.
+- **An outside PR touching `docs/ROADMAP.md` or `docs/wp/**`** (rank 2) → the
+  governance question goes straight into the batch, and the PR **stays** in the
+  queue: its code half is still reviewable while the question is open.
+- **Already reviewed at this head sha** → skipped, with one line naming the sha
+  and who it is waiting on. Without this, a re-run re-reviews the whole backlog.
+  The check is step 1 pulled forward, not an extra call.
+
+**Pass B — review what is left, in rank order**, each through steps 1-10 of
+*Reviewing one PR*, with three changes:
+
+- Step 8's "do not post the review while a question is outstanding" holds, so
+  such a review is **held** rather than posted and the question joins the batch.
+- Step 9's "anything else stops and asks" becomes **defers and continues**: name
+  which criterion failed, put it in the batch, take the next PR.
+- Step 10's per-PR report shrinks to its last line. The prose report is written
+  once, for the run.
+
+**Re-fetch `origin/main` after every merge.** Each PR builds its merged tree from
+the current main, so a later PR is tested against the earlier merge — that is
+what working top-down buys. Two consequences: a queued PR that a merge has put
+into conflict becomes a rebase request rather than a review, and the rank is
+**not** recomputed mid-run, because a queue reordering itself under the user who
+was shown it is worse than a stale row.
+
+What makes the mode affordable is that the expensive gate is conditional. The
+full `-m slow` suite fires only at step 9, so it costs its fifteen-to-thirty
+minutes only on a PR that is otherwise ready to merge, never on one already
+holding a blocking finding. Order the step-5 ladder so the cheap disqualifiers
+run first.
+
+### The context checkpoint
+
+**Between PRs, and only between PRs, decide whether the run continues.** End it
+when the context approaches **500 K tokens**, whichever PR that lands on. You
+cannot compact yourself, and auto-compaction firing halfway through a diff would
+lose the reading it was paid for, so a PR boundary is the only place the run may
+end.
+
+Ending means the whole ending: ask the batch, apply the answers, write the
+report, and name what is left with the command that resumes it — `/pr-review
+all`, after the user's `/compact` or `/clear`. **Nothing is carried in a file.**
+The queue, the held drafts and the batch all die with the run, which is why the
+batch is asked *before* stopping and never after, and why a resumed run rebuilds
+everything from one `gh pr list` call plus pass A's skip check.
+
+### The batch
+
+One message at the end of the run, numbered, each item carrying: the PR, the
+question in one sentence, **what it blocks** (a held review, a merge, or
+nothing), and **your recommendation**. A question with no recommendation hands
+the user research you have already done.
+
+Group by kind, because they are answered at different speeds — governance calls
+first (cheap, blocking nothing), then held reviews waiting on whether the design
+is wanted, then merges held on a failed criterion. Use `AskUserQuestion` only
+where an item is a genuine two-to-four-way choice and there are at most four such
+items; otherwise the numbered list, answered in one message.
+
+Then **apply the answers in one pass**: post the held reviews, merge what was
+freed, close what was declined, and give each its own step-10 decision line.
+
+### Reporting a backlog run
+
+Step 10 once, for the run: the plain-language paragraph on what moved and what it
+changes for someone using the package; then what was run and what it said, counts
+quoted with venv and platform; then one decision line per PR in the order
+handled; then the batch; then the resume line if the checkpoint ended the run.
+Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining`.
 
 ## Reviewing one PR
 
@@ -214,7 +301,8 @@ what arguments are for.
    can answer is a finding — ask it in the review. A question about whether the
    design is wanted at all, or about an outside PR editing ROADMAP and WP files,
    is the maintainer's. **Do not post the review while one is outstanding**: ask
-   first, then post once the answer is in.
+   first, then post once the answer is in — in the `all` mode the review is held
+   and posted when the batch is answered, not held over into another run.
 9. **Merge or close only the clear-cut, and stop for everything else.** Merge
    with `gh pr merge --merge`, matching the repo's merge-commit history, and only
    when **all** of these hold: required checks green; the step-5 ladder green on
@@ -228,9 +316,11 @@ what arguments are for.
    into another PR — #112 and #114 were closed into #108 that way, and neither
    was a rejection.
 
-   Anything else **stops and asks**. Merging is hard to undo and it is someone
-   else's contribution; a held PR costs a day, a wrong merge costs the history.
+   Anything else **stops and asks** — in the `all` mode, defers and asks at the
+   end. Merging is hard to undo and it is someone else's contribution; a held PR
+   costs a day, a wrong merge costs the history.
 10. **Report to the person, not to the log**: the plain-language paragraph first,
     then what was run, then the open questions, then the PR URL. End with exactly
     `PR N: <decision>` — `merged`, `closed`, `review posted`, `rebase requested`,
-    or `held, waiting on you`.
+    or `held, waiting on you`, plus `skipped (reviewed at <sha>)` and
+    `deferred (<criterion>)` in the `all` mode. One vocabulary, both modes.
