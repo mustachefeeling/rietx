@@ -100,6 +100,61 @@ def test_origin_and_axis_suffixes_are_translated_not_dropped(written, expected):
     assert normalize_space_group(written) == expected
 
 
+# ----------------------------------------- the repairs are visible on a channel
+
+def test_diagnostics_surface_the_species_and_origin_repairs(tmp_path):
+    """Both repairs reach `model.phases` but a caller reading it back cannot tell
+    them from a stated value, so `read_topas_inp(diagnostics=[])` records them —
+    the same channel `structure_from_cif` and `read_pattern` take. One diagnostic
+    per distinct rewrite (two `La+3` sites → one, carrying both atom paths), not
+    one per atom."""
+    inp = _inp(tmp_path, "cu2o.inp",
+               'str\nphase_name "cu2o"\nspace_group "Pn-3mZ"\nCubic_(lpa 4.27)\n'
+               'site La1 x 0 y 0 z 0 occ La+3 1. beq !b 0.5\n'
+               'site La2 x 0.5 y 0.5 z 0.5 occ La+3 1. beq !b 0.5\n'
+               'site Cu1 x 0.25 y 0.25 z 0.25 occ Cu+1 1. beq !c 0.5\n')
+    diags = []
+    model = read_topas_inp(inp, diagnostics=diags)
+
+    origin = [d for d in diags if d.code == "TOPAS_ORIGIN_TRANSLATED"]
+    codes = sorted(d.code for d in diags)
+    # La+3 (two sites, deduped) and Cu+1 (one) → two species diagnostics + one origin
+    assert codes == ["TOPAS_ORIGIN_TRANSLATED",
+                     "TOPAS_SPECIES_NORMALISED", "TOPAS_SPECIES_NORMALISED"]
+    by_raw = {("La3+" in d.message): d for d in diags
+              if d.code == "TOPAS_SPECIES_NORMALISED"}
+    la = by_raw[True]
+    assert "La+3" in la.message and "La3+" in la.message
+    assert la.where == ["phases.0.atoms.0.species", "phases.0.atoms.1.species"]
+    assert origin[0].where == ["phases.cu2o.space_group"]
+    assert "Pn-3mZ" in origin[0].message and "Pn-3m:2" in origin[0].message
+    assert all(d.level == "info" for d in diags)
+    # the model carries the repaired values regardless
+    assert model.phases[0].space_group == "Pn-3m:2"
+    assert [s.species for s in model.phases[0].sites] == ["La3+", "La3+", "Cu1+"]
+
+
+def test_the_repairs_are_made_with_or_without_the_channel(tmp_path):
+    """`diagnostics` makes the repairs *visible*, it does not change what is
+    built: the model is identical whether or not a list is passed, and a file
+    that needs no repair leaves an empty list."""
+    inp = _inp(tmp_path, "cu2o.inp",
+               'str\nphase_name "cu2o"\nspace_group "Pn-3mZ"\nCubic_(lpa 4.27)\n'
+               'site Cu1 x 0.25 y 0.25 z 0.25 occ Cu+1 1. beq !c 0.5\n')
+    with_channel = read_topas_inp(inp, diagnostics=[])
+    without = read_topas_inp(inp)
+    assert with_channel.phases[0].space_group == without.phases[0].space_group
+    assert ([s.species for s in with_channel.phases[0].sites]
+            == [s.species for s in without.phases[0].sites])
+
+    clean = _inp(tmp_path, "clean.inp",
+                 'str\nphase_name "P"\nspace_group "Pm-3m"\nCubic_(lpa 4.16)\n'
+                 'site A1 x 0 y 0 z 0 occ La 1. beq !b 0.5\n')
+    diags = []
+    read_topas_inp(clean, diagnostics=diags)
+    assert diags == []
+
+
 # -------------------------------------------------------------------- rule 3
 
 #: One site line per real spelling found in the archive, with the value the

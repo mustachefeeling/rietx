@@ -85,6 +85,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ...schemas.common import Diagnostic
 from ..formats.base import decode
 
 #: TOPAS origin/axis suffixes → the Hermann-Mauguin extension gemmi wants.
@@ -962,8 +963,26 @@ def _cell_reads(cell_scan: str, symbols: dict[str, float]) -> dict[str, float]:
     return out
 
 
-def read_topas_inp(path: str | Path) -> TopasModel:
-    """Parse a ``.inp``. Raises :class:`TopasInpError` naming the file and line."""
+def read_topas_inp(path: str | Path, *,
+                   diagnostics: list[Diagnostic] | None = None) -> TopasModel:
+    """Parse a ``.inp``. Raises :class:`TopasInpError` naming the file and line.
+
+    Pass ``diagnostics=`` a list to record the two repairs this reader makes on
+    a successful parse — the ones the model carries but a caller reading it back
+    cannot tell from a stated value (the same channel
+    :func:`~rietx.crystallography.cif.structure_from_cif` and
+    :func:`~rietx.io.readers.read_pattern` take). Each distinct rewritten species
+    (``occ La+3`` read as ``La3+``, IUCr digit-first order) appends one
+    ``TOPAS_SPECIES_NORMALISED`` naming the substitution and every atom path it
+    touched; each translated space-group origin suffix (``Pn-3mZ`` → ``Pn-3m:2``,
+    which *selects* the origin — dropping it silently takes the other) appends
+    one ``TOPAS_ORIGIN_TRANSLATED``. Both repairs happen whether or not a list is
+    passed — the model is the same — so ``diagnostics`` makes them *visible*, it
+    does not change what is built. What this reader will not do without a channel
+    it can report through, it **refuses** (a dropped block, a stated-but-
+    unreadable key); the channel is for the corrections it can name, not for
+    turning a refusal into a silent drop.
+    """
     path = Path(path)
     try:
         raw_bytes = path.read_bytes()
@@ -1032,6 +1051,13 @@ def read_topas_inp(path: str | Path) -> TopasModel:
     # the phase above.
     openers = list(_BLOCK.finditer(active))
     parsed_site_tokens = 0        # site *tokens* read into phases, not atoms
+    # Repairs to surface on `diagnostics` (finding 4): a distinct rewritten
+    # species keyed to its raw form, carrying every atom path it touched (the
+    # `structure_from_cif` shape), and each translated origin suffix keyed to
+    # the phase. Collected here and emitted once at the end, so N atoms sharing
+    # a rewrite are one diagnostic, not N.
+    species_rewrites: dict[str, tuple[str, list[str]]] = {}
+    origin_translations: list[tuple[str, str, str]] = []
     for index, opener in enumerate(openers):
         if opener["kw"] != "str":
             continue
@@ -1072,8 +1098,11 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                 scale=scale_read.value if scale_read else None,
                 weight_percent=_field("weight_percent", chunk, symbols)))
             continue
-        phase = TopasPhase(name=name.group(1).strip(),
-                           space_group=normalize_space_group(sg.group(1)))
+        raw_sg = sg.group(1).strip()
+        norm_sg = normalize_space_group(sg.group(1))
+        phase = TopasPhase(name=name.group(1).strip(), space_group=norm_sg)
+        if norm_sg != raw_sg:
+            origin_translations.append((phase.name, raw_sg, norm_sg))
         # The cell keys are read token-wise (WP-1118): the grammar is unified per
         # keyword but the scan was still per line, and TOPAS is whitespace-
         # insensitive, so `a 5.4 b 6.1 c 7.2` on one line read only `a` and built
@@ -1266,8 +1295,14 @@ def read_topas_inp(path: str | Path) -> TopasModel:
                 vary = dict(base_vary)
                 if occ_read is not None and occ_read.vary is not None:
                     vary["occ"] = occ_read.vary
+                norm_species = normalize_species(species)
+                if norm_species != species:
+                    # path to this atom-to-be: this phase's future index, this
+                    # site's index within it (both before their appends)
+                    species_rewrites.setdefault(species, (norm_species, []))[1].append(
+                        f"phases.{len(model.phases)}.atoms.{len(phase.sites)}.species")
                 phase.sites.append(TopasSite(
-                    label=label.group(1), species=normalize_species(species),
+                    label=label.group(1), species=norm_species,
                     occupancy=occupancy if occupancy is not None else 1.0,
                     beq=beq, adps=dict(adps) if adps is not None else None,
                     vary=vary,
@@ -1299,6 +1334,23 @@ def read_topas_inp(path: str | Path) -> TopasModel:
             f"not be named as phases — the {declared - parsed - skipped} "
             f"unaccounted for are sites dropped by how the file split into "
             f"blocks. Read `model.phases` for what was parsed.")
+
+    # Report the two repairs that reached the model (finding 4). Emitted only
+    # past the site-count guard above, so a file that is about to refuse does not
+    # also leave a half-list of diagnostics behind on the caller's list.
+    if diagnostics is not None:
+        for raw, (canonical, where) in species_rewrites.items():
+            diagnostics.append(Diagnostic(
+                level="info", code="TOPAS_SPECIES_NORMALISED",
+                message=(f"species {raw!r} in {path} read as {canonical!r} "
+                         f"(IUCr digit-first order)"),
+                where=where))
+        for phase_name, raw, canonical in origin_translations:
+            diagnostics.append(Diagnostic(
+                level="info", code="TOPAS_ORIGIN_TRANSLATED",
+                message=(f"space group {raw!r} on phase {phase_name!r} in {path} "
+                         f"read as {canonical!r} — the suffix selects the origin"),
+                where=[f"phases.{phase_name}.space_group"]))
     return model
 
 
