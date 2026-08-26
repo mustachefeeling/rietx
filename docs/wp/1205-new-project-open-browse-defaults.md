@@ -207,3 +207,10 @@ npm --prefix gui test && npm --prefix gui run check
   it touches, so re-read `lib/wizard.ts` and `Model.svelte`'s step 2 rather
   than trusting this WP's own line-number citations, which have already
   drifted once this session and will again.
+- **2026-08-26** — `/code-review medium --fix` found `_fs_roots`' collapse
+  condition was `home == cwd` only, so the docstring's claimed common case —
+  launching from an ordinary project directory *under* home — actually kept
+  two roots and showed a redundant "Current directory" button in Browse.
+  Fixed to `cwd.is_relative_to(home)`. `tests/test_gui_server.py`: 143
+  passed (the `fs_tree` fixture keeps home/cwd disjoint on purpose, to leave
+  the genuine two-roots path tested, so it is unaffected); ruff clean.
