@@ -57,11 +57,9 @@ assumed, so the choice is made by seeing it. A directory browser is a
 read-only server route on a localhost server; roots are the home directory
 and cwd, and a listing never leaves them.
 
-### Inherited
-
-**From [1204](1204-developer-mode-example-projects.md), 2026-08-25 — half of
-"sensible defaults" already landed, and the empty state now has two lists.**
-Three things to fold in before writing this WP's tasks.
+Inherited from [1204](1204-developer-mode-example-projects.md) (2026-08-25,
+verified still current on arrival) — half of "sensible defaults" already
+landed, and the empty state now has two lists:
 
 1. **The suggested project path is no longer the working directory.**
    `imports.default_project_dir()` is the one authority and answers
@@ -91,8 +89,9 @@ list rather than sanitised — the same shape any `GET /api/fs?path=` this WP
 adds will need, except that a filesystem path has no list to check against, so
 the confinement has to be a real containment test.
 
-**From [1203](1203-help-popover.md), 2026-08-26 — the wizard's fields now
-explain themselves from the package, not from the form.**
+Inherited from [1203](1203-help-popover.md) (2026-08-26, verified still
+current on arrival) — the wizard's fields now explain themselves from the
+package, not from the form:
 
 - `PresetField` carries **no `title`**. `wizard.ts:presetHelp(field)` derives
   the key `instrument_fields:<name>`, and the sentence lives in
