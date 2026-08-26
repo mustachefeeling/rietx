@@ -276,7 +276,8 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         report.summary += "; " + clause
     actions = suggest_actions(attributions, report.trends, report.unmatched,
                               rwp=result.statistics.rwp, ticks=ticks,
-                              geometry=model.geometry_kind)
+                              geometry=model.geometry_kind,
+                              wavelength=model.wavelength)
     predicted = estimate_delta_chi2(result, attributions)
     for action in actions:
         action.expected_delta_chi2 = predicted

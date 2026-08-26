@@ -228,6 +228,68 @@ def test_injected_width_error_is_recovered(truth):
                          "refine_sample_strain_broadening"))
 
 
+def test_the_size_template_quotes_the_width_as_a_crystallite_size():
+    """The width deficit read in the unit a specimen can be judged in.
+
+    ``inv_cos_theta``'s fitted coefficient *is* a 1/cosθ size coefficient in
+    deg 2θ — the same quantity as ``instrument.profile.x + phases.N.lor_size`` —
+    so ``caglioti.apparent_size_from_size_coefficient`` inverts it exactly and
+    with no reference angle.  0.5 deg is 15.9 nm on Cu Kα and 4.3 nm on 11-BM's
+    0.4139 Å: the degrees are the same number and the specimen is not, which is
+    why the clause exists.  Pinned against the helper rather than against a
+    literal, and asserted on two wavelengths so a dropped λ cannot pass.
+    """
+    from rietx.model.profiles.caglioti import apparent_size_from_size_coefficient
+    from rietx.report.layer2 import suggest_actions
+    from rietx.report.schemas import TrendAnalysis, TrendTemplate
+
+    trend = TrendAnalysis(
+        observable="width", n_regions_used=8, misfit_share=0.5, separable=True,
+        templates=[TrendTemplate(name="inv_cos_theta", coefficient=0.5,
+                                 stderr=0.002, r2=0.95),
+                   TrendTemplate(name="tan_theta", coefficient=0.0,
+                                 stderr=1.0, r2=0.1)])
+
+    def _rationale(wavelength):
+        actions = suggest_actions([], [trend], [], rwp=0.1, wavelength=wavelength)
+        size = [a for a in actions if a.kind == "refine_sample_size_broadening"]
+        assert len(size) == 1, [a.kind for a in actions]
+        return size[0].rationale
+
+    for lam in (1.5406, 0.4139090):
+        expected = apparent_size_from_size_coefficient(0.5, lam)
+        assert f"L ≈ {expected:.0f} Å" in _rationale(lam)
+        assert f"λ = {lam:.4f} Å" in _rationale(lam)
+    # 159 Å against 43 Å: same degrees, 3.7x the physics
+    assert "L ≈ 159 Å" in _rationale(1.5406)
+    assert "L ≈ 43 Å" in _rationale(0.4139090)
+    # no wavelength is *no claim*, not a size of zero, and the rationale the
+    # caller already had is left as it was
+    assert "L ≈" not in _rationale(None)
+    assert _rationale(1.5406).startswith(_rationale(None))
+
+
+def test_a_model_broader_than_the_data_gets_no_size_clause():
+    """Scherrer read backwards would name a crystallite the specimen has not.
+
+    A **negative** ΔΓ means the calculated peaks are too broad, so there is no
+    missing size broadening to attribute — the action still stands (something
+    must give the width back) but the size is withheld rather than reported as
+    a negative length or a spurious positive one.
+    """
+    from rietx.report.layer2 import suggest_actions
+    from rietx.report.schemas import TrendAnalysis, TrendTemplate
+
+    trend = TrendAnalysis(
+        observable="width", n_regions_used=8, misfit_share=0.5, separable=True,
+        templates=[TrendTemplate(name="inv_cos_theta", coefficient=-0.5,
+                                 stderr=0.002, r2=0.95)])
+    actions = suggest_actions([], [trend], [], rwp=0.1, wavelength=1.5406)
+    size = [a for a in actions if a.kind == "refine_sample_size_broadening"]
+    assert len(size) == 1
+    assert "L ≈" not in size[0].rationale
+
+
 def test_injected_scale_error_is_recovered(truth):
     structure, ins, data = truth
     perturbed = structure.model_copy(deep=True)

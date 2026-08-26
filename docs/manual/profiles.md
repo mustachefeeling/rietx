@@ -39,8 +39,9 @@ X = size, Y = strain; FullProf swaps them. Transfer values by matching the
 $\theta$-law, never the letter.
 ```
 
-Anisotropic (hkl-dependent) sample broadening is deferred to
-{ref}`ch-microstructure`.
+Reading either $1/\cos\theta$ coefficient back as a crystallite size — and why
+$U$ and $W$ have no size to read — is {ref}`sec-width-as-size`. Anisotropic
+(hkl-dependent) sample broadening is deferred to {ref}`ch-microstructure`.
 
 ## Thompson-Cox-Hastings pseudo-Voigt
 
