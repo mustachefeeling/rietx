@@ -489,7 +489,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="wherever the diffuse feature sits, e.g. 14.4 on NIST BT-1",
-        anchor="localised-flexibility-explicit-background-peaks",
+        anchor="background.html#localised-flexibility-explicit-background-peaks",
     ),
     "instrument.background_peaks.*.height": HelpEntry(
         title="Background-peak height",
@@ -501,7 +501,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="counts", default="0.0",
         typical="of the order of the hump's rise above the smooth background",
-        anchor="localised-flexibility-explicit-background-peaks",
+        anchor="background.html#localised-flexibility-explicit-background-peaks",
     ),
     "instrument.background_peaks.*.fwhm": HelpEntry(
         title="Background-peak width",
@@ -517,7 +517,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit="deg 2θ", default="5.0",
         typical="several times the instrumental FWHM at that angle; ~6 on the "
                 "BT-1 case this feature was measured on",
-        anchor="localised-flexibility-explicit-background-peaks",
+        anchor="background.html#localised-flexibility-explicit-background-peaks",
     ),
     # -- phase -------------------------------------------------------
     "phases.*.cell.a": _CELL_LENGTH,
