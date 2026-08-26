@@ -23,26 +23,43 @@ Run the session-start ritual. The SessionStart hook's report
 2. **Identify the WP**: the one the user names, else ROADMAP "Current
    focus". Read that one WP file only (plus the DESIGN.md sections it
    links); do not read other WP files.
-3. **Branch.** If on `main`, or on a branch already merged into main, create
-   `wpNNNN-<slug>` from current main — `git fetch origin main` first when a
-   remote exists; in a worktree, branching from the local `main` ref works
-   even though main is checked out elsewhere. If on an in-flight branch,
-   continue it.
+3. **Tree, then branch.** A session owns the tree it was launched in and no
+   other. The hook's first line names it, and a `⚠ another claude session is
+   in this tree` line means it is taken — sessions sharing a checkout share
+   HEAD, the index, the stash and the working tree, and on 2026-08-26 alone
+   that put a `reset --hard` into a live session's tree, a stash into another
+   session's branch, and tooling edits into another WP's closing commit by its
+   `git add -A`. Taken means **stop**: name the free slot and its launch line,
+   and let the user relaunch there. Do not work a second tree from here by
+   `git -C` and subshells — that arrangement cost `/pr-review` four of its
+   first eight commits.
 
-   **The branch you find is not necessarily yours.** Sessions share this
-   checkout, so `git branch --show-current` answers for whoever switched last,
-   and an in-flight branch may be another session's live WP rather than an
-   earlier one of yours. Editing there leaves your work in *their* commit
-   range, where a broad `git add` sweeps it up. When the branch is not the WP
-   you were sent to start, take your own tree rather than switching HEAD under
-   them — `git worktree add -b <branch> .claude/worktrees/<name> origin/main`,
-   then step 4 — and remove it once the work lands.
+   ```sh
+   (cd .claude/worktrees/wp2 && claude)        # from a terminal, inside the slot
+   ```
 
-   **Never `git stash` in a shared checkout.** The stash is per *repository*,
-   not per session, so another session's `stash pop` takes yours: measured
-   2026-08-26, one pushed to lift tooling edits off another session's branch
-   was popped into that branch minutes later, and only an existing commit
-   elsewhere kept it. Commit to your own branch instead — a commit is
+   The slots are fixed, persistent, and each has its own venv; branches move
+   through them. Never a worktree per WP — that left thirteen stale trees and
+   4.8 GB in `.claude/worktrees/` (2026-08-25). The main checkout and
+   `.claude/worktrees/wp2` take WP sessions; `.claude/worktrees/pr-bench` is
+   `/pr-review`'s. A slot idles detached at `origin/main`, so leave it that way
+   when a WP's PR has merged: `git checkout --detach origin/main`. Not
+   `claude --worktree`: it makes a fresh tree and a `worktree-<name>` branch
+   per session, which is the accumulation above with a venv on each. Auto-memory
+   is keyed by cwd, so a slot sees the maintainer's memory
+   only through a symlink in `~/.claude/projects/` (maintainer-local; the
+   memory note carries it).
+
+   Then the branch. If on `main`, detached, or on a branch the hook reports
+   `merged`, create `wpNNNN-<slug>` from `origin/main` — `git fetch origin
+   main` first when a remote exists. If on an in-flight branch, continue it:
+   with one session per tree it is yours.
+
+   **Never `git stash` in this repository.** The stash is per *repository* and
+   shared by every worktree, so another session's `stash pop` takes yours:
+   measured 2026-08-26, one pushed to lift tooling edits off another session's
+   branch was popped into that branch minutes later, and only an existing
+   commit elsewhere kept it. Commit to your own branch instead — a commit is
    addressed, a stash is a shared pile.
 4. **Venv.** If the hook flagged a mismatch or a missing venv, build this
    worktree's own (`uv venv --python 3.12 && uv pip install -e ".[dev]"`)

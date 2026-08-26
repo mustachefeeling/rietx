@@ -26,6 +26,31 @@ who knows the codebase. That is a register, and it moves not one gate — least 
 all step 4's execution check, which is there because a branch is code you are
 about to run and familiarity is not provenance.
 
+## Where this command runs
+
+**Inside the bench, in a terminal of its own:**
+
+```sh
+(cd .claude/worktrees/pr-bench && claude)
+```
+
+Triage reads the remote and runs from anywhere. Everything from step 4 on, and
+the whole `all` mode, first checks that it is where it thinks —
+`git rev-parse --show-toplevel` ends in `/pr-bench` — and otherwise stops with
+the launch line above rather than reaching for the bench from wherever it is.
+
+One session, one tree. Four of the eight commits this file took in its first
+two days, and both hook commits beside them, were the cost of the other
+arrangement — a session parked in the main checkout addressing the bench by
+hand: a stray `cd` sent `reset --hard` into a live WP session's tree,
+`FETCH_HEAD` split between two trees, a lock file to say who held the bench,
+and this file's own edits swept into another session's closing commit by its
+`git add -A`. Launched in the bench, the session cannot reach the main
+checkout without naming it, and `.claude/hooks/session_start.py` says at
+startup when a tree already has a live session. Not `claude --worktree`, which
+makes a fresh tree per session; the bench is one tree with one venv, and
+`/wp-start` step 3 has the slot rule it is one instance of.
+
 ## Triage — the no-argument mode
 
 **One network call, no checkout, no diff:**
@@ -279,7 +304,9 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
 4. **Prepare the bench and build the merged tree.** One shared worktree at
    `.claude/worktrees/pr-bench` with one venv — not one per PR, which would cost
    several hundred megabytes each and, on the evidence of the ten stale trees
-   already in that directory, never be reclaimed.
+   already in that directory, never be reclaimed. This session is *in* it
+   (§ Where this command runs — check now), so `BENCH=.` and every command in
+   this ritual reads the bench unless it names another tree.
 
    **Read before you execute.** Building the bench *runs the branch's code*:
    `uv pip install -e .` executes its build configuration, and pytest imports its
@@ -293,37 +320,20 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    is a **question for the user** rather than a finding — a workflow change
    reaches the repository's secrets the moment it merges.
 
-   **Put the target in the command; a `cd` goes in a subshell.** The shell's
-   working directory persists between tool calls **and is shared with the user's
-   own `!` commands**, so a `cd` typed in an earlier step silently retargets a
-   later `git reset --hard`, in your hands and in theirs. The two trees are
-   indistinguishable in ordinary output: the bench sits *inside* the main
-   checkout, shares its remote, and answers `git rev-parse --short origin/main`
-   identically. Measured twice on 2026-08-26 — a `cd` added to a `gh pr list`
-   that did not need one (gh reads the remote, and the bench has the same one)
-   sent the next four commands into the main checkout; and this ritual's own
-   ending left the user's shell parked in the detached bench, where their next
-   `gh pr create` failed with `not on any branch`.
+   **Put the target in the command; a `cd` goes in a subshell.**
+   `.claude/hooks/no_top_level_cd.py` refuses a bare `cd` on every Bash call,
+   because the shell's working directory persists between tool calls and is
+   shared with the user's own `!` commands (125 of 660 calls over seven sessions
+   carried one). So `git -C`, `npm --prefix`, `uv --directory`, and
+   `(cd "$BENCH" && …)` where a tool has no flag. With the session launched in
+   the bench there is no second tree a stray `cd` lands in by default, and the
+   discipline is the same, because a mis-targeted `pytest` prints a plausible
+   count naming no tree.
 
-   So `git -C`, `npm --prefix`, `uv --directory` — and where a tool has no such
-   flag, `(cd "$BENCH" && …)`, whose chdir dies with the subshell. **The `-C`
-   rule alone kept losing because it covers only git**: the venv build below and
-   step 5's whole ladder are cwd-relative, so forbidding the `cd` without giving
-   them a form left no route, and a mis-targeted `pytest` is worse than a
-   mis-targeted `reset` — it tests the wrong tree, prints a plausible count, and
-   names no tree in its output. `.claude/hooks/no_top_level_cd.py` refuses a
-   top-level `cd` on every Bash call, so this is a gate rather than a paragraph.
-
-   **The bench is exclusive to this run, and the machine is not.** Two
-   different worries, and only the second needs a mechanism. One `/pr-review`
-   runs at a time, so no other session reaches for `$BENCH` — the WP commands
-   branch in whatever tree they are already in and never name this path, git
-   refuses to check a branch out in two worktrees at once, and the bench runs
-   detached anyway. What the bench inherits from a stale *previous* run is a
-   left-behind merge, and `reset --hard origin/main` below is already the cure.
-   So write `$BENCH.lock` (session id, time, PR) when the block below first
-   runs and delete it at the ending: it is there to be *read* when the bench
-   looks unexpected, not to arbitrate.
+   **One `/pr-review` runs at a time.** The session-start hook says when the
+   bench already has a live session; a second one stops there. What the bench
+   inherits from a *previous* run is a left-behind merge, and `reset --hard
+   origin/main` below is the cure.
 
    The contended resource is the **suite**, shared with every live WP session.
    Look before step 5's ladder and again before step 9's gate —
@@ -332,7 +342,7 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    the same as any other blocker here: say whose tree and how long, and wait.
 
    ```sh
-   BENCH=.claude/worktrees/pr-bench
+   BENCH=.                                        # this session's own tree
    git -C "$BENCH" fetch origin main
    git -C "$BENCH" fetch origin "pull/N/head:refs/pr/N" --force
    git -C "$BENCH" reset --hard origin/main
@@ -340,13 +350,11 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    git -C "$BENCH" diff origin/main --stat        # the PR's own contribution
    ```
 
-   **Fetch into a named ref, not `FETCH_HEAD`.** `FETCH_HEAD` is *per worktree*
-   (`.git/worktrees/pr-bench/FETCH_HEAD`, beside the main checkout's own), so a
-   fetch run anywhere else leaves the bench merging whatever it last fetched —
-   silently, and a stale head still merges. `refs/pr/N` lives in the common dir,
-   survives the next fetch, and is what the round-2 diff
+   **Fetch into a named ref, not `FETCH_HEAD`.** `refs/pr/N` lives in the
+   common dir, survives the next fetch, and is what the round-2 diff
    (`refs/pr/N@{1}..refs/pr/N`, or a recorded sha) and `git merge-tree
-   origin/main refs/pr/N` want anyway.
+   origin/main refs/pr/N` want anyway. (`FETCH_HEAD` is per worktree, which
+   merged a stale head silently while fetches happened in two trees.)
 
    **`reset --hard` is the whole reset; never `git clean -fdx`.** `-x` deletes
    *ignored* files, which in this repo means `gui/node_modules`,
@@ -355,10 +363,6 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    `-e .venv` to protect the venv is the sign the command is wrong for the job.
    Tracked files are what a PR changes and `reset --hard` handles them; an
    untracked build artefact between two PRs is harmless.
-
-   **Treat the main checkout as someone else's.** It usually carries a live WP
-   session on its own branch, and the destructive half of this ritual has no
-   business there.
 
    **The merged tree is the tree under test.** Branch protection is
    `strict: false`, so nothing else ever tests it — not CI, not the contributor.
@@ -372,9 +376,8 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    are passes rather than skips. A new skip is not a new pass.
 5. **Run the ladder the touched paths select**, every pytest call with
    `-n auto --dist loadgroup` (`tests/conftest.py` refuses a run without it).
-   Every command below reads the tree it is run in, so each is wrapped
-   `(cd "$BENCH" && …)` — the bench's `.venv`, its `tests/`, its `gui/`, and
-   never the main checkout's:
+   Every command below reads the tree it is run in, which is the bench
+   (§ Where this command runs) — its `.venv`, its `tests/`, its `gui/`:
    - **docs/manual only** → `test_docs_consistency.py`, `test_manual.py`,
      `test_manual_api.py`, and the `-W` sphinx build.
    - **`gui/` only** → `npm --prefix gui ci && npm --prefix gui run build`, then
