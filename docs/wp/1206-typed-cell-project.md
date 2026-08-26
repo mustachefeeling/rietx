@@ -116,7 +116,11 @@ npm --prefix gui test && npm --prefix gui run check
   touched files went 220 → 230. `npm --prefix gui test` **454 passed** (448 at
   the branch point: +5 for the typed cell, +1 for `typedCellReady`);
   `npm --prefix gui run check` clean; `test_gui_dist.py` passes on dist
-  `ffd6ddc127f9`; `ruff` clean; sphinx `-W` clean.
+  `ffd6ddc127f9`; `ruff` clean; sphinx `-W` clean. And
+  `tests/test_acceptance_indexing.py` **44 passed**, 19m50s — the guard
+  `src/rietx/indexing/CLAUDE.md` asks for before closing anything near an
+  engine, run under the long-suite lock `tests/CLAUDE.md` now specifies and
+  released after; the scoreboard regenerates over all 16 datasets.
 
   *Decisions taken against the WP's own text, both deliberate.* (1) The `cell`
   argument is an **object keyed by parameter carrying the free ones**, not six
