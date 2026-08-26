@@ -269,3 +269,28 @@ it. Chapter: `docs/manual/using/recipe.md`; measured convention table:
    circularity does not arise.
 5. A new rule lands here; it earns a root CLAUDE.md clause only if it changes
    behaviour outside `io/`.
+
+## Project readers (`io/projects/`)
+
+A **project reader** reads someone else's refinement *input* — the solved model
+and the protocol that produced it — not a pattern. One module per format;
+`topas.py` is the first. Two rules the pattern readers do not need:
+
+- **Derive the obligations from the specification; use files to corroborate.**
+  Written the other way round — sweep an archive, fix what broke — a reader
+  finds the bugs one lab's dialect contains, in rounds, and never the bugs that
+  raise nothing. Three of WP-1118's six grammar corrections are invisible to any
+  sweep: a parameter's *name* is its refine flag, a block comment *nests*, and a
+  conditional is a token rather than a line. So enumerate the keyword space from
+  the spec, classify **every** name as read / refused / deliberately ignored,
+  and take a decision even where the incidence is zero. The audit's own numbers
+  are in `tests/data/README.md` and the WP.
+- **A project reader refuses where a pattern reader would repair.** A pattern
+  reader repairs only where it can say it did; a project reader mostly cannot,
+  because its output is a whole model and a caller cannot see which part is the
+  file's. Four classes are therefore refused **by name**, numbers still readable
+  on the model: a pre-processor directive it does not evaluate, a card whose
+  attachment has been moved (`for`/`load`/`move_to`), a macro whose body lives in
+  a library, and a file whose phases belong to different patterns. The last is
+  really a *selection* and follows `read_pattern`'s `scan=`:
+  `to_structure(model, dataset=N)`, never concatenated.

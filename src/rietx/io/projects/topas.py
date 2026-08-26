@@ -12,6 +12,55 @@ phases, sites, cell, instrument geometry, and the converged ``r_wp`` — so it i
 the cheapest possible source of a *validated* refinement to test against. The
 alternative is hunting CIFs that may not match what was actually fitted.
 
+**The format, as this reader understands it.** Five rounds of this reader were
+written from archive files, which finds the bugs one lab's dialect happens to
+contain and does not terminate. The model below is derived from TOPAS Academic's
+own *Technical Reference* instead, and the archive is used to corroborate and to
+prioritise. Where the two disagreed, the reference won and the code moved.
+
+1. **A lexer, then a pre-processor, then a grammar — in that order** (§1.2, §19).
+   A line comment is ``'`` to end of line; a block comment is ``/* … */`` **and
+   nests**. The pre-processor then decides what text there even is: ``macro``
+   definitions, ``#include``/``#ingest``/``#external_INP``,
+   ``#define``/``#undef``, the ``#if``/``#ifdef``/``#ifndef``/``#elseif``/
+   ``#else``/``#endif`` family, ``#delete_macros``, ``#list``, and the ``#m_*``
+   directives invoked on macro expansion. This reader evaluates ``macro``
+   excision and the ``#ifdef``/``#ifndef`` family; the rest is refused by name,
+   because a directive it does not evaluate means the text in hand is not the
+   text TOPAS parsed. See :func:`refuse_unevaluable_directives`.
+2. **Everything is a token; nothing is a line.** The format is
+   whitespace-insensitive, so a keyword, a value or a directive is wherever it is
+   written. Every line anchor this reader ever had was typography mistaken for
+   syntax, and each cost real files — the cell scan (a whole cell on one line),
+   the site split (two sites on one line), and the conditional resolver
+   (``#else #ifdef X``, 283 files). :func:`_masked` is the one mechanism that
+   makes a token scan safe.
+3. **The scope is four levels**, and §5.1's tree is the authority for it::
+
+       Ttop → xdd → {str | dummy_str | hkl_Is | xo_Is | d_Is} → site → occ
+
+   with ``xdd``, the phase kinds, ``site`` and ``occ`` all arrays. So a phase is
+   a fact about one **pattern**, a ``beq`` is a fact about one ``occ``, and
+   ``r_wp`` exists at both the top and the dataset level. A block runs to "the
+   next keyword of the same type" (§5.1), which is what :data:`_BLOCK` slices —
+   and ``for``/``load``/``move_to`` suspend that, so they refuse
+   (:func:`refuse_moved_attachment`).
+4. **One value grammar, and a name is a flag** (§1.2, §2.1-2.3). ``#`` is a
+   number, ``$`` a string, ``N`` a name, ``E`` "an equation (i.e. ``= a+b;``) or
+   constant (i.e. ``1.245``) or a parameter name with a value (i.e. ``lp
+   5.4013``) that can be refined", ``!E`` the same but not refinable. Crucially:
+   "*a parameter is flagged for refinement by giving it a name*" — so ``beq b1
+   0.5`` is **refined**, ``!b1`` holds it, ``@`` refines it anonymously, and a
+   bare number is a constant. :func:`_read_tail` is the one place that knows all
+   of this and :func:`_flag` the one place that decides the refine state.
+5. **What the reference does not settle.** It gives the notation and the tree; it
+   does not give a lexical grammar for a *value* as it is actually written. The
+   write-back backtick, the ``= expr;: value`` evaluated tail, the
+   ``_esd``/``_LIMIT_*`` suffixes, the ``A1``/``A2``/``A3`` coordinate macros and
+   the ``ADPs { … }`` six-slot ordering are archive-derived and recorded as such
+   in ``tests/data/README.md``. The authority that would settle them is a TOPAS
+   ``.OUT`` writer specification, which is not published.
+
 Four properties of these files cause silent, not loud, failures, and each is
 handled explicitly below. All four were found by refining real archives, not by
 reading the syntax:
