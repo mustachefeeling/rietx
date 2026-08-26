@@ -31,6 +31,7 @@ from .refine import (
     _absorption_diagnostics,
     _absorption_record,
     _constraint_diagnostics,
+    _declared_wavelengths,
     _guard_diagnostics,
     _phase_agreement,
     _qpa_unavailable_diagnostics,
@@ -123,8 +124,7 @@ class MultiHistogramRefinement:
         #: refined values back into its own instrument copies at every stage, so
         #: by the time the result is built there is nothing left to compare to.
         self._declared_wavelengths: list[list[float]] = [
-            [p.value for p in ins.source.wavelength_parameters]
-            for ins in self.mtable.instruments]
+            _declared_wavelengths(ins) for ins in self.mtable.instruments]
         self.result_: RefinementResult | None = None
         self._models = None
 

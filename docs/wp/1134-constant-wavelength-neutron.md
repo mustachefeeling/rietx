@@ -100,6 +100,29 @@ it must be.
 - **A neutron µR estimator** — WP-1132.
 - **The GUI's radiation blindness** and a `kind`-defaulting validator: named
   follow-ups rather than silent gaps.
+- **`fwhm_deg` runs the seeded width wide at high angle, deliberately.** The seed
+  sets both `w = (½·fwhm)²` (constant Gaussian, Γ_G = ½·fwhm) *and* `x = fwhm`
+  (Lorentzian size term, Γ_L = X/cosθ), so the total width follows 1/cosθ and
+  overshoots the observed FWHM — measured on a 0.3° line:
+
+  ```
+  2θ= 20  Γ_G=0.150  Γ_L=0.305  FWHM=0.369  1.23× the stated width
+  2θ= 90  Γ_G=0.150  Γ_L=0.424  FWHM=0.474  1.58×
+  2θ=150  Γ_G=0.150  Γ_L=1.159  FWHM=1.179  3.93×
+  ```
+
+  This is a **seed**, not a fitted profile: its one job is to size the frozen
+  per-stage windows generously enough that a real neutron line — which *does*
+  broaden with 1/cosθ — is captured at every angle, and erring wide is the safe
+  error direction (too narrow silently loses the peak, the failure the seed
+  exists to prevent). Seeding `w` alone would leave Γ_L at its ~0 default and a
+  flat 0.15° window that misses a broadened high-angle line. Removing the `x`
+  seed is therefore **not** behaviour-safe here: it is pinned by
+  `test_profile_seed_helper_sets_both_width_terms` and the `_seeded_width`
+  X-ray-comparison helper, and it moves the window sizing every acceptance fit
+  with `fwhm_deg` depends on. Left as a seed; a caller wanting a faithful
+  angle-independent width sets `profile.w`/`profile.x` themselves after
+  construction. (Yue's 24 Aug and 25 Aug reviews.)
 
 ## Handover log
 
@@ -141,3 +164,19 @@ it must be.
   should be **designed, not patched**: its own future WP, in which the refusal
   message grows a third option beside "hold the cell" and "hold λ" (hold the
   cell of one phase and let λ measure against it).  Not implemented here.
+- **2026-08-25** — Two follow-ups from the post-merge review of #108, in a small
+  PR off `main`. (1) **`declared` is now a construction fact.** `refine.py`
+  snapshotted the declared λ *per verb*, so a second λ-freeing `fit`/`run_stage`
+  reported the move against the first call's answer — a value nobody declared
+  (his shape: #1 +417.05 ppm from 1.539984 Å, #2 −18.15 ppm from 1.540626 Å).
+  `Refinement.__init__` now snapshots once into `self._declared_wavelengths`
+  (re-snapshotted only on an instrument `edit`, which *is* a new instrument; a
+  `checkout` deliberately does not reset it), and both verbs report against it,
+  so the second call reports the **cumulative** ppm from the truly-declared
+  value — matching the joint path, which snapshotted at construction all along.
+  `multi.py` now calls the shared `_declared_wavelengths` helper it had
+  open-coded. (2) **The `fwhm_deg` `x` seed is recorded above** in *Deliberately
+  not in scope* rather than changed: removing it breaks
+  `test_profile_seed_helper_sets_both_width_terms` and moves the frozen window
+  sizing, and the generous high-angle width is the safe error direction for a
+  seed.

@@ -109,7 +109,13 @@ from .history.tree import RefinementTree
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import NFEV_PER_ITERATION, SOLVERS
 from .params.vector import ParameterTable
-from .refine import _VERSION, Refinement, _extract_reflections, _utcnow
+from .refine import (
+    _VERSION,
+    Refinement,
+    _declared_wavelengths,
+    _extract_reflections,
+    _utcnow,
+)
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Mode, Provenance
 from .schemas.history import ReflectionState
@@ -872,6 +878,20 @@ class SequentialRefinement:
         ref = Refinement(structure, instrument, backend=self._backend,
                          solver=self._solver,
                          history=self._history_spec(label + history_suffix))
+        # The wavelength is a property of the beamline, declared once for the
+        # whole series — but ``_carry_into`` warm-starts pattern n from pattern
+        # n-1's *refined* λ, so the ``Refinement`` just built would snapshot that
+        # refined value as its declared reference and its WAVELENGTH_CALIBRATION
+        # would report the pattern-to-pattern drift (~0 ppm) instead of the
+        # cumulative move from what the beamline actually stated.  The carried
+        # value stays the warm start (no fit number moves); only the diagnostic's
+        # reference is threaded from the series root, exactly as ``branch()``
+        # inherits the root declaration rather than re-declaring a refined λ
+        # (WP-1134).  Guarded on the line count so a ``prepare`` hook that swaps
+        # the anode (a genuine per-pattern re-declaration) keeps its own snapshot.
+        root_declared = _declared_wavelengths(self.instrument)
+        if len(root_declared) == len(ref._declared_wavelengths):
+            ref._declared_wavelengths = list(root_declared)
         if previous_hkl and mode in ("lebail", "pawley"):
             # Le Bail/Pawley per-hkl intensities are path-dependent state that
             # lives *outside* θ, so `_carry_into` cannot reach them — and a flat
