@@ -55,7 +55,7 @@ under `/yue-docs-style`; `StageSpec` field help from the corpus.
 
 ## Tasks
 
-- [ ] `GET /api/plan/resolve` in `GuiSession` (a `ParameterTable` build per
+- [x] `GET /api/plan/resolve` in `GuiSession` (a `ParameterTable` build per
       call; matched with `fnmatch` the way `set_vary` matches); tested
       against the fnmatch corpus vocabulary.
 - [ ] The ladder rendering, the per-stage disclosure, cumulative counts, held
