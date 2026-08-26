@@ -46,6 +46,21 @@ unconditionally, with no bintype branch anywhere in the module.  So "implement i
 the way GSAS-II does" was never available — it would have shipped this exact
 wrong answer.
 
+**And only ``STD``/``ESD``/``FXYE`` records are read, with every other flag
+refused by name.**  ``STD`` is also what a bank that states *no* flag means —
+four obtainable real files write the record that way — and that default is why an
+unrecognised flag was silent: an ``ALT`` or ``FXY`` bank fell through to
+counts-only with an axis synthesized from ``c1``/``c2``, so its own x column
+entered the intensity array and a wrong axis took its place.  The symptom was
+visible in the output all along: the pattern came back tagged ``gsas-alt``, the
+reader having used the flag as a label rather than as a decision.
+
+Neither layout is *implemented*, and here the reason really is the fixture.
+Every ``ALT`` file obtainable is also a ``RALF`` bank, so it is refused one
+decision earlier for its bintype and cannot exercise an ``ALT`` reader at all;
+and no ``FXY`` file was found anywhere.  A record layout is exactly the kind of
+fact a fixture is for, so both are named and declined rather than written against
+a description.
 """
 
 from __future__ import annotations
@@ -97,6 +112,31 @@ _NON_ANGLE_BINTYPES = {
                 "TIME_MAP record elsewhere in the file",
 }
 
+#: The record layouts read.  A bank that states **no** flag is legal and means
+#: ``STD``; that default is the reason an unrecognised flag was silent, since
+#: falling through to it looks exactly like a file that declared nothing.
+_TYPE_FLAGS = frozenset({"STD", "ESD", "FXYE"})
+
+#: The type flags named and refused, and what each one holds.  Both are a layout
+#: this parser does not have, and both were read as *counts only* by the STD
+#: branch — an ``ALT`` record's x and error columns entering the intensity array,
+#: an ``FXY`` record's x column doing the same while the axis is synthesized from
+#: ``c1``/``c2`` in its place.  Neither is implemented, and here the reason is
+#: the fixture: every obtainable ``ALT`` file is also a ``RALF`` bank, so it is
+#: refused one decision earlier and cannot exercise an ``ALT`` reader at all, and
+#: no ``FXY`` file was found anywhere.  The shapes are *known* — the manual gives
+#: ALT as four ``(x, intensity, error)`` points to an 80-column record on a
+#: 20-character stride, ``NREC = ceil(NCHAN/4)``, and FXY as two free-format
+#: values — and knowing a shape is still not having a fixture to test it against.
+#: Which matters here more than usual: for ALT the manual's own Fortran format
+#: and GSAS-II's scale factors **disagree**, by 100× on x and 10× on y and esd,
+#: so there is no reading of the two sources that is safe without a file.
+_UNIMPLEMENTED_FLAGS = {
+    "ALT": "an x, intensity and error triple on a fixed stride",
+    "FXY": "an x and intensity pair with no esd",
+}
+
+
 def looks_gsas(p: Path) -> bool:
     return bool(re.search(r"^BANK\s+\d+", head(p).text, re.M))
 
@@ -113,7 +153,12 @@ def read_gsas(path: str | Path, *,
     bank = None
     bank_re = re.compile(
         r"^BANK\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+([\d.Ee+-]+)\s+([\d.Ee+-]+)"
-        r"(?:\s+([\d.Ee+-]+)\s+([\d.Ee+-]+))?\s*(\w*)")
+        # the flag is a keyword and must begin with a letter: it is the *last*
+        # field, after up to four bintype coefficients, so a record writing an
+        # odd number of them leaves a coefficient where the flag would be, and
+        # ``\w*`` captured that digit as a flag (``BANK 1 4 4 CONST 1000 20 0``
+        # tagged its pattern ``gsas-0``).  A number here is absence, not a flag.
+        r"(?:\s+([\d.Ee+-]+)\s+([\d.Ee+-]+))?\s*([A-Za-z]\w*)?")
     data_start = None
     for i, line in enumerate(lines):
         m = bank_re.match(line)
@@ -130,7 +175,7 @@ def read_gsas(path: str | Path, *,
     _check_bintype(bank.group(4).upper(), p)
     c1, c2 = float(bank.group(5)), float(bank.group(6))
     # decision two, and independent of the first: how one record is laid out
-    type_flag = (bank.group(9) or "STD").upper()
+    type_flag = _type_flag(bank.group(9), p)
 
     values: list[float] = []
     for line in lines[data_start:]:
@@ -197,6 +242,46 @@ def _check_bintype(bintype: str, p: Path) -> None:
         f"all.")
 
 
+def _type_flag(token: str | None, p: Path) -> str:
+    """The record layout the bank declares; a flag not implemented **is named**.
+
+    This is the layout decision and nothing else — the bintype is checked
+    separately.  Two cases have to stay apart, and only one of them is a
+    refusal:
+
+    * **No flag at all** is legal and means ``STD``, counts only.  Real fixtures
+      and the inline writers both write the record that way, so the default
+      stays.
+    * **A flag this parser has no layout for** used to reach that same default
+      silently, so an ``ALT`` or ``FXY`` bank was read as counts-only with an
+      axis synthesized from ``c1``/``c2`` — a plausible wrong pattern out of a
+      file that said, in the record, exactly what it was.  The old code even
+      tagged the result ``gsas-alt``: the reader knew the name and used it as a
+      label rather than as a decision.
+    """
+    if not token:
+        return "STD"
+    flag = token.upper()
+    if flag in _TYPE_FLAGS:
+        return flag
+    needs = _UNIMPLEMENTED_FLAGS.get(flag)
+    if needs is not None:
+        raise ValueError(
+            f"{p.name}: this bank's type flag is {flag} — {needs}, which this "
+            f"reader has no layout for.  Only STD, ESD and FXYE records are "
+            f"read (a bank stating no flag at all is STD).  {flag} is declined "
+            f"rather than guessed at: through the STD branch it would put this "
+            f"file's own x column into the intensities and synthesize an axis "
+            f"from the bank record in its place, which is a plausible wrong "
+            f"pattern and not an error.")
+    raise ValueError(
+        f"{p.name}: unrecognised GSAS bank type flag {flag!r} — only STD, ESD "
+        f"and FXYE records are read, and a bank stating no flag at all is STD.  "
+        f"{', '.join(sorted(_UNIMPLEMENTED_FLAGS))} are recognised and refused; "
+        f"this is not one of those either, so how its records are laid out is "
+        f"not established at all.")
+
+
 def _reshape(values: list[float], width: int, p: Path, flag: str) -> np.ndarray:
     """``values`` as N rows of ``width``, or a refusal that names the file.
 
@@ -219,10 +304,12 @@ GSAS = PatternFormat(
     title="GSAS raw powder data (FXYE / ESD / STD)",
     extensions=(".fxye", ".gsas", ".gda", ".xra", ".raw"),
     sniff="a BANK record in the first 4 kB — by content, not by suffix; only a "
-          "CONS/CONST (constant 2θ step) bank is then read, and every other "
-          "bintype is named and refused with what its x axis holds",
-    sigma=("the third column (FXYE) or second (ESD); an STD bank carries "
-           "counts only and takes the Poisson fallback"),
+          "CONS/CONST (constant 2θ step) bank holding STD, ESD or FXYE records "
+          "is then read, and every time-of-flight bintype and every other type "
+          "flag (ALT, FXY) is named and refused",
+    sigma=("the third column (FXYE) or second (ESD); an STD bank — which is "
+           "also what a bank stating no type flag is — carries counts only and "
+           "takes the Poisson fallback"),
     matches=looks_gsas,
     read=read_gsas,
 )

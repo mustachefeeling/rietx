@@ -598,6 +598,63 @@ def test_an_unrecognised_bintype_is_refused_rather_than_assumed(tmp_path):
         rx.read_pattern(p)
 
 
+@pytest.mark.parametrize("flag", ["ALT", "FXY"])
+def test_a_type_flag_with_no_layout_here_is_refused_by_name(tmp_path, flag):
+    """Both were read as *counts only* — the STD default, reached silently.
+
+    An ALT record holds x, intensity and an error; an FXY record holds x and
+    intensity.  Neither layout is implemented, and falling through to STD put
+    the file's own x column into the intensity array and synthesized an axis
+    from the bank record in its place.  The output even said so: the pattern
+    came back tagged ``gsas-alt``, the flag used as a label and not a decision.
+    """
+    body = ("".join(f"{t * 100:8.0f}{y:7.0f}{e:6.0f}\n"
+                    for t, y, e in [(10.0, 100.0, 10.0), (11.0, 5000.0, 71.0),
+                                    (12.0, 120.0, 11.0)])
+            if flag == "ALT" else
+            "".join(f"{t:12.5f} {y:12.3f}\n"
+                    for t, y in [(10.0, 100.0), (11.0, 5000.0), (12.0, 120.0)]))
+    p = write_gsas(tmp_path / f"{flag.lower()}.gsa", bintype="CONS", flag=flag,
+                   body=body, nchan=3)
+    with pytest.raises(ValueError) as e:
+        rx.read_pattern(p)
+    assert p.name in str(e.value) and flag in str(e.value)
+
+
+def test_an_unrecognised_type_flag_is_refused_rather_than_read_as_std(tmp_path):
+    """The general case: a flag nobody recognises says nothing about a layout,
+    so there is no default that is better than a refusal."""
+    p = write_gsas(tmp_path / "mystery_flag.gsa", bintype="CONS", flag="XYZW",
+                   body="  10 20 30 40\n", nchan=4)
+    with pytest.raises(ValueError, match="XYZW"):
+        rx.read_pattern(p)
+
+
+@pytest.mark.parametrize("coeffs", [
+    (1000.0, 20.0, 0, 0),        # the shape every real fixture writes
+    (1000.0, 20.0),              # c3/c4 omitted
+    (1000.0, 20.0, 0),           # an *odd* coefficient count — the trap below
+])
+def test_a_bank_stating_no_type_flag_is_still_read_as_std(tmp_path, coeffs):
+    """``STD`` is the default and has to stay one, which is what makes refusing
+    an unrecognised flag a narrow change rather than a wide one.
+
+    The third row is why the flag is matched as a **keyword**: the flag is the
+    last field on the record, after the bintype's coefficients, so a record
+    writing an odd number of them leaves a coefficient in the flag's position.
+    Reading ``0`` there as a flag would refuse a file that parses correctly —
+    and before this change it was read as one, and tagged the pattern
+    ``gsas-0``.
+    """
+    p = write_gsas(tmp_path / "noflag.gsa", bintype="CONST", flag=None,
+                   body="  10 20 30 40\n", nchan=4, coeffs=coeffs)
+    d = rx.read_pattern(p)
+    assert d.intensity == [10.0, 20.0, 30.0, 40.0]
+    assert d.two_theta == [pytest.approx(10.0 + 0.2 * i) for i in range(4)]
+    assert d.sigma is None                       # counts only, Poisson fallback
+    assert d.metadata["format"] == "gsas-std"
+
+
 # ---------------------------------------------------------------------- ras
 DATA = Path(__file__).parent / "data"
 
