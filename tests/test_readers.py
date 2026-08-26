@@ -825,6 +825,28 @@ def test_a_time_map_bank_writes_one_coefficient_and_is_refused_by_name(tmp_path)
     assert p.name in str(e.value) and "TIME_MAP" in str(e.value)
 
 
+def test_a_cons_bank_whose_record_will_not_parse_refuses_by_name(tmp_path):
+    """The loose-header read has its own failure mode, and it must not fall back
+    to the pre-existing lie.
+
+    A ``CONS`` bank matching the *header* but not the record — the bintype is
+    read, the two coefficients a CONS bank owes are absent — is now reachable
+    precisely because the header match is a relaxation of the record match.  It
+    raises naming the file rather than falling through to ``no BANK record
+    found``, which is the same defect this module fixed one bintype over: a file
+    plainly containing a ``BANK`` line told it has none.
+    """
+    p = write_gsas(tmp_path / "nocoeff.gsa", bintype="CONS", flag="STD",
+                   body="     100     200     300\n", nchan=3, coeffs=())
+    with pytest.raises(ValueError) as e:
+        rx.read_pattern(p)
+    msg = str(e.value)
+    assert p.name in msg
+    assert "no BANK record found" not in msg, (
+        "the header matched, so the refusal must say the record could not be "
+        "read rather than claim the file has no bank at all")
+
+
 # ---------------------------------------------------------------------- ras
 DATA = Path(__file__).parent / "data"
 
