@@ -22,7 +22,7 @@ Scope — what this reader claims
 **Handled completely: the single-pattern, constant-wavelength, nuclear case**
 (``Job`` 0 or 1, one diffraction pattern, ``Jbt = 0`` phases). For those, every
 value and every refinement codeword is read, the counts the file declares are
-asserted against the lines actually parsed, and :func:`structure_from_fullprof_pcr` builds a
+asserted against the lines actually parsed, and :func:`to_structure` builds a
 :class:`~rietx.schemas.Structure`.
 
 **Read but not modelled: magnetic phases** (``Jbt = 1``, both ``Isy = -1`` and
@@ -30,7 +30,7 @@ asserted against the lines actually parsed, and :func:`structure_from_fullprof_p
 magnetic phase cannot become a :class:`~rietx.schemas.Phase`. It is neither
 dropped nor allowed to make the file unreadable: :func:`read_fullprof_pcr`
 returns it in full on :attr:`FullProfModel.phases`, and
-:func:`structure_from_fullprof_pcr` **refuses**, naming every magnetic phase it would have
+:func:`to_structure` **refuses**, naming every magnetic phase it would have
 had to omit. See the design note below — four of the six real files this
 reader was written against have a magnetic phase, so silently returning their
 nuclear half is the single most damaging thing it could do.
@@ -53,7 +53,7 @@ The three design decisions, and why
    wavelength, the agreement factors — because of a phase nobody asked it to
    build; and it would make 4 of the 6 real files simply unreadable, which is a
    reader nobody can use on the archive it was written for. Refusing at
-   :func:`structure_from_fullprof_pcr` puts the refusal exactly where the impossible thing is
+   :func:`to_structure` puts the refusal exactly where the impossible thing is
    asked for, and :attr:`FullProfModel.magnetic_phases` is how the model
    *says* what it read. A caller who genuinely wants the nuclear subset passes
    ``nuclear_only=True``: the omission is then a caller's declared choice, named
@@ -80,7 +80,7 @@ The three design decisions, and why
    common factor*, and the corpus proves the factor is not conventional: the
    Cr₂WO₆ and Cr₂O₃ files carry a factor of 2 where the Co₃O₄ and YAG files
    carry 1. What is recoverable is the *ratio* between sites, so
-   :func:`structure_from_fullprof_pcr` divides each ``Occ`` by its site multiplicity, and
+   :func:`to_structure` divides each ``Occ`` by its site multiplicity, and
    **requires the result to be the same for every atom in the phase** — which
    is the statement "this phase is fully occupied", the only case where the
    arbitrary factor cancels. A phase where it is not constant is **refused**,
@@ -294,7 +294,7 @@ _MAGNETIC_CONTINUATION = ("m4", "m5", "m6", "m7", "m8", "m9", "magph")
 _N_T_EXTRA_LINES = {0: 0, 2: 2}
 
 #: FullProf writes ``beta11 beta22 beta33 beta12 beta13 beta23`` in this order
-#: (yag_xpress_072_new.pcr:186). Read, and refused at :func:`structure_from_fullprof_pcr` —
+#: (yag_xpress_072_new.pcr:186). Read, and refused at :func:`to_structure` —
 #: the β → U^ij conversion needs a convention (whether the stored off-diagonal
 #: already carries the factor 2 of the exponent) that no file here settles, and
 #: a wrong factor is a silently wrong Debye-Waller factor at high Q.
@@ -647,7 +647,7 @@ def normalize_species(token: str) -> str:
     ``MCR3``, a magnetic form-factor table name — is returned **verbatim**.
     rietx has no magnetic form factors, so inventing ``Mc`` + charge from it
     would be a species that means nothing, and the phase carrying it is refused
-    at :func:`structure_from_fullprof_pcr` anyway.
+    at :func:`to_structure` anyway.
     """
     stripped = re.sub(r"[^A-Za-z0-9+-]", "", token)
     if m := re.fullmatch(r"([A-Za-z]{1,2})([+-])(\d*)", stripped):
@@ -680,7 +680,7 @@ def normalize_space_group(symbol: str) -> str:
     preferred wherever the bare symbol lands on choice 1.
 
     That preference is a *convention*, so it is not left to be trusted:
-    :func:`structure_from_fullprof_pcr` re-derives every site's multiplicity under whichever
+    :func:`to_structure` re-derives every site's multiplicity under whichever
     setting this returns and refuses the phase unless the occupancy column
     reduces consistently (module docstring, decision 3). A wrong origin gives
     wrong multiplicities and is refused, not returned.
@@ -1442,7 +1442,7 @@ def _read_trailing(cur: _Cursor, path: Path, model: FullProfModel) -> None:
     model.fitted_range = ranges[0] if ranges else None
 
 
-# --------------------------------------------------- structure_from_fullprof_pcr
+# --------------------------------------------------- to_structure
 
 
 #: How far the per-site occupancy ratios may spread and still be called
@@ -1513,7 +1513,7 @@ def occupancy_factor(phase: FullProfPhase, where: str | None = None) -> float:
     return reference
 
 
-def structure_from_fullprof_pcr(model: FullProfModel, *, nuclear_only: bool = False,
+def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                                 diagnostics: list[Diagnostic] | None = None):
     """Build a :class:`~rietx.schemas.Structure` from a parsed ``.pcr``.
 
