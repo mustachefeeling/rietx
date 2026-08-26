@@ -2078,3 +2078,101 @@ def test_an_la_inside_a_quoted_path_is_not_an_emission_line(tmp_path):
     model = read_topas_inp(inp)
     assert model.emission_lines == []
     assert model.wavelength is None
+
+
+# ---- round-six: the scope model has a dataset level (Technical Reference 5.1)
+
+
+def test_a_phase_carries_the_dataset_it_belongs_to(tmp_path):
+    """`[xdd $file ...]...` whose children are `[str | dummy_str]...`: a phase
+    is a fact about one pattern, not about the file."""
+    inp = _inp(tmp_path, "two.inp",
+               'xdd "a.xye"\n'
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'xdd "b.xye"\n'
+               'str\nphase_name "B"\nspace_group "P1"\na 5.0\n'
+               'site B1 x 0 y 0 z 0 occ Cl-1 1 beq b 0.5\n')
+    model = read_topas_inp(inp)
+    assert model.n_datasets == 2
+    assert [ph.dataset for ph in model.phases] == [0, 1]
+
+
+def test_two_datasets_phases_are_not_concatenated_into_one_structure(tmp_path):
+    """The measured shape of getting this wrong: the archive's multi-dataset
+    files state weight-percent sums of 189, 300, 400 and 600 % — N specimens'
+    fractions added together — and every one of them built a `Structure`.
+
+    `io/CLAUDE.md`'s pattern-reader rule one rank up: a multi-range file's
+    ranges are scans **selected by** `scan=`, never concatenated. Here the
+    selector is `dataset=` and the refusal names it.
+    """
+    inp = _inp(tmp_path, "twobuild.inp",
+               'xdd "a.xye"\n'
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'weight_percent wa 100.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'xdd "b.xye"\n'
+               'str\nphase_name "B"\nspace_group "P1"\na 5.0\n'
+               'weight_percent wb 100.0\n'
+               'site B1 x 0 y 0 z 0 occ Cl-1 1 beq b 0.5\n')
+    model = read_topas_inp(inp)
+    with pytest.raises(TopasInpError) as exc:
+        to_structure(model)
+    assert "2 datasets" in str(exc.value)
+    assert "dataset=N" in str(exc.value)
+    # the selector builds one of them, and only its phases
+    assert [p.name for p in to_structure(model, dataset=0).phases] == ["A"]
+    assert [p.name for p in to_structure(model, dataset=1).phases] == ["B"]
+
+
+def test_a_dataset_that_holds_no_phase_is_named_not_silently_empty(tmp_path):
+    inp = _inp(tmp_path, "nodata.inp",
+               'xdd "a.xye"\n'
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    with pytest.raises(TopasInpError, match="no phase belongs to dataset 4"):
+        to_structure(read_topas_inp(inp), dataset=4)
+
+
+def test_the_runs_own_r_wp_is_the_one_stated_at_top_level(tmp_path):
+    """`Tr_wp` hangs off `Ttop` *and* `Txdd`, so a file states the run's own
+    figure of merit and one per dataset. Measured on
+    `001_Pawley_unitcell.inp`: 4.408 above the `xdd`, 14.188 inside it. The
+    first match is the run's only because of where it sits, not because it is
+    first."""
+    inp = _inp(tmp_path, "fom.inp",
+               'r_wp 4.408 gof 1.18\n'
+               'xdd "a.xye"\nr_wp 14.188 gof 3.90\n'
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    model = read_topas_inp(inp)
+    assert model.r_wp == pytest.approx(4.408)
+    assert model.gof == pytest.approx(1.18)
+    assert model.r_wp_all == pytest.approx([4.408, 14.188])
+    assert model.gof_all == pytest.approx([1.18, 3.90])
+
+
+def test_a_per_dataset_r_wp_is_never_quoted_as_the_runs_own(tmp_path):
+    """Six banks, six `r_wp`, no top-level one — the WISH files' shape. The
+    converged r_wp is the reason this format is worth reading, so one of six
+    reported as *the* answer is the confident wrong singleton; it is withheld
+    and all six are carried."""
+    inp = _inp(tmp_path, "banks.inp",
+               'xdd "b1.xye"\nr_wp 9.14\n'
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'xdd "b2.xye"\nr_wp 3.33\n')
+    model = read_topas_inp(inp)
+    assert model.r_wp is None
+    assert model.r_wp_all == pytest.approx([9.14, 3.33])
+
+
+def test_one_dataset_still_reports_its_r_wp(tmp_path):
+    """A file with no top-level statement and exactly one dataset states one
+    number, and there is nothing to be ambiguous about."""
+    inp = _inp(tmp_path, "one.inp",
+               'xdd "a.xye"\nr_wp 7.7\n'
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    assert read_topas_inp(inp).r_wp == pytest.approx(7.7)

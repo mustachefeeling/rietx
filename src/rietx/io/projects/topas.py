@@ -159,6 +159,11 @@ class TopasPhase:
     #: The phase-level half of the same protocol, keyed as the cell dict is
     #: (``"a"``, ``"be"``, …) plus ``"scale"``.
     vary: dict = field(default_factory=dict)
+    #: Which dataset this phase belongs to — the index of the ``xdd``-family
+    #: block it sits inside, or ``None`` where the file opens no explicit one.
+    #: The grammar makes ``str`` a **child** of ``xdd`` and ``xdd`` an array, so
+    #: a phase is a fact about one pattern and not about the file.
+    dataset: int | None = None
 
 
 @dataclass
@@ -212,8 +217,19 @@ class TopasModel:
     emission_lines: list = field(default_factory=list)
     goniometer_radius_mm: float | None = None
     geometry: str | None = None
+    #: The run's own converged ``r_wp``/``gof`` — the one stated at top level,
+    #: above every block opener. ``None`` where the file states none there or
+    #: states several, because ``Tr_wp`` hangs off ``Txdd`` as well and picking
+    #: one dataset's number as the file's is the confident wrong singleton this
+    #: reader exists to avoid. Every value stated is on ``r_wp_all``/``gof_all``.
     r_wp: float | None = None
     gof: float | None = None
+    r_wp_all: list = field(default_factory=list)
+    gof_all: list = field(default_factory=list)
+    #: How many ``xdd``-family blocks the file opens. Zero is normal — a macro
+    #: may supply the dataset — and anything above one means the phases below
+    #: belong to different patterns.
+    n_datasets: int = 0
     data_files: list = field(default_factory=list)
     background_terms: int | None = None
     #: One :class:`SkippedBlock` per ``str`` block that states no ``phase_name``
@@ -810,6 +826,12 @@ _BLOCK_OPENERS = ("str", "hkl_Is", "xo_Is", "d_Is", "xdd_scr", "xdd_sum",
 #: the newline and would let one match span two lines.
 _BLOCK = re.compile(rf"^[ \t]*(?P<kw>{'|'.join(_BLOCK_OPENERS)})\b", re.M)
 
+#: The openers that start a **dataset** rather than a phase. The grammar's
+#: `Txdd`/`Txdd_scr` put every phase kind — `str`, `hkl_Is`, `xo_Is`, `d_Is` —
+#: *inside* one of these, so an opener from this set is where one pattern ends
+#: and the next begins.
+_DATASET_OPENERS = ("xdd", "xdd_scr", "xdd_sum")
+
 #: TOPAS's ``STR(...)`` macro expands to a whole ``str`` block. Its definition
 #: lives in a macro library this reader does not have and may not reproduce
 #: (``ATTRIBUTION.md``'s fence), so the phases such a file states cannot be
@@ -1133,10 +1155,35 @@ def read_topas_inp(path: str | Path, *,
     model = TopasModel(path=str(path))
     symbols = symbol_table(active)
 
-    if m := re.search(rf"r_wp\s+({_NUM})", active):
-        model.r_wp = float(m.group(1))
-    if m := re.search(rf"\bgof\s+({_NUM})", active):
-        model.gof = float(m.group(1))
+    # A `str` block ends at the next block opener of any kind, not at the next
+    # `str`: see `_BLOCK_OPENERS` for the numbers, and `test_projects_topas.py`
+    # for the neighbour's cell, scale and weight_percent this stops arriving on
+    # the phase above. Read before the figures of merit, because *where* an
+    # opener sits is what decides which of them is the file's own.
+    openers = list(_BLOCK.finditer(active))
+    model.n_datasets = sum(1 for o in openers if o["kw"] in _DATASET_OPENERS)
+
+    # `Tr_wp` hangs off **both** `Ttop` and `Txdd`, and `xdd` is an array, so a
+    # multi-dataset file states one r_wp per dataset *and* the run's own. The
+    # first match is therefore not "the" r_wp: `001_Pawley_unitcell.inp` states
+    # 4.408 above its `xdd` and 14.188 inside it, and 81 of the 606 archive
+    # files state more than one. What the grammar does settle is *which* one is
+    # the file's: the one at top level, above every block opener. Where there is
+    # no such statement, or more than one, the number is withheld rather than
+    # picked — the converged r_wp is the reason this format is worth reading and
+    # a confident wrong one is worse than none. Every value is carried either
+    # way, in file order.
+    top = openers[0].start() if openers else len(active)
+    for key, scalar, every in (("r_wp", "r_wp", "r_wp_all"),
+                               ("gof", "gof", "gof_all")):
+        found = [(m.start(), float(m.group(1)))
+                 for m in re.finditer(rf"\b{key}\s+({_NUM})", active)]
+        setattr(model, every, [value for _, value in found])
+        at_top = [value for start, value in found if start < top]
+        if len(at_top) == 1:
+            setattr(model, scalar, at_top[0])
+        elif not at_top and len(found) == 1:
+            setattr(model, scalar, found[0][1])
     if m := re.search(r"\b((?:Cu|Co|Cr|Fe|Mo|Ag)Ka\d?)\s*\(", active):
         model.emission_macro = m.group(1)
         model.anode = re.sub(r"\d$", "", m.group(1))
@@ -1163,12 +1210,13 @@ def read_topas_inp(path: str | Path, *,
             f"all — 'a Pawley or indexing-only .inp is legal and has none' — "
             f"about a file that plainly states {n}.")
 
-    # A `str` block ends at the next block opener of any kind, not at the next
-    # `str`: see `_BLOCK_OPENERS` for the numbers, and `test_projects_topas.py`
-    # for the neighbour's cell, scale and weight_percent this stops arriving on
-    # the phase above.
-    openers = list(_BLOCK.finditer(active))
     parsed_site_tokens = 0        # site *tokens* read into phases, not atoms
+    #: Which dataset the `str` blocks below currently sit in. `None` until an
+    #: `xdd`-family opener is seen: the grammar makes `str` a child of `xdd`, but
+    #: a real file routinely supplies the dataset from a macro (`RAW(...)`,
+    #: `TOF_XYE(...)`), and inventing dataset 0 for a file that states none would
+    #: be a fact the reader made up.
+    dataset: int | None = None
     # Repairs to surface on `diagnostics` (finding 4): a distinct rewritten
     # species keyed to its raw form, carrying every atom path it touched (the
     # `structure_from_cif` shape), and each translated origin suffix keyed to
@@ -1177,6 +1225,8 @@ def read_topas_inp(path: str | Path, *,
     species_rewrites: dict[str, tuple[str, list[str]]] = {}
     origin_translations: list[tuple[str, str, str]] = []
     for index, opener in enumerate(openers):
+        if opener["kw"] in _DATASET_OPENERS:
+            dataset = 0 if dataset is None else dataset + 1
         if opener["kw"] != "str":
             continue
         end = (openers[index + 1].start() if index + 1 < len(openers)
@@ -1218,7 +1268,8 @@ def read_topas_inp(path: str | Path, *,
             continue
         raw_sg = sg.group(1).strip()
         norm_sg = normalize_space_group(sg.group(1))
-        phase = TopasPhase(name=name.group(1).strip(), space_group=norm_sg)
+        phase = TopasPhase(name=name.group(1).strip(), space_group=norm_sg,
+                           dataset=dataset)
         if norm_sg != raw_sg:
             origin_translations.append((phase.name, raw_sg, norm_sg))
         # The cell keys are read token-wise (WP-1118): the grammar is unified per
@@ -1490,7 +1541,7 @@ def read_topas_inp(path: str | Path, *,
 
 
 def to_structure(model: TopasModel, *, cell_limits: bool = True,
-                 aniso: bool = False):
+                 aniso: bool = False, dataset: int | None = None):
     """Build a :class:`~rietx.schemas.Structure` from a parsed model.
 
     A **module-level** name, not a package export. WP-1118 is "read a refinement
@@ -1543,6 +1594,39 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     """
     import rietx as rx
 
+    # **A phase belongs to a pattern, and this reader will not concatenate two.**
+    # The manual's own keyword tree (Technical Reference S5.1) makes `str` a
+    # child of `xdd`, and `xdd` an array: `[xdd $file ...]...` whose children are
+    # `[str | dummy_str]...`. So a file stating several datasets states several
+    # *specimens*, and putting all of their phases into one `Structure` builds a
+    # model that never existed. It is not a subtle error either -- of the 23
+    # multi-dataset archive files, every one that reaches the weight-percent
+    # oracle states a sum of 189, 300, 400 or 600 %, which is exactly N
+    # specimens' phase fractions added together.
+    #
+    # `io/CLAUDE.md`'s rule for the pattern readers, one rank up: a multi-range
+    # file's ranges are *scans selected by* `scan=`, **never concatenated**. Here
+    # the selector is `dataset=`, and the refusal names it rather than picking.
+    stated = sorted({ph.dataset for ph in model.phases}, key=lambda d: (d is not None, d))
+    if dataset is not None:
+        phases_in = [ph for ph in model.phases if ph.dataset == dataset]
+        if not phases_in:
+            raise TopasInpError(
+                f"{model.path or '<model>'}: no phase belongs to dataset "
+                f"{dataset}; this file states "
+                f"{', '.join(repr(d) for d in stated) or 'none'}.")
+    elif len(stated) > 1:
+        raise TopasInpError(
+            f"{model.path or '<model>'}: this file states {len(stated)} datasets "
+            f"({', '.join(repr(d) for d in stated)}) and its "
+            f"{len(model.phases)} phases are not all one specimen's — `str` is a "
+            f"child of `xdd` and `xdd` repeats, so building them together would "
+            f"be a Structure that never existed and weight fractions that sum "
+            f"over every pattern in the file. Pass dataset=N to build one of "
+            f"them, or read `model.phases` (each carries its own `.dataset`).")
+    else:
+        phases_in = list(model.phases)
+
     # The window is `Atom.biso`'s own declaration, read off the schema rather
     # than restated here: the bound this refusal quotes must not be the reader's
     # invention, which is half of what was wrong with clamping to it.
@@ -1550,7 +1634,7 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     biso_window = {"min": biso_default.min, "max": biso_default.max}
 
     phases = []
-    for ph in model.phases:
+    for ph in phases_in:
         # Report or refuse, never drop. A phase whose cell could not be read
         # used to be skipped here with nothing said, while `model.phases` still
         # carried its `weight_percent` — so the QPA numbers looked complete with
