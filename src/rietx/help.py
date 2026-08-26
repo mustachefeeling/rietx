@@ -503,7 +503,13 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "The specimen's 1/cosθ contribution to the Lorentzian FWHM, which "
             "is Scherrer broadening from finite crystallite size. It adds to "
             "the instrumental X. Calibrate the instrument on a standard, hold "
-            "U V W X Y, then refine this and its three companions."
+            "U V W X Y, then refine this and its three companions. "
+            "It carries a default upper bound — a floor on the crystallite at "
+            "2 nm, deliberately permissive so genuinely nanocrystalline "
+            "specimens refine freely — which reports BOUND_HIT if reached. "
+            "Setting max to any finite value is your own claim and switches "
+            "that default off. A refined size below 5 nm raises "
+            "SIZE_UNUSUALLY_SMALL, which flags rather than bounds."
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg; 0.1 deg is roughly a 100 nm domain at Cu Kα",
@@ -535,7 +541,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "Gaussian variances add, so it stacks on the instrumental W and "
             "U rather than replacing them. Most specimens are better described "
             "by the Lorentzian pair; free this one when the peak shape is "
-            "measurably more Gaussian than the standard's."
+            "measurably more Gaussian than the standard's. "
+            "It carries the same default 2 nm floor as lor_size, squared: this "
+            "is a variance, so the cap on the width it contributes applies to "
+            "its square root."
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 deg²",

@@ -104,6 +104,54 @@ below the bound may cross it, and the next stage pulls it back and reports
 `BOUND_HIT` on the path (`RefinedParameter.at_bound` carries the same finding
 on the row).
 
+(sec-size-cap)=
+## How small a crystallite a size term is allowed to imply
+
+The size terms $X_s/\cos\theta$ and $P/\cos^2\theta$ have the same runaway
+geometry as the strain terms, and the same fix — but the intent is different,
+and so is the number. A large $X_s$ is a *small* crystallite (via Scherrer,
+eq. {eq}`ms-size-coefficient` in {ref}`sec-width-as-size`), and real specimens
+are genuinely nanocrystalline, so the bound here is set only to catch a runaway,
+never to legislate a size:
+
+```{math}
+:label: prof-size-cap
+
+X_s \;\le\; \min\!\left(
+\frac{(180/\pi)\,K\lambda}{L_{\min}},\;
+f\,(2\theta_{\max}-2\theta_{\min})\cos\theta_{\max}
+\right),
+\qquad
+L_{\min} = {{ SIZE_CAP_MIN_SIZE_NM }}\ \text{nm}
+```
+
+*Source:* `rietx.params.vector.size_cap`
+
+The first term is a **floor on the crystallite** ($L \ge L_{\min}$), read as a
+ceiling on the coefficient with no reference angle (caglioti eq. 4,
+{ref}`sec-width-as-size`), per wavelength — ≈ 4°/cos θ at Cu Kα for 2 nm. The
+second is the strain rule's range backstop with $1/\cos\theta$ in place of
+$\tan\theta$, evaluated where $1/\cos\theta$ is largest. On any real scan the
+floor is far the tighter (Cu 10–80°: ≈ 4 deg against ≈ 54 deg), so the floor
+governs and the backstop only catches the $1/\cos\theta$ pathology near
+2θ = 180°. $P$ is a variance and takes the square of whichever width binds.
+
+```{warning}
+$L_{\min}$ is **not** a claim about how small a crystallite may be. It is a
+runaway fence two unit cells below the archive: the smallest well-determined
+size in a corpus of 606 solved refinements is ≈ 33 nm, and every refined size
+below ~2 nm there is an exploratory or placeholder fit. A genuinely nano
+specimen refines freely above it, and if one is truly smaller than 2 nm you
+declare the bound you mean — a finite `Parameter.max` outranks the default. The
+surprising-but-possible band is the `SIZE_UNUSUALLY_SMALL` diagnostic, which
+fires below {{ SIZE_FLAG_SIZE_NM }} nm and bounds *nothing*.
+```
+
+The bound is armed only on a term that has already reached it, is outranked by
+a finite stored `max`, and reports `BOUND_HIT` when the next stage pulls a
+crossing back — all exactly as the strain cap above, and bit-identical to an
+unbounded build for any fit that stays off the floor.
+
 ## Thompson-Cox-Hastings pseudo-Voigt
 
 The default profile approximates the Voigt (Gaussian ⊗ Lorentzian) as a

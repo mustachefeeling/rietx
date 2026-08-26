@@ -32,6 +32,10 @@ from .model.absorption import (
 )
 from .model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, Mode, compile_model
 from .model.geometry import geometry_table
+from .model.profiles.caglioti import (
+    SCHERRER_K,
+    apparent_size_from_size_coefficient,
+)
 from .model.restraints import summarise_restraints
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import SOLVERS, run_least_squares
@@ -2242,6 +2246,10 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # not a bound (the bound is params.vector.strain_cap, one tier up).
     diagnostics = diagnostics + _strain_flag_diagnostics(model, values, structure)
 
+    # A crystallite smaller than solved refinements normally report — the size
+    # twin of the flag above (bound: params.vector.size_cap, one tier up).
+    diagnostics = diagnostics + _size_flag_diagnostics(model, values, structure)
+
     # The two robustness statements that are about the *run* rather than a
     # parameter, so they are Diagnostics here rather than GuardFindings (which
     # exist to carry paths — these have none).  Both cover the silent-failure
@@ -3071,6 +3079,116 @@ def _sqrt_or_none(variance: float | None) -> float | None:
     if variance is None or not variance > 0.0:
         return None
     return math.sqrt(float(variance))
+
+
+#: Crystallite size (Å) below which a refinement is flagged for a reader to
+#: adjudicate — the size twin of :data:`STRAIN_FLAG_WIDTH`, and like it a flag
+#: that **bounds nothing**.  5 nm.
+#:
+#: **Set from the corpus and from intent.**  A survey of the 606 solved TOPAS
+#: ``.inp`` of our archive finds 317 refined ``CS_L`` (Lorentzian crystallite
+#: size, nm — the dominant idiom; ``CS_G`` and ``LVol`` are a handful) whose
+#: smallest *well-determined* value is ≈ 33 nm (a rutile size–strain fit); every
+#: refined size below ~2 nm is a divergence or placeholder signature — the two
+#: at 0.69 and 1.19 nm are Si and a minor Ge phase in a folder named *To
+#: Rietveld or not to Rietveld*, and the 18 nm one is a phase named
+#: ``pixie_dust``.  So the corpus has a clean gap: real fits floor near 33 nm,
+#: artefacts sit below ~2 nm, and nothing legitimate lives between.
+#:
+#: 5 nm is placed inside that gap, above the 2 nm hard floor
+#: (:data:`~rietx.params.vector.SIZE_CAP_MIN_SIZE_A`) and well below the
+#: smallest real fit.  It is deliberately *not* pushed up towards 33 nm: a real
+#: nanocrystalline specimen of 5–30 nm is routine even though this particular
+#: archive of bulk inorganics happens not to contain one, and a flag that fired
+#: on it would be noise.  So this says only "smaller than a runaway fence, a
+#: number to look at", which is the whole job of the flag tier — the intent
+#: Michael set is *prevent runaways, do not legislate physics*.
+#:
+#: ``gauss_size`` is a variance, so the size is read from its square root, the
+#: same conversion :func:`~rietx.params.vector.size_cap_hi` uses for the bound.
+SIZE_FLAG_SIZE_A = 50.0
+
+
+def _representative_wavelength(model: CompiledModel) -> float | None:
+    """The source's longest emission line (Å), or ``None`` if it has none.
+
+    The flag reads a *size* off a 1/cosθ coefficient, which needs λ (caglioti
+    eq. 4).  The longest line is the most permissive attribution — the same
+    choice :func:`~rietx.optimize.least_squares._model_size_cap` makes — so the
+    flag never fires on a genuine crystallite because of the Kα2 offset.
+    """
+    lams = [lam for lam in getattr(model, "line_wavelengths", ()) or ()
+            if lam > 0.0]
+    return max(lams) if lams else None
+
+
+def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],
+                           structure: Structure) -> list[Diagnostic]:
+    """``SIZE_UNUSUALLY_SMALL`` — a crystallite past what solved refinements use.
+
+    The size twin of :func:`_strain_flag_diagnostics`, and the two do the same
+    two-tier job.  One tier down, :func:`~rietx.params.vector.size_cap` is a
+    solver bound (a 2 nm floor on the crystallite, per wavelength); it protects
+    the *numerics* and reports itself as ``BOUND_HIT``.  This tier protects the
+    *interpretation*: a refined size below :data:`SIZE_FLAG_SIZE_A` is
+    physically possible — real nanocrystals reach a few nm — so the fit is
+    finished and may be right, but it sits below the archive of solved
+    refinements and is worth a look.  It gates nothing ("report, never refuse")
+    and is per-pattern, which is where a batch caller needs it.
+
+    The size is read from the **sample** coefficient alone (``lor_size``, or
+    ``sqrt(gauss_size)``), not the instrument ⊕ sample total: the question is
+    what crystallite *this phase's* refined broadening implies, and a runaway is
+    that coefficient ballooning.  Reported in nm, the transferable unit, because
+    a coefficient in deg is not comparable between instruments and a size is
+    (:mod:`rietx.model.profiles.caglioti`); the apparent size is an order-of-
+    magnitude statement (Scherrer K moves it ~10–20 %), which is exactly the
+    resolution a "this is suspiciously small" flag needs.
+
+    ``microstrain`` (Stephens) blocks do not touch ``lor_size``, so unlike the
+    strain flag there is no locked-column interaction to guard here.
+    """
+    lam = _representative_wavelength(model)
+    if lam is None:
+        return []
+    out: list[Diagnostic] = []
+    floor_nm = SIZE_FLAG_SIZE_A / 10.0
+    for ip in range(len(model.phases)):
+        name = structure.phases[ip].name
+        for term, coeff in (
+                ("lor_size", values.get(f"phases.{ip}.lor_size")),
+                ("gauss_size", _sqrt_or_none(values.get(f"phases.{ip}.gauss_size")))):
+            if coeff is None or not coeff > 0.0:
+                continue
+            size_a = apparent_size_from_size_coefficient(coeff, lam, SCHERRER_K)
+            if not size_a < SIZE_FLAG_SIZE_A:
+                continue
+            size_nm = size_a / 10.0
+            path = f"phases.{ip}.{term}"
+            out.append(Diagnostic(
+                level="warning", code="SIZE_UNUSUALLY_SMALL",
+                where=[path], value=float(size_nm),
+                message=(f"phase {ip} ({name}) refined {term} to an apparent "
+                         f"crystallite size of {size_nm:.3g} nm "
+                         f"(Scherrer K={SCHERRER_K}, λ={lam:.4g} Å), below the "
+                         f"{floor_nm:.0f} nm that solved refinements stay above "
+                         f"— of 606 TOPAS refinements in our archive the "
+                         f"smallest well-determined crystallite is ≈ 33 nm, and "
+                         f"every refined size below ~2 nm is a divergence or "
+                         f"placeholder signature rather than a material"),
+                suggestion="physically possible — real nanocrystals reach a few "
+                           "nm — so this is a number to check rather than a "
+                           "failure: confirm the broad lines are really size "
+                           "broadening and not an unmodelled peak shape, strain, "
+                           "an amorphous component or a second phase it is "
+                           "absorbing, and check whether BOUND_HIT fired on the "
+                           "same path — at the cap the width is held at the 2 nm "
+                           "floor and is not a measurement. If the specimen "
+                           "really is this small, declare the bound you mean (a "
+                           "finite Parameter.max outranks both tiers and "
+                           "silences them)",
+            ))
+    return out
 
 
 #: below this modelled depression at the lowest fitted angle, a refined

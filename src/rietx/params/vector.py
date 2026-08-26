@@ -473,6 +473,135 @@ def strain_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
     return hi
 
 
+#: The sample size terms this cap covers, in the units each one is stored in:
+#: ``lor_size`` is a Lorentzian **FWHM** coefficient (deg 2θ, multiplying
+#: 1/cosθ) and ``gauss_size`` a Gaussian **variance** coefficient (deg² 2θ,
+#: multiplying 1/cos²θ) — see :mod:`rietx.model.profiles.caglioti`.  So one cap
+#: expressed as a width governs both, squared for the variance, exactly as the
+#: strain pair above.
+_SIZE_NAMES = ("lor_size", "gauss_size")
+
+#: The smallest crystallite (Å) the size cap will let a fit *reach* — a floor
+#: on size, hence a ceiling on the 1/cosθ coefficient.  **2 nm, deliberately
+#: permissive.**  This is not a physics claim about how small a crystallite may
+#: be (genuinely nanocrystalline specimens reach a few nm and must refine
+#: freely); it is a runaway fence a couple of unit cells below anything the
+#: archive contains — the smallest well-determined refined size in 606 solved
+#: TOPAS refinements is ≈ 33 nm, and every refined size below ~2 nm in that
+#: corpus is an exploratory or placeholder fit (a phase named ``pixie_dust``, a
+#: 0.69 nm "crystallite" of Si — smaller than 1.3 unit cells — in a folder
+#: literally named *To Rietveld or not to Rietveld*).  The surprising-but-
+#: possible band above it is the :data:`~rietx.refine.SIZE_FLAG_SIZE_A` flag,
+#: which bounds nothing.  See :func:`size_cap`.
+SIZE_CAP_MIN_SIZE_A = 20.0
+
+#: The range backstop's fraction, the strain rule reused: a size term whose own
+#: FWHM at the highest θ exceeds this fraction of the fitted range is a line
+#: wider than the interval it was measured over.  On any real scan this is far
+#: looser than the 2 nm floor (≈ 54 deg on a 10–80° Cu scan against ≈ 4 deg), so
+#: it binds only in degenerate high-angle windows where 1/cosθ blows up — the
+#: floor is what governs everywhere else.
+SIZE_CAP_RANGE_FRACTION = 1.0
+
+#: Hysteresis, for the reason :data:`STRAIN_CAP_ARM_RTOL` is: TRF leaves a
+#: bounded iterate a hair inside its bound, so an exactly-equal arming test
+#: would disarm the cap on the stage after it fired.
+SIZE_CAP_ARM_RTOL = 1e-6
+
+
+def _size_parameter_name(path: str) -> str | None:
+    """``"phases.0.lor_size"`` → ``"lor_size"``, anything else → None.
+
+    Read off the path like :func:`_strain_parameter_name`, for the same reason:
+    the cap is applied at the optimiser interface where entries arrive from
+    :meth:`ParameterTable.bounds` with nothing but their paths to go on.
+    """
+    parts = path.split(".")
+    if len(parts) == 3 and parts[0] == "phases" and parts[2] in _SIZE_NAMES:
+        try:
+            int(parts[1])
+        except ValueError:
+            return None
+        return parts[2]
+    return None
+
+
+def size_cap(tt_min: float, tt_max: float, wavelength_a: float,
+             *, k: float = 0.9, min_size_a: float = SIZE_CAP_MIN_SIZE_A) -> float:
+    """The widest ``lor_size`` (deg 2θ) allowed: the *tighter* of a 2 nm floor
+    and the fitted-range backstop.
+
+    **Why size needs a bound at all, and why a gentle one.**  The sample size
+    terms enter the profile as Γ_L = ``lor_size``/cosθ and Γ_G² =
+    ``gauss_size``/cos²θ (:mod:`rietx.model.profiles.caglioti`), and nothing in
+    that arithmetic stops at a physical crystallite — the same runaway geometry
+    the strain terms have.  But unlike strain the intent here is only to catch a
+    runaway, never to legislate a size: real specimens are genuinely
+    nanocrystalline, so the floor is set two unit cells *below* the archive
+    (:data:`SIZE_CAP_MIN_SIZE_A`), where a "crystallite" has stopped being one.
+
+    **The two bounds, and which binds.**  A 1/cosθ coefficient maps to a
+    Scherrer size with no reference angle (caglioti eq. 4,
+    :func:`~rietx.model.profiles.caglioti.size_coefficient_for_size`): a floor
+    ``L ≥ min_size_a`` is therefore a ceiling
+
+        ``lor_size`` ≤ (180/π)·k·λ / min_size_a          [the physics floor]
+
+    on the coefficient directly, per wavelength — ≈ 3.97 deg at Cu Kα for 2 nm,
+    i.e. Michael's "≈ 4°/cosθ".  The range backstop is the strain rule with
+    1/cosθ in place of tanθ, evaluated where 1/cosθ is largest (the highest θ):
+
+        ``lor_size``/cos θ_max ≤ f·(2θ_max − 2θ_min)     [the range backstop]
+
+    The Gaussian variance takes the square of whichever width binds.  On every
+    normal scan the physics floor is far the tighter (Cu 10–80°: ≈ 4 deg against
+    ≈ 54 deg), so the floor governs and the backstop only catches the arithmetic
+    pathology of 1/cosθ near 2θ = 180°.  Returns ``inf`` when neither can state
+    a bound (no wavelength *and* a degenerate range) — "no claim" is honest.
+
+    Enforced at stage granularity, armed only on a term that has already reached
+    the cap, and outranked by any finite stored ``max`` — all exactly as
+    :func:`strain_cap`/:func:`strain_cap_hi`, and for the same measured
+    identity reason: a finite bound is never free.
+    """
+    # physics floor: L ≥ min_size_a  ⇔  lor_size ≤ (180/π)·k·λ/min_size_a.
+    # This is caglioti.size_coefficient_for_size(min_size_a, λ, k) inlined to
+    # keep this hot module free of a model import; the formula's authority is
+    # there.
+    physics = math.inf
+    if wavelength_a > 0.0 and min_size_a > 0.0 and k > 0.0:
+        physics = math.degrees(k * wavelength_a / min_size_a)
+    # range backstop: 1/cosθ is largest at θ_max, and the θ clip keeps it off
+    # the cosθ → 0 pole at 2θ = 180° (the strain cap's clip, same reason).
+    rng = math.inf
+    span = float(tt_max) - float(tt_min)
+    if span > 0.0:
+        theta = min(float(tt_max) / 2.0, _STRAIN_CAP_THETA_MAX_DEG)
+        cos_theta = math.cos(math.radians(theta)) if theta > 0.0 else 1.0
+        rng = SIZE_CAP_RANGE_FRACTION * span * cos_theta
+    return min(physics, rng)
+
+
+def size_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
+    """The upper bound one size term takes this stage — ``hi`` unless capped.
+
+    The mirror of :func:`strain_cap_hi`: ``cap`` is :func:`size_cap`'s width,
+    ``gauss_size`` is a variance and takes its square, a finite stored ``hi`` is
+    the caller's claim and is kept (the off switch), and the cap is armed only
+    where the coefficient has already reached it.  Because the cap is a ceiling
+    on the coefficient — a *floor* on the crystallite — reaching it means the
+    fit has driven the size down to 2 nm, which is where a runaway lives.
+    """
+    if not math.isinf(hi):
+        return hi
+    if not math.isfinite(cap):
+        return hi
+    limit = cap * cap if name == "gauss_size" else cap
+    if value >= limit * (1.0 - SIZE_CAP_ARM_RTOL):
+        return limit
+    return hi
+
+
 class ParameterTable:
     def __init__(self, structure: Structure, instrument: Instrument, *,
                  joint: bool = False):
@@ -495,6 +624,9 @@ class ParameterTable:
         #: the stage's strain cap, or ``None`` for "no claim made" —
         #: see :meth:`freeze_strain_cap`
         self._strain_cap: float | None = None
+        #: the stage's size cap (a width, deg 2θ), or ``None`` for "no claim
+        #: made" — see :meth:`freeze_size_cap`
+        self._size_cap: float | None = None
         self._collect(structure, instrument)
         self._rebuild()
 
@@ -1140,21 +1272,34 @@ class ParameterTable:
         """
         self._strain_cap = cap
 
+    def freeze_size_cap(self, cap: float | None) -> None:
+        """Declare the sample-size cap (a width, deg 2θ) for this stage.
+
+        ``None`` means **no claim made** and caps nothing — the
+        ``freeze_cell_windows``/``freeze_strain_cap`` convention.  The width
+        comes from :func:`size_cap` (the fitted 2θ range and the pattern's
+        wavelength, both properties of the *data*), and is held on the table
+        for the same reason the strain cap is: the solver used it and
+        ``staged.check_guards`` must see the same bound to report ``BOUND_HIT``.
+        """
+        self._size_cap = cap
+
     def bounds(self) -> tuple[np.ndarray, np.ndarray]:
         """Internal-space bounds for the free vector, in ``free_paths`` order.
 
-        This is where :func:`cell_window` and :func:`strain_cap_hi` are
-        applied, rather than on the :class:`Entry`, and the distinction is the
-        point: both are **solver** bounds for the stage about to run, not facts
-        about the stored parameter.  Putting either on the entry would surface
-        it through ``ParameterRow`` and the ``.rxt`` document, both of which
-        tell a reader that bounds come from the schema — and there it would
-        read as a claim the caller never made.  ``bound_findings`` is fed from
-        here, so a cell that reaches its window or a strain term held at its
-        cap is still reported.
+        This is where :func:`cell_window`, :func:`strain_cap_hi` and
+        :func:`size_cap_hi` are applied, rather than on the :class:`Entry`, and
+        the distinction is the point: all three are **solver** bounds for the
+        stage about to run, not facts about the stored parameter.  Putting any
+        of them on the entry would surface it through ``ParameterRow`` and the
+        ``.rxt`` document, both of which tell a reader that bounds come from the
+        schema — and there it would read as a claim the caller never made.
+        ``bound_findings`` is fed from here, so a cell that reaches its window
+        or a strain/size term held at its cap is still reported.
         """
         windowed = getattr(self, "_cell_window_phases", None)
         cap = getattr(self, "_strain_cap", None)
+        size_cap_width = getattr(self, "_size_cap", None)
         lo, hi = [], []
         for i in self._free_idx:
             e = self.entries[i]
@@ -1167,6 +1312,10 @@ class ParameterTable:
                 strain_name = _strain_parameter_name(e.path)
                 if strain_name is not None:
                     e_hi = strain_cap_hi(strain_name, e.value, e_hi, cap)
+            if size_cap_width is not None:
+                size_name = _size_parameter_name(e.path)
+                if size_name is not None:
+                    e_hi = size_cap_hi(size_name, e.value, e_hi, size_cap_width)
             low, high = internal_bounds(e_lo, e_hi, e.transform)
             lo.append(low)
             hi.append(high)

@@ -1,4 +1,15 @@
-"""The two-tier soft cap on sample strain broadening.
+"""The two-tier soft caps on sample broadening — strain (below) and size.
+
+The size half is the same two-tier shape (a per-stage armed-on-contact solver
+bound plus a corpus flag that bounds nothing), with two deliberate differences
+driven by physics and by Michael's intent *prevent runaways, do not legislate*:
+the hard cap is a permissive 2 nm crystallite floor rather than a range-derived
+number, and the tiers are ~2.5× apart (2 nm bound, 5 nm flag) rather than ~50×,
+because for size both live near the small-crystallite runaway zone.  The size
+tests are the second half of this module.
+
+--- strain ---
+
 
 Measured on a 248-pattern CuO→Cu reduction series (issue #140): Cu's
 ``lor_strain`` exceeded 1 in 133 of 248 patterns and peaked at 1.1e5, the
@@ -33,14 +44,23 @@ import numpy as np
 import pytest
 
 import rietx as rx
+from rietx.model.profiles.caglioti import (
+    SCHERRER_K,
+    size_coefficient_for_size,
+)
 from rietx.params.vector import (
+    SIZE_CAP_ARM_RTOL,
+    SIZE_CAP_MIN_SIZE_A,
+    SIZE_CAP_RANGE_FRACTION,
     STRAIN_CAP_ARM_RTOL,
     STRAIN_CAP_RANGE_FRACTION,
     ParameterTable,
+    size_cap,
+    size_cap_hi,
     strain_cap,
     strain_cap_hi,
 )
-from rietx.refine import STRAIN_FLAG_WIDTH
+from rietx.refine import SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
 
 
 def _cell() -> rx.Cell:
@@ -61,11 +81,13 @@ def _phase(name: str = "p", **kw) -> rx.Phase:
 
 
 class _FakeModel:
-    """Enough ``CompiledModel`` for the tier-2 flag: it reads ``phases`` only
-    to learn how many there are, and the values out of the decoded dict."""
+    """Enough ``CompiledModel`` for the tier-2 flags: it reads ``phases`` only
+    to learn how many there are, ``line_wavelengths`` for the size flag's
+    Scherrer conversion, and the values out of the decoded dict."""
 
-    def __init__(self, n: int = 1):
+    def __init__(self, n: int = 1, wavelength: float = 1.5406):
         self.phases = [object()] * n
+        self.line_wavelengths = (wavelength,)
 
 
 # ----------------------------------------------------------------------
@@ -308,3 +330,223 @@ def test_the_flag_reads_gauss_strain_as_a_variance():
     # reported as the width it contributes, not as the stored variance
     assert flagged[0].value == pytest.approx(
         math.sqrt(STRAIN_FLAG_WIDTH ** 2 * 1.5))
+
+
+# ======================================================================
+# SIZE — the second half.  Same two-tier shape, permissive 2 nm floor.
+# ======================================================================
+_CU = 1.5406       # Cu Kα, the archive's dominant lab wavelength
+
+
+def _size_coeff_nm(size_nm: float, lam: float = _CU) -> float:
+    """The ``lor_size`` coefficient (deg 2θ) a crystallite of ``size_nm`` gives."""
+    return size_coefficient_for_size(size_nm * 10.0, lam)   # nm → Å
+
+
+# ----------------------------------------------------------------------
+# tier 1: the number is a 2 nm floor per wavelength, tighter than the range
+# ----------------------------------------------------------------------
+def test_the_size_cap_is_the_2nm_floor_per_wavelength():
+    """Γ_L,size = lor_size/cosθ, and the floor is a Scherrer size, not a range.
+
+    A crystallite floor L ≥ 2 nm is a ceiling (180/π)·K·λ/L on the coefficient,
+    so the cap equals what a 2 nm crystallite would refine to — Michael's
+    ≈ 4°/cos θ at Cu Kα.
+    """
+    cap = size_cap(10.0, 80.0, _CU)
+    assert cap == pytest.approx(_size_coeff_nm(SIZE_CAP_MIN_SIZE_A / 10.0))
+    assert cap == pytest.approx(3.972, abs=1e-3)      # ≈ 4°, the design anchor
+    # and it really is the physics floor that binds here, not the range backstop
+    span_backstop = SIZE_CAP_RANGE_FRACTION * 70.0 * math.cos(math.radians(40.0))
+    assert cap < span_backstop                        # ≈ 4 deg  vs  ≈ 54 deg
+
+
+def test_the_size_cap_tracks_the_wavelength_not_the_scan():
+    """A shorter wavelength states a tighter coefficient cap for the same 2 nm.
+
+    The floor is per wavelength (11-BM's 0.4139 Å is far tighter than Cu Kα),
+    which is the whole reason it is derived per instrument rather than fixed in
+    degrees — a number of degrees is a different crystallite on every source.
+    """
+    cu = size_cap(10.0, 80.0, _CU)
+    synchrotron = size_cap(0.5, 50.0, 0.4139)
+    assert synchrotron < cu
+    assert synchrotron == pytest.approx(_size_coeff_nm(2.0, 0.4139))
+
+
+def test_the_range_backstop_binds_only_where_1_over_cos_blows_up():
+    """The floor governs normal scans; the backstop catches the 2θ→180° pole.
+
+    Without a wavelength the physics floor is silent (inf) and the range rule —
+    the strain cap's, with 1/cosθ for tanθ — is what remains, so the cap is
+    still finite and positive rather than absent.
+    """
+    # no wavelength: only the backstop speaks, and it is a real bound
+    only_backstop = size_cap(10.0, 80.0, 0.0)
+    assert 0.0 < only_backstop < math.inf
+    # near the pole the backstop tightens below the 2 nm floor and takes over
+    steep = size_cap(170.0, 178.0, _CU)
+    assert steep < size_cap(10.0, 80.0, _CU)
+    # a range that states nothing and no wavelength caps nothing
+    assert size_cap(10.0, 10.0, 0.0) == math.inf
+
+
+def test_the_gaussian_size_term_is_capped_as_a_variance():
+    """``gauss_size`` multiplies 1/cos²θ, so it takes the square of the width."""
+    cap = size_cap(10.0, 80.0, _CU)
+    assert size_cap_hi("gauss_size", cap * cap, math.inf, cap) == cap * cap
+    assert size_cap_hi("gauss_size", cap * 1.5, math.inf, cap) == math.inf
+
+
+# ----------------------------------------------------------------------
+# tier 1: armed only on contact — identity, and the permissive floor
+# ----------------------------------------------------------------------
+def test_the_size_cap_is_armed_only_where_the_term_has_reached_it():
+    cap = size_cap(10.0, 80.0, _CU)
+    # a 4 nm crystallite (coeff below the 2 nm cap) is never armed — Michael's
+    # "a real fit at 3–4 nm must run free"
+    assert size_cap_hi("lor_size", _size_coeff_nm(4.0), math.inf, cap) == math.inf
+    assert size_cap_hi("lor_size", _size_coeff_nm(3.0), math.inf, cap) == math.inf
+    # only a term driven down onto the 2 nm floor is bounded
+    assert size_cap_hi("lor_size", cap, math.inf, cap) == cap
+    assert size_cap_hi("lor_size", 1e5, math.inf, cap) == cap
+
+
+def test_the_size_arming_test_has_hysteresis():
+    cap = size_cap(10.0, 80.0, _CU)
+    just_inside = cap * (1.0 - SIZE_CAP_ARM_RTOL / 2.0)
+    assert just_inside < cap
+    assert size_cap_hi("lor_size", just_inside, math.inf, cap) == cap
+    assert size_cap_hi("lor_size", cap / 2.0, math.inf, cap) == math.inf
+
+
+def test_a_caller_declared_size_bound_outranks_the_cap():
+    """The off switch: any finite ``lor_size.max`` is the claim, tighter *or*
+    looser — including a deliberately enormous one that switches the cap off."""
+    cap = size_cap(10.0, 80.0, _CU)
+    assert size_cap_hi("lor_size", 1e5, 1.0, cap) == 1.0       # tighter
+    assert size_cap_hi("lor_size", 1e5, 1e9, cap) == 1e9       # off switch
+    assert size_cap_hi("lor_size", 1e5, math.inf, math.inf) == math.inf
+
+
+def _one_phase_size_table(coeff: float, **kw) -> ParameterTable:
+    phase = _phase(lor_size=rx.Parameter(
+        value=coeff, min=0.0, transform="softplus", **kw))
+    table = ParameterTable(rx.Structure(phases=[phase]),
+                           rx.Instrument.bragg_brentano())
+    table.set_vary(["phases.*.lor_size"], True)
+    return table
+
+
+def test_a_nanocrystalline_fit_above_the_floor_is_bounded_exactly_as_before():
+    """**The identity assertion, size half.**
+
+    A 33 nm crystallite (the smallest well-determined size in the corpus) frees
+    ``lor_size`` far below the 2 nm cap, so it must get no bound at all and be
+    bit-identical to an uncapped build.  Compared as the bound arrays, the only
+    thing the cap can change.
+    """
+    table = _one_phase_size_table(_size_coeff_nm(33.0))
+    lo_before, hi_before = table.bounds()
+    table.freeze_size_cap(size_cap(10.0, 80.0, _CU))
+    lo_after, hi_after = table.bounds()
+    assert np.array_equal(lo_before, lo_after)
+    assert np.array_equal(hi_before, hi_after)
+    k = table.free_paths.index("phases.0.lor_size")
+    assert hi_after[k] == math.inf
+
+
+def test_a_size_term_on_the_floor_is_bounded_at_the_table():
+    cap = size_cap(10.0, 80.0, _CU)
+    table = _one_phase_size_table(1e5)          # a runaway sub-Å "crystallite"
+    table.freeze_size_cap(cap)
+    _, hi = table.bounds()
+    k = table.free_paths.index("phases.0.lor_size")
+    from rietx.params.transforms import to_physical
+    assert to_physical(float(hi[k]), "softplus") == pytest.approx(cap, rel=1e-9)
+
+
+# ----------------------------------------------------------------------
+# tier 2: the flag, and what it must not do
+# ----------------------------------------------------------------------
+def test_the_size_flag_sits_below_the_smallest_real_corpus_fit():
+    """5 nm: above the 2 nm hard floor, below the ≈ 33 nm corpus floor.
+
+    Pinned so a later edit has to argue with the survey, and so the two tiers
+    cannot collapse into each other.
+    """
+    assert SIZE_FLAG_SIZE_A == 50.0            # 5 nm
+    assert SIZE_FLAG_SIZE_A / 10.0 > SIZE_CAP_MIN_SIZE_A / 10.0    # 5 nm > 2 nm
+    assert SIZE_FLAG_SIZE_A / 10.0 < 33.0                          # below corpus floor
+
+
+def test_a_legitimately_nanocrystalline_fit_is_not_flagged():
+    """The regression that matters: a real ≈ 33 nm corpus fit stays silent, and
+    so does the whole plausible nanocrystalline band down to the flag.
+
+    Pinned at the smallest *well-determined* size the archive actually contains
+    (a 33 nm rutile size–strain fit), not an assumed round number, so the
+    permissiveness is measured rather than asserted."""
+    from rietx.refine import _size_flag_diagnostics
+
+    structure = rx.Structure(phases=[_phase("rutile")])
+    for size_nm in (33.0, 20.0, 10.0, 6.0):
+        values = {"phases.0.lor_size": _size_coeff_nm(size_nm),
+                  "phases.0.gauss_size": 0.0}
+        assert _size_flag_diagnostics(_FakeModel(), values, structure) == [], size_nm
+
+
+def test_the_size_flag_names_the_phase_and_the_size():
+    from rietx.refine import _size_flag_diagnostics
+
+    structure = rx.Structure(phases=[_phase("Cu")])
+    found = _size_flag_diagnostics(
+        _FakeModel(),
+        {"phases.0.lor_size": _size_coeff_nm(1.5), "phases.0.gauss_size": 0.0},
+        structure)
+    assert [d.code for d in found] == ["SIZE_UNUSUALLY_SMALL"]
+    d = found[0]
+    assert d.where == ["phases.0.lor_size"]
+    assert d.value == pytest.approx(1.5, rel=1e-3)     # reported in nm
+    assert "Cu" in d.message and "1.5 nm" in d.message
+    assert "physically possible" in d.suggestion
+    assert d.level == "warning"
+
+
+def test_the_size_flag_reads_gauss_size_as_a_variance():
+    """``gauss_size`` is deg², so the size is read from its square root."""
+    from rietx.refine import _size_flag_diagnostics
+
+    structure = rx.Structure(phases=[_phase()])
+    coeff_3nm = _size_coeff_nm(3.0)
+    below = {"phases.0.lor_size": 0.0, "phases.0.gauss_size": coeff_3nm ** 2}
+    above = {"phases.0.lor_size": 0.0,
+             "phases.0.gauss_size": _size_coeff_nm(1.0) ** 2}
+    # a 3 nm Gaussian size IS flagged (below 5 nm), proving the sqrt is taken:
+    # without it the stored variance would be read as a huge coefficient and the
+    # apparent size would be sub-Å, still flagged but for the wrong reason — so
+    # check the reported size is the 3 nm one, not the variance's
+    flagged_below = _size_flag_diagnostics(_FakeModel(), below, structure)
+    assert [d.where for d in flagged_below] == [["phases.0.gauss_size"]]
+    assert flagged_below[0].value == pytest.approx(3.0, rel=1e-3)
+    flagged_above = _size_flag_diagnostics(_FakeModel(), above, structure)
+    assert flagged_above[0].value == pytest.approx(1.0, rel=1e-3)
+
+
+def test_the_size_flag_reads_the_sample_coefficient_in_nm_via_scherrer():
+    """The flag uses the caglioti Scherrer constant and the pattern wavelength.
+
+    A different wavelength moves the size for the same coefficient, which is why
+    the flag reads a size (transferable) rather than a coefficient in degrees.
+    """
+    from rietx.model.profiles.caglioti import apparent_size_from_size_coefficient
+    from rietx.refine import _size_flag_diagnostics
+
+    structure = rx.Structure(phases=[_phase()])
+    coeff = _size_coeff_nm(3.0, _CU)      # 3 nm at Cu Kα
+    # the SAME coefficient read at a shorter wavelength is a smaller crystallite
+    short = _FakeModel(wavelength=0.4139)
+    d = _size_flag_diagnostics(short, {"phases.0.lor_size": coeff}, structure)
+    assert d and d[0].value < 3.0
+    expected_nm = apparent_size_from_size_coefficient(coeff, 0.4139, SCHERRER_K) / 10.0
+    assert d[0].value == pytest.approx(expected_nm, rel=1e-6)
