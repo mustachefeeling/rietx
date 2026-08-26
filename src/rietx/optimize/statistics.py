@@ -390,8 +390,17 @@ def _roughness_nuisance(path: str) -> bool:
     the pattern.  The scale and the background refine in every plan regardless,
     so the question worth asking is what is left of roughness *after* they have
     taken whatever they can — a partial R².
+
+    An explicit background peak is a background direction on the same footing
+    (``background_absorption`` folds it into the *same* block, one function up):
+    a declared hump is background flexibility the caller granted, so it is a
+    nuisance to project out here too — three columns per peak left in the
+    comparison would swamp the roughness/ADP partial R² exactly as the scale
+    does.
     """
-    return path.endswith(".scale") or path.startswith("instrument.background.")
+    return (path.endswith(".scale")
+            or path.startswith(("instrument.background.",
+                                "instrument.background_peaks.")))
 
 
 def roughness_absorption(jac: np.ndarray, free_paths: list[str]
