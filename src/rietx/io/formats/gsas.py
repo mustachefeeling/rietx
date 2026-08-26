@@ -156,8 +156,35 @@ _UNIMPLEMENTED_FLAGS = {
 }
 
 
+_SNIFF_BANK_RE = re.compile(r"^BANK\s+\d+", re.M)
+_SNIFF_TIME_MAP_RE = re.compile(r"^TIME_MAP", re.M)
+
+#: A ``TIME_MAP`` step table is written *before* the bank it feeds, and a long
+#: one pushes the first ``BANK`` record past the 4 kB ``head`` window the sniff
+#: reads — a real HIPD@LANSCE file (``vnb5053.dat`` from the GSAS distribution's
+#: own examples) carries a 71-row ``(10I8)`` table and its first bank sits at
+#: byte 6068, so the sniff missed it and the file fell to the ``xy`` catch-all,
+#: which read its fixed-format records as columns and refused with the wrong
+#: cause (a 2θ axis the file never had).  The ``TIME_MAP`` token is itself
+#: GSAS-shaped evidence and it *does* land in the first 4 kB (it opens the
+#: table), so a file showing it is read once more up to this bound to look past
+#: the table for the bank.  This is the ``.chi`` count-check discipline
+#: (``io/CLAUDE.md`` § Dispatch): an extra read only behind a shape gate a random
+#: pattern never trips, never a widened window for every file.  A table larger
+#: than this stays unsniffed — the same bounded tradeoff the 4 kB window itself
+#: makes, one order of magnitude further out.
+_GSAS_TIME_MAP_SCAN_BYTES = 64 * 1024
+
+
 def looks_gsas(p: Path) -> bool:
-    return bool(re.search(r"^BANK\s+\d+", head(p).text, re.M))
+    h = head(p)
+    if _SNIFF_BANK_RE.search(h.text):
+        return True
+    # No bank in the first 4 kB, but a TIME_MAP table — which is what pushes the
+    # bank past that window — leaves its own token there.  One more bounded read.
+    if _SNIFF_TIME_MAP_RE.search(h.text):
+        return bool(_SNIFF_BANK_RE.search(head(p, _GSAS_TIME_MAP_SCAN_BYTES).text))
+    return False
 
 
 def read_gsas(path: str | Path, *,
@@ -169,7 +196,15 @@ def read_gsas(path: str | Path, *,
     """
     p = Path(path)
     lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
-    bank = None
+    # The bank record is found and its *bintype* read from a loose header match
+    # — bank number, channel count, record count, bintype — because that prefix
+    # is common to every bintype while the coefficients that follow are not: a
+    # CONS bank writes a start angle and a step, but a TIME_MAP bank writes a
+    # lone map number.  The strict CONS parse below needs two coefficients, so
+    # matching *first* with it would skip a TIME_MAP bank entirely and report a
+    # missing BANK record — the wrong cause again — for a file that plainly has
+    # one.  So the axis decision is taken off the header, before the layout.
+    bank_head_re = re.compile(r"^BANK\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)")
     bank_re = re.compile(
         r"^BANK\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+([\d.Ee+-]+)\s+([\d.Ee+-]+)"
         # the flag is a keyword and must begin with a letter: it is the *last*
@@ -178,20 +213,32 @@ def read_gsas(path: str | Path, *,
         # ``\w*`` captured that digit as a flag (``BANK 1 4 4 CONST 1000 20 0``
         # tagged its pattern ``gsas-0``).  A number here is absence, not a flag.
         r"(?:\s+([\d.Ee+-]+)\s+([\d.Ee+-]+))?\s*([A-Za-z]\w*)?")
+    head_m = None
+    bank_line = None
     data_start = None
     for i, line in enumerate(lines):
-        m = bank_re.match(line)
+        m = bank_head_re.match(line)
         if m:
-            bank = m
+            head_m = m
+            bank_line = line
             data_start = i + 1
             break
-    if bank is None:
+    if head_m is None:
         raise ValueError(f"no BANK record found in {p}")
 
-    nchan = int(bank.group(2))
+    nchan = int(head_m.group(2))
     # decision one: how the x axis is computed.  Refused before the data is
-    # parsed, since a bintype nobody can read is not made readable by its rows.
-    _check_bintype(bank.group(4).upper(), p)
+    # parsed, since a bintype nobody can read is not made readable by its rows —
+    # and refused off the header, so a bintype whose coefficient count is not the
+    # CONS two (TIME_MAP writes one) is named for what it is rather than lost as
+    # an unparseable record.
+    _check_bintype(head_m.group(4).upper(), p)
+    # only CONS/CONST reaches here; now the strict start-angle-and-step layout
+    bank = bank_re.match(bank_line)
+    if bank is None:
+        raise ValueError(
+            f"{p.name}: this is a CONS/CONST bank but its record could not be "
+            f"read for a start angle and step — {bank_line.strip()!r}")
     c1, c2 = float(bank.group(5)), float(bank.group(6))
     # decision two, and independent of the first: how one record is laid out
     type_flag = _type_flag(bank.group(9), p)
@@ -404,10 +451,13 @@ GSAS = PatternFormat(
     name="gsas",
     title="GSAS raw powder data (FXYE / ESD / STD)",
     extensions=(".fxye", ".gsas", ".gda", ".xra", ".raw"),
-    sniff="a BANK record in the first 4 kB — by content, not by suffix; only a "
-          "CONS/CONST (constant 2θ step) bank holding STD, ESD or FXYE records "
-          "is then read, and every time-of-flight bintype and every other type "
-          "flag (ALT, FXY) is named and refused",
+    sniff="a BANK record in the first 4 kB — by content, not by suffix — or, "
+          "when a TIME_MAP step table (which is what pushes the first bank past "
+          "that window) leaves its token there, one more bounded read further "
+          "in. Only a CONS/CONST (constant 2θ step) bank holding STD, ESD or "
+          "FXYE records is then read, and every time-of-flight bintype "
+          "(TIME_MAP included) and every other type flag (ALT, FXY) is named "
+          "and refused",
     sigma=("the third column (FXYE) or second (ESD); an STD bank — which is "
            "also what a bank stating no type flag is — carries counts only and "
            "takes the Poisson fallback"),

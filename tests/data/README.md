@@ -575,6 +575,32 @@ five have it constant (1.0 in four, 0.0 in the one synthetic).  Absent such a
 file the reader states its contract rather than guessing — see
 `io/formats/ras.py`.
 
+### `vnb5053.dat` — the GSAS file whose bank hides behind its own step table
+
+HIPD@LANSCE time-of-flight data from the **GSAS distribution's own examples**
+(`https://subversion.xray.aps.anl.gov/EXPGUI/gsas/all/example/vnb5053.dat`,
+Von Dreele).  **Not vendored, and it cannot be**: the data carries the Regents
+of the University of California's affirmatively asserted copyright, and the
+distribution's notice grants permission to copy "this software" while saying
+nothing about the data files.  So `tests/test_readers.py::_gsas_behind_long_time_map`
+packs the layout literally, and this section records what the real file
+established — the only place the synthetic write-up is checkable against the
+real shape.  (The facts below were read from the file directly on 2026-08-26;
+the APS SVN host has since been intermittently behind a failover page.)
+
+| Established | Evidence |
+|---|---|
+| A `TIME_MAP` step table is written **before** the bank it feeds | `TIME_MAP10   703   71 TIME_MAP  50 CONLOG[0.30:0.0005]` opening the file, followed by 71 records of `(10I8)` |
+| A long table pushes the first `BANK` record **past the 4 kB sniff window** | first bank at byte **6068** — the sniff read only `head()`'s 4 kB, so the file was never claimed as `gsas` and fell to the `xy` catch-all |
+| A real `TIME_MAP` bank writes **one coefficient** (the map number), not the CONS start/step pair | `BANK  1  7550  755 TIME_MAP   1 STD 00000000` — which is why a strict two-coefficient record regex cannot see it, and the bintype must be read off a **loose header match** before the layout parse |
+| The `TIME_MAP` token itself lands **inside** the first 4 kB | it opens the table — the shape gate the bounded 64 kB escalation fires on, so a random pattern never escalates |
+| What the miss cost before this round | `xy` read the 8-column fixed-format records as columns and refused with the wrong cause — "2θ does not run in one direction — 18002° → 12°" — a 2θ complaint about a file that has no 2θ axis, and only the misread column running backwards kept it from being a plausible wrong pattern |
+
+The synthetic fixture reproduces every row of that table by construction (the
+writer asserts its own bank offset exceeds `HEAD_BYTES`), shares no constant
+with the parser, and all three regression tests fail against the unfixed
+sniff.
+
 ### `.uxd` — the format with real evidence and no vendorable file
 
 Bruker/Siemens DIFFRAC-AT ASCII.  **Nothing is vendored for it**, and that is
