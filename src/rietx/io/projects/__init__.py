@@ -8,6 +8,6 @@ source of a validated reference for testing.
 One module per format, mirroring `io/`'s organising rule.
 """
 
-from .topas import TopasInpError, read_topas_inp, to_structure
+from .topas import TopasInpError, read_topas_inp, structure_from_topas_inp
 
-__all__ = ["read_topas_inp", "to_structure", "TopasInpError"]
+__all__ = ["read_topas_inp", "structure_from_topas_inp", "TopasInpError"]
