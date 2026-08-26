@@ -172,7 +172,13 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   ``None`` covers "no report built" and "nothing crossed a comment
 #   threshold".  No threshold, gate or emission condition moved — the same
 #   sentence now also travels where the greps look.
-THRESHOLDS_VERSION = "1.3"
+# 1.4 (additive background peaks): ``BackgroundEvidence.n_peaks`` lands — how
+#   many explicit background-peak terms the fit declared, a projection of
+#   ``Identifiability.n_background_peaks`` (schemas/results.py).  Additive and
+#   defaulted (0 ⇔ none declared, the pre-feature state); no gate or emission
+#   condition moved, but it is a new field on the report a consumer enumerates,
+#   so it bumps for the same reason 1.2 did.
+THRESHOLDS_VERSION = "1.4"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
