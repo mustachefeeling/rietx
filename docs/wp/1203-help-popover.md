@@ -104,8 +104,9 @@ Design:
 - [x] The corpus side the client depends on: `anchor` gains its page,
       `GET /api/help` gains `docs_url`, and the `search_fields` arm lands
       with its both-ways cross and a default crossed against the schema.
-- [ ] `lib/help.ts` (`resolve`, `place`) + `help.test.ts` on the placement
-      numbers and the resolution order.
+- [x] `lib/help.ts` (`resolve`, `place`) + `help.test.ts` on the placement
+      numbers and the resolution order, plus `tests/test_gui_help.py` and the
+      committed key set every literal `<Help for=…>` is crossed against.
 - [ ] `Help.svelte` + the single popover in `App.svelte`; the help cursor
       and the popover styled on WP-1201's tokens.
 - [ ] Wire Params, Model (editor and wizard), Plan, Peaks (flags, headers,
