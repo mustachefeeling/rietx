@@ -966,6 +966,47 @@ reasons **not** to widen the change:
   non-blank repeat count — is a question no obtainable file answers, and it is
   not guessed at.
 
+## v1.0 project readers (WP-1118)
+
+### TOPAS `.inp` — the archive with no vendorable file
+
+`io/projects/topas.py` reads a Bruker TOPAS refinement *input*, not a pattern:
+the solved model — phases, sites, cell, instrument and the converged `r_wp` — so
+it is the cheapest source of a *validated* reference to test against. It was
+written and settled against a **private archive of 606 solved refinements** (the
+author's own research inputs, `catalogue/inp_files.txt`). **Nothing is
+vendored**, and that is the finding rather than a gap: the files are working
+research inputs under no uniform, redistributable licence — a format's *facts*
+may be read from them (that reasoning is in `ATTRIBUTION.md`), the bytes may not
+be shipped. `tests/test_projects_topas.py` synthesizes every fixture inline, and
+this section records what the real files established, since that is then the only
+place the reader's design is checkable.
+
+Reader outcome over the 606-file catalogue (`read_topas_inp` then `to_structure`,
+measured 2026-08-26): **572 parse, 389 build a `Structure`**, and **7 refuse at
+the encoding gate** (an ASCII-range UTF-16 export whose NUL bytes survive the
+decode — guessing the byte order is a repair the reader will not make in
+silence). The gap between 572 and 389 is not error: it is Pawley/indexing-only
+inputs with no structural phase, `STR(...)`-macro phases the reader refuses by
+name, magnetic space groups it has no model for, and the stated-but-unreadable
+refusals below — every one a *report or refuse*, none a silent drop.
+
+| Established | Evidence (files in the archive) |
+|---|---|
+| A `str` block ends at the **next block opener of any kind**, not at the next `str` — otherwise a phase absorbs the neighbour's cell, `scale` and `weight_percent` | `simulate_Nb_Cu.inp`: a nameless `str` block used to arrive named `"CaO"` with `scale 1.0`, both read off the `hkl_Is` block below it |
+| The lattice-macro shorthands, and their argument order (one arg → a=b=c; two → a=b, then c) | `Cubic(@ 4.15692`)` (`LaB6_Riet_TCHZ_01.inp`), `Tetragonal(@ 4.594290`, @ 2.958587`)` (`d5_05005_pawley_01.inp`), `Hexagonal(@ 3.613074`, @ 12.037126`)` (`BL104_B_1.inp`), `Trigonal( 12.695126, 37.972985)` (`AT027-23…mythen_summed_rf_fin`) |
+| A **multi-`occ` single site** (one `site` token, several species/occupancies on one line) does **not** occur in this archive — the mixed-occupancy case is spelled two-line instead (`site Si1_Si … occ Si 0.8` / `site Si1_Ge … occ Ge 0.2` sharing coordinates), which already worked | 0 files with two `occ` on one `site` line; the one-grammar occ reader is latent cover, not a live fix here |
+| The anisotropic displacement tensor appears in **three spellings**, the third being a positional six-slot `ADPs { … }` brace block | `adps`/`ADPs`: **6 files** (`Gd12Co5Bi`, `Gd12Co5Bi_refine_peakshape`, `SXC223C_seed_01`, `lasf_longruns_riet_07`, `zrwneut_sh_riet_01`, `107_P63_Pawley_11BM`); a live `u11` token: **1 file** (`zrwneut_sh_riet_01`, the ZrW₂O₈ neutron fit the brace spelling was read from) |
+| An edge coupled to another edge (`b`, `c` set from `a`, the tetragonal/cubic case) **does occur**, written with TOPAS's `Get()` function, and is **refused** — `Get()` is a built-in this reader does not evaluate, so a stated-but-unreadable edge raises rather than being guessed | `b =Get(a);` / `c =Get(a);` in **4 files** (`140401_PbPdO2_11bm_BN`, `LL002_PbPdO2_Li01_afterTC`, `Li01_PdO_AfterZEM`, `PdO_AfterZEM`). The bare `b = a;` form occurs in **0 files** |
+| The **scale convention transfers unchanged** — TOPAS's `scale`/`weight_percent` carried into rietx's Hill & Howard reproduces the file's own quantitative phase analysis, with no systematic 8π²-class factor hiding in it | The weight-percent oracle: of 174 files stating `weight_percent` over ≥2 built phases, the **139 whose stated values sum to 100 ± 2** (i.e. can be one refinement's answer) give a median per-file max \|ΔW\| of **0.0004 wt%** |
+
+The oracle's own limit is recorded with it: three files above 1 wt% are
+hand-edited mid-refinement (`CR_BN.inp`, ±10.3 — stale `scale` values that
+happen to still sum to 100), and 35 files whose stated sums are 497–656 % are
+multi-dataset templates and stale batch files, excluded because their numbers
+are not from one converged state. Both classes are named in the round-five sweep
+JSON, not hidden in the median.
+
 ## v1.3 PowderLine recipe fixtures (WP-1306)
 
 `powderline/` holds two complete **cross-engine** refinement fixtures vendored
