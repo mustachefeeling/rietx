@@ -255,6 +255,14 @@ def strip_comments(text: str) -> str:
     mislabelled phase, which is the class this reader exists to avoid. Nothing
     in the 606-file archive carries one, so this is latent rather than measured.
 
+    A block comment **nests** — "a block comment is delimited by ``/*`` and
+    ``*/`` and may be nested" (Technical Reference §1.2). A boolean ``in_block``
+    therefore ended the outer comment at the *inner* ``*/`` and read the rest of
+    it as live input; the counter is what the sentence asks for. Nothing in the
+    606-file archive nests one, so this is the specification closing a hole the
+    files never opened — which is the only way this particular hole could ever
+    be closed, since a nested comment that reads as code raises nothing.
+
     The block and line comments are stripped in **one pass**, not block-first,
     because the two interact: the ``'/*`` idiom comments out the block-comment
     *delimiter itself*, so the phase between a ``'/*`` and a ``'*/`` is **live**
@@ -266,18 +274,25 @@ def strip_comments(text: str) -> str:
     seen first, char by char, and the delimiter never reached.
     """
     out_lines: list[str] = []
-    in_block = False
+    depth = 0
     for line in text.split("\n"):
         result: list[str] = []
         i, n, quoted = 0, len(line), False
         while i < n:
-            if in_block:
-                end = line.find("*/", i)
-                if end == -1:
+            if depth:
+                # Inside a block comment nothing is code, so `\'` opens no line
+                # comment here and only the two delimiters matter — and both do,
+                # because the reference says a block comment "may be nested".
+                opened = line.find("/*", i)
+                closed = line.find("*/", i)
+                if closed == -1 and opened == -1:
                     i = n
+                elif opened != -1 and (closed == -1 or opened < closed):
+                    depth += 1
+                    i = opened + 2
                 else:
-                    in_block = False
-                    i = end + 2
+                    depth -= 1
+                    i = closed + 2
                 continue
             ch = line[i]
             if ch == '"':
@@ -290,7 +305,7 @@ def strip_comments(text: str) -> str:
             elif ch == "'":
                 break  # line comment: the rest of the line is dead
             elif line.startswith("/*", i):
-                in_block = True
+                depth += 1
                 i += 2
             else:
                 result.append(ch)
@@ -299,32 +314,177 @@ def strip_comments(text: str) -> str:
     return "\n".join(out_lines)
 
 
+#: A conditional directive, **as a token**. TOPAS is whitespace-insensitive, so
+#: a directive is wherever it is written and not only at the start of a line:
+#: `#else #ifdef individual_contributions_` on one line occurs in **283 of the
+#: 606 archive files**, `#define gsas_convolution #ifdef gsas_convolution` in
+#: 13, and one file gates a site's `beq` with an `#ifdef` *inside the site line*.
+#: The alternation is ordered so `#ifdef`/`#ifndef` win over `#if` and `#elseif`
+#: over `#else`; the symbol is captured only for the two that take one, so a
+#: `#else` never swallows the directive that follows it.
+_DIRECTIVE = re.compile(
+    r"#(?:(?P<cond>ifdef|ifndef)\s+(?P<sym>\S+)|(?P<kw>elseif|else|endif|if)\b)")
+
+#: A `#define`d symbol, read with the **same** charset the `#ifdef` above uses.
+#: `\w+` on one side and a bare token on the other is how `#define SrFeO3-x_fit`
+#: comes to define `SrFeO3` while `#ifdef SrFeO3-x_fit` asks for something else:
+#: two spellings of one name, disagreeing in silence (5 archive files).
+_DEFINE = re.compile(r"#define\s+(\S+)")
+
+
 def resolve_ifdefs(text: str) -> str:
-    """Keep only ``#ifdef``/``#ifndef`` branches that are actually live (rule 2).
+    """Blank the ``#ifdef``/``#ifndef`` branches that are not live (rule 2).
 
     Symbols are collected first because TOPAS permits a ``#define`` after its
     own use; the stack keeps nesting honest.
+
+    **Token-oriented, not line-oriented** — the same correction the cell scan
+    and the site split already made, for the same reason: the format is
+    whitespace-insensitive, so a line anchor is an assumption about typography
+    rather than a fact about the format. A line-anchored resolver saw the
+    `#else` in `#else #ifdef X` and not the `#ifdef`, so the nested frame was
+    never pushed and its `#endif` then popped the **enclosing** one — the dead
+    branch and everything after it came back live. That is 283 of the 606
+    archive files, and no count moves when it happens.
+
+    Dead text is **blanked rather than deleted** (:func:`_blank`), so a line
+    number in a later refusal still names the line the file has.
     """
-    defined = set(re.findall(r"^\s*#define\s+(\w+)", text, re.M))
+    defined = set(_DEFINE.findall(text))
     out: list[str] = []
     stack: list[list[bool]] = []          # [keeping_here, branch_already_taken]
-    for line in text.split("\n"):
-        s = line.strip()
-        if m := re.match(r"#ifn?def\s+(\w+)", s):
-            live = (m.group(1) in defined) != s.startswith("#ifndef")
+    position = 0
+    for m in _DIRECTIVE.finditer(text):
+        chunk = text[position:m.start()]
+        out.append(chunk if all(frame[0] for frame in stack) else _blank(chunk))
+        position = m.end()
+        out.append(_blank(m.group()))
+        if m["cond"]:
+            live = (m["sym"] in defined) != (m["cond"] == "ifndef")
             stack.append([live, live])
-            continue
-        if s.startswith("#else"):
+        elif m["kw"] == "else":
             if stack:
                 stack[-1] = [not stack[-1][1], True]
-            continue
-        if s.startswith("#endif"):
+        elif m["kw"] == "endif":
             if stack:
                 stack.pop()
-            continue
-        if all(frame[0] for frame in stack):
-            out.append(line)
-    return "\n".join(out)
+        # `#if`/`#elseif` never reach here: `refuse_unevaluable_directives`
+        # has already refused the file.
+    tail = text[position:]
+    out.append(tail if all(frame[0] for frame in stack) else _blank(tail))
+    return "".join(out)
+
+
+#: Every pre-processor directive the reference names, by what it does to the
+#: text (Technical Reference §19, which lists them verbatim). The reader
+#: evaluates exactly one family and must say so about the rest, because a
+#: directive it does not evaluate means **the text it is holding is not the text
+#: TOPAS parsed** — the ``/* */`` problem one level up.
+#:
+#: * *evaluated here* — ``macro`` (excised whole by :func:`_excise_macro_defs`),
+#:   ``#define`` and the ``#ifdef``/``#ifndef``/``#else``/``#endif`` family where
+#:   each directive opens its own line (:func:`resolve_ifdefs`).
+#: * *brings in text that is not in this file* — ``#include``, ``#ingest``,
+#:   ``#external_INP``. Refused: no amount of care with the bytes in hand can
+#:   recover bytes that are somewhere else.
+#: * *changes which definitions are live* — ``#delete_macros``, ``#undef``.
+#:   Refused: the first un-defines macros, the second un-defines the symbols
+#:   :func:`resolve_ifdefs` collects, and neither is honoured.
+#: * *a condition this reader cannot decide* — ``#if``/``#elseif`` test "a
+#:   general equation (often built from ``#prm`` hash parameters)", which needs
+#:   the equation evaluator this reader does not have.
+#: * *invoked on macro expansion* — the ``#m_*`` family. These live only inside
+#:   a macro body, so :func:`_excise_macro_defs` removes them; one surviving in
+#:   the excised text means the body was not balanced, and is refused.
+_INCLUDE_DIRECTIVES = ("#include", "#ingest", "#external_INP")
+_UNDEFINING_DIRECTIVES = ("#delete_macros", "#undef")
+
+
+def refuse_unevaluable_directives(text: str, path) -> None:
+    """Refuse a file whose *active text* this reader cannot determine.
+
+    Called on the comment-stripped, macro-excised text — before
+    :func:`resolve_ifdefs`, which is the thing being checked.
+
+    Five rounds of this reader treated ``#ifdef`` as "one more spelling to
+    handle". The reference makes it a **class**: §19 lists the whole
+    pre-processor, and the reader evaluates one family of it. So the rule is
+    stated once over the class rather than patched per file, and the shape that
+    matters is not which directive appears but whether the text left afterwards
+    is the text TOPAS read.
+
+    Two conditional forms reach here, and both are refused because *either*
+    reading of them is a guess:
+
+    * ``#if`` / ``#elseif``, which test an equation over ``#prm`` hash
+      parameters — 1 archive file, and an evaluator this reader does not have.
+    * ``#ifdef !name``, which the reference does not describe at all: it says
+      ``#ifdef``/``#ifndef`` "test whether a name has (or hasn't) been
+      previously ``#define``'d", and says nothing about ``!``. Read as a
+      negation the branch is live; read as a plain name it never matches and the
+      branch is dead. 6 archive files, and choosing between two opposite wrong
+      answers is not a reader's to do.
+
+    What is **not** refused is a conditional merely written somewhere other than
+    the start of a line. That was this reader's assumption rather than the
+    format's, it cost 283 files, and :func:`resolve_ifdefs` now scans tokens.
+    """
+    lines = text.split("\n")
+    depth = 0
+    for number, line in enumerate(lines, 1):
+        s = line.strip()
+        for directive in _INCLUDE_DIRECTIVES:
+            if re.search(rf"{re.escape(directive)}\b", s):
+                raise TopasInpError(
+                    f"{path}:{number}: `{directive}` pulls text from another "
+                    f"file at the pre-processor stage, so the model this file "
+                    f"states is not in this file. Reading on would report "
+                    f"whatever happens to be left. Inline it, or read the "
+                    f"expanded .OUT TOPAS writes beside the refinement.")
+        for directive in _UNDEFINING_DIRECTIVES:
+            if re.search(rf"{re.escape(directive)}\b", s):
+                raise TopasInpError(
+                    f"{path}:{number}: `{directive}` un-defines names this "
+                    f"reader has already collected, and it is not honoured "
+                    f"here — so a `#ifdef` below it would be resolved against a "
+                    f"symbol table TOPAS no longer had.")
+        if m := re.search(r"#m_\w+", s):
+            raise TopasInpError(
+                f"{path}:{number}: `{m.group()}` is invoked on macro expansion "
+                f"and should only ever sit inside a `macro ... {{ ... }}` body; "
+                f"one surviving here means the body's braces are unbalanced and "
+                f"the excision could not find its end.")
+        for m in re.finditer(r"#(?:elseif|if)\b", s):
+            raise TopasInpError(
+                f"{path}:{number}: `{m.group()}` tests an equation — the "
+                f"reference calls it \"a general equation (often built from "
+                f"`#prm` hash parameters)\" — and this reader has no evaluator "
+                f"for one, so which branch of {s[:60]!r} was refined is unknown "
+                f"and reading on would report a model mixing both. "
+                f"`#ifdef NAME`/`#ifndef NAME` are resolved; `#if` is not.")
+        for m in re.finditer(r"#ifn?def\s+(\S+)", s):
+            if m.group(1).startswith("!"):
+                raise TopasInpError(
+                    f"{path}:{number}: `{m.group()}` — the technical reference "
+                    f"says `#ifdef`/`#ifndef` \"test whether a name has (or "
+                    f"hasn't) been previously #define'd\" and describes no `!` "
+                    f"form, so whether this branch is live is a guess. Both "
+                    f"readings are wrong in opposite directions: as a negation "
+                    f"the branch is live, as a plain name it never matches and "
+                    f"the branch is dead. Write `#ifndef NAME` instead.")
+        for m in re.finditer(r"#ifn?def\b|#endif\b", s):
+            depth += 1 if m.group().startswith("#if") else -1
+            if depth < 0:
+                raise TopasInpError(
+                    f"{path}:{number}: `#endif` with no `#ifdef` open. An "
+                    f"unbalanced conditional silently changes which of the "
+                    f"*following* text is live, so it is refused rather than "
+                    f"absorbed.")
+    if depth:
+        raise TopasInpError(
+            f"{path}: {depth} `#ifdef`/`#ifndef` here {'is' if depth == 1 else 'are'} "
+            f"never closed by an `#endif`, so where the conditional text ends "
+            f"is this reader's guess rather than the file's statement.")
 
 
 def normalize_species(species: str) -> str:
@@ -1178,7 +1338,13 @@ def read_topas_inp(path: str | Path, *,
     # Macro definitions are excised before anything reads the text: they open no
     # block (so they may not end a `str`), and their bodies' `site`/cell tokens
     # are not any phase's — see `_excise_macro_defs`.
-    active = _excise_macro_defs(resolve_ifdefs(strip_comments(raw)))
+    # The pre-processor runs before any of the grammar is true, so what it does
+    # to the text is checked before the text is read. Macro definitions come out
+    # first (their bodies legitimately hold `#m_*` directives and conditionals
+    # of their own), then what is left has to be text this reader can resolve.
+    stripped = strip_comments(raw)
+    refuse_unevaluable_directives(_excise_macro_defs(stripped), path)
+    active = _excise_macro_defs(resolve_ifdefs(stripped))
     # THE masked text, built once and sliced by every token scan below (the
     # cell-key scan, the site split, the file-level site count) — offset-for-
     # offset with `active`, so a slice of one indexes the other. The mask is the

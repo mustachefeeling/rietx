@@ -2243,3 +2243,81 @@ def test_the_named_flag_reaches_the_structure(tmp_path):
     assert phase.scale.vary is True
     assert phase.atoms[0].x.vary is True
     assert phase.atoms[0].biso.vary is False
+
+
+# ---- round-six: the pre-processor decides what the text is (Tech Ref 1.2, 19)
+
+
+def test_a_conditional_is_a_token_not_a_line(tmp_path):
+    """TOPAS is whitespace-insensitive, so a directive is wherever it is
+    written. `#else #ifdef X` on one line occurs in **283 of the 606 archive
+    files**: a line-anchored resolver saw the `#else`, missed the `#ifdef`, and
+    the nested `#endif` then popped the *enclosing* frame — so the dead branch
+    and everything after it came back live, with no count moving."""
+    inp = _inp(tmp_path, "tok.inp",
+               '#define want_b\n'
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               '#ifndef want_b\n'
+               'site DEAD x 0 y 0 z 0 occ Xx 1 beq b 0.5\n'
+               '#else #ifdef want_b\n'
+               'site LIVE x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               '#endif #endif\n')
+    (phase,) = read_topas_inp(inp).phases
+    assert [s.label for s in phase.sites] == ["LIVE"]
+
+
+def test_a_conditional_inside_a_site_line_still_gates_it(tmp_path):
+    """`i15-xpdf_ee18630-1_v001_pdfonly.inp` gates a site's `beq` with an
+    `#ifdef` written *inside the site line*. A line anchor cannot see it."""
+    inp = _inp(tmp_path, "insite.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 #ifdef pdf beq bad 9.0 #endif\n')
+    (phase,) = read_topas_inp(inp).phases
+    assert phase.sites[0].beq is None      # `pdf` is not defined: the beq is dead
+
+
+def test_a_define_and_an_ifdef_agree_on_what_a_symbol_is(tmp_path):
+    """`#define SrFeO3-x_fit` bound `SrFeO3` under `\\w+` while
+    `#ifdef SrFeO3-x_fit` asked for the whole token — two spellings of one name,
+    disagreeing in silence (5 archive files). One charset, both sides."""
+    inp = _inp(tmp_path, "sym.inp",
+               '#define SrFeO3-x_fit\n'
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               '#ifdef SrFeO3-x_fit\n'
+               'site LIVE x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               '#endif\n')
+    (phase,) = read_topas_inp(inp).phases
+    assert [s.label for s in phase.sites] == ["LIVE"]
+
+
+def test_a_block_comment_nests(tmp_path):
+    """"a block comment is delimited by `/*` and `*/` and **may be nested**" —
+    Technical Reference 1.2. A boolean `in_block` ended the outer comment at the
+    inner `*/` and read its tail as live input. No archive file nests one, so
+    only the specification could close this."""
+    text = "a /* outer /* inner */ still comment */ b"
+    assert strip_comments(text).split() == ["a", "b"]
+
+
+@pytest.mark.parametrize("line, needle", [
+    ('#if (Run_Number == 0)\nview_structure\n#endif\n', "tests an equation"),
+    ('#ifdef !old_version\nsite X x 0 y 0 z 0 occ Na+1 1\n#endif\n',
+     "describes no `!` form"),
+    ('#include "other.inc"\n', "pulls text from another file"),
+    ('#undef want\n', "un-defines names"),
+    ('#delete_macros { LP_Factor }\n', "un-defines names"),
+    ('#endif\n', "with no `#ifdef` open"),
+    ('#ifdef want\n', "never closed by an `#endif`"),
+])
+def test_a_directive_this_reader_cannot_evaluate_refuses_by_name(
+        tmp_path, line, needle):
+    """The reference lists the whole pre-processor in section 19; this reader
+    evaluates one family of it. Where it does not, the text it is holding is
+    not the text TOPAS parsed, and that is refused as a class rather than
+    patched per spelling — which is what five rounds of doing the opposite
+    earned."""
+    inp = _inp(tmp_path, "pp.inp",
+               'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n' + line)
+    with pytest.raises(TopasInpError, match=re.escape(needle)):
+        read_topas_inp(inp)
