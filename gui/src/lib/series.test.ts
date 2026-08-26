@@ -131,6 +131,16 @@ describe("what a trajectory says about itself", () => {
     expect(axisTitle(traj({ path: "qpa.corundum" }))).toBe("corundum (wt %)");
   });
 
+  it("names the residual on an agreement trajectory, keeping the two apart", () => {
+    // gui/series.py serves `r_bragg.<phase>`/`r_f.<phase>` rows.  Stripped to
+    // the leaf both would read `LaB6` — no unit, a residual disguised as a
+    // parameter named after the phase, and identical between the two metrics.
+    expect(axisTitle(traj({ path: "r_bragg.LaB6" }))).toBe("LaB6 R_Bragg");
+    expect(axisTitle(traj({ path: "r_f.LaB6" }))).toBe("LaB6 R_F");
+    expect(axisTitle(traj({ path: "r_bragg.LaB6" })))
+      .not.toBe(axisTitle(traj({ path: "r_f.LaB6" })));
+  });
+
   it("titles the y axis with the leaf, because the margin is what clips", () => {
     // Measured in a browser: a *rotated* title shares the fixed left margin with
     // the tick labels, so `phases.0.cell.a` — fifteen characters, under

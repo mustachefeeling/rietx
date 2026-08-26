@@ -1280,7 +1280,7 @@ def test_resolve_trajectory_is_the_one_dispatch_for_every_kind(thermal_series):
         thermal_series.agreement_trajectory(name, metric="r_f").value
 
     param = thermal_series.paths()[0]
-    assert not param.startswith(thermal_series._TRAJECTORY_PREFIXES)
+    assert not thermal_series.is_derived_path(param)
     assert thermal_series.resolve_trajectory(param).value == \
         thermal_series.trajectory(param).value
 

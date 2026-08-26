@@ -260,7 +260,10 @@ hand it a display path and it returns the right curve, dispatching on the
 `qpa.` / `r_bragg.` / `r_f.` prefix and falling through to `trajectory` for an
 ordinary parameter dot-path. Prefer it to a hand-written conditional — the
 plotting and GUI layers each carried their own copy of that conditional until
-it became one authority.
+it became one authority. `SeriesResult.is_derived_path` answers the yes/no
+behind that dispatch — whether a display path names a derived curve (a QPA or an
+agreement index) rather than a refined parameter — for the caller that must skip
+the forward/backward comparison a residual has no σ for.
 
 `SeriesResult.paths` lists every parameter path
 present anywhere in the series in first-seen order. Its `varied_only` argument

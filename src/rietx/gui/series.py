@@ -354,10 +354,9 @@ def trajectories(series: SeriesResult,
         # A prefixed one is derived, not refined: ``_disagreement`` divides by
         # a combined σ, and a QPA's is a propagated one while an agreement
         # index has none at all, so both would be a different question wearing
-        # the same answer's shape.  Asked of the resolver's own prefix list so
-        # a fourth kind cannot be added without this line seeing it.
-        if backward is not None and not path.startswith(
-                series._TRAJECTORY_PREFIXES):
+        # the same answer's shape.  Asked of the resolver via ``is_derived_path``
+        # so a fourth kind cannot be added without this line seeing it.
+        if backward is not None and not series.is_derived_path(path):
             other = backward.trajectory(path)
             if len(other) == len(traj):
                 row["backward"] = list(other.value)

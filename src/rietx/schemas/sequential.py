@@ -324,7 +324,10 @@ class SeriesResult(Base):
         return traj
 
     #: Prefixes :meth:`resolve_trajectory` dispatches on, longest first so a
-    #: future ``qpa_x.`` could not be swallowed by ``qpa.``.
+    #: future dotted sub-namespace like ``qpa.sub.`` could not be swallowed by
+    #: ``qpa.``.  The trailing dot already rules out an underscore sibling like
+    #: ``qpa_x.`` — it never starts with ``qpa.`` — so the ordering guards a
+    #: nested namespace, not that.
     _TRAJECTORY_PREFIXES: ClassVar[tuple[str, ...]] = (
         "r_bragg.", "r_f.", "qpa.")
 
@@ -350,6 +353,19 @@ class SeriesResult(Base):
                 return self.agreement_trajectory(name,
                                                  metric=prefix.rstrip("."))
         return self.trajectory(path)
+
+    def is_derived_path(self, path: str) -> bool:
+        """Whether ``path`` names a *derived* curve rather than a refined
+        parameter — a QPA or one of the McCusker agreement indices.
+
+        The one question the two layers outside this class need to put to the
+        prefix set: the GUI's forward/backward guard (a derived curve gets no
+        backward chain, since ``_disagreement`` divides by a σ a residual does
+        not have) and the server test that skips those rows.  They ask this
+        rather than reading :attr:`_TRAJECTORY_PREFIXES`, so the tuple stays a
+        private detail of the dispatch and this class stays its one authority.
+        """
+        return path.startswith(self._TRAJECTORY_PREFIXES)
 
     def agreement_phases(self) -> list[str]:
         """Phase names carrying an agreement index, in first-seen order.
