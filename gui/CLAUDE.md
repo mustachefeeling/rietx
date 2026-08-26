@@ -43,10 +43,26 @@ heading's case unless its register says otherwise.
 
 Two rules for anything a person reads here (v1.2, WP-1201/1202/1203):
 **GUI prose is written under `/yue-docs-style`** (help entries, wizard lines,
-empty states, error text), and **a button's `title=` is a verb phrase; every
-other explanation is an entry in the help corpus** (`rietx.help`, rendered by
-the help popover), never a `title=`. Until 1203 lands, `title=` stays the one
-mechanism, so the second rule binds new text and not existing strings.
+empty states, error text), and **what a name *means* is an entry in
+`rietx.help` reached through `<Help>`; `title=` is what is left over.** The
+popover is WP-1203 (`Help.svelte`, `lib/help.ts`, one instance in `App`), with
+five rules. A key is **`arm:name`**: the arms' vocabularies overlap (`seed` is
+a stage field *and* a search control), so a bare key would resolve by
+declaration order; each literal one is crossed against
+`tests/data/gui/help_keys.json`. A field inventory **derives** its key from the
+field's own name where the arm is keyed by the same vocabulary (`controls.ts`,
+`wizard.ts`) and carries it as **data** where it is not (`lib/model.ts`). `<Help
+text=…>` is for a sentence the **server** wrote (`held_because`, a refutation, a
+maturity message), which no corpus can hold because it is about one row rather
+than one name. What may still be a `title=` is a **value the layout truncated**,
+or a verb phrase on a `<button>`, never authored prose — `lib/help.test.ts`
+holds that to an exact per-file count failing both ways, so the debt stays
+countable and its list cannot outlive it. And a term is a `<span
+role="button">` because it wraps running text: sound only while it stays
+focusable, answers Enter and Space, and is **hittable** — a flex item's
+automatic minimum is its content size, which floored `input.value` 65 % over
+its declared basis and left `.path` at zero width in a 340 px sidebar (1203's
+browser pass; an unclickable name is a control that does nothing).
 
 The **GUI** (WP-1008, `gui/`) is `rietx gui [PROJECT.rex]` — stdlib
 `http.server` on 127.0.0.1, the third such app here after `watch` and `compare`.
@@ -354,9 +370,9 @@ later build adds arrives drawn), and **a hover link costs a `restyle`, never a
 `react`** — one ring trace whose two coordinates move. Right-click **removes** a
 peak (refit stays on the table's `↻`; the `window.prompt` is gone), and the
 gestures are stated whenever the Peaks tab is up, each naming its non-pointer
-route. `title=` is these forms' only help mechanism, so **every `PresetField`
-and every `instrumentFields()` entry carries one**, pinned by a meta-test over
-every geometry — the assertion found ten mute fields the day it was written.
+route. **No mute fields**: every `PresetField` and every `instrumentFields()`
+entry is described, pinned by a meta-test over every geometry — ten were mute
+the day it was written. WP-1203 retargeted it from `title=` to a corpus key.
 
 **What is fitted, shaded and selectable** (WP-1033, `lib/plot.ts`,
 `panels/Plot.svelte`, `session._masked_arm`, `Project.fitted_mask`) is the fit

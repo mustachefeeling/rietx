@@ -395,8 +395,25 @@
     color: var(--muted);
   }
 
+  /* The three widths below are one budget, and WP-1203's browser pass is what
+     measured it: at the sidebar's 340 px floor in Advanced the row's fixed
+     columns wanted 372 px, so `.path` was handed **zero** and the leaf name
+     disappeared.  That had been invisible while the leaf was only text; a help
+     term has to be clickable, and an unclickable one is a control that does
+     nothing.
+
+     Two of the three are the repair.  `min-width: 0` on the input is the
+     actual defect: a flex item's automatic minimum is its *content* size, and
+     an `<input>`'s is its default twenty characters — so `flex: 0 0 92px` was
+     being floored at 152 px, 65 % over its own declaration, and the extra 60
+     came out of the leaf.  `.bounds` gives way next, because a truncated bound
+     string is the most expendable thing on the row.  The 44 px floor on
+     `.path` is last: 24 px is WCAG 2.2's minimum target size and 44 px is that
+     rounded up to a whole number of mono cells at `--text-sm`, which is a
+     truncated name plus its ellipsis rather than an ellipsis alone. */
   .path {
     flex: 1 1 auto;
+    min-width: 44px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -404,6 +421,7 @@
 
   .value {
     flex: 0 0 92px;
+    min-width: 0;
     text-align: right;
   }
 
@@ -435,7 +453,8 @@
   }
 
   .bounds {
-    flex: 0 0 120px;
+    flex: 0 1 120px;
+    min-width: 0;
     overflow: hidden;
     white-space: nowrap;
   }

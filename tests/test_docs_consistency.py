@@ -361,7 +361,19 @@ SIZE_CAPS: dict[str, int | None] = {
     # The operating detail went down a rank as rule 4 requires — the licence
     # table is `tests/test_example_projects.py`'s, the protocol-quoting rule is
     # root's, and the browser session that found the missing hover is the WP's.
-    "gui/CLAUDE.md": 628,
+    # 628 -> 645 for WP-1203 (2026-08-26): the help popover, replacing the
+    # `title=` paragraph WP-1201 wrote as a placeholder.  It belongs here for
+    # the reason the register table does: every later v1.2 panel WP writes
+    # markup against it, and there are five rules a stranger cannot read off
+    # the code — why a key carries its arm, when a field inventory derives its
+    # key and when it carries one, what `<Help text=>` is for, what may still
+    # be a `title=`, and why a term is a span with a role.  Compressed to one
+    # clause each: the 151-attribute inventory, the two decisions taken against
+    # this WP's own written design, and the flex-minimum defect the browser
+    # pass measured are in `docs/wp/1203-help-popover.md`.  One rule *left*
+    # this file in the same pass — WP-1032's "`title=` is these forms' only
+    # help mechanism" is no longer true, and its no-mute-fields half stayed.
+    "gui/CLAUDE.md": 645,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

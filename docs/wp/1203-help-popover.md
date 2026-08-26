@@ -122,8 +122,10 @@ Design:
       statistics, series settings, indexing result columns and the 3D drawing
       thresholds are vocabularies the corpus does not describe, and they
       arrive with the WPs that own those panels.
-- [ ] Browser pass: open the popover on each panel, light and dark, at the
-      sidebar floor (flip and clamp exercised); rebuild the committed dist.
+- [x] Browser pass: the popover on Params, Plan, Model and Peaks, light and
+      dark, flip and clamp exercised at a 760 px window, keyboard open and
+      close measured; one defect found and fixed (the parameter row's width
+      budget). Committed dist rebuilt.
 
 ## Acceptance
 
