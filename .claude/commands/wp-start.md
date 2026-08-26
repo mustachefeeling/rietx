@@ -28,6 +28,22 @@ Run the session-start ritual. The SessionStart hook's report
    remote exists; in a worktree, branching from the local `main` ref works
    even though main is checked out elsewhere. If on an in-flight branch,
    continue it.
+
+   **The branch you find is not necessarily yours.** Sessions share this
+   checkout, so `git branch --show-current` answers for whoever switched last,
+   and an in-flight branch may be another session's live WP rather than an
+   earlier one of yours. Editing there leaves your work in *their* commit
+   range, where a broad `git add` sweeps it up. When the branch is not the WP
+   you were sent to start, take your own tree rather than switching HEAD under
+   them — `git worktree add -b <branch> .claude/worktrees/<name> origin/main`,
+   then step 4 — and remove it once the work lands.
+
+   **Never `git stash` in a shared checkout.** The stash is per *repository*,
+   not per session, so another session's `stash pop` takes yours: measured
+   2026-08-26, one pushed to lift tooling edits off another session's branch
+   was popped into that branch minutes later, and only an existing commit
+   elsewhere kept it. Commit to your own branch instead — a commit is
+   addressed, a stash is a shared pile.
 4. **Venv.** If the hook flagged a mismatch or a missing venv, build this
    worktree's own (`uv venv --python 3.12 && uv pip install -e ".[dev]"`)
    and say which extras were installed — every test count quoted later

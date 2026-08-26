@@ -209,8 +209,9 @@ transcript keeps what a compaction dropped, so after one it over-reads, and it
 holds no system prompt, so before one it under-reads.
 
 Ending means the whole ending: ask the batch, apply the answers, write the
-report, and name what is left with the command that resumes it — `/pr-review
-all`, after the user's `/compact` or `/clear`. **Nothing is carried in a file.**
+report, **kill this run's background waiters** (step 5), and name what is left
+with the command that resumes it — `/pr-review all`, after the user's
+`/compact` or `/clear`. **Nothing is carried in a file.**
 The queue, the held drafts and the batch all die with the run, which is why the
 batch is asked *before* stopping and never after, and why a resumed run rebuilds
 everything from one `gh pr list` call plus pass A's skip check.
@@ -303,6 +304,23 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    the remote, and the bench has the same one) sent the next four commands into
    the main checkout.
 
+   **The bench is exclusive to this run, and the machine is not.** Two
+   different worries, and only the second needs a mechanism. One `/pr-review`
+   runs at a time, so no other session reaches for `$BENCH` — the WP commands
+   branch in whatever tree they are already in and never name this path, git
+   refuses to check a branch out in two worktrees at once, and the bench runs
+   detached anyway. What the bench inherits from a stale *previous* run is a
+   left-behind merge, and `reset --hard origin/main` below is already the cure.
+   So write `$BENCH.lock` (session id, time, PR) when the block below first
+   runs and delete it at the ending: it is there to be *read* when the bench
+   looks unexpected, not to arbitrate.
+
+   The contended resource is the **suite**, shared with every live WP session.
+   Look before step 5's ladder and again before step 9's gate —
+   `pgrep -f "[p]ytest"`, `tests/CLAUDE.md` § Running has the three lines and
+   why they are a look rather than a lock. Another session mid-suite is a stop,
+   the same as any other blocker here: say whose tree and how long, and wait.
+
    ```sh
    BENCH=.claude/worktrees/pr-bench
    git -C "$BENCH" fetch origin main
@@ -362,7 +380,29 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
 
    The **whole** `-m slow` suite fires once, at the merge gate in step 9, not on
    every round. Quote every count with its venv **and** platform
-   (`tests/CLAUDE.md` § Quoting numbers), and as a range, never a record.
+   (`tests/CLAUDE.md` § Quoting numbers), and as a range, never a record — and
+   **check nothing else is mid-suite first**, because a ladder measured beside a
+   WP session's own suite is a ladder about the machine.
+
+   **A backgrounded run is yours until you kill it.** A suite this long gets
+   launched in the background and polled, and the poller outlives the session
+   that made it — orphaned to PID 1, where nothing reaps it. Measured
+   2026-08-26: **seven** `until grep …; do sleep; done` loops from a run that
+   ended seventeen hours earlier were still waking every twenty to thirty
+   seconds, still holding `$BENCH` as their working directory, still waiting on
+   logs for PRs #116 and #118 that no live process would ever write. They cost
+   the next run twice — the wakeups, and a bench that looks busy to anyone
+   checking. So kill every waiter this run started before it ends. They are
+   findable by the one string no other session shares:
+
+   ```sh
+   pgrep -f "$SCRATCH"          # this session's waiters, by its scratch path
+   ```
+
+   The `pgrep` above is also why they are worth naming here rather than being
+   left to a person: the same call that answers "is another session mid-suite"
+   returns these, and a dead session's orphan is indistinguishable from a live
+   session's work unless someone knows to check `ppid` and age.
 6. **Check conformance against `CLAUDE.md`, sized to the PR.** Under roughly 400
    reviewable lines, read the diff yourself — spawning agents costs more than it
    saves. Above it, write the reviewable diff to the scratch directory **once**
@@ -439,12 +479,26 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    matching the repo's merge-commit history, and only when **all** of these hold:
    required checks green and `mergeStateStatus` `CLEAN`; the step-5 ladder green
    on the merged tree with counts quoted; the **full `-m slow` suite green on the
-   merged tree**, and green against the main that is there *now* (§ The batch,
+   merged tree**, run with **nothing else mid-suite** (`tests/CLAUDE.md`
+   § Running) and green against the main that is there *now* (§ The batch,
    for the way a deferral can rot that); no execution-shaped file touched without
    the step-4 read; no conformance finding; no new public surface left
    undocumented; every added data file carrying provenance, and a licence if it
    ships in the wheel; no maintainer-machinery edit; and no open question. Name
    which of these each merge satisfied, in the private report.
+
+   **A gate run beside another suite is not a gate either.** § The batch has the
+   way a *deferral* rots this one; load is the way a *concurrent session* does,
+   and it is worse because it fails in both directions — a red that is only the
+   machine, and `tests/CLAUDE.md` § Budgets in tests' measured case of a
+   real-data row reporting a different centring under load, which is a green
+   that means nothing.
+
+   **Say in the report which PRs you merged**, beyond the per-PR decision lines.
+   A merge moves `origin/main` under every live WP session, and a branch's counts
+   are not the merged tree's once it has (`tests/CLAUDE.md` § Quoting numbers).
+   Those sessions cannot see the merge and their `/wp-handover` step 9 re-measures
+   against a main that moved for a reason only this run knows.
 
    Close only when the contributor asked for it, or when the work has been folded
    into another PR — #112 and #114 were closed into #108 that way, and neither
@@ -458,3 +512,7 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
     `PR N: <decision>` — `merged`, `closed`, `review posted`, `rebase requested`,
     or `held, waiting on you`, plus `skipped (reviewed at <sha>)` and
     `deferred (<criterion>)` in the `all` mode. One vocabulary, both modes.
+
+    **Kill this run's background waiters before reporting** (step 5), in the
+    single-PR mode as much as the `all` mode — this step is where a one-PR
+    review ends, and a waiter left here is the same orphan either way.
