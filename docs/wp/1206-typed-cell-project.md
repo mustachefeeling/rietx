@@ -44,8 +44,14 @@ and the project opens in `lebail` mode.
       the typed route takes the parameters the **setting leaves free** and fills
       the rest, so a contradicting `b` is unrepresentable rather than tied away
       in silence (WP-1014's coordinate-DOF rule, one parameter family over).
-- [ ] `project_new` accepts `structure: {space_group, cell}` beside
-      `{upload}`; refusals in gemmi's / the table's words with `where`.
+- [x] `project_new` accepts `structure: {space_group, cell}` beside
+      `{upload}`; refusals in `get_spacegroup`'s / `complete_cell`'s words with
+      `where`. `cell` is an **object keyed by parameter**, carrying the ones the
+      setting leaves free — a determined one is refused, naming its source.
+      `GET /api/spacegroup?space_group=` (project-free, beside `/api/help`) is
+      where a form learns which those are; `symmetry.phase_facts` is now a thin
+      wrapper over the new `symbol_facts`, so the two cannot disagree.
+      `mode: "rietveld"` over a typed cell is **refused**, not overridden.
 - [ ] Wizard UI: "CIF file | type a cell" in the structure step; six fields
       + symbol; mode preselected `lebail`; docs-style lines.
 - [ ] Tests: `test_gui_server.py` creates from a typed cell (corundum,

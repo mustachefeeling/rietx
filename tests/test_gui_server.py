@@ -589,6 +589,153 @@ def test_an_uploaded_pattern_and_cif_commit_into_a_project(blank, tmp_path):
     assert session.project.refinement.structure.phases[0].space_group == "P m -3 m"
 
 
+# ----------------------------------------------------------------------
+# a project without a CIF: a typed cell (WP-1206)
+# ----------------------------------------------------------------------
+def test_spacegroup_route_names_the_free_cell_parameters(blank):
+    """The wizard's cell form draws the boxes this route names, and no others.
+
+    Project-free on purpose: it runs before any project exists.  The client
+    holds no copy of the constraint rule, so this is where a form learns that
+    ``R -3 c`` wants two numbers and ``P -1`` wants six.
+    """
+    _, client = blank
+    status, facts = client.get("/api/spacegroup?space_group=R+-3+c")
+    assert status == 200, facts
+    assert facts["xhm"] == "R -3 c:H"
+    assert facts["free_cell"] == ["a", "c"]
+    assert facts["ties"] == {"b": "a"}
+    assert facts["fixed_angles"] == {"alpha": 90.0, "beta": 90.0, "gamma": 120.0}
+    assert facts["setting"] == "R -3 c:H is trigonal on hexagonal axes"
+
+    # the setting, not the system: the same group on rhombohedral axes is a
+    # different pair of boxes (WP-1036)
+    assert client.get("/api/spacegroup?space_group=R+-3+c%3AR")[1]["free_cell"] \
+        == ["a", "alpha"]
+
+    status, payload = client.get("/api/spacegroup?space_group=P+m+-3+q")
+    assert status == 404, payload
+    assert payload["error"]["where"] == ["space_group"]
+    assert "unknown space group symbol" in payload["error"]["message"]
+
+
+def test_a_typed_cell_creates_a_project_that_fits(blank, tmp_path, pattern_file):
+    """A cell and a symbol are a project — no CIF anywhere in this test.
+
+    The pattern is the module's synthetic LaB6, so the fit is a real one and
+    ``a`` is recoverable; the WP's corundum example exercises the *shape* of a
+    constrained cell in the test below, where fitting it against a LaB6 pattern
+    would have asserted nothing.
+    """
+    session, client = blank
+    root = tmp_path / "typed.rex"
+    status, payload = client.post("/api/project/new", {
+        "path": str(root), "pattern": str(pattern_file),
+        "structure": {"space_group": "P m -3 m", "cell": {"a": 4.160},
+                      "name": "LaB6"},
+        "instrument": {"preset": "debye_scherrer", "wavelength": 0.4139},
+        "mode": "lebail", "plan": "mccusker_default"})
+    assert status == 200, payload
+    assert payload["doc"]["mode"] == "lebail"
+
+    phase = session.project.refinement.structure.phases[0]
+    assert phase.name == "LaB6"
+    assert [phase.cell.a.value, phase.cell.b.value, phase.cell.c.value] \
+        == [4.160, 4.160, 4.160]
+    assert len(phase.atoms) == 1
+
+    # the mandatory dummy atom is *mode-fixed*, not locked — the distinction the
+    # parameter surface exists to make (WP-1004)
+    rows = {row["path"]: row for row in client.get("/api/params")[1]["parameters"]}
+    atom = rows["phases.0.atoms.0.biso"]
+    assert atom["refinable"] is False and atom["mode_fixed"] is True
+    assert atom["locked"] is False
+
+    assert client.post("/api/run", {"kind": "fit"})[0] == 200
+    _wait_idle(client)
+    state = client.get("/api/run/state")[1]
+    assert state["run"]["status"] == "converged", state
+    OUT.mkdir(exist_ok=True)
+    session.project.refinement.result_.plot(path=str(OUT / "gui_typed_cell.png"))
+    result = client.get("/api/result")[1]["result"]
+    assert result["statistics"]["rwp"] < 0.10, result["statistics"]
+    fitted = session.project.refinement.fitted_structure.phases[0].cell
+    assert fitted.a.value == pytest.approx(4.15660, abs=5e-4)
+
+
+def test_a_typed_cell_takes_only_what_the_symmetry_leaves_free(blank, tmp_path,
+                                                               pattern_file):
+    """Corundum: two numbers, and the other four derived rather than typed.
+
+    A parameter the setting determines is refused, naming the field — which is
+    what keeps a contradicting angle *unrepresentable* rather than caught two
+    layers down by ``ParameterTable`` (WP-1206, WP-1014's coordinate-DOF rule).
+    """
+    session, client = blank
+    # SRM 676a corundum, from tests/data/README.md's cell anchor
+    cell = {"a": 4.759091, "c": 12.991779}
+    status, payload = client.post("/api/project/new", {
+        "path": str(tmp_path / "corundum.rex"), "pattern": str(pattern_file),
+        "structure": {"space_group": "R -3 c", "cell": cell},
+        "instrument": {"preset": "debye_scherrer", "wavelength": 0.4139},
+        "mode": "lebail"})
+    assert status == 200, payload
+    got = session.project.refinement.structure.phases[0].cell
+    assert [got.a.value, got.b.value, got.c.value] == [4.759091, 4.759091, 12.991779]
+    assert [got.alpha.value, got.beta.value, got.gamma.value] == [90.0, 90.0, 120.0]
+
+    def refused(structure, **kw):
+        status, payload = client.post("/api/project/new", {
+            "path": str(tmp_path / "refused.rex"),
+            "pattern": str(pattern_file), "structure": structure,
+            "instrument": {"preset": "debye_scherrer", "wavelength": 0.4139},
+            "mode": "lebail", **kw})
+        assert status == 400, payload
+        assert not (tmp_path / "refused.rex").exists()   # nothing half-created
+        return payload["error"]
+
+    error = refused({"space_group": "R -3 c", "cell": {**cell, "gamma": 119.0}})
+    assert error["where"] == ["structure.cell"]
+    assert "fixes gamma at 120" in error["message"]
+
+    error = refused({"space_group": "R -3 c", "cell": {**cell, "b": 4.759091}})
+    assert "ties b to a" in error["message"]
+
+    error = refused({"space_group": "R -3 c", "cell": {"a": 4.759091}})
+    assert "missing c" in error["message"]
+
+    error = refused({"space_group": "P m -3 q", "cell": {"a": 4.0}})
+    assert error["where"] == ["structure.space_group"]
+    assert "unknown space group symbol" in error["message"]
+
+    error = refused({"space_group": "P m -3 m", "cell": {"a": "wide"}})
+    assert error["where"] == ["structure.cell.a"]
+
+    error = refused({"space_group": "P m -3 m", "cell": [4.0] * 6})
+    assert error["where"] == ["structure.cell"]
+
+
+def test_a_typed_cell_refuses_rietveld_rather_than_overriding_it(blank, tmp_path,
+                                                                 pattern_file):
+    """A dummy carbon is not a structure, and a chosen mode is not ours to change.
+
+    Adopt *does* set the mode, because there the caller chose a candidate; here
+    they chose a mode, and silently replacing it would be the one thing this
+    package refuses to do to a number somebody typed.
+    """
+    _, client = blank
+    body = {
+        "path": str(tmp_path / "rietveld.rex"), "pattern": str(pattern_file),
+        "structure": {"space_group": "P m -3 m", "cell": {"a": 4.16}},
+        "instrument": {"preset": "debye_scherrer", "wavelength": 0.4139}}
+    status, payload = client.post("/api/project/new", {**body, "mode": "rietveld"})
+    assert status == 400 and payload["error"]["where"] == ["mode"]
+    # and the default is rietveld, so leaving it out is the same refusal
+    assert client.post("/api/project/new", body)[0] == 400
+    assert not (tmp_path / "rietveld.rex").exists()
+    assert client.post("/api/project/new", {**body, "mode": "pawley"})[0] == 200
+
+
 def test_a_file_that_does_not_parse_leaves_nothing_behind(blank, tmp_path):
     """Two-phase means the failure is a message, not a directory to clean up."""
     _, client = blank

@@ -57,6 +57,7 @@ from ..crystallography.symmetry import (
     cell_constraints,
     check_cell_angles,
     expand_positions,
+    free_cell_names,
     get_spacegroup,
     rotation_matrices,
 )
@@ -107,17 +108,18 @@ def setting_phrase(sg) -> str:
     return f"{sg.xhm()} is {system}"
 
 
-def phase_facts(phase, index: int) -> dict:
-    """Everything one ``get_spacegroup`` call yields, for one phase.
+def symbol_facts(symbol: str) -> dict:
+    """Everything one ``get_spacegroup`` call yields, for one symbol.
 
-    An unresolvable symbol comes back as an ``error`` row rather than raising:
-    this arm rides on a read route, and a model that cannot resolve its own
-    symbol is exactly the state a user needs the panel to keep rendering in.
+    Raises ``ValueError`` for a symbol gemmi cannot resolve — the callers decide
+    what that means.  :func:`phase_facts` turns it into an ``error`` row because
+    it is an arm of a read route that must keep rendering; ``GET /api/spacegroup``
+    turns it into a refusal against the field it was typed in (WP-1206).
+
+    ``free_cell`` is the list the wizard's cell form renders, so the client holds
+    no copy of the constraint rule: it draws the boxes the server names.
     """
-    try:
-        sg = get_spacegroup(phase.space_group)
-    except (ValueError, RuntimeError) as exc:
-        return {"phase": index, "space_group": phase.space_group, "error": str(exc)}
+    sg = get_spacegroup(symbol)
     try:
         cons = cell_constraints(sg)
     except ValueError as exc:                # a system with no tie rule here
@@ -126,8 +128,7 @@ def phase_facts(phase, index: int) -> dict:
     else:
         tie_error = ""
     facts = {
-        "phase": index,
-        "space_group": phase.space_group,
+        "space_group": symbol,
         "xhm": sg.xhm(),
         "number": sg.number,
         "hall": sg.hall,
@@ -147,10 +148,25 @@ def phase_facts(phase, index: int) -> dict:
         "setting": setting_phrase(sg),
         "ties": dict(cons.ties) if cons else {},
         "fixed_angles": dict(cons.fixed_angles) if cons else {},
+        "free_cell": list(free_cell_names(sg)) if cons else [],
         "tie_error": tie_error,
     }
     facts["constraints"] = _constraint_phrase(facts)
     return facts
+
+
+def phase_facts(phase, index: int) -> dict:
+    """:func:`symbol_facts` for one phase, keyed by its index.
+
+    An unresolvable symbol comes back as an ``error`` row rather than raising:
+    this arm rides on a read route, and a model that cannot resolve its own
+    symbol is exactly the state a user needs the panel to keep rendering in.
+    """
+    try:
+        facts = symbol_facts(phase.space_group)
+    except (ValueError, RuntimeError) as exc:
+        return {"phase": index, "space_group": phase.space_group, "error": str(exc)}
+    return {"phase": index, **facts}
 
 
 def _constraint_phrase(facts: dict) -> str:

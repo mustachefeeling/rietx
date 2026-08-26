@@ -225,6 +225,34 @@ class GuiSession:
         """
         return {**_help_registry(), "docs_url": _about.DOCS_URL}
 
+    def spacegroup(self, symbol: str) -> dict:
+        """What one space-group symbol *is*, and what it costs the cell.
+
+        Project-free, beside :meth:`capabilities` and :meth:`help` for the same
+        reason: it is a fact about a symbol, not about a model, and the one
+        caller that needs it — the wizard's typed-cell step (WP-1206) — runs
+        before any project exists.  The same
+        :func:`~rietx.gui.symmetry.symbol_facts` the model panel's phase summary
+        rides on, so the two cannot disagree about what a setting constrains.
+
+        ``free_cell`` is why it exists: the form draws the boxes this names, so
+        a cell parameter the symmetry determines is never offered and the
+        client holds no copy of the constraint rule.
+
+        An unresolvable symbol is a refusal here, not an ``error`` row.  The
+        row shape belongs to :func:`~rietx.gui.symmetry.phase_facts`, whose job
+        is to keep a panel rendering over a model that cannot resolve its own
+        symbol; this route is a lookup, and a symbol with no answer has none.
+        """
+        text = str(symbol or "").strip()
+        if not text:
+            raise GuiError("'space_group' is required", where=["space_group"])
+        try:
+            return symmetry.symbol_facts(text)
+        except (ValueError, RuntimeError) as exc:
+            raise GuiError(str(exc), code="NOT_FOUND", status=404,
+                           where=["space_group"]) from None
+
     def version(self) -> dict:
         return {"package_version": _VERSION, "pid": os.getpid(),
                 "backend": self.backend, "solver": self.solver,
@@ -318,11 +346,26 @@ class GuiSession:
         is **required** because :class:`Instrument` has no default source and
         guessing a diffractometer is exactly the kind of silent assumption this
         package refuses.
+
+        ``structure`` takes a fourth form since WP-1206: ``{"space_group":
+        symbol, "cell": {…}}``, the Le Bail scaffold a person types when there
+        is no CIF.  ``mode`` is then **refused** at ``"rietveld"`` rather than
+        overridden — a Rietveld fit over a dummy carbon is not a thing to offer,
+        and a mode the caller chose is not a mode to change behind them.  (Adopt
+        does set the mode, because there the caller chose a *candidate*, not a
+        mode.)
         """
         self._require_idle()
         path = _need(body, "path")
         pattern = self._as_pattern_path(_need(body, "pattern"))
         structure = _as_structure(body.get("structure"), self.uploads)
+        if _is_typed_cell(body.get("structure")) and body.get("mode") in (
+                None, "rietveld"):
+            raise GuiError(
+                "a typed cell carries no atoms, so it cannot be refined in "
+                "rietveld mode; create the project in 'lebail' or 'pawley' "
+                "mode, and add atoms later to switch",
+                where=["mode"])
         instrument = _as_instrument(body.get("instrument"), self.uploads)
         kw: dict[str, Any] = {}
         for key in ("mode", "two_theta_limits", "excluded_regions",
@@ -2769,16 +2812,86 @@ def _validate(model, payload, where: str):
 _LEADING_PATH = re.compile(r"\b((?:phases|instrument)\.[\w.]*[\w])")
 
 
+def _is_typed_cell(payload) -> bool:
+    """Is this ``structure`` argument the typed-cell form? (WP-1206)
+
+    The four forms are told apart by their keys, and these are disjoint: a whole
+    :class:`Structure` has ``phases``, the file forms have ``cif``/``upload``.
+    """
+    return isinstance(payload, dict) and "space_group" in payload
+
+
+def _typed_cell_structure(payload: dict) -> Structure:
+    """The Le Bail scaffold a person typed: a symbol and the free cell parameters.
+
+    A project without a CIF (WP-1206).  What is supplied is exactly what a
+    powder pattern can be indexed to — a lattice and a symmetry — and nothing
+    about where the atoms are, so the result is
+    :func:`~rietx.schemas.structure.lebail_scaffold`, the same structure the
+    indexing panel's Adopt button lands.
+
+    Three refusals, all naming the field they are about, because this is a form:
+    an unresolvable symbol in ``get_spacegroup``'s words, a cell parameter the
+    symmetry determines or leaves out in ``complete_cell``'s, and a
+    non-numeric one here.  Nothing is checked twice — ``complete_cell`` fills
+    the fixed angles from the setting, so an angle contradicting its symmetry is
+    unrepresentable rather than caught later by ``ParameterTable``.
+    """
+    from ..crystallography.symmetry import CELL_NAMES, complete_cell, get_spacegroup
+    from ..schemas.structure import lebail_scaffold
+
+    symbol = str(payload.get("space_group") or "").strip()
+    if not symbol:
+        raise GuiError("'structure.space_group' is required",
+                       where=["structure.space_group"])
+    try:
+        sg = get_spacegroup(symbol)
+    except (ValueError, RuntimeError) as exc:
+        raise GuiError(str(exc), where=["structure.space_group"]) from None
+
+    raw = payload.get("cell")
+    if not isinstance(raw, dict):
+        raise GuiError(
+            "'structure.cell' is an object keyed by cell parameter — the ones "
+            f"{symbol!r} leaves free, from GET /api/spacegroup",
+            where=["structure.cell"])
+    values: dict[str, float] = {}
+    for name, value in raw.items():
+        try:
+            values[str(name)] = float(value)
+        except (TypeError, ValueError):
+            raise GuiError(f"{name} is not a number: {value!r}",
+                           where=[f"structure.cell.{name}"]) from None
+    try:
+        cell = complete_cell(sg, values)
+    except ValueError as exc:
+        raise GuiError(str(exc), where=["structure.cell"]) from None
+
+    unknown = set(payload) - {"space_group", "cell", "name"}
+    if unknown:
+        raise GuiError(
+            f"unknown key(s) for a typed cell: {sorted(unknown)}; it takes a "
+            "space_group, a cell and an optional phase name",
+            where=[f"structure.{k}" for k in sorted(unknown)])
+    name = str(payload.get("name") or "").strip()
+    return lebail_scaffold(symbol, [cell[k] for k in CELL_NAMES],
+                           name=name or "phase")
+
+
 def _as_structure(payload, uploads=None) -> Structure:
-    """A :class:`Structure` from an inline dict, ``{"cif": path}`` or an upload.
+    """A :class:`Structure` from an inline dict, a typed cell, a CIF or an upload.
 
     Every route into the model passes through here, which is where the species
     check belongs: a structure carrying a scattering species no form-factor table
     knows validates fine and fails at *stage compile*, a long way from the field
     it was typed in.  Refusing at the boundary is a GUI judgement, not a schema
     change — the Python API still accepts it — and the message names the atom.
+
+    The four forms are told apart by their keys — see :func:`_is_typed_cell`.
     """
-    if isinstance(payload, dict) and ("cif" in payload or "upload" in payload):
+    if _is_typed_cell(payload):
+        structure = _typed_cell_structure(payload)
+    elif isinstance(payload, dict) and ("cif" in payload or "upload" in payload):
         from ..crystallography.cif import structure_from_cif
 
         staged = None
