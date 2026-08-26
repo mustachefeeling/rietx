@@ -117,7 +117,7 @@ by one for the added field, comment beside the constant.
 
 ## Handover log
 
-### 2026-08-25 — review: a coverage test is only as wide as the models it builds
+### 2026-08-26 — review: a coverage test is only as wide as the models it builds
 
 `/code-review high` on the branch found five live parameter paths with no
 family — `instrument.background.air` and the four
