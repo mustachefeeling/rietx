@@ -16,7 +16,7 @@ the user with a pattern and no CIF as the audience least served). It is a
 library change, which is why it is its own WP.
 
 What assumes at least one phase today (the audit starts here, and is not
-complete): `Structure._nonempty` (`schemas/structure.py:475-480`);
+complete): `Structure._nonempty` (`schemas/structure.py:491`);
 `refine.py:1798, 1941, 2391, 2470, 2549` (`range(len(model.phases))`);
 `model/forward.py:1268, 1301`; `Project.create`'s signature
 (`project.py:107-116`, `structure` keyword-only, no default); the `.rxt`
@@ -25,42 +25,40 @@ diff's table rebuild (`history/tree.py:267-273`); the Model panel's structure
 section and the 3D viewer (`GET /api/structure3d` on no phase); the
 `RefinementResult` fields indexed by phase (`ticks`, `phase_support`, QPA).
 
+Seams WP-1206 left, verified against the tree on arrival (2026-08-26):
+
+- **The wizard's step 2 is already a `.segmented` with two answers** —
+  `lib/wizard.ts`'s `StructureSource = "cif" | "cell"` and
+  `useStructureFrom(state, source)`, which is where "this route implies a mode"
+  already lives (it moves `rietveld` ↔ `lebail` and disables what the route
+  refuses). A pattern-only project is a **third member** of that union and a
+  third button, not a fourth mechanism: `structureArgument(state)` is the one
+  place `createBody` reads, and `blocked()`/`typedCellReady()` branch on the
+  same field.
+- **`POST /api/project/new` tells its `structure` forms apart by disjoint
+  keys** (`session._is_typed_cell`, dispatched in `_as_structure`:
+  `space_group` / `cif`+`upload` / `phases`). `structure: null` falls through
+  to the *inline* branch and reaches `_validate(Structure, None, …)` today, so
+  this WP's "legal" has to be a branch decided **before** that one, not a
+  `None` falling through.
+- **`schemas.structure.lebail_scaffold(space_group, cell, *, name)`** is the
+  one Le Bail scaffold builder (`DUMMY_SPECIES` beside it, re-exported from
+  `indexing.workflow`), and **`crystallography.symmetry.free_cell_names` /
+  `complete_cell`** decide which cell parameters a *setting* leaves free. A
+  pattern-only project that later gains a phase — from Adopt, or from a typed
+  cell — arrives through those, so zero phases must be a state those can be
+  applied *to*.
+- **`GET /api/spacegroup?space_group=` is project-free**, beside `/api/help`
+  and `/api/capabilities`, and is not behind the in-flight 409.
+- **`gui/CLAUDE.md`'s size cap now stands at 691** (`tests/test_docs_consistency.py`,
+  raised again by 1206's review round — the mailbox said 687); a rule from this
+  WP means raising it with the comment that test asks for.
+
 Rules that bind: **a declared name is a claim** (WP-1076): an empty
 `phases` list must not read as an answer anywhere a consumer counts phases;
 `SCHEMA_VERSION` and the project format bump by one each with the reason
 beside the constant (the preview promise); the compatibility direction is
 "old files must always open" (memory: break by direction).
-
-### Inherited
-
-From **WP-1206** (2026-08-26), which built the wizard's other CIF-free route:
-
-- **Step 2 is already a `.segmented` with two answers**, `lib/wizard.ts`'s
-  `StructureSource` = `"cif" | "cell"` and `useStructureFrom(state, source)`.
-  A pattern-only project is a **third member** of that union and a third
-  button, not a fourth mechanism: `structureArgument(state)` is the one place
-  `createBody` reads, and `useStructureFrom` is where "this route implies a
-  mode" already lives (it moves `rietveld` ↔ `lebail` and the mode select
-  disables what the route refuses). `blocked()` and `typedCellReady()` branch
-  on the same field.
-- **`POST /api/project/new` tells its `structure` forms apart by disjoint
-  keys** (`session._is_typed_cell`; `phases` / `cif`+`upload` /
-  `space_group`). `structure: null` is currently the *inline* branch and
-  reaches `_validate(Structure, None, …)`, so this WP's "legal" has to be a
-  fifth branch decided before that one, not a `None` falling through.
-- **`schemas.structure.lebail_scaffold(space_group, cell, *, name)`** is the
-  one Le Bail scaffold builder now, shared by Adopt and the typed cell;
-  `DUMMY_SPECIES` moved there from `indexing.workflow` (re-exported). The
-  audit item "`Structure._nonempty` (`schemas/structure.py:475-480`)" above is
-  still right, but that file has moved: `_nonempty` is now near line 490.
-- **`crystallography.symmetry.free_cell_names` / `complete_cell`** decide which
-  cell parameters a *setting* leaves free and fill the rest. If a pattern-only
-  project later gains a phase from the indexing panel, that is the same seam.
-- **`GET /api/spacegroup?space_group=` is project-free**, beside `/api/help`
-  and `/api/capabilities`, and is not behind the in-flight 409.
-- **The size caps are all at their pinned value.** `gui/CLAUDE.md` went
-  663 → 687 for 1206; a rule from this WP means raising it again with the
-  comment `tests/test_docs_consistency.py` asks for.
 
 ## Non-goals
 
