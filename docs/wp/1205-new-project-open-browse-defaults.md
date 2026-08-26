@@ -120,7 +120,7 @@ package, not from the form:
 
 ## Tasks
 
-- [ ] `GET /api/fs?path=`: directories and `.rex` entries under a root,
+- [x] `GET /api/fs?path=`: directories and `.rex` entries under a root,
       refusing paths outside the roots; `tests/test_gui_server.py`
       confinement tests (`..`, symlinks out, absolute paths elsewhere).
 - [ ] `Browse.svelte`: one modal used for opening a project and for picking

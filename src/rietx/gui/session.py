@@ -649,6 +649,62 @@ class GuiSession:
                             "opened_utc": entry.get("opened_utc", "")})
         return out
 
+    def fs(self, path: str | None) -> dict:
+        """Directories and projects under one root, for the "Open…" browser.
+
+        Opening a project has no picker to route through — a browser cannot
+        hand back a path, only bytes — so this is the one place the GUI reads
+        the filesystem for its own sake, and it stays deliberately small: a
+        read-only listing confined to the **home directory and the process's
+        current working directory** (WP-1205 decision, not the whole machine).
+        ``path`` defaults to the home directory; it is resolved — symlinks
+        included — before it is checked, so ``..`` and a symlink pointing
+        outside a root are refused exactly alike, and a client-typed path is
+        never sanitised, only rejected: the gate is containment, not a
+        blocklist.  Hidden entries (``.git``, ``.cache``, …) are left off the
+        listing, since browsing them serves nobody looking for a project.
+        """
+        roots = self._fs_roots()
+        target = Path(path).expanduser().resolve() if path else roots[0]
+        if not any(target.is_relative_to(r) for r in roots):
+            raise GuiError(
+                f"{target} is outside the browsable roots "
+                f"({', '.join(str(r) for r in roots)})", where=["path"])
+        if not target.exists():
+            raise GuiError(f"{target} does not exist", code="NOT_FOUND",
+                           status=404, where=["path"])
+        if not target.is_dir():
+            raise GuiError(f"{target} is not a directory", where=["path"])
+        try:
+            children = sorted(target.iterdir(), key=lambda p: p.name.lower())
+        except OSError as exc:
+            raise GuiError(f"could not list {target}: {exc}",
+                           where=["path"]) from None
+        entries = []
+        for child in children:
+            if child.name.startswith("."):
+                continue
+            try:
+                if not child.is_dir():
+                    continue
+            except OSError:
+                continue
+            entries.append({"name": child.name, "path": str(child),
+                            "is_project": (child / "project.json").is_file()})
+        parent = target.parent
+        has_parent = parent != target and any(
+            parent.is_relative_to(r) for r in roots)
+        return {"path": str(target),
+                "parent": str(parent) if has_parent else None,
+                "roots": [str(r) for r in roots], "entries": entries}
+
+    def _fs_roots(self) -> list[Path]:
+        """The two browsable roots, home first — a set, since a GUI launched
+        from inside the home tree (the common case) has only one."""
+        home = Path.home().resolve()
+        cwd = Path.cwd().resolve()
+        return [home] if home == cwd else [home, cwd]
+
     # ------------------------------------------------------------------
     # parameters
     # ------------------------------------------------------------------

@@ -200,6 +200,9 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("POST", "/api/project"): lambda s, q, b: s.project_patch(b),
     ("POST", "/api/project/save"): lambda s, q, b: s.project_save(),
     ("GET", "/api/recent"): lambda s, q, b: {"recent": s.recent()},
+    # the "Open…" browser's own listing (WP-1205): read-only, confined to the
+    # home directory and the process's cwd — see GuiSession.fs
+    ("GET", "/api/fs"): lambda s, q, b: s.fs((q.get("path") or [None])[0]),
     # the empty state's other list (WP-1204): example projects shipped in the
     # wheel, built into the state directory on first open
     ("GET", "/api/examples"): lambda s, q, b: s.examples(),
