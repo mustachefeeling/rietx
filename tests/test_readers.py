@@ -416,6 +416,92 @@ def test_a_gsas_file_is_claimed_by_content_not_by_suffix(tmp_path):
     assert identify_format(p).name == "gsas"
 
 
+# --------------------------------------------------------------- gsas ESD
+def write_gsas_esd(path: Path, intensities, esds, *, start=5000.0, step=10.0,
+                   title="synthetic ESD bank") -> Path:
+    """A GSAS ESD bank, packed at the field *positions* the format declares.
+
+    The layout is written **literally** here — eight characters to a field,
+    five (intensity, esd) pairs to an 80-column record — and nothing is
+    imported from ``rietx.io.formats.gsas``.  A writer that shares its
+    constants with the parser can only confirm that the parser agrees with
+    itself (`src/rietx/io/CLAUDE.md` § Adding a format), and the whole point
+    of this fixture is that the *position* of a field carries meaning the
+    whitespace between fields does not.
+
+    ``start`` and ``step`` are centidegrees, as the BANK record's are.
+    """
+    assert len(intensities) == len(esds)
+    fields = [f"{v:8.1f}" for pair in zip(intensities, esds, strict=True)
+              for v in pair]
+    assert all(len(f) == 8 for f in fields), (
+        "a value overflowed its 8-character field, so this fixture would be "
+        "testing a file GSAS could not have written")
+    while len(fields) % 10:                      # pad the last record, as GSAS does
+        fields.append(f"{0.0:8.1f}")
+    records = ["".join(fields[i:i + 10]) for i in range(0, len(fields), 10)]
+    assert all(len(r) == 80 for r in records)
+    path.write_text(
+        f"{title}\n"
+        f"BANK 1 {len(intensities)} {len(records)} CONS "
+        f"{start:.6f} {step:.6f} 0 0 ESD\n" + "\n".join(records) + "\n",
+        encoding="utf-8")
+    return path
+
+
+def test_an_esd_intensity_that_fills_its_field_keeps_its_own_number(tmp_path):
+    """The bug real APS 11-BM standards patterns exposed, in a synthetic bank.
+
+    An ESD field is eight characters.  An intensity of 100000.0 or more written
+    to one decimal fills all eight, so **no separating space is left** and the
+    field abuts the esd in front of it: ``11BM_LaB6.raw``'s line 1050 reads
+    ``… 64175.2   298.5101641.3   375.8``, and splitting it on whitespace
+    yields nine numbers where the record holds ten.  Every channel after that
+    point is then shifted — on that file it happened to raise, because two
+    decimal points do not parse, but a bank whose values carry no decimal point
+    would have fused into a plausible wrong number instead.
+
+    Reading the field by position is what makes the record's own arithmetic
+    hold, so that is what is asserted: the numbers back out exactly as written.
+    ``tests/data/README.md`` § GSAS ESD records which real files established
+    this and why none of them is vendored.
+    """
+    intensity = [1998.8, 27996.3, 41437.0, 64175.2, 101641.3, 157086.4,
+                 224981.5, 999999.9, 287704.3, 42.0]
+    esd = [44.7, 167.3, 203.6, 253.3, 318.8, 396.3, 474.3, 1000.0, 536.4, 6.5]
+    p = write_gsas_esd(tmp_path / "highcount.gsa", intensity, esd)
+
+    # the fixture really does pack the offending layout, not merely a big
+    # number: the record it wrote has no space at that boundary, and so a
+    # whitespace split of it loses values.
+    record = p.read_text(encoding="utf-8").splitlines()[2]
+    assert "253.3101641.3" in record, (
+        "this fixture is not packing the fusion it exists for")
+    assert len(record.split()) == 9, "the record holds ten fields, not nine"
+
+    d = rx.read_pattern(p)
+    assert d.intensity == pytest.approx(intensity, abs=0.0)
+    assert d.sigma == pytest.approx(esd, abs=0.0)
+    assert d.two_theta == pytest.approx(
+        [50.0 + 0.1 * i for i in range(len(intensity))])
+
+
+def test_an_esd_field_that_is_not_a_number_is_refused_by_name(tmp_path):
+    """A positional read can no longer fall back on "whatever splitting gives",
+    so the field that does not parse has to say *which* field it was — the
+    reader's own boundary, per `src/rietx/io/CLAUDE.md` § Refusals.  ``float``'s
+    unaided complaint names neither the file nor the column."""
+    p = write_gsas_esd(tmp_path / "corrupt.gsa", [10.0] * 10, [3.0] * 10)
+    lines = p.read_text(encoding="utf-8").splitlines()
+    lines[2] = lines[2][:16] + "    n/a " + lines[2][24:]
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError) as exc:
+        rx.read_pattern(p)
+    assert "corrupt.gsa" in str(exc.value)
+    assert "17-24" in str(exc.value) and "'n/a'" in str(exc.value)
+
+
 def test_a_project_keeps_the_repairs_in_memory_and_out_of_project_json(tmp_path):
     """They are a deterministic function of bytes + reader + options, and
     ``DataRef`` records all three — so a ``project.json`` field would be a
