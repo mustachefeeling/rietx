@@ -434,7 +434,7 @@ converted any of these coefficients to a size or a strain at all.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1131](wp/1131-sample-broadening-is-a-specimen-property.md) | Sample broadening is a specimen property, not an angular coefficient | ⬜ | — |
-| [1134](wp/1134-constant-wavelength-neutron.md) | Constant-wavelength neutron: b, lambda/n harmonics, a refinable wavelength | 🔄 | — |
+| [1134](wp/1134-constant-wavelength-neutron.md) | Constant-wavelength neutron: b, lambda/n harmonics, a refinable wavelength | ✅ 2026-08-25 | — |
 | [1132](wp/1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | ⬜ | #108 |
 
 ## v2+ (seams pre-built, implementations fenced out)

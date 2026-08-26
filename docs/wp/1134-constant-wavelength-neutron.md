@@ -1,6 +1,6 @@
 # WP-1134 — constant-wavelength neutron: b, λ/n harmonics, and a refinable λ
 
-Milestone: v1.1 · Status: 🔄 2026-08-25 — in review as PR #108
+Milestone: v1.1 · Status: ✅ 2026-08-25 — b, λ/n harmonics and a refinable λ shipped; PR #108 + #127 merged
 Depends on: —
 
 ## Goal
@@ -180,3 +180,51 @@ it must be.
   `test_profile_seed_helper_sets_both_width_terms` and moves the frozen window
   sizing, and the generous high-angle width is the safe error direction for a
   seed.
+- **2026-08-25** *(reconstructed post hoc)* — PR #127's round-1 review (Yue,
+  on the merged tree with `a173cb84` in) found the `branch()` bug was still
+  reachable — a `branch` re-declares from `self.instrument`, which by then
+  carries the parent stage's *refined* λ, reproducing the exact per-verb bug
+  the construction snapshot fixed one level up (his measured shape: parent
+  +417.05 ppm from the declared 1.539984, a `branch()` off it −18.15 ppm from
+  the refined 1.540626 rather than the parent's cumulative +398.89) — plus
+  three follow-ups, one flagged non-blocking. All four landed as
+  `61cbce11..feb86b20`, same day, before merge.
+  (1) `branch()` now copies `self._declared_wavelengths` onto the child after
+  construction, like `_free_paths` and the ties; an `edit` on the branch still
+  re-snapshots, so a branch that swaps the anode genuinely re-declares.
+  `test_a_branch_inherits_the_declared_reference_from_the_root` pins his shape.
+  (2) The snapshot handed to `_build_result` at both call sites (`fit`,
+  `run_stage`) is now `list(...)`'d rather than aliased — not a live bug,
+  closed before it becomes one.
+  (3) The same shape bit a **series**, found while verifying the branch fix
+  and not merely suspected: `_carry_into` warm-starts pattern *n* from pattern
+  *n-1*'s refined λ, so every per-pattern `Refinement` `_fit_one` builds
+  declared that refined value and reported the pattern-to-pattern drift
+  instead of the calibration error. Measured on a 3-pattern synthetic series
+  declared 400 ppm low: +416.8, −18.3, +1.6 ppm before the fix; +416.8,
+  +398.6, +400.2 ppm after. `sequential.py` now threads the series-root
+  declaration (`_declared_wavelengths(self.instrument)`) onto each pattern's
+  `Refinement`, guarded on the line count so a `prepare` hook that swaps the
+  anode keeps its own snapshot. The carried λ itself is untouched — every
+  fitted endpoint is bit-identical before and after — only the diagnostic's
+  reference moves; `SEQUENTIAL_PERSISTENT_FINDING`'s per-pattern count is
+  unaffected, since it counted every λ-free pattern regardless of the ppm the
+  bug was corrupting the *values*, not the count.
+  (4) `AGENT_PROTOCOL.md`'s `WAVELENGTH_CALIBRATION` row now names the
+  reference point: cumulative from the wavelength declared at construction,
+  inherited by a `branch`, surviving a `checkout`, reset only by an
+  instrument `edit`.
+
+  Measured after all four (`[dev]`, macOS arm64, `.venv-test`,
+  `PYTHONPATH=src`, jax/torch absent): ruff clean; `test_wavelength_freedom.py`
+  24 passed (was 22, +2 = the branch and series tests); fast selection
+  (`-m "not slow" -n 2 --dist loadgroup`, once, final tree) 2765 passed / 117
+  skipped / 0 failed against the round-0 branch baseline of 2763/115 — passed
+  moved by exactly the two new tests, and the skip count was independently
+  measured at 117 on the same machine outside this change (env-conditional,
+  not from it). Merged as PR #127 on 2026-08-26 without further review
+  comment.
+- **2026-08-26** — Handover repair: the entry above (PR #127's round-1 fixes,
+  `61cbce11..feb86b20`) landed 2026-08-25 with no handover entry recorded;
+  reconstructed it from `git log --stat` and the PR thread, and flipped
+  Status to closed.
