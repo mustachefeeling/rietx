@@ -42,6 +42,7 @@ key in the poll fallback) and is never written to the log.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import threading
@@ -1103,10 +1104,27 @@ class GuiSession:
         anisotropic ADP block changes what the parameter table *contains*, and a
         partial merge would have to reimplement pydantic's validation to know
         whether the result is a legal structure.
+
+        The typed-cell form (WP-1206) reaches this route too, because
+        :func:`_as_structure` is the one boundary every model crosses — and it
+        carries the same consequence here as at creation: a scaffold's only atom
+        is a dummy, so in ``rietveld`` mode the result is a Rietveld fit over a
+        dummy carbon.  It is refused with ``project_new``'s own sentence rather
+        than by flipping the mode: ``index_adopt`` flips it because there the
+        caller chose a *candidate*, while a caller replacing the whole model has
+        said nothing about the mode.  In lebail/pawley the swap is ordinary and
+        goes through.
         """
         self._require_idle()  # before validating: a state refusal outranks a
         # body complaint, or a user retyping a structure never learns that the
         # real problem is the fit still running
+        if _is_typed_cell(body.get("structure")) and self._need_project(
+                ).doc.mode == "rietveld":
+            raise GuiError(
+                "a typed cell carries no atoms, so it cannot replace the "
+                "structure of a project in rietveld mode; set the mode to "
+                "'lebail' or 'pawley' first (POST /api/project)",
+                where=["mode"])
         node = self._edit(
             structure=_as_structure(_need(body, "structure"), self.uploads),
             label=body.get("label") or "structure edited")
@@ -2830,12 +2848,17 @@ def _typed_cell_structure(payload: dict) -> Structure:
     :func:`~rietx.schemas.structure.lebail_scaffold`, the same structure the
     indexing panel's Adopt button lands.
 
-    Three refusals, all naming the field they are about, because this is a form:
+    Four refusals, all naming the field they are about, because this is a form:
     an unresolvable symbol in ``get_spacegroup``'s words, a cell parameter the
-    symmetry determines or leaves out in ``complete_cell``'s, and a
-    non-numeric one here.  Nothing is checked twice — ``complete_cell`` fills
+    symmetry determines or leaves out in ``complete_cell``'s, and a non-numeric
+    or unphysical one here.  Nothing is checked twice — ``complete_cell`` fills
     the fixed angles from the setting, so an angle contradicting its symmetry is
     unrepresentable rather than caught later by ``ParameterTable``.
+
+    ``NaN``/``inf`` and a length ``≤ 0`` are refused *here* rather than left to
+    the schema: ``Parameter`` has no positivity rule, so a zero or negative edge
+    validated fine and died at stage compile, a long way from the box it was
+    typed in — the same reason the species check sits at this boundary.
     """
     from ..crystallography.symmetry import CELL_NAMES, complete_cell, get_spacegroup
     from ..schemas.structure import lebail_scaffold
@@ -2849,6 +2872,15 @@ def _typed_cell_structure(payload: dict) -> Structure:
     except (ValueError, RuntimeError) as exc:
         raise GuiError(str(exc), where=["structure.space_group"]) from None
 
+    # before the cell is read: a typo'd key is the caller's real mistake, and
+    # reporting a cell complaint first would send them to the wrong field
+    unknown = set(payload) - {"space_group", "cell", "name"}
+    if unknown:
+        raise GuiError(
+            f"unknown key(s) for a typed cell: {sorted(unknown)}; it takes a "
+            "space_group, a cell and an optional phase name",
+            where=[f"structure.{k}" for k in sorted(unknown)])
+
     raw = payload.get("cell")
     if not isinstance(raw, dict):
         raise GuiError(
@@ -2857,22 +2889,29 @@ def _typed_cell_structure(payload: dict) -> Structure:
             where=["structure.cell"])
     values: dict[str, float] = {}
     for name, value in raw.items():
+        key = str(name)
         try:
-            values[str(name)] = float(value)
+            number = float(value)
         except (TypeError, ValueError):
-            raise GuiError(f"{name} is not a number: {value!r}",
-                           where=[f"structure.cell.{name}"]) from None
+            raise GuiError(f"{key} is not a number: {value!r}",
+                           where=[f"structure.cell.{key}"]) from None
+        if not math.isfinite(number):
+            raise GuiError(f"{key} is not a finite number: {value!r}",
+                           where=[f"structure.cell.{key}"])
+        if number <= 0.0:
+            raise GuiError(
+                f"{key} must be greater than zero, not {number:g}",
+                where=[f"structure.cell.{key}"])
+        if key in ("alpha", "beta", "gamma") and number >= 180.0:
+            raise GuiError(
+                f"{key} must be less than 180°, not {number:g}",
+                where=[f"structure.cell.{key}"])
+        values[key] = number
     try:
         cell = complete_cell(sg, values)
     except ValueError as exc:
         raise GuiError(str(exc), where=["structure.cell"]) from None
 
-    unknown = set(payload) - {"space_group", "cell", "name"}
-    if unknown:
-        raise GuiError(
-            f"unknown key(s) for a typed cell: {sorted(unknown)}; it takes a "
-            "space_group, a cell and an optional phase name",
-            where=[f"structure.{k}" for k in sorted(unknown)])
     name = str(payload.get("name") or "").strip()
     return lebail_scaffold(symbol, [cell[k] for k in CELL_NAMES],
                            name=name or "phase")

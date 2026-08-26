@@ -138,6 +138,8 @@ def validation_window_slack_deg(two_theta_max: float) -> float:
 #: and a wider window on a dense supercell would collect a neighbour's tail and
 #: report a phantom reflection as present.
 ABSENT_WINDOW_FWHM = 0.5
+
+
 def structure_from_candidate(candidate: CellCandidate, *,
                              space_group: str | None = None,
                              name: str = "candidate") -> Structure:

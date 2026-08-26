@@ -715,6 +715,77 @@ def test_a_typed_cell_takes_only_what_the_symmetry_leaves_free(blank, tmp_path,
     assert error["where"] == ["structure.cell"]
 
 
+def test_a_typed_cell_refuses_an_unphysical_number_at_the_boundary(blank, tmp_path,
+                                                                   pattern_file):
+    """`Parameter` has no positivity rule, so this is the layer that must.
+
+    A zero or negative edge validates fine and dies at *stage compile*, a long
+    way from the box it was typed in — the same reason the species check sits
+    here.  `NaN` is worse than wrong: it reaches `Parameter`'s bounds check and
+    comes back as a 500 with an empty `where` unless it is caught first.
+    """
+    _, client = blank
+
+    def refused(cell):
+        status, payload = client.post("/api/project/new", {
+            "path": str(tmp_path / "bad.rex"), "pattern": str(pattern_file),
+            "structure": {"space_group": "P -1", "cell": cell},
+            "instrument": {"preset": "debye_scherrer", "wavelength": 0.4139},
+            "mode": "lebail"})
+        assert status == 400, payload      # never a 500
+        assert not (tmp_path / "bad.rex").exists()
+        return payload["error"]
+
+    good = {"a": 4.0, "b": 5.0, "c": 6.0,
+            "alpha": 90.0, "beta": 90.0, "gamma": 90.0}
+    for bad, where, says in (
+            ({**good, "a": 0}, "structure.cell.a", "greater than zero"),
+            ({**good, "b": -5.0}, "structure.cell.b", "greater than zero"),
+            ({**good, "c": "NaN"}, "structure.cell.c", "finite"),
+            ({**good, "a": "Infinity"}, "structure.cell.a", "finite"),
+            ({**good, "gamma": 180.0}, "structure.cell.gamma", "less than 180"),
+    ):
+        error = refused(bad)
+        assert error["where"] == [where], (bad, error)
+        assert says in error["message"], (bad, error)
+
+    # a typo'd key is the caller's real mistake and is reported *before* the
+    # cell, or they are sent to a field that is not what they got wrong
+    status, payload = client.post("/api/project/new", {
+        "path": str(tmp_path / "bad.rex"), "pattern": str(pattern_file),
+        "structure": {"space_group": "P -1", "cell": {"a": 0}, "atoms": []},
+        "instrument": {"preset": "debye_scherrer", "wavelength": 0.4139},
+        "mode": "lebail"})
+    assert status == 400 and payload["error"]["where"] == ["structure.atoms"]
+
+
+def test_a_typed_cell_cannot_replace_a_rietveld_project_s_structure(blank, tmp_path,
+                                                                    pattern_file):
+    """`_as_structure` is one boundary, so the new form reaches PATCH too.
+
+    Same consequence as at creation — a scaffold's only atom is a dummy — so it
+    carries `project_new`'s own refusal rather than flipping the mode, which is
+    `index_adopt`'s to do and only because the caller there chose a candidate.
+    """
+    session, client = blank
+    root = tmp_path / "patched.rex"
+    _open(session, root, pattern_file)
+    assert session.project.doc.mode == "rietveld"
+
+    cell = {"space_group": "P m -3 m", "cell": {"a": 4.16}}
+    status, payload = client.patch("/api/structure", {"structure": cell})
+    assert status == 400, payload
+    assert payload["error"]["where"] == ["mode"]
+    # the model is untouched: still the real LaB6, not a dummy carbon
+    assert len(session.project.refinement.structure.phases[0].atoms) == 2
+
+    # in lebail the same swap is ordinary
+    assert client.post("/api/project", {"mode": "lebail"})[0] == 200
+    status, payload = client.patch("/api/structure", {"structure": cell})
+    assert status == 200, payload
+    assert len(session.project.refinement.structure.phases[0].atoms) == 1
+
+
 def test_a_typed_cell_refuses_rietveld_rather_than_overriding_it(blank, tmp_path,
                                                                  pattern_file):
     """A dummy carbon is not a structure, and a chosen mode is not ours to change.

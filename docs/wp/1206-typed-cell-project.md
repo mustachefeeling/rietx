@@ -84,6 +84,39 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## Handover log
 
+- **2026-08-26 (2nd session)** — **Review round on PR #151, four findings, all
+  real.** The interesting one is a class of bug rather than a slip: a new
+  `structure` form added at `_as_structure` — the one boundary every model
+  crosses — is thereby accepted by **every** verb crossing it, and `PATCH
+  /api/structure` was taking the typed cell and leaving a `rietveld` project
+  refining a dummy carbon, which is exactly the state `project_new`'s new
+  refusal exists to make unreachable. Fixed there with `project_new`'s own
+  sentence rather than by flipping the mode: `index_adopt` flips it because the
+  caller there chose a *candidate*, while a caller replacing the whole model has
+  said nothing about the mode. In lebail/pawley the swap is ordinary and goes
+  through. The clause in `gui/CLAUDE.md` now names both routes (687 → 691), and
+  that is the half a later WP adding a third form needs.
+
+  The other three were unphysical numbers reaching too far. `Parameter` carries
+  no positivity rule, so `{"cell": {"a": 0}}` validated fine and would have died
+  at stage compile — verified against the pre-fix tree, `a=0` sails straight
+  through `lebail_scaffold` — a long way from the box it was typed in, and the
+  wizard's `blocked()` was *stricter than the server*. `"NaN"`/`"Infinity"`
+  passed `float()` and then raised a raw pydantic `ValidationError` that escaped
+  uncaught into `server.py`'s blanket handler as a **500 with an empty `where`**,
+  not the addressable refusal the route promises. And the unknown-key check ran
+  after the cell parse, so a typo'd key reported a cell complaint and sent the
+  caller to the wrong field. `_typed_cell_structure` now has four refusals, each
+  naming its own field, and the key check runs first.
+
+  *Measured* (`[dev,jax]`, python 3.12.12, darwin/arm64). `test_gui_server.py` +
+  `test_schemas.py` + `test_wyckoff.py` **232 passed** (230 before this round:
+  +2 tests, one per new refusal group). Fast suite on the final tree **3074
+  passed / 72 skipped**, 2m59s — 3072 + 2, the delta the two new tests predict,
+  and with nothing red: the `tests/CLAUDE.md` cap failure recorded in the entry
+  below was another session's uncommitted edit and has since left this shared
+  checkout. `ruff` clean; `test_docs_consistency.py` green at the raised cap.
+
 - **2026-08-26** — **Closed.** A project no longer needs a CIF: type a
   space-group symbol and a cell into step 2 of the wizard and you get a
   working `lebail` project, the same Le Bail scaffold the indexing panel's

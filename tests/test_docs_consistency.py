@@ -391,8 +391,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # form-drawing facts a browser found: a register's width belongs to the call
     # site, and a numeric placeholder reads as a filled value.  The measured
     # detail — the fit, the four browser defects, TOPAS's macro shape — is in
-    # `docs/wp/1206-typed-cell-project.md`.
-    "gui/CLAUDE.md": 687,
+    # `docs/wp/1206-typed-cell-project.md`.  687 -> 691 in the same WP's review
+    # round: the mode clause had to name **both** routes `_as_structure` serves,
+    # because a new form added at that one boundary reaches every verb crossing
+    # it — the typed cell was accepted by `PATCH /api/structure` too, where it
+    # would leave a rietveld project refining a dummy carbon.  That is the
+    # generalisable half, and it is what a later WP adding a third form needs.
+    "gui/CLAUDE.md": 691,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

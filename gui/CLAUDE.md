@@ -485,7 +485,11 @@ does — under `P 4/m m m` a typed `b` was tied away by `ParameterTable` and the
 number read back was never the one entered. `mode` is **refused at `rietveld`,
 not overridden**, the form disabling the option so the refusal is unreachable —
 Adopt sets the mode because there the caller chose a *candidate*; here they chose
-a mode. And two browser facts about drawing a form, both invisible to jsdom: a
+a mode — and it is refused at **both** routes `_as_structure` serves, since a new
+form added at that one boundary reaches every verb crossing it (`project_new` and
+`PATCH /api/structure`, where a scaffold would otherwise leave a rietveld project
+refining a dummy carbon). And two browser facts about drawing a form, both
+invisible to jsdom: a
 **register's width is the call site's** (`.segmented` is `display: flex`, so in a
 block parent it stretches to the whole column — every other use in the app sits
 in a flex row already), and a **placeholder that is a plausible number reads as a
