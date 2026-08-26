@@ -60,6 +60,88 @@ Rules that bind: **a declared name is a claim** (WP-1076): an empty
 beside the constant (the preview promise); the compatibility direction is
 "old files must always open" (memory: break by direction).
 
+## Audit — every `phases` consumer at zero phases
+
+Measured on the pre-change tree by lifting `Structure._nonempty` *at runtime*:
+dropping the entry from `Structure.__pydantic_decorators__.model_validators`
+and force-rebuilding every model that embeds a `Structure`. Both halves are
+needed — `RefinementState` revalidates, so a subclass overriding the validator
+does not get through, and a model embedding `Structure` inlines its compiled
+core schema, so rebuilding `Structure` alone changes nothing. Synthetic LaB6
+pattern (`tests/test_refine_synthetic.synthesize`), `mccusker_default`,
+`[dev,jax]` / darwin-arm64.
+
+**The finding that shapes the rest of the WP: nothing crashes.** Every `phases`
+consumer in the core is iteration-driven — `for ip, cp in enumerate(model.phases)`,
+`range(len(structure.phases))` — so at zero phases they do nothing and the
+pipeline runs to the end. `Structure._nonempty` is the *only* thing standing
+between a caller and a background-only refinement reported as **`converged`**
+at Rwp 0.9637, GoF 23.89, ten instrument and background parameters refined.
+So the work is not "stop it breaking"; it is "make it refuse, and make the
+empty answers honest".
+
+### Must refuse
+
+| consumer | at zero phases today | wanted |
+|---|---|---|
+| `Refinement.fit` / `run_stage` / `refine` | every stage `converged`; `MODEL_FAR_FROM_DATA` fires as a *diagnostic* while `status` still says `converged` | refuse before compile, `NO_PHASES` |
+| `POST /api/run {"kind":"fit"}` | 200, then `run.status == "converged"` | refused with that reason; Run disabled |
+| `agent.refine_json({"task":"refine"})` | refuses `INVALID_REQUEST` — but only because the *schema* still rejects `phases: []` | the same `NO_PHASES` once the schema allows it |
+
+The third row is the trap: today's refusal is a side effect of the validator
+this WP removes, so it disappears silently unless `refine_json` is given the
+refusal in its own right.
+
+### Already the honest empty answer — no change
+
+`ParameterTable` builds (19 entries, all instrument and background;
+`free_paths`, `moving_paths` `[]`; `x0()` shape `(0,)`); `compile_model` builds
+in `rietveld` *and* `lebail` and `evaluate` returns the background over all
+4200 points; `RefinementResult.ticks` → `{}`; `data_support` → 0 unique
+reflections and `n_effective_observations` `None`; `count_unique_reflections`
+→ 0; `effective_observations` → `None`; `reflection_table` → `[]`;
+`phase_support` fires no `PHASE_UNCONSTRAINED`; `identifiability.background_absorption`
+→ `{}`; `phase_agreement` → `[]` through its own `not model.phases` guard
+(`refine.py:2034`). The **FitReport** is the best-behaved consumer of the lot:
+`layer1_available=False`, abstained `immature`, and **36 unmatched observed
+peaks** — it already says the pattern has peaks the model does not.
+`Project.create`/`open`, `textdoc.render` and `GET /api/project|params|structure|peaks|history|plan|textdoc|capabilities|settings`
+all answer 200; `GET /api/report` is 409 `NO_RESULT` before a run.
+
+### Empty containers that read as answers (WP-1076)
+
+- **`RefinementResult.qpa`** → `QuantitativePhaseAnalysis(phases=[], method="zmv",
+  crystalline_only=True)`: "QPA was done, the specimen holds no crystalline
+  phase". The mechanism is a two-way test with three cases:
+  `compute_qpa` finds Σ zmv·s ≤ 0, then asks `len(structure.phases) > 1`, so
+  zero phases falls into the **single-phase** branch — "one phase is 100 %
+  whatever its scale did" — and builds an empty table instead of the `None`
+  that branch's own docstring reserves for "the scales cannot form fractions at
+  all". Wanted: `None`.
+- **`RefinementResult.geometry`** → `GeometryTable(distances=[], angles=[],
+  bond_slack=0.4, contact_max=3.5, notes=[])`, from a function that *already*
+  returns `None` outside Rietveld for the same reason. Wanted: `None`.
+- **`io.exporters.qpa_table_csv`** renders the whole Hill & Howard scope header
+  over zero rows, and **`refinement_cif_doc`** returns a gemmi `Document` with
+  **0 blocks** — an empty CIF written without complaint. Both follow their
+  inputs, so both are fixed by the two `None`s above.
+
+### Refuses already, message to revisit
+
+`GET /api/structure3d` → 404 `no phase 0 (this structure has 0)`: accurate, but
+phrased for a bad index rather than for a project that has no phase yet — the
+message behind the hidden 3D column (task 3). Every other phase-indexed GUI
+verb guards with `IndexError` → 404 and needs no change
+(`gui/symmetry.py:345, 379, 692, 721`; `gui/session.py:1169`).
+
+### Not reachable from a pattern-only project
+
+`viz/compare.py:197` divides by `len(structure.phases)` — a `ZeroDivisionError`,
+but `compare`'s standards always carry phases; `indexing/workflow.py:420` reads
+`structure.phases[0]` off a scaffold `structure_from_candidate` has just built.
+`multi.py` and `sequential.py` are iteration-driven like the core and inherit
+whatever `fit` decides.
+
 ## Non-goals
 
 - Fitting with no phases: `fit` refuses (`NO_PHASES`), and the GUI's Run is
@@ -68,9 +150,14 @@ beside the constant (the preview promise); the compatibility direction is
 
 ## Tasks
 
-- [ ] The audit: every `phases` consumer listed with its behaviour at zero
-      phases; the ones that must refuse, and the ones that must return an
-      empty answer (`ticks` `{}`, no `phase_support` diagnostic).
+- [x] The audit: every `phases` consumer listed with its behaviour at zero
+      phases (§ Audit above). Measured, not read: nothing crashes, because
+      every core consumer is iteration-driven, so `Structure._nonempty` is the
+      only thing between a caller and a background-only fit reported
+      `converged` at Rwp 0.9637. `ticks` `{}` and the absent `phase_support`
+      diagnostic are already right; `qpa` and `geometry` are empty containers
+      that read as answers, and `refine_json`'s current refusal is a side
+      effect of the validator this WP removes.
 - [ ] `Structure` allows `phases=[]`; `Project.create(structure=None)`
       builds it; `fit`/`run_stage`/`refine_json` refuse with `NO_PHASES`;
       version bumps.
