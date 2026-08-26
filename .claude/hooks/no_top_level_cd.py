@@ -133,7 +133,12 @@ def top_level_cds(command: str) -> list[str]:
             end = src.find("`", i + 1)
             i = n if end < 0 else end + 1
             at_start = False
-        elif ch == "#" and at_start:
+        elif ch == "#" and (at_start or src[i - 1] in " \t"):
+            # A `#` opens a comment wherever it begins a *word*, not only in
+            # command position: `git log # note; cd /tmp` is one comment, and
+            # reading only the `at_start` case flagged the `cd` in it and
+            # refused the call.  `echo a#b` is still a literal, because there
+            # the previous character is not a separator.
             end = src.find("\n", i)
             i = n if end < 0 else end
         elif ch == "$" and i + 1 < n and src[i + 1] == "(":
