@@ -388,7 +388,7 @@ fields are inert is worse than two classes.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `NeutronSource.wavelength` | float | required | Å, fixed — a powder pattern cannot separate λ from the cell |
+| `NeutronSource.wavelength` | `Parameter` | required | Å, `vary=False` — see {ref}`a-refinable-wavelength` |
 | `NeutronSource.harmonics` | list[`Harmonic`] | empty | declared λ/n monochromator orders, see [below](harmonic-contamination) |
 | `NeutronSource.kind` | `"neutron_cw"` | `"neutron_cw"` | constant wavelength, the discriminator you write |
 
@@ -396,14 +396,6 @@ Three read-only properties let code written for an X-ray source keep working.
 `NeutronSource.lines` is the fundamental followed by one line per declared
 harmonic; with none declared it is the single line, weight structurally 1 —
 with one line there is nothing for a relative weight to be relative to.
-`NeutronSource.primary_wavelength` is that wavelength.
-
-| `NeutronSource.wavelength` | `Parameter` | required | Å, `vary=False` — see {ref}`a-refinable-wavelength` |
-| `NeutronSource.kind` | `"neutron_cw"` | `"neutron_cw"` | constant wavelength, the discriminator you write |
-
-Three read-only properties let code written for an X-ray source keep working.
-`NeutronSource.lines` is the single line, weight structurally 1 — with one line
-there is nothing for a relative weight to be relative to.
 `NeutronSource.primary_wavelength` is that wavelength as a float, and
 `NeutronSource.wavelength_parameters` is the live `Parameter` behind it, in a
 one-element list so a caller need not know which arm of the union it holds.
