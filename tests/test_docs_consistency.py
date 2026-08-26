@@ -407,15 +407,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # failure has a signature worth naming, because it is otherwise read as
     # flakiness: green alone, red under `-n auto`.  The tier itself, its bars
     # and its measurements are all a rank down (root CLAUDE.md, the WP).
-    # 232 -> 244 (2026-08-26): rung 3 is exclusive across the sessions sharing
-    # this checkout.  The rule could not go down a rank because it is about
-    # *running* the suite and no other always-loaded file governs that; the
-    # mechanism did — `.claude/suite-lock.sh` holds the claim/refresh/release
-    # and its own rationale, so this file names a script rather than restating
-    # a lock in the two commands that take it.  Nothing here carried it: the
-    # budget rules below say load breaks an assertion, not that a second
-    # session is what supplies the load.
-    "tests/CLAUDE.md": 244,
+    # 232 -> 246 (2026-08-26): rung 3 is exclusive across the sessions sharing
+    # this machine.  Nothing here carried it — the budget rules below say load
+    # breaks an assertion, not that a second session is what supplies the load —
+    # and it could not go down a rank, being about *running* the suite, which no
+    # other always-loaded file governs.  It is a look (`pgrep`) and not a lock
+    # on purpose, which is what kept the raise to fourteen lines: reserving
+    # would have needed a script, a release to forget and a staleness rule,
+    # while observing needs one command and can state its own evidence.
+    "tests/CLAUDE.md": 246,
     # 250 at the WP-1060 split; raised once, for WP-1046's two standing rules
     # (which layer may apply a cap, and that agreement outranks the panel) —
     # both measured, and every number behind them is in the v1.0 appendix

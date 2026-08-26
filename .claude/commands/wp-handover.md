@@ -60,10 +60,10 @@ steps below run unchanged.
    this session added, in both the fast and full selections, and any new
    skip is named as a skip, not a pass.
 
-   **The full selection runs under the long-suite lock** (`tests/CLAUDE.md`
-   § The long-suite lock). A `/pr-review` or another WP session may be holding
-   it, and a count measured beside its suite is not a count this handover can
-   quote. Refused, the honest entry says the full selection did not run —
+   **Check nothing else is mid-suite before the full selection** — one `pgrep`,
+   `tests/CLAUDE.md` § Running. A `/pr-review` or another WP session may be
+   running one, and a count measured beside it is not a count this handover can
+   quote. Found one, the honest entry says the full selection did not run —
    never a figure taken anyway.
 
    Then **audit the names this session declared**, for the classes that have
@@ -123,11 +123,10 @@ steps below run unchanged.
    This is the same class as the stranded commit above, one rank out: what
    you verified and what the repository will hold are not the same object.
 
-   **Fetch main immediately before the merge, and hold the long-suite lock
-   across the run** (`tests/CLAUDE.md` § The long-suite lock). A concurrent
+   **Fetch main immediately before the merge**, not at step 1. A concurrent
    `/pr-review` merges other people's PRs, so `origin/main` moves for reasons
-   this session never sees — a main fetched at step 1 can be several merges
-   stale by now, which puts this step's tree back to being one nothing tested.
+   this session never sees, and a main fetched an hour ago can be several merges
+   stale — which puts this step's tree back to being one nothing tested.
 10. **Open or update the pull request.** A session's work is not handed over
     until it is reviewable, so the PR is part of the ritual rather than a
     follow-up request. Skip it — saying so in one line — when the branch is

@@ -315,11 +315,11 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    runs and delete it at the ending: it is there to be *read* when the bench
    looks unexpected, not to arbitrate.
 
-   The contended resource is the **suite**, shared with every live WP session:
-   `.claude/suite-lock.sh claim "$SESSION_ID" "pr-review N"` before step 5's
-   ladder, `refresh` beside each long command, `release` at the ending. Exit 3
-   is another session holding it — report the holder and stop, the same as any
-   other blocker here. Never reclaim it yourself.
+   The contended resource is the **suite**, shared with every live WP session.
+   Look before step 5's ladder and again before step 9's gate —
+   `pgrep -f "[p]ytest"`, `tests/CLAUDE.md` § Running has the three lines and
+   why they are a look rather than a lock. Another session mid-suite is a stop,
+   the same as any other blocker here: say whose tree and how long, and wait.
 
    ```sh
    BENCH=.claude/worktrees/pr-bench
@@ -381,8 +381,8 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    The **whole** `-m slow` suite fires once, at the merge gate in step 9, not on
    every round. Quote every count with its venv **and** platform
    (`tests/CLAUDE.md` § Quoting numbers), and as a range, never a record — and
-   **hold the long-suite lock while any of this runs**, because a ladder
-   measured beside a WP session's own suite is a ladder about the machine.
+   **check nothing else is mid-suite first**, because a ladder measured beside a
+   WP session's own suite is a ladder about the machine.
 6. **Check conformance against `CLAUDE.md`, sized to the PR.** Under roughly 400
    reviewable lines, read the diff yourself — spawning agents costs more than it
    saves. Above it, write the reviewable diff to the scratch directory **once**
@@ -459,8 +459,8 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    matching the repo's merge-commit history, and only when **all** of these hold:
    required checks green and `mergeStateStatus` `CLEAN`; the step-5 ladder green
    on the merged tree with counts quoted; the **full `-m slow` suite green on the
-   merged tree**, run **under the long-suite lock** (`tests/CLAUDE.md` § The
-   long-suite lock) and green against the main that is there *now* (§ The batch,
+   merged tree**, run with **nothing else mid-suite** (`tests/CLAUDE.md`
+   § Running) and green against the main that is there *now* (§ The batch,
    for the way a deferral can rot that); no execution-shaped file touched without
    the step-4 read; no conformance finding; no new public surface left
    undocumented; every added data file carrying provenance, and a licence if it
@@ -470,9 +470,9 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    **A gate run beside another suite is not a gate either.** § The batch has the
    way a *deferral* rots this one; load is the way a *concurrent session* does,
    and it is worse because it fails in both directions — a red that is only the
-   machine, and § Budgets in tests' measured case of a real-data row reporting a
-   different centring under load, which is a green that means nothing. The lock
-   is the whole answer, and an unlocked slow run is a deferral, not a gate.
+   machine, and `tests/CLAUDE.md` § Budgets in tests' measured case of a
+   real-data row reporting a different centring under load, which is a green
+   that means nothing.
 
    **Say in the report which PRs you merged**, beyond the per-PR decision lines.
    A merge moves `origin/main` under every live WP session, and a branch's counts

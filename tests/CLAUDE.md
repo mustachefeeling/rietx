@@ -23,14 +23,16 @@ whole-suite run launched mid-edit and therefore repeated):
 4. **Re-measuring `main`** — don't. That is CI's job (§ CI), and a local
    baseline costs a second full run to answer a bookkeeping question.
 
-**Rung 3 is exclusive across sessions.** Several share this checkout (WP work
-and one `/pr-review`), and two suites at `-n auto` put twice the workers on the
-same cores — not a timing question, since § Budgets in tests has load turning a
-real-data row's *answer*. `.claude/suite-lock.sh claim|refresh|release` is the
-mechanism and its header the rationale; it is taken in `/pr-review` step 9 and
-`/wp-handover` steps 6 and 9. **A refused claim waits or defers and never
-measures anyway** — the count would not be quotable (§ Quoting numbers). Rungs
-1-2 stay unlocked: locking them means holding it all session.
+**Rung 3 is exclusive across sessions**, because several share this machine (WP
+work and one `/pr-review`) and two suites at `-n auto` put twice the workers on
+the same cores. Not a timing question: § Budgets in tests has load turning a
+real-data row's *answer*. So look before starting one — `pgrep -f "[p]ytest"`,
+with `lsof -a -d cwd -p <pid>` for which tree and `ps -o etime= -p <pid>` for
+how long — and **observe rather than reserve**, since a lock adds a release to
+forget and a stale window to wait out while `pgrep` cannot go stale. **Found
+one: wait or defer, and never measure anyway** — the count would not be
+quotable (§ Quoting numbers). Checked in `/pr-review` step 9 and `/wp-handover`
+steps 6 and 9; rungs 1-2 skip it, being cheap to repeat.
 
 - `-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y`
   stays serial, so `-s` and pdb keep working. `--dist loadgroup` is not
@@ -170,8 +172,8 @@ and never a silent cap.
   a second pytest. Machine state moves it further than most changes do;
   compare runs, not records.
   That 12:40 is the same tree as the 5:44, so **say whether another session was
-  running** — and prefer the lock (§ Running), which makes "alone" the ordinary
-  case rather than a claim.
+  running** — and check first (§ Running), which makes "alone" a fact rather
+  than an assumption.
 - **Quote the extras with any count**: installing `[jax,torch]` converts
   most skips into passes, so a bare "N tests" figure means nothing without
   the venv it was measured in.
