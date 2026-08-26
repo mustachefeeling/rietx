@@ -152,8 +152,11 @@ npm --prefix gui test && npm --prefix gui run check
   `ffd6ddc127f9`; `ruff` clean; sphinx `-W` clean. And
   `tests/test_acceptance_indexing.py` **44 passed**, 19m50s — the guard
   `src/rietx/indexing/CLAUDE.md` asks for before closing anything near an
-  engine, run under the long-suite lock `tests/CLAUDE.md` now specifies and
-  released after; the scoreboard regenerates over all 16 datasets.
+  engine; the scoreboard regenerates over all 16 datasets. Run alone — checked
+  by the file-lock protocol `tests/CLAUDE.md` carried at the time, which main
+  has since replaced with a `pgrep` **look** (observe rather than reserve, since
+  a lock adds a release to forget). The claim the two protocols share is the one
+  that matters for the number: no other suite was running beside it.
 
   *Decisions taken against the WP's own text, both deliberate.* (1) The `cell`
   argument is an **object keyed by parameter carrying the free ones**, not six
