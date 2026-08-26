@@ -361,6 +361,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # The operating detail went down a rank as rule 4 requires — the licence
     # table is `tests/test_example_projects.py`'s, the protocol-quoting rule is
     # root's, and the browser session that found the missing hover is the WP's.
+    # 645 -> 663 for WP-1205 (2026-08-26): the filesystem browser. A stranger
+    # touching `App.svelte`'s layout needs the invariant this WP's own bug
+    # was found under — `Model` is mounted exactly once, never one instance
+    # per branch of `{#if project}` — because the failure mode (a stale
+    # `wizardOpen` painting the wizard over a freshly-opened project) is
+    # invisible until the *next* session recreates the split and re-derives
+    # the same bug from nothing. `GET /api/fs`'s containment shape and the
+    # settle-on-open convention (`openPath()`) are the other two facts no
+    # test alone would tell a reader to preserve.
     # 628 -> 645 for WP-1203 (2026-08-26): the help popover, replacing the
     # `title=` paragraph WP-1201 wrote as a placeholder.  It belongs here for
     # the reason the register table does: every later v1.2 panel WP writes
@@ -373,7 +382,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # pass measured are in `docs/wp/1203-help-popover.md`.  One rule *left*
     # this file in the same pass — WP-1032's "`title=` is these forms' only
     # help mechanism" is no longer true, and its no-mute-fields half stayed.
-    "gui/CLAUDE.md": 645,
+    "gui/CLAUDE.md": 663,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

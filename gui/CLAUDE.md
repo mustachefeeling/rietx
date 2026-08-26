@@ -450,6 +450,24 @@ its box because the row is the target, so a list that gives the row no
 background reads as prose that happens to be clickable — found in the browser,
 and invisible to jsdom, which has neither hover nor cursor.
 
+**The filesystem browser** (WP-1205, `GET /api/fs`, `Browse.svelte`) is the
+empty state's third way to reach a project, beside the recent list and the
+examples: read-only, confined to `Path.home()` and the process's cwd, and not
+behind the 409 like `/api/recent`. **The gate is containment, not a
+blocklist** — `path` is resolved (symlinks included) before it is checked
+against the two roots, the same shape `GuiSession._export_target` already used
+for the exports directory. Browse is **one modal, two jobs**: `mode="open"`
+opens a `.rex` entry, `mode="pick"` hands a plain directory back to the
+wizard's path field, keeping whatever basename was already suggested (a
+browser cannot name a new project, only where it lives). **`Model` is mounted
+exactly once in `App.svelte`**, never one instance per branch of
+`{#if project}`: two instances is two independent `wizardOpen`s, and opening a
+*different* project from the tab-mounted instance's wizard used to leave it
+painted over the freshly-opened one, because `project` stayed truthy the whole
+time and Svelte never tore the stale instance down. And **every opener settles
+`wizardOpen` on success through one function**, `Model.svelte`'s `openPath()`
+— the recent list's own handler never did, which is what let the bug ship.
+
 **Symmetry, surfaced and editable** (WP-1035, `src/rietx/gui/symmetry.py`,
 `gui/src/lib/symmetry.ts`) is the phase's space group stopping being one
 read-only string quoted in three places while everything it *does* — a tied `b`,
