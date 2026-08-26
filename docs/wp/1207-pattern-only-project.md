@@ -1,6 +1,6 @@
 # WP-1207 — A project without a CIF, part 2: pattern-only projects
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.2 · Status: ✅ 2026-08-26 — a pattern is a project; the refusal is on the verb
 Depends on: WP-1206
 
 ## Goal
@@ -214,5 +214,81 @@ whatever `fit` decides.
 - WP-1076 (declared names), WP-1117 (the preview promise).
 
 ## Handover log
+
+- **2026-08-26** — **Closed.** A pattern is already a project. `Project.create`
+  no longer needs a `structure=`, and a project with zero phases is a *state* —
+  a pattern whose phase you have not found yet — rather than an unfinished one.
+  Peak picking, indexing and the instrument and background parameters all work
+  over it, which is the whole point: the routes out of that state (adopt an
+  indexed candidate, type a cell) all need a project to arrive in, and before
+  this the person WP-1017 named as least served had nowhere to start.
+
+  *The audit is the part a successor should read first, because it inverted the
+  work.* The plan assumed things would break at zero phases and the job would be
+  to stop them. Nothing breaks. Every `phases` consumer in the core is
+  iteration-driven, so at zero phases they do nothing and the pipeline runs to
+  the end: the fit came back **`converged` at Rwp 0.9637, GoF 23.89** against a
+  pattern with 36 clear peaks, with `MODEL_FAR_FROM_DATA` firing as a diagnostic
+  beside a status that contradicts it. `Structure._nonempty` was the only guard
+  there was. It was measured rather than read — dropping the validator from
+  `Structure.__pydantic_decorators__` and force-rebuilding every model that
+  embeds a `Structure`; both halves are needed, since `RefinementState`
+  revalidates (a subclass does not get through) and an embedding model inlines
+  the compiled core schema (rebuilding `Structure` alone changes nothing).
+
+  *Done.* `Structure` takes `phases=[]` and its docstring says why the refusal
+  cannot live there. `NoPhasesError` (`code = "NO_PHASES"`) is raised by `fit`,
+  `run_stage`, `refine_multi`, `refine_sequential` and `POST /api/run`, each
+  before a tree or an event. `compute_qpa` and `geometry_table` answer `None` at
+  zero phases. `refine_json` gains a **fourth** envelope code. The wizard gains
+  a third route, `project_doc` an `n_phases`, the Model panel an empty state,
+  and the `.rxt` a comment where the phase blocks would be. `SCHEMA_VERSION`
+  0.8 → 0.9, `PROJECT_FORMAT_VERSION` 1.2 → 1.3, `gui/CLAUDE.md` 691 → 710.
+
+  *Measured* (`[dev,jax]`, python 3.12.12, darwin/arm64, the main checkout's
+  venv). Fast suite on the merged tree **3097 passed / 72 skipped**, 4m45s —
+  against 3m00s for the same selection pre-merge, and the difference is machine
+  state, not the change: another session's `work/final_series.py` was running
+  beside it, which is why this is a range and not a figure. The ladder:
+  branch base 3087, +6 for this WP's tests → 3093 pre-merge, +4 for main's own
+  new reader tests (PR #149) → 3097. `npm --prefix gui test` **458 passed**
+  (454 at the branch point, +4 for the third route); `npm --prefix gui run
+  check` clean; `ruff` clean; sphinx `-W` clean; dist rebuilt at `dd5807dda669`
+  and `test_gui_dist.py` green.
+
+  *Decisions taken past the WP's own text, three, all deliberate.* (1)
+  `NO_PHASES` is a **fourth agent envelope code**, not an `INVALID_REQUEST`.
+  The request is well-formed and the model is legal, so an agent told
+  `INVALID_REQUEST` re-reads its field names and one told `REFINEMENT_FAILED`
+  retries; neither helps, and the AGENT_PROTOCOL row therefore leads with **do
+  not retry**. (2) `structure: null` is an answer and an **absent key stays a
+  refusal** — `dict.get` cannot tell them apart, and a client that forgot the
+  key should be told rather than handed a phase-free project. (3) `PATCH
+  /api/structure` with `{"phases": []}` is now a 200. That is WP-1206's
+  review-round rule arriving as a consequence rather than a decision — a change
+  at `_as_structure` reaches every verb crossing it — and on reading it, it is
+  right: taking a wrong phase back out lands in exactly the state the wizard's
+  third route creates, and the run is what refuses. The test that pinned it as
+  a 400 now pins an atomless phase, with the pattern-only path asserted beside
+  it.
+
+  *Gotchas for whoever is next here.* The end-to-end test injects a candidate
+  rather than running a real search, like every other adopt test in
+  `test_gui_peaks.py` — the **loop** is what is under test, and a real search
+  over that pattern belongs to the acceptance suite. `test_acceptance_indexing.py`
+  was **not** re-run: nothing here touches an engine (the indexing rulebook's
+  gate is about engine changes), and `structure_from_candidate` is untouched.
+  The browser pass found no defects, but it produced one lesson worth keeping:
+  I read a downscaled screenshot as showing an enabled Run button and was
+  wrong — the computed style (opacity 0.45, cursor default) is what settled it,
+  and a screenshot is evidence about layout, not about state. Finally, the
+  Model panel's structure column keeps its full half-width holding one
+  paragraph when there is no phase; it reads acceptably and the splitter is the
+  user's control, so it was left alone rather than special-cased.
+
+  *Next.* [WP-1208](1208-plan-introduction.md) (the Plan panel). Nothing is
+  pushed into its `### Inherited`: this WP left no seam a Plan WP has to know
+  about, beyond `n_phases` on the project document, which is already a
+  `gui/CLAUDE.md` rule.
 
 - **2026-08-25** — created from the v1.2 triage.

@@ -293,16 +293,26 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    is a **question for the user** rather than a finding — a workflow change
    reaches the repository's secrets the moment it merges.
 
-   **Address the bench with `-C`, never with `cd`.** The shell's working
-   directory persists between tool calls, so a `cd` typed in an earlier step
-   silently retargets a later `git reset --hard`, and the two trees are
+   **Put the target in the command; a `cd` goes in a subshell.** The shell's
+   working directory persists between tool calls **and is shared with the user's
+   own `!` commands**, so a `cd` typed in an earlier step silently retargets a
+   later `git reset --hard`, in your hands and in theirs. The two trees are
    indistinguishable in ordinary output: the bench sits *inside* the main
    checkout, shares its remote, and answers `git rev-parse --short origin/main`
-   identically. `git -C` cannot be defeated that way and puts the target in the
-   command rather than in invisible session state. Measured on this command's
-   first outing: a `cd` added to a `gh pr list` that did not need one (gh reads
-   the remote, and the bench has the same one) sent the next four commands into
-   the main checkout.
+   identically. Measured twice on 2026-08-26 — a `cd` added to a `gh pr list`
+   that did not need one (gh reads the remote, and the bench has the same one)
+   sent the next four commands into the main checkout; and this ritual's own
+   ending left the user's shell parked in the detached bench, where their next
+   `gh pr create` failed with `not on any branch`.
+
+   So `git -C`, `npm --prefix`, `uv --directory` — and where a tool has no such
+   flag, `(cd "$BENCH" && …)`, whose chdir dies with the subshell. **The `-C`
+   rule alone kept losing because it covers only git**: the venv build below and
+   step 5's whole ladder are cwd-relative, so forbidding the `cd` without giving
+   them a form left no route, and a mis-targeted `pytest` is worse than a
+   mis-targeted `reset` — it tests the wrong tree, prints a plausible count, and
+   names no tree in its output. `.claude/hooks/no_top_level_cd.py` refuses a
+   top-level `cd` on every Bash call, so this is a gate rather than a paragraph.
 
    **The bench is exclusive to this run, and the machine is not.** Two
    different worries, and only the second needs a mechanism. One `/pr-review`
@@ -354,18 +364,23 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    `strict: false`, so nothing else ever tests it — not CI, not the contributor.
    A merge conflict here **is** the finding: report it, ask for a rebase, stop.
 
-   Build the venv with `uv venv --python 3.12 && uv pip install -e ".[dev,jax]"`,
+   Build the venv with
+   `(cd "$BENCH" && uv venv --python 3.12 && uv pip install -e ".[dev,jax]")`,
    and reinstall only when the PR touches `pyproject.toml`. The extras are
    deliberately not `wp-start`'s `[dev]`: they match `nightly.yml`'s `full` job,
    so a count here is comparable to the nightly log and the cross-backend rows
    are passes rather than skips. A new skip is not a new pass.
 5. **Run the ladder the touched paths select**, every pytest call with
-   `-n auto --dist loadgroup` (`tests/conftest.py` refuses a run without it):
+   `-n auto --dist loadgroup` (`tests/conftest.py` refuses a run without it).
+   Every command below reads the tree it is run in, so each is wrapped
+   `(cd "$BENCH" && …)` — the bench's `.venv`, its `tests/`, its `gui/`, and
+   never the main checkout's:
    - **docs/manual only** → `test_docs_consistency.py`, `test_manual.py`,
      `test_manual_api.py`, and the `-W` sphinx build.
    - **`gui/` only** → `npm --prefix gui ci && npm --prefix gui run build`, then
-     `git diff --exit-code src/rietx/gui/static` (the committed dist must match a
-     fresh build), `npm --prefix gui test`, `npm --prefix gui run check`.
+     `git -C "$BENCH" diff --exit-code src/rietx/gui/static` (the committed dist
+     must match a fresh build), `npm --prefix gui test`, `npm --prefix gui run
+     check`.
      `gui.yml` is not a required check, so this is a real gap rather than a
      duplicate of CI.
    - **`src/` or `tests/`** → the fast suite, then **the slow tests covering the
