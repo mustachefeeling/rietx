@@ -90,6 +90,12 @@ export const api = {
    *  no project, and is therefore not behind the in-flight 409. */
   help: () => call("GET", "/api/help"),
   version: () => call("GET", "/api/version"),
+  /** What one space-group symbol constrains (WP-1206).  Project-free, like the
+   *  two above: the wizard's typed-cell step asks it before anything exists,
+   *  and `free_cell` is the list of boxes the cell form then draws — the rule
+   *  itself stays on the server. */
+  spacegroup: (symbol: string) =>
+    call("GET", `/api/spacegroup?space_group=${encodeURIComponent(symbol)}`),
   recent: () => call("GET", "/api/recent"),
 
   /** The example projects shipped in the wheel (WP-1204).  `built` says

@@ -285,3 +285,61 @@ def test_plan_spec_reads_a_pre_v1_history_header():
     assert rec.header is not None
     assert [s.name for s in rec.header.plan.stages] == ["scale_bkg", "cell"]
     assert all(s.strain_seed == 0.0 for s in rec.header.plan.stages)
+
+
+# -- WP-1206: the Le Bail scaffold, shared by Adopt and a typed cell -------
+
+
+def test_lebail_scaffold_carries_a_cell_and_one_inert_atom():
+    """The scaffold is the cell plus the atom ``Phase._nonempty`` demands.
+
+    The atom is what makes a structure-free phase representable at all; that it
+    contributes nothing is a *mode* property (lebail/pawley force-fix every
+    ``.atoms.`` path), which is why the check here is that the atom exists and
+    carries a species with a form factor — not that it is invisible.
+    """
+    from rietx.schemas.structure import DUMMY_SPECIES, lebail_scaffold
+
+    structure = lebail_scaffold("R -3 c", (4.7607, 4.7607, 12.9947, 90, 90, 120),
+                                name="corundum")
+    phase = structure.phases[0]
+    assert phase.name == "corundum"
+    assert phase.space_group == "R -3 c"
+    assert [phase.cell.a.value, phase.cell.c.value] == [4.7607, 12.9947]
+    assert phase.cell.gamma.value == 120.0
+    assert [a.species for a in phase.atoms] == [DUMMY_SPECIES]
+    assert not any(p.vary for p in (phase.cell.a, phase.cell.c, phase.scale))
+
+
+def test_lebail_scaffold_does_not_validate_the_symbol():
+    """A ``Phase`` never has, and the two callers refuse against their own field.
+
+    Stated as a test because the alternative reads like an oversight: resolving
+    the symbol here would put the refusal a layer below the form field it
+    belongs to, and ``structure_from_candidate`` would then re-raise it anyway.
+    """
+    from rietx.schemas.structure import lebail_scaffold
+
+    structure = lebail_scaffold("not a symbol", (1, 2, 3, 90, 90, 90))
+    assert structure.phases[0].space_group == "not a symbol"
+
+
+def test_structure_from_candidate_is_the_scaffold_plus_the_symbol_default():
+    """The indexing wrapper adds the absence-free lattice group and nothing else.
+
+    Bit-identity, not equivalence: the candidate's six numbers reach the phase
+    exactly as it refined them (WP-1206 deliberately does not route them through
+    ``complete_cell``, which would move every stored cell in the indexing
+    acceptance suite at the 1e-14 level for no gain).
+    """
+    from rietx.indexing.workflow import structure_from_candidate
+    from rietx.schemas.indexing import CellCandidate
+    from rietx.schemas.structure import lebail_scaffold
+
+    cell = (4.15682, 4.15680, 4.15681, 90.0, 90.0, 90.0)
+    candidate = CellCandidate(cell=list(cell), cell_esd=[0.0] * 6, volume=71.83,
+                              system="cubic", centring="P",
+                              lattice_group="P m -3 m")
+    got = structure_from_candidate(candidate, name="candidate")
+    want = lebail_scaffold("P m -3 m", cell, name="candidate")
+    assert got.model_dump() == want.model_dump()

@@ -64,9 +64,12 @@
     blocked,
     createBody,
     emptyWizard,
+    freeCellFields,
     patternSummary,
     presetHelp,
     seedPreset,
+    typedCellReady,
+    useStructureFrom,
     structureSummary, applyInstrumentHint, scanCount,} from "../lib/wizard";
   import { fitColumns, modelStacks } from "../lib/resize";
   import type { Theme } from "../lib/theme";
@@ -277,6 +280,27 @@
       scanChoices = (await api.patternScans(wiz.pattern.upload)).scans ?? [];
     } catch {
       scanChoices = [];        // the numbered fallback below is still a picker
+    }
+  }
+
+  /** Resolve the typed symbol, and take the cell form's boxes from the answer.
+   *
+   * On change rather than on every keystroke: a half-typed symbol is not a
+   * symbol, and a 404 per character would make the error field flicker at
+   * whoever is still typing. What comes back is the same `symbol_facts` the
+   * model panel's phase summary rides on, so what this form says a setting
+   * constrains and what the panel says cannot drift apart.
+   */
+  async function lookupSymbol() {
+    const symbol = wiz.symbol.trim();
+    if (!symbol) { wiz.cellFacts = null; wiz.cellError = ""; return; }
+    try {
+      wiz.cellFacts = await api.spacegroup(symbol);
+      wiz.cellError = "";
+      say(`get_spacegroup("${symbol}")  # ${wiz.cellFacts.constraints}`);
+    } catch (error) {
+      wiz.cellFacts = null;
+      wiz.cellError = (error as Error).message;
     }
   }
 
@@ -846,8 +870,53 @@
           {/if}
         </li>
 
-        <li class:done={!!wiz.structure}>
+        <li class:done={wiz.structureFrom === "cell"
+          ? typedCellReady(wiz) : !!wiz.structure}>
           <h2>2 · Structure</h2>
+          <!-- Two answers to one step (WP-1206). A CIF says where the atoms
+               are; a cell says only where the peaks are, which is all a powder
+               pattern of an unknown phase supports — so it creates the same Le
+               Bail scaffold the indexing panel's Adopt button lands. -->
+          <div class="segmented" role="group" aria-label="structure source">
+            <button class:on={wiz.structureFrom === "cif"}
+              onclick={() => (wiz = useStructureFrom(wiz, "cif"))}>CIF file</button>
+            <button class:on={wiz.structureFrom === "cell"}
+              onclick={() => (wiz = useStructureFrom(wiz, "cell"))}>Type a cell</button>
+          </div>
+          {#if wiz.structureFrom === "cell"}
+            <label class="inline">
+              <span class="muted">space group</span>
+              <input class="mono sym" bind:value={wiz.symbol}
+                placeholder="R -3 c" onchange={lookupSymbol} />
+            </label>
+            {#if wiz.cellFacts}
+              <!-- the server's own two sentences about this symbol, from the
+                   same `symbol_facts` the model panel's phase summary rides on.
+                   Joined rather than labelled "holds:", which a triclinic
+                   symbol turns into "holds: every cell parameter is free". -->
+              <p class="muted">{wiz.cellFacts.setting}; {wiz.cellFacts.constraints}</p>
+              <div class="grid">
+                {#each freeCellFields(wiz) as name (name)}
+                  <label class="cell">
+                    <span class="muted"><Help for="parameters:phases.*.cell.{name}"
+                      >{CELL_GLYPH[name] ?? name}</Help>{name in CELL_GLYPH
+                        ? " (°)" : " (Å)"}</span>
+                    <!-- no placeholder: the instrument form's say "default",
+                         a word, because a grey *number* reads as a value that
+                         was filled in for you (WP-1014's wrong-pre-fill rule).
+                         There is no default here, so there is nothing to say. -->
+                    <input class="mono" bind:value={wiz.cell[name]} />
+                  </label>
+                {/each}
+              </div>
+              <p class="muted">
+                Only these are yours to give; the rest follow from the symmetry.
+                There are no atoms, so the fit extracts each reflection's
+                intensity instead of computing it.
+              </p>
+            {/if}
+            {#if wiz.cellError}<p class="bad">{wiz.cellError}</p>{/if}
+          {:else}
           <label class="file">
             <input type="file" accept=".cif" onchange={(e) => stage("cif", e)} />
             <span>{staging === "cif" ? "reading…" : "Choose a CIF"}</span>
@@ -881,6 +950,7 @@
                   .map((u: any) => `${u.label} (${u.species})`).join(", ")}
               </p>
             {/if}
+          {/if}
           {/if}
         </li>
 
@@ -958,8 +1028,16 @@
           </label>
           <div class="grid">
             <label class="cell"><span class="muted">mode</span>
+              <!-- a typed cell carries no atoms, so rietveld is not a mode it
+                   can be created in; the server refuses it rather than
+                   overriding a chosen mode, and this is what makes the refusal
+                   unreachable from the form (WP-1206) -->
               <select bind:value={wiz.mode}>
-                {#each modes as m (m)}<option value={m}>{m}</option>{/each}
+                {#each modes as m (m)}
+                  <option value={m}
+                    disabled={m === "rietveld" && wiz.structureFrom === "cell"}
+                    >{m}</option>
+                {/each}
               </select>
             </label>
             <label class="cell"><span class="muted">plan</span>
@@ -1479,6 +1557,16 @@
     border-left: 2px solid var(--line);
     padding: 0 0 10px 14px;
     margin: 0;
+  }
+
+  /* `.segmented` is `display: flex`, and every other use in the app sits in a
+     flex row already; a wizard step is a block, so the register stretched to
+     the full 90ch and drew a rule across the page (found in a browser, and
+     invisible to jsdom, which lays nothing out).  A width, not a size: what the
+     register owns is how tall the buttons are and how they are padded. */
+  ol.steps .segmented {
+    width: max-content;
+    max-width: 100%;
   }
 
   ol.steps li.done {

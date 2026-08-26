@@ -31,6 +31,37 @@ Rules that bind: **a declared name is a claim** (WP-1076): an empty
 beside the constant (the preview promise); the compatibility direction is
 "old files must always open" (memory: break by direction).
 
+### Inherited
+
+From **WP-1206** (2026-08-26), which built the wizard's other CIF-free route:
+
+- **Step 2 is already a `.segmented` with two answers**, `lib/wizard.ts`'s
+  `StructureSource` = `"cif" | "cell"` and `useStructureFrom(state, source)`.
+  A pattern-only project is a **third member** of that union and a third
+  button, not a fourth mechanism: `structureArgument(state)` is the one place
+  `createBody` reads, and `useStructureFrom` is where "this route implies a
+  mode" already lives (it moves `rietveld` ↔ `lebail` and the mode select
+  disables what the route refuses). `blocked()` and `typedCellReady()` branch
+  on the same field.
+- **`POST /api/project/new` tells its `structure` forms apart by disjoint
+  keys** (`session._is_typed_cell`; `phases` / `cif`+`upload` /
+  `space_group`). `structure: null` is currently the *inline* branch and
+  reaches `_validate(Structure, None, …)`, so this WP's "legal" has to be a
+  fifth branch decided before that one, not a `None` falling through.
+- **`schemas.structure.lebail_scaffold(space_group, cell, *, name)`** is the
+  one Le Bail scaffold builder now, shared by Adopt and the typed cell;
+  `DUMMY_SPECIES` moved there from `indexing.workflow` (re-exported). The
+  audit item "`Structure._nonempty` (`schemas/structure.py:475-480`)" above is
+  still right, but that file has moved: `_nonempty` is now near line 490.
+- **`crystallography.symmetry.free_cell_names` / `complete_cell`** decide which
+  cell parameters a *setting* leaves free and fill the rest. If a pattern-only
+  project later gains a phase from the indexing panel, that is the same seam.
+- **`GET /api/spacegroup?space_group=` is project-free**, beside `/api/help`
+  and `/api/capabilities`, and is not behind the in-flight 409.
+- **The size caps are all at their pinned value.** `gui/CLAUDE.md` went
+  663 → 687 for 1206; a rule from this WP means raising it again with the
+  comment `tests/test_docs_consistency.py` asks for.
+
 ## Non-goals
 
 - Fitting with no phases: `fit` refuses (`NO_PHASES`), and the GUI's Run is

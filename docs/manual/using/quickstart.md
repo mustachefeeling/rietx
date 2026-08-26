@@ -175,6 +175,36 @@ The Le Bail fit knows nothing about CaF₂, so the line at 7.52° is observed
 intensity the model cannot place, and the report says so. Adding the phase
 accounts for it.
 
+### With no structure at all
+
+A Le Bail fit computes no structure factors, so it does not need a structure:
+a space group and a unit cell are enough. In the GUI, step 2 of the new-project
+wizard takes either a CIF or a typed cell, and choosing the second sets the mode
+to `lebail`. Type the symbol first. The form then asks for the cell parameters
+that symbol leaves free, which for `R -3 c` is `a` and `c`; the rest follow from
+the symmetry and are not yours to give.
+
+From Python the same scaffold is `rietx.schemas.structure.lebail_scaffold`,
+which takes the symbol and all six cell parameters:
+
+```python
+from rietx.schemas.structure import lebail_scaffold
+
+structure = lebail_scaffold("R -3 c", (4.7591, 4.7591, 12.9918, 90, 90, 120))
+print(structure.phases[0].space_group, len(structure.phases[0].atoms))
+```
+
+```text
+R -3 c 1
+```
+
+The one atom is there because a `Phase` cannot have an empty atom list. It
+contributes nothing: `lebail` and `pawley` mode force-fix every atom parameter,
+which [](model.md) lists as `ParameterRow.mode_fixed`. When you later have a
+structure, `ref.edit(structure=…)` replaces the scaffold, and the mode goes back
+to `rietveld`. [](indexing.md) reaches the same scaffold from the other side,
+when the cell came from an indexing run rather than from you.
+
 ## Worked example: NAC on 11-BM
 
 `examples/nac_11bm.py` refines Na₂Ca₃Al₂F₁₄ against APS 11-BM synchrotron data

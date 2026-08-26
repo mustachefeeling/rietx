@@ -193,6 +193,11 @@ ROUTES: dict[tuple[str, str], Any] = {
     # a fact about the build, not about a project, so it needs no project open
     # and is not behind the in-flight 409
     ("GET", "/api/help"): lambda s, q, b: s.help(),
+    # what one symbol constrains (WP-1206), beside the two above for the same
+    # reason: a fact about a symbol rather than about a model, needed by the
+    # wizard's typed-cell step, which runs before any project exists
+    ("GET", "/api/spacegroup"):
+        lambda s, q, b: s.spacegroup((q.get("space_group") or [""])[0]),
 
     ("POST", "/api/project/new"): lambda s, q, b: s.project_new(b),
     ("POST", "/api/project/open"): lambda s, q, b: s.project_open(b),

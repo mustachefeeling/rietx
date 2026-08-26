@@ -81,7 +81,7 @@ from ..schemas.common import Diagnostic
 from ..schemas.indexing import CellCandidate, LeBailValidation, PeakList
 from ..schemas.instrument import Instrument
 from ..schemas.pattern import PatternData
-from ..schemas.structure import Atom, Cell, Parameter, Phase, Structure
+from ..schemas.structure import DUMMY_SPECIES, Structure, lebail_scaffold
 from .fom import lattice_group
 
 #: Multiples of the window's propagated σ the net intensity must reach for a
@@ -138,13 +138,6 @@ def validation_window_slack_deg(two_theta_max: float) -> float:
 #: and a wider window on a dense supercell would collect a neighbour's tail and
 #: report a phantom reflection as present.
 ABSENT_WINDOW_FWHM = 0.5
-#: Species of the mandatory dummy atom.  Carbon because its K edge (284 eV) is
-#: nowhere near any laboratory or ordinary synchrotron wavelength, so
-#: ``dispersion.resolve`` — on by default since v1.0 — can never refuse it, and
-#: because the choice is inert: ``_run_stage`` force-fixes every ``.atoms.`` path
-#: in lebail mode, so the atom sets the *starting* per-hkl intensities and nothing
-#: else.
-DUMMY_SPECIES = "C"
 
 
 def structure_from_candidate(candidate: CellCandidate, *,
@@ -152,18 +145,12 @@ def structure_from_candidate(candidate: CellCandidate, *,
                              name: str = "candidate") -> Structure:
     """A single-phase :class:`Structure` for Le Bail validation of a cell.
 
-    **Two footguns, both load-bearing, both here rather than in a comment at the
-    call site.**
+    The scaffold itself — the cell and the mandatory dummy atom — is
+    :func:`~rietx.schemas.structure.lebail_scaffold`, shared with the cell a
+    person types into the GUI's wizard (WP-1206).  What is here is the one thing
+    a *candidate* adds, and it is a footgun:
 
-    *One: the dummy atom is mandatory.*  ``Phase._nonempty`` raises on an empty
-    atom list, and a candidate cell has no structure — that is the entire point of
-    indexing.  So a Le Bail-only phase carries one atom that contributes nothing:
-    ``_run_stage`` force-fixes every ``.atoms.`` path, ``.scale`` and
-    ``.source.lines.`` in lebail/pawley mode, which is also what keeps the
-    parameter surface (WP-1004) from showing it as editable — it is reported
-    ``mode_fixed``, not ``locked``.
-
-    *Two: ``space_group`` defaults to the absence-free lattice group*, never to a
+    **``space_group`` defaults to the absence-free lattice group**, never to a
     plausible-looking space group.  The default is the highest-symmetry group of
     the lattice with **no extra absences** (``P m -3 m``, ``P 4/m m m``,
     ``P 6/m m m``, ``P -3 m 1``, ``P m m m``, ``P 1 2/m 1``, ``P -1``, plus the
@@ -177,19 +164,17 @@ def structure_from_candidate(candidate: CellCandidate, *,
     :func:`rietx.indexing.extinction.determine_extinction_symbol`, which passes
     a class's representative in here as ``space_group`` — but the *validation*
     call above it must keep using the default, or the gate loses the detector.
+
+    The six numbers go in as the candidate refined them.  They are **not** put
+    through ``symmetry.complete_cell``, which the typed route uses: a candidate's
+    derived angles already sit within 1.4e-14° of exactly 90/120 (``refine_candidate``
+    solves A..F inside the symmetry subspace), and rebuilding them from the free
+    parameters would move every stored number in the indexing acceptance suite for
+    nothing.
     """
     symbol = space_group or candidate.lattice_group or lattice_group(
         candidate.system, candidate.centring)
-    a, b, c, alpha, beta, gamma = candidate.cell
-    return Structure(phases=[Phase(
-        name=name, space_group=symbol,
-        cell=Cell(a=Parameter(value=a), b=Parameter(value=b),
-                  c=Parameter(value=c),
-                  alpha=Parameter(value=alpha), beta=Parameter(value=beta),
-                  gamma=Parameter(value=gamma)),
-        atoms=[Atom(label="X", species=DUMMY_SPECIES,
-                    x=Parameter(value=0.0), y=Parameter(value=0.0),
-                    z=Parameter(value=0.0))])])
+    return lebail_scaffold(symbol, candidate.cell, name=name)
 
 
 def absent_reflections(two_theta: np.ndarray, y_obs: np.ndarray,
