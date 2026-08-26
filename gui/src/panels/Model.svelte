@@ -70,6 +70,7 @@
     structureSummary, applyInstrumentHint, scanCount,} from "../lib/wizard";
   import { fitColumns, modelStacks } from "../lib/resize";
   import type { Theme } from "../lib/theme";
+  import Browse from "./Browse.svelte";
   import Splitter from "./Splitter.svelte";
   import Structure3D from "./Structure3D.svelte";
 
@@ -172,7 +173,39 @@
    *  asked for it — separate from `wizError`, which is a *staging* failure: a
    *  verb's refusal and a panel's load error must not share one field (WP-1014) */
   let openError = $state("");
+  /** `"open"` browses for a project to open, `"pick"` browses for the wizard's
+   *  own directory field — one modal, `null` while closed */
+  let browseMode = $state<"open" | "pick" | null>(null);
   const showWizard = $derived(!project || wizardOpen);
+
+  /** Open a project and settle the wizard behind it.
+   *
+   * The bug this closes: `onopen` used to be called directly from the
+   * recent-list button with nothing clearing `wizardOpen`, so opening a
+   * *different* project from over an already-open one left the wizard painted
+   * on top of it — `project` stayed truthy the whole time, so nothing ever
+   * re-derived `showWizard`.  Every entry point that can open a project
+   * (the recent list, Browse) now goes through this one function instead of
+   * each carrying its own copy of "and then close the wizard".
+   */
+  async function openPath(path: string): Promise<string> {
+    const refusal = await onopen(path);
+    openError = refusal;
+    if (!refusal) wizardOpen = false;
+    return refusal;
+  }
+
+  /** Browse hands back a *directory to navigate into*, not a project path —
+   *  the browser cannot suggest a new folder's name, only find where it should
+   *  live.  So the trailing name (`<stem>.rex`, already suggested from the
+   *  staged pattern) survives and only its parent moves; a step-4 visit before
+   *  anything is staged has no name to keep, and the picked directory is used
+   *  as-is. */
+  function pickProjectDir(dir: string) {
+    const base = wiz.path.split("/").filter(Boolean).pop();
+    wiz.path = base && wiz.path !== dir ? `${dir}/${base}` : dir;
+    browseMode = null;
+  }
   const anodes = $derived<any[]>(capabilities?.anodes ?? []);
   const modes = $derived<string[]>(capabilities?.modes ?? ["rietveld"]);
   const plans = $derived<any[]>(capabilities?.plans ?? []);
@@ -214,6 +247,10 @@
         wiz = applyInstrumentHint(wiz, preview.instrument_hint);
       }
       scanChoices = [];
+      // eager, not on-focus: a count with no labels ("this file holds 3
+      // scans") is half an answer, and the labels cost one extra walk of the
+      // ranges regardless of when they are fetched (WP-1205)
+      if (scanCount(preview) > 1) loadScans();
       if (!wiz.path) wiz.path = preview.suggested_project;
       say(`read_pattern("${preview.filename}")  # ${preview.format.name}, `
         + `${preview.n_points} points`);
@@ -227,7 +264,8 @@
   }
 
   /** Re-read a staged file with different options — no second upload. */
-  /** The staged pattern's scans, labelled — empty until the picker is opened. */
+  /** The staged pattern's scans, labelled — fetched as soon as a multi-scan
+   *  file stages (WP-1205), and empty only while that fetch is in flight. */
   let scanChoices = $state<any[]>([]);
   /** which upload the instrument form was seeded from, so re-reading the same
    *  file for another scan does not overwrite what a person typed since */
@@ -642,6 +680,13 @@
       <button class="ghost" onclick={() => (wizardOpen = true)}>New project…</button>
     {:else if project}
       <button class="ghost" onclick={() => (wizardOpen = false)}>Back to the project</button>
+    {:else}
+      <!-- The pure empty state has no App-level header at all (its controls
+           live behind `{#if project}`), so it is the one place "Open…" has
+           nowhere else to point (WP-1205) — with a project open, App's own
+           `Open…` already reaches this same wizard. -->
+      <button class="ghost" disabled={busy} onclick={() => (browseMode = "open")}
+        >Open…</button>
     {/if}
     <span class="spacer"></span>
     {#if !showWizard}
@@ -673,7 +718,7 @@
             {#each recent as entry (entry.path)}
               <li>
                 <button class="ghost" disabled={busy}
-                  onclick={async () => { openError = await onopen(entry.path); }}
+                  onclick={() => openPath(entry.path)}
                   >{entry.name}</button>
                 <span class="muted mono">{entry.path}</span>
               </li>
@@ -716,6 +761,13 @@
           </p>
         </section>
       {/if}
+      <!-- The third thing in this block (WP-1205): the recent list only knows
+           what this machine has opened before and the examples are this
+           build's own, so browsing is what reaches everything else. -->
+      <section class="browse">
+        <button class="ghost" disabled={busy} onclick={() => (browseMode = "open")}
+          >Browse for a project…</button>
+      </section>
       <ol class="steps">
         <li class:done={!!wiz.pattern}>
           <h2>1 · Pattern</h2>
@@ -730,8 +782,9 @@
               <path d={sparkline(wiz.pattern.curve)} />
             </svg>
             <p class="muted">
-              claimed by <strong>{wiz.pattern.format.name}</strong> —
-              {wiz.pattern.format.sniff}. σ: {wiz.pattern.format.sigma}
+              claimed by
+              <Help text="{wiz.pattern.format.sniff} σ: {wiz.pattern.format.sigma}"
+                title="How this file was read">{wiz.pattern.format.name}</Help>
             </p>
             {#each readerOptions.filter((o: any) =>
                 wiz.pattern.format.options.includes(o.name)) as opt (opt.name)}
@@ -739,9 +792,10 @@
                 <Help for="reader_options:{opt.name}">{opt.name}</Help>
                 {#if opt.name === "scan" && scanCount(wiz.pattern) > 1}
                   <!-- a picker, not a number box: "scan 1" tells nobody which
-                       measurement it is, which is why ScanInfo carries a label.
-                       The labels cost a second walk of the ranges, so they are
-                       fetched when this opens and the numbers stand in until -->
+                       measurement it is, which is why ScanInfo carries a
+                       label — eagerly fetched the moment a multi-scan file
+                       stages (`absorb`), so the numbers below are the normal
+                       case rather than a placeholder waiting for a click. -->
                   <select class="mono" value={wiz.readerOptions.scan ?? "0"}
                     onfocus={loadScans} onpointerdown={loadScans}
                     onchange={(e) => {
@@ -766,15 +820,21 @@
                         Object.entries(wiz.readerOptions).filter(([, s]) => s !== "")));
                     }} />
                 {/if}
-                <span class="muted">{opt.help}</span>
               </label>
+              {#if opt.name === "scan" && scanCount(wiz.pattern) > 1}
+                <!-- the count and the default are both stated, never implied
+                     by a picker's starting position (WP-1205) — the reader's
+                     own default is scan 0, flagged server-side by
+                     PATTERN_MULTISCAN_DEFAULTED when nobody chose otherwise -->
+                <p class="muted">
+                  this file holds {scanCount(wiz.pattern)} scans; reading scan
+                  {Number(wiz.readerOptions.scan ?? "0") + 1} of {scanCount(wiz.pattern)}
+                  {#if scanChoices[Number(wiz.readerOptions.scan ?? "0")]?.label}
+                    ({scanChoices[Number(wiz.readerOptions.scan ?? "0")].label})
+                  {/if}
+                </p>
+              {/if}
             {/each}
-            {#if wiz.pattern.instrument_hint}
-              <p class="muted">
-                instrument seeded from the file —
-                {wiz.pattern.instrument_hint.why}
-              </p>
-            {/if}
             <!-- what the reader repaired or assumed: a reversed scan, a dropped
                  duplicate, an option that did not apply. The wizard is where a
                  human should see a repair, before it becomes a project. -->
@@ -826,11 +886,6 @@
 
         <li class:done={!!wiz.instrument || wiz.preset !== ""}>
           <h2>3 · Instrument</h2>
-          <p class="muted">
-            Required, and not defaulted: <code>Instrument</code> has no default
-            source, and guessing an anode would put a wavelength nobody chose into
-            every refined cell.
-          </p>
           {#if wiz.instrument}
             <p class="summary mono">
               {wiz.instrument.filename} · {wiz.instrument.summary.geometry} ·
@@ -839,6 +894,21 @@
             <button class="ghost" onclick={() => (wiz.instrument = null)}>
               Use the form instead</button>
           {:else}
+            <!-- there is no default `Instrument` to fall back on silently — an
+                 anode nobody chose would put a wavelength nobody chose into
+                 every refined cell — so the wizard states what it *did*
+                 assume instead: the file's own header when it named one,
+                 otherwise the preset's own initial values (WP-1205). -->
+            {#if wiz.pattern?.instrument_hint}
+              <p class="muted">
+                assumed from the file's own header — {wiz.pattern.instrument_hint.why}
+              </p>
+            {:else if PRESET_FIELDS[wiz.preset].some((f) => f.kind === "anode")}
+              <p class="muted">
+                assumed {PRESET_TITLES[wiz.preset]}; change the anode below if
+                that is not what measured this pattern
+              </p>
+            {/if}
             <select value={wiz.preset} disabled={busy}
               onchange={(e) => (wiz = seedPreset(wiz,
                 (e.currentTarget as HTMLSelectElement).value))}>
@@ -884,6 +954,7 @@
             <span class="muted">directory</span>
             <input class="mono wide" bind:value={wiz.path}
               placeholder="/path/to/my_sample.rex" />
+            <button class="ghost" onclick={() => (browseMode = "pick")}>Browse…</button>
           </label>
           <div class="grid">
             <label class="cell"><span class="muted">mode</span>
@@ -906,7 +977,7 @@
       <div class="create">
         <button disabled={!!cannotCreate || busy} onclick={create}>Create project</button>
         <span class="muted">{cannotCreate
-          || "nothing is written until this — every file has already been read"}</span>
+          || "nothing is written until this — every file has already been read, and the directory above is made now if it does not exist"}</span>
       </div>
     </div>
   {:else if structure && instrument}
@@ -1265,6 +1336,11 @@
     <p class="muted">{loadError || "loading…"}</p>
   {/if}
 </section>
+
+{#if browseMode}
+  <Browse mode={browseMode} onclose={() => (browseMode = null)}
+    onopen={openPath} onpick={pickProjectDir} />
+{/if}
 
 <style>
   section.model {

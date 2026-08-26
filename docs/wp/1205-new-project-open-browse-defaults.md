@@ -1,6 +1,6 @@
 # WP-1205 — New project: open any project, browse, sensible defaults, the wizard bug
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.2 · Status: ✅ 2026-08-26 — browse, one mount, the wizard settles
 Depends on: WP-1201, WP-1203, WP-1204
 
 ## Goal
@@ -57,11 +57,9 @@ assumed, so the choice is made by seeing it. A directory browser is a
 read-only server route on a localhost server; roots are the home directory
 and cwd, and a listing never leaves them.
 
-### Inherited
-
-**From [1204](1204-developer-mode-example-projects.md), 2026-08-25 — half of
-"sensible defaults" already landed, and the empty state now has two lists.**
-Three things to fold in before writing this WP's tasks.
+Inherited from [1204](1204-developer-mode-example-projects.md) (2026-08-25,
+verified still current on arrival) — half of "sensible defaults" already
+landed, and the empty state now has two lists:
 
 1. **The suggested project path is no longer the working directory.**
    `imports.default_project_dir()` is the one authority and answers
@@ -91,8 +89,9 @@ list rather than sanitised — the same shape any `GET /api/fs?path=` this WP
 adds will need, except that a filesystem path has no list to check against, so
 the confinement has to be a real containment test.
 
-**From [1203](1203-help-popover.md), 2026-08-26 — the wizard's fields now
-explain themselves from the package, not from the form.**
+Inherited from [1203](1203-help-popover.md) (2026-08-26, verified still
+current on arrival) — the wizard's fields now explain themselves from the
+package, not from the form:
 
 - `PresetField` carries **no `title`**. `wizard.ts:presetHelp(field)` derives
   the key `instrument_fields:<name>`, and the sentence lives in
@@ -121,20 +120,20 @@ explain themselves from the package, not from the form.**
 
 ## Tasks
 
-- [ ] `GET /api/fs?path=`: directories and `.rex` entries under a root,
+- [x] `GET /api/fs?path=`: directories and `.rex` entries under a root,
       refusing paths outside the roots; `tests/test_gui_server.py`
       confinement tests (`..`, symlinks out, absolute paths elsewhere).
-- [ ] `Browse.svelte`: one modal used for opening a project and for picking
+- [x] `Browse.svelte`: one modal used for opening a project and for picking
       the project directory; a typed path field beside it; `Open…` in the
       empty-state header; `startImport` and the recent-list arm both settle
       `wizardOpen`; `Model` mounted once.
-- [ ] Wizard prose: one docs-style line per step; `sniff`/`sigma`/option
+- [x] Wizard prose: one docs-style line per step; `sniff`/`sigma`/option
       `help` behind the popover (WP-1203 keys); the `Model.svelte:790-794`
       literal deleted; `blocked()` sentences rewritten; instrument pre-fill
       with its one-line reason; the Create button's line rewritten.
-- [ ] Scan control: "this file holds N scans; reading scan 1 of N (label)",
+- [x] Scan control: "this file holds N scans; reading scan 1 of N (label)",
       labels fetched eagerly when N > 1; the default stated, not implied.
-- [ ] Browser pass from a blank state: open a project by browsing, create a
+- [x] Browser pass from a blank state: open a project by browsing, create a
       project without the CLI argument, open a recent one and confirm the
       Model tab shows the editor; rebuild the dist.
 
@@ -154,3 +153,64 @@ npm --prefix gui test && npm --prefix gui run check
 ## Handover log
 
 - **2026-08-25** — created from the v1.2 triage.
+- **2026-08-26** — Closed. A person can now open any project on the machine
+  from the empty state — not only the ones this build already knows about —
+  by browsing to it, confined to their home directory and wherever the
+  server was launched from. Creating a project no longer requires the CLI
+  argument either: the whole wizard (pattern, CIF, instrument, directory)
+  works from a cold, project-less GUI, with a directory picker for the
+  create step too. And the reported bug — opening a project from the
+  wizard sometimes left the wizard's form painted over the panel instead of
+  showing the new project — is fixed at its actual cause, not patched at the
+  symptom: `Model` was mounted twice in `App.svelte` (the empty-state wizard
+  and the Model tab were two separate component instances, each its own
+  `wizardOpen`), so an open that left `project` truthy the whole time never
+  tore the stale instance down to reset it. `Model` now mounts exactly once.
+
+  **Done**, in landing order: `GET /api/fs` (home + cwd, symlink-safe
+  containment, `GuiSession.fs`/`_fs_roots`); `Browse.svelte` (one modal,
+  `mode="open"`/`mode="pick"`) wired into the wizard's header and its
+  directory field, with `openPath()` as the one place a successful open
+  settles `wizardOpen`; the `App.svelte` single-mount merge; three client
+  literals moved behind the help popover or deleted outright (pattern
+  `sniff`/`sigma`, the reader option's redundant `.help` span, the
+  paraphrased "instrument is required" paragraph, replaced by a one-line
+  statement of what was actually assumed); the scan picker now states the
+  count and which one is being read, with labels fetched the moment a
+  multi-scan file stages rather than on first focus; a real-browser pass
+  (playwright-core + the cached chromium-1223, scratchpad-only) confirmed
+  the fix live, including the exact regression shape (open a *different*
+  project from the tab-mounted wizard's own Browse).
+
+  **Measured** ([dev], macOS arm64): `tests/test_gui_server.py` 143 passed
+  (6 new, the `/api/fs` confinement cases); `npm --prefix gui test` 448
+  passed (was 444 before this WP's own tests — the delta is exactly the 4
+  new App.test.ts cases); `npm --prefix gui run check` 0 errors/0 warnings;
+  `tests/test_gui_dist.py` passes on the rebuilt dist. No python test outside
+  `test_gui_server.py` and `test_docs_consistency.py` runs — nothing here
+  touches the refinement core, so the full suite does not apply (root
+  CLAUDE.md's ladder).
+
+  **Gotchas for a reader of the diff**: `gui/CLAUDE.md`'s size cap moved
+  645 → 663 (`tests/test_docs_consistency.py`, justified inline) for the
+  mount-once invariant and the browse/settle rules — a stranger touching
+  `App.svelte`'s layout needs to know that invariant exists, or the same bug
+  is one refactor away from shipping again. No `### Inherited` note was
+  pushed to WP-1206/1207/1214/1215/1216: none of what changed here bears on
+  their planned work (1206/1207 touch the CIF requirement and library-side
+  phase handling; 1214/1215/1216 touch the post-creation model/structure/
+  instrument editors, not the wizard's own preset form) — checked, not
+  assumed, by reading each file's current Context.
+
+  **Next**: WP-1206 (a typed cell, no CIF) per ROADMAP's Current focus —
+  `blocked()`'s CIF refusal and the wizard's structure step are exactly what
+  it touches, so re-read `lib/wizard.ts` and `Model.svelte`'s step 2 rather
+  than trusting this WP's own line-number citations, which have already
+  drifted once this session and will again.
+- **2026-08-26** — `/code-review medium --fix` found `_fs_roots`' collapse
+  condition was `home == cwd` only, so the docstring's claimed common case —
+  launching from an ordinary project directory *under* home — actually kept
+  two roots and showed a redundant "Current directory" button in Browse.
+  Fixed to `cwd.is_relative_to(home)`. `tests/test_gui_server.py`: 143
+  passed (the `fs_tree` fixture keeps home/cwd disjoint on purpose, to leave
+  the genuine two-roots path tested, so it is unaffected); ruff clean.

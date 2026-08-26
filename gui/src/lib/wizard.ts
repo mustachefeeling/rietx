@@ -219,7 +219,7 @@ export function blocked(state: WizardState): string {
   }
   if (!state.path.trim()) return "Name the project directory.";
   if (!state.path.trim().endsWith(".rex")) {
-    return "A project directory is named <something>.rex.";
+    return "A project directory's name ends in .rex.";
   }
   return "";
 }

@@ -928,21 +928,23 @@
 </header>
 
 <main bind:this={mainEl}>
-  {#if !project}
-    <!-- the empty state *is* the import wizard (WP-1014): one component, so
-         "make a project" and "look at the model" cannot drift apart.  The recent
-         list lives *inside* the wizard (WP-1034) rather than above it, so there
-         is one of it whether or not a project is open. -->
-    <section class="empty">
-      {#if openError}<p class="bad">{openError}</p>{/if}
-      <Model bind:this={modelPanel} {capabilities} {busy} {recent} {examples} {say}
-        onopen={open} onopened={opened} onexample={openExample} />
-    </section>
-  {:else}
-    <div class="panes">
-      <!-- hidden rather than unmounted in the full-window layout, for the same
-           reason every panel is: a purge and a refetch on a layout click would
-           throw the drawn window away -->
+  <!-- `Model` is mounted exactly once (WP-1205), whether or not a project is
+       open — it used to sit in two separate branches of an `{#if project}`
+       (the empty-state wizard and a tab panel), each its own component
+       instance with its own `wizardOpen`. That let a project opened from
+       *inside* the tab panel's wizard (`Open…` over an already-open project)
+       leave the wizard painted over the freshly-opened project: `project`
+       stayed truthy the whole time, so the tab-panel instance was never torn
+       down and re-created, and nothing else ever cleared its `wizardOpen`.
+       One instance removes the seam that bug lived in. Without a project the
+       side column simply takes the whole window (`wide` reuses the
+       full-window layout's own CSS) and no other panel exists to share it
+       with. -->
+  <div class="panes">
+    <!-- hidden rather than unmounted in the full-window layout, for the same
+         reason every panel is: a purge and a refetch on a layout click would
+         throw the drawn window away -->
+    {#if project}
       <div class="plotcol" class:hidden={wide}>
         <Plot {result} {plotKey} {zoom} {theme} error={resultError}
           peaks={peaksData} peaksActive={tab === "peaks"} hovered={hoveredPeak}
@@ -951,13 +953,15 @@
           onaddpeak={addPeak} onmovepeak={movePeak} ontogglepeak={togglePeak}
           onremovepeak={removePeak} onprotocol={setProtocol} />
       </div>
-      <div class="side" class:wide bind:clientWidth={sideMeasured}
-        style:flex={wide || sideWidth === null ? null : `0 0 ${sideWidth}px`}>
-        {#if !wide}
-          <Splitter size={sideWidth ?? sideMeasured} grow="left" min={300} keep={360}
-            extent={() => mainEl?.clientWidth ?? 0} onsize={sideSized}
-            title="drag to resize the panel column" />
-        {/if}
+    {/if}
+    <div class="side" class:wide={wide || !project} bind:clientWidth={sideMeasured}
+      style:flex={wide || !project || sideWidth === null ? null : `0 0 ${sideWidth}px`}>
+      {#if project && !wide}
+        <Splitter size={sideWidth ?? sideMeasured} grow="left" min={300} keep={360}
+          extent={() => mainEl?.clientWidth ?? 0} onsize={sideSized}
+          title="drag to resize the panel column" />
+      {/if}
+      {#if project}
         <!-- eight wide, and it **wraps** rather than truncating: measured at
              WP-1034 task 1, eight labels need 415 px squeezed and 533 px whole,
              against a column that clamps at 340 px on a narrow window.  A strip
@@ -969,6 +973,22 @@
               >{entry.label}</button>
           {/each}
         </nav>
+      {/if}
+      {#if !project && openError}<p class="bad">{openError}</p>{/if}
+      <!-- the model pane and the text pane are tabs (WP-1034) and stay
+           mounted like every other one: a typed species, a half-filled wizard
+           and a typed `.rxt` buffer all have to survive a look at the plot.
+           `active` is what keeps each from refetching on a head move it is
+           not showing, and what builds the CodeMirror editor on first entry —
+           and without a project, Model *is* the content, so it is always
+           active and never hidden. -->
+      <div class="panel" class:hidden={!!project && !modelTab}>
+        <Model bind:this={modelPanel} {project} {capabilities} {head} {busy} {simple}
+          {theme} {recent} {examples} {say} onexample={openExample}
+          active={!project || modelTab} columns={modelColumns}
+          oncolumns={modelSized} onopen={open} onopened={opened} onmoved={moved} />
+      </div>
+      {#if project}
         <!-- every tab stays mounted: switching must not throw away a filter, a
              pending edit, an unsaved stage list or a two-node comparison -->
         <div class="panel" class:hidden={tab !== "params"}>
@@ -977,17 +997,6 @@
         <div class="panel" class:hidden={tab !== "plan"}>
           <Plan bind:this={planPanel} mode={project.doc.mode} {busy} {simple} {say}
             onrun={runStage} />
-        </div>
-        <!-- the model pane and the text pane are tabs (WP-1034) and stay
-             mounted like every other one: a typed species, a half-filled wizard
-             and a typed `.rxt` buffer all have to survive a look at the plot.
-             `active` is what keeps each from refetching on a head move it is
-             not showing, and what builds the CodeMirror editor on first entry. -->
-        <div class="panel" class:hidden={!modelTab}>
-          <Model bind:this={modelPanel} {project} {capabilities} {head} {busy} {simple}
-            {theme} {recent} {examples} {say} onexample={openExample}
-            active={modelTab} columns={modelColumns}
-            oncolumns={modelSized} onopen={open} onopened={opened} onmoved={moved} />
         </div>
         <div class="panel" class:hidden={!textTab}>
           <Text {head} {busy} active={textTab} dark={theme === "dark"} {say} onmoved={moved} />
@@ -1018,9 +1027,9 @@
           <Stubs {capabilities} {project} />
         </div>
         <Console {lines} {dropped} height={consoleHeight} onresize={setConsoleHeight} />
-      </div>
+      {/if}
     </div>
-  {/if}
+  </div>
 </main>
 
 {#if paletteOpen}
@@ -1210,14 +1219,11 @@
     display: none;
   }
 
-  .empty {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .empty .bad {
+  /* the `openError` shown above Model when there is no project yet — the
+     side column used to be `.empty`'s own full-height flex box before the two
+     `Model` mounts became one (WP-1205); `.side` already carries the same
+     shape (`display: flex; flex-direction: column`). */
+  .side > .bad {
     margin: 0.6rem 1.2rem 0;
   }
 </style>

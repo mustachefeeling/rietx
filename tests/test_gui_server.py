@@ -2803,6 +2803,117 @@ def test_the_example_verbs_refuse_while_a_run_is_in_flight(blocked):
 
 
 # ----------------------------------------------------------------------
+# the filesystem browser (WP-1205): GET /api/fs
+# ----------------------------------------------------------------------
+def _fs(client, path=None):
+    from urllib.parse import quote
+
+    url = "/api/fs" if path is None else f"/api/fs?path={quote(str(path), safe='')}"
+    return client.get(url)
+
+
+@pytest.fixture()
+def fs_tree(tmp_path, monkeypatch):
+    """Two disjoint roots — a fake home and a fake cwd — plus a directory
+    outside both and a symlink from inside home to it.
+
+    Disjoint on purpose: a real checkout's cwd usually sits under the real
+    home, which would let one root's containment silently cover the other's
+    and leave the two-roots decision untested.
+    """
+    home = tmp_path / "home"
+    cwd = tmp_path / "work"
+    outside = tmp_path / "outside"
+    for d in (home, cwd, outside):
+        d.mkdir()
+    (home / "rietx-projects").mkdir()
+    (home / ".cache").mkdir()  # hidden — must not be listed
+    data = _write_xye(tmp_path / "fs-pattern.xye", synthesize())
+    _project(home / "rietx-projects" / "nac.rex", data)
+    (home / "notes.txt").write_text("not a directory", encoding="utf-8")
+    (home / "escape").symlink_to(outside)
+    (outside / "secret.rex").mkdir()
+
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.chdir(cwd)
+
+    session = GuiSession(state_dir=tmp_path / "state")
+    httpd = _start(session)
+    try:
+        yield Client(httpd.server_address[1]), home, cwd, outside
+    finally:
+        session.close()
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_fs_defaults_to_home_and_lists_directories_only(fs_tree):
+    client, home, cwd, outside = fs_tree
+    status, payload = _fs(client)
+    assert status == 200, payload
+    assert payload["path"] == str(home)
+    assert payload["parent"] is None  # home is a root; nothing above it
+    assert set(payload["roots"]) == {str(home), str(cwd)}
+    names = {e["name"] for e in payload["entries"]}
+    # neither the hidden cache dir nor the plain file is listed
+    assert names == {"rietx-projects", "escape"}
+    by_name = {e["name"]: e for e in payload["entries"]}
+    assert by_name["rietx-projects"]["is_project"] is False  # a container, not one itself
+
+
+def test_fs_flags_a_project_directory(fs_tree):
+    client, home, cwd, outside = fs_tree
+    status, payload = _fs(client, home / "rietx-projects")
+    assert status == 200, payload
+    assert payload["parent"] == str(home)
+    entry = payload["entries"][0]
+    assert entry["name"] == "nac.rex" and entry["is_project"] is True
+
+
+def test_fs_serves_the_second_root_too(fs_tree):
+    client, home, cwd, outside = fs_tree
+    status, payload = _fs(client, cwd)
+    assert status == 200, payload
+    assert payload["path"] == str(cwd)
+    assert payload["parent"] is None  # cwd is a root in its own right
+    assert payload["entries"] == []
+
+
+def test_fs_refuses_outside_the_two_roots(fs_tree):
+    client, home, cwd, outside = fs_tree
+    for bad in (outside,                      # absolute path elsewhere
+               home / ".." / "outside",       # `..` out of the root
+               home / "escape",                # a symlink pointing outside
+               home / "escape" / "secret.rex"):
+        status, payload = _fs(client, bad)
+        assert status == 400, (bad, status, payload)
+        assert payload["error"]["where"] == ["path"]
+        assert "browsable roots" in payload["error"]["message"]
+
+
+def test_fs_names_a_missing_or_non_directory_path(fs_tree):
+    client, home, cwd, outside = fs_tree
+    status, payload = _fs(client, home / "nope")
+    assert status == 404, payload
+    assert payload["error"]["code"] == "NOT_FOUND"
+
+    status, payload = _fs(client, home / "notes.txt")
+    assert status == 400, payload
+    assert "not a directory" in payload["error"]["message"]
+
+
+def test_fs_needs_no_project_and_is_not_behind_the_run_lock(blocked, tmp_path,
+                                                             monkeypatch):
+    # a fake home, so the default (no ``path``) listing never touches the
+    # real machine's home directory
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    _, client, started, release, _ = blocked
+    assert client.post("/api/run", {"kind": "fit"})[1]["state"] == "running"
+    assert started.wait(5)
+    assert _fs(client)[0] == 200
+
+
+# ----------------------------------------------------------------------
 # the command line: --scratch, --state-dir and where a new project is
 # suggested (WP-1204)
 # ----------------------------------------------------------------------
