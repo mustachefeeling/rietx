@@ -22,6 +22,10 @@ import {
   patternSummary,
   presetHelp,
   presetSpec,
+  freeCellFields,
+  structureArgument,
+  typedCellArgument,
+  useStructureFrom,
   structureSummary, applyInstrumentHint, scanCount } from "./wizard";
 
 const presets: Record<string, string[]> = JSON.parse(
@@ -282,5 +286,78 @@ describe("scanCount", () => {
     expect(scanCount({ metadata: { scan_count: "3" } })).toBe(3);
     expect(scanCount({ metadata: {} })).toBe(1);
     expect(scanCount(null)).toBe(1);
+  });
+});
+
+
+// -- WP-1206: the second answer to step 2 ----------------------------------
+
+/** `GET /api/spacegroup`'s answer for `R -3 c`, as the server sends it. */
+const CORUNDUM = {
+  space_group: "R -3 c", xhm: "R -3 c:H", crystal_system: "trigonal",
+  setting: "R -3 c:H is trigonal on hexagonal axes",
+  ties: { b: "a" }, fixed_angles: { alpha: 90, beta: 90, gamma: 120 },
+  free_cell: ["a", "c"],
+  constraints: "b = a \u00b7 \u03b1 = \u03b2 = 90\u00b0 \u00b7 \u03b3 = 120\u00b0",
+};
+
+function typed(): ReturnType<typeof emptyWizard> {
+  const state = useStructureFrom(staged(), "cell");
+  state.symbol = "R -3 c";
+  state.cellFacts = CORUNDUM;
+  state.cell = { a: "4.759091", c: "12.991779" };
+  return state;
+}
+
+describe("a typed cell is the other answer to step 2", () => {
+  it("draws the boxes the server named, and no others", () => {
+    // never derived here: which parameters a *setting* leaves free is
+    // crystallography, and three settings disagree with the crystal system
+    expect(freeCellFields(typed())).toEqual(["a", "c"]);
+    expect(freeCellFields(emptyWizard())).toEqual([]);
+  });
+
+  it("sends the symbol and those numbers, as numbers", () => {
+    expect(typedCellArgument(typed())).toEqual({
+      space_group: "R -3 c", cell: { a: 4.759091, c: 12.991779 } });
+    // a field the symmetry determines has no box, so it cannot be sent even
+    // when the state carries a stale value for it
+    const stale = typed();
+    stale.cell = { ...stale.cell, b: "9.9", gamma: "119" };
+    expect(typedCellArgument(stale).cell).toEqual({ a: 4.759091, c: 12.991779 });
+  });
+
+  it("is what createBody commits while the cell route is in force", () => {
+    expect((createBody(typed()).structure as any).space_group).toBe("R -3 c");
+    // the CIF is still staged and still ignored — the two are independent
+    // answers, so flipping back to compare them costs nothing
+    expect(structureArgument(useStructureFrom(typed(), "cif")))
+      .toEqual({ upload: "c1", aniso: false });
+  });
+
+  it("takes the mode with it, because a typed cell has no atoms", () => {
+    expect(useStructureFrom(staged(), "cell").mode).toBe("lebail");
+    expect(useStructureFrom(typed(), "cif").mode).toBe("rietveld");
+    // a mode that is legal either way is left alone
+    const pawley = { ...typed(), mode: "pawley" };
+    expect(useStructureFrom(pawley, "cif").mode).toBe("pawley");
+  });
+
+  it("blocks on the symbol, then on each free number", () => {
+    const state = useStructureFrom(staged(), "cell");
+    expect(blocked(state)).toMatch(/space-group symbol/);
+    state.symbol = "R -3 c";
+    expect(blocked(state)).toMatch(/space-group symbol/);   // not resolved yet
+    state.cellError = "unknown space group symbol: 'R -3 q'";
+    expect(blocked(state)).toMatch(/unknown space group/);
+    state.cellError = "";
+    state.cellFacts = CORUNDUM;
+    expect(blocked(state)).toMatch(/needs a, c/);
+    state.cell = { a: "4.759091", c: "wide" };
+    expect(blocked(state)).toMatch(/c is not a number/);
+    state.cell = { a: "4.759091", c: "0" };
+    expect(blocked(state)).toMatch(/greater than zero/);
+    state.cell = { a: "4.759091", c: "12.991779" };
+    expect(blocked(state)).toBe("");
   });
 });

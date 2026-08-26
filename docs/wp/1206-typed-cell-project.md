@@ -52,11 +52,14 @@ and the project opens in `lebail` mode.
       where a form learns which those are; `symmetry.phase_facts` is now a thin
       wrapper over the new `symbol_facts`, so the two cannot disagree.
       `mode: "rietveld"` over a typed cell is **refused**, not overridden.
-- [ ] Wizard UI: "CIF file | type a cell" in the structure step; six fields
-      + symbol; mode preselected `lebail`; docs-style lines.
-- [ ] Tests: `test_gui_server.py` creates from a typed cell (corundum,
-      `R -3 c`, the SRM 676a cell) and fits Le Bail; a bad symbol and an
-      angle contradicting the symbol are refused with `where`.
+- [x] Wizard UI: a `.segmented` "CIF file | Type a cell" in the structure step;
+      the symbol, then **the fields the setting leaves free** (not six — the
+      server's `free_cell`); mode moved to `lebail` by the switch and
+      `rietveld` disabled while it is in force; docs-style lines.
+- [x] Tests: `test_gui_server.py` creates from a typed cell and fits Le Bail
+      (LaB6 against the module's own synthetic pattern — corundum against it
+      would assert nothing); corundum `R -3 c` carries the shape assertions and
+      every refusal, each with `where`. Five vitest cases for the client half.
 - [ ] Manual: `using/quickstart.md` names the route; browser pass; dist.
 
 ## Acceptance

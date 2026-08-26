@@ -15,6 +15,14 @@
  * TypeScript, and the wavelengths are the exact quantity a ~100 ppm cell error
  * hides in.
  *
+ * Step 2 takes two answers (WP-1206): a CIF, or a space-group symbol and a cell.
+ * The second is the same Le Bail scaffold the indexing panel's Adopt button
+ * lands, and it is built server-side — which cell parameters a *setting* leaves
+ * free is crystallography, so the form asks `GET /api/spacegroup` and draws the
+ * boxes it names. Typing one the symmetry determines is therefore not something
+ * the form can do, which is the coordinate-DOF rule (WP-1014) one parameter
+ * family over: unrepresentable rather than refused.
+ *
  * `PRESET_FIELDS` is held to the constructors' own signatures across the language
  * boundary by `tests/data/gui/instrument_presets.json`, the same device the glob
  * corpus uses: written from `gui.imports.INSTRUMENT_PRESETS` by pytest, replayed
@@ -23,6 +31,9 @@
  */
 
 export type PresetFieldKind = "number" | "optnumber" | "anode";
+
+/** The two answers step 2 takes: a file with atoms in it, or a lattice. */
+export type StructureSource = "cif" | "cell";
 
 export interface PresetField {
   name: string;
@@ -90,9 +101,18 @@ export interface WizardState {
   pattern: any | null;
   /** the reader keywords this format offers, by name — `block`, `scan`, … */
   readerOptions: Record<string, string>;
+  /** which of the two structure routes step 2 is on (WP-1206) */
+  structureFrom: StructureSource;
   /** `POST /api/upload/cif`'s answer */
   structure: any | null;
   aniso: boolean;
+  /** the typed symbol, and `GET /api/spacegroup`'s answer for it */
+  symbol: string;
+  cellFacts: any | null;
+  /** what the symbol could not be resolved as, or "" */
+  cellError: string;
+  /** the free cell parameters as typed, keyed by name */
+  cell: Record<string, string>;
   /** an uploaded instrument profile takes precedence over the preset form */
   instrument: any | null;
   preset: string;
@@ -103,10 +123,62 @@ export interface WizardState {
 }
 
 export function emptyWizard(): WizardState {
-  return seedPreset({ pattern: null, readerOptions: {}, structure: null, aniso: false,
+  return seedPreset({ pattern: null, readerOptions: {}, structureFrom: "cif",
+                      structure: null, aniso: false, symbol: "", cellFacts: null,
+                      cellError: "", cell: {},
                       instrument: null, preset: "bragg_brentano", values: {},
                       path: "", mode: "rietveld", plan: "mccusker_default" },
                     "bragg_brentano");
+}
+
+/**
+ * Switch step 2 between a CIF and a typed cell, taking the mode with it.
+ *
+ * A typed cell carries no atoms, so `rietveld` is not a mode it can be created
+ * in — the server refuses it rather than overriding a mode somebody chose, and
+ * the form's job is to make that refusal unreachable. Switching back restores
+ * `rietveld`, because a CIF's whole point is that it has atoms.
+ *
+ * Neither side is cleared. A staged CIF and a typed cell are independent
+ * answers to the same step, and `createBody` reads only the one in force, so
+ * flipping to compare them costs nothing.
+ */
+export function useStructureFrom(state: WizardState,
+                                 source: StructureSource): WizardState {
+  const mode = source === "cell"
+    ? (state.mode === "rietveld" ? "lebail" : state.mode)
+    : (state.mode === "lebail" ? "rietveld" : state.mode);
+  return { ...state, structureFrom: source, mode };
+}
+
+/**
+ * The cell parameters the form draws, in the server's own order.
+ *
+ * Read off `GET /api/spacegroup`'s `free_cell`, never derived here: which
+ * parameters a *setting* leaves free is crystallography (three settings
+ * disagree with the crystal system alone), and a copy of that rule in
+ * TypeScript is the second authority the wavelength table is not allowed to
+ * have either. Before a symbol resolves there is nothing to draw.
+ */
+export function freeCellFields(state: WizardState): string[] {
+  const free = state.cellFacts?.free_cell;
+  return Array.isArray(free) ? free.map(String) : [];
+}
+
+/** The `structure` argument for a typed cell: the symbol and the free numbers. */
+export function typedCellArgument(state: WizardState): Record<string, unknown> {
+  const cell: Record<string, number> = {};
+  for (const name of freeCellFields(state)) {
+    cell[name] = Number((state.cell[name] ?? "").trim());
+  }
+  return { space_group: state.symbol.trim(), cell };
+}
+
+/** The `structure` argument, whichever of the two routes step 2 is on. */
+export function structureArgument(state: WizardState): Record<string, unknown> {
+  return state.structureFrom === "cell"
+    ? typedCellArgument(state)
+    : { upload: state.structure?.upload, aniso: state.aniso };
 }
 
 /**
@@ -191,7 +263,7 @@ export function createBody(state: WizardState): Record<string, unknown> {
   const body: Record<string, unknown> = {
     path: state.path.trim(),
     pattern: { upload: state.pattern?.upload },
-    structure: { upload: state.structure?.upload, aniso: state.aniso },
+    structure: structureArgument(state),
     instrument: instrumentArgument(state),
     mode: state.mode,
     plan: state.plan,
@@ -205,7 +277,20 @@ export function createBody(state: WizardState): Record<string, unknown> {
 /** Why this cannot be created yet, or "" — one sentence, naming the step. */
 export function blocked(state: WizardState): string {
   if (!state.pattern) return "Choose a pattern file.";
-  if (!state.structure) return "Choose a CIF for the starting structure.";
+  if (state.structureFrom === "cell") {
+    if (!state.symbol.trim()) return "Type a space-group symbol.";
+    if (state.cellError) return state.cellError;
+    const free = freeCellFields(state);
+    if (!free.length) return "Type a space-group symbol.";
+    for (const name of free) {
+      const text = (state.cell[name] ?? "").trim();
+      if (!text) return `${state.symbol.trim()} needs ${free.join(", ")}.`;
+      if (!Number.isFinite(Number(text))) return `${name} is not a number.`;
+      if (Number(text) <= 0) return `${name} must be greater than zero.`;
+    }
+  } else if (!state.structure) {
+    return "Choose a CIF for the starting structure.";
+  }
   if (!state.instrument) {
     for (const field of PRESET_FIELDS[state.preset] ?? []) {
       const missing = field.kind === "number"
