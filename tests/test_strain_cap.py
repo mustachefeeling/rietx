@@ -550,3 +550,206 @@ def test_the_size_flag_reads_the_sample_coefficient_in_nm_via_scherrer():
     assert d and d[0].value < 3.0
     expected_nm = apparent_size_from_size_coefficient(coeff, 0.4139, SCHERRER_K) / 10.0
     assert d[0].value == pytest.approx(expected_nm, rel=1e-6)
+
+
+# ======================================================================
+# The two spellings each tier reads, pinned against their one authority
+# ======================================================================
+def test_the_size_caps_scherrer_k_is_the_one_in_caglioti():
+    """``params.vector``'s K is a second *spelling*, never a second *choice*.
+
+    :func:`~rietx.params.vector.size_cap` inlines caglioti eq. (4) to keep a hot
+    module free of a ``params`` → ``model`` import, so the Scherrer constant is
+    written down twice.  A comment saying "these agree" is exactly the guard
+    ``tests/CLAUDE.md`` § Guards that go quiet describes — it cannot fail — so
+    the coupling is a pin instead, and it is on the whole inlined expression
+    rather than only on the constant: retuning ``SCHERRER_K``, or drifting the
+    algebra, fails here.  Same idiom as ``schemas.structure._SOFTPLUS_FLOOR``
+    against ``params.transforms._SOFTPLUS_MIN``.
+
+    Bit-identity, not approximate agreement: both sides are
+    ``math.degrees(k·λ/L)`` with the same association, so anything looser would
+    not distinguish a retune from a rounding difference.
+    """
+    import inspect
+
+    from rietx.params.vector import _SIZE_CAP_SCHERRER_K
+
+    assert _SIZE_CAP_SCHERRER_K == SCHERRER_K
+    # …and it really is the default the bound is computed with
+    assert inspect.signature(size_cap).parameters["k"].default == SCHERRER_K
+    # the inlined formula, not just its constant — the physics floor a 2 nm
+    # crystallite states, computed both ways, bit for bit
+    for lam in (_CU, 0.4139, 0.7107):
+        floor = size_coefficient_for_size(SIZE_CAP_MIN_SIZE_A, lam, SCHERRER_K)
+        # a wide, low-θ range so the physics floor is the binding one
+        assert size_cap(1.0, 40.0, lam) == floor, lam
+
+
+def test_one_selector_answers_which_line_for_both_size_tiers():
+    """The bound and the flag must attribute a coefficient to the *same* λ.
+
+    Two copies of "the longest positive emission line" is the divergence class
+    the root CLAUDE.md's *one authority per fact* rule exists for: the tiers
+    would come to disagree about which crystallite a coefficient implies, and
+    nothing would go red.  So there is one selector and the flag imports it.
+
+    Its **empty state is one answer here and two at the callers**, which is the
+    part worth pinning rather than describing: ``None`` is a fact about the
+    model, and what to do about it is a choice each tier makes.  A bound has to
+    be a number, so no λ means no physics floor and the range backstop still
+    speaks; a flag reading a size out of a coefficient has nothing to read it
+    with, so it says nothing at all.
+    """
+    from rietx.optimize.least_squares import (
+        _longest_line_wavelength,
+        _model_size_cap,
+    )
+    from rietx.refine import _size_flag_diagnostics
+
+    class _Model(_FakeModel):
+        def __init__(self, lines):
+            self.phases = [object()]
+            self.line_wavelengths = lines
+            self.tt_min, self.tt_max = 10.0, 80.0
+
+    # the longest line, and the Kα2 offset never being the one chosen
+    assert _longest_line_wavelength(_Model((1.5406, 1.5444))) == 1.5444
+    # a non-positive line is not a line
+    assert _longest_line_wavelength(_Model((0.0, 1.5406))) == 1.5406
+    assert _longest_line_wavelength(_Model(())) is None
+
+    # the flag reads that selector: the same coefficient, the longer line
+    structure = rx.Structure(phases=[_phase()])
+    coeff = _size_coeff_nm(3.0, _CU)
+    both = _Model((1.5406, 1.5444))
+    d = _size_flag_diagnostics(both, {"phases.0.lor_size": coeff}, structure)
+    only_long = _size_flag_diagnostics(_FakeModel(wavelength=1.5444),
+                                       {"phases.0.lor_size": coeff}, structure)
+    assert [x.value for x in d] == [x.value for x in only_long]
+
+    # the two empty states, each where it belongs
+    none = _Model(())
+    assert _size_flag_diagnostics(none, {"phases.0.lor_size": coeff}, structure) == []
+    # …while the bound loses only its physics floor: the backstop still speaks
+    assert _model_size_cap(none) == size_cap(10.0, 80.0, 0.0)
+    assert 0.0 < _model_size_cap(none) < math.inf
+
+
+# ======================================================================
+# tier 2 in a JOINT (multi-histogram) refinement
+# ======================================================================
+def _broad_structure(strain: float, size_coeff: float) -> rx.Structure:
+    """One phase whose sample widths sit past both tier-2 flags, held there.
+
+    Held (``vary=False``) rather than refined on purpose: a flag reads the
+    *value* a result carries, so this asks the question the reviewer's finding is
+    about — does the joint result builder look? — without a synthetic fit having
+    to be coaxed into a runaway first.  It also keeps tier 1 out of the way: an
+    unfree entry is no column of θ, so no bound is applied and nothing but the
+    flag can move.
+    """
+    p = rx.Parameter
+    return rx.Structure(phases=[rx.Phase(
+        name="broad", space_group="P m -3 m", cell=_cell(),
+        atoms=[rx.Atom(label="A", species="Si", x=p(value=0.0), y=p(value=0.0),
+                       z=p(value=0.0))],
+        scale=p(value=1.0, vary=True),
+        lor_strain=p(value=strain), lor_size=p(value=size_coeff))])
+
+
+def _flat_pattern(instrument, tt_lo: float, tt_hi: float) -> rx.PatternData:
+    """A synthetic pattern of that structure — enough for a one-stage joint fit."""
+    from rietx.model.forward import compile_model
+
+    tt = np.arange(tt_lo, tt_hi, 0.05)
+    blank = rx.PatternData(two_theta=tt.tolist(),
+                           intensity=np.zeros_like(tt).tolist())
+    structure = _broad_structure(_JOINT_STRAIN, _JOINT_SIZE_COEFF)
+    model = compile_model(structure, instrument, blank, mode="rietveld")
+    table = ParameterTable(structure, instrument)
+    y = model.evaluate(table.decode(table.x0()))
+    return rx.PatternData(two_theta=model.tt.tolist(),
+                          intensity=(np.maximum(y, 1.0) + 10.0).tolist())
+
+
+#: 2.0 deg against a 1.5 flag, and a 3 nm crystallite at Cu Kα against a 5 nm
+#: flag — both a modest step past their threshold, so the test is about the
+#: wiring and not about how far out a runaway goes.
+_JOINT_STRAIN = 2.0
+_JOINT_SIZE_COEFF = size_coefficient_for_size(30.0, 1.5406, SCHERRER_K)
+
+
+def test_both_tier_2_flags_fire_per_histogram_in_a_joint_fit():
+    """The joint result builder asks the same two questions the single one does.
+
+    Before this was wired, a joint fit got tier 1 (``_freeze_strain_cap_multi`` /
+    ``_freeze_size_cap_multi`` are called from ``run_multi_least_squares``) and
+    **neither** tier-2 flag — the interpretive half the two-tier argument rests
+    on, silently absent on exactly the multi-pattern work that most needs it.
+    Measured on this fixture before the fix: both histograms came back with an
+    empty ``diagnostics`` list while the identical numbers through
+    ``Refinement.fit`` reported ``STRAIN_UNUSUALLY_LARGE`` and
+    ``SIZE_UNUSUALLY_SMALL``.
+
+    **Per histogram, and the size flag is why that is not a formality.**  The
+    default :class:`~rietx.params.multi.SharingMap` puts size/strain on the
+    *structure*, so there is one shared ``lor_size`` column — but a coefficient
+    is only a crystallite once a λ is chosen, and λ is per histogram.  One
+    reading would therefore quote one histogram's wavelength about all of them.
+    """
+    from rietx.schemas.instrument import BackgroundChebyshev
+
+    p = rx.Parameter
+    lams = (_CU, 0.7107)                      # Cu Kα and Mo Kα
+    instruments = []
+    for lam in lams:
+        ins = rx.Instrument.debye_scherrer(wavelength=lam)
+        ins.background = BackgroundChebyshev(coefficients=[p(value=10.0)])
+        instruments.append(ins)
+    patterns = [_flat_pattern(instruments[0], 15.0, 60.0),
+                _flat_pattern(instruments[1], 7.0, 28.0)]
+
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage(name="scale", turn_on=["phases.*.scale"], max_iter=3)])
+    ref = rx.MultiHistogramRefinement(
+        _broad_structure(_JOINT_STRAIN, _JOINT_SIZE_COEFF), instruments)
+    result = ref.fit(patterns, plan=plan)
+
+    assert len(result.histograms) == 2
+    for h, hist in enumerate(result.histograms):
+        codes = {d.code for d in hist.diagnostics}
+        assert "STRAIN_UNUSUALLY_LARGE" in codes, f"hist {h}: {sorted(codes)}"
+        assert "SIZE_UNUSUALLY_SMALL" in codes, f"hist {h}: {sorted(codes)}"
+
+    def one(h, code):
+        found = [d for d in result.histograms[h].diagnostics if d.code == code]
+        assert len(found) == 1, found          # one term each, not both spellings
+        return found[0]
+
+    # strain is λ-free, so the two histograms report the one shared number
+    assert [one(h, "STRAIN_UNUSUALLY_LARGE").value for h in (0, 1)] == \
+        [_JOINT_STRAIN, _JOINT_STRAIN]
+
+    # size is not: one shared coefficient, two wavelengths, two crystallites —
+    # in the ratio of the wavelengths, which is the whole reason this call sits
+    # inside the per-histogram loop
+    sizes = [one(h, "SIZE_UNUSUALLY_SMALL").value for h in (0, 1)]
+    assert sizes[0] == pytest.approx(3.0, rel=1e-3)
+    assert sizes[1] == pytest.approx(3.0 * lams[1] / lams[0], rel=1e-3)
+    assert sizes[1] < sizes[0]
+
+    # the coefficient really is one shared column — otherwise the paragraph
+    # above is about two independent parameters and proves nothing
+    assert ref.mtable.sharing.is_shared("phases.0.lor_size")
+    assert ref.mtable.sharing.is_shared("phases.0.lor_strain")
+    # …which is why the flag's ``where`` is the joint table's own bare spelling,
+    # with no ``hist.N.`` scope (unlike a wavelength row, which is per histogram)
+    assert one(0, "SIZE_UNUSUALLY_SMALL").where == ["phases.0.lor_size"]
+    assert one(0, "STRAIN_UNUSUALLY_LARGE").where == ["phases.0.lor_strain"]
+
+    # a per-histogram statement stays per histogram: not duplicated to the top,
+    # exactly like the QPA and specimen-absorption rows beside it
+    top = {d.code for d in result.diagnostics}
+    assert "STRAIN_UNUSUALLY_LARGE" not in top
+    assert "SIZE_UNUSUALLY_SMALL" not in top

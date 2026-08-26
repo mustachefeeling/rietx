@@ -887,20 +887,43 @@ def _freeze_strain_cap_multi(models: list[CompiledModel],
         table.freeze_strain_cap(cap)
 
 
-def _model_size_cap(model: CompiledModel) -> float:
-    """:func:`~rietx.params.vector.size_cap` for one histogram.
+def _longest_line_wavelength(model: CompiledModel) -> float | None:
+    """The source's **longest** emission line (Å), or ``None`` if it has none.
 
-    The 2 nm floor is per wavelength, so the source's **longest** line sets it:
-    a longer λ implies a larger crystallite for the same coefficient, so it is
-    the most permissive choice and the one that will never trip a genuine ≥ 2 nm
-    fit on account of a Kα2 offset.  A source with no positive wavelength (a
-    seam not yet wired) leaves the floor at ``inf``, and the range backstop
-    still speaks.
+    The one selector both size surfaces read λ through — the tier-1 bound here
+    (:func:`_model_size_cap`) and the tier-2 flag in
+    :func:`rietx.refine._size_flag_diagnostics`, which imports it rather than
+    repeating these two lines.  **Longest** because the 2 nm floor and the
+    Scherrer size are both per wavelength and a longer λ implies a *larger*
+    crystallite for the same coefficient: the most permissive attribution, and
+    therefore the one that can never trip a genuine fit on account of a Kα2
+    offset.
+
+    **The empty state is one answer here and two at the callers, deliberately.**
+    ``None`` is "this source states no wavelength", which is a fact about the
+    model; what to *do* about it is not, and the two callers legitimately
+    disagree.  A bound has to be some number, so :func:`_model_size_cap` reads
+    it as 0.0, which :func:`~rietx.params.vector.size_cap` turns into no physics
+    floor — the range backstop still speaks.  A flag reading a size out of a
+    coefficient has nothing to read it with, so it returns no diagnostic at all.
+    Folding either answer in here would impose it on the other caller.
     """
     lams = [lam for lam in getattr(model, "line_wavelengths", ()) or ()
             if lam > 0.0]
-    lam = max(lams) if lams else 0.0
-    return size_cap(model.tt_min, model.tt_max, lam)
+    return max(lams) if lams else None
+
+
+def _model_size_cap(model: CompiledModel) -> float:
+    """:func:`~rietx.params.vector.size_cap` for one histogram.
+
+    The 2 nm floor is per wavelength, read through
+    :func:`_longest_line_wavelength`.  A source with no positive wavelength (a
+    seam not yet wired) leaves the floor at ``inf``, and the range backstop
+    still speaks — that function's docstring says why the no-λ answer is decided
+    here rather than there.
+    """
+    lam = _longest_line_wavelength(model)
+    return size_cap(model.tt_min, model.tt_max, 0.0 if lam is None else lam)
 
 
 def _freeze_size_cap(model: CompiledModel, table: ParameterTable) -> None:

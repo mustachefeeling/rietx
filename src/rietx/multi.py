@@ -38,6 +38,8 @@ from .refine import (
     _qpa_unavailable_diagnostics,
     _refuse_without_phases,
     _resolve_specimen_absorption,
+    _size_flag_diagnostics,
+    _strain_flag_diagnostics,
     _utcnow,
     _wavelength_calibration_diagnostics,
 )
@@ -294,6 +296,21 @@ class MultiHistogramRefinement:
             diags.extend(_wavelength_calibration_diagnostics(
                 self._declared_wavelengths[h], table, values, esd_h,
                 pinned_by=_WAVELENGTH_PINNED_BY_HELD_HISTOGRAM, h=h))
+            # The two tier-2 flags, per histogram — without which a joint fit
+            # gets the tier-1 bound (``_freeze_strain_cap_multi`` /
+            # ``_freeze_size_cap_multi``) and none of the interpretation the
+            # two-tier split exists for.  Per histogram rather than once,
+            # because the *coefficient* is shared (``SharingMap``'s default puts
+            # size/strain on the structure) while what it means is not: the size
+            # flag reads a crystallite off the histogram's own λ, so one shared
+            # ``lor_size`` is a different apparent size in each pattern, and a
+            # single reading would quote one histogram's λ about all of them.
+            # The strain flag is λ-free and repeats per histogram for the same
+            # reason the absorption and wavelength rows above do — a caller
+            # reads one histogram's diagnostics and must not have to know that
+            # this one row lives somewhere else.
+            diags.extend(_strain_flag_diagnostics(model, values, struct))
+            diags.extend(_size_flag_diagnostics(model, values, struct))
 
             histograms.append(HistogramResult(
                 label=model.meta.get("label", "") or f"hist{h}",

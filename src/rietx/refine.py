@@ -38,7 +38,11 @@ from .model.profiles.caglioti import (
 )
 from .model.restraints import summarise_restraints
 from .optimize.cancel import RefinementCancelled
-from .optimize.least_squares import SOLVERS, run_least_squares
+from .optimize.least_squares import (
+    SOLVERS,
+    _longest_line_wavelength,
+    run_least_squares,
+)
 from .optimize.qpa import (
     compute_qpa,
     estimate_capillary_mu_r,
@@ -3109,19 +3113,6 @@ def _sqrt_or_none(variance: float | None) -> float | None:
 SIZE_FLAG_SIZE_A = 50.0
 
 
-def _representative_wavelength(model: CompiledModel) -> float | None:
-    """The source's longest emission line (Å), or ``None`` if it has none.
-
-    The flag reads a *size* off a 1/cosθ coefficient, which needs λ (caglioti
-    eq. 4).  The longest line is the most permissive attribution — the same
-    choice :func:`~rietx.optimize.least_squares._model_size_cap` makes — so the
-    flag never fires on a genuine crystallite because of the Kα2 offset.
-    """
-    lams = [lam for lam in getattr(model, "line_wavelengths", ()) or ()
-            if lam > 0.0]
-    return max(lams) if lams else None
-
-
 def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],
                            structure: Structure) -> list[Diagnostic]:
     """``SIZE_UNUSUALLY_SMALL`` — a crystallite past what solved refinements use.
@@ -3147,8 +3138,15 @@ def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],
 
     ``microstrain`` (Stephens) blocks do not touch ``lor_size``, so unlike the
     strain flag there is no locked-column interaction to guard here.
+
+    λ comes from :func:`~rietx.optimize.least_squares._longest_line_wavelength`,
+    the same selector the tier-1 bound reads — one authority for "which line",
+    so the two tiers cannot come to attribute a coefficient to different
+    wavelengths.  A source stating none returns no diagnostic, which is where
+    this tier's empty state differs from the bound's; that function's docstring
+    is where the difference is argued.
     """
-    lam = _representative_wavelength(model)
+    lam = _longest_line_wavelength(model)
     if lam is None:
         return []
     out: list[Diagnostic] = []

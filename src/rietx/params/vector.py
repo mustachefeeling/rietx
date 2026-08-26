@@ -353,10 +353,36 @@ STRAIN_CAP_RANGE_FRACTION = 1.0
 #: and far below any move a fit makes on purpose.
 STRAIN_CAP_ARM_RTOL = 1e-6
 
-#: tanθ has a pole at 90°, i.e. at 2θ = 180°, where the cap would collapse to
-#: zero for a reason that is about arithmetic and not about peak widths.  A
-#: pattern reaching there is clipped to this θ instead.
-_STRAIN_CAP_THETA_MAX_DEG = 89.0
+#: Both range backstops have a pole at θ = 90°, i.e. at 2θ = 180° — tanθ → ∞
+#: for strain and cosθ → 0 for size — where the cap would collapse to zero for a
+#: reason that is about arithmetic and not about peak widths.  A pattern reaching
+#: there is clipped to this θ instead.  One constant because it is one
+#: pathology; see :func:`_backstop_span_theta`.
+_BACKSTOP_THETA_MAX_DEG = 89.0
+
+
+def _backstop_span_theta(tt_min: float, tt_max: float) -> tuple[float, float] | None:
+    """``(span, θ)`` for a range backstop, or ``None`` where the range states none.
+
+    The part of :func:`strain_cap` and :func:`size_cap` that is genuinely *one*
+    rule — "a line wider than the interval it was measured over is not a line",
+    evaluated at the highest θ the scan reaches, clipped off the shared
+    2θ = 180° pole (:data:`_BACKSTOP_THETA_MAX_DEG`).
+
+    What is **not** shared deliberately stays with each cap: the angular factor
+    is the physics (÷tanθ for strain, ×cosθ for size) and each carries its own
+    fraction, so folding those in would make one function that means two things.
+    Nor is the degenerate handling folded in — each cap guards its own trig
+    value, because "θ too small for tanθ to be usable" and "cosθ ≈ 1, so the
+    backstop is just the span" are different answers to the same θ.
+
+    ``None`` is "no claim", the honest output for an empty or inverted fitted
+    range, which both callers read as ``inf``.
+    """
+    span = float(tt_max) - float(tt_min)
+    if not span > 0.0:
+        return None
+    return span, min(float(tt_max) / 2.0, _BACKSTOP_THETA_MAX_DEG)
 
 
 def _strain_parameter_name(path: str) -> str | None:
@@ -432,10 +458,10 @@ def strain_cap(tt_min: float, tt_max: float) -> float:
     degenerate fit range, or one that does not reach far enough in θ for tanθ
     to be usable — because "no claim" is the honest output there.
     """
-    span = float(tt_max) - float(tt_min)
-    if not span > 0.0:
+    backstop = _backstop_span_theta(tt_min, tt_max)
+    if backstop is None:
         return math.inf
-    theta = min(float(tt_max) / 2.0, _STRAIN_CAP_THETA_MAX_DEG)
+    span, theta = backstop
     tan_theta = math.tan(math.radians(theta)) if theta > 0.0 else 0.0
     if not tan_theta > 0.0:
         return math.inf
@@ -526,8 +552,22 @@ def _size_parameter_name(path: str) -> str | None:
     return None
 
 
+#: Scherrer K for the size cap's physics floor — a **deliberate second spelling**
+#: of :data:`~rietx.model.profiles.caglioti.SCHERRER_K`, not an independent
+#: choice.  Spelled twice because :func:`size_cap` inlines caglioti eq. (4) to
+#: keep this module free of a ``params`` → ``model`` import (the formula's
+#: authority is there, and the inline is one expression); the two spellings are
+#: held together by an equality pin rather than by this comment —
+#: ``tests/test_strain_cap.py::test_the_size_caps_scherrer_k_is_the_one_in_caglioti``,
+#: which fails if either number moves.  Same idiom as
+#: ``schemas.structure._SOFTPLUS_FLOOR`` against
+#: ``params.transforms._SOFTPLUS_MIN``.
+_SIZE_CAP_SCHERRER_K = 0.9
+
+
 def size_cap(tt_min: float, tt_max: float, wavelength_a: float,
-             *, k: float = 0.9, min_size_a: float = SIZE_CAP_MIN_SIZE_A) -> float:
+             *, k: float = _SIZE_CAP_SCHERRER_K,
+             min_size_a: float = SIZE_CAP_MIN_SIZE_A) -> float:
     """The widest ``lor_size`` (deg 2θ) allowed: the *tighter* of a 2 nm floor
     and the fitted-range backstop.
 
@@ -571,12 +611,12 @@ def size_cap(tt_min: float, tt_max: float, wavelength_a: float,
     physics = math.inf
     if wavelength_a > 0.0 and min_size_a > 0.0 and k > 0.0:
         physics = math.degrees(k * wavelength_a / min_size_a)
-    # range backstop: 1/cosθ is largest at θ_max, and the θ clip keeps it off
-    # the cosθ → 0 pole at 2θ = 180° (the strain cap's clip, same reason).
+    # range backstop: 1/cosθ is largest at θ_max, and the shared θ clip
+    # (:func:`_backstop_span_theta`) keeps it off the cosθ → 0 pole at 2θ = 180°.
     rng = math.inf
-    span = float(tt_max) - float(tt_min)
-    if span > 0.0:
-        theta = min(float(tt_max) / 2.0, _STRAIN_CAP_THETA_MAX_DEG)
+    backstop = _backstop_span_theta(tt_min, tt_max)
+    if backstop is not None:
+        span, theta = backstop
         cos_theta = math.cos(math.radians(theta)) if theta > 0.0 else 1.0
         rng = SIZE_CAP_RANGE_FRACTION * span * cos_theta
     return min(physics, rng)
