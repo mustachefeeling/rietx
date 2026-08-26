@@ -140,10 +140,11 @@ html_favicon = "_static/favicon.svg"
 # `rietx.help`, which is where the corpus lives.  A retuned default or a new
 # vocabulary member therefore reaches the page without anyone editing it.
 #
-# `anchor` is deliberately not rendered as a link.  It names a heading in Part
-# 2 for the GUI's popover to jump to, and `tests/test_help.py` checks every one
-# against the built HTML; a glossary that also linked them would need
-# heading-anchor slugs turned on globally for no reader-visible gain here.
+# `anchor` is deliberately not rendered as a link.  It names the page and
+# heading the GUI's popover links to (WP-1203), and `tests/test_help.py` checks
+# every one against the built HTML; a glossary that also linked them would need
+# heading-anchor slugs turned on globally for no reader-visible gain here — the
+# reader is already on the page the link would take them to a section of.
 # ----------------------------------------------------------------------
 
 GLOSSARY_BODY = _Path(__file__).parent / "_generated" / "glossary-body.md"
@@ -170,6 +171,10 @@ _ARMS = [
     ("instrument_fields", "Instrument preset fields",
      "Constructor arguments for building an instrument from a geometry and an "
      "anode. These are not parameter paths and none of them is refined."),
+    ("search_fields", "Indexing search settings",
+     "The controls an indexing search takes, as `ProjectDoc.indexing` holds "
+     "them. Several bound the search rather than describing the specimen, and "
+     "each says what a negative result means once it has bitten."),
 ]
 
 

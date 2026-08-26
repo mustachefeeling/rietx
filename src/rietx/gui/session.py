@@ -208,15 +208,22 @@ class GuiSession:
         return _capabilities().model_dump(mode="json")
 
     def help(self) -> dict:
-        """:func:`rietx.help_registry`, verbatim — the whole help corpus.
+        """The whole help corpus, plus the base its anchors are relative to.
 
         Static for the life of the build, and needs no project, so it sits
         beside :meth:`capabilities` rather than behind the in-flight 409: a
         person reading what a parameter means while a run works is not editing
         anything.  A parameter row carries only its ``help_key``, which indexes
         the ``parameters`` arm here.
+
+        ``docs_url`` rides beside the arms rather than inside one because it is
+        not a name anything is looking up: an entry's ``anchor`` is a manual
+        page and heading (``corrections.html#surface-roughness``), so the one
+        thing a client needs to turn it into a link is where the manual lives —
+        and a frontend that spelled that out would be the second authority on
+        it (root CLAUDE.md's ``_about`` rule).
         """
-        return _help_registry()
+        return {**_help_registry(), "docs_url": _about.DOCS_URL}
 
     def version(self) -> dict:
         return {"package_version": _VERSION, "pid": os.getpid(),

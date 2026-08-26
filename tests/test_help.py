@@ -29,6 +29,7 @@ import pytest
 from pydantic import BaseModel
 
 import rietx as rx
+from rietx import _about
 from rietx.gui.imports import INSTRUMENT_PRESETS
 from rietx.help import (
     INSTRUMENT_FIELD_HELP,
@@ -36,6 +37,7 @@ from rietx.help import (
     PEAK_DIAGNOSTIC_HELP,
     PEAK_FLAG_HELP,
     READER_OPTION_HELP,
+    SEARCH_FIELD_HELP,
     STAGE_FIELD_HELP,
     UNIT_DISPLAY,
     HelpEntry,
@@ -46,7 +48,7 @@ from rietx.help import (
 from rietx.io.formats.base import READER_OPTIONS
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
-from rietx.schemas.indexing import PeakFlag
+from rietx.schemas.indexing import IndexingControls, PeakFlag
 from rietx.schemas.instrument import (
     BackgroundPSpline,
     EmissionLine,
@@ -186,6 +188,18 @@ def _preset_fields() -> set[str]:
     return {f for fields in INSTRUMENT_PRESETS.values() for f in fields}
 
 
+def _search_fields() -> set[str]:
+    """Every control ``ProjectDoc.indexing`` carries, flattened one level.
+
+    Derived from the document's own model rather than named, so a field added
+    to either half reaches this set: the three beside ``search`` and the
+    eighteen inside it are one form to a person and two models to pydantic.
+    """
+    top = set(IndexingControls.model_fields) - {"search"}
+    nested = IndexingControls.model_fields["search"].annotation.model_fields
+    return top | set(nested)
+
+
 def _arms() -> dict[str, dict[str, HelpEntry]]:
     """Every named arm, so a test can sweep all of them at once."""
     return {
@@ -194,6 +208,7 @@ def _arms() -> dict[str, dict[str, HelpEntry]]:
         "stage_fields": STAGE_FIELD_HELP,
         "reader_options": READER_OPTION_HELP,
         "instrument_fields": INSTRUMENT_FIELD_HELP,
+        "search_fields": SEARCH_FIELD_HELP,
         "plans": plan_help(),
     }
 
@@ -293,6 +308,46 @@ def test_every_instrument_preset_field_has_an_entry():
     assert set(INSTRUMENT_FIELD_HELP) == fields, (
         f"missing: {sorted(fields - set(INSTRUMENT_FIELD_HELP))}; "
         f"describing nothing: {sorted(set(INSTRUMENT_FIELD_HELP) - fields)}")
+
+
+def test_every_indexing_search_control_has_an_entry():
+    """The form's own fields, held to the document that stores them (WP-1203).
+
+    The prose here *is* the Peaks form's, moved out of
+    ``gui/src/lib/controls.ts`` so the popover and the glossary read the same
+    sentence.  ``controls.ts`` is already held to the same vocabulary from the
+    other side by ``tests/test_search_controls.py``, so the form, the document
+    and the corpus are three views of one field list.
+    """
+    fields = _search_fields()
+    assert len(fields) == 21, f"the indexing control set moved: {sorted(fields)}"
+    assert set(SEARCH_FIELD_HELP) == fields, (
+        f"missing: {sorted(fields - set(SEARCH_FIELD_HELP))}; "
+        f"describing nothing: {sorted(set(SEARCH_FIELD_HELP) - fields)}")
+
+
+def test_search_control_defaults_are_the_schemas_own():
+    """A search entry quotes its schema default, or says nothing.
+
+    The hole WP-1202 left open and named: every other arm's ``default`` is
+    prose restating a live value, so retuning one leaves a stale number in
+    print.  These are plain pydantic fields with real defaults, so the crossing
+    costs nothing.  JSON is the rendering, which is what makes ``null`` and
+    ``true`` unambiguous where a Python repr would print ``None`` and ``True``
+    at a reader who is looking at a browser.
+    """
+    top = IndexingControls.model_fields
+    nested = top["search"].annotation.model_fields
+    wrong = []
+    for name, entry in SEARCH_FIELD_HELP.items():
+        field = nested.get(name) or top[name]
+        quoted = None if field.default is None else json.dumps(field.default)
+        if entry.default != quoted:
+            wrong.append((name, entry.default, quoted))
+    assert not wrong, (
+        "search entries whose default disagrees with the schema "
+        f"(field, entry, schema): {wrong} — a retuned default leaves a stale "
+        "number in the popover and in the glossary")
 
 
 def test_the_plan_arm_is_plan_info_projected_not_restated():
@@ -459,7 +514,7 @@ def test_the_registry_is_json_and_carries_every_arm():
     registry = help_registry()
     assert set(registry) == {"parameters", "peak_flags", "peak_diagnostics",
                              "stage_fields", "reader_options",
-                             "instrument_fields", "plans"}
+                             "instrument_fields", "search_fields", "plans"}
     payload = json.dumps(registry)  # raises on anything unserialisable
     assert len(payload) > 10_000
 
@@ -473,10 +528,22 @@ def test_the_registry_is_json_and_carries_every_arm():
         assert entry["modes"] == list(PLAN_INFO[name].modes)
 
 
-def test_the_help_route_serves_the_registry():
+def test_the_help_route_serves_the_registry_and_the_manual_s_address():
+    """The route is the registry plus the one thing an ``anchor`` needs (WP-1203).
+
+    An anchor is ``page.html#heading-id`` relative to the manual root, so a
+    client can only build a link if it is also told where the manual lives.
+    ``docs_url`` rides beside the arms rather than in one because it is not a
+    name anything looks up, and it is served rather than spelled in TypeScript
+    for the reason ``_about`` exists at all.
+    """
     from rietx.gui.server import ROUTES
+    from rietx.gui.session import GuiSession
 
     assert ("GET", "/api/help") in ROUTES
+    served = GuiSession().help()
+    assert {k: v for k, v in served.items() if k != "docs_url"} == help_registry()
+    assert served["docs_url"] == _about.DOCS_URL
 
 
 # -------------------------------------------------------------------- the prose
@@ -509,7 +576,7 @@ def test_every_entry_has_a_title_and_a_description():
 
 @pytest.mark.xdist_group("manual-build")
 def test_every_anchor_resolves_in_the_built_manual(built_manual):  # noqa: F811
-    """An ``anchor`` names a heading the popover will jump to, so it must exist.
+    """An ``anchor`` is the page and heading the popover links to, so both must exist.
 
     Checked against the **built** HTML rather than the Markdown sources, for
     the reason ``test_no_unrendered_math_survives_the_build`` is: a heading id
@@ -517,19 +584,33 @@ def test_every_anchor_resolves_in_the_built_manual(built_manual):  # noqa: F811
     generated rather than written, so only the output says what a link will
     find.  This is the dead-link guard WP-1017 planned, arriving early because
     the corpus is the first thing in the tree that links into Part 2 by id.
+
+    Since WP-1203 the anchor carries its page (``page.html#id``), which is what
+    a rendered link needs, so this checks the pair: an id found on some *other*
+    page used to pass, and would now send a reader to a page that does not
+    carry the heading.
     """
     out, result = built_manual
     assert result.returncode == 0, "manual did not build — see test_manual.py"
-    ids: set[str] = set()
+    ids: dict[str, set[str]] = {}
     for page in out.rglob("*.html"):
-        ids |= set(re.findall(r'id="([^"]+)"', page.read_text(encoding="utf-8")))
-    assert len(ids) > 100, "no ids found — did the build produce HTML?"
+        rel = page.relative_to(out).as_posix()
+        ids[rel] = set(re.findall(r'id="([^"]+)"', page.read_text(encoding="utf-8")))
+    assert sum(len(v) for v in ids.values()) > 100, (
+        "no ids found — did the build produce HTML?")
 
-    broken = sorted({(name, e.anchor) for name, e in _every_entry()
-                     if e.anchor and e.anchor not in ids})
+    shapeless = sorted({(name, e.anchor) for name, e in _every_entry()
+                        if e.anchor and e.anchor.count("#") != 1})
+    assert not shapeless, (
+        f"anchors that are not `page.html#heading-id`: {shapeless} — a bare id "
+        "names no page, so no link can be built from it")
+
+    broken = sorted({(name, e.anchor) for name, e in _every_entry() if e.anchor
+                     and e.anchor.split("#")[1] not in ids.get(e.anchor.split("#")[0], ())})
     assert not broken, (
-        f"entries whose anchor is not a heading in the built manual: {broken} — "
-        "the heading was renamed, and the slug moved with it")
+        f"entries whose anchor is not a heading on that page of the built "
+        f"manual: {broken} — the heading was renamed, the slug moved with it, "
+        "or the chapter did")
 
 
 def test_entry_is_frozen_so_a_consumer_cannot_edit_the_corpus():
