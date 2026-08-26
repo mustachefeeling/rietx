@@ -333,6 +333,15 @@
 
   // -- the editors ---------------------------------------------------
   let structure = $state<any>(null);
+  /**
+   * A project with no phase yet (WP-1207): the pattern is loaded, the
+   * instrument and the background are editable, and there is no structure to
+   * draw, name or give a cell to. Every phase-indexed control below reads
+   * `structure.phases[phase]`, so this gates the section rather than each of
+   * them, and the 3D column is hidden with it — an empty viewer beside an
+   * empty form is two ways of saying the same nothing.
+   */
+  const noPhases = $derived(!!structure && !structure.phases?.length);
   let sites = $state<Site[]>([]);
   /** `GET /api/structure`'s free arms: what each phase's symbol *is*, and which
    *  symmetry holds each held row.  Both ride on the route this pane already
@@ -713,7 +722,7 @@
         >Open…</button>
     {/if}
     <span class="spacer"></span>
-    {#if !showWizard}
+    {#if !showWizard && !noPhases}
       <button class="ghost" class:on={viewer} onclick={() => (viewer = !viewer)}
         title="the cell, the symmetry images, the bonds and the displacement
                ellipsoids — drawn from the model on screen">3D</button>
@@ -870,20 +879,33 @@
           {/if}
         </li>
 
-        <li class:done={wiz.structureFrom === "cell"
+        <li class:done={wiz.structureFrom === "none" ? true
+          : wiz.structureFrom === "cell"
           ? typedCellReady(wiz) : !!wiz.structure}>
           <h2>2 · Structure</h2>
-          <!-- Two answers to one step (WP-1206). A CIF says where the atoms
-               are; a cell says only where the peaks are, which is all a powder
-               pattern of an unknown phase supports — so it creates the same Le
-               Bail scaffold the indexing panel's Adopt button lands. -->
+          <!-- Three answers to one step (WP-1206, WP-1207). A CIF says where
+               the atoms are; a cell says only where the peaks are, which is all
+               a powder pattern of an unknown phase supports — so it creates the
+               same Le Bail scaffold the indexing panel's Adopt button lands;
+               and "None yet" says neither, which is the honest answer before
+               the pattern has been indexed. The third is marked done as soon as
+               it is chosen: there is nothing left to answer. -->
           <div class="segmented" role="group" aria-label="structure source">
             <button class:on={wiz.structureFrom === "cif"}
               onclick={() => (wiz = useStructureFrom(wiz, "cif"))}>CIF file</button>
             <button class:on={wiz.structureFrom === "cell"}
               onclick={() => (wiz = useStructureFrom(wiz, "cell"))}>Type a cell</button>
+            <button class:on={wiz.structureFrom === "none"}
+              onclick={() => (wiz = useStructureFrom(wiz, "none"))}>None yet</button>
           </div>
-          {#if wiz.structureFrom === "cell"}
+          {#if wiz.structureFrom === "none"}
+            <p class="muted">
+              The project opens on the pattern alone. Pick peaks and index them
+              in the Peaks panel, then adopt a candidate cell — that is what
+              gives the project its phase. Refining is unavailable until it has
+              one.
+            </p>
+          {:else if wiz.structureFrom === "cell"}
             <label class="inline">
               <span class="muted">space group</span>
               <input class="mono sym" bind:value={wiz.symbol}
@@ -1069,6 +1091,13 @@
             <span>Replace from CIF…</span>
           </label>
         </h2>
+        {#if noPhases}
+          <p class="muted">
+            No phase yet. Pick peaks and index them in the Peaks panel, then
+            adopt a candidate cell — or replace the model from a CIF above.
+            Refining is unavailable until this project has a phase.
+          </p>
+        {:else}
         {#if structure.phases.length > 1}
           <nav class="phases segmented" role="group" aria-label="phase">
             {#each structure.phases as p, i (i)}
@@ -1296,6 +1325,7 @@
           A new atom's position decides its site symmetry, and therefore how many
           DOFs it gets — which is why it is typed here and moved by them afterwards.
         </p>
+        {/if}
       </div>
 
       <!-- no grip between rows: stacked, a column's width is the pane's -->
@@ -1375,7 +1405,7 @@
         {/if}
       </div>
 
-      {#if viewer}
+      {#if viewer && !noPhases}
         {#if !stacked}
           <Splitter size={colWidth(1)} grow="right" min={COL_MIN} keep={VIEW_KEEP}
             flow="inline"

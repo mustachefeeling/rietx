@@ -408,3 +408,71 @@ def test_extinction_screen_is_cleared_when_the_candidates_renumber(
     status, refused = client.get("/api/index/extinction")
     assert status == 409
     assert refused["error"]["code"] == "NO_EXTINCTION_RESULT"
+
+
+# ----------------------------------------------------------------------
+# a project with no phase at all (WP-1207)
+# ----------------------------------------------------------------------
+def test_a_pattern_only_project_picks_peaks_indexes_adopts_and_only_then_fits(
+        tmp_path_factory, pattern_file):
+    """The whole loop the pattern-only project exists to make reachable.
+
+    A project created with no structure: peak picking works, indexing works,
+    adopting a candidate gives it its phase — and only *then* does a fit run.
+    Before that the run is refused at the route, by name, rather than started
+    and left to converge on the background (the WP-1207 audit measured that
+    fit at Rwp 0.9637, reported ``converged``).
+
+    A candidate is injected the way every other adopt test here does it: what
+    is under test is the loop, and a real search over this pattern belongs to
+    the acceptance suite.
+    """
+    root = tmp_path_factory.mktemp("blank-proj") / "unknown.rex"
+    project = rx.Project.create(root, pattern=pattern_file,
+                                instrument=perturbed_models()[1])
+    assert project.refinement.structure.phases == []
+    session = GuiSession(project,
+                         state_dir=tmp_path_factory.mktemp("blank-state"))
+    httpd = build_server(session, port=0)
+    threading.Thread(target=httpd.serve_forever,
+                     kwargs={"poll_interval": 0.02}, daemon=True).start()
+    client = Client(httpd.server_address[1])
+    try:
+        # the document says so, which is what disables Run in the client
+        assert client.get("/api/project")[1]["n_phases"] == 0
+
+        # …and the run is refused before it starts, not inside the worker
+        status, refused = client.post("/api/run", {"kind": "fit"})
+        assert status == 400, refused
+        assert refused["error"]["code"] == "NO_PHASES"
+        assert client.get("/api/run/state")[1]["state"] == "idle"
+
+        # peak picking needs no phase
+        status, doc = client.post("/api/peaks", {})
+        assert status == 200, doc
+        assert len([p for p in doc["peaks"] if p["usable"]]) > 4
+
+        # nor does the 3D refusal read as a bad index any more
+        status, no3d = client.get("/api/structure3d")
+        assert status == 404
+        assert "no phase to draw yet" in no3d["error"]["message"]
+
+        # adopt the cell an indexing run found
+        with session._cond:
+            session._index_result = _answer(_candidate("high", []))
+        status, adopted = client.post("/api/index/adopt", {"candidate": 0})
+        assert status == 200, adopted
+        assert adopted["mode"] == "lebail"
+        assert len(adopted["structure"]["phases"]) == 1
+        assert client.get("/api/project")[1]["n_phases"] == 1
+
+        # and now it fits
+        status, run = client.post("/api/run", {"kind": "fit"})
+        assert status == 200, run
+        frame = _wait_idle(client, timeout=180.0)
+        assert frame["run"]["status"] == "converged", frame
+        assert frame["run"]["rwp"] < 0.2, frame
+    finally:
+        session.close()
+        httpd.shutdown()
+        httpd.server_close()

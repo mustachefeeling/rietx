@@ -32,8 +32,11 @@
 
 export type PresetFieldKind = "number" | "optnumber" | "anode";
 
-/** The two answers step 2 takes: a file with atoms in it, or a lattice. */
-export type StructureSource = "cif" | "cell";
+/**
+ * The three answers step 2 takes: a file with atoms in it, a lattice, or
+ * nothing at all — a pattern whose phase is not known yet (WP-1207).
+ */
+export type StructureSource = "cif" | "cell" | "none";
 
 export interface PresetField {
   name: string;
@@ -139,12 +142,17 @@ export function emptyWizard(): WizardState {
  * the form's job is to make that refusal unreachable. Switching back restores
  * `rietveld`, because a CIF's whole point is that it has atoms.
  *
+ * `"none"` moves the mode nowhere, and that is not an omission. With no phase
+ * there is nothing for a mode to govern: the run is refused whatever it says,
+ * and the route out — adopting an indexed candidate — sets the mode itself.
+ *
  * Neither side is cleared. A staged CIF and a typed cell are independent
  * answers to the same step, and `createBody` reads only the one in force, so
  * flipping to compare them costs nothing.
  */
 export function useStructureFrom(state: WizardState,
                                  source: StructureSource): WizardState {
+  if (source === "none") return { ...state, structureFrom: source };
   const mode = source === "cell"
     ? (state.mode === "rietveld" ? "lebail" : state.mode)
     : (state.mode === "lebail" ? "rietveld" : state.mode);
@@ -187,8 +195,15 @@ export function typedCellArgument(state: WizardState): Record<string, unknown> {
   return { space_group: state.symbol.trim(), cell };
 }
 
-/** The `structure` argument, whichever of the two routes step 2 is on. */
-export function structureArgument(state: WizardState): Record<string, unknown> {
+/**
+ * The `structure` argument, whichever of the three routes step 2 is on.
+ *
+ * `null` for the pattern-only route, which the server reads as an answer rather
+ * than as a missing key — it requires `structure` to be *present* and refuses a
+ * body that leaves it out (WP-1207).
+ */
+export function structureArgument(state: WizardState): Record<string, unknown> | null {
+  if (state.structureFrom === "none") return null;
   return state.structureFrom === "cell"
     ? typedCellArgument(state)
     : { upload: state.structure?.upload, aniso: state.aniso };
@@ -290,7 +305,9 @@ export function createBody(state: WizardState): Record<string, unknown> {
 /** Why this cannot be created yet, or "" — one sentence, naming the step. */
 export function blocked(state: WizardState): string {
   if (!state.pattern) return "Choose a pattern file.";
-  if (state.structureFrom === "cell") {
+  if (state.structureFrom === "none") {
+    // nothing to answer: a pattern-only project's phase is what indexing finds
+  } else if (state.structureFrom === "cell") {
     if (!state.symbol.trim()) return "Type a space-group symbol.";
     if (state.cellError) return state.cellError;
     const free = freeCellFields(state);

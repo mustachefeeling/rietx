@@ -3331,3 +3331,30 @@ def test_a_new_project_is_suggested_outside_the_working_directory(
     # a suggestion and nothing more: a preview that made the directory would
     # leave one behind for every file dropped on the wizard and never committed
     assert list(home.iterdir()) == []
+
+
+def test_the_wizard_creates_a_project_from_no_structure_at_all(blank, tmp_path,
+                                                               pattern_file):
+    """`structure: null` is the wizard's third route (WP-1207).
+
+    And the key stays *required*: absent and null are the same thing to
+    ``dict.get``, so only one of them may create a phase-free project quietly.
+    """
+    session, client = blank
+    pat = client.upload("pattern", pattern_file.read_bytes(),
+                        filename="synth.xye")[1]
+
+    body = {"path": str(tmp_path / "blank.rex"),
+            "pattern": {"upload": pat["upload"]},
+            "instrument": {"preset": "debye_scherrer", "wavelength": 1.5406}}
+    status, refused = client.post("/api/project/new", body)
+    assert status == 400, refused
+    assert refused["error"]["where"] == ["structure"]
+    assert "null for a pattern-only project" in refused["error"]["message"]
+
+    status, doc = client.post("/api/project/new", {**body, "structure": None})
+    assert status == 200, doc
+    assert doc["n_phases"] == 0
+    assert session.project.refinement.structure.phases == []
+    # mode is not forced either way: with no phase there is nothing to govern
+    assert doc["doc"]["mode"] == "rietveld"

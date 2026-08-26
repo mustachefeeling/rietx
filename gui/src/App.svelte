@@ -209,6 +209,14 @@
   // the head is the working state (WP-1005), so it is the one signal that says
   // "the table moved" whether a run, a checkout or an edit moved it
   const head = $derived(run?.head ?? project?.head ?? null);
+  /**
+   * A project with no phase cannot be refined (WP-1207), and every control that
+   * would start one says so rather than offering a click whose only outcome is
+   * a 400 — the wizard's `blocked()` rule, one panel up.
+   */
+  const noPhases = $derived(!!project && (project.n_phases ?? 1) === 0);
+  const NO_PHASES_REASON =
+    "This project has no phase yet. Pick peaks and index them, then adopt a cell.";
 
   function say(line: string) {
     lines = [...lines.slice(-400), line];
@@ -476,6 +484,10 @@
    */
   async function moved() {
     zoom = null;
+    // the document too, not only the curves: a move can add or remove the
+    // project's last phase (Adopt, a structure replace, a checkout across
+    // either), and `n_phases` is what disables Run (WP-1207)
+    await loadProject();
     await loadResult();
   }
 
@@ -552,9 +564,9 @@
 
   const commands = $derived<Command[]>([
     { id: "run", label: "Run the fit", echo: "ref.fit(data, plan=…)", key: "r",
-      disabled: busy || !project, run: start },
+      disabled: busy || !project || noPhases, run: start },
     { id: "stage", label: `Run one stage${planPanel?.selectedName() ? ` — ${planPanel.selectedName()}` : ""}`,
-      echo: "ref.run_stage(stage)", key: ".", disabled: busy || !project,
+      echo: "ref.run_stage(stage)", key: ".", disabled: busy || !project || noPhases,
       run: () => { tab = "plan"; planPanel?.runStage(); } },
     { id: "cancel", label: "Cancel the run", echo: "token.cancel()", key: "Esc",
       disabled: !busy, run: cancel },
@@ -573,7 +585,7 @@
       run: async () => { tab = "peaks"; try { await api.index(); say("index_pattern(peaks, data=…, instrument=…)"); } catch (e) { say(`refused: ${(e as Error).message}`); } } },
     { id: "series", label: "Refine a series of patterns",
       echo: "refine_sequential(patterns, structure, instrument, x=…)",
-      disabled: !project, run: () => (tab = "series") },
+      disabled: !project || noPhases, run: () => (tab = "series") },
     { id: "report", label: "Show the fit report", echo: "ref.report()", key: "?",
       disabled: !project, run: () => (tab = "report") },
     { id: "history", label: "Show the history", echo: "ref.history.summary()", key: "h",
@@ -919,7 +931,8 @@
         {run?.run.status ?? "idle"}
       {/if}
     </span>
-    <button onclick={start} disabled={busy || !project}>Run</button>
+    <button onclick={start} disabled={busy || !project || noPhases}
+      title={noPhases ? NO_PHASES_REASON : null}>Run</button>
     <button class="ghost" onclick={cancel} disabled={!busy}>Cancel</button>
     <button class="ghost" onclick={() => (paletteOpen = true)} title="every command, with the call it makes">
       <kbd>⌘K</kbd>

@@ -169,12 +169,31 @@ whatever `fit` decides.
       `PROJECT_FORMAT_VERSION` 1.2 → 1.3, each with its reason beside the
       constant. The audit's two empty containers are now absences:
       `compute_qpa` and `geometry_table` return `None` at zero phases.
-- [ ] GUI: the wizard's third choice "none yet"; the Model panel's structure
-      section shows "no phase yet: pick peaks and index, or add a phase";
-      Run disabled with the reason; the 3D column hidden.
-- [ ] Tests: a pattern-only project on the corundum example picks peaks,
-      indexes, adopts a cell (becoming a WP-1206 project) and then fits;
-      `fit` on it before adoption refuses; an old `project.json` still opens.
+- [x] GUI: `StructureSource` gains `"none"` and step 2 a third `.segmented`
+      button, which sends `structure: null` — an **answer**, where the key's
+      absence stays a refusal, since `dict.get` cannot tell them apart and only
+      one of the two should create a phase-free project quietly. It is the one
+      route that moves the mode nowhere: with no phase there is nothing for a
+      mode to govern, and Adopt sets it on the way out. `project_doc` gains
+      `n_phases` (a derived summary beside `head`, not a second authority) and
+      `moved()` reloads it, so Run, Run-one-stage and the series command
+      disable with the reason wherever the last phase arrives or leaves. The
+      Model panel's structure column says what to do instead, the 3D column and
+      its toggle are hidden with it, and `structure3d`'s refusal is phrased for
+      the state rather than for a bad index. The `.rxt` gains a comment where
+      the phase blocks would be — a document with neither reads as one whose
+      phases went missing.
+- [x] Tests: the whole loop over the wire in `test_gui_peaks.py` — a
+      pattern-only project refuses the run by name, picks peaks, adopts a
+      candidate and *then* fits to Rwp < 0.2. On the module's synthetic LaB6
+      rather than the corundum example, and with the candidate injected the way
+      every other adopt test here does it: what is under test is the loop, and
+      a real search belongs to the acceptance suite. Beside it: the library
+      round trip and `NoPhasesError` vs `predict` (`test_project.py`), a 1.2
+      and a 1.0 document still opening unmigrated, the wizard's `structure:
+      null` against the required key (`test_gui_server.py`), emptying a
+      structure through `PATCH`, the `NO_PHASES` envelope code on all three
+      refining tasks (`test_agent_surface.py`), and four vitest cases.
 - [ ] Manual (`using/files.md`, `quickstart.md`), AGENT_PROTOCOL row for
       `NO_PHASES`.
 
