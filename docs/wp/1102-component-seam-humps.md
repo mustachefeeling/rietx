@@ -184,6 +184,48 @@ change touches guard evidence on every state.
 
 ## Handover log
 
+- **2026-08-26** — **a proposed `BackgroundPeak` implements the humps half
+  under a different shape**, from a different starting point. Transcribed from
+  PR #115 (**open, not merged** — three review findings outstanding), whose own
+  handover draft is not taken verbatim: one of its bullets asserts a claim that
+  PR withdraws, corrected below. A data-owner request for "a small number of
+  explicit broad peaks summed on top of whatever background model is in use" is
+  implemented there as `Instrument.background_peaks: list[BackgroundPeak]`
+  (Gaussian; `position`, `height`, `fwhm`), *not* as `extra_components` with a
+  `HumpComponent`. Four differences worth knowing before this WP is resumed,
+  because three of them are constraints the seam design did not have:
+  - **`height`, not `area`.** The parameterisation is TOPAS's `xo_Is`
+    (`I` + `gauss_fwhm`), because the motivating case is a published TOPAS fit
+    whose numbers had to be comparable term by term. `area` remains the right
+    quotable number and is a projection of the three, not a fourth parameter.
+  - **The name fences the glob.** `background_peaks` sits outside
+    `instrument.background.*` because fnmatch's `*` crosses dots — the same
+    reasoning this WP's own log used to prefer `extra_components`, so an
+    `extra_components` seam inherits it unchanged.
+  - **The width bound is the feature, not a floor.** `HUMP_FWHM_MIN = 0.1` as
+    specified here is only a `MARCH_R_MIN` pole floor and does **not** stop a
+    free position/height/width from being a Bragg peak with no cell behind it.
+    What does is `fwhm ≥ BACKGROUND_PEAK_MIN_WIDTH_MULT · Γ_instrument(2θ₀)`,
+    which depends on U,V,W and on the peak's own position and is therefore a
+    reported guard (`BACKGROUND_PEAK_TOO_NARROW`), not a bound. Any member of
+    the seam that is a *peak* needs this; a `BACKGROUND_HUMP_SHARP` sized from
+    a width ladder would not have caught the failure, because the failure is
+    not gradual. The multiple itself is calibrated against **one** measured
+    case (20.8×, inside a 3–5 band) and no paper backs it — treat it as the
+    weakest joint in that design, not as a quoted constant.
+  - **`background_absorption` needs a span fix first.** Generalising the block
+    to include peak columns saturates every R² at 1.00 unless `_span_basis`
+    drops zero-norm columns — LAPACK returns an orthonormal Q whatever the rank
+    of A. That defect is real and pre-existing. It does **not**, however, reach
+    `BackgroundPSpline.air_scatter` at its off state: `to_internal` clamps, so
+    dp/du is 1e-12 rather than 0 and no design row is exactly zero. An earlier
+    commit on #115 claimed it did and withdrew the claim; the only exactly-zero
+    column comes from the product h·(…) at zero height, which is why the fix is
+    a provable no-op on everything shipped so far.
+  A `BackgroundPeak` of that shape does not provide the `ExtraComponent` union
+  itself, the member contract, `label`-keyed aggregate memberships, a sharp-peak
+  member ([1103](1103-peak-components.md)), or `capabilities()`' schema-shaped
+  key. A future seam should absorb it rather than sit beside it.
 - **2026-08-18** — created from the single-peak planning session; numbering
   opens the 11xx block (v1.1). The seam design replaced an earlier
   humps-inside-`Background` draft: unifying with
