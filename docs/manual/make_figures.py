@@ -291,7 +291,6 @@ def background_peak() -> None:
     file's docstring exists to prevent.  The real measurement is a **table**,
     in ``using/data.md``, where a number can carry its own provenance.
     """
-    sys.path.insert(0, str(REPO_ROOT))
     # explicit rather than through ``rx.viz``: this runs *before* the figure
     # that calls ``result.plot`` and imports the subpackage as a side effect
     from rietx.viz.plots import PALETTES
