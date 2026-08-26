@@ -161,6 +161,262 @@ def test_unknown_wavelength_is_not_checked_rather_than_clean():
 
 
 # ----------------------------------------------------------------------
+# counting coverage — how many observations stand behind each channel
+# ----------------------------------------------------------------------
+#
+# The measure and its two constants were set from two NIST BT-1
+# constant-wavelength neutron patterns (``Al2O3023.xye``, ``CrWO6003.xye``:
+# 3.00-166.25° at 0.05°, 3266 points, σ from the file, plateau v = 0.837 and
+# 0.826).  Both show the same ladder in σ²/max(y, 1) — ≈5× below 8°, ≈2.2-2.6×
+# out to ≈15°, tapering to 1× by ≈55°, then a step back to ≈2.2× inside one
+# channel at 161.30° — and neither pattern's plateau contains a region at all.
+# Those files live on the maintainer's archive drive and not in this repo, so
+# they are provenance for the numbers here and nothing is read from them: every
+# fixture below is synthetic, with the inflation put in on purpose.
+
+
+def _coverage_pattern(*, inflate=(), spikes=(), lo=5.0, hi=150.0, step=0.05,
+                      peak_deg=30.0, sigma_jitter=0.1, seed=3):
+    """Counts with a **measured** σ column and a prescribed coverage map.
+
+    Built the way the instrument builds it, as an exposure: a channel covered
+    for a fraction 1/k of the reference exposure reports the same *rate* and a
+    σ that is √k larger relative to it, so σ²/max(y, 1) = k there and 1 in the
+    bulk.  ``inflate`` is ``(2θ_lo, 2θ_hi, k)`` windows.
+
+    ``sigma_jitter`` is what makes the false-positive guard mean something: the
+    real σ column is not exactly √C (detector efficiencies, monitor
+    normalisation), and 10 % per-channel jitter on σ is 20 % on the ratio.
+    ``spikes`` multiplies σ on single channels, which is the shape of every
+    above-threshold excursion measured in the real plateau.
+    """
+    # rounded rather than np.arange: the window bounds below are compared
+    # against this grid, and 2900 accumulated steps of 0.05 put the last
+    # channel 3e-13 past ``hi``, outside its own window
+    tt = np.round(lo + step * np.arange(int(round((hi - lo) / step)) + 1), 6)
+    rng = np.random.default_rng(seed)
+    mu = 500.0 + 4000.0 * np.exp(-0.5 * ((tt - peak_deg) / 0.3) ** 2)
+    exposure = np.ones_like(tt)
+    for w_lo, w_hi, k in inflate:
+        exposure[(tt >= w_lo) & (tt <= w_hi)] = 1.0 / k
+    counts = rng.poisson(mu * exposure).astype(float)
+    y = counts / exposure
+    sigma = np.sqrt(np.maximum(counts, 1.0)) / exposure
+    sigma *= 1.0 + sigma_jitter * rng.standard_normal(len(tt))
+    for pos, factor in spikes:
+        sigma[int(np.argmin(np.abs(tt - pos)))] *= factor
+    return rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+                          sigma=np.abs(sigma).tolist())
+
+
+def test_counting_coverage_finds_the_thin_ends():
+    """A known 5× window at the low end and a 2.2× one at the high end — the
+    two levels the BT-1 patterns show — come back with their own bounds and
+    their own inflation.
+
+    The bounds are resolved to within the smoothing window and no better: a
+    median over ``COVERAGE_SMOOTH_DEG`` crosses the threshold when half the
+    window is inside the step, so an interior boundary sits half a window in
+    while a boundary at the pattern's own edge does not move.
+    """
+    from rietx.background import counting_coverage
+    from rietx.background.diagnostics import COVERAGE_SMOOTH_DEG
+
+    data = _coverage_pattern(inflate=[(5.0, 20.0, 5.0), (140.0, 150.0, 2.2)])
+    regions, plateau = counting_coverage(data.tt(), data.y(),
+                                        np.asarray(data.sigma))
+    assert plateau == pytest.approx(1.0, abs=0.05)
+    assert [r.edge for r in regions] == ["low", "high"], regions
+
+    low, high = regions
+    assert low.two_theta_min == 5.0
+    assert low.two_theta_max == pytest.approx(20.0, abs=COVERAGE_SMOOTH_DEG)
+    assert low.inflation == pytest.approx(5.0, rel=0.15)
+    assert low.n_channels == pytest.approx(15.0 / 0.05, rel=0.1)
+
+    assert high.two_theta_min == pytest.approx(140.0, abs=COVERAGE_SMOOTH_DEG)
+    assert high.two_theta_max == pytest.approx(150.0, abs=1e-9)
+    assert high.inflation == pytest.approx(2.2, rel=0.15)
+
+    # model-free: the Bragg peak at 30° is in neither region and makes none of
+    # its own — v is a property of σ against y, not of the pattern's shape
+    assert all(not (r.two_theta_min <= 30.0 <= r.two_theta_max) for r in regions)
+
+
+def test_counting_coverage_silent_on_clean_measured_sigma():
+    """The false-positive guard, and the more important of the two.
+
+    Uniform coverage with 10 % jitter on σ and four single-channel σ spikes big
+    enough to put the raw ratio at 3× — which is what the real plateau does
+    (every excursion above the threshold there is exactly one channel long).
+    Nothing may be reported, and the plateau must still say the check ran.
+    """
+    from rietx.background import counting_coverage
+
+    data = _coverage_pattern(spikes=[(40.0, 1.8), (70.0, 1.8), (95.0, 1.8),
+                                     (120.0, 1.8)])
+    regions, plateau = counting_coverage(data.tt(), data.y(),
+                                        np.asarray(data.sigma))
+    assert regions == []
+    assert plateau == pytest.approx(1.0, abs=0.05)
+
+    # the spikes are real in the unsmoothed statistic — the guard is the
+    # smoothing, not the absence of anything to smooth
+    v = np.asarray(data.sigma) ** 2 / np.maximum(data.y(), 1.0)
+    assert v.max() / plateau > 2.5
+
+
+def test_counting_coverage_declines_a_poisson_fallback_sigma():
+    """Empty because the statistic carries **no information**, not because it
+    was measured and found nothing.
+
+    Under σ = √max(y, 1) the ratio is identically 1 by construction, so an
+    answer computed from it would describe the fallback rather than the
+    experiment.  ``sigma=None`` is how this module already spells "not
+    measured" (:func:`sampling_steps_per_fwhm`), and ``coverage_plateau``
+    ``None`` is what separates *not checkable* from *checked and uniform*.
+    """
+    from rietx.background import counting_coverage
+    from rietx.background.diagnostics import COVERAGE_INFLATION_THRESHOLD
+
+    counts = _coverage_pattern(inflate=[(5.0, 20.0, 5.0)])
+    bare = rx.PatternData(two_theta=counts.two_theta,
+                          intensity=np.round(counts.y()).tolist())
+    assert bare.sigma is None
+    assert counting_coverage(bare.tt(), bare.y(), None) == ([], None)
+
+    d = diagnose(bare)
+    assert d.coverage_regions == []
+    assert d.coverage_plateau is None
+
+    # and the reason: handed the fallback array explicitly, the ratio is a
+    # constant 1 — degenerate, so the emptiness above is structural rather than
+    # a threshold that happened not to fire
+    ratio = bare.sig() ** 2 / np.maximum(bare.y(), 1.0)
+    np.testing.assert_allclose(ratio, 1.0, atol=1e-12)
+    assert COVERAGE_INFLATION_THRESHOLD > 1.0
+    regions, plateau = counting_coverage(bare.tt(), bare.y(), bare.sig())
+    assert regions == [] and plateau == pytest.approx(1.0)
+
+
+def test_counting_coverage_names_an_interior_region():
+    """A dead detector is not the bank running out at the end of its range.
+
+    Both are thin coverage and the ratio cannot tell them apart, but the causes
+    are different — one is the ordinary geometry of a multi-detector
+    instrument, the other is a fault or a stitched scan — so ``edge`` says
+    which shape was seen and leaves the reading to the caller.
+    """
+    from rietx.background import counting_coverage
+    from rietx.background.diagnostics import COVERAGE_SMOOTH_DEG
+
+    data = _coverage_pattern(inflate=[(70.0, 80.0, 3.0)])
+    regions, plateau = counting_coverage(data.tt(), data.y(),
+                                        np.asarray(data.sigma))
+    assert [r.edge for r in regions] == ["interior"], regions
+    assert regions[0].two_theta_min == pytest.approx(70.0, abs=COVERAGE_SMOOTH_DEG)
+    assert regions[0].two_theta_max == pytest.approx(80.0, abs=COVERAGE_SMOOTH_DEG)
+    assert regions[0].inflation == pytest.approx(3.0, rel=0.15)
+    # a 10° window inside the middle half does not move the plateau it is
+    # measured against
+    assert plateau == pytest.approx(1.0, abs=0.05)
+
+
+def test_counting_coverage_survives_degenerate_patterns():
+    """No pattern makes it raise, and two of these are declared behaviour.
+
+    A pattern with no σ and one whose σ is all zeros have no plateau to compare
+    against, so they answer ``None`` rather than guessing.  A window of **zero
+    intensity** with a finite σ does report a region, and that is the caveat
+    the docstring declares rather than a claim about detector count: max(y, 1)
+    in the denominator makes v large wherever the counts collapse, which is a
+    different phenomenon wearing the same statistic.
+    """
+    from rietx.background import counting_coverage
+
+    data = _coverage_pattern()
+    tt, y, sigma = data.tt(), data.y(), np.asarray(data.sigma)
+
+    assert counting_coverage(tt, y, None) == ([], None)
+    assert counting_coverage(tt[:2], y[:2], sigma[:2]) == ([], None)
+    assert counting_coverage(tt, y, np.zeros_like(sigma)) == ([], None)
+
+    nan_y, nan_sigma = y.copy(), sigma.copy()
+    nan_y[100:120] = np.nan
+    nan_sigma[900:905] = np.nan
+    regions, plateau = counting_coverage(tt, nan_y, nan_sigma)
+    assert plateau == pytest.approx(1.0, abs=0.05)
+    assert regions == [], "a non-finite channel makes no claim"
+
+    zeroed = y.copy()
+    zeroed[-400:] = 0.0
+    regions, _ = counting_coverage(tt, zeroed, sigma)
+    assert [r.edge for r in regions] == ["high"], (
+        "declared caveat: collapsing counts inflate v too")
+
+
+def test_diagnose_reports_the_same_coverage_as_the_function():
+    """One authority, the shape ``steps_per_fwhm`` already has: ``diagnose``
+    must be a call to :func:`counting_coverage`, not a second opinion."""
+    from rietx.background import counting_coverage
+
+    data = _coverage_pattern(inflate=[(5.0, 20.0, 5.0), (140.0, 150.0, 2.2)])
+    regions, plateau = counting_coverage(data.tt(), data.y(),
+                                        np.asarray(data.sigma))
+    d = diagnose(data)
+    assert d.coverage_plateau == plateau
+    assert d.coverage_regions == regions
+
+
+def test_counting_coverage_on_the_bundled_patterns_that_fire():
+    """The measure fires on real bundled patterns, and none is a plain
+    detector-bank falloff — so the reading is documented rather than left for a
+    caller to rediscover (the manual carries the causes; this pins the numbers).
+
+    The synthetic fixtures above set the *constants*; this pins what the measure
+    actually reports on the σ-bearing patterns shipped in ``tests/data``, so a
+    later change that moves a boundary or a level has to say so here.  The 11-BM
+    ends rise smoothly (an analyser bank tapering, not a quantised step) and the
+    SRM 660c ladder is non-monotonic (a counting schedule, not a detector count);
+    ``edge`` locates each and does not claim its cause.
+    """
+    from rietx.background import counting_coverage
+
+    data_dir = Path(__file__).parent / "data"
+
+    def _fire(name):
+        data = rx.read_pattern(str(data_dir / name))
+        assert data.sigma is not None, f"{name} has no σ column to read"
+        return counting_coverage(data.tt(), data.y(), data.sig())
+
+    # 11-BM: one high-angle region each, ≈2.8× the plateau, smooth taper.
+    for name, lo_deg in (("11BM_NAC.fxye", 46.0), ("11BM_LaB6_660a.fxye", 53.0)):
+        regions, plateau = _fire(name)
+        assert [r.edge for r in regions] == ["high"], (name, regions)
+        assert regions[0].two_theta_min == pytest.approx(lo_deg, abs=1.0), name
+        assert regions[0].inflation == pytest.approx(2.8, rel=0.1), name
+
+    # SRM 660c: a broad low region and two interior ones — the interior pair is
+    # threshold-crossing chatter, the low one the counting schedule.
+    regions, plateau = _fire("nist_srm660c_100a.cif")
+    assert [r.edge for r in regions] == ["low", "interior", "interior"], regions
+    low = regions[0]
+    assert low.two_theta_min == pytest.approx(20.3, abs=0.5)
+    assert low.two_theta_max == pytest.approx(62.5, abs=1.0)
+    assert low.inflation == pytest.approx(5.5, rel=0.1)
+    assert regions[1].inflation == pytest.approx(2.74, rel=0.1)
+    assert regions[2].inflation == pytest.approx(1.58, rel=0.1)
+
+    # and silent where σ is measured but coverage is uniform — the control that
+    # keeps the three above from being "fires on everything".
+    clean = rx.read_pattern(str(data_dir / "panalytical_attenuator.xrdml"))
+    assert clean.sigma is not None
+    regions, plateau = counting_coverage(clean.tt(), clean.y(), clean.sig())
+    assert regions == [], regions
+    assert plateau is not None
+
+
+# ----------------------------------------------------------------------
 # auto-selection
 # ----------------------------------------------------------------------
 def test_peak_mask_keeps_background_channels():
@@ -607,3 +863,241 @@ def test_identifiability_carries_the_quiet_measurements_too():
     back = RefinementResult.model_validate_json(result.model_dump_json())
     assert back.identifiability.background_absorption == \
         ident.background_absorption
+
+
+# ----------------------------------------------------------------------
+# signal cutoffs — an end of the range the instrument was not seeing
+# through.  The real-data provenance (ILL D20 SrFeO₃, NIST BT-1) is in
+# ``signal_cutoffs``' docstring; nothing here reads a drive.
+# ----------------------------------------------------------------------
+_LEVEL = 1.0e8
+#: σ²/y of the D20 files these cases are shaped after, measured at ≈20 000.
+_VARIANCE_PER_COUNT = 2.0e4
+
+
+def _cw_pattern(*, lo=5.0, hi=150.0, step=0.05, seed=3, peaks=(
+        (25.0, 3.0), (48.0, 1.5), (77.0, 2.2), (112.0, 1.2), (138.0, 0.9))):
+    """``(two_theta, y)`` for a flat-background pattern with broad peaks.
+
+    Shaped after a constant-wavelength neutron scan rather than built by the
+    forward model: these cases are about the *ends of the range*, so the peaks
+    exist only to make the interior level a realistic mixture of peak and
+    background, and a compiled model would tie the case to the profile code.
+    """
+    tt = np.arange(lo, hi + 0.5 * step, step)
+    y = np.full_like(tt, _LEVEL)
+    for centre, height in peaks:
+        y += height * _LEVEL * np.exp(-0.5 * ((tt - centre) / 0.5) ** 2)
+    rng = np.random.default_rng(seed)
+    return tt, y * (1.0 + 0.01 * rng.standard_normal(tt.size))
+
+
+def _sigma_like_the_file(y):
+    """σ with σ²/y constant — what makes the precision penalty derivable."""
+    return np.sqrt(_VARIANCE_PER_COUNT * np.maximum(y, 1.0))
+
+
+def _collapse(tt, y, *, at, edge, floor=0.02, deg=0.5):
+    """Taper ``y`` beyond ``at`` towards ``floor``, e-folding over ``deg``.
+
+    A factor of 50 in ≈2°, then a floor — the trailing shape measured on
+    ``306774`` (factor ≈45 over 2.3°, then 2-3 %).
+    """
+    x = (tt - at) if edge == "high" else (at - tt)
+    taper = np.where(x > 0.0, np.maximum(np.exp(-x / deg), floor), 1.0)
+    return y * taper
+
+
+def test_signal_cutoff_finds_a_trailing_cliff():
+    """The archetype: a level that collapses near the end and stays down.
+
+    The boundary reported is the *onset*, not the floor, so it must land on
+    the last channel that was still at level — within a channel or two of
+    where the taper was applied.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, clean = _cw_pattern()
+    y = _collapse(tt, clean, at=130.0, edge="high")
+    got = signal_cutoffs(tt, y, _sigma_like_the_file(y))
+
+    assert len(got) == 1, got
+    cut = got[0]
+    assert cut.edge == "high"
+    assert abs(cut.two_theta - 130.0) < 0.1, cut     # 0.05° step: two channels
+    assert cut.floor_fraction < 0.05, cut            # the floor, not the cliff
+    # what a trim at this boundary would drop, and it is most of the tail
+    assert cut.n_channels == int(np.sum(tt > cut.two_theta))
+    assert 350 < cut.n_channels < 420, cut
+
+
+def test_signal_cutoff_is_silent_on_clean_patterns():
+    """The false-positive guard, and the one that matters most.
+
+    A pattern whose ends are at its own interior level has no cutoff, and
+    neither does one whose background merely *falls* across the range — the
+    1/x air-scatter shape is the near miss, since it is highest at the end
+    this measure looks at.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, y = _cw_pattern()
+    assert signal_cutoffs(tt, y, _sigma_like_the_file(y)) == []
+
+    for background in (_flat_bkg, _air_scatter_bkg, _hump_bkg):
+        data = _peaky_pattern(background=background)
+        assert signal_cutoffs(data.tt(), data.y()) == [], background.__name__
+
+
+def test_signal_cutoff_ignores_an_interior_gap():
+    """A collapse that does not reach an end of the range is not a cutoff.
+
+    Same depth and more than the same width as the trailing case above — a
+    dead detector or an excised region, whose handling is an excluded region
+    and not a fit range.  Reaching the first or last channel is the whole
+    difference, so it is asserted against the case that only differs there.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, y = _cw_pattern()
+    gap = (tt > 60.0) & (tt < 68.0)
+    y = np.where(gap, 0.02 * y, y)
+    assert signal_cutoffs(tt, y, _sigma_like_the_file(y)) == []
+
+
+def test_signal_cutoff_finds_a_leading_cliff():
+    """The low end, which on real data is a beamstop rather than a detector.
+
+    Reported the same way and with the opposite ``edge``; the count is the
+    channels *below* the boundary, so the two edges' ``n_channels`` mean the
+    same thing for a caller trimming to them.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, clean = _cw_pattern()
+    y = _collapse(tt, clean, at=12.0, edge="low")
+    got = signal_cutoffs(tt, y, _sigma_like_the_file(y))
+
+    assert len(got) == 1, got
+    cut = got[0]
+    assert cut.edge == "low"
+    assert abs(cut.two_theta - 12.0) < 0.1, cut
+    assert cut.n_channels == int(np.sum(tt < cut.two_theta))
+
+
+def test_signal_cutoff_survives_a_strong_peak_in_the_last_channels():
+    """A pattern ending *on* a peak reports nothing.
+
+    The failure this guards is the mirror of the measure's own logic: the
+    interior level is a median over the middle, a peak at the last channel
+    sits far above it, and a rule keyed on "different from the interior"
+    rather than on "collapsed below it" would fire here.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, y = _cw_pattern(peaks=((25.0, 3.0), (149.8, 4.0)))
+    assert signal_cutoffs(tt, y, _sigma_like_the_file(y)) == []
+
+
+def test_signal_cutoff_relative_error_is_the_level_re_expressed():
+    """``relative_error_ratio`` is derived, and the test is that arithmetic.
+
+    With σ²/y constant, σ/y = √(σ²/y)/√y, so the region's precision penalty is
+    1/√``floor_fraction`` and carries no information the level did not.  It is
+    reported because it is the number the person who took the data reads, and
+    asserted here so that a later reader cannot mistake it for a second
+    observation.  Absent σ it is ``None``, not the Poisson identity.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, clean = _cw_pattern()
+    y = _collapse(tt, clean, at=130.0, edge="high")
+
+    cut = signal_cutoffs(tt, y, _sigma_like_the_file(y))[0]
+    assert cut.relative_error_ratio == pytest.approx(
+        1.0 / np.sqrt(cut.floor_fraction), rel=0.05)
+
+    assert signal_cutoffs(tt, y)[0].relative_error_ratio is None
+
+
+def test_signal_cutoff_degenerate_inputs_return_nothing():
+    """Every degenerate input is an empty list, and one of them is a *decision*.
+
+    A pattern with no live interior — dead but for a narrow band — comes back
+    empty rather than reporting itself as one long cutoff: the threshold is a
+    fraction of the pattern's own middle, so a collapse that consumed the
+    middle takes the reference down with it.  Silence where the evidence is
+    gone is the direction to fail in, and the alternative (a cutoff over the
+    whole range) is not an answer a caller could use.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    two_points = np.array([10.0, 140.0])
+    assert signal_cutoffs(two_points, np.array([1.0, 1.0e8])) == []
+
+    tt, y = _cw_pattern()
+    assert signal_cutoffs(tt, np.zeros_like(tt)) == []          # nothing at all
+    assert signal_cutoffs(tt, np.full_like(tt, 3.0)) == []      # flat and low
+
+    holed = y.copy()
+    holed[[0, 17, 200, -1]] = np.nan
+    assert signal_cutoffs(tt, holed) == []                      # NaN opens no run
+    # and closes none either: the same cliff, with holes in it, is the same cut
+    cliff = _collapse(tt, y, at=130.0, edge="high")
+    cliff[[0, 500, 2100, -1]] = np.nan
+    assert signal_cutoffs(tt, cliff)[0].two_theta == pytest.approx(130.0, abs=0.1)
+
+    # dead but for a narrow live band: the reference went with the middle
+    assert signal_cutoffs(tt, np.where((tt > 70.0) & (tt < 85.0), y, 0.01 * y)) == []
+
+
+def test_diagnose_carries_the_cutoffs_and_the_others_still_read_the_range():
+    """``diagnose`` reports the cutoff; it does not re-measure anything on the
+    trimmed range, and the docstring's ordering claim is the reason.
+
+    Asserted both ways: the field arrives, and the other fields still describe
+    the range they were handed — the same pattern cropped to the reported
+    boundaries is a *different* answer, which is what makes reading the cutoffs
+    first the caller's job rather than a silent step.
+    """
+    from rietx.background.diagnostics import diagnose
+
+    tt, clean = _cw_pattern()
+    y = _collapse(tt, clean, at=130.0, edge="high")
+    data = rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+                          sigma=_sigma_like_the_file(y).tolist())
+
+    diag = diagnose(data)
+    assert [c.edge for c in diag.signal_cutoffs] == ["high"]
+    assert abs(diag.signal_cutoffs[0].two_theta - 130.0) < 0.1
+    assert diag.signal_cutoffs[0].relative_error_ratio is not None
+
+    trimmed = diagnose(data.crop(float(tt[0]), diag.signal_cutoffs[0].two_theta))
+    assert trimmed.signal_cutoffs == []
+    assert trimmed.amorphous_hump_score < 0.5 * diag.amorphous_hump_score
+
+    # and the whole object survives the JSON round trip an agent takes
+    from rietx.background.diagnostics import PatternDiagnostics
+    assert PatternDiagnostics.model_validate_json(
+        diag.model_dump_json()).signal_cutoffs == diag.signal_cutoffs
+
+
+def test_signal_cutoff_reports_one_boundary_per_edge():
+    """A collapse with a bump inside it is one cutoff, not two.
+
+    The real leading edge has this shape — a shadowed floor, then a broad bump
+    at an angle no lattice plane could put one, then the climb — and there the
+    bump stays under the threshold, so it is one run.  Built here to cross it:
+    two runs at the same edge, and the answer is the innermost boundary,
+    because whatever rose in between never got back to level and the usable
+    range starts after the last of them.
+    """
+    from rietx.background.diagnostics import signal_cutoffs
+
+    tt, clean = _cw_pattern()
+    y = _collapse(tt, clean, at=12.0, edge="low")
+    halo = 0.5 * _LEVEL * np.exp(-0.5 * ((tt - 7.0) / 0.6) ** 2)
+
+    got = signal_cutoffs(tt, y + halo, _sigma_like_the_file(y + halo))
+    assert [c.edge for c in got] == ["low"], got
+    assert abs(got[0].two_theta - 12.0) < 0.2, got

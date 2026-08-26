@@ -9,6 +9,25 @@ being chosen (arPLS stiff enough to be safe under peaks is too stiff to
 follow a genuine hump — measured, which is why the envelope is used here).
 Wavelength-dependent contamination checks (Kβ ghosts, W Lα from an aging
 tube) run only when the primary wavelength is supplied.
+
+One measure here reads the **σ column** rather than the intensities:
+:func:`counting_coverage`, which asks whether every channel was observed with
+the same statistical weight.  On a multi-detector instrument it is not — fewer
+detectors reach the ends of the range — and the σ column is the only place that
+shows.  It is the one thing in this module that a Poisson fallback σ cannot
+answer at all, so it returns nothing rather than a number.
+
+One measure is about the **range** rather than about the pattern on it, and it
+is read before all the others: :func:`signal_cutoffs`, which finds leading or
+trailing stretches where the instrument stopped seeing the sample.  Everything
+else here is computed over the whole range it is handed, so a dead end corrupts
+those answers — measured, and the numbers are in that function's docstring.  It
+reads the **intensities**, and it is not :func:`counting_coverage` under another
+name: measured on the pattern quoted there, σ²/y holds at ≈20 000 straight
+through the collapse, so σ is honest and those channels are not thinly covered,
+they are empty.  What σ adds is that same level re-expressed as a precision, and
+:class:`SignalCutoff` carries it as a derived number rather than as a second
+observation.
 """
 
 from __future__ import annotations
@@ -17,6 +36,7 @@ import warnings
 
 import numpy as np
 from pydantic import Field
+from scipy.ndimage import median_filter
 from scipy.signal import find_peaks, peak_widths
 
 from ..schemas.common import Base
@@ -94,6 +114,101 @@ STEPS_PER_FWHM_MAX = 10.0
 #: WP-1071's handover, so the number is a floor and not a tuning.
 SAMPLING_PROMINENCE_SIGMA = 5.0
 
+#: Median-filter width, in ° 2θ, applied to the variance-inflation ratio before
+#: any region is cut out of it (:func:`counting_coverage`).  It is what makes the
+#: threshold below mean anything: measured on the two BT-1 patterns quoted there,
+#: the *per-channel* ratio through the quiet middle of the scan (60-145°) makes
+#: single-channel excursions to 2.27 and 2.43 — higher than the genuine steps the
+#: measure exists to find — and **every one of them is exactly one channel long**
+#: (3 and 4 such channels respectively), while a median over 11 channels leaves
+#: nothing above even 1.3 there.  Measured at 11, 21 and 41 channels: the regions
+#: come back the same, so the width is a floor and not a tuning.  1.0° is
+#: ``int(1.0 / 0.05)`` = 20 channels at those files' 0.05° step — an even width,
+#: so ``median_filter`` takes the lower of the two central values, half a channel
+#: below centre.  Neither the count nor the off-by-half moves a reported region.
+COVERAGE_SMOOTH_DEG = 1.0
+
+#: How many times the plateau's variance-per-count a smoothed channel must carry
+#: before it counts as thinly covered.  Set from the gap between the two things
+#: it has to separate, on ``Al2O3023.xye`` (NIST BT-1, 3.00-166.25° at 0.05°,
+#: 3266 points, σ from the file): the smoothed ratio *drifts* over 1.11-1.37
+#: through 149-161°, then **steps** to 2.25 in a single channel at 161.30° and
+#: holds it to the end of the scan.  1.5 sits between the two with ≈1.4× margin
+#: on each side.  Not tuned to taste: neither BT-1 pattern's plateau reaches it
+#: anywhere (smoothed maximum 1.3 over 60-145°), and the region that matters —
+#: the one past the step — is identical at 1.3, 1.5 and 1.75.
+COVERAGE_INFLATION_THRESHOLD = 1.5
+
+#: How far below the interior level a run must sit to be a *collapse* rather
+#: than a falling background (:func:`signal_cutoffs`).  Swept on the three ILL
+#: D20 patterns quoted there, 0.15 to 0.40, watching the reported boundary:
+#: the **trailing** cliff barely moves (143.33 → 142.73°, 0.6° over a 2.7×
+#: change in the constant) because it is steep, while the **leading** boundary
+#: is flat at 7.63-7.73° over 0.20-0.30 and then breaks — 9.63° at 0.35, 11.53°
+#: at 0.40 — because the leading end is a graded climb that only reaches 32 % of
+#: the interior level by 8°, so a threshold above ≈0.32 swallows the climb
+#: itself and the walk-back starts from inside live data.  0.25 sits in the
+#: middle of the flat stretch, with ≈1.3× margin to the break above and to the
+#: 0.15 that puts the run's inner edge below the 4.6° halo bump.  It is also
+#: what keeps a sample-free ``Background.xye`` silent at the low end (it fires
+#: there at 0.30 and above), which is the one file in the set with no low-angle
+#: answer to get right.
+CUTOFF_FRACTION = 0.25
+
+#: The fraction of the local plateau at which the collapse is declared to have
+#: *begun*, which is the 2θ actually reported.  The floor is not the boundary a
+#: fit range wants: on ``306774`` the trailing level is still 92 % of interior
+#: at 142.83°, 24 % at 144.03° and 2-3 % from 145.2° on, so reporting where it
+#: reaches the floor would hand back 2.3° of unfittable transition inside the
+#: range.  Swept 0.80 to 0.99 on the two SrFeO₃ files, it is the gentlest of
+#: these constants and the only monotone one: the trailing boundary moves
+#: 143.23 → 143.13 → 143.03 → 143.03 → 142.93° and the leading one
+#: 7.43 → 7.63 → 7.63 → 7.93 → 8.13°, i.e. ≈0.1-0.2° per 0.05 of the constant,
+#: with no break anywhere.  0.90 is where both files agree with TOPAS's own
+#: window to within half a degree; a caller who wants the boundary further out
+#: or further in should pass ``onset_fraction`` rather than expect a different
+#: default to be more correct.
+CUTOFF_ONSET_FRACTION = 0.90
+
+#: Shortest collapse, in ° 2θ, that is reported at all.  Twice
+#: :data:`CUTOFF_SMOOTH_DEG` and for that reason: a run the smoothing cannot
+#: resolve is not evidence, so the shortest reportable feature follows the
+#: window it was measured through rather than being a second tunable of its
+#: own.  A shorter run at an edge is a dip or a gap in the first channels, not
+#: an instrument that stopped.
+CUTOFF_MIN_DEG = 1.0
+
+#: Rolling-median width, in ° 2θ, that turns the intensities into a *level*.
+#: It is there to stop one spike or one dropped channel opening or closing a
+#: run, not to remove peaks — the plateau window below is what averages over
+#: those.  Measured at 0.3, 0.5, 1.0 and 2.0° on the three D20 patterns: 0.3
+#: and 0.5 give identical boundaries at both edges, and 1.0-2.0 move the
+#: trailing one by a single channel, so 0.5 is a floor rather than a tuning.
+CUTOFF_SMOOTH_DEG = 0.5
+
+#: Width, in ° 2θ, of the window just inside a collapse whose median level is
+#: the "local plateau" the onset is measured against.  It has to clear the
+#: cliff without being taken over by one strong peak, and both failures were
+#: measured on ``306774``: at 0.5° the window sits *inside* the collapse, the
+#: plateau reads 0.38 of interior and the reported trailing boundary lands at
+#: 143.73°, half-way down the cliff; at 3° it reaches back over a 110 %-of-
+#: interior peak, reads 1.10, and walks out to 142.73°, trimming live data.
+#: Between 1 and 3° the answer moves 143.53 → 143.03 → 142.73°, i.e. under 1°
+#: for a 3× change, and every one of those lies between the last full-level
+#: channel (142.43°) and the floor (145.2°) — TOPAS's own ``finish_X 142`` sits
+#: just inside all three, so the decision this supports is insensitive even
+#: where the number is not.
+CUTOFF_PLATEAU_DEG = 2.0
+
+#: The central fraction of the range whose median level is "the interior".  It
+#: must exclude both dead ends, and 0.70 clears them with ≈2× margin on the
+#: files measured (the leading region is 4.7 % of the channels, the trailing one
+#: 6.5-7 %).  A pattern whose dead ends exceed 15 % of the channels drags the
+#: interior median down towards them, the threshold with it, and the measure
+#: under-reports — silence rather than a false claim, which is the direction to
+#: fail in.
+CUTOFF_INTERIOR_FRACTION = 0.70
+
 
 class ContaminationFlag(Base):
     """A weak peak consistent with a known contamination line of a strong one."""
@@ -104,8 +219,117 @@ class ContaminationFlag(Base):
     intensity_ratio: float     # ghost/parent net height
 
 
+class SignalCutoff(Base):
+    """An end of the pattern where the instrument stopped seeing the sample.
+
+    Not a verdict and not applied anywhere: :func:`signal_cutoffs` reports, and
+    the caller decides what the fit range is.  The five numbers are five
+    separate questions a caller has to answer before it can decide.
+
+    ``edge`` is which end, and it is not cosmetic — the two ends fail for
+    different reasons and carry different arguments (both measured, in
+    :func:`signal_cutoffs`).  A ``"high"`` cutoff is the detector's active area
+    running out: there is no diffraction information past it at all.  A
+    ``"low"`` one is a beamstop or its halo, where there *is* structure — a
+    direct-beam shoulder, a shadowed floor, a broad bump at an angle no lattice
+    plane could put one — and it is structure that does not belong to the
+    specimen.
+
+    ``two_theta`` is the boundary, and it is the **onset** of the collapse
+    rather than where the level reaches its floor, because the onset is what a
+    fit range should stop at.  It is a channel that is still at level, so a
+    caller trimming to it keeps it: ``n_channels`` is exactly what such a trim
+    would drop, which is why the count is reported rather than the region's own
+    width — 109 of 1540 channels is the fact, and 9.9° is not.
+
+    ``floor_fraction`` is how dead: the region's median level over the interior
+    level.  A **median**, so it summarises rather than resolves, and the two
+    ends of the same file are different shapes underneath the same kind of
+    number (0.025 trailing, a genuine floor; 0.10 leading, an average over a
+    shadowed floor near 0.05 and a halo bump near 0.14).  It is also the number
+    that separates "there is nothing here" from "there is less here", which is a
+    judgement this function declines to make for the caller.
+
+    ``relative_error_ratio`` is the implied precision penalty — the region's
+    median σ/y over the interior's — and it is **derived, not a second
+    observation**.  Where σ²/y is constant, as it is on every pattern measured
+    here, σ/y = √(σ²/y) / √y, so the ratio is 1/√``floor_fraction`` and nothing
+    more: measured on ``306774``, 3.18 against 3.13 at the leading edge and 6.35
+    against 6.34 at the trailing one.  It is carried because it is the language
+    the person who took the data uses ("the data quality steps below the
+    cutoff") and because saying so once here is what stops a third measure of
+    the same fact being added later.  ``None`` when σ was not measured: under
+    the Poisson fallback the ratio is *identically* 1/√``floor_fraction``, so
+    reporting it would be reporting the fallback.
+    """
+
+    edge: str                       # "low" | "high"
+    two_theta: float                # the boundary — the onset of the collapse
+    floor_fraction: float           # the region's median level / the interior level
+    n_channels: int                 # channels outside the boundary
+    relative_error_ratio: float | None = None   # median σ/y there, over interior
+
+
+class CoverageRegion(Base):
+    """A stretch of pattern whose σ carries more variance per count than the
+    bulk of the scan does — fewer independent observations behind each channel.
+
+    Purely **descriptive**, and deliberately so.  If σ is right then weighted
+    least squares already gives these channels the weight they deserve, which is
+    the whole job σ has; the region is a fact about *the experiment's coverage*,
+    not a verdict on the data.  What it tells a caller is that the pattern's
+    statistical weight is not uniform across its range — which is about how many
+    detectors saw each angle, and about nothing to do with the specimen.
+
+    The four numbers are the four separate questions: where it is, how much
+    variance per count it carries relative to the bulk (``inflation``), how wide
+    it is (``n_channels`` — a 3-channel region and a 700-channel one are
+    different facts about the same ratio; and it is the region's *span*, bridged
+    sub-threshold gaps included, not a count of channels each over the
+    threshold), and *where in the range* it sits.  ``edge`` is not a hint to do
+    anything and it is not a diagnosis of the cause: it says only whether the run
+    reached an end of the range or sat inside it.  The causes it does **not**
+    separate are several.  An end region can be the detector bank's coverage
+    running out (a quantised falloff, detectors being integers) *or* a smooth
+    high-angle taper of a synchrotron analyser bank (11-BM rises over its last
+    third rather than stepping); an interior one can be a dead or excluded
+    detector, two scans stitched together, a variable counting-time or slit
+    schedule (a non-monotonic ladder, as SRM 660c shows), or mere
+    threshold-crossing chatter a channel or two wide.  ``counting_coverage`` and
+    the manual carry the bundled-pattern readings; ``edge`` is the coarse
+    location and nothing finer.  Both ends cannot be one region, because the
+    plateau is measured in the middle.
+
+    ``inflation`` is a **median** over the region, so it summarises rather than
+    resolves: a region can hold finer steps of its own (on ``Al2O3023.xye`` the
+    low-angle region runs ≈5× below 8°, ≈2.2× from 8-11°, ≈4× over 11.3-13°, then
+    ≈2.2× tapering to 1× by ≈55°), and the levels are not even monotonic in 2θ.
+    """
+
+    two_theta_min: float
+    two_theta_max: float
+    inflation: float           # median σ²/max(y,1) in the region, over the plateau
+    n_channels: int
+    edge: str                  # "low" | "high" | "interior"
+
+
 class PatternDiagnostics(Base):
     """Agent-readable observations about a raw pattern (no model involved).
+
+    **Read ``signal_cutoffs`` first.**  Every other field here is computed over
+    the whole range this object was handed, so where a cutoff exists they are
+    measurements of a range that includes channels the instrument was not
+    seeing the sample through, and they say so.  Measured on the ILL D20
+    pattern of :func:`signal_cutoffs` (0.03-153.93°, against the 8-142° window
+    TOPAS's own refinements of it declare): the dead tail inflates
+    ``amorphous_hump_score`` 1.85× (0.2549 against 0.1380), **hides** the
+    low-angle air-scatter rise altogether (``air_scatter_gain`` 0.0027 against
+    0.1433, 52× understated), and moves ``baseline_lambda`` by two decades
+    (10⁴ against 10⁶).  Nothing is re-run on a trimmed range and no field's
+    value depends on the cutoffs — a diagnostic that quietly reported numbers
+    for a range the caller did not ask about would be worse than one that says
+    which range it used.  The ordering is the handling: read the cutoffs, decide
+    the range, ask again if you changed it.
 
     * ``peak_fraction`` — fraction of channels more than 3σ above the
       envelope: how much of the pattern is peak rather than background.
@@ -133,6 +357,22 @@ class PatternDiagnostics(Base):
       measurable.  This is the one number here about the *experiment* rather
       than the pattern: below :data:`STEPS_PER_FWHM_MIN` no refinement can
       repair it, because the counts were never collected.
+    * ``coverage_plateau`` — the bulk pattern's σ²/max(y, 1), the median over
+      the middle half of the range.  1.0 is pure Poisson counting; a value
+      away from 1 means the file's σ is something else (merged detectors, a
+      monitor normalisation), which is a fact worth having on its own.
+      ``None`` means σ was *not measured* and nothing below was checked.
+    * ``coverage_regions`` — stretches carrying more variance per count than
+      that plateau (:func:`counting_coverage`), i.e. fewer independent
+      observations per channel.  Says the pattern's statistical weight is not
+      uniform across its range, and how; triggers **nothing**, because a
+      correct σ is already the whole handling.  Empty and
+      ``coverage_plateau`` set means checked and uniform; empty with
+      ``coverage_plateau`` ``None`` means not checkable.
+    * ``signal_cutoffs`` — ends of the range where the instrument stopped
+      seeing the sample (:func:`signal_cutoffs`), each a :class:`SignalCutoff`.
+      Empty means the pattern's own ends are at its own interior level, which
+      is the ordinary case and the one every other field here assumes.
     """
 
     n_points: int
@@ -149,6 +389,9 @@ class PatternDiagnostics(Base):
     steps_per_fwhm: float | None = None
     n_peaks_measured: int = 0
     contamination: list[ContaminationFlag] = Field(default_factory=list)
+    coverage_plateau: float | None = None
+    coverage_regions: list[CoverageRegion] = Field(default_factory=list)
+    signal_cutoffs: list[SignalCutoff] = Field(default_factory=list)
 
 
 def background_envelope(two_theta: np.ndarray, y: np.ndarray, *,
@@ -305,6 +548,333 @@ def sampling_steps_per_fwhm(two_theta: np.ndarray, y: np.ndarray,
     return _median_steps_per_fwhm(counts - background_envelope(tt, counts), sig)
 
 
+def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
+    """Inclusive ``(start, end)`` index pairs of the True runs in ``mask``."""
+    padded = np.concatenate(([False], mask.astype(bool), [False]))
+    edges = np.flatnonzero(padded[1:] != padded[:-1])
+    return [(int(a), int(b) - 1) for a, b in zip(edges[::2], edges[1::2])]
+
+
+def _finite_median(values: np.ndarray) -> float | None:
+    """Median over the finite entries, or ``None`` when there are none."""
+    usable = values[np.isfinite(values)]
+    return float(np.median(usable)) if len(usable) else None
+
+
+def signal_cutoffs(
+    two_theta: np.ndarray, y: np.ndarray, sigma: np.ndarray | None = None, *,
+    cutoff_fraction: float = CUTOFF_FRACTION,
+    onset_fraction: float = CUTOFF_ONSET_FRACTION,
+    min_deg: float = CUTOFF_MIN_DEG,
+    smooth_deg: float = CUTOFF_SMOOTH_DEG,
+    plateau_deg: float = CUTOFF_PLATEAU_DEG,
+    interior_fraction: float = CUTOFF_INTERIOR_FRACTION,
+) -> list[SignalCutoff]:
+    """Ends of the range where the pattern's level collapsed and stayed down —
+    channels the instrument was not seeing the sample through.
+
+    Detector active area running out, a beamstop or its halo, sample-environment
+    shielding: whatever the cause, these channels carry no diffraction
+    information and **must be excluded rather than fitted**.  This reports them
+    and applies nothing; the range is the caller's decision.
+
+    **The evidence.**  ILL D20 constant-wavelength neutron, λ = 2.422 Å, in-situ
+    SrFeO₃, 1540 points over 0.034-153.934° at 0.1°, σ from the file
+    (``306774_SrFeO3_801_N2_10minScan.xye``; interior median level 1.19e8).  The
+    two ends are different shapes, which is why one rule has to describe both:
+
+    * **Trailing — a cliff, then a floor.**  110 % of the interior level at
+      142.43°, 91 % at 142.83°, 62 % at 143.23°, 24 % at 144.03°, 3.5 % at
+      145.03°, then flat at 2.0-3.5 % for the remaining 8.7° to 153.93°.  A
+      factor of ≈45 in 2.3°, and past it nothing.
+    * **Leading — a graded degradation.**  23 % at 0.03° (the direct-beam
+      shoulder), 4.9 % on a shadowed floor over 1.8-3.6°, a *bump* peaking near
+      4.6° at 14 % — at λ = 2.422 Å that is d ≈ 30 Å, so it is not sample
+      diffraction — then a monotone climb through 32 % at 8.03° and 60 % at
+      20.03°, reaching the interior level only around 28°.
+
+    So the two ends carry different arguments, and only the first is "there is
+    nothing here".  At the low end there *is* structure; it is a beamstop halo
+    and air scatter rather than the specimen, measured at 3-5× the interior's
+    fractional error, and fitting a background through it means describing
+    non-specimen structure at poor precision.  Both are reasons to exclude, and
+    they are not the same reason.
+
+    **σ is not the story.**  σ²/y holds at 19 600-21 100 (±3 %) straight through
+    both transitions, so the file's σ is honest and this is not a variance or
+    weighting problem — it is a region with no information in it.  Do not read a
+    :class:`SignalCutoff` as a :class:`CoverageRegion` or merge the two
+    measures: that one counts detectors, this one counts photons.  The precision
+    penalty a caller reads (σ/y: 5.9 % at 2.03°, 2.3 % at 8.03°, 1.29 % in the
+    interior, 7.3 % at 145.43°, 9.1 % at 148.13°) is a *consequence* of the
+    level and is reported as :attr:`SignalCutoff.relative_error_ratio`, derived.
+
+    **Why exclusion and not a more flexible background.**  A Chebyshev or a
+    P-spline asked to span a factor-45 cliff has no such shape available: it
+    either rings across the whole pattern or splits the difference, and both
+    distort the background *under the real peaks*.  That is CLAUDE.md's
+    "background flexibility is a correctness question, not a cosmetic one" one
+    step earlier — before the background model is chosen, not after it has been
+    asked to do something it cannot.
+
+    **And it is read before the other diagnostics, because it corrupts them.**
+    Measured on that file, :func:`diagnose` over the full range against the
+    TOPAS 8-142° window: ``amorphous_hump_score`` 0.2549 against 0.1380 (1.85×
+    inflated by the dead tail), ``air_scatter_gain`` 0.0027 against 0.1433 (the
+    real low-angle rise **masked entirely**, 52× understated, because the
+    envelope's 1/x column is spent on the leading collapse instead), and
+    ``baseline_lambda`` 10⁴ against 10⁶ (the arPLS stiffness selection moved by
+    two decades).
+
+    **The method**, and every constant it uses carries its own measurement:
+
+    1. ``lvl`` — a rolling median of ``y`` over :data:`CUTOFF_SMOOTH_DEG`.
+    2. ``interior`` — the median of ``lvl`` over the central
+       :data:`CUTOFF_INTERIOR_FRACTION` of the range.
+    3. A candidate run is ``lvl < cutoff_fraction · interior``, extended outward
+       through channels still below the onset level (below), and it must **reach
+       the first or last channel** — that is what makes it a cutoff rather than
+       an interior gap, and the extension is what lets a first channel sitting a
+       hair above the threshold belong to the collapse behind it (measured: two
+       of the three D20 files start at 0.226 and 0.259 of interior against a
+       0.25 threshold, and the same region follows both).
+    4. It must span at least ``min_deg``, or it is a dip and not an instrument.
+    5. The **local plateau** is the median of ``lvl`` over the
+       :data:`CUTOFF_PLATEAU_DEG` just inside the run; walking inward from the
+       run's edge, the first channel back at ``onset_fraction`` × that plateau
+       is the boundary reported.  The walk cannot run away: half of the plateau
+       window is at or above the plateau by construction, so it stops inside it.
+
+    **A pattern that is entirely below the threshold cannot happen, and that is
+    deliberate.**  The threshold is a fraction of the pattern's *own* interior
+    median, so at least half the central portion is by construction at or above
+    it; there is no input for which this returns "the whole pattern is dead".
+    The cost is the honest one: a pattern whose collapse consumed the middle too
+    drags the interior level down with it and comes back **empty**.  Silence
+    where the evidence is gone, never a claim over the whole range.
+
+    Degenerate inputs return an empty list rather than raising: a pattern too
+    short to hold an interior and a collapse, an all-zero pattern (nothing to be
+    a fraction of — a dead *pattern* is the reader's problem, not this measure's),
+    and one with no finite channel at all.  A non-finite channel elsewhere is
+    filled from its finite neighbours before smoothing, so it neither opens a
+    run nor closes one: a channel that says nothing must not be heard saying
+    something, in either direction.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    counts = np.asarray(y, dtype=np.float64)
+    finite = np.isfinite(counts)
+    n = len(tt)
+    if n < 4 or not finite.any():
+        return []
+    steps = np.diff(tt)
+    steps = steps[np.isfinite(steps) & (steps > 0.0)]
+    if not len(steps):
+        return []
+    step = float(np.median(steps))
+    width = max(int(smooth_deg / step), 3)
+    # A pattern shorter than three smoothing windows has no interior to compare
+    # an edge against — the measurement is a comparison, so too few channels is
+    # "not measurable" and not "no cutoff".  Both read as an empty list; the
+    # caller that needs the difference has ``n_points``.
+    if n < 3 * width:
+        return []
+    # A non-finite channel is filled from its finite neighbours, which is the
+    # level it would have carried had it said anything, so it neither opens a
+    # run nor closes one.  (:func:`counting_coverage` fills with its plateau for
+    # the same reason: the neutral value of a *ratio* is 1, the neutral value of
+    # a *level* is the level beside it.  Filling with a global median instead
+    # would put a live channel at a dead edge and hide the cutoff behind it.)
+    filled = np.interp(tt, tt[finite], counts[finite])
+    lvl = median_filter(filled, size=width, mode="nearest")
+    margin = int(n * (1.0 - interior_fraction) / 2.0)
+    interior = float(np.median(lvl[margin:n - margin]))
+    if not interior > 0.0:
+        return []
+    plateau_width = max(int(plateau_deg / step), 3)
+
+    cutoffs: list[SignalCutoff] = []
+    rel = rel_interior = None
+    if sigma is not None:
+        with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
+            rel = np.asarray(sigma, dtype=np.float64) / np.maximum(filled, 1.0)
+        rel_interior = _finite_median(rel[margin:n - margin])
+        if not rel_interior:
+            rel = None      # σ that is not measurable here derives nothing
+    for lo, hi in _runs(lvl < cutoff_fraction * interior):
+        # Unreachable while ``interior`` is the pattern's own median (see the
+        # docstring), and cheap to say out loud: a run over every channel is a
+        # statement about the whole pattern, which this measure never makes.
+        if lo == 0 and hi == n - 1:
+            continue
+        # Each run is tried as both edges; an interior one answers to neither,
+        # and no run can answer to both without covering the middle.  ``inward``
+        # is the direction from the collapse towards the live pattern.
+        for edge, inner, outer, inward in (("low", hi, lo, 1), ("high", lo, hi, -1)):
+            window = (lvl[inner + 1:inner + 1 + plateau_width] if inward > 0
+                      else lvl[max(inner - plateau_width, 0):inner])
+            if not len(window):
+                continue
+            onset = onset_fraction * float(np.median(window))
+            k = outer
+            while 0 < k < n - 1 and lvl[k - inward] < onset:
+                k -= inward
+            if k != (0 if inward > 0 else n - 1):
+                continue                      # an interior gap, not a cutoff
+            if abs(tt[inner] - tt[k]) < min_deg:
+                continue                      # a dip in the first channels
+            boundary = inner
+            while 0 <= boundary + inward < n and lvl[boundary] < onset:
+                boundary += inward
+            # The floor is measured over the channels that are actually at it,
+            # never over the transition the outward extension picked up.
+            floor = float(np.median(lvl[lo:hi + 1]) / interior)
+            here = None if rel is None else _finite_median(rel[lo:hi + 1])
+            cutoffs.append(SignalCutoff(
+                edge=edge, two_theta=float(tt[boundary]), floor_fraction=floor,
+                n_channels=int(boundary if inward > 0 else n - 1 - boundary),
+                relative_error_ratio=(None if here is None
+                                      else here / rel_interior)))
+    # Two runs at one edge are one collapse with a bump in it — the outward
+    # extension has already crossed a stretch that never got back to level — so
+    # the usable range starts after the *last* of them and the innermost
+    # boundary is the answer.  At most one cutoff per edge, low first.
+    return [max((c for c in cutoffs if c.edge == edge),
+                key=lambda c: c.n_channels)
+            for edge in ("low", "high") if any(c.edge == edge for c in cutoffs)]
+
+
+def counting_coverage(
+    two_theta: np.ndarray, y: np.ndarray, sigma: np.ndarray | None, *,
+    threshold: float = COVERAGE_INFLATION_THRESHOLD,
+    smooth_deg: float = COVERAGE_SMOOTH_DEG,
+    min_channels: int | None = None,
+) -> tuple[list[CoverageRegion], float | None]:
+    """``(regions, plateau)`` — where this pattern's σ implies fewer independent
+    observations per channel than the bulk of the scan does.
+
+    The statistic is the **variance inflation** v = σ²/max(y, 1), which is 1 for
+    pure Poisson counting and proportional to 1/n_eff for a channel averaged over
+    n_eff independent observations.  Its bulk level (``plateau``, the median over
+    the middle half of the range) is the reference, and a region is a run of
+    channels whose smoothed v/plateau exceeds ``threshold``.  Nothing here looks
+    at the intensities except through that ratio: no baseline, no peak list, no
+    model.
+
+    **Empty when σ was not measured**, signalled by ``sigma=None`` — the spelling
+    :func:`sampling_steps_per_fwhm` already uses, and the fact
+    :meth:`PatternData.sig` and ``DataRef.has_sigma`` are the authorities for
+    (CLAUDE.md, Weights).  Under the Poisson fallback σ = √max(y, 1) the ratio is
+    *identically* 1 by construction, so the measure carries no information at
+    all; an answer computed from it would be an answer about the fallback rather
+    than about the experiment, and ``plateau`` comes back ``None`` to say so.
+    Handing the fallback array in explicitly is therefore also empty, but for the
+    weaker reason that a constant ratio crosses no threshold.
+
+    **What a region means.** On an instrument with a bank of detectors on a
+    circle, the number contributing to a given 2θ falls off at both ends of the
+    range, and v ∝ 1/n_eff counts them.  Measured on two NIST BT-1
+    constant-wavelength neutron patterns (``Al2O3023.xye`` and ``CrWO6003.xye``,
+    3.00-166.25° at 0.05°, 3266 points, σ from the file, plateau v = 0.837 and
+    0.826): both show the same ladder — ≈5× below ≈8°, ≈2.2-2.6× from 8° to
+    ≈15°, tapering to 1× by ≈55°, 1× through the middle, and a step back to
+    ≈2.2× within one channel at 161.30°, held to the end of the scan.  The levels
+    are *quantised* because detectors are integers, which is what makes a step
+    a step rather than a gradual falloff, and they are not monotonic in 2θ
+    (Al2O3023 sits at ≈4× over 11.3-13.0°, between two ≈2.2× stretches).
+    Neither pattern's plateau contains a region at all.
+
+    **Where it fires on the bundled patterns**, and why a detector-count reading
+    of ``edge`` is too narrow for all of them (pinned in ``test_background_auto``,
+    tabulated in the manual).  Three of the repo's patterns with a measured σ
+    fire, none of them a plain detector-bank falloff.  The two 11-BM synchrotron
+    scans (``11BM_NAC.fxye`` high 46-60°, 2.80×; ``11BM_LaB6_660a.fxye`` high
+    53-67°, 2.82×) rise *smoothly* over the last third — an analyser bank tapering
+    out, not the quantised step the BT-1 ends show, so "detectors are integers"
+    is the wrong mechanism there.  ``nist_srm660c_100a.cif`` fires on a broad low
+    region (20.3-62.5°, 5.50×) and two interior ones (66.7-75.0°, 2.74×;
+    140.5-147.5°, 1.58×); its ladder is non-monotonic in both directions, which
+    reads as a variable counting-time or slit schedule rather than detector
+    count, and the two interior regions are the same threshold-crossing chatter
+    the measure declares elsewhere.  The measure is right that σ is structured on
+    all three; ``edge`` locates the structure and does not name its cause, and
+    the manual's table is where a reader gets the cause.  It stays silent on the
+    one other σ-bearing bundled pattern (``panalytical_attenuator.xrdml``) and
+    returns ``None`` on the two with no σ column.
+
+    **What it is for, and what it is not.** It reports that the pattern's
+    statistical weight is not uniform across its range — a fact about the
+    experiment's coverage, not about the specimen — and it is the model-free
+    confirmation that a file's σ column is real and structured rather than
+    fabricated, since a fabricated or fallback σ cannot show this at all.  It is
+    *not* an argument for trimming the range: if σ is right, weighted least
+    squares already weights those channels correctly, which is what σ is for.
+    Where it disagrees with a hand-chosen fit range that is information about the
+    range, in both directions and with no recommendation attached.
+
+    **One caveat, unhandled on purpose.** v also rises where the *intensity*
+    collapses — a scan or a detector that stops leaves near-empty channels with a
+    finite σ, and max(y, 1) in the denominator then makes v large for a reason
+    that has nothing to do with detector count.  This function cannot tell the
+    two apart from σ alone and does not try; a region reported at the very end of
+    a pattern whose counts fall to nothing there is that other phenomenon.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    if sigma is None or len(tt) < 4:
+        return [], None
+    counts = np.asarray(y, dtype=np.float64)
+    sig = np.asarray(sigma, dtype=np.float64)
+    with np.errstate(invalid="ignore", divide="ignore", over="ignore"):
+        v = sig ** 2 / np.maximum(counts, 1.0)
+    finite = np.isfinite(v)
+
+    n = len(tt)
+    middle = v[n // 4:n - n // 4]
+    usable = middle[np.isfinite(middle) & (middle > 0.0)]
+    if not len(usable):
+        return [], None
+    # positive and finite by that filter, so the division below is safe
+    plateau = float(np.median(usable))
+
+    # A non-finite channel makes no claim rather than a false one: it is set to
+    # the plateau, so it neither starts a region nor breaks the median filter.
+    ratio = np.where(finite, v, plateau) / plateau
+
+    steps = np.diff(tt)
+    steps = steps[np.isfinite(steps) & (steps > 0.0)]
+    if not len(steps):
+        return [], plateau
+    # The smoothing window doubles as the minimum region width and as the widest
+    # gap that gets closed, both from one sentence: the statistic cannot resolve a
+    # feature narrower than the window it was smoothed over, so a shorter run is
+    # not evidence and a shorter gap is not a boundary.  One rule, no second
+    # tunable — ``min_channels`` overrides only the first, since the second is a
+    # property of the smoother rather than a choice about what counts.
+    width = max(int(smooth_deg / float(np.median(steps))), 5)
+    floor = width if min_channels is None else max(int(min_channels), 1)
+    smoothed = median_filter(ratio, size=width, mode="nearest")
+
+    merged: list[tuple[int, int]] = []
+    for lo, hi in _runs(smoothed > threshold):
+        if merged and lo - merged[-1][1] - 1 < width:
+            merged[-1] = (merged[-1][0], hi)
+        else:
+            merged.append((lo, hi))
+
+    regions: list[CoverageRegion] = []
+    for lo, hi in merged:
+        if hi - lo + 1 < floor:
+            continue
+        edge = "low" if lo == 0 else "high" if hi == n - 1 else "interior"
+        regions.append(CoverageRegion(
+            two_theta_min=float(tt[lo]), two_theta_max=float(tt[hi]),
+            # the raw ratio, not the smoothed one: smoothing is what found the
+            # boundaries, and a median over the region needs no help from it
+            inflation=float(np.median(ratio[lo:hi + 1])),
+            n_channels=int(hi - lo + 1), edge=edge))
+    return regions, plateau
+
+
 def diagnose(data: PatternData, *, wavelength: float | None = None,
              baseline_lambda: float | None = None) -> PatternDiagnostics:
     """Compute :class:`PatternDiagnostics` for a raw pattern."""
@@ -315,6 +885,14 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     y = data.y()[mask]
     sigma = data.sig()[mask]
     span = float(tt[-1] - tt[0])
+
+    # First, and computed first so the order is visible: everything below is
+    # measured over the whole supplied range, and a dead end moves those
+    # numbers by up to two decades (:class:`PatternDiagnostics` has the table).
+    # σ rides along only to derive the precision penalty, and only where it was
+    # *measured* — under the Poisson fallback that ratio is a function of the
+    # level it was derived from and would say nothing.
+    cutoffs = signal_cutoffs(tt, y, sigma if data.sigma is not None else None)
 
     env = background_envelope(tt, y)
     net = y - env
@@ -345,6 +923,13 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     # sampling number is measured on exactly the pattern reported above
     steps, n_measured = _median_steps_per_fwhm(net, sigma)
 
+    # ``data.sigma is not None`` is the σ-measured test at this rank — the
+    # PatternData-level peer of ``DataRef.has_sigma``, and the same branch
+    # ``sig()`` itself takes.  Passing ``sigma`` unconditionally would hand the
+    # Poisson fallback to a measure that reads it as a flat answer.
+    coverage, plateau = counting_coverage(
+        tt, y, sigma if data.sigma is not None else None)
+
     return PatternDiagnostics(
         n_points=len(tt),
         two_theta_min=float(tt[0]), two_theta_max=float(tt[-1]),
@@ -359,6 +944,9 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
         steps_per_fwhm=steps,
         n_peaks_measured=n_measured,
         contamination=flags,
+        coverage_plateau=plateau,
+        coverage_regions=coverage,
+        signal_cutoffs=cutoffs,
     )
 
 
