@@ -91,6 +91,28 @@ list rather than sanitised — the same shape any `GET /api/fs?path=` this WP
 adds will need, except that a filesystem path has no list to check against, so
 the confinement has to be a real containment test.
 
+**From [1203](1203-help-popover.md), 2026-08-26 — the wizard's fields now
+explain themselves from the package, not from the form.**
+
+- `PresetField` carries **no `title`**. `wizard.ts:presetHelp(field)` derives
+  the key `instrument_fields:<name>`, and the sentence lives in
+  `rietx.help.INSTRUMENT_FIELD_HELP`. So a field this WP adds to
+  `PRESET_FIELDS` needs an entry there — `tests/test_help.py` crosses the arm
+  against `INSTRUMENT_PRESETS` both ways and fails without one, and
+  `wizard.test.ts` fails if the key does not resolve. A new `title=` is not
+  the way to describe it.
+- The same holds for the instrument editor, whose `lib/model.ts:Field` carries
+  `help` as **data** (its paths are three different kinds of thing) plus
+  `title` as an escape held to a named list of exactly two —
+  `geometry.kind` and `profile.shape`, the two model *choices* the corpus has
+  no vocabulary for. Adding a third fails `wizard.test.ts` until it is either
+  described or added to that list deliberately.
+- The wizard's remaining authored tooltips are inside a **counted budget**
+  (`lib/help.test.ts`): `panels/Model.svelte` is allowed exactly 3. Adding one
+  fails, and so does removing the last one without deleting the file's row.
+- `GET /api/help` is fetched once at boot beside `/api/capabilities` and is
+  not behind the in-flight 409. A new panel needs no fetch of its own.
+
 ## Non-goals
 
 - The CIF requirement (WP-1206, WP-1207).

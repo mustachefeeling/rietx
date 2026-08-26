@@ -1,11 +1,12 @@
 """WP-1202 — one authority for what a name in this package *means*.
 
-A parameter path, a peak flag, a stage field, a reader option and an instrument
-preset field are all things a person has to be told about, and before this
-module each was told about in a different place or nowhere at all: 169 ``title=``
-strings in the frontend, two hand-written TypeScript corpora, and no description
-of ``instrument.profile.w`` anywhere in the tree.  The corpus lives here so the
-GUI, the CLI and the manual read the same sentence.
+A parameter path, a peak flag, a stage field, a reader option, an instrument
+preset field and an indexing search setting are all things a person has to be
+told about, and before this module each was told about in a different place or
+nowhere at all: 169 ``title=`` strings in the frontend, two hand-written
+TypeScript corpora, and no description of ``instrument.profile.w`` anywhere in
+the tree.  The corpus lives here so the GUI, the CLI and the manual read the
+same sentence.
 
 Two rules govern what may be written down here, both of them the root CLAUDE.md's
 "a derived flag rots silently" one rank over.
@@ -20,8 +21,9 @@ print.
 
 **Every arm is meta-tested against its live registry.**  The vocabularies are
 closed and derivable (``PeakFlag``, the ``PEAK_*`` diagnostic codes,
-``StageSpec``'s fields, ``READER_OPTIONS``, ``INSTRUMENT_PRESETS``), so a member
-added without an entry fails coverage the day it lands.  That is why the arms are
+``StageSpec``'s fields, ``READER_OPTIONS``, ``INSTRUMENT_PRESETS``,
+``IndexingControls`` flattened one level), so a member added without an entry
+fails coverage the day it lands.  That is why the arms are
 keyed by name and the parameter families by glob rather than being one flat dict:
 each key set has a different authority to be checked against.
 
@@ -42,6 +44,7 @@ __all__ = [
     "PEAK_DIAGNOSTIC_HELP",
     "PEAK_FLAG_HELP",
     "READER_OPTION_HELP",
+    "SEARCH_FIELD_HELP",
     "INSTRUMENT_FIELD_HELP",
     "STAGE_FIELD_HELP",
     "UNIT_DISPLAY",
@@ -58,10 +61,18 @@ class HelpEntry:
 
     ``unit`` and ``default`` are ``None`` where the quantity has none: a
     fractional coordinate is dimensionless, and a cell edge has no default
-    because it arrives with the structure.  ``anchor`` is the id of the manual
-    heading that carries the equation, checked against the built HTML rather
-    than against the sources, since a heading that fails to render still has an
-    id in the Markdown.
+    because it arrives with the structure.
+
+    ``anchor`` is where the explanation continues, as ``page.html#heading-id``
+    relative to the manual's root — so a consumer builds a link by joining it to
+    :data:`rietx._about.DOCS_URL` and nothing has to know the manual's layout a
+    second time.  It carried the id alone until WP-1203 needed to *render* the
+    link and found that an id names no page; every one of the thirty was on
+    exactly one page of the built manual, which is what made the change
+    mechanical.  ``tests/test_help.py`` checks it against the built HTML rather
+    than the sources — a heading that fails to render still has an id in the
+    Markdown — and now checks the page as well as the id, which the bare form
+    could not.
     """
 
     title: str
@@ -108,7 +119,7 @@ _CELL_LENGTH = HelpEntry(
     ),
     unit="Å", default=None,
     typical="3-40 Å for an inorganic phase; refined shifts are 10-1000 ppm",
-    anchor="lattice-metric-and-bragg-s-law",
+    anchor="peak-positions.html#lattice-metric-and-bragg-s-law",
 )
 _CELL_ANGLE = HelpEntry(
     title="Cell angle",
@@ -119,7 +130,7 @@ _CELL_ANGLE = HelpEntry(
     ),
     unit="deg", default=None,
     typical="90° or 120° when symmetry fixes it; 80-100° for a monoclinic β",
-    anchor="lattice-metric-and-bragg-s-law",
+    anchor="peak-positions.html#lattice-metric-and-bragg-s-law",
 )
 _ATOM_COORD = HelpEntry(
     title="Fractional coordinate",
@@ -132,7 +143,7 @@ _ATOM_COORD = HelpEntry(
     ),
     unit=None, default=None,
     typical="0 to 1",
-    anchor="site-symmetry-degrees-of-freedom",
+    anchor="parameterisation.html#site-symmetry-degrees-of-freedom",
 )
 _ATOM_ANISO_U = HelpEntry(
     title="Anisotropic displacement component",
@@ -144,7 +155,7 @@ _ATOM_ANISO_U = HelpEntry(
     ),
     unit="Å²", default=None,
     typical="0.005-0.05 Å² on the diagonal; off-diagonal components are smaller",
-    anchor="debye-waller-factors-and-adp-representations",
+    anchor="intensities.html#debye-waller-factors-and-adp-representations",
 )
 _STEPHENS_S = HelpEntry(
     title="Stephens strain coefficient",
@@ -158,7 +169,7 @@ _STEPHENS_S = HelpEntry(
     ),
     unit="10⁻¹² Å⁻⁴", default="0.0",
     typical="0-500 for a sample with measurable anisotropic strain",
-    anchor="stephens-anisotropic-strain",
+    anchor="microstructure.html#stephens-anisotropic-strain",
 )
 
 PARAMETER_HELP: dict[str, HelpEntry] = {
@@ -176,7 +187,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="|Δ| < 0.05 deg on an aligned diffractometer",
-        anchor="aberration-shifts",
+        anchor="peak-positions.html#aberration-shifts",
     ),
     "instrument.polarization": HelpEntry(
         title="Polarization factor",
@@ -189,7 +200,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.5",
         typical="0.5 unmonochromated lab; 0.9-1.0 synchrotron",
-        anchor="lorentz-polarisation",
+        anchor="corrections.html#lorentz-polarisation",
     ),
     "instrument.source.lines.*.wavelength": HelpEntry(
         title="Emission wavelength",
@@ -203,7 +214,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å", default=None,
         typical="1.540598 Å Cu Kα1, 0.7093 Å Mo Kα1, 0.3-1.0 Å synchrotron",
-        anchor="the-wavelengthcell-degeneracy",
+        anchor="peak-positions.html#the-wavelengthcell-degeneracy",
     ),
     "instrument.source.lines.*.weight": HelpEntry(
         title="Emission line weight",
@@ -217,7 +228,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="1.0",
         typical="0.5 for Kα2 against Kα1",
-        anchor="wavelength-scales",
+        anchor="peak-positions.html#wavelength-scales",
     ),
     "instrument.geometry.sample_displacement": HelpEntry(
         title="Specimen displacement",
@@ -232,7 +243,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm", default="0.0",
         typical="|s| < 0.05 mm on a carefully packed flat plate",
-        anchor="aberration-shifts",
+        anchor="peak-positions.html#aberration-shifts",
     ),
     "instrument.geometry.sample_transparency": HelpEntry(
         title="Specimen transparency",
@@ -245,7 +256,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0-0.01 for a dense oxide; larger for a low-absorbing organic",
-        anchor="aberration-shifts",
+        anchor="peak-positions.html#aberration-shifts",
     ),
     "instrument.geometry.axial_sl": HelpEntry(
         title="Axial divergence: specimen length",
@@ -258,7 +269,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
-        anchor="finger-cox-jephcoat-axial-divergence",
+        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "instrument.geometry.axial_hl": HelpEntry(
         title="Axial divergence: detector slit",
@@ -270,7 +281,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0.01-0.05",
-        anchor="finger-cox-jephcoat-axial-divergence",
+        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "instrument.geometry.capillary_offset_along_beam": HelpEntry(
         title="Capillary offset along the beam",
@@ -282,7 +293,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm", default="0.0",
         typical="|d| < 0.05 mm on an aligned spinner",
-        anchor="aberration-shifts",
+        anchor="peak-positions.html#aberration-shifts",
     ),
     "instrument.geometry.capillary_offset_across_beam": HelpEntry(
         title="Capillary offset across the beam",
@@ -294,7 +305,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm", default="0.0",
         typical="|d| < 0.05 mm on an aligned spinner",
-        anchor="aberration-shifts",
+        anchor="peak-positions.html#aberration-shifts",
     ),
     # Surface roughness is an opt-in Bragg-Brentano block and the two models
     # are alternatives, so each field is its own family: one entry over
@@ -312,7 +323,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="0.5",
         typical="0.5-1; the default is interior because at a = 1 the gradient "
                 "of b vanishes identically and it could never lift off",
-        anchor="surface-roughness",
+        anchor="corrections.html#surface-roughness",
     ),
     "instrument.geometry.surface_roughness.b": HelpEntry(
         title="Suortti roughness: layer depth",
@@ -327,7 +338,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0.1-0.5; past about 3 the correction is dead and its gradient flat",
-        anchor="surface-roughness",
+        anchor="corrections.html#surface-roughness",
     ),
     "instrument.geometry.surface_roughness.c": HelpEntry(
         title="Pitschke roughness: strength",
@@ -340,7 +351,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0-4; beyond 4 R can go negative inside the valid range",
-        anchor="surface-roughness",
+        anchor="corrections.html#surface-roughness",
     ),
     "instrument.geometry.surface_roughness.tau": HelpEntry(
         title="Pitschke roughness: τ",
@@ -354,7 +365,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.05",
         typical="0.005-0.12, the span of the paper's own four specimens",
-        anchor="surface-roughness",
+        anchor="corrections.html#surface-roughness",
     ),
     "instrument.profile.u": HelpEntry(
         title="Caglioti U",
@@ -368,7 +379,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 on a laboratory diffractometer",
-        anchor="thompson-cox-hastings-pseudo-voigt",
+        anchor="profiles.html#thompson-cox-hastings-pseudo-voigt",
     ),
     "instrument.profile.v": HelpEntry(
         title="Caglioti V",
@@ -380,7 +391,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg² 2θ", default="0.0",
         typical="−0.05 to 0",
-        anchor="thompson-cox-hastings-pseudo-voigt",
+        anchor="profiles.html#thompson-cox-hastings-pseudo-voigt",
     ),
     "instrument.profile.w": HelpEntry(
         title="Caglioti W",
@@ -392,7 +403,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg² 2θ", default="0.001",
         typical="0.001-0.02 on a laboratory diffractometer",
-        anchor="thompson-cox-hastings-pseudo-voigt",
+        anchor="profiles.html#thompson-cox-hastings-pseudo-voigt",
     ),
     "instrument.profile.x": HelpEntry(
         title="Lorentzian X",
@@ -405,7 +416,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.001",
         typical="0.001-0.05 on a laboratory diffractometer",
-        anchor="thompson-cox-hastings-pseudo-voigt",
+        anchor="profiles.html#thompson-cox-hastings-pseudo-voigt",
     ),
     "instrument.profile.y": HelpEntry(
         title="Lorentzian Y",
@@ -418,7 +429,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.05 on a laboratory diffractometer",
-        anchor="thompson-cox-hastings-pseudo-voigt",
+        anchor="profiles.html#thompson-cox-hastings-pseudo-voigt",
     ),
     "instrument.background.c*": HelpEntry(
         title="Background coefficient",
@@ -435,7 +446,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="0.0",
         typical="4-8 terms for a flat laboratory background; c0 is of the "
                 "order of the observed background counts",
-        anchor="choosing-the-flexibility",
+        anchor="background.html#choosing-the-flexibility",
     ),
     "instrument.background.air": HelpEntry(
         title="Air-scatter term",
@@ -449,7 +460,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0 unless the pattern diagnostics report a low-angle rise",
-        anchor="additive-models-never-subtraction",
+        anchor="background.html#additive-models-never-subtraction",
     ),
     # -- phase -------------------------------------------------------
     "phases.*.cell.a": _CELL_LENGTH,
@@ -471,7 +482,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="1.0",
         typical="positive, spanning several orders of magnitude between phases",
-        anchor="quantitative-phase-analysis-and-microabsorption",
+        anchor="corrections.html#quantitative-phase-analysis-and-microabsorption",
     ),
     "phases.*.extinction": HelpEntry(
         title="Secondary extinction",
@@ -484,7 +495,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0 for a ground powder; up to 1e-4 for large crystallites",
-        anchor="secondary-extinction",
+        anchor="corrections.html#secondary-extinction",
     ),
     "phases.*.lor_size": HelpEntry(
         title="Lorentzian size broadening",
@@ -496,7 +507,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg; 0.1 deg is roughly a 100 nm domain at Cu Kα",
-        anchor="isotropic-size-and-strain",
+        anchor="microstructure.html#isotropic-size-and-strain",
     ),
     "phases.*.lor_strain": HelpEntry(
         title="Lorentzian strain broadening",
@@ -508,7 +519,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="0-0.3 deg",
-        anchor="isotropic-size-and-strain",
+        anchor="microstructure.html#isotropic-size-and-strain",
     ),
     "phases.*.gauss_size": HelpEntry(
         title="Gaussian size broadening",
@@ -521,7 +532,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 deg²",
-        anchor="isotropic-size-and-strain",
+        anchor="microstructure.html#isotropic-size-and-strain",
     ),
     "phases.*.gauss_strain": HelpEntry(
         title="Gaussian strain broadening",
@@ -532,7 +543,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg² 2θ", default="0.0",
         typical="0-0.05 deg²",
-        anchor="isotropic-size-and-strain",
+        anchor="microstructure.html#isotropic-size-and-strain",
     ),
     "phases.*.preferred_orientation.r": HelpEntry(
         title="March coefficient",
@@ -547,7 +558,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="1.0",
         typical="0.6-1.4; a value outside 0.5-2 describes a texture few powder "
                 "mounts produce",
-        anchor="preferred-orientation-march-dollase",
+        anchor="corrections.html#preferred-orientation-march-dollase",
     ),
     "phases.*.atoms.*.x": _ATOM_COORD,
     "phases.*.atoms.*.y": _ATOM_COORD,
@@ -564,7 +575,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default=None,
         typical="0 to 1, in the same units as the coordinate it drives",
-        anchor="site-symmetry-degrees-of-freedom",
+        anchor="parameterisation.html#site-symmetry-degrees-of-freedom",
     ),
     "phases.*.atoms.*.occ": HelpEntry(
         title="Site occupancy",
@@ -577,7 +588,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="1.0",
         typical="0 to 1; the bound allows 1.5 so a shared site can be modelled",
-        anchor="the-structure-factor",
+        anchor="intensities.html#the-structure-factor",
     ),
     "phases.*.atoms.*.biso": HelpEntry(
         title="Isotropic displacement parameter",
@@ -592,7 +603,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å²", default="0.5",
         typical="0.2-2 Å² for an inorganic framework at room temperature",
-        anchor="debye-waller-factors-and-adp-representations",
+        anchor="intensities.html#debye-waller-factors-and-adp-representations",
     ),
     "phases.*.atoms.*.u11": _ATOM_ANISO_U,
     "phases.*.atoms.*.u22": _ATOM_ANISO_U,
@@ -616,7 +627,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å²", default=None,
         typical="0.005-0.05 Å²",
-        anchor="debye-waller-factors-and-adp-representations",
+        anchor="intensities.html#debye-waller-factors-and-adp-representations",
     ),
     "phases.*.microstrain.s*": _STEPHENS_S,
     "phases.*.microstrain.dof.*": HelpEntry(
@@ -635,7 +646,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default=None,
         typical="the isotropic seed is ε²·[M²] for a strain ε of 1e-4 to 1e-3",
-        anchor="the-positivity-cone-the-seed-and-how-to-read-the-guard",
+        anchor="microstructure.html#the-positivity-cone-the-seed-and-how-to-read-the-guard",
     ),
 }
 
@@ -663,7 +674,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "stripping redistributes the counting noise and biases what is "
             "left. The line is unusable as evidence of a lattice."
         ),
-        anchor="wavelength-scales",
+        anchor="peak-positions.html#wavelength-scales",
     ),
     "ghost_tungsten": HelpEntry(
         title="Tungsten contamination line",
@@ -672,7 +683,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "tube with a contaminated anode produces. Excluded for the same "
             "reason as a Kβ ghost, and unusable."
         ),
-        anchor="wavelength-scales",
+        anchor="peak-positions.html#wavelength-scales",
     ),
     "excluded": HelpEntry(
         title="Excluded by the caller",
@@ -723,7 +734,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "shape allows, so the position is biased towards the tail. Axial "
             "divergence at low 2θ is the usual cause."
         ),
-        anchor="finger-cox-jephcoat-axial-divergence",
+        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "not_separable": HelpEntry(
         title="Improves the group as a shape, not as a line",
@@ -744,7 +755,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "refused, because a consumer that can weigh the evidence should "
             "be given the chance."
         ),
-        anchor="model-free-estimation",
+        anchor="background.html#model-free-estimation",
     ),
     "axial_tail": HelpEntry(
         title="Possibly a stronger line's axial tail",
@@ -755,7 +766,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "nothing else in a powder pattern flips sign at 90°. Reported and "
             "not refused, since a real line can coincide with a tail."
         ),
-        anchor="finger-cox-jephcoat-axial-divergence",
+        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "kalpha2_residual": HelpEntry(
         title="Sitting on a modelled Kα2 maximum",
@@ -767,7 +778,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
             "carries. Reported and not refused, since a real line can "
             "coincide with it."
         ),
-        anchor="wavelength-scales",
+        anchor="peak-positions.html#wavelength-scales",
     ),
     "no_intensity": HelpEntry(
         title="Refined to zero intensity",
@@ -795,7 +806,7 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "Widen the 2θ range, count for longer, or lower the detection "
             "threshold and check what arrives."
         ),
-        anchor="the-confidence-gate",
+        anchor="using/indexing.html#the-confidence-gate",
     ),
     "PEAK_SIGMA_ASSUMED": HelpEntry(
         title="Position uncertainties were assumed",
@@ -828,7 +839,7 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "their positions are pulled towards the tail. Declaring the axial "
             "divergence terms is the usual fix."
         ),
-        anchor="finger-cox-jephcoat-axial-divergence",
+        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "PEAK_AXIAL_TAIL": HelpEntry(
         title="Weak lines that may be axial tails",
@@ -837,7 +848,7 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "the side axial divergence points. They may be real lines and are "
             "reported rather than removed."
         ),
-        anchor="finger-cox-jephcoat-axial-divergence",
+        anchor="profiles.html#finger-cox-jephcoat-axial-divergence",
     ),
     "PEAK_KALPHA2_RESIDUAL": HelpEntry(
         title="Components on a modelled Kα2 maximum",
@@ -846,7 +857,7 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "already modelled, so they are that doublet's residual rather "
             "than new lines. Reported rather than removed."
         ),
-        anchor="wavelength-scales",
+        anchor="peak-positions.html#wavelength-scales",
     ),
     "PEAK_KALPHA2_ALIAS": HelpEntry(
         title="Kα2 candidates dropped before fitting",
@@ -855,7 +866,7 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "lines and dropped them before any fit. The drop is reported "
             "because a genuine weak line can alias onto one."
         ),
-        anchor="wavelength-scales",
+        anchor="peak-positions.html#wavelength-scales",
     ),
     "PEAK_CONTAMINATION_LINE": HelpEntry(
         title="Contamination lines excluded",
@@ -864,7 +875,7 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "They are excluded and never stripped, because stripping "
             "redistributes the counting noise."
         ),
-        anchor="wavelength-scales",
+        anchor="peak-positions.html#wavelength-scales",
     ),
     "PEAK_SHOULDER_SEEDED": HelpEntry(
         title="Extra components seeded from the residual",
@@ -883,7 +894,7 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "the declared instrument is wrong, which is a setup error. The "
             "message carries the ratio so the two can be told apart."
         ),
-        anchor="the-instrument-sample-width-split",
+        anchor="profiles.html#the-instrument-sample-width-split",
     ),
     "PEAK_POSITION_PRECISION": HelpEntry(
         title="Position precision relative to the line spacing",
@@ -893,7 +904,7 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
             "allowance rather than within σ, so this is context for reading a "
             "search result, not a refusal."
         ),
-        anchor="the-confidence-gate",
+        anchor="using/indexing.html#the-confidence-gate",
     ),
 }
 
@@ -921,7 +932,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="[]",
         typical="one or two globs per stage",
-        anchor="from-tree-to-vector",
+        anchor="parameterisation.html#from-tree-to-vector",
     ),
     "max_iter": HelpEntry(
         title="Iteration budget",
@@ -933,7 +944,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="100",
         typical="20-100",
-        anchor="convergence",
+        anchor="estimation.html#convergence",
     ),
     "ftol": HelpEntry(
         title="Stage termination tolerance",
@@ -946,7 +957,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="null",
         typical="leave null unless reproducing a specific run",
-        anchor="convergence",
+        anchor="estimation.html#convergence",
     ),
     "lebail_cycles": HelpEntry(
         title="Le Bail cycles per evaluation",
@@ -957,7 +968,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="3",
         typical="3",
-        anchor="three-intensity-models",
+        anchor="forward-model.html#three-intensity-models",
     ),
     "seed": HelpEntry(
         title="Softplus seed value",
@@ -982,7 +993,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="ppm", default="0.0",
         typical="100-1000 ppm where a stage frees an anisotropic strain block",
-        anchor="the-positivity-cone-the-seed-and-how-to-read-the-guard",
+        anchor="microstructure.html#the-positivity-cone-the-seed-and-how-to-read-the-guard",
     ),
     "restraint_weight_scale": HelpEntry(
         title="Restraint weight",
@@ -996,7 +1007,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="1.0",
         typical="1-100 early, falling to 1 in the last stage",
-        anchor="weighting-the-restraints",
+        anchor="parameterisation.html#weighting-the-restraints",
     ),
     "window_slack_deg": HelpEntry(
         title="Window capture slack",
@@ -1057,7 +1068,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         typical="`CuKa`, `MoKa`, `CoKa`, `CrKa`, `FeKa`, `AgKa`, or the "
                 "`…Ka1` variant of any of them for a Kα1-only beam",
-        anchor="wavelength-scales",
+        anchor="peak-positions.html#wavelength-scales",
     ),
     "wavelength": HelpEntry(
         title="Wavelength",
@@ -1069,7 +1080,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="Å",
         typical="0.3-1.0 Å synchrotron, 1.0-2.5 Å constant-wavelength neutron",
-        anchor="wavelength-scales",
+        anchor="peak-positions.html#wavelength-scales",
     ),
     "polarization": HelpEntry(
         title="Polarization",
@@ -1082,7 +1093,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
             "and transmission is unpolarised, K = 0.5."
         ),
         typical="0.99 is the preset default; 0.5 is an unpolarised lab beam",
-        anchor="lorentz-polarisation",
+        anchor="corrections.html#lorentz-polarisation",
     ),
     "goniometer_radius_mm": HelpEntry(
         title="Goniometer radius",
@@ -1094,7 +1105,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm",
         typical="217.5 mm is a common benchtop value and the default",
-        anchor="aberration-shifts",
+        anchor="peak-positions.html#aberration-shifts",
     ),
     "monochromator_two_theta": HelpEntry(
         title="Monochromator 2θ",
@@ -1105,7 +1116,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg",
         typical="26.6° for graphite (002) at Cu Kα",
-        anchor="lorentz-polarisation",
+        anchor="corrections.html#lorentz-polarisation",
     ),
     "ka2_ratio": HelpEntry(
         title="Kα2 to Kα1 ratio",
@@ -1117,7 +1128,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="0.5",
         typical="0.5",
-        anchor="wavelength-scales",
+        anchor="peak-positions.html#wavelength-scales",
     ),
     "capillary_radius_mm": HelpEntry(
         title="Capillary radius",
@@ -1128,7 +1139,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm",
         typical="0.1-0.5 mm",
-        anchor="capillary-cylindrical-absorption",
+        anchor="corrections.html#capillary-cylindrical-absorption",
     ),
     "packing_fraction": HelpEntry(
         title="Packing fraction",
@@ -1139,7 +1150,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         default="0.6",
         typical="0.3-0.6",
-        anchor="attenuation-coefficients",
+        anchor="corrections.html#attenuation-coefficients",
     ),
     "mu_r": HelpEntry(
         title="µR",
@@ -1153,7 +1164,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
             "c(µR)·λ²/2."
         ),
         typical="0-1 for a typical capillary mount",
-        anchor="capillary-cylindrical-absorption",
+        anchor="corrections.html#capillary-cylindrical-absorption",
     ),
     "mu_t": HelpEntry(
         title="µt",
@@ -1169,7 +1180,7 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         typical="empty for a thick reflection specimen; 1-5 for a thin "
                 "transmission mount",
-        anchor="flat-plate-absorption",
+        anchor="corrections.html#flat-plate-absorption",
     ),
     "thickness_mm": HelpEntry(
         title="Specimen thickness",
@@ -1180,7 +1191,264 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="mm",
         typical="0.1-2 mm for a transmission mount",
-        anchor="flat-plate-absorption",
+        anchor="corrections.html#flat-plate-absorption",
+    ),
+}
+
+
+#: One entry per control :class:`~rietx.schemas.indexing.IndexingControls`
+#: carries, flattened one level: the eighteen fields of its ``search`` block
+#: plus the three beside it.  These are search settings, not refined
+#: quantities, so ``default`` is the schema's own value rendered as JSON and
+#: ``tests/test_help.py`` crosses every one of them.
+#:
+#: The prose arrived from ``gui/src/lib/controls.ts`` in WP-1203, where it had
+#: been the form's ``title=`` strings.  It moved rather than being rewritten:
+#: the form was the only place several of these measurements were written down,
+#: and a paraphrase here would have been a second account of them.
+SEARCH_FIELD_HELP: dict[str, HelpEntry] = {
+    "systems": HelpEntry(
+        title="Crystal systems to search",
+        description=(
+            "Which crystal systems the search covers, run in decreasing "
+            "symmetry so a cubic answer arrives in seconds and a triclinic "
+            "one in minutes. Restricting them is not a verdict about the "
+            "specimen: the result reports the systems it searched, and says "
+            "nothing about the ones it did not."
+        ),
+        typical="all seven; narrow only when a prior tells you the system",
+        anchor="using/indexing.html#the-search-specification",
+    ),
+    "centrings": HelpEntry(
+        title="Bravais centrings",
+        description=(
+            "Which lattice centrings to try within each system. Unticking one "
+            "narrows the search and is recorded in the result's spec notes. "
+            "At least one must stay in every system being searched."
+        ),
+        typical="all of them; a wrongly excluded centring costs the true cell",
+        anchor="using/indexing.html#the-search-specification",
+    ),
+    "preset": HelpEntry(
+        title="Search preset",
+        description=(
+            "The name of the whole-run ceiling. `quick`, the default, runs "
+            "every engine and system under a measured ceiling and reports "
+            "truncation loudly. `full` is unbounded. A typed whole-run budget "
+            "overrides the preset and the result records `custom`."
+        ),
+        typical="`quick` for a first look, `full` when the answer matters",
+        anchor="using/indexing.html#presets-budgets-and-the-three-states-of-a-system",
+    ),
+    "total_budget_seconds": HelpEntry(
+        title="Whole-run budget",
+        description=(
+            "Wall-clock ceiling for the whole run: search, probe and "
+            "validation together. Empty leaves it to the preset. Setting it "
+            "overrides the preset's ceiling and the result records the preset "
+            "as `custom`."
+        ),
+        unit="s",
+        typical="empty; a few minutes if you are bounding an interactive click",
+        anchor="using/indexing.html#presets-budgets-and-the-three-states-of-a-system",
+    ),
+    "budget_seconds": HelpEntry(
+        title="Budget per search slice",
+        description=(
+            "Wall clock for one engine on one crystal system, not for the "
+            "run. An engine stopped by it reports that system as incomplete, "
+            "and a negative result from an incomplete search is not evidence "
+            "against a cell."
+        ),
+        unit="s",
+        default="30.0",
+        typical="30 s; raise it for a triclinic search you intend to trust",
+        anchor="using/indexing.html#presets-budgets-and-the-three-states-of-a-system",
+    ),
+    "min_d_axis": HelpEntry(
+        title="Shortest principal d-spacing",
+        description=(
+            "The shortest principal d-spacing a candidate cell may have. It "
+            "bounds d(100) rather than the axis a, which is slightly stronger "
+            "for an oblique cell."
+        ),
+        unit="Å",
+        default="2.0",
+        typical="2 Å for an inorganic phase",
+        anchor="using/indexing.html#the-search-specification",
+    ),
+    "max_d_axis": HelpEntry(
+        title="Longest principal d-spacing",
+        description=(
+            "The longest principal d-spacing a candidate cell may have. "
+            "Raising it costs exponentially, because the size of the domain "
+            "is what an exhaustive search pays for."
+        ),
+        unit="Å",
+        default="25.0",
+        typical="25 Å; raise it only for a genuinely large cell",
+        anchor="using/indexing.html#the-search-specification",
+    ),
+    "min_volume": HelpEntry(
+        title="Smallest cell volume",
+        description=(
+            "The smallest cell volume a candidate may have. It removes the "
+            "degenerate small cells that index a few lines by coincidence."
+        ),
+        unit="Å³",
+        default="15.0",
+        typical="15 Å³",
+        anchor="using/indexing.html#the-search-specification",
+    ),
+    "max_volume": HelpEntry(
+        title="Cell-volume ceiling",
+        description=(
+            "The largest cell volume a candidate may have, taken verbatim. "
+            "Empty takes Smith's per-system envelope from the data-quality "
+            "report, with the calibration slack the engines apply to a mean "
+            "line."
+        ),
+        unit="Å³",
+        typical="empty; state it only when you know the volume",
+        anchor="using/indexing.html#the-search-specification",
+    ),
+    "n_unindexed": HelpEntry(
+        title="Unindexed lines allowed",
+        description=(
+            "How many search lines a cell may leave unindexed and still be "
+            "accepted. Raising it manufactures cells: every tolerated line is "
+            "one more coincidence a wrong metric is allowed. Two is a "
+            "default; four is a statement about the specimen."
+        ),
+        default="2",
+        typical="2, or up to 4 on a pattern with a known impurity",
+        anchor="using/indexing.html#the-search-specification",
+    ),
+    "n_search_lines": HelpEntry(
+        title="Lines the search is driven by",
+        description=(
+            "How many of the strongest observed lines drive the search. It is "
+            "not free to raise: a cell must index all but the allowance of "
+            "these, so every extra foreign line can refute the true cell. "
+            "Measured on a 68-line list, the certified lattice is lost at 32."
+        ),
+        default="20",
+        typical="20; the tail of a list is where foreign lines live",
+        anchor="using/indexing.html#the-search-specification",
+    ),
+    "k_sigma": HelpEntry(
+        title="Matching window in σ",
+        description=(
+            "The matching window, in units of each line's own σ. Three is a "
+            "99.7 % window and a calibrated figure rather than a knob. The "
+            "systematic allowance below is the other half of the window, and "
+            "it is the half a displaced pattern needs."
+        ),
+        default="3.0",
+        typical="3",
+        anchor="using/indexing.html#the-systematic-shift-and-the-window-it-opens",
+    ),
+    "shift_allowance_deg": HelpEntry(
+        title="Systematic 2θ allowance",
+        description=(
+            "A systematic 2θ allowance you have measured: the amplitude a "
+            "matching window has to span, never the residual scatter a "
+            "template leaves after fitting. The two differ by 4.3× on a "
+            "certified pattern, and declaring the scatter finds no cell at "
+            "all. Zero lets the engines assume their own allowance and caps "
+            "the confidence they may report."
+        ),
+        unit="deg 2θ",
+        default="0.0",
+        typical="0 unless an internal standard measured the shift",
+        anchor="using/indexing.html#the-systematic-shift-and-the-window-it-opens",
+    ),
+    "shift_template": HelpEntry(
+        title="Shift template",
+        description=(
+            "The physical cause of the 2θ shift, if you know it. A candidate "
+            "that survives the search is re-fitted with this column, which is "
+            "what stops a widened search reporting a biased cell."
+        ),
+        typical="`cos_theta` for specimen displacement, `constant` for a zero error",
+        anchor="using/indexing.html#the-systematic-shift-and-the-window-it-opens",
+    ),
+    "max_candidates": HelpEntry(
+        title="Candidates reported",
+        description=(
+            "How many candidates the reported list holds once the engines are "
+            "merged and ranked. It also prices validation, since every "
+            "reported candidate costs a Le Bail fit. Each engine hands the "
+            "merge five times this many, so the cap never decides a rank."
+        ),
+        default="12",
+        typical="12",
+        anchor="using/indexing.html#the-result-object",
+    ),
+    "seed": HelpEntry(
+        title="Random seed",
+        description=(
+            "The stochastic engine's RNG seed. It is recorded in every "
+            "result, so a run is reproducible from what it reports."
+        ),
+        default="0",
+        typical="0",
+        anchor="using/indexing.html#the-search-specification",
+    ),
+    "prior_cells": HelpEntry(
+        title="Analogue cells",
+        description=(
+            "Cells from a structural analogue, each as a b c α β γ. The "
+            "system jumps the queue, the metric seeds the stochastic engine, "
+            "and the cell itself is checked against the lines. A prior "
+            "steers and never gates: a wrong one costs time rather than "
+            "truth, and the result records what it changed."
+        ),
+        typical="empty; one analogue cell when the chemistry suggests one",
+        anchor="using/indexing.html#the-search-specification",
+    ),
+    "prior_spacegroups": HelpEntry(
+        title="Analogue space groups",
+        description=(
+            "Space-group symbols from a structural analogue, such as `R -3 c`. "
+            "Each contributes its crystal system to the queue jump and, "
+            "beside a matching prior cell, its centring."
+        ),
+        typical="empty",
+        anchor="using/indexing.html#the-search-specification",
+    ),
+    "engines": HelpEntry(
+        title="Engines to run",
+        description=(
+            "Which searches run. All of them is the default to keep, because "
+            "high confidence means every engine that ran found the same "
+            "lattice: a subset narrows what the answer is able to say."
+        ),
+        typical="all of them",
+        anchor="using/indexing.html#three-engines-and-why-the-default-is-all-of-them",
+    ),
+    "validate_candidates": HelpEntry(
+        title="Le Bail validation",
+        description=(
+            "Whole-profile validation of the top candidates. Turning it off "
+            "caps every candidate at medium confidence, because the "
+            "figure-of-merit panel cannot see a reflection predicted where "
+            "the pattern has no intensity. Do it only to save time on a "
+            "first look."
+        ),
+        default="true",
+        typical="on",
+        anchor="using/indexing.html#the-whole-profile-test",
+    ),
+    "check_top": HelpEntry(
+        title="Candidates given the expensive checks",
+        description=(
+            "How many candidates get the per-candidate checks, which are the "
+            "ambiguity search and the Le Bail fit. Empty takes the package "
+            "default plus every candidate the confidence gate could promote."
+        ),
+        typical="empty",
+        anchor="using/indexing.html#the-whole-profile-test",
     ),
 }
 
@@ -1201,7 +1469,7 @@ def plan_help() -> dict[str, HelpEntry]:
             title=info.title,
             description=info.description,
             typical=info.when_to_use,
-            anchor="staged-strategy-and-series",
+            anchor="estimation.html#staged-strategy-and-series",
         )
         for name, info in PLAN_INFO.items()
     }
@@ -1270,6 +1538,7 @@ def help_registry() -> dict[str, object]:
         "stage_fields": {k: asdict(v) for k, v in STAGE_FIELD_HELP.items()},
         "reader_options": {k: asdict(v) for k, v in READER_OPTION_HELP.items()},
         "instrument_fields": {k: asdict(v) for k, v in INSTRUMENT_FIELD_HELP.items()},
+        "search_fields": {k: asdict(v) for k, v in SEARCH_FIELD_HELP.items()},
         "plans": {k: {**asdict(v), "modes": list(PLAN_INFO[k].modes)}
                   for k, v in plans.items()},
     }

@@ -46,6 +46,26 @@ transparency, µ terms, packing), **Profile** (shape; then `U V W` over
 term count). The FCJ warning renders inside Profile. The wizard's preset
 fields reuse the same grid.
 
+### Inherited
+
+From **WP-1203** (2026-08-26, shipped):
+
+- **`lib/model.ts`'s `Field` gained `help`**, a corpus key carried as *data*
+  because this form's paths are three different kinds of thing: most are
+  parameter families (`parameters:instrument.profile.w`), four are
+  `instrument_fields` entries (`mu_t`, `thickness_mm`, `packing_fraction`,
+  `goniometer_radius_mm`, `capillary_radius_mm`), and two are model *choices*
+  the corpus has no vocabulary for. Those two — `geometry.kind` and
+  `profile.shape` — keep a `title` and are held to a **named list** in
+  `wizard.test.ts`; a third fails until it is described or added deliberately.
+- The label renders the help term and the `title` on the `<label>` is now the
+  **held reason** alone (`heldReason(field, "instrument")`), which is the
+  verb's own words about this instrument rather than a description of the
+  field.
+- `panels/Model.svelte` is allowed exactly **3** authored `title=` literals by
+  `lib/help.test.ts`'s per-file budget (the space-group box and two splitters).
+  The count fails both ways.
+
 ## Non-goals
 
 - New instrument parameters or geometries.

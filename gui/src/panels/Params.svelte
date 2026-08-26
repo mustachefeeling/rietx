@@ -15,6 +15,8 @@
    * stall.
    */
   import { ApiError, api } from "../api";
+  import Help from "../Help.svelte";
+  import { paramKey } from "../lib/help";
   import {
     asGlob,
     editState,
@@ -225,8 +227,13 @@
           {@const held = heldKind(row)}
           {@const bad = edits.has(row.path) ? validateEdit(row, edits.get(row.path)!) : ""}
           <div class="row" class:held={held !== ""} data-held={held}>
-            <span class="path mono" title={row.held_because || row.path}>
-              {leafName(row.path, groupOf(row.path))}
+            <!-- `title` here is the *value* this column truncates, not an
+                 explanation (WP-1203): the leaf is shown and the whole path is
+                 what a narrow sidebar cut off.  What the parameter *is* is the
+                 corpus's, reached from the leaf itself. -->
+            <span class="path mono" title={row.path}>
+              <Help for={paramKey(row.help_key)}
+                >{leafName(row.path, groupOf(row.path))}</Help>
             </span>
             {#if row.tie}
               <span class="value mono muted" title={row.held_because}>
@@ -262,9 +269,16 @@
             {:else}
               <!-- no checkbox at all: a control that errors on click is worse
                    than an absent one, and `held_because` says which of the
-                   three reasons holds it -->
-              <span class="vary muted" title={row.held_because}>
-                {held === "locked" ? "🔒" : held === "tied" ? "=" : "·"}
+                   three reasons holds it.
+
+                   The one `<Help label=…>` in the app, because it is the one
+                   term whose children are a glyph: `·` names nothing, and no
+                   `<label>` or `<th>` encloses this span for the name to leak
+                   into (`Help.svelte` has the measurement). -->
+              <span class="vary muted">
+                <Help text={row.held_because} title="This row is held"
+                  label="why this row is held"
+                  >{held === "locked" ? "🔒" : held === "tied" ? "=" : "·"}</Help>
               </span>
             {/if}
           </div>
@@ -385,8 +399,25 @@
     color: var(--muted);
   }
 
+  /* The three widths below are one budget, and WP-1203's browser pass is what
+     measured it: at the sidebar's 340 px floor in Advanced the row's fixed
+     columns wanted 372 px, so `.path` was handed **zero** and the leaf name
+     disappeared.  That had been invisible while the leaf was only text; a help
+     term has to be clickable, and an unclickable one is a control that does
+     nothing.
+
+     Two of the three are the repair.  `min-width: 0` on the input is the
+     actual defect: a flex item's automatic minimum is its *content* size, and
+     an `<input>`'s is its default twenty characters — so `flex: 0 0 92px` was
+     being floored at 152 px, 65 % over its own declaration, and the extra 60
+     came out of the leaf.  `.bounds` gives way next, because a truncated bound
+     string is the most expendable thing on the row.  The 44 px floor on
+     `.path` is last: 24 px is WCAG 2.2's minimum target size and 44 px is that
+     rounded up to a whole number of mono cells at `--text-sm`, which is a
+     truncated name plus its ellipsis rather than an ellipsis alone. */
   .path {
     flex: 1 1 auto;
+    min-width: 44px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -394,6 +425,7 @@
 
   .value {
     flex: 0 0 92px;
+    min-width: 0;
     text-align: right;
   }
 
@@ -425,7 +457,8 @@
   }
 
   .bounds {
-    flex: 0 0 120px;
+    flex: 0 1 120px;
+    min-width: 0;
     overflow: hidden;
     white-space: nowrap;
   }

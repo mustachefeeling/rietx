@@ -20,6 +20,7 @@ import {
   foldSnapshots,
   parsePriorCell,
   priorCellText,
+  searchHelp,
   statedFieldNames,
   type IndexingControls,
 } from "./controls";
@@ -44,6 +45,17 @@ const corpus: Corpus = JSON.parse(
   ),
 );
 
+/** The corpus's key set, written from the live registry by
+ *  `tests/test_gui_help.py` — the same device as the corpus above, one
+ *  vocabulary over. */
+const HELP_KEYS = JSON.parse(
+  readFileSync(
+    fileURLToPath(
+      new URL("../../../tests/data/gui/help_keys.json", import.meta.url)),
+    "utf-8",
+  ),
+) as { keys: string[] };
+
 describe("the form states the whole model", () => {
   it("covers every SearchSpecSpec field, and no invented ones", () => {
     const stated = statedFieldNames();
@@ -52,12 +64,16 @@ describe("the form states the whole model", () => {
       [...corpus.control_fields].sort());
   });
 
-  it("gives every control a label and a help title (no mute fields)", () => {
-    // WP-1029's rule: `title=` is these forms' only help mechanism — the
-    // assertion that found ten mute fields the day it was written
+  it("gives every control a label and a help key that resolves (no mute fields)", () => {
+    // WP-1029's no-mute-fields rule, retargeted by WP-1203: the explanation is
+    // no longer a `title=` written beside the field but an entry in
+    // `rietx.help`, so what has to hold is that every key names one.  The
+    // assertion that found ten mute fields the day it was written now catches
+    // the way this form can go mute *now* — a field whose name has no entry.
+    const known = new Set(HELP_KEYS.keys);
     for (const field of [...SEARCH_FIELDS, ...CONTROL_FIELDS]) {
       expect(field.label, field.name).toBeTruthy();
-      expect(field.title.length, field.name).toBeGreaterThan(20);
+      expect(known.has(searchHelp(field)), field.name).toBe(true);
     }
   });
 

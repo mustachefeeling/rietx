@@ -20,6 +20,7 @@ import {
   emptyWizard,
   instrumentArgument,
   patternSummary,
+  presetHelp,
   presetSpec,
   structureSummary, applyInstrumentHint, scanCount } from "./wizard";
 
@@ -30,6 +31,18 @@ const presets: Record<string, string[]> = JSON.parse(
     "utf-8",
   ),
 );
+
+/** The corpus's key set, written from the live registry by
+ *  `tests/test_gui_help.py` — the second cross-language pin this file needs
+ *  now that the explanations live in `rietx.help` rather than beside the
+ *  fields. */
+const HELP_KEYS = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL("../../../tests/data/gui/help_keys.json",
+                          import.meta.url)),
+    "utf-8",
+  ),
+) as { keys: string[] };
 
 function staged(): ReturnType<typeof emptyWizard> {
   const state = emptyWizard();
@@ -175,36 +188,59 @@ describe("no form field without help (WP-1032)", () => {
     geometry: { kind },
   }));
 
-  it("titles every preset field the wizard offers", () => {
-    // `title=` is this form's *only* help mechanism, and `packing` — the field
-    // the report named — was offered in three places with none of them.
-    const bare = Object.entries(PRESET_FIELDS).flatMap(([preset, fields]) =>
-      fields.filter((f) => !f.title?.trim()).map((f) => `${preset}.${f.name}`));
-    expect(bare).toEqual([]);
+  it("gives every preset field a help key that resolves (no mute fields)", () => {
+    // WP-1029's rule, retargeted by WP-1203: the explanation is an entry in
+    // `rietx.help` rather than a `title=` beside the field, so what has to hold
+    // is that every key names one.  `packing` — the field WP-1032 was reported
+    // against, offered in three places with a title in none — is covered by
+    // construction now: the key is the field's own name.
+    const known = new Set(HELP_KEYS.keys);
+    const mute = Object.entries(PRESET_FIELDS).flatMap(([preset, fields]) =>
+      fields.filter((f) => !known.has(presetHelp(f))).map((f) => `${preset}.${f.name}`));
+    expect(mute).toEqual([]);
   });
 
-  it("titles every field the instrument editor offers, in every geometry", () => {
-    const bare = INSTRUMENTS.flatMap((instrument) =>
-      instrumentFields(instrument)
-        .filter((f) => !f.title?.trim())
-        .map((f) => `${instrument.geometry.kind}:${f.path}`));
+  it("gives every instrument-editor field a help key or a stated exception", () => {
+    // Two fields have no corpus entry and say so in `lib/model.ts`:
+    // `geometry.kind` and `profile.shape` are model *choices*, not named
+    // quantities, and neither has a vocabulary the corpus is keyed by.  Naming
+    // them here rather than allowing any `title` keeps the exception countable
+    // — a third one fails until it is either described or added to this list.
+    const known = new Set(HELP_KEYS.keys);
+    const NO_ENTRY = ["geometry.kind", "profile.shape"];
+    const bare: string[] = [];
+    const exceptions = new Set<string>();
+    for (const instrument of INSTRUMENTS) {
+      for (const f of instrumentFields(instrument)) {
+        if (f.help && known.has(f.help)) continue;
+        if (NO_ENTRY.includes(f.path) && f.title?.trim()) {
+          exceptions.add(f.path);
+          continue;
+        }
+        bare.push(`${instrument.geometry.kind}:${f.path}`);
+      }
+    }
     expect(bare).toEqual([]);
+    // …and the exception list may not outlive its members
+    expect([...exceptions].sort()).toEqual([...NO_ENTRY].sort());
   });
 
   it("explains packing the same way wherever it is offered", () => {
-    // one wording, quoted from `schemas/instrument.py` — two forms explaining
-    // one quantity two ways is how a form starts disagreeing with the package
-    const titles = new Set<string>();
+    // One wording, and now by construction rather than by comparison: both
+    // forms name the same corpus entry, so the two cannot drift.  The
+    // assertion is that they name the *same* one — a wizard field pointing at
+    // `instrument_fields:packing_fraction` and an editor field pointing
+    // anywhere else would be the same defect in a new shape.
+    const keys = new Set<string>();
     for (const fields of Object.values(PRESET_FIELDS)) {
-      for (const f of fields) if (f.name === "packing_fraction") titles.add(f.title!);
+      for (const f of fields) if (f.name === "packing_fraction") keys.add(presetHelp(f));
     }
     for (const instrument of INSTRUMENTS) {
       for (const f of instrumentFields(instrument)) {
-        if (f.path === "geometry.packing_fraction") titles.add(f.title!);
+        if (f.path === "geometry.packing_fraction") keys.add(f.help!);
       }
     }
-    expect(titles.size).toBe(1);
-    expect([...titles][0]).toContain("never refinable");
+    expect([...keys]).toEqual(["instrument_fields:packing_fraction"]);
   });
 });
 
