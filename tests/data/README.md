@@ -983,7 +983,7 @@ this section records what the real files established, since that is then the onl
 place the reader's design is checkable.
 
 Reader outcome over the 606-file catalogue (`read_topas_inp` then
-`structure_from_topas_inp`,
+`projects.topas.to_structure`,
 measured 2026-08-26): **572 parse, 389 build a `Structure`**, and **7 refuse at
 the encoding gate** (an ASCII-range UTF-16 export whose NUL bytes survive the
 decode — guessing the byte order is a repair the reader will not make in
