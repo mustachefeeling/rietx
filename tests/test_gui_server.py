@@ -2830,7 +2830,7 @@ def fs_tree(tmp_path, monkeypatch):
     (home / ".cache").mkdir()  # hidden — must not be listed
     data = _write_xye(tmp_path / "fs-pattern.xye", synthesize())
     _project(home / "rietx-projects" / "nac.rex", data)
-    (home / "notes.txt").write_text("not a directory")
+    (home / "notes.txt").write_text("not a directory", encoding="utf-8")
     (home / "escape").symlink_to(outside)
     (outside / "secret.rex").mkdir()
 
