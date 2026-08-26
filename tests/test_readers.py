@@ -483,6 +483,178 @@ def test_the_registry_order_is_the_dispatch_order():
     assert len(set(names)) == len(names)
 
 
+# --------------------------------------------------------------------- gsas
+def write_gsas(path, *, bintype, flag, body, nchan, nrec=1,
+               coeffs=(1000.0, 250.0, 0, 0)):
+    """A GSAS bank, packed literally: ``BANK`` record then the rows given.
+
+    The record is written in the vendor's own field order — bank number, channel
+    count, record count, bintype, then the bintype's coefficients, then the type
+    flag **last**.  ``flag=None`` writes no flag at all, which is legal and means
+    STD; ``coeffs`` is variable-length because that order is what puts a
+    *coefficient* in the flag's position when a file writes an odd number of them.
+    """
+    head_line = " ".join(["BANK", "1", str(nchan), str(nrec), bintype,
+                          *(str(c) for c in coeffs)])
+    if flag is not None:
+        head_line += f" {flag}"
+    path.write_text(f"a synthetic {bintype}/{flag} bank\n{head_line}\n{body}",
+                    encoding="utf-8")
+    return path
+
+
+def gsas_esd_rows(pairs):
+    """(intensity, esd) pairs as ESD records: ten 8-character fields to a row."""
+    flat = [v for pair in pairs for v in pair]
+    assert all(len(f"{v:8.1f}") == 8 for v in flat)     # no field overflows
+    return "".join("".join(f"{v:8.1f}" for v in flat[i:i + 10]) + "\n"
+                   for i in range(0, len(flat), 10))
+
+
+def gsas_fxye_rows(rows):
+    """(centidegrees, y, esd) triples, free-format as the spec has FXYE."""
+    return "".join(f"{a:15.4f}{b:15.4f}{c:15.4f}\n" for a, b, c in rows)
+
+
+#: Six (intensity, esd) pairs — twelve numbers, and **twelve divides by three**,
+#: which is the whole trap: that was the only gate a non-CONS bank had to pass
+#: before being read as three-column FXYE.  The values are chosen so the wrong
+#: reading comes out *ascending* and therefore survives ``ascending``'s
+#: non-monotone refusal: every third number (10, 20, 30, 40) rises.
+_ESD_PAIRS = [(10.0, 3.2), (100.0, 20.0), (105.0, 10.2),
+              (30.0, 5.5), (120.0, 40.0), (130.0, 11.4)]
+
+
+@pytest.mark.parametrize("bintype", [
+    "RALF", "SLOG", "LOG6", "TIME_MAP",     # flight time
+    "COND", "CONQ", "LPSD", "EDS",          # d-spacing, Q, detector position, energy
+])
+def test_a_non_two_theta_bintype_is_refused_by_name(tmp_path, bintype):
+    """`CONS`/`CONST` is the only bintype whose x axis is an angle.
+
+    Read as FXYE — which is what a non-``CONS`` bank was forced into — the file's
+    own x column comes back divided by 100 and labelled degrees: a TOF range of
+    1000–10000 µs presents as a perfectly plausible 10–100° scan.  So this is the
+    axis policy's *recognisably something else* row reached through the bintype,
+    and the refusal names the file, the bintype and what its axis actually holds.
+
+    `COND` and `CONQ` are in the list on purpose: they share three characters
+    with `CONS` and are different axes, so they are what a prefix match would
+    have swallowed.
+    """
+    tof = [1000.0 + 250.0 * i for i in range(37)]
+    rows = [(t, 500.0, 22.4) for t in tof]
+    p = write_gsas(tmp_path / f"{bintype.lower()}.gsa", bintype=bintype,
+                   flag="FXYE", body=gsas_fxye_rows(rows), nchan=len(rows))
+    with pytest.raises(ValueError) as e:
+        rx.read_pattern(p)
+    assert p.name in str(e.value) and bintype in str(e.value)
+
+    # the same bytes with the one bintype that *is* established parse, so the
+    # refusal above is the bintype's doing and not a broken fixture
+    ok = write_gsas(tmp_path / "cons.gsa", bintype="CONS", flag="FXYE",
+                    body=gsas_fxye_rows(rows), nchan=len(rows))
+    assert rx.read_pattern(ok).two_theta[0] == pytest.approx(10.0)
+
+
+def test_a_ralf_bank_of_esd_pairs_is_not_read_as_three_column_fxye(tmp_path):
+    """The bintype/type-flag conflation, at the value count that hid it.
+
+    A bank's binning says nothing about how its records are packed, so a ``RALF``
+    bank whose flag says ``ESD`` holds (intensity, esd) pairs — but the old code
+    forced every non-``CONS`` bank to FXYE unless its value count failed a
+    divisible-by-three test, which twelve numbers pass.  Six channels then came
+    back as four points whose 2θ were intensities and whose intensities were
+    esds, ascending and plausible.
+    """
+    flat = [v for pair in _ESD_PAIRS for v in pair]
+    assert len(flat) % 3 == 0                    # the fixture really is the trap
+    body = gsas_esd_rows(_ESD_PAIRS)
+    p = write_gsas(tmp_path / "ralf_esd.gsa", bintype="RALF", flag="ESD",
+                   body=body, nchan=len(_ESD_PAIRS))
+    with pytest.raises(ValueError) as e:
+        rx.read_pattern(p)
+    assert p.name in str(e.value) and "RALF" in str(e.value)
+
+    # and the identical records under the established bintype read as the pairs
+    # they are — which is what says the flag was never the problem
+    ok = write_gsas(tmp_path / "cons_esd.gsa", bintype="CONST", flag="ESD",
+                    body=body, nchan=len(_ESD_PAIRS))
+    d = rx.read_pattern(ok)
+    assert d.intensity == [y for y, _ in _ESD_PAIRS]
+    assert d.sigma == [s for _, s in _ESD_PAIRS]
+    assert d.two_theta == [pytest.approx(10.0 + 2.5 * i)
+                           for i in range(len(_ESD_PAIRS))]
+
+
+def test_an_unrecognised_bintype_is_refused_rather_than_assumed(tmp_path):
+    """A bintype the manual does not define is the weaker case of the same rule:
+    what its x axis means is not established *at all*, so there is nothing to
+    fall back to."""
+    p = write_gsas(tmp_path / "mystery.gsa", bintype="QSTEP", flag="FXYE",
+                   body=gsas_fxye_rows([(1000.0, 5.0, 2.2), (1100.0, 6.0, 2.4)]),
+                   nchan=2)
+    with pytest.raises(ValueError, match="QSTEP"):
+        rx.read_pattern(p)
+
+
+@pytest.mark.parametrize("flag", ["ALT", "FXY"])
+def test_a_type_flag_with_no_layout_here_is_refused_by_name(tmp_path, flag):
+    """Both were read as *counts only* — the STD default, reached silently.
+
+    An ALT record holds x, intensity and an error; an FXY record holds x and
+    intensity.  Neither layout is implemented, and falling through to STD put
+    the file's own x column into the intensity array and synthesized an axis
+    from the bank record in its place.  The output even said so: the pattern
+    came back tagged ``gsas-alt``, the flag used as a label and not a decision.
+    """
+    body = ("".join(f"{t * 100:8.0f}{y:7.0f}{e:6.0f}\n"
+                    for t, y, e in [(10.0, 100.0, 10.0), (11.0, 5000.0, 71.0),
+                                    (12.0, 120.0, 11.0)])
+            if flag == "ALT" else
+            "".join(f"{t:12.5f} {y:12.3f}\n"
+                    for t, y in [(10.0, 100.0), (11.0, 5000.0), (12.0, 120.0)]))
+    p = write_gsas(tmp_path / f"{flag.lower()}.gsa", bintype="CONS", flag=flag,
+                   body=body, nchan=3)
+    with pytest.raises(ValueError) as e:
+        rx.read_pattern(p)
+    assert p.name in str(e.value) and flag in str(e.value)
+
+
+def test_an_unrecognised_type_flag_is_refused_rather_than_read_as_std(tmp_path):
+    """The general case: a flag nobody recognises says nothing about a layout,
+    so there is no default that is better than a refusal."""
+    p = write_gsas(tmp_path / "mystery_flag.gsa", bintype="CONS", flag="XYZW",
+                   body="  10 20 30 40\n", nchan=4)
+    with pytest.raises(ValueError, match="XYZW"):
+        rx.read_pattern(p)
+
+
+@pytest.mark.parametrize("coeffs", [
+    (1000.0, 20.0, 0, 0),        # the shape every real fixture writes
+    (1000.0, 20.0),              # c3/c4 omitted
+    (1000.0, 20.0, 0),           # an *odd* coefficient count — the trap below
+])
+def test_a_bank_stating_no_type_flag_is_still_read_as_std(tmp_path, coeffs):
+    """``STD`` is the default and has to stay one, which is what makes refusing
+    an unrecognised flag a narrow change rather than a wide one.
+
+    The third row is why the flag is matched as a **keyword**: the flag is the
+    last field on the record, after the bintype's coefficients, so a record
+    writing an odd number of them leaves a coefficient in the flag's position.
+    Reading ``0`` there as a flag would refuse a file that parses correctly —
+    and before this change it was read as one, and tagged the pattern
+    ``gsas-0``.
+    """
+    p = write_gsas(tmp_path / "noflag.gsa", bintype="CONST", flag=None,
+                   body="  10 20 30 40\n", nchan=4, coeffs=coeffs)
+    d = rx.read_pattern(p)
+    assert d.intensity == [10.0, 20.0, 30.0, 40.0]
+    assert d.two_theta == [pytest.approx(10.0 + 0.2 * i) for i in range(4)]
+    assert d.sigma is None                       # counts only, Poisson fallback
+    assert d.metadata["format"] == "gsas-std"
+
+
 # ---------------------------------------------------------------------- ras
 DATA = Path(__file__).parent / "data"
 
