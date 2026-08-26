@@ -700,10 +700,16 @@ class GuiSession:
 
     def _fs_roots(self) -> list[Path]:
         """The two browsable roots, home first — a set, since a GUI launched
-        from inside the home tree (the common case) has only one."""
+        from inside the home tree (the common case) has only one.
+
+        "Inside the home tree" means *under* home, not only *at* it — a GUI
+        launched from a project directory (the ordinary case) has a cwd that
+        is a strict descendant of home, so containment is what collapses the
+        pair, not equality alone.
+        """
         home = Path.home().resolve()
         cwd = Path.cwd().resolve()
-        return [home] if home == cwd else [home, cwd]
+        return [home] if cwd == home or cwd.is_relative_to(home) else [home, cwd]
 
     # ------------------------------------------------------------------
     # parameters
