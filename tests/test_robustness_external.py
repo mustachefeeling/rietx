@@ -250,6 +250,43 @@ def test_a_fault_that_is_no_atoms_species_is_re_raised_untouched():
     assert excinfo.value is sentinel              # untouched, not re-wrapped
 
 
+def test_an_xray_compile_names_the_atom_its_own_lookup_choked_on():
+    """The X-ray re-walk follows the compile's two passes, so it names ``Og1``.
+
+    ``compile_model`` resolves dispersion over the *whole* phase first and only
+    then compiles the sites (``normalize_species``); the two are separate
+    passes, dispersion first.  ``D`` reads as hydrogen for dispersion (zero, no
+    exception) but the Waasmaier-Kirfel table carries no ``D`` row, so a re-walk
+    that checked both lookups per atom would stop at atom 0 and blame ``D`` for
+    a form-factor row it never needed — while the real fault the compile raised
+    on is atom 1's ``Og`` (Z = 118), which has no dispersion data at all, so
+    ``resolve_dispersion`` never reached the site compile for *any* atom.  Same
+    misattribution the neutron round found, one table over.  The two-pass
+    re-walk names atom 1 (``Og1``) with the dispersion table's own reason.
+
+    Dispersion-on only: with ``dispersion=None`` there is a single lookup and no
+    pass to get out of order — ``D`` is then genuinely the first fault, and
+    ``test_a_well_formed_symbol_with_no_table_row_is_also_named`` covers it.
+    """
+    structure = Structure(phases=[Phase(
+        name="Cr2WO6", space_group="P 1", cell=Cell.cubic(5.0),
+        scale=Parameter(value=5e-3),
+        atoms=[
+            Atom(label="D1", species="D", x=Parameter(value=0.0),
+                 y=Parameter(value=0.0), z=Parameter(value=0.0)),
+            Atom(label="Og1", species="Og", x=Parameter(value=0.5),
+                 y=Parameter(value=0.5), z=Parameter(value=0.5)),
+        ])])
+    with pytest.raises(ValueError) as excinfo:
+        _compile(structure, dispersion_on=True)
+    message = str(excinfo.value)
+    assert "atom 1" in message and "'Og1'" in message   # the real fault, not D
+    assert "'Og'" in message
+    assert "Cromer-Liberman" in message                 # the table actually consulted
+    assert "D1" not in message                           # the zero-dispersion atom is not blamed
+    assert "Waasmaier" not in message                    # nor the form-factor table it never reached
+
+
 # (a″) the same boundary on a neutron source, which resolves a *third* table.
 #      ``compile_phase_sites`` now takes ``neutron=``: a neutron_cw source reads
 #      bound coherent scattering lengths (``neutron.b_coh``, keyed by nuclide),

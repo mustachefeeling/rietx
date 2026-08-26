@@ -2202,34 +2202,65 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
     blame it for a fault in a table this compile never touched, hiding the real
     one; the boundary must ask the same question the compile asked.
 
+    The X-ray re-walk is **two passes in the compile's own order**, not one
+    interleaved loop.  ``compile_model`` resolves dispersion over *every* atom
+    of the phase first (``resolve_dispersion``, which raises on the first
+    species it cannot read) and only if that whole pass succeeds calls
+    ``compile_phase_sites``, which walks the atoms again and calls
+    ``normalize_species`` per atom — two full passes, dispersion first.  A
+    single loop that checked both lookups per atom would stop at an earlier atom
+    that passes dispersion but has no form-factor row (``D`` — deuterium reads
+    as hydrogen for dispersion but the Waasmaier-Kirfel table carries no ``D``
+    row) and blame it, even when the real fault the compile raised on was a
+    *later* atom's dispersion, a table ``normalize_species`` never reached.  So
+    the dispersion pass runs to completion before the form-factor pass begins,
+    and the boundary re-walks the same sequence the compile did.
+
     The sign-first spelling hint (``Cu+1`` → ``Cu1+``) is an X-ray-table
     artifact and is added on the X-ray arm only: the neutron parser accepts the
     sign-first charge, so on that arm the charge is never the fault and naming a
     rewrite of it would be false advice.  A failure that belongs to *no* atom
     (the emission-line dispersion-edge guard, which is about two wavelengths and
-    not a spelling) matches no atom here and is re-raised untouched.
+    not a spelling) matches no single-wavelength lookup here and is re-raised
+    untouched.
     """
+    def _name_atom(index, atom, atom_exc):
+        # ``str(KeyError(...))`` re-quotes its arg; take the message itself
+        reason = atom_exc.args[0] if atom_exc.args else str(atom_exc)
+        hint = "" if neutron else species_spelling_hint(atom.species)
+        raise ValueError(
+            f"phase {phase.name!r} atom {index} ({atom.label!r}): "
+            f"{reason}{hint}") from exc
+
+    if neutron:
+        # b_coh normalises (nuclide-keyed) then looks up in one call, so a
+        # single loop reproduces both neutron failure modes: an unreadable label
+        # and a readable one with no tabulated length.  Genuinely one lookup,
+        # not two, so there is no pass order to honour.
+        for index, atom in enumerate(phase.atoms):
+            try:
+                neutron_b_coh(atom.species)
+            except (KeyError, ValueError) as atom_exc:
+                _name_atom(index, atom, atom_exc)
+        raise exc
+
+    # X-ray: the dispersion pass first (all atoms), then the form-factor pass
+    # (all atoms) — matching compile_model's two passes, so the atom named is
+    # the one the compile actually choked on and in the table it choked in.
     overrides = disp.overrides if disp is not None else None
+    if disp is not None:
+        for index, atom in enumerate(phase.atoms):
+            try:
+                sym = normalize_element(atom.species)
+                if not overrides or sym not in overrides:
+                    dispersion(sym, lams[0])
+            except (KeyError, ValueError) as atom_exc:
+                _name_atom(index, atom, atom_exc)
     for index, atom in enumerate(phase.atoms):
         try:
-            if neutron:
-                # b_coh normalises (nuclide-keyed) then looks up in one call, so
-                # this reproduces both neutron failure modes: an unreadable label
-                # and a readable one with no tabulated length.
-                neutron_b_coh(atom.species)
-            else:
-                if disp is not None:
-                    sym = normalize_element(atom.species)
-                    if not overrides or sym not in overrides:
-                        dispersion(sym, lams[0])
-                normalize_species(atom.species)
+            normalize_species(atom.species)
         except (KeyError, ValueError) as atom_exc:
-            # ``str(KeyError(...))`` re-quotes its arg; take the message itself
-            reason = atom_exc.args[0] if atom_exc.args else str(atom_exc)
-            hint = "" if neutron else species_spelling_hint(atom.species)
-            raise ValueError(
-                f"phase {phase.name!r} atom {index} ({atom.label!r}): "
-                f"{reason}{hint}") from exc
+            _name_atom(index, atom, atom_exc)
     raise exc
 
 
