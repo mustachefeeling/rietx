@@ -59,7 +59,7 @@ from ..help import help_registry as _help_registry
 from ..history.events import EventStream
 from ..optimize.cancel import CancelToken, RefinementCancelled
 from ..project import Project
-from ..refine import _VERSION
+from ..refine import _VERSION, NoPhasesError, _refuse_without_phases
 from ..report.apply import api_call, describe_action, refusal, stage_for
 from ..schemas.instrument import Instrument
 from ..schemas.plan import PlanSpec, StageSpec
@@ -1241,6 +1241,15 @@ class GuiSession:
             raise GuiError(f"unknown run kind {kind!r}; expected 'fit', "
                            "'stage', 'index', 'extinction' or 'series'",
                            where=["kind"])
+        if kind in ("fit", "stage", "extinction", "series"):
+            # Up here rather than in the worker: the refusal is knowable before
+            # anything starts, and a run *started* is a 200 whose failure only
+            # ever reaches the event stream — the caller asked a question that
+            # has an answer now (WP-1207).
+            try:
+                _refuse_without_phases(p.refinement.structure, f"a {kind} run")
+            except NoPhasesError as exc:
+                raise GuiError(str(exc), code=exc.code, where=["kind"]) from None
         summarize = _summarize_refinement
         if kind == "stage":
             stage_spec = _validate(StageSpec, _need(body, "stage"), "stage")

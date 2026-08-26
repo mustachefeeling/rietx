@@ -1764,8 +1764,38 @@ def test_a_whole_model_patch_records_an_edit_node(blank, tmp_path, pattern_file)
     node = project.history[payload["node_id"]]
     assert node.action.kind == "edit_model" and node.label == "zero guess"
 
-    status, payload = client.patch("/api/structure", {"structure": {"phases": []}})
+    # a model the crystallography refuses is still a 400 that names the field
+    # (`{"phases": []}` was this assertion's model until WP-1207 made a
+    # phase-free structure legal — see the next test)
+    bad = client.get("/api/structure")[1]["structure"]
+    bad["phases"][0]["atoms"] = []
+    status, payload = client.patch("/api/structure", {"structure": bad})
     assert status == 400 and payload["error"]["where"]
+
+
+def test_emptying_the_structure_leaves_a_pattern_only_project(blank, tmp_path,
+                                                              pattern_file):
+    """A phase can be taken back out, and what is left is a legal project.
+
+    WP-1207: `Structure` allows zero phases, so every verb crossing
+    ``_as_structure`` accepts one — the review round's rule from WP-1206, and
+    here the answer is that it should. "This phase was wrong, start again from
+    the pattern" is a real move, the project it lands in is the one the wizard's
+    third route creates, and the refusal that matters is on the *run*.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "unphase.rex", pattern_file)
+
+    status, payload = client.patch("/api/structure", {"structure": {"phases": []}})
+    assert status == 200, payload
+    assert payload["structure"]["phases"] == []
+    assert project.history[payload["node_id"]].action.kind == "edit_model"
+    assert client.get("/api/structure")[1]["structure"]["phases"] == []
+
+    # …and the run is what refuses, by name
+    status, payload = client.post("/api/run", {"kind": "fit"})
+    assert status == 400, payload
+    assert payload["error"]["code"] == "NO_PHASES"
 
 
 # ----------------------------------------------------------------------

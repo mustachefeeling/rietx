@@ -114,6 +114,7 @@ from .refine import (
     Refinement,
     _declared_wavelengths,
     _extract_reflections,
+    _refuse_without_phases,
     _utcnow,
 )
 from .report.schemas import THRESHOLDS_VERSION
@@ -643,6 +644,10 @@ class SequentialRefinement:
             ``SEQUENTIAL_CANCELLED`` — see the module docstring for why that is
             WP-1006's rule rather than an exception to it.
         """
+        # Refused here rather than pattern by pattern: every member fit would
+        # raise identically, and the ladder would read the first raise as a
+        # divergence to escalate against.
+        _refuse_without_phases(self.structure, "refine_sequential")
         patterns = list(patterns)
         if not patterns:
             raise ValueError("a sequential refinement needs at least one pattern")

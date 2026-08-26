@@ -113,6 +113,50 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     return ".atoms." in path or path.endswith(".scale") or ".source.lines." in path
 
 
+class NoPhasesError(ValueError):
+    """A refining verb was handed a model with no phases (WP-1207).
+
+    ``code`` is ``"NO_PHASES"``, and it is the same string on every surface: the
+    agent envelope's fourth error code, and the GUI's reason for a disabled Run
+    button.  A code rather than a sentence because the consumer's next action is
+    specific and not the one any other refusal implies — index the pattern, or
+    type a cell — where ``INVALID_REQUEST`` would send an agent back to check
+    its field spelling and ``REFINEMENT_FAILED`` would suggest the fit is worth
+    retrying.
+
+    A :class:`~rietx.schemas.structure.Structure` with no phases is legal on
+    purpose (that class says why), so this is a refusal by the **verb**: holding
+    a phase-free model, picking peaks on it and indexing it are all supported,
+    and only refining it is not.  Raised before the history tree is built or an
+    event is emitted, for the reason the zero-stage plan is (WP-1110 item 6).
+    """
+
+    code = "NO_PHASES"
+
+
+def _refuse_without_phases(structure: Structure, verb: str) -> None:
+    """Refuse ``verb`` on a phase-free model, naming the ways forward.
+
+    Not a check the caller can be trusted to have done: with no phases the
+    forward model is the background and nothing else, every phase consumer is a
+    loop over zero items, and the fit therefore *succeeds* — measured Rwp 0.9637
+    and GoF 23.89 reported as ``converged`` against a pattern with 36 clear
+    peaks (WP-1207's audit).  Silence here is a confident wrong answer, not a
+    crash, which is why the refusal is explicit.
+    """
+    if structure.phases:
+        return
+    raise NoPhasesError(
+        f"{verb} needs at least one phase: this model has none, so there is "
+        "nothing but the background to fit and the run would converge on it "
+        "and report success. A pattern-only project is a starting point, not a "
+        "refinement — pick peaks and index it (rietx.index_pattern, or the "
+        "GUI's Peaks panel), then adopt a candidate cell; or build the Le Bail "
+        "scaffold directly from a symbol and a cell "
+        "(rietx.schemas.structure.lebail_scaffold). To evaluate the background "
+        "as it stands without refining, call ref.predict(pattern).")
+
+
 class Refinement:
     """Refine ``structure`` + ``instrument`` against a powder pattern.
 
@@ -1221,6 +1265,7 @@ class Refinement:
         McCusker turn-on order *is* the bootstrap ladder — so prepending one
         reproduced stage 1's report to three decimals.)
         """
+        _refuse_without_phases(self.structure, "fit")
         plan = resolve_plan(plan, mode)
         if not plan.stages:
             # Refused here, before a history tree is created or an event is
@@ -1418,6 +1463,7 @@ class Refinement:
         single-stage work was the one path with no telemetry at all, so a client
         driving stages one at a time was blind to a run it had started.
         """
+        _refuse_without_phases(self.structure, "run_stage")
         mode = mode or self._mode
         ttl = two_theta_limits if two_theta_limits is not None else self._two_theta_limits
         self._mode = mode

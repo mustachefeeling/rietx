@@ -62,7 +62,15 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: something a consumer notices.  ``None`` is a real answer here (no family
 #: claims the path) rather than an unfilled default, because
 #: ``Refinement.parameters`` fills it for every caller.
-SCHEMA_VERSION = "0.8"
+#: 0.8 → 0.9 (WP-1207): ``Structure.phases`` may be **empty**.  Nothing gains a
+#: field and every document written before validates unchanged, but the set of
+#: legal documents grew and that is what a consumer notices: code that read a
+#: serialized structure and indexed ``phases[0]``, or counted phases to size an
+#: answer, now has a case it has never seen.  The agent envelope's ``NO_PHASES``
+#: rides with it as a fourth ``ERROR_CODES`` member.  One bump for the pair —
+#: the ladder counts observable releases, and they reach a consumer in the same
+#: one.
+SCHEMA_VERSION = "0.9"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

@@ -158,9 +158,17 @@ whatever `fit` decides.
       diagnostic are already right; `qpa` and `geometry` are empty containers
       that read as answers, and `refine_json`'s current refusal is a side
       effect of the validator this WP removes.
-- [ ] `Structure` allows `phases=[]`; `Project.create(structure=None)`
-      builds it; `fit`/`run_stage`/`refine_json` refuse with `NO_PHASES`;
-      version bumps.
+- [x] `Structure` allows `phases=[]` (the class docstring says why the refusal
+      cannot live there); `Project.create(structure=None)` builds one;
+      `fit`/`run_stage`/`refine_multi`/`refine_sequential` and the GUI's
+      `POST /api/run` raise `NoPhasesError` (`code = "NO_PHASES"`) *before*
+      the tree or the first event, and `refine_json` answers with a **fourth**
+      envelope code rather than folding it into `INVALID_REQUEST` — the
+      request is well-formed and the model is legal, so re-checking fields
+      finds nothing and retrying reproduces it. `SCHEMA_VERSION` 0.8 → 0.9,
+      `PROJECT_FORMAT_VERSION` 1.2 → 1.3, each with its reason beside the
+      constant. The audit's two empty containers are now absences:
+      `compute_qpa` and `geometry_table` return `None` at zero phases.
 - [ ] GUI: the wizard's third choice "none yet"; the Model panel's structure
       section shows "no phase yet: pick peaks and index, or add a phase";
       Run disabled with the reason; the 3D column hidden.

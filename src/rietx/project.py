@@ -106,7 +106,8 @@ class Project:
     # ------------------------------------------------------------------
     @classmethod
     def create(cls, path: str | Path, *, pattern: str | Path,
-               structure: Structure, instrument: Instrument,
+               structure: Structure | None = None,
+               instrument: Instrument,
                mode: Mode = "rietveld",
                plan: Any = None,
                two_theta_limits: tuple[float, float] | None = None,
@@ -120,6 +121,15 @@ class Project:
         pattern is the file as measured, and copying the bytes is what keeps the
         reader's esd-column semantics intact.  A caller holding data in memory
         writes it out first, and thereby chooses the format its esds live in.
+
+        ``structure=None`` — the default — creates a **pattern-only** project:
+        zero phases, which is a project whose phase is not yet known rather than
+        an unfinished one (WP-1207).  Peak picking, indexing and the instrument
+        and background parameters all work over it, and the routes out of it —
+        adopting an indexed candidate, or
+        :func:`~rietx.schemas.structure.lebail_scaffold` over a typed symbol and
+        cell — need a project to arrive in.  Refining it is what is refused, by
+        the verb (:class:`~rietx.refine.NoPhasesError`), never by the document.
 
         ``reader_options`` are :data:`~rietx.io.readers.READER_OPTIONS` keys —
         ``block``, which names a pdCIF data block (several certification files
@@ -169,7 +179,8 @@ class Project:
             data, path=root / doc.history_file,
             plan=None if plan_spec is None else plan_spec.to_plan(),
             package_version=_VERSION)
-        ref = Refinement(structure, instrument, backend=backend, solver=solver,
+        ref = Refinement(structure if structure is not None else Structure(phases=[]),
+                         instrument, backend=backend, solver=solver,
                          history=tree)
         # The root node is the as-created model, so "undo everything" has a
         # target from the first click.  Built from ``snapshot()`` rather than

@@ -37,7 +37,7 @@ from .project import Project
 # that same string, so a second lookup here could disagree with what a result
 # says produced it.
 from .refine import _VERSION as __version__
-from .refine import Refinement, estimate_mu_r, refine, replay
+from .refine import NoPhasesError, Refinement, estimate_mu_r, refine, replay
 from .report import FitReport, RegionAttribution, SuggestedAction, build_report
 from .schemas import (
     AnisoU,
@@ -94,6 +94,7 @@ __all__ = [
     "ExtinctionScreen",
     "IndexingResult",
     "MultiHistogramRefinement",
+    "NoPhasesError",
     "NodeAction",
     "PLAN_INFO",
     "PLAN_PRESETS",

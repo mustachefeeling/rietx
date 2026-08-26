@@ -483,15 +483,29 @@ class Phase(Base):
 
 
 class Structure(Base):
-    """One or more phases refined against the same pattern(s)."""
+    """The phases refined against the same pattern(s) — possibly none.
+
+    **Zero phases is legal, and it is a state rather than an oversight**
+    (WP-1207): a pattern whose phase is not yet known.  Peak picking, indexing
+    and the instrument and background parameters all work over one, which is
+    what makes it worth holding — the audience least served by this package was
+    the person with a pattern and no CIF, and every route out of that state
+    (Adopt a candidate, type a cell) needs a project to arrive *in*.
+
+    What it is not is refinable.  A phase reaches the pattern only through
+    ``scale × |F|² × profile``, so with no phase there is nothing but the
+    background to fit, and a plan run over one converges on it and reports
+    ``converged`` — measured at Rwp 0.9637 on a pattern with 36 clear peaks.
+    So the refusal lives on the verb, in :class:`~rietx.refine.NoPhasesError`,
+    and never here: a validator would refuse the *state* along with the fit and
+    take peak picking and indexing with it.
+
+    ``Phase._nonempty`` is untouched and unrelated — a phase that exists still
+    needs an atom, which is what makes a Le Bail scaffold's dummy atom
+    mandatory rather than a convenience.
+    """
 
     phases: list[Phase]
-
-    @model_validator(mode="after")
-    def _nonempty(self) -> "Structure":
-        if not self.phases:
-            raise ValueError("structure has no phases")
-        return self
 
     @classmethod
     def from_cif(cls, path: str, *, phase_name: str | None = None,
