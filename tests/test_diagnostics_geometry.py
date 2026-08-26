@@ -81,6 +81,7 @@ def test_it_reads_the_gate_off_the_table_rather_than_the_geometry():
     reached it rather than only on the X-ray preset the other cases use.
     """
     from rietx.params.vector import ParameterTable
+    from rietx.schemas.instrument import CAPILLARY_OFFSETS
 
     structure = _corundum()
     for radius, expect_locked in ((None, True), (1711.0, False)):
@@ -88,8 +89,12 @@ def test_it_reads_the_gate_off_the_table_rather_than_the_geometry():
             2.0780, fwhm_deg=0.4, goniometer_radius_mm=radius)
         table = ParameterTable(structure, instrument)
         locked = {e.path for e in table.entries if e.locked}
-        got = "instrument.geometry.capillary_offset_along_beam" in locked
-        assert got is expect_locked
+        # The gate is ``any(...)`` over both members of ``CAPILLARY_OFFSETS``;
+        # assert every one, not just the along-beam entry, so the day the pair
+        # diverges is caught here rather than passing on whichever still agrees.
+        for name in CAPILLARY_OFFSETS:
+            got = f"instrument.geometry.{name}" in locked
+            assert got is expect_locked, name
         assert (CODE in _codes(instrument)) is expect_locked
 
 
@@ -103,3 +108,31 @@ def test_the_diagnostic_names_the_field_that_opens_the_door():
     assert hit.where == [f"instrument.geometry.{field}"]
     assert field in (hit.suggestion or "")
     assert hit.level == "info"
+
+
+def test_a_joint_fit_surfaces_it_per_capillary_histogram():
+    """A joint refinement's whole point is one cell drawing from every
+    histogram, so two radius-less capillaries fold both held offsets into that
+    one shared cell — the WP-1073 misreading at its worst.  The diagnostic is
+    wired into ``refine_multi`` per histogram, beside the absorption and
+    wavelength ones it shares a geometry with, so each capillary that could not
+    express its offsets says so on its own ``HistogramResult``.
+    """
+    inst = rx.Instrument.debye_scherrer(_XRAY_LAMBDA)
+    result = rx.refine_multi(
+        [_flat_pattern(), _flat_pattern()], _corundum(), [inst, inst],
+        plan="profile_only")
+    assert len(result.histograms) == 2
+    for hist in result.histograms:
+        assert CODE in {d.code for d in hist.diagnostics}
+
+
+def test_a_joint_fit_with_the_radius_declared_is_silent():
+    """Same gate as the single-histogram case, one rank up: the missing field,
+    not the geometry, so declaring the radius silences every histogram."""
+    inst = rx.Instrument.debye_scherrer(_XRAY_LAMBDA, goniometer_radius_mm=1711.0)
+    result = rx.refine_multi(
+        [_flat_pattern(), _flat_pattern()], _corundum(), [inst, inst],
+        plan="profile_only")
+    for hist in result.histograms:
+        assert CODE not in {d.code for d in hist.diagnostics}

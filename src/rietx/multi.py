@@ -30,6 +30,7 @@ from .refine import (
     _WAVELENGTH_PINNED_BY_HELD_HISTOGRAM,
     _absorption_diagnostics,
     _absorption_record,
+    _capillary_offset_diagnostics,
     _constraint_diagnostics,
     _declared_wavelengths,
     _guard_diagnostics,
@@ -281,6 +282,13 @@ class MultiHistogramRefinement:
                                             self._mu_r_skipped[h], values)
             if absorption is not None:
                 diags.extend(_absorption_diagnostics(absorption))
+            # A joint fit's shared cell draws from every histogram, so a
+            # capillary that could not express its eq (4) offsets folds them
+            # into that one cell — the misreading WP-1073 exists to name, at its
+            # worst when several radius-less capillaries pool into one number.
+            # Per histogram, like the absorption and wavelength diagnostics
+            # above: each has its own geometry and locked-entry table.
+            diags.extend(_capillary_offset_diagnostics(model, table))
             diags.extend(_wavelength_calibration_diagnostics(
                 self._declared_wavelengths[h], table, values, esd_h,
                 pinned_by=_WAVELENGTH_PINNED_BY_HELD_HISTOGRAM, h=h))
