@@ -51,7 +51,7 @@ states: a *stated* cell key that could not be read fell back on ``c["a"]`` or
 :func:`read_topas_inp`'s cell loop); a ``str`` chunk that ran into the next
 block took the neighbour's cell, scale and weight_percent (:data:`_BLOCK`); a
 schema refusal raised above the boundary that converts it; and a negative
-``beq`` was moved to zero (:func:`structure_from_topas_inp`). ``STR(...)`` is the same
+``beq`` was moved to zero (:func:`to_structure`). ``STR(...)`` is the same
 class one level up — a phase the reader cannot expand is refused by name
 (:data:`_STR_MACRO`), never answered with "this file has no phases".
 
@@ -128,7 +128,7 @@ class TopasSite:
     #: gives no ``beq`` (WP-1118). :class:`TopasModel` is "what a ``.inp``
     #: states", and a seeded 0.5 a caller cannot tell from a stated 0.5 is the
     #: silent-default class this reader exists to avoid; the 0.5 seed a builder
-    #: needs is applied in :func:`structure_from_topas_inp`, not stored here. ``occ``'s 1.0
+    #: needs is applied in :func:`to_structure`, not stored here. ``occ``'s 1.0
     #: default stays — it is the *format's* own default, measured on three
     #: files, not a value this reader invents.
     beq: float | None = None
@@ -138,7 +138,7 @@ class TopasSite:
     #: so no 8π² conversion. ``None`` where the site states no tensor. Like
     #: ``beq``, this is *what the file states*: the isotropic 0.5 seed a
     #: tensor-free site needs and the :class:`~rietx.AnisoU` a tensor-bearing one
-    #: needs are both :func:`structure_from_topas_inp`'s, behind its ``aniso=`` opt-in.
+    #: needs are both :func:`to_structure`'s, behind its ``aniso=`` opt-in.
     adps: dict | None = None
     #: Which of this site's parameters the file records as having been free.
     #: Keyed by field name (``"x"``, ``"beq"``, ``"u11"``…, …); a key is absent
@@ -167,7 +167,7 @@ class SkippedBlock:
     no ``phase_name`` or no ``space_group``, so naming it would be the
     neighbour's-name bleed :data:`_BLOCK` fixes. Recorded rather than passed
     over in silence (WP-1118), and recording *what it lacked and what it did
-    carry*, so :func:`structure_from_topas_inp` can tell a block that plainly states a cell
+    carry*, so :func:`to_structure` can tell a block that plainly states a cell
     or a site — a phase in all but its name, whose loss unbalances the weight
     fractions — from an empty one."""
 
@@ -196,7 +196,7 @@ class TopasModel:
     caller decides which phases to keep and how to seed what the file omits."""
 
     phases: list = field(default_factory=list)
-    #: The file this was read from, so :func:`structure_from_topas_inp` can name it in a
+    #: The file this was read from, so :func:`to_structure` can name it in a
     #: refusal — a reader raises naming the file, never its parser's exception,
     #: and pydantic's report names a field rather than a file.
     path: str | None = None
@@ -217,7 +217,7 @@ class TopasModel:
     #: fixes. But *silence* about it is the other half of that bug, because the
     #: zero-phase refusal then reports "a Pawley or indexing-only .inp is legal
     #: and has none" about a file carrying a cell and two sites. So it is
-    #: recorded, and :func:`structure_from_topas_inp` quotes it instead.
+    #: recorded, and :func:`to_structure` quotes it instead.
     skipped_blocks: list = field(default_factory=list)
 
 
@@ -976,12 +976,19 @@ def read_topas_inp(path: str | Path, *,
     ``TOPAS_SPECIES_NORMALISED`` naming the substitution and every atom path it
     touched; each translated space-group origin suffix (``Pn-3mZ`` → ``Pn-3m:2``,
     which *selects* the origin — dropping it silently takes the other) appends
-    one ``TOPAS_ORIGIN_TRANSLATED``. Both repairs happen whether or not a list is
-    passed — the model is the same — so ``diagnostics`` makes them *visible*, it
-    does not change what is built. What this reader will not do without a channel
-    it can report through, it **refuses** (a dropped block, a stated-but-
-    unreadable key); the channel is for the corrections it can name, not for
-    turning a refusal into a silent drop.
+    one ``TOPAS_ORIGIN_TRANSLATED``. Each ``str`` block that stated no
+    ``phase_name``/``space_group`` — recorded on ``model.skipped_blocks`` whether
+    or not a list is passed, so the read never drops it in silence — also reports
+    one ``TOPAS_BLOCK_SKIPPED`` naming what it lacked and what it carried. All of
+    this happens whether or not a list is passed — the model is the same — so
+    ``diagnostics`` makes it *visible*, it does not change what is built.
+
+    The channel is the **report** arm of "report or refuse, never drop", not a
+    way to turn a refusal into a silent drop. A stated-but-unreadable key still
+    **refuses** here, and :func:`to_structure` still refuses to build a
+    ``Structure`` that omits a cell-bearing skipped block while other phases build
+    (the weight fractions would no longer sum) — that refusal must hold whether
+    or not a caller passed a list, so it is not routed through the channel.
     """
     path = Path(path)
     try:
@@ -990,7 +997,7 @@ def read_topas_inp(path: str | Path, *,
         raise TopasInpError(f"{path}: cannot read: {exc}") from exc
     # `base.decode` is the seam `head()` already goes through, shared rather
     # than duplicated: a `read_text(encoding="utf-8")` on a UTF-16 export gave
-    # zero phases and `structure_from_topas_inp` then reported "a Pawley or indexing-only
+    # zero phases and `to_structure` then reported "a Pawley or indexing-only
     # .inp is legal and has none" — a confident wrong diagnosis of a decode
     # failure, which is the class this reader exists to remove.
     raw, codec, _bom = decode(raw_bytes)
@@ -1085,8 +1092,8 @@ def read_topas_inp(path: str | Path, *,
             # neighbour's number again; saying nothing about it is the
             # confident wrong diagnosis. It records what it lacked *and* what it
             # carried (cell/scale/weight_percent), because that is what lets
-            # `structure_from_topas_inp` tell a phase in all but its name from an empty
-            # block — and `structure_from_topas_inp` refuses where such a block is dropped.
+            # `to_structure` tell a phase in all but its name from an empty
+            # block — and `to_structure` refuses where such a block is dropped.
             n_sites = len(re.findall(r"\bsite\b", mchunk))
             lacks = " or ".join(w for w, got in
                                 (("phase_name", name), ("space_group", sg))
@@ -1126,7 +1133,7 @@ def read_topas_inp(path: str | Path, *,
                 read = None
             if read is None:
                 # A **stated** key that could not be read refuses, naming the
-                # key and the line. Defaulting it is `structure_from_topas_inp` putting
+                # key and the line. Defaulting it is `to_structure` putting
                 # `c["a"]` in for a length or 90° in for an angle, so whether
                 # the cell is right turns on whether the author happened to
                 # *name* the edge — which no caller can see. `c = a*1.633;`
@@ -1225,7 +1232,7 @@ def read_topas_inp(path: str | Path, *,
             # and the named `u11 … u23` site keywords. A component the site
             # states but this reader cannot resolve refuses, naming the line —
             # the same rule beq and x follow, extended to the tensor: defaulting
-            # it would put 0 in for a stated U^ij. `structure_from_topas_inp` builds it
+            # it would put 0 in for a stated U^ij. `to_structure` builds it
             # behind `aniso=True` and refuses to seed 0.5 over it otherwise.
             adps: dict | None = None
             brace = _ADPS_BRACE.search(text)
@@ -1335,9 +1342,10 @@ def read_topas_inp(path: str | Path, *,
             f"unaccounted for are sites dropped by how the file split into "
             f"blocks. Read `model.phases` for what was parsed.")
 
-    # Report the two repairs that reached the model (finding 4). Emitted only
-    # past the site-count guard above, so a file that is about to refuse does not
-    # also leave a half-list of diagnostics behind on the caller's list.
+    # Report the two repairs that reached the model, and the `str` blocks the
+    # reader saw but could not name as phases (finding 4). Emitted only past the
+    # site-count guard above, so a file that is about to refuse does not also
+    # leave a half-list of diagnostics behind on the caller's list.
     if diagnostics is not None:
         for raw, (canonical, where) in species_rewrites.items():
             diagnostics.append(Diagnostic(
@@ -1351,19 +1359,39 @@ def read_topas_inp(path: str | Path, *,
                 message=(f"space group {raw!r} on phase {phase_name!r} in {path} "
                          f"read as {canonical!r} — the suffix selects the origin"),
                 where=[f"phases.{phase_name}.space_group"]))
+        # The skipped-block "report" arm (WP-1118): a `str` block that stated no
+        # `phase_name`/`space_group` is recorded on `model.skipped_blocks`
+        # regardless, so the read never drops it in silence. When a channel is
+        # passed it is *reported* here too, naming what the block lacked and what
+        # it did carry. This does not turn the block's build-time refusal into a
+        # silent drop — `to_structure` still refuses to build a `Structure` that
+        # omits a cell-bearing block while other phases build (the weight
+        # fractions would no longer sum), because that refusal must hold whether
+        # or not a caller passed a list. Report at read; refuse at build; drop
+        # never.
+        for i, sb in enumerate(model.skipped_blocks):
+            diagnostics.append(Diagnostic(
+                level="warning", code="TOPAS_BLOCK_SKIPPED",
+                message=(f"{path}: {sb} — read onto `model.skipped_blocks`, not "
+                         f"built as a phase"),
+                where=[f"skipped_blocks.{i}"]))
     return model
 
 
-def structure_from_topas_inp(model: TopasModel, *, cell_limits: bool = True,
-                             aniso: bool = False):
+def to_structure(model: TopasModel, *, cell_limits: bool = True,
+                 aniso: bool = False):
     """Build a :class:`~rietx.schemas.Structure` from a parsed model.
 
-    Named for the house shape :func:`~rietx.crystallography.cif.structure_from_cif`
-    sets — ``structure_from_<format>`` — so the project readers do not both
-    export a bare ``to_structure``: two such names collide in
-    ``io/projects/__init__.py``, and the collision resolves by silently rebinding
-    the second over the first (a FullProf ``.pcr`` reader is the sibling, and
-    would be ``structure_from_fullprof_pcr``).
+    A **module-level** name, not a package export. WP-1118 is "read a refinement
+    in, **write one back**", so this format grows four things, not two — a reader,
+    a writer, this model-to-:class:`~rietx.schemas.Structure` conversion and its
+    inverse — and ``to_structure`` / ``from_structure`` is the symmetry that pair
+    wants; renaming one half would make it awkward later. The collision with
+    #111's own ``to_structure`` is resolved one level up, in the **package
+    export**: ``io/projects/__init__.py`` exports only the format-named entry
+    points (``read_topas_inp``, ``TopasInpError``), so this is reached as
+    ``projects.topas.to_structure`` and there is nothing for a sibling module's
+    ``to_structure`` to shadow.
 
     ``beq`` is TOPAS's B and rietx's ``biso`` is also B — no 8π² conversion. A
     site that states no ``beq`` gets a **0.5 seed here**, at build time, not on

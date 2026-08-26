@@ -27,8 +27,8 @@ from rietx.io.projects.topas import (
     refined,
     resolve_ifdefs,
     strip_comments,
-    structure_from_topas_inp,
     symbol_table,
+    to_structure,
 )
 
 
@@ -153,6 +153,40 @@ def test_the_repairs_are_made_with_or_without_the_channel(tmp_path):
     diags = []
     read_topas_inp(clean, diagnostics=diags)
     assert diags == []
+
+
+def test_the_skipped_block_reports_through_the_channel_but_still_refuses_at_build(tmp_path):
+    """The report arm of "report or refuse, never drop": a `str` block stating a
+    cell and a site but no `phase_name`/`space_group` is recorded on
+    `model.skipped_blocks` whether or not a list is passed, and reports one
+    `TOPAS_BLOCK_SKIPPED` when one is. Reporting it does not turn it into a silent
+    drop — building a `Structure` while a named phase also builds still refuses,
+    because dropping the cell-bearing block would unbalance the weight fractions,
+    and that refusal must hold whether or not a caller passed a list."""
+    inp = _inp(tmp_path, "nameless.inp",
+               'str\nphase_name "P"\nspace_group "Pm-3m"\nCubic_(lpa 4.16)\n'
+               'site A1 x 0 y 0 z 0 occ La 1. beq !b 0.5\n'
+               'str\na 4.0\nb 4.0\nc 4.0\n'
+               'site B1 x 0 y 0 z 0 occ La 1. beq !b 0.5\n')
+    diags = []
+    model = read_topas_inp(inp, diagnostics=diags)
+
+    skipped = [d for d in diags if d.code == "TOPAS_BLOCK_SKIPPED"]
+    assert len(skipped) == 1
+    assert skipped[0].level == "warning"
+    assert skipped[0].where == ["skipped_blocks.0"]
+    assert "no phase_name" in skipped[0].message
+    assert "site line" in skipped[0].message
+    assert "a cell" in skipped[0].message
+
+    # Recorded whether or not a list is passed — the read never drops it silently.
+    assert len(model.skipped_blocks) == 1
+    assert len(read_topas_inp(inp).skipped_blocks) == 1
+    assert [p.name for p in model.phases] == ["P"]
+
+    # Report at read; refuse at build; drop never.
+    with pytest.raises(TopasInpError, match="weight fractions"):
+        to_structure(model)
 
 
 # -------------------------------------------------------------------- rule 3
@@ -288,7 +322,7 @@ def test_a_nameless_value_keeps_its_integer_part(tmp_path, line, expected):
     ("scale ph1_scale  8.3652308e-006", 8.3652308e-06),
 ])
 def test_scale_is_read_not_silently_defaulted(tmp_path, line, expected):
-    """A scale read as absent is replaced by ``structure_from_topas_inp``'s 1e-4 default,
+    """A scale read as absent is replaced by ``to_structure``'s 1e-4 default,
     which is a made-up number standing where the file had a measured one."""
     inp = _inp(tmp_path, "s.inp", f'str\nphase_name "P"\nspace_group "P1"\na 5.0\n{line}\n')
     assert read_topas_inp(inp).phases[0].scale == pytest.approx(expected)
@@ -317,7 +351,7 @@ def test_cell_limits_are_read_and_a_contradicting_one_is_dropped(tmp_path):
                    'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
     phase = read_topas_inp(inp).phases[0]
     assert phase.cell_limits["a"] == (6.26, 6.29)
-    cell = structure_from_topas_inp(read_topas_inp(inp)).phases[0].cell
+    cell = to_structure(read_topas_inp(inp)).phases[0].cell
     assert cell.a.value == pytest.approx(6.2977)
     assert cell.a.min == pytest.approx(6.26)     # the bound that holds is kept
     assert cell.a.max == float("inf")            # the one it contradicts is not
@@ -342,13 +376,13 @@ def test_the_emission_macro_is_reported_never_expanded(tmp_path):
     assert model.goniometer_radius_mm == pytest.approx(217.5)
 
 
-def test_structure_from_topas_inp_builds_a_refinable_structure(tmp_path):
+def test_to_structure_builds_a_refinable_structure(tmp_path):
     """``beq`` is TOPAS's B and ``biso`` is also B — no 8π² conversion."""
     inp = _inp(tmp_path, "s.inp", 'str\nphase_name "LaB6"\nspace_group "Pm-3m"\n'
                    'Cubic_(lpa 4.15689)\nscale ph_scale 0.000225160497\n'
                    'site La1 x 0 y 0 z 0 occ La 1. beq !bla 0.4389\n'
                    'site B1 x !bx 0.19895 y 0.5 z 0.5 occ B 1. beq !bb 0.3076\n')
-    (phase,) = structure_from_topas_inp(read_topas_inp(inp)).phases
+    (phase,) = to_structure(read_topas_inp(inp)).phases
     assert phase.space_group == "Pm-3m"
     assert phase.cell.a.value == pytest.approx(4.15689)
     assert phase.cell.b.value == pytest.approx(4.15689)   # Cubic_ fills b and c
@@ -434,7 +468,7 @@ def test_the_certified_standards_protocol_survives_the_round_trip(tmp_path):
                'str\nphase_name "cubic_BN"\nspace_group "F-43m"\n'
                'scale ph2_scale  0.00321777397`\na lp_bn  3.616466`\n'
                'site N1 x 0 y 0 z 0 occ N 1. beq @, 0.30441`\n')
-    lab6, cbn = structure_from_topas_inp(read_topas_inp(inp)).phases
+    lab6, cbn = to_structure(read_topas_inp(inp)).phases
 
     assert lab6.cell.a.value == pytest.approx(4.15689)
     assert lab6.cell.a.vary is False          # certified, held
@@ -471,7 +505,7 @@ def test_an_inp_with_no_structural_phase_refuses_naming_the_file(tmp_path):
     model = read_topas_inp(inp)
     assert model.phases == []
     with pytest.raises(TopasInpError, match="pawley.inp"):
-        structure_from_topas_inp(model)
+        to_structure(model)
 
 
 def test_a_phase_whose_sites_were_all_disabled_refuses_naming_the_phase(tmp_path):
@@ -479,7 +513,7 @@ def test_a_phase_whose_sites_were_all_disabled_refuses_naming_the_phase(tmp_path
                'str\nphase_name "p21n"\nspace_group "P21/n"\na 5.0\n'
                '#ifdef NEVER\nsite A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n#endif\n')
     with pytest.raises(TopasInpError) as exc:
-        structure_from_topas_inp(read_topas_inp(inp))
+        to_structure(read_topas_inp(inp))
     assert "gated.inp" in str(exc.value) and "p21n" in str(exc.value)
 
 
@@ -488,7 +522,7 @@ def test_a_phase_whose_sites_were_all_disabled_refuses_naming_the_phase(tmp_path
 #: The cell had its own regex once, and it admitted three of these six. The
 #: numbers are `parametric_04.inp`'s monoclinic `p21n` lattice parameter, which
 #: that file writes as an equation with TOPAS's evaluated tail — measured: the
-#: three equation spellings left `a` out of `phase.cell`, so `structure_from_topas_inp`
+#: three equation spellings left `a` out of `phase.cell`, so `to_structure`
 #: dropped the phase, and across the archive that lost **320 phases in 15
 #: files**, 107 patterns of `parametric_04.inp` among them.
 CELL_SPELLINGS = [
@@ -519,7 +553,7 @@ def test_a_cell_edge_reads_in_every_spelling_the_one_grammar_admits(
     phase = read_topas_inp(inp).phases[0]
     assert phase.cell["a"] == pytest.approx(expected)
     assert phase.vary.get("a") == vary
-    (built,) = structure_from_topas_inp(read_topas_inp(inp)).phases
+    (built,) = to_structure(read_topas_inp(inp)).phases
     assert built.cell.a.value == pytest.approx(expected)
 
 
@@ -573,7 +607,7 @@ def test_a_lattice_macro_fills_the_cell_it_states(tmp_path, macro, cell, vary):
     """A lattice macro is as much a statement of the cell as an ``a`` line.
 
     Before this, only ``Cubic_(<name> <value>)`` was read: every other macro
-    left ``phase.cell`` empty and ``structure_from_topas_inp`` then *dropped the phase*
+    left ``phase.cell`` empty and ``to_structure`` then *dropped the phase*
     while ``weight_percent`` went on reporting for it, so a QPA table looked
     complete with a phase missing from the `Structure`.
     """
@@ -584,7 +618,7 @@ def test_a_lattice_macro_fills_the_cell_it_states(tmp_path, macro, cell, vary):
     assert tuple(phase.cell[k] for k in ("a", "b", "c", "al", "be", "ga")) == \
         pytest.approx(cell)
     assert phase.vary.get("a") == vary
-    assert len(structure_from_topas_inp(read_topas_inp(inp)).phases) == 1
+    assert len(to_structure(read_topas_inp(inp)).phases) == 1
 
 
 @pytest.mark.parametrize("macro", [
@@ -630,7 +664,7 @@ def test_a_lattice_macro_beside_an_explicit_cell_is_not_needed(tmp_path):
 def test_a_str_block_that_produced_no_cell_refuses_rather_than_dropping(tmp_path):
     """Report or refuse, never drop — and `weight_percent` is why.
 
-    A phase whose cell could not be read used to be skipped by `structure_from_topas_inp`
+    A phase whose cell could not be read used to be skipped by `to_structure`
     with nothing said, while `model.phases` still carried its weight fraction.
     The QPA numbers then look complete with a phase missing from the
     `Structure`, which is worse than the dropped-*site* case this reader
@@ -646,7 +680,7 @@ def test_a_str_block_that_produced_no_cell_refuses_rather_than_dropping(tmp_path
     model = read_topas_inp(inp)
     assert [p.weight_percent for p in model.phases] == pytest.approx([40.0, 60.0])
     with pytest.raises(TopasInpError) as exc:
-        structure_from_topas_inp(model)
+        to_structure(model)
     assert "nocell.inp" in str(exc.value) and "cell_less" in str(exc.value)
 
 
@@ -664,7 +698,7 @@ _ENCODED = ('r_wp 8.04733245 gof 1.52039055\n'
 @pytest.mark.parametrize("codec", ["utf-8", "utf-8-sig", "utf-16"])
 def test_a_byte_order_mark_is_decoded_not_read_as_utf8(tmp_path, codec):
     """`read_text(encoding="utf-8")` on a UTF-16 file gives zero phases, and
-    `structure_from_topas_inp` then says "a Pawley or indexing-only .inp is legal and has
+    `to_structure` then says "a Pawley or indexing-only .inp is legal and has
     none" — a confident wrong diagnosis of a *decode* failure.
 
     `io.formats.base.decode` is the seam that already answers this, shared with
@@ -677,7 +711,7 @@ def test_a_byte_order_mark_is_decoded_not_read_as_utf8(tmp_path, codec):
     assert [p.name for p in model.phases] == ["LaB6"]
     assert model.r_wp == pytest.approx(8.04733245)
     assert model.data_files == ["srm660b.xy"]
-    assert structure_from_topas_inp(model).phases[0].cell.a.value == pytest.approx(4.15689)
+    assert to_structure(model).phases[0].cell.a.value == pytest.approx(4.15689)
 
 
 def test_a_bom_immediately_before_the_first_str_still_splits(tmp_path):
@@ -722,7 +756,7 @@ def test_the_coordinate_macros_own_flag_is_read(tmp_path):
     assert refined("z", line) is True
     inp = _inp(tmp_path, "macroflags.inp",
                f'str\nphase_name "P"\nspace_group "P1"\na 5.0\n{line}\n')
-    (atom,) = structure_from_topas_inp(read_topas_inp(inp)).phases[0].atoms
+    (atom,) = to_structure(read_topas_inp(inp)).phases[0].atoms
     assert (atom.x.vary, atom.y.vary, atom.z.vary) == (True, False, True)
 
 
@@ -738,7 +772,7 @@ def test_a_write_back_backtick_after_an_evaluated_tail_is_read_as_refined(tmp_pa
     phase = read_topas_inp(inp).phases[0]
     assert phase.scale == pytest.approx(0.0844868572)
     assert phase.vary["scale"] is True
-    assert structure_from_topas_inp(read_topas_inp(inp)).phases[0].scale.vary is True
+    assert to_structure(read_topas_inp(inp)).phases[0].scale.vary is True
 
 
 # ------------------------------------------------------ occ carries a species
@@ -770,7 +804,7 @@ def test_a_held_occupancy_reaches_the_structure_as_held(tmp_path):
                'str\nphase_name "SiGe"\nspace_group "Fd-3m:2"\na 5.45\n'
                'site Si1_Si x 0. y 0. z 0. occ Si !ph1_Si 0.8000 beq b 0.5\n'
                'site Si1_Ge x 0. y 0. z 0. occ Ge @ph1_Ge 0.2000 beq b 0.5\n')
-    si, ge = structure_from_topas_inp(read_topas_inp(inp)).phases[0].atoms
+    si, ge = to_structure(read_topas_inp(inp)).phases[0].atoms
     assert (si.occ.value, si.occ.vary) == (pytest.approx(0.8), False)
     assert (ge.occ.value, ge.occ.vary) == (pytest.approx(0.2), True)
 
@@ -791,7 +825,7 @@ def test_a_stated_zero_scale_is_not_replaced_by_the_default(tmp_path):
                'site N1 x 0 y 0 z 0 occ N 1. beq !bn 0.30441\n')
     model = read_topas_inp(inp)
     assert model.phases[0].scale == 0.0
-    scale = structure_from_topas_inp(model).phases[0].scale
+    scale = to_structure(model).phases[0].scale
     assert scale.value == 0.0
     assert scale.vary is False
 
@@ -803,7 +837,7 @@ def test_a_phase_stating_no_scale_still_gets_the_seed(tmp_path):
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
     model = read_topas_inp(inp)
     assert model.phases[0].scale is None
-    assert structure_from_topas_inp(model).phases[0].scale.value == pytest.approx(1e-4)
+    assert to_structure(model).phases[0].scale.value == pytest.approx(1e-4)
 
 
 # ------------------------------------------------- a keyword is not a symbol
@@ -979,10 +1013,10 @@ def test_a_stated_cell_key_that_cannot_be_read_refuses_naming_it(
 
     Measured: `a 3.000` + `c = a*1.633;` + `ga 120` built c = 3.0 for a stated
     4.899 — 63 % low — because `a` is a keyword and not a symbol, so the
-    equation is unresolvable, the key was `continue`d and `structure_from_topas_inp`
+    equation is unresolvable, the key was `continue`d and `to_structure`
     substituted `c["a"]`. The same substitution on an angle makes an
     unresolvable `be = …;` read 90.0, so a monoclinic phase arrives
-    orthorhombic with nothing raised. `a` already refused (in `structure_from_topas_inp`,
+    orthorhombic with nothing raised. `a` already refused (in `to_structure`,
     for want of a cell); the other five now refuse symmetrically, at read,
     where the line can be named.
     """
@@ -1010,7 +1044,7 @@ def test_naming_the_edge_is_what_made_the_difference(tmp_path):
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
     phase = read_topas_inp(inp).phases[0]
     assert phase.cell["c"] == pytest.approx(4.899)
-    assert structure_from_topas_inp(read_topas_inp(inp)).phases[0].cell.c.value == \
+    assert to_structure(read_topas_inp(inp)).phases[0].cell.c.value == \
         pytest.approx(4.899)
 
 
@@ -1022,7 +1056,7 @@ def test_a_cell_key_the_phase_never_states_still_keeps_its_default(tmp_path):
                'site W1 x 0 y 0 z 0 occ W 1. beq 0.3\n')
     phase = read_topas_inp(inp).phases[0]
     assert list(phase.cell) == ["a"]
-    cell = structure_from_topas_inp(read_topas_inp(inp)).phases[0].cell
+    cell = to_structure(read_topas_inp(inp)).phases[0].cell
     assert (cell.b.value, cell.c.value) == pytest.approx((3.158949, 3.158949))
     assert (cell.alpha.value, cell.gamma.value) == pytest.approx((90.0, 90.0))
 
@@ -1051,7 +1085,7 @@ def test_a_trailing_pawley_block_lends_the_phase_above_nothing(tmp_path):
     assert phase.cell == {"a": pytest.approx(4.0)}
     assert phase.scale == pytest.approx(0.001)
     assert phase.weight_percent is None
-    cell = structure_from_topas_inp(read_topas_inp(inp)).phases[0].cell
+    cell = to_structure(read_topas_inp(inp)).phases[0].cell
     assert (cell.a.value, cell.c.value) == pytest.approx((4.0, 4.0))
 
 
@@ -1117,7 +1151,7 @@ def test_a_str_block_with_no_phase_name_is_recorded_not_passed_over(tmp_path):
     assert str(sb) == ("a `str` block stating 2 site lines but no phase_name, "
                        "carrying a cell (a)")
     with pytest.raises(TopasInpError) as exc:
-        structure_from_topas_inp(model)
+        to_structure(model)
     assert "2 site lines but no phase_name" in str(exc.value)
     assert "indexing-only" not in str(exc.value)
 
@@ -1128,7 +1162,7 @@ def test_a_phase_opening_with_the_STR_macro_is_refused_by_name(tmp_path):
     """`STR(R-3)` expands to a whole `str` block from a macro library this
     reader does not have and may not reproduce.
 
-    Such a file returned **zero** phases and `structure_from_topas_inp` then answered "A
+    Such a file returned **zero** phases and `to_structure` then answered "A
     Pawley or indexing-only .inp is legal and has none" — a confident wrong
     diagnosis about a file that plainly contains `STR(`. Seven archive files
     are affected (`rigidb.inp`, `split_fum.inp`, `SPODI.inp`, `D20.inp` and
@@ -1165,7 +1199,7 @@ def test_a_negative_beq_is_refused_naming_the_site_never_clamped(tmp_path):
     model = read_topas_inp(inp)
     assert model.phases[0].sites[0].beq == pytest.approx(-0.42)
     with pytest.raises(TopasInpError) as exc:
-        structure_from_topas_inp(model)
+        to_structure(model)
     assert "negb.inp" in str(exc.value) and "GE1" in str(exc.value)
     assert "-0.42" in str(exc.value)
 
@@ -1185,7 +1219,7 @@ def test_a_schema_refusal_from_the_cell_or_the_atoms_is_still_converted(tmp_path
                'str\nphase_name "hot"\nspace_group "P1"\na 5.0\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq bA 26.0\n')
     with pytest.raises(TopasInpError) as exc:
-        structure_from_topas_inp(read_topas_inp(inp))
+        to_structure(read_topas_inp(inp))
     assert "outofrange.inp" in str(exc.value) and "hot" in str(exc.value)
 
 
@@ -1208,7 +1242,7 @@ def test_a_truncated_inp_never_escapes_as_anything_but_a_topas_error(tmp_path):
     for n in offsets:
         target.write_bytes(raw[:n])
         try:
-            structure_from_topas_inp(read_topas_inp(target))
+            to_structure(read_topas_inp(target))
         except TopasInpError:
             pass
         except Exception as exc:            # noqa: BLE001 — the point of the test
@@ -1254,7 +1288,7 @@ def test_an_orthorhombic_cell_on_one_line_does_not_arrive_cubic(tmp_path):
                'str\nphase_name "ortho"\nspace_group "Pmmm"\n'
                'a 5.4 b 6.1 c 7.2\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
-    cell = structure_from_topas_inp(read_topas_inp(inp)).phases[0].cell
+    cell = to_structure(read_topas_inp(inp)).phases[0].cell
     assert (cell.a.value, cell.b.value, cell.c.value) == \
         pytest.approx((5.4, 6.1, 7.2))
 
@@ -1267,7 +1301,7 @@ def test_a_hexagonal_gamma_on_a_packed_angle_line_is_not_ninety(tmp_path):
                'str\nphase_name "hex"\nspace_group "P6/mmm"\n'
                'a 3.6 b 3.6 c 5.9\nal 90 be 90 ga 120\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
-    cell = structure_from_topas_inp(read_topas_inp(inp)).phases[0].cell
+    cell = to_structure(read_topas_inp(inp)).phases[0].cell
     assert cell.gamma.value == pytest.approx(120.0)
 
 
@@ -1300,7 +1334,7 @@ def test_a_second_site_on_one_line_is_a_second_atom(tmp_path):
     assert [s.label for s in sites] == ["A1", "B1"]
     assert (sites[1].x, sites[1].y, sites[1].z) == pytest.approx((0.5, 0.5, 0.5))
     assert sites[1].beq == pytest.approx(0.8)
-    atoms = structure_from_topas_inp(read_topas_inp(inp)).phases[0].atoms
+    atoms = to_structure(read_topas_inp(inp)).phases[0].atoms
     assert [a.label for a in atoms] == ["A1", "B1"]
 
 
@@ -1321,7 +1355,7 @@ def test_a_mixed_site_with_several_occ_tokens_builds_one_atom_per_species(tmp_pa
     assert all(s.label == "A1" for s in sites)
     assert all((s.x, s.y, s.z) == pytest.approx((0.1, 0.2, 0.3)) for s in sites)
     assert all(s.beq == pytest.approx(0.5) for s in sites)
-    atoms = structure_from_topas_inp(read_topas_inp(inp)).phases[0].atoms
+    atoms = to_structure(read_topas_inp(inp)).phases[0].atoms
     assert [a.species for a in atoms] == ["Al3+", "Cr3+"]
 
 
@@ -1345,7 +1379,7 @@ def test_a_dropped_second_species_is_a_wrong_cell_mass(tmp_path):
     from rietx.optimize.qpa import phase_zmv
 
     def _zm(line):
-        st = structure_from_topas_inp(read_topas_inp(_inp(
+        st = to_structure(read_topas_inp(_inp(
             tmp_path, "zm.inp",
             'str\nphase_name "M"\nspace_group "Fm-3m"\na 4.2\n' + line + "\n")))
         ph = st.phases[0]
@@ -1413,7 +1447,7 @@ def test_the_file_level_site_guard_counts_over_the_whole_file(tmp_path):
 
 def test_a_nameless_phase_that_carries_a_cell_is_not_dropped_while_another_builds(
         tmp_path):
-    """`structure_from_topas_inp` quoted `skipped_blocks` only in the zero-phase branch, so
+    """`to_structure` quoted `skipped_blocks` only in the zero-phase branch, so
     a nameless second phase (60 wt%) vanished when the first phase read and the
     totals no longer summed (finding 4). It refuses instead — the choice
     consistent with io/CLAUDE.md's "report or refuse, never drop" where there is
@@ -1434,7 +1468,7 @@ def test_a_nameless_phase_that_carries_a_cell_is_not_dropped_while_another_build
     assert sb.scale == pytest.approx(0.01)
     assert sb.weight_percent == pytest.approx(60.0)
     with pytest.raises(TopasInpError) as exc:
-        structure_from_topas_inp(model)
+        to_structure(model)
     assert "twophase.inp" in str(exc.value)
     assert "no longer summing" in str(exc.value)
 
@@ -1445,7 +1479,7 @@ def test_a_site_that_states_no_beq_is_none_on_the_model_and_seeded_at_build(tmp_
     """`beq` substituted 0.5 where the site line stated none, and a caller could
     not tell it from a stated value though `TopasModel` is "what a .inp states"
     (finding 5). `beq` is `None` on the model now; the 0.5 seed moves to
-    `structure_from_topas_inp`. `occ` defaulting to 1.0 is the format's own default and is
+    `to_structure`. `occ` defaulting to 1.0 is the format's own default and is
     left alone."""
     inp = _inp(tmp_path, "nobeq.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
@@ -1453,7 +1487,7 @@ def test_a_site_that_states_no_beq_is_none_on_the_model_and_seeded_at_build(tmp_
     site = read_topas_inp(inp).phases[0].sites[0]
     assert site.beq is None
     assert site.occupancy == pytest.approx(1.0)
-    biso = structure_from_topas_inp(read_topas_inp(inp)).phases[0].atoms[0].biso
+    biso = to_structure(read_topas_inp(inp)).phases[0].atoms[0].biso
     assert biso.value == pytest.approx(0.5)
 
 
@@ -1478,7 +1512,7 @@ ADP_TAIL = 'u11 0.013 u22 0.013 u33 0.013 u12 0 u13 0 u23 0'
     'site Na1 x 0 y 0 z 0 occ Na+1 1 ' + ADP_TAIL,   # bare u11…, no `adps`
 ])
 def test_a_stated_adp_tensor_is_carried_on_the_model(tmp_path, line):
-    """`u11 0.013 …` came back with no tensor and `beq` None, and `structure_from_topas_inp`
+    """`u11 0.013 …` came back with no tensor and `beq` None, and `to_structure`
     then seeded biso 0.5 — for NaCl at U = 0.013 that is B_eq = 8π²·0.013 =
     1.026 read as 0.5, which the reviewer measured at max |ΔI|/I_max 3.6 % and
     +34.7 % on the strongest 90-140° peak, nothing raised (round-five finding
@@ -1495,13 +1529,13 @@ def test_a_stated_adp_tensor_is_carried_on_the_model(tmp_path, line):
 
 def test_a_stated_tensor_the_caller_did_not_ask_for_is_refused_not_seeded(tmp_path):
     """The hard constraint: what the build may not do is seed 0.5 in silence.
-    `structure_from_topas_inp` without `aniso=True` refuses a tensor-stating site by name,
+    `to_structure` without `aniso=True` refuses a tensor-stating site by name,
     the same opt-in shape as `structure_from_cif(aniso=...)`."""
     inp = _inp(tmp_path, "adp.inp",
                'str\nphase_name "NaCl"\nspace_group "Fm-3m"\na 5.64\n'
                'site Na1 x 0 y 0 z 0 occ Na+1 1 ' + ADP_TAIL + "\n")
     with pytest.raises(TopasInpError) as exc:
-        structure_from_topas_inp(read_topas_inp(inp))
+        to_structure(read_topas_inp(inp))
     msg = str(exc.value)
     assert "'Na1'" in msg and "anisotropic" in msg and "aniso=True" in msg
 
@@ -1515,7 +1549,7 @@ def test_the_opt_in_builds_the_tensor_in_the_cif_u_convention(tmp_path):
     inp = _inp(tmp_path, "adp.inp",
                'str\nphase_name "NaCl"\nspace_group "Fm-3m"\na 5.64\n'
                'site Na1 x 0 y 0 z 0 occ Na+1 1 ' + ADP_TAIL + "\n")
-    atom = structure_from_topas_inp(read_topas_inp(inp), aniso=True).phases[0].atoms[0]
+    atom = to_structure(read_topas_inp(inp), aniso=True).phases[0].atoms[0]
     assert atom.aniso is not None
     assert atom.aniso.u11.value == pytest.approx(0.013)
     assert atom.aniso.u23.value == pytest.approx(0.0)
@@ -1533,7 +1567,7 @@ def test_a_beq_beside_the_tensor_keeps_both_numbers(tmp_path):
     model = read_topas_inp(inp)
     assert model.phases[0].sites[0].beq == pytest.approx(0.7)
     assert model.phases[0].sites[0].adps["u11"] == pytest.approx(0.013)
-    atom = structure_from_topas_inp(model, aniso=True).phases[0].atoms[0]
+    atom = to_structure(model, aniso=True).phases[0].atoms[0]
     assert atom.aniso.u11.value == pytest.approx(0.013)
     assert atom.biso.value == pytest.approx(0.7)
 
@@ -1545,7 +1579,7 @@ def test_a_tensor_free_site_is_untouched_by_the_opt_in(tmp_path):
                'str\nphase_name "P"\nspace_group "Fm-3m"\na 5.64\n'
                'site Na1 x 0 y 0 z 0 occ Na+1 1 ' + ADP_TAIL + "\n"
                'site Cl1 x 0.5 y 0.5 z 0.5 occ Cl-1 1 beq b 1.2\n')
-    na, cl = structure_from_topas_inp(read_topas_inp(inp), aniso=True).phases[0].atoms
+    na, cl = to_structure(read_topas_inp(inp), aniso=True).phases[0].atoms
     assert na.aniso is not None
     assert cl.aniso is None and cl.biso.value == pytest.approx(1.2)
 
@@ -1555,7 +1589,7 @@ def test_an_adp_components_refine_flag_travels_with_its_value(tmp_path):
                'str\nphase_name "P"\nspace_group "Fm-3m"\na 5.64\n'
                'site Na1 x 0 y 0 z 0 occ Na+1 1 '
                'u11 @ 0.013 u22 0.013 u33 !u33f 0.013 u12 0 u13 0 u23 0\n')
-    atom = structure_from_topas_inp(read_topas_inp(inp), aniso=True).phases[0].atoms[0]
+    atom = to_structure(read_topas_inp(inp), aniso=True).phases[0].atoms[0]
     assert atom.aniso.u11.vary is True
     assert atom.aniso.u33.vary is False
 
@@ -1578,7 +1612,7 @@ def test_a_partial_tensor_with_a_missing_diagonal_is_refused(tmp_path):
                'str\nphase_name "P"\nspace_group "Fm-3m"\na 5.64\n'
                'site Na1 x 0 y 0 z 0 occ Na+1 1 u11 0.013 u22 0.013\n')
     with pytest.raises(TopasInpError) as exc:
-        structure_from_topas_inp(read_topas_inp(inp), aniso=True)
+        to_structure(read_topas_inp(inp), aniso=True)
     assert "partial anisotropic tensor" in str(exc.value)
 
 
@@ -1694,10 +1728,10 @@ def test_an_absent_occ_or_beq_still_keeps_its_default_not_a_refusal(tmp_path):
 def test_the_negative_beq_docstring_does_not_claim_a_pcr_reader_exists():
     """WP-1076: a declared name is a claim. The sibling `.pcr` reader lives on a
     *different* open PR (#111, `fullprof-pcr-reader`), not this tree, so
-    `structure_from_topas_inp`'s docstring must state the rule a future/sibling reader keeps,
+    `to_structure`'s docstring must state the rule a future/sibling reader keeps,
     not claim a file on this tree refuses the value (finding 6). The sentence
     becomes true when #111 merges."""
-    doc = structure_from_topas_inp.__doc__
+    doc = to_structure.__doc__
     assert "the sibling `.pcr` reader refuses the same value" not in doc
     assert "WP-1076" in doc
 
@@ -1827,7 +1861,7 @@ def test_a_beq_name_on_a_continuation_line_is_not_read_as_a_cell_edge(tmp_path):
                'site A1 x 0 y 0 z 0 occ Na+1 1\n     beq b 0.5\n')
     model = read_topas_inp(inp)
     assert "b" not in model.phases[0].cell        # not stated; not leaked
-    assert structure_from_topas_inp(model).phases[0].cell.b.value == pytest.approx(4.0)
+    assert to_structure(model).phases[0].cell.b.value == pytest.approx(4.0)
 
 
 def test_a_beq_name_ga_on_a_continuation_line_is_not_read_as_an_angle(tmp_path):
@@ -1837,7 +1871,7 @@ def test_a_beq_name_ga_on_a_continuation_line_is_not_read_as_an_angle(tmp_path):
                'site A1 x 0 y 0 z 0 occ Ga+3 1\n     beq ga 0.5\n')
     model = read_topas_inp(inp)
     assert "ga" not in model.phases[0].cell
-    assert structure_from_topas_inp(model).phases[0].cell.gamma.value == pytest.approx(90.0)
+    assert to_structure(model).phases[0].cell.gamma.value == pytest.approx(90.0)
 
 
 def test_a_site_block_above_the_cell_lines_does_not_leak_into_the_cell(tmp_path):
@@ -1906,7 +1940,7 @@ def test_the_dropped_block_refusal_agrees_in_number(
                'weight_percent wpA 40.0\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n' + second_blocks)
     with pytest.raises(TopasInpError) as exc:
-        structure_from_topas_inp(read_topas_inp(inp))
+        to_structure(read_topas_inp(inp))
     msg = str(exc.value)
     if singular:
         assert "block here states a cell" in msg
