@@ -98,10 +98,45 @@ what arguments are for.
    several hundred megabytes each and, on the evidence of the ten stale trees
    already in that directory, never be reclaimed.
 
+   **Address the bench with `-C`, never with `cd`.** The shell's working
+   directory persists between tool calls, so a `cd` typed in an earlier step
+   silently retargets a later `git reset --hard`, and the two trees are
+   indistinguishable in ordinary output: the bench sits *inside* the main
+   checkout, shares its remote, and answers `git rev-parse --short origin/main`
+   identically. `git -C` cannot be defeated that way and puts the target in the
+   command rather than in invisible session state. Measured on this command's
+   first outing: a `cd` added to a `gh pr list` that did not need one (gh reads
+   the remote, and the bench has the same one) sent the next four commands into
+   the main checkout.
+
    ```sh
-   git fetch origin main && git fetch origin pull/N/head
-   # in the bench: reset to origin/main, then merge the PR head
+   BENCH=.claude/worktrees/pr-bench
+   git -C "$BENCH" fetch origin main
+   git -C "$BENCH" fetch origin "pull/N/head:refs/pr/N" --force
+   git -C "$BENCH" reset --hard origin/main
+   git -C "$BENCH" merge --no-edit refs/pr/N
+   git -C "$BENCH" diff origin/main --stat        # the PR's own contribution
    ```
+
+   **Fetch into a named ref, not `FETCH_HEAD`.** `FETCH_HEAD` is *per worktree*
+   (`.git/worktrees/pr-bench/FETCH_HEAD`, beside the main checkout's own), so a
+   fetch run anywhere else leaves the bench merging whatever it last fetched —
+   silently, and a stale head still merges. `refs/pr/N` lives in the common dir,
+   survives the next fetch, and is what the round-2 diff
+   (`refs/pr/N@{1}..refs/pr/N`, or a recorded sha) and `git merge-tree
+   origin/main refs/pr/N` want anyway.
+
+   **`reset --hard` is the whole reset; never `git clean -fdx`.** `-x` deletes
+   *ignored* files, which in this repo means `gui/node_modules`,
+   `docs/manual/_generated`, `tests/output/`, every cache, any `*.rex/` project
+   a person left in the tree, and the bench's own `.venv`. Reaching for
+   `-e .venv` to protect the venv is the sign the command is wrong for the job.
+   Tracked files are what a PR changes and `reset --hard` handles them; an
+   untracked build artefact between two PRs is harmless.
+
+   **Treat the main checkout as someone else's.** It usually carries a live WP
+   session on its own branch, and the destructive half of this ritual has no
+   business there.
 
    **The merged tree is the tree under test.** Branch protection is
    `strict: false`, so nothing else ever tests it — not CI, not the contributor.
