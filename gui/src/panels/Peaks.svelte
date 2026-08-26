@@ -16,6 +16,7 @@
    * reading of `confidence`: the button and the route must be one answer.
    */
   import { api } from "../api";
+  import Help from "../Help.svelte";
   import {
     CONTROL_FIELDS,
     SEARCH_FIELDS,
@@ -24,6 +25,7 @@
     foldSnapshots,
     parsePriorCell,
     priorCellText,
+    searchHelp,
     type IndexingControls,
   } from "../lib/controls";
   import { clone } from "../lib/model";
@@ -344,8 +346,9 @@
       </summary>
 
       <div class="grid" class:frozen={busy}>
-        <div class="block" title={field("engines").title}>
-          <span class="lab">{field("engines").label}</span>
+        <div class="block">
+          <span class="lab"><Help for={searchHelp(field("engines"))}
+            >{field("engines").label}</Help></span>
           {#each enginesVocab as e (e.name)}
             <label class="opt" title={e.description}>
               <input type="checkbox" disabled={busy}
@@ -356,8 +359,9 @@
           {/each}
         </div>
 
-        <div class="block" title={field("systems").title}>
-          <span class="lab">{field("systems").label}</span>
+        <div class="block">
+          <span class="lab"><Help for={searchHelp(field("systems"))}
+            >{field("systems").label}</Help></span>
           {#each systemsVocab as s (s)}
             {@const on = draft.search.systems === null
               || draft.search.systems.includes(s)}
@@ -372,7 +376,7 @@
                   {@const cOn = !draft.search.centrings?.[s]
                     || draft.search.centrings[s].includes(letter)}
                   <button class="ghost" class:on={cOn} disabled={busy}
-                    title={field("centrings").title}
+                    title="try this centring in this system"
                     onclick={() => toggleCentring(s, letter)}>{letter}</button>
                 {/each}
               {/if}
@@ -381,8 +385,8 @@
         </div>
 
         <div class="row">
-          <label class="num" title={field("preset").title}>
-            {field("preset").label}
+          <label class="num">
+            <Help for={searchHelp(field("preset"))}>{field("preset").label}</Help>
             <select disabled={busy}
               value={draft.search.preset ?? ""}
               onchange={(ev) => setSearch("preset",
@@ -393,23 +397,26 @@
               {/each}
             </select>
           </label>
-          <label class="num" title={field("total_budget_seconds").title}>
-            {field("total_budget_seconds").label}
+          <label class="num">
+            <Help for={searchHelp(field("total_budget_seconds"))}
+              >{field("total_budget_seconds").label}</Help>
             <input type="text" inputmode="decimal" disabled={busy}
               value={draft.search.total_budget_seconds ?? ""}
               onchange={(ev) => setSearch("total_budget_seconds",
                 numOrNull((ev.currentTarget as HTMLInputElement).value))} />
           </label>
-          <label class="num" title={field("budget_seconds").title}>
-            {field("budget_seconds").label}
+          <label class="num">
+            <Help for={searchHelp(field("budget_seconds"))}
+              >{field("budget_seconds").label}</Help>
             <input type="text" inputmode="decimal" disabled={busy}
               value={draft.search.budget_seconds}
               onchange={(ev) => setSearch("budget_seconds",
                 numOrNull((ev.currentTarget as HTMLInputElement).value)
                   ?? draft!.search.budget_seconds)} />
           </label>
-          <label class="num" title={field("validate_candidates").title}>
-            {field("validate_candidates").label}
+          <label class="num">
+            <Help for={searchHelp(field("validate_candidates"))}
+              >{field("validate_candidates").label}</Help>
             <input type="checkbox" disabled={busy}
               checked={draft.validate_candidates}
               onchange={(ev) => {
@@ -418,8 +425,8 @@
                 commit();
               }} />
           </label>
-          <label class="num" title={field("check_top").title}>
-            {field("check_top").label}
+          <label class="num">
+            <Help for={searchHelp(field("check_top"))}>{field("check_top").label}</Help>
             <input type="text" inputmode="numeric" disabled={busy}
               value={draft.check_top ?? ""}
               onchange={(ev) => {
@@ -434,8 +441,9 @@
           {#each [["min_d_axis", draft.search.min_d_axis],
                   ["max_d_axis", draft.search.max_d_axis],
                   ["min_volume", draft.search.min_volume]] as [name, value] (name)}
-            <label class="num" title={field(name as string).title}>
-              {field(name as string).label}
+            <label class="num">
+              <Help for={searchHelp(field(name as string))}
+                >{field(name as string).label}</Help>
               <input type="text" inputmode="decimal" disabled={busy}
                 value={value}
                 onchange={(ev) => setSearch(name as string,
@@ -443,8 +451,9 @@
                     ?? value)} />
             </label>
           {/each}
-          <label class="num" title={field("max_volume").title}>
-            {field("max_volume").label}
+          <label class="num">
+            <Help for={searchHelp(field("max_volume"))}
+              >{field("max_volume").label}</Help>
             <input type="text" inputmode="decimal" disabled={busy}
               value={draft.search.max_volume ?? ""}
               onchange={(ev) => setSearch("max_volume",
@@ -459,8 +468,9 @@
                   ["shift_allowance_deg", draft.search.shift_allowance_deg],
                   ["max_candidates", draft.search.max_candidates],
                   ["seed", draft.search.seed]] as [name, value] (name)}
-            <label class="num" title={field(name as string).title}>
-              {field(name as string).label}
+            <label class="num">
+              <Help for={searchHelp(field(name as string))}
+                >{field(name as string).label}</Help>
               <input type="text" inputmode="decimal" disabled={busy}
                 value={value}
                 onchange={(ev) => setSearch(name as string,
@@ -468,8 +478,9 @@
                     ?? value)} />
             </label>
           {/each}
-          <label class="num" title={field("shift_template").title}>
-            {field("shift_template").label}
+          <label class="num">
+            <Help for={searchHelp(field("shift_template"))}
+              >{field("shift_template").label}</Help>
             <select disabled={busy}
               value={draft.search.shift_template ?? ""}
               onchange={(ev) => setSearch("shift_template",
@@ -480,8 +491,9 @@
           </label>
         </div>
 
-        <div class="block" title={field("prior_cells").title}>
-          <span class="lab">{field("prior_cells").label}</span>
+        <div class="block">
+          <span class="lab"><Help for={searchHelp(field("prior_cells"))}
+            >{field("prior_cells").label}</Help></span>
           {#each draft.search.prior_cells ?? [] as cell, i (i)}
             <span class="tagged">
               <span class="chip note">{priorCellText(cell)}</span>
@@ -497,8 +509,9 @@
             onclick={addPriorCell}>add</button>
         </div>
 
-        <div class="block" title={field("prior_spacegroups").title}>
-          <span class="lab">{field("prior_spacegroups").label}</span>
+        <div class="block">
+          <span class="lab"><Help for={searchHelp(field("prior_spacegroups"))}
+  >{field("prior_spacegroups").label}</Help></span>
           {#each draft.search.prior_spacegroups ?? [] as sg, i (sg + i)}
             <span class="tagged">
               <span class="chip note">{sg}</span>
@@ -556,7 +569,12 @@ can rise when validation and ambiguity run, never fall">
     {#if diagnostics.length}
       <ul class="strip">
         {#each diagnostics as d (d.code + d.message)}
-          <li class={d.level}><span class="mono">{d.code}</span> {d.message}</li>
+          <li class={d.level}>
+            <span class="mono">
+              <Help for="peak_diagnostics:{d.code}"
+                label="what {d.code} means">{d.code}</Help>
+            </span> {d.message}
+          </li>
         {/each}
       </ul>
     {/if}
@@ -586,7 +604,10 @@ can rise when validation and ambiguity run, never fall">
                   <span class="chip accent" title="a human placed or moved this line">{p.origin}</span>
                 {/if}
                 {#each p.flags as f (f)}
-                  <span class="chip {flagTone(f, unusable)}">{f}</span>
+                  <span class="chip {flagTone(f, unusable)}">
+                    <Help for="peak_flags:{f}" label="what the {f} flag means"
+                      >{f}</Help>
+                  </span>
                 {/each}
               </td>
               <td class="acts">

@@ -27,7 +27,6 @@
 import { formatValue, num, type ParamRow } from "./table";
 // the two geometry fields both forms offer: one wording, so the wizard and the
 // editor cannot explain the same quantity two ways (WP-1032)
-import { PACKING_TITLE, THICKNESS_TITLE } from "./wizard";
 
 export type FieldKind = "number" | "optnumber" | "text" | "choice";
 
@@ -44,6 +43,17 @@ export interface Field {
   label: string;
   kind: FieldKind;
   unit?: string;
+  /** the corpus key that explains this name (WP-1203), as `arm:name`.
+   *
+   *  Data rather than derived: most of these are parameter paths, whose family
+   *  glob the server matches, but four are `instrument_fields` entries and two
+   *  are model fields the corpus does not describe at all — a rule that read
+   *  the path could not tell the three apart.  `lib/wizard.test.ts` crosses
+   *  every key here against the committed key set. */
+  help?: string;
+  /** the last resort, for a field the corpus has no entry for.  Two of them:
+   *  `geometry.kind` and `profile.shape`, both model choices rather than
+   *  named quantities. */
   title?: string;
   choices?: string[];
   /** shown only in Advanced disclosure */
@@ -244,21 +254,19 @@ export function instrumentFields(instrument: any): Field[] {
       choices: [...GEOMETRIES],
       title: "changes which corrections apply and which parameters exist" },
     { path: "zero_shift", label: "zero", kind: "number", unit: "°2θ",
-      title: "detector zero-point error: one constant offset added to every 2θ, "
-             + "and the one shift that does not depend on θ" },
+      help: "parameters:instrument.zero_shift" },
     { path: "source.polarization", label: "polarization", kind: "number",
-      title: "GSAS POLA convention; K = 1/(1+cos²2θ_m) for a monochromator" },
+      help: "parameters:instrument.polarization" },
   ];
   const lines = instrument?.source?.lines ?? [];
   lines.forEach((_: unknown, i: number) => {
     fields.push({ path: `source.lines.${i}.wavelength`, label: `λ${i + 1}`,
                   kind: "number", unit: "Å",
-                  title: "the emission line's wavelength; a ~100 ppm cell error "
-                         + "hides here, so change it only against a calibration" });
+                  help: "parameters:instrument.source.lines.*.wavelength" });
     if (i > 0) {
       fields.push({ path: `source.lines.${i}.weight`, label: `w${i + 1}`,
                     kind: "number",
-                    title: "relative to line 1, which is locked at 1" });
+                    help: "parameters:instrument.source.lines.*.weight" });
     }
   });
   fields.push(
@@ -267,59 +275,50 @@ export function instrumentFields(instrument: any): Field[] {
       title: "TCHZ pseudo-Voigt (the default) or a true Voigt — the same widths, "
              + "a different mixing rule" },
     { path: "profile.u", label: "U", kind: "number", unit: "deg²",
-      title: "Caglioti tan²θ — Gaussian strain broadening" },
+      help: "parameters:instrument.profile.u" },
     { path: "profile.v", label: "V", kind: "number", unit: "deg²",
-      title: "Caglioti tanθ — the cross term; often the one to hold" },
+      help: "parameters:instrument.profile.v" },
     { path: "profile.w", label: "W", kind: "number", unit: "deg²",
-      title: "Caglioti constant — the instrument's own Gaussian width" },
+      help: "parameters:instrument.profile.w" },
     { path: "profile.x", label: "X", kind: "number",
-      title: "Lorentzian 1/cosθ — size broadening" },
+      help: "parameters:instrument.profile.x" },
     { path: "profile.y", label: "Y", kind: "number",
-      title: "Lorentzian tanθ — strain broadening" },
+      help: "parameters:instrument.profile.y" },
     { path: "geometry.axial_sl", label: "S/L", kind: "number",
-      title: "FCJ axial divergence: sample length / goniometer radius" },
+      help: "parameters:instrument.geometry.axial_sl" },
     { path: "geometry.axial_hl", label: "H/L", kind: "number",
-      title: "FCJ axial divergence: detector slit length / goniometer radius" },
+      help: "parameters:instrument.geometry.axial_hl" },
     { path: "geometry.sample_displacement", label: "displacement", kind: "number",
-      unit: "mm",
-      title: "specimen off the focusing circle: a cosθ shift, which is why it "
-             + "and the zero point are only separable over a wide 2θ range" },
+      unit: "mm", help: "parameters:instrument.geometry.sample_displacement" },
   );
   if (geometry === "bragg_brentano") {
     fields.push(
       { path: "geometry.goniometer_radius_mm", label: "radius", kind: "number",
-        unit: "mm",
-        title: "the diffractometer's own radius; it scales the displacement and "
-               + "axial-divergence terms, so it is a measurement, not a fit" },
+        unit: "mm", help: "instrument_fields:goniometer_radius_mm" },
       { path: "geometry.sample_transparency", label: "transparency", kind: "number",
-        title: "penetration into a flat specimen: a sin2θ shift" },
+        help: "parameters:instrument.geometry.sample_transparency" },
       { path: "geometry.mu_t", label: "µt", kind: "optnumber",
-        title: "leave empty for a thick specimen — µt = 0 is a specimen of zero "
-               + "thickness and raises" },
+        help: "instrument_fields:mu_t" },
       { path: "geometry.thickness_mm", label: "thickness", kind: "optnumber",
-        unit: "mm", title: THICKNESS_TITLE },
+        unit: "mm", help: "instrument_fields:thickness_mm" },
     );
   } else if (geometry === "flat_plate_transmission") {
     fields.push(
       { path: "geometry.mu_t", label: "µt", kind: "optnumber",
-        title: "leave empty for a thick specimen — µt = 0 is a specimen of zero "
-               + "thickness and raises" },
+        help: "instrument_fields:mu_t" },
       { path: "geometry.thickness_mm", label: "thickness", kind: "optnumber",
-        unit: "mm", title: THICKNESS_TITLE },
+        unit: "mm", help: "instrument_fields:thickness_mm" },
       { path: "geometry.packing_fraction", label: "packing", kind: "number",
-        advanced: true, title: PACKING_TITLE },
+        advanced: true, help: "instrument_fields:packing_fraction" },
     );
   } else {
     fields.push(
       { path: "geometry.mu_r", label: "µR", kind: "optnumber",
-        title: "capillary absorption; exactly a reparameterisation of "
-               + "{scale, Biso}, so Rwp cannot move" },
+        help: "instrument_fields:mu_r" },
       { path: "geometry.capillary_radius_mm", label: "capillary r", kind: "optnumber",
-        unit: "mm",
-        title: "internal radius of the bore — an estimator input for µR, never "
-               + "refined" },
+        unit: "mm", help: "instrument_fields:capillary_radius_mm" },
       { path: "geometry.packing_fraction", label: "packing", kind: "number",
-        advanced: true, title: PACKING_TITLE },
+        advanced: true, help: "instrument_fields:packing_fraction" },
     );
   }
   return fields;

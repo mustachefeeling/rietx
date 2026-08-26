@@ -30,6 +30,7 @@
    * has no coordinate control at all, with the reason where the control would be.
    */
   import { ApiError, api } from "../api";
+  import Help from "../Help.svelte";
   import {
     applyFields,
     atomRows,
@@ -64,6 +65,7 @@
     createBody,
     emptyWizard,
     patternSummary,
+    presetHelp,
     seedPreset,
     structureSummary, applyInstrumentHint, scanCount,} from "../lib/wizard";
   import { fitColumns, modelStacks } from "../lib/resize";
@@ -734,7 +736,8 @@
             {#each readerOptions.filter((o: any) =>
                 wiz.pattern.format.options.includes(o.name)) as opt (opt.name)}
               <label class="inline">
-                {opt.name}
+                <Help for="reader_options:{opt.name}"
+                  label="what the {opt.name} option does">{opt.name}</Help>
                 {#if opt.name === "scan" && scanCount(wiz.pattern) > 1}
                   <!-- a picker, not a number box: "scan 1" tells nobody which
                        measurement it is, which is why ScanInfo carries a label.
@@ -846,8 +849,9 @@
             </select>
             <div class="grid">
               {#each PRESET_FIELDS[wiz.preset] as field (field.name)}
-                <label class="cell" title={field.title ?? ""}>
-                  <span class="muted">{field.label}{field.unit ? ` (${field.unit})` : ""}</span>
+                <label class="cell">
+                  <span class="muted"><Help for={presetHelp(field)}
+                    >{field.label}</Help>{field.unit ? ` (${field.unit})` : ""}</span>
                   {#if field.kind === "anode"}
                     <select class="mono"
                       value={wiz.values[field.name] ?? field.initial ?? ""}
@@ -1014,8 +1018,11 @@
             {@const path = `phases.${phase}.cell.${edge}`}
             {@const row = byPath.get(path)}
             {@const field = { path, label: edge, kind: "number" } as Field}
+            <!-- `title` is the symmetry cause, which is `causes`' own sentence
+                 about this phase; what a cell edge *is* comes from the corpus. -->
             <label class="cell" title={why(path)}>
-              <span class="muted">{CELL_GLYPH[edge] ?? edge}</span>
+              <span class="muted"><Help for="parameters:phases.*.cell.{edge}"
+                label="what {edge} is">{CELL_GLYPH[edge] ?? edge}</Help></span>
               {#if !editableValue(row)}
                 <span class="mono fixed">{formatValue(row!.value, row!.esd)}</span>
               {:else}
@@ -1035,8 +1042,12 @@
         <div class="tablewrap">
         <table class="atoms">
           <thead>
-            <tr><th>label</th><th>species</th><th>x y z</th><th>occ</th><th>Biso</th>
-              <th title="anisotropic ADPs, opt-in per atom">aniso</th><th></th></tr>
+            <tr><th>label</th><th>species</th>
+              <th><Help for="parameters:phases.*.atoms.*.dof.*">x y z</Help></th>
+              <th><Help for="parameters:phases.*.atoms.*.occ">occ</Help></th>
+              <th><Help for="parameters:phases.*.atoms.*.biso">Biso</Help></th>
+              <th><Help for="parameters:phases.*.atoms.*.adp.*">aniso</Help></th>
+              <th></th></tr>
           </thead>
           <tbody>
             {#each atoms as row (row.base)}
@@ -1165,8 +1176,15 @@
           {#each insFields as field (field.path)}
             {#if !field.advanced || !simple}
               {@const held = heldReason(field, "instrument")}
-              <label class="cell" title={field.title ?? held}>
-                <span class="muted">{field.label}{field.unit ? ` (${field.unit})` : ""}</span>
+              <!-- `title` is the *held* reason here, which is the verb's own
+                   words about this instrument; what the field IS comes from the
+                   corpus, and the two fields with no entry say so in
+                   `lib/model.ts` (WP-1203). -->
+              <label class="cell" title={held}>
+                <span class="muted">
+                  {#if field.help}<Help for={field.help}>{field.label}</Help>
+                  {:else}<span title={field.title}>{field.label}</span>{/if}
+                  {field.unit ? ` (${field.unit})` : ""}</span>
                 {#if field.kind === "choice"}
                   <select class="mono" data-field={field.path}
                     value={text(instrument, field, "instrument")}

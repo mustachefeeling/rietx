@@ -186,3 +186,106 @@ describe("every key the app writes down names something", () => {
     expect(unknown).toEqual([]);
   });
 });
+
+describe("`title=` is no longer how this app explains a name", () => {
+  /**
+   * Every authored `title="…"` that is not on a `<button>`, per file.
+   *
+   * A `title=` may still carry two things, and neither is authored prose: a
+   * **value** the layout truncated (`title={row.path}` on a column showing the
+   * leaf) and a **sentence the server wrote** (`held_because`, a refutation).
+   * Both are expressions, which is why this only counts string literals.
+   *
+   * What is left is prose typed into the markup, and it is owed a corpus entry
+   * — but the corpus describes *names the package has* (parameters, peak
+   * flags, stage fields, reader options, instrument fields, plans, search
+   * controls), and several panels' vocabularies are not among them: a report
+   * statistic, a series setting, an indexing result column, a drawing
+   * threshold.  Those arrive with the WPs that own those panels.
+   *
+   * So this is a **budget, not a ban**: an exact count per file, which fails
+   * both ways.  A new authored `title=` fails it, and so does deleting the
+   * last one in a file without deleting the file's row — which is what stops
+   * this list outliving the debt it records.
+   */
+  const OWED: Record<string, number> = {
+    "App.svelte": 1,                 // the splitter's drag gesture
+    "panels/Console.svelte": 1,      // the event ring's size
+    "panels/History.svelte": 4,      // node vocabulary — WP-1217
+    "panels/Model.svelte": 3,        // the space-group box, two splitters
+    "panels/Params.svelte": 4,       // the table's own affordances
+    "panels/Peaks.svelte": 12,       // indexing result columns — WP-1209-1213
+    "panels/Plan.svelte": 2,         // the reorder grip, correlation_guard
+    "panels/Plot.svelte": 3,         // fit-range fields — WP-1212
+    "panels/Report.svelte": 4,       // report statistics
+    "panels/Series.svelte": 11,      // series settings and status chips
+    "panels/Structure3D.svelte": 4,  // drawing thresholds, not physics
+  };
+
+  function markupFiles(): Array<[string, string]> {
+    const files = ["App.svelte",
+                   ...readdirSync(`${SRC}panels`).filter((f) => f.endsWith(".svelte"))
+                     .sort().map((f) => `panels/${f}`)];
+    return files.map((rel) => [rel, readFileSync(`${SRC}${rel}`, "utf-8")]);
+  }
+
+  /** Authored `title="…"` outside a `<button>` and outside `<Help>` itself. */
+  function authored(source: string): number {
+    let n = 0;
+    for (const m of source.matchAll(/\btitle="/g)) {
+      const open = source.lastIndexOf("<", m.index!);
+      const tag = /^<\s*([A-Za-z0-9_.-]+)/.exec(source.slice(open))?.[1];
+      // `<Help title=…>` is the popover's own heading for a supplied sentence,
+      // not a tooltip — it is rendered *inside* the popover, never hovered
+      if (tag === "button" || tag === "Help") continue;
+      n += 1;
+    }
+    return n;
+  }
+
+  it("counts exactly the authored titles each file is still owed", () => {
+    const found: Record<string, number> = {};
+    for (const [rel, source] of markupFiles()) {
+      const n = authored(source);
+      if (n) found[rel] = n;
+    }
+    expect(found).toEqual(OWED);
+  });
+
+  it("reads a file it claims to count, so the regex cannot fail open", () => {
+    // Every assertion here is "this count is right", which a regex that
+    // matched nothing would satisfy for a file full of titles.
+    const files = markupFiles();
+    expect(files.length).toBeGreaterThanOrEqual(14);
+    expect(files.every(([, source]) => source.includes("<"))).toBe(true);
+    // …and the counter must actually see a title where one demonstrably is
+    expect(authored('<span title="x">y</span>')).toBe(1);
+    expect(authored('<button title="run this stage">Run</button>')).toBe(0);
+    expect(authored('<Help title="Not a fit yet">chip</Help>')).toBe(0);
+    expect(authored("<span title={row.path}>y</span>")).toBe(0);
+  });
+
+  it("keeps no authored help prose in the two field inventories", () => {
+    // These are the "two hand-written TypeScript corpora" `rietx.help`'s own
+    // docstring names: 21 explanations in `controls.ts` and 11 in `wizard.ts`,
+    // kept beside the fields they described.  Both now *derive* a corpus key
+    // from the field's own name, so the type carries no `title` at all — which
+    // is what makes the move irreversible by accident.
+    //
+    // Asserted on the interface rather than by counting `title:` lines,
+    // because `lib/plot.ts` legitimately says `title` about a curve toggle and
+    // a plotly axis, and a blanket ban would be a rule about the word.
+    for (const [file, iface] of [["controls.ts", "ControlField"],
+                                 ["wizard.ts", "PresetField"]] as const) {
+      const source = readFileSync(`${SRC}lib/${file}`, "utf-8");
+      const block = new RegExp(`export interface ${iface} \\{([^}]*)\\}`).exec(source);
+      expect(block, `${file}: ${iface} moved`).toBeTruthy();
+      expect(/\btitle\??:/.test(block![1]), `${iface}.title`).toBe(false);
+    }
+    // …and `lib/model.ts`'s `Field` keeps `title` as a *stated* escape for the
+    // handful of model choices the corpus has no vocabulary for, which
+    // `wizard.test.ts` holds to a named list.
+    const model = readFileSync(`${SRC}lib/model.ts`, "utf-8");
+    expect(/export interface Field \{[^}]*\bhelp\?:/.test(model)).toBe(true);
+  });
+});

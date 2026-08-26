@@ -110,11 +110,18 @@ Design:
 - [x] `Help.svelte` + the single popover in `App.svelte`; the help cursor
       and the popover styled on WP-1201's tokens. Params is wired as its
       first consumer, and the header chip's owed debt is paid.
-- [ ] Wire Params, Model (editor and wizard), Plan, Peaks (flags, headers,
-      search controls), Report, History, Series, Plot, and every panel
-      heading; move `lib/controls.ts` and `lib/wizard.ts` titles into corpus
-      keys; retarget the two title meta-tests.
-- [ ] The `title=`-on-non-buttons vitest; delete or move every hit.
+- [x] Wire every term the corpus covers: Params (paths, held rows), Model
+      (cell edges, atom columns, the wizard's preset fields, the instrument
+      editor, reader options), Plan (stage fields, the preset), Peaks (flags,
+      diagnostics, the 21 search controls). `lib/controls.ts` and
+      `lib/wizard.ts` now *derive* a corpus key from each field's own name
+      rather than carrying prose; `lib/model.ts`'s `Field` gains `help` and
+      keeps `title` as a named escape. Both title meta-tests retargeted.
+- [x] The `title=` audit as a **counted budget** rather than a ban: 51
+      authored literals remain, per file, each fails both ways. Report
+      statistics, series settings, indexing result columns and the 3D drawing
+      thresholds are vocabularies the corpus does not describe, and they
+      arrive with the WPs that own those panels.
 - [ ] Browser pass: open the popover on each panel, light and dark, at the
       sidebar floor (flip and clamp exercised); rebuild the committed dist.
 

@@ -29,80 +29,53 @@ export interface PresetField {
   label: string;
   kind: PresetFieldKind;
   unit?: string;
-  title?: string;
   /** prefilled when the step opens; "" means "leave it to the constructor" */
   initial?: string;
 }
 
 /**
- * The two help strings both forms need, quoted from the schema's own words.
+ * The corpus key that describes one preset field (WP-1203).
+ *
+ * Derived from the field's own name, not stored beside it: the
+ * `instrument_fields` arm is keyed by the union of `INSTRUMENT_PRESETS`, which
+ * is the same list `PRESET_FIELDS` is already held to across the language
+ * boundary, so a second list could only be a way for the two to disagree.
  *
  * `packing_fraction` was the field WP-1032 was reported against — offered in
  * three places with no `title` in any of them, on a form whose only help
- * mechanism *is* `title=`. The wording is `schemas/instrument.py`'s docstring
- * rather than a paraphrase, and it says the part a form cannot show: this is an
- * **estimator input**, so it feeds µR/µt and is never refined.
+ * mechanism *was* `title=`.  It has an entry now, and so does every other
+ * field here, crossed both ways by `tests/test_help.py`.
  */
-export const PACKING_TITLE =
-  "fraction of the bore (or the specimen slab) occupied by solid — 0.3-0.6 for "
-  + "a tapped powder, 0.64 random close packing of spheres. An estimator input "
-  + "for µR/µt only, never refinable.";
-
-export const THICKNESS_TITLE =
-  "flat-specimen thickness — for a reflection mount, the depth of the powder "
-  + "layer and not the holder. An estimator input for µt only.";
+export function presetHelp(field: PresetField): string {
+  return `instrument_fields:${field.name}`;
+}
 
 /** The three geometries, and the arguments each one takes. */
 export const PRESET_FIELDS: Record<string, PresetField[]> = {
   debye_scherrer: [
-    { name: "wavelength", label: "wavelength", kind: "number", unit: "Å",
-      title: "the one geometry with no anode to read a wavelength from" },
-    { name: "polarization", label: "polarization", kind: "optnumber",
-      title: "0.99 matches APS 11-BM instrument-parameter files" },
-    { name: "goniometer_radius_mm", label: "radius", kind: "optnumber", unit: "mm",
-      title: "the 2θ circle, which McCusker eq (4) divides by — declare it to "
-             + "make the two capillary displacement offsets refinable, and "
-             + "leave it empty at a synchrotron with a crystal analyser" },
+    { name: "wavelength", label: "wavelength", kind: "number", unit: "Å" },
+    { name: "polarization", label: "polarization", kind: "optnumber" },
+    { name: "goniometer_radius_mm", label: "radius", kind: "optnumber", unit: "mm" },
     { name: "capillary_radius_mm", label: "capillary r", kind: "optnumber",
-      unit: "mm",
-      title: "internal radius of the bore — an estimator input for µR, never "
-             + "refined" },
-    { name: "mu_r", label: "µR", kind: "optnumber",
-      title: "cylindrical absorption; leave empty for off" },
-    { name: "packing_fraction", label: "packing", kind: "optnumber",
-      title: PACKING_TITLE },
+      unit: "mm" },
+    { name: "mu_r", label: "µR", kind: "optnumber" },
+    { name: "packing_fraction", label: "packing", kind: "optnumber" },
   ],
   bragg_brentano: [
-    { name: "radiation", label: "anode", kind: "anode", initial: "CuKa",
-      title: "the Kα1/Kα2 doublet for this anode, from the package's NIST-scale "
-             + "table; a `…Ka1` variant is an incident-side-monochromated beam" },
-    { name: "goniometer_radius_mm", label: "radius", kind: "optnumber", unit: "mm",
-      title: "217.5 mm is a common benchtop value and the constructor's default" },
+    { name: "radiation", label: "anode", kind: "anode", initial: "CuKa" },
+    { name: "goniometer_radius_mm", label: "radius", kind: "optnumber", unit: "mm" },
     { name: "monochromator_two_theta", label: "2θ monochromator", kind: "optnumber",
-      unit: "°",
-      title: "diffracted-beam crystal; ≈26.6° is graphite (002) at Cu Kα and a "
-             + "*Cu* number — the same crystal sits at ≈12.1° at Mo Kα" },
-    { name: "ka2_ratio", label: "Kα2/Kα1", kind: "optnumber",
-      title: "0.5 is the 2j+1 degeneracy ratio and the right seed for every anode" },
-    { name: "mu_t", label: "µt", kind: "optnumber",
-      title: "leave empty for a thick specimen; µt = 0 is a specimen of zero "
-             + "thickness and raises" },
-    { name: "thickness_mm", label: "thickness", kind: "optnumber", unit: "mm",
-      title: THICKNESS_TITLE },
+      unit: "°" },
+    { name: "ka2_ratio", label: "Kα2/Kα1", kind: "optnumber" },
+    { name: "mu_t", label: "µt", kind: "optnumber" },
+    { name: "thickness_mm", label: "thickness", kind: "optnumber", unit: "mm" },
   ],
   flat_plate_transmission: [
-    { name: "radiation", label: "anode", kind: "anode", initial: "CuKa1",
-      title: "Kα1-only by default: this geometry is normally built around an "
-             + "incident-beam monochromator" },
-    { name: "mu_t", label: "µt", kind: "optnumber",
-      title: "leave empty for a thick specimen; µt = 0 is a specimen of zero "
-             + "thickness and raises" },
-    { name: "thickness_mm", label: "thickness", kind: "optnumber", unit: "mm",
-      title: THICKNESS_TITLE },
-    { name: "packing_fraction", label: "packing", kind: "optnumber",
-      title: PACKING_TITLE },
-    { name: "ka2_ratio", label: "Kα2/Kα1", kind: "optnumber",
-      title: "0.5 is the 2j+1 degeneracy ratio and the right seed for every anode" },
+    { name: "radiation", label: "anode", kind: "anode", initial: "CuKa1" },
+    { name: "mu_t", label: "µt", kind: "optnumber" },
+    { name: "thickness_mm", label: "thickness", kind: "optnumber", unit: "mm" },
+    { name: "packing_fraction", label: "packing", kind: "optnumber" },
+    { name: "ka2_ratio", label: "Kα2/Kα1", kind: "optnumber" },
   ],
 };
 

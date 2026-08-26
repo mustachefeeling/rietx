@@ -57,148 +57,52 @@ export interface ControlField {
     | "engines"        // checkbox per registered engine
     | "toggle";        // a checkbox
   label: string;
-  /** the `title=` help — WP-1029's rule: no mute fields, pinned by test */
-  title: string;
   /** null/absent means "package default" and is sent as null */
   optional?: boolean;
 }
 
+/** The corpus key that describes one control (WP-1203).
+ *
+ * Derived from the field's own name rather than stored beside it: the arm is
+ * keyed by `IndexingControls` flattened one level, which is the same
+ * vocabulary this inventory states, so a second list would only be a way for
+ * the two to disagree.  The prose these fields used to carry as `title=` is
+ * now `rietx.help.SEARCH_FIELD_HELP` — moved rather than rewritten, because
+ * the form was the only place several of those measurements were written
+ * down.
+ */
+export function searchHelp(field: ControlField): string {
+  return `search_fields:${field.name}`;
+}
+
 /** Every `SearchSpecSpec` field, in display order. */
 export const SEARCH_FIELDS: ControlField[] = [
-  {
-    name: "systems", kind: "systems", label: "crystal systems",
-    title: "systems to search, run highest-symmetry first (a cubic answer "
-      + "costs seconds, a triclinic search minutes). A restricted search is "
-      + "not a verdict: the result reports systems_searched rather than "
-      + "concluding anything about the specimen",
-  },
-  {
-    name: "centrings", kind: "centrings", label: "centrings",
-    title: "Bravais centrings to try in this system; unticking one narrows "
-      + "the search and is recorded in spec_notes. At least one must stay",
-  },
-  {
-    name: "preset", kind: "select", label: "preset", optional: true,
-    title: "the whole-run ceiling's name. quick (default): every engine and "
-      + "system under a measured ceiling, truncation reported loudly; full: "
-      + "unbounded. A typed total budget overrides it and records 'custom'",
-  },
-  {
-    name: "total_budget_seconds", kind: "number", label: "total budget (s)",
-    optional: true,
-    title: "wall-clock ceiling for the whole run — search, probe and "
-      + "validation together. Empty leaves it to the preset; setting it "
-      + "overrides the preset's and the result records preset='custom'",
-  },
-  {
-    name: "budget_seconds", kind: "number", label: "budget / slice (s)",
-    title: "wall clock per (engine × crystal system) slice, not per run. An "
-      + "engine stopped by it reports search_complete=false for the system, "
-      + "and a negative result there is not evidence",
-  },
-  {
-    name: "min_d_axis", kind: "number", label: "min axis (Å)",
-    title: "shortest principal d-spacing to consider — a bound on d(100), "
-      + "slightly stronger than a bound on a for oblique cells",
-  },
-  {
-    name: "max_d_axis", kind: "number", label: "max axis (Å)",
-    title: "longest principal d-spacing; raising it costs exponentially — "
-      + "domain size is what an exhaustive search pays for",
-  },
-  {
-    name: "min_volume", kind: "number", label: "min volume (Å³)",
-    title: "smallest cell volume a candidate may have",
-  },
-  {
-    name: "max_volume", kind: "number", label: "max volume (Å³)",
-    optional: true,
-    title: "cell-volume ceiling, taken verbatim. Empty takes Smith's "
-      + "per-system envelope from the data-quality report (with the "
-      + "calibration slack the engines apply to a mean line)",
-  },
-  {
-    name: "n_unindexed", kind: "int", label: "unindexed allowed",
-    title: "search lines a cell may leave unindexed and still be accepted. "
-      + "Raising it MANUFACTURES cells — every tolerated line is one more "
-      + "coincidence a wrong metric is allowed — so 2 is a default and 4 is "
-      + "a statement about the specimen",
-  },
-  {
-    name: "n_search_lines", kind: "int", label: "search lines",
-    title: "observed lines the search is DRIVEN by (the strongest N). Not "
-      + "free to raise: a cell must index all but the allowance of THESE, "
-      + "so every extra foreign line can refute the true cell (measured: a "
-      + "68-line list loses its certified lattice at 32)",
-  },
-  {
-    name: "k_sigma", kind: "number", label: "k·σ window",
-    title: "matching window in units of each line's own σ; 3 is a "
-      + "calibrated 99.7 % window, not a knob",
-  },
-  {
-    name: "shift_allowance_deg", kind: "number", label: "shift allowance (°)",
-    title: "a MEASURED systematic 2θ allowance — the shift's amplitude a "
-      + "window must span (ShiftScreen.allowance_deg), never the residual "
-      + "scatter a template leaves: the two differ 4.3× on a certified "
-      + "pattern and declaring the scatter finds no cell at all. 0 = let "
-      + "the engines assume 0.05° and cap confidence",
-  },
-  {
-    name: "shift_template", kind: "select", label: "shift template",
-    optional: true,
-    title: "the physical cause of the 2θ shift, if you know it — a "
-      + "surviving candidate is re-fitted with this column, which is what "
-      + "stops a widened search reporting a biased cell",
-  },
-  {
-    name: "max_candidates", kind: "int", label: "max candidates",
-    title: "how many candidates the reported list holds, after the engines "
-      + "are merged and ranked — and what prices validation, since each "
-      + "reported candidate costs a Le Bail fit. Each engine hands the merge "
-      + "five times this many, so the cap never decides a rank",
-  },
-  {
-    name: "seed", kind: "int", label: "seed",
-    title: "the stochastic engine's RNG seed, recorded in every result so a "
-      + "run is reproducible from what it reports",
-  },
-  {
-    name: "prior_cells", kind: "prior_cells", label: "analogue cells",
-    title: "structural-analogue cells (a b c α β γ) to try first — the "
-      + "system jumps the queue, the metric seeds the stochastic engine, "
-      + "and the cell itself is checked against the lines. A prior steers, "
-      + "never gates: a wrong one costs time, not truth, and "
-      + "INDEX_PRIOR_USED records what it changed",
-  },
-  {
-    name: "prior_spacegroups", kind: "list", label: "analogue space groups",
-    title: "space-group symbols from an analogue (e.g. R -3 c): each "
-      + "contributes its crystal system to the queue jump and, beside a "
-      + "matching prior cell, its centring",
-  },
+  { name: "systems", kind: "systems", label: "crystal systems" },
+  { name: "centrings", kind: "centrings", label: "centrings" },
+  { name: "preset", kind: "select", label: "preset", optional: true },
+  { name: "total_budget_seconds", kind: "number", label: "total budget (s)",
+    optional: true },
+  { name: "budget_seconds", kind: "number", label: "budget / slice (s)" },
+  { name: "min_d_axis", kind: "number", label: "min axis (Å)" },
+  { name: "max_d_axis", kind: "number", label: "max axis (Å)" },
+  { name: "min_volume", kind: "number", label: "min volume (Å³)" },
+  { name: "max_volume", kind: "number", label: "max volume (Å³)", optional: true },
+  { name: "n_unindexed", kind: "int", label: "unindexed allowed" },
+  { name: "n_search_lines", kind: "int", label: "search lines" },
+  { name: "k_sigma", kind: "number", label: "k·σ window" },
+  { name: "shift_allowance_deg", kind: "number", label: "shift allowance (°)" },
+  { name: "shift_template", kind: "select", label: "shift template", optional: true },
+  { name: "max_candidates", kind: "int", label: "max candidates" },
+  { name: "seed", kind: "int", label: "seed" },
+  { name: "prior_cells", kind: "prior_cells", label: "analogue cells" },
+  { name: "prior_spacegroups", kind: "list", label: "analogue space groups" },
 ];
 
 /** The `IndexingControls` fields beside `search`, in display order. */
 export const CONTROL_FIELDS: ControlField[] = [
-  {
-    name: "engines", kind: "engines", label: "engines",
-    title: "which searches run; all of them is the default to keep — high "
-      + "confidence MEANS every engine that ran found the same lattice, so "
-      + "a subset narrows what the answer can say",
-  },
-  {
-    name: "validate_candidates", kind: "toggle", label: "Le Bail validation",
-    title: "whole-profile validation of the top candidates; turning it off "
-      + "caps every candidate at medium, so do it only to save time on a "
-      + "first look",
-  },
-  {
-    name: "check_top", kind: "int", label: "check top", optional: true,
-    title: "candidates given the expensive per-candidate checks (ambiguity "
-      + "+ Le Bail). Empty = the package default plus every candidate the "
-      + "gate could promote",
-  },
+  { name: "engines", kind: "engines", label: "engines" },
+  { name: "validate_candidates", kind: "toggle", label: "Le Bail validation" },
+  { name: "check_top", kind: "int", label: "check top", optional: true },
 ];
 
 /** The names this form states, for the corpus test. */

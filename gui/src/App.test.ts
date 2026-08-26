@@ -3867,14 +3867,18 @@ describe("the search controls (WP-1045)", () => {
     // the preset select offers the registry plus "default — quick"
     const preset = numInput("preset") as unknown as HTMLSelectElement;
     expect([...preset.options].map((o) => o.value)).toEqual(["", "quick", "full"]);
-    // every numeric control is present and titled (no mute fields)
+    // every numeric control is present, and its label is a help term rather
+    // than a `title=` (WP-1203's no-mute-fields rule, retargeted): the key
+    // itself is crossed against the corpus in `controls.test.ts`
     for (const start of ["min axis", "max axis", "min volume", "max volume",
                          "unindexed allowed", "search lines", "k·σ window",
                          "shift allowance", "max candidates", "seed",
                          "budget / slice", "total budget", "check top"]) {
       const input = numInput(start);
       expect(input, start).toBeTruthy();
-      expect(input.closest("label")!.title.length, start).toBeGreaterThan(20);
+      const label = input.closest("label")!;
+      expect(label.title, start).toBe("");
+      expect(label.querySelector(".help"), start).toBeTruthy();
     }
   });
 

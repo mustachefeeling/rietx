@@ -14,6 +14,7 @@
    * same run machinery a whole fit uses — which is what makes "run one stage,
    * look, run the next" the interactive loop the CLI never had.
    */
+  import Help from "../Help.svelte";
   import { ApiError, api } from "../api";
 
   let {
@@ -161,7 +162,13 @@
   </header>
 
   {#if chosen}
-    <p class="muted blurb" title={chosen.description}>{chosen.when_to_use}</p>
+    <!-- the preset's own words are the corpus's `plans` arm, projected from
+         `PLAN_INFO` — the line shown is `when_to_use`, and the description
+         behind it is one click away rather than one hover (WP-1203) -->
+    <p class="muted blurb">
+      <Help for="plans:{chosen.name}" label="what the {chosen.title} plan does"
+        >{chosen.when_to_use}</Help>
+    </p>
   {:else}
     <p class="muted blurb">
       Edited — no preset matches these stages. Saving stores them as they stand.
@@ -200,16 +207,17 @@
           oninput={(event) => globs(index, (event.currentTarget as HTMLInputElement).value)} />
         {#if !simple}
           <div class="advanced mono muted">
-            <label>iter <input type="number" bind:value={stage.max_iter} oninput={touch}
-              disabled={busy} /></label>
-            <label title="Le Bail intensity-partitioning cycles per residual">
-              lebail <input type="number" bind:value={stage.lebail_cycles} oninput={touch}
+            <label><Help for="stage_fields:max_iter">iter</Help>
+              <input type="number" bind:value={stage.max_iter} oninput={touch}
                 disabled={busy} /></label>
-            <label title="lift softplus-floored parameters off the dead-gradient floor">
-              seed <input type="number" step="any" bind:value={stage.seed} oninput={touch}
+            <label><Help for="stage_fields:lebail_cycles">lebail</Help>
+              <input type="number" bind:value={stage.lebail_cycles} oninput={touch}
                 disabled={busy} /></label>
-            <label title="ppm; seeds an all-zero Stephens block onto the isotropic ray">
-              strain <input type="number" step="any" bind:value={stage.strain_seed}
+            <label><Help for="stage_fields:seed">seed</Help>
+              <input type="number" step="any" bind:value={stage.seed} oninput={touch}
+                disabled={busy} /></label>
+            <label><Help for="stage_fields:strain_seed">strain</Help>
+              <input type="number" step="any" bind:value={stage.strain_seed}
                 oninput={touch} disabled={busy} /></label>
           </div>
         {/if}
