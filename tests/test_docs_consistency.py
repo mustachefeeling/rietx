@@ -278,7 +278,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # the description goes in `rietx.help`, not in a `title=` beside a control
     # or a second `Field(description=)`, and the row carries the family key
     # rather than the entry.
-    "CLAUDE.md": 882,
+    # 882 -> 890 for the one-session-per-tree tooling (2026-08-27): the rule a
+    # session must read before its first edit, and nothing else — the gate's
+    # own rationale is its docstring, the ritual is /wp-start.
+    "CLAUDE.md": 890,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one

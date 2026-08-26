@@ -2,337 +2,151 @@
 description: Review outside pull requests — triage the backlog, or work it top-down: merge the clear-cut, batch every human call to the end
 ---
 
-Review pull requests from outside the repository. `$ARGUMENTS` is a list of PR
-numbers, the word `all`, or empty.
+Review pull requests from outside the repository. `$ARGUMENTS`: PR numbers
+(reviewed in the order given), `all` (work the whole backlog, § Working the
+backlog), or empty (triage, print the ranked backlog, stop — never start on the
+top row unasked).
 
-**With numbers, review those, in the order given** — `/pr-review 126 116` does
-126 then 116. Your ordering never overrides the one you were handed. **With
-`all`, work the whole backlog** without stopping at each row — § Working the
-backlog. **With no argument, triage and stop**: print the ranked backlog and let
-the user choose. Do not start reviewing the top row on your own; `all` is how the
-user says otherwise.
+Other people's PRs only. The maintainer's own are gated by `/wp-handover`
+steps 6 and 9; a number naming one is still re-gated, but the governance
+signal (rank 2) and the public review (step 8) do not apply, and you say so in
+one line. Most outside PRs are one recurring contributor's: write the public
+review to a colleague who knows the codebase. That is a register and moves no
+gate — least of all step 4's execution check, since familiarity is not
+provenance.
 
-This command is for *other people's* PRs. The maintainer's own work is gated by
-`/wp-handover` steps 6 and 9, which run the same merged-tree suite from the
-session that wrote the code. A number naming the maintainer's own PR is still
-honoured — a stale open PR sometimes needs re-gating — but the governance signal
-in triage rank 2 and the public review in step 8 do not apply to it, and you say
-so in one line rather than reviewing yourself in public.
+## Where this command runs
 
-**"Outside" means not the maintainer's, which is not the same as a stranger's.**
-Measured 2026-08-26: eleven of the twelve open PRs and eight of the last forty
-merged are one recurring contributor's. Write the public review to a colleague
-who knows the codebase. That is a register, and it moves not one gate — least of
-all step 4's execution check, which is there because a branch is code you are
-about to run and familiarity is not provenance.
+Triage reads the remote and runs from anywhere. Before step 4, and before the
+`all` mode's pass B, enter the bench: `EnterWorktree` with
+`path: .claude/worktrees/pr-bench` — a persistent worktree with a `[dev,jax]`
+venv, created once by `git worktree add --detach .claude/worktrees/pr-bench
+origin/main` plus step 4's venv line. From then on `BENCH=.` and the main
+checkout is never named (`worktree_only.py` keeps it read-only anyway).
 
 ## Triage — the no-argument mode
 
-**One network call, no checkout, no diff:**
+One network call, no checkout, no diff:
 
 ```sh
 gh pr list --state open --limit 30 \
   --json number,title,author,files,changedFiles,mergeStateStatus,latestReviews,headRefOid,updatedAt,statusCheckRollup
 ```
 
-`files[]` carries per-file `additions`/`deletions`, so **reviewable size is a jq
-filter, never a `git diff`**: exclude `^tests/data/|^src/rietx/data/` and sum the
-rest. This is the difference between reading a PR and reading a data file —
-measured 2026-08-25, #125 is 48,791 lines of which 708 are reviewable, #120 is
-50,112 of which 575. A triage that spends those lines has already lost the
-session it was meant to save.
+- **Reviewable size is a jq filter over `files[]`**, excluding
+  `^tests/data/|^src/rietx/data/` — never a diff (#125: 48,791 lines, 708
+  reviewable).
+- **`mergeStateStatus`, not `mergeable`**: `BLOCKED` PRs report `MERGEABLE`;
+  `DIRTY` is the conflict, `CLEAN` the only state step 9 merges from.
+- **`changedFiles` beside `files[]`**: the array caps at 100 and under-reports
+  size and collision degree downward; when they differ, say so.
+- **`latestReviews[].commit`** is the sha a *review* (not a comment) was posted
+  at — what makes the `all` mode's skip check a field.
 
-Three of those fields are chosen against an obvious alternative, and each answer
-is measured:
+Print one row per PR — number, title, reviewable lines, merge state, CI,
+whether a maintainer has commented — **and the reason for its rank**:
 
-- **`mergeStateStatus`, not `mergeable`.** The two-valued field collapses the
-  state that matters most to step 9: on 2026-08-26 four of the twelve open PRs
-  are `BLOCKED` — a required check red or a review missing — and every one of
-  them reports `mergeable: MERGEABLE`. `DIRTY` is the conflict, `CLEAN` is the
-  only value step 9 can merge from.
-- **`changedFiles` beside `files[]`.** GitHub caps the array at a hundred, and a
-  PR past that under-reports **both** its reviewable size and its collision
-  degree, silently and downward — the direction that promotes a PR up the rank.
-  Equal on all twelve today; when they differ, say so rather than quoting the
-  sum.
-- **`latestReviews[].commit`** is the sha a previous review was posted at, which
-  is what makes the `all` mode's skip check a field rather than a thread read.
-  It is populated for *reviews* and not for comments, which is why step 8 names
-  a verb (measured present on #110 and #98).
-
-Print one row per PR — number, title, reviewable lines, mergeable, CI, whether a
-maintainer has ever commented — **and the reason for its rank**, so the user can
-overrule you knowing what you saw. Rank by:
-
-1. **It touches a WP that is in flight.** Read the in-flight list the same way
-   `.claude/hooks/session_start.py` does: the `Status:` glyph 🔄 in
-   `docs/wp/[0-9]*.md`. A PR editing the WP file you have open right now is the
-   one that can collide with what is being typed.
-2. **An outside PR edits maintainer-only machinery** — `docs/ROADMAP.md`,
-   `docs/wp/**`. `CONTRIBUTING.md` § "Maintainer-only machinery" de-scopes that
-   protocol for outsiders, so this is a governance question for the user, not a
-   defect. It is cheap to answer and blocks nothing, which is why it ranks high.
-   The signal is author-conditional: on the maintainer's own PR those edits are
+1. **Touches an in-flight WP** (`Status:` 🔄 in `docs/wp/[0-9]*.md`).
+2. **Outside PR edits `docs/ROADMAP.md` or `docs/wp/**`** — a governance
+   question for the user (`CONTRIBUTING.md` § Maintainer-only machinery), cheap
+   and blocking nothing. Author-conditional: on the maintainer's own PR it is
    the work.
-3. **It conflicts with main** (`mergeStateStatus == DIRTY`). This is **not a
-   review**. Post a one-line rebase request and move on — reviewing a tree that
-   cannot merge spends a fifteen-to-thirty-minute suite run on a tree nobody
-   will ever land. GitHub computes that field lazily and invalidates it whenever
-   main moves, so **whenever main has moved since the triage call the local test
-   is the authority**: `git merge-tree --write-tree origin/main refs/pr/N`, exit
-   nonzero for a conflict, no checkout and no bench (measured 2026-08-26: 1 on
-   #118, 0 on #137, agreeing with the field while the field was still fresh).
-4. **Collision degree**: how many other open PRs touch its files. Merge the
-   low-degree ones first, because every merge stales the diffs of the PRs that
-   share a file with it, and a review that has gone stale has to be redone.
-5. **Cost**: reviewable lines, ascending.
+3. **`DIRTY`** — not a review: post a one-line rebase request and move on.
+   GitHub computes the field lazily; once main has moved since the call,
+   `git merge-tree --write-tree origin/main refs/pr/N` (nonzero = conflict) is
+   the authority.
+4. **Collision degree** (files shared with other open PRs), ascending — every
+   merge stales the diffs sharing a file with it.
+5. **Reviewable lines**, ascending.
 
-**List the maintainer's own open PRs, but mark them and rank them last.** They
-are gated by `/wp-handover`, not here, and signal 2 does not apply to them —
-editing `docs/ROADMAP.md` and `docs/wp/**` is the work on one's own PR, not a
-governance question. Measured 2026-08-25: ranked without the author condition,
-#128 sorted third on a signal that should never have fired for it.
-
-Two honest limits on the rank, to be said once and not defended. It does not
-know which small PR unblocks work the user has not started. And **collision
-degree counts files, not difficulty** — colliding on `docs/manual/using/data.md`
-costs a paragraph to resolve and colliding on `src/rietx/refine.py` costs a
-re-review, but the rank weighs them the same, so a trivial PR that touches a
-popular doc sinks further than it deserves (#126, ten lines, sits four rows below
-PRs a hundred times its size). The user overrules this with arguments; that is
-what arguments are for.
+List the maintainer's own open PRs, marked, last. Two limits, stated once: the
+rank does not know which small PR unblocks unstarted work, and degree counts
+files, not difficulty. The user overrules with arguments.
 
 ## Working the backlog — the `all` mode
 
-`/pr-review all` triages, then works the whole queue without stopping at each
-row. Every disposition step 9 already calls clear-cut is made as it is reached;
-everything else is **deferred, not asked** — collected and put to the
-user in one batch at the end of the run. Invoking this mode authorises the merges
-step 9 admits and nothing beyond them: a PR failing any of its criteria goes into
-the batch, never into a judgement call about whether the criterion mattered.
+Triage, then work the queue. Every disposition step 9 already calls clear-cut
+is made as it is reached; everything else is **deferred to one batch at the
+end**, never asked mid-run. `all` authorises step 9's merges and nothing
+beyond them.
 
-**Pass A — the dispositions that need no checkout.** Straight off the one triage
-call, before a worktree is built:
+**Pass A — no checkout**, straight off the triage call:
 
-- **Conflicts with main** (`DIRTY`) → post the one-line rebase request (rank 3).
-  It leaves the queue.
-- **The maintainer's own PR** → one line saying it is gated by `/wp-handover`. It
-  leaves the queue.
-- **It touches a WP that is in flight** (rank 1) → **batch it, do not review it.**
-  Merging into files a live session is editing is a call for the person at that
-  session, and unattended is precisely when nobody is there to make it.
-- **An outside PR touching `docs/ROADMAP.md` or `docs/wp/**`** (rank 2) → the
-  governance question goes straight into the batch, and the PR **stays** in the
-  queue: its code half is still reviewable while the question is open. Cheap:
-  measured 2026-08-26, it fires on one of the eleven.
-- **It touches an execution-shaped path** (step 4's list) → **batch it.** The
-  bench runs the branch's code, and an unattended queue is the wrong place to
-  decide that is fine. Also cheap: measured 2026-08-26, none of the eleven.
-- **Already reviewed, and nothing since** → skipped, with one line naming the sha
-  and who it is waiting on. Without this a re-run re-reviews the whole backlog.
-  The test is `latestReviews[].commit == headRefOid` **and** `updatedAt` no later
-  than that review's `submittedAt`: keyed on the sha alone it would skip, every
-  run and for ever, a contributor who answered in a comment without pushing.
-  `updatedAt` also moves for things that are not answers — a label, a base
-  update — so it errs toward reading the thread, which is the safe direction.
+- `DIRTY` → rebase request; out of the queue.
+- Maintainer's own → one line (gated by `/wp-handover`); out.
+- Touches an in-flight WP → **batch, do not review** (a live session's files
+  are that person's call).
+- Outside edit to `docs/ROADMAP.md` / `docs/wp/**` → question to the batch; the
+  PR **stays** (its code half is reviewable).
+- Touches an execution-shaped path (step 4's list) → batch.
+- Already reviewed and nothing since → skip, naming the sha. Test:
+  `latestReviews[].commit == headRefOid` **and** `updatedAt` no later than that
+  review's `submittedAt` (keyed on the sha alone it skips forever a contributor
+  who answered without pushing).
 
-**Pass B — review what is left, ordered for throughput rather than attention.**
-The triage rank answers "what should a person look at first"; a queue needs
-"which order costs the least rework", and they are not the same order. After
-pass A the difference is all that remains — ranks 1, 2 and 3 have already been
-disposed of — so pass B sorts by rank 4 then rank 5: collision degree ascending,
-then reviewable lines ascending. Every merge stales the diffs that share a file
-with it, so merging the low-degree ones first stales the least. Print the
-attention rank once, for the record; work the throughput order.
+**Pass B — review what is left, in throughput order**: collision degree, then
+reviewable lines (print the attention rank once; work this order). Steps 1-10
+apply with four changes: conformance always goes to `pr-conformance` agents
+(the run's length is the constraint, not one PR's size); a review held on a
+question (step 8) joins the batch; step 9's "stop and ask" becomes "defer and
+continue"; the per-PR report shrinks to its decision line.
 
-Each PR then goes through steps 1-10 of *Reviewing one PR*, with four changes:
+**After every merge**: `git fetch origin main` and re-test every remaining PR
+with `git merge-tree --write-tree origin/main refs/pr/N` — the field is stale
+from the first merge on. The order is not recomputed, only the conflicts.
 
-- **Conformance goes to `pr-conformance` agents whatever the PR's size.** Step
-  6's 400-line threshold weighs one PR against one dispatch; this mode's
-  constraint is the length of the whole run. Measured 2026-08-26: 10,243
-  reviewable lines across the eleven outside PRs, eight of them over the
-  threshold. Read inline, the queue reaches the context checkpoint after two.
-- Step 8's "do not post the review while a question is outstanding" holds, so
-  such a review is **held** rather than posted and the question joins the batch.
-- Step 9's "anything else stops and asks" becomes **defers and continues**: name
-  which criterion failed, put it in the batch, take the next PR.
-- Step 10's per-PR report shrinks to its last line. The prose report is written
-  once, for the run.
+**Context checkpoint — between PRs only.** You cannot see your context, and
+compaction mid-diff loses the reading. Measure this session's transcript
+(`wc -c ~/.claude/projects/-Users-yue-Code-rietx/<session-id>.jsonl`, the id
+being the scratchpad's directory) before the first PR and at every boundary;
+stop when the next PR's projected delta would carry the total past **2 MB**
+(≈500 K tokens; uncalibrated — replace with what the first run measures).
+Ending means: ask the batch, apply the answers, write the report, kill this
+run's waiters (step 5), and name the resume command (`/pr-review all` after
+the user's `/compact` or `/clear`). Nothing is carried in a file.
 
-**After every merge, re-fetch `origin/main` and re-test the queue's conflicts.**
-Each PR builds its merged tree from the current main, so a later PR is tested
-against the earlier merge — that is what working the queue in one run buys. But
-a merge invalidates `mergeStateStatus` for every PR still open, so from the first
-merge onward that field is stale by construction and pass A's answer is a fact
-about a main that no longer exists. The local test costs nothing and needs no
-bench:
+**The batch**: one numbered message; per item the PR, the question in one
+sentence, what it blocks (held review / merge / nothing), and your
+recommendation. Group: governance calls, then held reviews, then held merges.
+`AskUserQuestion` only for ≤ 4 genuine multi-way choices. Then apply in one
+pass — post, merge, close — with a step-10 line each. **A gate main has moved
+under is void**: before merging a freed PR compare `origin/main` with the sha
+its ladder ran on; moved → rebuild the merged tree and re-run step 5 and the
+slow suite, or defer to the next run, and say which.
 
-```sh
-git merge-tree --write-tree origin/main refs/pr/N >/dev/null   # nonzero = conflict
-```
-
-A PR the merge has broken becomes a rebase request rather than a bench build.
-The **order** is not recomputed, only the conflicts: a queue reordering itself
-under the user who was shown it is worse than a stale row.
-
-What makes the mode affordable is that the expensive gate is conditional. The
-full `-m slow` suite fires only at step 9, so it costs its fifteen-to-thirty
-minutes only on a PR that is otherwise ready to merge, never on one already
-holding a blocking finding. Order the step-5 ladder so the cheap disqualifiers
-run first.
-
-### The context checkpoint
-
-**Between PRs, and only between PRs, decide whether the run continues.** You
-cannot compact yourself, and auto-compaction firing halfway through a diff would
-lose the reading it was paid for, so a PR boundary is the only place the run may
-end.
-
-**You cannot see your own context either**, which is what makes "stop near 500 K"
-a rule that gets guessed at rather than followed. `<total_tokens>` is a billing
-budget, `/context` belongs to the user, and neither is the window. One thing is
-measurable from inside, and it grows with the window: this session's transcript.
-
-```sh
-wc -c ~/.claude/projects/-Users-yue-Code-rietx/<session-id>.jsonl
-```
-
-The id is the directory holding this session's scratchpad. So the rule is a
-**delta, not a threshold**: read it once before the first PR and again at every
-boundary, and the difference is what one PR of *this* backlog costs on *this*
-machine, measured instead of assumed. Stop when the next PR's projected cost
-would carry the total past the budget — **2 MB, standing in for 500 K tokens at
-four bytes a token, and the one uncalibrated number in this file.** The first
-backlog run replaces it with what it measured; until then it is a generous
-number, not an exact one. Two known biases, in opposite directions: the
-transcript keeps what a compaction dropped, so after one it over-reads, and it
-holds no system prompt, so before one it under-reads.
-
-Ending means the whole ending: ask the batch, apply the answers, write the
-report, **kill this run's background waiters** (step 5), and name what is left
-with the command that resumes it — `/pr-review all`, after the user's
-`/compact` or `/clear`. **Nothing is carried in a file.**
-The queue, the held drafts and the batch all die with the run, which is why the
-batch is asked *before* stopping and never after, and why a resumed run rebuilds
-everything from one `gh pr list` call plus pass A's skip check.
-
-### The batch
-
-One message at the end of the run, numbered, each item carrying: the PR, the
-question in one sentence, **what it blocks** (a held review, a merge, or
-nothing), and **your recommendation**. A question with no recommendation hands
-the user research you have already done.
-
-Group by kind, because they are answered at different speeds — governance calls
-first (cheap, blocking nothing), then held reviews waiting on whether the design
-is wanted, then merges held on a failed criterion. Use `AskUserQuestion` only
-where an item is a genuine two-to-four-way choice and there are at most four such
-items; otherwise the numbered list, answered in one message.
-
-Then **apply the answers in one pass**: post the held reviews, merge what was
-freed, close what was declined, and give each its own step-10 decision line.
-
-**A gate that main has moved under is not a gate.** This is where batching can
-break step 4's rule, and it is the one failure in this command that is silent:
-PR B gates green, waits an hour for an answer, and merges after PR A has landed,
-so nothing ever tested B against A — which is exactly the untested state
-`strict: false` leaves every PR in, and the whole reason a merged tree is built
-at all. So before merging anything the batch has freed, compare `origin/main`
-against the sha its ladder ran on. Unchanged: merge. Moved: **the gate is void**
-— rebuild the merged tree and re-run step 5 and the slow suite, or defer the PR
-to the next run, and say which of the two you did. Answering the question does
-not re-test the tree.
-
-### Reporting a backlog run
-
-Step 10 once, for the run: the plain-language paragraph on what moved and what it
-changes for someone using the package; then what was run and what it said, counts
-quoted with venv and platform; then one decision line per PR in the order
-handled; then the batch; then the resume line if the checkpoint ended the run.
-Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining`.
+**Report** once for the run (step 10's shape), then the batch, then the resume
+line if the checkpoint ended it. Close with
+`Backlog: N merged, N posted, N rebase requested, N held, N remaining`.
 
 ## Reviewing one PR
 
-1. **Read the thread once** — `gh pr view N --comments`. The thread *is* the
-   record of previous rounds; there is no local notes file and there should not
-   be one. If earlier rounds exist, this review is **incremental**: diff only
-   `<last-reviewed-sha>..<head>` and say which round this is, the way the #98 and
-   #108 reviews did. That sha is not something to hunt for in the thread —
-   posting reviews as reviews (step 8) puts it in the triage call as
-   `latestReviews[].commit`.
-2. **Classify the changed files before reading any diff.** Take the file list,
-   split it into code, docs, gui and data, and only then read:
+1. **Read the thread once** — `gh pr view N --comments`; it is the record.
+   Earlier rounds → review only `<last-reviewed-sha>..<head>`
+   (`latestReviews[].commit`) and say which round.
+2. **Classify files before reading**: code / docs / gui / data, then
+   `git diff BASE HEAD -- . ':(exclude)tests/data/*' ':(exclude)src/rietx/data/*'`.
+   Never a bare `gh pr diff`.
+3. **Data files by property, never content**: line and column count, header,
+   file mode, a provenance row in `tests/data/README.md`, a
+   `tests/validation_matrix.py` row where a standard is claimed, and a licence
+   stated where it ships for anything under `src/rietx/data/` (root `CLAUDE.md`
+   § Licensing). Nothing enforces any of this.
+4. **Bench and merged tree.** One worktree, one venv; never one per PR.
+   - **Read before you execute**: the bench runs the branch's code
+     (`uv pip install -e .` runs its build config, pytest imports its
+     `conftest.py`). Read every hunk to `pyproject.toml`, `setup.py`, any
+     `conftest.py`, `.github/**`, `.claude/**` first; a workflow change is a
+     question for the user, not a finding.
+   - **Target in the command, `cd` in a subshell** — `git -C`, `npm --prefix`,
+     `(cd "$BENCH" && …)`; `no_top_level_cd.py` refuses a bare `cd`.
+   - **One `/pr-review` at a time**: the session-start hook names a live
+     session already in the bench; a second one stops.
+   - **The suite is shared with every WP session**: `pgrep -f "[p]ytest"`
+     before step 5 and again before step 9 (`tests/CLAUDE.md` § Running).
+     Another mid-suite is a stop: wait.
 
    ```sh
-   git diff BASE HEAD -- . ':(exclude)tests/data/*' ':(exclude)src/rietx/data/*'
-   ```
-
-   **Never a bare `gh pr diff`.** It will hand you fifty thousand lines of
-   measured intensities, and you will have paid for them before you notice.
-3. **Check data files by property, never by content.** Line and column count,
-   header, file mode, a provenance row in `tests/data/README.md`, a row in
-   `tests/validation_matrix.py` where a standard is claimed. A file entering the
-   **wheel** (`src/rietx/data/`) must state its licence where it ships — a PyPI
-   upload publishes harder than a repository does (root `CLAUDE.md` § Licensing).
-   Nothing enforces any of this: the #108 review caught a 1.5 MB `.xy` committed
-   at mode 755 with no provenance row by reading its properties, not its numbers.
-4. **Prepare the bench and build the merged tree.** One shared worktree at
-   `.claude/worktrees/pr-bench` with one venv — not one per PR, which would cost
-   several hundred megabytes each and, on the evidence of the ten stale trees
-   already in that directory, never be reclaimed.
-
-   **Read before you execute.** Building the bench *runs the branch's code*:
-   `uv pip install -e .` executes its build configuration, and pytest imports its
-   `conftest.py` — on this machine, in a shell holding a `gh` token. Nothing else
-   in this ritual is that privileged, and step 3's data rules are about licence
-   and provenance, not execution. So before the venv, take the file list and look
-   for `pyproject.toml`, `setup.py`, any `conftest.py`, `.github/**` and
-   `.claude/**`, and read those hunks in full first. Measured 2026-08-26: not one
-   of the eleven open outside PRs touches any of them, so the check is usually a
-   glance at a list you already have. An outside PR editing `.github/workflows/**`
-   is a **question for the user** rather than a finding — a workflow change
-   reaches the repository's secrets the moment it merges.
-
-   **Put the target in the command; a `cd` goes in a subshell.** The shell's
-   working directory persists between tool calls **and is shared with the user's
-   own `!` commands**, so a `cd` typed in an earlier step silently retargets a
-   later `git reset --hard`, in your hands and in theirs. The two trees are
-   indistinguishable in ordinary output: the bench sits *inside* the main
-   checkout, shares its remote, and answers `git rev-parse --short origin/main`
-   identically. Measured twice on 2026-08-26 — a `cd` added to a `gh pr list`
-   that did not need one (gh reads the remote, and the bench has the same one)
-   sent the next four commands into the main checkout; and this ritual's own
-   ending left the user's shell parked in the detached bench, where their next
-   `gh pr create` failed with `not on any branch`.
-
-   So `git -C`, `npm --prefix`, `uv --directory` — and where a tool has no such
-   flag, `(cd "$BENCH" && …)`, whose chdir dies with the subshell. **The `-C`
-   rule alone kept losing because it covers only git**: the venv build below and
-   step 5's whole ladder are cwd-relative, so forbidding the `cd` without giving
-   them a form left no route, and a mis-targeted `pytest` is worse than a
-   mis-targeted `reset` — it tests the wrong tree, prints a plausible count, and
-   names no tree in its output. `.claude/hooks/no_top_level_cd.py` refuses a
-   top-level `cd` on every Bash call, so this is a gate rather than a paragraph.
-
-   **The bench is exclusive to this run, and the machine is not.** Two
-   different worries, and only the second needs a mechanism. One `/pr-review`
-   runs at a time, so no other session reaches for `$BENCH` — the WP commands
-   branch in whatever tree they are already in and never name this path, git
-   refuses to check a branch out in two worktrees at once, and the bench runs
-   detached anyway. What the bench inherits from a stale *previous* run is a
-   left-behind merge, and `reset --hard origin/main` below is already the cure.
-   So write `$BENCH.lock` (session id, time, PR) when the block below first
-   runs and delete it at the ending: it is there to be *read* when the bench
-   looks unexpected, not to arbitrate.
-
-   The contended resource is the **suite**, shared with every live WP session.
-   Look before step 5's ladder and again before step 9's gate —
-   `pgrep -f "[p]ytest"`, `tests/CLAUDE.md` § Running has the three lines and
-   why they are a look rather than a lock. Another session mid-suite is a stop,
-   the same as any other blocker here: say whose tree and how long, and wait.
-
-   ```sh
-   BENCH=.claude/worktrees/pr-bench
+   BENCH=.
    git -C "$BENCH" fetch origin main
    git -C "$BENCH" fetch origin "pull/N/head:refs/pr/N" --force
    git -C "$BENCH" reset --hard origin/main
@@ -340,194 +154,74 @@ Close with `Backlog: N merged, N posted, N rebase requested, N held, N remaining
    git -C "$BENCH" diff origin/main --stat        # the PR's own contribution
    ```
 
-   **Fetch into a named ref, not `FETCH_HEAD`.** `FETCH_HEAD` is *per worktree*
-   (`.git/worktrees/pr-bench/FETCH_HEAD`, beside the main checkout's own), so a
-   fetch run anywhere else leaves the bench merging whatever it last fetched —
-   silently, and a stale head still merges. `refs/pr/N` lives in the common dir,
-   survives the next fetch, and is what the round-2 diff
-   (`refs/pr/N@{1}..refs/pr/N`, or a recorded sha) and `git merge-tree
-   origin/main refs/pr/N` want anyway.
-
-   **`reset --hard` is the whole reset; never `git clean -fdx`.** `-x` deletes
-   *ignored* files, which in this repo means `gui/node_modules`,
-   `docs/manual/_generated`, `tests/output/`, every cache, any `*.rex/` project
-   a person left in the tree, and the bench's own `.venv`. Reaching for
-   `-e .venv` to protect the venv is the sign the command is wrong for the job.
-   Tracked files are what a PR changes and `reset --hard` handles them; an
-   untracked build artefact between two PRs is harmless.
-
-   **Treat the main checkout as someone else's.** It usually carries a live WP
-   session on its own branch, and the destructive half of this ritual has no
-   business there.
-
-   **The merged tree is the tree under test.** Branch protection is
-   `strict: false`, so nothing else ever tests it — not CI, not the contributor.
-   A merge conflict here **is** the finding: report it, ask for a rebase, stop.
-
-   Build the venv with
+   Fetch into `refs/pr/N`, never `FETCH_HEAD` (it is per worktree; the named
+   ref is what the round-2 diff and `merge-tree` want). `reset --hard` is the
+   whole reset — never `git clean -fdx`, which takes `gui/node_modules`,
+   `docs/manual/_generated`, `tests/output/`, any `*.rex/` and the venv. **The
+   merged tree is the tree under test**: branch protection is `strict: false`,
+   so nothing else ever tests it; a conflict here *is* the finding — report,
+   ask for a rebase, stop. Venv:
    `(cd "$BENCH" && uv venv --python 3.12 && uv pip install -e ".[dev,jax]")`,
-   and reinstall only when the PR touches `pyproject.toml`. The extras are
-   deliberately not `wp-start`'s `[dev]`: they match `nightly.yml`'s `full` job,
-   so a count here is comparable to the nightly log and the cross-backend rows
-   are passes rather than skips. A new skip is not a new pass.
-5. **Run the ladder the touched paths select**, every pytest call with
-   `-n auto --dist loadgroup` (`tests/conftest.py` refuses a run without it).
-   Every command below reads the tree it is run in, so each is wrapped
-   `(cd "$BENCH" && …)` — the bench's `.venv`, its `tests/`, its `gui/`, and
-   never the main checkout's:
+   reinstalled only when the PR touches `pyproject.toml`; `[dev,jax]` matches
+   `nightly.yml`'s full job so counts compare and cross-backend rows pass
+   rather than skip.
+5. **Run the ladder the touched paths select**, every pytest with
+   `-n auto --dist loadgroup`, from the bench:
    - **docs/manual only** → `test_docs_consistency.py`, `test_manual.py`,
-     `test_manual_api.py`, and the `-W` sphinx build.
-   - **`gui/` only** → `npm --prefix gui ci && npm --prefix gui run build`, then
-     `git -C "$BENCH" diff --exit-code src/rietx/gui/static` (the committed dist
-     must match a fresh build), `npm --prefix gui test`, `npm --prefix gui run
-     check`.
-     `gui.yml` is not a required check, so this is a real gap rather than a
-     duplicate of CI.
-   - **`src/` or `tests/`** → the fast suite, then **the slow tests covering the
-     PR's area**.
+     `test_manual_api.py`, the `-W` sphinx build.
+   - **`gui/` only** → `npm --prefix gui ci && npm --prefix gui run build`,
+     `git diff --exit-code src/rietx/gui/static`, `npm --prefix gui test`,
+     `npm --prefix gui run check` (`gui.yml` is not a required check).
+   - **`src/` or `tests/`** → the fast suite, then the slow tests covering the
+     PR's area.
    - **always** → `.venv/bin/python -m ruff check src tests examples`.
 
-   The slow selection is the point of running anything locally. `ci.yml` runs
-   `-m "not slow"` and `nightly.yml` has no `pull_request` trigger, so **the
-   acceptance suites never run on a PR** — that is how #108's red got through, in
-   a module marked `pytestmark = pytest.mark.slow`. CI being green tells you
-   almost nothing here; all fourteen open PRs were green on 2026-08-25.
-
-   The **whole** `-m slow` suite fires once, at the merge gate in step 9, not on
-   every round. Quote every count with its venv **and** platform
-   (`tests/CLAUDE.md` § Quoting numbers), and as a range, never a record — and
-   **check nothing else is mid-suite first**, because a ladder measured beside a
-   WP session's own suite is a ladder about the machine.
-
-   **A backgrounded run is yours until you kill it.** A suite this long gets
-   launched in the background and polled, and the poller outlives the session
-   that made it — orphaned to PID 1, where nothing reaps it. Measured
-   2026-08-26: **seven** `until grep …; do sleep; done` loops from a run that
-   ended seventeen hours earlier were still waking every twenty to thirty
-   seconds, still holding `$BENCH` as their working directory, still waiting on
-   logs for PRs #116 and #118 that no live process would ever write. They cost
-   the next run twice — the wakeups, and a bench that looks busy to anyone
-   checking. So kill every waiter this run started before it ends. They are
-   findable by the one string no other session shares:
-
-   ```sh
-   pgrep -f "$SCRATCH"          # this session's waiters, by its scratch path
-   ```
-
-   The `pgrep` above is also why they are worth naming here rather than being
-   left to a person: the same call that answers "is another session mid-suite"
-   returns these, and a dead session's orphan is indistinguishable from a live
-   session's work unless someone knows to check `ppid` and age.
-6. **Check conformance against `CLAUDE.md`, sized to the PR.** Under roughly 400
-   reviewable lines, read the diff yourself — spawning agents costs more than it
-   saves. Above it, write the reviewable diff to the scratch directory **once**
-   and dispatch one `pr-conformance` agent per touched subtree, each pointed at
-   that file and at the `CLAUDE.md` governing its subtree. They return findings
-   only, so a four-thousand-line diff never enters this session.
-
-   **Above the threshold is the ordinary case, not the exception.** Measured
-   2026-08-26: eight of the twelve open PRs are over it and three are past two
-   thousand reviewable lines, against four under (#136 at zero, #137 at 221,
-   #110 at 223, #118 at 276). Dispatch is the path this step usually takes, and
-   in the `all` mode it is the only one — § Working the backlog.
-
-   **Verify every finding yourself before any of it is posted.** The agents run
-   capped and quote the rule they claim was broken; checking a quotation is cheap
-   and posting a wrong finding to a contributor is not.
-
-   Do not restate the invariants in this file. They live in `CLAUDE.md`, they
-   change, and a copy here would be a second authority that drifts out of date
-   while looking authoritative. The classes worth naming, because an outside
-   contributor misses them most: a `Literal` member or a defaulted field with no
-   writer, a physics function with no citation, a new correction offering an Rwp
-   comparison as its evidence, a reader repairing a file without a diagnostic,
-   GPL-derived code, a new diagnostic code with no `docs/AGENT_PROTOCOL.md` row,
-   and new physics with Part 1 prose but no Part 2 manual equation.
-7. **Run `/code-review high N` for ordinary correctness**, and only for `src/`
-   changes above the step-6 threshold. Name the level explicitly — with none
-   given it reuses the last level typed, which makes a review's depth depend on
-   what happened earlier in the session. Step 6 covers what it cannot know;
-   running both over a ten-line documentation fix is waste.
-8. **Split the output by audience, because they need different things.**
-
-   **Public**, posted to the PR: what you checked *independently* and what it
-   produced, then a numbered "what I would want before merge" list, with named
-   follow-ups kept separate from it. This is the shape of the #108 review and it
-   works because it separates the blocking from the merely noticed. End with one
-   attribution line:
-
-   > *Reviewed with Claude Code on behalf of @yue-here.*
-
-   **Post it as a review, not as a comment**, and from a file rather than an
-   argument:
-
+   The slow selection is the point: `ci.yml` runs `-m "not slow"` and
+   `nightly.yml` has no `pull_request` trigger, so acceptance never runs on a
+   PR and CI green tells you little (#108's red got through that way). The
+   **whole** `-m slow` suite fires once, at step 9. Quote counts with venv and
+   platform, wall clock as a range, and whether anything else was running.
+   **A backgrounded run is yours until you kill it**: before the run ends,
+   `pgrep -f "$SCRATCH"` and kill every waiter this session started (seven
+   orphans from a dead run were once found still polling the bench).
+6. **Conformance against `CLAUDE.md`, sized to the PR.** Under ~400 reviewable
+   lines read the diff yourself; above it (the usual case) write the reviewable
+   diff to `$SCRATCH` once and dispatch one `pr-conformance` agent per touched
+   subtree, pointed at that file and the subtree's `CLAUDE.md`. **Verify every
+   finding yourself before posting.** Do not restate invariants here; the
+   classes outsiders miss most: a `Literal` member or defaulted field with no
+   writer, physics without a citation, a correction offering an Rwp comparison
+   as evidence, a reader repairing a file without a diagnostic, GPL-derived
+   code, a diagnostic code with no `docs/AGENT_PROTOCOL.md` row, physics with
+   Part 1 prose but no Part 2 equation.
+7. **`/code-review high N`** for `src/` changes above the step-6 threshold;
+   name the level (unnamed, it reuses whatever was typed last).
+8. **Two audiences.** *Public*, posted **as a review, from a file** (so the sha
+   lands in `latestReviews[].commit`): what you checked independently and what
+   it produced; a numbered "before merge" list; follow-ups kept separate; then
+   `*Reviewed with Claude Code on behalf of @yue-here.*`
    ```sh
    gh pr review N --comment --body-file "$SCRATCH/review-N.md"
-   ```
-
-   A review records the sha it was written against, which comes back as
-   `latestReviews[].commit` in the one triage call and is the whole reason the
-   `all` mode's skip check is a field rather than eleven thread reads. A comment
-   records nothing a later triage can read, and a review that cannot be found is
-   a review that gets written twice.
-
-   The same attribution line goes on the merge commit, which is public too, and
-   `--body` is how it gets there — the default body is GitHub's, not yours:
-
-   ```sh
    gh pr merge N --merge --body "Reviewed with Claude Code on behalf of @yue-here."
    ```
-
-   **Private**, to the user in the terminal: what the PR is *for* and what it
-   changes for someone using the package, in plain language with no dot-paths or
-   symbol names in the opening paragraph; then what you ran and what it said;
-   then the open questions.
-
-   **Findings go public, questions come to the user.** A question the contributor
-   can answer is a finding — ask it in the review. A question about whether the
-   design is wanted at all, or about an outside PR editing ROADMAP and WP files,
-   is the maintainer's. **Do not post the review while one is outstanding**: ask
-   first, then post once the answer is in — in the `all` mode the review is held
-   and posted when the batch is answered, not held over into another run.
-9. **Merge or close only the clear-cut, and stop for everything else.** Merge
-   with `gh pr merge --merge --body …` (step 8 has the line it must carry),
-   matching the repo's merge-commit history, and only when **all** of these hold:
-   required checks green and `mergeStateStatus` `CLEAN`; the step-5 ladder green
-   on the merged tree with counts quoted; the **full `-m slow` suite green on the
-   merged tree**, run with **nothing else mid-suite** (`tests/CLAUDE.md`
-   § Running) and green against the main that is there *now* (§ The batch,
-   for the way a deferral can rot that); no execution-shaped file touched without
-   the step-4 read; no conformance finding; no new public surface left
-   undocumented; every added data file carrying provenance, and a licence if it
-   ships in the wheel; no maintainer-machinery edit; and no open question. Name
-   which of these each merge satisfied, in the private report.
-
-   **A gate run beside another suite is not a gate either.** § The batch has the
-   way a *deferral* rots this one; load is the way a *concurrent session* does,
-   and it is worse because it fails in both directions — a red that is only the
-   machine, and `tests/CLAUDE.md` § Budgets in tests' measured case of a
-   real-data row reporting a different centring under load, which is a green
-   that means nothing.
-
-   **Say in the report which PRs you merged**, beyond the per-PR decision lines.
-   A merge moves `origin/main` under every live WP session, and a branch's counts
-   are not the merged tree's once it has (`tests/CLAUDE.md` § Quoting numbers).
-   Those sessions cannot see the merge and their `/wp-handover` step 9 re-measures
-   against a main that moved for a reason only this run knows.
-
-   Close only when the contributor asked for it, or when the work has been folded
-   into another PR — #112 and #114 were closed into #108 that way, and neither
-   was a rejection.
-
-   Anything else **stops and asks** — in the `all` mode, defers and asks at the
-   end. Merging is hard to undo and it is someone else's contribution; a held PR
-   costs a day, a wrong merge costs the history.
-10. **Report to the person, not to the log**: the plain-language paragraph first,
-    then what was run, then the open questions, then the PR URL. End with exactly
-    `PR N: <decision>` — `merged`, `closed`, `review posted`, `rebase requested`,
-    or `held, waiting on you`, plus `skipped (reviewed at <sha>)` and
-    `deferred (<criterion>)` in the `all` mode. One vocabulary, both modes.
-
-    **Kill this run's background waiters before reporting** (step 5), in the
-    single-PR mode as much as the `all` mode — this step is where a one-PR
-    review ends, and a waiter left here is the same orphan either way.
+   *Private*, in the terminal: what the PR is for and changes for a user, in
+   plain language with no symbols in the opening paragraph; what ran; open
+   questions. **Findings go public, questions come to the user** (design
+   wanted at all? maintainer machinery edited?), and no review is posted while
+   one is outstanding — in the `all` mode it is held for the batch.
+9. **Merge only the clear-cut**, `gh pr merge --merge --body …`, when **all**
+   hold: required checks green and `mergeStateStatus` `CLEAN`; the step-5
+   ladder green on the merged tree, counts quoted; the **full `-m slow` suite
+   green on the merged tree**, nothing else mid-suite, against the main that is
+   there *now*; no execution-shaped file without the step-4 read; no
+   conformance finding; no new public surface undocumented; every data file
+   with provenance (and a licence if in the wheel); no maintainer-machinery
+   edit; no open question. Name which each merge satisfied. **Say which PRs
+   you merged**: `origin/main` moves under every live WP session. Close only
+   when the contributor asked or the work was folded into another PR.
+   Anything else stops and asks (`all`: defers).
+10. **Report to the person**: the plain-language paragraph, then what ran, the
+    open questions, the URL, and exactly `PR N: <decision>` — `merged`,
+    `closed`, `review posted`, `rebase requested`, `held, waiting on you`,
+    plus `skipped (reviewed at <sha>)` and `deferred (<criterion>)` in the
+    `all` mode. Kill this run's waiters first (step 5).

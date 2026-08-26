@@ -23,31 +23,24 @@ Run the session-start ritual. The SessionStart hook's report
 2. **Identify the WP**: the one the user names, else ROADMAP "Current
    focus". Read that one WP file only (plus the DESIGN.md sections it
    links); do not read other WP files.
-3. **Branch.** If on `main`, or on a branch already merged into main, create
-   `wpNNNN-<slug>` from current main — `git fetch origin main` first when a
-   remote exists; in a worktree, branching from the local `main` ref works
-   even though main is checked out elsewhere. If on an in-flight branch,
-   continue it.
+3. **Worktree, then branch.** If the hook's first line names the main
+   checkout, call `EnterWorktree` with the WP's name (`wp1208-<slug>`) before
+   anything else. The `WorktreeCreate` hook cuts that branch from `origin/main`
+   (or checks out an existing branch of that name), builds the `[dev]` venv,
+   and keeps memory shared. The main checkout is read-only for a session —
+   `.claude/hooks/worktree_only.py` refuses an edit or a HEAD-moving git verb
+   there — so there is nothing to decide. Already in a worktree: continue its
+   branch; it is yours. At session end Claude Code asks whether to keep or
+   remove the tree; remove once the PR is open, the branch stays either way.
 
-   **The branch you find is not necessarily yours.** Sessions share this
-   checkout, so `git branch --show-current` answers for whoever switched last,
-   and an in-flight branch may be another session's live WP rather than an
-   earlier one of yours. Editing there leaves your work in *their* commit
-   range, where a broad `git add` sweeps it up. When the branch is not the WP
-   you were sent to start, take your own tree rather than switching HEAD under
-   them — `git worktree add -b <branch> .claude/worktrees/<name> origin/main`,
-   then step 4 — and remove it once the work lands.
-
-   **Never `git stash` in a shared checkout.** The stash is per *repository*,
-   not per session, so another session's `stash pop` takes yours: measured
-   2026-08-26, one pushed to lift tooling edits off another session's branch
-   was popped into that branch minutes later, and only an existing commit
-   elsewhere kept it. Commit to your own branch instead — a commit is
-   addressed, a stash is a shared pile.
-4. **Venv.** If the hook flagged a mismatch or a missing venv, build this
-   worktree's own (`uv venv --python 3.12 && uv pip install -e ".[dev]"`)
-   and say which extras were installed — every test count quoted later
-   depends on that statement (`tests/CLAUDE.md`).
+   **Never `git stash` here.** The stash is per *repository*, shared by every
+   worktree, and another session's `stash pop` takes yours (measured
+   2026-08-26). Commit to your branch instead.
+4. **Venv.** If the hook flagged a mismatch or a missing venv (the create hook
+   reports when its build failed), build this worktree's own
+   (`uv venv --python 3.12 && uv pip install -e ".[dev]"`) and say which extras
+   were installed — every test count quoted later depends on that statement
+   (`tests/CLAUDE.md`).
 5. **Prune the WP's `### Inherited`** on arrival: fold still-true entries
    into Context or Tasks, delete stale ones, and say why in the handover
    entry.

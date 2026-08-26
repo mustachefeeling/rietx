@@ -804,6 +804,14 @@ them all:
 carry everywhere: commit per checklist item prefixed `WP-NNNN:`, and a CLAUDE.md
 takes **rules, not findings**.
 
+**A session works in a worktree, never in the main checkout.** Concurrent
+sessions in one checkout share its HEAD, index, stash and tree, so the first act
+of any session that will edit is `EnterWorktree` (named after the WP; or
+`claude -w <name>` from the terminal) — the venv is built by the
+`WorktreeCreate` hook — and `.claude/hooks/worktree_only.py` refuses an edit or
+a HEAD-moving git verb in the main checkout. `/pr-review` enters its persistent
+bench the same way.
+
 Shipped: **v0.1 … v1.1**, one record each in `docs/milestones/`; ROADMAP's table
 carries the acceptance one-liners, restated in neither place. Since WP-1117 the
 compatibility promise (`docs/manual/using/compatibility.md`) is a **preview** —

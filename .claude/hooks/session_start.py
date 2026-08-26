@@ -8,10 +8,29 @@ touches no network, and always exits 0: the report is a *prompt to the
 session, never a gate* (WP-1061).
 
 What it prints: one line of repo state (worktree root, branch, ahead/behind
-the local ``main``, uncommitted-change count, venv resolution), then one line
-per flag — a missed ``/wp-handover`` (two severities, see below), a venv
-whose editable ``rietx`` pointer resolves to a different tree, any WP whose
-Status glyph is in flight.  Healthy output is one or two lines.
+``origin/main`` — the local ``main`` when there is no remote — uncommitted-change
+count, venv resolution), then one line per flag — another live Claude session
+whose shell sits in this same tree, a missed ``/wp-handover`` (two severities,
+see below), a venv whose editable ``rietx`` pointer resolves to a different
+tree, any WP whose Status glyph is in flight.  Healthy output is one or two
+lines.
+
+**One session per tree** is the rule the first flag enforces, and it is the one
+this repo's collisions all reduce to: sessions launched in the same checkout
+share HEAD, the index, the stash and the working tree, so one session's
+``checkout``, ``reset --hard`` or ``git add -A`` lands in another's work
+(measured 2026-08-26, four times in one day).  Which tree a session is in is
+observable — every ``claude`` process has a cwd — so the scan reports the other
+sessions whose cwd resolves to this worktree, excluding the one running it, and
+``/wp-start`` step 3 says what to do about it: ``EnterWorktree`` before
+editing, never work a second tree from here by ``git -C``.  The gate that makes
+the rule hold without being read is ``worktree_only.py``.
+
+The tree scanned is the one Claude Code passes on the hook's stdin (``cwd``),
+falling back to the process's own: with ``claude --worktree`` the hook's
+``$CLAUDE_PROJECT_DIR`` stays on the launch checkout while the session's shell
+is in the worktree, and the report has to be about the tree the session works
+in.
 
 **Two independent coverage rules, because each covers the other's hole**
 (WP-1116).  *Order*: the WP file must have been touched at or after the newest
@@ -34,7 +53,10 @@ to skip the one line that is ever load-bearing.
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import select
 import subprocess
 import sys
 from pathlib import Path
@@ -42,6 +64,7 @@ from typing import NamedTuple, Optional
 
 VENV_FIX = 'uv venv --python 3.12 && uv pip install -e ".[dev]"'
 REPAIR_HINT = "repair first (/wp-handover, repair mode)"
+SHARED_HINT = "one session per tree: EnterWorktree before editing (/wp-start step 3)"
 
 _WP_COMMIT_RE = re.compile(r"^WP-(\d{4}):")
 _STATUS_RE = re.compile(r"Status:\s*(⬜|🔄|✅|🛑)")
@@ -81,19 +104,135 @@ def _git(root: Path, *args: str) -> Optional[str]:
 
 def repo_line(root: Path) -> str:
     branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD") or "?"
+    # origin/main when there is one: the local ``main`` is whatever a session
+    # last fetched into it, and in a checkout where every branch is cut from
+    # origin/main it sat 91 commits stale on 2026-08-26, reporting a merged
+    # branch as "ahead 90".
+    base = "main"
+    if _git(root, "rev-parse", "--verify", "-q", "origin/main") is not None:
+        base = "origin/main"
     if branch == "main":
         position = "on main"
     else:
-        ahead = _git(root, "rev-list", "--count", "main..HEAD")
-        behind = _git(root, "rev-list", "--count", "HEAD..main")
+        ahead = _git(root, "rev-list", "--count", f"{base}..HEAD")
+        behind = _git(root, "rev-list", "--count", f"HEAD..{base}")
         if ahead is None or behind is None:
             position = "no local main ref"
         else:
-            position = f"ahead {ahead} / behind {behind} vs main"
+            position = f"ahead {ahead} / behind {behind} vs {base}"
+            if ahead == "0":
+                position += " · merged"  # /wp-start step 3: branch afresh
     status = _git(root, "status", "--porcelain")
     n_dirty = len(status.splitlines()) if status else 0
     dirty = "clean" if n_dirty == 0 else f"{n_dirty} uncommitted"
     return f"{root} @ {branch} · {position} · {dirty}"
+
+
+class Session(NamedTuple):
+    pid: int
+    age: str  # ``ps`` etime, e.g. ``05-03:56:23``
+    cwd: str
+
+
+def _run(*args: str) -> Optional[str]:
+    try:
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def _cwd_of(pid: int) -> Optional[str]:
+    try:
+        return os.readlink(f"/proc/{pid}/cwd")  # Linux
+    except OSError:
+        pass
+    out = _run("lsof", "-a", "-d", "cwd", "-p", str(pid), "-Fn") or ""  # macOS
+    for line in out.splitlines():
+        if line.startswith("n"):
+            return line[1:]
+    return None
+
+
+def _session_rows(ps_out: str) -> list[tuple[int, str]]:
+    """(pid, etime) per ``claude`` session in ``ps -axwwo pid=,etime=,args=``.
+
+    Sessions, not helpers: a session runs ``claude --bg-pty-host …`` children
+    for its background shells, and one of those sat in this checkout for five
+    days after its session was gone (pid 48273, 2026-08-26).  Reporting it as
+    a session would teach the reader to ignore the line.
+    """
+    rows = []
+    for line in ps_out.splitlines():
+        parts = line.split(None, 2)
+        if len(parts) != 3 or not parts[0].isdigit():
+            continue
+        argv = parts[2].split()
+        if os.path.basename(argv[0]) != "claude" or "--bg-pty-host" in argv:
+            continue
+        rows.append((int(parts[0]), parts[1]))
+    return rows
+
+
+def live_sessions() -> list[Session]:
+    """Every ``claude`` session on this machine, with its shell's cwd."""
+    out = _run("ps", "-axwwo", "pid=,etime=,args=") or ""
+    sessions = []
+    for pid, age in _session_rows(out):
+        cwd = _cwd_of(pid)
+        if cwd is not None:
+            sessions.append(Session(pid, age, cwd))
+    return sessions
+
+
+def _ancestors() -> set[int]:
+    """This process's ancestry, so the session running the scan is not reported.
+
+    Plus ``CLAUDE_PID``, which the Bash tool sets: run by hand from a session
+    (``/wp-handover`` step 9) the shell's parent is that session's process, and
+    the walk reaches it too, but the variable says so without depending on how
+    the tool spawns its shell.
+    """
+    own = os.environ.get("CLAUDE_PID", "")
+    seen: set[int] = {int(own)} if own.isdigit() else set()
+    pid = os.getpid()
+    for _ in range(32):
+        out = _run("ps", "-o", "ppid=", "-p", str(pid))
+        if not out or not out.strip().isdigit():
+            break
+        pid = int(out.strip())
+        if pid <= 1:
+            break
+        seen.add(pid)
+    return seen
+
+
+def worktree_roots(root: Path) -> list[Path]:
+    out = _git(root, "worktree", "list", "--porcelain") or ""
+    roots = [Path(line[9:]) for line in out.splitlines() if line.startswith("worktree ")]
+    return roots or [root]
+
+
+def sessions_sharing(
+    root: Path, sessions: list[Session], roots: list[Path], exclude: set[int]
+) -> list[Session]:
+    """The sessions whose cwd belongs to *this* worktree.
+
+    Belongs, not merely lies under: ``.claude/worktrees/pr-bench`` is inside
+    the main checkout's directory and is a different tree, so a cwd is
+    assigned to the deepest registered worktree containing it.
+    """
+    resolved = [r.resolve() for r in roots]
+    mine = root.resolve()
+    hits = []
+    for s in sessions:
+        if s.pid in exclude:
+            continue
+        cwd = Path(s.cwd).resolve()
+        owners = [r for r in resolved if cwd == r or r in cwd.parents]
+        if owners and max(owners, key=lambda r: len(r.parts)) == mine:
+            hits.append(s)
+    return hits
 
 
 def venv_flag(root: Path) -> Optional[str]:
@@ -252,6 +391,10 @@ def render(root: Path) -> str:
         lines[0] += " · venv ok"
     else:
         lines.append(f"⚠ {vflag}")
+    for s in sessions_sharing(root, live_sessions(), worktree_roots(root), _ancestors()):
+        lines.append(
+            f"⚠ another claude session is in this tree (pid {s.pid}, up {s.age}) — {SHARED_HINT}"
+        )
     for f in handover_findings(root):
         if f.basis == "order":
             entry = "WP file not touched since"
@@ -276,8 +419,25 @@ def render(root: Path) -> str:
     return "\n".join(lines)
 
 
+def hook_cwd() -> Optional[Path]:
+    """The ``cwd`` Claude Code passes a hook on stdin, if this is a hook run.
+
+    Run by hand (``/wp-handover`` step 9) stdin is a terminal or an idle pipe,
+    so a bounded ``select`` stands in for "was anything sent": nothing within
+    the window means no hook payload, never a hang.
+    """
+    try:
+        if sys.stdin.isatty() or not select.select([sys.stdin], [], [], 0.2)[0]:
+            return None
+        text = sys.stdin.read().strip()
+        cwd = json.loads(text).get("cwd") if text else None
+        return Path(cwd) if cwd else None
+    except Exception:
+        return None
+
+
 def main() -> int:
-    root = _git(Path.cwd(), "rev-parse", "--show-toplevel")
+    root = _git(hook_cwd() or Path.cwd(), "rev-parse", "--show-toplevel")
     if root is None:
         print("session-start scan: not inside a git repository")
         return 0

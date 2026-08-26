@@ -167,6 +167,123 @@ def test_heading_entries_count_as_entries(repo: Path) -> None:
     assert hook.handover_findings(repo) == []
 
 
+def test_repo_line_measures_against_origin_main(repo: Path, tmp_path: Path) -> None:
+    """The local ``main`` is whatever was last fetched into it; on 2026-08-26 it
+    sat 91 commits stale and the scan called a merged branch "ahead 90"."""
+    write_wp(repo, "9008", "✅ 2026-08-02 — done", ["2026-08-02"])
+    commit_wp(repo, "9008", "2026-08-01")
+    _git(repo, "init", "-q", "--bare", str(tmp_path / "remote.git"))
+    _git(repo, "remote", "add", "origin", str(tmp_path / "remote.git"))
+    _git(repo, "push", "-q", "origin", "main")
+    _git(repo, "checkout", "-q", "-b", "feature")
+    make_venv(repo, repo / "src")
+    assert "ahead 0 / behind 0 vs origin/main · merged" in hook.repo_line(repo)
+    commit_wp(repo, "9008", "2026-08-02", code=True)
+    line = hook.repo_line(repo)
+    assert "ahead 1 / behind 0 vs origin/main" in line and "merged" not in line
+
+
+def test_sessions_sharing_assigns_a_cwd_to_its_deepest_worktree(tmp_path: Path) -> None:
+    """``.claude/worktrees/pr-bench`` lies *under* the main checkout and is a
+    different tree, so containment alone would report a bench session to a
+    main-checkout session and the reverse.  Deepest registered root wins."""
+    main = tmp_path / "repo"
+    bench = main / ".claude" / "worktrees" / "pr-bench"
+    bench.mkdir(parents=True)
+    sessions = [
+        hook.Session(1, "05-04:02:33", str(main)),
+        hook.Session(2, "00:10", str(bench)),
+        hook.Session(3, "00:05", str(main / "src")),  # below the root: still its tree
+        hook.Session(4, "00:01", str(tmp_path / "elsewhere")),
+        hook.Session(5, "00:01", str(main)),  # the session running the scan
+    ]
+    roots = [main, bench]
+    assert [s.pid for s in hook.sessions_sharing(main, sessions, roots, {5})] == [1, 3]
+    assert [s.pid for s in hook.sessions_sharing(bench, sessions, roots, set())] == [2]
+    out = hook.SHARED_HINT
+    assert "one session per tree" in out
+
+
+def test_session_rows_skip_the_pty_host_helpers() -> None:
+    """A session's background shells run as ``claude --bg-pty-host``; one such
+    orphan sat in the checkout for five days (pid 48273, 2026-08-26)."""
+    ps = (
+        "15964 11:44 /Users/yue/.local/share/claude/ClaudeCode.app/Contents/MacOS/claude"
+        " --bg-pty-host /tmp/cc-x\n"
+        "45077 06:46:12 claude\n"
+        "17432 05:10 claude --model sonnet\n"
+        "  999 00:01 /usr/bin/python3 claude-something\n"
+    )
+    assert hook._session_rows(ps) == [(45077, "06:46:12"), (17432, "05:10")]
+
+
+def test_hook_cwd_without_a_payload_is_none() -> None:
+    """Under pytest stdin is not a hook pipe; the read must answer None, and
+    quickly, rather than raise or wait."""
+    assert hook.hook_cwd() is None
+
+
+# --------------------------------------------------------------------------- #
+# The worktree-only gate (.claude/hooks/worktree_only.py): the main checkout is
+# read-only for a session.
+# --------------------------------------------------------------------------- #
+
+_gate_spec = importlib.util.spec_from_file_location(
+    "worktree_only_hook", ROOT / ".claude" / "hooks" / "worktree_only.py"
+)
+gate = importlib.util.module_from_spec(_gate_spec)
+_gate_spec.loader.exec_module(gate)
+
+
+@pytest.fixture
+def repo_with_worktree(repo: Path) -> tuple[Path, Path]:
+    (repo / "README").write_text("x\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "init")
+    wt = repo / ".claude" / "worktrees" / "wp9001"
+    _git(repo, "worktree", "add", "-q", "-b", "wp9001", str(wt))
+    return repo, wt
+
+
+def _edit(path: Path) -> dict:
+    return {"tool_name": "Edit", "tool_input": {"file_path": str(path)}}
+
+
+def _bash(command: str, cwd: Path) -> dict:
+    return {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)}
+
+
+def test_gate_refuses_edits_in_the_main_checkout_only(
+    repo_with_worktree: tuple[Path, Path], tmp_path: Path
+) -> None:
+    main, wt = repo_with_worktree
+    assert gate.refusal(_edit(main / "src" / "new.py")) is not None  # dir need not exist
+    assert gate.refusal(_edit(main / "README")) is not None
+    assert gate.refusal(_edit(wt / "README")) is None  # a worktree under the checkout
+    assert gate.refusal(_edit(tmp_path / "elsewhere" / "note.md")) is None  # no repo
+    assert gate.refusal({"tool_name": "Read", "tool_input": {"file_path": str(main / "README")}}) is None
+
+
+def test_gate_refuses_head_moving_git_in_the_main_checkout_only(
+    repo_with_worktree: tuple[Path, Path],
+) -> None:
+    main, wt = repo_with_worktree
+    assert gate.refusal(_bash("git add -A && git commit -m x", main)) is not None
+    assert gate.refusal(_bash("git checkout -b feature", main)) is not None
+    assert gate.refusal(_bash("git stash push -u", main)) is not None
+    assert gate.refusal(_bash("git log --oneline -3 && gh pr list", main)) is None
+    assert gate.refusal(_bash("git fetch origin main && git worktree list", main)) is None
+    assert gate.refusal(_bash("git commit -m x", wt)) is None
+    # addressed at another tree by -C: that tree's business, not this gate's
+    assert gate.refusal(_bash(f"git -C {wt} reset --hard origin/main", main)) is None
+
+
+def test_gate_reason_names_the_fix(repo_with_worktree: tuple[Path, Path]) -> None:
+    main, _ = repo_with_worktree
+    reason = gate.refusal(_edit(main / "README"))
+    assert "EnterWorktree" in reason and "claude -w" in reason
+
+
 def test_venv_pointer_resolution(repo: Path, tmp_path: Path) -> None:
     assert "no .venv" in hook.venv_flag(repo)
     make_venv(repo, tmp_path / "other-tree" / "src")
