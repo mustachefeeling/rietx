@@ -2321,3 +2321,62 @@ def test_a_directive_this_reader_cannot_evaluate_refuses_by_name(
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n' + line)
     with pytest.raises(TopasInpError, match=re.escape(needle)):
         read_topas_inp(inp)
+
+
+# ---- round-six: a card attaches where it is written (Tech Ref 2.20-2.23, 5.1)
+
+
+def test_a_for_loop_over_content_this_reader_reads_is_refused(tmp_path):
+    """"`for $object_type { ... }` is a pre-processor loop that expands its body
+    once for every existing instance of the given object type."
+
+    The block model — `_BLOCK` slicing between openers — *is* the assumption
+    that a card belongs to the block it sits inside, and the reference licenses
+    it only in the absence of these verbs. The `WISH_*` series and
+    `wo3_t0000_04.inp` declare a whole phase inside
+    `for xdds { for strs 1 to 1 { ... } }`: `for strs` is not a line-initial
+    `str`, so the phase is invisible to the split, and where a real `str`
+    exists elsewhere its cell and sites are swept into *that* one instead.
+    """
+    inp = _inp(tmp_path, "for.inp",
+               'xdd "a.xye"\n'
+               'for strs 1 to 1 {\n'
+               '  phase_name "A"\n  space_group "P1"\n  a 4.0\n'
+               '  site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               '}\n')
+    with pytest.raises(TopasInpError, match="pre-processor loop"):
+        read_topas_inp(inp)
+
+
+def test_a_for_loop_over_nothing_this_reader_reads_is_left_alone(tmp_path):
+    """Ten archive files loop over output records only. A loop that moves
+    nothing this reader would have got wrong is not a reason to refuse a file —
+    the refusal is about *attachment*, not about the keyword."""
+    inp = _inp(tmp_path, "forout.inp",
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'for strs { r_bragg 0 }\n')
+    (phase,) = read_topas_inp(inp).phases
+    assert phase.cell["a"] == pytest.approx(4.0)
+
+
+def test_load_of_a_keyword_this_reader_reads_is_refused(tmp_path):
+    """`load { }` "allows keywords of the same type to be entered once instead
+    of repeated", so the brace body is a list of that keyword's values. This
+    reader reads a keyword where it is written and would take one and drop the
+    rest. The five spellings the archive actually uses — `load out_record`,
+    `hkl_m_d_th2`, `sh_Cij_prm`, `xo`, `index_th2` — load none it reads, which
+    is why 276 files carry a `load` and none of them refuses."""
+    inp = _inp(tmp_path, "load.inp",
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'load site { A1 0 0 0  A2 0.5 0.5 0.5 }\n')
+    with pytest.raises(TopasInpError, match=re.escape("`load site`")):
+        read_topas_inp(inp)
+
+
+def test_a_load_this_reader_does_not_read_is_left_alone(tmp_path):
+    inp = _inp(tmp_path, "loadok.inp",
+               'str\nphase_name "A"\nspace_group "P1"\na 4.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
+               'load out_record { out_eqn = Get(r_wp); out_fmt "%11.5f" }\n')
+    assert read_topas_inp(inp).phases[0].cell["a"] == pytest.approx(4.0)

@@ -487,6 +487,113 @@ def refuse_unevaluable_directives(text: str, path) -> None:
             f"is this reader's guess rather than the file's statement.")
 
 
+#: Every keyword this reader takes a value from, split by the tree level it
+#: belongs to, because the two levels are affected differently by a card that
+#: moves (below).
+_KEYWORDS_READ = ("phase_name", "space_group", "site", "occ", "beq", "scale",
+                  "weight_percent", "a", "b", "c", "al", "be", "ga",
+                  "x", "y", "z", "u11", "u22", "u33", "u12", "u13", "u23",
+                  "adps", "r_wp", "gof", "bkg", "la", "lo")
+
+#: The **phase and site** half of it — what a `str` block is made of. A cell
+#: edge is included only where it opens a line, the same discrimination
+#: :data:`_CELL_LINE_START` already makes: one-letter keywords are cell edges
+#: inside a phase and ordinary words everywhere else, and a body full of
+#: `Simple_Axial_Model` and `start_X` is not a phase. Matching them anywhere
+#: refused 62 archive files where 36 carry a phase.
+_PHASE_CONTENT = re.compile(
+    r"(?m)\b(?:phase_name|space_group|site|occ|beq|scale|weight_percent"
+    r"|u11|u22|u33|u12|u13|u23|adps)\b|^[ \t]*(?:al|be|ga|a|b|c)\b")
+
+#: TOPAS's data-tree verbs (Technical Reference §2.20, §2.21, §2.23 and
+#: `TMisc_keywords`). Each **moves where a card attaches**, and this reader's
+#: whole block model is "a card belongs to the block it is lexically inside" —
+#: which `_BLOCK` implements by slicing the text between openers.
+#:
+#: * ``for $object_type { … }`` — "a pre-processor loop that expands its body
+#:   once for every existing instance of the given object type". So its body is
+#:   *every* phase's, not the one whose slice it happens to land in.
+#: * ``load $keyword { … }`` — "allows keywords of the same type to be entered
+#:   once instead of repeated", so the brace body is a list of that keyword's
+#:   values rather than ordinary input.
+#: * ``move_to $keyword`` — walks the tree to somewhere else entirely.
+_FOR_LOOP = re.compile(r"\bfor\s+\w+(?:\s+\d+\s+to\s+\d+)?\s*\{")
+_LOAD = re.compile(r"\bload\s+(\w+)")
+_MOVE_TO = re.compile(r"\bmove_to\b")
+
+
+def _brace_body(text: str, open_brace: int) -> str:
+    """The balanced ``{ … }`` body whose opening brace is at ``open_brace``."""
+    depth = 0
+    for i in range(open_brace, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[open_brace + 1:i]
+    return text[open_brace + 1:]
+
+
+def refuse_moved_attachment(active: str, path) -> None:
+    """Refuse a file whose cards do not attach where they are written.
+
+    This reader's block model — ``_BLOCK`` slicing the text between openers —
+    *is* the assumption that a card belongs to the block it sits inside. The
+    reference's §5.1 licenses it ("the keyword ``str`` signifies that all
+    information occurring between it and the next keyword of the same type
+    belongs to that ``str``"), and three verbs suspend it.
+
+    ``for`` is the one the archive uses, and it is not decoration: the
+    ``WISH_*`` series and ``wo3_t0000_04.inp`` declare a **whole phase** —
+    ``phase_name``, ``space_group``, all six cell edges, every ``site`` line —
+    inside ``for xdds { for strs 1 to 1 { … } }``. ``_BLOCK`` looks for ``str``
+    at the start of a line and ``for strs`` is not that, so such a phase is
+    invisible to the split; and where a real ``str`` exists elsewhere in the
+    file, the loop body's cell and sites are swept into *it* instead. 36 of the
+    618 archive files carry a loop over content this reader reads, 22 of which
+    built a ``Structure``.
+
+    Only a loop whose body carries **phase or site** content refuses: a
+    ``for strs { r_bragg 0 }``, a loop of ``out`` records, or a ``for xdds``
+    setting ``start_X`` and an instrument macro moves nothing this reader would
+    have got wrong. A cell edge counts only where it opens a line — the
+    discrimination :data:`_CELL_LINE_START` already makes, since one-letter
+    keywords are cell edges inside a phase and ordinary words everywhere else.
+
+    ``load`` is likewise refused only where it loads a keyword this reader
+    reads. The five spellings the archive uses — ``load out_record``,
+    ``hkl_m_d_th2``, ``sh_Cij_prm``, ``xo``, ``index_th2`` — load none of them,
+    which is why 276 files carry one and none is refused.
+    """
+    for m in _FOR_LOOP.finditer(active):
+        body = _brace_body(active, m.end() - 1)
+        if found := _PHASE_CONTENT.search(body):
+            raise TopasInpError(
+                f"{path}: `{m.group().strip()}` is a pre-processor loop — the "
+                f"reference expands its body \"once for every existing instance "
+                f"of the given object type\" — and its body states "
+                f"`{found.group().strip()}`, which this reader reads. A value inside it "
+                f"belongs to *every* phase or dataset, not to the one whose "
+                f"text it happens to sit in, and a phase declared inside it is "
+                f"invisible to the block split altogether. Reading on would "
+                f"report one phase's worth of a statement about all of them. "
+                f"Write the phases out, or read the .OUT TOPAS writes with the "
+                f"loops already expanded.")
+    for m in _LOAD.finditer(active):
+        if m.group(1) in _KEYWORDS_READ:
+            raise TopasInpError(
+                f"{path}: `load {m.group(1)}` enters a list of `{m.group(1)}` "
+                f"values in one brace block instead of repeating the keyword, "
+                f"so this reader — which reads `{m.group(1)}` where it is "
+                f"written — would see one of them and silently drop the rest.")
+    if m := _MOVE_TO.search(active):
+        raise TopasInpError(
+            f"{path}: `move_to` walks TOPAS's internal data tree, so the cards "
+            f"after it attach somewhere this reader cannot follow from the "
+            f"text's own nesting.")
+
+
 def normalize_species(species: str) -> str:
     """``Cu+1`` → ``Cu1+`` (rule 4). IUCr order is digit-first."""
     s = re.sub(r"[^A-Za-z0-9+-]", "", species)
@@ -1345,6 +1452,9 @@ def read_topas_inp(path: str | Path, *,
     stripped = strip_comments(raw)
     refuse_unevaluable_directives(_excise_macro_defs(stripped), path)
     active = _excise_macro_defs(resolve_ifdefs(stripped))
+    # Where a card attaches is decided before any card is read: the block split
+    # below *is* the assumption that a card belongs to the block it sits in.
+    refuse_moved_attachment(active, path)
     # THE masked text, built once and sliced by every token scan below (the
     # cell-key scan, the site split, the file-level site count) — offset-for-
     # offset with `active`, so a slice of one indexes the other. The mask is the
