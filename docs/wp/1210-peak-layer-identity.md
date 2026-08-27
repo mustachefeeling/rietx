@@ -78,7 +78,7 @@ From **WP-1209** (2026-08-27, shipped):
       `--plot-calc`.
 - [x] The layer drawn only while the Peaks tab is active (a prop from App),
       with the layer's absence stated in the curve toggles.
-- [ ] Browser pass with a result and a peak list: four distinguishable
+- [x] Browser pass with a result and a peak list: four distinguishable
       curves in both themes; dist.
 
 ## Acceptance

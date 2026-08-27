@@ -751,3 +751,24 @@ two adjacent flex/inline-flex `td`s are wrapped into *one* anonymous cell, so a
 class shared with a flex label put the chips under the intensity in a column
 headed by nothing — found in Chrome, invisible to jsdom, and why the intensity
 column is `.rel` rather than the form's `.num`.
+
+**The peak layer** (WP-1210, `lib/plot.ts`, `panels/Plot.svelte`, `app.css`).
+Four rules. **A layer is drawn where it can be edited** — the markers and their
+fitted curve are on the plot only while the Peaks tab is up, which is already
+the only tab a click there means anything on (WP-1027); `peaksActive` is
+therefore a *drawing* input and belongs in the repaint effect, or leaving the
+tab redraws nothing. **A curve that cannot be drawn is listed and disabled
+carrying the reason**, never dropped: `CurveToggle.absent` is that sentence, and
+`dataOnlyHidden` covers absent ids too, or a hidden layer arrives drawn the
+moment its tab comes up. **Chrome is not a palette**: `--accent` and `--bad` are
+`--plot-diff` and `--plot-calc` **exactly** on the light theme, which is how the
+picked-peak fit and the model came to be one red line, so a plot mark takes a
+`--plot-*` token of its own — `tests/test_gui_palette.py` holds every one to the
+phase palette's 0.13 OKLab floor against every other plot colour, in Python
+because `structure3d._oklab_distance` is the one distance this package has. It
+also names the two pairs the shipped set already misses rather than exempting
+them quietly. And **state rides on the mark, not on a second colour**: hollow
+for unusable, diamond for human-placed, so the layer spends two colours and the
+whole palette stays separable — measured while choosing, the free hue space is
+magenta and green alone (violet is 0.10-0.12 from `--plot-diff`, and `--warn`
+0.053 from `--plot-calc`).
