@@ -140,8 +140,8 @@ is the selection**: a bulk free/fix sends the *glob*, because `set_vary` takes o
 and records **one** history node for it — a per-row multi-select would be N globs
 and N nodes — and `asGlob` wraps a bare word as `*word*` so the string previewed
 and the string sent are the same one. **A held row gets no vary checkbox at all**,
-with `held_because` as its tooltip and the three reasons rendered as three
-(`mode_fixed` is not `locked`). **A typed number is compared to the *rendered*
+with `held_because` as its tooltip and every reason it has drawn as its own
+mark (`mode_fixed` is not `locked`; there are four — WP-1214). **A typed number is compared to the *rendered*
 value**, WP-1009's rule reused, so a cell showing `4.1568(2)` cannot truncate a
 parameter on a click-in/click-out. And the client's matcher is a **preview only**
 — it is `fnmatch.fnmatchcase` ported, held to Python by a committed corpus
@@ -877,3 +877,26 @@ standing in for an overbar rather than a measurement. And a window payload is
 **`$state.raw`** — a plain `$state` proxies it, so `held` and the `w` the fetch
 handed `paint` are two identities for one object, which is the pair `fresh` asks
 about (svelte says so in dev; it was true before this WP surfaced it).
+
+**The refine flag where the model is read** (WP-1214, `Model.svelte`,
+`lib/table.ts`, `session.export`). Four rules. **A flag is set beside the value
+it is about**: the Model panel draws the parameter table's own vary control on
+every value it shows, one `set_vary` node per path, in the *same* `PATCH
+/api/params` as the value edits and **before** the model patches — a whole-model
+PATCH carries whatever `vary` the model it was built from had, so a flag set
+after that read is reverted by it. **The held marks are one vocabulary and there
+are four**: `heldGlyph` is in `lib/table.ts` because two panels draw it, and the
+fourth (`needs_held_cell`) had worn the mode-fixed mark since it arrived, the
+glyph being a ternary whose last arm caught everything — so an unknown reason
+still draws a mark, an empty box reading as a control that failed to render, and
+`test_gui_server.py` reads the fields `ParameterRow.refinable` tests so a fifth
+fails there first. **A field's parameter path is not always its model path
+prefixed** — `source.polarization` is `instrument.polarization` in θ — so
+`Field.param` carries it and `fieldParam` is what every lookup asks; unprefixed,
+that field rendered off the model, applied past `set_values`' bounds, and had no
+row for a flag to act on. And **an export is gated on what it describes**:
+`instrument_profile` is answered from the project where the rest of the family
+needs a result, `_EXPORT_MODEL_ONLY` declaring the exception so the stricter
+gate stays the default. One more browser trap and it is a width: a rule aimed at
+the value reaches the control beside it, and `.cellrow input { width: 100% }`
+drew the esd next to the box at zero width.
