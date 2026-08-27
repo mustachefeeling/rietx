@@ -1,6 +1,6 @@
 # WP-1210 — The peak layer: hide it, tell it apart, data-only
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.2 · Status: ✅ 2026-08-27 — the layer has its own colours, its own tab and a way off
 Depends on: WP-1201
 
 ## Goal
@@ -39,46 +39,23 @@ Findings (2026-08-25):
   a curve a later build adds arrives drawn (WP-1032).
 - The phase palette rotates in OKLab at a distance floor (WP-1029).
 
-### Inherited
-
-From **WP-1209** (2026-08-27, shipped):
-
-- **Telling a placed line from a fitted one has a vocabulary now.**
-  `rietx.help`'s `peak_origins` arm is keyed by `ObservedPeak.origin`
-  (`fitted` / `manual` / `edited`) both ways, each entry carrying a `label`
-  (`fitted`, `manual`, `moved`); the table's origin chip is
-  `<Help for="peak_origins:{p.origin}">{labelFor(corpus, key)}</Help>`. A
-  marker that distinguishes origins on the plot should say the same words,
-  never a third spelling — `labelFor` in `lib/help.ts` is the one place a
-  chip's words are decided, and `App` passes `corpus` to a panel that needs
-  them.
-- The table's 2θ column prints an esd only below 1° (`formatPosition`,
-  `POSITION_ESD_MAX_DEG`); the plot's whisker is still capped at 3×FWHM. The
-  two are different answers to the same degenerate σ (1e17° and 1e49° on
-  corundum) and neither is wrong, but a hover readout (WP-1213) should quote
-  the table's form.
-- **A `td` that is not `display: table-cell` is not a cell**: two adjacent
-  flex/inline-flex `td`s merge into one anonymous cell, invisible to jsdom.
-  `Peaks.svelte`'s `td.flags` and `td.acts` are flex and survive only because
-  each has a real cell beside it; do not add a third.
-
 ## Non-goals
 
 - Candidate cells on the plot (WP-1211); jitter (WP-1212).
 
 ## Tasks
 
-- [ ] `curveToggles` grows `peaks` and `peak fit` when a list exists;
+- [x] `curveToggles` grows `peaks` and `peak fit` when a list exists;
       `Plot.svelte` guards `peakTraces` with `shows()`; a **data only**
       button that hides every id but `obs` and restores on second click.
-- [ ] Tokens `--plot-peak` and `--plot-peakfit` in `app.css`, both themes,
+- [x] Tokens `--plot-peak` and `--plot-peakfit` in `app.css`, both themes,
       validated against every other plot token in OKLab (the phase-palette
       floor, asserted in `plot.test.ts`); the fit curve dashed and named in
       the legend and the hover; unusable markers on a tone that is not
       `--plot-calc`.
-- [ ] The layer drawn only while the Peaks tab is active (a prop from App),
+- [x] The layer drawn only while the Peaks tab is active (a prop from App),
       with the layer's absence stated in the curve toggles.
-- [ ] Browser pass with a result and a peak list: four distinguishable
+- [x] Browser pass with a result and a peak list: four distinguishable
       curves in both themes; dist.
 
 ## Acceptance
@@ -95,5 +72,140 @@ present and each identifiable without the legend.
 - WP-1032 (hiding is by exception), WP-1029 (OKLab distance).
 
 ## Handover log
+
+### 2026-08-27 — the layer has its own colours, its own tab and a way off
+
+Three complaints about the peak layer turned out to be one defect with three
+faces, and the sharpest of them was exactly true rather than approximately:
+the picked-peak fit curve and the model really were the same colour, because
+the layer had no colours of its own and borrowed the app's chrome, which on
+the light theme *is* the difference and calculated curves to the last digit.
+The layer now has two tokens, is drawn only on the tab where a marker can be
+edited, can be switched off like any other curve, and one button clears the
+plot to the measured points and puts the picture back. What a reader gets is
+a plot where every mark can be named without consulting the legend — and a
+gate that will refuse the next panel WP a colour that collides with one
+already there.
+
+The part worth carrying: **the plot's free hue space is nearly spent**.
+Measured while choosing this pair, only magenta and green clear the phase
+palette's 0.13 OKLab floor against the shipped set — violet lands 0.10-0.12
+from the difference curve and the obvious alert tone for an unusable marker,
+`--warn`, is 0.053 from calculated. Magenta is now taken. A future mark should
+plan to spend *no* colour and carry its identity on the mark, which is what
+this layer does for peak state — one ink, hollow for unusable and diamond for
+human-placed — rather than spending a second.
+
+**Done.** All four tasks. `curveToggles` grows `peaks`/`peak fit` from a
+`PeakLayer` passed beside the window payload; `dataOnlyHidden`/`isDataOnly`
+are pure and over the same unpersisted `hidden` exception list, with
+`Plot.svelte` holding the previous list so the second press restores rather
+than showing everything. `--plot-peak`/`--plot-peakfit` in all three theme
+blocks, one hue family (334°) in two tones, the fit curve dashed and named in
+the legend and the hover, and the markers one ink with the ring carrying the
+state. The layer is gated on `peaksActive`, and its two toggles
+are listed and **disabled carrying the reason** when it is away.
+
+**Measured**, all darwin/arm64 on this worktree's own venv, `[dev]` — jax and
+torch absent. Two trees, because `origin/main` moved under this branch
+mid-session (PR #118, the per-phase agreement trajectory) and the counts that
+matter are the **merged** tree's.
+
+- Branch alone: fast selection `-m "not slow"` **3148 passed / 117 skipped** in
+  152.71 s, against WP-1209's recorded **3138 / 117** on the same extras and
+  platform — exactly the ten `tests/test_gui_palette.py` adds, **no new skip**.
+  vitest **475**, against 1209's 467, so +8 (5 in `plot.test.ts`, 3 in
+  `App.test.ts`).
+- Merged with `origin/main` (the tree that lands): **3153 passed / 117
+  skipped** in 170.70 s and vitest **476** — main's five python tests and one
+  vitest case on top, no interaction. `svelte-check` 0 errors / 0 warnings over
+  378 files, `ruff` clean, dist rebuilt at `1926c16de396` (the review's
+  fixes rebuilt it again; vitest stayed 476, the assertions changed).
+
+The merge conflicted **only** in the built dist (`app.js`, `build-info.json`),
+because main had rebuilt it too; the resolution is a rebuild from the merged
+sources, never a hunk choice. The full selection was **not** run and should not
+have been: nothing here can move a refinement number (root CLAUDE.md § Numbers).
+
+Browser pass in Chrome on the NAC example, fitted in the served session (Rwp
+0.0932, 86 lines picked / 74 usable), both themes. Light — markers `#8c257e`,
+fit `#c158b0` dashed, against calc `#c23b22` and Δ/σ `#1f5fa8`. Dark —
+`#e687d5` / `#b156a2` against `#e56a52` and `#5897dd`. Unusable markers are the
+layer's own ink, hollow, in both (the review note below has why that changed).
+`data only` leaves exactly `observed`; the second press restores,
+a hand-hidden phase still hidden. On the Report tab the layer is absent and
+its toggles disabled with the sentence.
+
+**Gotchas**, all three costing time here.
+
+- **`peaksActive` is a drawing input.** The tab gate looked complete and did
+  nothing: nothing repainted on a tab change, so the layer stayed on screen
+  from the previous paint. It belongs in the repaint effect beside the knobs.
+  `App.test.ts`'s hover-link test is what caught it — the ring stopped being
+  the last trace — which is also why `ringAt` is now found by name.
+- **A served session holds no result on open.** A result is not persisted,
+  only history state, so a browser pass wanting calc/bkg/Δ must run the fit
+  *through the server*; fitting in a preparing process leaves the page on the
+  raw view and looks like a drawing bug.
+- **`POST /api/settings` takes `{"ui": {"theme": …}}`.** A bare `{"theme": …}`
+  is a 400, which reads as "the theme did not apply" when driving a browser.
+  Drive it with `--state-dir` at a scratch path too, or the pass rewrites the
+  person's own theme.
+
+**Not repaired, and predating this WP:** with the residual hidden its subplot
+keeps its domain, so `data only` leaves a quarter of the plot empty. Hiding
+`Δ/σ` alone has always done that; filed into WP-1212, which is the WP that
+touches this layout.
+
+**Where the OKLab assertion lives, and why it is not where the WP said.** The
+task named `plot.test.ts`; it is `tests/test_gui_palette.py` instead, reading
+`app.css` and using `structure3d._oklab_distance` — the one distance this
+package has, where a TypeScript port would have been a second answer to it.
+`plot.test.ts` asserts the plumbing (`curveColors` reads each property, falls
+back per property), which is the half that belongs in a client test. The
+Python file also **names the two pairs the shipped palette already misses**
+(light bkg/diff 0.129, dark obs/diff 0.124) rather than exempting them
+quietly, holds them at 0.12 so they cannot get worse, and fails if a third
+appears — retuning a shipped curve colour was not this WP's.
+
+**The review** (`/code-review medium --fix`, run after the PR was open) found
+four things, and two of them were claims this entry had already made.
+
+- **A real bug, fixed.** The peak-fit hover was handed `customdata:
+  sparse(fit.y)` — the *plot-unit* array, the same one `y` gets. Under the √
+  scale the box read `31.6` where obs and calc at the same 2θ read `1000`.
+  Every other hover here passes raw intensity (`calculated` hands plotly
+  `w.y_calc`, not the √ of it). One line, and the browser re-check confirms the
+  values are back in intensity.
+- **The unusable-marker ink was wrong, and by this WP's own rule.** It sat on
+  `--muted`, which is **0.032** from `--plot-obs` on the dark theme — the ink of
+  the very points those markers sit on. The deeper error is that spending *any*
+  second colour on the state is what "state rides on the mark" forbids: the
+  layer is now **one** colour with hollow-vs-filled carrying it, which removes
+  the collision and the exception together. `--muted` stays right for the masked
+  points, because those *are* measured data; the palette test now says so where
+  a reader would otherwise re-litigate it.
+- **A claim narrowed rather than fixed.** `dataOnlyHidden` covers every id the
+  payload offers *when pressed*, so a curve that comes into existence later
+  draws on a cleared plot (press it with hand-placed peaks and no groups, then
+  refit). The docstring claimed the invariant unconditionally. Fixing it means
+  an armed mode that keeps re-hiding and must then decide what a manual toggle
+  underneath it means — a bigger design than this button — so the claim now
+  states its own limit. Found in review, not in use.
+- **One finding measured false.** The review held that the `absent` sentence is
+  unreachable because Chrome does not dispatch pointer events to disabled form
+  controls. Checked on the real control in Chrome 1223: `disabled: true`,
+  `pointer-events: auto`, and a pointer move over it fired
+  `pointerover`/`mouseover`/`mousemove`, with the 223-character title in place —
+  and nothing in `app.css` sets `pointer-events` on `button:disabled`. The
+  tooltip reaches a pointer. Worth knowing, since the claim is a plausible one
+  that used to be true.
+
+*Next.* WP-1210 is closed; the successor is [WP-1211](1211-candidate-overlay.md)
+(the candidate overlay), whose `### Inherited` now carries the data-only
+seam, the hue-space measurement and the tab-gating rule. WP-1212 and WP-1213
+have their own notes — 1212's matter most, since this WP moved the line
+numbers its findings quote and added a new occasion for the autorange it is
+chasing.
 
 - **2026-08-25** — created from the v1.2 triage.

@@ -55,6 +55,26 @@ From **WP-1209** (2026-08-27, shipped):
   `formatIntensity`; 1209 declined it as a wire-contract change outside a
   table WP.
 
+From **WP-1210** (2026-08-27, shipped):
+
+- **There is one more `hovertemplate` than this WP's findings list, and it is
+  deliberate**: the picked-peak fit curve used to be `hoverinfo: "skip"` and now
+  names itself in the unified box, because a reader had no way to tell it from
+  the model. When this WP deletes every template for a strip of its own, that
+  naming is a *requirement* carried over, not a template to drop silently — the
+  strip has to say which curve is which by name.
+- **The peak layer is drawn only on the Peaks tab.** A readout that quotes a
+  hovered peak therefore has nothing to quote elsewhere, and the strip's content
+  is tab-dependent for that reason rather than by choice.
+- The whisker cap note above (3×FWHM on the plot against `POSITION_ESD_MAX_DEG`
+  = 1° in the table) is unchanged by 1210: the cap is still on the plot and the
+  hollow marker is still what says "degenerate". The readout quoting the
+  table's form remains the right answer.
+- **The state of a peak is carried by its mark, not by a colour** — hollow for
+  unusable, diamond for human-placed, one hue for the layer. A readout naming a
+  peak should say the same thing in the corpus's words (`peak_origins` labels,
+  the 1209 note above), never introduce a third spelling or a colour key.
+
 ## Non-goals
 
 - The peak-row hover link (the ring, WP-1212).

@@ -25,9 +25,11 @@
     SCALES,
     curveColors,
     curveToggles,
+    dataOnlyHidden,
     formatRegion,
     heldRanges,
     hoverLabel,
+    isDataOnly,
     maskShapes,
     mergeRegions,
     normalizeRegion,
@@ -124,11 +126,23 @@
   /** curves the user has switched off, by id — an *exception* list, so a curve
    *  this build does not know about yet still arrives drawn */
   let hidden = $state<string[]>([]);
+  /** what was hidden before `data only` was pressed, so the second press puts
+   *  the plot back rather than showing everything (WP-1210) */
+  let beforeDataOnly = $state<string[] | null>(null);
   /** the payload the last draw used, so a knob redraws without a refetch */
   let held: any = $state(null);
   /** the toggles this payload offers — background only when there is one, one
-   *  row per phase (WP-1032) */
-  const toggles = $derived(held ? curveToggles(held, residual(kind, held).label) : []);
+   *  row per phase (WP-1032), the peak layer when a list exists (WP-1210) */
+  const toggles = $derived(
+    held
+      ? curveToggles(held, residual(kind, held).label, {
+          n: peaks?.peaks?.length ?? 0,
+          groups: peaks?.groups?.length ?? 0,
+          active: peaksActive,
+        })
+      : [],
+  );
+  const dataOnly = $derived(isDataOnly(toggles, hidden));
   /** What the last paint drew each y axis in.  Plain `let`s, not `$state`: they
    *  are read inside the paint they describe, and a reactive one would make
    *  every paint a reason to paint again. */
@@ -321,7 +335,9 @@
       });
     }
     traces.push(...peakTraces(w, colors));
-    ringAt = peaks?.peaks?.length ? traces.length - 1 : -1;
+    // by name, not by position: the layer's traces are conditional now, so
+    // counting back from the end named whichever one happened to be last
+    ringAt = traces.findIndex((t: any) => t.name === "hovered");
 
     // read immediately before the react, never held between them (lib/plot.ts)
     const ranges = request ? { xaxis: request } : view();
@@ -385,28 +401,45 @@
    * hollow, human-placed ones are diamonds. The group profiles join into one
    * trace with null gaps: sixty windows as sixty traces is a legend, not a
    * layer.
+   *
+   * Three rules since WP-1210. **It is drawn where it can be edited** — the
+   * Peaks tab, which is already the only tab a click on this plot means
+   * anything on (WP-1027); elsewhere it was a layer nobody could act on, in a
+   * colour nobody had chosen. **Its colours are its own tokens**, `--plot-peak`
+   * and `--plot-peakfit`: `--accent` and `--bad` are chrome, and on the light
+   * theme they are `--plot-diff` and `--plot-calc` exactly, which is why the
+   * fitted curve and the model were one red line. And **the state of a line is
+   * carried by its mark, never by a second colour** — hollow for unusable,
+   * diamond for human-placed — so the layer spends two colours and the whole
+   * palette stays separable.
    */
   function peakTraces(w: any, colors: ReturnType<typeof curveColors>): any[] {
     const list = peaks?.peaks;
-    if (!list?.length) return [];
-    const accent =
-      getComputedStyle(document.body).getPropertyValue("--accent").trim() || "#7c6ff0";
-    const bad =
-      getComputedStyle(document.body).getPropertyValue("--bad").trim() || "#c0392b";
+    if (!list?.length || !peaksActive) return [];
     const out: any[] = [];
     const groups = peaks?.groups ?? [];
-    if (groups.length) {
+    if (groups.length && shows(hidden, "peakfit")) {
       const fit = joinCurves(groups, (g) => g.y_fit);
       out.push({ x: fit.x, y: sparse(fit.y), name: "peak fit", mode: "lines",
-        type: "scattergl", line: { width: 1.4, color: accent },
-        hoverinfo: "skip" });
+        type: "scattergl", showlegend: true,
+        // dashed, because the other two curves on this axis are solid lines and
+        // a reader has to tell "what the positions were fitted from" from "the
+        // model" without consulting a legend
+        line: { width: 1.4, color: colors.peakfit, dash: "dash" },
+        // the *unscaled* fit value, as every other hover on this plot quotes
+        // (`calculated` hands plotly `w.y_calc`, not the √ of it): `y` is in
+        // plot units and `customdata` is in intensity, or the box reads √I
+        // under the √ scale while the curve beside it reads I
+        customdata: fit.y,
+        hovertemplate: "%{customdata:.6g}<extra>peak fit</extra>" });
       if (w.raw) {
         const delta = joinCurves(groups, (g) => g.delta);
         out.push({ x: delta.x, y: delta.y, name: "(y−fit)/σ", mode: "lines",
-          type: "scattergl", yaxis: "y2", line: { width: 1, color: colors.diff },
+          type: "scattergl", yaxis: "y2", line: { width: 1, color: colors.peakfit },
           showlegend: false });
       }
     }
+    if (!shows(hidden, "peaks")) return out;
     const y = list.map((p) => heightAt(w, p.two_theta));
     out.push({
       x: list.map((p) => p.two_theta),
@@ -421,15 +454,24 @@
       // hollow `fit_failed` marker is what says "degenerate", not bar length.
       error_x: { type: "data",
                  array: list.map((p) => Math.min(p.two_theta_esd, 3 * p.fwhm)),
-                 visible: true, color: accent, thickness: 1 },
+                 visible: true, color: colors.peak, thickness: 1 },
       marker: {
         size: 9,
         symbol: list.map((p) =>
           p.usable ? (p.origin === "fitted" ? "circle" : "diamond")
                    : (p.origin === "fitted" ? "circle-open" : "diamond-open")),
-        color: list.map((p) => (p.usable ? accent : bad)),
+        // **One colour for the whole layer**, and the ring says which state:
+        // hollow is unusable, filled is in the fit.  Spending a second colour
+        // on the state is the thing this WP's own rule forbids, and both
+        // candidates for it are measurably wrong anyway — `--bad` *is*
+        // `--plot-calc` on the light theme, `--warn` sits 0.053 from it (0.096
+        // dark), and the recessive `--muted` this line used first is **0.032**
+        // from `--plot-obs` on the dark theme, which is the ink of the very
+        // points these markers sit on.  All three against a 0.13 floor.
+        color: colors.peak,
         line: { width: 1.2 },
       },
+      showlegend: true,
       customdata: list.map((p) =>
         [p.index, [p.origin === "fitted" ? "" : p.origin, ...p.flags]
           .filter(Boolean).join(" ") || "usable"]),
@@ -440,7 +482,7 @@
     // ring that changes its two coordinates is the cheapest thing plotly does.
     out.push({
       x: [], y: [], name: "hovered", mode: "markers", type: "scattergl",
-      marker: { size: 16, symbol: "circle-open", color: accent, line: { width: 2 } },
+      marker: { size: 16, symbol: "circle-open", color: colors.peak, line: { width: 2 } },
       showlegend: false, hoverinfo: "skip",
     });
     return out;
@@ -458,6 +500,19 @@
     const x = row ? [row.two_theta] : [];
     const y = row ? [heightAt(held, row.two_theta)] : [];
     plotly.restyle?.(node, { x: [x], y: [y] }, [ringAt]);
+  }
+
+  /** Hide everything but the data — or, pressed again, put back exactly what
+   *  was on screen before, which is not the same as showing everything: a user
+   *  who had already switched a phase's ticks off did not ask for them back. */
+  function showDataOnly() {
+    if (dataOnly) {
+      hidden = beforeDataOnly ?? [];
+      beforeDataOnly = null;
+    } else {
+      beforeDataOnly = hidden;
+      hidden = dataOnlyHidden(toggles);
+    }
   }
 
   /** null-preserving √/log guard — `scaleValues` maps a gap to 0, which would
@@ -756,6 +811,12 @@
     void theme;
     void hidden;
     void arm;     // the drag mode is layout, so arming redraws
+    // …and the peak layer is drawn only on the tab that can edit it (WP-1210),
+    // so leaving that tab has to take it off the plot.  A repaint, not a
+    // refetch: which tab is up says nothing about which channels the server
+    // sent — the tab click was a redraw of nothing without this line, and
+    // `App.test.ts`'s hover-link test is what said so.
+    void peaksActive;
     void extent;
     // …and `held` is read **untracked**, which is the difference between a knob
     // and a payload: a new payload has already been painted by whoever fetched
@@ -838,12 +899,24 @@
       {#if toggles.length > 1}
         <div class="segmented curves" role="group" aria-label="curves">
           {#each toggles as curve (curve.id)}
-            <button class:on={shows(hidden, curve.id)}
+            <!-- an absent curve is listed and disabled, its title the reason:
+                 "where did my markers go" has an answer, and a missing button
+                 is not it (WP-1210) -->
+            <button class:on={shows(hidden, curve.id) && !curve.absent}
+              disabled={!!curve.absent}
               onclick={() => (hidden = toggleCurve(hidden, curve.id))}
-              title="{curve.title} — click to {shows(hidden, curve.id) ? 'hide' : 'show'}"
+              title={curve.absent
+                     ? `${curve.title} — ${curve.absent}`
+                     : `${curve.title} — click to ${shows(hidden, curve.id) ? "hide" : "show"}`}
               >{curve.label}</button>
           {/each}
         </div>
+        <!-- one press to the data and back again.  A `.segmented` of one would
+             be a choice of one; this is an action, so it is a ghost button. -->
+        <button class="ghost" class:on={dataOnly} onclick={showDataOnly}
+          title={dataOnly
+                 ? "put the other curves back"
+                 : "hide every curve but the measured points"}>data only</button>
       {/if}
       <p class="hint muted tabular">
         {shown.n} of {shown.total} points drawn, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°

@@ -62,6 +62,31 @@ From **WP-1209** (2026-08-27, shipped):
   `HelpEntry.label` the same way flag chips do, if they become corpus terms:
   `labelFor(corpus, key)` and the popover's `Name` row are already there.
 
+From **WP-1210** (2026-08-27, shipped):
+
+- **The "data-only" this WP's design leans on exists**, and it is not a
+  separate mode: `dataOnlyHidden(toggles)` / `isDataOnly(toggles, hidden)`
+  (`lib/plot.ts`) over the same unpersisted `hidden` exception list, with
+  `Plot.svelte` holding the previous list so the second press restores the
+  picture rather than showing everything. Drive the overlay through those two
+  rather than adding a flag; and note `dataOnlyHidden` covers ids that are
+  *listed but not drawable*, which is the property that stops a hidden layer
+  reappearing when its tab comes up.
+- **A new plot mark needs a `--plot-*` token of its own, and the hue space is
+  nearly spent.** `--accent`/`--bad` are `--plot-diff`/`--plot-calc` exactly on
+  the light theme, so borrowing chrome is what made the peak fit and the model
+  one red line. `tests/test_gui_palette.py` holds every plot colour to the 0.13
+  OKLab floor and will fail on a new one that collides. Measured while choosing
+  1210's pair: violet is 0.10-0.12 from `--plot-diff` and `--warn` 0.053 from
+  `--plot-calc`, magenta is now taken — **green (≈126-150°) is what is left**.
+  A candidate overlay drawn "in the tick style" may be able to spend no colour
+  at all, which is the cheaper answer.
+- **A layer is drawn only where it can be edited or acted on** (the Peaks tab
+  for peaks). If the overlay is a Peaks-tab thing, gate it the same way, and
+  remember `peaksActive`-style props are *drawing* inputs: the one in
+  `Plot.svelte`'s repaint effect is what makes leaving a tab take the layer off
+  the plot. Without it the tab click redraws nothing.
+
 ## Non-goals
 
 - Drawing the Le Bail validation's calculated profile.

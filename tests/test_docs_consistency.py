@@ -428,7 +428,19 @@ SIZE_CAPS: dict[str, int | None] = {
     # `td` that is not `display: table-cell` merges with its flex neighbour
     # into one anonymous cell, which jsdom cannot see and a shared class name
     # triggered.
-    "gui/CLAUDE.md": 753,
+    # 753 -> 774 for WP-1210 (2026-08-27): the peak layer.  Its four rules all
+    # reach past the panel — where a layer may be drawn at all (and that the
+    # tab is therefore a drawing input, not a fact about the payload), that an
+    # undrawable curve is listed with its reason rather than dropped, that
+    # chrome tokens are not a palette (`--accent` *is* `--plot-diff` on the
+    # light theme, which is the reported defect), and that a mark's state is
+    # carried by its shape rather than by spending a colour.  The hex values,
+    # the hue search and the two grandfathered pairs are a rank down, in
+    # `app.css`'s own comment and `tests/test_gui_palette.py`.  774 -> 778 in
+    # the same WP's review: the state-on-the-mark rule needed its corollary,
+    # because that is where it was broken — a mark that is not the data may not
+    # borrow the recessive ink of the data it sits on.
+    "gui/CLAUDE.md": 778,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the
