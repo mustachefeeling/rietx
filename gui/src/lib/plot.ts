@@ -818,7 +818,7 @@ export interface ReadoutRow {
 export interface Readout {
   /** the drawn channel under the pointer, at four places with its degree sign */
   position: string;
-  /** `d = λ/(2 sin θ)` there, or `""` when the source's λ is not in hand */
+  /** `d = λ/(2 sin θ)` there, empty where the source's λ is not in hand */
   d: string;
   rows: ReadoutRow[];
 }
@@ -843,7 +843,15 @@ export interface ReadoutInputs {
   /** the candidate overlay on screen, if any, and the same question for it */
   candidate?: CandidateOverlay | null;
   candidateTolerance?: number;
+  /** the curves switched off (`curveToggles`' ids): the strip names what is
+   *  **drawn**, so `data only` empties it down to the points — the same
+   *  exception list, read the same way */
+  hidden?: readonly string[];
 }
+
+/** What a field with nothing in it prints — one spelling, so an empty strip
+ *  and an empty field are the same mark. */
+const EMPTY = "—";
 
 /** `+0.0035°` / `−0.0035°` — an offset, signed, with a real minus. */
 function offset(delta: number): string {
@@ -871,53 +879,86 @@ function offset(delta: number): string {
  * value, so a √ view still reads in intensity.
  *
  * A row a payload cannot fill is **absent, not empty**: there is a row per
- * curve that is drawn, which makes the strip's shape a property of the payload
- * and the tab rather than of where the pointer happens to be. The three
- * "nearest something" rows (the ticks, the picked line, the candidate line)
- * keep their slot with `—` in it instead, because those genuinely come and go
- * under one pointer sweep and a strip that reflowed on each would be the jitter
- * WP-1212 spent itself removing.
+ * curve that is *drawn*, which makes the strip's shape a property of the
+ * payload, the tab and the curve toggles — never of where the pointer happens
+ * to be. Everything that varies with the pointer keeps its slot and empties it
+ * instead: the three "nearest something" rows, and `x === null` for the pointer
+ * being off the plot altogether, which is most of the time. A strip that grew a
+ * field on hover would resize the canvas above it once per entry, and that is
+ * the jitter WP-1212 spent itself removing, arriving through the repair for it.
+ *
+ * The one place this reads two arms is the **masked** channels: they are in no
+ * result, so they arrive beside it (WP-1033), and a pointer inside an excluded
+ * region is over one of them. The nearest channel is therefore taken over both
+ * arms, and a masked one has no model to quote — which is also how the strip
+ * says where the pointer is, without a field that changes width to say it.
  */
 export function readout(
   w: (Window & { raw?: boolean; ticks?: Record<string, number[]> }) | null,
-  x: number,
+  x: number | null,
   inputs: ReadoutInputs,
 ): Readout | null {
-  if (!w || !Number.isFinite(x)) return null;
-  const xs = w.two_theta ?? [];
-  const k = nearestIndex(xs, x);
-  if (k < 0) return null;
-  const at = xs[k];
+  if (!w) return null;
+  const hidden = inputs.hidden ?? [];
+  const fitted = w.two_theta ?? [];
+  // The masked channels are a *separate arm* (WP-1033: they are in no result,
+  // so the server sends them beside it), and they are measured points like any
+  // other — a pointer inside an excluded region is over one of them. Without
+  // this the readout snapped to the nearest surviving channel and printed its
+  // numbers under a pointer that could be a whole region away.
+  const maskedOn = shows(hidden, "masked");
+  const excluded = maskedOn ? w.excluded?.two_theta ?? [] : [];
+  if (!fitted.length && !excluded.length) return null;
+  // `null` is the pointer being off the plot, which is most of the time: the
+  // strip keeps its fields and empties them, because a strip that grew fields
+  // on hover would resize the canvas above it once per entry (WP-1032 measured
+  // a resize at ~111 ms; WP-1212 spent itself on smaller movements than that).
+  const live = x != null && Number.isFinite(x);
+  const kf = live ? nearestIndex(fitted, x!) : -1;
+  const kx = live ? nearestIndex(excluded, x!) : -1;
+  const masked = kf < 0
+    || (kx >= 0 && Math.abs(excluded[kx] - x!) < Math.abs(fitted[kf] - x!));
+  const k = masked ? kx : kf;
+  const at = k < 0 ? null : (masked ? excluded[k] : fitted[k]);
   const lam = inputs.wavelengths?.[0];
-  const sin = Math.sin((at * Math.PI) / 360);
   const rows: ReadoutRow[] = [];
   const value = (v: number | undefined | null) =>
-    v == null || !Number.isFinite(v) ? "—" : formatValue(v, null);
+    at == null || v == null || !Number.isFinite(v) ? EMPTY : formatValue(v, null);
+  // a masked channel is in no result, so there is no model at it to quote —
+  // which is also how the strip says the pointer is inside a region
+  const fit = (v: number | undefined | null) => (masked ? EMPTY : value(v));
 
-  rows.push({ id: "obs", label: "obs", value: value(w.y_obs?.[k]), ink: "obs" });
+  if (shows(hidden, "obs")) {
+    rows.push({ id: "obs", label: "obs", ink: "obs",
+      value: masked ? value(w.excluded?.y_obs?.[k]) : value(w.y_obs?.[k]) });
+  }
   if (!w.raw) {
-    rows.push({ id: "calc", label: "calc", value: value(w.y_calc?.[k]), ink: "calc" });
-    if (w.y_background?.length) {
-      rows.push({ id: "bkg", label: "bkg", value: value(w.y_background[k]), ink: "bkg" });
+    if (shows(hidden, "calc")) {
+      rows.push({ id: "calc", label: "calc", value: fit(w.y_calc?.[k]), ink: "calc" });
     }
-    const res = residual(inputs.kind, w);
-    rows.push({ id: "diff", label: res.label, value: value(res.values[k]), ink: "diff" });
+    if (w.y_background?.length && shows(hidden, "bkg")) {
+      rows.push({ id: "bkg", label: "bkg", value: fit(w.y_background[k]), ink: "bkg" });
+    }
+    if (shows(hidden, "diff")) {
+      const res = residual(inputs.kind, w);
+      rows.push({ id: "diff", label: res.label, value: fit(res.values[k]), ink: "diff" });
+    }
   }
 
   // the fitted group profile, named because a reader had no other way to tell
   // the dashed curve from the model (WP-1210's own repair, carried here)
-  if (inputs.peaksActive && inputs.groups?.length) {
-    const group = inputs.groups.find(
-      (g) => g.two_theta.length && g.two_theta[0] <= x
-        && g.two_theta[g.two_theta.length - 1] >= x);
-    const j = group ? nearestIndex(group.two_theta, x) : -1;
+  if (inputs.peaksActive && inputs.groups?.length && shows(hidden, "peakfit")) {
+    const group = at == null ? undefined : inputs.groups.find(
+      (g) => g.two_theta.length && g.two_theta[0] <= at
+        && g.two_theta[g.two_theta.length - 1] >= at);
+    const j = group ? nearestIndex(group.two_theta, at!) : -1;
     rows.push({ id: "peakfit", label: "peak fit", ink: "peakfit",
-      value: group && j >= 0 ? value(group.y_fit[j]) : "—" });
+      value: group && j >= 0 ? formatValue(group.y_fit[j], null) : EMPTY });
     if (w.raw) {
-      // the lower subplot is the groups' own residual on the raw view, and it
+      // on the raw view the lower subplot is the groups' own residual, and it
       // is a drawn curve like any other
       rows.push({ id: "peakdelta", label: "(y−fit)/σ", ink: "peakfit",
-        value: group && j >= 0 ? value(group.delta[j]) : "—" });
+        value: group && j >= 0 ? formatValue(group.delta[j], null) : EMPTY });
     }
   }
 
@@ -925,45 +966,50 @@ export function readout(
   // own 2θ plus it, and an offset is the number that says "there is a
   // reflection right here" without arithmetic
   for (const [phase, ticks] of Object.entries(w.ticks ?? {})) {
-    const j = nearestIndex(ticks, x);
+    if (!shows(hidden, `ticks:${phase}`)) continue;
+    const j = at == null ? -1 : nearestIndex(ticks, at);
     rows.push({ id: `ticks:${phase}`, label: phase,
-      value: j < 0 ? "—" : offset(ticks[j] - at) });
+      value: j < 0 ? EMPTY : offset(ticks[j] - at!) });
   }
 
   // the picked line under the pointer, printed as the panel's table prints it
-  if (inputs.peaksActive && inputs.peaks?.length) {
-    const hit = nearestPeak(inputs.peaks, x, inputs.peakTolerance ?? Infinity);
+  if (inputs.peaksActive && inputs.peaks?.length && shows(hidden, "peaks")) {
+    const hit = at == null ? null
+      : nearestPeak(inputs.peaks, at, inputs.peakTolerance ?? Infinity);
     const row = hit === null ? null : inputs.peaks.find((p) => p.index === hit);
     const pos = row ? formatPosition(row.two_theta, row.two_theta_esd) : null;
-    rows.push({ id: "peak", label: "peak", ink: "peak",
+    rows.push({ id: "peaks", label: "peak", ink: "peak",
       value: row && pos
         ? `#${row.index} ${pos.value}${pos.esd}° · I ${
             formatIntensity(row.intensity, intensityScale(inputs.peaks), row.flags)}`
-        : "—" });
+        : EMPTY });
   }
 
   // …and the candidate's, which is the hkl WP-1211 serves and does not draw.
   // No ordinal and no count: past `MAX_CANDIDATE_TICKS` the drawn set is a
   // sample thinned by rank, so "the 743rd line" would be a statement about the
-  // sample. The status line under the plot is where the count is honest.
+  // sample. The status line under the plot is where the count is honest. No
+  // `hidden` gate either: the overlay has no curve toggle, because its control
+  // is the candidate row (WP-1211).
   const lines = inputs.candidate?.two_theta ?? [];
   if (lines.length) {
-    const j = nearestIndex(lines, x);
-    const near = j >= 0 && Math.abs(lines[j] - x) <= (inputs.candidateTolerance ?? Infinity);
+    const j = at == null ? -1 : nearestIndex(lines, at);
+    const near = j >= 0
+      && Math.abs(lines[j] - at!) <= (inputs.candidateTolerance ?? Infinity);
     const hkl = inputs.candidate?.hkl?.[j];
     const li = inputs.candidate?.line?.[j];
     const lineLam = li == null ? undefined : inputs.wavelengths?.[li];
     rows.push({ id: "candidate", label: "candidate", ink: "candidate",
       value: near && hkl
-        ? [formatHkl(hkl),
-           lineLam == null ? null : `λ ${lineLam.toFixed(4)} Å`,
-           offset(lines[j] - at)].filter(Boolean).join(" · ")
-        : "—" });
+        ? [formatHkl(hkl), lineLam == null ? null : `λ ${lineLam.toFixed(4)} Å`]
+            .filter(Boolean).join(" · ")
+        : EMPTY });
   }
 
+  const theta = at == null ? 0 : Math.sin((at * Math.PI) / 360);
   return {
-    position: `${at.toFixed(4)}°`,
-    d: lam && sin > 0 ? `${(lam / (2 * sin)).toFixed(4)} Å` : "",
+    position: at == null ? EMPTY : `${at.toFixed(4)}°`,
+    d: at != null && lam && theta > 0 ? `${(lam / (2 * theta)).toFixed(4)} Å` : EMPTY,
     rows,
   };
 }

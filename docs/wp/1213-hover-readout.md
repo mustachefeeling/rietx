@@ -116,11 +116,11 @@ playwright-core; when a claim is about an event, count the events.
 
 - [x] `lib/plot.ts`: `readout(w, x, ticks, peaks) -> Readout` (pure; nearest
       index by binary search; tested).
-- [ ] The two facts the strip needs and no route serves it: the source's
+- [x] The two facts the strip needs and no route serves it: the source's
       wavelengths (d = λ/2 sin θ, and which line a candidate tick belongs to)
       on `project_doc`'s data arm, and the served `hkl`/`line` carried through
       `CandidateOverlay` in `App.svelte`.
-- [ ] `Plot.svelte`: hover mode and spikes; the strip; every `hovertemplate`
+- [x] `Plot.svelte`: hover mode and spikes; the strip; every `hovertemplate`
       and `hoverlabel` deleted; the strip's height in the resize path.
 - [ ] Browser pass: hover across a peak cluster in both themes; no box over
       the data; dist.
@@ -131,8 +131,12 @@ playwright-core; when a claim is about an event, count the events.
 
 ```sh
 npm --prefix gui test && npm --prefix gui run check
-grep -c "hovertemplate\|hoverlabel" gui/src/panels/Plot.svelte   # 0
+grep -c "hovertemplate:\|hoverlabel:" gui/src/panels/Plot.svelte   # 0
 ```
+
+The colons are the point: the panel still *names* `hoverlabel.align` twice, in
+the comments saying why the box could not be moved and had to go instead. What
+must not survive is a key, and a key is what the colon matches.
 
 ## References
 

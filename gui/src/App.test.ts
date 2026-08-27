@@ -74,8 +74,12 @@ const PROJECT = {
          excluded_regions: [] },
   // `two_theta_range` is what the shading has to reach past and `n_fitted` is
   // the channel count that says whether it is telling the truth (WP-1033)
+  // …and `wavelengths` is the source's emission lines, primary first, which is
+  // what the readout strip computes d with and names a candidate line by
+  // (WP-1213)
   data: { filename: "synth.xye", n_points: 4200, n_fitted: 4200, has_sigma: true,
-          reader: "xy", two_theta_range: [3, 23.995] },
+          reader: "xy", two_theta_range: [3, 23.995],
+          wavelengths: [1.5405929, 1.5444274] },
   head: "n0000",
   n_nodes: 1,
 };
@@ -4085,10 +4089,14 @@ describe("the peaks tab (WP-1027)", () => {
     expect(fit.line.color).not.toBe(calc.line.color);
     expect(fit.line.dash).toBe("dash");
     expect(calc.line.dash).toBeUndefined();
-    // both are named on the plot itself — the legend and the hover box, so
-    // neither curve has to be identified by elimination
+    // both are named on the plot itself — the legend and, since WP-1213, the
+    // readout strip under it, so neither curve has to be identified by
+    // elimination.  The hover box that used to carry the second naming is
+    // gone; what is left on the trace is silence.
     expect(fit.showlegend).toBe(true);
-    expect(fit.hovertemplate).toContain("peak fit");
+    expect(fit.hovertemplate).toBeUndefined();
+    expect(fit.hoverinfo).toBe("none");
+    expect(host.textContent).toContain("peak fit");
     // the markers are the layer's other colour, and the whole layer is *one*
     // colour: an unusable line is the same ink, hollow.  Spending a second on
     // the state is what had it on `--bad` (which is `--plot-calc` exactly),
@@ -4498,6 +4506,158 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
 
     expect(host.textContent).toContain("2 of 92103 predicted lines");
     expect(host.textContent).toContain("sampled evenly");
+  });
+});
+
+describe("the hover readout (WP-1213)", () => {
+  let bus: ReturnType<typeof emitter>;
+  beforeEach(() => { bus = emitter(); });
+  afterEach(() => bus.restore());
+
+  /** Every plotly call, with a `_fullLayout` complete enough for the pixel↔2θ
+   *  map the panel derives its grab radius from (0.001°/px here). */
+  function plotly(log: { call: string; arg: any }[]) {
+    vi.stubGlobal("Plotly", {
+      react: async (node: any, _t: any[], layout: any) => {
+        log.push({ call: "react", arg: layout });
+        node._fullLayout = {
+          xaxis: { autorange: false, range: [9, 9.4], _rl: [9, 9.4],
+                   _length: 400, _offset: 60,
+                   p2d: (px: number) => 9 + (px / 400) * 0.4 },
+          yaxis: { autorange: false, range: [0, 3] },
+          yaxis2: { autorange: false, range: [-1, 1] },
+        };
+      },
+      relayout: async (_n: any, patch: any) => log.push({ call: "relayout", arg: patch }),
+      restyle: async (_n: any, update: any) => log.push({ call: "restyle", arg: update }),
+      purge: () => {},
+    });
+  }
+
+  /** The strip as `label → value` pairs, in the order it draws them. */
+  function strip(): [string, string][] {
+    const el = host.querySelector<HTMLElement>('[aria-label="under the pointer"]');
+    return [...(el?.querySelectorAll<HTMLElement>(".field") ?? [])].map((f) => [
+      f.querySelector(".key")!.textContent!.trim(),
+      f.querySelector(".val")!.textContent!.trim(),
+    ]);
+  }
+
+  it("replaces the box with a strip under the plot, and costs no repaint",
+     async () => {
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    vi.stubGlobal("fetch", server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    // the box is deleted rather than moved: plotly offers no positioning for
+    // the unified one beyond `hoverlabel.align`, which is what made "put it
+    // somewhere else" not a setting
+    const layout = log.find((c) => c.call === "react")!.arg;
+    expect(layout.hovermode).toBe("x");
+    expect(layout).not.toHaveProperty("hoverlabel");
+    // …and what marks the position instead is a spike across both subplots
+    expect(layout.xaxis.showspikes).toBe(true);
+    expect(layout.xaxis.spikemode).toBe("across");
+
+    // the resting strip is the same fields, emptied — a strip that grew them
+    // on hover would resize the canvas above it once per entry
+    expect(strip()).toEqual([
+      ["2θ", "—"], ["d", "—"], ["obs", "—"], ["calc", "—"], ["bkg", "—"],
+      ["Δ/σ", "—"], ["NAC", "—"], ["CaF2", "—"],
+    ]);
+
+    const reacts = log.filter((c) => c.call === "react").length;
+    bus.handlers.plotly_hover({ points: [{ x: 9.4 }] });
+    await flush();
+
+    expect(strip()).toEqual([
+      ["2θ", "9.4000°"],
+      // d = λ/(2 sin θ) with the *primary* line, off the settings document
+      ["d", "9.4009 Å"],
+      ["obs", "2"], ["calc", "2"], ["bkg", "0.4"], ["Δ/σ", "0"],
+      // each phase's nearest reflection as a signed offset — 9.1 and 9.3
+      ["NAC", "−0.3000°"], ["CaF2", "−0.1000°"],
+    ]);
+    // and reading it cost no repaint at all: the strip is DOM, and this is
+    // WP-1032's "a hover costs a restyle, never a react" one step cheaper
+    expect(log.filter((c) => c.call === "react").length).toBe(reacts);
+
+    // …and the 2θ is the *pointer's*, through this panel's own axis map:
+    // `ev.points[0]` is whichever trace plotly matched first, and the ticks and
+    // the peak markers ride on grids of their own
+    bus.handlers.plotly_hover({ points: [{ x: 9 }], event: { clientX: 460 } });
+    await flush();
+    expect(Object.fromEntries(strip())["2θ"]).toBe("9.4000°");
+
+    bus.handlers.plotly_unhover({});
+    await flush();
+    expect(strip().every(([, v]) => v === "—")).toBe(true);
+  });
+
+  it("names the picked line under the pointer, and lights its row", async () => {
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: { ...PEAKS_PAYLOAD, peaks: [PEAK(0, 9.4)] } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    bus.handlers.plotly_hover({ points: [{ x: 9.4 }] });
+    await flush();
+
+    // the peak table's own spellings (WP-1209): four places with the esd in
+    // the last of them, and I relative to the strongest *measured* line
+    expect(Object.fromEntries(strip()).peak).toBe("#0 9.4000(11)° · I 100.0");
+    // …and the hit is `nearestPeak` at the radius a click obeys, which is also
+    // what lights the table row — one hit test, not a second opinion
+    expect(host.querySelector("tbody tr.lit")).toBeTruthy();
+
+    bus.handlers.plotly_hover({ points: [{ x: 9.0 }] });
+    await flush();
+    expect(Object.fromEntries(strip()).peak).toBe("—");
+    expect(host.querySelector("tbody tr.lit")).toBeNull();
+  });
+
+  it("names a candidate's line by hkl and by the λ it belongs to", async () => {
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/index/result": () => ({ body: {
+        result: { candidates: [MEDIUM_CANDIDATE], diagnostics: [], quality: null },
+        adopt: [{ allowed: false, why: "confidence is 'medium'" }],
+        refuting_caveats: [], running: false } }),
+      "/api/index/ticks": () => ({ body: {
+        candidate: 0, space_group: "R -3 m :H", two_theta: [9.395, 12.0],
+        hkl: [[1, 0, -4], [1, 1, 0]], line: [1, 0],
+        n_total: 2, n_returned: 2, shift_template: null, shift_coefficient: 0 } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+    host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
+    await flush();
+
+    bus.handlers.plotly_hover({ points: [{ x: 9.4 }] });
+    await flush();
+
+    const fields = Object.fromEntries(strip());
+    // the hkl WP-1211 serves and deliberately does not draw: under the unified
+    // box it would have appeared at every pointer position
+    expect(fields.candidate).toBe("(1 0 −4) · λ 1.5444 Å");
+    // selecting a candidate presses `data only`, and the strip follows what is
+    // drawn — so the model's rows are gone rather than quoting hidden curves
+    expect(strip().map(([k]) => k)).toEqual(["2θ", "d", "obs", "candidate"]);
   });
 });
 

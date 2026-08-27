@@ -673,7 +673,7 @@ describe("the readout strip (WP-1213)", () => {
     // λ/(2 sin θ) at 2θ = 2°, λ = 1.5406 Å
     expect(readout(FITTED, 2, { kind: "weighted", wavelengths: [1.5406] })!.d)
       .toBe("44.1372 Å");
-    expect(readout(FITTED, 2, { kind: "weighted" })!.d).toBe("");
+    expect(readout(FITTED, 2, { kind: "weighted" })!.d).toBe("—");
   });
 
   it("gives every drawn curve a row and every undrawn one none", () => {
@@ -709,18 +709,18 @@ describe("the readout strip (WP-1213)", () => {
       kind: "weighted", peaks: PEAKS, peaksActive: true, peakTolerance: 0.05 });
     // four places, esd in the last of them, and I relative to the strongest
     // *measured* line — the raw area means nothing on its own
-    expect(value(out, "peak")).toBe("#0 2.0004(3)° · I 50.0");
+    expect(value(out, "peaks")).toBe("#0 2.0004(3)° · I 50.0");
   });
 
   it("keeps the picked-line slot with an em dash when none is in reach", () => {
     const out = readout(FITTED, 1, {
       kind: "weighted", peaks: PEAKS, peaksActive: true, peakTolerance: 0.05 });
-    expect(value(out, "peak")).toBe("—");
+    expect(value(out, "peaks")).toBe("—");
   });
 
   it("has no peak row at all away from the tab that draws the layer (WP-1210)", () => {
     const out = readout(FITTED, 2, { kind: "weighted", peaks: PEAKS, groups: GROUPS });
-    expect(out!.rows.map((r) => r.id)).not.toContain("peak");
+    expect(out!.rows.map((r) => r.id)).not.toContain("peaks");
     expect(out!.rows.map((r) => r.id)).not.toContain("peakfit");
   });
 
@@ -752,7 +752,7 @@ describe("the readout strip (WP-1213)", () => {
     const out = readout(FITTED, 2, {
       kind: "weighted", candidate, candidateTolerance: 0.05,
       wavelengths: [1.5406, 1.5444] });
-    expect(value(out, "candidate")).toBe("(1 0 −4) · λ 1.5444 Å · +0.0010°");
+    expect(value(out, "candidate")).toBe("(1 0 −4) · λ 1.5444 Å");
   });
 
   it("quotes no ordinal and no count, because the drawn set can be a sample", () => {
@@ -774,9 +774,74 @@ describe("the readout strip (WP-1213)", () => {
       .not.toContain("candidate");
   });
 
+  it("names what is drawn, so `data only` empties the strip to the points", () => {
+    // the rows follow `curveToggles`' own exception list, read the same way: a
+    // readout quoting a curve nobody can see is naming something that is not
+    // on the plot
+    const out = readout(FITTED, 2, {
+      kind: "weighted", hidden: ["calc", "bkg", "diff", "ticks:NAC", "ticks:CaF2"] });
+    expect(out!.rows.map((r) => r.id)).toEqual(["obs"]);
+  });
+
+  describe("inside an excluded region", () => {
+    // the masked channels are in no result and arrive on their own arm
+    // (WP-1033), so a pointer in a region is over a point the fitted array does
+    // not have at all
+    const MASKED = { ...FITTED, two_theta: [1, 3], y_obs: [100, 900],
+                     y_calc: [98, 890], y_background: [3, 5],
+                     delta: [0.2, 0.33], ticks: { NAC: [1.002] },
+                     excluded: { two_theta: [2], y_obs: [444] } };
+
+    it("reads the masked point rather than the nearest surviving channel", () => {
+      const out = readout(MASKED, 2.01, { kind: "weighted" })!;
+      expect(out.position).toBe("2.0000°");
+      expect(value(out, "obs")).toBe("444");
+    });
+
+    it("quotes no model there, because there is none — which is how it says so", () => {
+      const out = readout(MASKED, 2.01, { kind: "weighted" })!;
+      expect(value(out, "calc")).toBe("—");
+      expect(value(out, "bkg")).toBe("—");
+      expect(value(out, "diff")).toBe("—");
+      // …and the reflection offset is still the truth about that 2θ
+      expect(value(out, "ticks:NAC")).toBe("−0.9980°");
+    });
+
+    it("ignores the masked arm when its points are not drawn", () => {
+      const out = readout(MASKED, 2.01, { kind: "weighted", hidden: ["masked"] })!;
+      expect(out.position).toBe("3.0000°");
+      expect(value(out, "obs")).toBe("900");
+    });
+  });
+
   it("answers nothing where there is nothing to read", () => {
+    // no payload and no channels are the two states with no strip at all; a
+    // pointer that is merely elsewhere is a different answer (below)
     expect(readout(null, 2, { kind: "weighted" })).toBeNull();
-    expect(readout(FITTED, NaN, { kind: "weighted" })).toBeNull();
     expect(readout({ ...FITTED, two_theta: [] }, 2, { kind: "weighted" })).toBeNull();
+  });
+
+  it("keeps every field and empties it while the pointer is off the plot", () => {
+    // the resting state, which is most of the time. It is the same shape as a
+    // reading, because a strip that grew a field on hover would resize the
+    // canvas above it once per entry — WP-1212's jitter, arriving through the
+    // repair for it
+    const resting = readout(FITTED, null, {
+      kind: "weighted", peaks: PEAKS, peaksActive: true, groups: GROUPS,
+      wavelengths: [1.5406],
+      candidate: { label: "c", n_total: 1, two_theta: [2], hkl: [[1, 0, 0]], line: [0] },
+    })!;
+    const reading = readout(FITTED, 2, {
+      kind: "weighted", peaks: PEAKS, peaksActive: true, groups: GROUPS,
+      wavelengths: [1.5406],
+      candidate: { label: "c", n_total: 1, two_theta: [2], hkl: [[1, 0, 0]], line: [0] },
+    })!;
+    expect(resting.rows.map((r) => r.id)).toEqual(reading.rows.map((r) => r.id));
+    expect(resting.rows.map((r) => r.label)).toEqual(reading.rows.map((r) => r.label));
+    expect(resting.rows.map((r) => r.value)).toEqual(resting.rows.map(() => "—"));
+    expect(resting.position).toBe("—");
+    expect(resting.d).toBe("—");
+    // a non-finite x is the same answer, not a crash and not a null strip
+    expect(readout(FITTED, NaN, { kind: "weighted" })!.position).toBe("—");
   });
 });

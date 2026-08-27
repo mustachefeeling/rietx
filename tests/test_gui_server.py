@@ -1460,6 +1460,32 @@ def test_settings_persist_without_anyone_pressing_save(blank, tmp_path,
     assert client.post("/api/project", {"nonsense": 1})[0] == 400
 
 
+
+def test_the_source_wavelengths_ride_on_the_document(blank, tmp_path, pattern_file):
+    """WP-1213: the plot's readout needs λ, and the instrument is who has it.
+
+    Two jobs, one list: ``d = λ/(2 sin θ)`` under the pointer takes the primary
+    line, and a candidate tick names the line it belongs to (``GET
+    /api/index/ticks`` returns an *index* into this list, never a wavelength).
+    On the settings document rather than on the window payload because λ is a
+    fact about the instrument and not about a fitted curve — the raw view, which
+    is where a cell is indexed, has no window at all.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "lambda.rex", pattern_file)
+    lines = project.refinement.instrument.source.lines
+    assert client.get("/api/project")[1]["data"]["wavelengths"] == [
+        pytest.approx(line.wavelength.value) for line in lines]
+
+    # …and it follows the instrument, which is the whole reason it is not read
+    # off the peak document's own `wavelength` (the λ the picker ran at, which
+    # an instrument edit afterwards leaves behind)
+    instrument = rx.Instrument.bragg_brentano(radiation="CuKa").model_dump(mode="json")
+    status, payload = client.patch("/api/instrument", {"instrument": instrument})
+    assert status == 200, payload
+    served = client.get("/api/project")[1]["data"]["wavelengths"]
+    assert served == [pytest.approx(1.5405929), pytest.approx(1.5444274)]
+
 def test_the_masked_channels_have_one_authority_and_three_readers(blank, tmp_path,
                                                                   pattern_file):
     """WP-1033: what is drawn, what is documented and what is fitted agree.

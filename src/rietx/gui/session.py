@@ -467,6 +467,17 @@ class GuiSession:
                 # which weights the fit uses is a correctness property that is
                 # invisible once the file is read (CLAUDE.md, Weights)
                 "has_sigma": ref.has_sigma,
+                # The source's emission lines, primary first — the instrument's
+                # own numbers, because the plot's readout says d = λ/(2 sin θ)
+                # and names which line a candidate tick belongs to (WP-1213).
+                # Here rather than on the window payload: λ is a fact about the
+                # instrument, not about a fitted curve, and this is the view a
+                # project has before any fit.  The peak document carries a
+                # wavelength too and it is *not* this one — it is the λ the
+                # picker ran at, which an instrument edit afterwards leaves
+                # behind.
+                "wavelengths": [float(line.wavelength.value) for line
+                                in p.refinement.instrument.source.lines],
                 # how many channels survive the limits and the exclusions — the
                 # check that a shaded band is telling the truth (WP-1033).  A
                 # band drawn over points still in the residual is worse than no
