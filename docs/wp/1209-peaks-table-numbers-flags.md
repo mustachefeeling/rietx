@@ -1,6 +1,6 @@
 # WP-1209 — Peaks table: numbers, columns, flags
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.2 · Status: 🔄 2026-08-27
 Depends on: WP-1201, WP-1203
 
 ## Goal
@@ -29,18 +29,36 @@ Six notes from the user, one cause each (2026-08-25):
   (`Plot.svelte:417-420` records the 111°; the whisker is capped at 3×FWHM
   on the plot, never in the table).
 - **"Chips are different sizes."** `Peaks.svelte:989` `.chip` (10px) and
-  `:1039` `.note` (12px) collide; `flagTone` gives `position_at_bound` the
-  `note` tone, so it renders larger than `excluded`/`manual`. WP-1201 fixes
-  the mechanism; this WP owns the flags cell.
+  `:1039` `.note` (12px) collided. WP-1201 fixed the mechanism: a chip's size
+  is the register's (`--text-xs`, `app.css`), the panel declares no `.chip`
+  rule and a literal `font-size` in its `<style>` fails `lib/style.test.ts`,
+  and a tone is a member of one app-wide vocabulary (`note` the default, `ok`,
+  `warn`, `bad`, `accent`) returned by `lib/peaks.ts`'s `flagTone` /
+  `caveatTone` / `confidenceTone`. **A chip is a fact and never acts**: a verb
+  on a chip sits beside it in a `.tagged` wrapper. This WP owns the flags
+  cell, and a new flag colour is a call to a tone function, never a
+  `.chip.<something>` rule.
 - **"On/off should be its own column."** The use-for-indexing checkbox is
   the first item of the unnamed actions cell with `↻` and `×`
   (`Peaks.svelte:587-591`); it POSTs `use_for_indexing`, and checking
   **strips every unusable flag** (`gui/peaks.py:188-191`).
 - **"Remove the flags text description."** Flags render as bare tokens
-  (`Peaks.svelte:579-586`) with no tooltip; the fitter's diagnostics render
-  as a strip of `code` + `message` (`Peaks.svelte:551-556`). The vocabulary
-  is `PeakFlag` (`schemas/indexing.py:428-442`), thirteen values; the corpus
-  (WP-1202) carries a label and a sentence per flag.
+  (`Peaks.svelte:605-609`); the fitter's diagnostics render as a strip of
+  `code` + `message` (`:569-579`). The vocabulary is `PeakFlag`
+  (`schemas/indexing.py:428-442`), thirteen values. Since WP-1203 **a flag's
+  meaning is already rendered**: every chip in the flags column and every
+  `PEAK_*` code in the strip is a `<Help>` term over `rietx.help`'s
+  `peak_flags` (13) and `peak_diagnostics` (12) arms, so what this WP owes is
+  the *label* — the short words on the chip — not a second explanation.
+  Changing what a flag means is an edit to `help.py`.
+- **The panel's authored `title=` budget is 12** (`lib/help.test.ts`, failing
+  both ways). Three of the twelve are the peak table's — the add-at-2θ box,
+  the `σ assumed` chip, the `origin` chip — and nine are the indexing result's
+  (WP-1211). Describing one properly means a corpus arm keyed by a live
+  vocabulary, the way `search_fields` was added in 1203; `origin` is
+  `ObservedPeak.origin`'s `Literal`, and the σ-assumed chip is the list-level
+  `PEAK_SIGMA_ASSUMED`. The 21 search-control fields are done
+  (`searchHelp(field)`).
 
 Rules: flagging, never dropping (`schemas/indexing.py:424-427`,
 `pick.py:155-160`); the `.rxt` peaks block's only editable columns are
@@ -52,50 +70,15 @@ Number policy (in `lib/peaks.ts`, pure, tested): intensity shown as
 the value alone and the flag says why; `d` at 4 places. `formatValue` gains
 the esd ≥ 1 guard for every caller (History and Params included).
 
-### Inherited
-
-From **WP-1201** (2026-08-25, shipped):
-
-- Chip tones are now one app-wide vocabulary — `note` (the neutral default),
-  `ok`, `warn`, `bad`, `accent` — declared in `app.css`, and `lib/peaks.ts`
-  returns members of it: `flagTone` (its private `"out"` is gone),
-  `caveatTone`, and a new `confidenceTone`. A new flag colour is a call to one
-  of those, never a `.chip.<something>` rule in this panel.
-- **A chip is a fact and never acts.** The space-group adopt chips and the
-  centring toggles are `button.ghost` now, and the drop-this-prior `×` sits
-  *beside* its chip in a `.tagged` wrapper rather than inside it. A row's flag
-  cell may hold chips; it may not hold a chip that is clickable.
-- **Left for this WP, seen in a browser**: the twelve centring toggles are all
-  engaged by default, so the search form now shows twelve filled accent
-  buttons. That is what `button.on` says, and it is loud. If this WP re-styles
-  the search form, that is the place to decide whether a multi-select of
-  defaults-on wants a quieter engaged state — the decision belongs in
-  `app.css`, not in `Peaks.svelte`.
-- The panel no longer declares `button`, `.chip`, `.pill`, `.small` or
-  `.tiny`, and a literal `font-size` in its `<style>` fails
-  `lib/style.test.ts`. Its table is `var(--text-sm)`; a control's label rides
-  at the control's size, prose is `var(--text)`.
-
-From **WP-1203** (2026-08-26, shipped):
-
-- **A peak flag's meaning is already rendered.** Every chip in the flags column
-  and every `PEAK_*` code in the diagnostics strip is a `<Help>` term over
-  `rietx.help`'s `peak_flags` (13) and `peak_diagnostics` (12) arms, so what
-  this WP owes is the *label* — the short words on the chip — and not a
-  second explanation. Changing what a flag means is an edit to `help.py`.
-- `panels/Peaks.svelte` is allowed exactly **12** authored `title=` literals by
-  `lib/help.test.ts`'s per-file budget, and they are this panel's indexing
-  result columns and empty states. The count fails both ways: adding one fails,
-  and so does removing the last without deleting the row. Describing one
-  properly means an arm in `rietx.help` keyed by a live vocabulary, the way
-  `search_fields` was added in 1203.
-- The 21 search-control fields are done: `controls.ts` carries no prose and
-  `searchHelp(field)` derives `search_fields:<name>`.
-
 ## Non-goals
 
 - The peak layer on the plot (WP-1210), candidates (WP-1211).
 - Changing what the picker fits or flags.
+- Re-styling the search form. WP-1201's browser pass saw its twelve centring
+  toggles all engaged by default, twelve filled accent buttons, which is what
+  `button.on` says and is loud. Whether a defaults-on multi-select wants a
+  quieter engaged state is a decision for `app.css`, not `Peaks.svelte`, and
+  it belongs to whichever WP next touches that form.
 
 ## Tasks
 

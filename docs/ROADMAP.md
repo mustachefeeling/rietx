@@ -319,7 +319,7 @@ decisions are the [v1.2 record](milestones/v1.2.md) § Scope.
 | [1206](wp/1206-typed-cell-project.md) | A project without a CIF, part 1: a typed cell | ✅ | 1205 |
 | [1207](wp/1207-pattern-only-project.md) | A project without a CIF, part 2: pattern-only projects | ✅ | 1206 |
 | [1208](wp/1208-plan-introduction.md) | Plan panel: the gentle introduction | ✅ | 1203 |
-| [1209](wp/1209-peaks-table-numbers-flags.md) | Peaks table: numbers, columns, flags | ⬜ | 1201, 1203 |
+| [1209](wp/1209-peaks-table-numbers-flags.md) | Peaks table: numbers, columns, flags | 🔄 | 1201, 1203 |
 | [1210](wp/1210-peak-layer-identity.md) | The peak layer: hide it, tell it apart, data-only | ⬜ | 1201 |
 | [1211](wp/1211-candidate-overlay.md) | Indexing candidates on the plot | ⬜ | 1210 |
 | [1212](wp/1212-redraw-never-moves-axes.md) | A redraw never moves the axes | ⬜ | 1210 |
