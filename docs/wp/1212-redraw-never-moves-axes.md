@@ -44,6 +44,34 @@ Findings (2026-08-25), mechanisms identified in code and **not yet measured**:
   only after the user zoomed; the shapes are clipped to `extent` because a
   shape on a data axis takes part in the autorange (WP-1033).
 
+### Inherited
+
+From **WP-1210** (2026-08-27, shipped):
+
+- **The line numbers above have moved** — `Plot.svelte` grew the layer's
+  toggles, its two colours and the tab gate. Find the call sites by name
+  (`peakTraces`, `drawRing`, the repaint effect that lists the knobs), not by
+  line.
+- **The ring trace is now located by name, not by position**: `ringAt =
+  traces.findIndex(t => t.name === "hovered")`, because the layer's traces are
+  conditional and counting back from the end named whichever one happened to be
+  last. If this WP moves the ring onto its own axes or into `layout.shapes`,
+  that lookup is what has to move with it — and the ring exists **only while
+  the Peaks tab is up**, since the whole layer is now drawn only there. A hover
+  jitter measurement therefore has to be taken on that tab; elsewhere there is
+  no ring to restyle and `drawRing` returns at `ringAt < 0`.
+- **`peaksActive` is a drawing input and sits in the repaint effect.** So the
+  effect that "must not move the axes" now also fires on a tab change, which is
+  a *new* occasion for the autorange this WP is chasing — worth counting in the
+  same pass as the hover and exclude chains, since it re-`react`s with a
+  different trace set (the layer appearing or leaving) on a plot the user may
+  never have zoomed.
+- The data-only button hides the residual with everything else, and its subplot
+  keeps its domain, so a quarter of the plot goes empty. Observed and not
+  repaired in 1210 because hiding `Δ/σ` alone has always done it; if this WP
+  touches the layout it is the cheap moment to decide whether an empty subplot
+  should collapse.
+
 Method (from `gui/CLAUDE.md`): **measure first**, in Chrome via
 playwright-core; when a claim is about an event, count the events; read
 ranges off `_fullLayout` before and after each gesture. Suspect the harness
