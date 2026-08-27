@@ -26,7 +26,7 @@ export type Scale = "linear" | "sqrt" | "log";
  */
 export function curveColors(read: (name: string) => string): {
   obs: string; calc: string; bkg: string; diff: string; zero: string;
-  mask: string; edge: string;
+  mask: string; edge: string; peak: string; peakfit: string;
 } {
   const pick = (name: string, fallback: string) => read(name).trim() || fallback;
   return {
@@ -35,6 +35,16 @@ export function curveColors(read: (name: string) => string): {
     bkg: pick("--plot-bkg", "#6b7280"),
     diff: pick("--plot-diff", "#1f5fa8"),
     zero: pick("--plot-zero", "#88888888"),
+    // The peak layer's two (WP-1210).  It had none: the markers took `--accent`
+    // and the fitted curve `--bad`, which on the light theme *are* `--plot-diff`
+    // and `--plot-calc` to the last digit — so the picked-peak fit and the model
+    // were one colour, which is what the report said.  One hue family and two
+    // tones, because the layer is one thing; what tells the marks apart is the
+    // mark.  Each value's separation from every other plot colour is asserted
+    // in `tests/test_gui_palette.py`, against the same OKLab floor the phase
+    // palette uses.
+    peak: pick("--plot-peak", "#8c257e"),
+    peakfit: pick("--plot-peakfit", "#c158b0"),
     // the two protocol colours (WP-1033).  `mask` is a wash rather than a
     // curve colour because what it marks is *absence from the residual*, and
     // `edge` is the boundary, which has to stay readable when the wash is
@@ -299,6 +309,26 @@ export interface CurveToggle {
   id: string;
   label: string;
   title: string;
+  /** Why this curve is not on screen whatever the toggle says (WP-1210) — the
+   *  peak layer away from the Peaks tab. A curve that *could* be drawn leaves
+   *  this undefined; one that carries it is listed and disabled, because the
+   *  honest answer to "where did my markers go" is a sentence, not a gap. */
+  absent?: string;
+}
+
+/**
+ * The picked-peak layer, as the toggle row needs to know it (WP-1210).
+ *
+ * It is not part of the window payload — a peak list belongs to the project and
+ * outlives every fit — so it arrives beside one rather than inside it.
+ */
+export interface PeakLayer {
+  /** picked lines in the list */
+  n: number;
+  /** fitted group curves riding with them */
+  groups: number;
+  /** the Peaks tab is up, which is the only tab the layer is drawn on */
+  active: boolean;
 }
 
 /**
@@ -315,7 +345,8 @@ export interface CurveToggle {
  * missing — what was missing is the control to turn a forced curve **off**.
  */
 export function curveToggles(w: Window & { raw?: boolean; ticks?: Record<string, unknown> },
-                             residualLabel = "Δ"): CurveToggle[] {
+                             residualLabel = "Δ",
+                             layer?: PeakLayer | null): CurveToggle[] {
   const out: CurveToggle[] = [
     { id: "obs", label: "obs", title: "the measured points" },
   ];
@@ -341,7 +372,42 @@ export function curveToggles(w: Window & { raw?: boolean; ticks?: Record<string,
           + "so a Kα2 tick is a tick and not an impurity" });
     }
   }
+  // Last, because the layer draws over everything else — and outside the
+  // `raw` branch, since a peak list is what a project has *before* a fit.
+  if (layer?.n) {
+    const absent = layer.active
+      ? undefined
+      : "drawn on the Peaks tab, where a marker can be moved, excluded or "
+        + "removed — a click on this plot means something else here";
+    out.push({ id: "peaks", label: "peaks", absent,
+      title: "the picked lines, at the measured intensity under each position — "
+        + "hollow where the line is not used" });
+    if (layer.groups) {
+      out.push({ id: "peakfit", label: "peak fit", absent,
+        title: "the profile fitted to each group of picked lines, dashed — it is "
+          + "what the positions were measured from, not the refined model" });
+    }
+  }
   return out;
+}
+
+/**
+ * "Data only": every curve hidden but the measured points (WP-1210).
+ *
+ * Over *every* id, absent ones included, so a layer that arrives on its own tab
+ * arrives hidden too — the button means one thing on screen, and a peak layer
+ * appearing under it would be that meaning quietly lapsing.
+ */
+export function dataOnlyHidden(toggles: readonly CurveToggle[]): string[] {
+  return toggles.filter((curve) => curve.id !== "obs").map((curve) => curve.id);
+}
+
+/** Is the plot showing the data and nothing else?  The button's own state. */
+export function isDataOnly(toggles: readonly CurveToggle[],
+                           hidden: readonly string[]): boolean {
+  return toggles.length > 1
+    && shows(hidden, "obs")
+    && dataOnlyHidden(toggles).every((id) => hidden.includes(id));
 }
 
 /** Is `id` drawn?  Hidden is the exception list, so a new curve arrives shown. */

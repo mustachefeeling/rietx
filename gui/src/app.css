@@ -31,6 +31,18 @@
   --plot-bkg: #6b7280;
   --plot-diff: #1f5fa8;
   --plot-zero: #88888888;
+  /* The picked-peak layer (WP-1210).  It had no colours of its own: the markers
+     took `--accent` and the fitted curve `--bad`, and on this theme those *are*
+     `--plot-diff` and `--plot-calc` to the last digit — two curves the reader
+     has to tell apart, drawn in one red.  One hue (334° in OKLab) and two tones,
+     because the layer is one thing; the markers take the stronger contrast
+     against the page in either theme and the fitted curve sits a step in, dashed.
+     Every value here clears the phase palette's 0.13 OKLab floor against every
+     other plot colour, asserted in `tests/test_gui_palette.py` — measured, the
+     free hue space is this magenta and green alone: violet lands 0.10-0.12 from
+     `--plot-diff` and the alert tone `--warn` 0.053 from `--plot-calc`. */
+  --plot-peak: #8c257e;
+  --plot-peakfit: #c158b0;
   /* What is *not* being fitted (WP-1033): a wash, deliberately not a sixth
      curve colour.  It marks absence from the residual rather than a quantity,
      so it carries no hue anything else could be confused with, and it is weak
@@ -98,6 +110,8 @@
     --plot-bkg: #6e6e66;
     --plot-diff: #5897dd;
     --plot-zero: #88888888;
+    --plot-peak: #e687d5;
+    --plot-peakfit: #b156a2;
     --plot-mask: #e6e6e214;
   }
 }
@@ -117,6 +131,8 @@
   --plot-bkg: #6e6e66;
   --plot-diff: #5897dd;
   --plot-zero: #88888888;
+  --plot-peak: #e687d5;
+  --plot-peakfit: #b156a2;
   --plot-mask: #e6e6e214;
 }
 

@@ -3752,6 +3752,133 @@ describe("the peaks tab (WP-1027)", () => {
     }
   });
 
+  it("draws the peak layer on the tab that can edit it, and nowhere else", async () => {
+    // The layer was pushed unconditionally, so a marker sat on the plot in
+    // every tab — a picture of something the click under it cannot touch
+    // (the plot is an editing surface only while Peaks is up, WP-1027).
+    const drawn: any[] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[]) => drawn.push(traces),
+      restyle: async () => {},
+      purge: () => {},
+    });
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const names = () => drawn.at(-1)!.map((t: any) => t.name);
+    expect(names()).not.toContain("peaks");
+    // and the toggle row says where it went rather than dropping the button
+    const curves = () => host.querySelector<HTMLElement>('.segmented[aria-label="curves"]')!;
+    const peaksButton = () =>
+      [...curves().querySelectorAll("button")].find((b) => b.textContent!.trim() === "peaks")!;
+    expect(peaksButton().disabled).toBe(true);
+    expect(peaksButton().title).toContain("Peaks tab");
+
+    button("Peaks")!.click();
+    await flush();
+    expect(names()).toContain("peaks");
+    expect(peaksButton().disabled).toBe(false);
+
+    // …and leaving takes it off again, which needs a repaint and not a refetch
+    const fetched = stub.calls.filter((c) => c.path === "/api/result/window").length;
+    button("Report")!.click();
+    await flush();
+    expect(names()).not.toContain("peaks");
+    expect(stub.calls.filter((c) => c.path === "/api/result/window").length).toBe(fetched);
+  });
+
+  it("tells the picked-peak fit from the model by colour and by dash", async () => {
+    // the report: "both the same colour".  Measured — `--accent` *is*
+    // `--plot-diff` and `--bad` *is* `--plot-calc` on the light theme, so the
+    // layer had been borrowing two curves' colours (WP-1210).
+    const drawn: any[] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[]) => drawn.push(traces),
+      restyle: async () => {},
+      purge: () => {},
+    });
+    const withGroups = {
+      ...PEAKS_PAYLOAD,
+      groups: [{ two_theta: [9.5, 10, 10.5], y_fit: [1, 5, 1], delta: [0, 0, 0] }],
+    };
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: withGroups }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const trace = (name: string) => drawn.at(-1)!.find((t: any) => t.name === name);
+    const fit = trace("peak fit");
+    const calc = trace("calculated");
+    expect(fit.line.color).not.toBe(calc.line.color);
+    expect(fit.line.dash).toBe("dash");
+    expect(calc.line.dash).toBeUndefined();
+    // both are named on the plot itself — the legend and the hover box, so
+    // neither curve has to be identified by elimination
+    expect(fit.showlegend).toBe(true);
+    expect(fit.hovertemplate).toContain("peak fit");
+    // the markers are the layer's other colour, and an unusable line is
+    // recessive rather than red: `--bad` is `--plot-calc` exactly
+    const markers = trace("peaks");
+    expect(markers.marker.color[0]).not.toBe(calc.line.color);
+    expect(markers.marker.color[0]).not.toBe(trace("Δ/σ").line.color);
+    expect(markers.marker.color[1]).not.toBe(markers.marker.color[0]);
+    expect(markers.marker.color[1]).not.toBe(calc.line.color);
+    expect(markers.marker.symbol[1]).toBe("circle-open");
+  });
+
+  it("clears the plot to the data and puts back what was there before", async () => {
+    // "an easy way to hide everything except the data" — and the way back is
+    // the state the plot was in, not everything on: a user who had already
+    // switched a phase's ticks off did not ask for them back.
+    const drawn: any[] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[]) => drawn.push(traces),
+      restyle: async () => {},
+      purge: () => {},
+    });
+    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const names = () => drawn.at(-1)!.map((t: any) => t.name);
+    const curves = host.querySelector<HTMLElement>('.segmented[aria-label="curves"]')!;
+    const curve = (label: string) =>
+      [...curves.querySelectorAll("button")].find((b) => b.textContent!.trim() === label)!;
+    const dataOnly = [...host.querySelectorAll<HTMLButtonElement>(".knobs button")]
+      .find((b) => b.textContent!.trim() === "data only")!;
+
+    curve("CaF2").click();
+    await flush();
+    expect(names()).toContain("NAC");
+
+    dataOnly.click();
+    await flush();
+    expect(names()).toEqual(["observed"]);
+    expect(dataOnly.classList.contains("on")).toBe(true);
+
+    dataOnly.click();
+    await flush();
+    // back to the picture as it was — CaF2 still off, everything else on
+    expect(names()).toContain("calculated");
+    expect(names()).toContain("NAC");
+    expect(names()).not.toContain("CaF2");
+    expect(dataOnly.classList.contains("on")).toBe(false);
+
+    // and nothing about a picture reached the project document
+    expect(stub.calls.filter((c) => c.method === "POST" && c.path === "/api/project")).toEqual([]);
+  });
+
   it("disables Adopt for a medium candidate and quotes the server's why", async () => {
     vi.stubGlobal("fetch", server({}).fetcher);
     app = mount(Peaks, { target: host, props: {

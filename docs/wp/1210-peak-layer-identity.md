@@ -68,15 +68,15 @@ From **WP-1209** (2026-08-27, shipped):
 
 ## Tasks
 
-- [ ] `curveToggles` grows `peaks` and `peak fit` when a list exists;
+- [x] `curveToggles` grows `peaks` and `peak fit` when a list exists;
       `Plot.svelte` guards `peakTraces` with `shows()`; a **data only**
       button that hides every id but `obs` and restores on second click.
-- [ ] Tokens `--plot-peak` and `--plot-peakfit` in `app.css`, both themes,
+- [x] Tokens `--plot-peak` and `--plot-peakfit` in `app.css`, both themes,
       validated against every other plot token in OKLab (the phase-palette
       floor, asserted in `plot.test.ts`); the fit curve dashed and named in
       the legend and the hover; unusable markers on a tone that is not
       `--plot-calc`.
-- [ ] The layer drawn only while the Peaks tab is active (a prop from App),
+- [x] The layer drawn only while the Peaks tab is active (a prop from App),
       with the layer's absence stated in the curve toggles.
 - [ ] Browser pass with a result and a peak list: four distinguishable
       curves in both themes; dist.

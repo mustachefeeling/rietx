@@ -5,9 +5,11 @@ import {
   TICK_BAND,
   curveColors,
   curveToggles,
+  dataOnlyHidden,
   formatRegion,
   heldRanges,
   hoverLabel,
+  isDataOnly,
   maskShapes,
   masked,
   mergeRegions,
@@ -106,6 +108,24 @@ describe("the curve colours (WP-1029 q)", () => {
     expect(colors.mask).toBe("#00000022");
     expect(colors.edge).toBe("#9a9a94");
     expect(curveColors(() => "").mask).toBe("#1b1b1b14");
+  });
+
+  it("reads the peak layer's two, which are not `--accent` and `--bad` (WP-1210)", () => {
+    // the plumbing only.  *How far apart* these values are is asserted in
+    // `tests/test_gui_palette.py`, over `app.css` itself and through the one
+    // OKLab distance this package has — a port here would be a second answer.
+    const set: Record<string, string> = {
+      "--plot-peak": "#8c257e", "--plot-peakfit": "#c158b0",
+      "--accent": "#1f5fa8", "--bad": "#c23b22",
+    };
+    const colors = curveColors((name) => set[name] ?? "");
+    expect(colors.peak).toBe("#8c257e");
+    expect(colors.peakfit).toBe("#c158b0");
+    expect(colors.peak).not.toBe(set["--accent"]);
+    expect(colors.peakfit).not.toBe(set["--bad"]);
+    // a page with no stylesheet still draws the layer in its own colours
+    expect(curveColors(() => "").peak).toBe("#8c257e");
+    expect(curveColors(() => "").peakfit).toBe("#c158b0");
   });
 });
 
@@ -278,6 +298,60 @@ describe("which curves are drawn (WP-1032)", () => {
     expect(shows(["bkg"], "bkg")).toBe(false);
     expect(toggleCurve([], "bkg")).toEqual(["bkg"]);
     expect(toggleCurve(["bkg", "obs"], "bkg")).toEqual(["obs"]);
+  });
+
+  describe("the peak layer's own two (WP-1210)", () => {
+    const LAYER = { n: 3, groups: 2, active: true };
+
+    it("offers them last, and the fit only when a group was fitted", () => {
+      // last because the layer draws over everything else, and offered on the
+      // raw view too: a peak list is what a project has *before* a fit
+      expect(curveToggles(FITTED, "Δ", LAYER).map((t) => t.id))
+        .toEqual(["obs", "calc", "bkg", "diff", "ticks:NAC", "ticks:CaF2",
+                  "peaks", "peakfit"]);
+      expect(curveToggles({ ...FITTED, raw: true } as any, "Δ", LAYER).map((t) => t.id))
+        .toEqual(["obs", "peaks", "peakfit"]);
+      expect(curveToggles(FITTED, "Δ", { ...LAYER, groups: 0 }).map((t) => t.id))
+        .not.toContain("peakfit");
+      expect(curveToggles(FITTED, "Δ", { ...LAYER, n: 0 }).map((t) => t.id))
+        .not.toContain("peaks");
+      expect(curveToggles(FITTED, "Δ").map((t) => t.id)).not.toContain("peaks");
+    });
+
+    it("states the absence rather than dropping the button", () => {
+      // "where did my markers go" has an answer — the tab they can be edited
+      // on — and a button that is simply not there is not it
+      const away = curveToggles(FITTED, "Δ", { ...LAYER, active: false });
+      const peaks = away.find((t) => t.id === "peaks")!;
+      expect(peaks.absent).toContain("Peaks tab");
+      expect(away.find((t) => t.id === "peakfit")!.absent).toBe(peaks.absent);
+      // and every other curve is drawable, so none of them carries a reason
+      expect(away.filter((t) => t.absent).map((t) => t.id)).toEqual(["peaks", "peakfit"]);
+      expect(curveToggles(FITTED, "Δ", LAYER).filter((t) => t.absent)).toEqual([]);
+    });
+  });
+
+  describe("data only (WP-1210)", () => {
+    const LAYER = { n: 3, groups: 2, active: false };
+
+    it("hides every id but the measured points, absent ones included", () => {
+      // an absent layer left out here would arrive drawn the moment its tab
+      // came up, which is the button's meaning quietly lapsing
+      const toggles = curveToggles(FITTED, "Δ", LAYER);
+      expect(dataOnlyHidden(toggles))
+        .toEqual(["calc", "bkg", "diff", "ticks:NAC", "ticks:CaF2", "peaks", "peakfit"]);
+      expect(isDataOnly(toggles, dataOnlyHidden(toggles))).toBe(true);
+    });
+
+    it("is not on while anything else is drawn, or while obs is not", () => {
+      const toggles = curveToggles(FITTED, "Δ", LAYER);
+      expect(isDataOnly(toggles, [])).toBe(false);
+      expect(isDataOnly(toggles, ["calc"])).toBe(false);
+      // obs hidden as well is *nothing* drawn, which is not the same claim
+      expect(isDataOnly(toggles, [...dataOnlyHidden(toggles), "obs"])).toBe(false);
+      // a lone `obs` cannot be "data only": there is nothing else to be without
+      expect(isDataOnly([{ id: "obs", label: "obs", title: "" }], [])).toBe(false);
+    });
   });
 });
 
