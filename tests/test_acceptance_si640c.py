@@ -434,9 +434,38 @@ def test_the_sample_broadening_is_positive_and_finite(full):
         assert row.stderr is not None and math.isfinite(row.stderr)
 
 
-def test_the_fit_renders(full):
-    """obs/calc/diff exists, so the fit can be looked at and not only summarised."""
+def test_the_fit_renders(full, symmetric, held):
+    """obs/calc/diff exists for **every** refinement here, so each can be looked
+    at and not only summarised — `tests/CLAUDE.md`: Rwp hides locally-bad fits.
+
+    `symmetric` earns a low-angle zoom as well, and it is not decoration.  The
+    suite's headline is a *pair*: −11.0 ppm against XND over the full range and
+    −0.4 ppm once the range starts at 8°, with the difference attributed to the
+    two codes spelling axial asymmetry differently (FCJ against A_T2).  That is
+    a claim about peak **shape** in the first few reflections, and a full-range
+    plot cannot resolve it at that scale — the zoom is where a reader checks
+    whether the residual really is a shape difference and not a position error
+    the wavelength has absorbed.  `test_acceptance_capillary.py` plots its own
+    load-bearing fixture the same way (full plus two zooms, lines 205-209).
+    """
+    from rietx.viz.plots import plot_result
     OUT.mkdir(exist_ok=True)
-    path = OUT / "si640c_full.png"
-    full.plot(path=str(path))
-    assert path.exists()
+
+    written = []
+    for res, name in ((full, "si640c_full"), (symmetric, "si640c_symmetric"),
+                      (held, "si640c_held")):
+        path = OUT / f"{name}.png"
+        res.plot(path=str(path))
+        written.append(path)
+
+    # The region the pair's argument lives in.  Framed on the first five
+    # *fitted* reflections (12.33, 14.47, 15.11, 17.47, 19.05°) rather than on
+    # the 8° cut: the window has to hold several peaks or the tallest one takes
+    # the whole y-scale and no shape is readable — the first attempt at this
+    # zoom showed one reflection and was useless for the purpose.
+    zoom = OUT / "si640c_symmetric_lowangle.png"
+    plot_result(symmetric, path=str(zoom), two_theta_range=(11.5, 20.0))
+    written.append(zoom)
+
+    assert all(p.exists() for p in written), (
+        f"missing: {[p.name for p in written if not p.exists()]}")
