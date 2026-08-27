@@ -30,101 +30,82 @@ control row under a canvas: the `ResizeObserver` rule (WP-1015/1029) holds.
 `plotly_unhover` clears it. The series panel's plot is SVG and keeps its own
 hover (WP-1016); this WP is `Plot.svelte` only.
 
-### Inherited
+### What the strip has to carry
 
-From **WP-1209** (2026-08-27, shipped):
+Folded in from the four WPs that shipped under it (their `Inherited` notes,
+consumed 2026-08-27):
 
-- A hovered peak's position and intensity should read as the table does:
-  `formatPosition(tt, esd)` (`lib/peaks.ts` — four places, esd in the last
-  place below `POSITION_ESD_MAX_DEG` = 1°, nothing above) and
-  `formatIntensity(I, imax, flags)` with `imax = intensityScale(rows)`. The
-  raw area is in counting units and means nothing on its own; a readout
-  printing `1.2e+3` beside a table saying `100.0` is two answers.
-- For a parameter with an esd, `formatValue`/`formatEsd` now write
-  `35.09 ±110` where the esd has swallowed the value (`esdSwallowsValue`) and
-  `12346(56)` otherwise — one pair of functions for every readout.
-- **A declined review finding, yours if you touch `formatIntensity`:**
-  `INTENSITY_UNMEASURED_FLAGS` (`no_intensity`, `fit_failed`) is a TypeScript
-  literal, held to the corpus vocabulary by name only. `gui/CLAUDE.md`'s rule
-  is that a flag's *meaning* is served, never re-derived — `unusable_flags`
-  rides on `/api/peaks` for that reason — so a python flag added later
-  meaning "the area is a bound, not a measurement" would be used as Imax
-  and printed as a real relative intensity, and the name-only test stays
-  green. The fix is a `PEAK_INTENSITY_UNMEASURED_FLAGS` constant in
-  `schemas/indexing.py` served beside `unusable_flags` and read by
-  `formatIntensity`; 1209 declined it as a wire-contract change outside a
-  table WP.
-
-From **WP-1210** (2026-08-27, shipped):
-
-- **There is one more `hovertemplate` than this WP's findings list, and it is
-  deliberate**: the picked-peak fit curve used to be `hoverinfo: "skip"` and now
-  names itself in the unified box, because a reader had no way to tell it from
-  the model. When this WP deletes every template for a strip of its own, that
-  naming is a *requirement* carried over, not a template to drop silently — the
-  strip has to say which curve is which by name.
-- **The peak layer is drawn only on the Peaks tab.** A readout that quotes a
-  hovered peak therefore has nothing to quote elsewhere, and the strip's content
-  is tab-dependent for that reason rather than by choice.
-- The whisker cap note above (3×FWHM on the plot against `POSITION_ESD_MAX_DEG`
-  = 1° in the table) is unchanged by 1210: the cap is still on the plot and the
-  hollow marker is still what says "degenerate". The readout quoting the
-  table's form remains the right answer.
-- **The state of a peak is carried by its mark, not by a colour** — hollow for
-  unusable, diamond for human-placed, one hue for the layer. A readout naming a
-  peak should say the same thing in the corpus's words (`peak_origins` labels,
-  the 1209 note above), never introduce a third spelling or a colour key.
-
-From **WP-1211** (2026-08-27, shipped):
-
-- **The candidate overlay's `hkl` is already served and deliberately not
-  drawn**, and it is this WP's to draw. `GET /api/index/ticks` returns
+- **Every number reads as its table reads it.** A position is
+  `formatPosition(tt, esd)` (`lib/peaks.ts`: four places, esd in the last place
+  below `POSITION_ESD_MAX_DEG` = 1°, nothing above) and an intensity is
+  `formatIntensity(I, imax, flags)` over `imax = intensityScale(rows)` — the
+  raw area is in counting units and means nothing on its own, so a readout
+  printing `1.2e+3` beside a table saying `100.0` is two answers (WP-1209). For
+  a value with an esd, `formatValue`/`formatEsd` write `35.09 ±110` where the
+  esd has swallowed the value and `12346(56)` otherwise.
+- **The strip names every curve**, which is a *requirement* carried from
+  WP-1210 rather than a nicety: the picked-peak fit curve stopped being
+  `hoverinfo: "skip"` and started naming itself in the unified box, because a
+  reader had no way to tell it from the model. Deleting the templates for a
+  strip means the strip says which curve is which.
+- **The peak layer is drawn only on the Peaks tab**, so a readout that quotes a
+  hovered peak has nothing to quote elsewhere: the strip's content is
+  tab-dependent because the plot's is (WP-1210). A peak's state is said in the
+  corpus's words (`peak_origins`/`peak_flags` labels, WP-1209), never in a
+  third spelling or a colour key.
+- **The candidate overlay's `hkl` and `line` are already served and
+  deliberately not drawn** (WP-1211): `GET /api/index/ticks` returns
   `two_theta`, `hkl` and `line` as parallel arrays sorted by 2θ, so "the line
-  under the pointer is (1 0 4), Kα2, from the cell in row 3" needs no new wire
-  surface. The reason it has none now is exactly this WP's subject: under
-  `hovermode: "x unified"` plotly snaps *every* trace to its nearest point in
-  x, so a candidate row would appear in the box at every pointer position — in
-  the same box the peak hover link reads. A strip of its own does not have that
-  problem, which is what makes it the right place.
-- **Read `n_total` before quoting a count.** Past `MAX_CANDIDATE_TICKS` the
-  drawn set is a sample thinned by rank, so "the 743rd predicted line" is a
-  statement about the sample and not about the cell. The plot's status line
-  already prints both numbers; a readout that names one line has to be honest
-  the same way or say nothing.
-- **The overlay is on `yaxis4`, at `y` ∈ [0, 1] in its own coordinates.** A
-  readout doing its own hit-testing by pixel or by data coordinate needs to
-  know that this layer's `y` means nothing — only its `x` does.
+  under the pointer is (1 0 4)" needs no new wire surface. Under `hovermode: "x
+  unified"` a candidate row would appear in the box at every pointer position,
+  which is exactly why the overlay has no hover today and why a strip of its own
+  is the right place. Two honesty rules ride with it: past
+  `MAX_CANDIDATE_TICKS` the drawn set is thinned by rank, so a readout quotes no
+  ordinal and no count (the status line owns both), and the overlay sits on
+  `yaxis4` at y ∈ [0, 1] — this layer's `y` means nothing and only its `x` does.
 
-From **WP-1212** (2026-08-27, shipped):
+### Constraints from the layer under it (WP-1212)
 
-- **The hover ring is a plain `scatter` now, not `scattergl`**, and if this WP
-  moves or replaces it that has to move with it: every gl trace on a subplot
-  shares one `_scene` whose batches are indexed by position, an *empty* gl trace
-  is given no index, and a select drag then threw once per pointer move. Any new
-  trace that is empty most of the time — a spike marker, a readout cursor —
-  wants the same treatment.
 - **The axes are explicit after every paint** (`pinPatch`, `movedAxes`,
   `userRanges`), so a hover cannot move them however it is drawn, and
-  `autorange === false` no longer answers "has the user zoomed" — `movedAxes`
-  does. A readout that reads the axis for a pixel→2θ conversion should use
-  `drawnRange(ax)`, not `ax.range`, which can be stale on a fresh plot.
-- **A hover already costs a `react` where a candidate is concerned.** Measured:
-  running the pointer down six candidate rows costs 11 reacts at 19-33 ms — two
-  per row, since leaving one draws as well as entering one — while a peaks-table
-  hover costs a single `restyle`. If the readout gives the overlay a hover of its
-  own, the cheap shape is WP-1032's: one trace whose coordinates move.
-- **The residual subplot's empty quarter is still there and still owed.** 1212
-  decided against collapsing it: the shared x axis is anchored to `y2` and the
-  tick band's domain is the gap between the panels, so collapsing means moving
-  three domains and an anchor together. Measured while deciding — with nothing
-  drawn on it plotly *drops* `yaxis2` from `_fullLayout` and restores it with
-  exactly its previous range, so nothing moves; `yaxis.domain` stays `[0.28, 1]`.
-  This WP adds a strip under the plot, which is the next time that space is
-  worth arguing about.
-- **`.select-outline` is the panel's first stylesheet rule reaching into
-  plotly's own nodes for something other than a cursor**, and it carries
+  `autorange === false` no longer answers "has the user zoomed". A pixel→2θ
+  conversion reads `drawnRange(ax)`, not `ax.range`, which can be stale on a
+  fresh plot.
+- **The hover ring is a plain `scatter`, not `scattergl`**: every gl trace on a
+  subplot shares one `_scene` whose batches are indexed by position, an *empty*
+  gl trace is given no index, and a select drag then threw once per pointer
+  move. Any new trace that is empty most of the time — a spike marker, a
+  readout cursor — takes the same treatment.
+- **A hover already costs a `react` where a candidate is concerned**: running
+  the pointer down six candidate rows costs 11 reacts at 19-33 ms, while a
+  peaks-table hover costs a single `restyle`. If the readout gives the overlay a
+  hover of its own, the cheap shape is WP-1032's: one trace whose coordinates
+  move.
+- **The residual subplot's empty quarter is still owed.** 1212 decided against
+  collapsing it (the shared x axis is anchored to `y2` and the tick band's
+  domain is the gap between the panels, so collapsing moves three domains and an
+  anchor together). This WP adds a strip under the plot, which is the next time
+  that space is worth arguing about.
+- **`.select-outline` is the panel's precedent for a stylesheet rule reaching
+  into plotly's own nodes** for something other than a cursor, and it carries
   `!important` because plotly writes `fill-opacity: 0` inline. If the readout
   restyles any plotly-owned node, that is the precedent and the trap.
+
+### A declined finding, inherited (WP-1209)
+
+`INTENSITY_UNMEASURED_FLAGS` (`no_intensity`, `fit_failed`) is a TypeScript
+literal held to the corpus vocabulary by name only. `gui/CLAUDE.md`'s rule is
+that a flag's *meaning* is served, never re-derived — `unusable_flags` rides on
+`/api/peaks` for that reason — so a python flag added later meaning "the area is
+a bound, not a measurement" would be used as Imax and printed as a real relative
+intensity, and the name-only test stays green. The fix is a
+`PEAK_INTENSITY_UNMEASURED_FLAGS` constant in `schemas/indexing.py` served
+beside `unusable_flags` and read by `formatIntensity`; 1209 declined it as a
+wire-contract change outside a table WP, and it stays declined here for the same
+reason — this WP quotes `formatIntensity`, it does not touch it.
+
+Method (from `gui/CLAUDE.md`): **measure first**, in Chrome via
+playwright-core; when a claim is about an event, count the events.
 
 ## Non-goals
 
@@ -135,10 +116,16 @@ From **WP-1212** (2026-08-27, shipped):
 
 - [ ] `lib/plot.ts`: `readout(w, x, ticks, peaks) -> Readout` (pure; nearest
       index by binary search; tested).
+- [ ] The two facts the strip needs and no route serves it: the source's
+      wavelengths (d = λ/2 sin θ, and which line a candidate tick belongs to)
+      on `project_doc`'s data arm, and the served `hkl`/`line` carried through
+      `CandidateOverlay` in `App.svelte`.
 - [ ] `Plot.svelte`: hover mode and spikes; the strip; every `hovertemplate`
       and `hoverlabel` deleted; the strip's height in the resize path.
 - [ ] Browser pass: hover across a peak cluster in both themes; no box over
       the data; dist.
+- [ ] `gui/CLAUDE.md`: the rule this WP leaves (one clause plus the
+      measurement pointer).
 
 ## Acceptance
 
