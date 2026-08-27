@@ -984,21 +984,31 @@ place the reader's design is checkable.
 
 Reader outcome over the 606-file catalogue (`read_topas_inp` then
 `projects.topas.to_structure`,
-measured 2026-08-26): **572 parse, 389 build a `Structure`**, and **7 refuse at
+measured 2026-08-27): **516 parse, 367 build a `Structure`**, and **7 refuse at
 the encoding gate** (an ASCII-range UTF-16 export whose NUL bytes survive the
 decode — guessing the byte order is a repair the reader will not make in
-silence). The gap between 572 and 389 is not error: it is Pawley/indexing-only
+silence). The gap between 516 and 367 is not error: it is Pawley/indexing-only
 inputs with no structural phase, `STR(...)`-macro phases the reader refuses by
 name, magnetic space groups it has no model for, and the stated-but-unreadable
 refusals below — every one a *report or refuse*, none a silent drop.
 
+The count *fell* from the 572/389 measured on 2026-08-26, and the fall is the
+point: resolving the pre-processor correctly stopped 62 files reading whose
+`for xdds { for strs … }` loops move where a card attaches, and reading the
+live branch of a nested conditional stopped others reading a dead one. Reading
+the coupled-edge `Get()` case then moved 4 files back the other way. The
+weight-percent oracle is what says the fall was for the right reason: it lost
+exactly the eight rows the transfer had been getting wrong by more than 1 wt%.
+
 | Established | Evidence (files in the archive) |
 |---|---|
 | A `str` block ends at the **next block opener of any kind**, not at the next `str` — otherwise a phase absorbs the neighbour's cell, `scale` and `weight_percent` | `simulate_Nb_Cu.inp`: a nameless `str` block used to arrive named `"CaO"` with `scale 1.0`, both read off the `hkl_Is` block below it |
-| The lattice-macro shorthands, and their argument order (one arg → a=b=c; two → a=b, then c) | `Cubic(@ 4.15692`)` (`LaB6_Riet_TCHZ_01.inp`), `Tetragonal(@ 4.594290`, @ 2.958587`)` (`d5_05005_pawley_01.inp`), `Hexagonal(@ 3.613074`, @ 12.037126`)` (`BL104_B_1.inp`), `Trigonal( 12.695126, 37.972985)` (`AT027-23…mythen_summed_rf_fin`) |
+| Which cell macros a real file actually **uses**, and with what spellings of the value in the argument. The *coupling* each one states is a specification fact and is cited per macro in `ATTRIBUTION.md`; the archive's job here is incidence, and it is the reason `Trigonal` is implemented at all | live-text incidence over the 618 swept files: `Hexagonal` **15**, `Cubic` **13**, `Trigonal` **4**, `Tetragonal` **1**, `Rhombohedral` **0**. Read off `Cubic(@ 4.15692`)` (`LaB6_Riet_TCHZ_01.inp`), `Tetragonal(@ 4.594290`, @ 2.958587`)` (`d5_05005_pawley_01.inp`), `Hexagonal(@ 3.613074`, @ 12.037126`)` (`BL104_B_1.inp`), `Trigonal( 12.695126, 37.972985)` (`AT027-23…mythen_summed_rf_fin`). `Cubic` also appears with an equation for its argument — `Cubic(=SFOx_cub;)` (5 SFO files), `Cubic(=a1;: 5.431500)` (the `Si_in_cap_NOMAD` series) |
+| `Rhombohedral`'s argument order is settled by the reference and **not** by this archive, which is why it is worth writing down that the archive is silent on it | **0 files** in live text; **2** carry it inside a `'` comment (`D20.inp`'s template, `'Rhombohedral(@ #, @ #)`). `Orthorhombic`/`Monoclinic`/`Triclinic` occur in **0 files**, commented or not, and are not cell macros of this format — they stay refused by name |
 | A **multi-`occ` single site** (one `site` token, several species/occupancies on one line) does **not** occur in this archive — the mixed-occupancy case is spelled two-line instead (`site Si1_Si … occ Si 0.8` / `site Si1_Ge … occ Ge 0.2` sharing coordinates), which already worked | 0 files with two `occ` on one `site` line; the one-grammar occ reader is latent cover, not a live fix here |
 | The anisotropic displacement tensor appears in **three spellings**, the third being a positional six-slot `ADPs { … }` brace block | `adps`/`ADPs`: **6 files** (`Gd12Co5Bi`, `Gd12Co5Bi_refine_peakshape`, `SXC223C_seed_01`, `lasf_longruns_riet_07`, `zrwneut_sh_riet_01`, `107_P63_Pawley_11BM`); a live `u11` token: **1 file** (`zrwneut_sh_riet_01`, the ZrW₂O₈ neutron fit the brace spelling was read from) |
-| An edge coupled to another edge (`b`, `c` set from `a`, the tetragonal/cubic case) **does occur**, written with TOPAS's `Get()` function, and is **refused** — `Get()` is a built-in this reader does not evaluate, so a stated-but-unreadable edge raises rather than being guessed | `b =Get(a);` / `c =Get(a);` in **4 files** (`140401_PbPdO2_11bm_BN`, `LL002_PbPdO2_Li01_afterTC`, `Li01_PdO_AfterZEM`, `PdO_AfterZEM`). The bare `b = a;` form occurs in **0 files** |
+| An edge coupled to another edge (`b`, `c` set from `a`, the tetragonal/cubic case) **does occur**, written with TOPAS's `Get()` built-in, and is **read** — resolved against the cell keys already read for the same phase, with the file's symbol table as the outer scope. It used to refuse, costing the whole file each time | `b =Get(a);` / `c =Get(a);` in **4 files** in live text (`140401_PbPdO2_11bm_BN`, `LL002_PbPdO2_Li01_afterTC`, `Li01_PdO_AfterZEM`, `PdO_AfterZEM`), all four of which now read *and* build. A **fifth** (`GLP2C001.inp`) writes the same line inside an `#ifdef phase_2_` the pre-processor kills, so a raw grep says 5 and the live text says 4 — which is the conditional resolver being load-bearing rather than a discrepancy. The bare `b = a;` form occurs in **0 files** |
+| The cells that coupling recovers are checkable against the phases themselves, which is the corroboration the citation cannot give | cBN in `140401_PbPdO2_11bm_BN` reads a = b = c = **3.6151 Å** (`F-43m`, literature 3.615) and PdO in `PdO_AfterZEM` reads a = b = **3.0424**, c = **5.3356** (`P42/mmc`, literature 3.043/5.336). A coupled edge takes **no** refine flag of its own — it states an equation, so only the edge it names is refined |
 | The **scale convention transfers unchanged** — TOPAS's `scale`/`weight_percent` carried into rietx's Hill & Howard reproduces the file's own quantitative phase analysis, with no systematic 8π²-class factor hiding in it | The weight-percent oracle: of 174 files stating `weight_percent` over ≥2 built phases, the **139 whose stated values sum to 100 ± 2** (i.e. can be one refinement's answer) give a median per-file max \|ΔW\| of **0.0004 wt%** |
 
 The oracle's own limit is recorded with it: three files above 1 wt% are
