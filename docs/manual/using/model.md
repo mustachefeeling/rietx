@@ -247,6 +247,11 @@ five of the six are held, and the one hit is the whole of the freedom. Paths the
 current mode force-fixes are the exception to the rule: `set_vary` will free
 them, and a stage then drops them again, reporting them as `mode_fixed`.
 
+The GUI calls the same verb from its Model panel: a box beside each value frees
+that one path, and a held value shows which of the three reasons holds it in
+place of the box. Globs stay in the parameter panel, since a family freed by a
+glob is one call and one history node.
+
 `Refinement.set_values` takes a dict of paths to values. It is plural because a
 table is edited a set of cells at a time, and one node per keystroke would bury
 the log.

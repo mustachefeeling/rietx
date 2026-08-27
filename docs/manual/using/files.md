@@ -129,6 +129,12 @@ decorrelates the zero shift from the sample displacement from the cell, and it
 is why `lab_sample_refine` is the only plan whose size and strain numbers mean
 what they say.
 
+The GUI writes and reads the same file from the Model panel, with `Save
+profile…` and `Load profile…`. Saving lands it in the project's `exports/`
+directory. It needs a model and not a fit, unlike everything else written
+there: the other exports describe a refinement result, while a profile
+describes the instrument as it stands.
+
 ## The `.rex` project directory
 
 A project is the one durable thing a session can point at. It is a

@@ -65,7 +65,7 @@ and the button sits beside `Load profile…` with the written path shown.
 - [x] `POST /api/export/instrument_profile` (model-gated) + the button;
       `test_gui_server.py` round-trips save → `load_instrument_profile`
       with every `vary` false and the specimen terms cleared.
-- [ ] Manual: `using/model.md` (vary from the editor), `files.md` (the
+- [x] Manual: `using/model.md` (vary from the editor), `files.md` (the
       profile's save route).
 - [ ] Browser pass; dist.
 
