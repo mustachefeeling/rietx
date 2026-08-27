@@ -334,10 +334,14 @@ def trajectories(series: SeriesResult,
             if row.name not in phases:
                 phases.append(row.name)
 
+    # R_Bragg per phase, beside the QPA rows.  A phase can carry one without
+    # carrying a QPA — QPA needs Z and a molar mass, a structure R does not —
+    # so this is gathered separately rather than reusing ``phases`` above.
+    agreement = [f"r_bragg.{name}" for name in series.agreement_phases()]
+
     out = []
-    for path in names + [f"qpa.{name}" for name in phases]:
-        traj = (series.qpa_trajectory(path[4:]) if path.startswith("qpa.")
-                else series.trajectory(path))
+    for path in names + [f"qpa.{name}" for name in phases] + agreement:
+        traj = series.resolve_trajectory(path)
         if not len(traj):
             continue
         row = {"path": path, "x": list(traj.x), "x_label": traj.x_label,
@@ -346,7 +350,13 @@ def trajectories(series: SeriesResult,
                "path_dependent": path in unstable,
                "discontinuous": path in jumps,
                "backward": None, "n_sigma": None}
-        if backward is not None and not path.startswith("qpa."):
+        # Only an ordinary parameter path gets a forward/backward comparison.
+        # A prefixed one is derived, not refined: ``_disagreement`` divides by
+        # a combined σ, and a QPA's is a propagated one while an agreement
+        # index has none at all, so both would be a different question wearing
+        # the same answer's shape.  Asked of the resolver via ``is_derived_path``
+        # so a fourth kind cannot be added without this line seeing it.
+        if backward is not None and not series.is_derived_path(path):
             other = backward.trajectory(path)
             if len(other) == len(traj):
                 row["backward"] = list(other.value)

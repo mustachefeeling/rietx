@@ -166,10 +166,19 @@ export function rankTrajectories(trajectories: Trajectory[]): Trajectory[] {
  * `4.161`-style ticks. The width that clips is the plot's margin, not the string,
  * and the leaf is what a y-axis wants anyway; the full path is the heading
  * directly above.
+ *
+ * A derived curve keeps its metric on the axis rather than stripping to the
+ * leaf: `qpa.LaB6` is a weight percentage, and `r_bragg.`/`r_f.` are the two
+ * McCusker residuals (fractions, not percentages). Their leaf alone is the bare
+ * phase name — `LaB6` — which carries no unit, reads as a parameter named after
+ * the phase, and is identical between the two residuals; naming the metric is
+ * what keeps R_Bragg and R_F apart and off a plain leaf.
  */
 export function axisTitle(traj: Trajectory | null): string {
   if (!traj) return "";
   if (traj.path.startsWith("qpa.")) return `${traj.path.slice(4)} (wt %)`;
+  if (traj.path.startsWith("r_bragg.")) return `${traj.path.slice(8)} R_Bragg`;
+  if (traj.path.startsWith("r_f.")) return `${traj.path.slice(4)} R_F`;
   return traj.path.split(".").at(-1) ?? traj.path;
 }
 

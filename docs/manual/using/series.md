@@ -231,7 +231,41 @@ the whole package gates against. `len(trajectory)` is therefore the
 number of points that have a value, not the number of patterns.
 
 `SeriesResult.qpa_trajectory` does the same for a phase's weight fraction,
-converted to a percentage, and `SeriesResult.paths` lists every parameter path
+converted to a percentage, and `SeriesResult.agreement_trajectory` for a phase's
+structure agreement index — `metric="r_bragg"` (the default) or `"r_f"`, the two
+McCusker indices, with `SeriesResult.agreement_phases` listing the phases that
+carry one. A phase can appear there without appearing in the QPA, because a
+weight fraction needs Z and a molar mass and a structure R does not.
+
+```{admonition} Its esd column is empty, and that is a fact rather than a gap
+:class: note
+
+For the other two trajectories a `None` esd means *this pattern* did not
+estimate one. For an agreement index every entry is `None`, always: R_Bragg is
+a **residual**, not a fitted parameter, so there is no covariance entry to
+propagate from. `arrays()` turns them into the NaNs an errorbar ignores, so a
+plotting caller needs no special case.
+
+Read a *trend* rather than a value. A single R_B is not comparable between
+phases and a low one is consistent with a self-fulfilling partition, but one
+phase's index moving across a ramp is a statement about that phase.
+```
+
+Outside Rietveld mode the trajectory is **empty rather than zero** — in Le Bail
+the partition *is* the fit and in Pawley the intensities are refined, so the
+index does not exist there and a zero would read as a perfect fit.
+
+`SeriesResult.resolve_trajectory` is the single entry point behind all three:
+hand it a display path and it returns the right curve, dispatching on the
+`qpa.` / `r_bragg.` / `r_f.` prefix and falling through to `trajectory` for an
+ordinary parameter dot-path. Prefer it to a hand-written conditional — the
+plotting and GUI layers each carried their own copy of that conditional until
+it became one authority. `SeriesResult.is_derived_path` answers the yes/no
+behind that dispatch — whether a display path names a derived curve (a QPA or an
+agreement index) rather than a refined parameter — for the caller that must skip
+the forward/backward comparison a residual has no σ for.
+
+`SeriesResult.paths` lists every parameter path
 present anywhere in the series in first-seen order. Its `varied_only` argument
 drops the tied paths; the default keeps them, because a hexagonal `cell.b` is
 not free but is every bit as measured as `cell.a`. On the round-robin series
