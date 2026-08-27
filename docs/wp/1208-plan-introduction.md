@@ -145,6 +145,19 @@ darwin/arm64):
   with `Save plan` taking the fill while there is something to save; and the
   stage number moved off the name row onto the ladder line, which also lets
   `name` and `frees` share a label column.
+- **The route costs 2.5-8.2 ms and 1.9-3.3 kB** on the two shipped examples
+  (NAC, 8 atoms / 95 parameters / 6 stages; FAP, 7 / 82 / 6), best of 20 —
+  cheap enough for the per-head-move fetch it is. Scaling on synthetic P1
+  models under `mccusker_structural` (10 stages, best of 10): 190 / 510 / 990
+  parameters at **5.0 / 13.4 / 25.7 ms** in Rietveld mode, and **6.8 / 26.5 /
+  75.8 ms** at 4.2 / 27 / 53 kB in Le Bail, where every `.atoms.` row is a
+  mode-fixed held match repeated per stage. The Le Bail arm is superlinear and
+  left alone: `mccusker_structural` declares `modes = ("rietveld",)`, so that
+  case is a plan the mode does not admit, and "360 matched, all held by the
+  intensity mode" is the answer the panel exists to give. The one thing worth
+  doing was done — the mode-fixed drop is **one** `set_vary` call rather than
+  `_run_stage`'s per-path loop, since a path is a glob that matches itself and
+  N calls are N table rebuilds.
 - **Counts.** Fast suite `-m "not slow"`: **3090 passed / 117 skipped**;
   without this WP's ten tests, **3080 / 117** — +10, exactly the ten added. vitest
   458 → **460** (two new cases; a third assertion extended an existing one),

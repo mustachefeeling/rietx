@@ -968,11 +968,16 @@ class GuiSession:
             matched = [path for path in rows
                        if any(fnmatchcase(path, glob) for glob in globs)]
             before = set(table.free_paths)
-            for path in table.set_vary(globs, True):
-                if mode_fixed_path(path, mode):
-                    # exactly what ``_run_stage`` does with them, and for its
-                    # reason: the freed set must describe what is left free
-                    table.set_vary([path], False)
+            # exactly what ``_run_stage`` does with a mode-fixed hit, and for
+            # its reason: the freed set must describe what is left free.  In
+            # one call rather than its per-path loop — a path is a glob that
+            # matches itself, and this route is called on every head move,
+            # where N calls would be N table rebuilds (a Le Bail phase's every
+            # `.atoms.` row is mode-fixed).
+            dropped = [path for path in table.set_vary(globs, True)
+                       if mode_fixed_path(path, mode)]
+            if dropped:
+                table.set_vary(dropped, False)
             after = set(table.free_paths)
 
             held, already, frees = [], [], []
