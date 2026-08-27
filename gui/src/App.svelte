@@ -200,6 +200,10 @@
       label: cell ? cellText(cell) : `candidate ${i}`,
       two_theta: answer.two_theta ?? [],
       n_total: answer.n_total ?? (answer.two_theta?.length ?? 0),
+      // parallel to the positions and drawn by nothing — the readout strip
+      // names the line under the pointer with them (WP-1213)
+      hkl: answer.hkl ?? [],
+      line: answer.line ?? [],
     };
   });
   /** Whether the *selection* has lines to show, which is what licenses clearing
@@ -225,6 +229,11 @@
     regions: (project?.doc?.excluded_regions ?? []) as [number, number][],
   });
   const extent = $derived((project?.data?.two_theta_range ?? null) as [number, number] | null);
+  /** the source's emission lines, primary first — what the plot's readout needs
+   *  for `d = λ/(2 sin θ)` and for naming which line a candidate tick is
+   *  (WP-1213).  Off the settings document, so it is the *instrument's* λ and
+   *  not the one the peak picker happened to run at. */
+  const wavelengths = $derived((project?.data?.wavelengths ?? null) as number[] | null);
   const channels = $derived(project
     ? ([project.data.n_fitted ?? project.data.n_points,
         project.data.n_points] as [number, number])
@@ -1083,7 +1092,7 @@
         <Plot {result} {plotKey} {zoom} {theme} error={resultError}
           peaks={peaksData} peaksActive={tab === "peaks"} hovered={hoveredPeak}
           candidate={candidateOverlay} {candidatePicked}
-          {protocol} {extent} {channels} {protocolError} {busy}
+          {protocol} {extent} {channels} {wavelengths} {protocolError} {busy}
           onhoverpeak={(i) => (hoveredPeak = i)}
           onaddpeak={addPeak} onmovepeak={movePeak} ontogglepeak={togglePeak}
           onremovepeak={removePeak} onprotocol={setProtocol} />

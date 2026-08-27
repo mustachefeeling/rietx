@@ -83,6 +83,18 @@ not against the notes.
 
 ### Inherited
 
+**From [1213](1213-hover-readout.md), 2026-08-27 — the plot has no tooltip any
+more.** A chapter describing the pattern plot must not say "hover for values":
+`hovermode` is `x` with `hoverinfo: "none"` on every trace, and what a reader
+gets is a **readout strip** under the plot — 2θ, d, one field per drawn curve,
+the nearest reflection of each phase as a signed offset, the picked line as the
+peak table spells it, and, with a candidate selected, that cell's `hkl` and the
+emission line it belongs to. A solid vertical spike marks the 2θ on the plot.
+Two consequences for prose: the strip's fields follow the *curve toggles*, so a
+screenshot taken after `data only` shows a shorter strip and that is correct;
+and the readout is pointer-only, so any keyboard route a chapter promises has to
+be one of the panel's own (the peak table, the `.rxt` document), never the plot.
+
 **From [1204](1204-developer-mode-example-projects.md), 2026-08-25 — Part 1
 now tells a reader with no data what to open.** `using/quickstart.md` opens
 with "If you have no data yet", listing the three shipped example projects and

@@ -28,17 +28,19 @@
     curveColors,
     curveToggles,
     dataOnlyHidden,
+    drawnRange,
     formatRegion,
     forget,
     heldRanges,
-    hoverLabel,
     isDataOnly,
     maskShapes,
     mergeRegions,
     movedAxes,
+    nearestIndex,
     noAxes,
     normalizeRegion,
     pinPatch,
+    readout,
     residual,
     scaleValues,
     shows,
@@ -50,6 +52,7 @@
     type CandidateOverlay,
     type Protocol,
     type Ranges,
+    type Readout,
     type ResidualKind,
     type Scale,
   } from "../lib/plot";
@@ -70,6 +73,7 @@
     protocol = { limits: null, regions: [] },
     extent = null,
     channels = null,
+    wavelengths = null,
     protocolError = "",
     busy = false,
     onhoverpeak = () => {},
@@ -120,6 +124,12 @@
      *  truth, because a band over points still in the residual is worse than
      *  no band at all */
     channels?: [number, number] | null;
+    /** the source's emission lines, primary first (WP-1213) — the readout says
+     *  d = λ/(2 sin θ) with the first and names a candidate line with its own.
+     *  The *instrument's*, off the settings document: the peak list carries a
+     *  wavelength too and it is the one the picker ran at, which an instrument
+     *  edit afterwards leaves behind. */
+    wavelengths?: number[] | null;
     /** the last refusal from `POST /api/project`, in the verb's own words */
     protocolError?: string;
     busy?: boolean;
@@ -150,8 +160,17 @@
   /** what was hidden before `data only` was pressed, so the second press puts
    *  the plot back rather than showing everything (WP-1210) */
   let beforeDataOnly = $state<string[] | null>(null);
-  /** the payload the last draw used, so a knob redraws without a refetch */
-  let held: any = $state(null);
+  /** The payload the last draw used, so a knob redraws without a refetch.
+   *
+   *  `$state.raw`, and that is not a micro-optimisation: a plain `$state`
+   *  **proxies** the object, so `held` and the `w` the fetch handed `paint` are
+   *  two identities for one payload — which is the pair `fresh` asks about
+   *  (`w !== paintedPayload`), and svelte says so in dev
+   *  (`state_proxy_equality_mismatch`, surfaced by WP-1213's derived read of
+   *  `held` and true before it). A window payload is replaced whole and never
+   *  mutated, which is exactly what `$state.raw` is for; it also keeps a
+   *  4000-point `y_obs` out of the proxy the knob repaint maps over. */
+  let held: any = $state.raw(null);
   /** the toggles this payload offers — background only when there is one, one
    *  row per phase (WP-1032), the peak layer when a list exists (WP-1210) */
   const toggles = $derived(
@@ -325,8 +344,23 @@
       // The x axis is anchored to the *lower* subplot, so the ticks and the
       // title sit under the residual rather than between the two — where the
       // title landed inside the residual plot, on a cumulative χ² curve.
+      //
+      // It also carries the pointer's own mark on the data (WP-1213), and
+      // `across` rather than plotly's default `toaxis` for the reason just
+      // above: a spike drawn to *its* axis would stop at the residual, and what
+      // the reader is lining up is a position in the pattern.
+      //
+      // Solid, in the page's own ink, and that is a browser finding: dotted in
+      // `colors.edge` — the obvious first choice — is `maskShapes`' excluded-
+      // region edge exactly, so the pointer drew a line indistinguishable from
+      // a protocol boundary. It needs no `--plot-*` token of its own (WP-1210)
+      // because it carries no quantity: it is chrome, so it takes `--fg`, which
+      // is the one ink on the page no plot colour is near.
       xaxis: { title: { text: "2θ (°)" }, zeroline: false, domain: [0, 1],
-               anchor: "y2", gridcolor: line, ...span(ranges.xaxis) },
+               anchor: "y2", gridcolor: line,
+               showspikes: true, spikemode: "across", spikesnap: "cursor",
+               spikedash: "solid", spikethickness: 1, spikecolor: fg,
+               ...span(ranges.xaxis) },
       yaxis: {
         title: { text: scale === "linear" ? "intensity" : `intensity (${scale})` },
         domain: [0.28, 1],
@@ -338,8 +372,14 @@
       yaxis2: { title: { text: res.title }, domain: [0, 0.22], gridcolor: line,
                 zeroline: res.zeroline, zerolinecolor: colors.zero,
                 ...span(ranges.yaxis2) },
-      hovermode: "x unified",
-      hoverlabel: hoverLabel((name) => style.getPropertyValue(name)),
+      // **The box is gone and the strip below has its job** (WP-1213). The
+      // report was that it covered the data, and plotly offers no positioning
+      // for the unified box beyond `hoverlabel.align` — so this is not a
+      // setting to change but a box to delete. `hovermode: "x"` with every
+      // trace at `hoverinfo: "none"` keeps the machinery that finds the point
+      // and draws the spike (plotly's own gate is `!== "skip"`) and draws no
+      // label at all.
+      hovermode: "x",
     };
   }
 
@@ -404,9 +444,8 @@
     if (shows(hidden, "obs")) {
       traces.push(
         { x: w.two_theta, y: scaleValues(scale, w.y_obs), name: "observed", mode: "markers",
-          type: "scattergl", customdata: w.y_obs,
-          marker: { size: 4, color: colors.obs },
-          hovertemplate: "%{customdata:.6g}<extra>observed</extra>" });
+          type: "scattergl", hoverinfo: "none",
+          marker: { size: 4, color: colors.obs } });
     }
     // The channels the protocol masks, which are in no result and therefore
     // arrive on their own arm.  Without them a fit range has no *outside* to
@@ -417,28 +456,25 @@
     if (w.excluded?.two_theta?.length && shows(hidden, "masked")) {
       traces.push(
         { x: w.excluded.two_theta, y: scaleValues(scale, w.excluded.y_obs),
-          name: "masked", mode: "markers", type: "scattergl",
-          customdata: w.excluded.y_obs,
-          marker: { size: 3, color: colors.edge, opacity: 0.45 },
-          hovertemplate: "%{customdata:.6g}<extra>masked — not in the residual</extra>" });
+          name: "masked", mode: "markers", type: "scattergl", hoverinfo: "none",
+          marker: { size: 3, color: colors.edge, opacity: 0.45 } });
     }
     if (!w.raw) {
       const res = residual(kind, w);
       if (shows(hidden, "calc")) {
         traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_calc), name: "calculated",
-          mode: "lines", type: "scattergl", customdata: w.y_calc,
-          line: { width: 1.2, color: colors.calc },
-          hovertemplate: "%{customdata:.6g}<extra>calculated</extra>" });
+          mode: "lines", type: "scattergl", hoverinfo: "none",
+          line: { width: 1.2, color: colors.calc } });
       }
       if (w.y_background?.length && shows(hidden, "bkg")) {
         traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_background), name: "background",
-          mode: "lines", type: "scattergl", customdata: w.y_background,
-          line: { width: 1, dash: "dot", color: colors.bkg },
-          hovertemplate: "%{customdata:.6g}<extra>background</extra>" });
+          mode: "lines", type: "scattergl", hoverinfo: "none",
+          line: { width: 1, dash: "dot", color: colors.bkg } });
       }
       if (shows(hidden, "diff")) {
         traces.push({ x: w.two_theta, y: res.values, name: res.label, mode: "lines",
-          type: "scattergl", yaxis: "y2", line: { width: 1, color: colors.diff } });
+          type: "scattergl", yaxis: "y2", hoverinfo: "none",
+          line: { width: 1, color: colors.diff } });
       }
 
       // every emission line's ticks, not just the primary: the Kα2 positions are
@@ -451,9 +487,8 @@
         const ticks = (w.ticks ?? {})[phase] as number[];
         const y = band!.rows[row];
         traces.push({ x: ticks, y: ticks.map(() => y), yaxis: "y3",
-          name: phase, mode: "markers", type: "scattergl",
-          marker: { symbol: "line-ns-open", size: 8, line: { width: 1 } },
-          hovertemplate: `${phase} %{x:.4f}°<extra></extra>` });
+          name: phase, mode: "markers", type: "scattergl", hoverinfo: "none",
+          marker: { symbol: "line-ns-open", size: 8, line: { width: 1 } } });
       });
     }
     traces.push(...peakTraces(w, colors));
@@ -525,17 +560,38 @@
       if (typeof a === "number" && typeof b === "number") draw(a, b);
       else if (ev["xaxis.autorange"]) draw();
     });
-    // the other half of the hover link: a marker under the pointer names its
-    // row in the panel.  `x unified` hands over every trace's point at that 2θ,
-    // so the peak — if there is one there — is the one to read.
+    // The pointer's 2θ, which is the whole of this panel's hover state: the
+    // strip is derived from it, and the peak link below is `nearestPeak` at the
+    // coarse radius a shift-click obeys (`PICK_RADIUS_PX`) rather than plotly's
+    // match on the trace named `peaks` — that was decided by `hoverdistance` in
+    // pixels, a second answer to "which line is under the pointer".
+    //
+    // The 2θ itself comes through this panel's own axis map and not off
+    // `ev.points[0]`, which is whichever *trace* plotly matched first: the
+    // ticks ride on reflection positions and the markers on peak positions, so
+    // the first point is not a stable answer to "where is the pointer". The
+    // event's own clientX is, and `thetaOf` is the conversion every pointer
+    // verb here already uses.
     plotNode.removeAllListeners?.("plotly_hover");
     plotNode.on?.("plotly_hover", (ev: any) => {
-      if (!peaksActive) return;
-      const hit = ev.points?.find((p: any) => p.data?.name === "peaks");
-      onhoverpeak(hit ? (hit.customdata?.[0] ?? null) : null);
+      const px = ev?.event?.clientX;
+      const from = ev?.points?.[0]?.x;
+      const x = typeof px === "number" ? thetaOf(px)
+        : (typeof from === "number" ? from : null);
+      hoverAt = x;
+      // The link is answered on *every* hover while the layer is up, `null`
+      // included: a hover that resolves no 2θ (the axis map is not in hand) has
+      // to clear the ring and the lit row, or they stay lit on a line the
+      // pointer has left until the pointer leaves the plot altogether.
+      if (peaksActive) {
+        onhoverpeak(hoverAt !== null && peaks?.peaks?.length
+          ? nearestPeak(peaks.peaks, hoverAt, PICK_RADIUS_PX * degPerPx())
+          : null);
+      }
     });
     plotNode.removeAllListeners?.("plotly_unhover");
     plotNode.on?.("plotly_unhover", () => {
+      hoverAt = null;
       if (peaksActive) onhoverpeak(null);
     });
     plotNode.removeAllListeners?.("plotly_selected");
@@ -586,22 +642,18 @@
     if (groups.length && shows(hidden, "peakfit")) {
       const fit = joinCurves(groups, (g) => g.y_fit);
       out.push({ x: fit.x, y: sparse(fit.y), name: "peak fit", mode: "lines",
-        type: "scattergl", showlegend: true,
+        type: "scattergl", showlegend: true, hoverinfo: "none",
         // dashed, because the other two curves on this axis are solid lines and
         // a reader has to tell "what the positions were fitted from" from "the
-        // model" without consulting a legend
-        line: { width: 1.4, color: colors.peakfit, dash: "dash" },
-        // the *unscaled* fit value, as every other hover on this plot quotes
-        // (`calculated` hands plotly `w.y_calc`, not the √ of it): `y` is in
-        // plot units and `customdata` is in intensity, or the box reads √I
-        // under the √ scale while the curve beside it reads I
-        customdata: fit.y,
-        hovertemplate: "%{customdata:.6g}<extra>peak fit</extra>" });
+        // model" without consulting a legend.  The other half of that naming is
+        // the readout strip's `peak fit` row (WP-1213): it used to be the hover
+        // box's, and the box is gone.
+        line: { width: 1.4, color: colors.peakfit, dash: "dash" } });
       if (w.raw) {
         const delta = joinCurves(groups, (g) => g.delta);
         out.push({ x: delta.x, y: delta.y, name: "(y−fit)/σ", mode: "lines",
-          type: "scattergl", yaxis: "y2", line: { width: 1, color: colors.peakfit },
-          showlegend: false });
+          type: "scattergl", yaxis: "y2", hoverinfo: "none",
+          line: { width: 1, color: colors.peakfit }, showlegend: false });
       }
     }
     if (!shows(hidden, "peaks")) return out;
@@ -637,10 +689,7 @@
         line: { width: 1.2 },
       },
       showlegend: true,
-      customdata: list.map((p) =>
-        [p.index, [p.origin === "fitted" ? "" : p.origin, ...p.flags]
-          .filter(Boolean).join(" ") || "usable"]),
-      hovertemplate: "#%{customdata[0]} %{x:.4f}° — %{customdata[1]}<extra>peak</extra>",
+      hoverinfo: "none",
     });
     // The hover link's own trace, drawn empty and moved by `restyle` (WP-1032):
     // a full `react` per mouse move is exactly the cost task 1 measured, and one
@@ -676,11 +725,13 @@
    * for the same reason: a tick states a fitted model's position, and this is a
    * cell's claim laid *over* the data to be checked against it.
    *
-   * No hover. `hovermode` is `x unified`, so plotly snaps *every* trace to its
-   * nearest point in x and this one would put a row in the box at every
-   * pointer position, in the same box the peak hover link reads. The hkl the
-   * route serves beside the positions is what a per-line readout would say, and
-   * that readout is WP-1213's.
+   * No hover, and `skip` rather than `none`. `hovermode` was `x unified` when
+   * this trace was written, so plotly snapped *every* trace to its nearest
+   * point in x and this one would have put a row in the box at every pointer
+   * position. The box is gone since WP-1213 and the rest of the plot is at
+   * `hoverinfo: "none"`; this one stays `"skip"`, which takes it out of the
+   * point-finding altogether — nothing reads its points, and the readout takes
+   * the hkl off the payload the route serves.
    */
   function candidateTraces(colors: ReturnType<typeof curveColors>): any[] {
     const rows = overlay;
@@ -692,6 +743,41 @@
       showlegend: true, hoverinfo: "skip",
     }];
   }
+
+  /**
+   * The 2θ under the pointer, or null while it is off the plot (WP-1213).
+   *
+   * The *only* hover state this panel keeps: the strip below is derived from
+   * it, so a pointer move costs one recompute of a value object and no plotly
+   * call at all — which is WP-1032's rule ("a hover link costs a `restyle`,
+   * never a `react`") one step cheaper, because a strip is DOM.
+   */
+  let hoverAt = $state<number | null>(null);
+
+  /** The radius every *non-destructive* pointer question here is asked with, in
+   *  px: the readout's, the hover ring's, shift-toggle's and click-to-add's.
+   *  WP-1027 made the **move** gesture's radius readable (`grabToleranceDeg`)
+   *  because a drag edits a line; naming one does not, and at a survey view the
+   *  fine radius is narrower than the decimated channel spacing. */
+  const PICK_RADIUS_PX = 10;
+
+  /** What the strip prints. Derived, so the resting state and a reading are the
+   *  same shape and the row of fields cannot reflow under the pointer. */
+  const reading = $derived<Readout | null>(readout(held, hoverAt, {
+    kind,
+    wavelengths,
+    peaks: peaks?.peaks ?? null,
+    peaksActive,
+    // the coarse 10-px radius `down`'s `click` aims with, so the strip names
+    // the line a shift-click would take — one hit test, not a second opinion.
+    // Not the move gesture's `grabToleranceDeg`: that one is deliberately fine
+    // because a drag *edits*, and reading a line does not.
+    peakTolerance: PICK_RADIUS_PX * degPerPx(),
+    groups: peaks?.groups ?? null,
+    candidate: overlay,
+    candidateTolerance: PICK_RADIUS_PX * degPerPx(),
+    hidden,
+  }));
 
   /** Where the highlight ring sits in the trace list of the last draw. */
   let ringAt = $state(-1);
@@ -769,18 +855,12 @@
     return values.map((v) => (v == null ? null : v > 0 ? Math.sqrt(v) : 0));
   }
 
-  /** the measured intensity nearest 2θ, in plot (scaled) units */
+  /** the measured intensity nearest 2θ, in plot (scaled) units.  The nearest
+   *  channel is `nearestIndex`, shared with the readout (WP-1213): one plot,
+   *  one answer to "which channel is under this 2θ". */
   function heightAt(w: any, tt: number): number {
-    const xs: number[] = w.two_theta ?? [];
-    if (!xs.length) return 0;
-    let lo = 0;
-    let hi = xs.length - 1;
-    while (hi - lo > 1) {
-      const mid = (lo + hi) >> 1;
-      if (xs[mid] < tt) lo = mid;
-      else hi = mid;
-    }
-    const k = Math.abs(xs[lo] - tt) <= Math.abs(xs[hi] - tt) ? lo : hi;
+    const k = nearestIndex(w.two_theta ?? [], tt);
+    if (k < 0) return 0;
     const v = (w.y_obs ?? [])[k] ?? 0;
     return scale === "sqrt" ? (v > 0 ? Math.sqrt(v) : 0) : v;
   }
@@ -826,8 +906,12 @@
 
   function degPerPx(): number {
     const xa = (node as any)?._fullLayout?.xaxis;
-    if (!xa?._length) return 0.01;
-    return Math.abs(xa.range[1] - xa.range[0]) / xa._length;
+    // `drawnRange`, not `xa.range`: on the first plot of a fresh div the two
+    // disagree and only `_rl` matches the pixel map this is dividing by
+    // (WP-1212).
+    const range = xa?._length ? drawnRange(xa) : null;
+    if (!range) return 0.01;
+    return Math.abs(range[1] - range[0]) / xa._length;
   }
 
   /** The gesture in flight. `move` is the hit inside the *readable* grab
@@ -893,7 +977,7 @@
     if (tt === null) return;
     const perPx = degPerPx();
     const move = nearestPeak(peaks.peaks, tt, grabToleranceDeg(peaks.peaks, perPx));
-    const click = nearestPeak(peaks.peaks, tt, 10 * perPx);
+    const click = nearestPeak(peaks.peaks, tt, PICK_RADIUS_PX * perPx);
     gesture = { move: move ?? -1, click: click ?? -1, startX: ev.clientX, moved: false };
     if (move !== null) {
       // this gesture is a peak drag, not a zoom: keep it from plotly's drag
@@ -940,7 +1024,7 @@
     if (arm || !peaksActive || !peaks?.peaks) return;
     const tt = thetaOf(ev.clientX);
     if (tt === null) return;
-    const hit = nearestPeak(peaks.peaks, tt, 10 * degPerPx());
+    const hit = nearestPeak(peaks.peaks, tt, PICK_RADIUS_PX * degPerPx());
     if (hit === null) return;
     ev.preventDefault();
     onremovepeak(hit);
@@ -1160,6 +1244,41 @@
   <div class="plot" class:armed={arm !== null} role="application"
     aria-label="diffraction pattern"
     bind:this={node} onpointerdowncapture={down} oncontextmenu={context}></div>
+  <!-- The readout (WP-1213), under the plot rather than over it.  The report
+       was "the tooltip frequently covers a large part of the data", and plotly
+       offers no positioning for its unified box beyond `hoverlabel.align` — so
+       the box is deleted rather than moved, and everything it said is here,
+       beside the plot's other control rows.
+
+       Every field keeps its slot while the pointer is off the plot and prints
+       an em dash: a strip that grew fields on hover would resize the canvas
+       above it once per entry, and the value widths are fixed in `ch` below so
+       the wrap points cannot move under the pointer either.  Which fields
+       there are is a property of the payload and the tab — never of where the
+       pointer is (`lib/plot.ts:readout`). -->
+  {#if reading}
+    <div class="readout" role="group" aria-label="under the pointer">
+      <span class="field">
+        <span class="key">2θ</span>
+        <span class="val mono tabular">{reading.position}</span>
+      </span>
+      <span class="field">
+        <span class="key">d</span>
+        <span class="val mono tabular">{reading.d}</span>
+      </span>
+      {#each reading.rows as row (row.id)}
+        <span class="field" class:wide={row.id === "peaks" || row.id === "candidate"}>
+          <!-- the mark's own ink, so the strip says which curve is which twice
+               over: `ReadoutInk` is `curveColors`' key set, and a key is the
+               `--plot-*` token's suffix by construction (WP-1210's rule — a
+               plot mark has a token of its own) -->
+          <span class="key" title={row.label}
+            style:color={row.ink ? `var(--plot-${row.ink})` : null}>{row.label}</span>
+          <span class="val mono tabular">{row.value}</span>
+        </span>
+      {/each}
+    </div>
+  {/if}
   {#if shown}
     <div class="knobs">
       <div class="segmented" role="group" aria-label="residual">
@@ -1336,6 +1455,52 @@
   .plot :global(.select-outline) {
     fill: var(--plot-mask) !important;
     fill-opacity: 1 !important;
+  }
+
+  /* The readout strip (WP-1213).  Not a register: it is one panel's row of
+     labelled numbers, and what keeps it from being a fourth kind of chip is
+     that it has no box — the plot above it is the thing being annotated.
+
+     The widths are the load-bearing part.  Mono digits make `ch` exact, so a
+     `min-width` per field freezes the wrap points: the strip's height is then
+     a function of the payload, the tab and the column width, and never of what
+     the pointer happens to be over.  Without them a peak coming into reach
+     rewrapped the row, which resizes the canvas — the jitter WP-1212 removed,
+     arriving through its own repair. */
+  .readout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 12px;
+    padding: 4px 0 2px;
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
+  .readout .field {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  /* a phase name is arbitrarily long, and it is the label of its own tick row
+     — clip the label, not the strip (the curves toggle's rule, one row down) */
+  .readout .key {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .readout .val {
+    color: var(--fg);
+    min-width: 8ch;
+  }
+
+  /* the two fields that carry a sentence rather than a number: a picked line
+     with its esd and relative intensity, and a candidate's hkl with its λ */
+  .readout .field.wide .val {
+    min-width: 22ch;
   }
 
   .knobs {

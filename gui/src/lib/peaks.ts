@@ -325,3 +325,15 @@ export function collectTo(candidate: Candidate): number | null {
   }
   return hi;
 }
+
+/**
+ * `(1 0 −4)` — a reflection's indices, spaced, with a real minus sign.
+ *
+ * Spaced because `(10-4)` is what `join("")` makes of `[1, 0, -4]`, and a
+ * two-digit index makes it worse: the separator is not decoration. The minus is
+ * U+2212, which is what the rest of the app's typography uses (`obs−calc`),
+ * rather than the hyphen `toFixed` would give.
+ */
+export function formatHkl(hkl: readonly number[]): string {
+  return `(${hkl.map((v) => (v < 0 ? `−${Math.abs(v)}` : String(v))).join(" ")})`;
+}

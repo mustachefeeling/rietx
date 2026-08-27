@@ -20,6 +20,7 @@ import {
   flagTone,
   fomColumns,
   fomOf,
+  formatHkl,
   formatIntensity,
   formatPosition,
   grabToleranceDeg,
@@ -245,5 +246,15 @@ describe("the candidate table's shape", () => {
         discriminating_two_theta: [155.0] },
     ] };
     expect(collectTo(ambiguous)).toBe(161.7);
+  });
+});
+
+describe("writing a reflection (WP-1213)", () => {
+  it("spaces the indices and gives a negative one a real minus", () => {
+    // `[1, 0, -4].join("")` is `10-4`, which reads as one number and is worse
+    // the moment an index reaches two digits
+    expect(formatHkl([1, 0, -4])).toBe("(1 0 −4)");
+    expect(formatHkl([12, 0, 10])).toBe("(12 0 10)");
+    expect(formatHkl([0, 0, 0])).toBe("(0 0 0)");
   });
 });

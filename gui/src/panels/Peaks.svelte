@@ -40,6 +40,7 @@
     flagTone,
     fomColumns,
     fomOf,
+    formatHkl,
     formatIntensity,
     formatPosition,
     intensityScale,
@@ -870,7 +871,7 @@ an unasked question, so the gate abstains">not screened</span>
                     {cls.n_present}:
                     {(cls.forbidden_hkl ?? []).slice(0, 3)
                       .map((hkl: number[], j: number) =>
-                        `(${hkl.join("")}) ${cls.forbidden_two_theta?.[j]?.toFixed(2) ?? "?"}°`)
+                        `${formatHkl(hkl)} ${cls.forbidden_two_theta?.[j]?.toFixed(2) ?? "?"}°`)
                       .join(" ")}
                   {:else}—{/if}
                 </td>
