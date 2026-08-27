@@ -7,3 +7,24 @@
 # build-info.json (WP-1003, 2026-08-16).  Everything in the object store is
 # LF; editors on every platform handle LF.
 * -text
+
+# The committed GUI dist is build output, and git will merge it.  Measured on
+# this repo (2026-08-27): two branches whose edits land in different regions of
+# `assets/app.js` merge **cleanly and silently** into a bundle no build ever
+# emitted — measured with edits 115 lines apart in the 131-line, 280 kB bundle,
+# which auto-merged with both present and no conflict.  `build-info.json` is not
+# the silent case; it is six lines, so any two edits share a hunk and git
+# already conflicts there without help.  The dangerous combination is both at
+# once: the hash conflicts and gets resolved by taking a side, while the bundle
+# beside it has already been spliced from two builds.
+#
+# Marking the dist binary makes that merge impossible rather than merely
+# inadvisable — a conflict here has to be resolved by rebuilding.  `-diff`
+# changes only how a diff is *displayed*, so `git diff --exit-code
+# src/rietx/gui/static`, the freshness check `gui.yml` runs, still exits 1 on a
+# stale dist (verified both ways before this line landed).
+#
+# This is the interim.  Making the dist main's own artifact rather than each
+# branch's — so main rebuilds after a merge and PR branches carry sources only —
+# is issue #159.
+src/rietx/gui/static/** -merge -diff
