@@ -1371,3 +1371,60 @@ def test_an_integer_model_selector_still_reads(tmp_path):
     assert model.phases[0].size_model == 1
     assert model.phases[0].strain_model == 0
 
+# Finding 6 — an R lattice on rhombohedral axes.
+#
+# Synthetic, and it has to be: **every R phase in the corpus is on hexagonal
+# axes** (`crwo6002_momcomp.pcr`:104's Cr2O3 cell, 4.95420 4.95420 13.42130
+# 90 90 120). The cell below is that same real cell transformed to the
+# rhombohedral setting of the same lattice —
+# a_rh = sqrt(a^2/3 + c^2/9) = 5.30999 and
+# sin(alpha/2) = 3 / (2*sqrt(3 + (c/a)^2)) => alpha = 55.61448 — so it describes
+# a real Cr2O3, arrived at by arithmetic on a quoted line rather than invented.
+# This closes a gap; it is not a wrong answer any file here produced.
+_CR2O3_RHOMBOHEDRAL_CELL = (
+    "   5.309990   5.309990   5.309990  55.614480  55.614480  55.614480")
+_CR2O3_HEXAGONAL_CELL = (
+    "   4.954200   4.954200  13.421300  90.000000  90.000000 120.000000")
+
+
+@pytest.mark.parametrize("cell, expected, why", [
+    ({"a": 5.30999, "b": 5.30999, "c": 5.30999,
+      "alpha": 55.61448, "beta": 55.61448, "gamma": 55.61448},
+     "R -3 c:R", "a = b = c with alpha = beta = gamma is rhombohedral axes"),
+    ({"a": 4.95420, "b": 4.95420, "c": 13.42130,
+      "alpha": 90.0, "beta": 90.0, "gamma": 120.0},
+     "R -3 c", "the corpus's own Cr2O3 is hexagonal and must stay bare"),
+])
+def test_the_r_setting_is_picked_from_the_cell(cell, expected, why):
+    """Root CLAUDE.md's invariant: ``read_small_structure`` picks R from the cell.
+
+    gemmi resolves a bare ``R -3 c`` to the **hexagonal** setting (36
+    operations); the rhombohedral one has 12. That factor of three is the
+    general multiplicity :func:`occupancy_factor` divides by, so reading a
+    rhombohedral cell under ``:H`` is a wrong multiplicity on every site.
+    """
+    assert normalize_space_group("R -3 c", cell) == expected, why
+
+
+def test_without_a_cell_the_bare_r_symbol_is_unchanged():
+    """No cell, no claim: the R case cannot be decided and is not guessed at."""
+    assert normalize_space_group("R -3 c") == "R -3 c"
+
+
+def test_a_rhombohedral_cell_selects_the_r_setting_end_to_end(tmp_path):
+    """The cell line sits *after* the atoms, so the symbol is re-derived there."""
+    pcr = _pcr(tmp_path, "rhombo.pcr",
+               _phase(sg="R -3 c", cell=_CR2O3_RHOMBOHEDRAL_CELL,
+                      cell_codes=_CR2WO6_CELL_CODES))
+    phase = read_fullprof_pcr(pcr).phases[0]
+    assert phase.space_group_raw == "R -3 c"
+    assert phase.space_group == "R -3 c:R"
+
+
+def test_a_hexagonal_r_cell_is_left_on_the_default_setting(tmp_path):
+    """The corpus's real R phase, pinned: it must keep reading as before."""
+    pcr = _pcr(tmp_path, "hex.pcr",
+               _phase(sg="R -3 c", cell=_CR2O3_HEXAGONAL_CELL,
+                      cell_codes=_CR2WO6_CELL_CODES))
+    assert read_fullprof_pcr(pcr).phases[0].space_group == "R -3 c"
+

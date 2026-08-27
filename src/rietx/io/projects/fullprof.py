@@ -678,10 +678,40 @@ def normalize_species(token: str) -> str:
     return token.strip()
 
 
-def normalize_space_group(symbol: str) -> str:
+#: How far a cell may stray from ``a = b = c``/``α = β = γ`` and still be called
+#: rhombohedral axes. Generous on purpose: the discrimination it has to make is
+#: against the *hexagonal* setting of the same R symbol, whose metric is
+#: ``α = β = 90°, γ = 120°`` — thirty degrees away, not a rounding.
+_RHOMBOHEDRAL_LENGTH_RTOL = 1e-3
+_RHOMBOHEDRAL_ANGLE_ATOL = 1e-2
+
+
+def _is_rhombohedral_metric(cell: dict) -> bool:
+    """``a = b = c`` with ``α = β = γ`` — an R lattice on rhombohedral axes.
+
+    The hexagonal setting of the same symbol has ``a = b ≠ c`` and
+    ``α = β = 90°, γ = 120°``, so requiring all three angles equal is what tells
+    the two apart; every corpus R phase is hexagonal
+    (``crwo6002_momcomp.pcr``'s Cr₂O₃: 4.95420, 4.95420, 13.42130, 90, 90, 120).
+    """
+    try:
+        a, b, c = (float(cell[k]) for k in ("a", "b", "c"))
+        alpha, beta, gamma = (float(cell[k]) for k in ("alpha", "beta", "gamma"))
+    except (KeyError, TypeError, ValueError):
+        return False
+    if a <= 0.0:
+        return False
+    lengths_equal = (abs(b - a) <= _RHOMBOHEDRAL_LENGTH_RTOL * a
+                     and abs(c - a) <= _RHOMBOHEDRAL_LENGTH_RTOL * a)
+    angles_equal = (abs(beta - alpha) <= _RHOMBOHEDRAL_ANGLE_ATOL
+                    and abs(gamma - alpha) <= _RHOMBOHEDRAL_ANGLE_ATOL)
+    return lengths_equal and angles_equal
+
+
+def normalize_space_group(symbol: str, cell: dict | None = None) -> str:
     """``F D -3 M`` → ``F d -3 m:2``; ``P 42/m n m`` unchanged.
 
-    Two repairs, and each is a *report* rather than a contradiction:
+    Three repairs, and each is a *report* rather than a contradiction:
 
     **Case.** FullProf carries the Hermann-Mauguin symbol in whatever case the
     author typed: ``F D -3 M`` (``300q-1p5K_1.pcr``:68) and ``I A -3 D``
@@ -696,11 +726,32 @@ def normalize_space_group(symbol: str) -> str:
     ½½½, O at x,x,x — the standard Co₃O₄ description). Choice 2 is therefore
     preferred wherever the bare symbol lands on choice 1.
 
-    That preference is a *convention*, so it is not left to be trusted:
-    :func:`to_structure` re-derives every site's multiplicity under whichever
-    setting this returns and refuses the phase unless the occupancy column
-    reduces consistently (module docstring, decision 3). A wrong origin gives
-    wrong multiplicities and is refused, not returned.
+    **Rhombohedral axes.** An R-lattice symbol is likewise written bare, and
+    gemmi resolves a bare ``R -3 c`` to the **hexagonal** setting (``:H``, 36
+    operations). Its rhombohedral setting (``:R``) has 12. That factor of three
+    is the general multiplicity :func:`occupancy_factor` divides by, so reading
+    a rhombohedral-axes cell under ``:H`` is a wrong multiplicity on every site
+    — root CLAUDE.md's own invariant ("an R lattice on **rhombohedral** axes
+    needs a = b = c with α = β = γ free... ``read_small_structure`` picks the R
+    setting from the cell", the trap that served 79 of gemmi's 564 settings
+    wrong under a correct free-parameter count). So the setting is picked **from
+    the cell**, the same way, and ``cell`` is why this function takes one.
+
+    ``cell`` is a mapping of :data:`_CELL_COLUMNS` to floats. Without it the R
+    case cannot be decided and the bare symbol is returned unchanged, which is
+    the hexagonal setting — so :func:`_read_phase` calls this a second time once
+    the phase's cell line has been read, the cell block sitting *after* the
+    atoms in a ``.pcr``.
+
+    Every corpus R phase is hexagonal (Cr₂O₃ at 4.95420, 4.95420, 13.42130, 90,
+    90, 120), so this case closes a gap rather than fixing a measured wrong
+    answer, and it is stated as a gap.
+
+    The case and origin preferences are *conventions*, so they are not left to
+    be trusted: :func:`to_structure` re-derives every site's multiplicity under
+    whichever setting this returns and refuses the phase unless the occupancy
+    column reduces consistently (module docstring, decision 3). A wrong origin
+    gives wrong multiplicities and is refused, not returned.
     """
     text = " ".join(symbol.split())
     if not text:
@@ -714,6 +765,14 @@ def normalize_space_group(symbol: str) -> str:
         sg = gemmi.SpaceGroup(normalised)
     except Exception:
         return normalised
+    # An R symbol and an origin-choice symbol are disjoint cases: gemmi reports
+    # `ext` "H"/"R" for the former and "1"/"2" for the latter, never both.
+    if sg.ext == "H" and cell is not None and _is_rhombohedral_metric(cell):
+        try:
+            gemmi.SpaceGroup(f"{normalised}:R")
+        except Exception:
+            return normalised
+        return f"{normalised}:R"
     if sg.ext == "1":
         try:
             gemmi.SpaceGroup(f"{normalised}:2")
@@ -1230,6 +1289,13 @@ def _read_phase(cur: _Cursor, path: Path, index: int) -> FullProfPhase:
     width, phase.size_model = _block(
         cur, _WIDTH_COLUMNS, f"phase {index} U/V/W width line", trailing=1)
     phase.cell, _ = _block(cur, _CELL_COLUMNS, f"phase {index} cell line")
+    # The cell line sits *after* the atoms, so the space-group symbol above was
+    # normalised without it and an R symbol landed on gemmi's default hexagonal
+    # setting. Re-derive it now that the metric is known: a rhombohedral-axes
+    # cell selects `:R`, whose general multiplicity is a third of `:H`'s. Case
+    # and origin choice are unaffected — the R branch is disjoint from them.
+    phase.space_group = normalize_space_group(
+        phase.space_group_raw, {k: v.value for k, v in phase.cell.items()})
     asym, _ = _block(cur, _ASYM_COLUMNS, f"phase {index} Pref/Asy line")
     phase.profile = {**scale, **width, **asym}
 
