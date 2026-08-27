@@ -202,6 +202,17 @@
       n_total: answer.n_total ?? (answer.two_theta?.length ?? 0),
     };
   });
+  /** Whether the *selection* has lines to show, which is what licenses clearing
+   *  the plot to the data — not `pickedCandidate !== null` on its own.
+   *
+   *  A selection whose fetch is still in flight, or that the route refused
+   *  (`INDEX_CELL_TOO_LARGE`, a lattice group gemmi will not build), would
+   *  otherwise take the model curves off and put nothing in their place: the
+   *  plot goes blank with no lines and no sentence saying why.  Keyed on the
+   *  *picked* index and not on `candidateOverlay`, so a hover preview that
+   *  fails cannot strobe the curves back on over a selection that is drawing. */
+  const candidatePicked = $derived(
+    pickedCandidate !== null && Boolean(candidateTicks[pickedCandidate]));
   /** the last refusal from a settings patch, in the verb's own words — held
    *  beside the boxes that caused it rather than scrolled away in the console */
   let protocolError = $state("");
@@ -510,9 +521,17 @@
   function forgetCandidates() {
     candidateEra += 1;
     candidateTicks = {};
+    inFlightCandidates.clear();
     pickedCandidate = null;
     previewCandidate = null;
   }
+
+  /** The indices a fetch is already out for.  The cache above only dedupes once
+   *  an answer is *back*, and the route is a whole `generate_reflections`
+   *  enumeration per emission line — so a pointer crossing a row twice before
+   *  the first answer lands would ask for it twice.  A plain `Set`, not
+   *  `$state`: nothing renders it. */
+  const inFlightCandidates = new Set<number>();
 
   /**
    * Show one candidate's predicted lines, fetching them the first time.
@@ -530,13 +549,17 @@
    * too.
    */
   async function showCandidate(index: number | null) {
-    if (index === null || candidateTicks[index]) return;
+    if (index === null || candidateTicks[index]
+        || inFlightCandidates.has(index)) return;
     const era = candidateEra;
+    inFlightCandidates.add(index);
     try {
       const answer = await api.candidateTicks(index);
       if (era === candidateEra) candidateTicks = { ...candidateTicks, [index]: answer };
     } catch {
       // no lines to draw; the row and the plot simply stay as they are
+    } finally {
+      if (era === candidateEra) inFlightCandidates.delete(index);
     }
   }
 
@@ -1044,7 +1067,7 @@
       <div class="plotcol" class:hidden={wide}>
         <Plot {result} {plotKey} {zoom} {theme} error={resultError}
           peaks={peaksData} peaksActive={tab === "peaks"} hovered={hoveredPeak}
-          candidate={candidateOverlay} candidatePicked={pickedCandidate !== null}
+          candidate={candidateOverlay} {candidatePicked}
           {protocol} {extent} {channels} {protocolError} {busy}
           onhoverpeak={(i) => (hoveredPeak = i)}
           onaddpeak={addPeak} onmovepeak={movePeak} ontogglepeak={togglePeak}

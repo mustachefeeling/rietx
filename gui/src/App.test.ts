@@ -4098,6 +4098,118 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
     expect(stub.calls.filter((c) => c.path === "/api/index/ticks").length).toBe(1);
   });
 
+  /** A promise plus the button that resolves it. */
+  function held(): { promise: Promise<void>; open: () => void } {
+    let open = () => {};
+    const promise = new Promise<void>((resolve) => { open = () => resolve(); });
+    return { promise, open };
+  }
+
+  it("clears the curves only once it has lines to put there", async () => {
+    // The selection is instant and the answer is a round trip, so keying the
+    // clear on "a row is selected" hid the model first and drew the lines on a
+    // second repaint — a flash on any candidate whose enumeration takes real
+    // time, and on a *refused* one a plot left showing nothing at all, with no
+    // lines and no sentence saying why (found by review, not by this suite).
+    const drawn: any[][] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[]) => { drawn.push(traces); },
+      restyle: async () => {}, purge: () => {},
+    });
+    const gate = held();
+    vi.stubGlobal("fetch", server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/index/ticks": () => ({ ...INDEX_ANSWER["/api/index/ticks"](),
+                                   gate: gate.promise }),
+    }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
+    await flush();
+    // in flight: the model is still on screen and there is nothing over it
+    expect(names(drawn)).toContain("calculated");
+    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
+      .toBe(false);
+
+    gate.open();
+    await flush();
+    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
+      .toBe(true);
+    expect(names(drawn)).not.toContain("calculated");
+  });
+
+  it("leaves the plot alone when the route refuses the cell", async () => {
+    // `INDEX_CELL_TOO_LARGE`, or a lattice group gemmi will not build. The
+    // honest outcome is that nothing on the plot moves — not a plot cleared to
+    // the data with no lines on it, which reads as a drawing defect.
+    const drawn: any[][] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[]) => { drawn.push(traces); },
+      restyle: async () => {}, purge: () => {},
+    });
+    vi.stubGlobal("fetch", server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/index/ticks": () => ({ status: 409, body: { error: {
+        code: "INDEX_CELL_TOO_LARGE", message: "too many reflections" } } }),
+    }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
+    await flush();
+    expect(names(drawn)).toContain("calculated");
+    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
+      .toBe(false);
+    // …and the detail row still opened, so the click was not a no-op
+    expect(host.querySelector(".candidates tr.detail")).toBeTruthy();
+  });
+
+  it("asks once for a row the pointer crosses twice before the answer lands",
+     async () => {
+    // The cache dedupes only once an answer is *back*, and each request is a
+    // whole `generate_reflections` enumeration per emission line against a
+    // server with no cancellation — so the in-flight set is the other half.
+    vi.stubGlobal("Plotly", {
+      react: async () => {}, restyle: async () => {}, purge: () => {},
+    });
+    const gate = held();
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/index/ticks": () => ({ ...INDEX_ANSWER["/api/index/ticks"](),
+                                   gate: gate.promise }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const row = () => host.querySelector<HTMLElement>(".candidates tbody tr")!;
+    for (let i = 0; i < 3; i++) {
+      row().dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+      await flush();
+      row().dispatchEvent(new MouseEvent("mouseleave", { bubbles: false }));
+      await flush();
+    }
+    expect(stub.calls.filter((c) => c.path === "/api/index/ticks").length).toBe(1);
+
+    // and once it lands, the slot is released rather than leaked — a later ask
+    // for the same row is served from the cache, still without a second fetch
+    gate.open();
+    await flush();
+    row().dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+    await flush();
+    expect(stub.calls.filter((c) => c.path === "/api/index/ticks").length).toBe(1);
+  });
+
   it("says so when the server could only send a sample", async () => {
     // the cap is not silent: a thinned set drawn without saying so reads as
     // "these are the lines this cell predicts", which is the one claim this
