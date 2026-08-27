@@ -1,5 +1,5 @@
 ---
-description: End-of-session WP handover — record everything, verify, open the PR, report ready for /clear
+description: End-of-session WP handover — record everything, review, verify, open the PR, report ready for /clear
 ---
 
 Run the end-of-WP-session checklist (docs/ROADMAP.md § Session protocol,
@@ -93,41 +93,55 @@ steps below run unchanged.
    directory that corrects or extends the repo record gets ported into the
    repo now — a memory note is not a channel to the next session's repo
    state.
-9. **Verify**: run `python3 .claude/hooks/session_start.py` — the scan the
-   *next* session starts from. It must come back with no flag for this WP; a
-   flag here means the entry was written in a form it cannot read, or that
-   work landed after the WP file was last touched, and either way the
-   successor pays for it. Then run
-   `.venv/bin/python -m pytest tests/test_docs_consistency.py` and
-   `.venv/bin/python -m ruff check src tests examples`; confirm the working
-   tree is clean and pushed (or say what deliberately is not). **Clean and
-   pushed is not the same as landed**: if the branch is already merged, check
-   `git log origin/main..HEAD` is empty too. A commit made after its own PR
-   merged is stranded on a dead branch — the merge cannot carry it and the
-   session-start hook only compares dates, so nothing detects it (measured
-   2026-08-18: `11ec1cd5` sat there until the next session's repair).
+9. **Review the diff before it becomes a PR.** Run `/code-review medium
+   --fix` — it reads this session's work (a clean tree means the branch's own
+   diff against `origin/main`) and applies what it accepts to the working
+   tree. It belongs *here*, ahead of Verify, because a fix is a code change:
+   one landed after the suite ran, or after the PR was opened, leaves neither
+   the quoted counts nor the review describing the tree that merges.
+   - Each accepted fix lands as its own commit prefixed `WP-NNNN:` like any
+     other work; one left uncommitted fails step 10's clean-tree check.
+   - **A finding is advice, not a gate** — declining one is a line in the
+     handover entry, never silence. Say there what the pass changed, or that
+     it found nothing: a review that left no trace cannot be told apart from
+     one that never ran.
+   - A finding outside this WP goes into that WP's `### Inherited` (step 5),
+     not into this branch.
+10. **Verify**: run `python3 .claude/hooks/session_start.py` — the scan the
+    *next* session starts from. It must come back with no flag for this WP; a
+    flag here means the entry was written in a form it cannot read, or that
+    work landed after the WP file was last touched, and either way the
+    successor pays for it. Then run
+    `.venv/bin/python -m pytest tests/test_docs_consistency.py` and
+    `.venv/bin/python -m ruff check src tests examples`; confirm the working
+    tree is clean and pushed (or say what deliberately is not). **Clean and
+    pushed is not the same as landed**: if the branch is already merged, check
+    `git log origin/main..HEAD` is empty too. A commit made after its own PR
+    merged is stranded on a dead branch — the merge cannot carry it and the
+    session-start hook only compares dates, so nothing detects it (measured
+    2026-08-18: `11ec1cd5` sat there until the next session's repair).
 
-   **And green on this branch is not green on what lands.** Where the session
-   ran the full suite at all — step 6's rule, when the change could move a
-   measured number — run it on **current main merged into this branch**, not
-   on the bare branch: `git fetch origin main` and merge it in first. Nothing
-   else ever tests that tree. Branch protection is `strict: false`, so a PR
-   merges green without ever having been built against the main it lands on,
-   and `nightly.yml` has no `pull_request` trigger, so the acceptance suites
-   do not run on a PR at all. `tests/CLAUDE.md` states the half of this that
-   was already known: when main has moved under a branch, that branch's
-   counts are not the merged tree's and the two parents' additions cannot
-   simply be summed. The counts quoted in the handover entry are then the
-   merged tree's, and say so.
+    **And green on this branch is not green on what lands.** Where the session
+    ran the full suite at all — step 6's rule, when the change could move a
+    measured number — run it on **current main merged into this branch**, not
+    on the bare branch: `git fetch origin main` and merge it in first. Nothing
+    else ever tests that tree. Branch protection is `strict: false`, so a PR
+    merges green without ever having been built against the main it lands on,
+    and `nightly.yml` has no `pull_request` trigger, so the acceptance suites
+    do not run on a PR at all. `tests/CLAUDE.md` states the half of this that
+    was already known: when main has moved under a branch, that branch's
+    counts are not the merged tree's and the two parents' additions cannot
+    simply be summed. The counts quoted in the handover entry are then the
+    merged tree's, and say so.
 
-   This is the same class as the stranded commit above, one rank out: what
-   you verified and what the repository will hold are not the same object.
+    This is the same class as the stranded commit above, one rank out: what
+    you verified and what the repository will hold are not the same object.
 
-   **Fetch main immediately before the merge**, not at step 1. A concurrent
-   `/pr-review` merges other people's PRs, so `origin/main` moves for reasons
-   this session never sees, and a main fetched an hour ago can be several merges
-   stale — which puts this step's tree back to being one nothing tested.
-10. **Open or update the pull request.** A session's work is not handed over
+    **Fetch main immediately before the merge**, not at step 1. A concurrent
+    `/pr-review` merges other people's PRs, so `origin/main` moves for reasons
+    this session never sees, and a main fetched an hour ago can be several merges
+    stale — which puts this step's tree back to being one nothing tested.
+11. **Open or update the pull request.** A session's work is not handed over
     until it is reviewable, so the PR is part of the ritual rather than a
     follow-up request. Skip it — saying so in one line — when the branch is
     `main`, when `git log origin/main..HEAD` is empty, or when the branch is
@@ -143,7 +157,7 @@ steps below run unchanged.
       with the repo's two-line Claude Code footer.
     - **Never merge, and never wait on CI to decide.** Whether green is
       enough, and when to merge, is the maintainer's call.
-11. **Report**, to the person and not to the log: **first the same
+12. **Report**, to the person and not to the log: **first the same
     plain-language paragraph the entry opens with** — what this session's work
     means, in a few sentences someone can read without opening the diff — then
     the next actions, then the PR URL, and that CI is the gate — the required checks run
@@ -151,5 +165,5 @@ steps below run unchanged.
     job. Offer to watch the run rather than assuming; when you do watch, read
     state from `gh run list` (REST) rather than `gh pr checks` (GraphQL, which
     has 503'd through a GitHub incident while runs kept reporting), and read a
-    sub-minute failure as one that never reached repo code. Only when step 9
+    sub-minute failure as one that never reached repo code. Only when step 10
     is green, end with exactly: **ready for /clear**.

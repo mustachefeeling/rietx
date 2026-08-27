@@ -189,7 +189,7 @@ def _ancestors() -> set[int]:
     """This process's ancestry, so the session running the scan is not reported.
 
     Plus ``CLAUDE_PID``, which the Bash tool sets: run by hand from a session
-    (``/wp-handover`` step 9) the shell's parent is that session's process, and
+    (``/wp-handover`` step 10) the shell's parent is that session's process, and
     the walk reaches it too, but the variable says so without depending on how
     the tool spawns its shell.
     """
@@ -422,7 +422,7 @@ def render(root: Path) -> str:
 def hook_cwd() -> Optional[Path]:
     """The ``cwd`` Claude Code passes a hook on stdin, if this is a hook run.
 
-    Run by hand (``/wp-handover`` step 9) stdin is a terminal or an idle pipe,
+    Run by hand (``/wp-handover`` step 10) stdin is a terminal or an idle pipe,
     so a bounded ``select`` stands in for "was anything sent": nothing within
     the window means no hook payload, never a hang.
     """
