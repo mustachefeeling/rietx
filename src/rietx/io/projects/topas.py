@@ -104,15 +104,26 @@ schema refusal raised above the boundary that converts it; and a negative
 class one level up — a phase the reader cannot expand is refused by name
 (:data:`_STR_MACRO`), never answered with "this file has no phases".
 
-A cell edge *coupled* to another — ``b = a;``, or the spelling the archive
-actually uses, ``b = Get(a);``, for a tetragonal or cubic phase written without
-the lattice macro — is that same **stated-but-unreadable** cell key: TOPAS's
-``Get(...)`` is a built-in this reader does not evaluate, so the edge is refused
-by name rather than resolved to ``a``. It is a real case, not a hypothetical:
-the bare ``b = a;`` form occurs in **none** of the 606 archive files, but the
-``Get(a)`` coupling occurs in **4** (the PbPdO2/PdO fits), and all four refuse.
-Resolving it is a parser this reader deliberately does not add — refusing loudly
-is the same report-or-refuse the ``STR(...)`` and cell-key cases follow.
+**A cell edge coupled to another is read through the scope, not guessed.** The
+spelling the archive uses for a tetragonal or cubic phase written without a cell
+macro is ``b = Get(a);`` — 4 files, the PbPdO2/PdO fits — and it is the one
+place a cell edge may name another edge: §2.5 documents ``Get(xx)`` as the value
+of ``xx``, found locally and then outward, and says why the built-in exists,
+which is that a bare name in an equation reaches a *parameter* (§2.3-2.4) and a
+cell keyword is not one. So the coupling is resolved against the keys already
+read for the same phase (:func:`_resolve`'s ``getters``), and a name in no scope
+at all still refuses. What that buys is measured: those 4 files went from
+refusing outright to reading every phase, cBN at a = b = c = 3.615 Å and PdO at
+a = b = 3.042, c = 5.337. The coupled edge carries **no** refine flag of its own
+— it states an equation, so it is a dependent parameter, and only the edge it
+names is refined.
+
+Reading a *reference* is not reading a statement, which is why the cell scan has
+two views of the mask: ``b = Get(a);`` states ``b`` and merely mentions ``a``, so
+the text that **locates** a key hides the referenced name while the text that
+**resolves** its value keeps it. Conflating them reports a phase as stating an
+edge nobody wrote — and on ``ga = Get(al);`` it refuses a whole file over a
+missing ``al``.
 
 **One grammar, read once, and it carries the flag with the value.** Every scalar
 in a ``.inp`` — a coordinate, a cell edge, a scale, an occupancy, a lattice
@@ -701,12 +712,42 @@ def _arith(expr: str) -> float | None:
     return walk(tree.body)
 
 
-def _resolve(expr: str, symbols: dict[str, float]) -> float | None:
-    """An equation's value: substitute named parameters, then evaluate.
+#: TOPAS's ``Get`` built-in. Its argument is a *name* — a keyword or a
+#: parameter — not an expression, which is why it is matched exactly and never
+#: handed to :func:`_arith` as a call. §2.5 is explicit about what it returns
+#: and where it looks: the value of that name, searched for locally first and
+#: then outward through the enclosing scopes. That makes ``Get`` the one
+#: spelling in which a cell edge may name **another cell edge**, because a bare
+#: name in an equation reaches a *parameter* (§2.3-2.4) and a cell keyword is
+#: not one — which is the reason the reference gives for the built-in existing.
+_GET = re.compile(rf"\bGet\s*\(\s*(?P<name>{_NAME})\s*\)")
+
+
+def _resolve(expr: str, symbols: dict[str, float],
+             getters: dict[str, float] | None = None) -> float | None:
+    """An equation's value: resolve ``Get(...)``, substitute named parameters,
+    then evaluate.
+
+    ``getters`` is the **local** scope a ``Get(name)`` sees before the file's
+    own symbol table — for a cell key, the keys of the same phase already read.
+    A name it does not hold is left standing as a bare name, so the symbol
+    substitution below gets its turn: that is §2.5's "searches for xx locally,
+    if not found it searches its parent's scope", with this reader's flat symbol
+    table as the parent. A name in neither scope still resolves to None and the
+    caller still refuses, so widening what *can* be read has not widened what
+    can be silently guessed.
+
+    ``Get`` is resolved *before* substitution, not after: the argument is a name,
+    and substituting into it first would leave ``Get(4.15)`` — a call, which
+    :func:`_arith` correctly refuses to evaluate.
 
     Longest name first, so a name that is a prefix of another is never
     half-replaced (``Fe1_1_x`` inside ``Fe1_1_x2``).
     """
+    scope = getters or {}
+    expr = _GET.sub(
+        lambda m: (repr(scope[m["name"]]) if m["name"] in scope else m["name"]),
+        expr)
     for sym in sorted(symbols, key=len, reverse=True):
         if sym in expr:
             expr = re.sub(rf"\b{re.escape(sym)}\b", repr(symbols[sym]), expr)
@@ -811,7 +852,8 @@ def _flag(*tokens: str | None, named: str | None = None) -> bool | None:
     return True if named else None
 
 
-def _read_tail(tail: str, symbols: dict[str, float]) -> _Read | None:
+def _read_tail(tail: str, symbols: dict[str, float],
+               getters: dict[str, float] | None = None) -> _Read | None:
     """The one grammar, applied to the text that follows a keyword.
 
     Three forms, all real, in decreasing order of authority: TOPAS's own
@@ -820,12 +862,17 @@ def _read_tail(tail: str, symbols: dict[str, float]) -> _Read | None:
     The fourth spelling — the ``A1(…)`` coordinate macro — is not a tail at all
     and is handled by :func:`_read`. Each form yields the value *and* its flag
     off a single match, which is what stops the two grammars drifting apart.
+
+    ``getters`` is passed through to :func:`_resolve` as the local scope a
+    ``Get(...)`` in the equation form may name. It reaches only that form: the
+    evaluated tail already carries TOPAS's own number, and a stated value names
+    nothing.
     """
     if m := _TAIL_EVALUATED.match(tail):
         return _Read(float(m["value"]), _flag(m["pre"], m["post"], m["tick"]),
                      m["name"], tail[m.end():])
     if m := _TAIL_EQUATION.match(tail):
-        return _Read(_resolve(m["expr"].strip(), symbols),
+        return _Read(_resolve(m["expr"].strip(), symbols, getters),
                      _flag(m["pre"], m["post"]), m["name"], tail[m.end():])
     if m := _TAIL_VALUE.match(tail):
         return _Read(float(m["value"]),
@@ -942,7 +989,8 @@ def _read_adps_slots(inner: str, symbols: dict[str, float]) -> list[_Read] | Non
     return reads
 
 
-def _read(name: str, text: str, symbols: dict[str, float] | None = None) -> _Read | None:
+def _read(name: str, text: str, symbols: dict[str, float] | None = None,
+          getters: dict[str, float] | None = None) -> _Read | None:
     """What ``text`` states for the keyword ``name``, value and flag together.
 
     Two keywords are not simply "name then value" and both are handled here
@@ -958,6 +1006,9 @@ def _read(name: str, text: str, symbols: dict[str, float] | None = None) -> _Rea
       :data:`_NAME` to admit ``+``/``-`` is not the fix: it is load-bearing
       everywhere else, and a held-by-default occupancy cannot be told from a
       held-by-file one.
+
+    ``getters`` is the local scope a ``Get(...)`` in this keyword's value may
+    name, passed straight through to :func:`_read_tail`.
     """
     symbols = symbols or {}
     if (macro := _AXIS_MACROS.get(name)) and (m := macro.search(text)):
@@ -970,7 +1021,7 @@ def _read(name: str, text: str, symbols: dict[str, float] | None = None) -> _Rea
             if not (species := re.match(r"\s*\S+", tail)):
                 continue
             tail = re.split(_SITE_KEYWORDS, tail[species.end():], maxsplit=1)[0]
-        if (read := _read_tail(tail, symbols)) is not None:
+        if (read := _read_tail(tail, symbols, getters)) is not None:
             return read
     return None
 
@@ -1349,7 +1400,7 @@ def _excise_macro_defs(text: str) -> str:
 _CELL_LINE_START = re.compile(r"(?m)^[ \t]*(?:al|be|ga|a|b|c)\b")
 
 
-def _masked(text: str) -> str:
+def _masked(text: str, *, keep_get: bool = False) -> str:
     """**The** masked text every token scan reads (WP-1118).
 
     The scan is token-oriented — a key wherever it sits, because TOPAS is
@@ -1376,9 +1427,22 @@ def _masked(text: str) -> str:
     A ``site`` **segment** is not blanked here — the site split and the count
     need the ``site`` tokens to survive. :func:`_blank_sites` blanks the segments
     on top of this, for the cell scan alone.
+
+    ``keep_get`` yields the **second** view, and the cell scan is the only caller
+    that wants it: a lone name inside a ``Get(...)`` survives the argument
+    blanking. The two views answer two different questions about the same line,
+    which is why one text could not serve both. ``b = Get(a);`` *states* ``b``
+    and merely *references* ``a``, so locating a key must not see the ``a``
+    (or `ga = Get(al);` would report a phase as stating an ``al`` it never wrote)
+    while resolving ``b``'s value must. Both are :func:`_blank`-built and so stay
+    offset-for-offset with each other and with the text they came from.
     """
     masked = re.sub(r'"[^"\n]*"', lambda m: _blank(m.group()), text)
-    masked = re.sub(r"\w+\([^)]*\)", lambda m: _blank(m.group()), masked)
+    # `\b` anchors the name's start so a kept `Get(a)` cannot be re-entered one
+    # character in and blanked as `et(a)`.
+    masked = re.sub(r"\b\w+\([^)]*\)",
+                    lambda m: (m.group() if keep_get and _GET.fullmatch(m.group())
+                               else _blank(m.group())), masked)
     masked = re.sub(r"\b(?:prm|local)\b[^\n]*", lambda m: _blank(m.group()),
                     masked)
     # `[ \t]+`, not `\s+`: the reader's own value-regex (`\s+`) never crosses a
@@ -1419,11 +1483,15 @@ def _blank_sites(masked: str) -> str:
     return "".join(chars)
 
 
-def _cell_search_text(chunk: str) -> str:
+def _cell_search_text(chunk: str, *, keep_get: bool = False) -> str:
     """The cell-scan view of a chunk: :func:`_masked` with the ``site`` segments
     blanked on top (:func:`_blank_sites`). Kept as a named successor so a test
-    can pin what survives a chunk without a whole file per hole."""
-    return _blank_sites(_masked(chunk))
+    can pin what survives a chunk without a whole file per hole.
+
+    ``keep_get`` selects :func:`_masked`'s second view — the one that keeps a
+    ``Get(name)`` whole — which the cell loop reads *values* from after locating
+    the key on the view that does not."""
+    return _blank_sites(_masked(chunk, keep_get=keep_get))
 
 
 _CELL_KEYS = ("a", "b", "c", "al", "be", "ga")
@@ -1509,6 +1577,10 @@ def read_topas_inp(path: str | Path, *,
     # offset with `active`, so a slice of one indexes the other. The mask is the
     # invariant that keeps a token-oriented scan honest; see `_masked`.
     masked = _masked(active)
+    # The cell scan's second view of the same offsets, keeping `Get(name)`
+    # whole so a coupled edge's value can be resolved after the key has been
+    # located on the mask that hides it (see `_masked`).
+    gmasked = _masked(active, keep_get=True)
     model = TopasModel(path=str(path))
     symbols = symbol_table(active)
 
@@ -1590,6 +1662,7 @@ def read_topas_inp(path: str | Path, *,
                else len(active))
         chunk = active[opener.end():end]
         mchunk = masked[opener.end():end]      # the same span of THE masked text
+        gchunk = gmasked[opener.end():end]     # and of its `keep_get` view
         name = re.search(r'phase_name\s+"?([^"\n]+)', chunk)
         sg = re.search(r'\bspace_group\s+"?([^"\n]+)', chunk)
         # A *magnetic* space group is a construct this package has no model for,
@@ -1639,14 +1712,28 @@ def read_topas_inp(path: str | Path, *,
         # shared masked span with the `site` segments blanked on top, so the key
         # is read wherever it sits in what is left and no `beq b`/`space_group`
         # letter is read as a cell edge.
+        # A key is *located* on the mask and its value *read* off the
+        # `keep_get` view of the same span — two questions, two texts, one set
+        # of offsets. `b = Get(a);` states `b` and only references `a`, so the
+        # locator must not see that `a` (else the phase is reported as stating
+        # an edge it never wrote, and `ga = Get(al);` refuses on a missing `al`)
+        # while the value read must.
         masked_lines = list(zip(chunk.split("\n"),
-                                _blank_sites(mchunk).split("\n")))
+                                _blank_sites(mchunk).split("\n"),
+                                _blank_sites(gchunk).split("\n")))
         for key in _CELL_KEYS:
-            stated = [(orig, mask) for orig, mask in masked_lines
+            stated = [(orig, gmask) for orig, mask, gmask in masked_lines
                       if re.search(rf"\b{key}\b", mask)]
             read = None
-            for _orig, mask in stated:
-                if (read := _read(key, mask, symbols)) is not None \
+            for _orig, gmask in stated:
+                # `phase.cell` is this key's *local* scope: the keys already
+                # read for this phase, which is what a `Get(a)` on a coupled
+                # edge names. `_CELL_KEYS` is in a/b/c/al/be/ga order, so the
+                # edge a coupling refers back to has been read by the time the
+                # coupled one is; a forward reference resolves to nothing and
+                # refuses, which is the honest answer to `b = Get(c);` above `c`.
+                if (read := _read(key, gmask, symbols,
+                                  getters=phase.cell)) is not None \
                         and read.value is not None:
                     break
                 read = None

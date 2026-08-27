@@ -1007,10 +1007,15 @@ def test_the_geometry_is_decided_by_a_declaration_not_by_a_name(
 
 @pytest.mark.parametrize("key, line", [
     ("a", "a = a*1.0;"),
-    ("b", "b =Get(a);"),          # 7 real phases in 4 archive files
     ("c", "c = a*1.633;"),
     ("al", "al = nothing_defined;"),
     ("be", "be = 90+nothing_defined;"),
+    # `b =Get(a);` used to sit here and is now read — see
+    # `test_a_coupled_edge_written_with_get_reads_the_edge_it_names`. `Get`
+    # resolves against the keys already read for *this* phase, and this fixture
+    # states no `al`, so this row survives for the right reason: the name is out
+    # of scope, not the built-in unevaluated. What refuses is `ga` — the key the
+    # phase states — and not the `al` it merely references.
     ("ga", "ga =Get(al);"),
 ])
 def test_a_stated_cell_key_that_cannot_be_read_refuses_naming_it(
@@ -1053,6 +1058,117 @@ def test_naming_the_edge_is_what_made_the_difference(tmp_path):
     assert phase.cell["c"] == pytest.approx(4.899)
     assert to_structure(read_topas_inp(inp)).phases[0].cell.c.value == \
         pytest.approx(4.899)
+
+
+# ---------------------------- a coupled edge, written with the Get built-in
+
+def test_a_coupled_edge_written_with_get_reads_the_edge_it_names(tmp_path):
+    """`Get(a)` is the one spelling in which a cell edge may name another edge.
+
+    The reference documents the built-in in its own right — the value of the
+    name, searched for locally and then outward — and gives the reason it
+    exists: a bare name in an equation reaches a *parameter*, and a cell keyword
+    is not one. So this is not a macro being expanded; it is a documented
+    function applied to the scope the cell keys already form.
+
+    The archive's own form, from 4 files (the PbPdO2/PdO fits): a tetragonal
+    phase writes `a`, then couples `b` to it. Refusing it used to cost the whole
+    file, because a stated-but-unreadable key refuses rather than defaulting.
+    """
+    inp = _inp(tmp_path, "coupled.inp",
+               'str\nphase_name "PdO"\nspace_group "P42/mmc"\n'
+               'a @ 3.042155`\nb =Get(a);\nc @ 5.337079`\n'
+               'site Pd x 0 y 0 z 0 occ Pd 1. beq 0.3\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert phase.cell["a"] == pytest.approx(3.042155)
+    assert phase.cell["b"] == pytest.approx(3.042155)
+    assert phase.cell["c"] == pytest.approx(5.337079)
+    # The coupled edge is a *dependent* parameter, not a second refined one:
+    # `a` carries the flag and `b` states an equation, so `b` gets no `vary`.
+    assert phase.vary["a"] is True and "b" not in phase.vary
+    built = to_structure(read_topas_inp(inp)).phases[0].cell
+    assert built.b.value == pytest.approx(3.042155)
+
+
+def test_get_couples_all_three_edges_of_a_cubic_phase(tmp_path):
+    """Both edges of a cubic phase written longhand — the archive's cBN phase,
+    which came back with a = 3.615 and nothing else readable."""
+    inp = _inp(tmp_path, "cbn.inp",
+               'str\nphase_name "cubic_BN"\nspace_group "F-43m"\n'
+               'a @ 3.615081`\nb =Get(a);\nc =Get(a);\n'
+               'site B x 0 y 0 z 0 occ B 1. beq 0.3\n')
+    cell = read_topas_inp(inp).phases[0].cell
+    assert (cell["a"], cell["b"], cell["c"]) == \
+        pytest.approx((3.615081, 3.615081, 3.615081))
+
+
+def test_a_get_reference_is_not_a_statement_of_the_key_it_names(tmp_path):
+    """The trap the two mask views exist for.
+
+    `b = Get(a);` *states* `b` and only *references* `a`. If the scan that
+    locates a key saw the referenced name, a phase would be reported as stating
+    an edge it never wrote — and on an angle it is worse than cosmetic: this
+    fixture states no `al`, so a located-but-unreadable `al` would refuse the
+    whole file with a message naming a key the author never typed.
+    """
+    inp = _inp(tmp_path, "ref.inp",
+               'str\nphase_name "P"\nspace_group "P4/mmm"\n'
+               'a 3.0\nb =Get(a);\nc 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq 0.5\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert sorted(phase.cell) == ["a", "b", "c"]
+    assert "al" not in phase.cell and "ga" not in phase.cell
+
+
+def test_a_get_naming_nothing_in_scope_still_refuses(tmp_path):
+    """Widening what can be read has not widened what can be guessed: a name in
+    neither the phase's own keys nor the file's symbols resolves to nothing, and
+    the key that states it refuses exactly as any other unresolvable value."""
+    inp = _inp(tmp_path, "oos.inp",
+               'str\nphase_name "P"\nspace_group "P1"\n'
+               'a 3.0\nb =Get(never_declared);\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq 0.5\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert "cannot read b" in str(exc.value)
+
+
+def test_get_reaches_the_files_own_symbols_as_the_outer_scope(tmp_path):
+    """"…if not found it searches its parent's scope": a `Get` naming a declared
+    `prm` resolves through the symbol table, which is this reader's flat stand-in
+    for the enclosing scopes."""
+    inp = _inp(tmp_path, "prm.inp",
+               'prm lp 4.0\nstr\nphase_name "P"\nspace_group "Pm-3m"\n'
+               'a =Get(lp);\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq 0.5\n')
+    assert read_topas_inp(inp).phases[0].cell["a"] == pytest.approx(4.0)
+
+
+def test_a_forward_get_reference_refuses_rather_than_reading_zero(tmp_path):
+    """The keys are read in a/b/c/al/be/ga order, so `b = Get(c);` above a
+    stated `c` cannot resolve. That refuses — the honest answer — rather than
+    silently coming back with whatever the partial scope held."""
+    inp = _inp(tmp_path, "fwd.inp",
+               'str\nphase_name "P"\nspace_group "P4/mmm"\n'
+               'a 3.0\nb =Get(c);\nc 5.0\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq 0.5\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    assert "cannot read b" in str(exc.value)
+
+
+def test_the_mask_still_hides_every_other_macro_argument(tmp_path):
+    """The `Get` exemption is an exact match, so it did not reopen the hole the
+    argument blanking closed: a named `lpa` inside `Cubic_(lpa …)` is still the
+    macro's argument and not an `a` line, on both views of the mask."""
+    chunk = 'Cubic_(lpa 4.15689)\nOut_X_Ycalc("site.xy")\n'
+    for keep in (False, True):
+        scan = _cell_search_text(chunk, keep_get=keep)
+        assert "lpa" not in scan
+        assert "site" not in scan
+    # …and the one name a `Get` holds survives only on the view that asks for it.
+    assert "Get(a)" in _cell_search_text("b =Get(a);\n", keep_get=True)
+    assert "Get(a)" not in _cell_search_text("b =Get(a);\n")
 
 
 def test_a_cell_key_the_phase_never_states_still_keeps_its_default(tmp_path):
