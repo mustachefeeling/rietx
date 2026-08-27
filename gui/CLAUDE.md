@@ -776,3 +776,33 @@ that rule was broken and caught in review: a mark that is **not** the data may
 not borrow the recessive `--muted`, which is 0.032 from `--plot-obs` on the
 dark theme — fine for the masked points, which *are* measured data, and wrong
 for a marker sitting on top of them.
+
+**An indexing candidate on the plot** (WP-1211, `GET /api/index/ticks`,
+`lib/plot.ts`, `panels/{Peaks,Plot}.svelte`). Five rules. **Two shifts exist and
+one of them belongs on these lines**: not `instrument.zero_shift`, because
+indexing fits the metric to the peak list's *raw* 2θ and the cell therefore
+already reproduces observed positions; yes the candidate's own `shift_template`,
+inverted, because `refine_candidate` fits to `2θ_obs − c·T(θ)`. The symbol is
+`structure_from_candidate`'s lattice group, quoted rather than restated, so what
+is drawn is what the Le Bail validation was scored against. **A cap says that it
+capped**: `max_d_axis` admits a cell predicting 92 103 lines over 5-120° at a Cu
+doublet, so past `MAX_CANDIDATE_TICKS` the answer is thinned **by rank in 2θ** —
+density is what this picture is read for — with `n_total` beside it, because a
+head-of-list truncation leaves the high-angle half empty, which reads as "this
+cell predicts nothing there". **A layer whose control is a row gets no
+`CurveToggle`**: a toggle would be a second control for one selection, and
+pressing it would leave a row looking selected with nothing drawn — so the
+status line under the plot says what the toggle row would have. **A preview is
+not a selection**, and they are two props for that reason: a hover draws lines,
+only a selection clears the plot to the data, or running the pointer down the
+candidate table strobes the model on and off once per row. That clear goes
+through the `data only` button's own press, one saved list and a flag saying
+whose press it was, because two slots is four interleavings and no rule a reader
+could state. And **full height is an overlaying axis** (`yaxis4`, plotly resolves
+its domain to the data panel's), never shapes — which join the x autorange
+(WP-1033) and re-lay-out per drag — and never the tick band, since a tick states
+a fitted model's position while this is a hypothesis laid over the data. Drawn
+**first**, under everything: 426 predicted lines over the FAP example's 115° is
+~3.7 per pixel, and on top they buried the pattern the overlay exists to be
+compared with. Green was the last free hue (WP-1210 measured the rest); the plot
+palette now has no room for a further mark that carries a quantity.

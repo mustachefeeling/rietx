@@ -96,7 +96,11 @@ notes are now decisions in Design and in the tasks below. Nothing stale.*
       `peaksActive`-style props are *drawing* inputs — the one in
       `Plot.svelte`'s repaint effect is what makes leaving a tab take a layer
       off the plot. Keep the panel's `title=` budget balanced (see Inherited).
-- [ ] Browser pass on the corundum example after indexing; dist.
+- [x] Browser pass on the **fap** example after indexing; dist. (Corundum is
+      not an example project and cannot become one — `qarr/*.prn` carry no
+      licence statement, WP-1204. The fap example is the better subject
+      anyway: a Cu doublet, so the drawn pairs are the "every emission line"
+      claim under a lens.)
 
 ## Acceptance
 

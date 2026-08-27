@@ -306,7 +306,12 @@
       getComputedStyle(document.body).getPropertyValue(name));
     const phases = w.raw ? [] : Object.keys(w.ticks ?? {});
     const band = tickBand(phases.length);
-    const traces: any[] = [];
+    // First, so everything else draws over it: a candidate's lines are the
+    // hypothesis and the points are the evidence, and at a survey view there
+    // are enough lines to bury the data completely if they go on top (found in
+    // Chrome on the FAP example — 426 predicted lines over 115° is ~3.7 per
+    // pixel, and the pattern was simply gone).
+    const traces: any[] = [...candidateTraces(colors)];
     if (shows(hidden, "obs")) {
       traces.push(
         { x: w.two_theta, y: scaleValues(scale, w.y_obs), name: "observed", mode: "markers",
@@ -363,7 +368,6 @@
       });
     }
     traces.push(...peakTraces(w, colors));
-    traces.push(...candidateTraces(colors));
     // by name, not by position: the layer's traces are conditional now, so
     // counting back from the end named whichever one happened to be last
     ringAt = traces.findIndex((t: any) => t.name === "hovered");
@@ -518,15 +522,19 @@
   }
 
   /**
-   * An indexing candidate's predicted lines, through the data (WP-1211).
+   * An indexing candidate's predicted lines, under the data (WP-1211).
    *
-   * Last in the trace list, so a line crosses the peak marker it is being
-   * compared with rather than passing behind it — which is the whole
-   * comparison: this cell says there is a reflection *here*, and the pattern
-   * either has a peak there or does not. That reading is also why the lines are
-   * drawn at full height on an axis of their own rather than as ticks in the
-   * band below: a tick states a fitted model's position, and this is a
-   * hypothesis laid over the data.
+   * **First** in the trace list, and that is a browser finding rather than a
+   * preference: 426 predicted lines over the FAP example's 115° is ~3.7 per
+   * pixel at the survey view, and drawn on top they buried the pattern
+   * completely — the overlay hiding the one thing it exists to be compared
+   * with. Under it, the density reads as a wash and every measured point stays
+   * on top of it, which is also the honest order: the lines are a hypothesis
+   * and the points are the evidence.
+   *
+   * Full height on an axis of their own rather than ticks in the band below,
+   * for the same reason: a tick states a fitted model's position, and this is a
+   * cell's claim laid *over* the data to be checked against it.
    *
    * No hover. `hovermode` is `x unified`, so plotly snaps *every* trace to its
    * nearest point in x and this one would put a row in the box at every

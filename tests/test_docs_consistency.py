@@ -440,7 +440,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # the same WP's review: the state-on-the-mark rule needed its corollary,
     # because that is where it was broken — a mark that is not the data may not
     # borrow the recessive ink of the data it sits on.
-    "gui/CLAUDE.md": 778,
+    # 778 -> 808 for WP-1211 (2026-08-27): the candidate overlay, whose five
+    # rules are each about a *different* thing a later panel will meet — which
+    # of two shifts belongs on a drawn position, how a cap admits it capped, why
+    # a layer selected from a row gets no toggle, why a preview and a selection
+    # have to be two props, and what "full height" costs in plotly.  None of
+    # them generalises from another, and the two the drawing depends on are
+    # browser findings.  The operating detail went a rank down as this comment
+    # requires: the shift algebra and the enumeration counts are in
+    # `GuiSession.index_ticks`'s docstring, the drawing order and the axis in
+    # `Plot.svelte`'s, and the measured numbers in the WP's handover.
+    "gui/CLAUDE.md": 808,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the
