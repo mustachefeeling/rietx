@@ -1646,7 +1646,112 @@ def occupancy_factor(phase: FullProfPhase, where: str | None = None) -> float:
     return reference
 
 
+#: The atom columns :func:`to_structure` puts on a :class:`~rietx.schemas.Atom`
+#: and whose codeword can therefore state a tie that has somewhere to go. The
+#: magnetic moment columns are deliberately absent: their phase is refused
+#: whole, so a tie among them is reported by that refusal, not this one.
+_TIED_ATOM_COLUMNS = ("x", "y", "z", "biso", "occ")
+
+
+def nuclear_parameter_ties(phase: FullProfPhase, where: str | None = None
+                           ) -> tuple[list[str], list[str]]:
+    """Which of a nuclear phase's codeword ties rietx reproduces, and which not.
+
+    A ``.pcr`` writes a tie by giving two values the **same parameter number**
+    in their codewords (``Code.number``), signed by ``Code.multiplier``. rietx
+    reproduces some of those by construction and cannot express others on a
+    :class:`~rietx.schemas.Structure` at all, and the difference decides whether
+    a built structure has the same number of free parameters as the fit it came
+    from. Returns ``(carried, dropped)``, each a list of human-readable group
+    descriptions.
+
+    **Carried** — a group whose members are all *coordinates of one atom*.
+    ``ParameterTable._collect_atom_coords`` gives each site one ``dof.k`` per
+    site-symmetry-allowed direction and writes x, y, z as affine rows onto them,
+    so ``x = y = z`` on a cubic ``32e`` site is already one free parameter and
+    re-declaring it would be redundant. This is *checked*, not assumed: the
+    site's DOF count is re-derived here and the group is only called carried
+    where rietx's freedom is no larger than FullProf's. Both real cases in the
+    corpus land here — ``300q-1p5K_1.pcr``'s O1 ties x, y and z to parameter 41
+    on ``F d -3 m:2``'s 32e site (one DOF), and ``crwo6002_BV2andBV4.pcr`` ties
+    O1's and O2's x to their y (parameters 56 and 57) on ``P 42/m n m``'s 4f
+    (one DOF each). The phase's **cell** ties are carried for the same reason by
+    ``crystallography.symmetry.cell_constraints``, which is the one authority on
+    them; the corpus's ``a = b`` (parameter 5) and ``a = b = c`` (parameter 40)
+    are both reproduced exactly, so they are not analysed again here.
+
+    **Dropped** — anything else, and the two that matter are a group spanning
+    **two atoms** (a shared ``Biso`` across sites, the reviewer's case) and a
+    group involving a non-coordinate column. Neither is derivable from symmetry,
+    so nothing on the built ``Structure`` would hold them together and the
+    refinement would carry strictly more free parameters than FullProf's did.
+    """
+    import gemmi
+
+    from ...crystallography.wyckoff import coordinate_basis, stabilizer_rotations
+
+    where = where or f"phase {phase.index} ({phase.name!r})"
+    groups: dict[int, list[tuple[int, str, str, float]]] = {}
+    for atom_index, atom in enumerate(phase.atoms):
+        for column in _TIED_ATOM_COLUMNS:
+            value = atom.values.get(column)
+            if value is None:
+                continue
+            code = value.code
+            if code is None:
+                continue
+            groups.setdefault(code.number, []).append(
+                (atom_index, atom.label, column, code.multiplier))
+
+    try:
+        sg = gemmi.SpaceGroup(phase.space_group)
+    except Exception:  # the symbol is refused with a better message elsewhere
+        sg = None
+
+    def dof_count(atom_index: int) -> int | None:
+        """How many free coordinates rietx will give this site, or None."""
+        if sg is None:
+            return None
+        atom = phase.atoms[atom_index]
+        try:
+            xyz = [atom.values[k].value for k in ("x", "y", "z")]
+            return len(coordinate_basis(stabilizer_rotations(sg, xyz)))
+        except Exception:
+            return None
+
+    carried: list[str] = []
+    dropped: list[str] = []
+    for number in sorted(groups):
+        members = groups[number]
+        if len(members) < 2:
+            continue
+        described = ", ".join(
+            f"{label}.{column}(x{multiplier:+g})"
+            for _, label, column, multiplier in members)
+        text = f"parameter {number}: {described}"
+        atom_indices = {m[0] for m in members}
+        columns = {m[2] for m in members}
+        if len(atom_indices) == 1 and columns <= {"x", "y", "z"}:
+            # One site's coordinates. rietx's site-symmetry DOFs already unify
+            # them — but only where its DOF count is no larger than the number
+            # of distinct parameters FullProf spent on this site's coordinates.
+            atom_index = next(iter(atom_indices))
+            atom = phase.atoms[atom_index]
+            fullprof_free = {
+                value.code.number
+                for k in ("x", "y", "z")
+                if (value := atom.values.get(k)) is not None
+                and value.code is not None}
+            n_dof = dof_count(atom_index)
+            if n_dof is not None and n_dof <= len(fullprof_free):
+                carried.append(text)
+                continue
+        dropped.append(text)
+    return carried, dropped
+
+
 def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
+                                drop_parameter_ties: bool = False,
                                 diagnostics: list[Diagnostic] | None = None):
     """Build a :class:`~rietx.schemas.Structure` from a parsed ``.pcr``.
 
@@ -1667,7 +1772,13 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
     the same channel and code shape as ``crystallography.cif.structure_from_cif``
     (``CIF_SPECIES_NORMALISED``). A file that needs no rewrite appends nothing.
 
-    Four refusals, each naming what it would otherwise have dropped:
+    Two more repairs are reported the same way where ``diagnostics=`` is passed:
+    ``FULLPROF_ORIGIN_CHOICE`` where :func:`normalize_space_group` added an
+    origin or axes suffix the file did not write (``F D -3 M`` →
+    ``F d -3 m:2``), and ``FULLPROF_OCCUPANCY_UNCHECKED`` where the
+    occupancy-ratio test that licenses that choice had no discriminating power.
+
+    Six refusals, each naming what it would otherwise have dropped:
 
     * **A magnetic phase.** rietx has no magnetic scattering model, so returning
       the nuclear phases alone would hand back a structure that looks complete
@@ -1686,6 +1797,25 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
       Debye-Waller factor.
     * **An occupancy column that does not reduce** — see
       :func:`occupancy_factor`.
+    * **A value whose codeword column is absent.** ``Value.vary is None`` means
+      the codeword was not on the line at all — a ragged or truncated line — so
+      the file does not say whether FullProf refined that value. Skipping the
+      ``vary`` kwarg would let ``rx.Parameter``'s schema default supply
+      ``False``, making a parameter the file said nothing about
+      indistinguishable from one it genuinely fixed. That is the collapse this
+      module's own docstring forbids ("never collapses an absent column into
+      ``False``"), so it is refused instead of invented.
+    * **A codeword tie rietx cannot express** — see
+      :func:`nuclear_parameter_ties`. FullProf ties two values by giving them
+      one parameter number, and a tie that symmetry does not already reproduce
+      has nowhere to live on a ``Structure``: building anyway yields a model
+      with strictly more free parameters than the fit it represents. The tie
+      *can* be re-declared one layer up — ``Refinement.tie_equal`` and
+      ``Refinement.tie`` take exactly this shape — so the refusal names the
+      calls that reproduce it rather than only naming the loss.
+      ``drop_parameter_ties=True`` is how a caller *declares* it accepts the
+      looser model; the omission is then the caller's and is recorded as a
+      ``FULLPROF_TIE_DROPPED`` diagnostic.
 
     ``Scale`` is carried through **verbatim** as a starting value and a refine
     flag, and is *not* comparable with a rietx scale: FullProf's folds ``ATZ``,
@@ -1714,6 +1844,12 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
     # ``Nph`` ordinal, because that is what a ``where`` path has to resolve
     # against on the object handed back.
     rewrites: dict[str, tuple[str, list[str]]] = {}
+    #: (phase path, group description) per tie the caller declared it would drop.
+    dropped_ties: list[tuple[str, str]] = []
+    #: Origin/axes suffixes this reader added that the file did not write.
+    origin_choices: list[tuple[str, str, str]] = []
+    #: Phases whose occupancy-ratio cross-check could not discriminate.
+    unchecked_occupancy: list[tuple[str, str]] = []
     for structure_index, ph in enumerate(model.nuclear_phases):
         where = f"{model.path or '<model>'}: phase {ph.index} ({ph.name!r})"
         missing = [k for k in _CELL_COLUMNS if k not in ph.cell]
@@ -1746,60 +1882,158 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
         # origin choice: a wrong origin gives wrong multiplicities, so the
         # ratios stop agreeing and the phase is refused rather than returned.
         occupancy_factor(ph, where)
+        # ...but only where it has more than one ratio to compare. With a single
+        # site the test compares one number with itself and passes for *every*
+        # setting, so the licence it grants the origin choice above is vacuous
+        # exactly there. That cannot be repaired by a better test — FullProf's
+        # Occ carries one arbitrary common factor per phase, so one site is one
+        # equation in two unknowns — so it is reported rather than fixed.
+        if len(ph.atoms) == 1:
+            unchecked_occupancy.append(
+                (f"phases.{structure_index}", ph.space_group))
+        # Only the *setting* suffix is reported, not the case repair beside it:
+        # lower-casing the tail of a HM symbol is lossless (everything after the
+        # lattice letter is drawn from `m a b c d n` plus digits, `/` and `-`),
+        # whereas choosing an origin or an axes setting the file never wrote is
+        # this reader supplying a convention, which is what a caller has to be
+        # able to see.
+        if ":" in ph.space_group and ":" not in ph.space_group_raw:
+            origin_choices.append((f"phases.{structure_index}",
+                                   ph.space_group_raw.strip(), ph.space_group))
 
-        def _p(value: Value, **kw):
-            """One rietx Parameter carrying the file's own refine flag."""
-            if (free := value.vary) is not None:
-                kw["vary"] = free
-            return rx.Parameter(value=value.value, **kw)
+        # A codeword tie rietx cannot express is refused before anything is
+        # built, so the message is about the model rather than about a field.
+        carried, dropped = nuclear_parameter_ties(ph, where)
+        if dropped and not drop_parameter_ties:
+            also_carried = (f" It does reproduce {'; '.join(carried)}."
+                            if carried else "")
+            raise FullProfPcrError(
+                f"{where}: the file ties parameters that a Structure cannot "
+                f"carry — {'; '.join(dropped)}. A .pcr writes a tie by giving "
+                f"two values one parameter number and a signed multiplier, and "
+                f"rietx reproduces such a tie on a Structure only where its own "
+                f"site symmetry already does.{also_carried} Building anyway "
+                f"would hand back a model with strictly more free parameters "
+                f"than the refinement this file records, with nothing raised. "
+                f"The tie can be re-declared one layer up, on the Refinement: "
+                f"`ref.tie_equal(['phases.{structure_index}.atoms.I.COL', "
+                f"'phases.{structure_index}.atoms.J.COL'])` for a +1 group, or "
+                f"`ref.tie(path, source, scale=multiplier)` for a signed one. "
+                f"Pass drop_parameter_ties=True to declare instead that the "
+                f"looser model is what you want.")
+        for group in dropped:
+            dropped_ties.append((f"phases.{structure_index}", group))
 
-        cell = rx.Cell(**{
-            name: _p(ph.cell[key])
-            for name, key in zip(("a", "b", "c", "alpha", "beta", "gamma"),
-                                 _CELL_COLUMNS, strict=True)})
-        atoms = [
-            rx.Atom(label=atom.label, species=atom.species,
-                    x=_p(atom.values["x"]), y=_p(atom.values["y"]),
-                    z=_p(atom.values["z"]),
-                    # Fully occupied, verified above; the file's own Occ is a
-                    # multiplicity-scaled quantity and stays on the model.
-                    occ=rx.Parameter(value=1.0, min=0.0, max=1.5),
-                    biso=_p(atom.values["biso"], min=0.0, max=25.0))
-            for atom in ph.atoms]
-        # Every atom above is past the beta/biso/occupancy refusals, so it is on
-        # the Structure — collect its species rewrite now that its path is real.
-        for atom_index, atom in enumerate(ph.atoms):
-            if atom.species != atom.species_raw:
-                rewrites.setdefault(atom.species_raw, (atom.species, []))[1].append(
-                    f"phases.{structure_index}.atoms.{atom_index}.species")
+        def _p(value: Value, what: str, **kw):
+            """One rietx Parameter carrying the file's own refine flag.
+
+            The tri-state is **not** collapsed here. ``vary is None`` means the
+            codeword column was absent from the line, so the file states no
+            protocol for this value; letting the schema default supply ``False``
+            would report it as definitively fixed. Refused instead — a ragged
+            line is a malformed file, and this reader's whole claim is that it
+            never turns an absence into a confident answer.
+            """
+            if (free := value.vary) is None:
+                raise FullProfPcrError(
+                    f"{where}: {what} states the value {value.value!r} with no "
+                    f"codeword column beside it — the line is ragged or "
+                    f"truncated, so the file does not say whether FullProf "
+                    f"refined this value. FullProf always writes the codeword "
+                    f"slot, so an absent column is a damaged line rather than a "
+                    f"held parameter, and reading it as vary=False would make it "
+                    f"indistinguishable from one the file genuinely fixed.")
+            return rx.Parameter(value=value.value, vary=free, **kw)
+
+        # `rx.Cell` and the atoms are built *inside* the try with the phase: a
+        # pydantic refusal on a degenerate cell length or an out-of-bound
+        # coordinate is a schema refusal like any other, and the comment below
+        # claims every one of them is converted here. Built above the try they
+        # escaped as a raw ValidationError naming a field but not the file.
         scale = ph.profile.get("scale")
         try:
+            cell = rx.Cell(**{
+                name: _p(ph.cell[key], f"the cell's {key}")
+                for name, key in zip(("a", "b", "c", "alpha", "beta", "gamma"),
+                                     _CELL_COLUMNS, strict=True)})
+            atoms = [
+                rx.Atom(label=atom.label, species=atom.species,
+                        x=_p(atom.values["x"], f"atom {atom.label!r}'s x"),
+                        y=_p(atom.values["y"], f"atom {atom.label!r}'s y"),
+                        z=_p(atom.values["z"], f"atom {atom.label!r}'s z"),
+                        # Fully occupied, verified above; the file's own Occ is a
+                        # multiplicity-scaled quantity and stays on the model.
+                        occ=rx.Parameter(value=1.0, min=0.0, max=1.5),
+                        biso=_p(atom.values["biso"],
+                                f"atom {atom.label!r}'s Biso",
+                                min=0.0, max=25.0))
+                for atom in ph.atoms]
             phases.append(rx.Phase(
                 name=ph.name, space_group=ph.space_group, cell=cell, atoms=atoms,
-                scale=rx.Parameter(
-                    value=1e-4 if scale is None else scale.value, min=0.0,
-                    transform="softplus",
-                    **({} if scale is None or scale.vary is None
-                       else {"vary": scale.vary}))))
+                scale=(rx.Parameter(value=1e-4, min=0.0, transform="softplus")
+                       if scale is None else
+                       _p(scale, "the phase scale", min=0.0,
+                          transform="softplus"))))
         except FullProfPcrError:
             raise
         except Exception as exc:
             # Every schema refusal is converted at this boundary: a reader raises
             # naming the file, and pydantic's report names a field.
             raise FullProfPcrError(f"{where}: {exc}") from exc
+        # Every atom above is past the beta/biso/occupancy refusals and on the
+        # Structure — collect its species rewrite now that its path is real.
+        for atom_index, atom in enumerate(ph.atoms):
+            if atom.species != atom.species_raw:
+                rewrites.setdefault(atom.species_raw, (atom.species, []))[1].append(
+                    f"phases.{structure_index}.atoms.{atom_index}.species")
     if not phases:
         raise FullProfPcrError(
             f"{model.path or '<model>'}: no nuclear phase to build. The file "
             f"states {len(model.phases)} phase(s), all magnetic — read "
             f"`model.magnetic_phases` for what it does say about them.")
     if diagnostics is not None:
+        named = model.path or "<model>"
         for raw, (canonical, wheres) in rewrites.items():
             diagnostics.append(Diagnostic(
                 level="info", code="FULLPROF_SPECIES_NORMALISED",
-                message=(f"species {raw!r} in {model.path or '<model>'} read as "
+                message=(f"species {raw!r} in {named} read as "
                          f"{canonical!r} — FullProf writes the scattering token in "
                          f"the author's case; normalised to IUCr spelling"),
                 where=wheres))
+        # The origin/axes choice is a *repair* on a value that reaches the
+        # Structure, exactly as the species spelling is, so it is reported on
+        # the same channel: FullProf writes no suffix at all, and which setting
+        # a bare symbol means is a convention this reader supplied.
+        for path, raw, resolved in origin_choices:
+            diagnostics.append(Diagnostic(
+                level="info", code="FULLPROF_ORIGIN_CHOICE",
+                message=(f"space group {raw!r} in {named} read as {resolved!r} "
+                         f"— FullProf writes no origin-choice or axes suffix, so "
+                         f"the setting was chosen here (origin choice 2 where the "
+                         f"bare symbol resolves to 1; rhombohedral axes where the "
+                         f"cell says so) and licensed by the occupancy-ratio "
+                         f"check, which a wrong setting fails"),
+                where=[f"{path}.space_group"]))
+        for path, sg in unchecked_occupancy:
+            diagnostics.append(Diagnostic(
+                level="warning", code="FULLPROF_OCCUPANCY_UNCHECKED",
+                message=(f"the occupancy-ratio check on {path} of {named} "
+                         f"compared a single site with itself, so it passed for "
+                         f"{sg!r} without discriminating — with one site there "
+                         f"is one equation and two unknowns (the chemical "
+                         f"occupancy and FullProf's arbitrary per-phase Occ "
+                         f"factor), so it cannot license this phase's setting "
+                         f"the way it does a multi-site one"),
+                where=[f"{path}.atoms.0.occ"]))
+        for path, group in dropped_ties:
+            diagnostics.append(Diagnostic(
+                level="warning", code="FULLPROF_TIE_DROPPED",
+                message=(f"drop_parameter_ties=True: the codeword tie {group} in "
+                         f"{named} is not carried onto the Structure, which "
+                         f"therefore has more free parameters than the "
+                         f"refinement the file records. Re-declare it with "
+                         f"Refinement.tie_equal/tie to recover the constraint"),
+                where=[path]))
     try:
         return rx.Structure(phases=phases)
     except Exception as exc:

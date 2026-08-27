@@ -38,6 +38,7 @@ from rietx.io.projects.fullprof import (
     decode_codeword,
     normalize_space_group,
     normalize_species,
+    nuclear_parameter_ties,
     occupancy_factor,
     read_fullprof_pcr,
     to_structure,
@@ -1270,12 +1271,14 @@ def test_a_truncated_pcr_never_escapes_as_anything_but_a_fullprof_error(tmp_path
                 f"truncation at {n} of {len(raw)} bytes escaped as "
                 f"{type(exc).__name__}: {exc}") from exc
 
+
 # ----------------------------------------------- the review round: six findings
 #
 # One section per finding of the PR #111 review, each pinning a divergence
 # between what this module's own docstring claims and what its code did. The
 # fixtures reuse the quoted lines above; where a finding needs a shape no corpus
 # file has, the comment says so rather than implying a real file was seen.
+
 
 def _rewrite_trailing_selector(text: str, header: str, value: str) -> str:
     """Rewrite the trailing model selector on the data line after ``header``.
@@ -1292,6 +1295,160 @@ def _rewrite_trailing_selector(text: str, header: str, value: str) -> str:
             lines[i + 1] = "  " + "  ".join(tokens)
             return "\n".join(lines)
     raise AssertionError(f"no {header!r} line in the fixture")
+
+
+# Finding 1 — the tri-state must not collapse into False.
+#
+# `crwo6002_momcomp.pcr`:88-89 with its codeword line cut from five columns to
+# three. FullProf always writes the slot, so this shape is a *damaged* file, not
+# one that says "held" — which is the whole distinction `Value.vary is None`
+# exists to keep, and the module docstring's "never collapses an absent column
+# into False".
+_RAGGED_CODEWORD_SITES = """\
+Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1
+                  0.00     0.00     0.00
+W      W       0.00000  0.00000  0.00000  0.22402   0.25000   0   0   0    1
+                  0.00     0.00     0.00     0.00      0.00
+O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1
+                  0.00     0.00     0.00     0.00      0.00
+O2     O       0.30294  0.30294  0.34087  0.18463   1.00000   0   0   0    1
+                  0.00     0.00     0.00     0.00      0.00"""
+
+
+def test_an_absent_codeword_column_is_refused_not_read_as_held(tmp_path):
+    """A ragged codeword line is refused at build, never defaulted to vary=False.
+
+    The reader's own tri-state says ``None`` means "the codeword column is not
+    there at all". ``to_structure`` cannot know the protocol for such a value,
+    and skipping the ``vary`` kwarg let ``rx.Parameter``'s schema default supply
+    ``False`` — making a parameter the file said nothing about indistinguishable
+    from one it genuinely fixed. That is WP-1076's collapse one file over.
+    """
+    pcr = _pcr(tmp_path, "ragged.pcr", _phase(atoms=_RAGGED_CODEWORD_SITES))
+    model = read_fullprof_pcr(pcr)
+    # The *reader* still reports the absence faithfully — it is only the build
+    # that cannot proceed on it.
+    assert model.phases[0].atoms[0].values["biso"].vary is None
+    assert model.phases[0].atoms[1].values["biso"].vary is False
+    with pytest.raises(FullProfPcrError) as excinfo:
+        to_structure(model)
+    message = str(excinfo.value)
+    assert "'Cr'" in message and "Biso" in message
+    assert "ragged or truncated" in message
+    assert "vary=False" in message
+
+
+def test_an_absent_cell_codeword_column_is_refused_naming_the_column(tmp_path):
+    """The same refusal on the cell line, which names *which* of the six."""
+    pcr = _pcr(tmp_path, "ragged_cell.pcr",
+               _phase(cell_codes="   51.00000   51.00000   61.00000"))
+    with pytest.raises(FullProfPcrError, match=r"cell's alpha"):
+        to_structure(read_fullprof_pcr(pcr))
+
+
+# Finding 2 — a schema refusal must be converted at the same boundary.
+
+
+def test_a_schema_refusal_on_an_atom_is_converted_naming_the_file(tmp_path):
+    """``rx.Cell`` and the atoms are built *inside* the conversion ``try``.
+
+    They were built above it, so a pydantic ``ValidationError`` escaped raw —
+    naming a field but not the file — contradicting the adjacent comment "every
+    schema refusal is converted at this boundary" and reaching any caller that
+    catches only the documented error type.
+
+    ``biso`` is the reachable case: ``to_structure`` bounds it at ``max=25.0``,
+    so a Biso above that is refused by ``rx.Parameter`` itself. A *negative*
+    Biso does not exercise this — it has its own explicit refusal further up.
+    """
+    sites = _CR2WO6_SITES.replace("0.21358", "31.00000")
+    pcr = _pcr(tmp_path, "hot.pcr", _phase(atoms=sites))
+    with pytest.raises(FullProfPcrError) as excinfo:
+        to_structure(read_fullprof_pcr(pcr))
+    assert "hot.pcr" in str(excinfo.value)
+
+
+# Finding 3 — a tie rietx cannot express is refused, not silently loosened.
+#
+# Built, not quoted: **no corpus file ties two nuclear atoms**. All five readable
+# real files tie only one site's own coordinates (`300q-1p5K_1.pcr`'s O1 x=y=z on
+# parameter 41; `crwo6002_BV2andBV4.pcr`'s O1 and O2 x=y on 56 and 57), and rietx
+# reproduces every one of those through its site-symmetry DOFs — verified against
+# the real files, which is why they must *not* refuse. The codeword `81.00` below
+# is quoted from crwo6002_momcomp.pcr:108 (an Asy1 codeword); putting it on two
+# atoms' Biso is this test's construction.
+_SHARED_BISO_SITES = """\
+Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1
+                  0.00     0.00     0.00    81.00      0.00
+W      W       0.00000  0.00000  0.00000  0.21358   0.25000   0   0   0    1
+                  0.00     0.00     0.00    81.00      0.00
+O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1
+                  0.00     0.00     0.00     0.00      0.00
+O2     O       0.30294  0.30294  0.34087  0.18463   1.00000   0   0   0    1
+                  0.00     0.00     0.00     0.00      0.00"""
+
+
+def test_a_tie_across_two_atoms_is_refused_naming_the_parameters(tmp_path):
+    """Two sites sharing a Biso codeword is one FullProf parameter, not two.
+
+    Nothing on a ``Structure`` holds them together, so building would hand back
+    a model with strictly more free parameters than the fit the file records —
+    silently. Refused by default, in the shape ``nuclear_only`` set: the refusal
+    names the tie and the call that reproduces it.
+    """
+    pcr = _pcr(tmp_path, "tied.pcr", _phase(atoms=_SHARED_BISO_SITES))
+    model = read_fullprof_pcr(pcr)
+    carried, dropped = nuclear_parameter_ties(model.phases[0])
+    assert carried == []
+    assert dropped == ["parameter 8: Cr.biso(x+1), W.biso(x+1)"]
+    with pytest.raises(FullProfPcrError) as excinfo:
+        to_structure(model)
+    message = str(excinfo.value)
+    assert "Cr.biso" in message and "W.biso" in message
+    # The remedy is named, because it exists: the tie is expressible one layer
+    # up, on the Refinement, even though a Structure cannot carry it.
+    assert "tie_equal" in message
+    assert "drop_parameter_ties=True" in message
+
+
+def test_dropping_a_tie_is_the_callers_declared_choice_and_is_recorded(tmp_path):
+    """``drop_parameter_ties=True`` builds, and says what it gave up."""
+    pcr = _pcr(tmp_path, "tied.pcr", _phase(atoms=_SHARED_BISO_SITES))
+    diagnostics: list = []
+    structure = to_structure(read_fullprof_pcr(pcr), drop_parameter_ties=True,
+                             diagnostics=diagnostics)
+    assert len(structure.phases[0].atoms) == 4
+    dropped = [d for d in diagnostics if d.code == "FULLPROF_TIE_DROPPED"]
+    assert len(dropped) == 1
+    assert dropped[0].level == "warning"
+    assert "Cr.biso" in dropped[0].message and "W.biso" in dropped[0].message
+    assert dropped[0].where == ["phases.0"]
+
+
+def test_a_sites_own_coordinate_tie_is_carried_by_symmetry_not_refused(tmp_path):
+    """The corpus's real ties must **not** refuse — rietx already reproduces them.
+
+    ``crwo6002_BV2andBV4.pcr`` ties O1's x to its y with parameter 56, on
+    ``P 42/m n m``'s 4f site. ``ParameterTable._collect_atom_coords`` gives that
+    site one ``dof.0`` and writes x and y as affine rows onto it, so the
+    constraint is already one free parameter. Refusing it would be a false alarm
+    on a real file, which is why the check re-derives the site's DOF count
+    instead of refusing every shared codeword.
+    """
+    sites = _CR2WO6_SITES.replace(
+        "O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1  #color cyan\n"
+        "                  0.00     0.00     0.00     0.00      0.00",
+        "O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1  #color cyan\n"
+        "                561.00   561.00     0.00     0.00      0.00")
+    assert "561.00" in sites, "the O1 codeword line was not rewritten"
+    pcr = _pcr(tmp_path, "wyckoff.pcr", _phase(atoms=sites))
+    model = read_fullprof_pcr(pcr)
+    carried, dropped = nuclear_parameter_ties(model.phases[0])
+    assert dropped == []
+    assert carried == ["parameter 56: O1.x(x+1), O1.y(x+1)"]
+    # and it builds without the caller having to declare anything
+    assert len(to_structure(model).phases[0].atoms) == 4
+
 
 # Finding 4 — the R_Bragg count is asserted, not truncated into agreement.
 
@@ -1320,6 +1477,7 @@ def test_a_pcr_with_no_r_bragg_comments_still_reads(tmp_path):
     pcr.write_text(text, encoding="utf-8")
     model = read_fullprof_pcr(pcr)
     assert model.phases[0].r_bragg is None
+
 
 # Finding 5 — integer fields go through an is_integer() guard, never bare int().
 
@@ -1370,6 +1528,7 @@ def test_an_integer_model_selector_still_reads(tmp_path):
     model = read_fullprof_pcr(_pcr(tmp_path, "size1.pcr", phase))
     assert model.phases[0].size_model == 1
     assert model.phases[0].strain_model == 0
+
 
 # Finding 6 — an R lattice on rhombohedral axes.
 #
@@ -1428,3 +1587,79 @@ def test_a_hexagonal_r_cell_is_left_on_the_default_setting(tmp_path):
                       cell_codes=_CR2WO6_CELL_CODES))
     assert read_fullprof_pcr(pcr).phases[0].space_group == "R -3 c"
 
+
+# The two lower-confidence items the review raised, both surfaced rather than
+# left silent.
+
+
+def test_the_origin_choice_repair_is_reported_as_a_diagnostic(tmp_path):
+    """FullProf writes no origin suffix, so choosing one is a repair — and a
+    repair on a value that reaches the ``Structure`` is reported the way the
+    species rewrite is, on the same channel.
+
+    ``F D -3 M`` is quoted from ``300q-1p5K_1.pcr``:68.
+    """
+    # A one-site cubic phase: Co3O4's 8a site alone, so the symbol resolves and
+    # the occupancy ratio is trivially self-consistent.
+    sites = ("Co1    CO      0.12500  0.12500  0.12500  0.35000   0.12500"
+             "   0   0   0    1\n"
+             "                  0.00     0.00     0.00     0.00      0.00")
+    cell = "   8.068200   8.068200   8.068200  90.000000  90.000000  90.000000"
+    pcr = _pcr(tmp_path, "spinel.pcr",
+               _phase(nat=1, sg="F D -3 M", atoms=sites, cell=cell,
+                      cell_codes=_CR2WO6_CELL_CODES))
+    model = read_fullprof_pcr(pcr)
+    assert model.phases[0].space_group == "F d -3 m:2"
+    diagnostics: list = []
+    to_structure(model, diagnostics=diagnostics)
+    origin = [d for d in diagnostics if d.code == "FULLPROF_ORIGIN_CHOICE"]
+    assert len(origin) == 1
+    assert "'F D -3 M'" in origin[0].message
+    assert "'F d -3 m:2'" in origin[0].message
+    assert origin[0].where == ["phases.0.space_group"]
+
+
+def test_a_case_only_repair_is_not_reported_as_an_origin_choice(tmp_path):
+    """Lower-casing a HM symbol's tail is lossless, so it is not a convention
+    the caller has to see — only the *setting* suffix is."""
+    pcr = _pcr(tmp_path, "case.pcr", _phase(sg="P 42/M N M"))
+    model = read_fullprof_pcr(pcr)
+    assert model.phases[0].space_group == "P 42/m n m"
+    diagnostics: list = []
+    to_structure(model, diagnostics=diagnostics)
+    assert [d for d in diagnostics if d.code == "FULLPROF_ORIGIN_CHOICE"] == []
+
+
+def test_a_single_site_phase_says_its_occupancy_check_did_not_discriminate(
+        tmp_path):
+    """The occupancy-ratio test is structurally blind for a one-site phase.
+
+    One ratio always agrees with itself, so the test passes for *every* setting
+    and the licence it grants the origin choice is vacuous exactly there. That
+    cannot be repaired by a better test — FullProf's Occ carries one arbitrary
+    common factor per phase, so one site is one equation in two unknowns — so it
+    is reported instead of being left silent.
+    """
+    sites = ("Co1    CO      0.12500  0.12500  0.12500  0.35000   0.12500"
+             "   0   0   0    1\n"
+             "                  0.00     0.00     0.00     0.00      0.00")
+    cell = "   8.068200   8.068200   8.068200  90.000000  90.000000  90.000000"
+    pcr = _pcr(tmp_path, "one_site.pcr",
+               _phase(nat=1, sg="F D -3 M", atoms=sites, cell=cell,
+                      cell_codes=_CR2WO6_CELL_CODES))
+    diagnostics: list = []
+    to_structure(read_fullprof_pcr(pcr), diagnostics=diagnostics)
+    blind = [d for d in diagnostics if d.code == "FULLPROF_OCCUPANCY_UNCHECKED"]
+    assert len(blind) == 1
+    assert blind[0].level == "warning"
+    assert "single site" in blind[0].message
+    assert blind[0].where == ["phases.0.atoms.0.occ"]
+
+
+def test_a_multi_site_phase_makes_no_such_claim(tmp_path):
+    """Four sites do discriminate, so nothing is reported."""
+    diagnostics: list = []
+    to_structure(read_fullprof_pcr(_pcr(tmp_path, "four.pcr", _phase())),
+                 diagnostics=diagnostics)
+    assert [d for d in diagnostics
+            if d.code == "FULLPROF_OCCUPANCY_UNCHECKED"] == []
