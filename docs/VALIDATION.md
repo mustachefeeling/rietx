@@ -86,6 +86,7 @@ either fine or broken depending on which seed the suite happened to pin.
 | `srm660c` | `tests/data/nist_srm660c_100a.cif` | **absolute anchor** | NIST SRM 660c LaB6, lab Cu Ka doublet + graphite analyzer; the certification measurement itself |
 | `srm676a` | `tests/data/qarr/corundum.prn` | **absolute anchor** | NIST SRM 676a corundum, lab Cu Ka; the round robin's pure-phase pattern doubles as the cell-anchor specimen |
 | `lab6_cbn` | `tests/data/11BM_LaB6_cBN_mg2044.xye` | cross-code | APS 11-BM synchrotron NIST SRM 660b LaB6 + cubic BN two-phase mixture, lambda = 0.413680 A from the .prm; propagated esds from twelve analyser crystals. No weighed composition exists, so every row referenced to it is cross-code |
+| `si640c` | `tests/data/11BM_Si640c.xy` | cross-code | APS 11-BM synchrotron NIST SRM 640c silicon, run 4918 (Feb 2010), the beamline's provided standard scan; lambda seeded at the header's stated 0.412359 A and refined against the held certificate cell.  Real propagated esds (twelve analysers).  The refined wavelength is cross-code against XND 1.42; the held cell is the NIST certificate |
 | `nac` | `tests/data/11BM_NAC.fxye` | characterisation | APS 11-BM synchrotron Na2Ca3Al2F14 with a CaF2 impurity, lambda = 0.4139090 A from the .prm |
 | `fap` | `tests/data/FAP.XRA` | cross-code | GSAS-II LabData tutorial fluorapatite; FAP.EXP is GSAS's converged fit and supplies both the reference values and the protocol |
 | `hl2` | `tests/data/hl2_peaks.txt` | characterisation | 74 peaks from a genuinely UNIDENTIFIED laboratory pattern -- our own derived product from datalab-org/guillemot's MIT examples, carried with attribution; the compound is unknown and stays unknown |
@@ -1032,6 +1033,104 @@ A parameter that is exactly degenerate in one histogram and measurable in severa
 **Referenced to:** existence, not a number -- a ceiling row
 
 **Measured:** two PNGs written to tests/output/, mg090_joint_hist0.png and mg090_joint_hist1.png
+
+### `tests/test_acceptance_si640c.py`
+
+The single-histogram refinable wavelength, on NIST SRM 640c silicon at APS 11-BM, against an independent XND 1.42 refinement of the same scan.  Holding the certified cell is what makes a free lambda a measurement of the monochromator's calibration error, and the fit finds it +30 to +41 ppm off the beamline's stated value at many sigma.  The row worth reading is the pair: on XND's own 2-50 deg range the codes agree to 11 ppm, and that gap is entirely the asymmetry convention (rietx's FCJ axial divergence against XND's A_T2) -- restrict to the symmetric peaks where neither applies one and the agreement collapses to 0.4 ppm.  The sub-ppm number lives where the two codes model the same physics, and the residual is named rather than tuned away.
+
+#### `test_the_protocol_is_sane_and_states_what_differs_from_xnd`
+
+`identity` `ceiling` · dataset `si640c`
+
+**Claims:** Rexp lands in the right neighbourhood of XND's on the same channels, and the grid is XND's exactly -- the protocol check before any refined number is compared
+
+**Referenced to:** the file's own 47999-point grid (XND's SIZE) as the identity bar; Rexp is only asked to sit in the counting-statistics band both codes see (~0.06-0.07), not matched to XND's 0.065, because rietx's free set and effective-N differ.  The two modelled differences from XND -- a P-spline background vs eleven interpolated points, FCJ asymmetry vs A_T2 -- are declared in the docstring, which is the cross-code tier's requirement
+
+**Measured:** Rexp 0.0609 against XND's 0.065; 47999 channels exactly; converged, GoF 1.36
+
+#### `test_the_refined_wavelength_recovers_xnds_calibration_error`
+
+`cross_code` `characterisation` · dataset `si640c`
+
+**Claims:** on XND's own 2-50 deg range the refined lambda moves +30 ppm off the beamline's stated value and agrees with XND within the one modelled difference -- the FCJ-vs-A_T2 asymmetry convention
+
+**Referenced to:** XND 1.42's converged lambda 0.412376076 +- 0.000000379 A (+41.4 ppm off the header's 0.412359), cell held.  The band to XND is 18 ppm -- the MEASURED FCJ-vs-A_T2 convention difference with headroom, NOT a truth claim: lambda sits on a rho = -0.9 ridge with zero, and which point is picked is set by the low-angle asymmetry model the two codes spell differently.  The move off nominal is the calibration error, asserted resolved (>4 sigma) and in XND's sign and order
+
+**Measured:** lambda = 0.412371533 A, esd 5.5 ppm; +30.4 ppm off nominal (5.5 sigma), -11.0 ppm from XND; Rwp 0.0826, GoF 1.36.  Background choice moves it <0.1 ppm and dispersion is inert (Si far above its edge), so the residual is the asymmetry convention alone -- the next row proves it
+
+#### `test_the_symmetric_window_recovers_xnd_to_sub_ppm`
+
+`prediction` `characterisation` · dataset `si640c`
+
+**Claims:** restricting to the symmetric peaks -- where neither code applies a consequential asymmetry correction -- collapses the disagreement with XND to sub-ppm, proving the full-range gap is the convention and nothing else
+
+**Referenced to:** the prediction written before the fit: if the 11 ppm full-range gap is FCJ-vs-A_T2 and not a real lambda difference, dropping everything below the (111) at 7.54 deg must recover XND.  The band is 3 ppm against XND's 0.412376076; this is the asymmetry-model-free determination, recorded as such rather than as XND's exact protocol (it is not -- the low-angle channels XND kept are excluded here)
+
+**Measured:** lambda +41.0 ppm off nominal, -0.4 ppm from XND, now resolved at 27.6 sigma because the low-angle region was the whole source of the lambda~zero indeterminacy; Rwp 0.0736
+
+#### `test_the_wavelength_calibration_diagnostic_fires_once_and_reports_the_ppm`
+
+`identity` · dataset `si640c`
+
+**Claims:** WAVELENGTH_CALIBRATION fires exactly once where lambda was refined, names the scoped path, carries the ppm as Diagnostic.value, and is silent on the fit that held lambda
+
+**Referenced to:** floating point (rel=1e-9) between the diagnostic's value and the ppm recomputed from the refined lambda -- one measurement, two surfaces, pinned rather than re-derived; and set membership for the silence on the held fit
+
+**Measured:** one diagnostic, level info, value +30.4 ppm, where instrument.source.lines.0.wavelength; zero on the lambda-held fit
+
+**Diagnostics:** `WAVELENGTH_CALIBRATION`
+
+#### `test_biso_is_positive_and_agrees_with_xnd`
+
+`cross_code` · dataset `si640c`
+
+**Claims:** the one structural parameter comes back positive and within a fraction of a combined sigma of XND's
+
+**Referenced to:** XND's Biso(Si) 0.438984 +- 0.001711 A^2.  Both codes carry Berar-Lelann inflated esds -- XND's Berar is the same one rietx implements -- so this is a genuine sigma-distance, bounded at 2 combined sigma.  Positivity is its own claim: the prior bad-intensity-model attempt drove Biso negative
+
+**Measured:** Biso 0.42198(2230) against 0.438984(1711), 0.76 combined sigma; positive
+
+#### `test_the_lambda_zero_correlation_is_high_but_below_the_guard`
+
+`characterisation` · dataset `si640c`
+
+**Claims:** lambda~zero is reported high-but-below-guard as XND found it, the fit raises no HIGH_CORRELATION, and nothing sits at |rho| -> 1
+
+**Referenced to:** XND printed lambda~zero = -0.897; d = lambda/(2 sin theta) makes the ridge real and correct, not a defect.  The checks are that it appears in top_correlations near XND's value, that no pair reaches the 0.98 guard (so HIGH_CORRELATION is silent), and that the tied FCJ pair leaves nothing at |rho| -> 1 -- freeing S/L and H/L both would sit at -1.000
+
+**Measured:** lambda~zero -0.920 (XND -0.897); zero~axial +0.914 (XND zero~asym +0.941); no HIGH_CORRELATION; max |rho| < 0.98
+
+**Diagnostics:** `HIGH_CORRELATION` asserted *absent*
+
+#### `test_the_held_cell_is_the_certificate`
+
+`certificate` `identity` · dataset `si640c`
+
+**Claims:** the held cell IS the certificate value -- the anchor of the whole protocol, asserted as the identity it is rather than measured
+
+**Referenced to:** NIST SRM 640c certificate a = 5.4311946 +- 0.0000092 A at 22.5 C.  Held, not refined: holding a certified cell is what turns a free lambda into a calibration measurement.  The cubic ties (b<-a, c<-a) carry the source's value, so this is an identity bar (exact) and the absent esd shows nothing was refined.  XND held 5.4311948, 0.4 ppm above, negligible against every band here and stated in the docstring
+
+**Measured:** cell.b and cell.c both exactly 5.4311946 A, esd None
+
+#### `test_the_sample_broadening_is_positive_and_finite`
+
+`characterisation` · dataset `si640c`
+
+**Claims:** the Lorentzian sample broadening refines to positive, finite terms, and is explicitly NOT compared to NIST's certificate coefficients
+
+**Referenced to:** SRM 640c's Information Values give a Lorentzian FWHM 0.0065(5)/cos theta + 0.0086(6) tan theta, which map unit-for-unit onto lor_size and lor_strain -- but by CONVENTION only.  NIST's split is a fundamental-parameters analysis at its own Cu Ka instrument, so the instrument/sample division differs from this Caglioti-plus-Lorentzian model at 11-BM; the claim is positivity and finiteness, with the NIST numbers a NOTE and never a bar (no equality is asserted)
+
+**Measured:** lor_size 0.0023(2), lor_strain 0.0150(14) deg2theta -- the same order as NIST's 0.0065/0.0086, the split apportioned differently; both positive and finite
+
+#### `test_the_fit_renders`
+
+`ceiling` · dataset `si640c`
+
+**Claims:** the obs/calc/diff rendering exists, so the fit can be looked at rather than only summarised
+
+**Referenced to:** existence, not a number -- a ceiling row
+
+**Measured:** one PNG written to tests/output/si640c_full.png
 
 ## The one default this matrix decided
 
