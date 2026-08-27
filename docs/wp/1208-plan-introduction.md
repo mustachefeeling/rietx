@@ -1,6 +1,6 @@
 # WP-1208 — Plan panel: the gentle introduction
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.2 · Status: ✅ 2026-08-27 — the ladder, and what a plan will free
 Depends on: WP-1203
 
 ## Goal
@@ -80,5 +80,91 @@ npm --prefix gui test && npm --prefix gui run check
 - WP-1123 (cumulative staging), WP-1058 (stage reports).
 
 ## Handover log
+
+### 2026-08-27 — closed: the plan now says what it will do
+
+A crystallographer opening the Plan panel reads a plan the way it behaves.
+Three sentences at the top say what a staged plan is. Each stage is a rung
+carrying what it frees on top of the last (`+4 → 11 free`), the paths its
+globs reach and cannot free with the row's own reason, and the Rwp that stage
+reached the last time it ran. The two verbs are named beside each other, and
+the difference between them is stated where it costs something: `Run all`
+starts every plan from a table where nothing is free, so a parameter someone
+freed by hand and no stage names is set aside, while `Run this stage` keeps
+it. That asymmetry was in the code and in nothing anyone could read; the
+comment in `Refinement.fit` said the opposite of what the line under it does,
+and this WP measured it and rewrote it.
+
+*Done.* `GET /api/plan/resolve` (`GuiSession.plan_resolve` + `_stage_rwp`):
+per stage `turn_on`, the three buckets `frees`/`already`/`held` that partition
+its matched paths, `n_matched`, the cumulative `n_free`, and `rwp`; beside
+them `mode`, `n_parameters`, `n_free_final`, `set_aside`, `head`, `live`. The
+simulation is `ParameterTable.set_vary` itself, run on `_prepare_table(
+restore=False)` — the table `fit` builds — plus `_run_stage`'s own
+`mode_fixed_path` drop, so no rule is restated here. `Plan.svelte` is rebuilt
+around the ladder: the explainer, the preset's `description` visible with
+`when_to_use` moved into the popover, a per-stage disclosure listing the
+paths, `held_because` on each held row through `<Help text=…>`, and `Run all`
+/ `Run this stage`. The advanced boxes are a loop over `lib/rxt.ts`'s stage
+words rather than four typed-out fields, which brings `ftol`,
+`restraint_weight_scale` and `window_slack_deg` into the form (reachable only
+through the `.rxt` document before) — `STAGE_INT_WORDS` and
+`STAGE_NULLABLE_WORDS` join `STAGE_WORDS` there, all three pinned to
+`StageSpec` from `tests/test_textdoc.py`. `gui/CLAUDE.md` takes four rules,
+cap 710 → 733.
+
+*Measured* (`[dev]` only — no jax, no torch — python 3.12.12, numba 0.67.0,
+darwin/arm64):
+
+- **`stage_reports=True` costs 7.7× the fit and buys nothing the history has.**
+  4200-channel synthetic LaB6, five-stage `mccusker_default`, best of three:
+  history off + reports off **0.075 s**, history off + reports on **0.577 s**,
+  history on + reports off **0.076 s**, history on + reports on **0.582 s**.
+  A tree costs ~0.001 s because the statistics are computed for the node
+  either way. And every stage node's cached Rwp is **bit-identical** to the
+  WP-1058 rung's, all five stages — both are `_build_result` over the model
+  the stage compiled and the θ it landed on. So the ladder reads the node and
+  the GUI's run verb is untouched (task 3 as written is not what shipped).
+- **A fit replaces the vary flags; a single stage continues them.**
+  `set_vary("phases.*.atoms.*.biso")` then `fit(plan="profile_only")` refines
+  no biso, while `run_stage` on the same state refines both. This is what
+  `set_aside` reports.
+- **Browser** (playwright-core, cached chromium-1223, four passes on the
+  11-BM NAC example). Cold, the ladder reads `+8 → 8`, `+1 → 9`, `+2 → 11
+  free · 10 held` (two cubic cells, one edge free each), `+1 → 12`, `+4 → 16`,
+  `+8 → 24 of 95`. Fitted, the same column carries **79.62 → 60.57 → 11.56 →
+  11.43 → 9.71 → 9.32 %**, which is the staged descent in one glance.
+  One defect jsdom cannot see: **freeing a parameter blanked every Rwp**,
+  because a `set_vary` node sits between the head and the fit's stages and the
+  walk stopped at the first non-stage node. `_RWP_TRANSPARENT` names the three
+  parameter-surface kinds that may sit there; `edit_model` stays opaque and
+  ends the run, since a number measured on a replaced model describes nothing
+  on screen. Both directions are tested.
+  Two register repairs came from looking at it: `Run all` is a ghost (the app
+  header's Run is the same verb, and two filled buttons read as two actions)
+  with `Save plan` taking the fill while there is something to save; and the
+  stage number moved off the name row onto the ladder line, which also lets
+  `name` and `frees` share a label column.
+- **Counts.** Fast suite `-m "not slow"`: **3090 passed / 117 skipped**;
+  without this WP's ten tests, **3080 / 117** — +10, exactly the ten added. vitest
+  458 → **460** (two new cases; a third assertion extended an existing one),
+  21 files. `npm --prefix gui run check` clean, `ruff` clean, dist rebuilt.
+  Merged `origin/main` at `d6f36c69` (the strain/size soft cap, PR #144, which
+  adds 373 lines to `params/vector.py`) before quoting any of these; it touches
+  `ParameterTable.bounds` and not the free set, so the resolve is unaffected.
+
+*Gotchas for whoever touches this next.* `_working_table()` is `run_stage`'s
+starting table and **not** `fit`'s — the first cut of the route used it and
+every rung came back with the same cumulative count, because after a fit the
+restored free set already contains everything the plan frees. The three
+buckets are decided held-first on purpose: a mode-fixed row a user freed is
+both held and already free, and what the stage does with it is drop it. And
+the dynamic held-reason is reached by setting `needs_held_cell` on a copy of
+the row rather than by spelling its sentence again, which works because
+`ParameterRow.refinable` promises the four reasons are all there are — a fifth
+dynamic rule inside `set_vary` would be mislabelled, and would need this
+line changed with it.
+
+*Next:* WP-1209 (the peaks table's numbers and flags).
 
 - **2026-08-25** — created from the v1.2 triage.
