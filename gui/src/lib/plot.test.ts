@@ -8,17 +8,18 @@ import {
   curveColors,
   curveToggles,
   dataOnlyHidden,
+  drawnRange,
   formatRegion,
   heldRanges,
-  movedAxes,
-  noAxes,
-  pinPatch,
   hoverLabel,
   isDataOnly,
   maskShapes,
   masked,
   mergeRegions,
+  movedAxes,
+  noAxes,
   normalizeRegion,
+  pinPatch,
   residual,
   scaleValues,
   shows,
@@ -506,6 +507,26 @@ describe("a redraw never moves the axes (WP-1212)", () => {
       expect(pinPatch(full({ xaxis: { autorange: true } })))
         .not.toHaveProperty("xaxis.range");
     });
+
+    it("pins the range the axis is drawing with, not the one it is carrying", () => {
+      // On the first plot of a fresh div the two disagree: `range` was still
+      // plotly's empty-axis default while the ticks, the pixel map and `_rl`
+      // all said 0-60° (WP-1212, measured on the raw view). Pinning `range`
+      // there froze a blank plot.
+      expect(pinPatch(full({
+        xaxis: { autorange: true, range: [-1, 6], _rl: [-3.07, 63.56] },
+      }))["xaxis.range"]).toEqual([-3.07, 63.56]);
+      expect(drawnRange({ range: [-1, 6], _rl: [-3.07, 63.56] })).toEqual([-3.07, 63.56]);
+      expect(drawnRange({ range: [9.97, 14.66] })).toEqual([9.97, 14.66]);
+      expect(drawnRange({ _rl: ["a", 3], range: [1, 2] })).toEqual([1, 2]);
+      expect(drawnRange({})).toBeNull();
+      expect(drawnRange(undefined)).toBeNull();
+    });
+  });
+
+  it("hands back the drawn range too, so a stale one cannot survive a redraw", () => {
+    expect(heldRanges({ xaxis: { autorange: false, range: [-1, 6], _rl: [10, 14] } },
+                      { yaxis: true, yaxis2: true })).toEqual({ xaxis: [10, 14] });
   });
 
   describe("which axes a person moved", () => {

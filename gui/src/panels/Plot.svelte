@@ -181,6 +181,7 @@
    *  run landed" — the one distinction that licenses re-fitting the axes. */
   let paintedKey: number | null = null;
   let paintedResult: any = null;
+  let paintedPayload: any = null;
 
   /** Which axes a *person* has moved, as plotly reports each gesture.
    *
@@ -442,10 +443,19 @@
     // clip them. Untracked, like the knobs beside it — the knob effect must not
     // gain `plotKey` as a dependency, or every run costs a second identical
     // react (the count WP-1044 measured and removed).
-    const fresh = untrack(() => plotKey !== paintedKey || result !== paintedResult);
+    //
+    // **New numbers and a new payload**, both: a project switch moves `plotKey`
+    // and `extent` in one flush, and the knob effect's paint of the payload
+    // still in hand can land first — the fetch is a round trip and a repaint is
+    // one microtask. With `plotKey` alone that repaint would spend the licence
+    // re-fitting the axes over the *old* pattern, and the new one would then be
+    // handed those ranges as a pin.
+    const fresh = w !== paintedPayload
+      && untrack(() => plotKey !== paintedKey || result !== paintedResult);
     const ranges = request ? { xaxis: request } : view(fresh);
     paintedScale = scale;
     paintedKind = kind;
+    paintedPayload = w;
     untrack(() => { paintedKey = plotKey; paintedResult = result; });
     await plotly.react(node, traces,
                        layout(w, colors, phases.length, ranges, untrack(() => arm !== null)),

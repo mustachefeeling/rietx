@@ -210,13 +210,38 @@ export interface Ranges {
   yaxis2?: [number, number];
 }
 
+/**
+ * The range an axis is **drawing** with, which is not always `ax.range`.
+ *
+ * A browser finding, and the one that decides whether pinning is safe at all
+ * (WP-1212). On the first plot of a fresh div — the raw pattern view, which is
+ * the state a project is in before any fit — `_fullLayout.xaxis.range` was
+ * still plotly's empty-axis default `[-1, 6]` with `autorange: true` while the
+ * axis was drawing 0-60°: the tick labels, `_length`/`_offset` and `p2d` all
+ * agreed on −3.07-63.56 and only `range` did not. Plotly keeps the resolved
+ * pair in `ax._rl`, which is what its pixel map is built from, so `_rl` is the
+ * honest read and `range` is the one that can be stale. The two are the same
+ * number whenever `range` is fresh, log axes included (both are in log units).
+ *
+ * Reading any of this back off `_fullLayout` is WP-1044's rule, and WP-1015's
+ * before it; this only names which field inside it answers the question.
+ */
+export function drawnRange(ax: any): [number, number] | null {
+  for (const pair of [ax?._rl, ax?.range]) {
+    if (!Array.isArray(pair) || pair.length !== 2) continue;
+    const out: [number, number] = [Number(pair[0]), Number(pair[1])];
+    if (out.every(Number.isFinite)) return out;
+  }
+  return null;
+}
+
 export function heldRanges(full: any, live: { yaxis: boolean; yaxis2: boolean }): Ranges {
   const out: Ranges = {};
   const keep = (key: keyof Ranges, ok: boolean) => {
     const ax = full?.[key];
-    if (!ok || ax?.autorange !== false || !Array.isArray(ax.range)) return;
-    const pair: [number, number] = [Number(ax.range[0]), Number(ax.range[1])];
-    if (pair.every(Number.isFinite)) out[key] = pair;
+    if (!ok || ax?.autorange !== false) return;
+    const pair = drawnRange(ax);
+    if (pair) out[key] = pair;
   };
   keep("xaxis", true);
   keep("yaxis", live.yaxis);
@@ -275,9 +300,14 @@ export function pinPatch(full: any): Record<string, [number, number]> {
   const patch: Record<string, [number, number]> = {};
   for (const key of PINNED_AXES) {
     const ax = full?.[key];
-    if (!ax?.autorange || !Array.isArray(ax.range)) continue;
-    const pair: [number, number] = [Number(ax.range[0]), Number(ax.range[1])];
-    if (pair.every(Number.isFinite)) patch[`${key}.range`] = pair;
+    if (!ax?.autorange) continue;
+    // `drawnRange`, never `ax.range`: on the first plot of a fresh div the two
+    // disagree, and pinning `range` there froze plotly's empty-axis default
+    // over a pattern spanning 0-60°. That is what made the raw view blank; the
+    // fitted view escaped it only because the run that followed re-fitted the
+    // axes anyway (measured both ways).
+    const pair = drawnRange(ax);
+    if (pair) patch[`${key}.range`] = pair;
   }
   return patch;
 }
