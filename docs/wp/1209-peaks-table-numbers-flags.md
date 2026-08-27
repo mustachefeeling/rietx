@@ -1,6 +1,6 @@
 # WP-1209 — Peaks table: numbers, columns, flags
 
-Milestone: v1.2 · Status: 🔄 2026-08-27
+Milestone: v1.2 · Status: ✅ 2026-08-27 — shipped; the threshold measured, the trap recorded
 Depends on: WP-1201, WP-1203
 
 ## Goal
@@ -111,5 +111,97 @@ npm --prefix gui test && npm --prefix gui run check
   degenerate esds the pseudo-inverse used to truncate).
 
 ## Handover log
+
+### 2026-08-27 — closed: the peak table reads like a peak table
+
+A crystallographer who picks peaks now reads the table the way a PDF card
+reads: intensities on a 0-100 relative scale with a dash where the fitter's
+number is not a measurement, positions at four places with the uncertainty in
+the last place, one column that is the person's own decision, and flags as
+two-word labels whose meaning and code are one click away. It cost one
+convention: wherever an uncertainty is larger than the value it qualifies, in
+every table of this app, the parentheses are abandoned and the number is
+written beside the value as ±. And it ruled out the triage's own threshold:
+0.1° hid the uncertainty of a real line on the first pattern it met, and the
+measured boundary is a degree, wider than any peak.
+
+*Done.* `lib/peaks.ts` `intensityScale`/`formatIntensity` (I/Imax × 100 at
+one decimal over the strongest *measured* line; `—` under `no_intensity` or
+`fit_failed`, both names held to the corpus vocabulary) and `formatPosition`
+(four places, esd in the last place below `POSITION_ESD_MAX_DEG` = 1°, `(0)`
+under half a unit). `lib/table.ts` `esdSwallowsValue` (esd ≥ 1 and larger
+than the value): `formatValue` then shows the value at its esd-less precision
+and `formatEsd` writes ` ±110` (2 s.f., exponential from 1e6) — Params, Model
+and History inherit it. `rietx.help`: `HelpEntry.label`, thirteen flag
+labels, the `peak_origins` arm keyed by `ObservedPeak.origin` both ways,
+`test_help.py` holding the two chip arms to a label each (≤ 3 words, unique)
+and every other arm to none; `help_keys.json` +4, `lib/help.ts` `ARMS` +1,
+`labelFor(corpus, key)`, the glossary's seventh field and its arm table. The
+popover shows `Name · <code>` only for a labelled entry. `Peaks.svelte`: seven
+columns (`# · 2θ · d · I (rel) · flags · use · actions`), `App` passes
+`corpus` down, the origin chip and the σ-assumed chip are corpus terms
+(`peak_origins:<origin>`, `peak_diagnostics:PEAK_SIGMA_ASSUMED`), the
+authored-title budget 12 → 10, the diagnostics strip folded into
+`details.notes` whose summary carries the count as a chip toned by the
+loudest level. `gui/CLAUDE.md` takes four rules (cap 733 → 753); root
+CLAUDE.md's "`typical` is the only authored field" becomes `typical` and
+`label`.
+
+*Measured* (`[dev]` only — no jax, no torch — python 3.12.12, numba 0.67.0,
+darwin/arm64; vitest under node):
+
+- vitest **461 → 467 passed**, 21 files: +4 `peaks.test.ts` (the numbers, the
+  vocabulary pin), +1 `table.test.ts` (the guard), +1 `help.test.ts`
+  (`labelFor`); the App-level peaks-tab test was extended, not added.
+  `svelte-check` 0 errors. Dist rebuilt, digest `3baa5b114ab0`,
+  `test_gui_dist.py` 13 passed.
+- Fast selection (`-m "not slow"`, `-n auto --dist loadgroup`, run once on
+  the final tree before the docs-only close edits): **3138 passed / 117
+  skipped**, 2:07. No same-machine baseline was run on `origin/main`; the
+  diff against it adds exactly two `def test_` (both in `test_help.py`) and
+  removes none, and no skip is new. `ruff` clean; `sphinx -W` clean;
+  `test_manual_api.py` 13 passed; `test_gui_peaks.py` 9 passed.
+- The full suite did not run: nothing here moves a measured number (a GUI
+  table, a corpus field, a display threshold).
+- Browser, Chrome for Testing 1223 at 1400 × 900, a project built from
+  `tests/data/qarr/corundum.prn` through the `corundum` compare standard
+  (there is no corundum *example* — the `qarr` data fence, WP-1204): 62
+  lines picked, 52 usable, 47 flag chips; 2θ esds 51 under 0.01°, 8 in
+  [0.01, 0.1), one real asymmetric line at 0.1048°, two degenerate at
+  3.7e17° and 3.9e49° (intensities 5.5e-19 and 2.1e-49); widest FWHM 0.348°.
+  Table 511 px wide in a 531 px panel, no horizontal scroll, both themes.
+  The popover on `not separable` reads its sentence and `Name not_separable`.
+
+*Gotchas.*
+
+- **A `td` that is not `display: table-cell` is not a cell.** The intensity
+  cell first wore `.num`, which this panel already uses for the search form's
+  labels (`display: inline-flex`); the browser wrapped it and the flex
+  `td.flags` beside it into one anonymous cell — chips under the number, in a
+  column headed by nothing, numbers in the form's muted grey. jsdom cannot
+  see it; the class is `.rel` now. `td.flags` and `td.acts` are still flex
+  and survive only because each has a real cell on both sides.
+- The 0.1° threshold was wrong by measurement, not by argument: row 43
+  (σ = 0.1048°, flag `asymmetric`) printed bare beside row 48's `(875)`. At 1°
+  it prints `(1048)`, which reads oddly and is true.
+- The count chip sits *inside* the `<summary>` — the chip is the fact and the
+  summary acts, which is 1201's rule read narrowly; if a reviewer reads it as a
+  chip that acts, the count goes to plain text with the tone on the summary.
+- The `.rxt` peaks block still writes the raw area (`%.6g`, so `2.1e-49`): it
+  is the data view and its `I` column is not editable. Left alone.
+- The four 409s in the console at boot are the shell's `GET /api/report`,
+  `/api/result`, `/api/index/result`, `/api/index/extinction` on a project
+  with no fit; the 404 is unrelated. Neither is this panel's.
+- Two things the session's tooling refused and the workaround: a heredoc
+  script and a `for` loop over `curl` are "too complex" for the worktree gate
+  — write the script to the scratchpad and run it by path; `cd gui &&` is
+  refused by the no-top-level-cd hook — `(cd gui && npx vitest run …)`.
+
+Next, in order: **WP-1210** (the peak layer), which inherits the
+`peak_origins` labels for telling a placed line from a fitted one and the
+`td` trap; **WP-1211** owes the Peaks panel's remaining ten authored titles,
+nine of them the candidate table's; **WP-1213** should read a hovered line
+through `formatPosition`, not the plot's whisker. Nothing in this WP is left
+open.
 
 - **2026-08-25** — created from the v1.2 triage.

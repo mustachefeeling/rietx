@@ -30,6 +30,20 @@ control row under a canvas: the `ResizeObserver` rule (WP-1015/1029) holds.
 `plotly_unhover` clears it. The series panel's plot is SVG and keeps its own
 hover (WP-1016); this WP is `Plot.svelte` only.
 
+### Inherited
+
+From **WP-1209** (2026-08-27, shipped):
+
+- A hovered peak's position and intensity should read as the table does:
+  `formatPosition(tt, esd)` (`lib/peaks.ts` — four places, esd in the last
+  place below `POSITION_ESD_MAX_DEG` = 1°, nothing above) and
+  `formatIntensity(I, imax, flags)` with `imax = intensityScale(rows)`. The
+  raw area is in counting units and means nothing on its own; a readout
+  printing `1.2e+3` beside a table saying `100.0` is two answers.
+- For a parameter with an esd, `formatValue`/`formatEsd` now write
+  `35.09 ±110` where the esd has swallowed the value (`esdSwallowsValue`) and
+  `12346(56)` otherwise — one pair of functions for every readout.
+
 ## Non-goals
 
 - The peak-row hover link (the ring, WP-1212).

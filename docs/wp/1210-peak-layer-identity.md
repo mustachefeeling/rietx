@@ -39,6 +39,29 @@ Findings (2026-08-25):
   a curve a later build adds arrives drawn (WP-1032).
 - The phase palette rotates in OKLab at a distance floor (WP-1029).
 
+### Inherited
+
+From **WP-1209** (2026-08-27, shipped):
+
+- **Telling a placed line from a fitted one has a vocabulary now.**
+  `rietx.help`'s `peak_origins` arm is keyed by `ObservedPeak.origin`
+  (`fitted` / `manual` / `edited`) both ways, each entry carrying a `label`
+  (`fitted`, `manual`, `moved`); the table's origin chip is
+  `<Help for="peak_origins:{p.origin}">{labelFor(corpus, key)}</Help>`. A
+  marker that distinguishes origins on the plot should say the same words,
+  never a third spelling — `labelFor` in `lib/help.ts` is the one place a
+  chip's words are decided, and `App` passes `corpus` to a panel that needs
+  them.
+- The table's 2θ column prints an esd only below 1° (`formatPosition`,
+  `POSITION_ESD_MAX_DEG`); the plot's whisker is still capped at 3×FWHM. The
+  two are different answers to the same degenerate σ (1e17° and 1e49° on
+  corundum) and neither is wrong, but a hover readout (WP-1213) should quote
+  the table's form.
+- **A `td` that is not `display: table-cell` is not a cell**: two adjacent
+  flex/inline-flex `td`s merge into one anonymous cell, invisible to jsdom.
+  `Peaks.svelte`'s `td.flags` and `td.acts` are flex and survive only because
+  each has a real cell beside it; do not add a third.
+
 ## Non-goals
 
 - Candidate cells on the plot (WP-1211); jitter (WP-1212).
