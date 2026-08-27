@@ -240,6 +240,23 @@ _PHASE_FIELDS = (
     "nat", "dis", "ang_or_mom", "pr1", "pr2", "pr3", "jbt", "irf", "isy",
     "str", "furth", "atz", "nvk", "npr", "more")
 
+#: Which of :data:`_PHASE_FIELDS` are counts and selectors rather than
+#: quantities. The line as a whole **cannot** go through :meth:`_Cursor.ints`
+#: the way the top-level control lines do, and that is a fact about the format
+#: rather than an oversight: ``Pr1 Pr2 Pr3`` are ``0.0 0.0 1.0`` and ``ATZ`` is
+#: ``963.500`` in crwo6002_momcomp.pcr:84 and ``154213.406`` in
+#: 300q-1p5K_1.pcr:66, so requiring the whole line to be integral would refuse
+#: every real file. The eleven fields below are the ones whose value is a count
+#: (``Nat``, ``Nvk``), a flag (``Dis``, ``Str``, ``Furth``, ``More``) or a
+#: grammar selector (``Jbt``, ``Irf``, ``Isy``, ``Npr``, and ``Ang``/``Mom``),
+#: and each is read through ``int()`` somewhere below. They get
+#: :meth:`_Cursor.ints`'s ``.is_integer()`` guard field by field, because
+#: truncating ``Jbt 1.5`` to nuclear — or ``Nat 3.5`` to three atoms — reads a
+#: different file from the one on disk and desynchronises the positional walk.
+_PHASE_INTEGER_FIELDS = (
+    "nat", "dis", "ang_or_mom", "jbt", "irf", "isy", "str", "furth", "nvk",
+    "npr", "more")
+
 #: ``!  Zero    Code    SyCos    Code   SySin    Code  Lambda     Code MORE``
 #: — crwo6002_momcomp.pcr:76, values on :77. The value/codeword pairs are
 #: **inline** here, not on a following line. ``lambda_slot`` is trap 3: a stale
@@ -861,12 +878,28 @@ def _block(cur: _Cursor, names: tuple, what: str, *, trailing: int = 0
     ``trailing`` is the integer model code that ends the scale and width lines
     (``Strain-Model``, ``Size-Model``) and carries **no** codeword, which is why
     it is taken off the value line rather than being a column.
+
+    That selector is an **integer** and is checked as one. The line as a whole
+    cannot go through :meth:`_Cursor.ints` — every column before the selector is
+    a genuine float — so the ``.is_integer()`` guard that :meth:`_Cursor.ints`
+    applies to a control line is applied here to the one field that needs it.
+    Casting through a bare ``int()`` would read a corrupted ``1.5`` as model 1,
+    which selects a *different* strain or size broadening model without saying
+    so; a model selector is a discrete choice and a truncated one is a wrong
+    answer, not a rounded one.
     """
-    _, values = cur.floats(what, at_least=len(names) + trailing)
+    line, values = cur.floats(what, at_least=len(names) + trailing)
     _, codewords = cur.floats(f"{what} codewords", at_least=1)
     model = None
     if trailing and len(values) > len(names):
-        model = int(values[len(names)])
+        selector = values[len(names)]
+        if not float(selector).is_integer():
+            raise cur._fail(
+                what, f"the trailing model selector is {selector!r}, and it "
+                      f"names a discrete strain/size broadening model — a "
+                      f"non-integer cannot be truncated into one",
+                line)
+        model = int(selector)
     return _row(names, values, codewords), model
 
 
@@ -1056,8 +1089,30 @@ def read_fullprof_pcr(path: str | Path) -> FullProfModel:
     # Trap 1, recorded rather than trusted: the R_Bragg comments are attached in
     # *file order*, and the index each one claims is kept beside it so a consumer
     # can see the disagreement instead of inheriting it.
-    for phase, (labelled, r_bragg) in zip(model.phases, r_braggs, strict=False):
-        phase.labelled_index, phase.r_bragg = labelled, r_bragg
+    #
+    # The count is asserted before the zip, the way the `Nph`/parsed-phase count
+    # above is. `strict=False` here would *truncate* on a mismatch, which is the
+    # one failure this attachment cannot afford: the comments are matched by file
+    # order, so a file carrying four comments for three phases would attach the
+    # first three — silently giving phase 3 the R_Bragg of some other phase. An
+    # agreement factor reported against the wrong phase is worse than none, and
+    # the whole point of "recorded rather than trusted" is that the disagreement
+    # is *visible*. Zero comments is not a mismatch: a `.pcr` that has never been
+    # run through FullProf carries no `R_Bragg` at all, and there is then nothing
+    # to misattribute.
+    if r_braggs:
+        if len(r_braggs) != len(model.phases):
+            raise FullProfPcrError(
+                f"{path}: {len(r_braggs)} '! Data for PHASE number: N ... "
+                f"R_Bragg' comments for {len(model.phases)} phases. They are "
+                f"attached by file order, so an unequal count would report an "
+                f"agreement factor against the wrong phase. The comment's own "
+                f"phase number is trap 1 and cannot be used to re-key them — the "
+                f"third block of crwo6002_G5_nc.pcr is labelled "
+                f"'PHASE number: 1'.")
+        for phase, (labelled, r_bragg) in zip(model.phases, r_braggs,
+                                              strict=True):
+            phase.labelled_index, phase.r_bragg = labelled, r_bragg
 
     _read_trailing(cur, path, model)
     # Decode every codeword now rather than lazily. A garbled one — a truncated
@@ -1083,11 +1138,23 @@ def _read_phase(cur: _Cursor, path: Path, index: int) -> FullProfPhase:
     name_line = cur.take(f"the name of phase {index}")
     phase = FullProfPhase(index=index, name=name_line.text)
 
-    _, control = cur.floats(f"phase {index} ({phase.name}) control line",
-                            at_least=len(_PHASE_FIELDS))
+    control_line, control = cur.floats(
+        f"phase {index} ({phase.name}) control line", at_least=len(_PHASE_FIELDS))
     phase.control = dict(zip(_PHASE_FIELDS, control[:len(_PHASE_FIELDS)],
                              strict=True))
     where = f"{path}: phase {index} ({phase.name!r})"
+    # Every field below that is read through `int()` is checked to *be* one
+    # first — the guard `_Cursor.ints` gives a control line, applied field by
+    # field because `ATZ` and `Pr1..Pr3` on this same line are genuine floats.
+    for name in _PHASE_INTEGER_FIELDS:
+        if not float(phase.control[name]).is_integer():
+            raise FullProfPcrError(
+                f"{where}: line {control_line.number}: the phase control line "
+                f"states {name.capitalize()} = {phase.control[name]!r}, and it "
+                f"is a count or a grammar selector rather than a quantity. "
+                f"Truncating it would read a different phase block from the one "
+                f"written — and a .pcr is positional, so that desynchronises "
+                f"every line after this one.")
 
     jbt = phase.jbt
     if jbt not in (0, 1):

@@ -1269,3 +1269,105 @@ def test_a_truncated_pcr_never_escapes_as_anything_but_a_fullprof_error(tmp_path
             raise AssertionError(
                 f"truncation at {n} of {len(raw)} bytes escaped as "
                 f"{type(exc).__name__}: {exc}") from exc
+
+# ----------------------------------------------- the review round: six findings
+#
+# One section per finding of the PR #111 review, each pinning a divergence
+# between what this module's own docstring claims and what its code did. The
+# fixtures reuse the quoted lines above; where a finding needs a shape no corpus
+# file has, the comment says so rather than implying a real file was seen.
+
+def _rewrite_trailing_selector(text: str, header: str, value: str) -> str:
+    """Rewrite the trailing model selector on the data line after ``header``.
+
+    Edits a *quoted* line rather than inventing one: the Strain-Model and
+    Size-Model selectors are the last token of ``crwo6002_momcomp.pcr``:98 and
+    :101, and only that token is replaced.
+    """
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        if header in line:
+            tokens = lines[i + 1].split()
+            tokens[-1] = value
+            lines[i + 1] = "  " + "  ".join(tokens)
+            return "\n".join(lines)
+    raise AssertionError(f"no {header!r} line in the fixture")
+
+# Finding 4 — the R_Bragg count is asserted, not truncated into agreement.
+
+
+def test_more_r_bragg_comments_than_phases_is_refused_not_truncated(tmp_path):
+    """``strict=False`` here would attach an agreement factor to the wrong phase.
+
+    The comments are matched by *file order* — their own phase number is trap 1
+    and cannot re-key them — so an unequal count is a refusal, exactly as the
+    ``Nph``/parsed-phase count two lines above already is.
+    """
+    stray = ("!  Data for PHASE number:   3  ==> Current R_Bragg for "
+             "Pattern#  1:     5.00\n")
+    pcr = _pcr(tmp_path, "extra.pcr", _phase(), trailing=stray + _RANGE)
+    with pytest.raises(FullProfPcrError) as excinfo:
+        read_fullprof_pcr(pcr)
+    message = str(excinfo.value)
+    assert "2" in message and "1 phases" in message
+
+
+def test_a_pcr_with_no_r_bragg_comments_still_reads(tmp_path):
+    """Zero comments is not a mismatch — a never-run .pcr carries none."""
+    pcr = _pcr(tmp_path, "unrun.pcr", _phase())
+    text = "\n".join(line for line in pcr.read_text(encoding="utf-8").split("\n")
+                     if "R_Bragg" not in line)
+    pcr.write_text(text, encoding="utf-8")
+    model = read_fullprof_pcr(pcr)
+    assert model.phases[0].r_bragg is None
+
+# Finding 5 — integer fields go through an is_integer() guard, never bare int().
+
+
+def test_a_non_integer_phase_control_field_is_refused_not_truncated(tmp_path):
+    """``int(3.5) == 3`` would read a three-atom phase from a four-atom one.
+
+    The line as a whole cannot go through ``_Cursor.ints``: ``Pr1 Pr2 Pr3`` are
+    ``0.0 0.0 1.0`` and ``ATZ`` is ``963.500`` on this very line
+    (crwo6002_momcomp.pcr:84) and ``154213.406`` in 300q-1p5K_1.pcr:66, so
+    requiring the whole line to be integral would refuse every real file. The
+    eleven counts and selectors get the guard field by field instead.
+    """
+    pcr = _pcr(tmp_path, "fractional.pcr", _phase(nat="3.5"))
+    with pytest.raises(FullProfPcrError) as excinfo:
+        read_fullprof_pcr(pcr)
+    message = str(excinfo.value)
+    assert "Nat = 3.5" in message
+    assert "desynchronises" in message
+
+
+def test_a_real_phase_control_line_keeps_its_float_atz(tmp_path):
+    """The guard must not reject ATZ, which is a genuine float in every file."""
+    model = read_fullprof_pcr(_pcr(tmp_path, "atz.pcr", _phase()))
+    assert model.phases[0].control["atz"] == 963.500
+    assert model.phases[0].control["pr3"] == 1.0
+
+
+@pytest.mark.parametrize("header, what", [
+    ("Strain-Model", "strain"),
+    ("Size-Model", "size"),
+])
+def test_a_non_integer_model_selector_is_refused(tmp_path, header, what):
+    """A model selector names a discrete broadening model, so ``1.5`` is not a 1.
+
+    Truncating it would select a *different* model without saying so — the one
+    place left in this module that cast a float through a bare ``int()``.
+    """
+    phase = _rewrite_trailing_selector(_phase(), header, "1.5")
+    pcr = _pcr(tmp_path, f"{what}.pcr", phase)
+    with pytest.raises(FullProfPcrError, match=r"model selector"):
+        read_fullprof_pcr(pcr)
+
+
+def test_an_integer_model_selector_still_reads(tmp_path):
+    """The guard admits the integers the real files write."""
+    phase = _rewrite_trailing_selector(_phase(), "Size-Model", "1")
+    model = read_fullprof_pcr(_pcr(tmp_path, "size1.pcr", phase))
+    assert model.phases[0].size_model == 1
+    assert model.phases[0].strain_model == 0
+
