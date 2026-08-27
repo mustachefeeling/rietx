@@ -194,7 +194,7 @@ line if the checkpoint ended it. Close with
    as evidence, a reader repairing a file without a diagnostic, GPL-derived
    code, a diagnostic code with no `docs/AGENT_PROTOCOL.md` row, physics with
    Part 1 prose but no Part 2 equation.
-7. **`/code-review high N`** for `src/` changes above the step-6 threshold;
+7. **`/code-review medium N`** for `src/` changes above the step-6 threshold;
    name the level (unnamed, it reuses whatever was typed last).
 8. **Two audiences.** *Public*, posted **as a review, from a file** (so the sha
    lands in `latestReviews[].commit`): what you checked independently and what
