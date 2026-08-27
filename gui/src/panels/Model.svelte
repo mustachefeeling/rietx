@@ -398,6 +398,12 @@
   let error = $state("");
   let loadError = $state("");
   let note = $state("");
+  /** where the last `Save profile…` wrote, or "".
+   *
+   *  Cleared by `load()`, so the line only ever stands beside the model it was
+   *  written from: an export moves no head, and every head move that follows
+   *  makes the file a description of something else. */
+  let profileSaved = $state("");
   let draft = $state({ label: "", species: "", x: "0", y: "0", z: "0" });
   /** The 3D view is a **third column of this pane**, not a sixth tab and not a
    *  window of its own: it answers questions about the rows beside it (is that
@@ -479,6 +485,7 @@
       lettersFor = null;
       symPreview = null;
       symbolDraft = null;
+      profileSaved = "";
       // the signal the 3D view follows: this runs on every head move *and*
       // immediately after every local write, which is one frame earlier than
       // the head reaches the shell
@@ -712,6 +719,34 @@
       error = (exc as Error).message;
     } finally {
       input.value = "";
+    }
+  }
+
+  /** Freeze this instrument to a profile file under the project's `exports/`.
+   *
+   * The counterpart of `Load profile…` beside it, and the same file format, so
+   * a lab calibrates once and every later sample loads it (`io/
+   * instrument_profile.py` has the three-step workflow).  The route is
+   * **model-gated**, not result-gated like the rest of the export family: the
+   * profile describes the instrument as it stands, and the fit that calibrated
+   * it has already put its numbers there.
+   *
+   * What the file does *not* carry is the server's decision, not this button's:
+   * the background, the specimen displacement and transparency, the roughness
+   * and the specimen absorption all describe one mounted sample rather than the
+   * goniometer.
+   */
+  async function saveProfile() {
+    try {
+      const out = await api.export("instrument_profile");
+      profileSaved = out.path;
+      say(`save_instrument_profile(ref.fitted_instrument, "${out.path}")`);
+      error = "";
+    } catch (exc) {
+      profileSaved = "";
+      error = exc instanceof ApiError && exc.busy
+        ? "a run is in flight — the model is read-only until it ends"
+        : (exc as Error).message;
     }
   }
 
@@ -1453,7 +1488,12 @@
             <input type="file" onchange={(e) => replaceFrom("instrument", e)} />
             <span>Load profile…</span>
           </label>
+          <button class="ghost" disabled={busy} onclick={saveProfile}
+            >Save profile…</button>
         </h2>
+        {#if profileSaved}
+          <p class="muted mono">wrote {profileSaved}</p>
+        {/if}
         {#if warning}
           <p class="warn">{warning} Nudge one if you free both — the guard
             reports the pair, and two solvers escape the corner in two
@@ -1548,6 +1588,7 @@
           {Object.keys({ ...(insDelta?.values ?? {}), ...(strDelta?.values ?? {}),
                          ...pending.values }).length} through
           <code>set_values</code> ·
+          {varyEdits.size} through <code>set_vary</code> ·
           {(insDelta?.fields.length ?? 0) + (strDelta?.fields.length ?? 0)} as a
           model edit
         </p>

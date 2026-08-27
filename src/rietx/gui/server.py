@@ -39,7 +39,7 @@ from urllib.parse import parse_qs, urlparse
 from .._about import DIST_NAME, SERVER_TOKEN, STATE_DIR_ENV, STATE_DIR_NAME
 from ..project import Project
 from .imports import MAX_UPLOAD_BYTES, UPLOAD_KINDS
-from .session import RESERVED_ROUTES, GuiError, GuiSession
+from .session import EXPORT_DEFAULTS, RESERVED_ROUTES, GuiError, GuiSession
 
 #: ``compare`` owns 8730 and ``watch`` 8899; the GUI takes the next one up.
 DEFAULT_PORT = 8731
@@ -298,7 +298,10 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("POST", "/api/history/annotate"): lambda s, q, b: s.history_annotate(b),
 }
 
-for _kind in ("cif", "reflections", "qpa", "html", "result_json"):
+# From the session's own table rather than a second list of the kinds: this
+# file is transport, and a kind it did not know about would be a 404 with no
+# way to tell it from a typo.
+for _kind in sorted(EXPORT_DEFAULTS):
     ROUTES[("POST", f"/api/export/{_kind}")] = (
         lambda s, q, b, _k=_kind: s.export(_k, b))
 del _kind
@@ -779,7 +782,7 @@ every route is a method on <code>rietx.gui.GuiSession</code>.</p>
      <span class="m">POST</span> <code>/api/history/checkout</code></li>
  <li><span class="m">GET</span>/<span class="m">PUT</span> <code>/api/textdoc</code>
      — the project as text (<code>.rxt</code>), compare-and-set on a revision</li>
- <li><span class="m">POST</span> <code>/api/export/{cif,reflections,qpa,html,result_json}</code></li>
+ <li><span class="m">POST</span> <code>/api/export/{cif,reflections,qpa,html,result_json,instrument_profile}</code></li>
  <li><span class="m">GET</span>/<span class="m">POST</span> <code>/api/peaks</code>
      (+ <code>add/move/remove/flag/refit</code>) ·
      <span class="m">POST</span> <code>/api/index</code> ·

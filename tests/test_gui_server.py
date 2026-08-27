@@ -2472,6 +2472,47 @@ def test_exports_land_in_the_project_and_cannot_escape_it(fitted, tmp_path):
     assert client.post("/api/export/nonsense")[0] == 404
 
 
+def test_the_instrument_profile_saves_from_a_project_that_has_not_been_fitted(
+        blank, tmp_path, pattern_file):
+    """The one export gated on the model rather than on a result (WP-1214).
+
+    A profile is what a calibration is frozen *into*, so the fit that produced
+    the numbers has already run and they already stand in the instrument — and
+    the GUI could load one since WP-1014 while having no way to write one.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "profile.rex", pattern_file)
+    assert project.refinement.result_ is None      # nothing has been fitted here
+    # a value to recognise on the way back, and a flag that must not survive
+    client.patch("/api/params", {"values": {"instrument.profile.w": 0.00456},
+                                 "vary": {"instrument.profile.w": True}})
+
+    status, payload = client.post("/api/export/instrument_profile")
+    assert status == 200, payload
+    written = Path(payload["path"])
+    assert written.parent == project.exports_dir
+    assert written.name == "instrument_profile.json" and payload["bytes"] > 0
+
+    frozen = rx.load_instrument_profile(written)
+    assert frozen.profile.w.value == pytest.approx(0.00456)
+    # every stored parameter comes back held: a calibration is data, not a
+    # starting guess — so the flag just set is *not* what round-trips.  The
+    # reader's own walk, rather than a list of fields here, so the assertion
+    # covers whatever the format carries
+    from rietx.io.instrument_profile import _iter_parameters
+
+    assert not any(q.vary for q in _iter_parameters(frozen))
+    # …and what belongs to the mounted specimen rather than the goniometer is
+    # gone: displacement and transparency zeroed, the absorption terms dropped
+    assert frozen.geometry.sample_displacement.value == 0.0
+    assert frozen.geometry.sample_transparency.value == 0.0
+    assert frozen.geometry.mu_r is None and frozen.geometry.mu_t is None
+
+    status, payload = client.post("/api/export/instrument_profile",
+                                  {"filename": "../escaped.json"})
+    assert status == 400 and payload["error"]["where"] == ["filename"]
+
+
 # ----------------------------------------------------------------------
 # the run state machine (refinement stubbed — see the module docstring)
 # ----------------------------------------------------------------------

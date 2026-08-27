@@ -2624,6 +2624,23 @@ describe("the model editor", () => {
     expect(field("phases.0.gauss_strain")).toBeTruthy();
   });
 
+  it("writes an instrument profile from the model, and says where it went", async () => {
+    // the counterpart of `Load profile…`, which this panel has had since
+    // WP-1014 with no way back out (WP-1214).  Model-gated: nothing has been
+    // fitted in this fixture and the button is live all the same.
+    const stub = await openModel({
+      "/api/export/instrument_profile": () => ({ body: {
+        kind: "instrument_profile", name: "instrument_profile.json", bytes: 812,
+        path: "/tmp/sample.rex/exports/instrument_profile.json" } }),
+    });
+    button("Save profile…")!.click();
+    await flush();
+
+    expect(stub.calls.some((c) => c.method === "POST"
+      && c.path === "/api/export/instrument_profile")).toBe(true);
+    expect(host.textContent).toContain("exports/instrument_profile.json");
+  });
+
   it("sends a species as a whole model, built on a freshly read one", async () => {
     const stub = await openModel();
     field("phases.0.atoms.1.species").value = "B";
