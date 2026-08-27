@@ -251,7 +251,7 @@
   }
 
   function layout(w: any, colors: ReturnType<typeof curveColors>, nPhases: number,
-                  ranges: Ranges): any {
+                  ranges: Ranges, armed: boolean): any {
     const style = getComputedStyle(document.body);
     const fg = style.color;
     // the panel border colour, for the grid: plotly's default grid is
@@ -276,7 +276,7 @@
       // The one arbitration in this panel: while a range gesture is armed the
       // drag belongs to plotly's own select box, and the peak verbs below are
       // suspended for as long as it is (see `arm`).
-      dragmode: arm ? "select" : "zoom",
+      dragmode: armed ? "select" : "zoom",
       selectdirection: "h",
       margin: { l: 62, r: 12, t: 8, b: 40 },
       showlegend: true,
@@ -439,7 +439,8 @@
     paintedScale = scale;
     paintedKind = kind;
     untrack(() => { paintedKey = plotKey; paintedResult = result; });
-    await plotly.react(node, traces, layout(w, colors, phases.length, ranges),
+    await plotly.react(node, traces,
+                       layout(w, colors, phases.length, ranges, untrack(() => arm !== null)),
                        // `doubleClick: "autosize"`, not plotly's default
                        // `"reset+autosize"`: reset means *back to the range the
                        // plot was drawn with*, and since the draw above hands
@@ -908,6 +909,10 @@
    *  ui-only PATCH — the effect-reads-the-project-object trap WP-1027's second
    *  pass recorded, one panel over. */
   const protocolKey = $derived(JSON.stringify([protocol.limits, protocol.regions]));
+  /** …and the same trick for the measured extent, for the same reason: both are
+   *  `$derived` off `project`, so both arrive new-but-equal on every settings
+   *  PATCH, and an effect keyed on the object repaints for nothing. */
+  const extentKey = $derived(JSON.stringify(extent));
 
   // -- the typed route (WP-1033) -------------------------------------
   // Empty means "no limit", which is why the placeholder is the measured
@@ -992,7 +997,6 @@
     void scale;
     void theme;
     void hidden;
-    void arm;     // the drag mode is layout, so arming redraws
     // …and the peak layer is drawn only on the tab that can edit it (WP-1210),
     // so leaving that tab has to take it off the plot.  A repaint, not a
     // refetch: which tab is up says nothing about which channels the server
@@ -1004,7 +1008,11 @@
     // the same reason — which lines a cell predicts says nothing about which
     // channels the server sent
     void candidate;
-    void extent;
+    // …and the shading, when the pattern it is clipped against changes.  By its
+    // *value*: `extent` is `$derived` off `project`, so every settings PATCH
+    // hands this effect a new array holding the same two numbers — measured as
+    // one of the four reacts an exclude drag cost (WP-1212).
+    void extentKey;
     // …and `held` is read **untracked**, which is the difference between a knob
     // and a payload: a new payload has already been painted by whoever fetched
     // it, so tracking it here made every fetch cost a second identical `react`
@@ -1021,6 +1029,20 @@
     void hovered;
     void ringAt;
     drawRing();
+  });
+
+  // …and arming is not in it either, for the same reason one rank up: the drag
+  // mode is a single layout key, so it is a `relayout` and not a repaint of the
+  // pattern.  It was one of the four reacts an exclude drag cost, and it was
+  // two of them — the mode is set on the way in and cleared on the way out
+  // (WP-1212).  `layout()` still says the mode, so a react that happens while
+  // armed is truthful; it reads `arm` untracked, or this line would be undone
+  // by the repaint effect's own paint.
+  $effect(() => {
+    const mode = arm ? "select" : "zoom";
+    untrack(() => {
+      if (node && plotly) plotly.relayout?.(node, { dragmode: mode });
+    });
   });
 </script>
 

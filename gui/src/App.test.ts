@@ -3256,11 +3256,16 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
       await flush();
 
       expect(drawn.at(-1)!.layout.dragmode).toBe("zoom");
+      expect(drawn.at(-1)!.layout.selectdirection).toBe("h");
       const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
+      const before = drawn.length;
       [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("exclude"))!.click();
       await flush();
-      expect(drawn.at(-1)!.layout.dragmode).toBe("select");
-      expect(drawn.at(-1)!.layout.selectdirection).toBe("h");
+      // the mode is one layout key, so arming is a `relayout` and not a repaint
+      // of the pattern — two of the four reacts an exclude drag used to cost,
+      // since it is set on the way in and cleared on the way out (WP-1212)
+      expect(relayouts.at(-1)).toEqual({ dragmode: "select" });
+      expect(drawn.length).toBe(before);
       expect(host.textContent).toContain("the peak gestures are suspended");
 
       // the drag, delivered the way plotly delivers it
@@ -3270,8 +3275,8 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
       // ordered, sent, and the marquee dropped — the shading is the record now
       expect(stub.calls.find((c) => c.method === "POST" && c.path === "/api/project")?.body)
         .toEqual({ excluded_regions: [[13, 16]] });
-      expect(relayouts.at(-1)).toEqual({ selections: [] });
-      expect(drawn.at(-1)!.layout.dragmode).toBe("zoom");
+      expect(relayouts).toContainEqual({ selections: [] });
+      expect(relayouts).toContainEqual({ dragmode: "zoom" });
       expect(host.textContent).not.toContain("the peak gestures are suspended");
     } finally {
       emit.restore();
@@ -3723,6 +3728,39 @@ describe("a redraw never moves the axes (WP-1212)", () => {
     const ringAt = log.findIndex((c) => c.call === "restyle");
     expect(pinAt).toBeGreaterThanOrEqual(0);
     expect(ringAt).toBeGreaterThan(pinAt);
+  });
+
+  it("draws an exclusion once — the whole chain is one paint", async () => {
+    // Counted in Chrome before this: four. `arm = null` was a repaint (the drag
+    // mode is layout, so it is a relayout now), `extent` is `$derived` off
+    // `project` and handed the repaint effect a new array holding the same two
+    // numbers, and the document and the peak list landed on either side of a
+    // microtask because `setProtocol` awaited the reload after assigning.
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/project": (call) => (call.method === "POST"
+        ? { body: { ...PROJECT, doc: { ...PROJECT.doc, excluded_regions: [[13, 16]] } } }
+        : { body: PROJECT }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
+    [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("exclude"))!.click();
+    await flush();
+    log.length = 0;
+    bus.handlers.plotly_selected({ range: { x: [16, 13] } });
+    await flush();
+
+    expect(stub.calls.find((c) => c.method === "POST" && c.path === "/api/project")?.body)
+      .toEqual({ excluded_regions: [[13, 16]] });
+    expect(reacts(log)).toBe(1);
   });
 
   it("still lets a double-click re-fit, and keeps the drag it was told about",

@@ -296,8 +296,7 @@
   async function setProtocol(patch: Record<string, unknown>) {
     if (!project) return;
     try {
-      project = await api.patchProject(patch);
-      protocolError = "";
+      const doc = await api.patchProject(patch);
       if ("two_theta_limits" in patch) {
         const limits = patch.two_theta_limits as number[] | null;
         say(`project.doc.two_theta_limits = ${limits ? `(${limits.join(", ")})` : "None"}`);
@@ -308,7 +307,14 @@
       }
       // the peak plot's raw pattern is masked by the same document, so its
       // payload is stale the moment this lands (`GuiSession._peaks_pattern`)
-      if (peaksData) await loadPeaks();
+      const peaks = peaksData ? await readPeaks() : undefined;
+      // …and both land in one flush, which is what makes an exclude drag one
+      // paint instead of two: assigning the document and then awaiting the peak
+      // list put the two on either side of a microtask, so the plot redrew once
+      // for the shading and again for the markers (WP-1212, measured).
+      project = doc;
+      if (peaks !== undefined) peaksData = peaks;
+      protocolError = "";
     } catch (error) {
       protocolError = (error as Error).message;
       say(`refused: ${(error as Error).message}`);
@@ -463,13 +469,22 @@
   /** The peak list, refetched whole — cheap, and the payload every peak verb
    *  already answers with, so a verb's caller passes it here instead. */
   async function loadPeaks() {
+    peaksData = await readPeaks();
+  }
+
+  /** The peak list read but not yet published — the caller says when.
+   *
+   *  Split out of `loadPeaks` so a verb that changes two things can land both
+   *  in one flush: a `$state` assignment before an `await` and another after it
+   *  are two flushes, and every effect downstream runs twice (WP-1212). */
+  async function readPeaks(): Promise<PeaksPayload | null> {
     try {
-      peaksData = await api.peaks();
+      return await api.peaks();
     } catch (error) {
-      peaksData = null;
       if (!(error instanceof ApiError && error.empty)) {
         say(`peaks: ${(error as Error).message}`);
       }
+      return null;
     }
   }
 

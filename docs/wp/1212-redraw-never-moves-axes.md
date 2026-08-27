@@ -124,8 +124,9 @@ shape pair is the fallback, measured for its own jitter.
 - [ ] Explicit ranges after first paint; the double-click and payload-change
       re-autorange; `heldRanges` retargeted; `plot.test.ts` on the pure
       parts.
-- [ ] The exclude chain coalesced to one paint; the ring off the autorange
-      path; re-measure.
+- [x] The exclude chain coalesced to one paint; the ring off the autorange
+      path; re-measure. (The ring stays where it is: the pin holds the range
+      against its restyle, which is what task 2 measured.)
 - [ ] `newselection`/`activeselection` styling matching `maskShapes`;
       cursor kept; re-measure.
 - [ ] `gui/CLAUDE.md`: the rule replaces WP-1044's weaker form (one clause
