@@ -114,7 +114,7 @@ playwright-core; when a claim is about an event, count the events.
 
 ## Tasks
 
-- [ ] `lib/plot.ts`: `readout(w, x, ticks, peaks) -> Readout` (pure; nearest
+- [x] `lib/plot.ts`: `readout(w, x, ticks, peaks) -> Readout` (pure; nearest
       index by binary search; tested).
 - [ ] The two facts the strip needs and no route serves it: the source's
       wavelengths (d = λ/2 sin θ, and which line a candidate tick belongs to)

@@ -18,9 +18,11 @@ import {
   masked,
   mergeRegions,
   movedAxes,
+  nearestIndex,
   noAxes,
   normalizeRegion,
   pinPatch,
+  readout,
   residual,
   scaleValues,
   shows,
@@ -609,5 +611,172 @@ describe("a redraw never moves the axes (WP-1212)", () => {
       // and it never *grants* one: a knob cannot say a person zoomed
       expect(forget(noAxes(), { yaxis: true, yaxis2: true })).toEqual(noAxes());
     });
+  });
+});
+
+describe("the readout strip (WP-1213)", () => {
+  const FITTED = {
+    ...WEIGHTED,
+    y_background: [3, 4, 5],
+    ticks: { NAC: [1.002, 2.5], CaF2: [2.9] },
+  };
+  const PEAKS = [
+    { index: 0, two_theta: 2.0004, two_theta_esd: 0.0003, d: 4.4, intensity: 50,
+      fwhm: 0.1, group: 0, n_in_group: 1, chi2_red: 1, flags: [],
+      origin: "fitted" as const, usable: true },
+    { index: 1, two_theta: 2.9, two_theta_esd: 0.0002, d: 3.1, intensity: 100,
+      fwhm: 0.1, group: 1, n_in_group: 1, chi2_red: 1, flags: [],
+      origin: "manual" as const, usable: true },
+  ];
+  const GROUPS = [
+    { group: 0, two_theta: [1.9, 2.0, 2.1], y_fit: [10, 400, 11],
+      y_env: [0, 0, 0], delta: [0.1, -0.2, 0.3], chi2_red: 1, n_components: 1 },
+  ];
+  const value = (r: ReturnType<typeof readout>, id: string) =>
+    r!.rows.find((row) => row.id === id)?.value;
+
+  it("reads the channel nearest the pointer, not the pointer", () => {
+    // the curves are drawn at channels, so a readout quoting a 2θ between two
+    // of them would print one position and another channel's intensities
+    const out = readout(FITTED, 1.9, { kind: "weighted" })!;
+    expect(out.position).toBe("2.0000°");
+    expect(value(out, "obs")).toBe("400");
+    expect(value(out, "calc")).toBe("405");
+    expect(value(out, "bkg")).toBe("4");
+  });
+
+  it("finds the nearest channel by halving, over a long ascending axis", () => {
+    const xs = Array.from({ length: 1001 }, (_, i) => 5 + i * 0.01);
+    expect(nearestIndex(xs, 5)).toBe(0);
+    expect(nearestIndex(xs, 15)).toBe(1000);
+    expect(nearestIndex(xs, 9.997)).toBe(500);   // 10.00 is nearer than 9.99
+    expect(nearestIndex(xs, -3)).toBe(0);        // off the end, both ways
+    expect(nearestIndex(xs, 99)).toBe(1000);
+    expect(nearestIndex([], 1)).toBe(-1);
+  });
+
+  it("names the residual on screen, and only that one", () => {
+    expect(value(readout(FITTED, 3, { kind: "weighted" }), "diff")).toBe("0.33");
+    const cumulative = readout(FITTED, 3, { kind: "cumulative" })!;
+    expect(cumulative.rows.find((r) => r.id === "diff")!.label).toBe("Σχ²");
+    expect(cumulative.rows.filter((r) => r.id === "diff")).toHaveLength(1);
+  });
+
+  it("quotes the unscaled intensity at six figures, as the deleted templates did", () => {
+    // `%{customdata:.6g}` over `w.y_obs`, never the √ of it: a strip that read
+    // in √counts beside an axis labelled in intensity is two answers
+    const big = { ...FITTED, y_obs: [1234567.89, 400, 900] };
+    expect(value(readout(big, 1, { kind: "weighted" }), "obs")).toBe("1234570");
+  });
+
+  it("computes d from the source's primary line, and omits it without one", () => {
+    // λ/(2 sin θ) at 2θ = 2°, λ = 1.5406 Å
+    expect(readout(FITTED, 2, { kind: "weighted", wavelengths: [1.5406] })!.d)
+      .toBe("44.1372 Å");
+    expect(readout(FITTED, 2, { kind: "weighted" })!.d).toBe("");
+  });
+
+  it("gives every drawn curve a row and every undrawn one none", () => {
+    // the strip's shape follows the payload and the tab, never the pointer:
+    // a row that appeared and vanished under one sweep would reflow it
+    expect(readout(FITTED, 2, { kind: "weighted" })!.rows.map((r) => r.id))
+      .toEqual(["obs", "calc", "bkg", "diff", "ticks:NAC", "ticks:CaF2"]);
+    expect(readout({ ...FITTED, y_background: [] }, 2, { kind: "weighted" })!
+      .rows.map((r) => r.id)).not.toContain("bkg");
+    // the raw view: no model, no background, no ticks
+    expect(readout({ ...FITTED, raw: true, ticks: {} } as any, 2, { kind: "weighted" })!
+      .rows.map((r) => r.id)).toEqual(["obs"]);
+  });
+
+  it("gives each row the ink of the mark it names", () => {
+    const inks = Object.fromEntries(
+      readout(FITTED, 2, { kind: "weighted" })!.rows.map((r) => [r.id, r.ink]));
+    expect(inks).toMatchObject({ obs: "obs", calc: "calc", bkg: "bkg", diff: "diff" });
+    // a phase's tick row has no ink: the ticks are one colour per phase from
+    // plotly's own cycle, and naming one here would be a second palette
+    expect(inks["ticks:NAC"]).toBeUndefined();
+  });
+
+  it("says how far the nearest reflection of each phase is, signed", () => {
+    const out = readout(FITTED, 1, { kind: "weighted" })!;
+    expect(value(out, "ticks:NAC")).toBe("+0.0020°");
+    expect(value(out, "ticks:CaF2")).toBe("+1.9000°");
+    expect(value(readout(FITTED, 3, { kind: "weighted" }), "ticks:CaF2")).toBe("−0.1000°");
+  });
+
+  it("prints a picked line as the peak table prints it (WP-1209)", () => {
+    const out = readout(FITTED, 2, {
+      kind: "weighted", peaks: PEAKS, peaksActive: true, peakTolerance: 0.05 });
+    // four places, esd in the last of them, and I relative to the strongest
+    // *measured* line — the raw area means nothing on its own
+    expect(value(out, "peak")).toBe("#0 2.0004(3)° · I 50.0");
+  });
+
+  it("keeps the picked-line slot with an em dash when none is in reach", () => {
+    const out = readout(FITTED, 1, {
+      kind: "weighted", peaks: PEAKS, peaksActive: true, peakTolerance: 0.05 });
+    expect(value(out, "peak")).toBe("—");
+  });
+
+  it("has no peak row at all away from the tab that draws the layer (WP-1210)", () => {
+    const out = readout(FITTED, 2, { kind: "weighted", peaks: PEAKS, groups: GROUPS });
+    expect(out!.rows.map((r) => r.id)).not.toContain("peak");
+    expect(out!.rows.map((r) => r.id)).not.toContain("peakfit");
+  });
+
+  it("names the fitted group profile, which is why it stopped being skipped", () => {
+    // WP-1210 gave the dashed curve a hover so a reader could tell it from the
+    // model; deleting the templates means the strip carries that naming
+    const out = readout(FITTED, 2, {
+      kind: "weighted", groups: GROUPS, peaksActive: true });
+    expect(out!.rows.find((r) => r.id === "peakfit")!.label).toBe("peak fit");
+    expect(value(out, "peakfit")).toBe("400");
+    // outside every fitted window there is no curve to quote
+    expect(value(readout(FITTED, 3, {
+      kind: "weighted", groups: GROUPS, peaksActive: true }), "peakfit")).toBe("—");
+  });
+
+  it("adds the groups' own residual only on the raw view, where it is drawn", () => {
+    const raw = { ...FITTED, raw: true, ticks: {} } as any;
+    expect(readout(raw, 2, { kind: "weighted", groups: GROUPS, peaksActive: true })!
+      .rows.map((r) => r.id)).toEqual(["obs", "peakfit", "peakdelta"]);
+    expect(readout(FITTED, 2, { kind: "weighted", groups: GROUPS, peaksActive: true })!
+      .rows.map((r) => r.id)).not.toContain("peakdelta");
+  });
+
+  it("names the candidate line by hkl and by the λ it belongs to (WP-1211)", () => {
+    const candidate = {
+      label: "4.7 4.7 12.9 Å", n_total: 3, two_theta: [1.0, 2.001, 2.9],
+      hkl: [[1, 0, 0], [1, 0, -4], [1, 1, 0]], line: [0, 1, 0],
+    };
+    const out = readout(FITTED, 2, {
+      kind: "weighted", candidate, candidateTolerance: 0.05,
+      wavelengths: [1.5406, 1.5444] });
+    expect(value(out, "candidate")).toBe("(1 0 −4) · λ 1.5444 Å · +0.0010°");
+  });
+
+  it("quotes no ordinal and no count, because the drawn set can be a sample", () => {
+    // past `MAX_CANDIDATE_TICKS` the server thins by rank, so "the 743rd line"
+    // would be a statement about the sample; the status line owns the count
+    const candidate = {
+      label: "c", n_total: 92103, two_theta: [2.0], hkl: [[1, 0, 0]], line: [0] };
+    const text = value(readout(FITTED, 2, {
+      kind: "weighted", candidate, wavelengths: [1.5406] }), "candidate")!;
+    expect(text).not.toMatch(/92103|#|\bof\b/);
+  });
+
+  it("keeps the candidate slot when nothing is near, and drops it with no overlay", () => {
+    const candidate = { label: "c", n_total: 1, two_theta: [1.0],
+                        hkl: [[1, 0, 0]], line: [0] };
+    expect(value(readout(FITTED, 3, {
+      kind: "weighted", candidate, candidateTolerance: 0.05 }), "candidate")).toBe("—");
+    expect(readout(FITTED, 3, { kind: "weighted" })!.rows.map((r) => r.id))
+      .not.toContain("candidate");
+  });
+
+  it("answers nothing where there is nothing to read", () => {
+    expect(readout(null, 2, { kind: "weighted" })).toBeNull();
+    expect(readout(FITTED, NaN, { kind: "weighted" })).toBeNull();
+    expect(readout({ ...FITTED, two_theta: [] }, 2, { kind: "weighted" })).toBeNull();
   });
 });

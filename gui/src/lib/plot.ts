@@ -10,6 +10,17 @@
  * whatever the dropped points contributed). This module only *chooses*.
  */
 
+import {
+  formatHkl,
+  formatIntensity,
+  formatPosition,
+  intensityScale,
+  nearestPeak,
+  type GroupCurve,
+  type PeakRow,
+} from "./peaks";
+import { formatValue } from "./table";
+
 export type ResidualKind = "delta" | "weighted" | "cumulative";
 export type Scale = "linear" | "sqrt" | "log";
 
@@ -494,6 +505,12 @@ export interface CandidateOverlay {
   label: string;
   two_theta: number[];
   n_total: number;
+  /** the reflection each drawn line is, parallel to `two_theta` (WP-1213) —
+   *  served since WP-1211 and drawn nowhere until the readout strip */
+  hkl?: number[][];
+  /** which emission line each drawn position belongs to, as an index into the
+   *  source's own list: a Kα2 line sits at a different 2θ for the same hkl */
+  line?: number[];
 }
 
 /**
@@ -759,5 +776,194 @@ export function sqrtTicks(hi: number, n = 6): { tickvals: number[]; ticktext: st
   return {
     tickvals: vals.map((y) => Math.sqrt(y)),
     ticktext: vals.map((y) => (y >= 1000 ? y.toPrecision(3) : String(Number(y.toPrecision(3))))),
+  };
+}
+
+// ----------------------------------------------------------------------
+// the readout strip (WP-1213)
+// ----------------------------------------------------------------------
+/**
+ * The index of the value nearest `x` in an ascending array — binary search.
+ *
+ * The plot's one nearest-channel question, asked by the readout and by the peak
+ * layer's marker heights. `-1` when there is nothing to look in.
+ */
+export function nearestIndex(xs: readonly number[], x: number): number {
+  if (!xs.length) return -1;
+  let lo = 0;
+  let hi = xs.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (xs[mid] < x) lo = mid;
+    else hi = mid;
+  }
+  return Math.abs(xs[lo] - x) <= Math.abs(xs[hi] - x) ? lo : hi;
+}
+
+/** Which plot ink a readout row is about, so the strip can say it in the mark's
+ *  own colour as well as by name. `curveColors`' keys, and no others. */
+export type ReadoutInk = "obs" | "calc" | "bkg" | "diff" | "peak" | "peakfit"
+  | "candidate";
+
+/** One labelled field of the strip. `value` is already formatted: the strip
+ *  prints it and decides nothing. */
+export interface ReadoutRow {
+  /** stable across hovers, so the strip's slots keep their order */
+  id: string;
+  label: string;
+  value: string;
+  ink?: ReadoutInk;
+}
+
+export interface Readout {
+  /** the drawn channel under the pointer, at four places with its degree sign */
+  position: string;
+  /** `d = λ/(2 sin θ)` there, or `""` when the source's λ is not in hand */
+  d: string;
+  rows: ReadoutRow[];
+}
+
+export interface ReadoutInputs {
+  /** which residual the lower panel is drawing — the strip names the one on
+   *  screen, never all three */
+  kind: ResidualKind;
+  /** the source's emission lines, primary first: `d` is the primary's, and a
+   *  candidate line names its own */
+  wavelengths?: readonly number[] | null;
+  /** the picked lines, and whether their layer is on the plot at all — it is
+   *  drawn only on the Peaks tab (WP-1210), so elsewhere there is no row */
+  peaks?: readonly PeakRow[] | null;
+  peaksActive?: boolean;
+  /** how near a picked line has to be to be the one under the pointer, in ° 2θ:
+   *  the caller's, because the pixel↔2θ map is the caller's — the same
+   *  `grabToleranceDeg` radius the pointer verbs aim with */
+  peakTolerance?: number;
+  /** the fitted group profiles, so the dashed curve can say what it is worth */
+  groups?: readonly GroupCurve[] | null;
+  /** the candidate overlay on screen, if any, and the same question for it */
+  candidate?: CandidateOverlay | null;
+  candidateTolerance?: number;
+}
+
+/** `+0.0035°` / `−0.0035°` — an offset, signed, with a real minus. */
+function offset(delta: number): string {
+  return `${delta < 0 ? "−" : "+"}${Math.abs(delta).toFixed(4)}°`;
+}
+
+/**
+ * Everything the plot knows at one 2θ, as the strip under it prints it.
+ *
+ * **Why a strip and not a hover box** (the report: "the tooltip frequently
+ * covers a large part of the data"): plotly offers no positioning for the
+ * unified box beyond `hoverlabel.align`, so "put it somewhere else" is not a
+ * setting — the box has to go, and what replaces it is a row of the plot's own
+ * controls. That also settles something the box could not do: under
+ * `hovermode: "x unified"` plotly snaps *every* trace to its nearest point in
+ * x, so the candidate overlay would have put a row in the box at every pointer
+ * position, which is why WP-1211 gave it `hoverinfo: "skip"` and left its
+ * served `hkl` undrawn. Here it is one more row.
+ *
+ * Pure, and every value is formatted here rather than in the component, because
+ * what makes a readout right is that it reads as the table beside it reads:
+ * `formatPosition`/`formatIntensity` are `lib/peaks.ts`' (WP-1209), and the
+ * intensities are `formatValue`'s six significant figures — which is what the
+ * deleted `hovertemplate`s printed, `%{customdata:.6g}` over the **unscaled**
+ * value, so a √ view still reads in intensity.
+ *
+ * A row a payload cannot fill is **absent, not empty**: there is a row per
+ * curve that is drawn, which makes the strip's shape a property of the payload
+ * and the tab rather than of where the pointer happens to be. The three
+ * "nearest something" rows (the ticks, the picked line, the candidate line)
+ * keep their slot with `—` in it instead, because those genuinely come and go
+ * under one pointer sweep and a strip that reflowed on each would be the jitter
+ * WP-1212 spent itself removing.
+ */
+export function readout(
+  w: (Window & { raw?: boolean; ticks?: Record<string, number[]> }) | null,
+  x: number,
+  inputs: ReadoutInputs,
+): Readout | null {
+  if (!w || !Number.isFinite(x)) return null;
+  const xs = w.two_theta ?? [];
+  const k = nearestIndex(xs, x);
+  if (k < 0) return null;
+  const at = xs[k];
+  const lam = inputs.wavelengths?.[0];
+  const sin = Math.sin((at * Math.PI) / 360);
+  const rows: ReadoutRow[] = [];
+  const value = (v: number | undefined | null) =>
+    v == null || !Number.isFinite(v) ? "—" : formatValue(v, null);
+
+  rows.push({ id: "obs", label: "obs", value: value(w.y_obs?.[k]), ink: "obs" });
+  if (!w.raw) {
+    rows.push({ id: "calc", label: "calc", value: value(w.y_calc?.[k]), ink: "calc" });
+    if (w.y_background?.length) {
+      rows.push({ id: "bkg", label: "bkg", value: value(w.y_background[k]), ink: "bkg" });
+    }
+    const res = residual(inputs.kind, w);
+    rows.push({ id: "diff", label: res.label, value: value(res.values[k]), ink: "diff" });
+  }
+
+  // the fitted group profile, named because a reader had no other way to tell
+  // the dashed curve from the model (WP-1210's own repair, carried here)
+  if (inputs.peaksActive && inputs.groups?.length) {
+    const group = inputs.groups.find(
+      (g) => g.two_theta.length && g.two_theta[0] <= x
+        && g.two_theta[g.two_theta.length - 1] >= x);
+    const j = group ? nearestIndex(group.two_theta, x) : -1;
+    rows.push({ id: "peakfit", label: "peak fit", ink: "peakfit",
+      value: group && j >= 0 ? value(group.y_fit[j]) : "—" });
+    if (w.raw) {
+      // the lower subplot is the groups' own residual on the raw view, and it
+      // is a drawn curve like any other
+      rows.push({ id: "peakdelta", label: "(y−fit)/σ", ink: "peakfit",
+        value: group && j >= 0 ? value(group.delta[j]) : "—" });
+    }
+  }
+
+  // the nearest tick per phase, as an offset: the position is this readout's
+  // own 2θ plus it, and an offset is the number that says "there is a
+  // reflection right here" without arithmetic
+  for (const [phase, ticks] of Object.entries(w.ticks ?? {})) {
+    const j = nearestIndex(ticks, x);
+    rows.push({ id: `ticks:${phase}`, label: phase,
+      value: j < 0 ? "—" : offset(ticks[j] - at) });
+  }
+
+  // the picked line under the pointer, printed as the panel's table prints it
+  if (inputs.peaksActive && inputs.peaks?.length) {
+    const hit = nearestPeak(inputs.peaks, x, inputs.peakTolerance ?? Infinity);
+    const row = hit === null ? null : inputs.peaks.find((p) => p.index === hit);
+    const pos = row ? formatPosition(row.two_theta, row.two_theta_esd) : null;
+    rows.push({ id: "peak", label: "peak", ink: "peak",
+      value: row && pos
+        ? `#${row.index} ${pos.value}${pos.esd}° · I ${
+            formatIntensity(row.intensity, intensityScale(inputs.peaks), row.flags)}`
+        : "—" });
+  }
+
+  // …and the candidate's, which is the hkl WP-1211 serves and does not draw.
+  // No ordinal and no count: past `MAX_CANDIDATE_TICKS` the drawn set is a
+  // sample thinned by rank, so "the 743rd line" would be a statement about the
+  // sample. The status line under the plot is where the count is honest.
+  const lines = inputs.candidate?.two_theta ?? [];
+  if (lines.length) {
+    const j = nearestIndex(lines, x);
+    const near = j >= 0 && Math.abs(lines[j] - x) <= (inputs.candidateTolerance ?? Infinity);
+    const hkl = inputs.candidate?.hkl?.[j];
+    const li = inputs.candidate?.line?.[j];
+    const lineLam = li == null ? undefined : inputs.wavelengths?.[li];
+    rows.push({ id: "candidate", label: "candidate", ink: "candidate",
+      value: near && hkl
+        ? [formatHkl(hkl),
+           lineLam == null ? null : `λ ${lineLam.toFixed(4)} Å`,
+           offset(lines[j] - at)].filter(Boolean).join(" · ")
+        : "—" });
+  }
+
+  return {
+    position: `${at.toFixed(4)}°`,
+    d: lam && sin > 0 ? `${(lam / (2 * sin)).toFixed(4)} Å` : "",
+    rows,
   };
 }

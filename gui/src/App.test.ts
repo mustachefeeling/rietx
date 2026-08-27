@@ -4521,7 +4521,9 @@ describe("the extinction screen table (WP-1027)", () => {
     // every class row: the symbol, the refutation with its hkl, the unfitted cap
     expect(host.textContent).toContain("P 63/m - -");
     expect(host.textContent).toContain("refuted");
-    expect(host.textContent).toContain("(001) 10.51°");
+    // spaced since WP-1213: `[1, 0, -4].join("")` is `10-4`, so both places
+    // that write a reflection now write it through `formatHkl`
+    expect(host.textContent).toContain("(0 0 1) 10.51°");
     expect(host.textContent).toContain("not screened");
     // a screened class shows its measured testable count; an unscreened one
     // shows a dash, because nobody asked (WP-1077)

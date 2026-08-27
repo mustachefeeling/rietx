@@ -36,6 +36,7 @@
     maskShapes,
     mergeRegions,
     movedAxes,
+    nearestIndex,
     noAxes,
     normalizeRegion,
     pinPatch,
@@ -769,18 +770,12 @@
     return values.map((v) => (v == null ? null : v > 0 ? Math.sqrt(v) : 0));
   }
 
-  /** the measured intensity nearest 2θ, in plot (scaled) units */
+  /** the measured intensity nearest 2θ, in plot (scaled) units.  The nearest
+   *  channel is `nearestIndex`, shared with the readout (WP-1213): one plot,
+   *  one answer to "which channel is under this 2θ". */
   function heightAt(w: any, tt: number): number {
-    const xs: number[] = w.two_theta ?? [];
-    if (!xs.length) return 0;
-    let lo = 0;
-    let hi = xs.length - 1;
-    while (hi - lo > 1) {
-      const mid = (lo + hi) >> 1;
-      if (xs[mid] < tt) lo = mid;
-      else hi = mid;
-    }
-    const k = Math.abs(xs[lo] - tt) <= Math.abs(xs[hi] - tt) ? lo : hi;
+    const k = nearestIndex(w.two_theta ?? [], tt);
+    if (k < 0) return 0;
     const v = (w.y_obs ?? [])[k] ?? 0;
     return scale === "sqrt" ? (v > 0 ? Math.sqrt(v) : 0) : v;
   }
