@@ -1906,7 +1906,11 @@
     min-width: 0;
   }
 
-  .cellrow input,
+  /* the *value* fills its column; the refine flag beside it is a control of
+     fixed size and must be excluded by name.  Found in Chrome: a checkbox at
+     `width: 100%` took all 84 px of the line and left the esd beside it at
+     zero width — present in the DOM, drawn nowhere (WP-1214). */
+  .cellrow input:not(.vary),
   .cellrow .fixed {
     width: 100%;
   }

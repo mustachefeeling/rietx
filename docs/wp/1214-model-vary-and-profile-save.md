@@ -67,7 +67,7 @@ and the button sits beside `Load profile…` with the written path shown.
       with every `vary` false and the specimen terms cleared.
 - [x] Manual: `using/model.md` (vary from the editor), `files.md` (the
       profile's save route).
-- [ ] Browser pass; dist.
+- [x] Browser pass; dist.
 
 ## Acceptance
 

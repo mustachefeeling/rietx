@@ -2472,6 +2472,36 @@ def test_exports_land_in_the_project_and_cannot_escape_it(fitted, tmp_path):
     assert client.post("/api/export/nonsense")[0] == 404
 
 
+def test_the_client_draws_a_mark_for_every_reason_a_row_can_be_held():
+    """`lib/table.ts:heldKind` has one state per reason, and this is the list.
+
+    Not a taste: a held row gets no vary control, so the mark is the *only*
+    thing where the control would be, and a reason the client does not know
+    draws nothing at all — which reads as a checkbox that failed to render.
+    That is what happened to the fourth: ``needs_held_cell`` arrived after
+    WP-1011's three-glyph vocabulary, the glyph was a ternary chain whose last
+    arm caught everything, and every project's wavelength wore the mode-fixed
+    mark until a browser pass on the 11-BM example (WP-1214).
+
+    Derived from ``refinable`` rather than listed, because ``refinable`` *is*
+    the definition of held: a fifth reason has to be written into it, and it
+    fails here the moment it is.  The fields it reads, not the words its source
+    contains — ``set_vary`` in a docstring is not a read of ``vary``, and
+    ``locked`` contains ``lo``.
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    from rietx.schemas.params import ParameterRow
+
+    tree = ast.parse(textwrap.dedent(inspect.getsource(ParameterRow.refinable.fget)))
+    read = {node.attr for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+            and node.value.id == "self" and node.attr in ParameterRow.model_fields}
+    assert read == {"locked", "tie", "mode_fixed", "needs_held_cell"}
+
+
 def test_the_instrument_profile_saves_from_a_project_that_has_not_been_fitted(
         blank, tmp_path, pattern_file):
     """The one export gated on the model rather than on a result (WP-1214).

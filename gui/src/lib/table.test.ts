@@ -50,12 +50,16 @@ function row(path: string, over: Partial<ParamRow> = {}): ParamRow {
     locked: false,
     esd: null,
     mode_fixed: false,
+    needs_held_cell: false,
     refinable: true,
     held_because: "",
     help_key: null,
     ...over,
   };
-  base.refinable = !base.locked && base.tie === null && !base.mode_fixed;
+  // the server's own definition (`ParameterRow.refinable`), so a fixture cannot
+  // claim a row is free while carrying a reason it is not
+  base.refinable = over.refinable ?? (!base.locked && base.tie === null
+    && !base.mode_fixed && !base.needs_held_cell);
   return base;
 }
 
@@ -192,7 +196,17 @@ describe("the refine flag", () => {
     expect(heldGlyph(row("a", { locked: true }))).toBe("🔒");
     expect(heldGlyph(row("a", { tie: { sources: ["b"] } }))).toBe("=");
     expect(heldGlyph(row("a", { mode_fixed: true }))).toBe("·");
+    // the fourth, which the three-arm ternary this replaced drew as the third:
+    // a free wavelength needs its cell held, and that is a degeneracy rather
+    // than a tie — nothing derives the row, another free parameter merely makes
+    // it unmeasurable (found in a browser, WP-1214)
+    expect(heldGlyph(row("a", { needs_held_cell: true, refinable: false })))
+      .toBe("≈");
+    expect(heldKind(row("a", { needs_held_cell: true }))).toBe("degenerate");
     expect(heldGlyph(row("a"))).toBe("");
+    // …and a reason this client does not know still gets a mark: an empty box
+    // reads as a control that failed to render
+    expect(heldGlyph(row("a", { refinable: false }))).toBe("·");
   });
 
   it("shows what was toggled, else what the row has", () => {
