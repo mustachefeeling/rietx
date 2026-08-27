@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import warnings
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -31,9 +32,17 @@ from .model.absorption import (
 )
 from .model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, Mode, compile_model
 from .model.geometry import geometry_table
+from .model.profiles.caglioti import (
+    SCHERRER_K,
+    apparent_size_from_size_coefficient,
+)
 from .model.restraints import summarise_restraints
 from .optimize.cancel import RefinementCancelled
-from .optimize.least_squares import SOLVERS, run_least_squares
+from .optimize.least_squares import (
+    SOLVERS,
+    _longest_line_wavelength,
+    run_least_squares,
+)
 from .optimize.qpa import (
     compute_qpa,
     estimate_capillary_mu_r,
@@ -2237,6 +2246,14 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     diagnostics = diagnostics + _phase_support_diagnostics(
         model, values, list(table.free_paths), structure)
 
+    # A strain broader than solved refinements normally use — a flag to check,
+    # not a bound (the bound is params.vector.strain_cap, one tier up).
+    diagnostics = diagnostics + _strain_flag_diagnostics(model, values, structure)
+
+    # A crystallite smaller than solved refinements normally report — the size
+    # twin of the flag above (bound: params.vector.size_cap, one tier up).
+    diagnostics = diagnostics + _size_flag_diagnostics(model, values, structure)
+
     # The two robustness statements that are about the *run* rather than a
     # parameter, so they are Diagnostics here rather than GuardFindings (which
     # exist to carry paths — these have none).  Both cover the silent-failure
@@ -2959,6 +2976,216 @@ def _phase_support_diagnostics(model: CompiledModel, values: dict[str, float],
                        "scale is stuck at its floor and needs seeding before "
                        "anything else of it is freed",
         ))
+    return out
+
+
+#: Sample strain (as a Lorentzian **FWHM** coefficient in deg 2θ, i.e. in
+#: ``lor_strain``'s own units) above which a refinement is flagged for a reader
+#: to adjudicate.  Not a bound — nothing is constrained by this number, and the
+#: fit that trips it is complete and may well be right.
+#:
+#: **Set from the corpus, not from taste.**  Surveyed across the 606 solved
+#: TOPAS ``.inp`` files of our archive (1213 strain records in 346 files;
+#: `strain_L` and the `Microstrain()` macro that wraps it, which is the same
+#: FWHM·tanθ convention as ``lor_strain``): median 0.076, p75 0.16, p90 0.68,
+#: p99 1.21, and the explicit ceilings those authors wrote by hand cluster at
+#: 0.1, 0.2, 0.3, 0.7, 1.0 and 1.5.  1.5 is the top of that band and just over
+#: the p99.
+#:
+#: What actually chose it is the **gap**, which is a more robust authority than
+#: a percentile in a corpus this heavily templated (a single calibration block
+#: copy-pasted into 78 files inflates any quantile).  Above 1.5 the corpus holds
+#: 8 of 1213 records (0.66 %) in 5 independent contexts, and every one was
+#: inspected: five are pegged at an author's own ``max 5`` ceiling and carry
+#: TOPAS's ``_LIMIT_MAX_5`` divergence annotation, one belongs to a phase named
+#: "pixie_dust" — an unindexed placeholder mid structure-solution — and the rest
+#: are a minor secondary phase absorbing an unmodelled peak shape.  So this
+#: threshold separates *fits* from *divergence signatures* in the corpus we
+#: have, rather than separating materials, and the nanocrystalline and heavily
+#: defective specimens that legitimately live in the 0.4–1.5 tail (dozens of
+#: independent files) stay below it and stay silent.
+#:
+#: ``gauss_strain`` is a variance in deg², so it is compared against the square
+#: of this width — one number, both terms, the same reasoning
+#: :func:`~rietx.params.vector.strain_cap_hi` uses for the bound.
+STRAIN_FLAG_WIDTH = 1.5
+
+
+def _strain_flag_diagnostics(model: CompiledModel, values: dict[str, float],
+                             structure: Structure) -> list[Diagnostic]:
+    """``STRAIN_UNUSUALLY_LARGE`` — a strain past what solved refinements use.
+
+    **The upper of two tiers, and the two do different jobs.**  One tier down,
+    :func:`~rietx.params.vector.strain_cap` is a solver bound derived from the
+    pattern's own 2θ extent; it protects the *numerics*, is not a judgement
+    about the specimen, and reports itself as ``BOUND_HIT`` on the path it
+    holds.  This tier protects the *interpretation*: it says a number is
+    surprising, which only a reader can settle.  Collapsing them into one
+    threshold would either flag honest broad-peak fits or permit the 1.1e5 that
+    :data:`~rietx.params.vector.strain_cap`'s docstring measures — the corpus
+    ceiling and the numerical fence are two orders of magnitude apart, and each
+    is wrong in the other's job.
+
+    So the register is deliberately *not* the Stephens cone's "not quotable".
+    A fit here is finished, and its strain is physically possible; what is
+    unusual is how far out in the corpus it sits.  It does not gate anything
+    ("report, never refuse"), and it is per-pattern, which is where a batch
+    caller most needs it — a series of 248 patterns cannot be read as 248
+    reports, and this is the kind of flag issue #141's batch verb would
+    aggregate.
+
+    ``microstrain`` blocks are deliberately **not** covered; see the module's
+    ``STRAIN_FLAG_WIDTH`` note and the PR that added it.  A declared Stephens
+    block *locks* ``lor_strain`` — its isotropic direction is identically that
+    column — so this cannot contradict it: a locked term keeps whatever value
+    it was given, and the block's own Λ(hkl) is not an entry with a width.
+    """
+    out: list[Diagnostic] = []
+    for ip in range(len(model.phases)):
+        name = structure.phases[ip].name
+        for term, width in (
+                ("lor_strain", values.get(f"phases.{ip}.lor_strain")),
+                ("gauss_strain", _sqrt_or_none(values.get(f"phases.{ip}.gauss_strain")))):
+            if width is None or not width > STRAIN_FLAG_WIDTH:
+                continue
+            path = f"phases.{ip}.{term}"
+            out.append(Diagnostic(
+                level="warning", code="STRAIN_UNUSUALLY_LARGE",
+                where=[path], value=float(width),
+                message=(f"phase {ip} ({name}) refined {term} to a strain "
+                         f"broadening of {width:.4g} deg (FWHM coefficient of "
+                         f"tanθ), {width / STRAIN_FLAG_WIDTH:.0f}× the "
+                         f"{STRAIN_FLAG_WIDTH} that solved refinements stay "
+                         f"under — of 1213 strain records in our archive of 606 "
+                         f"TOPAS refinements, 8 sit above it and every one is a "
+                         f"divergence signature rather than a material"),
+                suggestion="physically possible, so this is a number to check "
+                           "rather than a failure: confirm the broad lines are "
+                           "really this phase's and not an unmodelled peak "
+                           "shape, an amorphous component or a second phase it "
+                           "is absorbing, and check whether BOUND_HIT fired on "
+                           "the same path — at the cap the width is held by the "
+                           "fitted range and is not a measurement. If the "
+                           "specimen really is this defective, declare the "
+                           "bound you mean (a finite Parameter.max outranks "
+                           "both tiers and silences them)",
+            ))
+    return out
+
+
+def _sqrt_or_none(variance: float | None) -> float | None:
+    """A Gaussian **variance** (deg²) as the width it contributes (deg).
+
+    ``gauss_strain`` multiplies tan²θ, so its square root is the quantity
+    comparable with ``lor_strain`` and with the corpus's ``strain_G`` — the
+    conversion that lets :data:`STRAIN_FLAG_WIDTH` be one number.
+    """
+    if variance is None or not variance > 0.0:
+        return None
+    return math.sqrt(float(variance))
+
+
+#: Crystallite size (Å) below which a refinement is flagged for a reader to
+#: adjudicate — the size twin of :data:`STRAIN_FLAG_WIDTH`, and like it a flag
+#: that **bounds nothing**.  5 nm.
+#:
+#: **Set from the corpus and from intent.**  A survey of the 606 solved TOPAS
+#: ``.inp`` of our archive finds 317 refined ``CS_L`` (Lorentzian crystallite
+#: size, nm — the dominant idiom; ``CS_G`` and ``LVol`` are a handful) whose
+#: smallest *well-determined* value is ≈ 33 nm (a rutile size–strain fit); every
+#: refined size below ~2 nm is a divergence or placeholder signature — the two
+#: at 0.69 and 1.19 nm are Si and a minor Ge phase in a folder named *To
+#: Rietveld or not to Rietveld*, and the 18 nm one is a phase named
+#: ``pixie_dust``.  So the corpus has a clean gap: real fits floor near 33 nm,
+#: artefacts sit below ~2 nm, and nothing legitimate lives between.
+#:
+#: 5 nm is placed inside that gap, above the 2 nm hard floor
+#: (:data:`~rietx.params.vector.SIZE_CAP_MIN_SIZE_A`) and well below the
+#: smallest real fit.  It is deliberately *not* pushed up towards 33 nm: a real
+#: nanocrystalline specimen of 5–30 nm is routine even though this particular
+#: archive of bulk inorganics happens not to contain one, and a flag that fired
+#: on it would be noise.  So this says only "smaller than a runaway fence, a
+#: number to look at", which is the whole job of the flag tier — the intent
+#: Michael set is *prevent runaways, do not legislate physics*.
+#:
+#: ``gauss_size`` is a variance, so the size is read from its square root, the
+#: same conversion :func:`~rietx.params.vector.size_cap_hi` uses for the bound.
+SIZE_FLAG_SIZE_A = 50.0
+
+
+def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],
+                           structure: Structure) -> list[Diagnostic]:
+    """``SIZE_UNUSUALLY_SMALL`` — a crystallite past what solved refinements use.
+
+    The size twin of :func:`_strain_flag_diagnostics`, and the two do the same
+    two-tier job.  One tier down, :func:`~rietx.params.vector.size_cap` is a
+    solver bound (a 2 nm floor on the crystallite, per wavelength); it protects
+    the *numerics* and reports itself as ``BOUND_HIT``.  This tier protects the
+    *interpretation*: a refined size below :data:`SIZE_FLAG_SIZE_A` is
+    physically possible — real nanocrystals reach a few nm — so the fit is
+    finished and may be right, but it sits below the archive of solved
+    refinements and is worth a look.  It gates nothing ("report, never refuse")
+    and is per-pattern, which is where a batch caller needs it.
+
+    The size is read from the **sample** coefficient alone (``lor_size``, or
+    ``sqrt(gauss_size)``), not the instrument ⊕ sample total: the question is
+    what crystallite *this phase's* refined broadening implies, and a runaway is
+    that coefficient ballooning.  Reported in nm, the transferable unit, because
+    a coefficient in deg is not comparable between instruments and a size is
+    (:mod:`rietx.model.profiles.caglioti`); the apparent size is an order-of-
+    magnitude statement (Scherrer K moves it ~10–20 %), which is exactly the
+    resolution a "this is suspiciously small" flag needs.
+
+    ``microstrain`` (Stephens) blocks do not touch ``lor_size``, so unlike the
+    strain flag there is no locked-column interaction to guard here.
+
+    λ comes from :func:`~rietx.optimize.least_squares._longest_line_wavelength`,
+    the same selector the tier-1 bound reads — one authority for "which line",
+    so the two tiers cannot come to attribute a coefficient to different
+    wavelengths.  A source stating none returns no diagnostic, which is where
+    this tier's empty state differs from the bound's; that function's docstring
+    is where the difference is argued.
+    """
+    lam = _longest_line_wavelength(model)
+    if lam is None:
+        return []
+    out: list[Diagnostic] = []
+    floor_nm = SIZE_FLAG_SIZE_A / 10.0
+    for ip in range(len(model.phases)):
+        name = structure.phases[ip].name
+        for term, coeff in (
+                ("lor_size", values.get(f"phases.{ip}.lor_size")),
+                ("gauss_size", _sqrt_or_none(values.get(f"phases.{ip}.gauss_size")))):
+            if coeff is None or not coeff > 0.0:
+                continue
+            size_a = apparent_size_from_size_coefficient(coeff, lam, SCHERRER_K)
+            if not size_a < SIZE_FLAG_SIZE_A:
+                continue
+            size_nm = size_a / 10.0
+            path = f"phases.{ip}.{term}"
+            out.append(Diagnostic(
+                level="warning", code="SIZE_UNUSUALLY_SMALL",
+                where=[path], value=float(size_nm),
+                message=(f"phase {ip} ({name}) refined {term} to an apparent "
+                         f"crystallite size of {size_nm:.3g} nm "
+                         f"(Scherrer K={SCHERRER_K}, λ={lam:.4g} Å), below the "
+                         f"{floor_nm:.0f} nm that solved refinements stay above "
+                         f"— of 606 TOPAS refinements in our archive the "
+                         f"smallest well-determined crystallite is ≈ 33 nm, and "
+                         f"every refined size below ~2 nm is a divergence or "
+                         f"placeholder signature rather than a material"),
+                suggestion="physically possible — real nanocrystals reach a few "
+                           "nm — so this is a number to check rather than a "
+                           "failure: confirm the broad lines are really size "
+                           "broadening and not an unmodelled peak shape, strain, "
+                           "an amorphous component or a second phase it is "
+                           "absorbing, and check whether BOUND_HIT fired on the "
+                           "same path — at the cap the width is held at the 2 nm "
+                           "floor and is not a measurement. If the specimen "
+                           "really is this small, declare the bound you mean (a "
+                           "finite Parameter.max outranks both tiers and "
+                           "silences them)",
+            ))
     return out
 
 
