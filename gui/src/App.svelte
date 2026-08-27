@@ -496,6 +496,11 @@
     }
   }
 
+  /** Which numbering `candidateTicks` is keyed to.  A plain `let`, not `$state`:
+   *  nothing renders it, and a reactive one would make every fetch a reason to
+   *  re-render the shell. */
+  let candidateEra = 0;
+
   /** Drop everything keyed by candidate index (WP-1211).
    *
    *  Whole-map, never per entry: an index is only a name while one answer
@@ -503,6 +508,7 @@
    *  lines under another cell's row.  The same staleness the server enforces on
    *  the extinction screen. */
   function forgetCandidates() {
+    candidateEra += 1;
     candidateTicks = {};
     pickedCandidate = null;
     previewCandidate = null;
@@ -516,12 +522,19 @@
    * and that is deliberate: this is a drawing, asked for by a hover, and the
    * one refusal it can meet (`INDEX_CELL_TOO_LARGE`) is already visible as the
    * absence of lines beside a cell whose own volume says why.
+   *
+   * **An answer that outlived its numbering is dropped**, which is the text
+   * pane's stale-`seq` rule one panel over: an indexing run can finish while a
+   * hover's fetch is in flight, and index 3 then names a different cell than
+   * the one that was asked for. Silence is the right outcome — the row is gone
+   * too.
    */
   async function showCandidate(index: number | null) {
     if (index === null || candidateTicks[index]) return;
+    const era = candidateEra;
     try {
       const answer = await api.candidateTicks(index);
-      candidateTicks = { ...candidateTicks, [index]: answer };
+      if (era === candidateEra) candidateTicks = { ...candidateTicks, [index]: answer };
     } catch {
       // no lines to draw; the row and the plot simply stay as they are
     }

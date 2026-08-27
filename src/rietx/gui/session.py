@@ -2118,7 +2118,14 @@ class GuiSession:
                            code="NO_INDEX_RESULT", status=409)
         candidate = self._candidate_number(result, index)
         cell = tuple(float(v) for v in candidate.cell)
-        symbol = structure_from_candidate(candidate).phases[0].space_group
+        try:
+            symbol = structure_from_candidate(candidate).phases[0].space_group
+        except (ValueError, RuntimeError) as exc:
+            # ``index_adopt`` catches the same pair around the same call: a
+            # lattice group gemmi will not build is a fact about the candidate,
+            # and every refusal on this surface is an envelope rather than a
+            # traceback
+            raise GuiError(str(exc), where=["candidate"]) from None
 
         tt_all = np.asarray(p.data.two_theta, dtype=float)
         lo, hi = float(np.min(tt_all)), float(np.max(tt_all))
@@ -2159,12 +2166,19 @@ class GuiSession:
         order = np.argsort(tt, kind="stable")
         n_total = int(len(order))
         if n_total > MAX_CANDIDATE_TICKS:
-            # thinned by **rank**, so a dense stretch keeps proportionally more
+            # Thinned by **rank**, so a dense stretch keeps proportionally more
             # lines than a sparse one — density in 2θ is what this picture is
             # read for, and ``n_total`` beside it is the half that keeps the
-            # thinning from reading as coverage
-            step = -(-n_total // MAX_CANDIDATE_TICKS)
-            order = order[::step]
+            # thinning from reading as coverage.
+            #
+            # Evenly over the ranks rather than every k-th: at 2001 lines the
+            # stride is 2 and half the budget goes unspent for one line over.
+            # ``unique`` because the rounding can land twice on one rank when
+            # the spacing is barely over 1, and a line drawn twice is a lie
+            # about the count as surely as a dropped one.
+            picks = np.unique(np.linspace(
+                0, n_total - 1, MAX_CANDIDATE_TICKS).round().astype(np.int64))
+            order = order[picks]
         return {
             "candidate": index,
             "space_group": symbol,

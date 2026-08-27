@@ -72,6 +72,27 @@ From **WP-1210** (2026-08-27, shipped):
   touches the layout it is the cheap moment to decide whether an empty subplot
   should collapse.
 
+From **WP-1211** (2026-08-27, shipped):
+
+- **The data-only press now has a second caller**, so the empty-subplot item
+  above went from "a button somebody pressed" to "what selecting a candidate
+  does for you". Same repair, more of the time.
+- **There is a `yaxis4`** — the candidate overlay's, declared only while it is
+  drawn, `overlaying: "y"` with `range [0, 1]` and `fixedrange: true`. It is a
+  *fifth* axis this WP's rule has to hold for, and the two properties that keep
+  it out of the way are worth not breaking: it never autoranges (so a redraw
+  cannot move it), and its trace is clipped server-side to the measured extent
+  (so, unlike the peak markers and the mask shapes, it cannot widen `xaxis`).
+  A `heldRanges` that grew a `yaxis4` key would be asserting something about an
+  axis nobody can move.
+- **A layer's props are two now, and both are drawing inputs**: `candidate` and
+  `candidatePicked`, joining `peaksActive` in the repaint effect. So a candidate
+  click and a candidate *hover* are each a new occasion for the autorange this
+  WP is chasing — a hover fires one `react` per row the pointer crosses. Worth
+  counting beside the tab-change chain above; measured in Chrome, the zoom did
+  survive a candidate swap, so the count is the question rather than the
+  correctness.
+
 Method (from `gui/CLAUDE.md`): **measure first**, in Chrome via
 playwright-core; when a claim is about an event, count the events; read
 ranges off `_fullLayout` before and after each gesture. Suspect the harness

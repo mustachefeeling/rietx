@@ -601,7 +601,9 @@ def test_candidate_ticks_are_thinned_by_rank_and_say_so(ticks_served):
     status, answer = client.get("/api/index/ticks?candidate=0")
     assert status == 200, answer
     assert answer["n_total"] > MAX_CANDIDATE_TICKS
-    assert answer["n_returned"] <= MAX_CANDIDATE_TICKS
+    # the whole budget, not half of it: spacing the picks over the ranks rather
+    # than taking every k-th is what keeps 2001 lines from coming back as 1001
+    assert answer["n_returned"] == MAX_CANDIDATE_TICKS
     assert len(answer["two_theta"]) == answer["n_returned"]
     assert len(answer["hkl"]) == len(answer["line"]) == answer["n_returned"]
 

@@ -75,6 +75,26 @@ From **WP-1210** (2026-08-27, shipped):
   peak should say the same thing in the corpus's words (`peak_origins` labels,
   the 1209 note above), never introduce a third spelling or a colour key.
 
+From **WP-1211** (2026-08-27, shipped):
+
+- **The candidate overlay's `hkl` is already served and deliberately not
+  drawn**, and it is this WP's to draw. `GET /api/index/ticks` returns
+  `two_theta`, `hkl` and `line` as parallel arrays sorted by 2θ, so "the line
+  under the pointer is (1 0 4), Kα2, from the cell in row 3" needs no new wire
+  surface. The reason it has none now is exactly this WP's subject: under
+  `hovermode: "x unified"` plotly snaps *every* trace to its nearest point in
+  x, so a candidate row would appear in the box at every pointer position — in
+  the same box the peak hover link reads. A strip of its own does not have that
+  problem, which is what makes it the right place.
+- **Read `n_total` before quoting a count.** Past `MAX_CANDIDATE_TICKS` the
+  drawn set is a sample thinned by rank, so "the 743rd predicted line" is a
+  statement about the sample and not about the cell. The plot's status line
+  already prints both numbers; a readout that names one line has to be honest
+  the same way or say nothing.
+- **The overlay is on `yaxis4`, at `y` ∈ [0, 1] in its own coordinates.** A
+  readout doing its own hit-testing by pixel or by data coordinate needs to
+  know that this layer's `y` means nothing — only its `x` does.
+
 ## Non-goals
 
 - The peak-row hover link (the ring, WP-1212).
