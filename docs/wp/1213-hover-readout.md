@@ -95,6 +95,37 @@ From **WP-1211** (2026-08-27, shipped):
   readout doing its own hit-testing by pixel or by data coordinate needs to
   know that this layer's `y` means nothing — only its `x` does.
 
+From **WP-1212** (2026-08-27, shipped):
+
+- **The hover ring is a plain `scatter` now, not `scattergl`**, and if this WP
+  moves or replaces it that has to move with it: every gl trace on a subplot
+  shares one `_scene` whose batches are indexed by position, an *empty* gl trace
+  is given no index, and a select drag then threw once per pointer move. Any new
+  trace that is empty most of the time — a spike marker, a readout cursor —
+  wants the same treatment.
+- **The axes are explicit after every paint** (`pinPatch`, `movedAxes`,
+  `userRanges`), so a hover cannot move them however it is drawn, and
+  `autorange === false` no longer answers "has the user zoomed" — `movedAxes`
+  does. A readout that reads the axis for a pixel→2θ conversion should use
+  `drawnRange(ax)`, not `ax.range`, which can be stale on a fresh plot.
+- **A hover already costs a `react` where a candidate is concerned.** Measured:
+  running the pointer down six candidate rows costs 11 reacts at 19-33 ms — two
+  per row, since leaving one draws as well as entering one — while a peaks-table
+  hover costs a single `restyle`. If the readout gives the overlay a hover of its
+  own, the cheap shape is WP-1032's: one trace whose coordinates move.
+- **The residual subplot's empty quarter is still there and still owed.** 1212
+  decided against collapsing it: the shared x axis is anchored to `y2` and the
+  tick band's domain is the gap between the panels, so collapsing means moving
+  three domains and an anchor together. Measured while deciding — with nothing
+  drawn on it plotly *drops* `yaxis2` from `_fullLayout` and restores it with
+  exactly its previous range, so nothing moves; `yaxis.domain` stays `[0.28, 1]`.
+  This WP adds a strip under the plot, which is the next time that space is
+  worth arguing about.
+- **`.select-outline` is the panel's first stylesheet rule reaching into
+  plotly's own nodes for something other than a cursor**, and it carries
+  `!important` because plotly writes `fill-opacity: 0` inline. If the readout
+  restyles any plotly-owned node, that is the precedent and the trap.
+
 ## Non-goals
 
 - The peak-row hover link (the ring, WP-1212).

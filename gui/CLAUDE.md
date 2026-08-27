@@ -616,8 +616,8 @@ back 4.57-24.85 with a peak list, 3.99-24.88 with an excluded region at 4-5° an
 else on it, and every peak edit threw it away (on the raw view there is not even
 a window fetch to land back in). The repair is WP-1015's camera rule one panel
 over — **the view is handed back on every draw**, read off `_fullLayout`
-immediately before the react, `autorange === false` being exactly "the user has
-said" — plus the window a redraw refetches following the axis, `doubleClick:
+immediately before the react (WP-1212 finished the job for the axes nobody had
+zoomed) — plus the window a redraw refetches following the axis, `doubleClick:
 "autosize"` (plotly's default *reset* means "back to the range the plot was
 drawn with", which is now the zoom itself), and an **untracked** knob comparison,
 because `view()` is called from the fetch effect too and a tracked read there
@@ -806,3 +806,35 @@ a fitted model's position while this is a hypothesis laid over the data. Drawn
 ~3.7 per pixel, and on top they buried the pattern the overlay exists to be
 compared with. Green was the last free hue (WP-1210 measured the rest); the plot
 palette now has no room for a further mark that carries a quantity.
+
+**A redraw never moves the axes** (WP-1212, `lib/plot.ts`, `panels/Plot.svelte`,
+`App.svelte:setProtocol`). WP-1044 read `autorange === false` as "the user has
+said", and plotly writes that flag on a zoom and nowhere else — so on the plot
+nobody had zoomed there was nothing to hand back and every redraw re-fitted the
+axes. Seven rules. **The axes are made explicit by the paint that fitted them**:
+`pinPatch` writes back whatever plotly autoranged, as the last act of each paint
+and *before* the hover ring goes on, so a later `react` or `restyle` has nothing
+to re-derive — measured, a hover over the peaks table costs no `react` at all
+and still moved `yaxis` 1.03 % of its span, once per row the pointer crossed.
+The two questions that flag used to answer then come apart: `movedAxes` reads
+each gesture off the relayout event, and only a *user-set* axis survives the
+re-fit a new payload licenses (`userRanges`). **The range plotly draws with is
+`ax._rl`, not `ax.range`** — on the first plot of a fresh div `range` was still
+the empty-axis default `[-1, 6]` while the ticks, the pixel map and `_rl` said
+0-60°, so pinning `range` froze the raw view blank (the fitted view escaped only
+because the run after it re-fitted the axes anyway). **A layout key is a
+`relayout`, never a repaint**: arming sets `dragmode` and nothing else, and was
+costing two of the four reacts an exclude drag took. **A `$derived` off
+`project` is a new object on every settings PATCH**, so an effect keyed on
+`extent` repaints for two numbers that did not change — key it by value, beside
+`protocolKey`. **Two `$state` assignments either side of an `await` are two
+flushes**, which is why `setProtocol` reads the peak list before publishing
+either (`readPeaks`); one exclude drag is now one react and moves no axis.
+And the gesture is dressed as the exclusion it will become —
+`newselection.line` in `maskShapes`' edge ink, the wash a `.select-outline`
+rule needing `!important` because plotly writes `fill-opacity: 0` inline —
+while **an empty `scattergl` trace gets no index in the scene its peers share**,
+so `selectPoints` read `selectBatch[undefined]` and threw once per pointer
+move: the hover ring is a plain `scatter` now. And **an axis with nothing drawn
+on it is not pinned** — plotly fits it to a default that is a number to look at,
+not a fit to keep.

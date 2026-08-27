@@ -450,7 +450,21 @@ SIZE_CAPS: dict[str, int | None] = {
     # requires: the shift algebra and the enumeration counts are in
     # `GuiSession.index_ticks`'s docstring, the drawing order and the axis in
     # `Plot.svelte`'s, and the measured numbers in the WP's handover.
-    "gui/CLAUDE.md": 808,
+    # 808 -> 838 for WP-1212 (2026-08-27): a redraw never moves the axes.  Six
+    # rules, four of them browser findings that no reading of the code reaches
+    # and none derivable from another — what `autorange === false` stopped
+    # meaning, which field carries the range plotly is *drawing* with, that a
+    # layout key is a relayout rather than a repaint, that a `$derived` off the
+    # project arrives new-but-equal on every settings PATCH, that two `$state`
+    # assignments either side of an `await` are two flushes, and that an empty
+    # `scattergl` trace has no index in the scene its peers share.  The first
+    # two rewrite what the WP-1044 section above claims, so they cannot live
+    # only in a WP file.  Operating detail went a rank down as this comment
+    # requires: the pin's mechanics are `pinPatch`'s and `drawnRange`'s
+    # docstrings, the gesture's ink is the `.select-outline` rule's comment,
+    # and every measured number is in the WP's handover table.  840 after the
+    # review pass added the seventh: an axis with nothing on it is not pinned.
+    "gui/CLAUDE.md": 840,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

@@ -3162,22 +3162,22 @@ const MEDIUM_CANDIDATE = {
   diagnostics: [],
 };
 
-describe("what is fitted, shaded and selectable (WP-1033)", () => {
-  /** plotly decorates the plot div with its own emitter at runtime, which jsdom
-   *  has no reason to; without it `plotNode.on?.()` is a silent no-op and the
-   *  select gesture cannot be driven at all.  Patched on the prototype for the
-   *  same reason the library does it: the div is created inside `mount`. */
-  function emitter() {
-    const handlers: Record<string, (ev: any) => void> = {};
-    const proto = HTMLDivElement.prototype as any;
-    proto.on = function (name: string, fn: (ev: any) => void) { handlers[name] = fn; };
-    proto.removeAllListeners = function () {};
-    return {
-      handlers,
-      restore: () => { delete proto.on; delete proto.removeAllListeners; },
-    };
-  }
+/** plotly decorates the plot div with its own emitter at runtime, which jsdom
+ *  has no reason to; without it `plotNode.on?.()` is a silent no-op and no
+ *  plotly gesture can be driven at all.  Patched on the prototype for the same
+ *  reason the library does it: the div is created inside `mount`. */
+function emitter() {
+  const handlers: Record<string, (ev: any) => void> = {};
+  const proto = HTMLDivElement.prototype as any;
+  proto.on = function (name: string, fn: (ev: any) => void) { handlers[name] = fn; };
+  proto.removeAllListeners = function () {};
+  return {
+    handlers,
+    restore: () => { delete proto.on; delete proto.removeAllListeners; },
+  };
+}
 
+describe("what is fitted, shaded and selectable (WP-1033)", () => {
   /** The settings bodies this session sent, in order — `calls.at(-1)` would be
    *  whatever the event poll asked for a tick later. */
   function patches(stub: { calls: Call[] }) {
@@ -3256,11 +3256,16 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
       await flush();
 
       expect(drawn.at(-1)!.layout.dragmode).toBe("zoom");
+      expect(drawn.at(-1)!.layout.selectdirection).toBe("h");
       const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
+      const before = drawn.length;
       [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("exclude"))!.click();
       await flush();
-      expect(drawn.at(-1)!.layout.dragmode).toBe("select");
-      expect(drawn.at(-1)!.layout.selectdirection).toBe("h");
+      // the mode is one layout key, so arming is a `relayout` and not a repaint
+      // of the pattern — two of the four reacts an exclude drag used to cost,
+      // since it is set on the way in and cleared on the way out (WP-1212)
+      expect(relayouts.at(-1)).toEqual({ dragmode: "select" });
+      expect(drawn.length).toBe(before);
       expect(host.textContent).toContain("the peak gestures are suspended");
 
       // the drag, delivered the way plotly delivers it
@@ -3270,8 +3275,8 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
       // ordered, sent, and the marquee dropped — the shading is the record now
       expect(stub.calls.find((c) => c.method === "POST" && c.path === "/api/project")?.body)
         .toEqual({ excluded_regions: [[13, 16]] });
-      expect(relayouts.at(-1)).toEqual({ selections: [] });
-      expect(drawn.at(-1)!.layout.dragmode).toBe("zoom");
+      expect(relayouts).toContainEqual({ selections: [] });
+      expect(relayouts).toContainEqual({ dragmode: "zoom" });
       expect(host.textContent).not.toContain("the peak gestures are suspended");
     } finally {
       emit.restore();
@@ -3406,9 +3411,14 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
 });
 
 describe("the view survives a redraw (WP-1044)", () => {
+  let bus: ReturnType<typeof emitter>;
+  beforeEach(() => { bus = emitter(); });
+  afterEach(() => bus.restore());
+
   /** plotly's own record of where the axes are, which jsdom has no layout to
-   *  build.  `autorange: false` is what plotly writes on a zoom or pan drag,
-   *  and it is the whole question this panel asks the library. */
+   *  build.  `autorange: false` is what plotly writes on a zoom or pan drag —
+   *  and since WP-1212 it is what this panel writes on every paint too, so this
+   *  states where the axes *are* and `dragged` states who put them there. */
   function zoomedTo(range: [number, number] | null) {
     const node = host.querySelector<HTMLElement>(".plot")! as any;
     node._fullLayout = range
@@ -3426,6 +3436,16 @@ describe("the view survives a redraw (WP-1044)", () => {
       relayout: async () => {},
       restyle: async () => {},
       purge: () => {},
+    });
+  }
+
+  /** The gesture, not only its trace.  An explicit range no longer says who set
+   *  it, so a test that means "the user dragged here" delivers the event plotly
+   *  emits for a drag (`lib/plot.ts:movedAxes`). */
+  function dragged(range: [number, number]) {
+    zoomedTo(range);
+    bus.handlers["plotly_relayout"]?.({
+      "xaxis.range[0]": range[0], "xaxis.range[1]": range[1],
     });
   }
 
@@ -3517,7 +3537,8 @@ describe("the view survives a redraw (WP-1044)", () => {
     button("Peaks")!.click();
     await flush();
 
-    zoomedTo([10, 14]);
+    dragged([10, 14]);
+    await flush();
     const boxes = [...host.querySelectorAll<HTMLInputElement>('td.use input[type="checkbox"]')];
     boxes[1].dispatchEvent(new Event("change", { bubbles: true }));
     await flush();
@@ -3581,6 +3602,248 @@ describe("the view survives a redraw (WP-1044)", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await flush();
     expect(plot.classList.contains("armed")).toBe(false);
+  });
+});
+
+/**
+ * A redraw never moves the axes (WP-1212).
+ *
+ * WP-1044 above keeps an axis only once `autorange === false`, which plotly
+ * writes on a zoom and nowhere else — so on the plot nobody has zoomed there
+ * was nothing to keep, and every redraw and every `restyle` re-fitted the axes.
+ * Measured in Chrome on the NAC example: a hover over the peaks table costs no
+ * `react` at all and still moved `yaxis` by 1.03 % of its span, once per row
+ * the pointer crossed.
+ *
+ * The plotly stub here resolves axes the way the library does, because the
+ * repair is a *round trip* through the layout — the panel hands a layout in,
+ * reads back what plotly made of it, and writes the resolved ranges in as
+ * explicit ones. A stub that never resolved anything could not tell the repair
+ * from its absence.
+ */
+describe("a redraw never moves the axes (WP-1212)", () => {
+  /** What plotly would autorange each axis to over what is drawn here. */
+  const AUTO: Record<string, [number, number]> = {
+    xaxis: [-3.07, 63.56], yaxis: [-18597.7, 283838.2], yaxis2: [-81.8, 61.7],
+  };
+
+  let bus: ReturnType<typeof emitter>;
+  beforeEach(() => { bus = emitter(); });
+  afterEach(() => bus.restore());
+
+  /** Every plotly call in the order it was made, with the axis resolution the
+   *  library performs: an explicit `range` stays put, an absent one is fitted
+   *  to the data and marked `autorange`. */
+  function plotly(log: { call: string; arg: any; traces?: any[] }[]) {
+    const resolve = (node: any, layout: any) => {
+      const full: Record<string, any> = {};
+      for (const key of ["xaxis", "yaxis", "yaxis2"]) {
+        const range = layout?.[key]?.range;
+        full[key] = range
+          ? { autorange: false, range: [...range] }
+          : { autorange: true, range: [...AUTO[key]] };
+      }
+      full.yaxis3 = { autorange: false, range: [-2, 0] };
+      node._fullLayout = full;
+    };
+    vi.stubGlobal("Plotly", {
+      react: async (node: any, traces: any[], layout: any) => {
+        log.push({ call: "react", arg: layout, traces });
+        resolve(node, layout);
+      },
+      relayout: async (node: any, patch: any) => {
+        log.push({ call: "relayout", arg: patch });
+        for (const [key, value] of Object.entries(patch)) {
+          const [axis, prop] = key.split(".");
+          if (prop === "range" && node._fullLayout?.[axis]) {
+            node._fullLayout[axis] = { autorange: false, range: [...(value as number[])] };
+          }
+        }
+      },
+      restyle: async (_n: any, update: any) => log.push({ call: "restyle", arg: update }),
+      purge: () => {},
+    });
+  }
+
+  const reacts = (log: { call: string }[]) => log.filter((c) => c.call === "react").length;
+  const lastTraces = (log: { call: string; traces?: any[] }[]) =>
+    log.filter((c) => c.call === "react").at(-1)!.traces!;
+
+  it("writes back what plotly autoranged, so the next restyle cannot re-fit it",
+     async () => {
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    vi.stubGlobal("fetch", server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const pin = log.find((c) => c.call === "relayout" && "xaxis.range" in c.arg);
+    expect(pin!.arg).toEqual({
+      "xaxis.range": AUTO.xaxis, "yaxis.range": AUTO.yaxis, "yaxis2.range": AUTO.yaxis2,
+    });
+    // the tick band is not the panel's to pin: it carries its own range and
+    // never autoranges (`lib/plot.ts:PINNED_AXES`)
+    expect(pin!.arg).not.toHaveProperty("yaxis3.range");
+  });
+
+  it("hands the pinned ranges back, so a repaint on an unzoomed plot holds still",
+     async () => {
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    vi.stubGlobal("fetch", server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    // a curve toggle is the cheapest redraw there is, and before this it was a
+    // reason for plotly to re-fit all three axes
+    log.length = 0;
+    const curves = host.querySelector<HTMLElement>('.segmented[aria-label="curves"]')!;
+    [...curves.querySelectorAll("button")]
+      .find((b) => b.textContent!.trim() === "calc")!.click();
+    await flush();
+
+    const layout = log.filter((c) => c.call === "react").at(-1)!.arg;
+    expect(layout.xaxis.range).toEqual(AUTO.xaxis);
+    expect(layout.yaxis.range).toEqual(AUTO.yaxis);
+    expect(layout.yaxis2.range).toEqual(AUTO.yaxis2);
+    // …and nothing left to pin, so the repaint costs no relayout of its own
+    expect(log.filter((c) => c.call === "relayout" && "xaxis.range" in c.arg)).toEqual([]);
+  });
+
+  it("pins before the hover ring goes on, which is the restyle that moved it",
+     async () => {
+    // the ring is a `scattergl` trace with `marker.size: 16`, and scatter
+    // autorange pads by marker size — so the order of these two calls is the
+    // whole difference between a still axis and one that pumps per row
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    vi.stubGlobal("fetch", server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const pinAt = log.findIndex((c) => c.call === "relayout" && "xaxis.range" in c.arg);
+    const ringAt = log.findIndex((c) => c.call === "restyle");
+    expect(pinAt).toBeGreaterThanOrEqual(0);
+    expect(ringAt).toBeGreaterThan(pinAt);
+  });
+
+  it("dresses the live selection as the mask it is about to become", async () => {
+    // plotly's default marquee is a dark dotted box that says "select"; what an
+    // armed drag here means is "exclude this range", so it borrows `maskShapes`'
+    // own two colours from the same `curveColors` call. The wash inside it is
+    // not an attribute plotly has — it is the `.select-outline` rule in the
+    // panel's stylesheet, which needs `!important` because plotly writes
+    // `fill-opacity: 0` inline (measured in Chrome).
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    vi.stubGlobal("fetch",
+      server({ ...boot(MASKED_PROJECT), ...FITTED, ...TWO_PHASE_WINDOW }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const layout = log.filter((c) => c.call === "react").at(-1)!.arg;
+    expect(layout.newselection.line.dash).toBe("dot");
+    expect(layout.newselection.line.width).toBe(1);
+    // the same two inks the shapes are drawn in, whatever the theme resolved to
+    const shape = layout.shapes.find((s: any) => s.type === "line");
+    expect(layout.newselection.line.color).toBe(shape.line.color);
+    const band = layout.shapes.find((s: any) => s.type === "rect");
+    expect(layout.activeselection.fillcolor).toBe(band.fillcolor);
+  });
+
+  it("keeps the hover ring out of the WebGL scene", async () => {
+    // Every gl trace on a subplot shares one `_scene` whose batches are indexed
+    // by position, and an *empty* one is given no index — so a select drag read
+    // `scene.selectBatch[undefined].length` and threw once per pointer move
+    // (measured: 7 throws over one armed exclude drag, and none before the
+    // first hover, because the ring is empty until something is hovered).
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    vi.stubGlobal("fetch", server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const last = lastTraces(log);
+    const ring = last.find((t: any) => t.name === "hovered");
+    expect(ring.type).toBe("scatter");
+    // …and it is the only one: everything else on this plot is a curve worth
+    // the gl path, and the peak markers are drawn from a list that can be long
+    expect(last.filter((t: any) => t.type !== "scattergl").map((t: any) => t.name))
+      .toEqual(["hovered"]);
+  });
+
+  it("draws an exclusion once — the whole chain is one paint", async () => {
+    // Counted in Chrome before this: four. `arm = null` was a repaint (the drag
+    // mode is layout, so it is a relayout now), `extent` is `$derived` off
+    // `project` and handed the repaint effect a new array holding the same two
+    // numbers, and the document and the peak list landed on either side of a
+    // microtask because `setProtocol` awaited the reload after assigning.
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/project": (call) => (call.method === "POST"
+        ? { body: { ...PROJECT, doc: { ...PROJECT.doc, excluded_regions: [[13, 16]] } } }
+        : { body: PROJECT }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
+    [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("exclude"))!.click();
+    await flush();
+    log.length = 0;
+    bus.handlers.plotly_selected({ range: { x: [16, 13] } });
+    await flush();
+
+    expect(stub.calls.find((c) => c.method === "POST" && c.path === "/api/project")?.body)
+      .toEqual({ excluded_regions: [[13, 16]] });
+    expect(reacts(log)).toBe(1);
+  });
+
+  it("still lets a double-click re-fit, and keeps the drag it was told about",
+     async () => {
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    vi.stubGlobal("fetch", server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const node = host.querySelector<HTMLElement>(".plot")! as any;
+    node._fullLayout.xaxis = { autorange: false, range: [10, 14] };
+    bus.handlers["plotly_relayout"]({ "xaxis.range[0]": 10, "xaxis.range[1]": 14 });
+    await flush();
+    expect(log.filter((c) => c.call === "react").at(-1)!.arg.xaxis.range).toEqual([10, 14]);
+
+    // plotly's `autosize` hands every axis back at once; the panel must not put
+    // its own pin straight back over the gesture that undid it
+    log.length = 0;
+    for (const key of ["xaxis", "yaxis", "yaxis2"]) {
+      node._fullLayout[key] = { autorange: true, range: [...AUTO[key]] };
+    }
+    bus.handlers["plotly_relayout"]({ "xaxis.autorange": true, "yaxis.autorange": true });
+    await flush();
+    // no range handed in at all — an absent key is what leaves plotly fitting
+    // the axis, and the pin then writes the fit back as the new explicit one
+    expect(log.filter((c) => c.call === "react").at(-1)!.arg.xaxis).not.toHaveProperty("range");
+    expect(log.find((c) => c.call === "relayout" && "xaxis.range" in c.arg)!.arg)
+      .toEqual({ "xaxis.range": AUTO.xaxis, "yaxis.range": AUTO.yaxis,
+                 "yaxis2.range": AUTO.yaxis2 });
+    expect(reacts(log)).toBe(1);
   });
 });
 
