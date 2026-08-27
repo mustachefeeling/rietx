@@ -24,11 +24,14 @@
     formatEsd,
     formatValue,
     groupOf,
+    heldGlyph,
     heldKind,
     leafName,
     normalize,
     selection,
     validateEdit,
+    varyEdit,
+    varyOf,
     windowSlice,
     type ParamRow,
   } from "../lib/table";
@@ -146,19 +149,12 @@
   }
 
   function toggleVary(row: ParamRow, checked: boolean) {
-    const next = new Map(varyEdits);
-    if (checked === row.vary) next.delete(row.path);
-    else next.set(row.path, checked);
-    varyEdits = next;
+    varyEdits = varyEdit(varyEdits, row, checked);
   }
 
   function shownValue(row: ParamRow): string {
     const pending = edits.get(row.path);
     return pending !== undefined ? pending : formatValue(row.value, row.esd);
-  }
-
-  function varyOf(row: ParamRow): boolean {
-    return varyEdits.get(row.path) ?? row.vary;
   }
 
   export function focusFilter() {
@@ -261,7 +257,7 @@
               <input
                 type="checkbox"
                 class="vary"
-                checked={varyOf(row)}
+                checked={varyOf(row, varyEdits)}
                 disabled={busy}
                 title="free this parameter"
                 onchange={(event) =>
@@ -278,7 +274,7 @@
               <span class="vary muted">
                 <Help text={row.held_because} title="This row is held"
                   label="why this row is held"
-                  >{held === "locked" ? "🔒" : held === "tied" ? "=" : "·"}</Help>
+                  >{heldGlyph(row)}</Help>
               </span>
             {/if}
           </div>

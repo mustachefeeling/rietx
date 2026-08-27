@@ -18,12 +18,15 @@ import {
   formatEsd,
   formatValue,
   groupOf,
+  heldGlyph,
   leafName,
   heldKind,
   normalize,
   num,
   selection,
   validateEdit,
+  varyEdit,
+  varyOf,
   windowSlice,
   type ParamRow,
 } from "./table";
@@ -179,6 +182,38 @@ describe("the three held states", () => {
     expect(simple.shown).toBe(1);
     expect(simple.hidden).toBe(2);   // a count, not a silent truncation
     expect(flatten(rows).hidden).toBe(0);
+  });
+});
+
+describe("the refine flag", () => {
+  it("marks each held reason and leaves a free row unmarked", () => {
+    // two panels draw this now (WP-1214), which is why the glyphs are here and
+    // not in either of them
+    expect(heldGlyph(row("a", { locked: true }))).toBe("🔒");
+    expect(heldGlyph(row("a", { tie: { sources: ["b"] } }))).toBe("=");
+    expect(heldGlyph(row("a", { mode_fixed: true }))).toBe("·");
+    expect(heldGlyph(row("a"))).toBe("");
+  });
+
+  it("shows what was toggled, else what the row has", () => {
+    const free = row("a", { vary: true });
+    expect(varyOf(free, new Map())).toBe(true);
+    expect(varyOf(free, new Map([["a", false]]))).toBe(false);
+  });
+
+  it("drops a toggle that lands back on the row's own flag", () => {
+    const held = row("a", { vary: false });
+    const once = varyEdit(new Map(), held, true);
+    expect([...once]).toEqual([["a", true]]);
+    // …and back again is not an edit: `set_vary` would record a node saying
+    // nothing, and the Apply button is enabled by this count
+    expect([...varyEdit(once, held, false)]).toEqual([]);
+  });
+
+  it("does not mutate the map it was given", () => {
+    const before = new Map<string, boolean>();
+    varyEdit(before, row("a"), true);
+    expect(before.size).toBe(0);
   });
 });
 

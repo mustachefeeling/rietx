@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { GEOMETRIES, instrumentFields } from "./model";
+import { GEOMETRIES, instrumentFields, phaseFields } from "./model";
 import {
   PRESET_FIELDS,
   blocked,
@@ -228,6 +228,16 @@ describe("no form field without help (WP-1032)", () => {
     expect(bare).toEqual([]);
     // …and the exception list may not outlive its members
     expect([...exceptions].sort()).toEqual([...NO_ENTRY].sort());
+  });
+
+  it("gives every phase field a help key that resolves", () => {
+    // The structure column's fields carry a key as data too since WP-1214, and
+    // `<Help for={field.help}>` is an *expression*, so `help.test.ts`'s scan of
+    // the markup cannot see it: a rename of `phases.*.lor_size` would leave the
+    // form drawing "not yet described" under a perfectly good control.
+    const known = new Set(HELP_KEYS.keys);
+    const bare = phaseFields(0).filter((f) => !f.help || !known.has(f.help));
+    expect(bare.map((f) => f.path)).toEqual([]);
   });
 
   it("explains packing the same way wherever it is offered", () => {

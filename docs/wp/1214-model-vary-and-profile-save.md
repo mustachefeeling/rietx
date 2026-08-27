@@ -59,7 +59,7 @@ and the button sits beside `Load profile…` with the written path shown.
 
 ## Tasks
 
-- [ ] `Model.svelte`: the vary toggle on every editable field; held reason
+- [x] `Model.svelte`: the vary toggle on every editable field; held reason
       rendering shared with Params (`lib/table.ts` helper); the `vary` key
       in the apply; `model.test.ts` on the payload.
 - [ ] `POST /api/export/instrument_profile` (model-gated) + the button;

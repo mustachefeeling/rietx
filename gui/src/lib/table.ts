@@ -85,6 +85,35 @@ export function heldKind(row: ParamRow): "" | "locked" | "tied" | "mode" {
   return "";
 }
 
+/** The mark a held row wears where its vary checkbox would be, or "" if free.
+ *
+ * Here rather than in either panel because two of them draw it now (WP-1214):
+ * the parameter table and the model editor show the same three reasons, and a
+ * second copy of the glyphs is how they would come to disagree. */
+export function heldGlyph(row: ParamRow): string {
+  const kind = heldKind(row);
+  return kind === "locked" ? "🔒" : kind === "tied" ? "=" : kind === "mode" ? "·" : "";
+}
+
+/** The vary flag a row would be sent with: what was toggled, else what it has. */
+export function varyOf(row: ParamRow, edits: ReadonlyMap<string, boolean>): boolean {
+  return edits.get(row.path) ?? row.vary;
+}
+
+/** One row toggled, as a new map.
+ *
+ * A toggle back onto the row's own flag **drops** the entry rather than
+ * recording it: the pending count is what the Apply button is enabled by, and a
+ * box clicked twice has nothing to apply — `set_vary` would record a node
+ * saying nothing. */
+export function varyEdit(edits: ReadonlyMap<string, boolean>, row: ParamRow,
+                         checked: boolean): Map<string, boolean> {
+  const next = new Map(edits);
+  if (checked === row.vary) next.delete(row.path);
+  else next.set(row.path, checked);
+  return next;
+}
+
 /**
  * The group a path belongs to: the path minus its leaf, and minus one more when
  * the leaf is a bare index.

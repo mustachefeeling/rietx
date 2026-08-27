@@ -2552,10 +2552,76 @@ describe("the model editor", () => {
     await flush();
 
     const patch = stub.calls.find((c) => c.method === "PATCH" && c.path === "/api/params")!;
-    expect(patch.body).toEqual({ values: { "phases.0.cell.a": 4.2 } });
+    expect(patch.body).toEqual({ values: { "phases.0.cell.a": 4.2 }, vary: {} });
     // …and nothing was sent as a whole model: a cell edge is not a shape change
     expect(stub.calls.some((c) => c.path === "/api/structure" && c.method === "PATCH"))
       .toBe(false);
+  });
+
+  it("frees a parameter from the model editor, in the same PATCH as the values", async () => {
+    // WP-1214: the flags a crystallographer wants to set are next to the
+    // numbers they are about, and they travel the parameter table's own verb —
+    // one `set_vary` node per path, values first.
+    const stub = await openModel();
+    const box = host.querySelector<HTMLInputElement>('[data-vary="instrument.profile.w"]')!;
+    expect(box.tagName).toBe("INPUT");
+    box.checked = true;
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+    field("phases.0.cell.a").value = "4.2";
+    field("phases.0.cell.a").dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    button("Apply")!.click();
+    await flush();
+
+    const patch = stub.calls.find((c) => c.method === "PATCH" && c.path === "/api/params")!;
+    expect(patch.body).toEqual({ values: { "phases.0.cell.a": 4.2 },
+                                 vary: { "instrument.profile.w": true } });
+    // one PATCH, not one per kind of edit
+    expect(stub.calls.filter((c) => c.method === "PATCH" && c.path === "/api/params"))
+      .toHaveLength(1);
+  });
+
+  it("holds a box back onto its own flag rather than sending a node that says nothing",
+     async () => {
+    const stub = await openModel();
+    const box = host.querySelector<HTMLInputElement>('[data-vary="phases.0.cell.a"]')!;
+    expect(box.checked).toBe(true);       // the row arrives free
+    for (const checked of [false, true]) {
+      box.checked = checked;
+      box.dispatchEvent(new Event("change", { bubbles: true }));
+      await flush();
+    }
+    // back where it started: nothing pending, so there is nothing to apply
+    expect(button("Apply")).toBeFalsy();
+    expect(stub.calls.some((c) => c.method === "PATCH" && c.path === "/api/params"))
+      .toBe(false);
+  });
+
+  it("gives a held value no box at all, and says which reason holds it", async () => {
+    // the parameter table's rule (WP-1011), reached here from `lib/table.ts` so
+    // the two panels cannot come to draw the three reasons differently
+    await openModel();
+    const mark = (path: string) => host.querySelector(`[data-vary="${path}"]`);
+    expect(mark("phases.0.cell.b")!.tagName).toBe("SPAN");
+    expect(mark("phases.0.cell.b")!.textContent).toBe("=");
+    expect(mark("phases.0.cell.alpha")!.textContent).toBe("🔒");
+    // …and a mode-fixed row keeps its editable value: `set_values` still takes
+    // one, it is only `set_vary` that the mode overrules
+    expect(mark("phases.0.atoms.0.biso")!.textContent).toBe("·");
+    expect(field("phases.0.atoms.0.biso")).toBeTruthy();
+    // a field that is not in θ at all gets neither: the geometry declares which
+    // corrections exist, and no stage can free it
+    expect(mark("instrument.geometry.kind")).toBeNull();
+  });
+
+  it("puts the phase's scale and sample broadening where the phase is", async () => {
+    // WP-1214: `phases.*.lor_size` is the family most often freed by hand, and
+    // `instrument.profile.u` was already two columns away on the same screen
+    await openModel();
+    expect(field("phases.0.scale")).toBeTruthy();
+    expect(host.querySelector('[data-vary="phases.0.scale"]')!.tagName).toBe("INPUT");
+    expect(field("phases.0.lor_size")).toBeTruthy();
+    expect(field("phases.0.gauss_strain")).toBeTruthy();
   });
 
   it("sends a species as a whole model, built on a freshly read one", async () => {
@@ -2649,9 +2715,10 @@ describe("the model editor", () => {
       "/api/structure/aniso": () => ({ body: { node_id: "n0004", changed: true,
                                                structure: STRUCTURE, sites: SITES } }),
     });
-    // scoped to the atom table: the parameter tab's vary boxes are mounted too
-    // (every panel is), and they come first in the document
-    const checkbox = host.querySelector<HTMLInputElement>('table.atoms input[type="checkbox"]')!;
+    // addressed by `data-aniso`: the parameter tab's vary boxes are mounted too
+    // (every panel is), and since WP-1214 this row carries three of its own
+    const checkbox = host.querySelector<HTMLInputElement>(
+      '[data-aniso="phases.0.atoms.0"]')!;
     checkbox.checked = true;
     checkbox.dispatchEvent(new Event("change", { bubbles: true }));
     await flush();
