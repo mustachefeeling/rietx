@@ -276,15 +276,34 @@ export function editState(
   return { values, invalid, touched };
 }
 
+/**
+ * Whether an esd has swallowed the value it qualifies (WP-1209).
+ *
+ * The last-digit convention counts the esd in the value's last decimal place,
+ * and an esd of 1 or more leaves no decimal place to count in: `places` clamps
+ * to zero and the value rounds to an integer. That is still right for
+ * `12346(56)`, where the esd is a precision. It is wrong for a 2θ of 35.09°
+ * with the measured degenerate σ of 111° (WP-1110 item 14 — a flat direction
+ * whose esd is not a precision at all), which printed `35(111)` and reads as a
+ * typo. So the guard is both conditions at once: an esd at or above 1 *and*
+ * larger than the value, and such a pair is written as the value at its own
+ * precision with `±esd` beside it. Below 1 the convention still holds —
+ * `0.002(5)` is a coordinate consistent with zero, not a defect.
+ */
+export function esdSwallowsValue(value: number, esd: number): boolean {
+  return esd >= 1 && esd > Math.abs(value);
+}
+
 /** A value with its esd, at the precision the esd justifies.
  *
  * One significant figure on the esd sets the value's last place — the
  * crystallographic convention, and the reason a table showing `4.156780000` for
  * a parameter known to ±0.0002 is worse than useless. Without an esd the value
- * is shown at 6 significant figures, which is a display choice and says nothing. */
+ * is shown at 6 significant figures, which is a display choice and says nothing;
+ * an esd that has swallowed the value (`esdSwallowsValue`) is treated as none. */
 export function formatValue(value: number, esd: number | null | undefined): string {
   if (!Number.isFinite(value)) return String(value);
-  if (esd == null || !Number.isFinite(esd) || esd <= 0) {
+  if (esd == null || !Number.isFinite(esd) || esd <= 0 || esdSwallowsValue(value, esd)) {
     return String(Number(value.toPrecision(6)));
   }
   const places = Math.max(0, Math.min(12, -Math.floor(Math.log10(esd))));
@@ -308,9 +327,16 @@ export function leafName(path: string, group = ""): string {
   return last;
 }
 
-/** `4.15678(19)` — the esd in units of the value's last decimal place. */
+/** `4.15678(19)` — the esd in units of the value's last decimal place; ` ±110`
+ * where the esd has swallowed the value and there is no last place to count in
+ * (`esdSwallowsValue`). Two significant figures there, exponential from 1e6 —
+ * the corundum lines' degenerate position esds are ~1e17 and ~1e49 degrees. */
 export function formatEsd(value: number, esd: number | null | undefined): string {
   if (esd == null || !Number.isFinite(esd) || esd <= 0) return "";
+  if (esdSwallowsValue(value, esd)) {
+    const two = Number(esd.toPrecision(2));  // 999 999 rounds to 1e6: decide after
+    return ` ±${two >= 1e6 ? two.toExponential(1) : two}`;
+  }
   const places = Math.max(0, Math.min(12, -Math.floor(Math.log10(esd))));
   const digits = Math.round(esd * 10 ** places);
   return `(${digits})`;

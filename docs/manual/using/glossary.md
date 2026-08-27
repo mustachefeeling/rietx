@@ -52,9 +52,9 @@ None
 
 `help_registry` returns the whole corpus as JSON-able data, which is what the
 GUI's `GET /api/help` serves. Its keys are `parameters`, `peak_flags`,
-`peak_diagnostics`, `stage_fields`, `reader_options`, `instrument_fields` and
-`plans`. Each object in `parameters` lists every glob that reaches it, so a
-`help_key` looks up there.
+`peak_diagnostics`, `peak_origins`, `stage_fields`, `reader_options`,
+`instrument_fields`, `search_fields` and `plans`. Each object in `parameters`
+lists every glob that reaches it, so a `help_key` looks up there.
 
 ```python
 import rietx as rx
@@ -65,13 +65,13 @@ print(registry["peak_flags"]["axial_tail"]["title"])
 ```
 
 ```text
-['instrument_fields', 'parameters', 'peak_diagnostics', 'peak_flags', 'plans', 'reader_options', 'stage_fields']
+['instrument_fields', 'parameters', 'peak_diagnostics', 'peak_flags', 'peak_origins', 'plans', 'reader_options', 'search_fields', 'stage_fields']
 Possibly a stronger line's axial tail
 ```
 
 ## Entry fields
 
-Each entry is a `HelpEntry` with six fields.
+Each entry is a `HelpEntry` with seven fields.
 
 `HelpEntry.title`
 : The name in words.
@@ -95,9 +95,15 @@ Each entry is a `HelpEntry` with six fields.
 `HelpEntry.anchor`
 : The manual heading that carries the equation, checked against the built HTML.
 
+`HelpEntry.label`
+: The short form a chip carries where the name would not read: `at bound` for
+  `position_at_bound`. Only the `peak_flags` and `peak_origins` arms carry one,
+  and every entry there must; `None` elsewhere, where no chip is drawn.
+
 ## Limitations
 
-`typical` is the one field with no authority in the code. The ranges come from
+`typical` and `label` are the two authored fields: no computation in the package
+reads either (the GUI reads `label` to letter a chip). The ranges come from
 McCusker et al. (1999) {cite}`mccusker1999` and from this repository's own
 reference datasets, and a specimen outside one is not thereby wrong.
 

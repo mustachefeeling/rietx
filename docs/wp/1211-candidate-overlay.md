@@ -44,6 +44,24 @@ An eager `predicted_two_theta` field on `CellCandidate` was considered and
 declined: it would grow every indexing answer by hundreds of floats per
 candidate for one consumer.
 
+### Inherited
+
+From **WP-1209** (2026-08-27, shipped):
+
+- `panels/Peaks.svelte`'s authored-`title=` budget in `lib/help.test.ts` is
+  **10** now, and nine of the ten are the candidate and extinction tables'
+  (the `absent`, `ΔBIC`, `testable`, `refuting`, `space groups` headers, the
+  two "ranked, not chosen" hints, the streamed-grade chip, the not-screened
+  chip); the tenth is the add-at-2θ box. Describing them means a corpus arm
+  keyed by a live vocabulary — 1209 added `peak_origins` in one commit
+  (`help.py`, `test_help.py` `_arms`, `test_gui_help.py` `ARMS`,
+  `lib/help.ts` `ARMS` + `HelpCorpus`, `docs/manual/conf.py` `_ARMS`, the
+  regenerated `help_keys.json`), which is the checklist. The budget fails
+  both ways, so each title removed is a decrement in the same commit.
+- A candidate's chips (`confidence`, `found_by`, caveats) may carry a
+  `HelpEntry.label` the same way flag chips do, if they become corpus terms:
+  `labelFor(corpus, key)` and the popover's `Name` row are already there.
+
 ## Non-goals
 
 - Drawing the Le Bail validation's calculated profile.

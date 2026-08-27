@@ -53,6 +53,17 @@ numerals so the decimal points line up within a family; `Δ` absolute in
 the same format and `Δ %` relative to `a` (`—` when `a` is 0); "showing 200
 of N, ranked by relative change" said out loud.
 
+### Inherited
+
+From **WP-1209** (2026-08-27, shipped):
+
+- `lib/table.ts`'s `formatValue`/`formatEsd` changed for every caller: an esd
+  of 1 or more that is larger than its value (`esdSwallowsValue`) is written
+  as ` ±110` beside the value at its own precision, where `35(111)` was
+  printed; `12346(56)` is unchanged. A compare table that renders a
+  parameter with its esd inherits this — a degenerate direction (WP-1110
+  item 14: 1e17°) now reads `±1.0e+17`, not `43(100000000000000000)`.
+
 ## Non-goals
 
 - New history verbs; the tree payload's shape.

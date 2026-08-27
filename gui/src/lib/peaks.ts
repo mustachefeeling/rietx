@@ -79,6 +79,91 @@ export function confidenceTone(confidence: "high" | "medium" | "low"): Tone {
   return confidence === "high" ? "ok" : confidence === "medium" ? "warn" : "note";
 }
 
+// ----------------------------------------------------------------------
+// the table's numbers (WP-1209)
+// ----------------------------------------------------------------------
+/**
+ * Flags under which a row's intensity is not a measurement: the component
+ * refined onto its zero bound (`no_intensity` — on certified corundum two
+ * components land at 2.1e-49 and 5.5e-19, which is the bound, not an area),
+ * or its group never converged (`fit_failed` — the number is the seed). Named
+ * here rather than read off `unusable_flags`, because that set is about
+ * *evidence of a lattice* and holds `excluded`, a human's decision about a
+ * perfectly well measured line. `peaks.test.ts` holds both names to the
+ * corpus vocabulary.
+ */
+export const INTENSITY_UNMEASURED_FLAGS: readonly string[] = ["no_intensity", "fit_failed"];
+
+export function intensityMeasured(flags: readonly string[]): boolean {
+  return !flags.some((f) => INTENSITY_UNMEASURED_FLAGS.includes(f));
+}
+
+/**
+ * The strongest measured intensity, the 100 of the relative scale — or 0 when
+ * no row carries a measurement, which `formatIntensity` renders as `—` on
+ * every row rather than dividing by it.
+ */
+export function intensityScale(
+  rows: readonly { intensity: number; flags: readonly string[] }[],
+): number {
+  let imax = 0;
+  for (const r of rows) {
+    if (intensityMeasured(r.flags) && Number.isFinite(r.intensity) && r.intensity > imax) {
+      imax = r.intensity;
+    }
+  }
+  return imax;
+}
+
+/**
+ * `I/Imax × 100` at one decimal — the relative scale a peak table is read in
+ * — or `—` where the number is not a measurement. A fitted area is in the
+ * pattern's counting units and means nothing on its own; `1.2e+3` beside
+ * `2.1e-49` is what the raw column looked like.
+ */
+export function formatIntensity(
+  intensity: number, imax: number, flags: readonly string[],
+): string {
+  if (!intensityMeasured(flags) || !(imax > 0) || !Number.isFinite(intensity)) return "—";
+  return (100 * intensity / imax).toFixed(1);
+}
+
+/**
+ * From this σ(2θ) up a position's esd is not printed: the value is the
+ * measurement and the row's flag says why it has no precision. A degree is
+ * wider than any peak (the widest FWHM on the corundum pattern is 0.35°), so
+ * an esd that large is a flat direction rather than a precision — the
+ * degenerate ones measured there are 1e17° and 1e49° (WP-1110 item 14) —
+ * (`esdSwallowsValue` in `table.ts` shares the literal 1 and nothing else:
+ * it also asks whether the esd exceeds the value). The triage's 0.1° cut a real
+ * line off: 51 of that pattern's 62 esds are under 0.01°, 8 sit in
+ * [0.01, 0.1), and one asymmetric line is at 0.105°, which at 0.1° printed
+ * bare beside a neighbour's `(875)`.
+ */
+export const POSITION_ESD_MAX_DEG = 1.0;
+
+/**
+ * A 2θ at four places, with its esd in units of the last place — `35.0912`
+ * and `(3)` — or an empty esd when it is at or above `POSITION_ESD_MAX_DEG`.
+ *
+ * Four places always, rather than the place the esd justifies: a column is
+ * scanned down, so its decimals must line up, and a peak's position is known
+ * to its fourth place whenever it is known at all. An esd below half a unit
+ * of that place prints `(0)`, which says "under the last digit" and is not
+ * the same statement as none.
+ */
+export function formatPosition(
+  twoTheta: number, esd: number | null | undefined,
+): { value: string; esd: string } {
+  const value = Number.isFinite(twoTheta) ? twoTheta.toFixed(4) : String(twoTheta);
+  if (esd == null || !Number.isFinite(esd) || esd < 0 || esd >= POSITION_ESD_MAX_DEG) {
+    return { value, esd: "" };
+  }
+  const digits = Math.round(esd * 1e4);
+  // 0.99996° rounds to 10000 units of the fourth place: over the gate, not under it
+  return { value, esd: digits >= 1e4 ? "" : `(${digits})` };
+}
+
 /**
  * The peak nearest `tt`, or null when none is within `tol` (° 2θ).
  *

@@ -280,4 +280,32 @@ describe("value formatting", () => {
     expect(formatEsd(4.15678312, null)).toBe("");
     expect(formatEsd(4.15678312, 0)).toBe("");
   });
+
+  it("abandons the last-digit notation only where the esd has swallowed the value (WP-1209)", () => {
+    // the measured case: a 2θ of 35.09° with a degenerate σ of 111° printed
+    // `35(111)` — a flat direction wearing an integer's precision
+    expect(formatValue(35.09, 111)).toBe("35.09");
+    expect(formatEsd(35.09, 111)).toBe(" ±110");
+    // an esd of 1 or more that is a precision keeps the convention
+    expect(formatValue(12345.6, 56)).toBe("12346");
+    expect(formatEsd(12345.6, 56)).toBe("(56)");
+    expect(formatValue(3.7, 2.0)).toBe("4");
+    expect(formatEsd(3.7, 2.0)).toBe("(2)");
+    // a Biso consistent with zero: the value survives, the esd rides beside it
+    expect(formatValue(0.4, 1.3)).toBe("0.4");
+    expect(formatEsd(0.4, 1.3)).toBe(" ±1.3");
+    // below 1 the convention still has a place to count in
+    expect(formatValue(0.002, 0.005)).toBe("0.002");
+    expect(formatEsd(0.002, 0.005)).toBe("(5)");
+    // the corundum position esds the pseudo-inverse used to truncate to 0.06°
+    expect(formatEsd(43.3551, 1e17)).toBe(" ±1.0e+17");
+    expect(formatEsd(43.3551, 1e49)).toBe(" ±1.0e+49");
+    // the notation is chosen after rounding to two figures, or 999 999 prints
+    // the seven digits the exponential form exists to avoid (code review)
+    expect(formatEsd(43.3551, 999_999)).toBe(" ±1.0e+6");
+    expect(formatEsd(43.3551, 949_999)).toBe(" ±950000");
+    // the boundary: equal is not larger
+    expect(formatValue(111, 111)).toBe("111");
+    expect(formatEsd(111, 111)).toBe("(111)");
+  });
 });

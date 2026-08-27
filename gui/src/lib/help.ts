@@ -29,6 +29,10 @@ export interface HelpEntry {
   default: string | null;
   typical: string | null;
   anchor: string | null;
+  /** the short words a chip carries where the name itself would not read —
+   *  `at bound` for `position_at_bound` (WP-1209); null where the name is
+   *  the label */
+  label?: string | null;
   /** plans only: the intensity modes the preset is meaningful in */
   modes?: string[];
 }
@@ -42,6 +46,7 @@ export interface HelpCorpus {
   parameters: ParameterEntry[];
   peak_flags: Record<string, HelpEntry>;
   peak_diagnostics: Record<string, HelpEntry>;
+  peak_origins: Record<string, HelpEntry>;
   stage_fields: Record<string, HelpEntry>;
   reader_options: Record<string, HelpEntry>;
   instrument_fields: Record<string, HelpEntry>;
@@ -58,6 +63,7 @@ export const ARMS = [
   "plans",
   "peak_flags",
   "peak_diagnostics",
+  "peak_origins",
   "reader_options",
   "instrument_fields",
   "search_fields",
@@ -96,6 +102,20 @@ export function resolve(corpus: HelpCorpus | null, key: string): HelpEntry | nul
     return corpus.parameters.find((e) => e.paths.includes(split.name)) ?? null;
   }
   return (corpus[split.arm] as Record<string, HelpEntry>)?.[split.name] ?? null;
+}
+
+/**
+ * The words a chip carries for a corpus key: the entry's `label`, else the
+ * name itself (WP-1209).
+ *
+ * A chip is read at a glance, and `position_at_bound` is not read at a glance;
+ * `at bound` is. The fallback is the name rather than nothing, so a corpus that
+ * has not landed — or a member it does not describe yet — still draws a chip
+ * that says *something true*, and the popover behind it is where "not
+ * described yet" belongs. What a label is, is `rietx.help`'s to say.
+ */
+export function labelFor(corpus: HelpCorpus | null, key: string): string {
+  return resolve(corpus, key)?.label ?? splitKey(key)?.name ?? key;
 }
 
 /**

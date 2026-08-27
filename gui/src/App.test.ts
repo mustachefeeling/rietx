@@ -44,8 +44,19 @@ const HELP = {
       unit: "Å", default: null, typical: "3-40 Å for an inorganic phase",
       anchor: "peak-positions.html#lattice-metric-and-bragg-s-law" },
   ],
-  peak_flags: {},
+  // a flag and an origin with the label a chip carries (WP-1209): the chip says
+  // the label and the popover restores the name behind it
+  peak_flags: {
+    not_separable: { title: "Improves the group as a shape, not as a line",
+                     description: "A nested fit without it is not refuted.",
+                     unit: null, default: null, typical: null, anchor: null,
+                     label: "not separable" },
+  },
   peak_diagnostics: {},
+  peak_origins: {
+    manual: { title: "Placed by a person", description: "Someone added this line.",
+              unit: null, default: null, typical: null, anchor: null, label: "manual" },
+  },
   stage_fields: {
     max_iter: { title: "Iteration cap", description: "Least-squares iterations.",
                 unit: null, default: "100", typical: null, anchor: null },
@@ -3507,7 +3518,7 @@ describe("the view survives a redraw (WP-1044)", () => {
     await flush();
 
     zoomedTo([10, 14]);
-    const boxes = [...host.querySelectorAll<HTMLInputElement>('td.acts input[type="checkbox"]')];
+    const boxes = [...host.querySelectorAll<HTMLInputElement>('td.use input[type="checkbox"]')];
     boxes[1].dispatchEvent(new Event("change", { bubbles: true }));
     await flush();
 
@@ -3585,11 +3596,41 @@ describe("the peaks tab (WP-1027)", () => {
     await flush();
 
     expect(host.textContent).toContain("2 of 3 lines usable");
-    // the fitter's own explanation of a strong peak's shape stays visible…
-    expect(host.textContent).toContain("not_separable");
-    // …a hand-placed line says so, and the diagnostics render as a strip
-    expect(host.textContent).toContain("manual");
+    // the fitter's own explanation of a strong peak's shape stays visible, as
+    // the corpus's label rather than the flag's name (WP-1209)…
+    const chips = [...host.querySelectorAll<HTMLElement>("td.flags .chip")]
+      .map((c) => c.textContent!.trim());
+    expect(chips).toEqual(["not separable", "manual"]);
+    expect(host.textContent).not.toContain("not_separable");
+    // …and the name is one click away, restored by the popover the label hid it from
+    host.querySelector<HTMLElement>("td.flags .help")!.click();
+    await flush();
+    const popover = host.ownerDocument.querySelector(".popover")!.textContent!;
+    expect(popover).toContain("Improves the group as a shape");
+    expect(popover).toContain("Name");
+    expect(popover).toContain("not_separable");
+    // …but a label that *is* the name hid nothing, so no Name row (code review)
+    host.querySelectorAll<HTMLElement>("td.flags .help")[1]!.click();
+    await flush();
+    const origin = host.ownerDocument.querySelector(".popover")!.textContent!;
+    expect(origin).toContain("Placed by a person");
+    expect(origin).not.toContain("Name");
+
+    // the seven columns, use on its own; the picker's notes folded to a count
+    const heads = [...host.querySelectorAll<HTMLElement>(".panel:not(.hidden) thead th")]
+      .map((th) => th.textContent!.trim());
+    expect(heads).toEqual(["#", "2θ (°)", "d (Å)", "I (rel)", "flags", "use", ""]);
+    expect(host.querySelectorAll('td.use input[type="checkbox"]').length).toBe(3);
+    expect(host.querySelector("details.notes summary")!.textContent!.replace(/\s+/g, " ").trim())
+      .toBe("1 note from the picker");
     expect(host.textContent).toContain("PEAK_LIST_TOO_SHORT");
+
+    // the numbers: every fixture line has the same area, so each is 100.0 of
+    // the relative scale; 2θ at four places with the esd in the last place
+    const cells = (col: number) => [...host.querySelectorAll<HTMLElement>(
+      ".panel:not(.hidden) tbody tr")].map((tr) => tr.children[col].textContent!.trim());
+    expect(cells(3)).toEqual(["100.0", "100.0", "100.0"]);
+    expect(cells(1)).toEqual(["10.0000(11)", "12.0000(11)", "14.0000(11)"]);
   });
 
   it("sends the overrule verb from the use-for-indexing checkbox", async () => {
@@ -3605,7 +3646,7 @@ describe("the peaks tab (WP-1027)", () => {
     button("Peaks")!.click();
     await flush();
 
-    const boxes = [...host.querySelectorAll<HTMLInputElement>('td.acts input[type="checkbox"]')];
+    const boxes = [...host.querySelectorAll<HTMLInputElement>('td.use input[type="checkbox"]')];
     expect(boxes.length).toBe(3);
     boxes[1].dispatchEvent(new Event("change", { bubbles: true }));
     await flush();

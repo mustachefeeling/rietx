@@ -30,6 +30,31 @@ control row under a canvas: the `ResizeObserver` rule (WP-1015/1029) holds.
 `plotly_unhover` clears it. The series panel's plot is SVG and keeps its own
 hover (WP-1016); this WP is `Plot.svelte` only.
 
+### Inherited
+
+From **WP-1209** (2026-08-27, shipped):
+
+- A hovered peak's position and intensity should read as the table does:
+  `formatPosition(tt, esd)` (`lib/peaks.ts` — four places, esd in the last
+  place below `POSITION_ESD_MAX_DEG` = 1°, nothing above) and
+  `formatIntensity(I, imax, flags)` with `imax = intensityScale(rows)`. The
+  raw area is in counting units and means nothing on its own; a readout
+  printing `1.2e+3` beside a table saying `100.0` is two answers.
+- For a parameter with an esd, `formatValue`/`formatEsd` now write
+  `35.09 ±110` where the esd has swallowed the value (`esdSwallowsValue`) and
+  `12346(56)` otherwise — one pair of functions for every readout.
+- **A declined review finding, yours if you touch `formatIntensity`:**
+  `INTENSITY_UNMEASURED_FLAGS` (`no_intensity`, `fit_failed`) is a TypeScript
+  literal, held to the corpus vocabulary by name only. `gui/CLAUDE.md`'s rule
+  is that a flag's *meaning* is served, never re-derived — `unusable_flags`
+  rides on `/api/peaks` for that reason — so a python flag added later
+  meaning "the area is a bound, not a measurement" would be used as Imax
+  and printed as a real relative intensity, and the name-only test stays
+  green. The fix is a `PEAK_INTENSITY_UNMEASURED_FLAGS` constant in
+  `schemas/indexing.py` served beside `unusable_flags` and read by
+  `formatIntensity`; 1209 declined it as a wire-contract change outside a
+  table WP.
+
 ## Non-goals
 
 - The peak-row hover link (the ring, WP-1212).

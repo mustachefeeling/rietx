@@ -171,6 +171,9 @@ _ARMS = [
     ("peak_diagnostics", "Peak-list diagnostics",
      "Messages about the list rather than about one line. Several are the "
      "list-level summary of a flag and say how many lines carry it."),
+    ("peak_origins", "Peak origins",
+     "Where one line came from: detection, or a person. Provenance and not a "
+     "judgement; no gate in the package branches on it."),
     ("reader_options", "Reader options",
      "Keyword arguments `read_pattern` accepts. A project records which ones "
      "claimed its file, because the same file can hold more than one pattern."),
@@ -184,9 +187,11 @@ _ARMS = [
 ]
 
 
-def _detail(entry: dict) -> str:
-    """The unit / default / typical line, omitting whatever is absent."""
+def _detail(entry: dict, name: str = "") -> str:
+    """The chip / unit / default / typical line, omitting whatever is absent."""
     bits = []
+    if entry.get("label") and entry["label"] != name:
+        bits.append(f"Chip `{entry['label']}`")
     if entry.get("unit"):
         bits.append(f"Unit {entry['unit']}")
     if entry.get("default") is not None:
@@ -198,9 +203,9 @@ def _detail(entry: dict) -> str:
     return " · ".join(bits)
 
 
-def _definition(term: str, entry: dict) -> list[str]:
+def _definition(term: str, entry: dict, name: str = "") -> list[str]:
     lines = [term, f": {entry['title']}. {entry['description']}"]
-    detail = _detail(entry)
+    detail = _detail(entry, name)
     if detail:
         lines.append(f"  <br>{detail}")
     lines.append("")
@@ -234,7 +239,7 @@ def _write_glossary() -> None:
     for key, heading, lead in _ARMS:
         out += [f"## {heading}", "", lead, ""]
         for name, entry in registry[key].items():
-            out += _definition(f"`{name}`", entry)
+            out += _definition(f"`{name}`", entry, name)
 
     GLOSSARY_BODY.parent.mkdir(exist_ok=True)
     GLOSSARY_BODY.write_text("\n".join(out), encoding="utf-8")

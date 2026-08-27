@@ -5,9 +5,14 @@
  * *data-driven*: the functions take the server's list and never carry one of
  * their own, which is what keeps the chips honest when a vocabulary grows.
  */
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import {
+  INTENSITY_UNMEASURED_FLAGS,
+  POSITION_ESD_MAX_DEG,
   caveatTone,
   confidenceTone,
   cellText,
@@ -15,12 +20,81 @@ import {
   flagTone,
   fomColumns,
   fomOf,
+  formatIntensity,
+  formatPosition,
   grabToleranceDeg,
+  intensityScale,
   joinCurves,
   nearestPeak,
   type Candidate,
   type GroupCurve,
 } from "./peaks";
+
+/** The corpus keys python wrote (`tests/test_gui_help.py`): the one place a
+ *  TypeScript file may learn a flag's name from. */
+const HELP_KEYS: string[] = JSON.parse(readFileSync(
+  fileURLToPath(new URL("../../../tests/data/gui/help_keys.json", import.meta.url)),
+  "utf-8")).keys;
+
+describe("the table's numbers (WP-1209)", () => {
+  // the certified corundum pattern, as the picker leaves it: two components
+  // on their zero bound (2.1e-49 and 5.5e-19 — the bound, not an area), one
+  // with the degenerate σ the equilibrated covariance now reports (111°),
+  // one whose position esd underflows the fourth place (1e-13)
+  const corundum = [
+    { intensity: 1210.4, two_theta: 25.5784, two_theta_esd: 0.00021, flags: [] as string[] },
+    { intensity: 2.1e-49, two_theta: 35.0912, two_theta_esd: 111, flags: ["no_intensity"] },
+    { intensity: 5.5e-19, two_theta: 43.3551, two_theta_esd: 1e17, flags: ["no_intensity"] },
+    { intensity: 605.2, two_theta: 37.7761, two_theta_esd: 1e-13, flags: [] as string[] },
+    { intensity: 9.9e3, two_theta: 57.5, two_theta_esd: 0.02, flags: ["fit_failed"] },
+  ];
+
+  it("names its unmeasured flags from the corpus vocabulary, never a spelling of its own", () => {
+    for (const flag of INTENSITY_UNMEASURED_FLAGS) {
+      expect(HELP_KEYS).toContain(`peak_flags:${flag}`);
+    }
+  });
+
+  it("scales intensities to the strongest *measured* line", () => {
+    // 9.9e3 is a failed fit's seed and 2.1e-49 is a bound; neither is Imax
+    expect(intensityScale(corundum)).toBe(1210.4);
+    expect(intensityScale([])).toBe(0);
+    expect(intensityScale([corundum[1], corundum[4]])).toBe(0);
+  });
+
+  it("shows I/Imax × 100 at one decimal, and — where the number is not a measurement", () => {
+    const imax = intensityScale(corundum);
+    expect(formatIntensity(1210.4, imax, [])).toBe("100.0");
+    expect(formatIntensity(605.2, imax, [])).toBe("50.0");
+    expect(formatIntensity(2.1e-49, imax, ["no_intensity"])).toBe("—");
+    expect(formatIntensity(9.9e3, imax, ["fit_failed"])).toBe("—");
+    // an unflagged but tiny area is a number, and it says 0.0 rather than 1e-17
+    expect(formatIntensity(2.1e-19, imax, [])).toBe("0.0");
+    // no scale at all: every row says so rather than dividing by zero
+    expect(formatIntensity(1210.4, 0, [])).toBe("—");
+    expect(formatIntensity(NaN, imax, [])).toBe("—");
+  });
+
+  it("prints 2θ at four places with the esd in the last place, or the value alone", () => {
+    expect(formatPosition(25.5784, 0.00021)).toEqual({ value: "25.5784", esd: "(2)" });
+    expect(formatPosition(25.57843, 0.012)).toEqual({ value: "25.5784", esd: "(120)" });
+    // the degenerate σ: the value is the measurement, the flag says why no esd
+    expect(formatPosition(35.0912, 111)).toEqual({ value: "35.0912", esd: "" });
+    expect(formatPosition(43.3551, 1e17)).toEqual({ value: "43.3551", esd: "" });
+    // an esd under half a unit of the fourth place: (0), not nothing
+    expect(formatPosition(37.7761, 1e-13)).toEqual({ value: "37.7761", esd: "(0)" });
+    // the one real corundum line over 0.1°: an esd, not a flat direction
+    expect(formatPosition(116.5035, 0.1048)).toEqual({ value: "116.5035", esd: "(1048)" });
+    // the threshold is the constant, inclusive on the way out
+    expect(formatPosition(57.5, POSITION_ESD_MAX_DEG).esd).toBe("");
+    expect(formatPosition(57.5, 0.9999).esd).toBe("(9999)");
+    // an esd that rounds *up* to the gate is over it: four places never
+    // carry five digits (code review)
+    expect(formatPosition(57.5, 0.99996).esd).toBe("");
+    expect(formatPosition(57.5, null).esd).toBe("");
+    expect(formatPosition(57.5, 0).esd).toBe("(0)");
+  });
+});
 
 describe("flag and caveat tones come from the served lists", () => {
   it("marks a flag as out only when the server says it is unusable", () => {
