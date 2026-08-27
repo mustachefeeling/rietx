@@ -1173,29 +1173,82 @@ def symbol_table(text: str) -> dict[str, float]:
 
 # ------------------------------------------------------------ lattice macros
 
-#: The lattice macros this reader implements, keyed to the angles they imply.
-#: A macro name and its argument order are **specification facts** (`io/
-#: CLAUDE.md`'s rule 2), so each was read off a real archive line rather than
-#: guessed: ``Cubic(@ 4.15692`)`` (LaB6_Riet_TCHZ_01.inp:54),
-#: ``Tetragonal(@ 4.594290`, @ 2.958587`)`` (d5_05005_pawley_01.inp:38),
-#: ``Hexagonal(@ 3.613074`, @ 12.037126`)`` (BL104_B_1.inp:87) and
-#: ``Trigonal( 12.695126, 37.972985)`` (AT027-23_…-mythen_summed_rf_fin:90).
-#: One argument means a = b = c; two mean a = b and c, in that order.
-_LATTICE_MACROS: dict[str, tuple[float, float, float]] = {
-    "Cubic": (90.0, 90.0, 90.0),
-    "Tetragonal": (90.0, 90.0, 90.0),
-    "Hexagonal": (90.0, 90.0, 120.0),
-    "Trigonal": (90.0, 90.0, 120.0),
+@dataclass(frozen=True)
+class _CellMacro:
+    """What one TOPAS cell macro couples, in this reader's own idiom.
+
+    ``slots`` holds one entry per positional argument, naming every cell key
+    that argument sets; ``angles`` holds the angles the macro's crystal system
+    fixes outright, which take no argument and so can never be refined. Between
+    them they say the whole of what a cell macro is for — which keys move
+    together, and which are not the file's to state.
+
+    Written this way rather than as "angles plus a count" because the count is
+    not enough: ``Rhombohedral`` also takes two arguments, and its second is an
+    **angle**, so a table that assumed argument two was ``c`` would give a
+    rhombohedral phase a 60 Å edge and three right angles with nothing raised.
+    """
+
+    slots: tuple[tuple[str, ...], ...]
+    angles: dict[str, float] = field(default_factory=dict)
+
+
+#: The cell macros this reader implements, each enumerated and cited
+#: individually. A macro's name, its arity and which cell key each argument
+#: carries are **specification facts** (`io/CLAUDE.md`'s rule 2) taken from
+#: TOPAS Academic's Technical Reference; the coupling below is stated in this
+#: reader's own terms and no macro body is reproduced here or anywhere else.
+#: §19.3 fixes how to read the argument names the reference prints — a ``c``
+#: suffix is a parameter name, ``v`` a value, ``cv`` either — so ``a_cv`` names
+#: the ``a`` edge and ``al_cv`` the ``al`` angle, and the order is the
+#: reference's, not a guess. How each argument then propagates is
+#: crystallography rietx already owns: the reference names only the independent
+#: keys, and the crystal system says which others follow.
+#:
+#: * ``Cubic(cv)`` — §19.3.2, and §19.1, whose prose says the single argument
+#:   "defines the a, b and c lattice parameters". One edge, all three coupled,
+#:   all angles 90°.
+#: * ``Tetragonal(a_cv, c_cv)`` — §19.3.2. ``a`` and ``c`` stated, ``b``
+#:   following ``a``, all angles 90°.
+#: * ``Hexagonal(a_cv, c_cv)`` — §19.3.2. As tetragonal, with ``ga`` 120°.
+#: * ``Rhombohedral(a_cv, al_cv)`` — §19.3.2. An **edge and an angle**, in that
+#:   order: all three edges follow the first argument and all three angles the
+#:   second. This is the one the argument-order question was about, and the
+#:   reference answers it in the names themselves.
+#: * ``Trigonal(a_cv, c_cv)`` — **not** in §19.3.2's list, which has only the
+#:   four above. Its authority is §1.3, the reference's own worked input file,
+#:   where ``Trigonal(@ 4.759, @ 12.992)`` gives the cell of a ``R-3C``
+#:   corundum — a hexagonal-setting a and c, so the same shape as ``Hexagonal``.
+#:   The archive corroborates it in 4 files. Kept in this table because it is
+#:   evidenced twice over, and flagged here because its citation is an example
+#:   rather than the list.
+_CELL_MACROS: dict[str, _CellMacro] = {
+    "Cubic": _CellMacro((("a", "b", "c"),),
+                        {"al": 90.0, "be": 90.0, "ga": 90.0}),
+    "Tetragonal": _CellMacro((("a", "b"), ("c",)),
+                             {"al": 90.0, "be": 90.0, "ga": 90.0}),
+    "Hexagonal": _CellMacro((("a", "b"), ("c",)),
+                            {"al": 90.0, "be": 90.0, "ga": 120.0}),
+    "Trigonal": _CellMacro((("a", "b"), ("c",)),
+                           {"al": 90.0, "be": 90.0, "ga": 120.0}),
+    "Rhombohedral": _CellMacro((("a", "b", "c"), ("al", "be", "ga"))),
 }
 
-#: Lattice macros TOPAS has that no archive file *uses*. Each appears only
-#: inside a ``'`` comment — ``'Rhombohedral(@ #, @ #)`` in `D20.inp`'s template
-#: is a length and an angle in an order nothing here fixes — so the argument
-#: order is unevidenced, and a wrong order is a wrong cell with nothing raised.
-#: Refused by name rather than parsed on a guess, and only where the macro is
-#: the phase's *only* cell: beside explicit ``a``/``b``/``c`` lines there is
-#: nothing left to get wrong.
-_UNEVIDENCED_MACROS = ("Rhombohedral", "Orthorhombic", "Monoclinic", "Triclinic")
+#: Cell-shaped macro names that are **not** cell macros of this format. The
+#: reference's lattice-parameter list (§19.3.2) has exactly four entries, and
+#: none of these is among them: across the whole manual the three words occur
+#: only as English — crystal-system labels in the indexing tables, and a
+#: ``Orthorhombic_Bipyramide`` bond-length restraint, which is not a cell at
+#: all. They occur in **no** archive file either, in live text or in a comment.
+#:
+#: So a file invoking one is invoking a macro somebody defined themselves, whose
+#: body `_excise_macro_defs` has already removed and whose argument order
+#: nothing establishes — and a wrong order is a wrong cell with nothing raised.
+#: Refused by name, and only where the macro is the phase's *only* cell: beside
+#: explicit ``a``/``b``/``c`` lines there is nothing left to get wrong. A name
+#: is added to :data:`_CELL_MACROS` only with its own citation, never by
+#: analogy with the ones already there.
+_UNDEFINED_CELL_MACROS = ("Orthorhombic", "Monoclinic", "Triclinic")
 
 #: What **ends** a ``str`` block. A `.inp` has no closing brace, so a phase's
 #: text runs to the next block opener — and splitting on ``str`` alone made a
@@ -1324,25 +1377,42 @@ def _reference_wavelength(lines: list) -> float | None:
                                        else -math.inf)).wavelength
 
 
-def _lattice_macro(chunk: str, symbols: dict[str, float]) -> tuple[dict, dict] | None:
-    """The cell and refine flags a lattice macro states, or None if it states no
-    complete one. The first macro in :data:`_LATTICE_MACROS` that reads
-    completely wins, which is deterministic and only ever matters in a chunk
-    holding two."""
-    for name, angles in _LATTICE_MACROS.items():
+def _cell_macro(chunk: str, symbols: dict[str, float]) -> tuple[dict, dict] | None:
+    """The cell and refine flags a cell macro states, or None if it states no
+    complete one.
+
+    The first macro in :data:`_CELL_MACROS` that reads completely wins, which is
+    deterministic and only ever matters in a chunk holding two. A macro whose
+    argument count does not match its entry does **not** read: the arity is part
+    of what the reference states, and taking "the first and last argument that
+    happened to parse" is how a two-argument reading of a one-argument macro
+    would put an unrelated number in ``c``.
+
+    Every key the macro couples takes the flag of the argument it came from, so
+    a refined ``Cubic(@ 4.15)`` refines all three edges rather than only ``a``.
+    An angle the macro's symmetry fixes takes no flag at all, because the file
+    states no parameter for it — the one exception being ``Rhombohedral``, where
+    the angle *is* an argument and so carries its own.
+    """
+    for name, macro in _CELL_MACROS.items():
         if not (m := re.search(rf"\b{name}_?\(([^)\n]*)\)", chunk)):
             continue
-        reads = [_read_tail(arg, symbols) for arg in m.group(1).split(",")]
-        lengths = [r for r in reads if r is not None and r.value is not None]
-        if not lengths or (name != "Cubic" and len(lengths) < 2):
+        args = m.group(1).split(",")
+        if len(args) != len(macro.slots):
             continue
-        a, c = lengths[0], lengths[-1]
-        cell = {"a": a.value, "b": a.value, "c": c.value,
-                "al": angles[0], "be": angles[1], "ga": angles[2]}
-        vary = {key: read.vary
-                for keys, read in (("ab", a), ("c", c))
-                for key in keys if read.vary is not None}
-        return cell, vary
+        reads = [_read_tail(arg, symbols) for arg in args]
+        if any(r is None or r.value is None for r in reads):
+            continue
+        cell: dict[str, float] = dict(macro.angles)
+        vary: dict[str, bool] = {}
+        for keys, read in zip(macro.slots, reads):
+            for key in keys:
+                cell[key] = read.value
+                if read.vary is not None:
+                    vary[key] = read.vary
+        # Emitted in `_CELL_KEYS` order, so a macro-stated cell iterates the
+        # same way a line-stated one does whatever order the table filled it in.
+        return {k: cell[k] for k in _CELL_KEYS if k in cell}, vary
     return None
 
 
@@ -1769,16 +1839,19 @@ def read_topas_inp(path: str | Path, *,
                 phase.cell_limits[key] = (float(lo.group(1)) if lo else None,
                                           float(hi.group(1)) if hi else None)
         if "a" not in phase.cell:
-            if macro := _lattice_macro(chunk, symbols):
+            if macro := _cell_macro(chunk, symbols):
                 phase.cell.update(macro[0])
                 phase.vary.update(macro[1])
-            elif bad := [n for n in _UNEVIDENCED_MACROS
+            elif bad := [n for n in _UNDEFINED_CELL_MACROS
                          if re.search(rf"\b{n}_?\(", chunk)]:
                 raise TopasInpError(
-                    f"{path}: {phase.name}: {bad[0]} states this phase's only "
-                    f"cell and no file establishes which of its arguments is "
-                    f"which, so reading it would be a guess at a cell — write "
-                    f"the a/b/c/al/be/ga lines out instead")
+                    f"{path}: {phase.name}: {bad[0]}(...) states this phase's "
+                    f"only cell, and it is not one of this format's cell macros "
+                    f"— the reference defines Cubic, Tetragonal, Hexagonal and "
+                    f"Rhombohedral, and nothing establishes which cell key each "
+                    f"argument of a {bad[0]} carries. Reading it would be a "
+                    f"guess at a cell; write the a/b/c/al/be/ga lines out "
+                    f"instead.")
         read = _read("scale", chunk, symbols)
         phase.scale = read.value if read else None
         if read is not None and read.vary is not None:

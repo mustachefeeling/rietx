@@ -628,29 +628,80 @@ def test_a_lattice_macro_fills_the_cell_it_states(tmp_path, macro, cell, vary):
     assert len(to_structure(read_topas_inp(inp)).phases) == 1
 
 
+def test_the_rhombohedral_macro_takes_an_edge_and_an_angle(tmp_path):
+    """`Rhombohedral(a_cv, al_cv)` — the argument-order question, answered.
+
+    The reference's lattice-parameter list prints the argument names, and its
+    naming convention says a `cv` suffix means "name and/or value", so the stem
+    is the cell key: `a_cv` is the edge and `al_cv` the angle. All three edges
+    follow the first, all three angles the second — the rhombohedral setting,
+    which is the only cell shape one edge and one angle can describe.
+
+    The order was the whole risk. Read the other way round this phase would come
+    back with a 55 Å edge and three right angles, which is not a cell any data
+    would fit and is exactly the wrong-number-with-nothing-raised this reader
+    exists to prevent. It appears in **no** archive file in live text — it is in
+    `D20.inp` only inside a `'` comment — so nothing here corroborates it and
+    nothing here contradicts it either; the citation is the whole evidence.
+    """
+    inp = _inp(tmp_path, "rhomb.inp",
+               'str\nphase_name "P"\nspace_group "R-3m:R"\n'
+               'Rhombohedral(@ 5.4, @ 55.3)\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    phase = read_topas_inp(inp).phases[0]
+    assert tuple(phase.cell[k] for k in ("a", "b", "c")) == \
+        pytest.approx((5.4, 5.4, 5.4))
+    assert tuple(phase.cell[k] for k in ("al", "be", "ga")) == \
+        pytest.approx((55.3, 55.3, 55.3))
+    # Unlike every other macro here, the angle *is* an argument, so it carries
+    # its own flag rather than being fixed by the symmetry.
+    assert phase.vary["a"] is True and phase.vary["al"] is True
+    assert len(to_structure(read_topas_inp(inp)).phases) == 1
+
+
 @pytest.mark.parametrize("macro", [
-    "Rhombohedral(@ 5.4, @ 55.3)",
     "Orthorhombic(@ 5.4, @ 6.1, @ 7.2)",
     "Monoclinic(@ 5.4, @ 6.1, @ 7.2, @ 99.1)",
     "Triclinic(@ 5.4, @ 6.1, @ 7.2, @ 88, @ 99, @ 101)",
 ])
-def test_a_lattice_macro_with_no_evidenced_argument_order_is_refused_by_name(
+def test_a_cell_shaped_macro_this_format_does_not_define_is_refused_by_name(
         tmp_path, macro):
     """Guessing a macro's argument order is worse than declining to read it.
 
-    Each of these appears in the archive **only** inside a ``'`` comment, so no
-    file states which argument is which — ``Rhombohedral(@ #, @ #)`` in
-    `D20.inp`'s template is a length and an angle in an order no file here
-    fixes. A wrong order is a wrong cell with nothing raised, which is the one
-    outcome this reader exists to avoid, so the macro is refused by name.
+    These three are not cell macros of this format at all: the reference's
+    lattice-parameter list has exactly four entries and none is among them, and
+    across the whole manual the words occur only as English — crystal-system
+    labels, and an `Orthorhombic_Bipyramide` bond-length restraint, which is not
+    a cell. They occur in no archive file either, live or commented.
+
+    So a file invoking one invokes a macro somebody defined themselves, and
+    nothing states which key each argument carries. A wrong order is a wrong
+    cell with nothing raised, so the name is refused rather than parsed. The
+    enumerated list is the bound: a new name earns support with its own
+    citation, never by analogy with the four already there.
     """
-    inp = _inp(tmp_path, "unevidenced.inp",
+    inp = _inp(tmp_path, "undefined.inp",
                f'str\nphase_name "P"\nspace_group "P1"\n{macro}\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
     with pytest.raises(TopasInpError) as exc:
         read_topas_inp(inp)
-    assert "unevidenced.inp" in str(exc.value)
+    assert "undefined.inp" in str(exc.value)
     assert macro.split("(")[0] in str(exc.value)
+
+
+def test_a_cell_macro_whose_arity_disagrees_does_not_read(tmp_path):
+    """Arity is part of what the reference states, so a `Cubic` handed two
+    arguments is not a `Cubic`.
+
+    The table this replaced took "the first and last argument that parsed",
+    which read `Cubic(4.1, 9.9)` as a = b = 4.1 with c = 9.9 — a tetragonal cell
+    out of the macro whose entire meaning is that there is one edge. Now it
+    reads nothing, and the phase refuses for want of a cell instead.
+    """
+    inp = _inp(tmp_path, "arity.inp",
+               'str\nphase_name "P"\nspace_group "Pm-3m"\nCubic(4.1, 9.9)\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    assert read_topas_inp(inp).phases[0].cell == {}
 
 
 def test_a_lattice_macro_beside_an_explicit_cell_is_not_needed(tmp_path):
