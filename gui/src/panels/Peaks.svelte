@@ -28,6 +28,7 @@
     searchHelp,
     type IndexingControls,
   } from "../lib/controls";
+  import { labelFor, type HelpCorpus } from "../lib/help";
   import { clone } from "../lib/model";
   import {
     caveatTone,
@@ -37,10 +38,12 @@
     flagTone,
     fomColumns,
     fomOf,
+    formatIntensity,
+    formatPosition,
+    intensityScale,
     type Candidate,
     type PeaksPayload,
   } from "../lib/peaks";
-  import { formatEsd, formatValue } from "../lib/table";
   import type { RunState } from "../lib/stream";
 
   let {
@@ -50,6 +53,7 @@
     run,
     busy,
     capabilities = null,
+    corpus = null,
     doc = null,
     snapshots = [],
     hovered = null,
@@ -68,6 +72,9 @@
     busy: boolean;
     /** `/api/capabilities` — the live vocabularies the form renders from */
     capabilities?: any;
+    /** `/api/help` — where a chip's words come from (WP-1209); absent, a chip
+     *  says the name and the popover says "not described yet" */
+    corpus?: HelpCorpus | null;
     /** the project document; `doc.indexing` is the form's one authority */
     doc?: any;
     /** streamed `consensus:<system>` snapshots of the run in flight */
@@ -234,6 +241,12 @@
   const rows = $derived(peaks?.peaks ?? []);
   const unusable = $derived(peaks?.unusable_flags ?? []);
   const diagnostics = $derived(peaks?.diagnostics ?? []);
+  /** the 100 of the relative intensity scale: the strongest *measured* line */
+  const imax = $derived(intensityScale(rows));
+  /** the loudest level among the picker's notes, which tones the fold's count */
+  const noteTone = $derived(
+    diagnostics.some((d) => d.level === "error") ? "bad"
+      : diagnostics.some((d) => d.level === "warning") ? "warn" : "note");
   const indexing = $derived(busy && run?.run?.kind === "index");
   const screening = $derived(busy && run?.run?.kind === "extinction");
   const candidates = $derived<Candidate[]>(indexAnswer?.result?.candidates ?? []);
@@ -561,30 +574,49 @@ can rise when validation and ambiguity run, never fall">
     <p class="muted tabular">
       {peaks.n_usable} of {peaks.n_total} lines usable for indexing
       {#if peaks.source === "positions"}
-        · <span class="chip warn" title="positions were supplied, so every σ is an
-          assumption — the σ(Q)/Q figure is not a property of the data">σ assumed</span>
+        · <span class="chip warn"
+          ><Help for="peak_diagnostics:PEAK_SIGMA_ASSUMED">σ assumed</Help></span>
       {/if}
     </p>
 
+    <!-- The picker's notes about the *list*, folded (WP-1209): a strip of
+         three codes and their sentences read as an interruption above the
+         table, and the count says whether there is anything to open. The
+         count is a chip because it is a fact with a level; the summary is
+         what acts. -->
     {#if diagnostics.length}
-      <ul class="strip">
-        {#each diagnostics as d (d.code + d.message)}
-          <li class={d.level}>
-            <span class="mono">
-              <Help for="peak_diagnostics:{d.code}">{d.code}</Help>
-            </span> {d.message}
-          </li>
-        {/each}
-      </ul>
+      <details class="notes">
+        <summary>
+          <span class="chip {noteTone}">{diagnostics.length}</span>
+          {diagnostics.length === 1 ? "note" : "notes"} from the picker
+        </summary>
+        <ul class="strip">
+          {#each diagnostics as d (d.code + d.message)}
+            <li class={d.level}>
+              <span class="mono">
+                <Help for="peak_diagnostics:{d.code}">{d.code}</Help>
+              </span> {d.message}
+            </li>
+          {/each}
+        </ul>
+      </details>
     {/if}
 
+    <!-- Seven columns (WP-1209): the numbers a peak table is read in, the
+         flags, then `use` on its own — the one cell that is a decision — and
+         the verbs last. 2θ is four places with the esd in the last place, or
+         none above 0.1° where the flag says why; I is the relative scale. -->
     <div class="scroll">
       <table class="tabular">
         <thead>
-          <tr><th>#</th><th>2θ (°)</th><th>d (Å)</th><th>I</th><th>flags</th><th></th></tr>
+          <tr>
+            <th>#</th><th>2θ (°)</th><th>d (Å)</th><th class="num">I (rel)</th>
+            <th>flags</th><th>use</th><th></th>
+          </tr>
         </thead>
         <tbody>
           {#each rows as p (p.index)}
+            {@const pos = formatPosition(p.two_theta, p.two_theta_esd)}
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
             <tr class:out={!p.usable} class:lit={hovered === p.index}
               onmouseenter={() => onhover(p.index)}
@@ -593,26 +625,31 @@ can rise when validation and ambiguity run, never fall">
               <td>
                 <button class="ghost pos" title="zoom the plot to this line"
                   onclick={() => zoomTo(p.two_theta, p.fwhm)}>
-                  {formatValue(p.two_theta, p.two_theta_esd)}<span class="muted">{formatEsd(p.two_theta, p.two_theta_esd)}</span>
+                  {pos.value}<span class="muted">{pos.esd}</span>
                 </button>
               </td>
               <td>{p.d.toFixed(4)}</td>
-              <td>{Number(p.intensity.toPrecision(3))}</td>
+              <td class="num">{formatIntensity(p.intensity, imax, p.flags)}</td>
               <td class="flags">
                 {#if p.origin !== "fitted"}
-                  <span class="chip accent" title="a human placed or moved this line">{p.origin}</span>
+                  <span class="chip accent">
+                    <Help for="peak_origins:{p.origin}"
+                      >{labelFor(corpus, `peak_origins:${p.origin}`)}</Help>
+                  </span>
                 {/if}
                 {#each p.flags as f (f)}
                   <span class="chip {flagTone(f, unusable)}">
-                    <Help for="peak_flags:{f}">{f}</Help>
+                    <Help for="peak_flags:{f}">{labelFor(corpus, `peak_flags:${f}`)}</Help>
                   </span>
                 {/each}
               </td>
-              <td class="acts">
+              <td class="use">
                 <input type="checkbox" checked={p.usable} disabled={busy}
                   title={p.usable ? "exclude from indexing" :
                          "use for indexing (overrules the fitter's flags)"}
                   onchange={() => toggleUse(p.index, p.usable)} />
+              </td>
+              <td class="acts">
                 {#if p.n_in_group > 1}
                   <button class="ghost" disabled={busy}
                     title="refit group {p.group} ({p.n_in_group} components) under the picker's own judgement"
@@ -1015,6 +1052,24 @@ convention, not a measurement"
     padding: 0;
     font-size: var(--text-sm);
     flex: 0 0 auto;
+  }
+
+  /* the folded notes: a summary at control size, its count a chip */
+  details.notes {
+    flex: 0 0 auto;
+    font-size: var(--text-sm);
+  }
+
+  details.notes summary {
+    cursor: pointer;
+    color: var(--muted);
+    user-select: none;
+  }
+
+  /* numbers read down a column: the relative intensity right-aligns so its
+     decimals line up, as 2θ's fixed four places already do */
+  .num {
+    text-align: right;
   }
 
   .strip li {

@@ -1022,7 +1022,7 @@
         </div>
         <div class="panel" class:hidden={tab !== "peaks"}>
           <Peaks peaks={peaksData} {indexAnswer} {extinction} {run} {busy} {say}
-            {capabilities} doc={project?.doc ?? null}
+            {capabilities} {corpus} doc={project?.doc ?? null}
             snapshots={indexSnapshots} onproject={loadProject}
             hovered={hoveredPeak} onhover={(i) => (hoveredPeak = i)}
             onpeaks={(p) => (peaksData = p)}

@@ -105,6 +105,20 @@ export function resolve(corpus: HelpCorpus | null, key: string): HelpEntry | nul
 }
 
 /**
+ * The words a chip carries for a corpus key: the entry's `label`, else the
+ * name itself (WP-1209).
+ *
+ * A chip is read at a glance, and `position_at_bound` is not read at a glance;
+ * `at bound` is. The fallback is the name rather than nothing, so a corpus that
+ * has not landed — or a member it does not describe yet — still draws a chip
+ * that says *something true*, and the popover behind it is where "not
+ * described yet" belongs. What a label is, is `rietx.help`'s to say.
+ */
+export function labelFor(corpus: HelpCorpus | null, key: string): string {
+  return resolve(corpus, key)?.label ?? splitKey(key)?.name ?? key;
+}
+
+/**
  * The manual link for an entry, or `null` where the entry names no chapter.
  *
  * The anchor is `page.html#heading-id` relative to the manual root and the

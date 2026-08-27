@@ -85,9 +85,9 @@ the esd ≥ 1 guard for every caller (History and Params included).
 - [x] `lib/peaks.ts`: `formatIntensity`, `formatPosition`; `formatValue`
       guard; `peaks.test.ts` pins the corundum cases (2.1e-49, 5.5e-19,
       σ = 111°, a 1e-13 esd).
-- [ ] Table: columns `# · 2θ · d · I (rel) · flags · use · actions`; the
+- [x] Table: columns `# · 2θ · d · I (rel) · flags · use · actions`; the
       `use` checkbox in its own header column; `origin` chip in its own tone.
-- [ ] Flags as labels from the corpus (`at bound`, `Kβ ghost`, `W ghost`,
+- [x] Flags as labels from the corpus (`at bound`, `Kβ ghost`, `W ghost`,
       `not separable`, `shoulder`, `σ assumed`, `no intensity`, …) with the
       code and sentence in the popover; the diagnostics strip folded into a
       count chip that expands.

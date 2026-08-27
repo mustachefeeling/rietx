@@ -21,6 +21,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ARMS,
+  labelFor,
   HELP_GAP,
   HELP_MARGIN,
   manualUrl,
@@ -60,6 +61,20 @@ function corpus(): HelpCorpus {
     docs_url: "https://rietx.org",
   };
 }
+
+describe("what a chip says (WP-1209)", () => {
+  it("is the entry's label, else the name, and never nothing", () => {
+    const c = corpus();
+    expect(labelFor(c, "peak_origins:manual")).toBe("manual");
+    // an entry without a label is its own label
+    expect(labelFor(c, "peak_flags:excluded")).toBe("excluded");
+    // a member the corpus does not describe still draws its name…
+    expect(labelFor(c, "peak_flags:some_future_flag")).toBe("some_future_flag");
+    // …and so does a corpus that has not landed, or a key naming no arm
+    expect(labelFor(null, "peak_flags:position_at_bound")).toBe("position_at_bound");
+    expect(labelFor(c, "bare")).toBe("bare");
+  });
+});
 
 describe("a key names its arm", () => {
   it("splits `arm:name` and refuses anything else", () => {
@@ -216,6 +231,9 @@ describe("every key the app writes down names something", () => {
       "panels/Model.svelte: reader_options:{opt.name}",
       "panels/Peaks.svelte: peak_diagnostics:{d.code}",
       "panels/Peaks.svelte: peak_flags:{f}",
+      // the origin chip (WP-1209): `ObservedPeak.origin`'s Literal, keyed both
+      // ways from python, so the chip's words are the corpus's
+      "panels/Peaks.svelte: peak_origins:{p.origin}",
       "panels/Plan.svelte: plans:{chosen.name}",
       // the plan editor's advanced boxes are a loop over `lib/rxt.ts`'s stage
       // words, which are pinned to `StageSpec` from python (WP-1208), so a new
@@ -252,7 +270,7 @@ describe("`title=` is no longer how this app explains a name", () => {
     "panels/History.svelte": 4,      // node vocabulary — WP-1217
     "panels/Model.svelte": 3,        // the space-group box, two splitters
     "panels/Params.svelte": 4,       // the table's own affordances
-    "panels/Peaks.svelte": 12,       // indexing result columns — WP-1209-1213
+    "panels/Peaks.svelte": 10,       // the add-at-2θ box; indexing result columns — WP-1211
     "panels/Plan.svelte": 2,         // the reorder grip, correlation_guard
     "panels/Plot.svelte": 3,         // fit-range fields — WP-1212
     "panels/Report.svelte": 4,       // report statistics
