@@ -579,8 +579,14 @@
       const x = typeof px === "number" ? thetaOf(px)
         : (typeof from === "number" ? from : null);
       hoverAt = x;
-      if (peaksActive && peaks?.peaks?.length && hoverAt !== null) {
-        onhoverpeak(nearestPeak(peaks.peaks, hoverAt, PICK_RADIUS_PX * degPerPx()));
+      // The link is answered on *every* hover while the layer is up, `null`
+      // included: a hover that resolves no 2θ (the axis map is not in hand) has
+      // to clear the ring and the lit row, or they stay lit on a line the
+      // pointer has left until the pointer leaves the plot altogether.
+      if (peaksActive) {
+        onhoverpeak(hoverAt !== null && peaks?.peaks?.length
+          ? nearestPeak(peaks.peaks, hoverAt, PICK_RADIUS_PX * degPerPx())
+          : null);
       }
     });
     plotNode.removeAllListeners?.("plotly_unhover");
@@ -719,11 +725,13 @@
    * for the same reason: a tick states a fitted model's position, and this is a
    * cell's claim laid *over* the data to be checked against it.
    *
-   * No hover. `hovermode` is `x unified`, so plotly snaps *every* trace to its
-   * nearest point in x and this one would put a row in the box at every
-   * pointer position, in the same box the peak hover link reads. The hkl the
-   * route serves beside the positions is what a per-line readout would say, and
-   * that readout is WP-1213's.
+   * No hover, and `skip` rather than `none`. `hovermode` was `x unified` when
+   * this trace was written, so plotly snapped *every* trace to its nearest
+   * point in x and this one would have put a row in the box at every pointer
+   * position. The box is gone since WP-1213 and the rest of the plot is at
+   * `hoverinfo: "none"`; this one stays `"skip"`, which takes it out of the
+   * point-finding altogether — nothing reads its points, and the readout takes
+   * the hkl off the payload the route serves.
    */
   function candidateTraces(colors: ReturnType<typeof curveColors>): any[] {
     const rows = overlay;

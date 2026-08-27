@@ -232,6 +232,24 @@ must not survive is a key, and a key is what the colon matches.
   empty quarter is still owed: this WP added a row under the plot rather than
   redistributing the domains, so 1212's note stands.
 
+  **The review pass** (`/code-review medium --fix`) found four and applied
+  three. The one that mattered: the hover link had become conditional on a 2θ
+  resolving, so a hover that resolved none — the axis map not in hand after a
+  repaint, or a pointer in the margin — left the ring and the lit table row on a
+  line the pointer had already left, until it left the plot altogether. It
+  answers on every hover while the layer is up now, `null` included, which is
+  what the pre-WP handler did. The other two were prose: `candidateTraces`'
+  docstring still gave `x unified` as the reason for its `hoverinfo: "skip"`
+  (the reason is now that `skip` leaves the point-finding entirely, which
+  `none` does not), and `gui/CLAUDE.md` counted two things the box could not say
+  where the ROADMAP and the record both count three. **Declined**, and it is a
+  fair finding: the `peak fit` row is gated on `peaksActive && groups.length`
+  while the drawn curve additionally needs a non-empty peak list, so a payload
+  with groups and no picked lines would put a row in the strip for a curve that
+  is not drawn. No server payload produces that state — `peaks.groups` are the
+  groups *of* the picked lines — and tightening it would change behaviour a
+  passing test asserts.
+
   Next: **WP-1214** (Model — vary and profile save), then 1215/1216, then 1217.
   Nothing in this WP blocks any of them; the one thing to carry is that
   `/api/project`'s data arm is now where an instrument fact reaches a panel that

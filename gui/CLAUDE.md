@@ -844,8 +844,8 @@ The tooltip covered the data, and plotly offers no positioning for the unified
 box beyond `hoverlabel.align` — so the box is **deleted rather than moved**:
 every trace drops to `hoverinfo: "none"` (the library's gate is `!== "skip"`, so
 the point-finding and the spike survive a trace that draws no label), and a
-strip of the plot's control rows says what the box said plus the two things it
-could not — the candidate's `hkl`, and which emission line that line is.
+strip of the plot's control rows says what the box said plus the three things
+it could not — the candidate's `hkl`, which emission line that line is, and d.
 **The strip's shape follows the payload, the tab and the curve toggles — never
 the pointer**: one row per *drawn* curve, so `data only` empties it to the
 points, while everything that varies under one pointer sweep keeps its slot and
