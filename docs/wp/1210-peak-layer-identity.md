@@ -93,8 +93,8 @@ palette's 0.13 OKLab floor against the shipped set — violet lands 0.10-0.12
 from the difference curve and the obvious alert tone for an unusable marker,
 `--warn`, is 0.053 from calculated. Magenta is now taken. A future mark should
 plan to spend *no* colour and carry its identity on the mark, which is what
-this layer does for peak state (hollow = unusable, diamond = human-placed)
-rather than spending a third.
+this layer does for peak state — one ink, hollow for unusable and diamond for
+human-placed — rather than spending a second.
 
 **Done.** All four tasks. `curveToggles` grows `peaks`/`peak fit` from a
 `PeakLayer` passed beside the window payload; `dataOnlyHidden`/`isDataOnly`
@@ -102,8 +102,8 @@ are pure and over the same unpersisted `hidden` exception list, with
 `Plot.svelte` holding the previous list so the second press restores rather
 than showing everything. `--plot-peak`/`--plot-peakfit` in all three theme
 blocks, one hue family (334°) in two tones, the fit curve dashed and named in
-the legend and the hover, unusable markers on the recessive ink the masked
-channels already use. The layer is gated on `peaksActive`, and its two toggles
+the legend and the hover, and the markers one ink with the ring carrying the
+state. The layer is gated on `peaksActive`, and its two toggles
 are listed and **disabled carrying the reason** when it is away.
 
 **Measured**, all darwin/arm64 on this worktree's own venv, `[dev]` — jax and
@@ -119,7 +119,8 @@ matter are the **merged** tree's.
 - Merged with `origin/main` (the tree that lands): **3153 passed / 117
   skipped** in 170.70 s and vitest **476** — main's five python tests and one
   vitest case on top, no interaction. `svelte-check` 0 errors / 0 warnings over
-  378 files, `ruff` clean, dist rebuilt at `b00932e914ac`.
+  378 files, `ruff` clean, dist rebuilt at `1926c16de396` (the review's
+  fixes rebuilt it again; vitest stayed 476, the assertions changed).
 
 The merge conflicted **only** in the built dist (`app.js`, `build-info.json`),
 because main had rebuilt it too; the resolution is a rebuild from the merged
@@ -128,9 +129,10 @@ have been: nothing here can move a refinement number (root CLAUDE.md § Numbers)
 
 Browser pass in Chrome on the NAC example, fitted in the served session (Rwp
 0.0932, 86 lines picked / 74 usable), both themes. Light — markers `#8c257e`,
-fit `#c158b0` dashed, unusable `#6b6b66`, against calc `#c23b22` and Δ/σ
-`#1f5fa8`. Dark — `#e687d5` / `#b156a2` / `#9a9a94` against `#e56a52` and
-`#5897dd`. `data only` leaves exactly `observed`; the second press restores,
+fit `#c158b0` dashed, against calc `#c23b22` and Δ/σ `#1f5fa8`. Dark —
+`#e687d5` / `#b156a2` against `#e56a52` and `#5897dd`. Unusable markers are the
+layer's own ink, hollow, in both (the review note below has why that changed).
+`data only` leaves exactly `observed`; the second press restores,
 a hand-hidden phase still hidden. On the Report tab the layer is absent and
 its toggles disabled with the sentence.
 
@@ -165,6 +167,39 @@ Python file also **names the two pairs the shipped palette already misses**
 (light bkg/diff 0.129, dark obs/diff 0.124) rather than exempting them
 quietly, holds them at 0.12 so they cannot get worse, and fails if a third
 appears — retuning a shipped curve colour was not this WP's.
+
+**The review** (`/code-review medium --fix`, run after the PR was open) found
+four things, and two of them were claims this entry had already made.
+
+- **A real bug, fixed.** The peak-fit hover was handed `customdata:
+  sparse(fit.y)` — the *plot-unit* array, the same one `y` gets. Under the √
+  scale the box read `31.6` where obs and calc at the same 2θ read `1000`.
+  Every other hover here passes raw intensity (`calculated` hands plotly
+  `w.y_calc`, not the √ of it). One line, and the browser re-check confirms the
+  values are back in intensity.
+- **The unusable-marker ink was wrong, and by this WP's own rule.** It sat on
+  `--muted`, which is **0.032** from `--plot-obs` on the dark theme — the ink of
+  the very points those markers sit on. The deeper error is that spending *any*
+  second colour on the state is what "state rides on the mark" forbids: the
+  layer is now **one** colour with hollow-vs-filled carrying it, which removes
+  the collision and the exception together. `--muted` stays right for the masked
+  points, because those *are* measured data; the palette test now says so where
+  a reader would otherwise re-litigate it.
+- **A claim narrowed rather than fixed.** `dataOnlyHidden` covers every id the
+  payload offers *when pressed*, so a curve that comes into existence later
+  draws on a cleared plot (press it with hand-placed peaks and no groups, then
+  refit). The docstring claimed the invariant unconditionally. Fixing it means
+  an armed mode that keeps re-hiding and must then decide what a manual toggle
+  underneath it means — a bigger design than this button — so the claim now
+  states its own limit. Found in review, not in use.
+- **One finding measured false.** The review held that the `absent` sentence is
+  unreachable because Chrome does not dispatch pointer events to disabled form
+  controls. Checked on the real control in Chrome 1223: `disabled: true`,
+  `pointer-events: auto`, and a pointer move over it fired
+  `pointerover`/`mouseover`/`mousemove`, with the 223-character title in place —
+  and nothing in `app.css` sets `pointer-events` on `button:disabled`. The
+  tooltip reaches a pointer. Worth knowing, since the claim is a plausible one
+  that used to be true.
 
 *Next.* WP-1210 is closed; the successor is [WP-1211](1211-candidate-overlay.md)
 (the candidate overlay), whose `### Inherited` now carries the data-only

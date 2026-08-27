@@ -436,8 +436,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # light theme, which is the reported defect), and that a mark's state is
     # carried by its shape rather than by spending a colour.  The hex values,
     # the hue search and the two grandfathered pairs are a rank down, in
-    # `app.css`'s own comment and `tests/test_gui_palette.py`.
-    "gui/CLAUDE.md": 774,
+    # `app.css`'s own comment and `tests/test_gui_palette.py`.  774 -> 778 in
+    # the same WP's review: the state-on-the-mark rule needed its corollary,
+    # because that is where it was broken — a mark that is not the data may not
+    # borrow the recessive ink of the data it sits on.
+    "gui/CLAUDE.md": 778,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

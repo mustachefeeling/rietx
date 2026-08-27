@@ -394,9 +394,17 @@ export function curveToggles(w: Window & { raw?: boolean; ticks?: Record<string,
 /**
  * "Data only": every curve hidden but the measured points (WP-1210).
  *
- * Over *every* id, absent ones included, so a layer that arrives on its own tab
- * arrives hidden too — the button means one thing on screen, and a peak layer
- * appearing under it would be that meaning quietly lapsing.
+ * Over *every* id **the payload offers when it is pressed**, absent ones
+ * included — so a layer that is listed but undrawable (the peak layer away from
+ * its tab) is hidden too, and switching to that tab does not undo the button.
+ *
+ * What it deliberately does not cover, because `hidden` is an exception list
+ * and this returns a value rather than arming a mode: a curve that comes into
+ * *existence* later is not in the list and therefore draws. Press this with
+ * hand-placed peaks and no fitted groups, then refit, and the dashed peak-fit
+ * curve appears on a cleared plot. Fixing it means an armed mode that keeps
+ * re-hiding, which then has to decide what a manual toggle underneath it means
+ * — a bigger design than this button (WP-1210's log; found in review, not use).
  */
 export function dataOnlyHidden(toggles: readonly CurveToggle[]): string[] {
   return toggles.filter((curve) => curve.id !== "obs").map((curve) => curve.id);

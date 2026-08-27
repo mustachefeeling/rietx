@@ -3826,14 +3826,20 @@ describe("the peaks tab (WP-1027)", () => {
     // neither curve has to be identified by elimination
     expect(fit.showlegend).toBe(true);
     expect(fit.hovertemplate).toContain("peak fit");
-    // the markers are the layer's other colour, and an unusable line is
-    // recessive rather than red: `--bad` is `--plot-calc` exactly
+    // the markers are the layer's other colour, and the whole layer is *one*
+    // colour: an unusable line is the same ink, hollow.  Spending a second on
+    // the state is what had it on `--bad` (which is `--plot-calc` exactly),
+    // and the recessive grey tried next measured 0.032 from `--plot-obs` on
+    // the dark theme — the ink of the points these markers sit on.
     const markers = trace("peaks");
-    expect(markers.marker.color[0]).not.toBe(calc.line.color);
-    expect(markers.marker.color[0]).not.toBe(trace("Δ/σ").line.color);
-    expect(markers.marker.color[1]).not.toBe(markers.marker.color[0]);
-    expect(markers.marker.color[1]).not.toBe(calc.line.color);
-    expect(markers.marker.symbol[1]).toBe("circle-open");
+    expect(typeof markers.marker.color).toBe("string");   // one, not per-point
+    expect(markers.marker.color).not.toBe(calc.line.color);
+    expect(markers.marker.color).not.toBe(trace("Δ/σ").line.color);
+    expect(markers.marker.color).toBe(trace("hovered").marker.color);
+    // …so the state rides on the mark, and only there
+    expect(markers.marker.symbol[0]).toBe("circle");        // fitted, usable
+    expect(markers.marker.symbol[1]).toBe("circle-open");   // fitted, unusable
+    expect(markers.marker.symbol[2]).toBe("diamond");       // human-placed
   });
 
   it("clears the plot to the data and puts back what was there before", async () => {

@@ -767,8 +767,12 @@ picked-peak fit and the model came to be one red line, so a plot mark takes a
 phase palette's 0.13 OKLab floor against every other plot colour, in Python
 because `structure3d._oklab_distance` is the one distance this package has. It
 also names the two pairs the shipped set already misses rather than exempting
-them quietly. And **state rides on the mark, not on a second colour**: hollow
-for unusable, diamond for human-placed, so the layer spends two colours and the
-whole palette stays separable — measured while choosing, the free hue space is
-magenta and green alone (violet is 0.10-0.12 from `--plot-diff`, and `--warn`
-0.053 from `--plot-calc`).
+them quietly. And **state rides on the mark, not on a second colour**: one ink
+for the whole layer with hollow for unusable and diamond for human-placed, so
+it spends two colours and the palette stays separable — measured while
+choosing, the free hue space is magenta and green alone (violet is 0.10-0.12
+from `--plot-diff`, `--warn` 0.053 from `--plot-calc`). The corollary is where
+that rule was broken and caught in review: a mark that is **not** the data may
+not borrow the recessive `--muted`, which is 0.032 from `--plot-obs` on the
+dark theme — fine for the masked points, which *are* measured data, and wrong
+for a marker sitting on top of them.

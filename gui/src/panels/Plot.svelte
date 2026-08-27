@@ -426,7 +426,11 @@
         // a reader has to tell "what the positions were fitted from" from "the
         // model" without consulting a legend
         line: { width: 1.4, color: colors.peakfit, dash: "dash" },
-        customdata: sparse(fit.y),
+        // the *unscaled* fit value, as every other hover on this plot quotes
+        // (`calculated` hands plotly `w.y_calc`, not the √ of it): `y` is in
+        // plot units and `customdata` is in intensity, or the box reads √I
+        // under the √ scale while the curve beside it reads I
+        customdata: fit.y,
         hovertemplate: "%{customdata:.6g}<extra>peak fit</extra>" });
       if (w.raw) {
         const delta = joinCurves(groups, (g) => g.delta);
@@ -456,12 +460,15 @@
         symbol: list.map((p) =>
           p.usable ? (p.origin === "fitted" ? "circle" : "diamond")
                    : (p.origin === "fitted" ? "circle-open" : "diamond-open")),
-        // an unusable line is not in the fit, and this plot already says that
-        // in one ink: the masked channels' recessive grey.  It wore `--bad`,
-        // which on the light theme is `--plot-calc` to the digit — and the
-        // alert tone next door is no way out either, `--warn` sitting 0.053
-        // from `--plot-calc` in OKLab (0.096 dark) against a 0.13 floor.
-        color: list.map((p) => (p.usable ? colors.peak : colors.edge)),
+        // **One colour for the whole layer**, and the ring says which state:
+        // hollow is unusable, filled is in the fit.  Spending a second colour
+        // on the state is the thing this WP's own rule forbids, and both
+        // candidates for it are measurably wrong anyway — `--bad` *is*
+        // `--plot-calc` on the light theme, `--warn` sits 0.053 from it (0.096
+        // dark), and the recessive `--muted` this line used first is **0.032**
+        // from `--plot-obs` on the dark theme, which is the ink of the very
+        // points these markers sit on.  All three against a 0.13 floor.
+        color: colors.peak,
         line: { width: 1.2 },
       },
       showlegend: true,

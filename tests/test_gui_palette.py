@@ -47,6 +47,14 @@ NEIGHBOURS = (*CURVES, "--muted", "--fg")
 #: the mark — points against a dotted line.  Measured, obs/bkg is 0.086 on the
 #: light theme, so a blanket all-pairs assertion would be asserting the opposite
 #: of the design.
+#:
+#: `--muted` belongs here for a second reason worth stating, because a reviewer
+#: has already flagged it once: it draws the **masked measured points**, which
+#: are the same data as `--plot-obs` and are meant to read that way (WP-1033) —
+#: 0.032 apart on the dark theme.  What may *not* borrow it is a mark that is
+#: not the data: WP-1210 briefly drew unusable peak markers in it, sitting on
+#: top of the very points it matched, and they now take the peak layer's own
+#: colour with the hollow ring carrying the state.
 RECESSIVE = frozenset({"--plot-obs", "--plot-bkg", "--muted"})
 
 #: The two pairs the shipped palette misses the floor on, named rather than
