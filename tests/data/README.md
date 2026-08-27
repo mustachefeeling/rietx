@@ -679,6 +679,28 @@ writer asserts its own bank offset exceeds `HEAD_BYTES`), shares no constant
 with the parser, and all three regression tests fail against the unfixed
 sniff.
 
+### Cr₂WO₆ 60 K BT-1 — the background-peak reference, cited but not committed
+
+**Nothing is vendored for it, and no file here reads it** — it is named because
+`docs/manual/using/data.md`'s background-peak evidence table carries a *published
+TOPAS fit* row (Rwp 0.06663, GoF 2.583, Biso(Cr) +0.215(76)) whose peak position
+and width, 2θ₀ = 14.4158(539)° and Γ = 5.815(1.504)°, are the only independent
+corroboration in that section: they are what makes the `BackgroundPeak` result a
+cross-code agreement rather than a self-report. A reader should be able to locate
+them, which is what this section is for.
+
+| Established | Evidence |
+|---|---|
+| The specimen and pattern | Cr₂WO₆, NIST **BT-1** constant-wavelength neutron, 60 K. Michael Gaultois's own material and measurement — nothing to clear with a third party |
+| The refinement quoted | A TOPAS fit of that pattern: 7 Chebyshev background terms plus one Gaussian peak, the shape `Instrument.background_peaks` was built to express |
+| The publication | Gaultois, Kemei, Harada & Seshadri, *Rapid preparation and magnetodielectric properties of trirutile Cr₂WO₆*, **J. Appl. Phys. 117, 014105 (2015)**, doi 10.1063/1.4905486 — `gaultois2015cr2wo6` in `docs/manual/references.bib` |
+| What is **not** here | The BT-1 pattern itself, and the TOPAS `.inp`/`.out` files it was refined with. Both live on the data owner's archive and neither is redistributed — the same treatment `11BM_LaB6_cBN_mg2044.xye`'s row gives its TOPAS references |
+
+Quoting a published refinement's numeric results is what `ATTRIBUTION.md`'s
+papers-only fence permits, so this is a locatability record rather than a licence
+one: the numbers are citable, the files are not vendored, and the citation is the
+route from one to the other.
+
 ### `.uxd` — the format with real evidence and no vendorable file
 
 Bruker/Siemens DIFFRAC-AT ASCII.  **Nothing is vendored for it**, and that is

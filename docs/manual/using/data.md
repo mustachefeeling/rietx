@@ -734,7 +734,7 @@ channels, 5–152° 2θ, σ from the file) with a broad background feature near
 | Chebyshev, order from `auto_background` | 16 | 0.05137 | 1.9947 | −0.040(215) | 0 |
 | that **+ one background peak** | 16 + 3 | 0.05126 | 1.9915 | −0.053(213) | **617** |
 | P-spline, knots from `auto_background` | 57 | 0.05256 | 2.0560 | −0.039(218) | 145 |
-| published TOPAS fit: 7 Chebyshev + 1 Gaussian | 7 + 3 | 0.06663 | 2.583 | +0.215(76) | — |
+| published TOPAS fit {cite}`gaultois2015cr2wo6`: 7 Chebyshev + 1 Gaussian | 7 + 3 | 0.06663 | 2.583 | +0.215(76) | — |
 
 Three things to read out of it, and only the first is the happy one.
 
