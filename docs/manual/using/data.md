@@ -794,7 +794,8 @@ disorder is many times the resolution: the case above is 5.8° wide where the
 instrument's lines are 0.25–0.30°, a factor of about 20.
 
 So a peak that refines to less than
-`BACKGROUND_PEAK_MIN_WIDTH_MULT` (4) times the instrumental FWHM at its own
+`BACKGROUND_PEAK_MIN_WIDTH_MULT` ({{ BACKGROUND_PEAK_MIN_WIDTH_MULT }}) times
+the instrumental FWHM at its own
 position comes back with a `BACKGROUND_PEAK_TOO_NARROW` diagnostic, and the
 reading is "these background peaks are not quotable" — the same reading
 `STEPHENS_STRAIN_NOT_POSITIVE` has, and for the same reason: the condition

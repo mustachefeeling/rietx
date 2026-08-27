@@ -59,13 +59,13 @@ width. With $\Gamma_{\mathrm{inst}}(2\theta)$ the resolution function of
 ```{math}
 :label: bg-peak-width
 
-\Gamma \;\gtrsim\; 4\,\Gamma_{\mathrm{inst}}(2\theta_0),
+\Gamma \;\gtrsim\; m\,\Gamma_{\mathrm{inst}}(2\theta_0),
 ```
 
 *Source:* `rietx.strategy.staged.BACKGROUND_PEAK_MIN_WIDTH_MULT`
 
-below which the term is a reflection with no cell and no structure factor
-behind it. The condition depends on the refined resolution parameters and on
+with $m =$ {{ BACKGROUND_PEAK_MIN_WIDTH_MULT }}, below which the term is a
+reflection with no cell and no structure factor behind it. The condition depends on the refined resolution parameters and on
 $2\theta_0$ itself, so it is not a box constraint: like the Stephens strain
 cone it is carried as a reported guard rather than enforced, and a firing means
 the peak parameters are not quotable.
