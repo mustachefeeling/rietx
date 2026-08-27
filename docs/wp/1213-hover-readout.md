@@ -43,6 +43,17 @@ From **WP-1209** (2026-08-27, shipped):
 - For a parameter with an esd, `formatValue`/`formatEsd` now write
   `35.09 ±110` where the esd has swallowed the value (`esdSwallowsValue`) and
   `12346(56)` otherwise — one pair of functions for every readout.
+- **A declined review finding, yours if you touch `formatIntensity`:**
+  `INTENSITY_UNMEASURED_FLAGS` (`no_intensity`, `fit_failed`) is a TypeScript
+  literal, held to the corpus vocabulary by name only. `gui/CLAUDE.md`'s rule
+  is that a flag's *meaning* is served, never re-derived — `unusable_flags`
+  rides on `/api/peaks` for that reason — so a python flag added later
+  meaning "the area is a bound, not a measurement" would be used as Imax
+  and printed as a real relative intensity, and the name-only test stays
+  green. The fix is a `PEAK_INTENSITY_UNMEASURED_FLAGS` constant in
+  `schemas/indexing.py` served beside `unusable_flags` and read by
+  `formatIntensity`; 1209 declined it as a wire-contract change outside a
+  table WP.
 
 ## Non-goals
 

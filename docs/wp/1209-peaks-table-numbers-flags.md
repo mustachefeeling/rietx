@@ -153,8 +153,8 @@ darwin/arm64; vitest under node):
 - vitest **461 → 467 passed**, 21 files: +4 `peaks.test.ts` (the numbers, the
   vocabulary pin), +1 `table.test.ts` (the guard), +1 `help.test.ts`
   (`labelFor`); the App-level peaks-tab test was extended, not added.
-  `svelte-check` 0 errors. Dist rebuilt, digest `3baa5b114ab0`,
-  `test_gui_dist.py` 13 passed.
+  `svelte-check` 0 errors. Dist rebuilt, digest `be85b9b15f3f` (after the
+  review's fixes), `test_gui_dist.py` 13 passed.
 - Fast selection (`-m "not slow"`, `-n auto --dist loadgroup`, run once on
   the final tree before the docs-only close edits): **3138 passed / 117
   skipped**, 2:07. No same-machine baseline was run on `origin/main`; the
@@ -196,6 +196,26 @@ darwin/arm64; vitest under node):
   script and a `for` loop over `curl` are "too complex" for the worktree gate
   — write the script to the scratchpad and run it by path; `cd gui &&` is
   refused by the no-top-level-cd hook — `(cd gui && npx vitest run …)`.
+
+*Reviewed.* `/code-review medium --fix` ran **after** the PR was opened, not
+before it: this session was served the pre-#158 handover checklist from the
+stale main checkout (skills load from the launch directory, and that
+checkout was four merges behind `origin/main`), so the step was missed and
+run late, still ahead of the tree that merges. Eight findings. Six fixed and
+committed, each edge pinned by a test: the popover's `Name` row only where
+the label *differs* from the name (`excluded` labelled `excluded` hid
+nothing); `formatEsd` rounds to two figures before choosing the exponential
+form (999 999 printed seven digits); `formatPosition` treats an esd that
+rounds up to 10 000 units of the fourth place as over the gate; the panel
+comment quoted 0.1° after the constant moved; the `label` docstring said
+"no code reads it" while `labelFor` and `helpCode` do, and its `None`
+sentence contradicted the test; the glossary never rendered a label (it
+prints `Chip \`at bound\`` now, 13 of them). Two declined: the count chip
+inside the notes' `<summary>` (the gotcha above stands — the chip is the
+fact, the summary acts); and `INTENSITY_UNMEASURED_FLAGS` as a TypeScript
+literal, where `gui/CLAUDE.md`'s rule wants a server-served set beside
+`unusable_flags` — a schema-and-wire change, filed into 1213's `### Inherited`
+for the next consumer of `formatIntensity` rather than widened into this PR.
 
 Next, in order: **WP-1210** (the peak layer), which inherits the
 `peak_origins` labels for telling a placed line from a fitted one and the
