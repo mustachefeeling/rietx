@@ -222,13 +222,16 @@ is safe there too.
 
 **Counts.**
 
-`npm --prefix gui test` 508 passed / 21 files (from 486 on `main`: 22 new — 13 in
-`plot.test.ts` over the four new pure functions, 6 in `App.test.ts`'s new
-WP-1212 block, and 3 retargeted rather than added). `npm --prefix gui run check`
-0 errors / 0 warnings over 378 files. `tests/test_docs_consistency.py`,
-`test_gui_dist.py`, `test_gui_palette.py` green; `gui/CLAUDE.md`'s cap moved
-808 → 838 with its reason beside it. darwin/arm64, `[dev]` (no jax/torch;
-numba present).
+`npm --prefix gui test` **508 passed / 21 files**, from 487 on `main`: 21 new —
+14 in `plot.test.ts` over the four new pure functions, 7 in `App.test.ts`'s new
+WP-1212 block — with 3 existing ones retargeted rather than added, because the
+facts they pinned changed (arming is a relayout, an explicit range no longer
+says who set it). `npm --prefix gui run check` 0 errors / 0 warnings over 378
+files. Fast python selection **3157 passed / 117 skipped**, exactly 1211's: this
+WP moved no python behaviour, and the three suites that could have —
+`test_docs_consistency.py`, `test_gui_dist.py`, `test_gui_palette.py` — are
+inside that count. `gui/CLAUDE.md`'s cap moved 808 → 838 with its reason beside
+it; `ruff` clean. darwin/arm64, `[dev]` (no jax/torch; numba present).
 
 **Next.**
 
