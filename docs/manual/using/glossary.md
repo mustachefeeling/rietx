@@ -97,12 +97,13 @@ Each entry is a `HelpEntry` with seven fields.
 
 `HelpEntry.label`
 : The short form a chip carries where the name would not read: `at bound` for
-  `position_at_bound`. Only the `peak_flags` and `peak_origins` arms carry one;
-  `None` elsewhere means the name is its own label.
+  `position_at_bound`. Only the `peak_flags` and `peak_origins` arms carry one,
+  and every entry there must; `None` elsewhere, where no chip is drawn.
 
 ## Limitations
 
-`typical` and `label` are the two fields with no authority in the code. The ranges come from
+`typical` and `label` are the two authored fields: no computation in the package
+reads either (the GUI reads `label` to letter a chip). The ranges come from
 McCusker et al. (1999) {cite}`mccusker1999` and from this repository's own
 reference datasets, and a specimen outside one is not thereby wrong.
 

@@ -669,9 +669,12 @@
   const helpBody = $derived(helpEntry?.description ?? helpRequest?.text ?? "");
   /** the name behind a labelled term: a chip says `at bound`, and the flag it
    *  stands for is `position_at_bound`, which nothing else on screen shows
-   *  (WP-1209) — so the popover carries it, and only where a label hid it */
-  const helpCode = $derived(
-    helpEntry?.label && helpRequest?.key ? splitKey(helpRequest.key)?.name ?? null : null);
+   *  (WP-1209) — so the popover carries it, and only where a label hid it:
+   *  `excluded` labelled `excluded` hid nothing */
+  const helpCode = $derived.by(() => {
+    const name = helpRequest?.key ? splitKey(helpRequest.key)?.name ?? null : null;
+    return helpEntry?.label && name && helpEntry.label !== name ? name : null;
+  });
   const placement = $derived(helpAnchor
     ? place(helpAnchor, viewport, popoverSize)
     : { left: 0, top: 0, flipped: false });

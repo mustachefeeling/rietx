@@ -88,6 +88,9 @@ describe("the table's numbers (WP-1209)", () => {
     // the threshold is the constant, inclusive on the way out
     expect(formatPosition(57.5, POSITION_ESD_MAX_DEG).esd).toBe("");
     expect(formatPosition(57.5, 0.9999).esd).toBe("(9999)");
+    // an esd that rounds *up* to the gate is over it: four places never
+    // carry five digits (code review)
+    expect(formatPosition(57.5, 0.99996).esd).toBe("");
     expect(formatPosition(57.5, null).esd).toBe("");
     expect(formatPosition(57.5, 0).esd).toBe("(0)");
   });

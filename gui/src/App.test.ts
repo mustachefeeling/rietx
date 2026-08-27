@@ -3609,6 +3609,12 @@ describe("the peaks tab (WP-1027)", () => {
     expect(popover).toContain("Improves the group as a shape");
     expect(popover).toContain("Name");
     expect(popover).toContain("not_separable");
+    // …but a label that *is* the name hid nothing, so no Name row (code review)
+    host.querySelectorAll<HTMLElement>("td.flags .help")[1]!.click();
+    await flush();
+    const origin = host.ownerDocument.querySelector(".popover")!.textContent!;
+    expect(origin).toContain("Placed by a person");
+    expect(origin).not.toContain("Name");
 
     // the seven columns, use on its own; the picker's notes folded to a count
     const heads = [...host.querySelectorAll<HTMLElement>(".panel:not(.hidden) thead th")]

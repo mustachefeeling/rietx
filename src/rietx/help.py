@@ -76,10 +76,13 @@ class HelpEntry:
     could not.
 
     ``label`` is the short form a chip carries where the name itself would not
-    read — ``at bound`` for ``position_at_bound`` (WP-1209).  ``None`` means
-    the name is its own label.  It is the second authored field after
-    ``typical``: no code reads it, and ``tests/test_help.py`` holds the arms
-    that carry one to two words or three, unique within the arm.
+    read — ``at bound`` for ``position_at_bound`` (WP-1209).  The GUI's
+    ``labelFor`` (``gui/src/lib/help.ts``) draws it on the chip and the popover
+    restores the name behind it; the glossary prints it as *Chip*.  It is the
+    second authored field after ``typical``: nothing in the package reads it.
+    ``tests/test_help.py`` names the arms whose members are chips and holds
+    every entry there to a label of one to three words, unique within the arm;
+    an arm that draws no chip carries ``None``.
     """
 
     title: str

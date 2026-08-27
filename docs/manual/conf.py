@@ -187,9 +187,11 @@ _ARMS = [
 ]
 
 
-def _detail(entry: dict) -> str:
-    """The unit / default / typical line, omitting whatever is absent."""
+def _detail(entry: dict, name: str = "") -> str:
+    """The chip / unit / default / typical line, omitting whatever is absent."""
     bits = []
+    if entry.get("label") and entry["label"] != name:
+        bits.append(f"Chip `{entry['label']}`")
     if entry.get("unit"):
         bits.append(f"Unit {entry['unit']}")
     if entry.get("default") is not None:
@@ -201,9 +203,9 @@ def _detail(entry: dict) -> str:
     return " · ".join(bits)
 
 
-def _definition(term: str, entry: dict) -> list[str]:
+def _definition(term: str, entry: dict, name: str = "") -> list[str]:
     lines = [term, f": {entry['title']}. {entry['description']}"]
-    detail = _detail(entry)
+    detail = _detail(entry, name)
     if detail:
         lines.append(f"  <br>{detail}")
     lines.append("")
@@ -237,7 +239,7 @@ def _write_glossary() -> None:
     for key, heading, lead in _ARMS:
         out += [f"## {heading}", "", lead, ""]
         for name, entry in registry[key].items():
-            out += _definition(f"`{name}`", entry)
+            out += _definition(f"`{name}`", entry, name)
 
     GLOSSARY_BODY.parent.mkdir(exist_ok=True)
     GLOSSARY_BODY.write_text("\n".join(out), encoding="utf-8")

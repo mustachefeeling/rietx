@@ -134,7 +134,8 @@ export function formatIntensity(
  * wider than any peak (the widest FWHM on the corundum pattern is 0.35°), so
  * an esd that large is a flat direction rather than a precision — the
  * degenerate ones measured there are 1e17° and 1e49° (WP-1110 item 14) —
- * and it is `esdSwallowsValue`'s own boundary. The triage's 0.1° cut a real
+ * (`esdSwallowsValue` in `table.ts` shares the literal 1 and nothing else:
+ * it also asks whether the esd exceeds the value). The triage's 0.1° cut a real
  * line off: 51 of that pattern's 62 esds are under 0.01°, 8 sit in
  * [0.01, 0.1), and one asymmetric line is at 0.105°, which at 0.1° printed
  * bare beside a neighbour's `(875)`.
@@ -158,7 +159,9 @@ export function formatPosition(
   if (esd == null || !Number.isFinite(esd) || esd < 0 || esd >= POSITION_ESD_MAX_DEG) {
     return { value, esd: "" };
   }
-  return { value, esd: `(${Math.round(esd * 1e4)})` };
+  const digits = Math.round(esd * 1e4);
+  // 0.99996° rounds to 10000 units of the fourth place: over the gate, not under it
+  return { value, esd: digits >= 1e4 ? "" : `(${digits})` };
 }
 
 /**

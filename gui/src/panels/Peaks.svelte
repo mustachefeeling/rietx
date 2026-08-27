@@ -605,7 +605,8 @@ can rise when validation and ambiguity run, never fall">
     <!-- Seven columns (WP-1209): the numbers a peak table is read in, the
          flags, then `use` on its own — the one cell that is a decision — and
          the verbs last. 2θ is four places with the esd in the last place, or
-         none above 0.1° where the flag says why; I is the relative scale. -->
+         none from `POSITION_ESD_MAX_DEG` (1°) up, where the flag says why;
+         I is the relative scale. -->
     <div class="scroll">
       <table class="tabular">
         <thead>

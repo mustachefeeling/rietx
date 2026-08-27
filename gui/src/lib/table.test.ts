@@ -300,6 +300,10 @@ describe("value formatting", () => {
     // the corundum position esds the pseudo-inverse used to truncate to 0.06°
     expect(formatEsd(43.3551, 1e17)).toBe(" ±1.0e+17");
     expect(formatEsd(43.3551, 1e49)).toBe(" ±1.0e+49");
+    // the notation is chosen after rounding to two figures, or 999 999 prints
+    // the seven digits the exponential form exists to avoid (code review)
+    expect(formatEsd(43.3551, 999_999)).toBe(" ±1.0e+6");
+    expect(formatEsd(43.3551, 949_999)).toBe(" ±950000");
     // the boundary: equal is not larger
     expect(formatValue(111, 111)).toBe("111");
     expect(formatEsd(111, 111)).toBe("(111)");

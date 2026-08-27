@@ -334,7 +334,8 @@ export function leafName(path: string, group = ""): string {
 export function formatEsd(value: number, esd: number | null | undefined): string {
   if (esd == null || !Number.isFinite(esd) || esd <= 0) return "";
   if (esdSwallowsValue(value, esd)) {
-    return ` ±${esd >= 1e6 ? esd.toExponential(1) : Number(esd.toPrecision(2))}`;
+    const two = Number(esd.toPrecision(2));  // 999 999 rounds to 1e6: decide after
+    return ` ±${two >= 1e6 ? two.toExponential(1) : two}`;
   }
   const places = Math.max(0, Math.min(12, -Math.floor(Math.log10(esd))));
   const digits = Math.round(esd * 10 ** places);
