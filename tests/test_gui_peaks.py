@@ -24,7 +24,11 @@ import numpy as np
 import pytest
 
 import rietx as rx
+from rietx.crystallography.symmetry import generate_reflections
 from rietx.gui import GuiSession, build_server
+from rietx.gui.session import MAX_CANDIDATE_TICKS
+from rietx.indexing.pairs import shift_template
+from rietx.indexing.workflow import structure_from_candidate
 from rietx.refine import _VERSION
 from rietx.schemas.common import Provenance
 from rietx.schemas.indexing import (
@@ -33,6 +37,7 @@ from rietx.schemas.indexing import (
     CellCandidate,
     IndexingResult,
 )
+from rietx.schemas.instrument import Instrument
 from tests.test_project import _write_xye
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -397,7 +402,14 @@ def test_extinction_screen_rides_the_run_machine_and_ranks_classes(
 def test_extinction_screen_is_cleared_when_the_candidates_renumber(
         served, client):
     """A new indexing run renumbers the candidates; a kept screen would be
-    served against the wrong cell — the same staleness rule as peaks.json."""
+    served against the wrong cell — the same staleness rule as peaks.json.
+
+    Reads two preconditions off the tests above it — the held screen and the
+    picked peak list the search runs on — which is this module's shape: one
+    server, one project, tests in order.  A selection that runs it alone
+    therefore fails, once on the screen and again on the search's wall clock,
+    so a `-k` narrower than the module has to avoid it (WP-1211 met both).
+    """
     status, _ = client.get("/api/index/extinction")
     assert status == 200  # the previous test's screen is still there
 
@@ -408,6 +420,218 @@ def test_extinction_screen_is_cleared_when_the_candidates_renumber(
     status, refused = client.get("/api/index/extinction")
     assert status == 409
     assert refused["error"]["code"] == "NO_EXTINCTION_RESULT"
+
+
+# ----------------------------------------------------------------------
+# one candidate's predicted lines, for the plot overlay (WP-1211)
+# ----------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def ticks_served(tmp_path_factory):
+    """A second server, because the overlay's claims need an instrument and a
+    range the module fixture does not have.
+
+    A **doublet**, so "every emission line" is a countable claim rather than a
+    sentence; a non-zero ``zero_shift``, so "the instrument's shift is not
+    added" is a test that can fail; and a lab-width 5-120° range, because the
+    synthetic pattern's 3-24° at λ = 0.4139 Å leaves a corundum cell four
+    visible lines to be asserted about.  Nothing here is fitted — the route
+    reads the pattern's 2θ extent and the source's wavelengths and no more —
+    so the intensities are flat on purpose.
+    """
+    tt = np.arange(5.0, 120.0, 0.02)
+    data = rx.PatternData(two_theta=tt.tolist(),
+                          intensity=np.full(len(tt), 100.0).tolist())
+    path = _write_xye(tmp_path_factory.mktemp("ticks-data") / "flat.xye", data)
+    structure, _ = perturbed_models()
+    instrument = Instrument.bragg_brentano(radiation="CuKa")
+    instrument.zero_shift.value = 0.05
+    root = tmp_path_factory.mktemp("ticks-proj") / "p.rex"
+    project = rx.Project.create(root, pattern=path, structure=structure,
+                                instrument=instrument)
+    session = GuiSession(project,
+                         state_dir=tmp_path_factory.mktemp("ticks-state"))
+    httpd = build_server(session, port=0)
+    threading.Thread(target=httpd.serve_forever,
+                     kwargs={"poll_interval": 0.02}, daemon=True).start()
+    yield session, project, Client(httpd.server_address[1])
+    session.close()
+    httpd.shutdown()
+    httpd.server_close()
+
+
+def _corundum() -> CellCandidate:
+    """SRM 676a corundum — trigonal R, so the drawn set is a *centred* lattice's
+    and a primitive enumeration would be caught."""
+    return CellCandidate(
+        cell=(4.7587, 4.7587, 12.9929, 90.0, 90.0, 120.0),
+        cell_esd=(1e-4, 1e-4, 3e-4, 0.0, 0.0, 0.0),
+        system="trigonal", centring="R", lattice_group="R -3 m :H",
+        volume=254.8, n_indexed=20, n_lines=20,
+        confidence="medium", confidence_caveats=["shift_allowance_assumed"])
+
+
+def _expected_ticks(project, candidate) -> list[float]:
+    """The same question asked of ``generate_reflections`` directly.
+
+    Deliberately *not* a re-implementation of the verb: the range, the symbol
+    and the wavelengths are read from the same three places, and what is being
+    checked is that the route adds nothing to them.
+    """
+    cell = tuple(candidate.cell)
+    symbol = structure_from_candidate(candidate).phases[0].space_group
+    tt_all = np.asarray(project.data.two_theta, dtype=float)
+    lo, hi = float(tt_all.min()), float(tt_all.max())
+    out: list[float] = []
+    for line in project.refinement.instrument.source.lines:
+        lam = line.wavelength.value
+        refl = generate_reflections(symbol, cell, lam,
+                                    two_theta_max=hi, two_theta_min=lo)
+        tt = refl.two_theta(cell, lam)
+        keep = np.isfinite(tt) & (tt >= lo) & (tt <= hi)
+        out.extend(round(float(v), 4) for v in tt[keep])
+    return sorted(out)
+
+
+def test_candidate_ticks_are_generate_reflections_over_the_pattern(
+        ticks_served):
+    """The route adds nothing to the cell but the emission lines it was given.
+
+    The comparison is against ``generate_reflections`` itself rather than
+    against stored numbers: what could go wrong here is a *frame* (an extra
+    zero shift, the primary line only, a space group with absences), and each
+    of those changes the answer by an amount a stored list would simply have
+    been updated to.
+    """
+    session, project, client = ticks_served
+    with session._cond:
+        session._index_result = None
+
+    # nothing has run: the refusal says what to POST, and it is the *reading*
+    # 409, not the run-in-flight one
+    status, refused = client.get("/api/index/ticks?candidate=0")
+    assert status == 409
+    assert refused["error"]["code"] == "NO_INDEX_RESULT"
+
+    with session._cond:
+        session._index_result = _answer(_corundum())
+
+    status, answer = client.get("/api/index/ticks?candidate=0")
+    assert status == 200, answer
+    # the absence-free lattice group the Le Bail validation was scored against,
+    # never a space group carrying reflection conditions
+    assert answer["space_group"] == "R -3 m :H"
+    expected = _expected_ticks(project, _corundum())
+    assert answer["two_theta"] == expected
+    assert answer["n_total"] == answer["n_returned"] == len(expected)
+    assert len(answer["hkl"]) == len(answer["line"]) == len(expected)
+
+    # both emission lines, in the proportion two lines of one lattice give —
+    # the Kα2 half is what stops the overlay reading as an unindexed line per
+    # doublet (the rule ``RefinementResult.ticks`` states one rank up)
+    assert sorted(set(answer["line"])) == [0, 1]
+    assert answer["line"].count(0) == answer["line"].count(1) == len(expected) // 2
+
+    # every drawn line is inside the measured pattern, since that is the axis
+    # it will be drawn on
+    tt_all = np.asarray(project.data.two_theta, dtype=float)
+    assert min(answer["two_theta"]) >= tt_all.min()
+    assert max(answer["two_theta"]) <= tt_all.max()
+
+    # hkl are the Laue-unique representatives, so no reflection is drawn twice
+    # for one line
+    first = [tuple(h) for h, ln in zip(answer["hkl"], answer["line"]) if ln == 0]
+    assert len(set(first)) == len(first)
+
+
+def test_candidate_ticks_carry_the_cell_s_shift_and_not_the_instrument_s(
+        ticks_served):
+    """Two shifts exist here and exactly one of them belongs on these lines.
+
+    The instrument's ``zero_shift`` does not: indexing fits the metric to the
+    peak list's raw 2θ, so the cell already reproduces observed positions and
+    adding it would count it twice.  The candidate's own fitted template does:
+    ``refine_candidate`` fits to ``2θ_obs − c·T(θ)``, so drawing on the observed
+    axis means adding ``c·T`` back on.
+    """
+    session, project, client = ticks_served
+    assert project.refinement.instrument.zero_shift.value == 0.05
+
+    plain = _corundum()
+    shifted = _corundum()
+    shifted.shift_template = "cos_theta"
+    shifted.shift_coefficient = 0.02
+    with session._cond:
+        session._index_result = _answer(plain, shifted)
+
+    _, a = client.get("/api/index/ticks?candidate=0")
+    _, b = client.get("/api/index/ticks?candidate=1")
+
+    # the instrument's 0.05° is nowhere in the unshifted answer
+    assert a["shift_template"] is None and a["shift_coefficient"] == 0.0
+    assert a["two_theta"] == _expected_ticks(project, plain)
+
+    assert b["shift_template"] == "cos_theta" and b["shift_coefficient"] == 0.02
+    base = np.asarray(a["two_theta"])
+    moved = base + 0.02 * shift_template("cos_theta", base)
+    assert len(b["two_theta"]) == len(base)  # nothing crossed the range edge
+    assert b["two_theta"] == pytest.approx(moved, abs=1e-4)
+    # and it is a real displacement, not a rounding artefact: cos θ runs from
+    # nearly 1 at the low-angle end down towards zero, so the correction shrinks
+    assert moved[0] - base[0] > moved[-1] - base[-1] > 0.0
+
+
+def test_candidate_ticks_are_thinned_by_rank_and_say_so(ticks_served):
+    """A cell predicting more lines than can be drawn is sampled, never cut off.
+
+    ``max_d_axis`` admits a 25 Å triclinic candidate, which predicts 92 103
+    Laue-unique positions over this 5-120° range at the Cu doublet — megabytes
+    of JSON drawn as a solid block of ink.  Thinning by **rank in 2θ** keeps the
+    property the picture is read for (a dense stretch keeps proportionally more
+    lines than a sparse one) and ``n_total`` is what stops the sample reading as
+    coverage.
+    """
+    session, _project, client = ticks_served
+    dense = CellCandidate(
+        cell=(25.0, 25.0, 25.0, 88.0, 92.0, 95.0), cell_esd=(0.0,) * 6,
+        system="triclinic", centring="P", lattice_group="P -1",
+        volume=15551.0, n_indexed=20, n_lines=20)
+    with session._cond:
+        session._index_result = _answer(dense)
+
+    status, answer = client.get("/api/index/ticks?candidate=0")
+    assert status == 200, answer
+    assert answer["n_total"] > MAX_CANDIDATE_TICKS
+    # the whole budget, not half of it: spacing the picks over the ranks rather
+    # than taking every k-th is what keeps 2001 lines from coming back as 1001
+    assert answer["n_returned"] == MAX_CANDIDATE_TICKS
+    assert len(answer["two_theta"]) == answer["n_returned"]
+    assert len(answer["hkl"]) == len(answer["line"]) == answer["n_returned"]
+
+    # the whole range is still covered — a head-of-list truncation would leave
+    # the high-angle half empty, which reads as "this cell predicts nothing
+    # there" and is the one thing the overlay must not say
+    tt = answer["two_theta"]
+    assert tt == sorted(tt)
+    assert tt[0] < 10.0 and tt[-1] > 115.0
+
+
+def test_candidate_ticks_past_the_end_are_named_not_clamped(ticks_served):
+    """The same 404 every candidate-addressing verb gives, in one sentence."""
+    session, _project, client = ticks_served
+    with session._cond:
+        session._index_result = _answer(_corundum())
+
+    status, refused = client.get("/api/index/ticks?candidate=7")
+    assert status == 404
+    assert refused["error"]["code"] == "NOT_FOUND"
+    assert refused["error"]["where"] == ["candidate"]
+    assert "the result has 1" in refused["error"]["message"]
+
+    # and the extinction screen refuses with the same words, because they are
+    # now the same sentence
+    status, screened = client.post("/api/index/extinction", {"candidate": 7})
+    assert status == 404
+    assert screened["error"]["message"] == refused["error"]["message"]
 
 
 # ----------------------------------------------------------------------

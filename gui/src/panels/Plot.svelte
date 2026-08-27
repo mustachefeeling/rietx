@@ -21,8 +21,10 @@
   import { loadPlotly } from "../lib/plotly";
   import { grabToleranceDeg, joinCurves, nearestPeak, type PeaksPayload } from "../lib/peaks";
   import {
+    CANDIDATE_AXIS,
     RESIDUAL_KINDS,
     SCALES,
+    candidateLines,
     curveColors,
     curveToggles,
     dataOnlyHidden,
@@ -40,6 +42,7 @@
     sqrtTicks,
     tickBand,
     toggleCurve,
+    type CandidateOverlay,
     type Protocol,
     type Ranges,
     type ResidualKind,
@@ -57,6 +60,8 @@
     peaks = null,
     peaksActive = false,
     hovered = null,
+    candidate = null,
+    candidatePicked = false,
     protocol = { limits: null, regions: [] },
     extent = null,
     channels = null,
@@ -89,6 +94,17 @@
      *  shell, threaded to both panels, so the table and the plot point at the
      *  same line (WP-1032) */
     hovered?: number | null;
+    /** the indexing candidate whose predicted lines are on the plot (WP-1211)
+     *  — selected or merely hovered in the Peaks panel, which is why it arrives
+     *  resolved rather than as an index: this component fetches nothing */
+    candidate?: CandidateOverlay | null;
+    /** whether a candidate is **selected**, as opposed to passed over by the
+     *  pointer.  A separate question from which one is drawn, and it has to be:
+     *  a selection clears the plot to the data, and if a preview did too then
+     *  running the pointer down the candidate table would strobe the model on
+     *  and off.  It stays true while a preview is showing over a selection,
+     *  which is what makes that case swap the lines and nothing else. */
+    candidatePicked?: boolean;
     /** what is being fitted, from `ProjectDoc` (WP-1033) — *not* a drawing
      *  choice: these persist on the verb and change Rwp, which is why they
      *  wear a different register from the knobs beside them */
@@ -143,6 +159,15 @@
       : [],
   );
   const dataOnly = $derived(isDataOnly(toggles, hidden));
+  /** The candidate overlay is drawn on the tab that can act on it, exactly as
+   *  the peak layer is (WP-1210): the row that selects it is in the Peaks
+   *  panel, so away from that tab there is nothing on screen the lines refer
+   *  to.  Deriving it here rather than gating at each use is what makes the tab
+   *  click *and* the hidden-curve handoff below both follow the tab. */
+  const overlay = $derived(peaksActive ? candidate : null);
+  /** …and the same gate on the selection, so leaving the tab puts the curves
+   *  back as well as taking the lines off. */
+  const picked = $derived(peaksActive && candidatePicked);
   /** What the last paint drew each y axis in.  Plain `let`s, not `$state`: they
    *  are read inside the paint they describe, and a reactive one would make
    *  every paint a reason to paint again. */
@@ -185,6 +210,9 @@
     const band = tickBand(nPhases);
     return {
       ...(band ? { yaxis3: band.axis } : {}),
+      // the candidate overlay's own axis, declared only while it is drawn —
+      // an overlaying axis with no trace on it still costs plotly a pass
+      ...(overlay ? { yaxis4: CANDIDATE_AXIS } : {}),
       // What is not being fitted, shaded where it acts.  Drawn from the
       // project document rather than inferred from a hole in the data: a gap
       // in the arrays is what an exclusion *leaves*, not what it is, and a
@@ -278,7 +306,12 @@
       getComputedStyle(document.body).getPropertyValue(name));
     const phases = w.raw ? [] : Object.keys(w.ticks ?? {});
     const band = tickBand(phases.length);
-    const traces: any[] = [];
+    // First, so everything else draws over it: a candidate's lines are the
+    // hypothesis and the points are the evidence, and at a survey view there
+    // are enough lines to bury the data completely if they go on top (found in
+    // Chrome on the FAP example — 426 predicted lines over 115° is ~3.7 per
+    // pixel, and the pattern was simply gone).
+    const traces: any[] = [...candidateTraces(colors)];
     if (shows(hidden, "obs")) {
       traces.push(
         { x: w.two_theta, y: scaleValues(scale, w.y_obs), name: "observed", mode: "markers",
@@ -488,6 +521,38 @@
     return out;
   }
 
+  /**
+   * An indexing candidate's predicted lines, under the data (WP-1211).
+   *
+   * **First** in the trace list, and that is a browser finding rather than a
+   * preference: 426 predicted lines over the FAP example's 115° is ~3.7 per
+   * pixel at the survey view, and drawn on top they buried the pattern
+   * completely — the overlay hiding the one thing it exists to be compared
+   * with. Under it, the density reads as a wash and every measured point stays
+   * on top of it, which is also the honest order: the lines are a hypothesis
+   * and the points are the evidence.
+   *
+   * Full height on an axis of their own rather than ticks in the band below,
+   * for the same reason: a tick states a fitted model's position, and this is a
+   * cell's claim laid *over* the data to be checked against it.
+   *
+   * No hover. `hovermode` is `x unified`, so plotly snaps *every* trace to its
+   * nearest point in x and this one would put a row in the box at every
+   * pointer position, in the same box the peak hover link reads. The hkl the
+   * route serves beside the positions is what a per-line readout would say, and
+   * that readout is WP-1213's.
+   */
+  function candidateTraces(colors: ReturnType<typeof curveColors>): any[] {
+    const rows = overlay;
+    if (!rows?.two_theta?.length) return [];
+    const { x, y } = candidateLines(rows.two_theta);
+    return [{
+      x, y, yaxis: "y4", name: rows.label, mode: "lines", type: "scattergl",
+      line: { width: 1, color: colors.candidate },
+      showlegend: true, hoverinfo: "skip",
+    }];
+  }
+
   /** Where the highlight ring sits in the trace list of the last draw. */
   let ringAt = $state(-1);
 
@@ -505,7 +570,7 @@
   /** Hide everything but the data — or, pressed again, put back exactly what
    *  was on screen before, which is not the same as showing everything: a user
    *  who had already switched a phase's ticks off did not ask for them back. */
-  function showDataOnly() {
+  function toggleDataOnly() {
     if (dataOnly) {
       hidden = beforeDataOnly ?? [];
       beforeDataOnly = null;
@@ -514,6 +579,48 @@
       hidden = dataOnlyHidden(toggles);
     }
   }
+
+  /** The button. Pressing it by hand takes ownership of the state back from the
+   *  overlay below, so a person who puts the curves up while a candidate is
+   *  selected keeps them up when it is deselected. */
+  function showDataOnly() {
+    clearedForCandidate = false;
+    toggleDataOnly();
+  }
+
+  /** Whether the *overlay's* arrival is what cleared the plot to the data.
+   *
+   *  There is one saved list and one path to it (`toggleDataOnly`), because two
+   *  slots means four interleavings of two presses and no rule a reader could
+   *  state. This flag is the rule: the press the overlay made, the overlay
+   *  undoes; any other press is somebody else's. */
+  let clearedForCandidate = $state(false);
+
+  /**
+   * "Through *just* the data" — selecting a candidate presses `data only`.
+   *
+   *  Through the button's own press rather than a mode of its own: an armed
+   *  mode has to decide what a manual toggle underneath it means, which is the
+   *  design WP-1210 declined for the same button. A plot already showing the
+   *  data alone is left as it is and not taken over, so deselecting cannot
+   *  un-clear a plot the overlay never cleared.
+   *
+   *  On `picked` and not on `overlay`: a hover preview draws lines without
+   *  clearing anything, or running the pointer down the candidate table would
+   *  strobe the model on and off once per row.
+   */
+  $effect(() => {
+    const up = picked;
+    untrack(() => {
+      if (up && !clearedForCandidate && !dataOnly) {
+        toggleDataOnly();
+        clearedForCandidate = true;
+      } else if (!up && clearedForCandidate) {
+        if (dataOnly) toggleDataOnly();
+        clearedForCandidate = false;
+      }
+    });
+  });
 
   /** null-preserving √/log guard — `scaleValues` maps a gap to 0, which would
    *  draw every group profile down to the baseline between windows */
@@ -817,6 +924,11 @@
     // sent — the tab click was a redraw of nothing without this line, and
     // `App.test.ts`'s hover-link test is what said so.
     void peaksActive;
+    // …and the candidate overlay is one too: selecting a row in another panel
+    // has to redraw this one, and it is a repaint rather than a refetch for
+    // the same reason — which lines a cell predicts says nothing about which
+    // channels the server sent
+    void candidate;
     void extent;
     // …and `held` is read **untracked**, which is the difference between a knob
     // and a payload: a new payload has already been painted by whoever fetched
@@ -922,6 +1034,20 @@
         {shown.n} of {shown.total} points drawn, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
         · min/max decimated server-side · zoom refetches the window
       </p>
+      <!-- The overlay has no toggle (its control is the candidate row), so this
+           is where it says it is on screen — and where a thinned set admits it.
+           A sample drawn without saying so would read as "these are the lines
+           this cell predicts", which is the one claim the picture must not
+           make falsely. -->
+      {#if overlay}
+        <p class="hint muted tabular candidate">
+          {overlay.two_theta.length === overlay.n_total
+            ? `${overlay.n_total} predicted lines`
+            : `${overlay.two_theta.length} of ${overlay.n_total} predicted lines,
+               sampled evenly — this cell predicts more than can be drawn`}
+          · {overlay.label}
+        </p>
+      {/if}
     </div>
   {/if}
   <!-- The protocol strip (WP-1033), and its separation from the knobs above is
@@ -1047,6 +1173,15 @@
   .gestures strong {
     font-weight: 600;
     color: var(--fg);
+  }
+
+  /* The overlay's own line, in the overlay's own ink: it is the only thing in
+     the knob row that names a layer nothing there can switch off, so it has to
+     be attributable to the lines on the plot at a glance.  A whole row of its
+     own because the point count above it is about the *data*. */
+  .candidate {
+    flex-basis: 100%;
+    color: var(--plot-candidate);
   }
 
   .arming {

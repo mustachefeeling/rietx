@@ -2,7 +2,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CANDIDATE_AXIS,
   TICK_BAND,
+  candidateLines,
   curveColors,
   curveToggles,
   dataOnlyHidden,
@@ -352,6 +354,54 @@ describe("which curves are drawn (WP-1032)", () => {
       // a lone `obs` cannot be "data only": there is nothing else to be without
       expect(isDataOnly([{ id: "obs", label: "obs", title: "" }], [])).toBe(false);
     });
+  });
+});
+
+describe("an indexing candidate's lines (WP-1211)", () => {
+  it("draws each position as its own full-height segment", () => {
+    // one trace with null gaps, not N traces: sixty windows as sixty traces is
+    // a legend rather than a layer (the peak layer's rule), and at the server's
+    // cap the alternative is two thousand of them
+    const { x, y } = candidateLines([20.49, 25.58]);
+    expect(x).toEqual([20.49, 20.49, null, 25.58, 25.58, null]);
+    expect(y).toEqual([0, 1, null, 0, 1, null]);
+  });
+
+  it("draws nothing from nothing", () => {
+    expect(candidateLines([])).toEqual({ x: [], y: [] });
+  });
+
+  it("hangs them on an overlaying axis pinned to [0, 1]", () => {
+    // overlaying `y` is what makes "full height" the height of the *plot*: the
+    // axis takes yaxis's domain and keeps its own range, so a zoomed intensity
+    // axis or a √ scaling cannot shorten a predicted line.  And fixedrange, for
+    // tickBand's reason — a vertical coordinate that means nothing must not be
+    // zoomable.
+    expect(CANDIDATE_AXIS.overlaying).toBe("y");
+    expect(CANDIDATE_AXIS.range).toEqual([0, 1]);
+    expect(CANDIDATE_AXIS.fixedrange).toBe(true);
+    expect(CANDIDATE_AXIS.showticklabels).toBe(false);
+  });
+
+  it("has a colour of its own, not the peak layer's", () => {
+    // both layers are up on the same tab at the same time, and telling them
+    // apart *is* the question the overlay answers — which of the picked lines
+    // does this cell account for (WP-1210's rule, at its sharpest)
+    const colors = curveColors(() => "");
+    expect(colors.candidate).toBe("#1a8f45");
+    expect(colors.candidate).not.toBe(colors.peak);
+    expect(colors.candidate).not.toBe(colors.peakfit);
+    expect(curveColors((n) => (n === "--plot-candidate" ? "#0f0" : "")).candidate)
+      .toBe("#0f0");
+  });
+
+  it("is not a curve toggle, so `data only` cannot hide it", () => {
+    // its control is the candidate row.  A toggle would be a second one, and
+    // pressing it would leave a row looking selected with nothing on the plot.
+    const toggles = curveToggles(
+      { ...WEIGHTED, ticks: { NAC: [1] } }, "Δ", { n: 1, groups: 0, active: true });
+    expect(toggles.map((t) => t.id)).not.toContain("candidate");
+    expect(dataOnlyHidden(toggles)).not.toContain("candidate");
   });
 });
 

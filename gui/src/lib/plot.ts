@@ -26,7 +26,7 @@ export type Scale = "linear" | "sqrt" | "log";
  */
 export function curveColors(read: (name: string) => string): {
   obs: string; calc: string; bkg: string; diff: string; zero: string;
-  mask: string; edge: string; peak: string; peakfit: string;
+  mask: string; edge: string; peak: string; peakfit: string; candidate: string;
 } {
   const pick = (name: string, fallback: string) => read(name).trim() || fallback;
   return {
@@ -45,6 +45,11 @@ export function curveColors(read: (name: string) => string): {
     // palette uses.
     peak: pick("--plot-peak", "#8c257e"),
     peakfit: pick("--plot-peakfit", "#c158b0"),
+    // The candidate overlay's one (WP-1211).  It could not share the peak
+    // layer's: both are up on the same tab at the same time, and telling them
+    // apart *is* the question — which of the picked lines does this cell
+    // account for.
+    candidate: pick("--plot-candidate", "#1a8f45"),
     // the two protocol colours (WP-1033).  `mask` is a wash rather than a
     // curve colour because what it marks is *absence from the residual*, and
     // `edge` is the boundary, which has to stay readable when the wash is
@@ -303,6 +308,75 @@ export function tickBand(nPhases: number): { axis: any; rows: number[] } | null 
     rows,
   };
 }
+
+/**
+ * An indexing candidate's predicted lines, as the plot needs them (WP-1211).
+ *
+ * `label` is built here rather than served: the panel already renders the cell,
+ * and a server that formatted one would be a second opinion about how a cell
+ * reads. `n_total` is the half of the server's cap that keeps it honest — over
+ * `MAX_CANDIDATE_TICKS` the answer is thinned by rank in 2θ, so
+ * `two_theta.length < n_total` means a sample was drawn and not a set.
+ *
+ * It is *not* a `CurveToggle`, and that is a decision rather than an omission:
+ * a toggle would be a second control for a thing whose control is already the
+ * candidate row, and pressing it would leave a row looking selected with
+ * nothing on the plot. What the toggle row would have said, the status line
+ * under the plot says instead.
+ */
+export interface CandidateOverlay {
+  label: string;
+  two_theta: number[];
+  n_total: number;
+}
+
+/**
+ * Full-height lines through the data, as one null-separated trace.
+ *
+ * One trace and not N: the peak layer's `joinCurves` established the idiom here
+ * (sixty windows as sixty traces is a legend, not a layer), and at this WP's cap
+ * the alternative is two thousand of them. Shapes were the other candidate and
+ * are worse for the same reason plus one: a `xref: "x"` shape takes part in the
+ * autorange (WP-1033), and two thousand SVG paths are re-laid-out on every
+ * zoom.
+ */
+export function candidateLines(twoTheta: readonly number[]): {
+  x: (number | null)[]; y: (number | null)[];
+} {
+  const x: (number | null)[] = [];
+  const y: (number | null)[] = [];
+  for (const t of twoTheta) {
+    x.push(t, t, null);
+    y.push(0, 1, null);
+  }
+  return { x, y };
+}
+
+/**
+ * The axis those lines are drawn against: the data panel's, pinned to [0, 1].
+ *
+ * An **overlaying** axis, which is what makes "full height" mean the height of
+ * the plot rather than the height of the data — it takes `yaxis`'s domain and
+ * keeps its own range, so the lines span the upper subplot whatever the
+ * intensity scale is doing and whatever the user has zoomed the y axis to.
+ * That is also why they are not on `y3`, the tick band: a tick belongs to a
+ * fitted model and sits in its own strip, while these are a hypothesis laid
+ * *over* the data to be compared with it.
+ *
+ * `fixedrange` because a vertical coordinate that means nothing must not be
+ * zoomable — `tickBand`'s reasoning, one axis over. The x axis is shared, and
+ * the lines cannot widen it: the server clips them to the measured range.
+ */
+export const CANDIDATE_AXIS = {
+  overlaying: "y",
+  anchor: "x",
+  range: [0, 1],
+  fixedrange: true,
+  showticklabels: false,
+  showgrid: false,
+  zeroline: false,
+  showline: false,
+};
 
 /** A curve the plot can be asked to stop drawing. */
 export interface CurveToggle {

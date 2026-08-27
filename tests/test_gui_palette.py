@@ -34,11 +34,18 @@ APP_CSS = ROOT / "gui" / "src" / "app.css"
 #: carries a quantity.  The greys are here and are deliberately *close* — see
 #: the recessive pair below.
 CURVES = ("--plot-obs", "--plot-calc", "--plot-bkg", "--plot-diff",
-          "--plot-peak", "--plot-peakfit")
+          "--plot-peak", "--plot-peakfit", "--plot-candidate")
 
-#: What the peak layer's two must clear: every other curve, plus the two inks a
+#: What a *layer's* colour must clear: every other curve, plus the two inks a
 #: mark can otherwise be mistaken for.
 NEIGHBOURS = (*CURVES, "--muted", "--fg")
+
+#: The colours a layer drawn over the data owns — the peak layer's pair
+#: (WP-1210) and the candidate overlay's one (WP-1211).  They are held to more
+#: than the curve floor because a layer is drawn *on top of* the curves rather
+#: than beside them: separation from the page as well, and from `--accent` and
+#: `--bad`, which is the specific mistake WP-1210 was written to undo.
+LAYERS = ("--plot-peak", "--plot-peakfit", "--plot-candidate")
 
 #: The recessive set, exempt from the floor **against each other only**.
 #:
@@ -103,26 +110,28 @@ def themes() -> dict[str, dict[str, str]]:
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
-def test_the_peak_layer_has_its_own_colours_in_both_themes(themes, theme):
+def test_every_layer_has_its_own_colours_in_both_themes(themes, theme):
     """Not `--accent`/`--bad`, which are chrome and collide with two curves."""
     palette = themes[theme]
-    for token in ("--plot-peak", "--plot-peakfit"):
+    for token in LAYERS:
         assert token in palette, f"{token} is missing from the {theme} theme"
-    for chrome in ("--accent", "--bad"):
-        assert palette["--plot-peak"] != palette[chrome]
-        assert palette["--plot-peakfit"] != palette[chrome]
+        for chrome in ("--accent", "--bad"):
+            assert palette[token] != palette[chrome]
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
-def test_each_peak_colour_clears_the_floor_against_every_neighbour(themes, theme):
+def test_each_layer_colour_clears_the_floor_against_every_neighbour(themes, theme):
     """The phase palette's floor, applied to the plot's own set.
 
     Both directions matter and one of them is the reason this test exists: the
     fitted curve has to be separable from `--plot-calc` (the report), and the
-    markers from everything a marker sits on.
+    markers from everything a marker sits on.  The candidate overlay joins it
+    for a sharper version of the same reason — it is drawn over the peak
+    markers, on the tab that owns both, to answer which picked lines a cell
+    accounts for.
     """
     palette = themes[theme]
-    for token in ("--plot-peak", "--plot-peakfit"):
+    for token in LAYERS:
         mine = _oklab(palette[token])
         for other in NEIGHBOURS:
             if other == token:
@@ -167,10 +176,10 @@ def test_the_grandfathered_pairs_are_still_the_only_ones(themes, theme):
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
-def test_both_peak_colours_read_against_their_own_page(themes, theme):
+def test_every_layer_colour_reads_against_its_own_page(themes, theme):
     """A colour that clears every curve can still be invisible on the surface."""
     palette = themes[theme]
     page = _oklab(palette["--bg"])
-    for token in ("--plot-peak", "--plot-peakfit"):
+    for token in LAYERS:
         gap = _oklab_distance(_oklab(palette[token]), page)
         assert gap >= 0.30, f"{theme}: {token} is {gap:.3f} from the page"

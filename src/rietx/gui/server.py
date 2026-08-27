@@ -266,6 +266,13 @@ ROUTES: dict[tuple[str, str], Any] = {
     # /api/index rides the one run state machine: same worker, same 409
     ("POST", "/api/index"): lambda s, q, b: s.run({**b, "kind": "index"}),
     ("GET", "/api/index/result"): lambda s, q, b: s.index_result(),
+    # one candidate's predicted positions, for the plot overlay (WP-1211).  Its
+    # own route rather than an arm of the answer above, because it is a cost the
+    # answer should not carry: hundreds of floats per candidate, wanted for one
+    # at a time.  ``?candidate=`` and not a path segment — see this table's own
+    # rule above.
+    ("GET", "/api/index/ticks"):
+        lambda s, q, b: s.index_ticks(_query_int(q, "candidate", 0)),
     ("POST", "/api/index/adopt"): lambda s, q, b: s.index_adopt(b),
     # the extinction screen rides the same machine (WP-1025 served)
     ("POST", "/api/index/extinction"):

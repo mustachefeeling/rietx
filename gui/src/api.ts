@@ -265,6 +265,12 @@ export const api = {
   /** The last answer with the adopt gate answered per candidate — the button's
    *  enabled-ness and the route's willingness are one answer, never two. */
   indexResult: () => call("GET", "/api/index/result"),
+  /** One candidate's predicted positions, for the plot overlay (WP-1211).  Its
+   *  own route rather than an arm of the answer above, because it is a cost the
+   *  answer should not carry: hundreds of floats per candidate, wanted for one
+   *  at a time.  Over the server's cap it is a sample — read `n_total`. */
+  candidateTicks: (candidate: number) =>
+    call("GET", `/api/index/ticks?candidate=${candidate}`),
   adoptCandidate: (candidate: number, spaceGroup?: string) =>
     call("POST", "/api/index/adopt",
          spaceGroup ? { candidate, space_group: spaceGroup } : { candidate }),

@@ -270,7 +270,18 @@ describe("`title=` is no longer how this app explains a name", () => {
     "panels/History.svelte": 4,      // node vocabulary — WP-1217
     "panels/Model.svelte": 3,        // the space-group box, two splitters
     "panels/Params.svelte": 4,       // the table's own affordances
-    "panels/Peaks.svelte": 10,       // the add-at-2θ box; indexing result columns — WP-1211
+    // The add-at-2θ box, plus nine on the candidate and extinction tables.
+    // **Unowned**, and deliberately not WP-1211's, which this line used to name:
+    // 1211 drew a candidate's lines on the plot and added no `title=`, while
+    // describing these means a new corpus arm and the arms are crossed against
+    // a *live* vocabulary both ways, so the arm has to quote something. The
+    // thing to quote exists and is the finding to carry: `ΔBIC`, `testable`,
+    // `refuting` and `absent` are `ExtinctionCandidate` and `CellCandidate`
+    // field names, so an arm over those two `model_fields` is a real live
+    // vocabulary — a `peak_origins`-sized commit (help.py, test_help.py
+    // `_arms`, test_gui_help.py `ARMS`, lib/help.ts `ARMS` + `HelpCorpus`,
+    // conf.py `_ARMS`, the regenerated help_keys.json), and a WP of its own.
+    "panels/Peaks.svelte": 10,
     "panels/Plan.svelte": 2,         // the reorder grip, correlation_guard
     "panels/Plot.svelte": 3,         // fit-range fields — WP-1212
     "panels/Report.svelte": 4,       // report statistics
