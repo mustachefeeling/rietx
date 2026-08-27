@@ -421,7 +421,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # `Run all` and `Run this stage` start from different tables — and the
     # per-stage Rwp already exists on the history node, which is why the run
     # verb did not have to grow a trajectory to show it.
-    "gui/CLAUDE.md": 733,
+    # 733 -> 753 for WP-1209 (2026-08-27): the peak table's numbers and chips.
+    # Two of its four rules reach past the panel — an esd that has swallowed
+    # its value is not a precision (every caller of formatValue), and a chip's
+    # words are the corpus's label — and the fourth is a browser-only trap: a
+    # `td` that is not `display: table-cell` merges with its flex neighbour
+    # into one anonymous cell, which jsdom cannot see and a shared class name
+    # triggered.
+    "gui/CLAUDE.md": 753,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

@@ -731,3 +731,23 @@ has no resolved facts and cannot be run**, because the ladder describes the plan
 the server holds. Beside them, the advanced boxes loop over `lib/rxt.ts`'s stage
 words — pinned to `StageSpec` from python with the two properties a box needs —
 so a new schema field reaches this form as well as the `.rxt` document.
+
+**The peak table's numbers and chips** (WP-1209, `lib/peaks.ts`, `lib/table.ts`,
+`panels/Peaks.svelte`). Four rules. **A column is scanned, so its places are
+fixed**: 2θ at four with the esd in the last place (`formatPosition`), I as
+`I/Imax × 100` over the strongest *measured* line (`formatIntensity`, `—` under
+`no_intensity`/`fit_failed`), and an esd from 1° up is not printed — wider than
+any peak, it is a flat direction, and the row's flag says why. **An esd that has
+swallowed its value is not a precision** (`esdSwallowsValue`: ≥ 1 and larger
+than the value): `formatValue` then shows the value at its own precision and
+`formatEsd` writes `±110` beside it, where `35(111)` was printed for a 2θ with a
+degenerate σ; `12346(56)` keeps the convention, and this holds for every caller.
+**A chip's words are the corpus's**: `HelpEntry.label` is the short form, the
+chip is a `<Help>` term saying `labelFor(corpus, key)`, and the popover restores
+the name a label hid (`Name · position_at_bound`) — so `peak_flags` and
+`peak_origins` carry a label on every entry, held by `test_help.py` to three
+words and unique. And **a `td` that is not `display: table-cell` is not a cell**:
+two adjacent flex/inline-flex `td`s are wrapped into *one* anonymous cell, so a
+class shared with a flex label put the chips under the intensity in a column
+headed by nothing — found in Chrome, invisible to jsdom, and why the intensity
+column is `.rel` rather than the form's `.num`.

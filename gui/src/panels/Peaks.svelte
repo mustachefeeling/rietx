@@ -610,7 +610,7 @@ can rise when validation and ambiguity run, never fall">
       <table class="tabular">
         <thead>
           <tr>
-            <th>#</th><th>2θ (°)</th><th>d (Å)</th><th class="num">I (rel)</th>
+            <th>#</th><th>2θ (°)</th><th>d (Å)</th><th class="rel">I (rel)</th>
             <th>flags</th><th>use</th><th></th>
           </tr>
         </thead>
@@ -629,7 +629,7 @@ can rise when validation and ambiguity run, never fall">
                 </button>
               </td>
               <td>{p.d.toFixed(4)}</td>
-              <td class="num">{formatIntensity(p.intensity, imax, p.flags)}</td>
+              <td class="rel">{formatIntensity(p.intensity, imax, p.flags)}</td>
               <td class="flags">
                 {#if p.origin !== "fitted"}
                   <span class="chip accent">
@@ -1067,8 +1067,12 @@ convention, not a measurement"
   }
 
   /* numbers read down a column: the relative intensity right-aligns so its
-     decimals line up, as 2θ's fixed four places already do */
-  .num {
+     decimals line up, as 2θ's fixed four places already do.  Not `.num`: that
+     is the search form's label (`display: inline-flex`), and a `td` wearing it
+     stops being a table cell — the browser wraps it and the flex `td.flags`
+     beside it into *one* anonymous cell, so the chips sat under the number in
+     a column headed by nothing (measured in Chrome, invisible to jsdom). */
+  .rel {
     text-align: right;
   }
 

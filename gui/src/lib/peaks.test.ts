@@ -83,9 +83,11 @@ describe("the table's numbers (WP-1209)", () => {
     expect(formatPosition(43.3551, 1e17)).toEqual({ value: "43.3551", esd: "" });
     // an esd under half a unit of the fourth place: (0), not nothing
     expect(formatPosition(37.7761, 1e-13)).toEqual({ value: "37.7761", esd: "(0)" });
+    // the one real corundum line over 0.1°: an esd, not a flat direction
+    expect(formatPosition(116.5035, 0.1048)).toEqual({ value: "116.5035", esd: "(1048)" });
     // the threshold is the constant, inclusive on the way out
     expect(formatPosition(57.5, POSITION_ESD_MAX_DEG).esd).toBe("");
-    expect(formatPosition(57.5, 0.0999).esd).toBe("(999)");
+    expect(formatPosition(57.5, 0.9999).esd).toBe("(9999)");
     expect(formatPosition(57.5, null).esd).toBe("");
     expect(formatPosition(57.5, 0).esd).toBe("(0)");
   });

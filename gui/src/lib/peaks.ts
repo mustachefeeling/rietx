@@ -129,13 +129,17 @@ export function formatIntensity(
 }
 
 /**
- * Above this σ(2θ) a position's esd is not printed: the value is the
- * measurement and the row's flag says why it has no precision. 0.1° is
- * several times any real fitted σ on a lab pattern and far below the
- * degenerate ones (111° measured on corundum, WP-1110 item 14), so nothing
- * real is hidden and nothing degenerate is quoted.
+ * From this σ(2θ) up a position's esd is not printed: the value is the
+ * measurement and the row's flag says why it has no precision. A degree is
+ * wider than any peak (the widest FWHM on the corundum pattern is 0.35°), so
+ * an esd that large is a flat direction rather than a precision — the
+ * degenerate ones measured there are 1e17° and 1e49° (WP-1110 item 14) —
+ * and it is `esdSwallowsValue`'s own boundary. The triage's 0.1° cut a real
+ * line off: 51 of that pattern's 62 esds are under 0.01°, 8 sit in
+ * [0.01, 0.1), and one asymmetric line is at 0.105°, which at 0.1° printed
+ * bare beside a neighbour's `(875)`.
  */
-export const POSITION_ESD_MAX_DEG = 0.1;
+export const POSITION_ESD_MAX_DEG = 1.0;
 
 /**
  * A 2θ at four places, with its esd in units of the last place — `35.0912`

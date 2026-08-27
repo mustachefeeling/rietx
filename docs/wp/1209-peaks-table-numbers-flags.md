@@ -66,9 +66,14 @@ Rules: flagging, never dropping (`schemas/indexing.py:424-427`,
 
 Number policy (in `lib/peaks.ts`, pure, tested): intensity shown as
 `I/Imax × 100` at one decimal (a `no_intensity` or `fit_failed` line shows
-`—`); 2θ at 4 places with the esd in parentheses only when esd < 0.1°, else
+`—`); 2θ at 4 places with the esd in parentheses only when esd < 1°, else
 the value alone and the flag says why; `d` at 4 places. `formatValue` gains
-the esd ≥ 1 guard for every caller (History and Params included).
+the esd ≥ 1 guard for every caller (History and Params included). The
+threshold was triaged at 0.1° and measured to 1° in the browser pass: on
+corundum 51 of 62 esds are under 0.01°, 8 in [0.01, 0.1), one real
+asymmetric line at 0.105° (printed bare beside a neighbour's `(875)`), and the
+two degenerate ones at 1e17° and 1e49°; the widest FWHM is 0.35°, so a
+degree is wider than any peak.
 
 ## Non-goals
 
@@ -91,7 +96,7 @@ the esd ≥ 1 guard for every caller (History and Params included).
       `not separable`, `shoulder`, `σ assumed`, `no intensity`, …) with the
       code and sentence in the popover; the diagnostics strip folded into a
       count chip that expands.
-- [ ] Browser pass on the corundum example after Pick peaks; dist.
+- [x] Browser pass on the corundum example after Pick peaks; dist.
 
 ## Acceptance
 
