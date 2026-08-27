@@ -29,6 +29,10 @@ export interface HelpEntry {
   default: string | null;
   typical: string | null;
   anchor: string | null;
+  /** the short words a chip carries where the name itself would not read —
+   *  `at bound` for `position_at_bound` (WP-1209); null where the name is
+   *  the label */
+  label?: string | null;
   /** plans only: the intensity modes the preset is meaningful in */
   modes?: string[];
 }
@@ -42,6 +46,7 @@ export interface HelpCorpus {
   parameters: ParameterEntry[];
   peak_flags: Record<string, HelpEntry>;
   peak_diagnostics: Record<string, HelpEntry>;
+  peak_origins: Record<string, HelpEntry>;
   stage_fields: Record<string, HelpEntry>;
   reader_options: Record<string, HelpEntry>;
   instrument_fields: Record<string, HelpEntry>;
@@ -58,6 +63,7 @@ export const ARMS = [
   "plans",
   "peak_flags",
   "peak_diagnostics",
+  "peak_origins",
   "reader_options",
   "instrument_fields",
   "search_fields",

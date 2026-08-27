@@ -36,6 +36,7 @@ ARMS = (
     "plans",
     "peak_flags",
     "peak_diagnostics",
+    "peak_origins",
     "reader_options",
     "instrument_fields",
     "search_fields",

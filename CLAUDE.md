@@ -558,7 +558,8 @@ a file added to the wheel adds an example.
   against its live vocabulary **both ways**, so a new member fails
   `tests/test_help.py` and a rename cannot leave an entry behind describing a
   name that is gone; `unit` and `default` are the schema's own through
-  `UNIT_DISPLAY`, and `typical` is the only authored field. A `ParameterRow`
+  `UNIT_DISPLAY`, and `typical` and `label` (the short words a chip carries,
+  WP-1209) are the only authored fields. A `ParameterRow`
   carries `help_key`, the family glob, and never the entry: an entry describes
   a *family*, so inlining one repeats a paragraph once per atom (3.4× the
   `/api/params` payload, measured). `docs/manual/using/glossary.md` is

@@ -38,7 +38,7 @@
     type HelpOpener,
     type HelpRequest,
   } from "./lib/helpContext";
-  import { manualUrl, place, resolve, type HelpCorpus } from "./lib/help";
+  import { manualUrl, place, resolve, splitKey, type HelpCorpus } from "./lib/help";
   import { isShortcutTarget, type Command } from "./lib/palette";
   import type { PeaksPayload } from "./lib/peaks";
   import { consoleLine, follow, type EngineEvent, type RunState } from "./lib/stream";
@@ -667,6 +667,11 @@
   const helpTitle = $derived(
     helpEntry?.title ?? helpRequest?.title ?? helpRequest?.key ?? "");
   const helpBody = $derived(helpEntry?.description ?? helpRequest?.text ?? "");
+  /** the name behind a labelled term: a chip says `at bound`, and the flag it
+   *  stands for is `position_at_bound`, which nothing else on screen shows
+   *  (WP-1209) — so the popover carries it, and only where a label hid it */
+  const helpCode = $derived(
+    helpEntry?.label && helpRequest?.key ? splitKey(helpRequest.key)?.name ?? null : null);
   const placement = $derived(helpAnchor
     ? place(helpAnchor, viewport, popoverSize)
     : { left: 0, top: 0, flipped: false });
@@ -1072,8 +1077,9 @@
       <p class="muted">Not described yet.</p>
     {/if}
     {#if helpEntry && (helpEntry.unit || helpEntry.default || helpEntry.typical
-                       || helpEntry.modes?.length)}
+                       || helpEntry.modes?.length || helpCode)}
       <dl>
+        {#if helpCode}<dt>Name</dt><dd class="mono">{helpCode}</dd>{/if}
         {#if helpEntry.unit}<dt>Unit</dt><dd>{helpEntry.unit}</dd>{/if}
         {#if helpEntry.default}<dt>Default</dt><dd class="mono">{helpEntry.default}</dd>{/if}
         {#if helpEntry.modes?.length}

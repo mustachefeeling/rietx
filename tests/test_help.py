@@ -36,6 +36,7 @@ from rietx.help import (
     PARAMETER_HELP,
     PEAK_DIAGNOSTIC_HELP,
     PEAK_FLAG_HELP,
+    PEAK_ORIGIN_HELP,
     READER_OPTION_HELP,
     SEARCH_FIELD_HELP,
     STAGE_FIELD_HELP,
@@ -48,7 +49,7 @@ from rietx.help import (
 from rietx.io.formats.base import READER_OPTIONS
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
-from rietx.schemas.indexing import IndexingControls, PeakFlag
+from rietx.schemas.indexing import IndexingControls, ObservedPeak, PeakFlag
 from rietx.schemas.instrument import (
     BackgroundPSpline,
     EmissionLine,
@@ -205,6 +206,7 @@ def _arms() -> dict[str, dict[str, HelpEntry]]:
     return {
         "peak_flags": PEAK_FLAG_HELP,
         "peak_diagnostics": PEAK_DIAGNOSTIC_HELP,
+        "peak_origins": PEAK_ORIGIN_HELP,
         "stage_fields": STAGE_FIELD_HELP,
         "reader_options": READER_OPTION_HELP,
         "instrument_fields": INSTRUMENT_FIELD_HELP,
@@ -271,6 +273,40 @@ def test_every_peak_flag_has_an_entry():
     assert set(PEAK_FLAG_HELP) == flags, (
         f"missing: {sorted(flags - set(PEAK_FLAG_HELP))}; "
         f"describing nothing: {sorted(set(PEAK_FLAG_HELP) - flags)}")
+
+
+def test_every_peak_origin_has_an_entry():
+    origins = set(get_args(ObservedPeak.model_fields["origin"].annotation))
+    assert len(origins) == 3, "ObservedPeak.origin's Literal moved?"
+    assert set(PEAK_ORIGIN_HELP) == origins, (
+        f"missing: {sorted(origins - set(PEAK_ORIGIN_HELP))}; "
+        f"describing nothing: {sorted(set(PEAK_ORIGIN_HELP) - origins)}")
+
+
+#: The arms whose members are drawn as chips (WP-1209): every entry carries a
+#: ``label``, which is what the chip says.  A chip reads at a glance or not at
+#: all, so a label is one to three words and no two in an arm are the same.
+LABELLED_ARMS = ("peak_flags", "peak_origins")
+
+
+def test_every_chip_arm_entry_carries_a_short_unique_label():
+    arms = _arms()
+    for arm in LABELLED_ARMS:
+        entries = arms[arm]
+        missing = [k for k, e in entries.items() if not e.label]
+        assert not missing, f"{arm}: no label on {missing}"
+        long = [k for k, e in entries.items() if len(e.label.split()) > 3]
+        assert not long, f"{arm}: labels over three words on {long}"
+        labels = [e.label for e in entries.values()]
+        assert len(set(labels)) == len(labels), (
+            f"{arm}: two chips would read the same: {labels}")
+    # …and nothing else has one: a label is a chip's, and an arm that grows
+    # one has to be named here so its shortness is held too
+    stray = [f"{arm}:{k}" for arm, entries in arms.items()
+             if arm not in LABELLED_ARMS
+             for k, e in entries.items() if e.label]
+    assert not stray, f"labels outside the chip arms: {stray}"
+    assert not [g for g, e in PARAMETER_HELP.items() if e.label]
 
 
 def test_every_peak_diagnostic_code_has_an_entry():
@@ -513,7 +549,7 @@ def test_every_row_of_a_real_model_carries_its_family_key():
 def test_the_registry_is_json_and_carries_every_arm():
     registry = help_registry()
     assert set(registry) == {"parameters", "peak_flags", "peak_diagnostics",
-                             "stage_fields", "reader_options",
+                             "peak_origins", "stage_fields", "reader_options",
                              "instrument_fields", "search_fields", "plans"}
     payload = json.dumps(registry)  # raises on anything unserialisable
     assert len(payload) > 10_000

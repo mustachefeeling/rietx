@@ -171,6 +171,9 @@ _ARMS = [
     ("peak_diagnostics", "Peak-list diagnostics",
      "Messages about the list rather than about one line. Several are the "
      "list-level summary of a flag and say how many lines carry it."),
+    ("peak_origins", "Peak origins",
+     "Where one line came from: detection, or a person. Provenance and not a "
+     "judgement; no gate in the package branches on it."),
     ("reader_options", "Reader options",
      "Keyword arguments `read_pattern` accepts. A project records which ones "
      "claimed its file, because the same file can hold more than one pattern."),

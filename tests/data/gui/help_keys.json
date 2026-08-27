@@ -7,6 +7,7 @@
   "plans",
   "peak_flags",
   "peak_diagnostics",
+  "peak_origins",
   "reader_options",
   "instrument_fields",
   "search_fields"
@@ -97,6 +98,9 @@
   "peak_flags:position_at_bound",
   "peak_flags:sigma_assumed",
   "peak_flags:unresolved_shoulder",
+  "peak_origins:edited",
+  "peak_origins:fitted",
+  "peak_origins:manual",
   "plans:lab_bragg_brentano",
   "plans:lab_calibrate",
   "plans:lab_sample_refine",

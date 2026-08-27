@@ -43,6 +43,7 @@ __all__ = [
     "PARAMETER_HELP",
     "PEAK_DIAGNOSTIC_HELP",
     "PEAK_FLAG_HELP",
+    "PEAK_ORIGIN_HELP",
     "READER_OPTION_HELP",
     "SEARCH_FIELD_HELP",
     "INSTRUMENT_FIELD_HELP",
@@ -73,6 +74,12 @@ class HelpEntry:
     than the sources — a heading that fails to render still has an id in the
     Markdown — and now checks the page as well as the id, which the bare form
     could not.
+
+    ``label`` is the short form a chip carries where the name itself would not
+    read — ``at bound`` for ``position_at_bound`` (WP-1209).  ``None`` means
+    the name is its own label.  It is the second authored field after
+    ``typical``: no code reads it, and ``tests/test_help.py`` holds the arms
+    that carry one to two words or three, unique within the arm.
     """
 
     title: str
@@ -81,6 +88,7 @@ class HelpEntry:
     default: str | None = None
     typical: str | None = None
     anchor: str | None = None
+    label: str | None = None
 
 
 #: How a :class:`~rietx.schemas.common.Parameter`'s ``unit`` is spelled for a
@@ -687,6 +695,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
 PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     "ghost_kbeta": HelpEntry(
         title="Kβ contamination line",
+        label="Kβ ghost",
         description=(
             "The line sits where the Kβ partner of a stronger reflection "
             "would be. It is excluded rather than stripped: Rachinger "
@@ -697,6 +706,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "ghost_tungsten": HelpEntry(
         title="Tungsten contamination line",
+        label="W ghost",
         description=(
             "The line sits at a tungsten L emission position, which an aged "
             "tube with a contaminated anode produces. Excluded for the same "
@@ -706,6 +716,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "excluded": HelpEntry(
         title="Excluded by the caller",
+        label="excluded",
         description=(
             "Someone removed this line by hand. It stays in the list so a "
             "report can say the line was seen and dropped, and it is not "
@@ -714,6 +725,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "fit_failed": HelpEntry(
         title="Group fit did not converge",
+        label="fit failed",
         description=(
             "The solve over this line's group did not converge, so the "
             "position and σ on the row are the detection seed rather than a "
@@ -722,6 +734,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "sigma_assumed": HelpEntry(
         title="σ assumed, not fitted",
+        label="σ assumed",
         description=(
             "The position uncertainty was supplied rather than measured, "
             "which is what happens to a list read from a publication or "
@@ -732,6 +745,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "unresolved_shoulder": HelpEntry(
         title="Never separated from its neighbour",
+        label="shoulder",
         description=(
             "The component was kept in a group where it never moved half a "
             "FWHM away from its neighbour. It is less precise evidence rather "
@@ -740,6 +754,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "position_at_bound": HelpEntry(
         title="Position refined to its bound",
+        label="at bound",
         description=(
             "The fitted position reached the limit it was allowed to move "
             "from its seed, which means detection put the seed in the wrong "
@@ -748,6 +763,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "asymmetry_unmodelled": HelpEntry(
         title="Asymmetry the shape does not carry",
+        label="asymmetric",
         description=(
             "The residual over this line is asymmetric beyond what the fitted "
             "shape allows, so the position is biased towards the tail. Axial "
@@ -757,6 +773,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "not_separable": HelpEntry(
         title="Improves the group as a shape, not as a line",
+        label="not separable",
         description=(
             "The component makes the group fit measurably better, but a "
             "nested fit without it is not refuted, so it is not evidence of a "
@@ -767,6 +784,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "background_extrapolated": HelpEntry(
         title="Standing on extrapolated background",
+        label="bkg extrapolated",
         description=(
             "The line's prominence is measured against a background level "
             "that was extrapolated rather than observed. That is real "
@@ -778,6 +796,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "axial_tail": HelpEntry(
         title="Possibly a stronger line's axial tail",
+        label="axial tail",
         description=(
             "A weak component within 3.5 fitted FWHM of a stronger group-mate, "
             "on the side axial divergence points: towards low 2θ below 90° and "
@@ -789,6 +808,7 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "kalpha2_residual": HelpEntry(
         title="Sitting on a modelled Kα2 maximum",
+        label="Kα2 residual",
         description=(
             "The component sits at the Kα2 position of a stronger group-mate, "
             "predicted from the declared doublet splitting as "
@@ -801,12 +821,48 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
     ),
     "no_intensity": HelpEntry(
         title="Refined to zero intensity",
+        label="no intensity",
         description=(
             "The component reached its zero-intensity bound, so it "
             "contributes nothing to the window and its own position is no "
             "longer identifiable: a peak reaches the data only through "
             "intensity times profile. Unusable, and unlike the reported flags "
             "there is no judgement left to make."
+        ),
+    ),
+}
+
+#: One entry per value of :attr:`~rietx.schemas.indexing.ObservedPeak.origin`
+#: (WP-1209).  Provenance, not a judgement — the schema's own words — and the
+#: GUI draws a chip for the two that mean a person acted, so each carries a
+#: ``label``.
+PEAK_ORIGIN_HELP: dict[str, HelpEntry] = {
+    "fitted": HelpEntry(
+        title="Proposed by detection",
+        label="fitted",
+        description=(
+            "Detection found a maximum or a shoulder here and the group fit "
+            "kept it. Nobody has touched the line: its position, width and "
+            "area are the fitter's, and so are its flags."
+        ),
+    ),
+    "manual": HelpEntry(
+        title="Placed by a person",
+        label="manual",
+        description=(
+            "Someone added this line by clicking the plot or typing a 2θ. Its "
+            "position was still fitted, within the group it landed in, but "
+            "the decision that a line exists here is a person's, so the "
+            "picker's own screens never remove it."
+        ),
+    ),
+    "edited": HelpEntry(
+        title="Moved by a person",
+        label="moved",
+        description=(
+            "Detection proposed this line and a person dragged it or typed a "
+            "new 2θ; the group was refitted from the new seed. The position "
+            "shown is the refit's, not the pointer's."
         ),
     ),
 }
@@ -1554,6 +1610,7 @@ def help_registry() -> dict[str, object]:
         "parameters": grouped,
         "peak_flags": {k: asdict(v) for k, v in PEAK_FLAG_HELP.items()},
         "peak_diagnostics": {k: asdict(v) for k, v in PEAK_DIAGNOSTIC_HELP.items()},
+        "peak_origins": {k: asdict(v) for k, v in PEAK_ORIGIN_HELP.items()},
         "stage_fields": {k: asdict(v) for k, v in STAGE_FIELD_HELP.items()},
         "reader_options": {k: asdict(v) for k, v in READER_OPTION_HELP.items()},
         "instrument_fields": {k: asdict(v) for k, v in INSTRUMENT_FIELD_HELP.items()},
