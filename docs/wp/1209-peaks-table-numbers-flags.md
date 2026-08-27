@@ -82,7 +82,7 @@ the esd ≥ 1 guard for every caller (History and Params included).
 
 ## Tasks
 
-- [ ] `lib/peaks.ts`: `formatIntensity`, `formatPosition`; `formatValue`
+- [x] `lib/peaks.ts`: `formatIntensity`, `formatPosition`; `formatValue`
       guard; `peaks.test.ts` pins the corundum cases (2.1e-49, 5.5e-19,
       σ = 111°, a 1e-13 esd).
 - [ ] Table: columns `# · 2θ · d · I (rel) · flags · use · actions`; the
