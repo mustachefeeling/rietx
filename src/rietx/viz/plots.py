@@ -723,8 +723,14 @@ def plot_trajectory(series, paths, *, path: str | None = None,
                     dpi: int = 150, mark_diagnostics: bool = True):
     """Parameter trajectories across a sequential series (WP-0505).
 
-    One stacked panel per requested dot-path (or ``"qpa.<phase>"`` for a weight
-    fraction), value with esd error bars against the series coordinate.
+    One stacked panel per requested display path, resolved through
+    :meth:`SeriesResult.resolve_trajectory` — a refined parameter's dot-path, or
+    a derived ``"qpa.<phase>"`` weight fraction, ``"r_bragg.<phase>"`` or
+    ``"r_f.<phase>"`` agreement index — plotted against the series coordinate.
+    **Error bars appear only where the kind has an esd to carry**: a refined
+    parameter and a weight fraction do, an agreement index does not (its
+    ``stderr`` column is ``None`` throughout, and a zero-height bar would read
+    as an infinitely precise residual), so those panels draw the curve alone.
     Patterns the reseed guard refitted cold are ringed rather than dropped, and
     a discontinuity the series flagged is marked between its two points — the
     plot shows the same fences the diagnostics carry, so a trajectory is never
@@ -760,8 +766,7 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     fig, axes = plt.subplots(len(paths), 1, figsize=(8, 2.4 * len(paths)),
                              dpi=dpi, sharex=True, squeeze=False)
     for ax, name in zip(axes[:, 0], paths, strict=True):
-        traj = (series.qpa_trajectory(name[4:]) if name.startswith("qpa.")
-                else series.trajectory(name))
+        traj = series.resolve_trajectory(name)
         x, value, sd = traj.arrays()
         ax.errorbar(x, value, yerr=np.where(np.isfinite(sd), sd, 0.0),
                     fmt="o-", ms=4, lw=1.0, capsize=2, color="#1f5fa8")
