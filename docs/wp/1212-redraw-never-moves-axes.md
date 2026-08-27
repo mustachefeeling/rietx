@@ -118,7 +118,7 @@ shape pair is the fallback, measured for its own jitter.
 
 ## Tasks
 
-- [ ] The measurement: a table of (gesture → react count, x/y range before
+- [x] The measurement: a table of (gesture → react count, x/y range before
       and after) for hover, exclude drag, peak move, on the NAC example;
       recorded in this file's log.
 - [ ] Explicit ranges after first paint; the double-click and payload-change
@@ -146,5 +146,73 @@ npm --prefix gui test && npm --prefix gui run check
   (a hover link costs a restyle).
 
 ## Handover log
+
+### 2026-08-27 — the measurement: what jitters is what plotly is still autoranging
+
+The findings above were mechanisms read off the code; this is what the browser
+says. Chrome for Testing 1223 driven by playwright-core, plotly 3.7.0 from
+`/plotly.js`, the NAC example fitted in the page (Rwp 0.0932), viewport
+1500x950, Peaks tab up unless the row says otherwise. Every plotly entry point
+is wrapped by an init script before the library loads, and each `react` is
+attributed to the effect that caused it by a temporary tag through `paint`
+(`scratchpad/instrument.py`, reverted after the run).
+
+| gesture | react | restyle | relayout | resize | xaxis | yaxis | yaxis2 |
+|---|---|---|---|---|---|---|---|
+| boot → first paint | 3 | — | — | 1 | — | — | — |
+| hover a peaks row | **0** | 1-2 | — | — | held | **moves** | held |
+| pointer off the table | **0** | 1 | — | — | held | **moves back** | held |
+| box-zoom drag | 1 | 5 | — | — | the drag's | the drag's | re-autoranges |
+| hover a row, zoomed | 0 | 1 | — | — | held | held | held |
+| peak move, zoomed | 1 | 6 | — | — | held | held | held |
+| double-click, Report tab | 1 | — | — | — | resets | resets | resets |
+| tab Peaks ⇄ Report | 1 | 0-2 | — | 1 | held | **moves** | **moves** |
+| arm exclude | 1 | 1 | — | 1 | held | **moves** | **moves** |
+| **exclude drag** | **4** | 3-13 | 1 | 1-2 | held | **moves** | **moves** |
+
+**The jitter is on the axes plotly is still autoranging, and on no others.**
+WP-1044's `heldRanges` keeps an axis only when `autorange === false`, which is
+exactly "the user has zoomed it" — so on the plot a user has *not* zoomed,
+every redraw and every `restyle` re-autoranges, and the same gesture on a
+zoomed plot is clean (`hover a row, zoomed`, `peak move, zoomed`: nothing
+moves). That is why the repair looked complete and the report kept coming.
+
+Sizes, so the word "jitter" carries a number: a hover moves `yaxis` from
+−18597.7-283838.2 to −21714.8-284045.7 — the bottom by 3117 counts, 1.03 % of
+the span — because the ring is a `scattergl` trace with `marker.size: 16` and
+scatter autorange pads by marker size. It moves *back* when the pointer leaves
+the table, so running down the rows pumps the axis once per row. `xaxis` never
+moved in any gesture measured: the ring's x sits inside the pattern's own
+extent, so its padding is swallowed. The hover costs **no** `react` — WP-1032's
+`restyle` is doing its job, and the restyle is enough to re-autorange on its
+own.
+
+The exclude drag's four reacts, named:
+
+1. `arm` → null (the knob effect: the drag mode is layout, so arming repaints)
+2. a knob repaint with **no knob changed** — `extent` is `$derived` off
+   `project`, so `project = await api.patchProject(...)` hands the effect a new
+   array identity holding the same two numbers
+3. `protocolKey` → the window refetch (real: the masked points are an arm of
+   the payload)
+4. `peaks` → `setProtocol`'s `await loadPeaks()`, a second flush after the
+   third
+
+Two findings this WP did not go looking for:
+
+- **A select drag throws once per pointer move, inside plotly.** `TypeError:
+  Cannot read properties of undefined (reading 'length')` at scattergl's
+  `selectPoints` ← `moveFn`, 7 times over three exclude drags — and none on the
+  first drag of a session, only after an exclusion exists. `selectPoints` reads
+  `scene.selectBatch[trace.index].length`, and every scattergl trace on a
+  subplot shares one `_scene` whose batches are indexed by position, so a trace
+  that comes and goes mid-list (`masked` appears the moment a region is
+  excluded) leaves the scene's batches short. The selection still lands; the
+  console fills. Candidate repair: the trace list keeps its shape, empty rather
+  than absent.
+- **The candidate chain is not measured yet.** `POST /api/index` was still
+  running when the pass's budget ran out and no candidate table was on screen,
+  so 1211's inherited question (one react per row the pointer crosses) is
+  re-asked after the repair, where the answer is what matters.
 
 - **2026-08-25** — created from the v1.2 triage.
