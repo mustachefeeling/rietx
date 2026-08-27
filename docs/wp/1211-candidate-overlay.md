@@ -34,58 +34,49 @@ Findings (2026-08-25):
   predicts lines the pattern lacks", never "too big". The overlay is where a
   person sees that.
 
-Design: `GET /api/index/candidate/{i}/ticks` returns `{two_theta: [...],
-hkl: [...]}` for the candidate's cell and centring (Laue-unique positions,
-every emission line, like `RefinementResult.ticks`); Plot takes
-`candidate: {label, two_theta} | null` and draws full-height lines in the
-tick style; selecting a candidate switches the plot to data-only
-(WP-1210) and restores on deselect; hovering a candidate row previews it.
-An eager `predicted_two_theta` field on `CellCandidate` was considered and
-declined: it would grow every indexing answer by hundreds of floats per
-candidate for one consumer.
+Design: `GET /api/index/ticks?candidate=<i>` returns `{two_theta: [...],
+hkl: [...], line: [...]}` for the candidate's cell and centring (Laue-unique
+positions, every emission line, like `RefinementResult.ticks`). **A query
+string, not a path segment** — `server.ROUTES`'s own rule, stated above the
+table: the surface has no path parameters, and `GET /api/structure/symmetry`
+`?phase=` is the precedent. Plot takes `candidate: {label, two_theta} | null`
+and draws full-height lines in the tick style; selecting a candidate switches
+the plot to data-only (WP-1210) and restores on deselect; hovering a candidate
+row previews it. An eager `predicted_two_theta` field on `CellCandidate` was
+considered and declined: it would grow every indexing answer by hundreds of
+floats per candidate for one consumer.
+
+Three things the route must get right, none of them in the sentence above
+(measured; the handover has the numbers):
+
+- **Two shifts exist and one of them belongs on these lines.** Not the
+  instrument's `zero_shift` — indexing fits the metric to the peak list's raw
+  2θ, so the cell already reproduces observed positions. Yes to the
+  candidate's own `shift_template`/`shift_coefficient`, inverted:
+  `refine_candidate` fits to `2θ_obs − c·T(θ)`.
+- **The lattice group, never a space group** — quoted from
+  `structure_from_candidate`, so what is drawn is what the Le Bail validation
+  was scored against.
+- **A cap, because `max_d_axis` admits a cell that predicts 92 103 lines** over
+  5-120° at the Cu doublet. Thinned by rank in 2θ with `n_total` beside it, not
+  truncated: a head-of-list cut leaves the high-angle half empty, which reads
+  as "this cell predicts nothing there".
 
 ### Inherited
 
-From **WP-1209** (2026-08-27, shipped):
+*Consumed 2026-08-27 — the WP-1209 tooltip note folds into Tasks (the panel's
+`title=` budget moves with the row control this WP adds), and both WP-1210
+notes are now decisions in Design and in the tasks below. Nothing stale.*
 
-- `panels/Peaks.svelte`'s authored-`title=` budget in `lib/help.test.ts` is
-  **10** now, and nine of the ten are the candidate and extinction tables'
-  (the `absent`, `ΔBIC`, `testable`, `refuting`, `space groups` headers, the
-  two "ranked, not chosen" hints, the streamed-grade chip, the not-screened
-  chip); the tenth is the add-at-2θ box. Describing them means a corpus arm
-  keyed by a live vocabulary — 1209 added `peak_origins` in one commit
-  (`help.py`, `test_help.py` `_arms`, `test_gui_help.py` `ARMS`,
+- **The panel's authored-`title=` budget is 10** (`lib/help.test.ts`,
+  `panels/Peaks.svelte`), and it fails **both ways** — so a `title=` added or
+  removed by this WP is a decrement or increment in the same commit. Nine of
+  the ten are the candidate and extinction tables'; describing them properly
+  means a corpus arm keyed by a live vocabulary, which WP-1209 did in one
+  commit (`help.py`, `test_help.py` `_arms`, `test_gui_help.py` `ARMS`,
   `lib/help.ts` `ARMS` + `HelpCorpus`, `docs/manual/conf.py` `_ARMS`, the
-  regenerated `help_keys.json`), which is the checklist. The budget fails
-  both ways, so each title removed is a decrement in the same commit.
-- A candidate's chips (`confidence`, `found_by`, caveats) may carry a
-  `HelpEntry.label` the same way flag chips do, if they become corpus terms:
-  `labelFor(corpus, key)` and the popover's `Name` row are already there.
-
-From **WP-1210** (2026-08-27, shipped):
-
-- **The "data-only" this WP's design leans on exists**, and it is not a
-  separate mode: `dataOnlyHidden(toggles)` / `isDataOnly(toggles, hidden)`
-  (`lib/plot.ts`) over the same unpersisted `hidden` exception list, with
-  `Plot.svelte` holding the previous list so the second press restores the
-  picture rather than showing everything. Drive the overlay through those two
-  rather than adding a flag; and note `dataOnlyHidden` covers ids that are
-  *listed but not drawable*, which is the property that stops a hidden layer
-  reappearing when its tab comes up.
-- **A new plot mark needs a `--plot-*` token of its own, and the hue space is
-  nearly spent.** `--accent`/`--bad` are `--plot-diff`/`--plot-calc` exactly on
-  the light theme, so borrowing chrome is what made the peak fit and the model
-  one red line. `tests/test_gui_palette.py` holds every plot colour to the 0.13
-  OKLab floor and will fail on a new one that collides. Measured while choosing
-  1210's pair: violet is 0.10-0.12 from `--plot-diff` and `--warn` 0.053 from
-  `--plot-calc`, magenta is now taken — **green (≈126-150°) is what is left**.
-  A candidate overlay drawn "in the tick style" may be able to spend no colour
-  at all, which is the cheaper answer.
-- **A layer is drawn only where it can be edited or acted on** (the Peaks tab
-  for peaks). If the overlay is a Peaks-tab thing, gate it the same way, and
-  remember `peaksActive`-style props are *drawing* inputs: the one in
-  `Plot.svelte`'s repaint effect is what makes leaving a tab take the layer off
-  the plot. Without it the tab click redraws nothing.
+  regenerated `help_keys.json`) and which is the checklist if a chip here
+  becomes a corpus term.
 
 ## Non-goals
 
@@ -94,18 +85,31 @@ From **WP-1210** (2026-08-27, shipped):
 
 ## Tasks
 
-- [ ] The route in `GuiSession` + `server.ROUTES`; tested on the corundum
+- [x] The route in `GuiSession` + `server.ROUTES`; tested on the corundum
       cell against `generate_reflections` directly.
 - [ ] Plot prop and lines; auto data-only while a candidate is selected;
-      row hover preview.
+      row hover preview. `tests/test_gui_palette.py`'s 0.13 OKLab floor is
+      what a new `--plot-*` token has to clear, and the free hue space is
+      **green (≈126-150°)** alone (WP-1210 measured the rest); an overlay
+      drawn in the tick style may spend no colour at all, which is cheaper.
+      Gate it to the Peaks tab the way the peak layer is gated, and remember
+      `peaksActive`-style props are *drawing* inputs — the one in
+      `Plot.svelte`'s repaint effect is what makes leaving a tab take a layer
+      off the plot. Keep the panel's `title=` budget balanced (see Inherited).
 - [ ] Browser pass on the corundum example after indexing; dist.
 
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_gui_peaks.py -q -k candidate
+.venv/bin/python -m pytest tests/test_gui_peaks.py -q -k candidate_ticks
 npm --prefix gui test && npm --prefix gui run check
 ```
+
+`candidate_ticks`, not `candidate`: the broader keyword also selects
+`test_extinction_screen_is_cleared_when_the_candidates_renumber`, which reads
+two preconditions off the tests above it in a deliberately module-ordered file
+(the held screen, and the picked peak list its real `/api/index` runs on) and
+therefore fails twice when run alone.
 
 ## References
 

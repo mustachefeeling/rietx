@@ -104,6 +104,18 @@ STATE_DIR_ENV = _about.STATE_DIR_ENV
 
 _MAX_RECENT = 12
 
+#: How many predicted positions one candidate overlay carries (WP-1211).
+#: A cap rather than a budget, because past it the picture stops being a set of
+#: lines: the largest cell ``max_d_axis`` admits — 25 Å triclinic — predicts
+#: 59 326 Laue-unique reflections over 5-140° at Cu Kα and 460 649 over 1-60°
+#: at a synchrotron λ (measured), which is megabytes of JSON drawn as a solid
+#: block of ink.  Over the cap the answer is thinned **by rank in 2θ**, which
+#: is the property it is read for — a dense stretch keeps proportionally more
+#: lines than a sparse one, so "this cell predicts lines the pattern lacks"
+#: still reads — and ``n_total`` says what was dropped, because a silent cap
+#: reads as coverage (CLAUDE.md).
+MAX_CANDIDATE_TICKS = 2000
+
 #: Routes whose *shape* is settled here but whose behaviour belongs to a later
 #: work package.  Declared rather than omitted so the frontend scaffold can be
 #: written against the final path set, and answered with the WP that will fill
@@ -2021,6 +2033,152 @@ class GuiSession:
                 "refuting_caveats": sorted(INDEX_REFUTING_CAVEATS),
                 "running": busy}
 
+    @staticmethod
+    def _candidate_number(result, index: int):
+        """The candidate at ``index``, or the 404 that names how many there are.
+
+        Shared by every verb that addresses one, so a client reading past the
+        end sees the same sentence whichever it called.  The *no result at all*
+        refusal deliberately stays with each verb, because it names what that
+        verb was trying to do ("to screen", "to adopt from", "to draw") and one
+        shared sentence could not.
+        """
+        if not 0 <= index < len(result.candidates):
+            raise GuiError(
+                f"no candidate {index}; the result has "
+                f"{len(result.candidates)}", code="NOT_FOUND", status=404,
+                where=["candidate"])
+        return result.candidates[index]
+
+    def index_ticks(self, index: int) -> dict:
+        """Where candidate ``index`` says the lines are, on the pattern's axis.
+
+        The overlay behind root CLAUDE.md's reading rule for
+        ``predicted_but_absent`` — "this cell predicts lines the pattern lacks",
+        never "this cell is too big" — which is a claim about *positions* and
+        was until now servable only as a count.  One
+        :func:`~rietx.crystallography.symmetry.generate_reflections` call per
+        emission line over the measured 2θ range: no fit, nothing stored, and
+        deliberately not a field on
+        :class:`~rietx.schemas.indexing.CellCandidate`, which it would grow by
+        hundreds of floats per candidate for one consumer.
+
+        Three decisions, each of which puts the lines off the peaks they exist
+        to be compared with if it goes the other way.
+
+        **No instrument zero shift.**  ``RefinementResult.ticks`` adds
+        ``instrument.zero_shift`` because a compiled model's Bragg positions
+        live in the corrected frame.  A candidate's do not: indexing fits the
+        metric to the peak list's *raw* 2θ, so the cell already reproduces
+        observed positions and adding the instrument's shift would count it
+        twice.
+
+        **The candidate's own shift template, inverted.**
+        :func:`~rietx.indexing.qspace.refine_candidate` fits the metric to
+        ``2θ_obs − c·T(θ)``, so landing back on the observed axis means adding
+        ``c·T`` on.  ``T`` is evaluated at the Bragg position rather than at the
+        observed one the fit used, which differ by ``c²·dT/d2θ`` — under 2e-5° at
+        the 0.05° scale of
+        :data:`~rietx.indexing.engines.DEFAULT_UNKNOWN_SHIFT_DEG`, four orders
+        below the narrowest peak this package fits.  Where no template was asked
+        for there is nothing to add: ``shift_coefficient`` is 0.0 by
+        construction, the search having widened its *tolerance* instead
+        (``INDEX_SHIFT_ALLOWANCE``).
+
+        **The lattice group, not a space group.**  The symbol is
+        :func:`~rietx.indexing.workflow.structure_from_candidate`'s, quoted
+        rather than restated, so what is drawn is what the Le Bail validation
+        was scored against: an absence-free group hides nothing, and a group
+        carrying reflection conditions would excuse exactly the phantoms an
+        oversized cell is caught by.
+
+        One enumeration **per emission line**, unlike ``compile_model``, which
+        needs a single shared hkl list because its windows and FCJ node counts
+        are indexed by (line, reflection).  Nothing here is indexed that way, so
+        each line gets exactly the reflections that reach the range at its own λ
+        and that function's min-λ/max-λ frame translation is not restated.
+
+        Not behind the 409: a read, like ``index_result`` beside it.
+        """
+        import numpy as np
+
+        from ..crystallography.symmetry import generate_reflections
+        from ..indexing.engines import (
+            MAX_PREDICTED_REFLECTIONS,
+            predicted_reflection_count,
+        )
+        from ..indexing.pairs import shift_template
+        from ..indexing.workflow import structure_from_candidate
+
+        p = self._need_project()
+        with self._cond:
+            result = self._index_result
+        if result is None:
+            raise GuiError("no indexing result to draw; POST /api/index first",
+                           code="NO_INDEX_RESULT", status=409)
+        candidate = self._candidate_number(result, index)
+        cell = tuple(float(v) for v in candidate.cell)
+        symbol = structure_from_candidate(candidate).phases[0].space_group
+
+        tt_all = np.asarray(p.data.two_theta, dtype=float)
+        lo, hi = float(np.min(tt_all)), float(np.max(tt_all))
+        lams = [line.wavelength.value
+                for line in p.refinement.instrument.source.lines]
+
+        positions: list = []
+        hkls: list = []
+        lines: list = []
+        for il, lam in enumerate(lams):
+            # the crash guard, before every reach for the generator (engines.py).
+            # A candidate is bounded by the search that found it, but the range
+            # here is the *measured* one, which can be wider than the fitted one
+            # the search enumerated over.
+            if predicted_reflection_count(cell, lam, hi) > MAX_PREDICTED_REFLECTIONS:
+                raise GuiError(
+                    f"candidate {index} (a={cell[0]:.4g}, b={cell[1]:.4g}, "
+                    f"c={cell[2]:.4g} Å) would enumerate more than "
+                    f"{MAX_PREDICTED_REFLECTIONS:.0e} reflections at "
+                    f"λ={lam:g} Å over {lo:g}-{hi:g}° 2θ",
+                    code="INDEX_CELL_TOO_LARGE", status=409, where=["candidate"])
+            refl = generate_reflections(symbol, cell, lam,
+                                        two_theta_max=hi, two_theta_min=lo)
+            tt = refl.two_theta(cell, lam)
+            if candidate.shift_template:
+                tt = tt + candidate.shift_coefficient * shift_template(
+                    candidate.shift_template, tt)
+            keep = np.isfinite(tt) & (tt >= lo) & (tt <= hi)
+            positions.append(tt[keep])
+            hkls.append(np.asarray(refl.hkl)[keep])
+            lines.append(np.full(int(keep.sum()), il, dtype=np.int64))
+
+        tt = np.concatenate(positions) if positions else np.zeros(0)
+        hkl = (np.concatenate(hkls) if positions
+               else np.zeros((0, 3), dtype=np.int64))
+        line = (np.concatenate(lines) if positions
+                else np.zeros(0, dtype=np.int64))
+        order = np.argsort(tt, kind="stable")
+        n_total = int(len(order))
+        if n_total > MAX_CANDIDATE_TICKS:
+            # thinned by **rank**, so a dense stretch keeps proportionally more
+            # lines than a sparse one — density in 2θ is what this picture is
+            # read for, and ``n_total`` beside it is the half that keeps the
+            # thinning from reading as coverage
+            step = -(-n_total // MAX_CANDIDATE_TICKS)
+            order = order[::step]
+        return {
+            "candidate": index,
+            "space_group": symbol,
+            "two_theta": [round(float(v), 4) for v in tt[order]],
+            "hkl": [[int(h) for h in row] for row in hkl[order]],
+            "line": [int(v) for v in line[order]],
+            "n_total": n_total,
+            "n_returned": int(len(order)),
+            # what was added to the Bragg positions to land them on the observed
+            # axis: a drawn line is the cell's, plus this, and nothing else
+            "shift_template": candidate.shift_template,
+            "shift_coefficient": float(candidate.shift_coefficient),
+        }
+
     def _extinction_candidate(self, body: dict):
         """Validate and fetch the candidate an extinction screen is asked of."""
         with self._cond:
@@ -2030,13 +2188,8 @@ class GuiSession:
                            "first", code="NO_INDEX_RESULT", status=409)
         if body.get("candidate") is None:
             raise GuiError("'candidate' is required", where=["candidate"])
-        index = self._peak_number(body, "candidate", int)
-        if not 0 <= index < len(result.candidates):
-            raise GuiError(
-                f"no candidate {index}; the result has "
-                f"{len(result.candidates)}", code="NOT_FOUND", status=404,
-                where=["candidate"])
-        return result.candidates[index]
+        return self._candidate_number(
+            result, self._peak_number(body, "candidate", int))
 
     def index_extinction(self) -> dict:
         """The last extinction screen — ranked classes, never one space group.
@@ -2089,12 +2242,7 @@ class GuiSession:
         if body.get("candidate") is None:
             raise GuiError("'candidate' is required", where=["candidate"])
         index = self._peak_number(body, "candidate", int)
-        if not 0 <= index < len(result.candidates):
-            raise GuiError(
-                f"no candidate {index}; the result has "
-                f"{len(result.candidates)}", code="NOT_FOUND", status=404,
-                where=["candidate"])
-        candidate = result.candidates[index]
+        candidate = self._candidate_number(result, index)
         best = result.best_or_none()
         if best is None or candidate is not best:
             raise GuiError(
