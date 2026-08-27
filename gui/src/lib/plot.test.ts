@@ -10,6 +10,9 @@ import {
   dataOnlyHidden,
   formatRegion,
   heldRanges,
+  movedAxes,
+  noAxes,
+  pinPatch,
   hoverLabel,
   isDataOnly,
   maskShapes,
@@ -23,6 +26,7 @@ import {
   sqrtTicks,
   tickBand,
   toggleCurve,
+  userRanges,
   type Window,
 } from "./plot";
 
@@ -415,7 +419,7 @@ describe("handing the view back (WP-1044)", () => {
     ...over,
   });
 
-  it("keeps every axis the user has moved", () => {
+  it("keeps every axis that carries an explicit range", () => {
     expect(heldRanges(full(), LIVE)).toEqual({
       xaxis: [9.97, 14.66], yaxis: [0, 4200], yaxis2: [-5, 5],
     });
@@ -453,5 +457,107 @@ describe("handing the view back (WP-1044)", () => {
     expect(span([1, 2])).toEqual({ range: [1, 2] });
     expect(span()).toEqual({});
     expect("range" in span()).toBe(false);
+  });
+});
+
+describe("a redraw never moves the axes (WP-1212)", () => {
+  const full = (over: Record<string, any> = {}) => ({
+    xaxis: { autorange: true, range: [-3.07, 63.56] },
+    yaxis: { autorange: true, range: [-18597.7, 283838.2] },
+    yaxis2: { autorange: true, range: [-81.8, 61.7] },
+    yaxis3: { autorange: false, range: [-2, 0] },
+    yaxis4: { autorange: false, range: [0, 1] },
+    ...over,
+  });
+
+  describe("pinning what plotly autoranged", () => {
+    it("writes every autoranging axis back as an explicit range", () => {
+      expect(pinPatch(full())).toEqual({
+        "xaxis.range": [-3.07, 63.56],
+        "yaxis.range": [-18597.7, 283838.2],
+        "yaxis2.range": [-81.8, 61.7],
+      });
+    });
+
+    it("is empty once they are explicit, so a repaint costs no relayout", () => {
+      expect(pinPatch(full({
+        xaxis: { autorange: false, range: [-3.07, 63.56] },
+        yaxis: { autorange: false, range: [-18597.7, 283838.2] },
+        yaxis2: { autorange: false, range: [-81.8, 61.7] },
+      }))).toEqual({});
+      expect(pinPatch({})).toEqual({});
+      expect(pinPatch(undefined)).toEqual({});
+    });
+
+    it("leaves the tick band and the candidate axis out of it", () => {
+      // both are declared with a range of their own and neither autoranges, so
+      // pinning either would be a claim about an axis nobody can move (WP-1211)
+      const patch = pinPatch(full({
+        yaxis3: { autorange: true, range: [-2, 0] },
+        yaxis4: { autorange: true, range: [0, 1] },
+      }));
+      expect(patch).not.toHaveProperty("yaxis3.range");
+      expect(patch).not.toHaveProperty("yaxis4.range");
+    });
+
+    it("refuses a range that is not two finite numbers", () => {
+      expect(pinPatch(full({ xaxis: { autorange: true, range: ["a", 3] } })))
+        .not.toHaveProperty("xaxis.range");
+      expect(pinPatch(full({ xaxis: { autorange: true } })))
+        .not.toHaveProperty("xaxis.range");
+    });
+  });
+
+  describe("which axes a person moved", () => {
+    it("reads a drag off the range keys plotly emits", () => {
+      expect(movedAxes({ "xaxis.range[0]": 9.97, "xaxis.range[1]": 14.66 }))
+        .toEqual({ moved: ["xaxis"], reset: false });
+    });
+
+    it("takes a box zoom as both axes at once", () => {
+      expect(movedAxes({
+        "xaxis.range[0]": 9.97, "xaxis.range[1]": 14.66,
+        "yaxis.range[0]": 0, "yaxis.range[1]": 4200,
+      })).toEqual({ moved: ["xaxis", "yaxis"], reset: false });
+    });
+
+    it("reads a double-click as a reset, never as a move", () => {
+      // `doubleClick: \"autosize\"` hands every axis back at once, which is the
+      // one gesture that undoes what the user said rather than restating it
+      expect(movedAxes({ "xaxis.autorange": true, "yaxis.autorange": true }))
+        .toEqual({ moved: [], reset: true });
+    });
+
+    it("is silent about anything else, an empty event included", () => {
+      expect(movedAxes({ dragmode: "select" })).toEqual({ moved: [], reset: false });
+      expect(movedAxes({})).toEqual({ moved: [], reset: false });
+      expect(movedAxes(null)).toEqual({ moved: [], reset: false });
+      expect(movedAxes(undefined)).toEqual({ moved: [], reset: false });
+    });
+
+    it("ignores the tick band's own axis", () => {
+      expect(movedAxes({ "yaxis3.range[0]": -2, "yaxis3.range[1]": 0 }))
+        .toEqual({ moved: [], reset: false });
+    });
+  });
+
+  describe("what survives a re-fit", () => {
+    const ranges = { xaxis: [9.97, 14.66], yaxis: [0, 4200], yaxis2: [-5, 5] } as const;
+
+    it("keeps the zoom a person made and drops the pin this panel wrote", () => {
+      expect(userRanges(ranges as any, { xaxis: true, yaxis: false, yaxis2: false }))
+        .toEqual({ xaxis: [9.97, 14.66] });
+    });
+
+    it("keeps nothing when nobody has moved anything", () => {
+      // the first paint of a payload on a plot nobody has touched: every axis
+      // re-fits, which is the one paint that is allowed to
+      expect(userRanges(ranges as any, noAxes())).toEqual({});
+    });
+
+    it("cannot invent an axis the layout did not resolve", () => {
+      expect(userRanges({ xaxis: [1, 2] }, { xaxis: true, yaxis: true, yaxis2: true }))
+        .toEqual({ xaxis: [1, 2] });
+    });
   });
 });

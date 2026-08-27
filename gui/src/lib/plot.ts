@@ -194,11 +194,14 @@ export function maskShapes(protocol: Protocol, extent: [number, number],
  * drag, a double-click and the modebar all move it, so a copy kept here would
  * be a second answer.
  *
- * `autorange === false` is exactly "the user has said": plotly sets it on a zoom
- * or pan drag and puts it back on a double-click, which is what keeps
- * reset-to-all reachable. `live` is the caller's half of the question — a y axis
- * is only the same axis while it is still drawing the same thing, and a √ or log
- * scaling re-means `yaxis` while another residual re-means `yaxis2` (Σχ² runs to
+ * `autorange === false` was read as "the user has said" until WP-1212, and that
+ * is where the rule leaked: plotly sets the flag on a zoom or a pan and nowhere
+ * else, so on a plot nobody had zoomed there was nothing to keep and every
+ * redraw re-fitted the axes. It now means "explicit", full stop — `pinPatch`
+ * below makes every axis explicit after each paint, and `movedAxes` is what
+ * answers the other half. `live` is the caller's: a y axis is only the same
+ * axis while it is still drawing the same thing, and a √ or log scaling
+ * re-means `yaxis` while another residual re-means `yaxis2` (Σχ² runs to
  * hundreds of thousands where Δ/σ runs to ±5).
  */
 export interface Ranges {
@@ -225,6 +228,104 @@ export function heldRanges(full: any, live: { yaxis: boolean; yaxis2: boolean })
  *  autoranging, and `range: null` would not (it is a value like any other). */
 export function span(range?: [number, number]): { range?: [number, number] } {
   return range ? { range } : {};
+}
+
+/**
+ * The axes this panel pins, and why the other two are not among them.
+ *
+ * `yaxis3` is the reflection tick band and `yaxis4` the candidate overlay:
+ * each is declared with a range of its own (`TICK_BAND`, `CANDIDATE_AXIS`) and
+ * neither ever autoranges, so pinning them would be a claim about an axis
+ * nobody can move.
+ */
+export const PINNED_AXES = ["xaxis", "yaxis", "yaxis2"] as const;
+
+/** One flag per pinnable axis — used for "a person moved this one by hand". */
+export type AxisFlags = Record<(typeof PINNED_AXES)[number], boolean>;
+
+export function noAxes(): AxisFlags {
+  return { xaxis: false, yaxis: false, yaxis2: false };
+}
+
+/**
+ * The relayout patch that turns every autoranging axis into an explicit one.
+ *
+ * **`autorange === false` is the whole repair, and a redraw cannot reach it.**
+ * `heldRanges` above keeps an axis only once plotly has set that flag, which it
+ * does on a zoom or a pan and nowhere else — so on a plot the user has not
+ * zoomed, every axis stays autoranging and *everything* moves it. Measured on
+ * the NAC example (WP-1212): a hover over the peaks table costs no `react` at
+ * all and still moves `yaxis` by 1.03 % of its span, because `drawRing`'s
+ * `restyle` puts a `marker.size: 16` ring on the axis and scatter autorange
+ * pads by marker size. The same hover on a *zoomed* plot moves nothing, which
+ * is why the WP-1044 repair read as complete.
+ *
+ * So the axes are made explicit as soon as they have a range worth keeping:
+ * after every paint, whatever plotly autoranged is written back as a `range`,
+ * and from then on a `react` or a `restyle` has nothing left to re-derive.
+ * The values are plotly's own — this reads the range it computed rather than
+ * computing one, because reproducing autorange padding (marker sizes, error
+ * bars, log ticks, the tick band's domain) is a second answer to a question
+ * plotly has already answered correctly.
+ *
+ * Returns `{}` when there is nothing to pin, which is the common case: on the
+ * second and later paints of a payload every axis is already explicit.
+ */
+export function pinPatch(full: any): Record<string, [number, number]> {
+  const patch: Record<string, [number, number]> = {};
+  for (const key of PINNED_AXES) {
+    const ax = full?.[key];
+    if (!ax?.autorange || !Array.isArray(ax.range)) continue;
+    const pair: [number, number] = [Number(ax.range[0]), Number(ax.range[1])];
+    if (pair.every(Number.isFinite)) patch[`${key}.range`] = pair;
+  }
+  return patch;
+}
+
+/**
+ * Which axes a `plotly_relayout` event says a person moved by hand.
+ *
+ * Once every axis carries an explicit range, `autorange === false` no longer
+ * answers "has the user said?" — it is true of every axis on every plot, and
+ * the two questions that used to share that flag come apart. This is the other
+ * one, and plotly reports it per gesture: a drag emits `<axis>.range[0]` and
+ * `[1]`, while a double-click (`doubleClick: "autosize"`) emits
+ * `<axis>.autorange`, which hands *every* axis back and is therefore a reset
+ * rather than a move.
+ *
+ * A patch this panel writes itself is not a gesture and must not arrive here;
+ * the caller gates on that rather than on the key spelling, because
+ * `relayout({"xaxis.range": pair})` and a drag differ only in `[0]`/`[1]` and
+ * that is far too fine a thing to rest a rule on.
+ */
+export function movedAxes(ev: Record<string, any> | null | undefined):
+    { moved: (typeof PINNED_AXES)[number][]; reset: boolean } {
+  const moved: (typeof PINNED_AXES)[number][] = [];
+  let reset = false;
+  for (const key of PINNED_AXES) {
+    if (ev?.[`${key}.autorange`]) reset = true;
+    else if (typeof ev?.[`${key}.range[0]`] === "number") moved.push(key);
+  }
+  return { moved, reset };
+}
+
+/**
+ * The ranges to hand back when a paint is allowed to re-fit the axes.
+ *
+ * Two paints are: the first of a new payload (a run, a checkout — the numbers
+ * are different ones and a range from the old set would clip them) and the one
+ * after a double-click. Everything else — a hover, a tab change, an exclusion,
+ * a peak edit, a theme change — hands back all of them, which is the rule this
+ * whole module exists for.
+ *
+ * What survives a re-fit is what the *person* set: a zoom is not thrown away by
+ * a run finishing, which is WP-1044's rule and the reason this is a filter and
+ * not an empty object.
+ */
+export function userRanges(ranges: Ranges, user: AxisFlags): Ranges {
+  const out: Ranges = {};
+  for (const key of PINNED_AXES) if (user[key] && ranges[key]) out[key] = ranges[key];
+  return out;
 }
 
 /** A drawn interval as an ordered pair, or null if it is a point. */

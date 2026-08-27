@@ -34,7 +34,10 @@
     isDataOnly,
     maskShapes,
     mergeRegions,
+    movedAxes,
+    noAxes,
     normalizeRegion,
+    pinPatch,
     residual,
     scaleValues,
     shows,
@@ -42,6 +45,7 @@
     sqrtTicks,
     tickBand,
     toggleCurve,
+    userRanges,
     type CandidateOverlay,
     type Protocol,
     type Ranges,
@@ -173,26 +177,77 @@
    *  every paint a reason to paint again. */
   let paintedScale: Scale | null = null;
   let paintedKind: ResidualKind | null = null;
+  /** …and which payload, so a paint can tell "the same numbers again" from "a
+   *  run landed" — the one distinction that licenses re-fitting the axes. */
+  let paintedKey: number | null = null;
+  let paintedResult: any = null;
+
+  /** Which axes a *person* has moved, as plotly reports each gesture.
+   *
+   *  Since WP-1212 every axis carries an explicit range after the first paint,
+   *  so `autorange === false` no longer separates "the user zoomed" from "we
+   *  pinned it" — this does, and it is fed from the relayout event rather than
+   *  read back off the layout, because by the time it is read the pin has
+   *  already been written (`lib/plot.ts:movedAxes`). Plain `let`s again: they
+   *  belong to the paint that reads them. */
+  let userSet = noAxes();
+  /** True while this panel is writing the pin, so its own relayout is not
+   *  mistaken for the gesture it looks like. */
+  let pinning = false;
 
   /** The view on screen, handed back to the next draw (`lib/plot.ts`).
+   *
+   *  `fresh` is the paint that may re-fit: the first of a new payload, where a
+   *  range measured on the old numbers would clip the new ones. It keeps the
+   *  axes the *person* set — a zoom is not thrown away by a run finishing,
+   *  which is WP-1044's rule and is now a filter rather than a side effect of
+   *  reading `autorange`.
    *
    *  The knob comparison is **untracked**: this is called from inside the fetch
    *  effect as well as the repaint one, and a tracked read there would make
    *  choosing Δ over Δ/σ a reason to ask the server for the window again — the
    *  exact round trip the two effects are split to avoid (caught by the jsdom
    *  suite, which counts the reacts one click costs). */
-  function view(): Ranges {
-    return heldRanges((node as any)?._fullLayout, untrack(() =>
+  function view(fresh = false): Ranges {
+    const all = heldRanges((node as any)?._fullLayout, untrack(() =>
       ({ yaxis: paintedScale === scale, yaxis2: paintedKind === kind })));
+    return fresh ? userRanges(all, userSet) : all;
   }
 
   /** The 2θ window the axis is showing, or null when it is showing all of it.
    *
    *  This is the window the *next fetch* asks for, which is why a peak edit no
    *  longer silently coarsens the picture: the payload follows the axis instead
-   *  of falling back to the whole pattern under a pinned range. */
+   *  of falling back to the whole pattern under a pinned range. It asks
+   *  `userSet` rather than the layout because the pin makes every x range
+   *  explicit — and a pinned full view is "all of it", which is a fetch with no
+   *  window, not a fetch for plotly's padded range (which reaches past the
+   *  pattern at both ends). */
   function shownWindow(): [number, number] | null {
-    return view().xaxis ?? null;
+    return userSet.xaxis ? view().xaxis ?? null : null;
+  }
+
+  /**
+   * Make every autoranging axis explicit, so nothing that follows can move it.
+   *
+   * The last act of a paint, and the one that carries this WP: a `react` can
+   * only hand back a range that already exists, so the *first* paint of a
+   * payload has to autorange — and until this runs, the plot is left in the
+   * state where a hover's `restyle` re-fits the y axis (measured: 1.03 % of the
+   * span, once per row the pointer crosses). Costs a `relayout` on that first
+   * paint and nothing at all afterwards, since `pinPatch` returns `{}` once
+   * every axis is explicit.
+   */
+  async function pinAxes() {
+    if (!node || !plotly) return;
+    const patch = pinPatch((node as any)._fullLayout);
+    if (!Object.keys(patch).length) return;
+    pinning = true;
+    try {
+      await plotly.relayout?.(node, patch);
+    } finally {
+      pinning = false;
+    }
   }
 
   function layout(w: any, colors: ReturnType<typeof curveColors>, nPhases: number,
@@ -373,9 +428,17 @@
     ringAt = traces.findIndex((t: any) => t.name === "hovered");
 
     // read immediately before the react, never held between them (lib/plot.ts)
-    const ranges = request ? { xaxis: request } : view();
+    //
+    // `fresh` is the paint that may re-fit the axes: a run or a checkout put
+    // different numbers on the plot, and a range pinned to the old ones would
+    // clip them. Untracked, like the knobs beside it — the knob effect must not
+    // gain `plotKey` as a dependency, or every run costs a second identical
+    // react (the count WP-1044 measured and removed).
+    const fresh = untrack(() => plotKey !== paintedKey || result !== paintedResult);
+    const ranges = request ? { xaxis: request } : view(fresh);
     paintedScale = scale;
     paintedKind = kind;
+    untrack(() => { paintedKey = plotKey; paintedResult = result; });
     await plotly.react(node, traces, layout(w, colors, phases.length, ranges),
                        // `doubleClick: "autosize"`, not plotly's default
                        // `"reset+autosize"`: reset means *back to the range the
@@ -394,6 +457,12 @@
     };
     plotNode.removeAllListeners?.("plotly_relayout");
     plotNode.on?.("plotly_relayout", (ev: any) => {
+      // this panel's own pin is a relayout too, and it must not be read as the
+      // gesture it is shaped like (`lib/plot.ts:movedAxes`)
+      if (pinning) return;
+      const { moved, reset } = movedAxes(ev);
+      if (reset) userSet = noAxes();
+      for (const key of moved) userSet[key] = true;
       if (!result) return; // the raw view has no window route to refetch
       const a = ev["xaxis.range[0]"];
       const b = ev["xaxis.range[1]"];
@@ -420,6 +489,9 @@
       const range = ev?.range?.x;
       if (arm && Array.isArray(range)) selected(range[0], range[1]);
     });
+    // before the ring goes back on, so the restyle that puts it there cannot be
+    // the thing that re-fits the axis (WP-1212's whole report)
+    await pinAxes();
     drawRing();   // a redraw resets the trace, so the ring is put back
     watch();
   }
@@ -883,6 +955,9 @@
     // back at full point budget rather than as the decimated overview stretched
     const request = zoom !== asked ? zoom : null;
     asked = zoom;
+    // an asked-for window is somebody having said where to look, so it survives
+    // a later re-fit exactly as a zoom drag does (`userRanges`)
+    if (request) userSet.xaxis = true;
     // Any other reason to redraw keeps the window on screen. It used to fall
     // back to the whole pattern, which is what made a peak toggle a zoom reset
     // — the fetch went wide and the axis autoranged after it (lib/plot.ts).
