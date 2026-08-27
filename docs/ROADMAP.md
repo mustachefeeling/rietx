@@ -71,7 +71,7 @@ Free-standing peaks (1101-1103) shift to **v1.3**, the precedent v1.1 set. `pypr
 
 **The promise is a preview** ([1117](wp/1117-compatibility-promise.md), `docs/manual/using/compatibility.md`): anything may change in any release; a consumer-observable change bumps its contract's last component by one, the reason beside the constant. Documenting a name gates arrival (the partition, [1076](wp/1076-result-row-honesty.md), [1078](wp/1078-indexing-provisional.md)); it no longer freezes it.
 
-Parked, none of it blocking: the 1.0.0-release-notes promises (`.rex` zip transport, and `RefinementState.excluded_regions` with `replay` honouring them, 1003 §B); the post-1003 indexing work (narrow the acceptance fixtures' search, and the `grade` prior-counting change, 1046 §4); the model-cost estimate (1110's ask, priced in 1113 § Findings); [1118](wp/1118-foreign-model-files.md), [1119](wp/1119-named-variables.md), [1130](wp/1130-background-reference.md) and [1131](wp/1131-sample-broadening-is-a-specimen-property.md), unscheduled.
+Parked, none of it blocking: the 1.0.0-release-notes promises (`.rex` zip transport, and `RefinementState.excluded_regions` with `replay` honouring them, 1003 §B); the post-1003 indexing work (narrow the acceptance fixtures' search, and the `grade` prior-counting change, 1046 §4); the model-cost estimate (1110's ask, priced in 1113 § Findings); [1118](wp/1118-foreign-model-files.md), [1119](wp/1119-named-variables.md), [1130](wp/1130-background-reference.md), [1131](wp/1131-sample-broadening-is-a-specimen-property.md) and [1133](wp/1133-diagnostic-names-its-view.md), unscheduled — 1130 reviewed 2026-08-27 and restructured behind 1131.
 
 ## Milestones
 
@@ -146,9 +146,8 @@ A retired number is never recycled.
 | [0604](wp/0604-theory-manual.md) | Sphinx + MyST theory manual | ✅ 2026-07-29 | — |
 | [0605](wp/0605-batched-peak-loop.md) | Batched peak loop (spike, then decide) | ✅ 2026-07-28 | — |
 
-(0603 — the torch/MPS backend — moved to v0.4 as
-[0408](wp/0408-torch-mps-backend.md) on 2026-07-24; the number is left unused so
-the history stays readable.)
+(0603 — the torch/MPS backend — moved to v0.4 as [0408](wp/0408-torch-mps-backend.md)
+on 2026-07-24; the number is left unused so the history stays readable.)
 
 ### v1.0 — hardening, human GUI & release (GUI WPs added 2026-07-29)
 
@@ -419,7 +418,7 @@ The suite has them for four known specimens; a user's own sample gets none.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | ⬜ | — |
+| [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | ⬜ | 1131 |
 
 ### Unscheduled — the specimen is not an angle (added 2026-08-23)
 
@@ -434,6 +433,7 @@ converted any of these coefficients to a size or a strain at all.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1131](wp/1131-sample-broadening-is-a-specimen-property.md) | Sample broadening is a specimen property, not an angular coefficient | ⬜ | — |
+| [1133](wp/1133-diagnostic-names-its-view.md) | A diagnostic names the view that shows it | ⬜ | 1130 |
 | [1134](wp/1134-constant-wavelength-neutron.md) | Constant-wavelength neutron: b, lambda/n harmonics, a refinable wavelength | ✅ 2026-08-25 | — |
 | [1132](wp/1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | ⬜ | #108 |
 

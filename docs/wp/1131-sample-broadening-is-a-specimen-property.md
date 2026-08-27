@@ -14,6 +14,13 @@ crystallite size and microstrain as **physical numbers with esds**, or says why
 it cannot, instead of leaving a user to convert a broadening coefficient
 off-tool with a constant the package never states.
 
+And a third, moved here from [1130](1130-background-reference.md)'s
+2026-08-27 review because it reads the same conversion: a width the fit
+has driven past what a crystal can have is named as a finding, in those
+physical units. It is the only check that tells a nanocrystalline specimen
+from a phase that has become a pedestal, and 1130's background diagnostic
+defers to it.
+
 ## Context
 
 ### Why this exists
@@ -199,6 +206,21 @@ coefficient is at zero, unmeasured, or gradient-free. That is WP-1072's rule —
 a quantity that cannot be measured is absent rather than zero — and
 `ParameterTable.unmeasured_rows` already marks the inputs.
 
+### Inherited
+
+From [1130](1130-background-reference.md)'s review, 2026-08-27:
+
+- 1130 now **depends on this WP**: its `BACKGROUND_BELOW_ANCHORS` defers to the
+  width finding below to tell a nanocrystalline fit from a phase that has
+  become a pedestal, so the width check and the conversions it reads land
+  before 1130's diagnostic.
+- The trigger scan is not in the repo — `zrmo2o8_vt.zip` from the Durham TOPAS
+  workshop, range 17 = `read_pattern(scan=16)`, four phases from
+  `d8_01612_vt_reel_02.inp`, 14–70°, CuKα1 with a Ge(111) monochromator — and
+  TOPAS's TCHZ `pkx`/`pky` map to rietx's `profile.y`/`profile.x`, not by
+  letter. Both are in 1130 § The trigger dataset, restated here so this WP can
+  build its own fixture without opening that file.
+
 ## Non-goals
 
 - **Not the missing instrument `Z` term.** GSAS-II's Lorentzian is
@@ -258,6 +280,24 @@ a quantity that cannot be measured is absent rather than zero — and
       at zero, unmeasured (`ParameterTable.unmeasured_rows`) or gradient-free.
       Name it a coherent domain size, and say beside it that it is not
       `particle_radius_um`.
+- [ ] **The width check — a phase's broadening is a claim about the specimen,
+      bounded in physical units.** On 1130's trigger scan a *visible* cubic
+      ZrMo₂O₈ refined to a Gaussian FWHM of 5.0°/cosθ (`gauss_size` 24.93) and
+      a Lorentzian of 6.0° at 2θ = 60° (`lor_strain` 10.37, i.e. Δd/d ≈ 9 %)
+      against an instrument width of 0.15°, became a second background, and
+      the fit reported `converged` at an Rwp matching TOPAS's to two decimals.
+      A `GuardFinding` (name settled with the constants) fires when the implied
+      coherent domain size falls below, or the implied microstrain rises above,
+      a bound with its physical argument recorded beside it — a domain of a
+      few unit cells is not a crystal, a Δd/d of several per cent is not a
+      lattice — checked against prior art per the root CLAUDE.md's fence on
+      invented constants. **Never a factor over the instrument**: that fires on
+      every genuine nanocrystal and cannot tell one from the trigger, and
+      `phase_support`/`cell_window` already cover the invisible phase. The
+      bound is calibrated silent on every bundled pattern's converged fit and
+      firing on 1130's trigger; 1130's ±0.5° cap was binding and is a direction,
+      not a value. Its `AGENT_PROTOCOL.md` row says the width is the first
+      suspect when a background sits far below any independent estimate.
 - [ ] **State the separability caveat where the number is, not elsewhere.** Over
       a narrow 2θ range size and strain are collinear, which the package already
       knows (`report/schemas.py:733`'s `max_template_collinearity`, and the
@@ -289,8 +329,10 @@ a quantity that cannot be measured is absent rather than zero — and
 A joint fit of the two-wavelength fixture recovers one crystallite size within a
 stated band at **both** wavelengths, where today it lands +12.5 % / −34.5 %; the
 λ-free strain control stays bit-identical; a single-wavelength joint fit is
-bit-identical to today; and a converged single-pattern fit reports a size with an
-esd, or `None` with a reason.
+bit-identical to today; a converged single-pattern fit reports a size with an
+esd, or `None` with a reason; and a fit driven to 1130's trigger widths
+fires the width finding while every bundled pattern's converged fit stays
+silent.
 
 ```sh
 .venv/bin/python -m pytest tests/test_multi_histogram.py tests/test_microstructure.py -q
@@ -327,6 +369,8 @@ and put them in this file's handover entry.
   and published equations, never code.
 
 ## Handover log
+
+- **2026-08-27** — 1130's review moved the width check here (Tasks, *The width check*) and made 1130 depend on this WP; the trigger numbers and the dataset pointer are in § Inherited. No code touched. *Next* is unchanged: the conversion authority first, since the check reads it, then the sharing fix.
 
 ### 2026-08-23 — opened from a presentation, and the bug is measured
 
