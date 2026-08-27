@@ -157,12 +157,46 @@ dist rebuilt; a browser pass in Chrome on the fap example.
 - Route cost: 1.5-5 ms for an ordinary cell (one `generate_reflections` per
   emission line), 265 ms for the 460 649-line worst case.
 - Suites (`[dev]` — no jax, no torch — python 3.12.12, darwin/arm64; the branch
-  is a fast-forward from `origin/main`, so these are the merged tree's): fast
-  suite **3157 passed / 117 skipped** against 1210's 3153 / 117, which is the
-  four `candidate_ticks` adds and no new skip; vitest **476 → 484** (+5
-  `lib/plot.test.ts`, +3 `App.test.ts`); `svelte-check` 378 files 0 errors;
-  `ruff` clean. **Wall clock is not quotable and is not quoted**: a `/pr-review`
-  suite was running in `pr-bench` for most of this session.
+  is a fast-forward from `origin/main`, so these are the merged tree's), all
+  re-measured on the tree *after* the review's fixes, because a fix is a code
+  change and the first set described a tree that no longer exists: fast suite
+  **3157 passed / 117 skipped** against 1210's 3153 / 117 — the four
+  `candidate_ticks` adds, no new skip, and unchanged across the fixes, which
+  touched no python; vitest **476 → 487** (+5 `lib/plot.test.ts`, +3 then +3
+  more `App.test.ts`); `svelte-check` 378 files 0 errors; `ruff` clean.
+  Wall clock, for once quotable: **2:18** for the fast suite on an idle machine,
+  against **4:21** for the identical selection earlier while a `/pr-review`
+  suite held the cores — a 1.9× spread from load alone, which is the reason the
+  first measurement was reported without a time.
+
+**The review pass (`/code-review medium --fix`, step 9) found two defects and
+both were real.** It ran late — after the suite and after the PR — because the
+session was served a *stale* `/wp-handover`: skills are discovered once from the
+launch directory, which is the main checkout, and that checkout's `main` was
+nine merges behind the `origin/main` this worktree branched from, so its copy of
+the command predated `7b0f6d3d` ("tooling: /wp-handover reviews the diff before
+it becomes a PR") and had no step 9 at all. The worktree's copy is the
+authority; read it rather than trusting what the session was handed.
+
+- **The clear ran ahead of the lines.** `candidatePicked` was
+  `pickedCandidate !== null`, true the instant the row was clicked, while the
+  overlay only arrives after the round trip — so every selection took the model
+  curves off and drew the lines on a *second* repaint, and a refused cell left
+  the plot cleared to the data with no lines and no sentence (the `{#if
+  overlay}` line does not render either). Now `pickedCandidate !== null &&
+  candidateTicks[…]`. **This is the preview-is-not-a-selection rule one step
+  earlier than where I caught it**: I had the distinction right and still missed
+  that a selection is instant while its answer is not.
+- **A row crossed twice before its answer landed was fetched twice.** The cache
+  dedupes only once an answer is back; `inFlightCandidates` is the other half,
+  era-guarded in its `finally` so a stale response cannot unlock a slot the new
+  numbering has re-requested.
+
+Three mount tests pin them, each made to fail on purpose against the parent
+commit first (`tests/CLAUDE.md`'s rule for a guard that asserts an absence).
+Everything else in the diff came back clean, including the shift-sign algebra
+and the `MAX_PREDICTED_REFLECTIONS` < `MAX_HKL_GRID_POINTS` ordering the
+pre-guard depends on.
 
 **Two departures from the WP's own design, both because a written rule
 outranked it.** The route is `?candidate=` and not `/candidate/{i}/ticks`,
@@ -190,7 +224,12 @@ subject anyway — a doublet makes "every emission line" a thing you can see.
 - A preview and a selection had to become two props (`candidate`,
   `candidatePicked`). Driving the data-only clear off "is something drawn"
   strobed the model on and off once per row the pointer crossed — caught by the
-  mount test, not by reading.
+  mount test, not by reading. The *second* half of the same mistake (a
+  selection is instant, its answer is not) survived to the review pass.
+- **`build_info.py` digests all 70 sources under `gui/src`, `.test.ts`
+  included.** Editing a test after building makes the committed dist stale and
+  CI's "the committed dist is current" gate goes red on a change that touched no
+  shipped byte. Rebuild after *any* `gui/src` edit, not only after a source one.
 
 **Left undone on purpose, and retargeted rather than left rotting.**
 `lib/help.test.ts`'s `title=` budget line for this panel named **WP-1211** as
