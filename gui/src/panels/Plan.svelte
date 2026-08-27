@@ -46,6 +46,7 @@
     mode = "rietveld",
     head = null,
     busy = false,
+    noPhasesReason = null,
     simple = true,
     say = (_line: string) => {},
     onrun = (_stage: any) => {},
@@ -54,6 +55,15 @@
     mode?: string;
     head?: string | null;
     busy?: boolean;
+    /** Why a run is refused right now, or `null` when it is not. Zero phases
+     *  is a legal project state (WP-1207) and the run verb refuses it, so both
+     *  run buttons here are disabled carrying the reason rather than offering
+     *  a click whose only outcome is a 409 — `gui/CLAUDE.md`'s rule, which the
+     *  header's own Run already follows. The **sentence** is the shell's, not
+     *  this panel's: it names the route out (index a pattern, adopt a cell),
+     *  and a second copy here said "add one in the Model tab", which is a
+     *  different instruction for the same state. */
+    noPhasesReason?: string | null;
     simple?: boolean;
     say?: (line: string) => void;
     onrun?: (stage: any) => void;
@@ -223,9 +233,10 @@
          on screen whichever tab is up, so two filled buttons would be one
          action drawn twice.  Saving is the action that belongs to this panel,
          and it takes the fill while there is something to save. -->
-    <button class="ghost" disabled={busy || dirty} onclick={onrunall}
-      title={dirty ? "save the plan first — this runs the plan the project holds"
-                   : "run every stage in order"}>Run all</button>
+    <button class="ghost" disabled={busy || dirty || !!noPhasesReason} onclick={onrunall}
+      title={noPhasesReason
+             ?? (dirty ? "save the plan first — this runs the plan the project holds"
+                       : "run every stage in order")}>Run all</button>
     {#if dirty}
       <button disabled={busy} onclick={save}>Save plan</button>
       <button class="ghost" disabled={busy} onclick={load}>Revert</button>
@@ -337,8 +348,9 @@
           {/if}
           <!-- enabled while the plan is dirty, unlike Run all: this sends the
                stage as it stands on screen, so there is nothing to save first -->
-          <button class="ghost" disabled={busy}
-            title="run this stage as it stands here, through the same machinery a fit uses"
+          <button class="ghost" disabled={busy || !!noPhasesReason}
+            title={noPhasesReason
+                   ?? "run this stage as it stands here, through the same machinery a fit uses"}
             onclick={() => runStage(index)}>Run this stage</button>
         </div>
 

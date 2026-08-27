@@ -1838,6 +1838,43 @@ def test_freeing_a_parameter_does_not_wipe_the_stage_rwp(blank, tmp_path,
     assert [s["rwp"] for s in _ladder(client)["stages"]] == [None] * len(before)
 
 
+def test_running_the_same_plan_twice_shows_the_second_run(blank, tmp_path,
+                                                          pattern_file):
+    """The ladder reads the **last** run, not the first.
+
+    A fit commits only `stage` nodes, so two back-to-back runs of one plan
+    leave 2N contiguous stage nodes on the lineage with nothing between them
+    to mark the seam. Collecting the whole block and aligning from its far end
+    printed run 1's numbers under run 2's ladder — found by `/code-review`,
+    and invisible to every other test here because each runs the plan once.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "twice.rex", pattern_file)
+    rwps = []
+    for _ in range(2):
+        assert client.post("/api/run", {"kind": "fit"})[0] == 200
+        _wait_idle(client)
+        rwps.append([s["rwp"] for s in _ladder(client)["stages"]])
+    first, second = rwps
+    assert all(r is not None for r in second)
+    assert second != first, "a second run of a converged plan must still be its own"
+
+    nodes = [n.metrics.statistics.rwp for n in
+             project.refinement.history.lineage(project.refinement._head_id)
+             if n.action.kind == "stage"]
+    assert len(nodes) == 2 * len(second)
+    assert second == nodes[len(second):]     # run 2…
+    assert first == nodes[:len(first)]       # …and run 1 is what run 1 showed
+
+    # a *partial* run on top of a complete one aligns with neither, so the
+    # column goes absent rather than quoting the run below it
+    plan = client.get("/api/plan")[1]["plan"]
+    assert client.post("/api/run", {"kind": "stage",
+                                    "stage": plan["stages"][-1]})[0] == 200
+    _wait_idle(client)
+    assert [s["rwp"] for s in _ladder(client)["stages"]] == [None] * len(second)
+
+
 def test_the_node_rwp_is_the_trajectory_rung_rwp(tmp_path, pattern_file):
     """The equivalence the ladder's Rwp arm rests on (WP-1208).
 

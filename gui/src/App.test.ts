@@ -1027,6 +1027,38 @@ describe("the plan editor", () => {
     expect(held.map((n) => n.getAttribute("aria-haspopup"))).toEqual(["dialog"]);
   });
 
+  it("refuses both of its run buttons at zero phases, in the shell's words",
+     async () => {
+    // WP-1207: zero phases is a legal state and every run verb refuses it, so
+    // a client must disable rather than offer a click whose only outcome is a
+    // 409. The panel's two buttons did not (found by `/code-review`), and the
+    // repair must not spell the reason a second time — the shell's sentence
+    // names the route out, and a local copy said something else.
+    await openPlan({ ...PROJECT, n_phases: 0 });
+    const runAll = button("Run all")!;
+    const runStage = [...host.querySelectorAll<HTMLButtonElement>(
+      "ol.stages > li .rung button")].filter(
+        (b) => b.textContent?.trim() === "Run this stage");
+    expect(runAll.disabled).toBe(true);
+    expect(runStage.length).toBeGreaterThan(0);
+    expect(runStage.every((b) => b.disabled)).toBe(true);
+
+    const header = button("Run")!;
+    expect(header.disabled).toBe(true);
+    // one sentence, three buttons
+    expect(runAll.title).toBe(header.title);
+    expect(runStage[0].title).toBe(header.title);
+    expect(header.title).toContain("no phase yet");
+
+    // …and with a phase, all three act again
+    unmount(app);
+    app = null;
+    host.innerHTML = "";
+    await openPlan();
+    expect(button("Run all")!.disabled).toBe(false);
+    expect(button("Run")!.disabled).toBe(false);
+  });
+
   it("hides the resolved facts while the plan on screen is not the server's", async () => {
     await openPlan(PROJECT, {
       "/api/plan": (call: Call) => ({ body: call.method === "PUT" ? { ...PLAN, preset: null } : PLAN }),

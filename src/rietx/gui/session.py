@@ -920,12 +920,12 @@ class GuiSession:
 
         **Every matched path lands in exactly one of three buckets**, decided
         in this order: ``held`` (the stage's globs reach it and the stage will
-        not free it), ``already`` (free coming in — a broad glob over a
-        parameter an earlier stage or the user had already freed), ``frees``
-        (new this stage).  A path can be both mode-fixed and already free — the
-        user can free one, and ``parameters()`` still reports it ``mode_fixed``
-        — so the order matters and ``held`` wins: what the stage will do with
-        it is drop it.
+        not free it), ``already`` (free coming in — which under
+        ``restore=False`` can only mean an *earlier stage of this plan* freed
+        it, never the caller, whose flags land in ``set_aside``), ``frees``
+        (new this stage).  A path can be both mode-fixed and already free, so
+        the order matters and ``held`` wins: what the stage will do with it is
+        drop it.
 
         **The reason is never written here.**  ``held_because`` is
         :class:`~rietx.schemas.params.ParameterRow`'s property, and the row for
@@ -1036,6 +1036,11 @@ class GuiSession:
         for node in reversed(tree.lineage(head)):
             if node.action.kind == "stage":
                 run.append(node)
+                if len(run) == len(plan.stages):
+                    break   # the *last* run: back-to-back runs of one plan
+                            # leave 2N contiguous stage nodes, and aligning
+                            # from the far end of them would read the first
+                            # run's numbers under the second run's ladder
             elif run or node.action.kind not in cls._RWP_TRANSPARENT:
                 break   # the run has ended, or something ended it before it
         run.reverse()

@@ -159,9 +159,9 @@ darwin/arm64):
   `_run_stage`'s per-path loop, since a path is a glob that matches itself and
   N calls are N table rebuilds.
 - **Counts.** Fast suite `-m "not slow"`: **3090 passed / 117 skipped**;
-  without this WP's ten tests, **3080 / 117** — +10, exactly the ten added. vitest
-  458 → **460** (two new cases; a third assertion extended an existing one),
-  21 files. `npm --prefix gui run check` clean, `ruff` clean, dist rebuilt.
+  without this WP's ten tests, **3080 / 117** — +10, exactly the ten added.
+  The post-close review round put it at **3091 / 117** (+1) and vitest at
+  **461** (+1). vitest 458 → 460 → **461** across the WP, 21 files. `npm --prefix gui run check` clean, `ruff` clean, dist rebuilt.
   Merged `origin/main` at `d6f36c69` (the strain/size soft cap, PR #144, which
   adds 373 lines to `params/vector.py`) before quoting any of these; it touches
   `ParameterTable.bounds` and not the free set, so the resolve is unaffected.
@@ -177,6 +177,29 @@ the row rather than by spelling its sentence again, which works because
 `ParameterRow.refinable` promises the four reasons are all there are — a fifth
 dynamic rule inside `set_vary` would be mislabelled, and would need this
 line changed with it.
+
+*Post-close, `/code-review medium --fix`.* Two defects, both in this WP's own
+code and both reproduced before accepting the fix. **The ladder read the
+*first* run, not the last**: a fit commits only `stage` nodes, so two
+back-to-back runs of one plan leave 2N contiguous stage nodes with nothing
+between them to mark the seam, and the walk collected the whole block. The
+docstring had promised "the last run" all along. Measured on the synthetic
+fixture: after two `mccusker_default` fits the route returned run 1's
+`[0.953, 0.729, 0.446, 0.041, 0.041]` under run 2's ladder, whose nodes read
+`[0.041]×5`. The walk now stops at `len(plan.stages)` nodes; a complete run
+plus a partial one aligns with neither and goes absent. Every other test here
+runs the plan once, which is why nothing caught it —
+`test_running_the_same_plan_twice_shows_the_second_run` is the pin.
+**Both run buttons ignored `noPhases`**, so in the pattern-only project this
+WP's own test puts the panel on screen for, a click posted `/api/run` and
+surfaced a `NO_PHASES` refusal in the console instead of a disabled control
+with a reason. The repair spelled the sentence a second time ("add one in the
+Model tab") against the shell's own ("index a pattern, adopt a cell") — two
+instructions for one state — so the panel now takes `noPhasesReason` and the
+shell stays the one authority; a vitest holds all three buttons to the same
+string. The `already` bucket's docstring was corrected in passing: under
+`restore=False` it can only mean an earlier stage of this plan, never the
+caller.
 
 *Next:* WP-1209 (the peaks table's numbers and flags).
 
