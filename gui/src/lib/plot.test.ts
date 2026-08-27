@@ -701,7 +701,7 @@ describe("the readout strip (WP-1213)", () => {
     const out = readout(FITTED, 1, { kind: "weighted" })!;
     expect(value(out, "ticks:NAC")).toBe("+0.0020°");
     expect(value(out, "ticks:CaF2")).toBe("+1.9000°");
-    expect(value(readout(FITTED, 3, { kind: "weighted" }), "ticks:CaF2")).toBe("−0.1000°");
+    expect(value(readout(FITTED, 3, { kind: "weighted" }), "ticks:CaF2")).toBe("-0.1000°");
   });
 
   it("prints a picked line as the peak table prints it (WP-1209)", () => {
@@ -804,7 +804,7 @@ describe("the readout strip (WP-1213)", () => {
       expect(value(out, "bkg")).toBe("—");
       expect(value(out, "diff")).toBe("—");
       // …and the reflection offset is still the truth about that 2θ
-      expect(value(out, "ticks:NAC")).toBe("−0.9980°");
+      expect(value(out, "ticks:NAC")).toBe("-0.9980°");
     });
 
     it("ignores the masked arm when its points are not drawn", () => {

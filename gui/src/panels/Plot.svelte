@@ -348,10 +348,17 @@
       // plotly's default `toaxis` because the x axis is anchored to the lower
       // subplot: a spike drawn to *its* axis would stop at the residual, and
       // what the reader is lining up is a position in the pattern.
+      //
+      // Solid, in the page's own ink, and that is a browser finding: dotted in
+      // `colors.edge` — the obvious first choice — is `maskShapes`' excluded-
+      // region edge exactly, so the pointer drew a line indistinguishable from
+      // a protocol boundary. It needs no `--plot-*` token of its own (WP-1210)
+      // because it carries no quantity: it is chrome, so it takes `--fg`, which
+      // is the one ink on the page no plot colour is near.
       xaxis: { title: { text: "2θ (°)" }, zeroline: false, domain: [0, 1],
                anchor: "y2", gridcolor: line,
                showspikes: true, spikemode: "across", spikesnap: "cursor",
-               spikedash: "dot", spikethickness: 1, spikecolor: colors.edge,
+               spikedash: "solid", spikethickness: 1, spikecolor: fg,
                ...span(ranges.xaxis) },
       yaxis: {
         title: { text: scale === "linear" ? "intensity" : `intensity (${scale})` },

@@ -4578,7 +4578,7 @@ describe("the hover readout (WP-1213)", () => {
       ["d", "9.4009 Å"],
       ["obs", "2"], ["calc", "2"], ["bkg", "0.4"], ["Δ/σ", "0"],
       // each phase's nearest reflection as a signed offset — 9.1 and 9.3
-      ["NAC", "−0.3000°"], ["CaF2", "−0.1000°"],
+      ["NAC", "-0.3000°"], ["CaF2", "-0.1000°"],
     ]);
     // and reading it cost no repaint at all: the strip is DOM, and this is
     // WP-1032's "a hover costs a restyle, never a react" one step cheaper

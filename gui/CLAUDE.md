@@ -838,3 +838,37 @@ so `selectPoints` read `selectBatch[undefined]` and threw once per pointer
 move: the hover ring is a plain `scatter` now. And **an axis with nothing drawn
 on it is not pinned** — plotly fits it to a default that is a number to look at,
 not a fit to keep.
+
+**The hover readout** (WP-1213, `lib/plot.ts:readout`, `panels/Plot.svelte`).
+The tooltip covered the data, and plotly offers no positioning for the unified
+box beyond `hoverlabel.align` — so the box is **deleted rather than moved**:
+every trace drops to `hoverinfo: "none"` (the library's gate is `!== "skip"`, so
+the point-finding and the spike survive a trace that draws no label), and a
+strip of the plot's control rows says what the box said plus the two things it
+could not — the candidate's `hkl`, and which emission line that line is.
+**The strip's shape follows the payload, the tab and the curve toggles — never
+the pointer**: one row per *drawn* curve, so `data only` empties it to the
+points, while everything that varies under one pointer sweep keeps its slot and
+empties it, the resting state included, and the values are sized in `ch` so the
+wrap points hold. A strip that grew a field on hover would resize the canvas
+above it once per entry — WP-1212's jitter arriving through the repair for it
+(measured on NAC: plot 776 px, strip 23 px, unchanged over ten positions).
+**A masked channel is in no result, so the readout reads two arms** — nearest
+over fitted ∪ excluded (WP-1033), and a masked one has no model to quote, which
+is also how the strip says the pointer is inside a region without a field that
+changes width to say it. **The pointer's 2θ is this panel's own axis map, not
+`ev.points[0]`**, which is whichever *trace* plotly matched first — the ticks
+ride on reflection positions and the markers on peak positions; the line under
+the pointer is `nearestPeak` at the radius a click obeys (WP-1027), so the ring,
+the lit table row and the strip name one peak rather than `hoverdistance` naming
+another. **The spike is chrome, so it is solid and takes `--fg`**: dotted in
+`--muted` is `maskShapes`' excluded-region edge exactly, and the pointer drew a
+line indistinguishable from a protocol boundary — a mark carrying no quantity
+needs no `--plot-*` token (WP-1210), it needs the one ink no plot colour is
+near. **Prose takes `−`, numbers take `-`**, which this app followed unwritten
+until a typographic minus in the tick offsets sat beside `formatValue`'s
+`toPrecision` output in one row; `formatHkl` shows where the line is, an index
+standing in for an overbar rather than a measurement. And a window payload is
+**`$state.raw`** — a plain `$state` proxies it, so `held` and the `w` the fetch
+handed `paint` are two identities for one object, which is the pair `fresh` asks
+about (svelte says so in dev; it was true before this WP surfaced it).

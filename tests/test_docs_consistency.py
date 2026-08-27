@@ -464,7 +464,19 @@ SIZE_CAPS: dict[str, int | None] = {
     # docstrings, the gesture's ink is the `.select-outline` rule's comment,
     # and every measured number is in the WP's handover table.  840 after the
     # review pass added the seventh: an axis with nothing on it is not pinned.
-    "gui/CLAUDE.md": 840,
+    # 840 -> 874 for WP-1213 (2026-08-27): the hover readout.  Seven rules, and
+    # the first of them rewrites what a stranger would otherwise try — the
+    # unified box has no positioning, so it is deleted and `hoverinfo: "none"`
+    # is what keeps the spike; a WP file cannot hold that, because the next
+    # session's instinct is to move the box.  Three are browser findings no
+    # reading of the code reaches (the strip must not reflow, the spike's ink
+    # collided with the mask edge, two spellings of minus in one row), one is a
+    # svelte trap the whole app can hit (`$state.raw` for a payload that is
+    # replaced whole), and none derives from another.  Operating detail went a
+    # rank down as this comment requires: the field list and the resting state
+    # are `readout`'s docstring, the strip's widths are the `.readout` rule's
+    # comment, and every measured number is in the WP's handover.
+    "gui/CLAUDE.md": 874,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

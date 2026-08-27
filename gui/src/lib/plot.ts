@@ -853,9 +853,19 @@ export interface ReadoutInputs {
  *  and an empty field are the same mark. */
 const EMPTY = "—";
 
-/** `+0.0035°` / `−0.0035°` — an offset, signed, with a real minus. */
+/**
+ * `+0.0035°` / `-0.0035°` — an offset, signed and always signed.
+ *
+ * An ASCII minus, deliberately: the strip prints `formatValue`'s numbers beside
+ * these, and those come out of `toPrecision`, so a typographic `−` here put two
+ * spellings of minus in one row (seen in Chrome). The rule the app already
+ * follows unwritten is that **prose takes `−` and numbers take `-`** — the
+ * residual's axis title is `obs−calc` and its values are not. `formatHkl` is
+ * the exception that proves it: an index is a label standing in for an overbar,
+ * not a measurement.
+ */
 function offset(delta: number): string {
-  return `${delta < 0 ? "−" : "+"}${Math.abs(delta).toFixed(4)}°`;
+  return `${delta < 0 ? "-" : "+"}${Math.abs(delta).toFixed(4)}°`;
 }
 
 /**
