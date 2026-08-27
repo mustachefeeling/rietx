@@ -220,18 +220,65 @@ is safe there too.
   the axis never *moves*; and `yaxis.domain` stays `[0.28, 1]` throughout, which
   is the empty quarter, unchanged by this WP and not made worse by it.
 
+**The review pass, and what it was right about.** `/code-review medium --fix`
+raised four findings against this WP's own new code and fixed all four; two are
+real, one is a guard, and one could not be reproduced — recorded that way rather
+than folded together, because a comment claiming a measured defect that does not
+reproduce is the same failure this WP spent its afternoon on.
+
+- **Real.** `userSet` remembered a drag on an axis whose *meaning* then changed:
+  a range dragged on Δ/σ would have survived into the next re-fit as a range on
+  Σχ², which runs to hundreds of thousands. `heldRanges`' `live` gate covers the
+  paint the knob causes and not the re-fit after it. The clear is now a pure
+  function, `forget`, for a reason worth stating: the fix's first form was
+  inline in `paint`, and the App-level test written for it **passed with and
+  without the fix**, because `live` hides the difference within one paint. A
+  test that cannot fail is worse than none, so the rule moved to where it can be
+  asserted exactly.
+- **Real.** On the raw view the relayout handler returns at `if (!result)`
+  before anything can re-pin, so a double-click left every axis autoranging and
+  the next hover moved `yaxis` again — this WP's own bug, surviving on the one
+  view that has no window fetch to land back in. A reset there now queues the
+  pin. Verified: after a zoom and a double-click the ranges come back explicit,
+  and a hover moves nothing.
+- **A guard, not a repair.** `pinPatch` now skips an axis with nothing drawn on
+  it. The finding said hiding the residual and running a fit would pin `yaxis2`
+  to plotly's default and clip the curve when it returned; in Chrome that does
+  not happen, because plotly **drops** an unused axis from `_fullLayout`
+  entirely (measured: −81.76-61.68 → absent → −81.76-61.68 across a `data only`
+  press, a fit while hidden, and the press back). What made it look like a
+  defect is this session's own jsdom stub, which synthesises every axis
+  unconditionally. Kept anyway: "pin what plotly fitted" should not rest on
+  plotly choosing to drop what it could not fit.
+- **Unreproduced.** Arming after a checkout aims a `relayout` at a div the fetch
+  effect purged — before this WP arming went through the repaint effect, which
+  no-oped on `held === null`. A browser pass could not get a checkout to reach
+  the purge branch at all (the result survived it), so what plotly does there is
+  unproven and `plotted` is a guard on the state rather than a repair of a seen
+  throw. Left in, and the comment says so.
+
 **Counts.**
 
-`npm --prefix gui test` **508 passed / 21 files**, from 487 on `main`: 21 new —
-14 in `plot.test.ts` over the four new pure functions, 7 in `App.test.ts`'s new
+`npm --prefix gui test` **510 passed / 21 files**, from 487 on `main`: 23 new —
+16 in `plot.test.ts` over the five new pure functions, 7 in `App.test.ts`'s new
 WP-1212 block — with 3 existing ones retargeted rather than added, because the
 facts they pinned changed (arming is a relayout, an explicit range no longer
-says who set it). `npm --prefix gui run check` 0 errors / 0 warnings over 378
+says who set it), and one written for the review's fourth finding **deleted**
+for passing either way. `npm --prefix gui run check` 0 errors / 0 warnings over 378
 files. Fast python selection **3157 passed / 117 skipped**, exactly 1211's: this
 WP moved no python behaviour, and the three suites that could have —
 `test_docs_consistency.py`, `test_gui_dist.py`, `test_gui_palette.py` — are
 inside that count. `gui/CLAUDE.md`'s cap moved 808 → 838 with its reason beside
 it; `ruff` clean. darwin/arm64, `[dev]` (no jax/torch; numba present).
+
+The full selection **did not run**, and the reason is worth stating rather than
+leaving to inference: this WP moved no python, the three suites that could have
+noticed it are inside the fast selection, and another session's full run was in
+flight from 21:24 for the whole of this handover — so a second one would have
+been two suites competing for the same cores and the same ports. That
+concurrency is also why no wall clock is quoted here: the fast selection above
+ran beside it, and a passed/skipped count is load-independent where a duration
+is not (`tests/CLAUDE.md` § Quoting numbers).
 
 **Next.**
 

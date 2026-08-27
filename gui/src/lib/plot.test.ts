@@ -10,6 +10,7 @@ import {
   dataOnlyHidden,
   drawnRange,
   formatRegion,
+  forget,
   heldRanges,
   hoverLabel,
   isDataOnly,
@@ -508,6 +509,18 @@ describe("a redraw never moves the axes (WP-1212)", () => {
         .not.toHaveProperty("xaxis.range");
     });
 
+    it("leaves an axis with nothing drawn on it autoranging", () => {
+      // A guard, not a repair: Chrome drops an unused axis from `_fullLayout`
+      // altogether, so there is nothing there to pin (measured — hiding the
+      // residual makes `yaxis2` *absent*, and it comes back at its own range).
+      // What made it look like a defect is this suite's own stub, which
+      // synthesises every axis whether or not a trace is on it.
+      expect(pinPatch(full(), ["yaxis2"])).toEqual({
+        "xaxis.range": [-3.07, 63.56], "yaxis.range": [-18597.7, 283838.2],
+      });
+      expect(pinPatch(full(), ["xaxis", "yaxis", "yaxis2"])).toEqual({});
+    });
+
     it("pins the range the axis is drawing with, not the one it is carrying", () => {
       // On the first plot of a fresh div the two disagree: `range` was still
       // plotly's empty-axis default while the ticks, the pixel map and `_rl`
@@ -579,6 +592,22 @@ describe("a redraw never moves the axes (WP-1212)", () => {
     it("cannot invent an axis the layout did not resolve", () => {
       expect(userRanges({ xaxis: [1, 2] }, { xaxis: true, yaxis: true, yaxis2: true }))
         .toEqual({ xaxis: [1, 2] });
+    });
+
+    it("forgets a y axis a knob has re-meant, and only that one", () => {
+      // A range dragged on Δ/σ is not a range on Σχ², which runs to hundreds of
+      // thousands. `heldRanges`' `live` gate covers the paint the knob causes;
+      // this covers the *next* re-fit, which is the one that would read the
+      // stale flag and keep a range nobody chose for the curve now on the axis.
+      const all = { xaxis: true, yaxis: true, yaxis2: true };
+      expect(forget(all, { yaxis: true, yaxis2: false }))
+        .toEqual({ xaxis: true, yaxis: true, yaxis2: false });
+      expect(forget(all, { yaxis: false, yaxis2: true }))
+        .toEqual({ xaxis: true, yaxis: false, yaxis2: true });
+      // the 2θ axis means the same thing under every knob this panel has
+      expect(forget(all, { yaxis: false, yaxis2: false }).xaxis).toBe(true);
+      // and it never *grants* one: a knob cannot say a person zoomed
+      expect(forget(noAxes(), { yaxis: true, yaxis2: true })).toEqual(noAxes());
     });
   });
 });

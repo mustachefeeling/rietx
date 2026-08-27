@@ -811,7 +811,7 @@ palette now has no room for a further mark that carries a quantity.
 `App.svelte:setProtocol`). WP-1044 read `autorange === false` as "the user has
 said", and plotly writes that flag on a zoom and nowhere else — so on the plot
 nobody had zoomed there was nothing to hand back and every redraw re-fitted the
-axes. Six rules. **The axes are made explicit by the paint that fitted them**:
+axes. Seven rules. **The axes are made explicit by the paint that fitted them**:
 `pinPatch` writes back whatever plotly autoranged, as the last act of each paint
 and *before* the hover ring goes on, so a later `react` or `restyle` has nothing
 to re-derive — measured, a hover over the peaks table costs no `react` at all
@@ -835,4 +835,6 @@ And the gesture is dressed as the exclusion it will become —
 rule needing `!important` because plotly writes `fill-opacity: 0` inline —
 while **an empty `scattergl` trace gets no index in the scene its peers share**,
 so `selectPoints` read `selectBatch[undefined]` and threw once per pointer
-move: the hover ring is a plain `scatter` now.
+move: the hover ring is a plain `scatter` now. And **an axis with nothing drawn
+on it is not pinned** — plotly fits it to a default that is a number to look at,
+not a fit to keep.

@@ -462,8 +462,9 @@ SIZE_CAPS: dict[str, int | None] = {
     # only in a WP file.  Operating detail went a rank down as this comment
     # requires: the pin's mechanics are `pinPatch`'s and `drawnRange`'s
     # docstrings, the gesture's ink is the `.select-outline` rule's comment,
-    # and every measured number is in the WP's handover table.
-    "gui/CLAUDE.md": 838,
+    # and every measured number is in the WP's handover table.  840 after the
+    # review pass added the seventh: an axis with nothing on it is not pinned.
+    "gui/CLAUDE.md": 840,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

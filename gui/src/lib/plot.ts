@@ -295,12 +295,25 @@ export function noAxes(): AxisFlags {
  *
  * Returns `{}` when there is nothing to pin, which is the common case: on the
  * second and later paints of a payload every axis is already explicit.
+ *
+ * `skip` names the axes the caller is **not** drawing anything on, and it is a
+ * guard rather than a repair — said plainly, because the review that asked for
+ * it described a defect that does not reproduce. Chrome drops an unused axis
+ * from `_fullLayout` altogether: hide the difference curve and `yaxis2` is
+ * *absent*, so there is nothing to pin, and letting a run land while it is
+ * hidden leaves it absent and brings it back at the residual's own range
+ * (measured: −81.76-61.68 → absent → −81.76-61.68). What made it look like a
+ * defect is the jsdom stub, which synthesises every axis unconditionally. The
+ * guard stays because "pin what plotly fitted" should not depend on plotly
+ * choosing to drop what it could not fit, and an empty axis left autoranging is
+ * the honest state — there is nothing on it for a redraw to move.
  */
-export function pinPatch(full: any): Record<string, [number, number]> {
+export function pinPatch(full: any, skip: readonly string[] = []):
+    Record<string, [number, number]> {
   const patch: Record<string, [number, number]> = {};
   for (const key of PINNED_AXES) {
     const ax = full?.[key];
-    if (!ax?.autorange) continue;
+    if (!ax?.autorange || skip.includes(key)) continue;
     // `drawnRange`, never `ax.range`: on the first plot of a fresh div the two
     // disagree, and pinning `range` there froze plotly's empty-axis default
     // over a pattern spanning 0-60°. That is what made the raw view blank; the
@@ -352,6 +365,28 @@ export function movedAxes(ev: Record<string, any> | null | undefined):
  * a run finishing, which is WP-1044's rule and the reason this is a filter and
  * not an empty object.
  */
+/**
+ * A knob that re-means an axis un-says whatever was said about it.
+ *
+ * `userSet` remembers that a person dragged an axis, and it has to be forgotten
+ * when that axis stops drawing the same thing: a range dragged on Δ/σ is not a
+ * range on Σχ², which runs to hundreds of thousands, and it would otherwise
+ * survive into the next re-fit as though it had been chosen there.
+ * `heldRanges`' `live` gate hides this *within* a paint — an axis that changed
+ * meaning is not handed back — and does nothing across the payload change that
+ * licenses a re-fit, which is where the stale flag would be read.
+ *
+ * The same argument as `live`, one step later: that one decides what this paint
+ * hands back, this one decides what the *next* re-fit is allowed to keep.
+ */
+export function forget(user: AxisFlags, live: { yaxis: boolean; yaxis2: boolean }): AxisFlags {
+  return {
+    xaxis: user.xaxis,
+    yaxis: user.yaxis && live.yaxis,
+    yaxis2: user.yaxis2 && live.yaxis2,
+  };
+}
+
 export function userRanges(ranges: Ranges, user: AxisFlags): Ranges {
   const out: Ranges = {};
   for (const key of PINNED_AXES) if (user[key] && ranges[key]) out[key] = ranges[key];

@@ -29,6 +29,7 @@
     curveToggles,
     dataOnlyHidden,
     formatRegion,
+    forget,
     heldRanges,
     hoverLabel,
     isDataOnly,
@@ -182,6 +183,9 @@
   let paintedKey: number | null = null;
   let paintedResult: any = null;
   let paintedPayload: any = null;
+  /** …and which axes that paint drew nothing on, so a pin outside `paint` — the
+   *  raw view's double-click — asks the same question it did. */
+  let paintedEmpty: string[] = [];
 
   /** Which axes a *person* has moved, as plotly reports each gesture.
    *
@@ -195,6 +199,15 @@
   /** True while this panel is writing the pin, so its own relayout is not
    *  mistaken for the gesture it looks like. */
   let pinning = false;
+  /** Whether the div currently holds a plot.
+   *
+   *  The fetch effect's last branch purges it (a checkout takes the curves away
+   *  server-side) while this panel keeps `plotly`, so any verb aimed at the div
+   *  from outside a paint is aimed at an element plotly no longer owns. Reasoned
+   *  from that path rather than observed: a browser pass could not get a
+   *  checkout to reach the purge branch, so what plotly does there is unproven
+   *  and this is a guard on the state, not a repair of a seen throw. */
+  let plotted = false;
 
   /** The view on screen, handed back to the next draw (`lib/plot.ts`).
    *
@@ -239,9 +252,9 @@
    * paint and nothing at all afterwards, since `pinPatch` returns `{}` once
    * every axis is explicit.
    */
-  async function pinAxes() {
-    if (!node || !plotly) return;
-    const patch = pinPatch((node as any)._fullLayout);
+  async function pinAxes(empty: readonly string[] = paintedEmpty) {
+    if (!node || !plotly || !plotted) return;
+    const patch = pinPatch((node as any)._fullLayout, empty);
     if (!Object.keys(patch).length) return;
     pinning = true;
     try {
@@ -249,6 +262,18 @@
     } finally {
       pinning = false;
     }
+  }
+
+  /** The pinnable axes carrying no drawn point — plotly fits those to its own
+   *  empty default, which is a number to look at and not a range to keep. */
+  function emptyAxes(traces: any[]): string[] {
+    const on = (axis: string) => traces.some((t) =>
+      (t.yaxis ?? "y") === axis && (t.x?.length ?? 0) > 0);
+    const out: string[] = [];
+    if (!on("y") && !on("y2")) out.push("xaxis");
+    if (!on("y")) out.push("yaxis");
+    if (!on("y2")) out.push("yaxis2");
+    return out;
   }
 
   function layout(w: any, colors: ReturnType<typeof curveColors>, nPhases: number,
@@ -452,6 +477,11 @@
     // handed those ranges as a pin.
     const fresh = w !== paintedPayload
       && untrack(() => plotKey !== paintedKey || result !== paintedResult);
+    // …and a knob that re-means an axis un-says whatever was said about it
+    // (`forget`), which is `heldRanges`' own `live` gate one step later: that
+    // one decides what this paint hands back, this one what the next re-fit may
+    // keep.  Before `view`, which reads the flags it clears.
+    userSet = forget(userSet, { yaxis: paintedScale === scale, yaxis2: paintedKind === kind });
     const ranges = request ? { xaxis: request } : view(fresh);
     paintedScale = scale;
     paintedKind = kind;
@@ -468,6 +498,7 @@
                        // a pattern, and it is the gesture the window fetch
                        // already listens for (`xaxis.autorange`).
                        { responsive: true, displaylogo: false, doubleClick: "autosize" });
+    plotted = true;
     // plotly decorates the div with its own emitter at runtime; re-registering
     // without removing would stack one handler per redraw
     const plotNode = node as HTMLDivElement & {
@@ -482,7 +513,13 @@
       const { moved, reset } = movedAxes(ev);
       if (reset) userSet = noAxes();
       for (const key of moved) userSet[key] = true;
-      if (!result) return; // the raw view has no window route to refetch
+      if (!result) {
+        // the raw view has no window route to refetch, so a double-click's
+        // re-fit is followed by no paint at all — pin it here, or the axes are
+        // left autoranging and the next hover restyle moves them again
+        if (reset) queueMicrotask(() => void pinAxes());
+        return;
+      }
       const a = ev["xaxis.range[0]"];
       const b = ev["xaxis.range[1]"];
       if (typeof a === "number" && typeof b === "number") draw(a, b);
@@ -509,8 +546,12 @@
       if (arm && Array.isArray(range)) selected(range[0], range[1]);
     });
     // before the ring goes back on, so the restyle that puts it there cannot be
-    // the thing that re-fits the axis (WP-1212's whole report)
-    await pinAxes();
+    // the thing that re-fits the axis (WP-1212's whole report).  An axis with
+    // nothing drawn on it is *not* pinned: plotly's empty-axis default is a
+    // number to look at, not a fit to keep (`pinPatch`, where the measurement
+    // that makes this a guard rather than a repair is written down).
+    paintedEmpty = emptyAxes(traces);
+    await pinAxes(paintedEmpty);
     drawRing();   // a redraw resets the trace, so the ring is put back
     watch();
   }
@@ -1008,6 +1049,7 @@
       held = null;
       shown = null;
       if (plotly && node) plotly.purge(node);
+      plotted = false;
     }
   });
 
@@ -1067,7 +1109,10 @@
   $effect(() => {
     const mode = arm ? "select" : "zoom";
     untrack(() => {
-      if (node && plotly) plotly.relayout?.(node, { dragmode: mode });
+      // `plotted` too: before this WP arming went through the repaint effect,
+      // which no-oped on `held === null`, and this one does not — so it is the
+      // first thing that can aim a plotly verb at a purged div (`plotted`).
+      if (node && plotly && plotted) plotly.relayout?.(node, { dragmode: mode });
     });
   });
 </script>
