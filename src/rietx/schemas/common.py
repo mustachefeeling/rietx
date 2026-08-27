@@ -70,7 +70,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: rides with it as a fourth ``ERROR_CODES`` member.  One bump for the pair —
 #: the ladder counts observable releases, and they reach a consumer in the same
 #: one.
-SCHEMA_VERSION = "0.9"
+#: 0.9 → 0.10 (additive background peaks): ``Instrument.background_peaks`` (a new
+#: declared block) and ``RefinementResult.n_background_peaks`` (a new field on a
+#: result).  Additive and defaulted — the empty list and ``None`` reproduce a
+#: pre-feature document byte for byte — but both are noticeable to a consumer,
+#: which since WP-1117 is the whole test (the ``Identifiability`` docstring is
+#: the sentence that first talked a reader out of this bump).
+SCHEMA_VERSION = "0.10"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

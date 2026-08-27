@@ -192,7 +192,23 @@ def background_absorption(jac: np.ndarray, free_paths: list[str]) -> dict[str, f
     and dropping them overstates the risk by ~5× (measured: R² 0.46 → 0.08 at
     λ = 10⁴).
     """
-    bg = [k for k, p in enumerate(free_paths) if p.startswith("instrument.background.")]
+    # Additive background peaks join the block.  The statistic asks what the
+    # *whole declared background* can imitate, and an explicit broad peak is the
+    # sharpest form of the failure it exists to catch — a hump narrow enough to
+    # sit under a reflection eats Bragg intensity exactly as a too-flexible
+    # spline does, and unlike the spline it can do it with three parameters.
+    # Leaving it out would make the number *less* true the more of the
+    # background's flexibility lives in peaks.
+    #
+    # The nonlinearity is not an objection: every column here is a linearisation
+    # at the converged θ, the ``.biso`` and ``.scale`` targets included, and the
+    # esds and correlations the guard sits beside are built from the same one.
+    # What *was* an objection is a zero column — a peak at its off state
+    # contributes three of them — and that is handled once, in ``_span_basis``,
+    # because it is a fact about spans and not about peaks.
+    bg = [k for k, p in enumerate(free_paths)
+          if p.startswith(("instrument.background.",
+                           "instrument.background_peaks."))]
     targets = [(k, p) for k, p in enumerate(free_paths)
                if p.endswith((".biso", ".scale", ".occ")) or ".adp." in p]
     return block_projection_r2(jac, bg, targets)
@@ -204,7 +220,29 @@ def _span_basis(jac: np.ndarray, cols: list[int]) -> np.ndarray:
     The one QR both :func:`block_projection_r2` and
     :func:`one_parameter_gains` build their projections from — extracted so
     the two statistics cannot disagree about how a span is orthogonalised.
+
+    **An exactly-zero column is dropped, because it is not in the span.**
+    LAPACK's Householder QR returns a Q with orthonormal columns whatever the
+    rank of A, so a zero column of A does not give a zero column of Q — it gives
+    an *arbitrary* direction orthogonal to the rest, and ``q qᵀ`` then projects
+    onto a space strictly larger than span(A).  Measured: a 3-column block with
+    two zero columns reports R² = 1.00 for **every** target, which is a
+    saturated guard on a block that can produce nothing.
+
+    **Exactly** zero is the operative word, and it is why this filter changes
+    no number that shipped before it.  No design row is ever zero (checked: the
+    Chebyshev rows, the clamped-cubic B-spline rows and the 1/2θ air row all
+    carry signal), and a softplus parameter at its own off state does *not*
+    produce one either — ``to_internal`` clamps, so ``BackgroundPSpline.air_scatter``
+    at value 0 gives dp/du = 1e-12 and a column that is tiny but a real
+    direction.  What does produce one is a **product**: an additive background
+    peak at zero height has ∂y/∂2θ₀ = ∂y/∂Γ = h·(…) = 0 to the bit, so a
+    declared peak freed at its default height hands this function two of them.
+
+    All columns zero leaves an ``(n, 0)`` basis, whose projector is zero, i.e.
+    "this block imitates nothing" — which is true.
     """
+    cols = [c for c in cols if np.any(jac[:, c])]
     q, _ = np.linalg.qr(jac[:, cols])
     return q
 
@@ -352,8 +390,17 @@ def _roughness_nuisance(path: str) -> bool:
     the pattern.  The scale and the background refine in every plan regardless,
     so the question worth asking is what is left of roughness *after* they have
     taken whatever they can — a partial R².
+
+    An explicit background peak is a background direction on the same footing
+    (``background_absorption`` folds it into the *same* block, one function up):
+    a declared hump is background flexibility the caller granted, so it is a
+    nuisance to project out here too — three columns per peak left in the
+    comparison would swamp the roughness/ADP partial R² exactly as the scale
+    does.
     """
-    return path.endswith(".scale") or path.startswith("instrument.background.")
+    return (path.endswith(".scale")
+            or path.startswith(("instrument.background.",
+                                "instrument.background_peaks.")))
 
 
 def roughness_absorption(jac: np.ndarray, free_paths: list[str]

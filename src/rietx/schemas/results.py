@@ -787,6 +787,30 @@ class RefinementResult(Base):
     # or shows the section absent, and nothing re-derives it from the curves.
     identifiability: Identifiability | None = None
 
+    # How many explicit :class:`~rietx.schemas.instrument.BackgroundPeak` terms
+    # this fit declared — the other half of "how flexible was the background":
+    # :class:`Identifiability`'s absorption table says what the background could
+    # imitate, this says with how many free peaks it was allowed to do it (N
+    # peaks are 3N parameters with unconstrained positions), and a reader
+    # comparing two Rwp values has to be able to see them.
+    #
+    # It sits **here and not on** :class:`Identifiability`, whose members are
+    # read off the final Jacobian and therefore exist only where a solve
+    # measured them.  This is not a measurement: it is
+    # ``len(CompiledModel.bkg_peak_paths)``, a count of what the instrument
+    # *declared*, available wherever a compiled model is.  Behind that carrier's
+    # guard it read 0 — "none declared" — on every ``replay``, which is a
+    # different claim from the true one and the reason it moved.  Read off the
+    # frozen compile state rather than counted from ``parameters``: a peak
+    # declared and never freed is still freedom the caller granted, and it would
+    # not appear there.
+    #
+    # ``0`` therefore means none was declared, exactly off; ``None`` means
+    # nothing here counted — the ``data_support`` convention, and for the same
+    # reason, a joint multi-histogram fit (one count per histogram, reported
+    # through each histogram) or a result recorded before the feature existed.
+    n_background_peaks: int | None = None
+
     # Per-histogram slices of a multi-histogram joint refinement (WP-0308);
     # empty for an ordinary single-histogram fit.  ``statistics`` above is then
     # the pooled combined number and ``two_theta``/``y_*`` mirror histogram 0.

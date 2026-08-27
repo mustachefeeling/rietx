@@ -51,8 +51,10 @@ from pathlib import Path
 import numpy as np
 
 from ..schemas.instrument import (
+    BACKGROUND_PEAK_FWHM_MIN,
     CAPILLARY_OFFSETS,
     BackgroundChebyshev,
+    BackgroundPeak,
     BackgroundPSpline,
     Dispersion,
     EmissionLine,
@@ -577,6 +579,39 @@ def _with_pspline(inputs: StandardInputs) -> None:
                                                                knot_step_deg=8.0)
 
 
+def _with_background_peak(inputs: StandardInputs) -> None:
+    """Declare one broad Gaussian at the low-angle third of the range and free it.
+
+    Placed at 1/3 of the fitted range and 6° wide because that is where a
+    diffuse hump lives on a real pattern (the motivating BT-1 case is 5.8° wide
+    at 14.4° over 5-152°), and because the *comparison* has to be reproducible
+    across standards that share no 2θ range.  **None of these standards has a
+    known hump**, which is what makes this variant informative in the honest
+    direction: three free parameters over a background that is already right
+    should buy essentially nothing, and the panel that says so is
+    BACKGROUND_ABSORPTION plus BACKGROUND_PEAK_TOO_NARROW — not Rwp, which a
+    free peak can always improve.
+
+    The stage is appended rather than merged into ``scale_bkg`` for the reason
+    ``strategy/staged._BACKGROUND_PEAK_STAGE`` gives: a free position over
+    peaks that have not been placed yet hunts the wrong misfit.
+    """
+    lo, hi = inputs.two_theta_limits or (None, None)
+    tt = np.asarray(inputs.data.two_theta)
+    lo = float(tt.min()) if lo is None else lo
+    hi = float(tt.max()) if hi is None else hi
+    y = np.asarray(inputs.data.intensity, dtype=float)
+    inputs.instrument.background_peaks = [BackgroundPeak(
+        label="comparison hump",
+        position=Parameter(value=lo + (hi - lo) / 3.0, unit="deg"),
+        height=Parameter(value=0.05 * float(np.median(y)), min=0.0,
+                         unit="counts", transform="softplus"),
+        fwhm=Parameter(value=6.0, min=BACKGROUND_PEAK_FWHM_MIN, unit="deg",
+                       transform="softplus"))]
+    inputs.plan.stages.append(
+        Stage("background_peaks", ["instrument.background_peaks.*"]))
+
+
 def _with_roughness_suortti(inputs: StandardInputs) -> None:
     inputs.instrument.geometry.surface_roughness = RoughnessSuortti()
     inputs.plan.stages.append(
@@ -732,6 +767,15 @@ VARIANTS: tuple[Variant, ...] = (
             "background flexible enough to imitate peaks biases ADPs up and "
             "scales down while Rwp falls.",
             _with_pspline),
+    Variant("background_peak", "+ one explicit background peak",
+            "One broad Gaussian (6° FWHM, a third of the way up the range) "
+            "added on top of the standard's own background, freed in a late "
+            "stage. None of these standards has a known hump, so the expected "
+            "answer is 'buys nothing': read BACKGROUND_ABSORPTION and "
+            "BACKGROUND_PEAK_TOO_NARROW, never Rwp — three free parameters "
+            "with an unconstrained position improve Rwp whether or not there "
+            "is anything there, which is why the width guard exists.",
+            _with_background_peak),
     Variant("roughness_suortti", "+ surface roughness (Suortti)",
             "Low-angle intensity depression, Suortti (1972). Bounded ≤ 1 "
             "everywhere. Note b is bimodal — both b → 0 and b → ∞ are the "

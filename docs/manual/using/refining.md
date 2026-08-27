@@ -520,6 +520,7 @@ once:
 | `GuardFinding.roughness_absorption` | the roughness correction could |
 | `GuardFinding.nonpositive_adp` | an anisotropic displacement tensor is not positive definite |
 | `GuardFinding.nonpositive_strain` | a Stephens block gives a negative σ²(M) for some reflection |
+| `GuardFinding.narrow_background_peak` | a declared background peak has narrowed towards the instrumental resolution, where it is a reflection rather than a background feature |
 
 `GuardFinding.value` is the headline number for the kind: the correlation
 coefficient, the block R², the minimum eigenvalue, the worst σ²(M). It is

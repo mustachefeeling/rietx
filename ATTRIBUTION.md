@@ -129,6 +129,12 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 - Coelho, A. A. (2005). *J. Appl. Cryst.* 38, 455–461; (2018) 51, 210–218 & 428–435 —
   minimizer design ideas (bound-constrained solves, adaptive Marquardt). Algorithms
   reimplemented from the papers; TOPAS itself is proprietary and was not consulted as code.
+- Toby, B. H. & Von Dreele, R. B. (2013). *J. Appl. Cryst.* 46, 544–549 — GSAS-II;
+  cited for the *practice* of adding explicit broad peaks to the refined background
+  (`Instrument.background_peaks`), alongside TOPAS's cell-less "peaks phase"
+  (`xo_Is` + `gauss_fwhm`, Coelho 2018 above). Concepts only, from the papers and
+  the published manuals: a Gaussian in 2θ is not a diffraction profile and no
+  physical derivation is claimed for it — see `BackgroundPeak`'s docstring.
 - Eilers, P. H. C. (2003). *Anal. Chem.* 75, 3631 — Whittaker smoother.
 - Eilers & Marx (1996). *Stat. Sci.* 11, 89–121 — P-spline penalized regression
   (the co-refined background's second-difference penalty rows).

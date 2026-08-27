@@ -260,16 +260,28 @@ def _profile_description(instrument: Instrument) -> str:
 
 
 def _background_description(instrument: Instrument) -> str:
+    """The background model as a CIF phrase, **including any explicit peaks**.
+
+    A declared background peak is part of the background this fit used, so the
+    deposited file has to say so — "4 terms" and "4 terms + 1 explicit Gaussian
+    background peak" are different models, and one of them carries three more
+    free parameters with an unconstrained position.
+    """
     bkg = instrument.background
     if isinstance(bkg, BackgroundChebyshev):
-        return f"shifted-Chebyshev polynomial, {len(bkg.coefficients)} terms"
-    if isinstance(bkg, BackgroundFixedPlusChebyshev):
-        return (f"fixed estimated curve + shifted-Chebyshev, "
+        base = f"shifted-Chebyshev polynomial, {len(bkg.coefficients)} terms"
+    elif isinstance(bkg, BackgroundFixedPlusChebyshev):
+        base = (f"fixed estimated curve + shifted-Chebyshev, "
                 f"{len(bkg.chebyshev.coefficients)} terms")
-    if isinstance(bkg, BackgroundPSpline):
-        return (f"penalized cubic P-spline, {len(bkg.breakpoints)} knots, "
+    elif isinstance(bkg, BackgroundPSpline):
+        base = (f"penalized cubic P-spline, {len(bkg.breakpoints)} knots, "
                 f"lambda_smooth={bkg.lambda_smooth:.4g}")
-    return type(bkg).__name__
+    else:
+        base = type(bkg).__name__
+    n = len(instrument.background_peaks)
+    if n:
+        base += f" + {n} explicit Gaussian background peak{'s' if n > 1 else ''}"
+    return base
 
 
 def _write_refinement_metadata(block, result: RefinementResult,

@@ -277,6 +277,73 @@ def restraint_schedule() -> None:
             _save(fig, "restraint-schedule", style)
 
 
+def background_peak() -> None:
+    """A localised background feature, described two ways.
+
+    Drawn from ``tests/test_background_peaks.py``'s synthetic hump case, which
+    is where the claim is asserted — the same rule the two refinement panels
+    follow, and for the same reason: a figure with its own copy of a case can
+    disagree with the test that proves the claim.
+
+    Why synthetic rather than the real Cr₂WO₆ / BT-1 pattern the feature was
+    built for: that pattern is not in the repository, so a figure drawn from it
+    would be one this script cannot regenerate, which is exactly what this
+    file's docstring exists to prevent.  The real measurement is a **table**,
+    in ``using/data.md``, where a number can carry its own provenance.
+    """
+    # explicit rather than through ``rx.viz``: this runs *before* the figure
+    # that calls ``result.plot`` and imports the subpackage as a side effect
+    from rietx.viz.plots import PALETTES
+    from tests.test_background_peaks import HUMP_TRUTH, fit_hump_case
+
+    print("running the synthetic hump case …")
+    flat, _truth = fit_hump_case(with_peak=False)
+    peaked, truth = fit_hump_case(with_peak=True)
+    got = {row.path.rsplit(".", 1)[1]: row for row in peaked.parameters
+           if "background_peaks" in row.path}
+
+    print("background-peak")
+    for style in STYLES:
+        hue = PALETTES[style]
+        colours = LINES[style]
+        with _rc(style):
+            fig, axes = plt.subplots(2, 1, figsize=(WIDTH, 4.6), sharex=True,
+                                     gridspec_kw={"height_ratios": [2, 3]})
+            tt = np.asarray(peaked.two_theta)
+            keep = tt <= 40.0
+            flat_bkg = np.asarray(flat.y_background)
+            peak_bkg = np.asarray(peaked.y_background)
+            axes[0].plot(tt[keep], flat_bkg[keep], "-", lw=1.4,
+                         color=colours[0], label="polynomial alone")
+            axes[0].plot(tt[keep], peak_bkg[keep], "-", lw=1.4,
+                         color=colours[1], label="polynomial + one peak")
+            axes[0].set_ylabel("background\n(counts)")
+            axes[0].legend(frameon=False, loc="upper right")
+
+            # what the term added, against the feature the data actually holds
+            axes[1].plot(tt[keep],
+                         (np.asarray(flat.y_obs) - flat_bkg)[keep],
+                         "-", lw=0.7, color=hue["obs"],
+                         label="observed − the peak-free background")
+            axes[1].plot(tt[keep], (peak_bkg - flat_bkg)[keep], "-", lw=1.8,
+                         color=colours[1], label="the fitted peak")
+            axes[1].axhline(0.0, lw=0.6, color=FG[style])
+            axes[1].set_ylim(-160, 260)
+            axes[1].set_ylabel("counts")
+            axes[1].set_xlabel("2θ (deg)")
+            axes[1].set_xlim(float(tt.min()), 40.0)
+            axes[1].legend(frameon=False, loc="upper right")
+            axes[1].annotate(
+                f"2θ₀ {got['position'].value:.2f}({got['position'].stderr:.2f})°"
+                f"  vs {truth['position']:.1f}° true\n"
+                f"Γ {got['fwhm'].value:.2f}({got['fwhm'].stderr:.2f})°"
+                f"  vs {HUMP_TRUTH['fwhm']:.1f}° true",
+                xy=(0.02, 0.95), xycoords="axes fraction", ha="left",
+                va="top", color=FG[style])
+            fig.tight_layout()
+            _save(fig, "background-peak", style)
+
+
 def refinement_figures():
     """The 11-BM NAC fit: the quickstart's panel, and the impurity peak.
 
@@ -340,6 +407,7 @@ def refinement_figures():
 
 if __name__ == "__main__":
     angular_signatures()
+    background_peak()
     data, ref = refinement_figures()
     geometry_esds(data, ref)
     effective_observations()

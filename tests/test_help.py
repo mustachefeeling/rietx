@@ -51,6 +51,7 @@ from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.indexing import IndexingControls, ObservedPeak, PeakFlag
 from rietx.schemas.instrument import (
+    BackgroundPeak,
     BackgroundPSpline,
     EmissionLine,
     Geometry,
@@ -123,9 +124,12 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
     A ``Geometry`` holds at most one surface-roughness model and an
     ``Instrument`` one background, and roughness is refused outside
     ``bragg_brentano``, so "every optional block present" needs more than one
-    instrument.  Without these the coverage tests are blind to five live
-    parameter families — the four roughness fields and the P-spline's air
-    term — which is the same hole the preferred-orientation block was in.
+    instrument.  Without these the coverage tests are blind to live parameter
+    families — the four roughness fields, the P-spline's air term and the three
+    background-peak fields — which is the same hole the preferred-orientation
+    block was in.  A single defaulted :class:`BackgroundPeak` declares the
+    ``instrument.background_peaks.*.{position,height,fwhm}`` families; without it
+    the corpus could describe a peak the coverage tests never meet.
 
     Every ``Parameter`` here still sits at its schema default, so these models
     feed :func:`_schema_parameters` on the same terms as the default pair.
@@ -140,7 +144,8 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
             geometry=Geometry(kind="bragg_brentano",
                               goniometer_radius_mm=217.5,
                               surface_roughness=RoughnessSuortti()),
-            background=spline)),
+            background=spline,
+            background_peaks=[BackgroundPeak()])),
         (structure, Instrument(
             source=Source(lines=[EmissionLine(wavelength=1.540598)]),
             geometry=Geometry(kind="bragg_brentano",

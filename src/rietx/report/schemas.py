@@ -172,7 +172,13 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   ``None`` covers "no report built" and "nothing crossed a comment
 #   threshold".  No threshold, gate or emission condition moved — the same
 #   sentence now also travels where the greps look.
-THRESHOLDS_VERSION = "1.3"
+# 1.4 (additive background peaks): ``BackgroundEvidence.n_peaks`` lands — how
+#   many explicit background-peak terms the fit declared, a projection of
+#   ``RefinementResult.n_background_peaks`` (schemas/results.py).  Additive and
+#   defaulted (0 ⇔ none declared, None ⇔ nothing counted); no gate or emission
+#   condition moved, but it is a new field on the report a consumer enumerates,
+#   so it bumps for the same reason 1.2 did.
+THRESHOLDS_VERSION = "1.4"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -515,6 +521,17 @@ class BackgroundEvidence(Base):
     #: consumer need not sort the table to branch on it
     worst_absorption: float = 0.0
     worst_absorption_path: str | None = None
+    #: explicit :class:`~rietx.schemas.instrument.BackgroundPeak` terms this fit
+    #: declared — a **projection** of
+    #: :attr:`~rietx.schemas.results.RefinementResult.n_background_peaks`, never
+    #: a second count, so the section and the result cannot disagree.  Stated
+    #: here because it is the other half of "how flexible was the background":
+    #: the absorption table says what it could imitate, this says with how many
+    #: free peaks (3N parameters, positions unconstrained).  Its ``None`` is the
+    #: result's own and means the same thing — nothing counted, as against 0,
+    #: which means none was declared.  ``absorption`` above carries the
+    #: identical distinction one field over, and for the identical reason.
+    n_peaks: int | None = None
 
 
 class ExchangeFinding(Base):

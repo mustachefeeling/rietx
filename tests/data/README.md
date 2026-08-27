@@ -679,6 +679,36 @@ writer asserts its own bank offset exceeds `HEAD_BYTES`), shares no constant
 with the parser, and all three regression tests fail against the unfixed
 sniff.
 
+### Cr₂WO₆ 60 K BT-1 — the background-peak reference, cited but not committed
+
+**Nothing is vendored for it, and no file here reads it** — it is named because
+`docs/manual/using/data.md`'s background-peak evidence table carries a *published
+TOPAS fit* row (Rwp 0.06663, GoF 2.583, Biso(Cr) +0.215(76)) whose peak position
+and width, 2θ₀ = 14.4158(539)° and Γ = 5.815(1.504)°, are the only independent
+corroboration in that section: they are what makes the `BackgroundPeak` result a
+cross-code agreement rather than a self-report. A reader should be able to locate
+them, which is what this section is for.
+
+| Established | Evidence |
+|---|---|
+| The specimen and pattern | Cr₂WO₆, NIST **BT-1** constant-wavelength neutron, 60 K. Michael Gaultois's own material and measurement — nothing to clear with a third party |
+| The refinement quoted | A TOPAS fit of that pattern: 7 Chebyshev background terms plus one Gaussian peak, the shape `Instrument.background_peaks` was built to express |
+| Publication status | **The fit quoted is unpublished, and so is the pattern.** The material has a paper — Gaultois, Kemei, Harada & Seshadri, *Rapid preparation and magnetodielectric properties of trirutile Cr₂WO₆*, J. Appl. Phys. 117, 014105 (2015) — but it reports the **room-temperature synchrotron** refinement, not this 60 K BT-1 neutron fit. The paper is therefore context for the material and **not** the source of any number in the evidence table; nothing here is a published reference |
+| What is **not** here | The BT-1 pattern itself, and the TOPAS `.inp`/`.out` files it was refined with. Both live on the data owner's archive and neither is redistributed — the same treatment `11BM_LaB6_cBN_mg2044.xye`'s row gives its TOPAS references |
+
+So this row is the **mg2044 shape, not the certificate shape**: an unpublished
+TOPAS fit of the owner's own unpublished pattern, transferred as a protocol and
+compared number-to-number. That still makes the peak position and width a
+*cross-code* agreement — two codes, one dataset, different peak-shape models —
+but it is **not** independent published corroboration, and the evidence table
+must not read as though it were.
+
+What that costs is worth stating: the strongest form of this section's argument
+would rest on a peak fitted in a **published** refinement, over a *simple*
+background so the peak is not entangled with a flexible one. This dataset is
+neither. Finding a better example is recorded as follow-up work rather than
+papered over here.
+
 ### `.uxd` — the format with real evidence and no vendorable file
 
 Bruker/Siemens DIFFRAC-AT ASCII.  **Nothing is vendored for it**, and that is

@@ -1028,6 +1028,204 @@ class BackgroundFixedPlusChebyshev(Base):
 Background = BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpline
 
 
+#: :class:`BackgroundPeak`'s refinable fields, in path order.  One authority for
+#: the three names: ``params.vector.background_peak_parameters`` registers them,
+#: ``ParameterTable.apply_to_models`` writes them back, ``compile_model`` freezes
+#: the paths and ``strategy.staged`` reads them — so adding a fourth (an η, say)
+#: is one edit rather than five that can drift.  The sub-path *is* the field
+#: name, which is what makes ``instrument.background_peaks.0.fwhm`` legible.
+BACKGROUND_PEAK_FIELDS: tuple[str, ...] = ("position", "height", "fwhm")
+
+#: Lower bound on :attr:`BackgroundPeak.fwhm`, in °2θ.  The Gaussian divides by
+#: Γ, so this is the :data:`~rietx.schemas.structure.MARCH_R_MIN` situation and
+#: not a `min=0.0` one: ``internal_bounds`` maps any lower bound ≤ 1e-12 to −∞
+#: and ``log(1+e^u)`` underflows to *exactly* 0.0, so a softplus "strictly
+#: positive" width is a promise the transform does not keep and a zero width is
+#: a pole (root CLAUDE.md § Invariants).
+#:
+#: The number comes from the sampling rule the rest of the package already
+#: quotes: :data:`rietx.background.diagnostics.STEPS_PER_FWHM_MIN` = 5 steps
+#: across a feature is the minimum at which anything can be refined from it, and
+#: 0.02 °2θ is the finest step a routine powder scan uses — 5 × 0.02 = 0.1.
+#: Below that a "background feature" is narrower than a handful of channels,
+#: which is a Bragg peak or a spike, not diffuse scattering.  It is a floor on
+#: the *parameterisation*, deliberately far below any real hump (whole degrees):
+#: it exists to make the pole unreachable, not to encode a physical width.
+BACKGROUND_PEAK_FWHM_MIN = 0.1
+
+#: Softplus lower bound at or under which `internal_bounds` gives up on the
+#: bound entirely — the same 1e-12 `schemas/structure.py` uses, restated here
+#: rather than imported so `schemas/instrument.py` keeps importing nothing from
+#: its sibling.
+_SOFTPLUS_FLOOR = 1e-12
+
+
+class BackgroundPeak(Base):
+    """One explicit broad Gaussian added on top of whatever background is in use.
+
+    A localised background feature — a diffuse/amorphous hump, an unmodelled
+    scattering contribution from the sample environment, a cryostat or container
+    artefact — described by three numbers instead of by making the polynomial or
+    the spline flexible enough to contort into it:
+
+        y_peak(2θ) = h · exp[ −4 ln2 · ((2θ − 2θ₀)/Γ)² ]
+
+    **This is an empirical basis function, not a diffraction profile.**  A
+    Gaussian in 2θ has no derivation behind it here and does not pretend to
+    one — genuinely amorphous scattering is a Debye/RDF term in Q, not a
+    Gaussian in angle.  What is cited is the *practice*: an explicit broad peak
+    added to the background is what GSAS-II exposes as a background peak
+    (position, intensity, width; Toby & Von Dreele, 2013, *J. Appl. Cryst.*
+    **46**, 544) and what TOPAS exposes as a cell-less "peaks phase"
+    (``xo_Is`` + ``gauss_fwhm``; Coelho, 2018, *J. Appl. Cryst.* **51**, 210).
+    The :class:`Background` docstrings cite Chebyshev and P-spline practice the
+    same way, and this sits in that register.
+
+    **Why it is not a fourth** :data:`Background` **member.** It composes with
+    all three rather than replacing any — it is an additive term beside the
+    background, so it lives on :attr:`Instrument.background_peaks` and the
+    design matrix is untouched.  It is also not a :class:`~rietx.Phase`: a phase
+    here is crystallographic through and through (cell ties, Wyckoff sites,
+    QPA) and a cell-less one breaks every consumer of it.
+
+    **Why the flexibility has to be local.** Measured on a NIST BT-1 constant-
+    wavelength neutron pattern of Cr₂WO₆ at 60 K (λ = 2.078 Å, 2941 channels,
+    5-152 °2θ, σ from file) with a broad background feature near 14.4 °2θ.  Its
+    published TOPAS refinement describes that feature with 7 Chebyshev terms
+    plus one explicit Gaussian (position 14.4158(539), height 9.516(2.826),
+    ``gauss_fwhm`` 5.815(1.504)).  One phase, ``plan="mccusker_structural"``:
+
+    ============================  ======  =======  ============  ================
+    background                     terms  Rwp      Biso(Cr)/Å²   HIGH_CORRELATION
+    ============================  ======  =======  ============  ================
+    Chebyshev, 7 terms                  7  0.05303  −0.019(222)                  0
+    that **+ one peak**             7 + 3  0.05252  −0.029(219)                  0
+    Chebyshev, ``auto_background``     16  0.05137  −0.040(215)                  0
+    that **+ one peak**            16 + 3  0.05126  −0.053(213)                617
+    P-spline, ``auto_background``      57  0.05256  −0.039(218)                145
+    ============================  ======  =======  ============  ================
+
+    Three readings, and the honest one first.
+
+    **The peak finds the feature.**  On the low-order background it refines to
+    2θ₀ = 14.50(1.46)°, Γ = 6.06(3.83)° — the TOPAS values above, from a
+    different code with a different peak-shape model — at 20.8× the
+    instrumental FWHM there (0.291°).  That is the record field this correction
+    ships with, and it is not an Rwp comparison.
+
+    **A peak needs a low-order background to be identifiable.**  On the 16-term
+    polynomial the same peak walks to 24.8° and 31.9° wide, becomes a low-order
+    background term in all but name, and the fit returns 617
+    ``HIGH_CORRELATION`` findings.  Declare a peak *instead of* extra
+    polynomial terms, never on top of them.
+
+    **Biso(Cr) stays negative, so the background was not the whole story.**
+    That was the expectation this class was built to test and it is not met
+    here: the peak moves Biso(Cr) by −0.010 Å², the *wrong* way, on a parameter
+    whose esd is 0.22.  The Chebyshev-7 arm against the reference, site by site
+    and in combined σ:
+
+    ====  ===================  ===================  ========  =========
+    site  TOPAS                this package         Δ          in σ
+    ====  ===================  ===================  ========  =========
+    Cr1   +0.2150(761)         −0.0186(2222)        −0.234     0.99
+    W1    +0.5143(1114)        +0.5304(3347)        +0.016     0.05
+    O1    +0.3759(567)         +0.2374(1580)        −0.139     0.83
+    O2    +0.3223(333)         +0.2445(940)         −0.078     0.78
+    ====  ===================  ===================  ========  =========
+
+    So the two refinements **agree**, every site inside one combined σ, and
+    Biso(Cr) is not *significantly* negative — it is the smallest and least
+    determined of the four in both codes and its central value here lands just
+    below zero.  The offsets are also not uniform (W agrees to 0.016 Å²), so
+    they are not the signature of a missing whole-Q-range factor either.  What
+    is systematic is the **esd**: 2.8-3.0× the reference's at every site, which
+    is the number to attack before the sign of Biso(Cr) means anything, and
+    three protocol differences are the places to look — the reference refines a
+    specimen displacement of 0.0975 (a cos θ error this geometry cannot express
+    without a goniometer radius), uses a Pearson VII peak shape against this
+    package's TCHZ pseudo-Voigt, and carries a second phase at ≈1.2 vol %.
+
+    So the claim this class supports is the narrower one: it is the right
+    *description* of a localised background feature, and its recovered
+    parameters agree with an independent refinement of the same data.  It is not
+    evidence that a negative displacement parameter is a background problem.
+
+    Fields, and the reason each bound is the bound it is:
+
+    * ``position`` — °2θ, identity transform, **unbounded by default**.  It is
+      not a Bragg position, so nothing constrains it but the data; and the
+      bound one would want — the fitted range — is not a fact this schema can
+      see, since it depends on the pattern and on the excluded regions.  That
+      makes it the solver's per-stage window rather than a property of the
+      stored parameter, which is the ``cell_window`` rule
+      (:mod:`rietx.params.vector`), and a window is worth building only where
+      the failure it prevents is fatal.  Here it is merely uninformative: a
+      position that walks off the measured range stops moving Rwp, and comes
+      back as an unmeasured row with **no** esd rather than a small one, which
+      ``ParameterTable.unmeasured_rows`` already names.  A caller who knows the
+      range may set ``min``/``max``, and a finite stored bound is the caller's
+      claim, as everywhere else.
+    * ``height`` — softplus, ``min=0.0``, default 0.0.  ``min=0.0`` under
+      softplus is safe here for exactly one reason: **zero is the off state.**
+      h = 0 makes the whole term identically zero and the peak contributes
+      nothing anywhere, so the underflow softplus permits lands on the
+      identity, not on a pole (contrast ``PreferredOrientation.r``, whose
+      identity is interior at r = 1 with the pole *at* the bound).
+    * ``fwhm`` — °2θ, softplus, floored at :data:`BACKGROUND_PEAK_FWHM_MIN`
+      with a reachability validator, because this one *does* divide.
+    * shape — **Gaussian only, and the fence is deliberate.**  No mixing
+      parameter: a broad feature is described by a few tens of channels of
+      curvature sitting on a polynomial that can already absorb the difference
+      between a Gaussian and a pseudo-Voigt, so η would be a third number the
+      data cannot separate from the terms underneath it.  It is also what the
+      practice being matched does — TOPAS's ``gauss_fwhm``.  If a mixing
+      parameter is ever added, its identity is interior (η = 0 and η = 1 are
+      both legitimate ends, so the ``PreferredOrientation.r`` trap applies) and
+      it needs a logit transform, not a softplus.
+
+    All three default to ``vary=False``: a declared peak is inert until a stage
+    frees it, and ``height = 0`` means a declared-but-never-freed peak is
+    bit-identical to no peak at all.
+    """
+
+    #: apparent position of the hump in °2θ.  Required — there is no default
+    #: place for a background feature, and a defaulted one would be a claim.
+    position: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, unit="deg"))
+    height: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="counts",
+                                          transform="softplus"))
+    fwhm: Parameter = Field(
+        default_factory=lambda: Parameter(value=5.0,
+                                         min=BACKGROUND_PEAK_FWHM_MIN,
+                                         unit="deg", transform="softplus"))
+    #: free-text tag, e.g. ``"cryostat tail"``.  Not a parameter and not part of
+    #: any dot-path — the paths index the list, so a relabelled peak keeps its
+    #: refined values.
+    label: str | None = None
+
+    @model_validator(mode="after")
+    def _fwhm_floor_is_reachable(self) -> "BackgroundPeak":
+        """Repair a width bound softplus cannot actually enforce.
+
+        The ``PreferredOrientation._r_bound_is_reachable`` pattern, and for the
+        same reason: the broken bound **outlives the default**.  A JSON project
+        or a history node written with ``min: 0.0`` deserializes straight back
+        into the pole, and no default_factory ever runs on that path.  Only a
+        bound at or under the softplus floor is touched; any positive bound a
+        caller chose already maps to a finite internal one and is left alone.
+        """
+        if self.fwhm.min <= _SOFTPLUS_FLOOR:
+            # value **before** min: ``Base`` validates on assignment, so raising
+            # the floor under a value that is still below it would trip
+            # ``Parameter._check_bounds`` mid-repair.  Lifting the value first is
+            # always legal — the old bound was ≤ 1e-12.
+            self.fwhm.value = max(self.fwhm.value, BACKGROUND_PEAK_FWHM_MIN)
+            self.fwhm.min = BACKGROUND_PEAK_FWHM_MIN
+        return self
+
+
 class Instrument(Base):
     """Everything about the measurement except the sample."""
 
@@ -1043,6 +1241,22 @@ class Instrument(Base):
     background: Background = Field(
         default_factory=lambda: BackgroundChebyshev(), discriminator=None
     )
+    #: Explicit broad peaks **added on top of** ``background``, not a kind of
+    #: it (:class:`BackgroundPeak`).  The empty default is **exactly off**: no
+    #: path is registered, no term is evaluated, and the serialized instrument
+    #: differs from a pre-``background_peaks`` one only by ``[]`` — the idiom
+    #: ``Structure.restraints``, ``Phase.microstrain`` and
+    #: ``Geometry.surface_roughness`` already use, pinned by a bit-identity
+    #: test rather than asserted here.
+    #:
+    #: The field name is ``background_peaks`` and **not** ``background.peaks``
+    #: on purpose: fnmatch's ``*`` crosses dots, so a nested spelling would be
+    #: matched by the ``instrument.background.*`` glob every preset's first
+    #: stage carries, and every declared peak would be freed at stage 1 — a
+    #: free position over a pattern whose peaks have not been placed yet.  The
+    #: underscore puts the paths outside that glob by construction instead of
+    #: by retightening seven presets.
+    background_peaks: list[BackgroundPeak] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _radiation_admits_its_corrections(self) -> "Instrument":

@@ -277,6 +277,20 @@ anything significant is riding the exchange, is in [the report](report.md), whos
 That chapter's `FitReport.identifiability` is a different type from this one, and
 the warning there says how they differ.
 
+The other half of "how flexible was the background" is not in that table, and the
+distinction is worth the sentence. The absorption column says what the background
+*could imitate*; `RefinementResult.n_background_peaks` says with how many
+explicit [background peaks](data.md) it was allowed to
+do it — N peaks are 3N parameters with unconstrained positions, which a reader
+comparing two Rwp values has to be able to see. It sits on the result rather than
+in the table above because it is **declared, not measured**: the four fields
+above are read off the final Jacobian and exist only where a solve measured them,
+while this is a count of what the instrument carried, so it is there on a
+`replay`ed node too, where `identifiability` is `None`. `0` means none was
+declared, exactly off; `None` means nothing counted, which is a joint
+multi-histogram fit (one count per histogram) or a result recorded before the
+field existed.
+
 ## How finely the peaks were sampled
 
 The other half of the question is about the experiment rather than the model.

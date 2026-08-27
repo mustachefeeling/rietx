@@ -1734,6 +1734,25 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "higher-symmetry Laue class has fewer), or extend the "
                        "fit range; do not report the S_HKL as measured",
         ))
+    for finding in guard.narrow_background_peaks:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="BACKGROUND_PEAK_TOO_NARROW",
+            where=list(finding.paths), value=finding.value,
+            message=f"the declared background peak {msg} is no longer "
+                    "describing a broad feature: at that width it is a "
+                    "reflection with no cell and no structure factor behind "
+                    "it, and a free peak improves Rwp whether or not anything "
+                    "is there",
+            suggestion="a background peak is for diffuse or amorphous "
+                       "scattering, a cryostat or sample-container "
+                       "contribution — features whose width comes from "
+                       "disorder and is many times the resolution. If there "
+                       "is a real unindexed line here, the honest answers are "
+                       "a second phase or the unmatched-peak report in the "
+                       "FitReport's Layer 0, not a background peak; do not "
+                       "report these peak parameters as measured",
+        ))
     for finding in guard.background_correlations:
         msg = str(finding)
         out.append(Diagnostic(
@@ -2306,6 +2325,10 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         phase_agreement=_phase_agreement(model, values, structure),
         data_support=support,
         absorption=absorption, identifiability=identifiability,
+        # Declared, not measured, so it is written here rather than behind the
+        # guard above: every caller of this function has a compiled model, which
+        # is the whole authority for the count, so ``replay`` reports it too.
+        n_background_peaks=len(model.bkg_peak_paths),
     )
 
 

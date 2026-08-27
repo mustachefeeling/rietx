@@ -104,6 +104,7 @@ UNIT_DISPLAY: dict[str, str] = {
     "deg^2": "deg² 2θ",
     "mm": "mm",
     "A^2": "Å²",
+    "counts": "counts",
     "1e-12 A^-4": "10⁻¹² Å⁻⁴",
 }
 
@@ -472,6 +473,51 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="0.0",
         typical="0 unless the pattern diagnostics report a low-angle rise",
         anchor="background.html#additive-models-never-subtraction",
+    ),
+    "instrument.background_peaks.*.position": HelpEntry(
+        title="Background-peak position",
+        description=(
+            "The centre, in °2θ, of an explicit Gaussian background term — a "
+            "diffuse or amorphous hump, a cryostat or sample-container "
+            "contribution. Unbounded by default: it is not a Bragg position, so "
+            "nothing constrains it but the data, and a caller who knows the "
+            "fitted range may set min/max. A declared peak is inert (vary=False, "
+            "height 0) until a stage frees it — nothing in the package adds one "
+            "on its own. Freeing position, height and width together *is* a "
+            "reflection with no cell behind it, which is why the fitted width is "
+            "held to the resolution (`BACKGROUND_PEAK_TOO_NARROW`)."
+        ),
+        unit="deg 2θ", default="0.0",
+        typical="wherever the diffuse feature sits, e.g. 14.4 on NIST BT-1",
+        anchor="background.html#localised-flexibility-explicit-background-peaks",
+    ),
+    "instrument.background_peaks.*.height": HelpEntry(
+        title="Background-peak height",
+        description=(
+            "The peak intensity of an explicit Gaussian background term, in the "
+            "pattern's own count units. Softplus with min 0 because zero is the "
+            "off state: h = 0 makes the whole term identically zero, so a "
+            "declared-but-never-freed peak is bit-identical to no peak at all."
+        ),
+        unit="counts", default="0.0",
+        typical="of the order of the hump's rise above the smooth background",
+        anchor="background.html#localised-flexibility-explicit-background-peaks",
+    ),
+    "instrument.background_peaks.*.fwhm": HelpEntry(
+        title="Background-peak width",
+        description=(
+            "The full width at half maximum, in °2θ, of an explicit Gaussian "
+            "background term. What makes the term a *background* term is that "
+            "this width comes from disorder rather than the goniometer, so it is "
+            "many times the instrumental resolution; a fitted width approaching "
+            "the resolution is a reflection being eaten, reported as "
+            "`BACKGROUND_PEAK_TOO_NARROW`. Softplus, floored at a small positive "
+            "value because the Gaussian divides by it."
+        ),
+        unit="deg 2θ", default="5.0",
+        typical="several times the instrumental FWHM at that angle; ~6 on the "
+                "BT-1 case this feature was measured on",
+        anchor="background.html#localised-flexibility-explicit-background-peaks",
     ),
     # -- phase -------------------------------------------------------
     "phases.*.cell.a": _CELL_LENGTH,

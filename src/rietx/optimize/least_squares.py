@@ -145,8 +145,17 @@ def _intensity_only(path: str, bkg_cols: dict[str, int]) -> bool:
 
     Background coefficients qualify trivially — they never touch a peak at all
     — which is what lets a background-plus-scale stage skip the bases outright.
+    An additive background peak (``instrument.background_peaks.i.…``) qualifies
+    the same way and for the same reason: it is a term *added* to the pattern,
+    so ∂pos/∂p, ∂Γ/∂p and ∂η/∂p of every Bragg peak are identically zero.  It
+    is spelled here rather than left to fall through because the fall-through
+    is only *slow*, not wrong — a stage freeing nothing but a hump would build
+    two FCJ node generations per (line, reflection) per iteration and multiply
+    all three partials by zero.
     """
-    return path in bkg_cols or any(p.match(path) for p in _INTENSITY_ONLY)
+    return (path in bkg_cols
+            or path.startswith("instrument.background_peaks.")
+            or any(p.match(path) for p in _INTENSITY_ONLY))
 
 
 #: scipy ``least_squares`` termination codes as tokens (its docs, `status`):
@@ -592,6 +601,16 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                 fd_cols.append(c)
 
         if fd_cols:
+            # The declared fallback.  A background-peak parameter lands here by
+            # design, not by omission: ``scalar_chain_supported`` names the
+            # prefix and returns False, so the reach gate knows the path is
+            # outside every analytic branch instead of discovering it (the
+            # column-comes-back-**short** failure mode of WP-1070).  Writing
+            # only ``[:n_data]`` is exact for it — a peak parameter moves no
+            # penalty, Pawley or restraint row at all, so the rows left at their
+            # zero initialisation are the rows whose true value is zero.  Three
+            # parameters per hump means three residual evaluations per Jacobian,
+            # which is why analytic columns for them are not worth writing.
             r0 = sqrt_w * (model.y_obs - model.evaluate(values, intens))
             for c in fd_cols:
                 h = 1e-6 * max(1.0, abs(theta_t[c]))

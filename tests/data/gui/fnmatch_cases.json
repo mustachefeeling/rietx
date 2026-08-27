@@ -71,7 +71,10 @@
   "phases.0.atoms.0.adp.1",
   "instrument.source.lines.1.weight",
   "instrument.source.lines.1.wavelength",
-  "instrument.background.c3"
+  "instrument.background.c3",
+  "instrument.background_peaks.0.position",
+  "instrument.background_peaks.0.height",
+  "instrument.background_peaks.0.fwhm"
  ],
  "patterns": [
   {
@@ -147,7 +150,10 @@
     67,
     68,
     69,
-    70
+    70,
+    71,
+    72,
+    73
    ]
   },
   {
@@ -274,7 +280,10 @@
     40,
     68,
     69,
-    70
+    70,
+    71,
+    72,
+    73
    ]
   },
   {
@@ -412,6 +421,14 @@
    "pattern": "instrument.profile.y",
    "matches": [
     37
+   ]
+  },
+  {
+   "pattern": "instrument.background_peaks.*",
+   "matches": [
+    71,
+    72,
+    73
    ]
   },
   {

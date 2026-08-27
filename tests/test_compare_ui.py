@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 
 from rietx import compare_app
+from rietx.schemas.instrument import BACKGROUND_PEAK_FWHM_MIN
 from rietx.viz import compare as cmp
 
 from .test_acceptance_qpa_roundrobin import DATA as QARR_DATA
@@ -226,6 +227,40 @@ def test_stephens_variant_frees_strain_inside_the_broadening_stage():
 # ----------------------------------------------------------------------
 # decimation
 # ----------------------------------------------------------------------
+def test_background_peak_variant_declares_a_broad_peak_and_frees_it_late():
+    """A stage of its own, appended: a free *position* over a pattern whose
+    peaks are not yet placed hunts whatever misfit the wrong zero and cell are
+    producing, so this cannot ride in ``scale_bkg`` the way the P-spline
+    variant's coefficients do.
+
+    The width matters as much as the stage: the declared peak must be broad
+    enough that ``BACKGROUND_PEAK_TOO_NARROW`` is not the variant's own doing.
+    """
+    if not (DATA_DIR / "11BM_NAC.fxye").exists():
+        pytest.skip("11-BM NAC dataset not present")
+    inputs = cmp.STANDARD_BY_KEY["nac"].build(DATA_DIR)
+    n_before = len(inputs.plan.stages)
+    cmp.VARIANT_BY_KEY["background_peak"].apply(inputs)
+
+    assert len(inputs.plan.stages) == n_before + 1
+    stage = inputs.plan.stages[-1]
+    assert stage.name == "background_peaks"
+    assert stage.turn_on == ["instrument.background_peaks.*"]
+
+    peaks = inputs.instrument.background_peaks
+    assert len(peaks) == 1
+    lo, hi = inputs.two_theta_limits or (None, None)
+    tt = np.asarray(inputs.data.two_theta)
+    lo = float(tt.min()) if lo is None else lo
+    hi = float(tt.max()) if hi is None else hi
+    assert lo < peaks[0].position.value < hi
+    assert peaks[0].fwhm.value >= BACKGROUND_PEAK_FWHM_MIN
+    assert peaks[0].height.value > 0.0
+    # the baseline must not carry it — the variant is the only difference
+    assert cmp.STANDARD_BY_KEY["nac"].build(DATA_DIR).instrument.background_peaks \
+        == []
+
+
 def test_capillary_displacement_variant_frees_the_pair_with_the_zero_shift():
     """Beside ``zero_shift``, not in a stage of its own (WP-1073).
 
