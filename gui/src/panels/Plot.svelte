@@ -344,10 +344,11 @@
       // The x axis is anchored to the *lower* subplot, so the ticks and the
       // title sit under the residual rather than between the two — where the
       // title landed inside the residual plot, on a cumulative χ² curve.
-      // The pointer's own mark on the data (WP-1213).  `across` rather than
-      // plotly's default `toaxis` because the x axis is anchored to the lower
-      // subplot: a spike drawn to *its* axis would stop at the residual, and
-      // what the reader is lining up is a position in the pattern.
+      //
+      // It also carries the pointer's own mark on the data (WP-1213), and
+      // `across` rather than plotly's default `toaxis` for the reason just
+      // above: a spike drawn to *its* axis would stop at the residual, and what
+      // the reader is lining up is a position in the pattern.
       //
       // Solid, in the page's own ink, and that is a browser finding: dotted in
       // `colors.edge` — the obvious first choice — is `maskShapes`' excluded-
@@ -560,27 +561,26 @@
       else if (ev["xaxis.autorange"]) draw();
     });
     // The pointer's 2θ, which is the whole of this panel's hover state: the
-    // strip is derived from it and the peak link is `nearestPeak` at the same
-    // radius the pointer verbs aim with.  It used to read plotly's own match
-    // (`ev.points`, the trace named `peaks`), which was a second answer to
-    // "which line is under the pointer" — decided by `hoverdistance` in pixels
-    // rather than by the readable radius a click obeys (WP-1027).
+    // strip is derived from it, and the peak link below is `nearestPeak` at the
+    // coarse radius a shift-click obeys (`PICK_RADIUS_PX`) rather than plotly's
+    // match on the trace named `peaks` — that was decided by `hoverdistance` in
+    // pixels, a second answer to "which line is under the pointer".
+    //
+    // The 2θ itself comes through this panel's own axis map and not off
+    // `ev.points[0]`, which is whichever *trace* plotly matched first: the
+    // ticks ride on reflection positions and the markers on peak positions, so
+    // the first point is not a stable answer to "where is the pointer". The
+    // event's own clientX is, and `thetaOf` is the conversion every pointer
+    // verb here already uses.
     plotNode.removeAllListeners?.("plotly_hover");
     plotNode.on?.("plotly_hover", (ev: any) => {
-      // …and it is read through this panel's own axis map rather than off
-      // `ev.points[0]`, which is whichever *trace* plotly matched first: the
-      // ticks ride on reflection positions and the markers on peak positions,
-      // so the first point is not a stable answer to "where is the pointer".
-      // The event's own clientX is, and `thetaOf` is the same conversion every
-      // pointer verb here uses.
       const px = ev?.event?.clientX;
       const from = ev?.points?.[0]?.x;
       const x = typeof px === "number" ? thetaOf(px)
         : (typeof from === "number" ? from : null);
       hoverAt = x;
       if (peaksActive && peaks?.peaks?.length && hoverAt !== null) {
-        onhoverpeak(nearestPeak(peaks.peaks, hoverAt,
-                                grabToleranceDeg(peaks.peaks, degPerPx())));
+        onhoverpeak(nearestPeak(peaks.peaks, hoverAt, PICK_RADIUS_PX * degPerPx()));
       }
     });
     plotNode.removeAllListeners?.("plotly_unhover");
@@ -746,6 +746,13 @@
    */
   let hoverAt = $state<number | null>(null);
 
+  /** The radius every *non-destructive* pointer question here is asked with, in
+   *  px: the readout's, the hover ring's, shift-toggle's and click-to-add's.
+   *  WP-1027 made the **move** gesture's radius readable (`grabToleranceDeg`)
+   *  because a drag edits a line; naming one does not, and at a survey view the
+   *  fine radius is narrower than the decimated channel spacing. */
+  const PICK_RADIUS_PX = 10;
+
   /** What the strip prints. Derived, so the resting state and a reading are the
    *  same shape and the row of fields cannot reflow under the pointer. */
   const reading = $derived<Readout | null>(readout(held, hoverAt, {
@@ -753,13 +760,14 @@
     wavelengths,
     peaks: peaks?.peaks ?? null,
     peaksActive,
-    // the same radius the pointer verbs aim with, so the strip names the line
-    // a click would take — one hit test, not a second opinion
-    peakTolerance: peaks?.peaks?.length
-      ? grabToleranceDeg(peaks.peaks, degPerPx()) : undefined,
+    // the coarse 10-px radius `down`'s `click` aims with, so the strip names
+    // the line a shift-click would take — one hit test, not a second opinion.
+    // Not the move gesture's `grabToleranceDeg`: that one is deliberately fine
+    // because a drag *edits*, and reading a line does not.
+    peakTolerance: PICK_RADIUS_PX * degPerPx(),
     groups: peaks?.groups ?? null,
     candidate: overlay,
-    candidateTolerance: 10 * degPerPx(),
+    candidateTolerance: PICK_RADIUS_PX * degPerPx(),
     hidden,
   }));
 
@@ -961,7 +969,7 @@
     if (tt === null) return;
     const perPx = degPerPx();
     const move = nearestPeak(peaks.peaks, tt, grabToleranceDeg(peaks.peaks, perPx));
-    const click = nearestPeak(peaks.peaks, tt, 10 * perPx);
+    const click = nearestPeak(peaks.peaks, tt, PICK_RADIUS_PX * perPx);
     gesture = { move: move ?? -1, click: click ?? -1, startX: ev.clientX, moved: false };
     if (move !== null) {
       // this gesture is a peak drag, not a zoom: keep it from plotly's drag
@@ -1008,7 +1016,7 @@
     if (arm || !peaksActive || !peaks?.peaks) return;
     const tt = thetaOf(ev.clientX);
     if (tt === null) return;
-    const hit = nearestPeak(peaks.peaks, tt, 10 * degPerPx());
+    const hit = nearestPeak(peaks.peaks, tt, PICK_RADIUS_PX * degPerPx());
     if (hit === null) return;
     ev.preventDefault();
     onremovepeak(hit);

@@ -859,9 +859,14 @@ is also how the strip says the pointer is inside a region without a field that
 changes width to say it. **The pointer's 2θ is this panel's own axis map, not
 `ev.points[0]`**, which is whichever *trace* plotly matched first — the ticks
 ride on reflection positions and the markers on peak positions; the line under
-the pointer is `nearestPeak` at the radius a click obeys (WP-1027), so the ring,
-the lit table row and the strip name one peak rather than `hoverdistance` naming
-another. **The spike is chrome, so it is solid and takes `--fg`**: dotted in
+the pointer is `nearestPeak` at the **coarse** 10-px radius the non-destructive
+verbs aim with (`PICK_RADIUS_PX`, WP-1027's fine `grabToleranceDeg` is the
+*move* gesture's, because a drag edits), so the ring, the lit table row and the
+strip name one peak rather than `hoverdistance` naming another. **A curve is
+read at the nearest drawn channel and a nearby thing is hit-tested against the
+pointer**, which are two positions on purpose: the drawn pattern is decimated,
+so at a survey view the channel is up to ~0.03° away — wider than the tolerance
+— and the pointer sat on three picked lines in a row while the row read `—`. **The spike is chrome, so it is solid and takes `--fg`**: dotted in
 `--muted` is `maskShapes`' excluded-region edge exactly, and the pointer drew a
 line indistinguishable from a protocol boundary — a mark carrying no quantity
 needs no `--plot-*` token (WP-1210), it needs the one ink no plot colour is

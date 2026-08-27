@@ -835,8 +835,10 @@ export interface ReadoutInputs {
   peaks?: readonly PeakRow[] | null;
   peaksActive?: boolean;
   /** how near a picked line has to be to be the one under the pointer, in ° 2θ:
-   *  the caller's, because the pixel↔2θ map is the caller's — the same
-   *  `grabToleranceDeg` radius the pointer verbs aim with */
+   *  the caller's, because the pixel↔2θ map is the caller's.  The **coarse**
+   *  radius the non-destructive verbs aim with (10 px, `down`'s `click`), not
+   *  the move gesture's `grabToleranceDeg` — reading a line is not editing one,
+   *  and at a survey view the fine radius is a fraction of a channel */
   peakTolerance?: number;
   /** the fitted group profiles, so the dashed curve can say what it is worth */
   groups?: readonly GroupCurve[] | null;
@@ -896,6 +898,14 @@ function offset(delta: number): string {
  * being off the plot altogether, which is most of the time. A strip that grew a
  * field on hover would resize the canvas above it once per entry, and that is
  * the jitter WP-1212 spent itself removing, arriving through the repair for it.
+ *
+ * Two questions, two positions, and they are not the same one. What a *curve*
+ * says is the nearest drawn channel's, and the position printed is that
+ * channel's, so every number belongs to one measured point and the tick offsets
+ * are consistent with it. What is *near the pointer* — a picked line, a
+ * predicted one — is hit-tested against the pointer's own `x`, because a drawn
+ * pattern is decimated and the channel it snapped to can be further away than
+ * the tolerance being applied.
  *
  * The one place this reads two arms is the **masked** channels: they are in no
  * result, so they arrive beside it (WP-1033), and a pointer inside an excluded
@@ -982,10 +992,15 @@ export function readout(
       value: j < 0 ? EMPTY : offset(ticks[j] - at!) });
   }
 
-  // the picked line under the pointer, printed as the panel's table prints it
+  // The picked line under the pointer, printed as the panel's table prints it —
+  // and hit-tested against `x` rather than the channel this readout snapped to.
+  // Measured in Chrome on the NAC example: the drawn pattern is decimated, so
+  // at a survey view the nearest drawn channel is up to ~0.03° from the
+  // pointer, which is *wider than the tolerance*; the pointer sat exactly on
+  // three picked lines in a row and the row read `—`.
   if (inputs.peaksActive && inputs.peaks?.length && shows(hidden, "peaks")) {
-    const hit = at == null ? null
-      : nearestPeak(inputs.peaks, at, inputs.peakTolerance ?? Infinity);
+    const hit = !live ? null
+      : nearestPeak(inputs.peaks, x!, inputs.peakTolerance ?? Infinity);
     const row = hit === null ? null : inputs.peaks.find((p) => p.index === hit);
     const pos = row ? formatPosition(row.two_theta, row.two_theta_esd) : null;
     rows.push({ id: "peaks", label: "peak", ink: "peak",
@@ -1003,9 +1018,9 @@ export function readout(
   // is the candidate row (WP-1211).
   const lines = inputs.candidate?.two_theta ?? [];
   if (lines.length) {
-    const j = at == null ? -1 : nearestIndex(lines, at);
+    const j = !live ? -1 : nearestIndex(lines, x!);
     const near = j >= 0
-      && Math.abs(lines[j] - at!) <= (inputs.candidateTolerance ?? Infinity);
+      && Math.abs(lines[j] - x!) <= (inputs.candidateTolerance ?? Infinity);
     const hkl = inputs.candidate?.hkl?.[j];
     const li = inputs.candidate?.line?.[j];
     const lineLam = li == null ? undefined : inputs.wavelengths?.[li];

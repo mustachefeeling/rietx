@@ -475,8 +475,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # replaced whole), and none derives from another.  Operating detail went a
     # rank down as this comment requires: the field list and the resting state
     # are `readout`'s docstring, the strip's widths are the `.readout` rule's
-    # comment, and every measured number is in the WP's handover.
-    "gui/CLAUDE.md": 874,
+    # comment, and every measured number is in the WP's handover.  879 after
+    # the peaks-tab pass added the eighth: a curve is read at the nearest drawn
+    # channel and a nearby thing is hit-tested against the pointer, because the
+    # drawn pattern is decimated and the two are not the same position.
+    "gui/CLAUDE.md": 879,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

@@ -718,6 +718,22 @@ describe("the readout strip (WP-1213)", () => {
     expect(value(out, "peaks")).toBe("—");
   });
 
+  it("hit-tests the pointer, not the channel the readout snapped to", () => {
+    // Measured in Chrome on the NAC example: the drawn pattern is decimated,
+    // so at a survey view the nearest drawn channel is up to ~0.03° from the
+    // pointer — wider than the tolerance being applied — and the pointer sat
+    // exactly on three picked lines in a row while the row read `—`.
+    const coarse = { ...FITTED, two_theta: [1, 3], y_obs: [100, 900],
+                     y_calc: [98, 890], delta: [0.2, 0.33], ticks: {} };
+    const line = [{ ...PEAKS[0], two_theta: 2.4 }];
+    const out = readout(coarse, 2.4, {
+      kind: "weighted", peaks: line, peaksActive: true, peakTolerance: 0.05 });
+    // the position is still the channel's — every printed number belongs to
+    // one measured point — while the line under the pointer is found anyway
+    expect(out!.position).toBe("3.0000°");
+    expect(value(out, "peaks")).toContain("#0 2.4000(3)°");
+  });
+
   it("has no peak row at all away from the tab that draws the layer (WP-1210)", () => {
     const out = readout(FITTED, 2, { kind: "weighted", peaks: PEAKS, groups: GROUPS });
     expect(out!.rows.map((r) => r.id)).not.toContain("peaks");
