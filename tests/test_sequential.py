@@ -1279,6 +1279,14 @@ def test_resolve_trajectory_is_the_one_dispatch_for_every_kind(thermal_series):
     assert thermal_series.resolve_trajectory(f"r_f.{name}").value == \
         thermal_series.agreement_trajectory(name, metric="r_f").value
 
+    # The arm that already existed is the one a regression would be quietest
+    # in: `qpa.` is why the resolver had to keep working at all, since
+    # plot_trajectory and gui/series.py were only safe to convert once every
+    # kind went through one front door.
+    assert thermal_series.is_derived_path("qpa.LaB6")
+    assert thermal_series.resolve_trajectory("qpa.LaB6").value == \
+        thermal_series.qpa_trajectory("LaB6").value
+
     param = thermal_series.paths()[0]
     assert not thermal_series.is_derived_path(param)
     assert thermal_series.resolve_trajectory(param).value == \

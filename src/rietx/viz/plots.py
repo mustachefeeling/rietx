@@ -723,8 +723,14 @@ def plot_trajectory(series, paths, *, path: str | None = None,
                     dpi: int = 150, mark_diagnostics: bool = True):
     """Parameter trajectories across a sequential series (WP-0505).
 
-    One stacked panel per requested dot-path (or ``"qpa.<phase>"`` for a weight
-    fraction), value with esd error bars against the series coordinate.
+    One stacked panel per requested display path, resolved through
+    :meth:`SeriesResult.resolve_trajectory` — a refined parameter's dot-path, or
+    a derived ``"qpa.<phase>"`` weight fraction, ``"r_bragg.<phase>"`` or
+    ``"r_f.<phase>"`` agreement index — plotted against the series coordinate.
+    **Error bars appear only where the kind has an esd to carry**: a refined
+    parameter and a weight fraction do, an agreement index does not (its
+    ``stderr`` column is ``None`` throughout, and a zero-height bar would read
+    as an infinitely precise residual), so those panels draw the curve alone.
     Patterns the reseed guard refitted cold are ringed rather than dropped, and
     a discontinuity the series flagged is marked between its two points — the
     plot shows the same fences the diagnostics carry, so a trajectory is never
