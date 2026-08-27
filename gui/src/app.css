@@ -43,6 +43,13 @@
      `--plot-diff` and the alert tone `--warn` 0.053 from `--plot-calc`. */
   --plot-peak: #8c257e;
   --plot-peakfit: #c158b0;
+  /* An indexing candidate's predicted lines (WP-1211) — the last of the free
+     hue space the comment above measured, spent rather than borrowed.  It could
+     not take the peak layer's: these two layers are up at the same time, on the
+     same tab, and the whole question the picture answers is which of the picked
+     lines a cell accounts for.  Nor the model's tick colour, which is plotly's
+     own per-phase cycle and is therefore not a value this file could quote. */
+  --plot-candidate: #1a8f45;
   /* What is *not* being fitted (WP-1033): a wash, deliberately not a sixth
      curve colour.  It marks absence from the residual rather than a quantity,
      so it carries no hue anything else could be confused with, and it is weak
@@ -112,6 +119,7 @@
     --plot-zero: #88888888;
     --plot-peak: #e687d5;
     --plot-peakfit: #b156a2;
+    --plot-candidate: #4ccf8a;
     --plot-mask: #e6e6e214;
   }
 }
@@ -133,6 +141,7 @@
   --plot-zero: #88888888;
   --plot-peak: #e687d5;
   --plot-peakfit: #b156a2;
+  --plot-candidate: #4ccf8a;
   --plot-mask: #e6e6e214;
 }
 

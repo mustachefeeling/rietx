@@ -40,7 +40,7 @@
   } from "./lib/helpContext";
   import { manualUrl, place, resolve, splitKey, type HelpCorpus } from "./lib/help";
   import { isShortcutTarget, type Command } from "./lib/palette";
-  import type { PeaksPayload } from "./lib/peaks";
+  import { cellText, type PeaksPayload } from "./lib/peaks";
   import { consoleLine, follow, type EngineEvent, type RunState } from "./lib/stream";
   import {
     THEME_CHOICES,
@@ -174,6 +174,34 @@
    *  here rather than one per panel, because "which line is this" is a question
    *  about the session, and two copies would be two answers. */
   let hoveredPeak = $state<number | null>(null);
+  /** Which candidate's predicted lines the plot draws (WP-1211).
+   *
+   *  Two indices, not one, because a preview and a selection are different
+   *  claims: `pickedCandidate` is the row a person opened and `previewCandidate`
+   *  the row the pointer happens to be over, which outranks it only while it
+   *  lasts.  One collapsed index would make leaving a row un-select the cell
+   *  underneath it. */
+  let pickedCandidate = $state<number | null>(null);
+  let previewCandidate = $state<number | null>(null);
+  const shownCandidate = $derived(previewCandidate ?? pickedCandidate);
+  /** Predicted positions per candidate index, fetched once each.
+   *
+   *  A cache and not a fetch-per-render because the preview above fires on
+   *  every row the pointer crosses, and the answer is a pure function of a
+   *  candidate that cannot change while it holds an index — so the map is
+   *  dropped whole whenever a new answer renumbers them. */
+  let candidateTicks = $state<Record<number, any>>({});
+  const candidateOverlay = $derived.by(() => {
+    const i = shownCandidate;
+    const answer = i === null ? null : candidateTicks[i];
+    if (i === null || !answer) return null;
+    const cell = indexAnswer?.result?.candidates?.[i]?.cell;
+    return {
+      label: cell ? cellText(cell) : `candidate ${i}`,
+      two_theta: answer.two_theta ?? [],
+      n_total: answer.n_total ?? (answer.two_theta?.length ?? 0),
+    };
+  });
   /** the last refusal from a settings patch, in the verb's own words — held
    *  beside the boxes that caused it rather than scrolled away in the console */
   let protocolError = $state("");
@@ -317,6 +345,7 @@
     openError = "";
     tab = "params";
     indexAnswer = null;
+    forgetCandidates();
     extinction = null;
     say(`# project: ${doc.path}`);
     run = await api.runState();
@@ -341,6 +370,7 @@
       openError = "";
       tab = "params";
       indexAnswer = null;
+      forgetCandidates();
       extinction = null;
       await loadResult();
       await loadPeaks();
@@ -460,8 +490,40 @@
     try {
       indexAnswer = await api.indexResult();
       extinction = null; // new candidates, new numbering — the server 409s too
+      forgetCandidates();
     } catch {
       // NO_INDEX_RESULT — nothing has run in this session; an empty state
+    }
+  }
+
+  /** Drop everything keyed by candidate index (WP-1211).
+   *
+   *  Whole-map, never per entry: an index is only a name while one answer
+   *  holds, so keeping any of it across a renumbering would draw one cell's
+   *  lines under another cell's row.  The same staleness the server enforces on
+   *  the extinction screen. */
+  function forgetCandidates() {
+    candidateTicks = {};
+    pickedCandidate = null;
+    previewCandidate = null;
+  }
+
+  /**
+   * Show one candidate's predicted lines, fetching them the first time.
+   *
+   * The fetch is by index and the answer is cached under it, because the
+   * preview fires on every row the pointer crosses. A failure is *silent* here
+   * and that is deliberate: this is a drawing, asked for by a hover, and the
+   * one refusal it can meet (`INDEX_CELL_TOO_LARGE`) is already visible as the
+   * absence of lines beside a cell whose own volume says why.
+   */
+  async function showCandidate(index: number | null) {
+    if (index === null || candidateTicks[index]) return;
+    try {
+      const answer = await api.candidateTicks(index);
+      candidateTicks = { ...candidateTicks, [index]: answer };
+    } catch {
+      // no lines to draw; the row and the plot simply stay as they are
     }
   }
 
@@ -969,6 +1031,7 @@
       <div class="plotcol" class:hidden={wide}>
         <Plot {result} {plotKey} {zoom} {theme} error={resultError}
           peaks={peaksData} peaksActive={tab === "peaks"} hovered={hoveredPeak}
+          candidate={candidateOverlay} candidatePicked={pickedCandidate !== null}
           {protocol} {extent} {channels} {protocolError} {busy}
           onhoverpeak={(i) => (hoveredPeak = i)}
           onaddpeak={addPeak} onmovepeak={movePeak} ontogglepeak={togglePeak}
@@ -1028,8 +1091,11 @@
             {capabilities} {corpus} doc={project?.doc ?? null}
             snapshots={indexSnapshots} onproject={loadProject}
             hovered={hoveredPeak} onhover={(i) => (hoveredPeak = i)}
+            {shownCandidate}
+            oncandidate={(i) => { pickedCandidate = i; showCandidate(i); }}
+            oncandidatehover={(i) => { previewCandidate = i; showCandidate(i); }}
             onpeaks={(p) => (peaksData = p)}
-            onindexed={(a) => (indexAnswer = a)}
+            onindexed={(a) => { indexAnswer = a; forgetCandidates(); }}
             onzoom={(lo, hi) => (zoom = [lo, hi])} onmoved={moved} />
         </div>
         <div class="panel" class:hidden={!seriesTab}>

@@ -15,6 +15,8 @@
    * Adopt button's enabled-ness is the **server's** `adopt` arm, never a local
    * reading of `confidence`: the button and the route must be one answer.
    */
+  import { untrack } from "svelte";
+
   import { api } from "../api";
   import Help from "../Help.svelte";
   import {
@@ -57,12 +59,15 @@
     doc = null,
     snapshots = [],
     hovered = null,
+    shownCandidate = null,
     say = () => {},
     onpeaks = () => {},
     onindexed = () => {},
     onzoom = () => {},
     onmoved = () => {},
     onhover = () => {},
+    oncandidate = () => {},
+    oncandidatehover = () => {},
     onproject = () => {},
   }: {
     peaks: PeaksPayload | null;
@@ -81,12 +86,20 @@
     snapshots?: Array<Record<string, any>>;
     /** the line the pointer is over, in the plot or in this table (WP-1032) */
     hovered?: number | null;
+    /** the candidate whose lines are on the plot right now (WP-1211) — the
+     *  shell's, because a hover preview outranks the selection while it lasts
+     *  and this panel must light the row that is actually drawn */
+    shownCandidate?: number | null;
     say?: (line: string) => void;
     onpeaks?: (payload: PeaksPayload) => void;
     onindexed?: (answer: any) => void;
     onzoom?: (lo: number, hi: number) => void;
     onmoved?: () => void;
     onhover?: (index: number | null) => void;
+    /** show this candidate's predicted lines, or none (WP-1211) */
+    oncandidate?: (index: number | null) => void;
+    /** preview one while the pointer is on its row */
+    oncandidatehover?: (index: number | null) => void;
     /** the document changed server-side (a controls patch landed) */
     onproject?: () => void;
   } = $props();
@@ -261,6 +274,27 @@
    *  it decides whether a space-group chip is a button or a fact */
   const screenAdoptable = $derived(
     extinction !== null && Boolean(verdicts[extinction.candidate]?.allowed));
+
+  /**
+   * Selecting a candidate is one act with two effects (WP-1211): the detail row
+   * opens and this cell's predicted lines go on the plot.
+   *
+   * `expanded` stays the one place that says which candidate is selected — a
+   * second flag beside it would be a second selection state, and the two would
+   * have to be kept in step at every write.
+   */
+  function selectCandidate(index: number | null) {
+    expanded = index;
+    oncandidate(index);
+  }
+
+  // A new answer renumbers the candidates, so the open row and the drawn lines
+  // are both about a cell that no longer has that index — the same staleness
+  // the server enforces on the extinction screen, one rank up.
+  $effect(() => {
+    void indexAnswer;
+    if (untrack(() => expanded) !== null) selectCandidate(null);
+  });
 
   async function verb(work: () => Promise<PeaksPayload>) {
     failure = "";
@@ -697,11 +731,19 @@ can rise when validation and ambiguity run, never fall">
             </tr>
           </thead>
           <tbody>
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
             {#each candidates as c, i (i)}
-              <tr class:best={i === best}>
+              <tr class:best={i === best} class:lit={shownCandidate === i}
+                onmouseenter={() => oncandidatehover(i)}
+                onmouseleave={() => oncandidatehover(null)}>
                 <td>
-                  <button class="ghost" title="details, caveats and ambiguity"
-                    onclick={() => (expanded = expanded === i ? null : i)}>
+                  <!-- one control, two effects, because they are one thought:
+                       "show me this cell" means the caveats *and* where it says
+                       the lines are.  A second button would be a second
+                       selection state to keep in step with this one. -->
+                  <button class="ghost" title="details, caveats and ambiguity —
+and this cell's predicted lines through the data"
+                    onclick={() => selectCandidate(expanded === i ? null : i)}>
                     {expanded === i ? "▾" : "▸"}
                   </button>
                 </td>
@@ -1025,6 +1067,13 @@ convention, not a measurement"
   /* the hover link, both ways: this row and the plot's ring name one line */
   tr.lit td {
     background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  /* The candidate table's own lit row is the overlay's ink, not the chrome
+     accent (WP-1210's rule): the row and the lines drawn from it are one
+     statement, and a reader has to be able to see that they are. */
+  .candidates tr.lit td {
+    background: color-mix(in srgb, var(--plot-candidate) 16%, transparent);
   }
 
   .pos {

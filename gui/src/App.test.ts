@@ -3975,6 +3975,157 @@ const EXTINCTION = (best: number | null) => ({
   running: false,
 });
 
+/**
+ * A candidate's predicted lines on the plot (WP-1211).
+ *
+ * What is asserted here is the wiring across three components — the row that
+ * selects, the shell that fetches and caches, the plot that draws — because
+ * that is where this feature is, and `lib/plot.test.ts` already owns the pure
+ * halves. The traces are read off a stubbed `Plotly.react`, which is how every
+ * drawing claim in this file is made: jsdom has no plotly and no layout.
+ */
+describe("an indexing candidate on the plot (WP-1211)", () => {
+  const INDEX_ANSWER = {
+    "/api/index/result": () => ({ body: {
+      result: { candidates: [MEDIUM_CANDIDATE], diagnostics: [], quality: null },
+      adopt: [{ allowed: false, why: "confidence is 'medium'" }],
+      refuting_caveats: [], running: false,
+    } }),
+    "/api/index/ticks": () => ({ body: {
+      candidate: 0, space_group: "R -3 m :H",
+      two_theta: [9.1, 9.3], hkl: [[0, 1, 2], [1, 0, 4]], line: [0, 0],
+      n_total: 2, n_returned: 2, shift_template: null, shift_coefficient: 0,
+    } }),
+  };
+
+  /** Every trace of the last `react`, by name. */
+  const names = (drawn: any[][]) =>
+    (drawn[drawn.length - 1] ?? []).map((t: any) => t.name);
+
+  it("draws them full height through the data, and clears the curves to do it",
+     async () => {
+    const drawn: any[][] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[]) => { drawn.push(traces); },
+      restyle: async () => {}, purge: () => {},
+    });
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+    // before anything is selected the model is on screen and nothing is fetched
+    expect(names(drawn)).toContain("calculated");
+    expect(stub.calls.some((c) => c.path === "/api/index/ticks")).toBe(false);
+
+    // the disclosure *is* the selection: one control, because "show me this
+    // cell" means the caveats and where it says the lines are
+    host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
+    await flush();
+
+    expect(stub.calls.find((c) => c.path === "/api/index/ticks")?.url)
+      .toContain("candidate=0");
+    const trace = (drawn[drawn.length - 1] as any[])
+      .find((t: any) => t.yaxis === "y4");
+    expect(trace).toBeTruthy();
+    // one null-separated trace, each line spanning the axis rather than a value
+    expect(trace.x).toEqual([9.1, 9.1, null, 9.3, 9.3, null]);
+    expect(trace.y).toEqual([0, 1, null, 0, 1, null]);
+    expect(trace.name).toContain("4.7594");
+    // "through *just* the data": selecting presses `data only` for you
+    expect(names(drawn)).toContain("observed");
+    expect(names(drawn)).not.toContain("calculated");
+    expect(host.textContent).toContain("2 predicted lines");
+
+    // deselecting puts back exactly what was there, and takes the lines off
+    host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
+    await flush();
+    expect(names(drawn)).toContain("calculated");
+    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
+      .toBe(false);
+  });
+
+  it("follows the tab that owns it, and is fetched once per candidate", async () => {
+    // WP-1210's rule: a layer is drawn where it can be acted on, and the row
+    // that acts on this one is in the Peaks panel.  The cache is the other
+    // half — the hover preview below fires on every row the pointer crosses.
+    const drawn: any[][] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[]) => { drawn.push(traces); },
+      restyle: async () => {}, purge: () => {},
+    });
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const row = () => host.querySelector<HTMLElement>(".candidates tbody tr")!;
+    row().dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+    await flush();
+    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
+      .toBe(true);
+    // a hover is a preview, not a selection: the curves stay up
+    expect(names(drawn)).toContain("calculated");
+
+    row().dispatchEvent(new MouseEvent("mouseleave", { bubbles: false }));
+    await flush();
+    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
+      .toBe(false);
+
+    // select, then leave the tab: the layer goes with it
+    host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
+    await flush();
+    button("Parameters")!.click();
+    await flush();
+    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
+      .toBe(false);
+    expect(names(drawn)).toContain("calculated");
+
+    // …and comes back with it, off the cache: one fetch for three showings
+    button("Peaks")!.click();
+    await flush();
+    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
+      .toBe(true);
+    expect(stub.calls.filter((c) => c.path === "/api/index/ticks").length).toBe(1);
+  });
+
+  it("says so when the server could only send a sample", async () => {
+    // the cap is not silent: a thinned set drawn without saying so reads as
+    // "these are the lines this cell predicts", which is the one claim this
+    // picture must not make falsely (CLAUDE.md's no-silent-caps rule)
+    vi.stubGlobal("Plotly", {
+      react: async () => {}, restyle: async () => {}, purge: () => {},
+    });
+    vi.stubGlobal("fetch", server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/index/ticks": () => ({ body: {
+        candidate: 0, space_group: "P -1", two_theta: [9.1, 9.3],
+        hkl: [[0, 1, 2], [1, 0, 4]], line: [0, 0],
+        n_total: 92103, n_returned: 2, shift_template: null, shift_coefficient: 0,
+      } }),
+    }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+    host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
+    await flush();
+
+    expect(host.textContent).toContain("2 of 92103 predicted lines");
+    expect(host.textContent).toContain("sampled evenly");
+  });
+});
+
 describe("the extinction screen table (WP-1027)", () => {
   it("ranks classes, lists every space group, and keeps chips inert without the adopt verdict", async () => {
     vi.stubGlobal("fetch", server({}).fetcher);

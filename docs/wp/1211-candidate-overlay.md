@@ -87,7 +87,7 @@ notes are now decisions in Design and in the tasks below. Nothing stale.*
 
 - [x] The route in `GuiSession` + `server.ROUTES`; tested on the corundum
       cell against `generate_reflections` directly.
-- [ ] Plot prop and lines; auto data-only while a candidate is selected;
+- [x] Plot prop and lines; auto data-only while a candidate is selected;
       row hover preview. `tests/test_gui_palette.py`'s 0.13 OKLab floor is
       what a new `--plot-*` token has to clear, and the free hue space is
       **green (≈126-150°)** alone (WP-1210 measured the rest); an overlay
