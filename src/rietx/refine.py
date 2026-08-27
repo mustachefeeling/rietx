@@ -2303,17 +2303,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     if guard is not None and (guard.measured_background_absorption
                               or guard.measured_top_correlations
                               or guard.measured_soft_modes
-                              or guard.measured_exchangeability
-                              or model.bkg_peak_paths):
+                              or guard.measured_exchangeability):
         identifiability = Identifiability(
             background_absorption=dict(guard.measured_background_absorption),
             top_correlations=list(guard.measured_top_correlations),
             soft_modes=list(guard.measured_soft_modes),
-            exchangeability=list(guard.measured_exchangeability),
-            # the declared count, read off the frozen compile state rather than
-            # counted from the parameter rows: a peak declared and never freed
-            # is still freedom the caller granted, and it would not appear there
-            n_background_peaks=len(model.bkg_peak_paths))
+            exchangeability=list(guard.measured_exchangeability))
 
     return RefinementResult(
         status=status, mode=mode,
@@ -2330,6 +2325,10 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         phase_agreement=_phase_agreement(model, values, structure),
         data_support=support,
         absorption=absorption, identifiability=identifiability,
+        # Declared, not measured, so it is written here rather than behind the
+        # guard above: every caller of this function has a compiled model, which
+        # is the whole authority for the count, so ``replay`` reports it too.
+        n_background_peaks=len(model.bkg_peak_paths),
     )
 
 

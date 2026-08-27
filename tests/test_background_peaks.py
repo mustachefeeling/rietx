@@ -682,7 +682,7 @@ def test_a_known_hump_comes_back_within_its_esds():
             f"{name}: {row.value} vs truth {truth[name]} ± {row.stderr}")
     assert not [d for d in result.diagnostics
                 if d.code == "BACKGROUND_PEAK_TOO_NARROW"]
-    assert result.identifiability.n_background_peaks == 1
+    assert result.n_background_peaks == 1
 
 
 @pytest.mark.xdist_group("background-peak-hump")
@@ -691,12 +691,49 @@ def test_the_declared_count_reaches_the_record_and_the_report():
     from rietx.report import build_report
 
     result, _truth = fit_hump_case(with_peak=True)
-    assert result.identifiability.n_background_peaks == 1
+    assert result.n_background_peaks == 1
     assert build_report(result).background.n_peaks == 1
 
     none, _truth = fit_hump_case(with_peak=False)
-    assert none.identifiability is None \
-        or none.identifiability.n_background_peaks == 0
+    assert none.n_background_peaks == 0
+    assert build_report(none).background.n_peaks == 0
+
+
+def test_a_replayed_node_reports_the_peaks_its_instrument_declares():
+    """The count is *declared*, so it does not live behind the guard.
+
+    ``Identifiability``'s four other members are read off the final Jacobian and
+    so exist only where a solve measured them — ``replay`` is evaluate-only and
+    correctly carries ``None`` there, which is a tested invariant and stays one
+    (asserted below, both halves).  The declared count is not a measurement:
+    it is ``len(model.bkg_peak_paths)``, available wherever a compiled model is,
+    and behind that guard it read 0 on every replayed node — "none declared",
+    which is a different claim from the true one.
+
+    The bar is the *count*, not a statistic, so the fit underneath is
+    deliberately the cheapest one that commits a node.
+    """
+    from rietx.report import build_report
+
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = _instrument(peaks=(_peak(vary=False),))
+    tt = np.arange(15.0, 60.0, 0.05)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 200.0).tolist())
+
+    ref = rx.Refinement(structure, ins)
+    result = ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage(name="bkg", turn_on=["instrument.background.*"], max_iter=2)]))
+    assert result.n_background_peaks == 1
+
+    replayed = rx.replay(ref.history, result.node_id, data)
+    # the invariant this field used to be gated by, intact in both directions
+    assert replayed.identifiability is None
+    assert build_report(replayed).background.absorption is None
+    # and the declared count, which never needed it
+    assert replayed.n_background_peaks == 1
+    assert build_report(replayed).background.n_peaks == 1
 
 
 def test_save_instrument_profile_strips_the_peaks(tmp_path):

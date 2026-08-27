@@ -71,8 +71,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: the ladder counts observable releases, and they reach a consumer in the same
 #: one.
 #: 0.9 → 0.10 (additive background peaks): ``Instrument.background_peaks`` (a new
-#: declared block) and ``Identifiability.n_background_peaks`` (a new field on a
-#: result).  Additive and defaulted — the empty list and 0 reproduce a
+#: declared block) and ``RefinementResult.n_background_peaks`` (a new field on a
+#: result).  Additive and defaulted — the empty list and ``None`` reproduce a
 #: pre-feature document byte for byte — but both are noticeable to a consumer,
 #: which since WP-1117 is the whole test (the ``Identifiability`` docstring is
 #: the sentence that first talked a reader out of this bump).
