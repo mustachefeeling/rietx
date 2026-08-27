@@ -107,13 +107,24 @@ channels already use. The layer is gated on `peaksActive`, and its two toggles
 are listed and **disabled carrying the reason** when it is away.
 
 **Measured**, all darwin/arm64 on this worktree's own venv, `[dev]` — jax and
-torch absent. gui: **475 passed**, against WP-1209's recorded 467, so +8 (5 in
-`plot.test.ts`, 3 in `App.test.ts`); `svelte-check` 0 errors / 0 warnings over
-378 files. Python fast selection `-m "not slow"`: **3148 passed / 117 skipped**
-in 152.71 s, against 1209's **3138 / 117** on the same extras and platform —
-exactly the ten `tests/test_gui_palette.py` adds, and **no new skip**. The full
-selection was **not** run and should not have been: nothing here can move a
-refinement number (root CLAUDE.md § Numbers).
+torch absent. Two trees, because `origin/main` moved under this branch
+mid-session (PR #118, the per-phase agreement trajectory) and the counts that
+matter are the **merged** tree's.
+
+- Branch alone: fast selection `-m "not slow"` **3148 passed / 117 skipped** in
+  152.71 s, against WP-1209's recorded **3138 / 117** on the same extras and
+  platform — exactly the ten `tests/test_gui_palette.py` adds, **no new skip**.
+  vitest **475**, against 1209's 467, so +8 (5 in `plot.test.ts`, 3 in
+  `App.test.ts`).
+- Merged with `origin/main` (the tree that lands): **3153 passed / 117
+  skipped** in 170.70 s and vitest **476** — main's five python tests and one
+  vitest case on top, no interaction. `svelte-check` 0 errors / 0 warnings over
+  378 files, `ruff` clean, dist rebuilt at `b00932e914ac`.
+
+The merge conflicted **only** in the built dist (`app.js`, `build-info.json`),
+because main had rebuilt it too; the resolution is a rebuild from the merged
+sources, never a hunk choice. The full selection was **not** run and should not
+have been: nothing here can move a refinement number (root CLAUDE.md § Numbers).
 
 Browser pass in Chrome on the NAC example, fitted in the served session (Rwp
 0.0932, 86 lines picked / 74 usable), both themes. Light — markers `#8c257e`,
