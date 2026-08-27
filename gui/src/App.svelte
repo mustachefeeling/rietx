@@ -1008,8 +1008,9 @@
           <Params bind:this={paramsPanel} {head} {busy} {simple} {say} />
         </div>
         <div class="panel" class:hidden={tab !== "plan"}>
-          <Plan bind:this={planPanel} mode={project.doc.mode} {busy} {simple} {say}
-            onrun={runStage} />
+          <Plan bind:this={planPanel} mode={project.doc.mode} {head} {busy} {simple}
+            noPhasesReason={noPhases ? NO_PHASES_REASON : null}
+            {say} onrun={runStage} onrunall={start} />
         </div>
         <div class="panel" class:hidden={!textTab}>
           <Text {head} {busy} active={textTab} dark={theme === "dark"} {say} onmoved={moved} />

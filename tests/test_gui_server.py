@@ -68,8 +68,11 @@ def state_dir(tmp_path_factory):
 
 def _project(root: Path, pattern_file: Path, **kw) -> rx.Project:
     structure, ins = perturbed_models()
-    return rx.Project.create(root, pattern=pattern_file, structure=structure,
-                            instrument=ins, plan="mccusker_default", **kw)
+    # `setdefault`, so a caller can ask for the pattern-only project WP-1207
+    # made legal by passing `structure=None` rather than by not passing one
+    kw.setdefault("structure", structure)
+    return rx.Project.create(root, pattern=pattern_file, instrument=ins,
+                             plan="mccusker_default", **kw)
 
 
 def _open(session: GuiSession, root: Path, pattern_file: Path, **kw) -> rx.Project:
@@ -301,6 +304,7 @@ def test_project_verbs_refuse_before_a_project_is_open(blank):
     """``NO_PROJECT`` rather than a 500 or an empty table."""
     _, client = blank
     for method, path in (("GET", "/api/params"), ("GET", "/api/plan"),
+                         ("GET", "/api/plan/resolve"),
                          ("GET", "/api/history"), ("GET", "/api/result"),
                          ("POST", "/api/run"), ("GET", "/api/project")):
         status, payload = client.request(method, path, {} if method == "POST" else None)
@@ -1618,6 +1622,311 @@ def test_plan_selection_and_the_preset_it_matches(blank, tmp_path, pattern_file)
 
 
 # ----------------------------------------------------------------------
+# the plan resolved against the live table (WP-1208)
+# ----------------------------------------------------------------------
+def _ladder(client) -> dict:
+    status, payload = client.get("/api/plan/resolve")
+    assert status == 200, payload
+    return payload
+
+
+def test_plan_resolve_is_the_ladder_a_cumulative_plan_climbs(blank, tmp_path,
+                                                             pattern_file):
+    """Each stage frees a named set *on top of* the last, and says which.
+
+    The three buckets partition the matched paths — a path a stage's globs
+    reach is freed here, was free already, or is held — so ``n_matched`` is
+    their sum for every stage, and nothing can fall between them.
+    """
+    session, client = blank
+    _open(session, tmp_path / "ladder.rex", pattern_file)
+    payload = _ladder(client)
+
+    assert payload["mode"] == "rietveld"
+    assert [s["name"] for s in payload["stages"]] == [
+        "scale_bkg", "zero", "cell", "profile_w", "profile"]
+
+    seen: set[str] = set()
+    for stage in payload["stages"]:
+        assert (len(stage["frees"]) + len(stage["already"]) + len(stage["held"])
+                == stage["n_matched"]), stage["name"]
+        # cumulative: nothing is freed twice, and the count is the running union
+        assert not seen & set(stage["frees"]), stage["name"]
+        seen |= set(stage["frees"])
+        assert stage["n_free"] == len(seen), stage["name"]
+
+    # …and the counts climb rather than repeating one another
+    counts = [s["n_free"] for s in payload["stages"]]
+    assert counts == sorted(counts) and counts[-1] > counts[0]
+    assert payload["n_free_final"] == counts[-1] < payload["n_parameters"]
+
+    # the cell stage is the one with something to explain: six paths matched,
+    # one freed, five held by the cubic symmetry
+    cell = next(s for s in payload["stages"] if s["name"] == "cell")
+    assert cell["frees"] == ["phases.0.cell.a"]
+    assert {h["path"] for h in cell["held"]} == {
+        f"phases.0.cell.{name}" for name in ("b", "c", "alpha", "beta", "gamma")}
+    assert all(h["held_because"] for h in cell["held"])
+    tied = next(h for h in cell["held"] if h["path"] == "phases.0.cell.b")
+    assert tied["held_because"].startswith("tied: =")
+
+
+def test_plan_resolve_matches_exactly_the_way_fnmatch_does(blank, tmp_path,
+                                                           pattern_file):
+    """The route's matcher is the corpus's, over the corpus's own globs.
+
+    ``tests/data/gui/fnmatch_cases.json`` is the authority two matchers are
+    held to (WP-1011: python's ``fnmatchcase`` and ``lib/fnmatch.ts``).  This
+    makes it three — a stage's ``turn_on`` is the same string, and a route
+    that resolved it differently would put a preview in front of a person that
+    the run then contradicts.
+    """
+    from fnmatch import fnmatchcase
+
+    session, client = blank
+    _open(session, tmp_path / "corpus.rex", pattern_file)
+    corpus = json.loads(
+        (Path(__file__).parent / "data" / "gui" / "fnmatch_cases.json")
+        .read_text(encoding="utf-8"))
+    globs = [entry["pattern"] for entry in corpus["patterns"]]
+    # one stage per glob, so each stage's matched set is that glob's alone
+    stages = [{"name": f"s{k}", "turn_on": [glob]} for k, glob in enumerate(globs)]
+    assert client.put("/api/plan", {"plan": {"stages": stages}})[0] == 200
+
+    paths = [row["path"] for row in client.get("/api/params")[1]["parameters"]]
+    payload = _ladder(client)
+    assert len(payload["stages"]) == len(globs)
+    for glob, stage in zip(globs, payload["stages"], strict=True):
+        matched = ({p["path"] for p in stage["held"]}
+                   | set(stage["frees"]) | set(stage["already"]))
+        assert matched == {p for p in paths if fnmatchcase(p, glob)}, glob
+    # the check would pass vacuously on a plan that matched nothing
+    assert sum(s["n_matched"] for s in payload["stages"]) > 100
+
+
+def test_a_plan_replaces_the_vary_flags_it_does_not_continue_them(blank, tmp_path,
+                                                                  pattern_file):
+    """``fit`` holds everything first, so a hand-freed row a plan never names
+    is set aside — the surprise this panel exists to name."""
+    session, client = blank
+    project = _open(session, tmp_path / "aside.rex", pattern_file)
+    assert _ladder(client)["set_aside"] == []
+
+    freed = client.patch("/api/params",
+                         {"vary": {"phases.*.atoms.*.biso": True}})[1]
+    assert freed["changed"]["vary"]["phases.*.atoms.*.biso"]
+    aside = _ladder(client)["set_aside"]
+    assert aside == freed["changed"]["vary"]["phases.*.atoms.*.biso"]
+
+    # …and the claim is about the run, not about this route: no stage of
+    # mccusker_default frees a biso, and the fit refines none
+    project.fit()
+    assert not [p for p in project.refinement.result_.parameters
+                if p.path in aside]
+    assert _ladder(client)["set_aside"] == []
+
+
+def test_a_pattern_only_project_resolves_to_the_stages_that_reach_nothing(
+        blank, tmp_path, pattern_file):
+    """Zero phases is a state, not an oversight (WP-1207), and the Plan panel
+    is on screen in it: the cell stage matches nothing and says so, rather
+    than the plan looking as though it would do something."""
+    session, client = blank
+    _open(session, tmp_path / "none.rex", pattern_file, structure=None)
+    payload = _ladder(client)
+
+    cell = next(s for s in payload["stages"] if s["name"] == "cell")
+    assert cell["n_matched"] == 0 and not cell["frees"] and not cell["held"]
+    # …while the instrument stages beside it are unaffected
+    assert payload["n_free_final"] > 0
+    assert any(s["frees"] for s in payload["stages"] if s["name"] != "cell")
+
+
+def test_plan_resolve_holds_what_the_intensity_mode_force_fixes(blank, tmp_path,
+                                                                pattern_file):
+    """Le Bail mode's force-fix is ``_run_stage``'s rule, quoted not restated."""
+    session, client = blank
+    _open(session, tmp_path / "lebail.rex", pattern_file, mode="lebail")
+    # spelled out rather than taken from a preset: no Le Bail preset frees a
+    # scale, which is this same rule already applied one layer up
+    assert client.put("/api/plan", {"plan": {"stages": [
+        {"name": "scale_bkg",
+         "turn_on": ["phases.*.scale", "instrument.background.*"]}]}})[0] == 200
+    payload = _ladder(client)
+    assert payload["mode"] == "lebail"
+
+    first = payload["stages"][0]
+    assert first["turn_on"][0] == "phases.*.scale"
+    scale = next(h for h in first["held"] if h["path"] == "phases.0.scale")
+    assert "intensity mode" in scale["held_because"]
+    assert "phases.0.scale" not in first["frees"]
+    # the background beside it is untouched by the mode and still freed
+    assert any(p.startswith("instrument.background.") for p in first["frees"])
+
+
+def test_a_wavelength_is_held_while_the_cell_it_is_degenerate_with_is_free(
+        blank, tmp_path, pattern_file):
+    """The fourth held-reason, and the only one that is not a fact about the
+    row: it arrives mid-ladder, when an earlier stage frees the cell."""
+    session, client = blank
+    _open(session, tmp_path / "lam.rex", pattern_file)
+    lam = "instrument.source.lines.*.wavelength"
+
+    # on its own, with the cell held, it is an ordinary freeable row…
+    assert client.put("/api/plan", {"plan": {"stages": [
+        {"name": "lambda_alone", "turn_on": [lam]}]}})[0] == 200
+    alone = _ladder(client)["stages"][0]
+    assert alone["frees"] and not alone["held"]
+
+    # …and the same glob one stage after the cell is freed is refused, in the
+    # row's own words rather than in a sentence written for this route
+    assert client.put("/api/plan", {"plan": {"stages": [
+        {"name": "cell", "turn_on": ["phases.*.cell.*"]},
+        {"name": "lambda_after", "turn_on": [lam]},
+    ]}})[0] == 200
+    _cell, after = _ladder(client)["stages"]
+    assert not after["frees"] and not after["already"]
+    held = {h["path"]: h["held_because"] for h in after["held"]}
+    assert set(held) == set(alone["frees"])
+    assert all("cell held" in why for why in held.values()), held
+
+
+def test_each_stage_carries_the_rwp_of_the_node_that_ran_it(fitted):
+    """The ladder's Rwp is the history node's, bit for bit — not a second
+    number computed for the panel."""
+    _, client, project = fitted
+    payload = _ladder(client)
+    got = [s["rwp"] for s in payload["stages"]]
+    assert all(r is not None for r in got), got
+    assert got == sorted(got, reverse=True), "a staged fit should improve"
+
+    tree = project.refinement.history
+    nodes = [n for n in tree.lineage(project.refinement._head_id)
+             if n.action.kind == "stage"]
+    assert got == [n.metrics.statistics.rwp for n in nodes[:len(got)]]
+    # the run's own last number is the last rung's
+    assert got[-1] == project.refinement.result_.statistics.rwp
+
+
+def test_freeing_a_parameter_does_not_wipe_the_stage_rwp(blank, tmp_path,
+                                                         pattern_file):
+    """A `set_vary` node sits between the head and the fit's stages, and the
+    fit still happened (found in a browser: ticking a parameter while reading
+    the panel blanked the whole Rwp column).
+
+    An `edit_model` is the other side of the same rule and ends the run: it
+    replaces the model those statistics were measured on.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "ticked.rex", pattern_file)
+    assert client.post("/api/run", {"kind": "fit"})[0] == 200
+    _wait_idle(client)
+    before = [s["rwp"] for s in _ladder(client)["stages"]]
+    assert all(r is not None for r in before)
+
+    assert client.patch("/api/params",
+                        {"vary": {"phases.*.atoms.*.biso": True}})[0] == 200
+    assert [s["rwp"] for s in _ladder(client)["stages"]] == before
+    # …and a value edit on top of it, so the *run* of transparent nodes is
+    # covered rather than only a single one
+    assert client.patch("/api/params", {"values": {"phases.0.atoms.0.biso": 0.6}})[0] == 200
+    assert [s["rwp"] for s in _ladder(client)["stages"]] == before
+
+    structure = project.refinement.structure.model_copy(deep=True)
+    structure.phases[0].name = "renamed"
+    project.refinement.edit(structure=structure)
+    assert [s["rwp"] for s in _ladder(client)["stages"]] == [None] * len(before)
+
+
+def test_running_the_same_plan_twice_shows_the_second_run(blank, tmp_path,
+                                                          pattern_file):
+    """The ladder reads the **last** run, not the first.
+
+    A fit commits only `stage` nodes, so two back-to-back runs of one plan
+    leave 2N contiguous stage nodes on the lineage with nothing between them
+    to mark the seam. Collecting the whole block and aligning from its far end
+    printed run 1's numbers under run 2's ladder — found by `/code-review`,
+    and invisible to every other test here because each runs the plan once.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "twice.rex", pattern_file)
+    rwps = []
+    for _ in range(2):
+        assert client.post("/api/run", {"kind": "fit"})[0] == 200
+        _wait_idle(client)
+        rwps.append([s["rwp"] for s in _ladder(client)["stages"]])
+    first, second = rwps
+    assert all(r is not None for r in second)
+    assert second != first, "a second run of a converged plan must still be its own"
+
+    nodes = [n.metrics.statistics.rwp for n in
+             project.refinement.history.lineage(project.refinement._head_id)
+             if n.action.kind == "stage"]
+    assert len(nodes) == 2 * len(second)
+    assert second == nodes[len(second):]     # run 2…
+    assert first == nodes[:len(first)]       # …and run 1 is what run 1 showed
+
+    # a *partial* run on top of a complete one aligns with neither, so the
+    # column goes absent rather than quoting the run below it
+    plan = client.get("/api/plan")[1]["plan"]
+    assert client.post("/api/run", {"kind": "stage",
+                                    "stage": plan["stages"][-1]})[0] == 200
+    _wait_idle(client)
+    assert [s["rwp"] for s in _ladder(client)["stages"]] == [None] * len(second)
+
+
+def test_the_node_rwp_is_the_trajectory_rung_rwp(tmp_path, pattern_file):
+    """The equivalence the ladder's Rwp arm rests on (WP-1208).
+
+    ``fit(stage_reports=True)`` builds a :class:`~rietx.report.StageReport` per
+    stage boundary and a stage node caches its own statistics; both are read
+    off the model that stage compiled and the θ it landed on, so they are the
+    same number.  The route takes the node, because the node is already on
+    disk: measured on this fixture, the trajectory costs 7.7× the fit to build
+    (0.076 s → 0.582 s) for a figure that is written either way.
+
+    In-process rather than over HTTP — what is under test is the library's two
+    accounts of one stage, not a route.
+    """
+    structure, instrument = perturbed_models()
+    ref = rx.Refinement(structure, instrument, history=True)
+    ref.fit(synthesize(), plan="mccusker_default", stage_reports=True)
+
+    nodes = [n for n in ref.history.lineage(ref._head_id)
+             if n.action.kind == "stage"]
+    rungs = ref.stage_reports_
+    assert len(nodes) == len(rungs) > 1
+    assert [n.action.name for n in nodes] == [r.stage for r in rungs]
+    assert [n.metrics.statistics.rwp for n in nodes] == [r.rwp for r in rungs]
+
+
+def test_a_plan_edited_since_the_run_shows_no_stage_rwp(blank, tmp_path,
+                                                        pattern_file):
+    """Position *and* identity: a rung whose stage is not what the node ran
+    gets ``None`` rather than the neighbouring stage's number.
+
+    Its own project and its own fit rather than the module fixture's: this
+    test edits the plan, and a shared fitted state is not somewhere to do it.
+    """
+    session, client = blank
+    _open(session, tmp_path / "edited.rex", pattern_file)
+    assert client.post("/api/run", {"kind": "fit"})[0] == 200
+    _wait_idle(client)
+    before = [s["rwp"] for s in _ladder(client)["stages"]]
+    assert all(r is not None for r in before), before
+
+    plan = client.get("/api/plan")[1]["plan"]
+    plan["stages"][1]["turn_on"] = ["instrument.profile.w"]   # was the zero shift
+    assert client.put("/api/plan", {"plan": plan})[0] == 200
+    after = [s["rwp"] for s in _ladder(client)["stages"]]
+    assert after[0] == before[0]           # stage 1 still is what ran
+    assert after[1:] == [None] * (len(before) - 1)
+
+    assert client.put("/api/plan", {"preset": "mccusker_default"})[0] == 200
+    assert [s["rwp"] for s in _ladder(client)["stages"]] == before
+
+
+# ----------------------------------------------------------------------
 # parameters
 # ----------------------------------------------------------------------
 def test_params_exposes_why_each_held_row_is_held(fitted):
@@ -1659,7 +1968,8 @@ def test_every_response_is_json_a_browser_can_parse(fitted):
         return json.loads(raw.decode("utf-8"), parse_constant=reject)
 
     for path in ("/api/params", "/api/result", "/api/result/window?max_points=200",
-                 "/api/plan", "/api/report", "/api/history", "/api/capabilities"):
+                 "/api/plan", "/api/plan/resolve", "/api/report", "/api/history",
+                 "/api/capabilities"):
         conn = HTTPConnection("127.0.0.1", client.port, timeout=60)
         try:
             conn.request("GET", path, headers={"Host": f"127.0.0.1:{client.port}"})

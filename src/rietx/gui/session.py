@@ -50,6 +50,7 @@ import time
 from collections import deque
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any, Literal
 
@@ -59,7 +60,12 @@ from ..help import help_registry as _help_registry
 from ..history.events import EventStream
 from ..optimize.cancel import CancelToken, RefinementCancelled
 from ..project import Project
-from ..refine import _VERSION, NoPhasesError, _refuse_without_phases
+from ..refine import (
+    _VERSION,
+    NoPhasesError,
+    _refuse_without_phases,
+    mode_fixed_path,
+)
 from ..report.apply import api_call, describe_action, refusal, stage_for
 from ..schemas.instrument import Instrument
 from ..schemas.plan import PlanSpec, StageSpec
@@ -883,6 +889,172 @@ class GuiSession:
         """
         return {"plans": [item.model_dump(mode="json")
                           for item in _capabilities().plans]}
+
+    def plan_resolve(self) -> dict:
+        """The plan's stages resolved against the live parameter table (WP-1208).
+
+        ``GET /api/plan`` says what the stages *are*; this says what they will
+        **do** — which paths each stage's globs reach, which of those it frees
+        that were not free already, which it cannot free and why, and the
+        running free count a cumulative plan leaves behind.  A crystallographer
+        who has only refined one step at a time reads a plan as a list of
+        names; this is the arm that turns it into a list of parameters.
+
+        **The simulation is the real verb, run on the table a fit builds.**
+        ``_prepare_table(restore=False)`` is what ``Refinement.fit`` starts
+        every plan from, and it holds **everything** first — so a plan does not
+        continue from the vary flags a person ticked by hand, it replaces them
+        (measured: ``set_vary("phases.*.atoms.*.biso")`` then
+        ``fit(plan="profile_only")`` refines no ``biso``).  That is the fact
+        this panel exists to make visible, and it is why the table is built
+        here rather than taken from ``_working_table``, which is
+        ``run_stage``'s starting point and not ``fit``'s.  The paths it strands
+        are ``set_aside``.  The table is fresh, so ``set_vary`` on it moves
+        nothing a run would see; and calling the real ``set_vary`` — rather
+        than a matcher written here — is what keeps the answer honest about the
+        rules that live in it (a tied or locked entry never matches however
+        broad the glob, and a wavelength does not match while this histogram's
+        cell is free).  The one rule that lives in ``_run_stage`` instead is
+        the intensity mode's force-fix, so that is applied here the same way it
+        is applied there, through :func:`~rietx.refine.mode_fixed_path`.
+
+        **Every matched path lands in exactly one of three buckets**, decided
+        in this order: ``held`` (the stage's globs reach it and the stage will
+        not free it), ``already`` (free coming in — which under
+        ``restore=False`` can only mean an *earlier stage of this plan* freed
+        it, never the caller, whose flags land in ``set_aside``), ``frees``
+        (new this stage).  A path can be both mode-fixed and already free, so
+        the order matters and ``held`` wins: what the stage will do with it is
+        drop it.
+
+        **The reason is never written here.**  ``held_because`` is
+        :class:`~rietx.schemas.params.ParameterRow`'s property, and the row for
+        the *dynamic* refusal is made by setting the flag that causes it rather
+        than by spelling its sentence a second time: when ``set_vary`` declines
+        a row that has no static reason to be held, the remaining reason is the
+        free-cell one, which is the fourth and last thing ``refinable``
+        promises to cover.
+
+        ``rwp`` per stage is read off the **history nodes**, not off a
+        ``fit(stage_reports=True)`` trajectory.  The two numbers are the same
+        number — a rung and a stage node are both built from the model the
+        stage compiled and the θ it landed on, measured bit-identical on the
+        synthetic LaB6 fixture — and the node is already on disk, where the
+        trajectory costs 7.7× the fit to rebuild (0.076 s → 0.582 s, five
+        stages, 4200 channels; WP-1208's handover has the matrix).  A node is
+        matched to a ladder rung by **position and identity**: the last run of
+        ``stage`` nodes on the head's lineage, aligned from its start, each
+        required to carry this stage's name *and* its ``turn_on``.  Anything
+        else — a plan edited since the run, a single stage run from a state no
+        plan describes, a checkout — leaves ``rwp`` null rather than printing
+        the wrong stage's number.  Between the head and that run,
+        ``_RWP_TRANSPARENT`` nodes are stepped over, because ticking a
+        parameter while reading this panel is the ordinary thing to do and it
+        does not change what the stages behind it reached.
+
+        Not behind the 409: this is a read, and it is exposed to a run in
+        flight exactly as ``params`` is, for the reason that method's docstring
+        gives.  ``live`` says so.
+        """
+        p = self._need_project()
+        plan = self._effective_plan()
+        mode = p.doc.mode
+        rows = {row.path: row for row in p.parameters()}
+        table = p.refinement._prepare_table(restore=False)
+
+        stages: list[dict] = []
+        for stage in plan.stages:
+            globs = list(stage.turn_on)
+            matched = [path for path in rows
+                       if any(fnmatchcase(path, glob) for glob in globs)]
+            before = set(table.free_paths)
+            # exactly what ``_run_stage`` does with a mode-fixed hit, and for
+            # its reason: the freed set must describe what is left free.  In
+            # one call rather than its per-path loop — a path is a glob that
+            # matches itself, and this route is called on every head move,
+            # where N calls would be N table rebuilds (a Le Bail phase's every
+            # `.atoms.` row is mode-fixed).
+            dropped = [path for path in table.set_vary(globs, True)
+                       if mode_fixed_path(path, mode)]
+            if dropped:
+                table.set_vary(dropped, False)
+            after = set(table.free_paths)
+
+            held, already, frees = [], [], []
+            for path in matched:
+                if path not in after:
+                    row = rows[path]
+                    if not row.held_because:
+                        row = row.model_copy(update={"needs_held_cell": True})
+                    held.append({"path": path, "held_because": row.held_because})
+                elif path in before:
+                    already.append(path)
+                else:
+                    frees.append(path)
+            stages.append({
+                "name": stage.name, "turn_on": globs,
+                "frees": frees, "already": already, "held": held,
+                "n_matched": len(matched), "n_free": len(after),
+            })
+
+        for entry, rwp in zip(stages, self._stage_rwp(p, plan), strict=True):
+            entry["rwp"] = rwp
+        reached = {path for entry in stages for path in entry["frees"]}
+        set_aside = [row.path for row in rows.values()
+                     if row.vary and row.refinable and row.path not in reached]
+        return {"mode": mode, "n_parameters": len(rows),
+                "n_free_final": stages[-1]["n_free"] if stages else 0,
+                "set_aside": set_aside, "stages": stages,
+                "head": p.refinement._head_id,
+                "live": self._state != "idle"}
+
+    #: Node kinds that may sit between the head and the run of stages behind it
+    #: without ending it.  These change *which parameters are free*, not the
+    #: model the stages' statistics were measured on — and ticking a parameter
+    #: to see what the plan makes of it is the ordinary thing to do while
+    #: reading this panel, so a ``set_vary`` must not wipe the Rwp column
+    #: (it did, found in a browser).  ``edit_model`` is deliberately not here:
+    #: it replaces the model, and a number measured on the old one has stopped
+    #: describing anything on screen.
+    _RWP_TRANSPARENT = frozenset({"set_vary", "set_value", "set_tie"})
+
+    @classmethod
+    def _stage_rwp(cls, p: Project, plan) -> list[float | None]:
+        """One Rwp per plan stage, off the history nodes the run recorded.
+
+        The alignment rule is in :meth:`plan_resolve`'s docstring; this is it
+        applied.  ``None`` everywhere is the ordinary answer before the first
+        run, and the honest one whenever the plan on screen is not the plan
+        that ran.
+        """
+        blank: list[float | None] = [None] * len(plan.stages)
+        tree = p.refinement.history
+        head = p.refinement._head_id
+        if tree is None or head is None or head not in tree:
+            return blank
+        run: list = []
+        for node in reversed(tree.lineage(head)):
+            if node.action.kind == "stage":
+                run.append(node)
+                if len(run) == len(plan.stages):
+                    break   # the *last* run: back-to-back runs of one plan
+                            # leave 2N contiguous stage nodes, and aligning
+                            # from the far end of them would read the first
+                            # run's numbers under the second run's ladder
+            elif run or node.action.kind not in cls._RWP_TRANSPARENT:
+                break   # the run has ended, or something ended it before it
+        run.reverse()
+        out = list(blank)
+        for k, stage in enumerate(plan.stages):
+            if k >= len(run):
+                break
+            node = run[k]
+            if (node.action.name != stage.name
+                    or list(node.action.turn_on) != list(stage.turn_on)):
+                break
+            stats = node.metrics.statistics
+            out[k] = None if stats is None else float(stats.rwp)
+        return out
 
     # ------------------------------------------------------------------
     # the text document (WP-1009)

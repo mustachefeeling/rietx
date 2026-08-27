@@ -1303,8 +1303,14 @@ class Refinement:
                         stages=[s.name for s in plan.stages],
                         n_points=len(data.two_theta))
 
-        # stages are cumulative: start from everything the user left vary=True…
-        # …but the staged plan drives the turn-on sequence explicitly
+        # Stages are cumulative *within the plan*, and the plan drives the whole
+        # turn-on sequence: `restore=False` holds everything first, so a fit
+        # replaces the vary flags a caller set by hand rather than continuing
+        # them (`run_stage`, which continues from the working state, restores
+        # them instead).  The comment here said the opposite until WP-1208
+        # measured it — `set_vary("phases.*.atoms.*.biso")` then
+        # `fit(plan="profile_only")` refines no biso — and the GUI's plan panel
+        # now names the difference, since nothing a user could read said it.
         table = self._prepare_table(restore=False)
 
         # the λ this Refinement was constructed with (or last edited to), so a

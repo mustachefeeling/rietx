@@ -216,6 +216,10 @@ describe("every key the app writes down names something", () => {
       "panels/Peaks.svelte: peak_diagnostics:{d.code}",
       "panels/Peaks.svelte: peak_flags:{f}",
       "panels/Plan.svelte: plans:{chosen.name}",
+      // the plan editor's advanced boxes are a loop over `lib/rxt.ts`'s stage
+      // words, which are pinned to `StageSpec` from python (WP-1208), so a new
+      // schema field arrives in the form already keyed to its corpus entry
+      "panels/Plan.svelte: stage_fields:{key}",
     ]);
   });
 });

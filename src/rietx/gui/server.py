@@ -223,6 +223,7 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("GET", "/api/plan"): lambda s, q, b: s.plan(),
     ("PUT", "/api/plan"): lambda s, q, b: s.plan_put(b),
     ("GET", "/api/plans"): lambda s, q, b: s.plans(),
+    ("GET", "/api/plan/resolve"): lambda s, q, b: s.plan_resolve(),
     ("GET", "/api/structure"): lambda s, q, b: s.structure(),
     ("GET", "/api/structure3d"): _structure3d,
     ("PATCH", "/api/structure"): lambda s, q, b: s.structure_patch(b),
