@@ -156,8 +156,13 @@ dist rebuilt; a browser pass in Chrome on the fap example.
   test injects one.
 - Route cost: 1.5-5 ms for an ordinary cell (one `generate_reflections` per
   emission line), 265 ms for the 460 649-line worst case.
-- Suites: vitest **476 → 484** (+5 `lib/plot.test.ts`, +3 `App.test.ts`),
-  `svelte-check` 378 files 0 errors. Fast suite in the next entry's line below.
+- Suites (`[dev]` — no jax, no torch — python 3.12.12, darwin/arm64; the branch
+  is a fast-forward from `origin/main`, so these are the merged tree's): fast
+  suite **3157 passed / 117 skipped** against 1210's 3153 / 117, which is the
+  four `candidate_ticks` adds and no new skip; vitest **476 → 484** (+5
+  `lib/plot.test.ts`, +3 `App.test.ts`); `svelte-check` 378 files 0 errors;
+  `ruff` clean. **Wall clock is not quotable and is not quoted**: a `/pr-review`
+  suite was running in `pr-bench` for most of this session.
 
 **Two departures from the WP's own design, both because a written rule
 outranked it.** The route is `?candidate=` and not `/candidate/{i}/ticks`,
@@ -186,6 +191,18 @@ subject anyway — a doublet makes "every emission line" a thing you can see.
   `candidatePicked`). Driving the data-only clear off "is something drawn"
   strobed the model on and off once per row the pointer crossed — caught by the
   mount test, not by reading.
+
+**Left undone on purpose, and retargeted rather than left rotting.**
+`lib/help.test.ts`'s `title=` budget line for this panel named **WP-1211** as
+the owner of the nine authored tooltips on the candidate and extinction tables.
+It is not this WP's: 1211 drew lines on a plot and added no `title=`, while
+describing those means a new corpus arm, and an arm is crossed against a *live*
+vocabulary both ways — so it has to quote something. The thing to quote does
+exist, which is the finding to carry: `ΔBIC`, `testable`, `refuting` and
+`absent` are `ExtinctionCandidate` and `CellCandidate` **field names**, so an
+arm over those two `model_fields` is a real live vocabulary and a
+`peak_origins`-sized commit across six files. The comment now says that instead
+of naming a closed WP, and the work is unowned.
 
 **Next: WP-1212** (the axes) and 1213 (the hover readout). Two things fall to
 them from here: the route already serves `hkl` and `line` per position, which is

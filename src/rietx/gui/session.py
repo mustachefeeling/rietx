@@ -107,9 +107,12 @@ _MAX_RECENT = 12
 #: How many predicted positions one candidate overlay carries (WP-1211).
 #: A cap rather than a budget, because past it the picture stops being a set of
 #: lines: the largest cell ``max_d_axis`` admits — 25 Å triclinic — predicts
-#: 59 326 Laue-unique reflections over 5-140° at Cu Kα and 460 649 over 1-60°
-#: at a synchrotron λ (measured), which is megabytes of JSON drawn as a solid
-#: block of ink.  Over the cap the answer is thinned **by rank in 2θ**, which
+#: 92 103 Laue-unique positions over 5-120° at a Cu doublet and 460 649 over
+#: 1-60° at a synchrotron λ (measured; ``tests/test_gui_peaks.py`` exercises the
+#: first), which is megabytes of JSON drawn as a solid block of ink.  Corundum
+#: over the same lab range is 124 and a real lab candidate 426, so this is a
+#: guard against the pathological case and not a budget on the ordinary one.
+#: Over the cap the answer is thinned **by rank in 2θ**, which
 #: is the property it is read for — a dense stretch keeps proportionally more
 #: lines than a sparse one, so "this cell predicts lines the pattern lacks"
 #: still reads — and ``n_total`` says what was dropped, because a silent cap
