@@ -942,12 +942,15 @@ class GuiSession:
         synthetic LaB6 fixture — and the node is already on disk, where the
         trajectory costs 7.7× the fit to rebuild (0.076 s → 0.582 s, five
         stages, 4200 channels; WP-1208's handover has the matrix).  A node is
-        matched to a ladder rung by **position and identity**: the trailing run
-        of ``stage`` nodes on the head's lineage, aligned from its start, each
+        matched to a ladder rung by **position and identity**: the last run of
+        ``stage`` nodes on the head's lineage, aligned from its start, each
         required to carry this stage's name *and* its ``turn_on``.  Anything
         else — a plan edited since the run, a single stage run from a state no
         plan describes, a checkout — leaves ``rwp`` null rather than printing
-        the wrong stage's number.
+        the wrong stage's number.  Between the head and that run,
+        ``_RWP_TRANSPARENT`` nodes are stepped over, because ticking a
+        parameter while reading this panel is the ordinary thing to do and it
+        does not change what the stages behind it reached.
 
         Not behind the 409: this is a read, and it is exposed to a run in
         flight exactly as ``params`` is, for the reason that method's docstring
@@ -1000,8 +1003,18 @@ class GuiSession:
                 "head": p.refinement._head_id,
                 "live": self._state != "idle"}
 
-    @staticmethod
-    def _stage_rwp(p: Project, plan) -> list[float | None]:
+    #: Node kinds that may sit between the head and the run of stages behind it
+    #: without ending it.  These change *which parameters are free*, not the
+    #: model the stages' statistics were measured on — and ticking a parameter
+    #: to see what the plan makes of it is the ordinary thing to do while
+    #: reading this panel, so a ``set_vary`` must not wipe the Rwp column
+    #: (it did, found in a browser).  ``edit_model`` is deliberately not here:
+    #: it replaces the model, and a number measured on the old one has stopped
+    #: describing anything on screen.
+    _RWP_TRANSPARENT = frozenset({"set_vary", "set_value", "set_tie"})
+
+    @classmethod
+    def _stage_rwp(cls, p: Project, plan) -> list[float | None]:
         """One Rwp per plan stage, off the history nodes the run recorded.
 
         The alignment rule is in :meth:`plan_resolve`'s docstring; this is it
@@ -1016,9 +1029,10 @@ class GuiSession:
             return blank
         run: list = []
         for node in reversed(tree.lineage(head)):
-            if node.action.kind != "stage":
-                break
-            run.append(node)
+            if node.action.kind == "stage":
+                run.append(node)
+            elif run or node.action.kind not in cls._RWP_TRANSPARENT:
+                break   # the run has ended, or something ended it before it
         run.reverse()
         out = list(blank)
         for k, stage in enumerate(plan.stages):

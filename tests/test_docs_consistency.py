@@ -410,7 +410,18 @@ SIZE_CAPS: dict[str, int | None] = {
     # peak picking and indexing keep working) and why `n_phases` rides on the
     # project document, which is what lets a client disable Run rather than
     # offer a click whose only outcome is a 400.
-    "gui/CLAUDE.md": 710,
+    # 710 -> 733 for WP-1208 (2026-08-27): the plan resolved against the live
+    # table.  The operating detail went down a rank as this comment requires —
+    # the three-bucket partition, how the dynamic held-reason is reached
+    # without spelling its sentence twice, and the node-to-rung alignment are
+    # in `GuiSession.plan_resolve`'s docstring, the panel's own rules in
+    # `Plan.svelte`'s header comment, the measurements in the WP.  What cannot
+    # go down a rank is the one a later panel WP will otherwise get wrong: a
+    # plan does not continue the vary flags a person set, it replaces them, so
+    # `Run all` and `Run this stage` start from different tables — and the
+    # per-stage Rwp already exists on the history node, which is why the run
+    # verb did not have to grow a trajectory to show it.
+    "gui/CLAUDE.md": 733,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

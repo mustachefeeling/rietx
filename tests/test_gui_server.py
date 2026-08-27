@@ -68,8 +68,11 @@ def state_dir(tmp_path_factory):
 
 def _project(root: Path, pattern_file: Path, **kw) -> rx.Project:
     structure, ins = perturbed_models()
-    return rx.Project.create(root, pattern=pattern_file, structure=structure,
-                            instrument=ins, plan="mccusker_default", **kw)
+    # `setdefault`, so a caller can ask for the pattern-only project WP-1207
+    # made legal by passing `structure=None` rather than by not passing one
+    kw.setdefault("structure", structure)
+    return rx.Project.create(root, pattern=pattern_file, instrument=ins,
+                             plan="mccusker_default", **kw)
 
 
 def _open(session: GuiSession, root: Path, pattern_file: Path, **kw) -> rx.Project:
@@ -1723,6 +1726,22 @@ def test_a_plan_replaces_the_vary_flags_it_does_not_continue_them(blank, tmp_pat
     assert _ladder(client)["set_aside"] == []
 
 
+def test_a_pattern_only_project_resolves_to_the_stages_that_reach_nothing(
+        blank, tmp_path, pattern_file):
+    """Zero phases is a state, not an oversight (WP-1207), and the Plan panel
+    is on screen in it: the cell stage matches nothing and says so, rather
+    than the plan looking as though it would do something."""
+    session, client = blank
+    _open(session, tmp_path / "none.rex", pattern_file, structure=None)
+    payload = _ladder(client)
+
+    cell = next(s for s in payload["stages"] if s["name"] == "cell")
+    assert cell["n_matched"] == 0 and not cell["frees"] and not cell["held"]
+    # …while the instrument stages beside it are unaffected
+    assert payload["n_free_final"] > 0
+    assert any(s["frees"] for s in payload["stages"] if s["name"] != "cell")
+
+
 def test_plan_resolve_holds_what_the_intensity_mode_force_fixes(blank, tmp_path,
                                                                 pattern_file):
     """Le Bail mode's force-fix is ``_run_stage``'s rule, quoted not restated."""
@@ -1787,6 +1806,36 @@ def test_each_stage_carries_the_rwp_of_the_node_that_ran_it(fitted):
     assert got == [n.metrics.statistics.rwp for n in nodes[:len(got)]]
     # the run's own last number is the last rung's
     assert got[-1] == project.refinement.result_.statistics.rwp
+
+
+def test_freeing_a_parameter_does_not_wipe_the_stage_rwp(blank, tmp_path,
+                                                         pattern_file):
+    """A `set_vary` node sits between the head and the fit's stages, and the
+    fit still happened (found in a browser: ticking a parameter while reading
+    the panel blanked the whole Rwp column).
+
+    An `edit_model` is the other side of the same rule and ends the run: it
+    replaces the model those statistics were measured on.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "ticked.rex", pattern_file)
+    assert client.post("/api/run", {"kind": "fit"})[0] == 200
+    _wait_idle(client)
+    before = [s["rwp"] for s in _ladder(client)["stages"]]
+    assert all(r is not None for r in before)
+
+    assert client.patch("/api/params",
+                        {"vary": {"phases.*.atoms.*.biso": True}})[0] == 200
+    assert [s["rwp"] for s in _ladder(client)["stages"]] == before
+    # …and a value edit on top of it, so the *run* of transparent nodes is
+    # covered rather than only a single one
+    assert client.patch("/api/params", {"values": {"phases.0.atoms.0.biso": 0.6}})[0] == 200
+    assert [s["rwp"] for s in _ladder(client)["stages"]] == before
+
+    structure = project.refinement.structure.model_copy(deep=True)
+    structure.phases[0].name = "renamed"
+    project.refinement.edit(structure=structure)
+    assert [s["rwp"] for s in _ladder(client)["stages"]] == [None] * len(before)
 
 
 def test_the_node_rwp_is_the_trajectory_rung_rwp(tmp_path, pattern_file):

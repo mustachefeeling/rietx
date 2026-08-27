@@ -708,3 +708,26 @@ awaits the plotly loader first. And **an effect that reads the project
 *object* refires on every ui-only PATCH** — Model reloads on a boolean
 `$derived` (`hasProject`), or a theme click refetches three routes plus the 3D
 geometry with the head unmoved.
+
+**The plan as a ladder** (WP-1208, `GET /api/plan/resolve`,
+`panels/Plan.svelte`) is the stage list saying what it will *do*: per stage the
+paths its globs reach, the ones it frees on top of the last, the held ones
+carrying the row's own `held_because`, and the running free count. Four rules.
+**The resolution is the real verb** — `ParameterTable.set_vary` on the table
+`fit` builds, so the tied/locked skip, the free-cell wavelength rule and the
+intensity mode's force-fix are the shipped ones; `lib/fnmatch.ts` stays the
+*parameter table's* bulk-edit preview and matches nothing here. **A plan
+replaces the vary flags, it does not continue them**: `fit` starts from
+`_prepare_table(restore=False)`, which holds everything, so a hand-freed row no
+stage names is dropped by `Run all` and kept by `Run this stage` (measured both
+ways) — `set_aside` is that difference named, and it is why the two buttons are
+on screen together. **A stage's Rwp is its history node's**, never a
+`fit(stage_reports=True)` trajectory: bit-identical, both read off the model the
+stage compiled and the θ it landed on, and the trajectory costs 7.7× the fit to
+rebuild, so the run verb is untouched — the node is matched to a rung by
+position **and** by carrying that stage's name and `turn_on`, anything else
+leaving the number absent rather than printing a neighbour's. And a **dirty plan
+has no resolved facts and cannot be run**, because the ladder describes the plan
+the server holds. Beside them, the advanced boxes loop over `lib/rxt.ts`'s stage
+words — pinned to `StageSpec` from python with the two properties a box needs —
+so a new schema field reaches this form as well as the `.rxt` document.

@@ -65,7 +65,7 @@ under `/yue-docs-style`; `StageSpec` field help from the corpus.
       `stage_reports=True` run verb: the two numbers are bit-identical (pinned
       by `test_the_node_rwp_is_the_trajectory_rung_rwp`) and the trajectory
       costs 7.7× the fit to rebuild, so the run verb is untouched.
-- [ ] Browser pass on the NAC example: read the ladder cold; dist rebuilt.
+- [x] Browser pass on the NAC example: read the ladder cold; dist rebuilt.
 
 ## Acceptance
 

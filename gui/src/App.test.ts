@@ -1017,8 +1017,8 @@ describe("the plan editor", () => {
     const rungs = [...host.querySelectorAll("ol.stages > li .rung summary")]
       .map((n) => n.textContent!.replace(/\s+/g, " ").trim());
     expect(rungs).toEqual([
-      "+2 → 2 free · Rwp 95.35%",
-      "+1 → 3 free · 1 held · Rwp 44.57%",
+      "1 · +2 → 2 free · Rwp 95.35%",
+      "2 · +1 → 3 free · 1 held · Rwp 44.57%",
     ]);
     expect(host.textContent).toContain("Ends with 5 of 12 parameters free.");
     // the held row carries the server's own sentence, never one written here

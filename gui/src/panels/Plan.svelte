@@ -219,11 +219,15 @@
         </option>
       {/each}
     </select>
-    <button disabled={busy || dirty} onclick={onrunall}
+    <!-- ghost, not the primary: the header's own Run is this same verb and is
+         on screen whichever tab is up, so two filled buttons would be one
+         action drawn twice.  Saving is the action that belongs to this panel,
+         and it takes the fill while there is something to save. -->
+    <button class="ghost" disabled={busy || dirty} onclick={onrunall}
       title={dirty ? "save the plan first — this runs the plan the project holds"
                    : "run every stage in order"}>Run all</button>
     {#if dirty}
-      <button class="ghost" disabled={busy} onclick={save}>Save plan</button>
+      <button disabled={busy} onclick={save}>Save plan</button>
       <button class="ghost" disabled={busy} onclick={load}>Revert</button>
     {/if}
   </header>
@@ -272,15 +276,16 @@
         ondrop={() => dragging !== null && move(dragging, index)}>
         <div class="head">
           <span class="grip muted" title="drag to reorder">⠿</span>
-          <span class="step muted">{index + 1}</span>
-          <Help for="stage_fields:name"><span class="lab">name</span></Help>
+          <span class="lab"><Help for="stage_fields:name">name</Help></span>
           <input class="name mono" bind:value={stage.name} oninput={touch} disabled={busy}
             onfocus={() => (selected = index)} />
           <button class="ghost" disabled={busy} onclick={() => remove(index)} title="remove"
             >×</button>
         </div>
-        <label class="globs-row">
-          <Help for="stage_fields:turn_on"><span class="lab">frees</span></Help>
+        <!-- the grip's width is the gutter these two rows are indented past,
+             so `name` and `frees` sit in one column -->
+        <label class="globs-row indent">
+          <span class="lab"><Help for="stage_fields:turn_on">frees</Help></span>
           <input
             class="globs mono"
             value={stage.turn_on.join(", ")}
@@ -289,10 +294,11 @@
             oninput={(event) => globs(index, (event.currentTarget as HTMLInputElement).value)} />
         </label>
 
-        <div class="rung">
+        <div class="rung indent">
           {#if step}
             <details>
               <summary>
+                <span class="step">{index + 1}</span> ·
                 <span class="count">+{step.frees.length}</span>
                 → {step.n_free} free
                 {#if step.held.length}· {step.held.length} held{/if}
@@ -327,10 +333,12 @@
               </div>
             </details>
           {:else}
-            <span class="muted">stage {index + 1}</span>
+            <span class="muted"><span class="step">{index + 1}</span> · not resolved</span>
           {/if}
+          <!-- enabled while the plan is dirty, unlike Run all: this sends the
+               stage as it stands on screen, so there is nothing to save first -->
           <button class="ghost" disabled={busy}
-            title="run only this stage, through the same machinery a fit uses"
+            title="run this stage as it stands here, through the same machinery a fit uses"
             onclick={() => runStage(index)}>Run this stage</button>
         </div>
 
@@ -440,6 +448,12 @@
 
   .grip {
     cursor: grab;
+    flex: 0 0 14px;
+  }
+
+  /* past the grip, so every row's label starts in the same column */
+  .indent {
+    padding-left: 18px;
   }
 
   .step {
@@ -449,6 +463,7 @@
   /* a field's label sits on the control's row (WP-1201's --text-sm register) */
   .lab {
     font-size: var(--text-sm);
+    flex: 0 0 34px;
   }
 
   input {
