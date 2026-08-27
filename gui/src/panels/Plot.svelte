@@ -278,6 +278,14 @@
       // suspended for as long as it is (see `arm`).
       dragmode: armed ? "select" : "zoom",
       selectdirection: "h",
+      // The live gesture dressed as the thing it is about to become (WP-1212).
+      // plotly's default marquee is a dark dotted box that says "select", and
+      // what an armed drag here means is "exclude this range" — so it is drawn
+      // in `maskShapes`' own two colours, from the same `curveColors` call, and
+      // `selectdirection: "h"` has already made the box full height, so its two
+      // long sides *are* the dotted edges the exclusion will leave behind.
+      newselection: { line: { color: colors.edge, width: 1, dash: "dot" } },
+      activeselection: { fillcolor: colors.mask, opacity: 1 },
       margin: { l: 62, r: 12, t: 8, b: 40 },
       showlegend: true,
       legend: { orientation: "h", y: 1.12, x: 0 },
@@ -586,8 +594,16 @@
     // The hover link's own trace, drawn empty and moved by `restyle` (WP-1032):
     // a full `react` per mouse move is exactly the cost task 1 measured, and one
     // ring that changes its two coordinates is the cheapest thing plotly does.
+    // …and it is the one trace here that is **not** `scattergl`, which is a
+    // browser finding rather than a preference (WP-1212): every gl trace on a
+    // subplot shares one `_scene` whose batches are indexed by position, an
+    // *empty* gl trace is given no index at all, and a select drag then reads
+    // `scene.selectBatch[undefined].length` and throws once per pointer move —
+    // measured, 7 throws over one armed exclude drag. This trace is empty
+    // whenever nothing is hovered, which is most of the time. One marker in SVG
+    // costs nothing and leaves the scene alone.
     out.push({
-      x: [], y: [], name: "hovered", mode: "markers", type: "scattergl",
+      x: [], y: [], name: "hovered", mode: "markers", type: "scatter",
       marker: { size: 16, symbol: "circle-open", color: colors.peak, line: { width: 2 } },
       showlegend: false, hoverinfo: "skip",
     });
@@ -1250,6 +1266,21 @@
      plotly's own stylesheet, and it leaves the axis edge draggers alone. */
   .plot.armed :global(.nsewdrag) {
     cursor: col-resize;
+  }
+
+  /* …and the wash inside it, which `newselection` has no attribute for: plotly
+     styles the outline's stroke from `layout.newselection.line` and writes
+     `fill: rgb(0,0,0); fill-opacity: 0` **inline**, so the region being dragged
+     over was outlined and not shaded — while the shape that lands a moment
+     later is a wash. `!important` is what outranks an inline declaration, and
+     it is the only thing that does; measured in Chrome, the rule without it
+     computed to `fill-opacity: 0`. The token is `maskShapes`' own, so the
+     gesture and the exclusion it leaves are one picture. `activeselection`
+     above covers the *completed* selection, which this panel drops immediately
+     (`clearSelection`), and neither attribute reaches the live one. */
+  .plot :global(.select-outline) {
+    fill: var(--plot-mask) !important;
+    fill-opacity: 1 !important;
   }
 
   .knobs {

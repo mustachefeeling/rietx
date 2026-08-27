@@ -3634,7 +3634,7 @@ describe("a redraw never moves the axes (WP-1212)", () => {
   /** Every plotly call in the order it was made, with the axis resolution the
    *  library performs: an explicit `range` stays put, an absent one is fitted
    *  to the data and marked `autorange`. */
-  function plotly(log: { call: string; arg: any }[]) {
+  function plotly(log: { call: string; arg: any; traces?: any[] }[]) {
     const resolve = (node: any, layout: any) => {
       const full: Record<string, any> = {};
       for (const key of ["xaxis", "yaxis", "yaxis2"]) {
@@ -3648,7 +3648,7 @@ describe("a redraw never moves the axes (WP-1212)", () => {
     };
     vi.stubGlobal("Plotly", {
       react: async (node: any, traces: any[], layout: any) => {
-        log.push({ call: "react", arg: layout });
+        log.push({ call: "react", arg: layout, traces });
         resolve(node, layout);
       },
       relayout: async (node: any, patch: any) => {
@@ -3666,6 +3666,8 @@ describe("a redraw never moves the axes (WP-1212)", () => {
   }
 
   const reacts = (log: { call: string }[]) => log.filter((c) => c.call === "react").length;
+  const lastTraces = (log: { call: string; traces?: any[] }[]) =>
+    log.filter((c) => c.call === "react").at(-1)!.traces!;
 
   it("writes back what plotly autoranged, so the next restyle cannot re-fit it",
      async () => {
@@ -3728,6 +3730,56 @@ describe("a redraw never moves the axes (WP-1212)", () => {
     const ringAt = log.findIndex((c) => c.call === "restyle");
     expect(pinAt).toBeGreaterThanOrEqual(0);
     expect(ringAt).toBeGreaterThan(pinAt);
+  });
+
+  it("dresses the live selection as the mask it is about to become", async () => {
+    // plotly's default marquee is a dark dotted box that says "select"; what an
+    // armed drag here means is "exclude this range", so it borrows `maskShapes`'
+    // own two colours from the same `curveColors` call. The wash inside it is
+    // not an attribute plotly has — it is the `.select-outline` rule in the
+    // panel's stylesheet, which needs `!important` because plotly writes
+    // `fill-opacity: 0` inline (measured in Chrome).
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    vi.stubGlobal("fetch",
+      server({ ...boot(MASKED_PROJECT), ...FITTED, ...TWO_PHASE_WINDOW }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const layout = log.filter((c) => c.call === "react").at(-1)!.arg;
+    expect(layout.newselection.line.dash).toBe("dot");
+    expect(layout.newselection.line.width).toBe(1);
+    // the same two inks the shapes are drawn in, whatever the theme resolved to
+    const shape = layout.shapes.find((s: any) => s.type === "line");
+    expect(layout.newselection.line.color).toBe(shape.line.color);
+    const band = layout.shapes.find((s: any) => s.type === "rect");
+    expect(layout.activeselection.fillcolor).toBe(band.fillcolor);
+  });
+
+  it("keeps the hover ring out of the WebGL scene", async () => {
+    // Every gl trace on a subplot shares one `_scene` whose batches are indexed
+    // by position, and an *empty* one is given no index — so a select drag read
+    // `scene.selectBatch[undefined].length` and threw once per pointer move
+    // (measured: 7 throws over one armed exclude drag, and none before the
+    // first hover, because the ring is empty until something is hovered).
+    const log: { call: string; arg: any }[] = [];
+    plotly(log);
+    vi.stubGlobal("fetch", server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const last = lastTraces(log);
+    const ring = last.find((t: any) => t.name === "hovered");
+    expect(ring.type).toBe("scatter");
+    // …and it is the only one: everything else on this plot is a curve worth
+    // the gl path, and the peak markers are drawn from a list that can be long
+    expect(last.filter((t: any) => t.type !== "scattergl").map((t: any) => t.name))
+      .toEqual(["hovered"]);
   });
 
   it("draws an exclusion once — the whole chain is one paint", async () => {
