@@ -111,6 +111,9 @@ using/series
 using/qpa
 using/exports
 using/cli
+using/gui-quickstart
+using/gui-guide
+using/gui-power
 using/agents
 using/compatibility
 using/glossary

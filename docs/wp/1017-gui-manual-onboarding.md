@@ -194,9 +194,9 @@ surviving substance — each one is something the screen cannot say about itself
 
 ## Tasks
 
-- [ ] `gui-quickstart.md` + toctree wiring; builds `-W`-clean.
-- [ ] `gui-guide.md` — panel by panel, when-to-branch workflow section.
-- [ ] `gui-power.md` — normative `.rxt` spec with `FORMAT_VERSION` as a
+- [x] `gui-quickstart.md` + toctree wiring; builds `-W`-clean.
+- [x] `gui-guide.md` — panel by panel, when-to-branch workflow section.
+- [x] `gui-power.md` — normative `.rxt` spec with `FORMAT_VERSION` as a
       fenced constant (conf.py line + chapter use), keyboard/palette table,
       console-to-script story.
 - [ ] `static/help.json` + tooltip wiring + "learn more" anchors;
