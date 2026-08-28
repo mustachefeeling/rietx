@@ -500,7 +500,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # operating detail went a rank down as this comment requires: the refusal
     # wording is `position_values`' docstring, the per-state pixel measurements
     # are `MODEL_MIN`'s and the WP's handover.
-    "gui/CLAUDE.md": 938,
+    # 938 -> 962 for WP-1216: the instrument form becomes one grid of three
+    # columns.  Four rules, and two of them are about *who decides a width* —
+    # a form's column count is a promise no wrap point or container may take,
+    # and a declared column count is a declared minimum, which is what moved
+    # `MODEL_MIN.form` and put WP-1215's stale-width lesson under a test rather
+    # than a comment.  The nine measured configurations are in the WP.
+    "gui/CLAUDE.md": 962,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the
