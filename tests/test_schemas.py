@@ -207,6 +207,54 @@ def test_a_wrong_stage_or_plan_field_gets_the_closest_match():
         plan.stagess
 
 
+def test_every_public_schema_class_is_a_top_level_export():
+    """WP-1302: no `Source`/`EmissionLine`/`BackgroundChebyshev`-shaped gap.
+
+    Derived, not typed — walks every ``rietx.schemas`` submodule the same way
+    ``rietx/__init__.py`` does, rather than re-listing the classes by hand,
+    so a schema added tomorrow is covered the day it lands.
+    """
+    import pkgutil
+
+    schema_names = set()
+    for info in pkgutil.iter_modules(rx.schemas.__path__):
+        module = __import__(f"rietx.schemas.{info.name}", fromlist=["_"])
+        for name, obj in vars(module).items():
+            if (not name.startswith("_") and inspect.isclass(obj)
+                    and obj.__module__ == module.__name__ and issubclass(obj, Base)):
+                schema_names.add(name)
+
+    # Base itself is excluded from the public surface (tests/api_surface.py)
+    # rather than from this export list — see that file for the reason.
+    missing = {n for n in schema_names if n != "Base"} - set(rx.__all__)
+    assert not missing
+
+
+def test_package_getattr_lazily_imports_a_submodule():
+    """``rx.viz`` works without an explicit ``import rietx.viz`` first
+    (WP-1302) — a real historical miss (`module 'rietx' has no attribute
+    'viz'`), fixed rather than merely explained.
+    """
+    import sys
+    import types
+
+    sys.modules.pop("rietx.viz", None)
+    if hasattr(rx, "viz"):
+        del rx.__dict__["viz"]
+
+    assert isinstance(rx.viz, types.ModuleType)
+    assert rx.viz is sys.modules["rietx.viz"]
+
+
+def test_package_getattr_names_where_a_miss_actually_lives():
+    with pytest.raises(AttributeError, match=r"did you mean 'Instrument'"):
+        rx.Insrument
+    with pytest.raises(AttributeError, match=r"io\.readers\.PATTERN_FORMATS"):
+        rx.identify_format
+    with pytest.raises(AttributeError, match=r"no attribute 'not_a_real_export'"):
+        rx.not_a_real_export
+
+
 @pytest.mark.parametrize("obj, mirror", [
     (rx.RefinementPlan.mccusker_default(), "PlanSpec.from_plan"),
     (rx.Stage("cell", ["phases.*.cell.*"]), "StageSpec.from_stage"),

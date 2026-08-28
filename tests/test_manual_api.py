@@ -337,6 +337,29 @@ def test_every_dotted_name_resolves():
                     break
 
 
+RX_DOT_NAME = re.compile(r"\brx\.([A-Za-z_][A-Za-z0-9_]*)\b")
+
+
+def test_every_rx_dot_name_is_exported():
+    """A bare ``rx.X`` in Part 1 must be a real top-level export (WP-1302).
+
+    Stricter than :func:`test_every_dotted_name_resolves`, which is happy
+    with a deeper path (``rietx.io.readers.PATTERN_FORMATS``) that ``rx.``
+    was never meant to reach: writing ``rx.X`` in a chapter is the promise
+    that a reader can do the same, and ``__init__.py``'s derived re-exports
+    exist so that promise holds without the two drifting apart (the gap this
+    closed: ``Source``, ``EmissionLine``, ``BackgroundChebyshev`` and more
+    were named throughout ``data.md`` unqualified while unimportable).
+    """
+    import rietx as rx
+
+    missing = {(page.name, name)
+               for page, text in _pages()
+               for name in RX_DOT_NAME.findall(_code_text(page, text))
+               if name not in rx.__all__}
+    assert not missing, sorted(missing)
+
+
 def test_imports_shown_in_part_one_exist():
     """`from rietx import capabilities` in a chapter names something the
     package exports.  A bare name is not dotted, so the resolver above cannot

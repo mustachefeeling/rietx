@@ -94,6 +94,11 @@ EXCLUDED_TYPES: dict[str, str] = {
         "constructs one and calls .cancel() from another thread, and the "
         "cooperative-cancellation semantics are the documentable part."
     ),
+    "Base": (
+        "the pydantic base every rietx schema shares (WP-1302's __getattr__ "
+        "hint, extra='forbid'); documented as that shared behaviour in "
+        "CLAUDE.md, not as a type a caller constructs or names."
+    ),
 }
 
 # Individual names, where the *type* is on the surface but one member is not.

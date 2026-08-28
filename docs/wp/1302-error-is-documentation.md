@@ -169,7 +169,7 @@ the model; the summary lives on `Refinement`).
       `__subclasses__`) that deepcopy, pickle, `model_copy`, `validate_assignment` and
       `model_dump` round-trip still hold.
 - [x] The closest-match on the two dataclasses.
-- [ ] The re-exports and the package-level `__getattr__` + the `__all__` meta-test
+- [x] The re-exports and the package-level `__getattr__` + the `__all__` meta-test
       (every `rx.X` in the manual's Part 1 is in `__all__`).
 - [ ] Docstring lines on the files above.
 - [ ] `HIGH_CORRELATION` dedup + cap + the new code's rows; GUI diagnostics strip
