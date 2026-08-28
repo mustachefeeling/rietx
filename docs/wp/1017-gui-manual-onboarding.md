@@ -1,7 +1,9 @@
 # WP-1017 — GUI manual, in-app help, onboarding
 
-Milestone: v1.2 · Status: ⬜ — re-scoped 2026-08-25 as the last WP of v1.2;
-the GUI ships as a **beta** feature until it lands
+Milestone: v1.2 · Status: ✅ 2026-08-28 — three chapters in Part 1, the routes
+and the panels partitioned, generated light/dark screenshots, a derived
+first-run checklist, and the GUI's beta status lifted (its routes stay
+provisional)
 Depends on: WP-1201…WP-1217 (last in v1.2: the chapters describe panels those
 WPs settle, and the beta declaration lifts here)
 
@@ -49,9 +51,9 @@ tooltip wiring the original scope carried landed as the corpus (1202) and
 the popover (1203); what remains here is the "learn more" anchors' dead-link
 guard being green over the finished chapters, and the first-run checklist.
 
-The mailbox below was accurate on 2026-08-06 and is **left for the session
-that picks this up**, per its own rule: prune it against the running app,
-not against the notes.
+The mailbox was left for the session that picked this up, per its own rule:
+prune it against the running app, not against the notes. That was done on
+2026-08-28 and the result is § The mailbox, consumed.
 
 ## Context
 
@@ -81,107 +83,14 @@ not against the notes.
   structure → Check instrument → Run → Read the report) — never a modal
   wizard; state in `ProjectDoc.ui`.
 
-### The surface as it is, measured 2026-08-28
+### The mailbox, consumed
 
-The mailbox fifteen sessions wrote into this file is consumed here. It was
-right to keep — three of its entries were the only record that a control had
-moved — but most of it described a screen that has since moved again, so it is
-replaced by what the running app does today (HEAD `72c35ff6`, read off the
-source and the tests that pin it, not off the notes). What a chapter must
-*teach* rather than list survives below it.
-
-- **Nine tabs, one column**: `Parameters | Plan | Peaks | Model | Text |
-  Series | Report | History | Build` (`App.svelte`'s `TABS`, pinned by
-  `App.test.ts`). WP-1034's "eight" is stale — 1016 added Series. The strip
-  renders only with a project open, every panel stays mounted while hidden, and
-  the header's `Split | Full` chooses only how much window the column gets.
-- **The header**: title and version, the project chip (name · data file · pts ·
-  mode · σ source), Rwp and GoF with a `⚠ not a fit yet` term past
-  `MATURITY_MAX_RWP`, then `Open…`, `Split | Full`, `Simple | Advanced`, the
-  three-way theme `◐ ☀ ☾`, the run pill, `Run`, `Cancel`, `⌘K`. There is no
-  menu bar and no Save button: `Save the project` is a palette command only.
-  The theme is the one control present on the empty state.
-- **Ten single-key shortcuts, and Escape is not one of them**: `r` run, `.` run
-  the selected stage, `f`/`x` free/fix the filtered glob, `/` focus the filter,
-  `p` peaks, `?` report, `h` history, `t` text, `m` model; `⌘K` the palette.
-  Escape closes the help popover if one is open, otherwise cancels a run —
-  handled above the command table, so the `Esc` on the palette's Cancel row is
-  a *label*. Single keys are ignored while focus is in a field. Eighteen
-  palette commands, each carrying the Python call it makes.
-- **The plot has no tooltip** (1213). `hoverinfo` is `"none"` on every trace and
-  what a reader gets is the readout strip under the canvas: fixed slots, 2θ and
-  d always, then one row per *drawn* curve, each label in its own ink. A slot
-  empties to `—` rather than disappearing, so the canvas never resizes under
-  the pointer. A solid spike marks the 2θ. Prose must not say "hover for
-  values", and a screenshot taken after `data only` shows a shorter strip and
-  is correct.
-- **Two registers of knob under the plot, and only one changes the answer**:
-  the residual selector (`Δ/σ` default, `Δ`, `Σχ²`), the intensity scale (`lin`,
-  `√`, `log`) and the curve toggles are drawing choices and are not persisted;
-  the fitted range, the excluded regions and their channel count are protocol,
-  persist on the verb and move Rwp. `⇥ range` and `✂ exclude` arm a drag,
-  suspend the peak verbs and disarm after one selection.
-- **The empty state is the Model panel** with three ways in — the recent list,
-  the shipped examples, and `Browse for a project…` — above a four-step wizard:
-  Pattern, Structure (`CIF file` / `Type a cell` / `None yet`), Instrument,
-  Project. Step 2's third answer means a project can exist with no phase, and
-  `Run` then carries the reason it is disabled.
-- **Seventy-seven routes**: 74 in `ROUTES` plus the three raw-byte upload
-  routes; `RESERVED_ROUTES` is empty. That is the set the partition test in
-  Tasks has to cover.
-
-**What a chapter has to teach rather than list.** These are the mailbox's
-surviving substance — each one is something the screen cannot say about itself:
-
-- **A series is N refinements chained by a warm start**, not one joint
-  residual, and `direction="both"` is the only check separating a measured
-  trajectory from an ordering artefact. A series does not persist. Four status
-  chips, taught as two pairs: `restaged`/`reseeded` against `hard`/
-  `unrecovered`, and on the trajectory a ring is a good fit from a different
-  start while a cross is not a measurement at all.
-- **An edit empties the plot until the next run, and that is the design** — the
-  curves described values the model no longer holds. Teach *edit → Run →
-  compare*. Undo is a checkout, and a checkout throws the curves away for the
-  same reason; users read the empty plot as a crash.
-- **The filter box is the selection**, because one glob is one history node.
-  Simple mode hides the rows nothing can free and reports the count it hid.
-- **A suggestion with no Apply button is not broken**: four of the sixteen
-  action kinds are advice, and the note beside them is the deliverable. A
-  greyed one reading `vetoed:` is the engine agreeing with you. The predicted
-  Δχ² is one number for the whole report and cannot rank anything.
-- **"Could not rule out" is the headline, not a footnote** — applying
-  `refine_zero_shift` to a fit whose *cell* was wrong improved Rwp from 21.6 %
-  to 9.3 % by putting the error in the wrong parameter, and the report said so
-  in advance. The best worked example in the repo for the never-a-confident-
-  wrong-singleton rule.
-- **A candidate list with no high-confidence entry is a result, not a
-  failure**, and the extinction *symbol* is what a powder measures — a single
-  space group is a convention the user chooses. `quick` is the default preset
-  and its ceiling means a `low` from a truncated run is unconfirmed.
-- **The bond threshold is a drawing threshold, not chemistry** (LaB6 at 1.15
-  draws a cage; 1.05 leaves the B₆ octahedron), and the ellipsoids are a
-  diagnostic — an over-flexible background arrives here as balloons. An
-  exaggeration factor is not a probability, so a figure exported at ≠ 1 is not
-  ORTEP-quotable. Element colours are decided **per phase**, so one element can
-  be two colours in two phases.
-- **There is no merge and no force-apply** in the text pane: the loser's
-  document carries the winner's *old* values for every untouched row, so
-  applying it would silently revert them. Comments do not survive a re-render.
-- **The reader is a decision with consequences.** The wizard's pattern step
-  names the *reader* that claimed the file and shows that reader's own
-  diagnostics — sometimes a 188× attenuator correction, not only a repair. A
-  header whose anode and wavelength disagree pre-fills **nothing**, because a
-  wrong pre-fill looks like it was read.
-- **Every pointer verb has a typed twin**, and the plot prints its four
-  gestures whenever the Peaks tab is up — so the chapter's job is to explain
-  why, not to repeat them. A drag only moves a line once you are zoomed in far
-  enough for the grab radius to apply; at the survey view a drag is always a
-  zoom.
-- **rietx is also a phase this software analyses.** The manual needs a
-  disambiguation convention from its first public page: the phase as
-  `rietx (TiO₂)`, the package in code formatting. Never write `.rietx` — the
-  format tokens are `.rex`, `.rxt` and `instrument_profile`, and where the name
-  is needed in code it is imported from `_about.py`.
+The `### Inherited` fifteen sessions wrote into this file was pruned to a
+verified surface list on arrival (2026-08-28) and then **consumed by the
+chapters**: what the app does is in `using/gui-guide.md`, what a chapter has
+to teach is in the chapters, and both are now held to the app by
+`tests/test_gui_manual.py` rather than by a note. Nothing is owed to a
+successor here.
 
 ## Non-goals
 
@@ -225,8 +134,10 @@ surviving substance — each one is something the screen cannot say about itself
 
 ```sh
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html
-.venv/bin/python -m pytest tests/test_manual.py tests/test_gui_help.py -q
+.venv/bin/python -m pytest tests/test_manual.py tests/test_gui_help.py \
+    tests/test_gui_manual.py tests/test_manual_api.py -q
 .venv/bin/python -m ruff check src tests examples
+npm --prefix gui test && npm --prefix gui run check
 ```
 
 ## References
@@ -235,6 +146,68 @@ surviving substance — each one is something the screen cannot say about itself
   cited-bib guard) — the machinery these chapters extend.
 
 ## Handover log
+
+- **2026-08-28** — **the GUI has a manual, and the manual has guards that fail
+  when the app moves.** A person who has never opened `rietx gui` can now read
+  three chapters and know what the screen is for: how to get from nothing to a
+  fit they have read, what each of the nine panels does and why it behaves as
+  it does, and — the part the screen cannot say about itself — when to branch
+  the history, why only one of the two knob strips under the plot changes the
+  answer, and why an edit empties the plot on purpose. The GUI stopped being a
+  beta feature with it. What this cost is a set of mechanisms rather than
+  prose: the eight sessions that wrote "three sentences in this manual are now
+  wrong" into the mailbox below were not writing badly, they were writing
+  against a moving target with nothing to catch the drift, so the routes and
+  the panels are now partitioned like the call surface and the screenshots are
+  generated by a script that is their one authority. A control that moves now
+  fails a test.
+
+  **Done** — all eight checklist items. Three chapters in Part 1
+  (`gui-quickstart`, `gui-guide`, `gui-power`), between `cli` and `agents`, so
+  they inherit `test_manual_api.py`'s name resolution and executed-block guards
+  rather than needing a doc root of their own. `tests/test_gui_manual.py` is
+  the new guard file: the 77 routes are documented-or-excluded and the
+  partition tightens both ways (a chapter naming a route the server does not
+  serve fails too), every tab in the live strip is named in a chapter, every
+  referenced screenshot is one the script declares and every declared one is
+  committed and shown, and nothing gitignores them. The tab strip moved to
+  `gui/src/lib/tabs.ts` as data so `tabs.test.ts` can write the corpus python
+  reads. `docs/manual/make_screenshots.py` drives the real server in-process
+  over the `fap` example, 18 committed light/dark pictures. The first-run
+  checklist is a non-modal strip whose steps are derived from the project, with
+  only its dismissal persisted. Beta lifted in README, `using/cli.md` and
+  `using/compatibility.md` — narrowed rather than dropped: the **routes** stay
+  provisional, since the wire is what still moves.
+
+  **Measured** (this worktree's own `[dev]` venv, numpy-only, darwin/arm64,
+  nothing else running — `pgrep` checked): fast selection **3206 → 3216
+  passed, 122 skipped** in 2:10, the baseline being WP-1217's own figure on
+  this machine. Exactly +10, which is the 10 tests `test_gui_manual.py` adds,
+  all passing and no new skip. vitest **583 → 590** in 22 files: +2 for the
+  panel corpus and +5 for the checklist's mount tests. `svelte-check` 378 →
+  381 files, 0 errors. **The full selection was not run**: this WP touches
+  docs, `gui/`, the committed dist and tests, and no physics, which is
+  `tests/CLAUDE.md`'s stated exemption. Screenshots are 2.7 MB after the
+  script's own 256-colour quantise, from 5.2 MB — checked by looking at them,
+  not by a digest, which is `gui/CLAUDE.md`'s rule for a picture.
+
+  **Gotchas for whoever is next.** The screenshot script needs `playwright`
+  installed by hand (deliberately not in `[dev]` — nothing else wants it and no
+  docs build runs it) and drives whatever chromium is already in playwright's
+  cache, since a revision mismatch is the normal state of this machine. Its
+  `SHOTS` table is the declaration the tests read; adding a picture means
+  adding a row *and* showing it in a chapter, and both directions fail. Two
+  traps are recorded in the code because they cost real time here: `*.png` in
+  `.gitignore` swallowed the whole screenshots directory — the third committed
+  image family that rule has eaten, now a test rather than a comment — and the
+  driver's phase field started as three independent booleans, which let one
+  shot match two passes and be photographed twice, the committed file being the
+  wrong screen entirely.
+
+  **Next**: v1.2 is complete — this was its last WP. The milestone record wants
+  finishing with its measured acceptance block, and then v1.3 (agents and
+  programs, 1301-1307) opens with the version bump, which is the order the
+  ROADMAP already states. Nothing in this WP blocks either.
 
 - **2026-08-25** — re-scoped as the last WP of v1.2 (the GUI milestone):
   the chapters keep their shape, the sync mechanism above is added, and
