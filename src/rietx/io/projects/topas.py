@@ -2077,7 +2077,14 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     ``model.phases`` — the model is "what the ``.inp`` states", and a seed a
     caller cannot tell from a stated value is the silent-default class this
     reader avoids (WP-1118).
-    ``cell_limits`` applies the file's own ``min``/``max`` where it stated them.
+    ``cell_limits`` applies the file's own ``min``/``max`` where it stated them
+    **and where the stated value lies inside them**. A bound the value falls
+    outside is *dropped* and the value kept, one bound at a time: TOPAS writes
+    the converged value back into the ``.inp``, so an edited or re-run window
+    can end up on the wrong side of it, and the value is the measurement while
+    the bound is the author's search window. So ``a lpa 6.2977 min 6.26 max
+    6.29`` builds 6.2977 carrying the ``min`` and **no** ``max`` — see ``_p()``
+    for why keeping both is not an option a reader has.
 
     ``aniso`` is the opt-in for the **anisotropic displacement tensor**, the same
     one :func:`~rietx.crystallography.cif.structure_from_cif` uses and for the
