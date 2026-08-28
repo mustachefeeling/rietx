@@ -360,6 +360,11 @@
     project = doc;
     readUi();
     openError = "";
+    // a different project, so the checklist's session-local step starts over
+    // (WP-1017) — this belongs with `tab = "params"` rather than in `readUi`,
+    // which `moved()` also calls on every head move: reset there, reading the
+    // report and then running a stage would un-tick it
+    reportSeen = false;
     tab = "params";
     indexAnswer = null;
     forgetCandidates();
@@ -385,6 +390,7 @@
       project = await api.openProject(path);
       readUi();
       openError = "";
+      reportSeen = false;   // a different project — see `opened` (WP-1017)
       tab = "params";
       indexAnswer = null;
       forgetCandidates();

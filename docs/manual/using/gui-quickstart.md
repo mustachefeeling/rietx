@@ -62,12 +62,12 @@ refinement starts to need a plan rather than a button.
 
 ```{image} screenshots/empty-state-light.png
 :class: only-light
-:alt: The panel with no project open: two example projects with their descriptions, a Browse button, and the four numbered wizard steps below
+:alt: The panel with no project open: the shipped example projects with their descriptions, a Browse button, and the four numbered wizard steps below
 ```
 
 ```{image} screenshots/empty-state-dark.png
 :class: only-dark
-:alt: The panel with no project open: two example projects with their descriptions, a Browse button, and the four numbered wizard steps below
+:alt: The panel with no project open: the shipped example projects with their descriptions, a Browse button, and the four numbered wizard steps below
 ```
 
 ## What is on the screen
@@ -140,8 +140,8 @@ this chapter can.
 
 :::{admonition} A hopeless fit says so
 :class: note
-Past an Rwp of 0.35 the header shows `⚠ not a fit yet` beside the number, and
-the run's own status pill may still read `converged`. Both are true: the
+Past an Rwp of {{ MATURITY_MAX_RWP }} the header shows `⚠ not a fit yet` beside
+the number, and the run's own status pill may still read `converged`. Both are true: the
 optimiser stopped moving, and the model is not yet describing the data. Believe
 the warning, and go to the Report.
 :::

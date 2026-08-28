@@ -193,9 +193,7 @@ def test_every_shot_names_a_session_state_the_driver_walks():
     silent, and a name it matches twice is silent too.
     """
     shots, _ = _declared_shots()
-    spec = importlib.util.spec_from_file_location("_make_screenshots", MAKE_SHOTS)
     module = sys.modules["_make_screenshots"]
-    assert spec is not None
     bad = sorted({shot.name: shot.when for shot in shots
                   if shot.when not in module.PHASES}.items())
     assert not bad, f"shot(s) declaring a session state the driver never walks: {bad}"
@@ -218,7 +216,10 @@ def test_every_declared_shot_is_committed_and_used():
                 f"{name} is declared but not committed — run "
                 "docs/manual/make_screenshots.py"
             )
-        assert f"screenshots/{shot.name}-" in prose, (
+        # The whole filename, not the `<name>-` prefix: `first` would have been
+        # covered by a chapter showing `first-fit`, so a shot whose name is
+        # another's prefix could go unshown and still pass.
+        assert any(f"screenshots/{shot.name}-{theme}.png" in prose for theme in themes), (
             f"{shot.name} is taken by make_screenshots.py but no chapter shows it"
         )
         assert len(shot.caption.split()) >= 5, f"{shot.name}: caption says nothing"

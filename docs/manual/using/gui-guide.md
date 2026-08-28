@@ -27,7 +27,7 @@ about 550 px and the atom table about 470, which is what `Full` is for.
 | Control | Does |
 |---|---|
 | the project chip | names the `.rex`, its data file, the point count, the intensity mode, and whether σ came from the file or from counting statistics |
-| `Rwp` / `GoF` | the last run's agreement; `⚠ not a fit yet` appears beside it past an Rwp of 0.35 |
+| `Rwp` / `GoF` | the last run's agreement; `⚠ not a fit yet` appears beside it past an Rwp of {{ MATURITY_MAX_RWP }} |
 | `Open…` | the import wizard, with the recent list in it |
 | `Split \| Full` | how much window the panel column takes |
 | `Simple \| Advanced` | whether rows nothing can free, bounds and transforms are shown |

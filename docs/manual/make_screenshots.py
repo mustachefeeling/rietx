@@ -179,7 +179,15 @@ def chromium_path() -> str:
     cache = Path.home() / "Library/Caches/ms-playwright"
     if not cache.exists():
         cache = Path.home() / ".cache/ms-playwright"
-    for build in sorted(cache.glob("chromium-*"), reverse=True):
+
+    def revision(build: Path) -> int:
+        # The suffix is a build *number*, so it is sorted as one: lexically,
+        # `chromium-989` sorts above `chromium-1148` and "newest" would have
+        # meant "oldest" on any cache that has crossed four digits.
+        tail = build.name.rpartition("-")[2]
+        return int(tail) if tail.isdigit() else -1
+
+    for build in sorted(cache.glob("chromium-*"), key=revision, reverse=True):
         for candidate in (
             build / "chrome-mac-arm64/Google Chrome for Testing.app/Contents"
             "/MacOS/Google Chrome for Testing",
@@ -275,7 +283,11 @@ def _shrink(path: Path) -> tuple[int, int]:
     from PIL import Image
 
     before = path.stat().st_size
-    image = Image.open(path).convert("RGB")
+    # The source handle is closed before the same path is written back: PIL
+    # opens lazily, and rewriting a file it still holds open is a failure on
+    # Windows and a leaked descriptor everywhere else.
+    with Image.open(path) as opened:
+        image = opened.convert("RGB")
     image.quantize(
         colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE
     ).save(path, optimize=True)
@@ -298,6 +310,7 @@ def main() -> int:
     from playwright.sync_api import sync_playwright
 
     work = Path(tempfile.mkdtemp(prefix="rietx-shots-"))
+    httpd = None
     try:
         httpd, url = _serve(work / "state")
         executable = chromium_path()
@@ -358,15 +371,25 @@ def main() -> int:
                 for shot in SHOTS:
                     if shot.when != "forked":
                         continue
-                    page.click(f'.tab:text-is("{shot.tab}")')
-                    page.wait_for_timeout(900)
+                    # The tab has to be open before the compare row can be
+                    # clicked, so it is opened here as well as in `_shoot` —
+                    # guarded, because a forked shot declaring no tab would
+                    # otherwise click `text-is("None")` and wait out the
+                    # timeout.
+                    if shot.tab:
+                        page.click(f'.tab:text-is("{shot.tab}")')
+                        page.wait_for_timeout(900)
                     _compare_two(page)
                     _shoot(page, shot, theme)
 
                 context.close()
             browser.close()
-        httpd.shutdown()
     finally:
+        # In the `finally` beside the temp tree: a shot that raises used to
+        # leave the serving thread up, so the script kept the port and the
+        # example project it had opened until the process was killed.
+        if httpd is not None:
+            httpd.shutdown()
         shutil.rmtree(work, ignore_errors=True)
     return 0
 

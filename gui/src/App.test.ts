@@ -5557,6 +5557,35 @@ describe("the first-run checklist (WP-1017)", () => {
     expect(host.querySelector(".checklist")).toBeNull();
   });
 
+  it("keeps Read the report ticked across a head move", async () => {
+    // The reset belongs where the *project* changes, not in `readUi()` — which
+    // `moved()` also calls on every head move, so put there, reading the report
+    // and then checking a node out un-ticks the step the person just finished.
+    const stub = await openTab("History", PROJECT, {
+      ...FITTED,
+      "/api/history/checkout": () => ({ body: { head: "n0002", parameters: [], n_free: 0 } }),
+    });
+    const tabs = () => [...host.querySelectorAll<HTMLButtonElement>(".tab")];
+    tabs().find((t) => t.textContent?.trim() === "Report")!.click();
+    await flush();
+    // every step done, so the strip says so rather than counting
+    expect(host.querySelector(".checklist")!.textContent).toContain("that is the loop");
+
+    tabs().find((t) => t.textContent?.trim() === "History")!.click();
+    await flush();
+    [...host.querySelectorAll<HTMLButtonElement>(".node button.pick")][2].click();
+    await flush();
+    button("Checkout")!.click();
+    await flush();
+
+    expect(stub.calls.some((c) => c.path === "/api/history/checkout")).toBe(true);
+    // Still every step done: the head moved, the project did not. Before the
+    // fix this read "1 left" — the reset had been put in `readUi()`, which
+    // `moved()` calls on every head move, so reading the report and then
+    // checking a node out un-ticked the step the person had just finished.
+    expect(host.querySelector(".checklist")!.textContent).toContain("that is the loop");
+  });
+
   it("stays hidden on a project that dismissed it before", async () => {
     const dismissed = { ...PROJECT, doc: { ...PROJECT.doc, ui: { first_run: false } } };
     vi.stubGlobal("fetch", server(boot(dismissed)).fetcher);

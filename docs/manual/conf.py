@@ -44,7 +44,11 @@ from rietx.optimize.statistics import (
 from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, STRAIN_CAP_RANGE_FRACTION
 from rietx.refine import SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
 from rietx.report.layer2 import IMPURITY_SIGMA
-from rietx.report.schemas import THRESHOLDS_VERSION, VALIDITY_RADIUS_FWHM
+from rietx.report.schemas import (
+    MATURITY_MAX_RWP,
+    THRESHOLDS_VERSION,
+    VALIDITY_RADIUS_FWHM,
+)
 from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
 from rietx.schemas.suggest import SUGGEST_MIN_GAIN
 from rietx.strategy.staged import BACKGROUND_PEAK_MIN_WIDTH_MULT
@@ -115,6 +119,10 @@ myst_substitutions = {
     # are quoted from the parser rather than typed beside it.
     "RXT_FORMAT_VERSION": RXT_FORMAT_VERSION,
     "RXT_VALUE_DIGITS": RXT_VALUE_DIGITS,
+    # The Rwp past which Layer 1 abstains and the GUI header wears
+    # `⚠ not a fit yet`.  The GUI chapters state it, so it is injected for the
+    # same reason every other threshold here is: a retune must move the page.
+    "MATURITY_MAX_RWP": MATURITY_MAX_RWP,
     "NEAR_EDGE_EV": NEAR_EDGE_EV,
     "NIGGLI_EPS_RELATIVE": NIGGLI_EPS_RELATIVE,
     "NODES_PER_FWHM": NODES_PER_FWHM,
