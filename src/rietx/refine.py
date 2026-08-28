@@ -2480,7 +2480,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # reports the cause.  The stage records carry the hold, so the message and
     # the record quote one measurement.
     diagnostics = diagnostics + _phase_support_diagnostics(
-        model, values, list(table.free_paths), structure, stage_results)
+        model.phase_support(values), model.phase_line_counts(),
+        (model.tt_min, model.tt_max), list(table.free_paths), structure,
+        stage_results)
 
     # A strain broader than solved refinements normally use — a flag to check,
     # not a bound (the bound is params.vector.strain_cap, one tier up).
@@ -3178,7 +3180,9 @@ def _held_by_phase(stage_results: list[StageResult], n_phases: int
     return paths, [list(s) for s in stages]
 
 
-def _phase_support_diagnostics(model: CompiledModel, values: dict[str, float],
+def _phase_support_diagnostics(support_by_phase: np.ndarray,
+                               line_counts: np.ndarray,
+                               tt_range: tuple[float, float],
                                free_paths: list[str],
                                structure: Structure,
                                stage_results: list[StageResult] | None = None,
@@ -3221,9 +3225,7 @@ def _phase_support_diagnostics(model: CompiledModel, values: dict[str, float],
     with nothing held is MODEL_FAR_FROM_DATA's statement, not this one, and
     that is what it was before this diagnostic said anything about holds.
     """
-    n_phases = len(model.phases)
-    support_by_phase = model.phase_support(values)
-    line_counts = model.phase_line_counts()
+    n_phases = len(support_by_phase)
     held_paths, held_stages = _held_by_phase(stage_results or [], n_phases)
     out: list[Diagnostic] = []
     for ip in range(n_phases):
@@ -3245,7 +3247,7 @@ def _phase_support_diagnostics(model: CompiledModel, values: dict[str, float],
         name = structure.phases[ip].name
         if no_lines:
             cause = (f"no reflection of phase {ip} ({name}) lies in the fitted "
-                     f"range {model.tt_min:.4g}-{model.tt_max:.4g}°, so nothing "
+                     f"range {tt_range[0]:.4g}-{tt_range[1]:.4g}°, so nothing "
                      f"about it is measurable here")
         else:
             cause = (f"phase {ip} ({name}) contributes at most {support:.2g}σ of "

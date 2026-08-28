@@ -768,3 +768,110 @@ def test_a_supported_trace_phase_is_never_held(sample1_results):
     for stage in result.stages:
         assert stage.held == [] and stage.released == [], stage.name
     assert not [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+
+
+# ----------------------------------------------------------------------
+# every mode, and the joint path
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize("mode", ["lebail", "pawley"])
+def test_an_intensity_model_holds_a_phase_with_no_line_in_range(mode):
+    """The rule is one rule; the intensity modes reach it by the same test.
+
+    ``phase_support`` is measured on the modelled contribution whatever builds
+    it, so in ``lebail``/``pawley`` it reads the extracted per-hkl intensities.
+    With no reflection in the fitted range there is nothing to extract, the
+    contribution is identically zero, and the cell is held exactly as in
+    Rietveld — the scale, which those modes force-fix anyway, is not the reason.
+    """
+    import rietx as rx
+    from tests.test_acceptance_srm660c import build_srm_inputs
+
+    data, structure, instrument = build_srm_inputs()
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("bkg", ["instrument.background.*"]),
+        rx.Stage("cell", ["phases.*.cell.*"]),
+    ])
+    ref = rx.Refinement(structure, instrument, history=False)
+    result = ref.fit(data, mode=mode, plan=plan, two_theta_limits=(22.5, 29.5))
+
+    assert result.stages[-1].held == ["phases.0.cell.a"]
+    assert ref.structure.phases[0].cell.a.value == 4.1568
+    fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert len(fired) == 1 and "no reflection of phase 0" in fired[0].message
+
+
+@pytest.mark.parametrize("mode", ["lebail", "pawley"])
+def test_an_extracted_phase_is_not_unsupported_and_is_not_held(mode):
+    """Where the modes legitimately differ, and why that is the same rule.
+
+    A Rietveld phase reaches the pattern through ``scale × |F|² × profile``, so
+    an absent one collapses to a flat direction.  Under an intensity model its
+    per-hkl intensities are *fitted*, so it takes a share of whatever lies
+    under its predicted peaks and its cell keeps a live gradient: the phase is
+    not one the data cannot see, it is one the model can always place.  The
+    hold therefore does not fire, and that is the measurement rather than an
+    exception to it — reading it as "absent" is what ``PAWLEY_OVERLAP_UNRESOLVED``
+    and the Le Bail warnings in the protocol are for.
+    """
+    import rietx as rx
+
+    structure, ins = _absent_phase_inputs()
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("bkg", ["instrument.background.*"]),
+        rx.Stage("cell", ["phases.*.cell.*"]),
+    ])
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(synthesize(), mode=mode, plan=plan)
+    assert all(stage.held == [] for stage in result.stages)
+
+
+def test_the_joint_path_holds_a_phase_no_histogram_can_see():
+    """A joint fit's authority is every histogram, not any one of them.
+
+    ``_freeze_cell_windows_multi``'s rule, one tier up: a phase invisible in one
+    pattern may be plain in another, and a shared cell is then measured by the
+    fit that pools them.  Only a phase below support in **all** of them is a
+    flat direction — and until now the joint path was the one runner that never
+    said so at all, since it never built the diagnostic.
+    """
+    import rietx as rx
+
+    structure, ins = _absent_phase_inputs()
+    ref = rx.MultiHistogramRefinement(structure, [ins, ins.model_copy(deep=True)])
+    result = ref.fit([synthesize(), synthesize()], plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("cell", ["phases.*.cell.*"]),
+    ]))
+
+    assert result.stages[-1].held == ["phases.1.cell.a"]
+    assert ref.mtable.structures[0].phases[1].cell.a.value == 5.2
+    fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert len(fired) == 1 and "was held for stage cell" in fired[0].message
+
+
+def test_the_joint_hold_needs_every_histogram_to_be_blind():
+    """One histogram that can see the phase is enough to refine it jointly.
+
+    Asserted on the predicate rather than on a fit, because the state it turns
+    on — one histogram's scale up, the other's at its floor — is one a joint
+    fit reaches only through a specimen that differs between patterns, and the
+    rule has to hold before any of that is arranged.
+    """
+    from rietx.model.forward import compile_model as _compile
+    from rietx.multi import _joint_unsupported_phases
+    from rietx.params.multi import MultiParameterTable
+
+    structure, ins = _absent_phase_inputs()
+    pattern = synthesize()
+    mtable = MultiParameterTable(structure, [ins, ins.model_copy(deep=True)])
+    model = _compile(structure, ins, pattern, mode="rietveld")
+    assert _joint_unsupported_phases([model, model], mtable) == {1}
+
+    # raise the absent phase's scale in the *second* histogram only: it is a
+    # per-histogram column, and the joint fit can now see the phase
+    entry = next(e for e in mtable.tables[1].entries
+                 if e.path == "phases.1.scale")
+    entry.value = structure.phases[0].scale.value
+    mtable.tables[1]._rebuild()   # a fixed entry's value lives in the offsets
+    mtable._rebuild_columns()
+    assert _joint_unsupported_phases([model, model], mtable) == set()

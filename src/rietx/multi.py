@@ -17,14 +17,16 @@ independent single fits — not the joint-residual point of this module.
 
 from __future__ import annotations
 
+import dataclasses
+
 import numpy as np
 
 from .backend.api import backend_dtype_note
-from .model.forward import compile_model
+from .model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from .optimize.least_squares import SOLVERS, run_multi_least_squares
 from .optimize.qpa import compute_qpa, microabsorption_diagnostics
 from .optimize.statistics import background_absorption, compute_statistics
-from .params.multi import MultiParameterTable, SharingMap
+from .params.multi import MultiParameterTable, SharingMap, _unscoped
 from .refine import (
     _VERSION,
     _WAVELENGTH_PINNED_BY_HELD_HISTOGRAM,
@@ -35,6 +37,7 @@ from .refine import (
     _declared_wavelengths,
     _guard_diagnostics,
     _phase_agreement,
+    _phase_support_diagnostics,
     _qpa_unavailable_diagnostics,
     _refuse_without_phases,
     _resolve_specimen_absorption,
@@ -78,6 +81,68 @@ def _normalize_limits(ttl, n: int) -> list[tuple[float, float] | None]:
     if len(ttl) != n:
         raise ValueError(f"two_theta_limits has {len(ttl)} entries for {n} histograms")
     return ttl
+
+
+def _joint_unsupported_phases(models, mtable) -> set[int]:
+    """Phases below support in **every** histogram (WP-1301).
+
+    The authority ``_freeze_cell_windows_multi`` uses, for its reason: a phase
+    invisible in one histogram may be plain in another, and if its cell is
+    shared then the data — jointly, which is what a joint refinement fits —
+    can see it.
+    """
+    per_model = [m.phase_support(t.decode(t.x0()))
+                 for m, t in zip(models, mtable.tables, strict=True)]
+    n_phases = min((len(s) for s in per_model), default=0)
+    return {ip for ip in range(n_phases)
+            if all(s[ip] < PHASE_SUPPORT_SIGMA for s in per_model)}
+
+
+def _joint_unsupported_paths(models, mtable) -> list[str]:
+    """Free structural paths (scoped) of every jointly-unsupported phase."""
+    absent = _joint_unsupported_phases(models, mtable)
+    if not absent:
+        return []
+    prefixes = tuple(f"phases.{ip}." for ip in sorted(absent))
+    return [p for p in mtable.free_paths
+            if _unscoped(p).startswith(prefixes) and not p.endswith(".scale")]
+
+
+def _hold_unsupported_phases_multi(models, mtable) -> list[str]:
+    held = _joint_unsupported_paths(models, mtable)
+    if held:
+        mtable.set_vary(held, False)
+    return held
+
+
+def _rehold_multi(models, mtable, held: list[str],
+                  start_values: list[dict[str, float]]
+                  ) -> tuple[list[str], list[str]]:
+    """The post-solve half of the rule, for the joint path.
+
+    Same two answers as the single-histogram runner: a held phase that has
+    appeared is released, and one that collapsed while solving is put back
+    where the stage found it and held.  One extra solve covers both, and there
+    is never a third.
+    """
+    absent = _joint_unsupported_phases(models, mtable)
+    prefixes = tuple(f"phases.{ip}." for ip in sorted(absent))
+    released = [p for p in held
+                if not (prefixes and _unscoped(p).startswith(prefixes))]
+    collapsed = [p for p in _joint_unsupported_paths(models, mtable)
+                 if p not in set(held)]
+    if collapsed:
+        for h, table in enumerate(mtable.tables):
+            by_path = {e.path: e for e in table.entries}
+            for scoped in collapsed:
+                bare = mtable._unscope(h, scoped)
+                if bare is not None and bare in by_path:
+                    by_path[bare].value = start_values[h][bare]
+            table.refresh_ties()
+        mtable.set_vary(collapsed, False)
+    if released:
+        mtable.set_vary(released, True)
+    return released, collapsed
 
 
 class MultiHistogramRefinement:
@@ -191,11 +256,34 @@ class MultiHistogramRefinement:
                     self.mtable.structures, self.mtable.instruments, data, limits,
                     self.mtable.tables, strict=True)]
             stage_ftol = {} if ftol is None else {"ftol": ftol}
+            # A phase the data cannot see is flat here too, and "the data" is
+            # every histogram (WP-1301): the rule is the one
+            # ``_freeze_cell_windows_multi`` already applies, since a phase
+            # invisible in one pattern and plain in another *is* seen by the
+            # joint fit that shares its cell.
+            held = _hold_unsupported_phases_multi(models, self.mtable)
+            if held:
+                freed = [p for p in freed if p not in set(held)]
+            start_values = self.mtable.decode(self.mtable.x0())
             outcome = run_multi_least_squares(models, self.mtable, weights=weights,
                                               max_iter=stage.max_iter,
                                               backend=self._backend,
                                               solver=self._solver, **stage_ftol)
             self.mtable.commit(outcome.theta)
+            released, collapsed = _rehold_multi(models, self.mtable, held,
+                                                start_values)
+            if released or collapsed:
+                held = [p for p in held + collapsed if p not in set(released)]
+                second = run_multi_least_squares(
+                    models, self.mtable, weights=weights,
+                    max_iter=stage.max_iter, backend=self._backend,
+                    solver=self._solver, **stage_ftol)
+                self.mtable.commit(second.theta)
+                outcome = dataclasses.replace(
+                    second, cost_initial=outcome.cost_initial,
+                    n_iterations=outcome.n_iterations + second.n_iterations,
+                    n_constraint_truncations=(outcome.n_constraint_truncations
+                                              + second.n_constraint_truncations))
             self.mtable.apply_to_models()
             stage_results.append(StageResult(
                 name=stage.name, status=outcome.status,
@@ -203,7 +291,7 @@ class MultiHistogramRefinement:
                 cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
-                ftol=ftol))
+                ftol=ftol, held=held, released=released))
 
         assert models is not None and outcome is not None
         self._models = models
@@ -353,6 +441,20 @@ class MultiHistogramRefinement:
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
                 stage_results[-1].name, outcome)
+        # A phase the joint fit cannot see, and what the run did about it
+        # (WP-1301).  Once for the fit rather than once per histogram, because
+        # the statement is joint: the support is the phase's **weakest**
+        # showing across the histograms, the line count its total, and the
+        # range the union of theirs.  Before this the joint path was the only
+        # one that never said it at all.
+        per_support = np.array([m.phase_support(v)
+                                for m, v in zip(models, per_values, strict=True)])
+        per_lines = np.array([m.phase_line_counts() for m in models])
+        diagnostics = diagnostics + _phase_support_diagnostics(
+            per_support.min(axis=0), per_lines.sum(axis=0),
+            (min(m.tt_min for m in models), max(m.tt_max for m in models)),
+            [_unscoped(p) for p in mt.free_paths],
+            self.mtable.structures[0], stage_results)
 
         weight_note = ("unit (each point's esd governs)"
                        if all(w == 1.0 for w in weights)

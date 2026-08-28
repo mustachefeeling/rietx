@@ -90,7 +90,7 @@ is present (that is `SEQUENTIAL_PERSISTENT_FINDING`'s and the agent's).
       agent's exact call, no user bounds; wall clock under a runaway guard (60 s),
       `n_iterations` against the bounded baseline (1638); and cpd-1c (`cell_window`'s
       docstring case) unchanged: a *supported* phase is never held.
-- [ ] `lebail`/`pawley` and the joint path: the same rule (an absent phase's cell is flat
+- [x] `lebail`/`pawley` and the joint path: the same rule (an absent phase's cell is flat
       in every mode); tests.
 - [ ] Docs: `using/results.md` (`held`), `using/series.md` (what a held phase looks like
       in a chain), `help.py` entry if a name is added, the protocol/skill row for the
