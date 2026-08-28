@@ -132,8 +132,8 @@ npm --prefix gui test && npm --prefix gui run check
   contains `set_vary`), so a fifth fails there before it reaches a panel.
 
   **Measured** (darwin/arm64, `[dev]`, this worktree's own venv). Fast
-  selection 3197 passed / 122 skipped in 218-339 s over two runs, +2 python
-  tests on the session's start; `tests/test_gui_server.py` 149 passed; vitest 537 → 551
+  selection 3197 passed / 122 skipped in 164-339 s over three runs, the last
+  on the reviewed tree, +2 python tests on the session's start; `tests/test_gui_server.py` 149 passed; vitest 537 → 551
   (+5 App, +4 `table.test.ts`, +4 `model.test.ts`, +1 `wizard.test.ts`),
   `svelte-check` 378 files 0 errors; the full selection did not run — this WP
   moves no measured number in the acceptance suites. In Chrome on the 11-BM
