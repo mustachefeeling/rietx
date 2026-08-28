@@ -68,6 +68,34 @@ export interface Field {
   advanced?: boolean;
 }
 
+/** Which part of the instrument a field is about (WP-1216).
+ *
+ * Data rather than derived from the path, because two of them disagree with
+ * their own prefix and the crystallographer is right both times: the axial
+ * apertures are `geometry.axial_*` and belong to the **profile**, being two of
+ * the numbers that decide a peak's shape, and the zero shift is top-level and
+ * belongs to the **geometry**, beside the displacement and transparency it is
+ * refined against (`lab_calibrate` decorrelates the three together).
+ *
+ * Three members, each written by `instrumentFields`.  The background is not one:
+ * its family is not offered as an edit here and its term count is a shape change
+ * with its own verb, so neither of the two is a `Field` at all, and a fourth
+ * member would be a name with no writer (CLAUDE.md, WP-1076).
+ */
+export type FieldGroup = "source" | "geometry" | "profile";
+
+/** A field of the instrument form: grouped, and sometimes the start of a row. */
+export interface InstrumentField extends Field {
+  group: FieldGroup;
+  /** the first cell of a row in the profile's fixed three-column grid.
+   *
+   *  The alignment asked for is a *fixed* column count, so no wrap point may
+   *  decide where X lands.  Where each row begins is therefore data —
+   *  `PROFILE_ROWS` — and this flag is how the panel reads it back without
+   *  keeping a second copy of the order. */
+  startsRow?: boolean;
+}
+
 /** Walk a dot-path, returning the node or `undefined`. */
 export function at(model: any, path: string): any {
   let node = model;
@@ -260,82 +288,114 @@ export const GEOMETRIES = ["debye_scherrer", "bragg_brentano",
  * is a specimen of zero thickness, which raises (CLAUDE.md).  Hence `optnumber`
  * rather than a number defaulting to 0.
  */
-export function instrumentFields(instrument: any): Field[] {
+export function instrumentFields(instrument: any): InstrumentField[] {
   const geometry = instrument?.geometry?.kind ?? "debye_scherrer";
-  const fields: Field[] = [
-    { path: "geometry.kind", label: "geometry", kind: "choice",
-      choices: [...GEOMETRIES],
-      title: "changes which corrections apply and which parameters exist" },
-    { path: "zero_shift", label: "zero", kind: "number", unit: "°2θ",
-      help: "parameters:instrument.zero_shift" },
-    { path: "source.polarization", label: "polarization", kind: "number",
-      param: "instrument.polarization",
-      help: "parameters:instrument.polarization" },
-  ];
+  const fields: InstrumentField[] = [];
   const lines = instrument?.source?.lines ?? [];
   lines.forEach((_: unknown, i: number) => {
     fields.push({ path: `source.lines.${i}.wavelength`, label: `λ${i + 1}`,
-                  kind: "number", unit: "Å",
+                  kind: "number", unit: "Å", group: "source",
                   help: "parameters:instrument.source.lines.*.wavelength" });
     if (i > 0) {
       fields.push({ path: `source.lines.${i}.weight`, label: `w${i + 1}`,
-                    kind: "number",
+                    kind: "number", group: "source",
                     help: "parameters:instrument.source.lines.*.weight" });
     }
   });
   fields.push(
-    { path: "profile.shape", label: "shape", kind: "choice",
-      choices: ["tchz_pv", "voigt"], advanced: true,
-      title: "TCHZ pseudo-Voigt (the default) or a true Voigt — the same widths, "
-             + "a different mixing rule" },
-    { path: "profile.u", label: "U", kind: "number", unit: "deg²",
-      help: "parameters:instrument.profile.u" },
-    { path: "profile.v", label: "V", kind: "number", unit: "deg²",
-      help: "parameters:instrument.profile.v" },
-    { path: "profile.w", label: "W", kind: "number", unit: "deg²",
-      help: "parameters:instrument.profile.w" },
-    { path: "profile.x", label: "X", kind: "number",
-      help: "parameters:instrument.profile.x" },
-    { path: "profile.y", label: "Y", kind: "number",
-      help: "parameters:instrument.profile.y" },
-    { path: "geometry.axial_sl", label: "S/L", kind: "number",
-      help: "parameters:instrument.geometry.axial_sl" },
-    { path: "geometry.axial_hl", label: "H/L", kind: "number",
-      help: "parameters:instrument.geometry.axial_hl" },
+    { path: "source.polarization", label: "polarization", kind: "number",
+      param: "instrument.polarization", group: "source",
+      help: "parameters:instrument.polarization" },
+    { path: "geometry.kind", label: "geometry", kind: "choice",
+      choices: [...GEOMETRIES], group: "geometry",
+      title: "changes which corrections apply and which parameters exist" },
+    // the three that move a peak along 2θ, together: they are one degeneracy,
+    // and the calibration that separates them holds a certified cell to do it
+    { path: "zero_shift", label: "zero", kind: "number", unit: "°2θ",
+      group: "geometry", help: "parameters:instrument.zero_shift" },
     { path: "geometry.sample_displacement", label: "displacement", kind: "number",
-      unit: "mm", help: "parameters:instrument.geometry.sample_displacement" },
+      unit: "mm", group: "geometry",
+      help: "parameters:instrument.geometry.sample_displacement" },
   );
   if (geometry === "bragg_brentano") {
     fields.push(
-      { path: "geometry.goniometer_radius_mm", label: "radius", kind: "number",
-        unit: "mm", help: "instrument_fields:goniometer_radius_mm" },
       { path: "geometry.sample_transparency", label: "transparency", kind: "number",
+        group: "geometry",
         help: "parameters:instrument.geometry.sample_transparency" },
+      { path: "geometry.goniometer_radius_mm", label: "radius", kind: "number",
+        unit: "mm", group: "geometry", help: "instrument_fields:goniometer_radius_mm" },
       { path: "geometry.mu_t", label: "µt", kind: "optnumber",
-        help: "instrument_fields:mu_t" },
+        group: "geometry", help: "instrument_fields:mu_t" },
       { path: "geometry.thickness_mm", label: "thickness", kind: "optnumber",
-        unit: "mm", help: "instrument_fields:thickness_mm" },
+        unit: "mm", group: "geometry", help: "instrument_fields:thickness_mm" },
     );
   } else if (geometry === "flat_plate_transmission") {
     fields.push(
       { path: "geometry.mu_t", label: "µt", kind: "optnumber",
-        help: "instrument_fields:mu_t" },
+        group: "geometry", help: "instrument_fields:mu_t" },
       { path: "geometry.thickness_mm", label: "thickness", kind: "optnumber",
-        unit: "mm", help: "instrument_fields:thickness_mm" },
+        unit: "mm", group: "geometry", help: "instrument_fields:thickness_mm" },
       { path: "geometry.packing_fraction", label: "packing", kind: "number",
-        advanced: true, help: "instrument_fields:packing_fraction" },
+        advanced: true, group: "geometry",
+        help: "instrument_fields:packing_fraction" },
     );
   } else {
     fields.push(
       { path: "geometry.mu_r", label: "µR", kind: "optnumber",
-        help: "instrument_fields:mu_r" },
+        group: "geometry", help: "instrument_fields:mu_r" },
       { path: "geometry.capillary_radius_mm", label: "capillary r", kind: "optnumber",
-        unit: "mm", help: "instrument_fields:capillary_radius_mm" },
+        unit: "mm", group: "geometry",
+        help: "instrument_fields:capillary_radius_mm" },
       { path: "geometry.packing_fraction", label: "packing", kind: "number",
-        advanced: true, help: "instrument_fields:packing_fraction" },
+        advanced: true, group: "geometry",
+        help: "instrument_fields:packing_fraction" },
     );
   }
+  fields.push(
+    { path: "profile.shape", label: "shape", kind: "choice",
+      choices: ["tchz_pv", "voigt"], advanced: true, group: "profile",
+      title: "TCHZ pseudo-Voigt (the default) or a true Voigt — the same widths, "
+             + "a different mixing rule" },
+    ...profileFields(),
+  );
   return fields;
+}
+
+/**
+ * The profile's numeric fields, as the rows they are drawn in.
+ *
+ * The Gaussian triple over the Lorentzian pair, which is how every code writes
+ * them and what a crystallographer reads them as; the axial pair on a row of
+ * its own below, because it is a different aberration and not a third width.
+ * These rows are the one authority for both the order and where each begins,
+ * so nothing downstream can put U over anything but X.
+ *
+ * There is no Z, and the empty third slot of the second row says so: this
+ * profile's Lorentzian terms are X (strain, tanθ) and Y (size, 1/cosθ), which
+ * is the physics convention the whole package states by (CLAUDE.md — GSAS and
+ * FullProf swap the letters).  A third one would be a new parameter.
+ *
+ * Each key derives its own help entry, which every row here can do because all
+ * seven are parameter families under `instrument.`.
+ */
+const PROFILE_ROWS: readonly (readonly { path: string; label: string; unit?: string }[])[] = [
+  [{ path: "profile.u", label: "U", unit: "deg²" },
+   { path: "profile.v", label: "V", unit: "deg²" },
+   { path: "profile.w", label: "W", unit: "deg²" }],
+  [{ path: "profile.x", label: "X" },
+   { path: "profile.y", label: "Y" }],
+  [{ path: "geometry.axial_sl", label: "S/L" },
+   { path: "geometry.axial_hl", label: "H/L" }],
+];
+
+function profileFields(): InstrumentField[] {
+  return PROFILE_ROWS.flatMap((row) => row.map((field, i) => ({
+    ...field,
+    kind: "number" as const,
+    group: "profile" as const,
+    help: `parameters:instrument.${field.path}`,
+    startsRow: i === 0,
+  })));
 }
 
 /**
