@@ -98,14 +98,19 @@ def _joint_unsupported_phases(models, mtable) -> set[int]:
             if all(s[ip] < PHASE_SUPPORT_SIGMA for s in per_model)}
 
 
-def _joint_unsupported_paths(models, mtable) -> list[str]:
-    """Free structural paths (scoped) of every jointly-unsupported phase."""
-    absent = _joint_unsupported_phases(models, mtable)
+def _unsupported_paths_multi(mtable, absent: set[int]) -> list[str]:
+    """Free structural paths (scoped) of the phases in ``absent``."""
     if not absent:
         return []
     prefixes = tuple(f"phases.{ip}." for ip in sorted(absent))
     return [p for p in mtable.free_paths
             if _unscoped(p).startswith(prefixes) and not p.endswith(".scale")]
+
+
+def _joint_unsupported_paths(models, mtable) -> list[str]:
+    """Free structural paths (scoped) of every jointly-unsupported phase."""
+    return _unsupported_paths_multi(mtable,
+                                    _joint_unsupported_phases(models, mtable))
 
 
 def _hold_unsupported_phases_multi(models, mtable) -> list[str]:
@@ -125,12 +130,15 @@ def _rehold_multi(models, mtable, held: list[str],
     where the stage found it and held.  One extra solve covers both, and there
     is never a third.
     """
+    # one measurement, two questions — the release and the collapse are
+    # complementary readings of the same joint support test
     absent = _joint_unsupported_phases(models, mtable)
     prefixes = tuple(f"phases.{ip}." for ip in sorted(absent))
+    held_set = set(held)
     released = [p for p in held
                 if not (prefixes and _unscoped(p).startswith(prefixes))]
-    collapsed = [p for p in _joint_unsupported_paths(models, mtable)
-                 if p not in set(held)]
+    collapsed = [p for p in _unsupported_paths_multi(mtable, absent)
+                 if p not in held_set]
     if collapsed:
         for h, table in enumerate(mtable.tables):
             by_path = {e.path: e for e in table.entries}
@@ -269,9 +277,14 @@ class MultiHistogramRefinement:
             # ``_freeze_cell_windows_multi`` already applies, since a phase
             # invisible in one pattern and plain in another *is* seen by the
             # joint fit that shares its cell.
+            # ``freed`` is derived from this whenever the hold moves, so the
+            # record's ``freed``/``held`` stay disjoint however the stage ends
+            # — the single-histogram runner's rule (``_run_stage``)
+            declared_freed = list(freed)
             held = _hold_unsupported_phases_multi(models, self.mtable)
             if held:
-                freed = [p for p in freed if p not in set(held)]
+                held_set = set(held)
+                freed = [p for p in declared_freed if p not in held_set]
             start_values = self.mtable.decode(self.mtable.x0())
             outcome = run_multi_least_squares(models, self.mtable, weights=weights,
                                               max_iter=stage.max_iter,
@@ -281,7 +294,10 @@ class MultiHistogramRefinement:
             released, collapsed = _rehold_multi(models, self.mtable, held,
                                                 start_values)
             if released or collapsed:
-                held = [p for p in held + collapsed if p not in set(released)]
+                released_set = set(released)
+                held = [p for p in held + collapsed if p not in released_set]
+                held_set = set(held)
+                freed = [p for p in declared_freed if p not in held_set]
                 second = run_multi_least_squares(
                     models, self.mtable, weights=weights,
                     max_iter=stage.max_iter, backend=self._backend,
@@ -452,15 +468,22 @@ class MultiHistogramRefinement:
                 stage_results[-1].name, outcome)
         # A phase the joint fit cannot see, and what the run did about it
         # (WP-1301).  Once for the fit rather than once per histogram, because
-        # the statement is joint: the support is the phase's **weakest**
+        # the statement is joint: the support is the phase's **strongest**
         # showing across the histograms, the line count its total, and the
         # range the union of theirs.  Before this the joint path was the only
         # one that never said it at all.
+        #
+        # ``max``, quoting ``_joint_unsupported_phases`` — a phase is one the
+        # joint fit cannot see only when it is below support in *every*
+        # histogram, and that is exactly ``max(support) < σ``.  The weakest
+        # showing would fire this on a phase invisible in one pattern and plain
+        # in another, which is a phase the joint fit measures and never holds:
+        # a warning on a healthy phase teaches a consumer to ignore the code.
         per_support = np.array([m.phase_support(v)
                                 for m, v in zip(models, per_values, strict=True)])
         per_lines = np.array([m.phase_line_counts() for m in models])
         diagnostics = diagnostics + _phase_support_diagnostics(
-            per_support.min(axis=0), per_lines.sum(axis=0),
+            per_support.max(axis=0), per_lines.sum(axis=0),
             (min(m.tt_min for m in models), max(m.tt_max for m in models)),
             [_unscoped(p) for p in mt.free_paths],
             self.mtable.structures[0], stage_results)

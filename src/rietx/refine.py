@@ -157,10 +157,14 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     on: staging is cumulative, so a cell freed two stages ago is still refining
     against nothing, and the ``refit="single"`` collapse — one stage carrying
     the whole plan — is exactly the shape the ramp that motivated this ran.
+
+    ``support`` is the ``phase_support`` vector when a caller has already
+    measured it at these values (the post-solve pass asks two questions of one
+    measurement); ``None`` measures it here.
     """
-    if values is None:
-        values = table.decode(table.x0())
-    absent = {ip for ip, s in enumerate(model.phase_support(values))
+    if support is None:
+        support = model.phase_support(table.decode(table.x0()))
+    absent = {ip for ip, s in enumerate(support)
               if s < PHASE_SUPPORT_SIGMA}
     if not absent:
         return []
@@ -179,7 +183,8 @@ def _hold_unsupported_phases(model: CompiledModel,
 
 
 def _released_phases(model: CompiledModel, table: ParameterTable,
-                     held: list[str]) -> list[str]:
+                     held: list[str],
+                     support: np.ndarray | None = None) -> list[str]:
     """Of ``held``, the paths whose phase has risen above support since.
 
     Measured at the values the solve *landed* on, against the same threshold
@@ -187,7 +192,8 @@ def _released_phases(model: CompiledModel, table: ParameterTable,
     now one the data can see, and its parameters are measurable in this stage
     rather than the next one.
     """
-    support = model.phase_support(table.decode(table.x0()))
+    if support is None:
+        support = model.phase_support(table.decode(table.x0()))
     seen = {ip for ip, s in enumerate(support) if s >= PHASE_SUPPORT_SIGMA}
     if not seen:
         return []
@@ -607,6 +613,13 @@ class Refinement:
         globs = [path_globs] if isinstance(path_globs, str) else list(path_globs)
         table = self._working_table()
         hits = table.set_vary(globs, vary)
+        # A carried hold (WP-1301) is lifted at the start of the next stage, so
+        # a path the caller has just declared on must leave it: otherwise the
+        # lift re-frees a parameter the caller explicitly fixed, and the
+        # declaration is silently undone by the next ``run_stage``.
+        if self._held and hits:
+            declared = set(hits)
+            self._held = [p for p in self._held if p not in declared]
         self._free_paths = list(table.free_paths)
         if self.history is None:
             return hits
@@ -1324,9 +1337,17 @@ class Refinement:
         # gates — was sized with these parameters still in ``moving_paths``:
         # a superset claim, which is the safe direction and is what lets the
         # release below free them again inside the same stage.
+        # ``freed`` is recomputed from this whenever the hold moves, so that
+        # ``StageResult.freed`` and ``.held`` stay disjoint however the stage
+        # ends: a path this stage freed and then held — at the start, or after
+        # a mid-stage collapse — did not refine, and one it held and released
+        # did.  Derived rather than patched, because a collapse and a release
+        # can happen in the same stage.
+        declared_freed = list(freed)
         held = _hold_unsupported_phases(model, table)
         if held:
-            freed = [p for p in freed if p not in set(held)]
+            held_set = set(held)
+            freed = [p for p in declared_freed if p not in held_set]
         self._held = list(held)
 
         if events is not None:
@@ -1362,10 +1383,13 @@ class Refinement:
         # CaF₂ was seeded at scale 1e-4, so it began every pattern well above
         # the noise, and the flat direction opened up only as the solver drove
         # that scale to nothing.
-        released = _released_phases(model, table, held) if held else []
+        # one measurement, two questions — the release and the collapse are
+        # complementary readings of the same ``phase_support`` vector
+        support = model.phase_support(table.decode(table.x0()))
+        released = _released_phases(model, table, held, support) if held else []
         # the same question the hold asked, asked again of the answer: what is
         # free now and belongs to a phase the data cannot see
-        collapsed = _unsupported_phase_paths(model, table)
+        collapsed = _unsupported_phase_paths(model, table, support)
         if released or collapsed:
             if collapsed:
                 # Restore before holding: those values moved in a direction the
@@ -1382,9 +1406,12 @@ class Refinement:
                 table.set_vary(collapsed, False)
                 held = held + collapsed
             if released:
+                released_set = set(released)
                 table.set_vary(released, True)
-                held = [p for p in held if p not in set(released)]
+                held = [p for p in held if p not in released_set]
             self._held = list(held)
+            held_set = set(held)
+            freed = [p for p in declared_freed if p not in held_set]
             if events is not None:
                 # The resumed half gets its own ``stage_start``, because an
                 # ``eval``'s ``values`` are declared to align with
@@ -3148,13 +3175,19 @@ def _held_by_phase(stage_results: list[StageResult], n_phases: int
     and the record cannot disagree about what happened (WP-1301).  Stage names
     come out in the order the stages ran, which is how a reader looks for them
     in the plan.
+
+    The index is read off the ``phases`` segment rather than off position one,
+    because the joint runner's records carry *scoped* paths whenever the
+    sharing map makes a structural family per-histogram
+    (``hist.0.phases.1.cell.a``), and position one is then the histogram.
     """
     paths: list[set[str]] = [set() for _ in range(n_phases)]
     stages: list[dict[str, None]] = [{} for _ in range(n_phases)]
     for sr in stage_results:
         for path in sr.held:
+            parts = path.split(".")
             try:
-                ip = int(path.split(".", 2)[1])
+                ip = int(parts[parts.index("phases") + 1])
             except (IndexError, ValueError):
                 continue
             if 0 <= ip < n_phases:
@@ -3245,7 +3278,8 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
                            f"stage{'' if len(stages) == 1 else 's'} "
                            f"{', '.join(stages)}")
         if unconstrained:
-            clauses.append(f"{len(unconstrained)} of its parameters were "
+            clauses.append(f"{len(unconstrained)} of its parameters "
+                           f"{'was' if len(unconstrained) == 1 else 'were'} "
                            f"refined against it")
         message = cause if not clauses else f"{cause} — {'; and '.join(clauses)}"
         out.append(Diagnostic(

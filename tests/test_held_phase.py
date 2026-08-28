@@ -643,6 +643,10 @@ def test_a_phase_that_collapses_mid_stage_is_held_and_put_back(collapsed_fit):
     stage = result.stages[0]
     assert stage.held == ["phases.1.cell.a"]
     assert stage.released == []
+    # the collapse case of ``test_held_and_freed_are_disjoint``: this stage's
+    # globs *did* free the cell, and the record must not go on saying so once
+    # the value has been put back and the path held
+    assert not set(stage.freed) & set(stage.held)
     assert ref.structure.phases[1].cell.a.value == RAMP_CAF2_A
     assert "phases.1.cell.a" not in {p.path for p in result.parameters}
 
