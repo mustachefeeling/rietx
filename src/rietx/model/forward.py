@@ -2230,13 +2230,23 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
     So on each arm pass one runs to completion before pass two begins, and the
     boundary re-walks the same sequence the compile did.
 
+    Within the X-ray dispersion pass the per-atom check is the *whole* of what
+    ``dispersion.resolve`` does per species — the primary line **and** the
+    emission-line edge guard over the secondary lines — because a walk that
+    checked the primary alone would fall straight through an edge-crossing
+    species and pin the source's fault on some later atom that fails for an
+    unrelated reason.  The guard is run by calling ``resolve_dispersion``
+    itself rather than by copying its drift arithmetic, so there is one
+    tolerance in the codebase and not two.
+
     The sign-first spelling hint (``Cu+1`` → ``Cu1+``) is an X-ray-table
     artifact and is added on the X-ray arm only: the neutron parser accepts the
     sign-first charge, so on that arm the charge is never the fault and naming a
-    rewrite of it would be false advice.  A failure that belongs to *no* atom
-    (the emission-line dispersion-edge guard, which is about two wavelengths and
-    not a spelling) matches no single-wavelength lookup here and is re-raised
-    untouched.
+    rewrite of it would be false advice.  A failure that belongs to *no* atom is
+    re-raised untouched — the edge guard is about the source's two wavelengths
+    and an element's core levels, not about one atom's spelling, and every atom
+    of that species shares it, so there is no index to name that would not be
+    arbitrary.
 
     **This function is a hand-maintained mirror** of ``compile_phase_sites``'s
     loops and ``dispersion.resolve``'s per-species checks, tied to them by this
@@ -2276,6 +2286,20 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
     # (all atoms) — matching compile_model's two passes, so the atom named is
     # the one the compile actually choked on and in the table it choked in.
     overrides = disp.overrides if disp is not None else None
+
+    def _line_guard_fires(species):
+        """True when ``resolve``'s edge guard is what refused this species.
+
+        Called only once the primary line has resolved for this species, so the
+        guard is the only refusal ``resolve`` has left; running the real
+        function keeps the drift tolerance in one place.
+        """
+        try:
+            resolve_dispersion([species], lams, overrides)
+        except ValueError:
+            return True
+        return False
+
     if disp is not None:
         for index, atom in enumerate(phase.atoms):
             try:
@@ -2284,6 +2308,13 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
                     dispersion(sym, lams[0])
             except (KeyError, ValueError) as atom_exc:
                 _name_atom(index, atom, atom_exc)
+            if _line_guard_fires(atom.species):
+                # Found the species resolve refused, and it is not a spelling:
+                # re-raise the compile's own message rather than pin an
+                # absorption edge on one atom, and stop — walking on would
+                # reach a later atom failing for an unrelated reason and name
+                # that one instead.
+                raise exc
     _walk(normalize_species)
     raise exc
 

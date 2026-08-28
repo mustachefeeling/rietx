@@ -280,6 +280,41 @@ def test_a_fault_that_is_no_atoms_species_is_re_raised_untouched():
     assert excinfo.value is sentinel              # untouched, not re-wrapped
 
 
+def test_an_edge_fault_is_not_pinned_on_a_later_unrelated_atom():
+    """The dispersion walk runs the edge guard, so it stops at the real species.
+
+    ``dispersion.resolve`` checks two things per species — the primary line and
+    the emission-line edge guard over the secondary lines — and it was the
+    *guard* that refused here.  A re-walk that checked only ``dispersion(sym,
+    lams[0])`` resolves ``Fe`` at 1.79 Å happily, falls through the atom the
+    compile actually choked on, and reaches ``Xx1``, which has no dispersion
+    data at all: the source's absorption edge then comes back as an atom's
+    spelling, with the wrong atom named and the real reason gone.  Running the
+    guard finds ``Fe`` first, recognises a fault that is no atom's, and
+    re-raises the compile's own object — the single-atom sibling above cannot
+    see this, because with one atom there is no later atom to fall through to.
+    """
+    from rietx.model.forward import _reraise_species_fault
+    from rietx.schemas.instrument import Dispersion
+
+    phase = Phase(
+        name="P", space_group="P 1", cell=Cell.cubic(5.0),
+        scale=Parameter(value=5e-3),
+        atoms=[
+            Atom(label="Fe1", species="Fe", x=Parameter(value=0.0),
+                 y=Parameter(value=0.0), z=Parameter(value=0.0)),
+            Atom(label="Xx1", species="Xx", x=Parameter(value=0.5),
+                 y=Parameter(value=0.5), z=Parameter(value=0.5)),
+        ])
+    sentinel = ValueError(
+        "Fe dispersion differs by 3.4 e between the source's 1.79 A and "
+        "1.62 A lines: an absorption edge lies between them")
+    with pytest.raises(ValueError) as excinfo:
+        _reraise_species_fault(phase, Dispersion(), (1.79, 1.62), sentinel)
+    assert excinfo.value is sentinel              # untouched, not re-wrapped
+    assert "Xx1" not in str(excinfo.value)        # and not blamed on atom 1
+
+
 def test_an_xray_compile_names_the_atom_its_own_lookup_choked_on():
     """The X-ray re-walk follows the compile's two passes, so it names ``Og1``.
 
