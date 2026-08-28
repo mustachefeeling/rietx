@@ -171,7 +171,7 @@ the model; the summary lives on `Refinement`).
 - [x] The closest-match on the two dataclasses.
 - [x] The re-exports and the package-level `__getattr__` + the `__all__` meta-test
       (every `rx.X` in the manual's Part 1 is in `__all__`).
-- [ ] Docstring lines on the files above.
+- [x] Docstring lines on the files above.
 - [ ] `HIGH_CORRELATION` dedup + cap + the new code's rows; GUI diagnostics strip
       unaffected (`npm --prefix gui test`).
 - [ ] `progress=` on `fit`/`refine_sequential` + a test that every line's numbers equal

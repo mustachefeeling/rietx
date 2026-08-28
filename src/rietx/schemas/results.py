@@ -49,6 +49,11 @@ class RefinedParameter(Base):
 class Statistics(Base):
     """Agreement indices, defined per Toby (2006), Powder Diffraction 21, 67.
 
+    Per-fit only: ``n_iterations`` is on :class:`~rietx.schemas.sequential.SeriesEntry`
+    (a series has one count per pattern, not one pooled figure here), and an
+    unmatched-peak count is the report's — ``FitReport.unmatched`` (rows) or
+    ``StageReport.n_unmatched_obs``/``n_unmatched_calc`` (counts), never here.
+
     ``rwp_background_subtracted`` re-evaluates Rwp with the background removed
     from both y_obs and y_calc, which Toby recommends as the more meaningful
     number when the background is a large fraction of the signal.

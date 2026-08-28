@@ -485,6 +485,10 @@ class Phase(Base):
 class Structure(Base):
     """The phases refined against the same pattern(s) — possibly none.
 
+    A declared cell (``structure.phases[i].cell.a.value``, in Å) rather than
+    a fitted one — read a phase's refined cell off the *result*'s
+    ``parameters`` rows or ``Refinement.parameters()``, never here.
+
     **Zero phases is legal, and it is a state rather than an oversight**
     (WP-1207): a pattern whose phase is not yet known.  Peak picking, indexing
     and the instrument and background parameters all work over one, which is

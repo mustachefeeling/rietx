@@ -28,7 +28,12 @@ from .results import PhaseAgreement, QuantitativePhaseAnalysis, RefinedParameter
 
 
 class SeriesEntry(Base):
-    """One pattern's place in the series: what was fitted and how it went."""
+    """One pattern's place in the series: what was fitted and how it went.
+
+    ``n_iterations`` lives here, per pattern — a series has no single pooled
+    figure, so it is not on :class:`~rietx.schemas.results.Statistics` even
+    though ``statistics`` below is one.
+    """
 
     index: int
     label: str = ""

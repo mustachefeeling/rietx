@@ -82,6 +82,9 @@ class TieSpec(Base):
 class ParameterRow(Base):
     """One row of the parameter table — the mirror of ``params.vector.Entry``.
 
+    ``.value``/``.esd`` are the numbers; the whole table, held rows included,
+    comes from ``Refinement.parameters()``, never from re-deriving one here.
+
     The first eight fields are ``Entry``'s, name for name;
     ``tests/test_params_surface.py`` asserts that against
     ``dataclasses.fields(Entry)`` so a new ``Entry`` field cannot go unexposed.

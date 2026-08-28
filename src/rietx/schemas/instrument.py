@@ -1227,7 +1227,12 @@ class BackgroundPeak(Base):
 
 
 class Instrument(Base):
-    """Everything about the measurement except the sample."""
+    """Everything about the measurement except the sample.
+
+    A declaration, not an output: the number an agent usually wants first is
+    ``instrument.source.primary_wavelength`` (a plain float, the first line's
+    wavelength); a fitted value comes back on the *result*, never here.
+    """
 
     #: Discriminated on ``kind``: ``"xray_cw"`` is :class:`Source`,
     #: ``"neutron_cw"`` is :class:`NeutronSource`.  A union rather than one

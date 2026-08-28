@@ -99,6 +99,13 @@ def _dataclass_attr_hint(cls: type, name: str) -> AttributeError:
 
 @dataclass
 class Stage:
+    """One turn-on group of a staged plan — a declaration, not a result.
+
+    What a stage *did* comes back as a ``StageResult`` (``StageResult.freed``,
+    ``.rwp``, ``.n_iterations``, …) on ``RefinementResult.stages``, never on
+    this object, which is unchanged by running it.
+    """
+
     name: str
     turn_on: list[str]  # path globs, e.g. "phases.*.cell.*"
     #: solver iterations this stage may take.  Approximate rather than exact:
