@@ -875,3 +875,31 @@ def test_the_joint_hold_needs_every_histogram_to_be_blind():
     mtable.tables[1]._rebuild()   # a fixed entry's value lives in the offsets
     mtable._rebuild_columns()
     assert _joint_unsupported_phases([model, model], mtable) == set()
+
+
+@pytest.mark.slow
+def test_the_blind_range_and_the_collapse_are_drawn_for_inspection(
+        no_reflection_fit, collapsed_fit):
+    """Two pictures the numbers cannot replace.
+
+    The blind range is a fit with **no peak in it at all** — the picture is
+    what makes that obvious, where Rwp 0.334 and a `converged` status do not.
+    The collapse is the opposite: a good fit of the phase that is there, with
+    the phase that is not contributing nothing, and the check is that the
+    difference curve carries no unmodelled line where CaF₂ would sit.
+    """
+    import matplotlib.pyplot as plt
+
+    from rietx.viz.plots import plot_result
+
+    OUT.mkdir(exist_ok=True)
+    _, blind = no_reflection_fit
+    plot_result(blind, path=str(OUT / "held_phase_blind_range.png"))
+    _, collapsed = collapsed_fit
+    plot_result(collapsed, path=str(OUT / "held_phase_collapsed.png"))
+    plot_result(collapsed, path=str(OUT / "held_phase_collapsed_zoom.png"),
+                two_theta_range=(26.0, 40.0))
+    plt.close("all")
+    for name in ("held_phase_blind_range", "held_phase_collapsed",
+                 "held_phase_collapsed_zoom"):
+        assert (OUT / f"{name}.png").exists()
