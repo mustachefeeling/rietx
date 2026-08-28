@@ -96,7 +96,12 @@ import pytest
 
 import rietx as rx
 from rietx.schemas.common import Parameter as P
-from rietx.schemas.instrument import BackgroundPSpline
+from rietx.schemas.instrument import (
+    BACKGROUND_PEAK_FWHM_MIN,
+    BackgroundChebyshev,
+    BackgroundPeak,
+    BackgroundPSpline,
+)
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 
 DATA = Path(__file__).parent / "data"
@@ -469,3 +474,168 @@ def test_the_fit_renders(full, symmetric, held):
 
     assert all(p.exists() for p in written), (
         f"missing: {[p.name for p in written if not p.exists()]}")
+
+
+# ------------------------------------------- the background-peak worked example ---
+# The manual's ``Explicit background peaks`` section (docs/manual/using/data.md)
+# rests its headline on this pattern, and this is where that headline is
+# executable.  Same data, same protocol, one thing changed: the background is a
+# low-order Chebyshev rather than the P-spline above, which is the point — the
+# specimen is in a **Kapton capillary**, the container's amorphous halo is a
+# real feature near 5° 2θ, and a 3-term polynomial cannot describe it.
+#
+# Provenance of the identification (the blank capillary scan, the air-scatter
+# control, the envelope reading) is in ``tests/data/README.md``.  None of those
+# files is committed and none is read here: what this test pins is the *rietx*
+# side, the two numbers the manual quotes as its comparison.
+
+#: The manual's table, to 6 dp.  Bands below are ±0.002 in Rwp — wide enough to
+#: survive a solver tolerance change, narrow enough that the *comparison*
+#: (a peak beats three more polynomial terms, by a lot) cannot silently invert.
+MANUAL_RWP = {"cheb3": 0.119977, "cheb3_peak": 0.082503, "cheb6": 0.088597}
+
+
+def _fit_chebyshev(nterm: int, *, with_peak: bool):
+    """The ``full`` protocol with a Chebyshev background, optionally + one peak.
+
+    The peak is freed twice: once immediately after ``scale_bkg``, so the rest
+    of the schedule sees a background that already has the hump in it, and once
+    at the end jointly with the polynomial, because the two share curvature and
+    a peak polished alone against a stale polynomial is not converged.  Seeded
+    at 5.0° — the envelope maximum, i.e. where the *blank* says the halo is —
+    and not at the value it converges to.
+    """
+    ins = _instrument(FULL_LIMITS)
+    ins.background = BackgroundChebyshev.with_terms(nterm)
+    if with_peak:
+        ins.background_peaks = [BackgroundPeak(
+            label="Kapton halo",
+            position=P(value=5.0, unit="deg"),
+            height=P(value=50.0, min=0.0, unit="counts", transform="softplus"),
+            fwhm=P(value=2.0, min=BACKGROUND_PEAK_FWHM_MIN, unit="deg",
+                   transform="softplus"))]
+
+    stages = [rx.Stage("scale_bkg", ["phases.*.scale",
+                                     "instrument.background.c*"])]
+    if with_peak:
+        stages.append(rx.Stage("background_peaks",
+                               ["instrument.background_peaks.*"]))
+    stages += [
+        rx.Stage("gauss", ["instrument.profile.w", "instrument.profile.u",
+                           "instrument.profile.v"]),
+        rx.Stage("lorentz", ["phases.0.lor_size", "phases.0.lor_strain"]),
+        rx.Stage("axial", ["instrument.geometry.axial_sl",
+                           "instrument.geometry.axial_hl"]),
+        rx.Stage("zero", ["instrument.zero_shift"]),
+        rx.Stage("lam", ["instrument.source.lines.0.wavelength",
+                         "phases.*.atoms.*.biso"]),
+    ]
+    if with_peak:
+        stages.append(rx.Stage("background_peaks2",
+                               ["instrument.background_peaks.*",
+                                "instrument.background.c*"]))
+    plan = rx.RefinementPlan(stages=stages)
+    plan.intermediate_ftol = 1e-6
+
+    data = rx.read_pattern(PATTERN)
+    ref = rx.Refinement(_structure(), ins, history=False)
+    ref.tie_equal(["instrument.geometry.axial_sl",
+                   "instrument.geometry.axial_hl"])
+    return ref.fit(data, plan=plan, two_theta_limits=FULL_LIMITS)
+
+
+@pytest.fixture(scope="module")
+def cheb3():
+    """Chebyshev-3, no peak: the background that cannot describe the halo."""
+    if not PATTERN.exists():
+        pytest.skip("11-BM Si SRM 640c dataset not present")
+    return _fit_chebyshev(3, with_peak=False)
+
+
+@pytest.fixture(scope="module")
+def cheb3_peak():
+    """Chebyshev-3 + one background peak — three parameters more than `cheb3`."""
+    if not PATTERN.exists():
+        pytest.skip("11-BM Si SRM 640c dataset not present")
+    return _fit_chebyshev(3, with_peak=True)
+
+
+@pytest.fixture(scope="module")
+def cheb6():
+    """Chebyshev-6, no peak — also three parameters more than `cheb3`, and the
+    fair comparison the whole argument turns on."""
+    if not PATTERN.exists():
+        pytest.skip("11-BM Si SRM 640c dataset not present")
+    return _fit_chebyshev(6, with_peak=False)
+
+
+def test_one_background_peak_beats_three_more_polynomial_terms(
+        cheb3, cheb3_peak, cheb6):
+    """The manual's headline, and the reason it is a *comparison* and not a ΔRwp.
+
+    A free position, height and width will lower any Rwp — that is exactly the
+    evidence this package refuses.  What makes the number mean something is that
+    the two improved arms cost the **same three parameters**, so the peak has to
+    beat the polynomial on equal terms.  It does, by a wide margin: 31 %
+    relative against 26 %, and the assertion is on the *ordering* rather than on
+    either figure alone.
+    """
+    for name, res in (("cheb3", cheb3), ("cheb3_peak", cheb3_peak),
+                      ("cheb6", cheb6)):
+        assert res.status == "converged", f"{name} did not converge"
+        assert len(res.two_theta) == 47999
+        assert abs(res.statistics.rwp - MANUAL_RWP[name]) < 0.002, (
+            f"{name} Rwp {res.statistics.rwp:.6f}, manual says "
+            f"{MANUAL_RWP[name]:.6f}")
+
+    gain_peak = cheb3.statistics.rwp - cheb3_peak.statistics.rwp
+    gain_poly = cheb3.statistics.rwp - cheb6.statistics.rwp
+    assert gain_peak > 0.03, f"the peak bought only {gain_peak:.5f} in Rwp"
+    assert gain_peak > 1.15 * gain_poly, (
+        f"one peak ({gain_peak:.5f}) no longer beats three more Chebyshev "
+        f"terms ({gain_poly:.5f}) by a clear margin")
+    # and it is not bought by wrecking the identifiability
+    assert not [d for d in cheb3_peak.diagnostics if d.code == "HIGH_CORRELATION"]
+
+
+def test_the_peak_is_diffuse_by_three_orders_and_frees_the_structural_esd(
+        cheb3, cheb3_peak):
+    """Two claims the manual makes about the *peak*, not about Rwp.
+
+    **It is a background term.**  Its width is 5.57(27)° where this
+    synchrotron's Gaussian FWHM at the same angle is 0.0035°, so the ratio is in
+    the thousands — three orders clear of ``BACKGROUND_PEAK_MIN_WIDTH_MULT``,
+    and ``BACKGROUND_PEAK_TOO_NARROW`` is silent.
+
+    **It gives back precision rather than moving the answer.**  Biso(Si) stays
+    put to well inside one esd; what changes is the esd, by ~6×, and the same
+    for λ.  A background the model cannot describe blurs this fit rather than
+    biasing it, which is the reading the manual carries.
+    """
+    fwhm = cheb3_peak.parameter("instrument.background_peaks.0.fwhm")
+    pos = cheb3_peak.parameter("instrument.background_peaks.0.position")
+    assert fwhm.stderr is not None and pos.stderr is not None
+    assert 5.0 < fwhm.value < 6.2, f"hump FWHM {fwhm.value:.3f}°"
+    assert 3.5 < pos.value < 5.5, f"hump position {pos.value:.3f}°"
+
+    # instrumental Gaussian FWHM at the hump, from this fit's own u, v, w
+    tan_th = math.tan(math.radians(pos.value / 2.0))
+    inst = math.sqrt(
+        cheb3_peak.parameter("instrument.profile.u").value * tan_th ** 2
+        + cheb3_peak.parameter("instrument.profile.v").value * tan_th
+        + cheb3_peak.parameter("instrument.profile.w").value)
+    assert fwhm.value / inst > 1000.0, (
+        f"hump is only {fwhm.value / inst:.0f}× the instrumental FWHM")
+    assert not [d for d in cheb3_peak.diagnostics
+                if d.code == "BACKGROUND_PEAK_TOO_NARROW"]
+
+    for path, floor in (("phases.0.atoms.0.biso", 4.0),
+                        ("instrument.source.lines.0.wavelength", 4.0)):
+        wide, tight = cheb3.parameter(path), cheb3_peak.parameter(path)
+        assert wide.stderr is not None and tight.stderr is not None
+        assert wide.stderr / tight.stderr > floor, (
+            f"{path}: esd only fell {wide.stderr / tight.stderr:.1f}×")
+        # the value itself does not move: well inside the *wider* esd
+        assert abs(wide.value - tight.value) < 0.5 * wide.stderr, (
+            f"{path} moved {abs(wide.value - tight.value):.3g}, more than half "
+            f"the peak-free esd {wide.stderr:.3g}")

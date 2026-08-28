@@ -679,35 +679,53 @@ writer asserts its own bank offset exceeds `HEAD_BYTES`), shares no constant
 with the parser, and all three regression tests fail against the unfixed
 sniff.
 
-### Cr₂WO₆ 60 K BT-1 — the background-peak reference, cited but not committed
+### The background-peak worked example — Si SRM 640c in Kapton, and the blank that identifies it
 
-**Nothing is vendored for it, and no file here reads it** — it is named because
-`docs/manual/using/data.md`'s background-peak evidence table carries a *published
-TOPAS fit* row (Rwp 0.06663, GoF 2.583, Biso(Cr) +0.215(76)) whose peak position
-and width, 2θ₀ = 14.4158(539)° and Γ = 5.815(1.504)°, are the only independent
-corroboration in that section: they are what makes the `BackgroundPeak` result a
-cross-code agreement rather than a self-report. A reader should be able to locate
-them, which is what this section is for.
+`docs/manual/using/data.md`'s background-peak section used to rest on a 60 K
+BT-1 neutron pattern of Cr₂WO₆ compared against its owner's TOPAS fit. That
+example is **gone**, and this section records why and what replaced it, because
+the previous version of this section named its own weakness and this is the
+follow-up it asked for.
+
+**What was wrong with it.** Two things. The TOPAS fit quoted was **unpublished**,
+and so was the pattern — the material has a paper (Gaultois, Kemei, Harada &
+Seshadri, *J. Appl. Phys.* **117**, 014105, 2015) but it reports the
+room-temperature *synchrotron* refinement, not that 60 K neutron fit, so it was
+context for the material and never the source of a number. And the fit put the
+peak on top of a **7-term Chebyshev**, a background flexible enough to describe
+much of the hump itself — the peak and the polynomial were entangled, which is
+the hardest case to read as evidence rather than the clearest. The old section
+said as much: it recorded that the strongest form of the argument "would rest on
+a peak fitted in a **published** refinement, over a *simple* background so the
+peak is not entangled with a flexible one," and logged finding one as follow-up.
+This is that follow-up.
+
+**What replaced it.** `11BM_Si640c.xy` — already in this directory, already the
+subject of `test_acceptance_si640c.py`, already provenanced in the table at the
+top of this file as an APS 11-BM *published* standards scan and a U.S.
+Government work. NIST SRM 640c silicon in a **Kapton capillary**: the container
+scatters, the polynomial is a 3-term Chebyshev, and the hump has nowhere to hide.
+Every number in the manual's table is regenerable from a file in this repository
+with the acceptance test's own protocol; **nothing is vendored for the new
+example that was not already here.**
+
+Three further files corroborate it and **none of them is committed** — they are
+cited by provenance, as the `11BM_LaB6_cBN_mg2044.xye` row cites its TOPAS
+references:
 
 | Established | Evidence |
 |---|---|
-| The specimen and pattern | Cr₂WO₆, NIST **BT-1** constant-wavelength neutron, 60 K. Michael Gaultois's own material and measurement — nothing to clear with a third party |
-| The refinement quoted | A TOPAS fit of that pattern: 7 Chebyshev background terms plus one Gaussian peak, the shape `Instrument.background_peaks` was built to express |
-| Publication status | **The fit quoted is unpublished, and so is the pattern.** The material has a paper — Gaultois, Kemei, Harada & Seshadri, *Rapid preparation and magnetodielectric properties of trirutile Cr₂WO₆*, J. Appl. Phys. 117, 014105 (2015) — but it reports the **room-temperature synchrotron** refinement, not this 60 K BT-1 neutron fit. The paper is therefore context for the material and **not** the source of any number in the evidence table; nothing here is a published reference |
-| What is **not** here | The BT-1 pattern itself, and the TOPAS `.inp`/`.out` files it was refined with. Both live on the data owner's archive and neither is redistributed — the same treatment `11BM_LaB6_cBN_mg2044.xye`'s row gives its TOPAS references |
+| The hump is the container, not a missed reflection | APS 11-BM **run 4736**, header `Chemical formula = empty Kapton capillary (Kapton)`, `Calibration file = feb10/11bmb_4733.calib`, `Calibrated wavelength = 0.412225`, collected 11 Feb 2010 — the same February 2010 beamtime as run 4918, with the sample taken out. Published on 11-BM's Standards Data listing (`wiki-ext.aps.anl.gov/ug11bm/index.php/Standards_Data`), recovered through the Internet Archive by the same route as the `qarr/*.prn` files. Fitted **outside this package** (numpy Chebyshev + scipy least-squares, weights from the file's own σ column) over the committed pattern's exact 1.997–49.996° range: Chebyshev-3 + one Gaussian gives χ²ᵣ = 1.125 on 48 000 channels, position 4.2417(111)°, FWHM 6.153(23)°, where Chebyshev-3 alone gives 5.33 and it takes fourteen polynomial terms to match the six-parameter fit. Cross-**code** and cross-**scan**, which is what the old example could not offer |
+| The hump is not the beam or the air path | APS 11-BM's published `background/11BM_background_air_scatter.xy`, header `11-BM Background, No sample - Air Scatter Only`, one hour, run cycle 2009-2, λ 0.458735 Å. Binned over 2–50° it decays strictly monotonically with nothing localised anywhere. Note the **different wavelength**: a d = 4.73 Å halo would sit at 5.56° in this scan rather than 4.98°, so the control is quoted as "no localised feature anywhere", which is wavelength-free, rather than as "nothing at 5°" |
+| What the feature is | The blank's envelope maximum is at 4.98° 2θ, which at 0.412225 Å is d = 4.74 Å, Q = 1.33 Å⁻¹ — the polyimide amorphous halo. Quoted as an envelope reading of the data, not as a literature value |
+| Why the *refined* centre is 4.18° and not 4.98° | A symmetric Gaussian over 2–50° also absorbs the residual direct-beam rise a 3-term Chebyshev cannot reach, so it is pulled low. Measured, not asserted: give the polynomial three more terms and the same peak relaxes to 5.245(41)° and narrows from 5.57(27)° to 1.94(11)°. The manual carries this caveat in the prose and quotes the envelope for the halo and the fit for the model |
 
-So this row is the **mg2044 shape, not the certificate shape**: an unpublished
-TOPAS fit of the owner's own unpublished pattern, transferred as a protocol and
-compared number-to-number. That still makes the peak position and width a
-*cross-code* agreement — two codes, one dataset, different peak-shape models —
-but it is **not** independent published corroboration, and the evidence table
-must not read as though it were.
-
-What that costs is worth stating: the strongest form of this section's argument
-would rest on a peak fitted in a **published** refinement, over a *simple*
-background so the peak is not entangled with a flexible one. This dataset is
-neither. Finding a better example is recorded as follow-up work rather than
-papered over here.
+**What Cr₂WO₆ still is, and is not.** It remains cited elsewhere in this
+package — in `refine.py` for esd inflation and in `strategy/staged.py` for a
+stage-ordering effect — where the claim is about this code's behaviour on a
+pattern rather than a physical result checked against an outside source. It is
+**no longer** the background-peak worked example, and no number in that section
+now comes from an unpublished fit.
 
 ### `.uxd` — the format with real evidence and no vendorable file
 

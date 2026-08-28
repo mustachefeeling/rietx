@@ -1088,68 +1088,52 @@ class BackgroundPeak(Base):
     here is crystallographic through and through (cell ties, Wyckoff sites,
     QPA) and a cell-less one breaks every consumer of it.
 
-    **Why the flexibility has to be local.** Measured on a NIST BT-1 constant-
-    wavelength neutron pattern of Cr₂WO₆ at 60 K (λ = 2.078 Å, 2941 channels,
-    5-152 °2θ, σ from file) with a broad background feature near 14.4 °2θ.  Its
-    published TOPAS refinement describes that feature with 7 Chebyshev terms
-    plus one explicit Gaussian (position 14.4158(539), height 9.516(2.826),
-    ``gauss_fwhm`` 5.815(1.504)).  One phase, ``plan="mccusker_structural"``:
+    **Why the flexibility has to be local, measured.**  APS 11-BM run 4918, NIST
+    SRM 640c silicon in a **Kapton capillary** (``tests/data/11BM_Si640c.xy``,
+    47 999 channels over 1.997-49.996 °2θ, σ from file), refined by
+    ``tests/test_acceptance_si640c.py``'s protocol with the background swapped
+    from its P-spline to a low-order Chebyshev.  One phase, cell held at the NIST
+    certificate:
 
-    ============================  ======  =======  ============  ================
-    background                     terms  Rwp      Biso(Cr)/Å²   HIGH_CORRELATION
-    ============================  ======  =======  ============  ================
-    Chebyshev, 7 terms                  7  0.05303  −0.019(222)                  0
-    that **+ one peak**             7 + 3  0.05252  −0.029(219)                  0
-    Chebyshev, ``auto_background``     16  0.05137  −0.040(215)                  0
-    that **+ one peak**            16 + 3  0.05126  −0.053(213)                617
-    P-spline, ``auto_background``      57  0.05256  −0.039(218)                145
-    ============================  ======  =======  ============  ================
+    ==============================  ======  ========  ============  ================
+    background                       terms  Rwp       Biso(Si)/Å²   HIGH_CORRELATION
+    ==============================  ======  ========  ============  ================
+    Chebyshev, 3 terms                   3  0.119977  0.414(75)                    0
+    that **+ one peak**              3 + 3  0.082503  0.421(12)                    0
+    Chebyshev, 6 terms                   6  0.088597  0.422(29)                    0
+    that **+ one peak**              6 + 3  0.077152  0.4235(85)                   0
+    ==============================  ======  ========  ============  ================
 
-    Three readings, and the honest one first.
+    **Three parameters beat three polynomial terms.**  Rows one and two differ by
+    three numbers and so do rows one and three — the peak takes Rwp down 31 %
+    relative, three more Chebyshev coefficients only 26 %.  Biso(Si) barely moves
+    (well inside one esd) but its **esd falls 6×**, and so do those of λ, the
+    scale and the zero shift: an undescribed background blurs this fit rather
+    than biasing it.
 
-    **The peak finds the feature.**  On the low-order background it refines to
-    2θ₀ = 14.50(1.46)°, Γ = 6.06(3.83)° — the TOPAS values above, from a
-    different code with a different peak-shape model — at 20.8× the
-    instrumental FWHM there (0.291°).  That is the record field this correction
-    ships with, and it is not an Rwp comparison.
+    **The feature is identified from outside the fit.**  The refined peak is
+    5.57(27)° wide against an instrumental Gaussian FWHM of 0.00346° at that
+    angle — 1 608×.  11-BM's published blank (run 4736, ``empty Kapton
+    capillary``, same February 2010 beamtime), fitted independently of this
+    package, puts the same feature at 4.2417(111)° with FWHM 6.153(23)°, and the
+    beamline's published air-scatter scan shows no localised feature anywhere.
+    The blank's envelope maximum, d = 4.74 Å (Q = 1.33 Å⁻¹), is the polyimide
+    halo.  That — not the Rwp — is what makes the term quotable.
 
-    **A peak needs a low-order background to be identifiable.**  On the 16-term
-    polynomial the same peak walks to 24.8° and 31.9° wide, becomes a low-order
-    background term in all but name, and the fit returns 617
-    ``HIGH_CORRELATION`` findings.  Declare a peak *instead of* extra
-    polynomial terms, never on top of them.
+    **A peak needs a low-order background to mean anything.**  Between the
+    3-term and 6-term arms the peak moves 1.07° and narrows from 5.57(27)° to
+    1.94(11)° while Rwp moves by 0.005: the peak and the polynomial describe
+    overlapping freedom, so the more flexible the polynomial the less the peak's
+    own parameters mean.  Declare a peak *instead of* extra polynomial terms,
+    never on top of them.
 
-    **Biso(Cr) stays negative, so the background was not the whole story.**
-    That was the expectation this class was built to test and it is not met
-    here: the peak moves Biso(Cr) by −0.010 Å², the *wrong* way, on a parameter
-    whose esd is 0.22.  The Chebyshev-7 arm against the reference, site by site
-    and in combined σ:
-
-    ====  ===================  ===================  ========  =========
-    site  TOPAS                this package         Δ          in σ
-    ====  ===================  ===================  ========  =========
-    Cr1   +0.2150(761)         −0.0186(2222)        −0.234     0.99
-    W1    +0.5143(1114)        +0.5304(3347)        +0.016     0.05
-    O1    +0.3759(567)         +0.2374(1580)        −0.139     0.83
-    O2    +0.3223(333)         +0.2445(940)         −0.078     0.78
-    ====  ===================  ===================  ========  =========
-
-    So the two refinements **agree**, every site inside one combined σ, and
-    Biso(Cr) is not *significantly* negative — it is the smallest and least
-    determined of the four in both codes and its central value here lands just
-    below zero.  The offsets are also not uniform (W agrees to 0.016 Å²), so
-    they are not the signature of a missing whole-Q-range factor either.  What
-    is systematic is the **esd**: 2.8-3.0× the reference's at every site, which
-    is the number to attack before the sign of Biso(Cr) means anything, and
-    three protocol differences are the places to look — the reference refines a
-    specimen displacement of 0.0975 (a cos θ error this geometry cannot express
-    without a goniometer radius), uses a Pearson VII peak shape against this
-    package's TCHZ pseudo-Voigt, and carries a second phase at ≈1.2 vol %.
-
-    So the claim this class supports is the narrower one: it is the right
-    *description* of a localised background feature, and its recovered
-    parameters agree with an independent refinement of the same data.  It is not
-    evidence that a negative displacement parameter is a background problem.
+    **The refined centre is not the halo position.**  A symmetric Gaussian
+    spanning 2-50° also absorbs the residual direct-beam rise a 3-term Chebyshev
+    cannot reach, which pulls the fitted centre to 4.18(11)° below the envelope's
+    4.98°; at six terms it relaxes onto the envelope at 5.245(41)°.  Quote the
+    envelope for where the halo is and the fit for the model that describes it.
+    ``docs/manual/using/data.md`` carries the long form and
+    ``tests/data/README.md`` the provenance of every file named here.
 
     Fields, and the reason each bound is the bound it is:
 
