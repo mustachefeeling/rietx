@@ -1499,9 +1499,14 @@
                   oninput={(e) => type(`${row.base}.species`,
                     (e.currentTarget as HTMLInputElement).value)} /></td>
                 <!-- the Wyckoff letter and the oriented site symbol, fetched by
-                     the panel rather than by a button (WP-1215) -->
+                     the panel rather than by a button (WP-1215).  "…" while the
+                     search is in flight and "—" only once it is not: a cache
+                     miss is 2.0-5.5 ms an atom, so on a large structure the
+                     column is empty for a moment, and an em dash there is a
+                     wrong *answer* about the site rather than an absent one. -->
                 <td class="site mono" title={why(`${row.base}.x`) || coordTitle}
-                  >{wyckoffLabel(letters, row.base) || "—"}</td>
+                  >{wyckoffLabel(letters, row.base)
+                    || (lettersBusy ? "…" : "—")}</td>
                 <!-- x, y, z: typed, and solved back onto the site's DOFs on
                      Apply.  Read-only where the site allows nothing to move —
                      there is no control to grey out, so there is none. -->

@@ -48,6 +48,24 @@ fields reuse the same grid.
 
 ### Inherited
 
+From **WP-1215** (2026-08-28, shipped):
+
+- **The stacking threshold moved, and this column's floor is what it is now
+  measured against.** The atom table went from seven columns to eleven, so
+  `MODEL_MIN.structure` is 666 (was 472) and `modelStacks` fires below
+  **1136** px (was 932) — the threshold also counts the two 5 px splitter
+  grips now, which no version of it did. `MODEL_MIN.form` is still 200, and
+  200 is where this column sits at the threshold: measured there, the
+  `Instrument` heading clips `Save profile…` to `Sa… prof`, because WP-1214
+  put two controls in that `h2`. Whatever this WP does with the heading, that
+  is the width it has to survive.
+- **A width is written in more places than the one with a test.** The atom
+  table's floor is stated three times — the table's `min-width`, the structure
+  column's `flex-basis` and `MODEL_MIN` — and only the third had a test, so
+  the `flex-basis` was still WP-1034's number and the column came out short at
+  exactly the threshold. If this WP gives the form column a floor of its own,
+  give it one statement and a test, or the same thing happens here.
+
 From **WP-1214** (2026-08-28, shipped):
 
 - **Every instrument field now has a refine flag under it**, in a

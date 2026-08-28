@@ -1,6 +1,6 @@
 # WP-1215 — Model: the structure table
 
-Milestone: v1.2 · Status: 🔄 2026-08-28 — in flight
+Milestone: v1.2 · Status: ✅ 2026-08-28 — one row per atom, the coordinate typed and the site answering, and the letter a column
 Depends on: WP-1214
 
 ## Goal
@@ -147,5 +147,82 @@ npm --prefix gui test && npm --prefix gui run check
 - WP-0301 (affine site constraints), WP-1014, WP-1035 (symmetry surfaced).
 
 ## Handover log
+
+- **2026-08-28** — The atom table reads like an atom table. An atom is one row
+  with its coordinates in it, so changing a position means typing x, y and z
+  where they are shown, rather than learning that a coordinate is really a
+  displacement along `[1 1 0]` and typing that instead. The site still decides
+  what is legal, but it decides it *out loud*: a position the symmetry cannot
+  reach is refused, and the refusal names the directions the site allows and
+  the nearest position they lead to, so the choice stays the user's rather than
+  being made for them by a silent snap. The Wyckoff letter stopped being a
+  button and became a column, because a search worth 2.0-5.5 ms an atom is
+  worth that *once* and the head moves that used to re-pay it change no
+  coordinate. What it cost is width: eleven columns need 642 px where seven
+  needed 448, so the model pane stacks into one column at 1136 px instead of
+  932, and in a narrow sidebar the table starts scrolling sooner than it did.
+
+  **Done.** `POST /api/structure/position` takes `{atom, xyz}`, least-squares
+  it onto the site's own DOF basis (`symmetry.position_values`) and commits a
+  `set_value` node — not an `edit_model` one, because a position changes what
+  the table *holds* and never what it *contains*. A missing atom is an
+  `IndexError` → 404 as `structure_symmetry` already answers for a missing
+  phase; a malformed path is a 400, because they are different repairs.
+  `site_letters` is memoised on (space group, positions) — the content tuple,
+  not a digest, and not the label, which cannot change a letter — so the panel
+  fetches it on every head move, in parallel with the other three. The table is
+  `label · species · site · x · y · z · occ · Biso · aniso · vary · ×`, one
+  `<tr>`, with the U^ij patterns behind a per-atom disclosure; the DOF sub-row,
+  the ADP sub-row and the separator that sat on the next atom's inputs are all
+  gone. `lib/model.ts` grew `positionEdits`/`xyzText`, `lib/table.ts` grew
+  `varyTargets`/`varyOfAll`/`varyEditFor`/`varyStillPending`, `lib/resize.ts`
+  grew `GRIP`/`modelThreshold`. Four rules in `gui/CLAUDE.md` (cap 902 → 938,
+  reason beside it); `using/model.md` gains the two paragraphs a reader of the
+  panel needs.
+
+  **Measured** (`[dev]`, darwin/arm64 — no jax/torch). The Wyckoff search:
+  cold **9.7-12.2 ms** for 2-6 atoms (2.0-5.5 ms an atom, inside WP-1035's
+  1.8-8.7), warm **1-3 µs**. The table's `min-content`, in a real browser and
+  in the widest state it reaches: **642 px** on the fluorapatite example with
+  one atom anisotropic (610 plain), against 599/567 on NAC — so
+  `MODEL_MIN.structure` is 642 + 24 px of column padding = **666**, and the
+  stacking threshold is 666 + 200 + 260 + two 5 px grips = **1136**. Verified
+  at both ends: at 1136 the table wrap is 642/642 and does not scroll, at 1135
+  it stacks. Counts: `tests/test_gui_server.py` **149 → 153** (both ends
+  measured, +4, no new skips); gui vitest **551 → 566** (+15: one Wyckoff test
+  replaced by two, +6 `positionEdits`, +4 glob-vary, +3 mount-level, +1 grip).
+  Fast selection 3201 passed / 122 skipped and full suite **3342 passed / 131
+  skipped** in 22:35 — both on the final tree; their pre-change baselines were
+  not measured in this venv, so the exact-N check rests on the per-file
+  measurement above, where both ends are.
+
+  **Gotchas**, all three found by looking rather than by a test. A `colspan`
+  cell's grid **is** part of the table's min-content: four 210 px U^ij patterns
+  made the whole table 840 px the moment a disclosure opened, scrolling label,
+  species and site off the left edge, until the track floor became
+  `min(210px, 100%)`. `.dof input` was sizing the refine flag beside the value
+  and drawing it as a squashed circle — WP-1214's `.cellrow` trap in the one
+  place it was not fixed. And the atom table's floor is written in **three**
+  places, of which only `MODEL_MIN` had a test: `.column.structure`'s
+  `flex-basis` was still WP-1034's 472, so at exactly the stacking threshold
+  the column came out 505 px and side-scrolled the table the threshold exists
+  to give room to; the threshold itself never counted the two grips *inside*
+  the row it measures, a gap that was there at 932 too. One more from the
+  handover's own name audit: `lettersBusy` lost its only reader when the button
+  went, which left the `site` column drawing `—` during the fetch — an absent
+  answer wearing the shape of a real one, so it now draws `…` while busy.
+
+  **Not done, deliberately.** The fixture for the position tests is LaB₆ rather
+  than NAC (it already carries `1a` fully fixed and `6f` one-DOF, and a two-DOF
+  site is one appended atom), and the second browser project is fluorapatite
+  rather than corundum — corundum is a round-robin `.prn` whose data fence
+  keeps it out of the wheel (WP-1204), so it is not an example project and
+  cannot be opened. Both are noted on their checklist items.
+
+  **Next: [1216](1216-instrument-form.md)**, then
+  [1217](1217-history-graph-compare.md), then [1017](1017-gui-manual-onboarding.md).
+  1216 inherits the two things this WP changed under it: the form column's 200 px
+  is now measured against a 1136 px threshold, and at that width WP-1214's second
+  control in the `Instrument` heading clips `Save profile…` to `Sa… prof`.
 
 - **2026-08-25** — created from the v1.2 triage.
