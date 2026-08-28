@@ -1234,6 +1234,33 @@ _CELL_MACROS: dict[str, _CellMacro] = {
     "Rhombohedral": _CellMacro((("a", "b", "c"), ("al", "be", "ga"))),
 }
 
+#: The macro names a refusal message may offer, derived from
+#: :data:`_CELL_MACROS` so the two cannot drift. Spelled out because the two
+#: lists are **not** the same list and a message that conflated them would be
+#: wrong either way round: §19.3.2 defines four (``Trigonal`` is §1.3's), while
+#: this reader reads five. A refusal's job is to say what the author may write
+#: *here*, so it enumerates the reader's — the citation for each stays in
+#: `_CELL_MACROS`' comment and in `ATTRIBUTION.md`, which is where a claim about
+#: the reference belongs.
+_CELL_MACRO_LIST = (", ".join(list(_CELL_MACROS)[:-1])
+                    + f" and {list(_CELL_MACROS)[-1]}")
+
+#: Cell-shaped macro names that are **not** cell macros of this format. The
+#: reference's lattice-parameter list (§19.3.2) has exactly four entries, and
+#: none of these is among them: across the whole manual the three words occur
+#: only as English — crystal-system labels in the indexing tables, and a
+#: ``Orthorhombic_Bipyramide`` bond-length restraint, which is not a cell at
+#: all. They occur in **no** archive file either, in live text or in a comment.
+#:
+#: So a file invoking one is invoking a macro somebody defined themselves, whose
+#: body `_excise_macro_defs` has already removed and whose argument order
+#: nothing establishes — and a wrong order is a wrong cell with nothing raised.
+#: Refused by name, and only where the macro is the phase's *only* cell: beside
+#: explicit ``a``/``b``/``c`` lines there is nothing left to get wrong. A name
+#: is added to :data:`_CELL_MACROS` only with its own citation, never by
+#: analogy with the ones already there.
+_UNDEFINED_CELL_MACROS = ("Orthorhombic", "Monoclinic", "Triclinic")
+
 #: Cell-shaped macro names that are **not** cell macros of this format. The
 #: reference's lattice-parameter list (§19.3.2) has exactly four entries, and
 #: none of these is among them: across the whole manual the three words occur
@@ -1847,11 +1874,32 @@ def read_topas_inp(path: str | Path, *,
                 raise TopasInpError(
                     f"{path}: {phase.name}: {bad[0]}(...) states this phase's "
                     f"only cell, and it is not one of this format's cell macros "
-                    f"— the reference defines Cubic, Tetragonal, Hexagonal and "
-                    f"Rhombohedral, and nothing establishes which cell key each "
-                    f"argument of a {bad[0]} carries. Reading it would be a "
-                    f"guess at a cell; write the a/b/c/al/be/ga lines out "
-                    f"instead.")
+                    f"— {_CELL_MACRO_LIST} are the ones this reader reads, and "
+                    f"nothing establishes which cell key each argument of a "
+                    f"{bad[0]} carries. Reading it would be a guess at a cell; "
+                    f"write the a/b/c/al/be/ga lines out instead.")
+            # A **stated** cell macro this reader could not read refuses too,
+            # the same way a stated-but-unreadable `a` line does 40 lines up.
+            # `continue`-ing past it instead left `phase.cell` empty, and an
+            # empty cell is the *absent* fact: `to_structure` then said "phase
+            # states no cell, so it cannot be built", sending the reader of the
+            # message looking for a line that is missing rather than at the
+            # `Cubic(4.1, 9.9)` two lines above it. One question, one answer —
+            # `_UNDEFINED_CELL_MACROS` above is the same shape.
+            elif unread := [(n, m) for n in _CELL_MACROS
+                            if (m := re.search(rf"\b{n}_?\([^)\n]*\)", chunk))]:
+                name, call = unread[0]
+                n_args = len(_CELL_MACROS[name].slots)
+                raise TopasInpError(
+                    f"{path}: {phase.name}: {call.group().strip()!r} states "
+                    f"this phase's only cell and this reader could not read it "
+                    f"— {name} takes {n_args} "
+                    f"argument{'' if n_args == 1 else 's'}, each resolving to a "
+                    f"number. Taking the arguments that "
+                    f"happened to parse would put an unrelated number in a cell "
+                    f"key, and reporting the phase as stating no cell at all is "
+                    f"a different fact about the file. Write the a/b/c/al/be/ga "
+                    f"lines out instead.")
         read = _read("scale", chunk, symbols)
         phase.scale = read.value if read else None
         if read is not None and read.vary is not None:

@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from rietx.io.projects.topas import (
+    _CELL_MACROS,
     TopasInpError,
     _cell_search_text,
     _masked,
@@ -689,19 +690,56 @@ def test_a_cell_shaped_macro_this_format_does_not_define_is_refused_by_name(
     assert macro.split("(")[0] in str(exc.value)
 
 
-def test_a_cell_macro_whose_arity_disagrees_does_not_read(tmp_path):
+def test_a_cell_macro_whose_arity_disagrees_is_refused_by_name(tmp_path):
     """Arity is part of what the reference states, so a `Cubic` handed two
-    arguments is not a `Cubic`.
+    arguments is not a `Cubic` — and *saying so* is the other half.
 
     The table this replaced took "the first and last argument that parsed",
     which read `Cubic(4.1, 9.9)` as a = b = 4.1 with c = 9.9 — a tetragonal cell
-    out of the macro whose entire meaning is that there is one edge. Now it
-    reads nothing, and the phase refuses for want of a cell instead.
+    out of the macro whose entire meaning is that there is one edge. Declining
+    to read it is right; `continue`-ing past it was not, because an empty
+    `phase.cell` is the *absent* fact, and `to_structure` then said "phase
+    states no cell, so it cannot be built". The phase did not state no cell. It
+    stated a cell macro this reader will not read, and the message sent the
+    reader of it looking for a missing line instead of at the `Cubic` two lines
+    up. The stated-but-unreadable `a` line and the sibling `Orthorhombic(...)`
+    both refuse by name; this is the same question and now has the same answer.
     """
     inp = _inp(tmp_path, "arity.inp",
                'str\nphase_name "P"\nspace_group "Pm-3m"\nCubic(4.1, 9.9)\n'
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
-    assert read_topas_inp(inp).phases[0].cell == {}
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    msg = str(exc.value)
+    assert "arity.inp" in msg
+    # The call is quoted, so the message points at the line that is wrong.
+    assert "Cubic(4.1, 9.9)" in msg
+    assert "1 argument" in msg and "1 arguments" not in msg
+    # And it is *not* the absent-cell message, which would be a different fact.
+    assert "states no cell" not in msg
+
+
+def test_the_undefined_macro_refusal_lists_the_macros_this_reader_reads(tmp_path):
+    """A refusal's job is to say what the author may write *here*.
+
+    The message used to enumerate four names — the reference's §19.3.2 list —
+    while the reader reads five: `Trigonal` is in the table on §1.3's authority.
+    The sentence was true about the reference and false about the reader, and
+    the reader is what the author is talking to. Derived from `_CELL_MACROS` so
+    the two cannot drift; the citation for each stays where a claim about the
+    reference belongs, in that table's comment and in `ATTRIBUTION.md`.
+    """
+    inp = _inp(tmp_path, "enum.inp",
+               'str\nphase_name "P"\nspace_group "P1"\n'
+               'Orthorhombic(@ 5.4, @ 6.1, @ 7.2)\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    with pytest.raises(TopasInpError) as exc:
+        read_topas_inp(inp)
+    msg = str(exc.value)
+    for name in _CELL_MACROS:
+        assert name in msg, f"{name} is read but the refusal does not offer it"
+    assert "Trigonal" in msg          # the one the four-name sentence dropped
+    assert "the reference defines" not in msg
 
 
 def test_a_lattice_macro_beside_an_explicit_cell_is_not_needed(tmp_path):
