@@ -319,6 +319,30 @@ def test_sample1_fractions_within_participant_spread(sample1_results, sample):
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("qpa-sample1")
+def test_a_supported_trace_phase_is_never_held(sample1_results):
+    """``cell_window``'s own counter-example, one tier up (WP-1301).
+
+    Lives here rather than beside the rest of the hold's tests
+    (``tests/test_held_phase.py``) because it reads this suite's shared
+    fixture, and xdist unions every ``xdist_group`` mark on an item: a second
+    group on the file would have put it in ``held-phase_qpa-sample1`` and
+    refitted all eight mixtures on another worker.
+
+    ``cpd-1c`` is 1.36 wt % fluorite by weighing — a trace phase that is
+    genuinely there.  Windowing every phase rather than only the invisible ones
+    cost that fit its iteration budget and 2.7 wt % of its corundum (WP-1110);
+    a hold is stronger than a window, so the same restriction has to hold here,
+    and it is asserted on the record rather than on the outcome: no stage held
+    anything at all.
+    """
+    result = sample1_results["cpd-1c"]
+    for stage in result.stages:
+        assert stage.held == [] and stage.released == [], stage.name
+    assert not [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("qpa-sample1")
 def test_sample1_bias_has_the_dispersion_shape(sample1_results):
     """The residual inaccuracy is a *characterised systematic*, not noise:
     zincite comes back low and corundum high across the whole suite, and

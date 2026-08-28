@@ -178,25 +178,6 @@ def _hold_unsupported_phases(model: CompiledModel,
     return held
 
 
-def _collapsed_phase_paths(model: CompiledModel,
-                           table: ParameterTable) -> list[str]:
-    """Free structural paths of a phase that has fallen below support.
-
-    The hold's mirror, and the case a start-of-stage test cannot see: a phase
-    seeded with a healthy scale is *visible* at stage start — ``phase_support``
-    measures the modelled contribution, and a large scale makes one — so
-    nothing is held, and the flat direction opens up only as the solve drives
-    that scale to nothing.  The cell is then free in a direction the data
-    cannot see, for as many iterations as the budget allows.
-
-    Measured on the ramp's own 13 sub-onset patterns, which is exactly this
-    shape (CaF₂ seeded at 1e-4 for every pattern): cells at 1.7 Å, 8.99 Å and
-    20.3 Å with esds of 1e11 to 1e24, and a `-6.5 Å` once the start-of-stage
-    hold alone was in place.
-    """
-    return _unsupported_phase_paths(model, table)
-
-
 def _released_phases(model: CompiledModel, table: ParameterTable,
                      held: list[str]) -> list[str]:
     """Of ``held``, the paths whose phase has risen above support since.
@@ -1382,7 +1363,9 @@ class Refinement:
         # the noise, and the flat direction opened up only as the solver drove
         # that scale to nothing.
         released = _released_phases(model, table, held) if held else []
-        collapsed = _collapsed_phase_paths(model, table)
+        # the same question the hold asked, asked again of the answer: what is
+        # free now and belongs to a phase the data cannot see
+        collapsed = _unsupported_phase_paths(model, table)
         if released or collapsed:
             if collapsed:
                 # Restore before holding: those values moved in a direction the

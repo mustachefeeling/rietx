@@ -17,6 +17,9 @@ than one later.
 
 ``tests/test_absent_phase.py`` holds the window's own tests and the fixtures
 this file reuses; here the subject is the hold, its record and its message.
+The counter-example — a supported trace phase, which must never be held — is in
+``tests/test_acceptance_qpa_roundrobin.py``, because it reads that suite's
+shared fixture and xdist unions the ``xdist_group`` marks on an item.
 """
 
 from __future__ import annotations
@@ -685,7 +688,6 @@ RAMP_MAIN_UNBOUNDED_ITERATIONS = 2164
 
 
 @pytest.mark.slow
-@pytest.mark.xdist_group("held-phase-ramp")
 def test_the_ramp_reproduction_no_longer_runs_away():
     """The 13 sub-onset patterns, the agent's exact call, no user bounds.
 
@@ -727,7 +729,6 @@ def test_the_ramp_reproduction_no_longer_runs_away():
 
 
 @pytest.mark.slow
-@pytest.mark.xdist_group("held-phase-ramp")
 def test_no_cell_leaves_the_physical_range_in_that_chain():
     """The failure WP-1110 met twice: cells at ≈39 293 Å and ≈40 000 Å.
 
@@ -750,26 +751,6 @@ def test_no_cell_leaves_the_physical_range_in_that_chain():
         assert structure.phases[1].cell.a.value == RAMP_CAF2_A
         host = structure.phases[0].cell.a.value
         assert 10.0 < host < 10.5, host
-
-
-@pytest.mark.slow
-@pytest.mark.xdist_group("qpa-sample1")
-def test_a_supported_trace_phase_is_never_held(sample1_results):
-    """``cell_window``'s own counter-example, one tier up.
-
-    ``cpd-1c`` is 1.36 wt % fluorite by weighing — a trace phase that is
-    genuinely there.  Windowing every phase rather than only the invisible ones
-    cost that fit its iteration budget and 2.7 wt % of its corundum (WP-1110);
-    a hold is stronger than a window, so the same restriction has to hold here,
-    and it is asserted on the record rather than on the outcome: no stage held
-    anything at all.
-    """
-    result = sample1_results["cpd-1c"]
-    for stage in result.stages:
-        assert stage.held == [] and stage.released == [], stage.name
-    assert not [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
-
-
 # ----------------------------------------------------------------------
 # every mode, and the joint path
 # ----------------------------------------------------------------------
@@ -903,3 +884,36 @@ def test_the_blind_range_and_the_collapse_are_drawn_for_inspection(
     for name in ("held_phase_blind_range", "held_phase_collapsed",
                  "held_phase_collapsed_zoom"):
         assert (OUT / f"{name}.png").exists()
+
+
+def test_a_later_stage_re_decides_the_hold_rather_than_inheriting_it():
+    """The lift, and what it costs to forget it.
+
+    A hold is lifted at the *start of the next stage*, not at the end of the
+    one that took it — the free set a stage ends with is the set its solve
+    used, and the esd map, the guard and ``n_free`` are all indexed by it.  So
+    the next stage re-frees what was held and asks the measurement again.
+
+    Without that lift the hold is permanent in everything but name: staging is
+    cumulative, so a cell freed in stage 1 is meant to keep refining in stage 2
+    whose ``turn_on`` never mentions it, and a phase that has appeared in the
+    meantime would stay unrefined for the rest of the run.  Here stage 1 holds
+    the cell (the scale is fixed at 1e-7 and cannot rescue it), stage 2 frees
+    the scale alone, and the cell must come back a measurement.
+    """
+    import rietx as rx
+
+    data = _ramp_patterns([700.0])[0]
+    ref = rx.Refinement(_ramp_start(caf2_a=5.40, bounds=None),
+                        _ramp_instrument(), history=False)
+    result = ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage("cell_bkg", ["phases.*.cell.*", "instrument.background.*"]),
+        rx.Stage("scale", ["phases.*.scale"]),
+    ]))
+
+    first, second = result.stages
+    assert first.held == ["phases.1.cell.a"], "stage 1 could not see the phase"
+    assert second.released == ["phases.1.cell.a"], "stage 2 never got it back"
+    assert "phases.1.cell.a" in {p.path for p in result.parameters}
+    assert ref.structure.phases[1].cell.a.value == pytest.approx(
+        RAMP_CAF2_A, rel=1e-3)

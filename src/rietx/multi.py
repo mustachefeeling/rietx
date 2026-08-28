@@ -244,8 +244,16 @@ class MultiHistogramRefinement:
         stage_results: list[StageResult] = []
         models = None
         outcome = None
+        carried_hold: list[str] = []
         for stage, ftol in zip(plan.stages, plan.stage_ftols(), strict=True):
             freed = self.mtable.set_vary(stage.turn_on, True)
+            if carried_hold:
+                # lift the previous stage's hold before this one decides its
+                # own — the single-histogram runner's rule (``_run_stage``),
+                # and for its reason: a phase invisible then may be plain now,
+                # and a cumulative plan need not name its cell again
+                self.mtable.set_vary(carried_hold, True)
+                carried_hold = []
             if stage.seed:
                 self.mtable.seed_softplus(freed, stage.seed)
             self.mtable.apply_to_models()
@@ -285,6 +293,7 @@ class MultiHistogramRefinement:
                     n_constraint_truncations=(outcome.n_constraint_truncations
                                               + second.n_constraint_truncations))
             self.mtable.apply_to_models()
+            carried_hold = list(held)
             stage_results.append(StageResult(
                 name=stage.name, status=outcome.status,
                 n_iterations=outcome.n_iterations,
