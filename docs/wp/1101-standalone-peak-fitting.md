@@ -1,6 +1,6 @@
 # WP-1101 — fit_peaks: standalone peak fitting at named positions
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.4 · Status: ⬜
 Depends on: — (first of the free-standing peaks set; opens the 11xx block)
 
 ## Goal
