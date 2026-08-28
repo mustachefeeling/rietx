@@ -87,9 +87,10 @@ no entry for and are held to a named list in `wizard.test.ts`, and
       field has one, that all three groups are written, that a group is what
       the field *is* rather than its path's prefix, and that the profile rows
       are `[U,V,W]` / `[X,Y]` / `[S/L,H/L]` with the row starts to match.
-- [ ] `Model.svelte`: the three grids; fixed tracks; the selects on their own
+- [x] `Model.svelte`: the three grids; fixed tracks; the selects on their own
       row; the warning inside Profile and the background under it; the esd
-      decision WP-1214 left; the wizard's preset step on the same grid.
+      decision WP-1214 left (it is drawn, in the slot the cell row and the
+      phase grid already use); the wizard's preset step on the same grid.
 - [ ] Browser pass at the sidebar floor and ceiling (WP-1034's 340-560 px
       and 72 %), both themes; dist.
 

@@ -54,6 +54,7 @@
     withAtom,
     withoutAtom,
     type Field,
+    type FieldGroup,
     type Site,
   } from "../lib/model";
   import {
@@ -953,6 +954,63 @@
     {/if}
   {/snippet}
 
+  <!-- One group of the instrument form (WP-1216), under its own heading: the
+       source, the geometry, the profile.  Which fields those are is
+       `lib/model.ts`'s `group`, so this snippet chooses nothing — including the
+       two that disagree with their own path, the axial apertures and the zero
+       shift.  A choice takes the whole row (`.choice`), which is what keeps the
+       geometry select's intrinsic width out of the tracks the numbers line up
+       in, and the profile grid's rows start where `PROFILE_ROWS` says
+       (`.rowstart`), so U is above X whatever the column is doing. -->
+  {#snippet insGrid(group: FieldGroup)}
+    {@const shown = insFields.filter(
+      (f) => f.group === group && (!f.advanced || !simple))}
+    <div class="grid" class:profile={group === "profile"}>
+      {#each shown as field (field.path)}
+        {@const held = heldReason(field, "instrument")}
+        {@const row = byPath.get(fieldParam("instrument", field))}
+        <!-- `title` is the *held* reason here, which is the verb's own words
+             about this instrument; what the field IS comes from the corpus, and
+             the two fields with no entry say so in `lib/model.ts` (WP-1203). -->
+        <label class="cell" title={held} class:choice={field.kind === "choice"}
+          class:rowstart={field.startsRow}>
+          <span class="muted">
+            {#if field.help}<Help for={field.help}>{field.label}</Help>
+            {:else}<span title={field.title}>{field.label}</span>{/if}
+            {field.unit ? ` (${field.unit})` : ""}</span>
+          {#if field.kind === "choice"}
+            <select class="mono" data-field={field.path}
+              value={text(instrument, field, "instrument")}
+              onchange={(e) => type(field.path,
+                (e.currentTarget as HTMLSelectElement).value)}>
+              {#each field.choices ?? [] as choice (choice)}
+                <option value={choice}>{choice}</option>
+              {/each}
+            </select>
+          {:else if held && held.includes("structurally")}
+            <span class="mono fixed">{text(instrument, field, "instrument")}</span>
+          {:else}
+            <input class="mono" data-field={field.path}
+              value={text(instrument, field, "instrument")}
+              placeholder={field.kind === "optnumber" ? "unset" : ""}
+              oninput={(e) => type(field.path,
+                (e.currentTarget as HTMLInputElement).value)} />
+          {/if}
+          <!-- geometry, shape, the radius and the specimen dimensions are not
+               in θ, so `varyBox` draws nothing for them: the row it asks for
+               does not exist (WP-1214).  The esd beside it is the one the cell
+               row and the phase grid already draw — the same slot, the same
+               call: a refined U with no esd here read as a number nobody had
+               measured (WP-1216). -->
+          <span class="varyline">
+            {@render varyBox(fieldParam("instrument", field))}
+            <span class="muted">{row ? formatEsd(row.value, row.esd) : ""}</span>
+          </span>
+        </label>
+      {/each}
+    </div>
+  {/snippet}
+
   {#if showWizard}
     <!-- ---------------------------------------------------------- -->
     <div class="wizard">
@@ -1229,7 +1287,7 @@
             </select>
             <div class="grid">
               {#each PRESET_FIELDS[wiz.preset] as field (field.name)}
-                <label class="cell">
+                <label class="cell" class:choice={field.kind === "anode"}>
                   <span class="muted"><Help for={presetHelp(field)}
                     >{field.label}</Help>{field.unit ? ` (${field.unit})` : ""}</span>
                   {#if field.kind === "anode"}
@@ -1268,7 +1326,7 @@
             <button class="ghost" onclick={() => (browseMode = "pick")}>Browse…</button>
           </label>
           <div class="grid">
-            <label class="cell"><span class="muted">mode</span>
+            <label class="cell choice"><span class="muted">mode</span>
               <!-- a typed cell carries no atoms, so rietveld is not a mode it
                    can be created in; the server refuses it rather than
                    overriding a chosen mode, and this is what makes the refusal
@@ -1281,7 +1339,7 @@
                 {/each}
               </select>
             </label>
-            <label class="cell"><span class="muted">plan</span>
+            <label class="cell choice"><span class="muted">plan</span>
               <select bind:value={wiz.plan}>
                 {#each plans as p (p.name)}
                   <option value={p.name} title={p.when_to_use}>{p.title}</option>
@@ -1667,50 +1725,26 @@
         {#if profileSaved}
           <p class="muted mono">wrote {profileSaved}</p>
         {/if}
+
+        <!-- The order a crystallographer expects, which is the order the
+             quantities are decided in: what the radiation is, where the
+             specimen sits, what shape that makes a peak, and what is under it
+             all (WP-1216). -->
+        <h3>Source</h3>
+        {@render insGrid("source")}
+
+        <h3>Geometry</h3>
+        {@render insGrid("geometry")}
+
+        <h3>Profile</h3>
+        <!-- inside Profile, because the pair it is about is drawn here: S/L and
+             H/L are the last row of this grid -->
         {#if warning}
           <p class="warn">{warning} Nudge one if you free both — the guard
             reports the pair, and two solvers escape the corner in two
             unprincipled directions.</p>
         {/if}
-        <div class="grid">
-          {#each insFields as field (field.path)}
-            {#if !field.advanced || !simple}
-              {@const held = heldReason(field, "instrument")}
-              <!-- `title` is the *held* reason here, which is the verb's own
-                   words about this instrument; what the field IS comes from the
-                   corpus, and the two fields with no entry say so in
-                   `lib/model.ts` (WP-1203). -->
-              <label class="cell" title={held}>
-                <span class="muted">
-                  {#if field.help}<Help for={field.help}>{field.label}</Help>
-                  {:else}<span title={field.title}>{field.label}</span>{/if}
-                  {field.unit ? ` (${field.unit})` : ""}</span>
-                {#if field.kind === "choice"}
-                  <select class="mono" data-field={field.path}
-                    value={text(instrument, field, "instrument")}
-                    onchange={(e) => type(field.path,
-                      (e.currentTarget as HTMLSelectElement).value)}>
-                    {#each field.choices ?? [] as choice (choice)}
-                      <option value={choice}>{choice}</option>
-                    {/each}
-                  </select>
-                {:else if held && held.includes("structurally")}
-                  <span class="mono fixed">{text(instrument, field, "instrument")}</span>
-                {:else}
-                  <input class="mono" data-field={field.path}
-                    value={text(instrument, field, "instrument")}
-                    placeholder={field.kind === "optnumber" ? "unset" : ""}
-                    oninput={(e) => type(field.path,
-                      (e.currentTarget as HTMLInputElement).value)} />
-                {/if}
-                <!-- geometry, shape, the radius and the specimen dimensions are
-                     not in θ, so `varyBox` draws nothing for them: the row it
-                     asks for does not exist (WP-1214). -->
-                <span class="varyline">{@render varyBox(fieldParam("instrument", field))}</span>
-              </label>
-            {/if}
-          {/each}
-        </div>
+        {@render insGrid("profile")}
 
         <h3>Background</h3>
         <p class="muted">
@@ -1778,7 +1812,17 @@
 {/if}
 
 <style>
+  /* The form's two widths, each written once (WP-1216).  `--w-num` is what a
+     numeric input measures — the same number in every grid, which is the
+     alignment that was asked for — and it is the track floor too, so how many
+     columns a group gets is that one number against the column's width.
+     `--w-sel` caps a select: the geometry one's longest option
+     (`flat_plate_transmission`) is what made the old wrapping row's cells
+     unequal, and a control that cannot decide a track's width cannot move the
+     fields beside it. */
   section.model {
+    --w-num: 92px;
+    --w-sel: 200px;
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -1804,10 +1848,15 @@
     margin: 0;
   }
 
+  /* wraps, because two of these headings carry controls: at the form column's
+     200 px floor `Save profile…` was clipped to `Sa… prof` rather than moving
+     to a line of its own (WP-1215 measured it; WP-1034's rule is that overflow
+     is wrap and never truncation, and it applies to a heading too) */
   h2 {
     margin: 10px 0 var(--s2);
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--s3);
   }
 
@@ -2059,19 +2108,60 @@
     max-width: 100%;
   }
 
+  /* A grid, not a wrapping flex (WP-1216).  A wrapping row lets its widest
+     item decide where the break falls, so one intrinsically wide `<select>`
+     moved every field after it — the misalignment reported.  Tracks are
+     `1fr` above a floor, so every group of this column gets the same number of
+     equal columns and the fields line up down the form. */
   .grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 10px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(var(--w-num), 100%), 1fr));
+    gap: 6px 10px;
     margin: 2px 0;
   }
 
+  /* three columns, fixed, because here the alignment *is* the content: U V W
+     over X Y is how a crystallographer reads the pair, and a track count that
+     follows the container's width cannot promise it.  The rows start where
+     `lib/model.ts:PROFILE_ROWS` says, and the third slot of the second row is
+     empty because this profile has no Z. */
+  .grid.profile {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .grid.profile .cell.rowstart {
+    grid-column: 1;
+  }
+
+  /* A field is three lines — label, value, flag — and `subgrid` is what lines
+     the three up *across* a row: without it a label that wraps to two lines
+     pushes its own input below its neighbours', which is the other half of what
+     "not aligned" meant.  The rows belong to the group; the 1 px between them
+     is the cell's own, and the 6 px between rows of fields the group's. */
   .cell {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: span 2;
+    row-gap: 1px;
     font-size: var(--text-sm);
-    min-width: 92px;
+    min-width: 0;
+  }
+
+  /* …and a cell carrying a refine flag is three rows deep rather than two.
+     Asked of the cell rather than declared on the grid, because a grid told the
+     wrong number is a defect nothing catches: a subgrid clamps a child past its
+     last track *into* it, so the flag would draw on top of the value. */
+  .cell:has(.varyline) {
+    grid-row: span 3;
+  }
+
+  /* a choice takes the whole row and caps its own width there.  Spanning the
+     tracks is the point: a `<select>` that sits *in* one contributes its
+     longest option to that track, which is how `flat_plate_transmission` set
+     the width of the field beside it. */
+  .cell.choice {
+    grid-column: 1 / -1;
+    max-width: var(--w-sel);
   }
 
   .cellrow {
@@ -2081,16 +2171,26 @@
     margin: 2px 0;
   }
 
-  .cellrow .cell {
-    min-width: 0;
+  /* the *value*, and only it — the refine flag beside it is a control of fixed
+     size.  The child combinator is the fence: the flag lives inside
+     `.varyline`, and a rule that reached it took all 84 px of the line and left
+     the esd at zero width (WP-1214).  `--w-num` is a cap rather than the width
+     so a wide column gives the *label* the slack and every input in the panel
+     still measures the same. */
+  .grid .cell > input,
+  .grid .cell > .fixed {
+    width: 100%;
+    max-width: var(--w-num);
   }
 
-  /* the *value* fills its column; the refine flag beside it is a control of
-     fixed size and must be excluded by name.  Found in Chrome: a checkbox at
-     `width: 100%` took all 84 px of the line and left the esd beside it at
-     zero width — present in the DOM, drawn nowhere (WP-1214). */
-  .cellrow input:not(.vary),
-  .cellrow .fixed {
+  .grid .cell > select {
+    width: 100%;
+  }
+
+  /* the cell edges take their whole track: they carry a value and its esd, and
+     six of them across a 666 px column is already the narrowest they get */
+  .cellrow .cell > input,
+  .cellrow .cell > .fixed {
     width: 100%;
   }
 
