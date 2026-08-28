@@ -120,9 +120,12 @@ Carried in from **WP-1201** (2026-08-25, shipped):
       not NAC — it already carries both special positions this needs (`1a`
       fully fixed, `6f` one-DOF) and a two-DOF site is one appended atom, so
       importing a second structure would have bought nothing.*
-- [ ] Automatic Wyckoff with the content-hash cache (server-side cache keyed
+- [x] Automatic Wyckoff with the content-hash cache (server-side cache keyed
       on the hash; `tests/test_gui_server.py` counts the spglib calls across
-      two head moves without a structure change).
+      two head moves without a structure change). *Keyed on the content tuple
+      itself rather than a digest of it — a content hash with the collisions
+      taken out. Measured: cold 9.7-12.2 ms for 2-6 atoms (2.0-5.5 ms an atom,
+      inside WP-1035's 1.8-8.7), warm 1-3 us.*
 - [ ] The table: one row per atom, the columns above, the ADP disclosure;
       `modelStacks` floor re-measured; `model.test.ts`.
 - [ ] Browser pass on NAC (special positions) and the corundum example;

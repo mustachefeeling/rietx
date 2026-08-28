@@ -2764,20 +2764,37 @@ describe("the model editor", () => {
     expect(locked.title).toContain("α is fixed at 90°");
   });
 
-  it("buys the Wyckoff letters only when asked, and never on a head move", async () => {
+  it("fetches the Wyckoff letters itself, in parallel and off the load path",
+     async () => {
+    // WP-1215: the button is gone. The search is memoised server-side on
+    // (space group, positions), so the `site` column can be a column - what is
+    // asserted here is that nobody has to ask for it.
     const stub = await openModel({ "/api/structure/symmetry": () => ({ body: LETTERS }) });
     const route = () => stub.calls.filter((c) => c.path === "/api/structure/symmetry");
-    expect(route()).toHaveLength(0);          // the point of the second route
-    expect(host.textContent).not.toContain("6f");
-
-    button("Wyckoff letters…")!.click();
-    await flush();
-    expect(route()).toHaveLength(1);
+    expect(route().length).toBeGreaterThan(0);
+    expect(button("Wyckoff letters…")).toBeUndefined();
     expect(host.textContent).toContain("1a · m-3m");
     expect(host.textContent).toContain("6f · 4m.m");
-    // the sentences it brought back replace the free tier's counting ones
-    const xyz = host.querySelector<HTMLElement>("table.atoms td.xyz")!;
-    expect(xyz.title).toContain("Wyckoff 1a, site symmetry m-3m");
+    // the sentences it brought back are read before the free tier's counting
+    // ones - held in their own field, since the two fetches are concurrent
+    const site = host.querySelector<HTMLElement>("table.atoms td.xyz")!;
+    expect(site.title).toContain("Wyckoff 1a, site symmetry m-3m");
+  });
+
+  it("loses the site column, and nothing else, when the letters do not arrive",
+     async () => {
+    // its own error field: a column that failed to arrive is not a refused
+    // edit, and sharing `symError` made a fetch failure read as a bad symbol
+    await openModel({
+      "/api/structure/symmetry": () => ({ status: 500,
+        body: { error: { code: "INTERNAL", message: "spglib said no" } } }),
+    });
+    expect(host.textContent).toContain("site symmetry:");
+    expect(host.textContent).toContain("spglib said no");
+    expect(host.textContent).not.toContain("6f · 4m.m");
+    // ...and the rest of the panel is there
+    expect(field("phases.0.name").value).toBe("LaB6");
+    expect(host.querySelectorAll("table.atoms tbody tr").length).toBeGreaterThan(0);
   });
 
   it("previews a symbol before applying it, and applies nothing until Apply",

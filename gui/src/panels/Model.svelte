@@ -359,12 +359,23 @@
    *  refetches, so neither costs a request. */
   let symmetry = $state<PhaseSymmetry[]>([]);
   let causes = $state<Record<string, string>>({});
-  /** …and the tier that is *not* free: a spglib search per atom, so it is
-   *  fetched when the user asks for it and dropped on every head move rather
-   *  than reloaded (WP-1035). */
+  /** …and the tier that is *not* free: a spglib search per atom.  Fetched
+   *  alongside the other three since WP-1215 — the server memoises it on
+   *  (space group, positions), so a head move that leaves the structure alone
+   *  costs 1-3 us instead of 2.0-5.5 ms an atom, and the `site` column can be a
+   *  column rather than a button.  A *miss* still costs what WP-1035 measured,
+   *  which is why it is still a route of its own and still fetched in parallel:
+   *  the table draws without waiting for it. */
   let letters = $state<SiteLetter[]>([]);
-  let lettersFor = $state<number | null>(null);
   let lettersBusy = $state(false);
+  /** why the `site` column is empty, when it is — its own field, since a column
+   *  that failed to arrive is not a refused edit (see `loadLetters`) */
+  let letterError = $state("");
+  /** the oriented-site-symmetry causes, held apart from the free tier's so the
+   *  two concurrent fetches cannot decide the sentence by arrival order */
+  let letterCauses = $state<Record<string, string>>({});
+  /** which ask the letters on screen answer — see `loadLetters` */
+  let lettersSeq = 0;
   /** the symbol being typed, the preview it produced, and the verb's refusal —
    *  three separate fields for WP-1014's reason: a verb's refusal and a panel's
    *  load error must not share one.  `null` is *untouched* rather than empty, so
@@ -459,9 +470,18 @@
    *  is the subject — the symmetry that is responsible.  Two sentences rather
    *  than one rewritten, because `held_because` is the parameter surface's
    *  wording and this pane may not restate it (WP-1011). */
+  /** The held reason, with the symmetry that causes it.
+   *
+   * Two sources, read in order rather than merged: `/api/structure` names the
+   * symmetry for free and `/api/structure/symmetry` names it *with the oriented
+   * site symbol*, which is strictly better.  Since WP-1215 both are in flight at
+   * once, so the better one is kept in its own field — merged into `causes`, the
+   * sentence a user sees would be decided by which response happened to land
+   * last.
+   */
   function why(path: string): string {
     const held = byPath.get(path)?.held_because ?? "";
-    const cause = causes[path] ?? "";
+    const cause = letterCauses[path] ?? causes[path] ?? "";
     return [held, cause].filter(Boolean).join(" — ");
   }
 
@@ -485,6 +505,22 @@
     if (projectKey !== null && active) load();
   });
 
+  /** The `site` column's own effect, beside `load`'s rather than inside it
+   *  (WP-1215).  Beside, because a cache **miss** still costs a spglib search
+   *  per atom and the table has no reason to hold its other ten columns behind
+   *  one.
+   *
+   *  Keyed on `stamp` rather than on `head`, which is the whole point: a local
+   *  write — an atom added, a coordinate typed — calls `load()` directly and
+   *  moves no head prop, and those are exactly the edits that change a Wyckoff
+   *  letter.  `stamp` is bumped by `load()` on both paths already.  Plus
+   *  `phase`, since switching phase changes the letters and moves neither. */
+  $effect(() => {
+    void stamp;
+    void phase;
+    if (projectKey !== null && active) loadLetters();
+  });
+
   async function load() {
     try {
       const [s, i, p] = await Promise.all([api.structure(), api.instrument(),
@@ -496,11 +532,6 @@
       instrument = i.instrument;
       rows = normalize(p.parameters);
       loadError = "";
-      // the letters were measured against a model that has just been replaced;
-      // re-asking would put a spglib search per atom on every head move, which
-      // is the whole reason they are not on this route
-      letters = [];
-      lettersFor = null;
       symPreview = null;
       symbolDraft = null;
       profileSaved = "";
@@ -593,25 +624,38 @@
   }
 
   // -- symmetry (WP-1035) --------------------------------------------
-  /** Fetch the Wyckoff letters for the phase on screen, once, on request.
+  /** Fetch the Wyckoff letters for the phase on screen.
    *
-   * The one route in this pane that is *not* refetched on a head move: it costs
-   * a spglib search per atom, which is why it is a route of its own. */
-  async function showLetters() {
-    if (lettersFor === phase || lettersBusy) return;
+   * Refetched on every head move since WP-1215, because the server memoises the
+   * search on (space group, positions): a move that leaves the structure alone
+   * is a dict lookup, and one that does not has different letters to report.
+   * No per-phase gate for the same reason — the gate was standing in for the
+   * cache, and it could not tell "same phase" from "same structure".
+   *
+   * A failure here is **not** `symError`, which is the space-group verb's:
+   * losing a column is not losing an edit, and putting them in one field made a
+   * fetch that failed on its own look like a refused symbol.  It is not
+   * `loadError` either — the panel loaded. */
+  async function loadLetters() {
+    const wanted = phase;
+    // latest ask wins: the stale *response* is dropped rather than the fresh
+    // request, or a phase switch (or an edit) mid-flight lands the old letters
+    const seq = ++lettersSeq;
     lettersBusy = true;
     try {
-      const out = await api.symmetry(phase);
+      const out = await api.symmetry(wanted);
+      if (seq !== lettersSeq) return;
       letters = out.letters ?? [];
-      lettersFor = phase;
       // the better sentences: the same causes, with the oriented site symmetry
-      causes = out.causes ?? causes;
-      say(`site_constraints(structure.phases[${phase}].space_group, xyz)  # per atom`);
-      symError = "";
+      letterCauses = out.causes ?? {};
+      letterError = "";
     } catch (exc) {
-      symError = (exc as Error).message;
+      if (seq !== lettersSeq) return;
+      letters = [];
+      letterCauses = {};
+      letterError = (exc as Error).message;
     } finally {
-      lettersBusy = false;
+      if (seq === lettersSeq) lettersBusy = false;
     }
   }
 
@@ -1256,13 +1300,11 @@
           {#if phaseSym?.constraints}
             <p class="muted">holds: {phaseSym.constraints}</p>
           {/if}
-          {#if lettersFor !== phase}
-            <button class="ghost" disabled={lettersBusy}
-              title="a symmetry search per atom — fetched on request, not on
-                every head move"
-              onclick={showLetters}>{lettersBusy
-                ? "searching…" : "Wyckoff letters…"}</button>
-          {/if}
+          <!-- the button that used to buy the letters is gone (WP-1215): the
+               search is memoised on (space group, positions), so the `site`
+               column fetches itself and a head move that changes no coordinate
+               costs a dict lookup -->
+          {#if letterError}<p class="bad">site symmetry: {letterError}</p>{/if}
           {#if symError}<p class="bad">{symError}</p>{/if}
 
           {#if symPreview}

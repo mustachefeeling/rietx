@@ -1272,6 +1272,10 @@ def test_the_wyckoff_letter_is_bought_on_a_route_that_was_opened_for_it(
     refetches on every head move including one a ``set_vary`` made.  What the
     extra route buys is the *oriented* site-symmetry symbol, which is why the
     causes it serves are strictly better sentences than the free tier's.
+
+    Still true with WP-1215's cache in front of it, which is why the split
+    survived it: a cache does not make the *first* answer cheap.  What it
+    changed is who may ask — see the test below.
     """
     session, client = blank
     _open(session, tmp_path / "wyckoff.rex", pattern_file)
@@ -1288,6 +1292,72 @@ def test_the_wyckoff_letter_is_bought_on_a_route_that_was_opened_for_it(
         "Wyckoff 6f, site symmetry 4m.m")
     assert client.get("/api/structure/symmetry?phase=7")[0] == 404
 
+
+
+def test_the_letters_are_recomputed_only_when_the_structure_changes(
+        blank, tmp_path, pattern_file, monkeypatch):
+    """What made the Wyckoff column automatic (WP-1215).
+
+    WP-1035 measured ``site_constraints`` at 1.8-8.7 ms an atom and put the
+    letters behind a button for it — but the cost it measured is *per head move
+    on a route that refetches on every head move*, and most head moves change no
+    coordinate at all.  So the search is keyed on its whole input and a
+    ``set_vary`` pays nothing, while an edit that moves an atom pays again,
+    correctly: it is a different structure and the letters may be different
+    letters.
+
+    Counted at ``site_constraints`` rather than at the cache, because the cache's
+    own hit counter would agree with itself whatever the code does.
+    """
+    from rietx.crystallography import wyckoff
+    from rietx.gui import symmetry
+
+    session, client = blank
+    _open(session, tmp_path / "letters.rex", pattern_file)
+    n_atoms = len(session.project.refinement.structure.phases[0].atoms)
+
+    calls = []
+    real = wyckoff.site_constraints
+
+    def counted(space_group, xyz, **kw):
+        calls.append((space_group, tuple(xyz)))
+        return real(space_group, xyz, **kw)
+
+    symmetry._letters_for.cache_clear()
+    monkeypatch.setattr(wyckoff, "site_constraints", counted)
+
+    assert client.get("/api/structure/symmetry?phase=0")[0] == 200
+    assert len(calls) == n_atoms                    # the first ask pays in full
+
+    # two head moves that leave every coordinate where it was
+    head = session.project.refinement._head_id
+    for glob in ("phases.0.cell.*", "instrument.background.*"):
+        assert client.patch("/api/params", {"vary": {glob: True}})[0] == 200
+        assert session.project.refinement._head_id != head
+        head = session.project.refinement._head_id
+        assert client.get("/api/structure/symmetry?phase=0")[0] == 200
+        assert len(calls) == n_atoms, f"{glob} re-ran the search"
+
+    # …and one that does move an atom: a different structure, paid for again
+    assert client.post("/api/structure/position",
+                       {"atom": "phases.0.atoms.1",
+                        "xyz": [0.21, 0.5, 0.5]})[0] == 200
+    status, payload = client.get("/api/structure/symmetry?phase=0")
+    assert status == 200
+    assert len(calls) == 2 * n_atoms
+    letters = {row["path"]: row for row in payload["letters"]}
+    assert letters["phases.0.atoms.1"]["wyckoff"] == "6f"   # still 6f at (x,½,½)
+
+    # a relabel is not a structure change as far as a letter is concerned
+    structure = client.get("/api/structure")[1]["structure"]
+    structure["phases"][0]["atoms"][1]["label"] = "B1"
+    assert client.patch("/api/structure", {"structure": structure})[0] == 200
+    status, payload = client.get("/api/structure/symmetry?phase=0")
+    assert status == 200 and len(calls) == 2 * n_atoms
+    # …and the label the row carries is the new one, because it is put back
+    # outside the cache rather than keyed into it
+    assert {row["path"]: row["label"] for row in payload["letters"]
+            }["phases.0.atoms.1"] == "B1"
 
 def test_a_symmetry_change_is_previewed_out_of_the_rules_that_would_refuse_it(
         blank, tmp_path, pattern_file):

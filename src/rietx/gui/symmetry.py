@@ -49,6 +49,7 @@ them raises today:
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from typing import Any
 
 import numpy as np
@@ -424,37 +425,75 @@ def _strain_causes(causes: dict, base: str, sg, phase) -> None:
 # ----------------------------------------------------------------------
 # the deliberately-opened tier: Wyckoff letters
 # ----------------------------------------------------------------------
-def site_letters(structure: Structure, phase: int) -> list[dict]:
-    """Wyckoff letter and oriented site symmetry for one phase's atoms.
+#: How many distinct (space group, positions) sets keep their letters.  An entry
+#: is one small dict per atom, so this is bounded by structure size rather than
+#: by traffic; a project holds one or two live keys and the rest are the edits
+#: behind it, which a checkout walks back onto.
+LETTER_CACHE = 64
 
-    One spglib search per atom (see the module docstring for the measured cost),
-    which is why this is not an arm of ``GET /api/structure``.  A site spglib
-    cannot place comes back with its ``error`` rather than sinking the route: the
-    search fails when the coordinates are in a setting the operators disagree
-    with, which is a *finding* about the model, not a server fault.
+
+@lru_cache(maxsize=LETTER_CACHE)
+def _letters_for(space_group: str,
+                 positions: tuple[tuple[float, float, float], ...]
+                 ) -> tuple[dict, ...]:
+    """The spglib half of :func:`site_letters`, memoised on its whole input.
+
+    The letters are a pure function of the space group and the coordinates, so
+    the *content is the key* — and a tuple of them is a content hash with the
+    collisions taken out, since equality here is exact rather than a digest.
+    That is what lets the atom table fetch its ``site`` column automatically:
+    WP-1035 measured the search at 1.8-8.7 ms an atom and put it behind a button
+    for it, but the cost it measured was **per head move on a route that
+    refetches on every head move**, and a head move that leaves the structure
+    alone — a ``set_vary``, a background term, a fit — now costs a dict lookup.
+    A head move that *does* change a coordinate pays again, correctly: it is a
+    different structure and the letters may be different letters.
+
+    Deliberately keyed on neither the label nor the atom index: a relabel and a
+    reorder cannot change a Wyckoff letter, and paying for one would be paying
+    for nothing.  The caller puts those back.
     """
     from ..crystallography.wyckoff import site_constraints
 
+    out: list[dict] = []
+    for xyz in positions:
+        try:
+            sc = site_constraints(space_group, list(xyz))
+        except (ValueError, RuntimeError) as exc:
+            out.append({"error": str(exc)})
+            continue
+        out.append({"wyckoff": sc.wyckoff, "site_symmetry": sc.site_symmetry,
+                    "multiplicity": sc.multiplicity})
+    return tuple(out)
+
+
+def site_letters(structure: Structure, phase: int) -> list[dict]:
+    """Wyckoff letter and oriented site symmetry for one phase's atoms.
+
+    One spglib search per atom on a miss (see the module docstring for the
+    measured cost), which is why this is still not an arm of
+    ``GET /api/structure``: a cache does not make the *first* answer cheap, and
+    folding it in would put a 40-atom structure's 0.1-0.3 s in front of every
+    consumer of that route, the 3D view included.  What the cache changes is who
+    may ask — the atom table asks on every head move now, in parallel with the
+    other three fetches, because a repeat ask is free (:func:`_letters_for`).
+
+    A site spglib cannot place comes back with its ``error`` rather than sinking
+    the route: the search fails when the coordinates are in a setting the
+    operators disagree with, which is a *finding* about the model, not a server
+    fault.
+    """
     try:
         block = structure.phases[phase]
     except IndexError:
         raise IndexError(f"no phase {phase} (the model has "
                          f"{len(structure.phases)})") from None
-    rows: list[dict] = []
-    for j, atom in enumerate(block.atoms):
-        base = f"phases.{phase}.atoms.{j}"
-        xyz = [atom.x.value, atom.y.value, atom.z.value]
-        try:
-            sc = site_constraints(block.space_group, xyz)
-        except (ValueError, RuntimeError) as exc:
-            rows.append({"path": base, "atom": j, "label": atom.label,
-                         "error": str(exc)})
-            continue
-        rows.append({"path": base, "atom": j, "label": atom.label,
-                     "wyckoff": sc.wyckoff, "site_symmetry": sc.site_symmetry,
-                     "multiplicity": sc.multiplicity})
-    return rows
-
+    found = _letters_for(
+        block.space_group,
+        tuple((atom.x.value, atom.y.value, atom.z.value) for atom in block.atoms))
+    return [{"path": f"phases.{phase}.atoms.{j}", "atom": j,
+             "label": atom.label, **found[j]}
+            for j, atom in enumerate(block.atoms)]
 
 # ----------------------------------------------------------------------
 # the preview
