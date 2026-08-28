@@ -1366,6 +1366,50 @@ class GuiSession:
             label=body.get("label") or "instrument edited")
         return {"node_id": node, **self.instrument()}
 
+    def structure_position(self, body: dict) -> dict:
+        """Move one atom to a typed position (WP-1215).
+
+        ``{"atom": "phases.I.atoms.J", "xyz": [x, y, z]}``.  A ``set_value``
+        node, not an ``edit_model`` one: the position reaches θ as displacements
+        on the site's ``…dof.k`` parameters, so this changes what the table
+        *holds* and never what it *contains* — which is the line
+        :meth:`structure_aniso` is on the other side of.
+
+        The projection is :func:`symmetry.position_values`, and the refusal is
+        its sentence verbatim: it names the directions the site allows and the
+        nearest position it can reach, which is what a form needs to offer the
+        user the choice rather than make it for them.  Nothing to set is not an
+        error and records no node — a coordinate re-typed to the value it
+        already had is a no-op, and ``set_values`` would commit a node saying
+        nothing.
+        """
+        self._require_idle()
+        p = self._need_project()
+        path = str(_need(body, "atom"))
+        xyz = _need(body, "xyz")
+        if not isinstance(xyz, (list, tuple)):
+            raise GuiError("'xyz' is a list of three numbers", where=["xyz"])
+        try:
+            moved = symmetry.position_values(p.refinement.structure, path,
+                                             [float(v) for v in xyz])
+        except IndexError as exc:
+            raise GuiError(str(exc), code="NOT_FOUND", status=404,
+                           where=["atom"]) from None
+        except (TypeError, ValueError) as exc:
+            raise GuiError(str(exc), code="MODEL_REFUSED",
+                           where=[path, "xyz"]) from None
+        if not moved["values"]:
+            return {"node_id": None, "changed": False,
+                    "nearest": moved["nearest"], **self.structure()}
+        try:
+            p.refinement.set_values(moved["values"])
+        except ValueError as exc:
+            # a locked DOF, or a bound — the message travels intact, as it does
+            # through `params_patch`
+            raise GuiError(str(exc), where=sorted(moved["values"])) from None
+        return {"node_id": p.refinement._head_id, "changed": True,
+                "nearest": moved["nearest"], **self.structure()}
+
     def structure_aniso(self, body: dict) -> dict:
         """Turn one atom's anisotropic ADP block on or off (WP-1014).
 

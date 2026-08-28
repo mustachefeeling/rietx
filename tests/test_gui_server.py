@@ -985,6 +985,158 @@ def test_structure_says_what_site_symmetry_allows_each_atom(blank, tmp_path,
         assert set(row["adp_paths"]) <= free
 
 
+
+# ----------------------------------------------------------------------
+# a typed coordinate, solved back onto the site's DOFs (WP-1215)
+# ----------------------------------------------------------------------
+def _atom(payload: dict, j: int) -> list[float]:
+    a = payload["structure"]["phases"][0]["atoms"][j]
+    return [a["x"]["value"], a["y"]["value"], a["z"]["value"]]
+
+
+def test_a_typed_coordinate_is_solved_back_onto_the_sites_own_dofs(
+        blank, tmp_path, pattern_file):
+    """The route that lets the editor offer x, y, z instead of the DOF boxes.
+
+    A coordinate is an affine tie anchored at the *stored* value and re-anchored
+    on every table build, so what a typed position asks for is a displacement to
+    solve for.  Asserted through the route rather than on the projection alone:
+    what has to be true is that the atom ends up where it was asked to go and
+    that the log says a ``set_value``, not an ``edit_model`` — the position
+    changes what the table holds, never what it contains.
+    """
+    session, client = blank
+    _open(session, tmp_path / "position.rex", pattern_file)
+
+    # B at 6f (x, ½, ½): one DOF, along [1 0 0]
+    before = _atom(client.get("/api/structure")[1], 1)
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.1",
+                               "xyz": [0.21, 0.5, 0.5]})
+    assert status == 200 and out["changed"] is True
+    assert _atom(out, 1) == pytest.approx([0.21, 0.5, 0.5], abs=1e-12)
+    assert before[0] != pytest.approx(0.21, abs=1e-12)
+
+    node = session.project.refinement.history[out["node_id"]]
+    assert node.action.kind == "set_value"
+    # the *displacement*, keyed by the DOF — not the coordinate, which has no
+    # column of its own to set
+    assert set(node.action.values) == {"phases.0.atoms.1.dof.0"}
+    assert node.action.values["phases.0.atoms.1.dof.0"] == pytest.approx(
+        0.21 - before[0], abs=1e-12)
+
+    # …and the DOF reads 0 again, because the next table anchors on the new x
+    rows = {r["path"]: r for r in client.get("/api/params")[1]["parameters"]}
+    assert rows["phases.0.atoms.1.dof.0"]["value"] == 0.0
+    assert rows["phases.0.atoms.1.x"]["value"] == pytest.approx(0.21, abs=1e-12)
+
+    # a coordinate retyped where it already is records nothing: `set_values`
+    # would commit a node saying nothing
+    head = session.project.refinement._head_id
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.1",
+                               "xyz": [0.21, 0.5, 0.5]})
+    assert status == 200 and out["changed"] is False and out["node_id"] is None
+    assert session.project.refinement._head_id == head
+
+
+def test_a_position_the_site_cannot_reach_is_refused_with_the_one_it_can(
+        blank, tmp_path, pattern_file):
+    """Refused, never snapped — and the refusal is the offer.
+
+    Snapping would move the atom to a *different site* than the one asked for,
+    which is the objection that made ``check_cell_angles`` refuse rather than
+    normalise, one rank up.  So the message names the directions the site allows
+    and the nearest position they reach, and the caller decides.
+    """
+    session, client = blank
+    _open(session, tmp_path / "refused.rex", pattern_file)
+    head = session.project.refinement._head_id
+
+    # B at 6f: y and z are locked on the mirror, so only x is reachable
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.1",
+                               "xyz": [0.21, 0.6, 0.5]})
+    assert status == 400 and out["error"]["code"] == "MODEL_REFUSED"
+    message = out["error"]["message"]
+    assert "moves only along [1 0 0]" in message
+    assert "(0.21, 0.5, 0.5)" in message          # the nearest one it can reach
+    assert "(0.21, 0.6, 0.5)" in message          # and the one that was asked
+
+    # La at 1a has no DOFs at all, so there is nothing to grey out — there is
+    # nothing to offer, and the sentence says so instead
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.0",
+                               "xyz": [0.01, 0.0, 0.0]})
+    assert status == 400
+    assert "fully fixed special position" in out["error"]["message"]
+    assert "order 48" in out["error"]["message"]
+    # …but retyping where it is is not a refusal, on a fixed site as on any other
+    assert client.post("/api/structure/position",
+                       {"atom": "phases.0.atoms.0",
+                        "xyz": [0.0, 0.0, 0.0]})[1]["changed"] is False
+
+    # a malformed path is a different repair from an atom that is not there
+    assert client.post("/api/structure/position",
+                       {"atom": "phases.0.atom.1", "xyz": [0, 0, 0]})[0] == 400
+    assert client.post("/api/structure/position",
+                       {"atom": "phases.0.atoms.9", "xyz": [0, 0, 0]})[0] == 404
+    assert client.post("/api/structure/position",
+                       {"atom": "phases.0.atoms.1", "xyz": [0.2, 0.5]})[0] == 400
+
+    assert session.project.refinement._head_id == head   # nothing was recorded
+
+
+def test_a_general_position_takes_all_three_coordinates(blank, tmp_path,
+                                                        pattern_file):
+    """The identity case, and the two-direction refusal a one-DOF site cannot show.
+
+    In ``P 1`` the stabilizer is trivial, the basis is the identity, and the
+    route is a spelling of "set the three coordinates" — which is what makes one
+    route right for both kinds of site.  The atom added at (x, y, 0) sits on
+    Pm-3m's z = 0 mirror and has *two* allowed directions, so it is what tests
+    that the refusal lists them rather than naming one.
+    """
+    session, client = blank
+    _open(session, tmp_path / "general.rex", pattern_file)
+
+    structure = client.get("/api/structure")[1]["structure"]
+    structure["phases"][0]["atoms"].append(
+        {"label": "X1", "species": "B", "x": {"value": 0.3},
+         "y": {"value": 0.2}, "z": {"value": 0.0}})
+    assert client.patch("/api/structure", {"structure": structure})[0] == 200
+
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.2",
+                               "xyz": [0.3, 0.2, 0.1]})
+    assert status == 400
+    assert "moves only along [1 0 0] and [0 1 0]" in out["error"]["message"]
+
+    # in the plane both directions are reachable, and both DOFs are set
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.2",
+                               "xyz": [0.31, 0.22, 0.0]})
+    assert status == 200
+    assert _atom(out, 2) == pytest.approx([0.31, 0.22, 0.0], abs=1e-12)
+    node = session.project.refinement.history[out["node_id"]]
+    assert set(node.action.values) == {"phases.0.atoms.2.dof.0",
+                                       "phases.0.atoms.2.dof.1"}
+
+    # …and with no symmetry at all every target is reachable, the third
+    # coordinate included
+    structure = client.get("/api/structure")[1]["structure"]
+    structure["phases"][0]["space_group"] = "P 1"
+    assert client.patch("/api/structure", {"structure": structure})[0] == 200
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.0",
+                               "xyz": [0.11, 0.22, 0.33]})
+    assert status == 200
+    assert _atom(out, 0) == pytest.approx([0.11, 0.22, 0.33], abs=1e-12)
+    assert set(session.project.refinement.history[
+        out["node_id"]].action.values) == {
+            "phases.0.atoms.0.dof.0", "phases.0.atoms.0.dof.1",
+            "phases.0.atoms.0.dof.2"}
+
 def test_structure3d_serves_geometry_the_model_dump_cannot(blank, tmp_path,
                                                            pattern_file):
     """The route earns its place beside ``/api/structure`` (WP-1008's test).
@@ -1120,6 +1272,10 @@ def test_the_wyckoff_letter_is_bought_on_a_route_that_was_opened_for_it(
     refetches on every head move including one a ``set_vary`` made.  What the
     extra route buys is the *oriented* site-symmetry symbol, which is why the
     causes it serves are strictly better sentences than the free tier's.
+
+    Still true with WP-1215's cache in front of it, which is why the split
+    survived it: a cache does not make the *first* answer cheap.  What it
+    changed is who may ask — see the test below.
     """
     session, client = blank
     _open(session, tmp_path / "wyckoff.rex", pattern_file)
@@ -1136,6 +1292,72 @@ def test_the_wyckoff_letter_is_bought_on_a_route_that_was_opened_for_it(
         "Wyckoff 6f, site symmetry 4m.m")
     assert client.get("/api/structure/symmetry?phase=7")[0] == 404
 
+
+
+def test_the_letters_are_recomputed_only_when_the_structure_changes(
+        blank, tmp_path, pattern_file, monkeypatch):
+    """What made the Wyckoff column automatic (WP-1215).
+
+    WP-1035 measured ``site_constraints`` at 1.8-8.7 ms an atom and put the
+    letters behind a button for it — but the cost it measured is *per head move
+    on a route that refetches on every head move*, and most head moves change no
+    coordinate at all.  So the search is keyed on its whole input and a
+    ``set_vary`` pays nothing, while an edit that moves an atom pays again,
+    correctly: it is a different structure and the letters may be different
+    letters.
+
+    Counted at ``site_constraints`` rather than at the cache, because the cache's
+    own hit counter would agree with itself whatever the code does.
+    """
+    from rietx.crystallography import wyckoff
+    from rietx.gui import symmetry
+
+    session, client = blank
+    _open(session, tmp_path / "letters.rex", pattern_file)
+    n_atoms = len(session.project.refinement.structure.phases[0].atoms)
+
+    calls = []
+    real = wyckoff.site_constraints
+
+    def counted(space_group, xyz, **kw):
+        calls.append((space_group, tuple(xyz)))
+        return real(space_group, xyz, **kw)
+
+    symmetry._letters_for.cache_clear()
+    monkeypatch.setattr(wyckoff, "site_constraints", counted)
+
+    assert client.get("/api/structure/symmetry?phase=0")[0] == 200
+    assert len(calls) == n_atoms                    # the first ask pays in full
+
+    # two head moves that leave every coordinate where it was
+    head = session.project.refinement._head_id
+    for glob in ("phases.0.cell.*", "instrument.background.*"):
+        assert client.patch("/api/params", {"vary": {glob: True}})[0] == 200
+        assert session.project.refinement._head_id != head
+        head = session.project.refinement._head_id
+        assert client.get("/api/structure/symmetry?phase=0")[0] == 200
+        assert len(calls) == n_atoms, f"{glob} re-ran the search"
+
+    # …and one that does move an atom: a different structure, paid for again
+    assert client.post("/api/structure/position",
+                       {"atom": "phases.0.atoms.1",
+                        "xyz": [0.21, 0.5, 0.5]})[0] == 200
+    status, payload = client.get("/api/structure/symmetry?phase=0")
+    assert status == 200
+    assert len(calls) == 2 * n_atoms
+    letters = {row["path"]: row for row in payload["letters"]}
+    assert letters["phases.0.atoms.1"]["wyckoff"] == "6f"   # still 6f at (x,½,½)
+
+    # a relabel is not a structure change as far as a letter is concerned
+    structure = client.get("/api/structure")[1]["structure"]
+    structure["phases"][0]["atoms"][1]["label"] = "B1"
+    assert client.patch("/api/structure", {"structure": structure})[0] == 200
+    status, payload = client.get("/api/structure/symmetry?phase=0")
+    assert status == 200 and len(calls) == 2 * n_atoms
+    # …and the label the row carries is the new one, because it is put back
+    # outside the cache rather than keyed into it
+    assert {row["path"]: row["label"] for row in payload["letters"]
+            }["phases.0.atoms.1"] == "B1"
 
 def test_a_symmetry_change_is_previewed_out_of_the_rules_that_would_refuse_it(
         blank, tmp_path, pattern_file):

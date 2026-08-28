@@ -137,6 +137,66 @@ export function varyEdit(edits: ReadonlyMap<string, boolean>, row: ParamRow,
 }
 
 /**
+ * The rows a pending vary *key* names — one path, or every match of a glob.
+ *
+ * A vary edit has been one path per box since WP-1214, and an atom's position
+ * broke that (WP-1215): the site's DOFs are freed **together** — "per-axis
+ * intent does not map onto rows such as [1,1,0]", `ParameterTable` says — so one
+ * box is about N rows and `phases.0.atoms.1.dof.*` is what `set_vary` should be
+ * told, in one node, with the glob the structural plans already use.
+ */
+export function varyTargets(rows: readonly ParamRow[],
+                            key: string): ParamRow[] {
+  if (!/[*?[]/.test(key)) {
+    const row = rows.find((r) => r.path === key);
+    return row ? [row] : [];
+  }
+  return matches(rows, key);
+}
+
+/** Is a whole group of rows freed?  `null` when they disagree.
+ *
+ * The third answer is the one worth having: a box that reads `false` over a
+ * half-freed site says something untrue about the other half, and the DOM has an
+ * `indeterminate` for exactly this. */
+export function varyOfAll(rows: readonly ParamRow[],
+                          edits: ReadonlyMap<string, boolean>,
+                          key: string): boolean | null {
+  const pending = edits.get(key);
+  if (pending !== undefined) return pending;
+  const targets = varyTargets(rows, key);
+  if (!targets.length) return false;
+  const first = varyOf(targets[0], edits);
+  return targets.every((row) => varyOf(row, edits) === first) ? first : null;
+}
+
+/** One vary key toggled — a path or a glob — as a new map.
+ *
+ * Drops the entry when the rows it names **already all** carry that flag, for
+ * `varyEdit`'s reason one rank up: `set_vary` would record a node saying
+ * nothing.  A half-freed group never drops, because setting it does say
+ * something about the half that disagrees. */
+export function varyEditFor(edits: ReadonlyMap<string, boolean>,
+                            rows: readonly ParamRow[],
+                            key: string, checked: boolean): Map<string, boolean> {
+  const next = new Map(edits);
+  const targets = varyTargets(rows, key);
+  if (targets.length && targets.every((row) => row.vary === checked)) {
+    next.delete(key);
+  } else {
+    next.set(key, checked);
+  }
+  return next;
+}
+
+/** Does a pending vary key still say something about the rows as they stand? */
+export function varyStillPending(rows: readonly ParamRow[], key: string,
+                                 flag: boolean): boolean {
+  const targets = varyTargets(rows, key);
+  return targets.length > 0 && targets.some((row) => row.vary !== flag);
+}
+
+/**
  * The group a path belongs to: the path minus its leaf, and minus one more when
  * the leaf is a bare index.
  *

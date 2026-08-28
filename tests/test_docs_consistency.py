@@ -483,7 +483,16 @@ SIZE_CAPS: dict[str, int | None] = {
     # the fourth held reason (`needs_held_cell`) that WP-1011's three-mark
     # sentence had been wrong about since it arrived.  Four rules and one width
     # trap; the measurements are in the WP's handover.
-    "gui/CLAUDE.md": 902,
+    # 902 -> 938 for WP-1215: the atom table becomes one row per atom, and the
+    # coordinate becomes a cell in it.  Four rules, and the third and fourth are
+    # the ones no reading of this subtree reaches — a memoised answer changes
+    # *who may ask* without changing which route it is on (with the three client
+    # rules that come with fetching it beside another fetch rather than after
+    # it), and a width written in three places had a test on one of them.  The
+    # operating detail went a rank down as this comment requires: the refusal
+    # wording is `position_values`' docstring, the per-state pixel measurements
+    # are `MODEL_MIN`'s and the WP's handover.
+    "gui/CLAUDE.md": 938,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

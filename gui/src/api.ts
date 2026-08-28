@@ -157,8 +157,12 @@ export const api = {
    *  not, and lives on `symmetry()` below. */
   structure: () => call("GET", "/api/structure"),
   /** One phase's symmetry in full — Wyckoff letters and oriented site-symmetry
-   *  symbols, a spglib search per atom. **Fetched on demand, never on a head
-   *  move**: that is the whole reason it is a route of its own (WP-1035). */
+   *  symbols, a spglib search per atom, memoised server-side on (space group,
+   *  positions).  A route of its own because a **miss** is still 2.0-5.5 ms an
+   *  atom (WP-1035, re-measured 1215) and folding that into `structure()` would
+   *  put it in front of every consumer of that route.  Fetched on every head
+   *  move since WP-1215: a repeat ask is 1-3 us, so the atom table's `site`
+   *  column no longer waits behind a button. */
   symmetry: (phase = 0) =>
     call("GET", `/api/structure/symmetry?phase=${phase}`),
   /** What changing a phase's space group would do, applying nothing: the
@@ -195,6 +199,13 @@ export const api = {
    *  wrong. */
   aniso: (path: string, on: boolean) =>
     call("POST", "/api/structure/aniso", { path, on }),
+  /** Move one atom to a typed position (WP-1215).  The server projects it onto
+   *  the site's DOF basis and refuses an unreachable target naming the nearest
+   *  one it can reach — a coordinate is an affine tie, so what lands in theta is
+   *  a displacement.  One `set_value` node, and nothing at all when the atom is
+   *  already there. */
+  position: (atom: string, xyz: readonly number[]) =>
+    call("POST", "/api/structure/position", { atom, xyz }),
 
   run: (body: Record<string, unknown> = { kind: "fit" }) => call("POST", "/api/run", body),
   cancel: () => call("POST", "/api/cancel"),

@@ -21,6 +21,7 @@ import {
   newAtom,
   paramPath,
   phaseFields,
+  positionEdits,
   readValue,
   renderField,
   splitEdits,
@@ -28,6 +29,7 @@ import {
   validateField,
   withAtom,
   withoutAtom,
+  xyzText,
   type Field,
   type Site,
 } from "./model";
@@ -339,6 +341,96 @@ describe("atomRows", () => {
     expect(added.site).toBeNull();
     expect(added.dofs).toEqual([]);
     expect(added.frozen).toBe("");
+  });
+});
+
+describe("positionEdits", () => {
+  const edits = (obj: Record<string, string>) => new Map(Object.entries(obj));
+
+  it("fills the axes the user did not touch from the model", () => {
+    // the route takes a whole position because the projection is a whole
+    // position: a `[1 1 0]` site cannot answer "what should x be" without y
+    const delta = positionEdits(structure(), 0,
+                                edits({ "phases.0.atoms.1.x": "0.21" }));
+    expect(delta.moves).toEqual([
+      { atom: "phases.0.atoms.1", xyz: [0.21, 0.5, 0.5] }]);
+    expect(delta.touched).toBe(1);
+    expect(delta.invalid).toEqual([]);
+  });
+
+  it("is not a move when the coordinate is retyped as it is shown", () => {
+    // against what the cell *shows*, like `splitEdits` — otherwise every
+    // rounded display would send a tiny move on Apply
+    const delta = positionEdits(structure(), 0,
+                                edits({ "phases.0.atoms.1.x": xyzText(0.1993) }));
+    expect(delta.moves).toEqual([]);
+    expect(delta.touched).toBe(1);      // …but it *was* touched
+    expect(xyzText(0.1993)).toBe("0.19930");
+  });
+
+  it("keeps the stored precision of an axis retyped as it was shown", () => {
+    // the cell shows five places and the model holds more, so an axis the user
+    // clicked into and typed back contributes the *stored* value: pushing the
+    // rounded one would move a coordinate nobody changed by up to 5e-6, which
+    // is five times `POSITION_TOL` and can turn a reachable position into a
+    // refusal on a constrained site
+    const s = structure();
+    s.phases[0].atoms[1].x.value = 0.199317;
+    expect(xyzText(0.199317)).toBe("0.19932");
+    const delta = positionEdits(s, 0, edits({
+      "phases.0.atoms.1.x": "0.19932", "phases.0.atoms.1.z": "0.55",
+    }));
+    expect(delta.moves).toEqual([
+      { atom: "phases.0.atoms.1", xyz: [0.199317, 0.5, 0.55] }]);
+  });
+
+  it("groups three typed axes into one move, in atom order", () => {
+    const delta = positionEdits(structure(), 0, edits({
+      "phases.0.atoms.1.z": "0.55",
+      "phases.0.atoms.0.x": "0.01",
+      "phases.0.atoms.1.x": "0.21",
+      "phases.0.atoms.1.y": "0.52",
+    }));
+    expect(delta.moves).toEqual([
+      { atom: "phases.0.atoms.0", xyz: [0.01, 0, 0] },
+      { atom: "phases.0.atoms.1", xyz: [0.21, 0.52, 0.55] },
+    ]);
+    expect(delta.touched).toBe(4);
+  });
+
+  it("refuses text that is not a number, and sends nothing for that atom", () => {
+    const delta = positionEdits(structure(), 0, edits({
+      "phases.0.atoms.1.x": "0.21", "phases.0.atoms.1.y": "half",
+    }));
+    expect(delta.moves).toEqual([]);            // the whole position, or none
+    expect(delta.invalid).toEqual([
+      { path: "phases.0.atoms.1.y", why: "a coordinate is a number" }]);
+    expect(delta.touched).toBe(2);
+    // an emptied cell is the same refusal — a blank is not zero
+    expect(positionEdits(structure(), 0,
+                         edits({ "phases.0.atoms.1.x": "  " })).invalid)
+      .toHaveLength(1);
+  });
+
+  it("ignores edits belonging to another phase, and to an atom that is gone", () => {
+    const delta = positionEdits(structure(), 0, edits({
+      "phases.1.atoms.0.x": "0.3",       // another phase
+      "phases.0.atoms.9.x": "0.3",       // removed since it was typed
+      "phases.0.atoms.1.biso": "0.4",    // not a coordinate at all
+    }));
+    expect(delta.moves).toEqual([]);
+    expect(delta.touched).toBe(0);
+  });
+
+  it("does not decide whether the site can reach the position", () => {
+    // the projection is the server's, and a second copy of the DOF basis here
+    // is the trap `symbolChanged` names: `y` is locked on this site, and this
+    // still sends it, because the refusal that comes back names the nearest
+    // reachable position and this could not
+    const delta = positionEdits(structure(), 0,
+                                edits({ "phases.0.atoms.1.y": "0.6" }));
+    expect(delta.moves).toEqual([
+      { atom: "phases.0.atoms.1", xyz: [0.1993, 0.6, 0.5] }]);
   });
 });
 

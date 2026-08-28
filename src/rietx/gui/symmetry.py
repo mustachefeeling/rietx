@@ -48,6 +48,8 @@ them raises today:
 
 from __future__ import annotations
 
+import re
+from functools import lru_cache
 from typing import Any
 
 import numpy as np
@@ -228,6 +230,99 @@ def site_rows(structure: Structure) -> list[dict]:
 
 
 # ----------------------------------------------------------------------
+# a typed coordinate, solved back onto the site's DOFs (WP-1215)
+# ----------------------------------------------------------------------
+#: How far a typed position may sit off the site's allowed subspace, in
+#: fractional units, before it is refused.  Fractional coordinates are quoted to
+#: 4-6 places in every CIF this package reads, so 1e-6 sits below the precision a
+#: number arrives with and far above the projection's own arithmetic: it
+#: separates "the user re-typed the value that was already there" from "the user
+#: asked for a different site".
+POSITION_TOL = 1e-6
+
+
+def _fmt_xyz(xyz) -> str:
+    """``(0.1993, 0.5, 0.5)`` — the form a coordinate is read in, not repr."""
+    return "(" + ", ".join(f"{float(v):.6g}" for v in xyz) + ")"
+
+
+def _fmt_direction(row) -> str:
+    """``[1 0 0]`` — the bracketed form the atom table already draws."""
+    return "[" + " ".join(str(int(c)) for c in row) + "]"
+
+
+def position_values(structure: Structure, path: str, xyz) -> dict:
+    """The DOF displacements that put one atom at ``xyz`` — or a refusal.
+
+    A coordinate is never a parameter here: ``ParameterTable`` writes
+    x = x₀ + Σₖ Bₖ·θₖ, anchored at the *stored* value and re-anchored on every
+    table build, so a typed position asks for a **displacement to solve for**
+    rather than a number to store.  Solving it is what lets an editor offer
+    x, y, z at all — the DOF boxes WP-1014 offered instead make a site-symmetry
+    violation unrepresentable, which is the safe shape and not a readable one.
+
+    Least squares against the site's own basis, and the residual is the whole
+    check.  On a general position the basis is the identity, every target is
+    reachable, and this is a spelling of "set the three coordinates".  On a
+    constrained one an unreachable target is **refused**, naming the directions
+    the site does allow and the nearest position it can reach — never snapped to
+    it, because silently rewriting a number the user typed is the objection that
+    made ``check_cell_angles`` refuse rather than normalise (WP-1028), and the
+    rewrite here would put the atom on a *different site* than the one asked
+    for, which is a larger lie than a rounded angle.
+
+    Returns ``{"values": {dof_path: displacement}, "nearest": [x, y, z]}``.  An
+    empty ``values`` is the honest answer for "already there", and the caller
+    records no node for it — ``set_values`` with nothing to set would commit a
+    node saying nothing.  Raises ``ValueError`` for an unreachable target, a
+    fully fixed site or a malformed path, and ``IndexError`` for an atom that is
+    not there; the GUI layer turns the second into a 404 and adds the address to
+    both, as it does for every other model refusal.
+    """
+    match = re.fullmatch(r"phases\.(\d+)\.atoms\.(\d+)", str(path))
+    if match is None:
+        raise ValueError(f"{path!r} is not an atom path (phases.I.atoms.J)")
+    i, j = int(match.group(1)), int(match.group(2))
+    try:
+        phase = structure.phases[i]
+        atom = phase.atoms[j]
+    except IndexError:
+        # `IndexError` rather than `ValueError`, so the route answers 404 the way
+        # `structure_symmetry` does for a missing phase: "there is no such atom"
+        # is a different repair from "that atom cannot go there"
+        raise IndexError(f"no atom at {path!r}") from None
+    target = np.asarray(xyz, dtype=np.float64)
+    if target.shape != (3,) or not np.all(np.isfinite(target)):
+        raise ValueError(
+            f"{path}: a position is three finite numbers, not {list(xyz)!r}")
+
+    current = np.array([atom.x.value, atom.y.value, atom.z.value])
+    rots = stabilizer_rotations(get_spacegroup(phase.space_group), current)
+    basis = coordinate_basis(rots)  # rows are the allowed directions, (k, 3)
+    delta = target - current
+    if len(basis) == 0:
+        if float(np.abs(delta).max()) <= POSITION_TOL:
+            return {"values": {}, "nearest": current.tolist()}
+        raise ValueError(
+            f"{path} sits on a fully fixed special position (site symmetry of "
+            f"order {len(rots)}); its coordinates are locked at "
+            f"{_fmt_xyz(current)}")
+
+    b = basis.T.astype(np.float64)  # (3, k) — the columns are the directions
+    theta, *_ = np.linalg.lstsq(b, delta, rcond=None)
+    nearest = current + b @ theta
+    if float(np.abs(nearest - target).max()) > POSITION_TOL:
+        allowed = _and_list([_fmt_direction(row) for row in basis])
+        raise ValueError(
+            f"{path} moves only along {allowed}, so it cannot reach "
+            f"{_fmt_xyz(target)}; the nearest position it can reach is "
+            f"{_fmt_xyz(nearest)}")
+    return {"values": {f"phases.{i}.atoms.{j}.dof.{k}": float(t)
+                       for k, t in enumerate(theta) if t != 0.0},
+            "nearest": nearest.tolist()}
+
+
+# ----------------------------------------------------------------------
 # naming the cause of a held row
 # ----------------------------------------------------------------------
 def held_causes(structure: Structure, rows: list[dict] | None = None,
@@ -330,37 +425,75 @@ def _strain_causes(causes: dict, base: str, sg, phase) -> None:
 # ----------------------------------------------------------------------
 # the deliberately-opened tier: Wyckoff letters
 # ----------------------------------------------------------------------
-def site_letters(structure: Structure, phase: int) -> list[dict]:
-    """Wyckoff letter and oriented site symmetry for one phase's atoms.
+#: How many distinct (space group, positions) sets keep their letters.  An entry
+#: is one small dict per atom, so this is bounded by structure size rather than
+#: by traffic; a project holds one or two live keys and the rest are the edits
+#: behind it, which a checkout walks back onto.
+LETTER_CACHE = 64
 
-    One spglib search per atom (see the module docstring for the measured cost),
-    which is why this is not an arm of ``GET /api/structure``.  A site spglib
-    cannot place comes back with its ``error`` rather than sinking the route: the
-    search fails when the coordinates are in a setting the operators disagree
-    with, which is a *finding* about the model, not a server fault.
+
+@lru_cache(maxsize=LETTER_CACHE)
+def _letters_for(space_group: str,
+                 positions: tuple[tuple[float, float, float], ...]
+                 ) -> tuple[dict, ...]:
+    """The spglib half of :func:`site_letters`, memoised on its whole input.
+
+    The letters are a pure function of the space group and the coordinates, so
+    the *content is the key* — and a tuple of them is a content hash with the
+    collisions taken out, since equality here is exact rather than a digest.
+    That is what lets the atom table fetch its ``site`` column automatically:
+    WP-1035 measured the search at 1.8-8.7 ms an atom and put it behind a button
+    for it, but the cost it measured was **per head move on a route that
+    refetches on every head move**, and a head move that leaves the structure
+    alone — a ``set_vary``, a background term, a fit — now costs a dict lookup.
+    A head move that *does* change a coordinate pays again, correctly: it is a
+    different structure and the letters may be different letters.
+
+    Deliberately keyed on neither the label nor the atom index: a relabel and a
+    reorder cannot change a Wyckoff letter, and paying for one would be paying
+    for nothing.  The caller puts those back.
     """
     from ..crystallography.wyckoff import site_constraints
 
+    out: list[dict] = []
+    for xyz in positions:
+        try:
+            sc = site_constraints(space_group, list(xyz))
+        except (ValueError, RuntimeError) as exc:
+            out.append({"error": str(exc)})
+            continue
+        out.append({"wyckoff": sc.wyckoff, "site_symmetry": sc.site_symmetry,
+                    "multiplicity": sc.multiplicity})
+    return tuple(out)
+
+
+def site_letters(structure: Structure, phase: int) -> list[dict]:
+    """Wyckoff letter and oriented site symmetry for one phase's atoms.
+
+    One spglib search per atom on a miss (see the module docstring for the
+    measured cost), which is why this is still not an arm of
+    ``GET /api/structure``: a cache does not make the *first* answer cheap, and
+    folding it in would put a 40-atom structure's 0.1-0.3 s in front of every
+    consumer of that route, the 3D view included.  What the cache changes is who
+    may ask — the atom table asks on every head move now, in parallel with the
+    other three fetches, because a repeat ask is free (:func:`_letters_for`).
+
+    A site spglib cannot place comes back with its ``error`` rather than sinking
+    the route: the search fails when the coordinates are in a setting the
+    operators disagree with, which is a *finding* about the model, not a server
+    fault.
+    """
     try:
         block = structure.phases[phase]
     except IndexError:
         raise IndexError(f"no phase {phase} (the model has "
                          f"{len(structure.phases)})") from None
-    rows: list[dict] = []
-    for j, atom in enumerate(block.atoms):
-        base = f"phases.{phase}.atoms.{j}"
-        xyz = [atom.x.value, atom.y.value, atom.z.value]
-        try:
-            sc = site_constraints(block.space_group, xyz)
-        except (ValueError, RuntimeError) as exc:
-            rows.append({"path": base, "atom": j, "label": atom.label,
-                         "error": str(exc)})
-            continue
-        rows.append({"path": base, "atom": j, "label": atom.label,
-                     "wyckoff": sc.wyckoff, "site_symmetry": sc.site_symmetry,
-                     "multiplicity": sc.multiplicity})
-    return rows
-
+    found = _letters_for(
+        block.space_group,
+        tuple((atom.x.value, atom.y.value, atom.z.value) for atom in block.atoms))
+    return [{"path": f"phases.{phase}.atoms.{j}", "atom": j,
+             "label": atom.label, **found[j]}
+            for j, atom in enumerate(block.atoms)]
 
 # ----------------------------------------------------------------------
 # the preview
