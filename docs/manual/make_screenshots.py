@@ -77,11 +77,25 @@ class Shot:
     caption: str
     selector: str
     tab: str | None = None
-    fitted: bool = False
-    #: Take this one *after* a second lineage exists.  A checkout throws the
-    #: fitted curves away, so anything showing curves has to be photographed
-    #: before the fork is made, not after.
-    forked: bool = False
+    #: Which state of the session this shot is of.  **One field rather than a
+    #: flag each**: the session passes through these in order and a shot
+    #: belongs to exactly one of them, which three independent booleans could
+    #: not say — the first version of this had `first-run` matching both the
+    #: empty pass and the opened one, and it was photographed twice, the first
+    #: time showing the wrong screen entirely.
+    #:
+    #: ``empty``  — no project open.
+    #: ``opened`` — the project open, nothing run, the checklist still up.
+    #: ``fitted`` — the plan has run and the curves are on the plot.
+    #: ``forked`` — a second lineage exists; the curves are gone with the
+    #:              checkout that made it, so these come last.
+    when: str = "fitted"
+
+
+#: The session states, in the order the driver walks them.  A `when` outside
+#: this set would silently take no picture at all, which is how the bug above
+#: hid: the file was written by the *other* pass that matched it.
+PHASES = ("empty", "opened", "fitted", "forked")
 
 
 #: The declared set.  A chapter may reference `screenshots/<name>-light.png`
@@ -93,20 +107,26 @@ SHOTS: tuple[Shot, ...] = (
         "The screen with no project open: the shipped examples, the way out "
         "to a filesystem browser, and the four-step wizard under them.",
         selector=".side",
+        when="empty",
+    ),
+    Shot(
+        "first-run",
+        "The checklist a project shows on its first open: four derived steps, "
+        "above the tab strip and dismissible rather than modal.",
+        selector=".side",
+        when="opened",
     ),
     Shot(
         "first-fit",
         "The whole window after one run: the header carrying Rwp, the pattern "
         "on the left, the panel column on the right.",
         selector="body",
-        fitted=True,
     ),
     Shot(
         "plot-readout",
         "The pattern with its readout strip, the drawing knobs and the "
         "protocol strip below it.",
         selector=".plotcol",
-        fitted=True,
     ),
     Shot(
         "parameters",
@@ -114,14 +134,12 @@ SHOTS: tuple[Shot, ...] = (
         "marks on rows nothing can free.",
         selector=".side",
         tab="Parameters",
-        fitted=True,
     ),
     Shot(
         "plan-ladder",
         "The plan as a ladder — per stage, what it frees and what stays held.",
         selector=".side",
         tab="Plan",
-        fitted=True,
     ),
     Shot(
         "report",
@@ -129,7 +147,6 @@ SHOTS: tuple[Shot, ...] = (
         "actions.",
         selector=".side",
         tab="Report",
-        fitted=True,
     ),
     Shot(
         "history-graph",
@@ -137,15 +154,13 @@ SHOTS: tuple[Shot, ...] = (
         "two lanes, and the compare table for two selected nodes under them.",
         selector=".side",
         tab="History",
-        fitted=True,
-        forked=True,
+        when="forked",
     ),
     Shot(
         "text-document",
         "The project as an `.rxt` document, where `@` frees a parameter.",
         selector=".side",
         tab="Text",
-        fitted=True,
     ),
 )
 
@@ -305,25 +320,43 @@ def main() -> int:
                 page.wait_for_timeout(1_200)
                 _set_theme(page, theme)
                 for shot in SHOTS:
-                    if not shot.fitted:
+                    if shot.when == "empty":
                         _shoot(page, shot, theme)
 
                 # Then open the example the way its own row does, and run.
                 page.request.post(f"{url}api/examples/open", data={"name": EXAMPLE})
+                # The light pass dismissed the checklist and that persisted, so
+                # the dark pass would photograph a screen with no strip on it.
+                # `null` drops a `ui` key (WP-1044's grammar), which is the one
+                # way back to "never dismissed".
+                page.request.post(f"{url}api/project", data={"ui": {"first_run": None}})
                 page.goto(url)
                 page.wait_for_selector(".tab", timeout=60_000)
                 page.wait_for_timeout(1_200)
                 _set_theme(page, theme)
+
+                # Before the run, and before the checklist is dismissed: this
+                # is the one screen that strip is on.
+                for shot in SHOTS:
+                    if shot.when == "opened":
+                        _shoot(page, shot, theme)
+
+                # Dismissed for every shot after this one — it is a first-run
+                # aid, and leaving it up would put it in eight pictures of
+                # panels it is not about.
+                page.click('.checklist button:text-is("Dismiss")')
+                page.wait_for_timeout(600)
+
                 _run_once(page)
                 for shot in SHOTS:
-                    if shot.fitted and not shot.forked:
+                    if shot.when == "fitted":
                         _shoot(page, shot, theme)
 
                 # The curves die with the checkout, so every shot that shows
                 # them is already taken by here.
                 _fork(page, url)
                 for shot in SHOTS:
-                    if not shot.forked:
+                    if shot.when != "forked":
                         continue
                     page.click(f'.tab:text-is("{shot.tab}")')
                     page.wait_for_timeout(900)

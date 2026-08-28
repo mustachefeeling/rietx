@@ -183,6 +183,28 @@ def test_no_committed_screenshot_is_undeclared():
     )
 
 
+def test_every_shot_names_a_session_state_the_driver_walks():
+    """A `when` outside `PHASES` takes no picture and says nothing.
+
+    Measured while writing it: `first-run` was declared with two independent
+    booleans, matched the empty-state pass as well as its own, and was written
+    twice — the committed file being the *first* of the two, showing a screen
+    with no project open. The loop is a filter, so a name it never matches is
+    silent, and a name it matches twice is silent too.
+    """
+    shots, _ = _declared_shots()
+    spec = importlib.util.spec_from_file_location("_make_screenshots", MAKE_SHOTS)
+    module = sys.modules["_make_screenshots"]
+    assert spec is not None
+    bad = sorted({shot.name: shot.when for shot in shots
+                  if shot.when not in module.PHASES}.items())
+    assert not bad, f"shot(s) declaring a session state the driver never walks: {bad}"
+    for phase in module.PHASES:
+        assert any(shot.when == phase for shot in shots), (
+            f"no shot is taken in the {phase!r} state — the driver walks it for nothing"
+        )
+
+
 def test_every_declared_shot_is_committed_and_used():
     """A declared shot that nothing shows is dead weight in a slow script, and
     one that is declared but missing from the tree is a broken image waiting

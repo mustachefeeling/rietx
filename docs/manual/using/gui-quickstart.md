@@ -87,6 +87,25 @@ of nine tabs, all mounted at once:
 | **History** | every state the refinement has passed through |
 | **Build** | what this build of the package can do |
 
+On a project's first open a **Getting started** strip sits above the tabs. It is
+four steps, it is not a wizard and it is not modal — you can ignore it, work
+around it, and dismiss it whenever you like. Every step except the last is
+derived from the project rather than remembered, so it cannot disagree with what
+you have actually done: undo a fit and `Run the fit` un-ticks itself.
+
+```{image} screenshots/first-run-light.png
+:class: only-light
+:alt: A Getting started strip above the tab strip with four steps, two ticked, and a Dismiss button
+```
+
+```{image} screenshots/first-run-dark.png
+:class: only-dark
+:alt: A Getting started strip above the tab strip with four steps, two ticked, and a Dismiss button
+```
+
+Dismissing it is remembered for that project, and nothing else about it is
+written.
+
 ```{image} screenshots/first-fit-light.png
 :class: only-light
 :alt: The whole window after a run: the fitted pattern with its difference curve on the left, the parameter table on the right, the console below

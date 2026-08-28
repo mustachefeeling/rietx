@@ -5500,3 +5500,69 @@ describe("the help popover", () => {
     expect(popover()!.textContent).toContain("structurally fixed by symmetry");
   });
 });
+
+describe("the first-run checklist (WP-1017)", () => {
+  it("shows four derived steps on a project that has never dismissed it", async () => {
+    vi.stubGlobal("fetch", server(boot()).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const strip = host.querySelector(".checklist")!;
+    expect(strip).toBeTruthy();
+    // derived, not stored: the project has a phase and no result, so two are
+    // done and two are not
+    expect(strip.textContent).toContain("Open a project");
+    expect(strip.textContent).toContain("Have a phase to refine");
+    expect(strip.textContent).toContain("Run the fit");
+    expect(strip.textContent).toContain("Read the report");
+    expect(strip.textContent).toContain("2 left");
+  });
+
+  it("ticks Run once a result exists, without anything being stored", async () => {
+    vi.stubGlobal("fetch", server({ ...boot(), ...FITTED }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    // one step left — the report has not been looked at yet
+    expect(host.querySelector(".checklist")!.textContent).toContain("1 left");
+  });
+
+  it("points a project with no phase at the peak picker", async () => {
+    const noPhase = { ...PROJECT, n_phases: 0 };
+    vi.stubGlobal("fetch", server(boot(noPhase)).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const strip = host.querySelector(".checklist")!;
+    expect(strip.textContent).toContain("no phase yet");
+    expect(strip.textContent).toContain("3 left");
+  });
+
+  it("dismisses onto ProjectDoc.ui, on the verb", async () => {
+    const stub = server(boot());
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const dismiss = [...host.querySelectorAll<HTMLButtonElement>(".checklist button")]
+      .find((b) => b.textContent?.trim() === "Dismiss")!;
+    dismiss.click();
+    await flush();
+
+    // persisted the way every other `ui` key is: on the verb, not on a save
+    const patch = stub.calls.find(
+      (c) => c.path === "/api/project" && c.method === "POST"
+        && (c.body as any)?.ui?.first_run === false);
+    expect(patch).toBeTruthy();
+    expect(host.querySelector(".checklist")).toBeNull();
+  });
+
+  it("stays hidden on a project that dismissed it before", async () => {
+    const dismissed = { ...PROJECT, doc: { ...PROJECT.doc, ui: { first_run: false } } };
+    vi.stubGlobal("fetch", server(boot(dismissed)).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    expect(host.querySelector(".checklist")).toBeNull();
+  });
+});

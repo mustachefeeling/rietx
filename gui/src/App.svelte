@@ -20,6 +20,7 @@
 
   import { ApiError, api } from "./api";
   import Help from "./Help.svelte";
+  import Checklist from "./panels/Checklist.svelte";
   import Console from "./panels/Console.svelte";
   import History from "./panels/History.svelte";
   import Model from "./panels/Model.svelte";
@@ -73,6 +74,12 @@
   const modelTab = $derived(tab === "model");
   const textTab = $derived(tab === "text");
   const seriesTab = $derived(tab === "series");
+  // The checklist's last step, ticked wherever the tab was reached from — the
+  // strip, the palette, `?`, or the report's own link from the header
+  // (WP-1017). One effect rather than a flag at four call sites.
+  $effect(() => {
+    if (tab === "report") reportSeen = true;
+  });
 
   /** Whether the panel column has the whole window (WP-1034).
    *
@@ -93,6 +100,12 @@
       title: "the panel column across the whole window — the tabs stay with it" },
   ];
   let simple = $state(true);
+  /** The first-run checklist's own two pieces of state (WP-1017): whether it
+   *  has been dismissed for this project, and whether the Report tab has been
+   *  looked at — the one step that is about the person rather than the
+   *  project, and therefore session-local rather than persisted. */
+  let firstRun = $state(true);
+  let reportSeen = $state(false);
   let consoleHeight = $state(150);
   /** The panel column's width in px, or `null` for "nobody has said".
    *
@@ -254,6 +267,9 @@
    *  the next `Open…`. It lives in `/api/settings`, loaded once at boot. */
   function readUi() {
     simple = project?.doc?.ui?.simple ?? true;
+    // Absent means "not dismissed yet", so a project made before this existed
+    // gets the strip once. Only `false` hides it (WP-1017).
+    firstRun = project?.doc?.ui?.first_run !== false;
     consoleHeight = project?.doc?.ui?.console_height ?? 150;
     sideWidth = project?.doc?.ui?.side_width ?? null;
     modelColumns = project?.doc?.ui?.model_columns ?? null;
@@ -608,6 +624,13 @@
     simple = next;
     await setUi({ simple: next });
     say(`project.doc.ui["simple"] = ${next ? "True" : "False"}`);
+  }
+
+  /** Dismiss the first-run checklist, for this project (WP-1017). */
+  async function dismissFirstRun() {
+    firstRun = false;
+    await setUi({ first_run: false });
+    say('project.doc.ui["first_run"] = False');
   }
 
   async function setConsoleHeight(next: number) {
@@ -1086,6 +1109,13 @@
              against a column that clamps at 340 px on a narrow window.  A strip
              that hides a tab is worse than the mode buttons it replaced, so no
              label is ever shortened and the strip takes a second row instead. -->
+        {#if firstRun}
+          <!-- above the strip and inside the column: it is about what to do
+               next, so it sits where the next thing is, and it is dismissible
+               rather than modal (WP-1017) -->
+          <Checklist hasPhase={!noPhases} hasResult={!!result} {reportSeen} {busy}
+            ongo={(next) => (tab = next as Tab)} ondismiss={dismissFirstRun} />
+        {/if}
         <nav class="tabs">
           {#each TABS as entry (entry.id)}
             <button class="tab" class:on={tab === entry.id} onclick={() => (tab = entry.id)}
