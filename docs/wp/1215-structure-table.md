@@ -189,10 +189,13 @@ npm --prefix gui test && npm --prefix gui run check
   stacking threshold is 666 + 200 + 260 + two 5 px grips = **1136**. Verified
   at both ends: at 1136 the table wrap is 642/642 and does not scroll, at 1135
   it stacks. Counts: `tests/test_gui_server.py` **149 → 153** (both ends
-  measured, +4, no new skips); gui vitest **551 → 566** (+15: one Wyckoff test
-  replaced by two, +6 `positionEdits`, +4 glob-vary, +3 mount-level, +1 grip).
+  measured, +4, no new skips); gui vitest **551 → 567** (+16: one Wyckoff test
+  replaced by two, +6 `positionEdits`, +4 glob-vary, +3 mount-level, +1 grip,
+  +1 the review's rounding regression).
   Fast selection 3201 passed / 122 skipped and full suite **3342 passed / 131
-  skipped** in 22:35 — both on the final tree; their pre-change baselines were
+  skipped** in 21:00 — the full suite re-run after the review's fixes landed,
+  on a tree `origin/main` had not moved under, so it is the merged tree's count
+  and needed no merge. Their pre-change baselines were
   not measured in this venv, so the exact-N check rests on the per-file
   measurement above, where both ends are.
 
