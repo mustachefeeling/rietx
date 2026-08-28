@@ -183,13 +183,32 @@ npm --prefix gui test && npm --prefix gui run check
   nothing else running — `pgrep` checked): fast selection **3206 → 3216
   passed, 122 skipped** in 2:10, the baseline being WP-1217's own figure on
   this machine. Exactly +10, which is the 10 tests `test_gui_manual.py` adds,
-  all passing and no new skip. vitest **583 → 590** in 22 files: +2 for the
-  panel corpus and +5 for the checklist's mount tests. `svelte-check` 378 →
-  381 files, 0 errors. **The full selection was not run**: this WP touches
+  all passing and no new skip. vitest **583 → 591** in 22 files: +2 for the
+  panel corpus, +5 for the checklist's mount tests, +1 for the review pass's
+  regression. `svelte-check` 378 → 381 files, 0 errors. **The full selection was not run**: this WP touches
   docs, `gui/`, the committed dist and tests, and no physics, which is
   `tests/CLAUDE.md`'s stated exemption. Screenshots are 2.7 MB after the
   script's own 256-colour quantise, from 5.2 MB — checked by looking at them,
   not by a digest, which is `gui/CLAUDE.md`'s rule for a picture.
+
+  **The review pass** raised eleven and ten were real. Seven landed as offered
+  (a lexicographic sort that made "newest chromium" mean oldest, an unguarded
+  `shot.tab` that would block for 30 s, a route table crediting `/api/settings`
+  with the recent list, a shot-name prefix match, a leaked descriptor, a server
+  left running on a mid-pass failure, a dead spec lookup). The best of them was
+  this WP's own thesis turned on it: the Rwp maturity threshold was typed as a
+  literal `0.35` in two chapters while `MATURITY_MAX_RWP` is its authority, so
+  it is a substitution now. **One fix was moved rather than taken** —
+  `reportSeen = false` was put in `readUi()` on the grounds that it runs on a
+  project load and nothing else, and it does not: `moved()` calls it on every
+  head move, so reading the report and then checking a node out un-ticked the
+  step just finished. The bug was real (the flag survived into a different
+  project); the reset belongs beside `tab = "params"`, and a regression test
+  drives a real checkout, made to fail against the misplacement first. The
+  eleventh is declined and recorded: "a column of nine tabs" is a literal count
+  in two chapters, the corpus guards the labels but not the count, and there is
+  no injection mechanism for TypeScript data in the manual — a tenth panel
+  would leave both sentences wrong with everything green.
 
   **Gotchas for whoever is next.** The screenshot script needs `playwright`
   installed by hand (deliberately not in `[dev]` — nothing else wants it and no
