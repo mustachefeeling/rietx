@@ -366,9 +366,16 @@ def _ramp_host():
     return s
 
 
-def _ramp_patterns(temperatures, seed: int = 20260826):
-    """Poisson-sampled patterns from the package's own forward model."""
+def _ramp_patterns(temperatures, seed: int = 20260826, grid=None):
+    """Poisson-sampled patterns from the package's own forward model.
+
+    ``grid`` defaults to the coarse one these tests fit; the runaway
+    reproduction passes the run's own 0.02° grid so its iteration counts are
+    comparable with the measured baselines.
+    """
     import rietx as rx
+
+    grid = RAMP_GRID if grid is None else grid
 
     truth = _ramp_host()
     truth.phases[0].scale.value = 6.0e-5
@@ -382,15 +389,16 @@ def _ramp_patterns(temperatures, seed: int = 20260826):
     for temperature in temperatures:
         truth.phases[0].cell.a.value = _ramp_a(temperature)
         truth.phases[1].scale.value = 4.0e-4 * _ramp_caf2_weight(temperature)
-        y = rx.Refinement(truth, ins).predict(RAMP_GRID)
+        y = rx.Refinement(truth, ins).predict(grid)
         counts = rng.poisson(np.maximum(y, 0.0)).astype(float)
         out.append(rx.PatternData(
-            two_theta=RAMP_GRID.tolist(), intensity=counts.tolist(),
+            two_theta=grid.tolist(), intensity=counts.tolist(),
             sigma=np.sqrt(np.maximum(counts, 1.0)).tolist()))
     return out
 
 
-def _ramp_start(caf2_a: float = RAMP_CAF2_A, bounds=(5.30, 5.60)):
+def _ramp_start(caf2_a: float = RAMP_CAF2_A, bounds=(5.30, 5.60),
+                scale: float = 1.0e-7):
     """The starting model, with the user cell bounds the agent added.
 
     Those bounds are why ``cell_window`` could not save this run: a finite
@@ -400,13 +408,29 @@ def _ramp_start(caf2_a: float = RAMP_CAF2_A, bounds=(5.30, 5.60)):
     """
     s = _ramp_host()
     s.phases[0].scale.value = 3.0e-5
-    s.phases.append(_caf2_phase(1.0e-7, a=caf2_a))
+    s.phases.append(_caf2_phase(scale, a=caf2_a))
     for atom in s.phases[1].atoms:
         atom.biso.vary = False
     if bounds is not None:
         for edge in (s.phases[1].cell.a, s.phases[1].cell.b, s.phases[1].cell.c):
             edge.min, edge.max = bounds
     return s
+
+
+def _ramp_agent_plan():
+    """The four-stage plan the agent's call declared, verbatim.
+
+    ``refit="single"`` collapses it into one stage per pattern, which is what
+    puts the scale and the cell in the same solve.
+    """
+    import rietx as rx
+
+    return rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("cell", ["phases.*.cell.*"]),
+        rx.Stage("profile_w", ["instrument.profile.w"]),
+        rx.Stage("profile_x", ["instrument.profile.x"]),
+    ])
 
 
 def _collapsed_plan():
@@ -579,3 +603,168 @@ def test_a_held_stage_streams_the_hold_without_a_release():
     assert len(starts) == len(ends) == 5
     assert [d["held"] for d in ends[2:]] == [["phases.1.cell.a"]] * 3
     assert all(d["released"] == [] for d in ends)
+
+
+# ----------------------------------------------------------------------
+# the mirror: a phase that looks visible at stage start and collapses
+# ----------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def collapsed_fit():
+    """A sub-onset pattern with CaF₂ seeded the way the agent seeded it.
+
+    ``phase_support`` measures the *modelled* contribution, so a phase seeded
+    at scale 1e-4 is well above the noise at stage start whatever the specimen
+    contains: nothing is held, and the flat direction opens only as the solve
+    drives that scale to nothing.  This is the shape the ramp ran — 68 patterns
+    with CaF₂ re-seeded at 1e-4 for every one of them.
+    """
+    import rietx as rx
+
+    data = _ramp_patterns([300.0])[0]
+    ref = rx.Refinement(_ramp_start(scale=1.0e-4, bounds=None),
+                        _ramp_instrument(), history=False)
+    return ref, ref.fit(data, plan=_collapsed_plan())
+
+
+def test_a_phase_that_collapses_mid_stage_is_held_and_put_back(collapsed_fit):
+    """The hold's mirror, and the half a start-of-stage test cannot see.
+
+    Measured on ``main`` over the ramp's 13 sub-onset patterns, this shape
+    walks the CaF₂ cell to 1.73 Å, 8.99 Å and 20.34 Å with esds of 1e11 to
+    1e24 — and with the start-of-stage hold alone, to −6.49 Å.  The restore is
+    invisible to the data by the very measurement that licences the hold: a
+    phase under 1σ contributes under 1σ wherever its peaks sit, since the peak
+    height is ``scale × |F|² × profile`` and the cell only moves them.
+    """
+    ref, result = collapsed_fit
+    stage = result.stages[0]
+    assert stage.held == ["phases.1.cell.a"]
+    assert stage.released == []
+    assert ref.structure.phases[1].cell.a.value == RAMP_CAF2_A
+    assert "phases.1.cell.a" not in {p.path for p in result.parameters}
+
+
+def test_the_collapse_is_reported_as_the_flat_direction_it_is(collapsed_fit):
+    """``PHASE_UNCONSTRAINED``, naming the stage that held it."""
+    _, result = collapsed_fit
+    fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert len(fired) == 1
+    assert "held for stage all" in fired[0].message
+    assert fired[0].where == ["phases.1.cell.a"]
+
+
+def test_the_host_phase_is_fitted_either_way(collapsed_fit):
+    """The hold costs the phase that *is* there nothing."""
+    ref, result = collapsed_fit
+    assert result.statistics.rwp < 0.06
+    assert ref.structure.phases[0].cell.a.value == pytest.approx(
+        _ramp_a(300.0), rel=2e-4)
+
+
+# ----------------------------------------------------------------------
+# the run that paid for all of this
+# ----------------------------------------------------------------------
+#: the run's own grid, 15-60° at 0.02° — used only by the reproduction below,
+#: so its iteration counts are comparable with the measured baselines
+RAMP_RUN_GRID = np.arange(15.0, 60.0 + 1e-9, 0.02)
+
+#: the wall-clock **runaway guard** for that reproduction.  Not a timer: the
+#: unbounded chain it reproduces was killed after 13 minutes on ``main``
+#: without finishing, so anything of this order means the flat direction is
+#: back, and a machine slow enough to fail it honestly would fail the whole
+#: suite's budgets too (tests/CLAUDE.md § Running).
+RAMP_RUNAWAY_GUARD_S = 60.0
+
+#: iterations the same 13 patterns took on ``main`` **with** the ±2.5 % cell
+#: bounds the agent added after the fact — the bounded baseline this replaces.
+#: Measured 2026-08-27 at 1638; re-measured on this tree's machine at 1342
+#: bounded and 2164 unbounded, which is the honest comparison (the same chain,
+#: the same commit, one flag apart).  The assertion is against the *unbounded*
+#: number, because the point is that no bound is needed.
+RAMP_MAIN_UNBOUNDED_ITERATIONS = 2164
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("held-phase-ramp")
+def test_the_ramp_reproduction_no_longer_runs_away():
+    """The 13 sub-onset patterns, the agent's exact call, no user bounds.
+
+    On ``main`` this chain does not finish in 13 minutes without the bounds,
+    and finishes wrong with them: every CaF₂ cell lands on a bound or halfway
+    to one, with esds of 1e15.  There is no CaF₂ in any of these patterns —
+    the phase appears at 430 °C and the hottest here is 149 °C — so the honest
+    answer for its cell is the 5.4631 Å the model was handed, and that is what
+    every pattern reports.
+
+    Three properties, none of them an Rwp comparison: the chain finishes inside
+    a runaway guard, it costs fewer iterations than the unbounded baseline, and
+    no pattern reports a CaF₂ cell at all.
+    """
+    import time
+
+    import rietx as rx
+
+    temperatures = list(np.linspace(25.0, 720.0, 68)[:13])
+    assert max(temperatures) < RAMP_T_TRANSITION, "these are the sub-onset ones"
+    patterns = _ramp_patterns(temperatures, grid=RAMP_RUN_GRID)
+
+    started = time.perf_counter()
+    series = rx.refine_sequential(
+        patterns, _ramp_start(bounds=None, scale=1.0e-4), _ramp_instrument(),
+        carry=["phases.0.*", "instrument.*"],
+        x=temperatures, x_label="T (C)",
+        labels=[f"{t:.0f}C" for t in temperatures],
+        plan=_ramp_agent_plan(), refit="single")
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < RAMP_RUNAWAY_GUARD_S, f"{elapsed:.1f}s"
+    iterations = sum(e.n_iterations for e in series.entries)
+    assert iterations < RAMP_MAIN_UNBOUNDED_ITERATIONS, iterations
+    for entry in series.entries:
+        paths = {p.path for p in entry.parameters}
+        assert "phases.1.cell.a" not in paths, entry.label
+        assert "PHASE_UNCONSTRAINED" in [d.code for d in entry.diagnostics]
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("held-phase-ramp")
+def test_no_cell_leaves_the_physical_range_in_that_chain():
+    """The failure WP-1110 met twice: cells at ≈39 293 Å and ≈40 000 Å.
+
+    Reduced but not removed by the window, and removed here — the value never
+    moves, so there is nothing to leave the range.  Asserted on the fitted
+    models rather than the entries, because a held parameter is (rightly)
+    absent from the entry's parameter list and the model is where a chain's
+    next warm start would read it from.
+    """
+    from rietx.sequential import SequentialRefinement
+
+    temperatures = list(np.linspace(25.0, 720.0, 68)[:5])
+    runner = SequentialRefinement(_ramp_start(bounds=None, scale=1.0e-4),
+                                  _ramp_instrument(),
+                                  carry=["phases.0.*", "instrument.*"])
+    runner.fit(_ramp_patterns(temperatures, grid=RAMP_RUN_GRID),
+               x=temperatures, labels=[f"{t:.0f}C" for t in temperatures],
+               plan=_ramp_agent_plan(), refit="single")
+    for structure in runner.fitted_structures:
+        assert structure.phases[1].cell.a.value == RAMP_CAF2_A
+        host = structure.phases[0].cell.a.value
+        assert 10.0 < host < 10.5, host
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("qpa-sample1")
+def test_a_supported_trace_phase_is_never_held(sample1_results):
+    """``cell_window``'s own counter-example, one tier up.
+
+    ``cpd-1c`` is 1.36 wt % fluorite by weighing — a trace phase that is
+    genuinely there.  Windowing every phase rather than only the invisible ones
+    cost that fit its iteration budget and 2.7 wt % of its corundum (WP-1110);
+    a hold is stronger than a window, so the same restriction has to hold here,
+    and it is asserted on the record rather than on the outcome: no stage held
+    anything at all.
+    """
+    result = sample1_results["cpd-1c"]
+    for stage in result.stages:
+        assert stage.held == [] and stage.released == [], stage.name
+    assert not [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]

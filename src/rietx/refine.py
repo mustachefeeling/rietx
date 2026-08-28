@@ -178,6 +178,25 @@ def _hold_unsupported_phases(model: CompiledModel,
     return held
 
 
+def _collapsed_phase_paths(model: CompiledModel,
+                           table: ParameterTable) -> list[str]:
+    """Free structural paths of a phase that has fallen below support.
+
+    The hold's mirror, and the case a start-of-stage test cannot see: a phase
+    seeded with a healthy scale is *visible* at stage start — ``phase_support``
+    measures the modelled contribution, and a large scale makes one — so
+    nothing is held, and the flat direction opens up only as the solve drives
+    that scale to nothing.  The cell is then free in a direction the data
+    cannot see, for as many iterations as the budget allows.
+
+    Measured on the ramp's own 13 sub-onset patterns, which is exactly this
+    shape (CaF₂ seeded at 1e-4 for every pattern): cells at 1.7 Å, 8.99 Å and
+    20.3 Å with esds of 1e11 to 1e24, and a `-6.5 Å` once the start-of-stage
+    hold alone was in place.
+    """
+    return _unsupported_phase_paths(model, table)
+
+
 def _released_phases(model: CompiledModel, table: ParameterTable,
                      held: list[str]) -> list[str]:
     """Of ``held``, the paths whose phase has risen above support since.
@@ -1345,54 +1364,75 @@ class Refinement:
         # RefinementPlan.stage_ftols for a plan, the stage's own for the
         # single-stage verb, which has no plan and therefore no notion of last.
         stage_ftol = {} if ftol is None else {"ftol": ftol}
+        # what the stage starts from, kept for the collapse case below
+        start_values = table.decode(table.x0())
         outcome = run_least_squares(model, table, max_iter=stage.max_iter,
                                     events=events, stage=stage.name,
                                     backend=self._backend, solver=self._solver,
                                     cancel=cancel, **stage_ftol)
         table.commit(outcome.theta)
 
-        released: list[str] = []
-        if held:
-            # Did the phase appear while the stage solved?  Its scale stayed
-            # free precisely so it could, and the answer is worth a second
-            # solve *here* rather than a stage later: on a series the pattern
-            # where a phase first appears is the one an operator reads.  Once —
-            # never a third solve, so the cost of a wrong hold is bounded at
-            # one stage's budget.
-            released = _released_phases(model, table, held)
+        # Support is a fact about the values, and a stage moves them.  So the
+        # measurement is taken again at the answer, and it can have moved
+        # either way: a held phase that has *appeared* (its scale stayed free
+        # precisely so it could), or a phase that looked visible at stage start
+        # and **collapsed** while solving.  The second is the case a start-of-
+        # stage test cannot see, and the one the in-situ ramp actually hit: its
+        # CaF₂ was seeded at scale 1e-4, so it began every pattern well above
+        # the noise, and the flat direction opened up only as the solver drove
+        # that scale to nothing.
+        released = _released_phases(model, table, held) if held else []
+        collapsed = _collapsed_phase_paths(model, table)
+        if released or collapsed:
+            if collapsed:
+                # Restore before holding: those values moved in a direction the
+                # data cannot see, and the restore is invisible to the data by
+                # the very measurement that licences the hold — a phase under
+                # 1σ contributes under 1σ wherever its peaks sit, since the
+                # height is scale·|F|²·profile and the cell only moves them.
+                # Without it the stage would freeze the walk it was trying to
+                # prevent (measured on the ramp: cells at 20.3 Å and −6.5 Å).
+                by_path = {e.path: e for e in table.entries}
+                for path in collapsed:
+                    by_path[path].value = start_values[path]
+                table.refresh_ties()  # dependents follow (b←a on a cubic cell)
+                table.set_vary(collapsed, False)
+                held = held + collapsed
             if released:
                 table.set_vary(released, True)
                 held = [p for p in held if p not in set(released)]
-                self._held = list(held)
-                if events is not None:
-                    # The resumed half gets its own ``stage_start``, because an
-                    # ``eval``'s ``values`` are declared to align with
-                    # ``stage_start.free_paths`` and this solve has a longer
-                    # free vector than the first.  Same stage, same index — a
-                    # reader aligns on the *most recent* one, which is what an
-                    # indexing run's revisable ladder already asks of it.
-                    events.emit("stage_start", stage=stage.name,
-                                turn_on=list(stage.turn_on),
-                                freed=list(released),
-                                n_free=len(table.free_paths),
-                                free_paths=list(table.free_paths),
-                                held=list(held), released=list(released),
-                                n_points=len(model.tt),
-                                index=stage_index, n_stages=n_stages)
-                second = run_least_squares(
-                    model, table, max_iter=stage.max_iter, events=events,
-                    stage=stage.name, backend=self._backend,
-                    solver=self._solver, cancel=cancel, **stage_ftol)
-                table.commit(second.theta)
-                # the record is one stage: the second solve's answer, the
-                # first solve's starting cost, and the iterations of both —
-                # the whole point being that the hold cost something and it
-                # must be visible where the budget is read
-                outcome = dataclasses.replace(
-                    second, cost_initial=outcome.cost_initial,
-                    n_iterations=outcome.n_iterations + second.n_iterations,
-                    n_constraint_truncations=(outcome.n_constraint_truncations
-                                              + second.n_constraint_truncations))
+            self._held = list(held)
+            if events is not None:
+                # The resumed half gets its own ``stage_start``, because an
+                # ``eval``'s ``values`` are declared to align with
+                # ``stage_start.free_paths`` and this solve has a different
+                # free vector from the first.  Same stage, same index — a
+                # reader aligns on the *most recent* one, which is what an
+                # indexing run's revisable ladder already asks of it.
+                events.emit("stage_start", stage=stage.name,
+                            turn_on=list(stage.turn_on),
+                            freed=list(released),
+                            n_free=len(table.free_paths),
+                            free_paths=list(table.free_paths),
+                            held=list(held), released=list(released),
+                            n_points=len(model.tt),
+                            index=stage_index, n_stages=n_stages)
+            # Once — never a third solve, whichever way the measurement moved,
+            # so the cost of a wrong hold is bounded at one stage's budget.
+            second = run_least_squares(
+                model, table, max_iter=stage.max_iter, events=events,
+                stage=stage.name, backend=self._backend,
+                solver=self._solver, cancel=cancel, **stage_ftol)
+            table.commit(second.theta)
+            # the record is one stage: the second solve's answer, the first
+            # solve's starting cost, and the iterations of both — the whole
+            # point being that the hold cost something and it must be visible
+            # where the budget is read
+            outcome = dataclasses.replace(
+                second, cost_initial=outcome.cost_initial,
+                n_iterations=outcome.n_iterations + second.n_iterations,
+                n_constraint_truncations=(outcome.n_constraint_truncations
+                                          + second.n_constraint_truncations))
 
         if mode == "lebail":
             model.lebail_update(table.decode(outcome.theta), n_cycles=stage.lebail_cycles)

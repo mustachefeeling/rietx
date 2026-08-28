@@ -86,7 +86,7 @@ is present (that is `SEQUENTIAL_PERSISTENT_FINDING`'s and the agent's).
       is refined in the pattern where it appears, not one later (synthetic: the ramp's
       generator at N = 13 straddling the onset, regenerated in-test from
       `tests/data/cod_1000236.cif`).
-- [ ] The runaway guard test (`slow`): the ramp's 13 sub-onset patterns through the
+- [x] The runaway guard test (`slow`): the ramp's 13 sub-onset patterns through the
       agent's exact call, no user bounds; wall clock under a runaway guard (60 s),
       `n_iterations` against the bounded baseline (1638); and cpd-1c (`cell_window`'s
       docstring case) unchanged: a *supported* phase is never held.
