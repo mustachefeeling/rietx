@@ -24,10 +24,15 @@
    *   one: a PATCH built from the model on screen would silently revert every
    *   field it did not touch (WP-1009's rule, third outing).
    *
-   * Coordinates are never typed as x/y/z.  `x` is an affine tie onto `…dof.k`, so
-   * the editor offers the DOFs the site symmetry allows and a violation is
-   * *unrepresentable* rather than refused — and an atom whose site allows none
-   * has no coordinate control at all, with the reason where the control would be.
+   * Coordinates **are** typed as x/y/z, and the site answers (WP-1215).  `x` is
+   * an affine tie onto `…dof.k`, so what goes over the wire is a displacement:
+   * `POST /api/structure/position` projects the typed position onto the site's
+   * own basis and refuses an unreachable one *naming the nearest it can reach*.
+   * That is a change of shape, not of rule — WP-1014 made a violation
+   * unrepresentable by offering the DOF boxes instead, which is the safe form
+   * and not a readable one, and the refusal is now what carries the same fact.
+   * An atom whose site allows no freedom has read-only cells, with the reason
+   * where the control would be.
    */
   import { ApiError, api } from "../api";
   import Help from "../Help.svelte";
@@ -42,8 +47,10 @@
     instrumentFields,
     newAtom,
     phaseFields,
+    positionEdits,
     splitEdits,
     structureFields,
+    xyzText,
     withAtom,
     withoutAtom,
     type Field,
@@ -66,7 +73,10 @@
     heldGlyph,
     normalize,
     varyEdit,
+    varyEditFor,
     varyOf,
+    varyOfAll,
+    varyStillPending,
     type ParamRow,
   } from "../lib/table";
   import {
@@ -152,8 +162,9 @@
    *
    * The pane is a tab now, so it is routinely rendered into 340-560 px — and
    * three columns there are not a squeeze but a *loss*: the atom table needs
-   * 472 px and side-scrolls the whole column, cell row and headings included,
-   * below it.  Stacked, everything keeps its width and the pane scrolls
+   * `MODEL_MIN.structure` and side-scrolls the whole column, cell row and
+   * headings included, below it.  Stacked, everything keeps its width and the
+   * pane scrolls
    * vertically, which is what a narrow column can actually do.  The threshold
    * is arithmetic over the three floors (`lib/resize.ts`), not a taste. */
   const stacked = $derived(modelStacks(editorsWidth));
@@ -390,8 +401,22 @@
   let phase = $state(0);
   /** typed text for model fields, keyed by the field's path in the model */
   let edits = $state(new Map<string, string>());
-  /** typed text for raw parameter rows (the coordinate DOFs and the ADP patterns) */
+  /** typed text for raw parameter rows (the ADP patterns) */
   let pedits = $state(new Map<string, string>());
+  /** typed coordinates, keyed by the *model* path `phases.i.atoms.j.x|y|z`.
+   *
+   *  Their own buffer rather than `edits`, because they are the one value in
+   *  this panel that is neither a model field nor a parameter row: x is a tie,
+   *  so it has no column of its own to set and no place in a whole-model PATCH
+   *  either — it goes to `POST /api/structure/position`, which solves it back
+   *  onto the DOFs (WP-1215). */
+  let xyzEdits = $state(new Map<string, string>());
+  /** which atoms have their U^ij patterns open, by base path.
+   *
+   *  A disclosure rather than a sub-row on every atom: the sub-rows were what
+   *  made an atom one to three `<tr>`s, and their separator sat on the next
+   *  atom's inputs. */
+  let openAdp = $state(new Set<string>());
   /** the refine flags this pane has toggled, keyed by **parameter** path.
    *
    *  Keyed by the parameter path rather than the model path because that is
@@ -436,6 +461,9 @@
     : null);
   /** the phase's own numbers: the scale and the four sample-broadening terms */
   const phFields = $derived(structure && !noPhases ? phaseFields(phase) : []);
+  /** the typed coordinates, gathered per atom into whole positions */
+  const posDelta = $derived(structure ? positionEdits(structure, phase, xyzEdits)
+    : { moves: [], invalid: [], touched: 0 });
   const warning = $derived(instrument ? axialWarning(instrument) : "");
   const byPath = $derived(new Map(rows.map((r) => [r.path, r])));
   /** the toggles that still say something, against the rows as they now stand.
@@ -447,10 +475,8 @@
    *  here: without it a box ticked before someone else freed the same path
    *  stayed pending and Apply sent a `set_vary` whose hits are empty, which is
    *  the node-saying-nothing `varyEdit` exists to prevent (WP-1214). */
-  const varyPending = $derived(new Map([...varyEdits].filter(([path, flag]) => {
-    const row = byPath.get(path);
-    return row !== undefined && row.vary !== flag;
-  })));
+  const varyPending = $derived(new Map([...varyEdits].filter(
+    ([key, flag]) => varyStillPending(rows, key, flag))));
   const pending = $derived(editState(rows, pedits, varyPending.size));
   /** the instrument column's own unapplied *values* — what `Save profile…`
    *  waits on.  Not `dirty`, which counts a renamed atom too, and not the
@@ -458,9 +484,9 @@
    *  holds every stored parameter). */
   const insPending = $derived((insDelta?.touched ?? 0) > 0);
   const dirty = $derived((insDelta?.touched ?? 0) + (strDelta?.touched ?? 0)
-    + pending.touched);
+    + pending.touched + posDelta.touched);
   const invalid = $derived([...(insDelta?.invalid ?? []), ...(strDelta?.invalid ?? []),
-                            ...pending.invalid]);
+                            ...pending.invalid, ...posDelta.invalid]);
   const phaseSym = $derived<PhaseSymmetry | null>(symmetry[phase] ?? null);
   const symLine = $derived(symmetryLine(phaseSym));
   const symDirty = $derived(symbolChanged(symbolDraft ?? "",
@@ -552,9 +578,20 @@
     pedits = new Map(pedits).set(path, text);
   }
 
+  function typeCoord(path: string, text: string) {
+    xyzEdits = new Map(xyzEdits).set(path, text);
+  }
+
+  function toggleAdp(base: string) {
+    const next = new Set(openAdp);
+    if (!next.delete(base)) next.add(base);
+    openAdp = next;
+  }
+
   function revert() {
     edits = new Map();
     pedits = new Map();
+    xyzEdits = new Map();
     varyEdits = new Map();
     error = "";
     note = "";
@@ -563,6 +600,16 @@
   /** Free or hold one row, pending Apply. */
   function toggleVary(row: ParamRow, checked: boolean) {
     varyEdits = varyEdit(varyEdits, row, checked);
+  }
+
+  /** …and one *glob*, for a group that is freed together (WP-1215).
+   *
+   *  An atom's coordinate DOFs are the only such group here: `set_vary` is told
+   *  `phases.i.atoms.j.dof.*` and records one node, which is both what the
+   *  parameter table does anyway ("per-axis intent does not map onto rows such
+   *  as [1,1,0]") and the glob the structural plans carry. */
+  function toggleVaryGlob(glob: string, checked: boolean) {
+    varyEdits = varyEditFor(varyEdits, rows, glob, checked);
   }
 
   /** Send the delta: values through the parameter table, shape through the model.
@@ -594,6 +641,18 @@
           say(`ref.set_vary(${JSON.stringify(path)}, ${flag ? "True" : "False"})`);
         }
         if (varyPending.size) moves.push(`${varyPending.size} refine flag(s)`);
+      }
+      // Positions next, and before the model patches for the reason the params
+      // PATCH is: a whole-model PATCH carries the x, y, z of the model it was
+      // built from, so a coordinate moved after that read would be reverted by
+      // it.  One route call per atom, because the projection is per site.
+      for (const move of posDelta.moves) {
+        await api.position(move.atom, move.xyz);
+        say(`# ${move.atom} → (${move.xyz.join(", ")})`
+          + `  ref.set_values({…dof…})`);
+      }
+      if (posDelta.moves.length) {
+        moves.push(`${posDelta.moves.length} position(s)`);
       }
       if (strDelta?.fields.length) {
         const fresh = (await api.structure()).structure;
@@ -1407,21 +1466,27 @@
         </div>
 
         <h3>Atoms <span class="muted">{atoms.length}</span></h3>
-        <!-- the table scrolls, not the column: its `min-content` is 448 px
-             (WP-1034 task 1) and a column narrower than that used to take the
-             cell row and the headings sideways with it -->
+        <!-- One row per atom (WP-1215).  The table scrolls, not the column: its
+             `min-content` is MODEL_MIN.structure (`lib/resize.ts`, measured) and
+             a column narrower than that used to take the cell row and the
+             headings sideways with it. -->
         <div class="tablewrap">
         <table class="atoms">
           <thead>
-            <tr><th>label</th><th>species</th>
-              <th><Help for="parameters:phases.*.atoms.*.dof.*">x y z</Help></th>
+            <tr><th>label</th><th>species</th><th>site</th>
+              <th>x</th><th>y</th><th>z</th>
               <th><Help for="parameters:phases.*.atoms.*.occ">occ</Help></th>
               <th><Help for="parameters:phases.*.atoms.*.biso">Biso</Help></th>
               <th><Help for="parameters:phases.*.atoms.*.adp.*">aniso</Help></th>
+              <th><Help for="parameters:phases.*.atoms.*.dof.*">vary</Help></th>
               <th></th></tr>
           </thead>
           <tbody>
             {#each atoms as row (row.base)}
+              {@const moves = (row.site?.dof_directions ?? [])
+                .map((d) => `[${d.join(" ")}]`).join(", ")}
+              {@const coordTitle = row.frozen
+                || (moves ? `moves along ${moves}` : "")}
               <tr>
                 <td><input class="mono narrow" data-field="{row.base}.label"
                   value={text(structure,
@@ -1433,13 +1498,29 @@
                   { path: `${row.base}.species`, label: "species", kind: "text" }, "structure")}
                   oninput={(e) => type(`${row.base}.species`,
                     (e.currentTarget as HTMLInputElement).value)} /></td>
-                <td class="mono xyz" title={why(`${row.base}.x`)
-                  || `${row.xyz.join(", ")} — ` + (row.frozen || "moved by the DOFs below")}>
-                  {row.xyz.map((v) => v.toFixed(4)).join(" ")}
-                  {#if wyckoffLabel(letters, row.base)}
-                    <span class="wyckoff">{wyckoffLabel(letters, row.base)}</span>
-                  {/if}
-                </td>
+                <!-- the Wyckoff letter and the oriented site symbol, fetched by
+                     the panel rather than by a button (WP-1215) -->
+                <td class="site mono" title={why(`${row.base}.x`) || coordTitle}
+                  >{wyckoffLabel(letters, row.base) || "—"}</td>
+                <!-- x, y, z: typed, and solved back onto the site's DOFs on
+                     Apply.  Read-only where the site allows nothing to move —
+                     there is no control to grey out, so there is none. -->
+                {#each ["x", "y", "z"] as axis (axis)}
+                  {@const path = `${row.base}.${axis}`}
+                  {@const value = row.xyz["xyz".indexOf(axis)]}
+                  <td class="coord">
+                    {#if row.frozen}
+                      <span class="mono fixed" title={row.frozen}
+                        >{xyzText(value)}</span>
+                    {:else}
+                      <input class="mono narrow" data-coord={path}
+                        title={coordTitle}
+                        value={xyzEdits.get(path) ?? xyzText(value)}
+                        oninput={(e) => typeCoord(path,
+                          (e.currentTarget as HTMLInputElement).value)} />
+                    {/if}
+                  </td>
+                {/each}
                 {#each [`${row.base}.occ`, `${row.base}.biso`] as path (path)}
                   {@const prow = byPath.get(path)}
                   {@const cell = { path, label: path, kind: "number" } as Field}
@@ -1462,41 +1543,51 @@
                      named by `data-field`: this column is one of several
                      checkboxes in the row now, and "the first one in the table"
                      stopped being an address the day the refine flags arrived. -->
-                <td><input type="checkbox" data-aniso={row.base}
-                  checked={row.site?.aniso ?? false}
-                  disabled={busy}
-                  onchange={(e) => toggleAniso(row.base,
-                    (e.currentTarget as HTMLInputElement).checked)} /></td>
+                <td class="anisocell">
+                  <span class="valrow">
+                    <input type="checkbox" data-aniso={row.base}
+                      checked={row.site?.aniso ?? false}
+                      disabled={busy}
+                      aria-label="anisotropic ADPs for {row.base}"
+                      onchange={(e) => toggleAniso(row.base,
+                        (e.currentTarget as HTMLInputElement).checked)} />
+                    {#if row.adps.length}
+                      <button class="ghost" data-adp={row.base}
+                        aria-expanded={openAdp.has(row.base)}
+                        title="the U^ij patterns this site symmetry allows"
+                        onclick={() => toggleAdp(row.base)}
+                        >{openAdp.has(row.base) ? "▾" : "▸"}</button>
+                    {/if}
+                  </span>
+                </td>
+                <!-- the position's refine flag, and there is one rather than
+                     three: the site's DOFs are freed together, so the box is
+                     about the glob `…dof.*` (WP-1215) -->
+                <td class="varycell">
+                  {#if row.dofs.length}
+                    {@const glob = `${row.base}.dof.*`}
+                    {@const state = varyOfAll(rows, varyEdits, glob)}
+                    <input type="checkbox" class="vary" data-vary={glob}
+                      checked={state === true}
+                      indeterminate={state === null}
+                      disabled={busy}
+                      aria-label="refine the position of {row.base}"
+                      onchange={(e) => toggleVaryGlob(glob,
+                        (e.currentTarget as HTMLInputElement).checked)} />
+                  {:else}
+                    {@render varyBox(`${row.base}.x`)}
+                  {/if}
+                </td>
                 <td><button class="ghost" disabled={busy}
                   title="remove this atom" onclick={() => removeAtom(row.index)}>×</button></td>
               </tr>
-              {#if row.frozen}
-                <tr class="sub"><td colspan="7" class="muted">{row.frozen}</td></tr>
-              {:else if row.dofs.length}
-                <tr class="sub"><td colspan="7">
-                  <span class="sublabel">moves along</span>
+              {#if row.adps.length && openAdp.has(row.base)}
+                <tr class="adprow"><td colspan="11">
+                  <span class="sublabel">U<sup>ij</sup> patterns</span>
                   <!-- a grid, not a wrapping row: a six-component pattern and a
                        one-component one are different widths, and letting them
                        find their own put the brackets and the boxes on
                        different rhythms -->
-                  <div class="dofs">
-                    {#each row.dofs as dof, k (dof.path)}
-                      <label class="dof mono" title={dof.path}>
-                        <span class="pattern">[{(row.site?.dof_directions?.[k] ?? []).join(" ")}]</span>
-                        <input class="mono narrow" data-field={dof.path}
-                          value={pedits.get(dof.path)
-                          ?? formatValue(dof.value, dof.esd)}
-                          oninput={(e) => typeParam(dof.path,
-                            (e.currentTarget as HTMLInputElement).value)} />
-                        {@render varyBox(dof.path)}
-                      </label>
-                    {/each}
-                  </div>
-                </td></tr>
-              {/if}
-              {#if row.adps.length}
-                <tr class="sub"><td colspan="7">
-                  <span class="sublabel">U<sup>ij</sup> patterns</span>
                   <div class="dofs wide-patterns">
                     {#each row.adps as adp, k (adp.path)}
                       <label class="dof mono" title={adp.path}>
@@ -1911,8 +2002,14 @@
     position: relative;
   }
 
+  /* the same `MODEL_MIN.structure` the stacking threshold is arithmetic over,
+     as the column's preferred width.  Found stale in a browser (WP-1215): this
+     is the **third** place the number is written — the table's `min-width`, this
+     basis, and `lib/resize.ts` — and only the third had a test, so at exactly
+     the stacking threshold the column came out 505 px and side-scrolled a table
+     the threshold exists to give room to. */
   .column.structure {
-    flex-basis: 472px;
+    flex-basis: 666px;
   }
 
   /* only where no splitter sits between them — the grip carries the rule
@@ -2062,8 +2159,13 @@
   table.atoms {
     width: 100%;
     /* its own floor, so the wrapper scrolls it instead of the browser shrinking
-       eight columns into an unreadable smear (measured: 448 px on NAC) */
-    min-width: 448px;
+       eleven columns into an unreadable smear.  **Measured** (WP-1215) on the
+       fluorapatite example, in the widest state it reaches: 642 px with one
+       anisotropic atom, 610 without (599 / 567 on NAC).  `lib/resize.ts` adds
+       the column's own padding to it, and states the same number for the same
+       reason it always has — one is a CSS floor and the other is arithmetic,
+       and neither can read the other. */
+    min-width: 642px;
     border-collapse: collapse;
     font-size: var(--text-sm);
   }
@@ -2091,18 +2193,36 @@
     min-width: 44px;
   }
 
-  tr.sub td {
+  /* The `tr.sub td` separator went with the sub-rows (WP-1215): it was the last
+     sub-row's bottom edge, so it sat directly on the next atom's inputs. The
+     ADP disclosure is opened one atom at a time and needs no rule to be found. */
+  tr.adprow td {
     padding-bottom: 4px;
-    border-bottom: 1px solid var(--line);
   }
 
-  .xyz {
+  /* the Wyckoff letter: a fact, not a control, so it reads back rather than
+     competing with the ten cells that are */
+  .site {
     opacity: 0.7;
     white-space: nowrap;
+  }
+
+  /* three coordinate cells that have to line up down the column, and a number
+     whose digits move under the cursor is the one thing a table cannot do */
+  td.coord input,
+  td.coord .fixed {
     font-variant-numeric: tabular-nums;
   }
 
-  /* the sub-rows' captions in the same register as the table's own headers —
+  /* the checkbox and its disclosure, and the position's one flag: both are the
+     row's narrowest cells, so they do not take width from the numbers */
+  td.anisocell,
+  td.varycell {
+    white-space: nowrap;
+    width: 1%;
+  }
+
+  /* the disclosure's captions in the same register as the table's own headers —
      they used to be a plain muted span against uppercase tracked `th`s */
   .sublabel {
     display: block;
@@ -2119,15 +2239,22 @@
     letter-spacing: 0;
   }
 
+  /* `min(…, 100%)` rather than a bare track floor, and it is not cosmetic
+     (WP-1215): this grid now lives in a `colspan` cell, and a track floor is
+     part of the cell's min-content, so four 210 px patterns made the *whole
+     atom table* 840 px wide the moment a disclosure was opened — scrolling
+     label, species and site off the left edge of a table nobody had resized.
+     `min()` lets the tracks fall below their preferred width when the container
+     is narrower, which is the only thing that keeps the row a row. */
   .dofs {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr));
     gap: 2px 8px;
   }
 
   /* six components rather than three, so the bracket needs the room */
   .dofs.wide-patterns {
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr));
   }
 
   label.dof {
@@ -2142,10 +2269,19 @@
     color: var(--muted);
   }
 
-  .dof input {
+  /* the *value*, and only it.  WP-1214 put a refine flag inside this label and
+     the rule aimed at the box reached the checkbox beside it — the same trap
+     `.cellrow input { width: 100% }` sprang on the esd, drawing it at zero
+     width.  Here it drew the flag as a squashed circle instead, which reads as
+     a control that half-rendered rather than as one that is wrong. */
+  .dof input:not(.vary) {
     flex: 1 1 auto;
     width: auto;
     min-width: 0;
+  }
+
+  .dof input.vary {
+    flex: 0 0 auto;
   }
 
   .add {

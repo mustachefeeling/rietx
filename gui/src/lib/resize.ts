@@ -114,31 +114,63 @@ export function clampSize(value: number, min: number, keep: number, available: n
 /**
  * What each of the model pane's three columns needs, in px.
  *
- * `structure` is **measured**, not chosen (WP-1034 task 1): the atom table's
- * `min-content` on the NAC project — six atoms, four species, an aniso tensor on
- * every site — is 448 px, and the column adds 24 px of padding. Below 472 the
- * table cannot show its eight columns at all. `form` and `view` are
- * `Model.svelte`'s own `COL_MIN` and `VIEW_KEEP`, restated here so the threshold
- * below is arithmetic rather than a number somebody liked.
+ * `structure` is **measured**, not chosen (WP-1034 task 1, re-measured WP-1215
+ * when the atom row went from seven columns to eleven): the atom table's
+ * `min-content` is **642 px** on the fluorapatite example, and the column adds
+ * 24 px of padding. Below 666 the table cannot show its eleven columns at all.
+ *
+ * Measured in the widest state the table reaches, which is not the state it
+ * opens in: 610 px plain, 642 with one atom anisotropic — the disclosure button
+ * appears (+10) and `biso` gives its checkbox up for the locked mark (+23).
+ * Opening the disclosure costs nothing further, and that is a fix rather than a
+ * fact: a `colspan` cell's grid **is** part of the table's min-content, so four
+ * 210 px U^ij patterns made the whole table 840 px until the track floor became
+ * `min(210px, 100%)` (`Model.svelte`).
+ *
+ * The example that sets the number moved too. WP-1034 measured NAC because NAC
+ * was then the widest thing this table had to draw; FAP is wider now for a
+ * reason the column count does not predict — three coordinate cells at 65 px
+ * against 50, because a minus sign is width. So both are measured (NAC: 567 /
+ * 599) rather than one being scaled from the other.
+ *
+ * `form` and `view` are `Model.svelte`'s own `COL_MIN` and `VIEW_KEEP`, restated
+ * here so the threshold below is arithmetic rather than a number somebody liked.
  */
-export const MODEL_MIN = { structure: 472, form: 200, view: 260 } as const;
+export const MODEL_MIN = { structure: 666, form: 200, view: 260 } as const;
+
+/**
+ * The width an inline splitter grip takes out of the row, in px.
+ *
+ * `Splitter.svelte`'s `flex: 0 0 5px`. It is here because the stacking threshold
+ * is the *sum of what the row must hold*, and two grips sit inside that row
+ * between the three columns — left out, the arithmetic said 1126 and the
+ * structure column measured 636 of the 642 its table needs, side-scrolling by
+ * six pixels at exactly the width the threshold exists to protect (WP-1215; the
+ * gap was there at 932 too and no one had measured it).
+ */
+export const GRIP = 5;
 
 /**
  * Does the model pane have to become one stacked column?
  *
  * Three columns side by side need the structure column's floor plus a form
- * column plus what the 3D view keeps — 932 px. Below that something is being
- * squeezed under its minimum, and the thing that loses is the atom table, which
- * side-scrolls *the whole column* and takes the cell row and the headings with
- * it (measured at 860 px: `10.25710.25790` where a, b, c should be).
+ * column plus what the 3D view keeps **plus the two grips between them** — 1136
+ * px since WP-1215, 932 before it. Below that something is being squeezed under
+ * its minimum, and the thing that loses is the atom table, which side-scrolls
+ * *the whole column* and takes the cell row and the headings with it (measured
+ * at 860 px: `10.25710.25790` where a, b, c should be).
  *
  * Zero means nothing is measurable (jsdom, or before the first layout), and
  * then the flex defaults hold — the same fallback `clampSize` and `fitColumns`
  * make.
  */
 export function modelStacks(available: number): boolean {
-  return available > 0
-    && available < MODEL_MIN.structure + MODEL_MIN.form + MODEL_MIN.view;
+  return available > 0 && available < modelThreshold();
+}
+
+/** The width three columns need, grips included — the sum, in one place. */
+export function modelThreshold(): number {
+  return MODEL_MIN.structure + MODEL_MIN.form + MODEL_MIN.view + 2 * GRIP;
 }
 
 /**

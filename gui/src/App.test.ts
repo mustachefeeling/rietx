@@ -2500,6 +2500,18 @@ const MODEL_PARAMS = {
   parameters: [
     ...PARAMS.parameters,
     param("phases.0.atoms.1.dof.0", { value: 0 }),
+    // the coordinates themselves are rows too, and held ones: La's are locked
+    // (a fully fixed site) and B's `x` is a tie onto its DOF.  They are here
+    // because that is what the server sends — `_collect_atom_coords` adds x, y
+    // and z whatever the site does — and because the `vary` cell of a fully
+    // fixed atom is drawn from `…x` (WP-1215).
+    param("phases.0.atoms.0.x", { value: 0, locked: true }),
+    param("phases.0.atoms.0.y", { value: 0, locked: true }),
+    param("phases.0.atoms.0.z", { value: 0, locked: true }),
+    param("phases.0.atoms.1.x", { value: 0.1993,
+      tie: { terms: [["phases.0.atoms.1.dof.0", 1]], const: 0.1993, user: false } }),
+    param("phases.0.atoms.1.y", { value: 0.5, locked: true }),
+    param("phases.0.atoms.1.z", { value: 0.5, locked: true }),
     param("phases.0.atoms.0.occ", { value: 1 }),
     param("phases.0.atoms.1.occ", { value: 1 }),
     param("phases.0.atoms.1.biso", { value: 0.4 }),
@@ -2523,15 +2535,125 @@ describe("the model editor", () => {
     return host.querySelector<HTMLInputElement>(`[data-field="${path}"]`)!;
   }
 
+  /** A coordinate cell. Its own address because a coordinate is neither a model
+   *  field nor a parameter row: it goes to `/api/structure/position` (WP-1215). */
+  function coord(path: string): HTMLInputElement {
+    return host.querySelector<HTMLInputElement>(`[data-coord="${path}"]`)!;
+  }
+
   it("gives a fully fixed special position no coordinate control, with the reason", async () => {
+    // WP-1215 moved the reason from a sub-row under the atom to the title of the
+    // cells that would have been the control. The claim is the same one: an atom
+    // whose site allows nothing to move has nothing to grey out, so it has no
+    // input at all rather than a disabled one.
     await openModel();
     expect(field("phases.0.name").value).toBe("LaB6");
-    expect(host.textContent).toContain("fully fixed special position");
-    expect(host.textContent).toContain("48");
-    // …while the 6f site gets the one DOF its symmetry allows, and says which way
-    expect(field("phases.0.atoms.1.dof.0")).toBeTruthy();
-    expect(host.textContent).toContain("[1 0 0]");
-    expect(field("phases.0.atoms.0.dof.0")).toBeFalsy();
+    const fixed = [...host.querySelectorAll<HTMLElement>(
+      "table.atoms tbody tr:first-child td.coord .fixed")];
+    expect(fixed).toHaveLength(3);
+    expect(fixed[0].title).toContain("fully fixed special position");
+    expect(fixed[0].title).toContain("48");
+    expect(coord("phases.0.atoms.0.x")).toBeFalsy();
+
+    // …while the 6f site gets three typed cells, and its title says which way
+    // the one DOF its symmetry allows lets it go
+    expect(coord("phases.0.atoms.1.x")).toBeTruthy();
+    expect(coord("phases.0.atoms.1.y")).toBeTruthy();
+    expect(coord("phases.0.atoms.1.x").title).toContain("moves along [1 0 0]");
+    // the DOF boxes the sub-row used to carry are gone with it
+    expect(field("phases.0.atoms.1.dof.0")).toBeFalsy();
+  });
+
+  it("sends a typed coordinate to the position route, not to the model", async () => {
+    // WP-1215.  The three claims: it goes to its own route (x is a tie, so it is
+    // in no whole-model PATCH and has no column of its own to set), the whole
+    // position goes even though one axis was typed, and it goes *before* any
+    // model patch — a whole-model PATCH carries the x, y, z it was built from.
+    const stub = await openModel({
+      "/api/structure/position": () => ({ body: { node_id: "n0009", changed: true,
+        nearest: [0.21, 0.5, 0.5], structure: STRUCTURE, sites: SITES,
+        symmetry: SYMMETRY, causes: CAUSES } }),
+    });
+    expect(coord("phases.0.atoms.1.x").value).toBe("0.19930");
+
+    coord("phases.0.atoms.1.x").value = "0.21";
+    coord("phases.0.atoms.1.x").dispatchEvent(new Event("input", { bubbles: true }));
+    field("phases.0.atoms.1.label").value = "B1";
+    field("phases.0.atoms.1.label").dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    button("Apply")!.click();
+    await flush();
+
+    const posted = stub.calls.filter((c) => c.path === "/api/structure/position");
+    expect(posted).toHaveLength(1);
+    expect(posted[0].body).toEqual({ atom: "phases.0.atoms.1",
+                                     xyz: [0.21, 0.5, 0.5] });
+    // the label went as a whole model, and after the position
+    const patched = stub.calls.findIndex(
+      (c) => c.method === "PATCH" && c.path === "/api/structure");
+    expect(patched).toBeGreaterThan(stub.calls.indexOf(posted[0]));
+    // …and a coordinate is not a `set_values` value: it has no column in theta
+    const params = stub.calls.find(
+      (c) => c.method === "PATCH" && c.path === "/api/params");
+    expect(params).toBeUndefined();
+  });
+
+  it("gives the position one refine flag, over the glob its DOFs share", async () => {
+    // there is one flag rather than three because the site's DOFs are freed
+    // together — `ParameterTable`: "per-axis intent does not map onto rows such
+    // as [1,1,0]" — so the box is about `…dof.*` and records one node
+    const stub = await openModel();
+    const box = host.querySelector<HTMLInputElement>(
+      '[data-vary="phases.0.atoms.1.dof.*"]')!;
+    expect(box).toBeTruthy();
+    expect(box.checked).toBe(false);
+    // and the fully fixed atom gets the mark rather than a box
+    expect(host.querySelector('[data-vary="phases.0.atoms.0.dof.*"]')).toBeNull();
+    expect(host.querySelector<HTMLElement>(
+      '[data-vary="phases.0.atoms.0.x"]')!.textContent).toBe("🔒");
+
+    box.checked = true;
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+    button("Apply")!.click();
+    await flush();
+
+    const patch = stub.calls.find(
+      (c) => c.method === "PATCH" && c.path === "/api/params")!;
+    expect(patch.body).toEqual({ values: {},
+                                 vary: { "phases.0.atoms.1.dof.*": true } });
+  });
+
+  it("keeps the U^ij patterns behind a per-atom disclosure", async () => {
+    // the sub-rows are what made an atom one to three `<tr>`s, and the separator
+    // under the last of them sat on the next atom's inputs
+    const aniso = { ...STRUCTURE, phases: [{ ...STRUCTURE.phases[0],
+      atoms: [STRUCTURE.phases[0].atoms[0],
+              { ...STRUCTURE.phases[0].atoms[1],
+                aniso: { u11: 0.005, u22: 0.005, u33: 0.005,
+                         u12: 0, u13: 0, u23: 0 } }] }] };
+    const sites = [SITES[0], { ...SITES[1], aniso: true,
+      adp_paths: ["phases.0.atoms.1.adp.0", "phases.0.atoms.1.adp.1"],
+      adp_patterns: [[1, 0, 0, 0, 0, 0], [0, 1, 1, 0, 0, 0]] }];
+    await openModel({
+      "/api/structure": () => ({ body: { structure: aniso, sites,
+                                         symmetry: SYMMETRY, causes: CAUSES } }),
+      "/api/params": () => ({ body: { ...MODEL_PARAMS, parameters: [
+        ...MODEL_PARAMS.parameters,
+        param("phases.0.atoms.1.adp.0", { value: 0.005 }),
+        param("phases.0.atoms.1.adp.1", { value: 0.005 }) ] } }),
+    });
+
+    // one row per atom until the disclosure is opened
+    const bodyRows = () => host.querySelectorAll("table.atoms tbody tr").length;
+    expect(bodyRows()).toBe(2);
+    expect(field("phases.0.atoms.1.adp.0")).toBeFalsy();
+
+    host.querySelector<HTMLButtonElement>('[data-adp="phases.0.atoms.1"]')!.click();
+    await flush();
+    expect(bodyRows()).toBe(3);
+    expect(field("phases.0.atoms.1.adp.0")).toBeTruthy();
+    expect(host.textContent).toContain("[0 1 1 0 0 0]");
   });
 
   it("puts the atom table in a scroller of its own", async () => {
@@ -2777,7 +2899,7 @@ describe("the model editor", () => {
     expect(host.textContent).toContain("6f · 4m.m");
     // the sentences it brought back are read before the free tier's counting
     // ones - held in their own field, since the two fetches are concurrent
-    const site = host.querySelector<HTMLElement>("table.atoms td.xyz")!;
+    const site = host.querySelector<HTMLElement>("table.atoms td.site")!;
     expect(site.title).toContain("Wyckoff 1a, site symmetry m-3m");
   });
 

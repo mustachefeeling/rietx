@@ -435,6 +435,87 @@ export function atomRows(structure: any, sites: readonly Site[],
   });
 }
 
+/** How a coordinate is drawn, and therefore how a retyped one is recognised. */
+export const XYZ_PLACES = 5;
+
+/** The text an unedited coordinate cell shows. */
+export function xyzText(value: number): string {
+  return num(value).toFixed(XYZ_PLACES);
+}
+
+/** One atom asked to move, in the shape `POST /api/structure/position` takes. */
+export interface PositionMove {
+  atom: string;
+  xyz: number[];
+}
+
+export interface PositionDelta {
+  moves: PositionMove[];
+  invalid: Array<{ path: string; why: string }>;
+  /** how many cells the user has touched, invalid and no-op ones included */
+  touched: number;
+}
+
+/**
+ * The typed coordinates, gathered per atom into moves.
+ *
+ * Per atom rather than per cell because that is what the route takes, and it
+ * takes a whole position because the projection is a whole position: a site with
+ * a `[1 1 0]` direction cannot answer "what should x be" without y.  An axis the
+ * user did not touch therefore contributes the value it already has, which is
+ * also what makes typing one number of three a legal edit.
+ *
+ * Three things it deliberately does **not** do.  It does not decide whether the
+ * site can reach the position — that is the server's projection, and a second
+ * copy of the DOF basis here is the trap `symbolChanged` names.  It does not
+ * skip a fully fixed atom: the cells are read-only, so nothing can be typed into
+ * one, and skipping it here would be a rule with no way to fail.  And it
+ * compares against **what the cell shows**, like `splitEdits`, so a coordinate
+ * retyped to the four decimals it was displaying at is not a move — otherwise
+ * every rounded display would send a tiny one on Apply.
+ */
+export function positionEdits(structure: any, phase: number,
+                              edits: ReadonlyMap<string, string>): PositionDelta {
+  const delta: PositionDelta = { moves: [], invalid: [], touched: 0 };
+  const atoms = structure?.phases?.[phase]?.atoms ?? [];
+  const byAtom = new Map<number, Map<string, string>>();
+  for (const [path, text] of edits) {
+    const match = /^phases\.(\d+)\.atoms\.(\d+)\.([xyz])$/.exec(path);
+    if (!match || Number(match[1]) !== phase) continue;
+    const index = Number(match[2]);
+    if (!atoms[index]) continue;
+    if (!byAtom.has(index)) byAtom.set(index, new Map());
+    byAtom.get(index)!.set(match[3], text);
+  }
+  for (const [index, typed] of [...byAtom].sort((a, b) => a[0] - b[0])) {
+    const atom = atoms[index];
+    const base = `phases.${phase}.atoms.${index}`;
+    const xyz: number[] = [];
+    let bad = false;
+    let moved = false;
+    for (const axis of ["x", "y", "z"] as const) {
+      const current = num(atom[axis]?.value);
+      const text = typed.get(axis);
+      if (text === undefined) {
+        xyz.push(current);
+        continue;
+      }
+      delta.touched += 1;
+      const value = Number(text.trim());
+      if (text.trim() === "" || !Number.isFinite(value)) {
+        delta.invalid.push({ path: `${base}.${axis}`,
+                             why: "a coordinate is a number" });
+        bad = true;
+        continue;
+      }
+      xyz.push(value);
+      if (text.trim() !== xyzText(current)) moved = true;
+    }
+    if (!bad && moved) delta.moves.push({ atom: base, xyz });
+  }
+  return delta;
+}
+
 /** A new atom at the origin, in the shape `Structure` validates.
  *
  * Everything but the position is a default the schema would have supplied; the

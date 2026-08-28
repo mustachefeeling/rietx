@@ -126,10 +126,14 @@ Carried in from **WP-1201** (2026-08-25, shipped):
       itself rather than a digest of it — a content hash with the collisions
       taken out. Measured: cold 9.7-12.2 ms for 2-6 atoms (2.0-5.5 ms an atom,
       inside WP-1035's 1.8-8.7), warm 1-3 us.*
-- [ ] The table: one row per atom, the columns above, the ADP disclosure;
+- [x] The table: one row per atom, the columns above, the ADP disclosure;
       `modelStacks` floor re-measured; `model.test.ts`.
-- [ ] Browser pass on NAC (special positions) and the corundum example;
-      screenshot at the floor width; dist.
+- [x] Browser pass on NAC (special positions) and the corundum example;
+      screenshot at the floor width; dist. *The second project is
+      **fluorapatite**, not corundum: corundum is a round-robin `.prn` and its
+      data fence keeps it out of the wheel (WP-1204), so it is not an example
+      project and cannot be opened. FAP is the better second case anyway —
+      seven sites, four Wyckoff letters, and it is what sets the floor.*
 
 ## Acceptance
 

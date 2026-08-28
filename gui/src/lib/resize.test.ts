@@ -7,8 +7,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { MODEL_MIN, SERIES_MIN, axisOf, clampSize, coalesce, dragged, fitColumns,
-         modelStacks, seriesCompact } from "./resize";
+import { GRIP, MODEL_MIN, SERIES_MIN, axisOf, clampSize, coalesce, dragged,
+         fitColumns, modelStacks, modelThreshold, seriesCompact } from "./resize";
 
 describe("which coordinate a grip reads", () => {
   it("is the one its pane grows along", () => {
@@ -162,12 +162,25 @@ describe("coalescing the work a drag asks for sixty times", () => {
 
 describe("when the model pane becomes one stacked column", () => {
   it("is decided by the three floors, not by a round number", () => {
-    // WP-1034 task 1: the atom table's min-content is 448 px on the NAC project
-    // and the column adds 24 px of padding, so `structure` is a measurement.
-    const threshold = MODEL_MIN.structure + MODEL_MIN.form + MODEL_MIN.view;
-    expect(threshold).toBe(932);
-    expect(modelStacks(threshold - 1)).toBe(true);
-    expect(modelStacks(threshold)).toBe(false);
+    // WP-1034 task 1, re-measured WP-1215 when the atom row went from seven
+    // columns to eleven: the table's min-content is 642 px on the fluorapatite
+    // example, in the widest state it reaches (one atom anisotropic), and the
+    // column adds 24 px of padding — so `structure` is a measurement and this
+    // number moves when the row does.
+    expect(modelThreshold()).toBe(1136);
+    expect(modelStacks(modelThreshold() - 1)).toBe(true);
+    expect(modelStacks(modelThreshold())).toBe(false);
+  });
+
+  it("counts the grips, because they are inside the row it is measuring", () => {
+    // found in a browser (WP-1215): the three floors alone came to 1126 and the
+    // structure column measured 636 of the 642 its table needs, side-scrolling
+    // at exactly the width the threshold exists to protect. The gap was there
+    // at 932 too; nobody had put a ruler on it.
+    expect(modelThreshold() - 2 * GRIP)
+      .toBe(MODEL_MIN.structure + MODEL_MIN.form + MODEL_MIN.view);
+    expect(modelStacks(MODEL_MIN.structure + MODEL_MIN.form + MODEL_MIN.view))
+      .toBe(true);
   });
 
   it("stacks at every sidebar width the shell can produce", () => {

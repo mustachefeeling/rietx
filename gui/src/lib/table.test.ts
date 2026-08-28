@@ -26,7 +26,11 @@ import {
   selection,
   validateEdit,
   varyEdit,
+  varyEditFor,
   varyOf,
+  varyOfAll,
+  varyStillPending,
+  varyTargets,
   windowSlice,
   type ParamRow,
 } from "./table";
@@ -228,6 +232,56 @@ describe("the refine flag", () => {
     const before = new Map<string, boolean>();
     varyEdit(before, row("a"), true);
     expect(before.size).toBe(0);
+  });
+});
+
+describe("a vary key that names a group", () => {
+  // WP-1215: an atom's coordinate DOFs are freed together — "per-axis intent
+  // does not map onto rows such as [1,1,0]" — so one box is about N rows and
+  // `set_vary` is told the glob, in one node.
+  const DOFS = [row("phases.0.atoms.1.dof.0"), row("phases.0.atoms.1.dof.1"),
+                row("phases.0.atoms.2.biso", { vary: true })];
+  const GLOB = "phases.0.atoms.1.dof.*";
+
+  it("names one row for a path and every match for a glob", () => {
+    expect(varyTargets(DOFS, "phases.0.atoms.1.dof.0").map((r) => r.path))
+      .toEqual(["phases.0.atoms.1.dof.0"]);
+    expect(varyTargets(DOFS, GLOB).map((r) => r.path))
+      .toEqual(["phases.0.atoms.1.dof.0", "phases.0.atoms.1.dof.1"]);
+    expect(varyTargets(DOFS, "phases.0.atoms.7.dof.*")).toEqual([]);
+  });
+
+  it("answers null for a group that disagrees with itself", () => {
+    // the third answer is the one worth having: `false` over a half-freed site
+    // says something untrue about the other half, and the DOM has an
+    // `indeterminate` for exactly this
+    expect(varyOfAll(DOFS, new Map(), GLOB)).toBe(false);
+    const half = [row("phases.0.atoms.1.dof.0", { vary: true }),
+                  row("phases.0.atoms.1.dof.1")];
+    expect(varyOfAll(half, new Map(), GLOB)).toBe(null);
+    // …and a pending toggle is the whole answer, since it is about the group
+    expect(varyOfAll(half, new Map([[GLOB, true]]), GLOB)).toBe(true);
+  });
+
+  it("drops a toggle only when every row it names already agrees", () => {
+    const once = varyEditFor(new Map(), DOFS, GLOB, true);
+    expect([...once]).toEqual([[GLOB, true]]);
+    expect([...varyEditFor(once, DOFS, GLOB, false)]).toEqual([]);
+    // a half-freed group never drops: setting it *does* say something about the
+    // half that disagrees
+    const half = [row("phases.0.atoms.1.dof.0", { vary: true }),
+                  row("phases.0.atoms.1.dof.1")];
+    expect([...varyEditFor(new Map(), half, GLOB, true)]).toEqual([[GLOB, true]]);
+  });
+
+  it("stops being pending when someone else has already done it", () => {
+    // the same check `varyPending` makes per keystroke: a box ticked before the
+    // parameter panel freed the same rows would otherwise send a `set_vary`
+    // whose hits are empty
+    expect(varyStillPending(DOFS, GLOB, true)).toBe(true);
+    const freed = DOFS.map((r) => ({ ...r, vary: true }));
+    expect(varyStillPending(freed, GLOB, true)).toBe(false);
+    expect(varyStillPending(DOFS, "phases.0.atoms.7.dof.*", true)).toBe(false);
   });
 });
 
