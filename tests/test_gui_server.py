@@ -985,6 +985,158 @@ def test_structure_says_what_site_symmetry_allows_each_atom(blank, tmp_path,
         assert set(row["adp_paths"]) <= free
 
 
+
+# ----------------------------------------------------------------------
+# a typed coordinate, solved back onto the site's DOFs (WP-1215)
+# ----------------------------------------------------------------------
+def _atom(payload: dict, j: int) -> list[float]:
+    a = payload["structure"]["phases"][0]["atoms"][j]
+    return [a["x"]["value"], a["y"]["value"], a["z"]["value"]]
+
+
+def test_a_typed_coordinate_is_solved_back_onto_the_sites_own_dofs(
+        blank, tmp_path, pattern_file):
+    """The route that lets the editor offer x, y, z instead of the DOF boxes.
+
+    A coordinate is an affine tie anchored at the *stored* value and re-anchored
+    on every table build, so what a typed position asks for is a displacement to
+    solve for.  Asserted through the route rather than on the projection alone:
+    what has to be true is that the atom ends up where it was asked to go and
+    that the log says a ``set_value``, not an ``edit_model`` — the position
+    changes what the table holds, never what it contains.
+    """
+    session, client = blank
+    _open(session, tmp_path / "position.rex", pattern_file)
+
+    # B at 6f (x, ½, ½): one DOF, along [1 0 0]
+    before = _atom(client.get("/api/structure")[1], 1)
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.1",
+                               "xyz": [0.21, 0.5, 0.5]})
+    assert status == 200 and out["changed"] is True
+    assert _atom(out, 1) == pytest.approx([0.21, 0.5, 0.5], abs=1e-12)
+    assert before[0] != pytest.approx(0.21, abs=1e-12)
+
+    node = session.project.refinement.history[out["node_id"]]
+    assert node.action.kind == "set_value"
+    # the *displacement*, keyed by the DOF — not the coordinate, which has no
+    # column of its own to set
+    assert set(node.action.values) == {"phases.0.atoms.1.dof.0"}
+    assert node.action.values["phases.0.atoms.1.dof.0"] == pytest.approx(
+        0.21 - before[0], abs=1e-12)
+
+    # …and the DOF reads 0 again, because the next table anchors on the new x
+    rows = {r["path"]: r for r in client.get("/api/params")[1]["parameters"]}
+    assert rows["phases.0.atoms.1.dof.0"]["value"] == 0.0
+    assert rows["phases.0.atoms.1.x"]["value"] == pytest.approx(0.21, abs=1e-12)
+
+    # a coordinate retyped where it already is records nothing: `set_values`
+    # would commit a node saying nothing
+    head = session.project.refinement._head_id
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.1",
+                               "xyz": [0.21, 0.5, 0.5]})
+    assert status == 200 and out["changed"] is False and out["node_id"] is None
+    assert session.project.refinement._head_id == head
+
+
+def test_a_position_the_site_cannot_reach_is_refused_with_the_one_it_can(
+        blank, tmp_path, pattern_file):
+    """Refused, never snapped — and the refusal is the offer.
+
+    Snapping would move the atom to a *different site* than the one asked for,
+    which is the objection that made ``check_cell_angles`` refuse rather than
+    normalise, one rank up.  So the message names the directions the site allows
+    and the nearest position they reach, and the caller decides.
+    """
+    session, client = blank
+    _open(session, tmp_path / "refused.rex", pattern_file)
+    head = session.project.refinement._head_id
+
+    # B at 6f: y and z are locked on the mirror, so only x is reachable
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.1",
+                               "xyz": [0.21, 0.6, 0.5]})
+    assert status == 400 and out["error"]["code"] == "MODEL_REFUSED"
+    message = out["error"]["message"]
+    assert "moves only along [1 0 0]" in message
+    assert "(0.21, 0.5, 0.5)" in message          # the nearest one it can reach
+    assert "(0.21, 0.6, 0.5)" in message          # and the one that was asked
+
+    # La at 1a has no DOFs at all, so there is nothing to grey out — there is
+    # nothing to offer, and the sentence says so instead
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.0",
+                               "xyz": [0.01, 0.0, 0.0]})
+    assert status == 400
+    assert "fully fixed special position" in out["error"]["message"]
+    assert "order 48" in out["error"]["message"]
+    # …but retyping where it is is not a refusal, on a fixed site as on any other
+    assert client.post("/api/structure/position",
+                       {"atom": "phases.0.atoms.0",
+                        "xyz": [0.0, 0.0, 0.0]})[1]["changed"] is False
+
+    # a malformed path is a different repair from an atom that is not there
+    assert client.post("/api/structure/position",
+                       {"atom": "phases.0.atom.1", "xyz": [0, 0, 0]})[0] == 400
+    assert client.post("/api/structure/position",
+                       {"atom": "phases.0.atoms.9", "xyz": [0, 0, 0]})[0] == 404
+    assert client.post("/api/structure/position",
+                       {"atom": "phases.0.atoms.1", "xyz": [0.2, 0.5]})[0] == 400
+
+    assert session.project.refinement._head_id == head   # nothing was recorded
+
+
+def test_a_general_position_takes_all_three_coordinates(blank, tmp_path,
+                                                        pattern_file):
+    """The identity case, and the two-direction refusal a one-DOF site cannot show.
+
+    In ``P 1`` the stabilizer is trivial, the basis is the identity, and the
+    route is a spelling of "set the three coordinates" — which is what makes one
+    route right for both kinds of site.  The atom added at (x, y, 0) sits on
+    Pm-3m's z = 0 mirror and has *two* allowed directions, so it is what tests
+    that the refusal lists them rather than naming one.
+    """
+    session, client = blank
+    _open(session, tmp_path / "general.rex", pattern_file)
+
+    structure = client.get("/api/structure")[1]["structure"]
+    structure["phases"][0]["atoms"].append(
+        {"label": "X1", "species": "B", "x": {"value": 0.3},
+         "y": {"value": 0.2}, "z": {"value": 0.0}})
+    assert client.patch("/api/structure", {"structure": structure})[0] == 200
+
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.2",
+                               "xyz": [0.3, 0.2, 0.1]})
+    assert status == 400
+    assert "moves only along [1 0 0] and [0 1 0]" in out["error"]["message"]
+
+    # in the plane both directions are reachable, and both DOFs are set
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.2",
+                               "xyz": [0.31, 0.22, 0.0]})
+    assert status == 200
+    assert _atom(out, 2) == pytest.approx([0.31, 0.22, 0.0], abs=1e-12)
+    node = session.project.refinement.history[out["node_id"]]
+    assert set(node.action.values) == {"phases.0.atoms.2.dof.0",
+                                       "phases.0.atoms.2.dof.1"}
+
+    # …and with no symmetry at all every target is reachable, the third
+    # coordinate included
+    structure = client.get("/api/structure")[1]["structure"]
+    structure["phases"][0]["space_group"] = "P 1"
+    assert client.patch("/api/structure", {"structure": structure})[0] == 200
+    status, out = client.post("/api/structure/position",
+                              {"atom": "phases.0.atoms.0",
+                               "xyz": [0.11, 0.22, 0.33]})
+    assert status == 200
+    assert _atom(out, 0) == pytest.approx([0.11, 0.22, 0.33], abs=1e-12)
+    assert set(session.project.refinement.history[
+        out["node_id"]].action.values) == {
+            "phases.0.atoms.0.dof.0", "phases.0.atoms.0.dof.1",
+            "phases.0.atoms.0.dof.2"}
+
 def test_structure3d_serves_geometry_the_model_dump_cannot(blank, tmp_path,
                                                            pattern_file):
     """The route earns its place beside ``/api/structure`` (WP-1008's test).

@@ -228,6 +228,10 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("GET", "/api/structure3d"): _structure3d,
     ("PATCH", "/api/structure"): lambda s, q, b: s.structure_patch(b),
     ("POST", "/api/structure/aniso"): lambda s, q, b: s.structure_aniso(b),
+    # a typed coordinate, projected onto the site's DOFs (WP-1215) — a
+    # ``set_value`` node rather than a model edit, since a position reaches
+    # theta as displacements and changes nothing the table *contains*
+    ("POST", "/api/structure/position"): lambda s, q, b: s.structure_position(b),
     # symmetry is three routes rather than one because they are three costs: the
     # GET runs a spglib search per atom (WP-1035), the preview builds a candidate
     # parameter table per atom, and only the last of them writes a history node

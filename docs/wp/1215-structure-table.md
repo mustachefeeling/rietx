@@ -115,8 +115,11 @@ Carried in from **WP-1201** (2026-08-25, shipped):
 
 ## Tasks
 
-- [ ] `POST /api/structure/position` (projection, refusal wording, tests on
-      NAC's special positions and a general position).
+- [x] `POST /api/structure/position` (projection, refusal wording, tests on
+      NAC's special positions and a general position). *The fixture is LaB₆,
+      not NAC — it already carries both special positions this needs (`1a`
+      fully fixed, `6f` one-DOF) and a two-DOF site is one appended atom, so
+      importing a second structure would have bought nothing.*
 - [ ] Automatic Wyckoff with the content-hash cache (server-side cache keyed
       on the hash; `tests/test_gui_server.py` counts the spglib calls across
       two head moves without a structure change).
