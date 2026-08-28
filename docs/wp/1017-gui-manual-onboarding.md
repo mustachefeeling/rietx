@@ -202,7 +202,7 @@ surviving substance — each one is something the screen cannot say about itself
 - [ ] `static/help.json` + tooltip wiring + "learn more" anchors;
       `tests/test_gui_help.py` dead-link guard.
 - [ ] First-run progressive checklist (non-modal), persisted dismissal.
-- [ ] Route partition test (`server.ROUTES` documented or excluded with a
+- [x] Route partition test (`server.ROUTES` documented or excluded with a
       reason) and the panel-name corpus (vitest writes, pytest reads).
 - [ ] `docs/manual/make_screenshots.py` over the shipped examples +
       the referenced-screenshot test; light/dark pairs committed.
