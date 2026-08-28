@@ -1364,6 +1364,21 @@ class Refinement:
                 table.set_vary(released, True)
                 held = [p for p in held if p not in set(released)]
                 self._held = list(held)
+                if events is not None:
+                    # The resumed half gets its own ``stage_start``, because an
+                    # ``eval``'s ``values`` are declared to align with
+                    # ``stage_start.free_paths`` and this solve has a longer
+                    # free vector than the first.  Same stage, same index — a
+                    # reader aligns on the *most recent* one, which is what an
+                    # indexing run's revisable ladder already asks of it.
+                    events.emit("stage_start", stage=stage.name,
+                                turn_on=list(stage.turn_on),
+                                freed=list(released),
+                                n_free=len(table.free_paths),
+                                free_paths=list(table.free_paths),
+                                held=list(held), released=list(released),
+                                n_points=len(model.tt),
+                                index=stage_index, n_stages=n_stages)
                 second = run_least_squares(
                     model, table, max_iter=stage.max_iter, events=events,
                     stage=stage.name, backend=self._backend,

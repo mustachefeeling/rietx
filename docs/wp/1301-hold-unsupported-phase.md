@@ -82,7 +82,7 @@ is present (that is `SEQUENTIAL_PERSISTENT_FINDING`'s and the agent's).
       bit-identical (`tests/test_golden*.py`: no unsupported phase → no hold).
 - [x] The zero-reflection case: the LaB₆ 22.5-29.5° window asserts the diagnostic and
       the hold.
-- [ ] The release rule (second solve) + event fields; test: a phase appearing mid-series
+- [x] The release rule (second solve) + event fields; test: a phase appearing mid-series
       is refined in the pattern where it appears, not one later (synthetic: the ramp's
       generator at N = 13 straddling the onset, regenerated in-test from
       `tests/data/cod_1000236.cif`).

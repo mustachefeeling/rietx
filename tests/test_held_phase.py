@@ -296,3 +296,286 @@ def test_the_blind_range_holds_everything_but_the_scale(no_reflection_fit):
     assert not [p for p in held if p.endswith(".scale")]
     # the cell is the value the protocol declared, to the digit
     assert ref.structure.phases[0].cell.a.value == 4.1568
+
+
+# ----------------------------------------------------------------------
+# the ramp: a phase that appears part-way through
+# ----------------------------------------------------------------------
+#: the in-situ ramp of the 2026-08-26 agent run, regenerated here from the same
+#: CIF rather than shipped as data.  NAC (COD 1000236) on a lab Cu Kα doublet,
+#: its cell expanding through a first-order step at 430 °C, and a CaF₂ phase
+#: that is absent below the step and grows above it.  The refinement is told
+#: none of that: it starts from the room-temperature cell, a flat background
+#: and a nominal scale, which is what makes the sub-onset patterns a flat
+#: direction rather than a bad guess.
+RAMP_T_TRANSITION = 430.0
+RAMP_A0 = 10.2570
+RAMP_CAF2_A = 5.4631
+RAMP_GRID = np.arange(15.0, 60.0 + 1e-9, 0.05)
+
+
+def _ramp_a(temperature: float) -> float:
+    if temperature <= RAMP_T_TRANSITION:
+        return RAMP_A0 * (1 + 8.0e-6 * (temperature - 25.0))
+    return RAMP_A0 * (1 + 8.0e-6 * (RAMP_T_TRANSITION - 25.0) + 1.6e-3
+                      + 1.10e-5 * (temperature - RAMP_T_TRANSITION))
+
+
+def _ramp_caf2_weight(temperature: float) -> float:
+    if temperature <= RAMP_T_TRANSITION:
+        return 0.0
+    return min(1.0, (temperature - RAMP_T_TRANSITION) / 90.0)
+
+
+def _caf2_phase(scale: float, a: float = RAMP_CAF2_A):
+    import rietx as rx
+
+    return rx.Phase(
+        name="CaF2", space_group="F m -3 m", cell=rx.Cell.cubic(a),
+        atoms=[
+            rx.Atom(label="Ca", species="Ca2+", x=rx.Parameter(value=0.0),
+                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                    biso=rx.Parameter(value=0.6, min=0.0, max=25.0)),
+            rx.Atom(label="F", species="F1-", x=rx.Parameter(value=0.25),
+                    y=rx.Parameter(value=0.25), z=rx.Parameter(value=0.25),
+                    biso=rx.Parameter(value=0.9, min=0.0, max=25.0)),
+        ],
+        scale=rx.Parameter(value=scale, min=0.0, transform="softplus"))
+
+
+def _ramp_instrument():
+    import rietx as rx
+    from rietx.schemas.instrument import BackgroundChebyshev
+
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa",
+                                       monochromator_two_theta=26.6)
+    ins.profile.u.value, ins.profile.v.value = 0.010, -0.005
+    ins.profile.w.value, ins.profile.x.value = 0.050, 0.030
+    ins.background = BackgroundChebyshev.with_terms(4)
+    return ins
+
+
+def _ramp_host():
+    from pathlib import Path
+
+    import rietx as rx
+
+    s = rx.Structure.from_cif(
+        str(Path(__file__).parent / "data" / "cod_1000236.cif"))
+    s.phases[0].name = "NAC"
+    return s
+
+
+def _ramp_patterns(temperatures, seed: int = 20260826):
+    """Poisson-sampled patterns from the package's own forward model."""
+    import rietx as rx
+
+    truth = _ramp_host()
+    truth.phases[0].scale.value = 6.0e-5
+    truth.phases.append(_caf2_phase(0.0))
+    ins = _ramp_instrument()
+    ins.background.coefficients[0].value = 260.0
+    ins.background.coefficients[1].value = -70.0
+    ins.background.coefficients[2].value = 25.0
+    rng = np.random.default_rng(seed)
+    out = []
+    for temperature in temperatures:
+        truth.phases[0].cell.a.value = _ramp_a(temperature)
+        truth.phases[1].scale.value = 4.0e-4 * _ramp_caf2_weight(temperature)
+        y = rx.Refinement(truth, ins).predict(RAMP_GRID)
+        counts = rng.poisson(np.maximum(y, 0.0)).astype(float)
+        out.append(rx.PatternData(
+            two_theta=RAMP_GRID.tolist(), intensity=counts.tolist(),
+            sigma=np.sqrt(np.maximum(counts, 1.0)).tolist()))
+    return out
+
+
+def _ramp_start(caf2_a: float = RAMP_CAF2_A, bounds=(5.30, 5.60)):
+    """The starting model, with the user cell bounds the agent added.
+
+    Those bounds are why ``cell_window`` could not save this run: a finite
+    stored bound is the caller's claim and suppresses the window on that side
+    (``params.vector.cell_window``), so the safeguard was switched off by the
+    very thing that was meant to replace it.
+    """
+    s = _ramp_host()
+    s.phases[0].scale.value = 3.0e-5
+    s.phases.append(_caf2_phase(1.0e-7, a=caf2_a))
+    for atom in s.phases[1].atoms:
+        atom.biso.vary = False
+    if bounds is not None:
+        for edge in (s.phases[1].cell.a, s.phases[1].cell.b, s.phases[1].cell.c):
+            edge.min, edge.max = bounds
+    return s
+
+
+def _collapsed_plan():
+    """The one stage ``refit="single"`` collapses the agent's plan into.
+
+    Scale and cell free together — which is why "hold only when the scale is
+    not free this stage" was rejected: it would miss the shape the run ran.
+    """
+    import rietx as rx
+
+    return rx.RefinementPlan(stages=[rx.Stage(
+        "all", ["phases.*.scale", "instrument.background.*", "phases.*.cell.*",
+                "instrument.profile.w", "instrument.profile.x"])])
+
+
+@pytest.fixture(scope="module")
+def released_fit():
+    """One pattern at 700 °C — the phase is there — from a 1.2 % wrong cell."""
+    import rietx as rx
+
+    data = _ramp_patterns([700.0])[0]
+    ref = rx.Refinement(_ramp_start(caf2_a=5.40), _ramp_instrument(),
+                        history=False)
+    return ref, ref.fit(data, plan=_collapsed_plan())
+
+
+def test_a_phase_that_appears_mid_stage_is_released_and_refined(released_fit):
+    """The hold must not cost the pattern where the phase first appears.
+
+    The stage starts with CaF₂ at 1e-7 — invisible, so its cell is held — and
+    the scale climbs while the stage solves.  The hold is then lifted and the
+    stage solves once more, so the cell is measured here rather than one
+    pattern later.  From a seed 1.2 % away it lands within 20 ppm of the truth.
+    """
+    ref, result = released_fit
+    stage = result.stages[0]
+    assert stage.released == ["phases.1.cell.a"]
+    assert stage.held == [], "the hold was lifted, so nothing stayed held"
+    a = ref.structure.phases[1].cell.a.value
+    assert a == pytest.approx(RAMP_CAF2_A, rel=1e-4), f"CaF2 a = {a}"
+    assert result.statistics.rwp < 0.06
+
+
+def test_the_release_is_bounded_at_one_second_solve(released_fit):
+    """Never a third: the cost of a wrong hold is one stage's budget.
+
+    Both solves are counted where the budget is read, and ``cost_initial`` is
+    still the cost the stage started at — a stage is one record whatever
+    happened inside it.
+    """
+    _, result = released_fit
+    stage = result.stages[0]
+    assert stage.cost_final < stage.cost_initial
+    assert stage.n_iterations > 0
+    # one stage, one record, whether or not it solved twice
+    assert len(result.stages) == 1
+
+
+def test_a_released_phase_raises_no_warning_about_itself(released_fit):
+    """``PHASE_UNCONSTRAINED`` is for a phase the data cannot see.
+
+    This one could be seen, in the end, and its parameters are measurements —
+    so firing here would teach a reader to ignore the code.  What happened is
+    on the record (``StageResult.released``), not in a warning.
+    """
+    _, result = released_fit
+    assert not [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+
+
+@pytest.fixture(scope="module")
+def ramp_series():
+    """Four patterns straddling the 430 °C onset, chained as the run was."""
+    from rietx.sequential import SequentialRefinement
+
+    temps = [400.0, 425.0, 445.0, 475.0]
+    runner = SequentialRefinement(_ramp_start(), _ramp_instrument(),
+                                  carry=["phases.0.*", "instrument.*"])
+    series = runner.fit(_ramp_patterns(temps), x=temps,
+                        labels=[f"{t:.0f}C" for t in temps],
+                        plan=_collapsed_plan(), refit="single")
+    return temps, runner, series
+
+
+def test_the_phase_is_refined_in_the_pattern_where_it_appears(ramp_series):
+    """Not one pattern later, which is what a hold-and-rerun rule would cost.
+
+    445 °C is the first pattern with any CaF₂ in it (truth scale 6.7e-5).  Its
+    cell is measured there — 5.4624 Å against the true 5.4631 — while the two
+    patterns below the onset hold theirs at the value handed in.
+    """
+    temps, runner, series = ramp_series
+    below = [e for e, t in zip(series.entries, temps) if t < 430.0]
+    above = [e for e, t in zip(series.entries, temps) if t > 430.0]
+    assert len(below) == 2 and len(above) == 2
+
+    for entry in below:
+        paths = {p.path for p in entry.parameters}
+        assert "phases.1.cell.a" not in paths, entry.label
+        assert "PHASE_UNCONSTRAINED" in [d.code for d in entry.diagnostics]
+    for entry in above:
+        row = next(p for p in entry.parameters if p.path == "phases.1.cell.a")
+        assert row.value == pytest.approx(RAMP_CAF2_A, rel=1e-3), entry.label
+        assert not [d for d in entry.diagnostics
+                    if d.code == "PHASE_UNCONSTRAINED"]
+
+
+def test_below_the_onset_the_cell_is_where_it_was_put(ramp_series):
+    """The measured alternative: 5.30000 Å (a bound) and 5.59898 Å.
+
+    Both of those came out of the same chain on ``main`` — one pinned at the
+    user's own lower bound with ``BOUND_HIT``, the other most of the way to the
+    upper one — and neither is a fluorite cell.  Held, the value is the 5.4631
+    the caller declared, which is the only number a reader can interpret.
+    """
+    temps, runner, _ = ramp_series
+    for structure, temperature in zip(runner.fitted_structures, temps):
+        if temperature < 430.0:
+            assert structure.phases[1].cell.a.value == RAMP_CAF2_A
+
+
+def test_the_stream_says_what_was_held_and_when():
+    """``held``/``released`` ride the existing kinds, and the alignment holds.
+
+    Open-dict fields on ``stage_start``/``stage_end``, so
+    ``EVENT_SCHEMA_VERSION`` does not move — the additivity rule in
+    ``history/events.py``.  The resumed solve emits its **own**
+    ``stage_start``, because ``eval.values`` is declared to align with
+    ``stage_start.free_paths`` and the second solve's free vector is longer
+    than the first's; a reader aligns on the most recent one.
+    """
+    import rietx as rx
+    from rietx.history.events import EVENT_SCHEMA_VERSION
+
+    seen: list[dict] = []
+    data = _ramp_patterns([700.0])[0]
+    ref = rx.Refinement(_ramp_start(caf2_a=5.40), _ramp_instrument(),
+                        history=False)
+    ref.fit(data, plan=_collapsed_plan(), events=seen.append)
+
+    assert {e["v"] for e in seen} == {EVENT_SCHEMA_VERSION}
+    starts = [e["data"] for e in seen if e["kind"] == "stage_start"]
+    ends = [e["data"] for e in seen if e["kind"] == "stage_end"]
+    assert len(starts) == 2 and len(ends) == 1, "one stage, solved twice"
+    assert starts[0]["held"] == ["phases.1.cell.a"]
+    assert starts[1]["released"] == ["phases.1.cell.a"]
+    assert starts[1]["held"] == [] and starts[1]["freed"] == ["phases.1.cell.a"]
+    assert len(starts[1]["free_paths"]) == len(starts[0]["free_paths"]) + 1
+    assert ends[0]["released"] == ["phases.1.cell.a"]
+    assert ends[0]["held"] == []
+
+    # every eval aligns with the stage_start that preceded it
+    current = None
+    for event in seen:
+        if event["kind"] == "stage_start":
+            current = event["data"]["free_paths"]
+        elif event["kind"] == "eval" and "values" in event["data"]:
+            assert len(event["data"]["values"]) == len(current)
+
+
+def test_a_held_stage_streams_the_hold_without_a_release():
+    """The ordinary case: one ``stage_start`` per stage, ``released`` empty."""
+    import rietx as rx
+
+    seen: list[dict] = []
+    structure, ins = _absent_phase_inputs()
+    rx.Refinement(structure, ins, history=False).fit(
+        synthesize(), plan="mccusker_default", events=seen.append)
+    starts = [e["data"] for e in seen if e["kind"] == "stage_start"]
+    ends = [e["data"] for e in seen if e["kind"] == "stage_end"]
+    assert len(starts) == len(ends) == 5
+    assert [d["held"] for d in ends[2:]] == [["phases.1.cell.a"]] * 3
+    assert all(d["released"] == [] for d in ends)

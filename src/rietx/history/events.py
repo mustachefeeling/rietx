@@ -18,7 +18,13 @@ Event kinds (closed set, versioned with the schema):
   ordered free list, which is the alignment key for ``eval.values`` below.
   ``stage_end`` carries ``termination`` (also WP-1113): *which* criterion
   ended the solve (``ftol``/``xtol``/``gtol``… — ``LSQOutcome.termination``'s
-  vocabulary), where ``status`` says only whether it converged;
+  vocabulary), where ``status`` says only whether it converged.  Since WP-1301
+  both carry ``held`` — the paths the stage held because the data could not see
+  their phase — and ``stage_end`` also ``released``, the ones it let go again.
+  A stage that releases **emits a second** ``stage_start`` before it re-solves,
+  with the same ``stage``/``index`` and the longer ``free_paths``: ``values``
+  aligns with the *most recent* ``stage_start``, the way an indexing run's
+  revisable ladder is already read;
 * ``eval`` — one residual evaluation inside a least-squares driver, on both of
   them since WP-1113.  ``n_eval`` counts every call this driver made the
   residual measure (function + finite-difference), which is exactly the
