@@ -92,7 +92,7 @@ is present (that is `SEQUENTIAL_PERSISTENT_FINDING`'s and the agent's).
       docstring case) unchanged: a *supported* phase is never held.
 - [x] `lebail`/`pawley` and the joint path: the same rule (an absent phase's cell is flat
       in every mode); tests.
-- [ ] Docs: `using/results.md` (`held`), `using/series.md` (what a held phase looks like
+- [x] Docs: `using/results.md` (`held`), `using/series.md` (what a held phase looks like
       in a chain), `help.py` entry if a name is added, the protocol/skill row for the
       changed message.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/`.

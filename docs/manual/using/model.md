@@ -217,8 +217,13 @@ and a fit of one gives the identical answer it gave before this existed.
 
 The window bounds the symptom. The cause is reported separately, as
 `PHASE_UNCONSTRAINED`: which phase the data cannot distinguish from absent, and
-which of its parameters were refined against it anyway. Both read the same
-measurement, so they can never disagree about which phase is which.
+what the run did with its parameters. Both read the same measurement, so they
+can never disagree about which phase is which.
+
+In a staged refinement the window is rarely reached now, because the stage
+holds those parameters instead of bounding them — see `StageResult.held` in
+[](refining.md). The window stays for the case a hold cannot cover: a phase
+that is visible when the stage starts and is refined by it.
 
 The transform is also in the esd chain. {eq}`est-cov` gives the uncertainty of
 the *internal* variable; multiplying by dp/du at the solution is what makes it
