@@ -828,7 +828,7 @@ anything may change in any release, versions bumping per observable change.
 **1.0.2 was written and never published**, folded into v1.1 (2026-08-23), so
 1.0.1 is what anyone upgrades *from* and `docs/releases/1.0.2.md` describes a
 release that never existed. `pyproject.version` tracks the milestone in flight,
-or the **last shipped when none is** — `1.2.0.dev0` today, v1.2 open. It is the string
+or the **last shipped when none is** — `1.3.0.dev0` today, v1.3 open. It is the string
 every `RefinementResult.provenance` and history node stamps, and a new milestone opens at `1.x.0.dev0`.
 
 **Indexing — the rules that govern behavior outside `indexing/`.** The full
