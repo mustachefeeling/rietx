@@ -162,6 +162,22 @@ npm --prefix gui test && npm --prefix gui run check
   digit too many, it decides nothing), and pinned by crossing `PLACES` against
   `help_keys.json` both ways.
 
+  **The review pass** (`/code-review medium --fix`) raised three and all three
+  were real, none declined. The committed dist was stale and `test_gui_dist.py`
+  red — the digest covers `.test.ts` files, so a commit that only edits a test
+  still needs a rebuild, which is worth carrying: **build after the last source
+  edit, test files included.** The sticky compare header was not opaque across a
+  horizontal scroll, the exact failure its own comment claimed to prevent; the
+  offered `min-width: min-content` removed that and introduced another (a row as
+  wide as its own longest path, so rows disagree with each other and with the
+  header, and the path stops ellipsising — measured at a 380 px sidebar, header
+  421 px against a body row's 476), so the floor is the row's declared columns
+  composed in CSS from the same custom properties instead. And the ROADMAP index
+  row was `✅` with no date. The pass also fuzzed the new lane assignment over
+  3000 random DAGs against segment continuity, the one-row bound and "no vertical
+  run crosses a foreign dot" and found nothing, which is the reassurance three
+  hand-written fixtures could not give.
+
   **Next:** [1017](1017-gui-manual-onboarding.md), the GUI manual and the
   in-app help anchors — the last of v1.2, and now unblocked, this having been
   the last of the triage. Nothing here is owed to it beyond the two widths its
