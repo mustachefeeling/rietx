@@ -936,3 +936,27 @@ corollaries, both found by looking: a `colspan` cell's grid **is** part of the
 table's min-content, so a track floor there must be `min(210px, 100%)` or opening
 a disclosure widens the whole table; and the threshold must count the **grips
 inside the row it is measuring**, which no version of it had.
+
+**The form is one grid of three columns** (WP-1216, `Model.svelte`,
+`lib/model.ts:instrumentFields`). Four rules. **A form's column count is a
+promise, so nothing else may decide it**: a wrapping row lets its widest item
+pick the break, which is how one `<select>`'s longest option moved every field
+after it, and an auto-fill count lets the container pick it, which gave Source
+five columns while Profile had three in the same form. Three is the profile's
+own row — U V W over X Y, the rows declared by `PROFILE_ROWS` — and the whole
+panel is read against it; a control whose content is a *word* takes the row
+rather than a track (`.fullrow`: the selects, and a phase called
+`fluorapatite`). **A declared column count is a declared minimum**, so
+`MODEL_MIN.form` became its arithmetic (3 x 92 + 2 x 10 + 24 = 320, the
+threshold 1136 → 1256) — stated once, with `COL_MIN` reading it and the CSS
+basis taking it as `--col-min`, and `resize.test.ts` crossing it against the
+panel's own `--w-num`/`--grid-gap`/padding, because WP-1215's stale width was a
+comment where a test belonged. **Which group a field is in is data, never its
+path's prefix** — the axial apertures are `geometry.axial_*` and shape the peak,
+the zero shift is top-level and belongs beside the displacement it is refined
+against — and a group with no field would be a heading over nothing, which is
+why the background is not one. And **a cell is a `subgrid` of its group's
+rows**, so a label wrapping to two lines no longer pushes its own input below
+its neighbours': the span follows the content (`:has(.varyline)`) rather than a
+class on the grid, since a subgrid clamps a child past its last track *into* it
+and would draw the refine flag on top of the value with nothing failing.

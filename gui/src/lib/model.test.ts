@@ -288,6 +288,50 @@ describe("the instrument form follows the geometry it is editing", () => {
   });
 });
 
+describe("the groups the instrument form is drawn in (WP-1216)", () => {
+  /** Every geometry, so no group is asserted on one geometry's fields alone. */
+  const GEOMETRIES = ["debye_scherrer", "bragg_brentano", "flat_plate_transmission"];
+  const all = () => GEOMETRIES.flatMap((kind) => {
+    const ins = instrument();
+    ins.geometry.kind = kind;
+    return instrumentFields(ins);
+  });
+
+  it("gives every field a group, and writes all three", () => {
+    // Both ways, as `capabilities()`'s arms are: a field with no group would
+    // be drawn in no grid at all, and a group nothing is in is a heading over
+    // an empty section — the same claim-without-a-writer either way.
+    expect(all().filter((f) => !f.group).map((f) => f.path)).toEqual([]);
+    expect([...new Set(all().map((f) => f.group))].sort())
+      .toEqual(["geometry", "profile", "source"]);
+  });
+
+  it("groups by what the field is, not by the prefix of its path", () => {
+    const group = new Map(all().map((f) => [f.path, f.group]));
+    // the two that disagree with their own prefix, which is the whole reason
+    // this is data: the apertures shape the peak, the zero shift moves it
+    expect(group.get("geometry.axial_sl")).toBe("profile");
+    expect(group.get("geometry.axial_hl")).toBe("profile");
+    expect(group.get("zero_shift")).toBe("geometry");
+    expect(group.get("geometry.sample_displacement")).toBe("geometry");
+    expect(group.get("source.polarization")).toBe("source");
+  });
+
+  it("draws U V W over X Y, and starts each profile row at its first cell", () => {
+    const profile = instrumentFields(instrument())
+      .filter((f) => f.group === "profile" && f.kind === "number");
+    // the order *is* the layout: the grid has three fixed columns, so this list
+    // read three at a time is what the user sees, and a reordering here moves X
+    // out from under U with nothing else to notice
+    expect(profile.map((f) => f.label))
+      .toEqual(["U", "V", "W", "X", "Y", "S/L", "H/L"]);
+    expect(profile.filter((f) => f.startsRow).map((f) => f.label))
+      .toEqual(["U", "X", "S/L"]);
+    // …and the second row is two wide because this profile has no Z
+    expect(profile.map((f) => f.label).indexOf("S/L")).toBe(5);
+  });
+});
+
 describe("axialWarning", () => {
   it("fires on the FCJ corner, and says when one of the pair is free", () => {
     const ins = instrument();

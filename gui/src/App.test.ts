@@ -2680,6 +2680,49 @@ describe("the model editor", () => {
       .toBe(false);
   });
 
+  it("draws the instrument in three groups, U V W over X Y, esds and all", async () => {
+    // WP-1216. jsdom computes no layout, so what is asserted here is the half
+    // that decides it: which grid each field is in, and the order inside the
+    // profile's fixed three columns — read three at a time, that order *is* the
+    // two parallel rows. The widths themselves are the browser pass.
+    await openModel({ "/api/params": () => ({ body: { ...MODEL_PARAMS, parameters: [
+      ...MODEL_PARAMS.parameters.filter((p) => p.path !== "instrument.profile.w"),
+      param("instrument.profile.w", { value: 0.004, vary: true, esd: 0.0002 }),
+    ] } }) });
+    const profile = host.querySelector(".grid.profile")!;
+    const column = profile.closest(".column")!;
+    expect([...column.querySelectorAll("h3")].map((h) => h.textContent?.trim()))
+      .toEqual(["Source", "Geometry", "Profile", "Background"]);
+
+    const fields = (root: Element) => [...root.querySelectorAll("[data-field]")]
+      .map((e) => e.getAttribute("data-field"));
+    expect(fields(profile)).toEqual([
+      "profile.u", "profile.v", "profile.w", "profile.x", "profile.y",
+      "geometry.axial_sl", "geometry.axial_hl"]);
+    expect([...profile.querySelectorAll(".cell.rowstart")]
+      .map((c) => c.querySelector("[data-field]")?.getAttribute("data-field")))
+      .toEqual(["profile.u", "profile.x", "geometry.axial_sl"]);
+
+    // the two fields whose group disagrees with their own path, drawn where the
+    // group says and not where the prefix does
+    const grids = [...column.querySelectorAll(".grid")];
+    const geometry = grids[1];
+    expect(fields(geometry)).toContain("zero_shift");
+    expect(fields(geometry)).toContain("geometry.sample_displacement");
+    expect(fields(geometry)).not.toContain("geometry.axial_sl");
+    expect(fields(grids[0])).toEqual(
+      ["source.lines.0.wavelength", "source.polarization"]);
+
+    // the geometry select is the row's own cell, which is what keeps its
+    // longest option out of the tracks the numbers are measured in
+    expect(host.querySelector('.cell.fullrow [data-field="geometry.kind"]')).toBeTruthy();
+
+    // and a refined width now says what it is known to, in the slot the cell
+    // row and the phase grid have always drawn it in
+    const w = host.querySelector('[data-field="profile.w"]')!.closest(".cell")!;
+    expect(w.querySelector(".varyline .muted")?.textContent).toBe("(2)");
+  });
+
   it("frees a parameter from the model editor, in the same PATCH as the values", async () => {
     // WP-1214: the flags a crystallographer wants to set are next to the
     // numbers they are about, and they travel the parameter table's own verb —

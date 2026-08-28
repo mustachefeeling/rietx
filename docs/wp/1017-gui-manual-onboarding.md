@@ -83,6 +83,15 @@ not against the notes.
 
 ### Inherited
 
+**From [1216](1216-instrument-form.md), 2026-08-28 — the instrument section is
+a form of three groups.** A chapter describing it names **Source**, **Geometry**
+and **Profile** (and Background under them), not one list of fields: the axial
+apertures are drawn with the profile they shape and the zero shift with the
+displacement it is refined against, whatever their dot-paths say. U V W stand
+above X Y — there is no Z, and saying so is worth a clause, since GSAS and
+FullProf spell these letters differently. Every value carries its esd beside
+its refine flag. Any screenshot of this panel taken before today is stale.
+
 **From [1213](1213-hover-readout.md), 2026-08-27 — the plot has no tooltip any
 more.** A chapter describing the pattern plot must not say "hover for values":
 `hovermode` is `x` with `hoverinfo: "none"` on every trace, and what a reader

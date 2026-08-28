@@ -55,6 +55,19 @@ of N, ranked by relative change" said out loud.
 
 ### Inherited
 
+From **WP-1216** (2026-08-28, shipped):
+
+- **The model pane stacks below 1256 px now, not 1136.** `MODEL_MIN.form` is
+  320 rather than 200 — the instrument form is three columns wide at every
+  width, and a declared column count is a declared minimum. If this WP measures
+  a panel width, that is the threshold it is measuring against.
+- **A width is stated once and crossed by a test.** `MODEL_MIN.form` is the
+  form column's floor, `COL_MIN` reads it and the CSS basis takes it as
+  `--col-min`; `resize.test.ts` reads `--w-num`, `--grid-gap` and the column's
+  padding out of `Model.svelte` and checks the arithmetic. The compare table's
+  ragged columns are the same class of problem, so if a floor is chosen for it,
+  give it one statement and a test rather than three statements and a comment.
+
 From **WP-1209** (2026-08-27, shipped):
 
 - `lib/table.ts`'s `formatValue`/`formatEsd` changed for every caller: an esd

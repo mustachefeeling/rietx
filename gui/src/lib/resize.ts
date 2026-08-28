@@ -133,10 +133,21 @@ export function clampSize(value: number, min: number, keep: number, available: n
  * against 50, because a minus sign is width. So both are measured (NAC: 567 /
  * 599) rather than one being scaled from the other.
  *
- * `form` and `view` are `Model.svelte`'s own `COL_MIN` and `VIEW_KEEP`, restated
- * here so the threshold below is arithmetic rather than a number somebody liked.
+ * `form` is **320** since WP-1216, and it is arithmetic too: the instrument form
+ * is three columns wide at every width — that is what puts U V W over X Y — so
+ * it needs 3 x 92 px of track, 2 x 10 px of gap and the column's own 24 px of
+ * padding. It was 200 while the form was a wrapping row that could reflow to one
+ * column; a declared column count is a declared minimum, and at 203 px the
+ * profile's tracks came out at 53 px with `-0.0002` clipped inside one. The
+ * three constants live in `Model.svelte` (`--w-num`, `--grid-gap`, the column's
+ * padding) and `resize.test.ts` crosses this number against them, because a
+ * width restated is a width that goes stale (WP-1215).
+ *
+ * `view` is `Model.svelte`'s own `VIEW_KEEP`; `form` is where its `COL_MIN` now
+ * comes *from*, so the threshold below is arithmetic rather than a number
+ * somebody liked, and the CSS basis reads it through `--col-min`.
  */
-export const MODEL_MIN = { structure: 666, form: 200, view: 260 } as const;
+export const MODEL_MIN = { structure: 666, form: 320, view: 260 } as const;
 
 /**
  * The width an inline splitter grip takes out of the row, in px.
@@ -154,8 +165,9 @@ export const GRIP = 5;
  * Does the model pane have to become one stacked column?
  *
  * Three columns side by side need the structure column's floor plus a form
- * column plus what the 3D view keeps **plus the two grips between them** — 1136
- * px since WP-1215, 932 before it. Below that something is being squeezed under
+ * column plus what the 3D view keeps **plus the two grips between them** — 1256
+ * px since WP-1216 (1136 while `form` was 200, 932 before WP-1215 counted the
+ * grips). Below that something is being squeezed under
  * its minimum, and the thing that loses is the atom table, which side-scrolls
  * *the whole column* and takes the cell row and the headings with it (measured
  * at 860 px: `10.25710.25790` where a, b, c should be).
