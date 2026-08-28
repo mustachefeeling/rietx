@@ -55,6 +55,15 @@
      so it carries no hue anything else could be confused with, and it is weak
      enough that the recessive grey observations stay readable through it. */
   --plot-mask: #1b1b1b14;
+  /* The history graph's lanes (WP-1217).  Not a palette but half of one: the
+     hues are `lib/history.ts`'s `LANE_HUES`, rotated there, and what lives here
+     is the lightness and chroma each theme reads a rail at — so a lane's ink is
+     `oklch(var(--lane-l) var(--lane-c) <hue>)` and no module learns a colour.
+     The chroma is what the 72° spacing is measured against
+     (`tests/test_gui_palette.py`); the lightness is the panel's, not the plot's,
+     because a rail is drawn on `--panel` and has to read there. */
+  --lane-l: 0.58;
+  --lane-c: 0.15;
 
   /* ---- the type scale (WP-1201) ---------------------------------------
      Three steps, and no call site declares a fourth.  Before this WP the app
@@ -121,6 +130,8 @@
     --plot-peakfit: #b156a2;
     --plot-candidate: #4ccf8a;
     --plot-mask: #e6e6e214;
+    --lane-l: 0.72;
+    --lane-c: 0.15;
   }
 }
 
@@ -143,6 +154,8 @@
   --plot-peakfit: #b156a2;
   --plot-candidate: #4ccf8a;
   --plot-mask: #e6e6e214;
+  --lane-l: 0.72;
+  --lane-c: 0.15;
 }
 
 * {

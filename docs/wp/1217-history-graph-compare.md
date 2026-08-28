@@ -46,36 +46,27 @@ Design: `edgePath` runs vertically in the source lane to the row above the
 target and crosses in the last row (or crosses in the first row when the
 child's lane opens there, whichever the lane algorithm implies), so no
 segment spans more than one row diagonally; lanes get colours from the
-OKLab rotation. The compare table formats each side with `formatValue`
-against the node's esd where one exists, else a per-family place count
-(cell 5, coordinates 5, Biso 3, scale exponential), right-aligned tabular
-numerals so the decimal points line up within a family; `Δ` absolute in
-the same format and `Δ %` relative to `a` (`—` when `a` is 0); "showing 200
+OKLab rotation. The compare table formats each side by a per-family place
+count (cell 5, coordinates 5, Biso 3, scale exponential), right-aligned
+tabular numerals so the decimal points line up within a family; `Δ` absolute
+in the same format and `Δ %` relative to `a` (`—` when `a` is 0); "showing 200
 of N, ranked by relative change" said out loud.
 
-### Inherited
+**No esd is reachable here** (checked 2026-08-28, which is why the design line
+above lost its `formatValue` half): `RefinementTree.diff` builds a
+`ParameterTable` from each node's stored `Structure`/`Instrument` and reads
+`entry.value`, and neither schema carries an esd — a node stores *state*, and
+the esds a fit produced live on its `RefinementResult`. Merging them in would
+be a new arm on `/api/history/diff`, which is this WP's non-goal. Hence the
+place count is the whole answer rather than the fallback.
 
-From **WP-1216** (2026-08-28, shipped):
-
-- **The model pane stacks below 1256 px now, not 1136.** `MODEL_MIN.form` is
-  320 rather than 200 — the instrument form is three columns wide at every
-  width, and a declared column count is a declared minimum. If this WP measures
-  a panel width, that is the threshold it is measuring against.
-- **A width is stated once and crossed by a test.** `MODEL_MIN.form` is the
-  form column's floor, `COL_MIN` reads it and the CSS basis takes it as
-  `--col-min`; `resize.test.ts` reads `--w-num`, `--grid-gap` and the column's
-  padding out of `Model.svelte` and checks the arithmetic. The compare table's
-  ragged columns are the same class of problem, so if a floor is chosen for it,
-  give it one statement and a test rather than three statements and a comment.
-
-From **WP-1209** (2026-08-27, shipped):
-
-- `lib/table.ts`'s `formatValue`/`formatEsd` changed for every caller: an esd
-  of 1 or more that is larger than its value (`esdSwallowsValue`) is written
-  as ` ±110` beside the value at its own precision, where `35(111)` was
-  printed; `12346(56)` is unchanged. A compare table that renders a
-  parameter with its esd inherits this — a degenerate direction (WP-1110
-  item 14: 1e17°) now reads `±1.0e+17`, not `43(100000000000000000)`.
+The three widths this table needs are `lib/history.ts`'s `VALUE_CHARS`,
+`PERCENT_CHARS` and `PATH_CHARS`, handed to the CSS as `--w-val`/`--w-pct`/
+`--w-path` — WP-1216's rule at this table's scale, and the reason there is no
+arithmetic to cross: the formatters *keep* the width (a rendering too long for
+its family's places falls back to exponential rather than pushing the column),
+which is what `history.test.ts` checks over every family against a spread of
+magnitudes.
 
 ## Non-goals
 
@@ -83,11 +74,11 @@ From **WP-1209** (2026-08-27, shipped):
 
 ## Tasks
 
-- [ ] `lib/history.ts`: `edgeSegments(edge)` returning the vertical run and
+- [x] `lib/history.ts`: `edgeSegments(edge)` returning the vertical run and
       the one-row crossing; lane colours; `history.test.ts` pins that no
       segment is diagonal over more than one row on a fixture with a
       ten-row gap.
-- [ ] Compare formatting in `lib/history.ts` (`formatSide`, `formatDelta`,
+- [x] Compare formatting in `lib/history.ts` (`formatSide`, `formatDelta`,
       `formatPercent`, family place counts); the table on aligned columns;
       the cap notice.
 - [ ] Browser pass on a tree with a branch and a merge; dist.
