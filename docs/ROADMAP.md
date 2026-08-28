@@ -65,7 +65,7 @@ size caps on this file and CLAUDE.md.
 ## Current focus
 
 **v1.2 — the GUI for a crystallographer** ([record](milestones/v1.2.md)); the maintainer's use notes triaged into 17 WPs (1201-1217) plus [1017](wp/1017-gui-manual-onboarding.md), the manual, last. Fifteen shipped — [1201](wp/1201-gui-house-style.md) … [1214](wp/1214-model-vary-and-profile-save.md), one line each in the record — and now [1215](wp/1215-structure-table.md): **an atom is one row, and its coordinates are cells in it**. A position is changed by typing x, y and z where they are shown; `POST /api/structure/position` least-squares the whole position onto the site's own DOF basis and **refuses** an unreachable one naming the directions the site allows and the nearest position they reach — never snapped, because that would put the atom on a *different site* than the one asked for. The DOF sub-row, the ADP sub-row and the separator that sat on the next atom's inputs are gone; the Wyckoff letter is a column, its search memoised on (space group, positions) so a head move that changes no coordinate costs 1-3 µs against a cold 9.7-12.2 ms. Three rules reach past the panel. **A vary key is a path *or a glob*** — a site's DOFs are freed together, so the position's one box says `phases.*.atoms.*.dof.*` and a group that disagrees with itself draws `indeterminate` rather than a false `false`. **A memoised answer changes who may ask, not which route it is on** — a cache does not make the *first* answer cheap, so the letters are still fetched beside `GET /api/structure` rather than folded into it, and three client rules come with fetching in parallel (key the effect on the local-write signal, hold the two fetches' sentences apart, drop the stale response and not the fresh request). And **a width written in three places had a test on one of them**: the structure column's `flex-basis` was still WP-1034's number, so at exactly the stacking threshold the column came out short and side-scrolled the table the threshold exists to protect — re-measured at 642 px, stacking below 1136 px, the two splitter grips counted at last. What v1.2 does not cover yet: 47 authored tooltips elsewhere, per file, counted since 1203; the residual subplot's empty quarter, which 1212 measured and decided against collapsing; and the phase's corrections (extinction, preferred orientation, Stephens), which no form offers because offering one is offering to declare it. **Next: [1216](wp/1216-instrument-form.md)** (the instrument form, which inherits a 200 px column now measured against a 1136 px threshold, and a `Save profile…` that clips there), then [1217](wp/1217-history-graph-compare.md), then [1017](wp/1017-gui-manual-onboarding.md).
-Free-standing peaks (1101-1103) shift to **v1.3**, the precedent v1.1 set. `pyproject.version` is `1.2.0.dev0`.
+Queued behind it, filed 2026-08-28: **v1.3 — agents and programs** (1301-1307), the agent surface refactored against two measured runs rather than intuition; it opens, with the version bump, when v1.2 ships. Free-standing peaks (1101-1103) shift once more, to **v1.4**. `pyproject.version` is `1.2.0.dev0`.
 
 **v1.1 shipped 2026-08-23** ([record](milestones/v1.1.md), [notes](releases/1.1.0.md)): the trigger-shaped cold fit 50.11-50.43 → 5.69-5.72 s and the 10-pattern warm series 266.78-269.61 → 49.24-49.30 s, each WP with its own equivalence bar and none an Rwp comparison. Three consumer-visible changes rode with it: numba as a core dependency (`RIETX_COMPILED=0` is the way out), intermediate stages at `ftol=1e-6` (`intermediate_ftol=None` is bit-identical), and the ladder's first rung bounded at `first_rung_factor=3.0`. **1.0.2 was folded in and never published**, so an upgrade from 1.0.1 crosses both and 1.1.0's § Upgrading is the authority. Two speed fronts stay unowned and recorded: the per-reflection 19.4 % and the `refit=` choice (50 % of the trigger series wall is still discarded ladder rungs).
 
@@ -86,7 +86,8 @@ Parked, none of it blocking: the 1.0.0-release-notes promises (`.rex` zip transp
 | v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ✅ **shipped 2026-08-16** ([record](milestones/v1.0.md)) | full suite green at ship: 2509 passed / 126 skipped locally (`[dev]`, macOS) and CI-green on Linux `[dev,jax]` (run 31966606174, full job 1h57); GUI end-to-end and the bethanechol individual-program grading landed by their WPs (record § Acceptance); repo public with six required checks gating `main`; manual + AGENT_PROTOCOL at yue-here.github.io/rietx, all URLs verified; `rietx` 1.0.0 on PyPI, fresh-venv install + `capabilities()` verified from the index; Windows fast suite green as the classifier's pre-upload gate — a gate that caught three real defects (CRLF-unstable checkouts, an SO_REUSEADDR double-bind in the GUI server, cp1252 example pipes) before the irreversible step |
 | v1.1 | Refinement speed: seconds not minutes | ✅ **shipped 2026-08-23** ([record](milestones/v1.1.md)) | trigger-shaped cold fit **5.69-5.72 s** against the milestone's opening **50.11-50.43 s** (8.8×) and the 10-pattern warm series **49.24-49.30 s** against **266.78-269.61** (5.4×), best-of-3 idle, darwin/arm64 `[dev]`; seven of nine warm patterns at 0.88-2.33 s (median 2.02) with two at 10.53/20.26 — the ~1 s band **met on the maintainer's judgement and recorded mis-specified**, judged on the per-pattern table as WP-1124 required; stretch (cold < 1 s) **measured unreachable** and recorded as such; every landed WP with its equivalence bar, never an Rwp comparison |
 | v1.2 | The GUI for a crystallographer: house style, one help mechanism, onboarding, the panels a first-time user meets | 🔄 **in flight** (opened 2026-08-25, [record](milestones/v1.2.md)) | — |
-| v1.3 | Free-standing peaks: fit_peaks + the extra-components seam | ⬜ next | — |
+| v1.3 | Agents and programs: the termination view, the hold, the skill, the interchange format | ⬜ queued (2026-08-28; opens when v1.2 ships) | — |
+| v1.4 | Free-standing peaks: fit_peaks + the extra-components seam | ⬜ next | — |
 | v2+ | FPA (**with** the peaks buffer — [1122](wp/1122-compiled-peaks-buffer.md) measured it below break-even without one), neutron **TOF** (CW landed, WP-1134), texture, MCP server | ⬜ fenced | — |
 
 ## Work packages
@@ -330,15 +331,35 @@ decisions are the [v1.2 record](milestones/v1.2.md) § Scope.
 | [1217](wp/1217-history-graph-compare.md) | History: the graph and the compare table | ⬜ | 1201 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help anchors, and the sync mechanism (re-scoped 2026-08-25) | ⬜ | 1201–1217 (last) |
 
-### v1.3 — free-standing peaks (shifted 2026-08-20, and again 2026-08-25)
+### v1.3 — agents and programs (queued 2026-08-28)
+
+The agent-facing surface refactored against evidence: a simulated in-situ ramp run
+(90 API calls, 14.6 M cache-read tokens, 34.7 min for 34 s of refinement) and a
+contributor's campaign of 86 subagent runs (5,430 tool calls). Both say the only agents
+are shell-equipped Claude sessions that use the notebook API and read source; none of
+the surfaces built for them (`refine_json`, `capabilities()`, `help_for`, the protocol as
+a document) had a reader, and none of six refining runs stopped on a package criterion.
+Each WP carries its measured baseline; opens with the version bump when v1.2 ships.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1301](wp/1301-hold-unsupported-phase.md) | An unsupported phase is held for the stage, never bounded | ⬜ | — (first) |
+| [1302](wp/1302-error-is-documentation.md) | The error is the documentation; the output is bounded; the result is a termination view | ⬜ | — (1305 b soft) |
+| [1303](wp/1303-retire-refine-json.md) | Retire `refine_json` and the schema export | ⬜ | — |
+| [1304](wp/1304-protocol-as-skill.md) | The protocol is a skill | ⬜ | 1303 |
+| [1305](wp/1305-series-deliverable.md) | The series deliverable, and the checks the agent ran by hand | ⬜ | 1304 |
+| [1306](wp/1306-powderline-recipe.md) | PowderLine recipe: the interchange format rietx did not have to invent | ⬜ | — (1303 soft) |
+| [1307](wp/1307-recapture-round-1-1.md) | Re-capture: surface round protocol 1.1 | ⬜ | 1301-1305 (last) |
+
+### v1.4 — free-standing peaks (shifted 2026-08-20, 2026-08-25 and 2026-08-28)
 
 Peaks without a structure, at three ranks: fitted standalone (1101), and the
 `Instrument.extra_components` union seam — the serializable answer to TOPAS's
 fit_obj — with broad humps (1102) and sharp peaks (1103) as its first members.
 Shifted from v1.1 when the refinement-speed milestone took that slot
-(2026-08-20), and from v1.2 when the GUI milestone took that one
-(2026-08-25); the WPs keep their 11xx numbers per the block rule's
-ran-past precedent above.
+(2026-08-20), from v1.2 when the GUI milestone took that one (2026-08-25),
+and from v1.3 when the agent-surface work did (2026-08-28); the WPs keep
+their 11xx numbers per the block rule's ran-past precedent above.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

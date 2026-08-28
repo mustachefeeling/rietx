@@ -344,7 +344,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # the two caps above were measured against different parents, so
     # neither survives the merge; 482 is the merged file, both index
     # rows on top of the v1.2 section.
-    "docs/ROADMAP.md": 482,
+    # 482 -> 503 queuing v1.3, agents and programs (2026-08-28): one milestone
+    # row, and a section of seven index rows under eight intro lines.  Rows
+    # are required by the bijection test, not chosen; the intro carries what a
+    # row cannot and no WP file repeats: that the only agents observed are
+    # shell-equipped sessions using the notebook API, and the three numbers
+    # (90 API calls, 14.6 M cache-read tokens, 34.7 min for 34 s of fitting)
+    # every 13xx acceptance is measured against.  Nothing else in the file
+    # moved; the free-standing peaks section changed only its title.
+    "docs/ROADMAP.md": 503,
     # 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
     # and the nine control registers, as a table of one rule each.  This file
     # grows for a rule nothing else in it carried, same as the bumps above: a

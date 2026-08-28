@@ -1,6 +1,6 @@
 # WP-1102 — The additive component seam, and broad humps as its first member
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.4 · Status: ⬜
 Depends on: — (independent of 1101; [1103](1103-peak-components.md) lands its
 second member in this seam)
 
