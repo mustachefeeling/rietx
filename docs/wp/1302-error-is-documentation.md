@@ -172,7 +172,7 @@ the model; the summary lives on `Refinement`).
 - [x] The re-exports and the package-level `__getattr__` + the `__all__` meta-test
       (every `rx.X` in the manual's Part 1 is in `__all__`).
 - [x] Docstring lines on the files above.
-- [ ] `HIGH_CORRELATION` dedup + cap + the new code's rows; GUI diagnostics strip
+- [x] `HIGH_CORRELATION` dedup + cap + the new code's rows; GUI diagnostics strip
       unaffected (`npm --prefix gui test`).
 - [ ] `progress=` on `fit`/`refine_sequential` + a test that every line's numbers equal
       the event's fields.

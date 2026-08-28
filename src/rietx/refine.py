@@ -1606,9 +1606,19 @@ class Refinement:
         rungs of the stages that *did* complete, for the same reason
         :class:`~rietx.optimize.cancel.RefinementCancelled` carries them:
         the in-flight stage is abandoned, the ones before it happened.
+
+        ``HIGH_CORRELATION`` findings are collected as the loop runs
+        (``correlation_hits``) rather than extended straight into
+        ``diagnostics`` like every other code: a persistently correlated pair
+        fires on every stage that re-measures it, and ``_dedup_high_correlations``
+        needs the per-stage attribution to say so.  ``stage_diagnostics`` itself
+        — unfiltered, duplicates and all — still goes to :meth:`_stage_report`
+        and the history node below: a trajectory rung and a replay both
+        describe *that stage's* guard run, not the fit's final summary.
         """
         model = outcome = guard = None
         ftols = plan.stage_ftols()
+        correlation_hits: dict[frozenset, list[tuple[str, Diagnostic]]] = {}
         for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
                                           start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
@@ -1617,7 +1627,12 @@ class Refinement:
                     plan.correlation_guard, events=stream, cancel=cancel,
                     stage_index=k, n_stages=len(plan.stages), ftol=ftol)
             stage_diagnostics = _guard_diagnostics(guard)
-            diagnostics.extend(stage_diagnostics)
+            for d in stage_diagnostics:
+                if d.code == "HIGH_CORRELATION":
+                    correlation_hits.setdefault(frozenset(d.where), []).append(
+                        (stage.name, d))
+                else:
+                    diagnostics.append(d)
             stage_results.append(StageResult(
                 name=stage.name, status=outcome.status, n_iterations=outcome.n_iterations,
                 cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
@@ -1645,7 +1660,8 @@ class Refinement:
                     # schedule), because a cherry-pick re-runs what happened
                     ftol=ftol, window_slack_deg=stage.window_slack_deg,
                 ), model, table, outcome, stage_diagnostics)
-        return model, outcome, guard, stage_results, diagnostics
+        diagnostics.extend(_dedup_high_correlations(correlation_hits))
+        return model, outcome, guard, stage_results, _cap_high_correlation(diagnostics)
 
     def _stage_report(self, name, plan, data, mode, table, model, outcome,
                       guard, stage_diagnostics) -> StageReport:
@@ -1727,7 +1743,7 @@ class Refinement:
         finally:
             if stream is not None and stream is not events:
                 stream.close()  # we created it from a path/callable
-        diagnostics = _guard_diagnostics(guard)
+        diagnostics = _cap_high_correlation(_guard_diagnostics(guard))
         if mode == "pawley":
             diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
         diagnostics.extend(_constraint_diagnostics(stage.name, outcome))
@@ -2005,6 +2021,75 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                         "roughness drives Biso negative, so neither leaving it "
                         "out nor freeing it blind is safe)"),
         ))
+    return out
+
+
+#: Above this many *distinct* pairs, a fit's diagnostics list stops growing
+#: and names the rest as one count instead (WP-1302).  A persistently
+#: correlated pair is common — the background-peak precedent in
+#: ``strategy.staged`` measured a 110 → 145 count for one inert stage — and
+#: an unbounded list is exactly the 40 kB dump a caller has to grep
+#: ``HIGH_CORRELATION`` out of by hand.  10 is not tuned: it is "more than a
+#: reader scans, fewer than a reader ignores".
+HIGH_CORRELATION_MAX = 10
+
+
+def _dedup_high_correlations(
+    hits: dict[frozenset, list[tuple[str, Diagnostic]]],
+) -> list[Diagnostic]:
+    """One ``HIGH_CORRELATION`` per pair across a whole plan.
+
+    A pair that stays correlated fires on every stage that re-measures the
+    Jacobian after it becomes free, so ``hits`` — built by the caller as it
+    walks the stage loop — routinely holds several entries under one
+    ``frozenset(where)`` key.  Keeps the worst |ρ| (correlation only ever
+    strengthens or weakens; the largest magnitude is the most informative
+    one to show) and names every stage the pair was flagged in, because
+    "still correlated at the last stage" and "correlated once, early, and
+    never again" are different findings a client should be able to tell
+    apart without re-running the fit.
+    """
+    out = []
+    for pair, stage_hits in hits.items():
+        stage_names = list(dict.fromkeys(name for name, _ in stage_hits))
+        worst = max(stage_hits, key=lambda sd: abs(sd[1].value))[1]
+        message = worst.message if len(stage_names) == 1 else (
+            f"{worst.message} — flagged in stages: {', '.join(stage_names)}")
+        out.append(Diagnostic(
+            level=worst.level, code=worst.code, message=message,
+            where=list(pair), value=worst.value, suggestion=worst.suggestion))
+    out.sort(key=lambda d: abs(d.value) if d.value is not None else 0.0, reverse=True)
+    return out
+
+
+def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
+    """Bound ``HIGH_CORRELATION`` at :data:`HIGH_CORRELATION_MAX`, worst first.
+
+    Every other code passes through untouched and in place; the correlation
+    entries are pulled out, ordered by |ρ|, truncated, and the survivors
+    appended where the last one used to sit — so a fit under the cap is
+    byte-for-byte what it always was, and one over it reads as "the ones that
+    mattered most" rather than "whatever the stage loop visited last".
+    """
+    is_hc = [d.code == "HIGH_CORRELATION" for d in diagnostics]
+    if sum(is_hc) <= HIGH_CORRELATION_MAX:
+        return diagnostics
+    correlated = sorted((d for d, hc in zip(diagnostics, is_hc) if hc),
+                        key=lambda d: abs(d.value) if d.value is not None else 0.0,
+                        reverse=True)
+    kept, omitted = correlated[:HIGH_CORRELATION_MAX], correlated[HIGH_CORRELATION_MAX:]
+    out = [d for d, hc in zip(diagnostics, is_hc) if not hc]
+    last_hc = max(i for i, hc in enumerate(is_hc) if hc)
+    insert_at = sum(not hc for hc in is_hc[:last_hc + 1])
+    out[insert_at:insert_at] = [*kept, Diagnostic(
+        level="info", code="HIGH_CORRELATION_OMITTED", where=[],
+        value=float(len(omitted)),
+        message=f"{len(omitted)} more correlated pair(s) below the "
+                f"{HIGH_CORRELATION_MAX} shown here, weaker than all of them",
+        suggestion="result.identifiability carries the full correlation "
+                   "matrix and top_correlations list — nothing here was "
+                   "dropped from the fit, only from this message",
+    )]
     return out
 
 
