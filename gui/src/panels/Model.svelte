@@ -93,7 +93,7 @@
     typedCellReady,
     useStructureFrom,
     structureSummary, applyInstrumentHint, scanCount,} from "../lib/wizard";
-  import { fitColumns, modelStacks } from "../lib/resize";
+  import { MODEL_MIN, fitColumns, modelStacks } from "../lib/resize";
   import type { Theme } from "../lib/theme";
   import Browse from "./Browse.svelte";
   import Splitter from "./Splitter.svelte";
@@ -144,8 +144,13 @@
     onmoved?: () => void;
   } = $props();
 
-  /** The narrowest a form column may be, and what the 3D column must keep. */
-  const COL_MIN = 200;
+  /** The narrowest a form column may be, and what the 3D column must keep.
+   *
+   *  `MODEL_MIN.form` rather than a literal: the stacking threshold is that
+   *  number's arithmetic, so a second copy here would be the drag's floor and
+   *  the threshold's floor disagreeing about the same column.  The CSS basis
+   *  reads it too, through `--col-min` on `.editors`. */
+  const COL_MIN = MODEL_MIN.form;
   const VIEW_KEEP = 260;
 
   /** The cell edges as crystallography writes them.  The *path* keeps the
@@ -958,7 +963,7 @@
        source, the geometry, the profile.  Which fields those are is
        `lib/model.ts`'s `group`, so this snippet chooses nothing — including the
        two that disagree with their own path, the axial apertures and the zero
-       shift.  A choice takes the whole row (`.choice`), which is what keeps the
+       shift.  A choice takes the whole row (`.fullrow`), which keeps the
        geometry select's intrinsic width out of the tracks the numbers line up
        in, and the profile grid's rows start where `PROFILE_ROWS` says
        (`.rowstart`), so U is above X whatever the column is doing. -->
@@ -972,7 +977,7 @@
         <!-- `title` is the *held* reason here, which is the verb's own words
              about this instrument; what the field IS comes from the corpus, and
              the two fields with no entry say so in `lib/model.ts` (WP-1203). -->
-        <label class="cell" title={held} class:choice={field.kind === "choice"}
+        <label class="cell" title={held} class:fullrow={field.kind === "choice"}
           class:rowstart={field.startsRow}>
           <span class="muted">
             {#if field.help}<Help for={field.help}>{field.label}</Help>
@@ -1287,7 +1292,7 @@
             </select>
             <div class="grid">
               {#each PRESET_FIELDS[wiz.preset] as field (field.name)}
-                <label class="cell" class:choice={field.kind === "anode"}>
+                <label class="cell" class:fullrow={field.kind === "anode"}>
                   <span class="muted"><Help for={presetHelp(field)}
                     >{field.label}</Help>{field.unit ? ` (${field.unit})` : ""}</span>
                   {#if field.kind === "anode"}
@@ -1326,7 +1331,7 @@
             <button class="ghost" onclick={() => (browseMode = "pick")}>Browse…</button>
           </label>
           <div class="grid">
-            <label class="cell choice"><span class="muted">mode</span>
+            <label class="cell fullrow"><span class="muted">mode</span>
               <!-- a typed cell carries no atoms, so rietveld is not a mode it
                    can be created in; the server refuses it rather than
                    overriding a chosen mode, and this is what makes the refusal
@@ -1339,7 +1344,7 @@
                 {/each}
               </select>
             </label>
-            <label class="cell choice"><span class="muted">plan</span>
+            <label class="cell fullrow"><span class="muted">plan</span>
               <select bind:value={wiz.plan}>
                 {#each plans as p (p.name)}
                   <option value={p.name} title={p.when_to_use}>{p.title}</option>
@@ -1364,7 +1369,8 @@
       <span class="mono">set_vary</span> the parameter table calls. Where a value
       is held, the reason stands in place of the box.
     </p>
-    <div class="editors" class:stacked bind:this={editorsEl} bind:clientWidth={editorsWidth}>
+    <div class="editors" class:stacked bind:this={editorsEl} bind:clientWidth={editorsWidth}
+      style:--col-min="{MODEL_MIN.form}px">
       <div class="column structure" bind:clientWidth={colMeasured[0]}
         style:flex={cols ? `0 0 ${cols[0]}px` : null}>
         <h2>Structure
@@ -1389,7 +1395,7 @@
         {/if}
 
         <div class="grid">
-          <label class="cell"><span class="muted">name</span>
+          <label class="cell fullrow"><span class="muted">name</span>
             <input class="mono" data-field="phases.{phase}.name"
               value={text(structure, { path: `phases.${phase}.name`,
               label: "phase", kind: "text" }, "structure")}
@@ -1823,6 +1829,7 @@
   section.model {
     --w-num: 92px;
     --w-sel: 200px;
+    --grid-gap: 10px;
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -2059,7 +2066,10 @@
      with `flex: 0 0 Npx` — and the 3D column keeps the 1.25 growth WP-1015 gave
      it, so free space still favours the only two-dimensional content here. */
   .column {
-    flex: 1 1 200px;
+    /* the basis is `MODEL_MIN.form`, handed down as `--col-min` (the fallback is
+       for a render before the style directive lands): the form column's floor
+       is the width its three columns need, and it is stated once */
+    flex: 1 1 var(--col-min, 320px);
     min-width: 0;
     overflow: auto;
     padding: 4px 12px 16px;
@@ -2108,27 +2118,28 @@
     max-width: 100%;
   }
 
-  /* A grid, not a wrapping flex (WP-1216).  A wrapping row lets its widest
-     item decide where the break falls, so one intrinsically wide `<select>`
-     moved every field after it — the misalignment reported.  Tracks are
-     `1fr` above a floor, so every group of this column gets the same number of
-     equal columns and the fields line up down the form. */
+  /* One grid of three columns, everywhere in this panel (WP-1216) — neither a
+     wrapping flex nor a count the container picks.  A wrapping row let its
+     widest item decide where the break fell, which is how one `<select>` moved
+     every field after it; and a count that follows the width gave the profile
+     three columns while the source beside it had five, so the two groups of one
+     form did not line up (measured at the 559 px ceiling).  Three is the
+     profile's own row — U V W over X Y — and the whole form is read against it.
+     `max-width` is what stops a wide column stretching a number to 170 px, and
+     `min(…, 100%)` lets the tracks fall below the floor rather than side-scroll
+     the column: a valve that never opens while `MODEL_MIN.form` is this
+     arithmetic (`lib/resize.ts`, crossed against these constants in
+     `resize.test.ts`). */
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(var(--w-num), 100%), 1fr));
-    gap: 6px 10px;
+    grid-template-columns: repeat(3, minmax(min(var(--w-num), 100%), 1fr));
+    gap: 6px var(--grid-gap);
+    max-width: calc(3 * var(--w-num) + 2 * var(--grid-gap));
     margin: 2px 0;
   }
 
-  /* three columns, fixed, because here the alignment *is* the content: U V W
-     over X Y is how a crystallographer reads the pair, and a track count that
-     follows the container's width cannot promise it.  The rows start where
-     `lib/model.ts:PROFILE_ROWS` says, and the third slot of the second row is
-     empty because this profile has no Z. */
-  .grid.profile {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
+  /* the rows start where `lib/model.ts:PROFILE_ROWS` says; the third slot of
+     the second row is empty because this profile has no Z */
   .grid.profile .cell.rowstart {
     grid-column: 1;
   }
@@ -2155,11 +2166,13 @@
     grid-row: span 3;
   }
 
-  /* a choice takes the whole row and caps its own width there.  Spanning the
-     tracks is the point: a `<select>` that sits *in* one contributes its
-     longest option to that track, which is how `flat_plate_transmission` set
-     the width of the field beside it. */
-  .cell.choice {
+  /* a control whose content is a word rather than a number takes the whole row
+     and caps its own width there.  Spanning the tracks is the point: a
+     `<select>` that sits *in* one contributes its longest option to that track,
+     which is how `flat_plate_transmission` set the width of the field beside
+     it — and a phase named `fluorapatite` in a 92 px box is the same defect
+     read from the other end. */
+  .cell.fullrow {
     grid-column: 1 / -1;
     max-width: var(--w-sel);
   }
@@ -2180,7 +2193,6 @@
   .grid .cell > input,
   .grid .cell > .fixed {
     width: 100%;
-    max-width: var(--w-num);
   }
 
   .grid .cell > select {

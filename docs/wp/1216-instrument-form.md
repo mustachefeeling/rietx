@@ -91,8 +91,12 @@ no entry for and are held to a named list in `wizard.test.ts`, and
       row; the warning inside Profile and the background under it; the esd
       decision WP-1214 left (it is drawn, in the slot the cell row and the
       phase grid already use); the wizard's preset step on the same grid.
-- [ ] Browser pass at the sidebar floor and ceiling (WP-1034's 340-560 px
-      and 72 %), both themes; dist.
+- [x] Browser pass at the sidebar floor and ceiling (WP-1034's 340-560 px
+      and 72 %), both themes; dist. Nine configurations, and it found the
+      defect jsdom cannot: an auto-fill track count gave Source five columns
+      while Profile had three, and at the old 200 px floor the profile's
+      tracks came out at 53 px with a value clipped inside one. The form is
+      one three-column grid now and `MODEL_MIN.form` is 320.
 
 ## Acceptance
 

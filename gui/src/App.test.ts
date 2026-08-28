@@ -2715,7 +2715,7 @@ describe("the model editor", () => {
 
     // the geometry select is the row's own cell, which is what keeps its
     // longest option out of the tracks the numbers are measured in
-    expect(host.querySelector('.cell.choice [data-field="geometry.kind"]')).toBeTruthy();
+    expect(host.querySelector('.cell.fullrow [data-field="geometry.kind"]')).toBeTruthy();
 
     // and a refined width now says what it is known to, in the slot the cell
     // row and the phase grid have always drawn it in

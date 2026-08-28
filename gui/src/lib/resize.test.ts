@@ -5,6 +5,9 @@
  * only this half can be asserted — which is exactly why it was pulled out of
  * `Console.svelte` into pure functions rather than generalised in place.
  */
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { GRIP, MODEL_MIN, SERIES_MIN, axisOf, clampSize, coalesce, dragged,
@@ -167,9 +170,32 @@ describe("when the model pane becomes one stacked column", () => {
     // example, in the widest state it reaches (one atom anisotropic), and the
     // column adds 24 px of padding — so `structure` is a measurement and this
     // number moves when the row does.
-    expect(modelThreshold()).toBe(1136);
+    expect(modelThreshold()).toBe(1256);
     expect(modelStacks(modelThreshold() - 1)).toBe(true);
     expect(modelStacks(modelThreshold())).toBe(false);
+  });
+
+  it("takes the form column's floor from the form's own three columns", () => {
+    // WP-1216, and it is WP-1215's rule turned into a test rather than a
+    // comment: this number is stated in `lib/resize.ts` and *drawn* from three
+    // constants in `Model.svelte`, and a width restated in two places goes
+    // stale in one of them.  Read the CSS, do the arithmetic, compare.  The
+    // form is three columns wide at every width — that is what puts U V W over
+    // X Y — so its minimum is three tracks, two gaps and the column's padding.
+    const css = readFileSync(
+      fileURLToPath(new URL("../panels/Model.svelte", import.meta.url)), "utf-8");
+    const read = (re: RegExp) => {
+      const m = re.exec(css);
+      expect(m, `no match for ${re}`).toBeTruthy();
+      return Number(m![1]);
+    };
+    const track = read(/--w-num:\s*([\d.]+)px/);
+    const gap = read(/--grid-gap:\s*([\d.]+)px/);
+    const padding = read(/\.column \{[^}]*?padding:\s*[\d.]+px\s+([\d.]+)px/s);
+    expect(MODEL_MIN.form).toBe(3 * track + 2 * gap + 2 * padding);
+    // …and the grid caps itself at exactly the three tracks it declares, so a
+    // wide column gives the form no more than it asked for
+    expect(css).toContain("calc(3 * var(--w-num) + 2 * var(--grid-gap))");
   });
 
   it("counts the grips, because they are inside the row it is measuring", () => {
