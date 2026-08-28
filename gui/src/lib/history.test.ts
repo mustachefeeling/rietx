@@ -323,6 +323,11 @@ describe("the compare table's numbers", () => {
     expect(svelte).toContain('style:--w-pct="{PERCENT_CHARS}ch"');
     expect(svelte).toContain('style:--w-path="{PATH_CHARS}ch"');
     expect(svelte).toContain("rows.slice(0, DIFF_CAP)");
+    // …and the row's floor is those widths composed, not a fourth number: a
+    // row narrower than its own columns lets the sticky header's background
+    // stop at the visible edge and the data travel under it
+    expect(svelte).toContain(
+      "min-width: calc(var(--w-path) + 3 * var(--w-val) + var(--w-pct)");
     expect(DIFF_CAP).toBe(200);
     expect(PATH_CHARS).toBeGreaterThan(0);
   });

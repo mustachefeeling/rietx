@@ -553,9 +553,23 @@
      Chrome, 1414 against 1417). A `ch` column is a shared column only while
      every cell in it is one font at one size. */
   .drow {
+    --cell-gap: 6px;
+    --row-pad: 8px;
     display: flex;
-    gap: 6px;
-    padding: 0 8px;
+    gap: var(--cell-gap);
+    padding: 0 var(--row-pad);
+    /* Every row is at least the floor its own columns declare, so when `.rows`
+       scrolls sideways each row's box scrolls with it. Without a floor the row
+       is exactly the scroller's width and the sticky header's background stops
+       at the visible edge, letting the data travel under its last columns; with
+       `min-content` instead, a row is as wide as its own longest path, so the
+       rows disagree with each other *and* with the header, and the path stops
+       ellipsising (both measured in Chrome at a 380 px sidebar: header 421 px
+       against a body row's 476, scroll extent set by the longest dot-path).
+       Every number here is stated once — the widths in `lib/history.ts`, the
+       gap and the padding above — and the counts are the row's own shape. */
+    min-width: calc(var(--w-path) + 3 * var(--w-val) + var(--w-pct)
+                    + 4 * var(--cell-gap) + 2 * var(--row-pad));
     font-family: var(--mono-family);
     font-size: var(--text-sm);
     line-height: 18px;

@@ -328,7 +328,7 @@ decisions are the [v1.2 record](milestones/v1.2.md) § Scope.
 | [1214](wp/1214-model-vary-and-profile-save.md) | Model: vary in the editor, and save instrument profile | ✅ 2026-08-28 | 1201 |
 | [1215](wp/1215-structure-table.md) | Model: the structure table | ✅ 2026-08-28 | 1214 |
 | [1216](wp/1216-instrument-form.md) | Model: the instrument form | ✅ 2026-08-28 | 1214 |
-| [1217](wp/1217-history-graph-compare.md) | History: the graph and the compare table | ✅ | 1201 |
+| [1217](wp/1217-history-graph-compare.md) | History: the graph and the compare table | ✅ 2026-08-28 | 1201 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help anchors, and the sync mechanism (re-scoped 2026-08-25) | ⬜ | 1201–1217 (last) |
 
 ### v1.3 — agents and programs (queued 2026-08-28)
