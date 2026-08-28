@@ -132,8 +132,8 @@ npm --prefix gui test && npm --prefix gui run check
   contains `set_vary`), so a fifth fails there before it reaches a panel.
 
   **Measured** (darwin/arm64, `[dev]`, this worktree's own venv). Fast
-  selection 3197 passed / 122 skipped in 339 s, +2 python tests on the
-  session's start; `tests/test_gui_server.py` 149 passed; vitest 537 → 551
+  selection 3197 passed / 122 skipped in 218-339 s over two runs, +2 python
+  tests on the session's start; `tests/test_gui_server.py` 149 passed; vitest 537 → 551
   (+5 App, +4 `table.test.ts`, +4 `model.test.ts`, +1 `wizard.test.ts`),
   `svelte-check` 378 files 0 errors; the full selection did not run — this WP
   moves no measured number in the acceptance suites. In Chrome on the 11-BM
@@ -154,6 +154,24 @@ npm --prefix gui test && npm --prefix gui run check
   the DOM and invisible on screen. And the atom table's aniso checkbox is
   addressed by `data-aniso` now — "the first checkbox in the table" stopped
   being an address the day the flags arrived.
+
+  **The review's four, and two of them behaviour.** `/code-review medium
+  --fix` found and applied: (1) **a stale flag survives a head move and sends
+  a node saying nothing** — `load()` keeps typed edits across a reload and a
+  stale *value* edit drops itself, because `splitEdits` compares against the
+  rendered value, while a flag had no such comparison; tick a box, let someone
+  free the same path from the parameter panel, and Apply sent a `set_vary`
+  whose hits are empty, which `Refinement.set_vary` still commits a node for
+  (`refine.py:528`, verified). `varyPending` is that comparison, filtered
+  against the live rows; `varyEdits` still backs the checkbox. (2) **`Save
+  profile…` wrote the server's instrument, silently ignoring unapplied edits
+  in the column above it** — a typed `W` nobody applied would be absent from
+  the file with nothing said, and the file is what a whole lab's later samples
+  load; the button now waits on `insPending` and says so. (3) The manual's
+  own **"The three reasons a row is held"** chapter, four rows in its table
+  since `needs_held_cell` landed — the same rot as the glyph, in a third
+  place, and the sentence this WP added had said "three" too. (4) Two stale
+  comments in `Params.svelte`. Nothing was declined.
 
   **Not done, deliberately.** The phase's *corrections* (extinction,
   preferred orientation, the Stephens block) get no control: each is declared

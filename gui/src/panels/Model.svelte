@@ -423,15 +423,33 @@
   const strDelta = $derived(structure
     ? splitEdits(structure, strFields, edits, rows, "structure")
     : null);
-  const pending = $derived(editState(rows, pedits, varyEdits.size));
   /** the phase's own numbers: the scale and the four sample-broadening terms */
   const phFields = $derived(structure && !noPhases ? phaseFields(phase) : []);
+  const warning = $derived(instrument ? axialWarning(instrument) : "");
+  const byPath = $derived(new Map(rows.map((r) => [r.path, r])));
+  /** the toggles that still say something, against the rows as they now stand.
+   *
+   *  `load()` keeps the typed edits across a head move — a run, a checkout, a
+   *  free/fix from the parameter panel — and a value edit that the new state
+   *  already matches drops itself, because `splitEdits` compares against what
+   *  the cell shows.  A flag has no such comparison of its own, so it is made
+   *  here: without it a box ticked before someone else freed the same path
+   *  stayed pending and Apply sent a `set_vary` whose hits are empty, which is
+   *  the node-saying-nothing `varyEdit` exists to prevent (WP-1214). */
+  const varyPending = $derived(new Map([...varyEdits].filter(([path, flag]) => {
+    const row = byPath.get(path);
+    return row !== undefined && row.vary !== flag;
+  })));
+  const pending = $derived(editState(rows, pedits, varyPending.size));
+  /** the instrument column's own unapplied *values* — what `Save profile…`
+   *  waits on.  Not `dirty`, which counts a renamed atom too, and not the
+   *  refine flags, which a profile does not carry (`load_instrument_profile`
+   *  holds every stored parameter). */
+  const insPending = $derived((insDelta?.touched ?? 0) > 0);
   const dirty = $derived((insDelta?.touched ?? 0) + (strDelta?.touched ?? 0)
     + pending.touched);
   const invalid = $derived([...(insDelta?.invalid ?? []), ...(strDelta?.invalid ?? []),
                             ...pending.invalid]);
-  const warning = $derived(instrument ? axialWarning(instrument) : "");
-  const byPath = $derived(new Map(rows.map((r) => [r.path, r])));
   const phaseSym = $derived<PhaseSymmetry | null>(symmetry[phase] ?? null);
   const symLine = $derived(symmetryLine(phaseSym));
   const symDirty = $derived(symbolChanged(symbolDraft ?? "",
@@ -525,7 +543,7 @@
     error = note = "";   // a refusal must not read as the last success's note
     const values = { ...(insDelta?.values ?? {}), ...(strDelta?.values ?? {}),
                      ...pending.values };
-    const vary = Object.fromEntries(varyEdits);
+    const vary = Object.fromEntries(varyPending);
     const moves: string[] = [];
     try {
       // One PATCH for both, because the route applies values then vary flags —
@@ -541,10 +559,10 @@
             .map(([k, v]) => `"${k}": ${v}`).join(", ")}})`);
           moves.push(`${Object.keys(values).length} value(s)`);
         }
-        for (const [path, flag] of varyEdits) {
+        for (const [path, flag] of varyPending) {
           say(`ref.set_vary(${JSON.stringify(path)}, ${flag ? "True" : "False"})`);
         }
-        if (varyEdits.size) moves.push(`${varyEdits.size} refine flag(s)`);
+        if (varyPending.size) moves.push(`${varyPending.size} refine flag(s)`);
       }
       if (strDelta?.fields.length) {
         const fresh = (await api.structure()).structure;
@@ -1488,8 +1506,15 @@
             <input type="file" onchange={(e) => replaceFrom("instrument", e)} />
             <span>Load profile…</span>
           </label>
-          <button class="ghost" disabled={busy} onclick={saveProfile}
-            >Save profile…</button>
+          <!-- refused while this column has unapplied edits: the file is
+               written from the instrument the *server* holds, so a typed W
+               nobody applied would be absent from it with nothing said. -->
+          <button class="ghost" disabled={busy || insPending}
+            title={insPending
+              ? "apply the instrument edits first — a profile is written from "
+                + "the model the server holds"
+              : "freeze this instrument to a profile file under exports/"}
+            onclick={saveProfile}>Save profile…</button>
         </h2>
         {#if profileSaved}
           <p class="muted mono">wrote {profileSaved}</p>
@@ -1588,7 +1613,7 @@
           {Object.keys({ ...(insDelta?.values ?? {}), ...(strDelta?.values ?? {}),
                          ...pending.values }).length} through
           <code>set_values</code> ·
-          {varyEdits.size} through <code>set_vary</code> ·
+          {varyPending.size} through <code>set_vary</code> ·
           {(insDelta?.fields.length ?? 0) + (strDelta?.fields.length ?? 0)} as a
           model edit
         </p>

@@ -109,22 +109,22 @@ known".
 is the single predicate a front end should grey a row by; the second is the
 sentence to show beside it.
 
-## The three reasons a row is held
+## The four reasons a row is held
 
 They are distinguishable on purpose, because the fix differs.
 
 | Reason | What it means | Can you release it |
 |---|---|---|
 | `locked` | structurally fixed: a symmetry-fixed cell angle, a fully fixed special position, the first emission line's weight, a non-primary emission line's wavelength, `biso` on a site that declares an anisotropic tensor | no |
-| `ParameterRow.needs_held_cell` | bool | a wavelength that cannot be freed **right now** because this histogram's cell is free — the two are an exactly flat direction. The only *dynamic* held-reason: hold the cell and the same row becomes refinable ({ref}`a-refinable-wavelength`) | no |
 | `tie` | an affine function of other rows, so the freedom lives in its sources | only if it is your own tie |
 | `mode_fixed` | refinable in principle, but the current intensity mode force-fixes it | switch back to `rietveld` |
+| `ParameterRow.needs_held_cell` | a wavelength that cannot be freed **right now** because this histogram's cell is free — the two are an exactly flat direction. The only *dynamic* held-reason: hold the cell and the same row becomes refinable ({ref}`a-refinable-wavelength`) | no |
 
-`ParameterRow.refinable` is false if any of the three holds. The three counts
+`ParameterRow.refinable` is false if any of the four holds. The four counts
 do not add up to the number of held rows, and should not: on the LaB6 table
 above, asking for the Le Bail listing marks fourteen rows `mode_fixed` while
 the refinable count only falls from 25 to 19, because eight of those fourteen
-were already locked or tied. Read `refinable` for the decision and the three
+were already locked or tied. Read `refinable` for the decision and the four
 flags only to explain it.
 
 ```python
@@ -248,7 +248,7 @@ current mode force-fixes are the exception to the rule: `set_vary` will free
 them, and a stage then drops them again, reporting them as `mode_fixed`.
 
 The GUI calls the same verb from its Model panel: a box beside each value frees
-that one path, and a held value shows which of the three reasons holds it in
+that one path, and a held value shows which of the four reasons holds it in
 place of the box. Globs stay in the parameter panel, since a family freed by a
 glob is one call and one history node.
 
