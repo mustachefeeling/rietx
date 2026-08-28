@@ -12,6 +12,7 @@ invariant — they stay frozen *within* a stage).
 from __future__ import annotations
 
 import dataclasses
+import difflib
 import functools
 import re
 from dataclasses import dataclass, field
@@ -61,6 +62,39 @@ def _ask_the_mirror(name: str, owner: str, call: str) -> AttributeError:
         f"{name!r} — it is constructed positionally, which is what makes a "
         f"plan pleasant to write. Its serializable mirror is the pydantic "
         f"half of the same fact: {call}. See rietx.schemas.plan.")
+
+
+#: One cross-class confusion worth naming directly (WP-1302): "free" reads
+#: naturally as "what a stage freed", which is on the *result*, not the
+#: *declaration* — a ``Stage`` says what it *may* turn on, ``StageResult.freed``
+#: says what a solve actually did.
+_CROSS_CLASS_HINTS: dict[tuple[str, str], str] = {
+    ("Stage", "free"): "what a stage freed is StageResult.freed",
+}
+
+
+def _dataclass_attr_hint(cls: type, name: str) -> AttributeError:
+    """A wrong dataclass field name answered with the right one (WP-1302).
+
+    ``Stage``/``RefinementPlan`` are the package's non-pydantic schema-shaped
+    types, so they get the ``Base.__getattr__`` treatment (``schemas/common.py``)
+    by hand, over ``dataclasses.fields`` rather than ``model_fields``: the
+    closest own-field match, or — for these small dataclasses — the field list
+    outright.
+    """
+    fields = [f.name for f in dataclasses.fields(cls)]
+    plain = f"{cls.__name__!r} object has no attribute {name!r}"
+    close = difflib.get_close_matches(name, fields, n=3, cutoff=0.6)
+    if close:
+        msg = f"{plain}; did you mean {', '.join(close)!r}?"
+    elif len(fields) <= 12:
+        msg = f"{plain}; its fields are {fields}"
+    else:
+        msg = plain
+    extra = _CROSS_CLASS_HINTS.get((cls.__name__, name))
+    if extra:
+        msg = f"{msg}; {extra}"
+    return AttributeError(msg)
 
 
 @dataclass
@@ -127,7 +161,7 @@ class Stage:
         if name in _PYDANTIC_SURFACE:
             raise _ask_the_mirror(name, "Stage",
                                   "rietx.StageSpec.from_stage(stage)")
-        raise AttributeError(name)
+        raise _dataclass_attr_hint(Stage, name)
 
 
 #: Surface roughness (WP-0502) goes **last** in every plan that carries it.
@@ -233,7 +267,7 @@ class RefinementPlan:
         if name in _PYDANTIC_SURFACE:
             raise _ask_the_mirror(name, "RefinementPlan",
                                   "rietx.PlanSpec.from_plan(plan)")
-        raise AttributeError(name)
+        raise _dataclass_attr_hint(RefinementPlan, name)
 
     @classmethod
     def mccusker_default(cls) -> "RefinementPlan":

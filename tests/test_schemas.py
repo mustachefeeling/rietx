@@ -187,6 +187,26 @@ def test_a_preset_is_the_builder_and_says_so():
     assert inspect.getdoc(factory) == inspect.getdoc(rx.RefinementPlan.mccusker_default)
 
 
+def test_a_wrong_stage_or_plan_field_gets_the_closest_match():
+    """``Stage``/``RefinementPlan`` are dataclasses, not ``Base`` subclasses,
+    so they carry their own hand-written version of the same idea (WP-1302).
+
+    ``free`` is a real historical miss (agents reading a *declared* stage for
+    what it *did*), and it is nobody's typo of a field name, so it exercises
+    the field-listing branch plus the one named cross-class hint.
+    """
+    stage = rx.Stage("cell", ["phases.*.cell.*"])
+    with pytest.raises(AttributeError, match=r"its fields are .*'turn_on'.*"
+                                               r"what a stage freed is StageResult\.freed"):
+        stage.free
+    with pytest.raises(AttributeError, match=r"did you mean 'turn_on'"):
+        stage.turnon  # a close typo, not the historical miss above
+
+    plan = rx.RefinementPlan.mccusker_default()
+    with pytest.raises(AttributeError, match=r"did you mean 'stages'"):
+        plan.stagess
+
+
 @pytest.mark.parametrize("obj, mirror", [
     (rx.RefinementPlan.mccusker_default(), "PlanSpec.from_plan"),
     (rx.Stage("cell", ["phases.*.cell.*"]), "StageSpec.from_stage"),

@@ -168,7 +168,7 @@ the model; the summary lives on `Refinement`).
 - [x] `Base.__getattr__` + meta-test over every `Base` subclass (recursive
       `__subclasses__`) that deepcopy, pickle, `model_copy`, `validate_assignment` and
       `model_dump` round-trip still hold.
-- [ ] The closest-match on the two dataclasses.
+- [x] The closest-match on the two dataclasses.
 - [ ] The re-exports and the package-level `__getattr__` + the `__all__` meta-test
       (every `rx.X` in the manual's Part 1 is in `__all__`).
 - [ ] Docstring lines on the files above.
