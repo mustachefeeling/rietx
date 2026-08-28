@@ -501,6 +501,24 @@ CLAIMS: tuple[Claim, ...] = (
                  "|mean| < 2.0 wt %",
     ),
     Claim(
+        "test_acceptance_qpa_roundrobin",
+        "test_a_supported_trace_phase_is_never_held", "qarr",
+        ("identity",),
+        "a phase the data *can* see is refined exactly as before the "
+        "unsupported-phase hold existed (WP-1301)",
+        reference="cpd-1c is 1.36 wt % fluorite by weighing — a trace phase "
+                  "that is genuinely there, and the counter-example "
+                  "params.vector.cell_window's docstring is built on: "
+                  "windowing every phase rather than only the invisible ones "
+                  "cost that fit its iteration budget and 2.7 wt % of its "
+                  "corundum. A hold is stronger than a window, so the same "
+                  "restriction has to hold, and it is asserted on the record "
+                  "rather than on the outcome",
+        measured="0 held and 0 released paths across all eight stages, and no "
+                 "PHASE_UNCONSTRAINED; the fractions are the row above's",
+        diagnostics=("!PHASE_UNCONSTRAINED",),
+    ),
+    Claim(
         "test_acceptance_qpa_roundrobin", "test_sample2_brucite_march_dollase",
         "qarr", ("spread", "characterisation", "identity", "ceiling"),
         "platy brucite is detected as preferred orientation rather than "

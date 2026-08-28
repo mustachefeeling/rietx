@@ -661,6 +661,24 @@ class StageResult(Base):
     #: ``CONSTRAINT_ACTIVE`` diagnostic — the only signal that a declared
     #: constraint was active rather than merely present (WP-0601).
     n_constraint_truncations: int = 0
+    #: paths this stage **held** although the plan had freed them: the
+    #: structural parameters of a phase the data could not see at stage start
+    #: (``CompiledModel.phase_support`` below ``PHASE_SUPPORT_SIGMA``), which
+    #: reach the pattern only through ``scale × |F|² × profile`` and are
+    #: therefore a flat direction the solver would spend its budget walking
+    #: (WP-1301).  Disjoint from :attr:`freed` by construction — a held path is
+    #: dropped from it — so the two together say exactly what refined.  Empty
+    #: on every fit with no unsupported phase, which is every fit that is
+    #: working; the phase's own ``scale`` is never held, because that is how a
+    #: phase legitimately climbs out of the noise.
+    held: list[str] = Field(default_factory=list)
+    #: paths held at stage start and **released within the same stage**: the
+    #: phase rose above support while the stage solved, so the hold was lifted
+    #: and the stage solved a second time (once — never a third) with them
+    #: free.  They refined in this stage, which is why they are not in
+    #: :attr:`held`; the cost of both solves is in :attr:`n_iterations`, and
+    #: :attr:`cost_initial` is still the cost the stage started at.
+    released: list[str] = Field(default_factory=list)
 
 
 class HistogramResult(Base):

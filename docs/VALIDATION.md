@@ -316,6 +316,18 @@ Quantitative phase analysis against weighed truth, at tolerances referenced to w
 
 **Measured:** zincite mean < -1.0, corundum mean > +0.5, fluorite |mean| < 2.0 wt %
 
+#### `test_a_supported_trace_phase_is_never_held`
+
+`identity` · dataset `qarr`
+
+**Claims:** a phase the data *can* see is refined exactly as before the unsupported-phase hold existed (WP-1301)
+
+**Referenced to:** cpd-1c is 1.36 wt % fluorite by weighing — a trace phase that is genuinely there, and the counter-example params.vector.cell_window's docstring is built on: windowing every phase rather than only the invisible ones cost that fit its iteration budget and 2.7 wt % of its corundum. A hold is stronger than a window, so the same restriction has to hold, and it is asserted on the record rather than on the outcome
+
+**Measured:** 0 held and 0 released paths across all eight stages, and no PHASE_UNCONSTRAINED; the fractions are the row above's
+
+**Diagnostics:** `PHASE_UNCONSTRAINED` asserted *absent*
+
 #### `test_sample2_brucite_march_dollase`
 
 `spread` `characterisation` `identity` `ceiling` · dataset `qarr`

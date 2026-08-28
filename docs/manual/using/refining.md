@@ -471,10 +471,33 @@ for stage in result.stages:
 | `StageResult.freed` | the paths this stage actually freed, after globbing |
 | `StageResult.ftol` | the tolerance it was solved at; `None` = the solver default |
 | `StageResult.n_constraint_truncations` | steps the bounded-LM driver shortened to stay inside a linear-inequality constraint |
+| `StageResult.held` | paths the plan freed that this stage held anyway, because the data could not see their phase |
+| `StageResult.released` | the ones it held at the start and let go again, having seen the phase appear while it solved |
 
 `StageResult.freed` is the field to read when a stage did nothing: a glob that
 matches no path is not an error, so an empty list means the stage was a no-op
 and the run continued past it in silence.
+
+`StageResult.held` is the field to read when a *parameter* did nothing. A phase
+reaches the pattern only through `scale × |F|² × profile`, so a phase whose
+scale sits at its floor has no measurable structural parameter at all: freeing
+its cell asks the solver to search a direction that does not change the
+calculated pattern. Where that is the case at stage start, the stage holds
+those parameters and refines the rest; the phase's own `scale` is never held,
+which is how the phase can still appear. The values come back as the ones you
+handed in rather than as a walk, `PHASE_UNCONSTRAINED` names the phase and the
+stages that held it, and the parameters are absent from
+`RefinementResult.parameters` because nothing measured them.
+
+A hold is decided per stage, at the values that stage starts from, so a phase
+that appears later refines normally from the stage where it appears. If it
+appears *while* a stage solves, that stage lifts the hold and solves a second
+time — once, never a third — and lists those paths in `StageResult.released`
+instead. Both solves are counted in `n_iterations`; `cost_initial` is still the
+cost the stage started at.
+
+Both lists are empty for every fit whose phases are all visible, which is every
+fit that is working.
 
 A cost that rises from `StageResult.cost_initial` to `StageResult.cost_final`
 is a diverged stage, and `StageResult.status` says so.

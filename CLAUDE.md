@@ -340,24 +340,24 @@ a file added to the wheel adds an example.
   over the block, not conditional on it) and Pawley **dimension**, a per-step
   cost and not a count; a **bounded** block (scales, Pawley intensities)
   leaves the identity the moment a bound goes active.
-- **A phase the data cannot see is a flat direction, and a bound on it is not
-  free.** A phase reaches the pattern only through `scale × |F|² × profile`, so
-  one whose scale sits at its floor moves nothing: the fit reports `converged`
-  — those parameters do not move Rwp — while its cell walks out of the physical
-  range and the run dies hundreds of stages later in `generate_reflections`.
-  Such a cell gets a **per-stage window** (`params.vector.cell_window` —
-  TOPAS's shape at stage granularity, since scipy takes one `bounds` pair per
-  stage), applied in `ParameterTable.bounds` and never on the `Entry`, because
-  it is the solver's bound for one stage and not a fact about the stored
-  parameter. **Only that phase's**: TRF takes its trust-region scale from the
-  distance to the bounds, so a window changes the step in a cell that never
-  reaches it — applied to every phase it drove a real chained fit past its
-  iteration budget yet left it inside the reseed fence, unrescued (WP-1110).
-  Which phases is one measurement, `CompiledModel.phase_support`, shared with
-  the `PHASE_UNCONSTRAINED` naming the cause. A finite stored bound is the
-  caller's claim and suppresses the window that side, so a construction site
-  passes **no** floor rather than a nonsense one. One rank up,
-  `SEQUENTIAL_PERSISTENT_FINDING` says what no per-pattern diagnostic can: "42
+- **A phase the data cannot see is a flat direction, and it is held for the
+  stage rather than bounded** (WP-1301, past what WP-1110 could reach). It
+  reaches the pattern only through `scale × |F|² × profile`, so at a floored
+  scale nothing of it moves Rwp while its cell leaves the physical range; a
+  bound narrows that walk, is never free, and is suppressed by a caller's own
+  (`params.vector.cell_window`). So `_run_stage` holds every free structural
+  path of such a phase — never its `scale`, the one direction that is not flat
+  — and `StageResult.held` records it. **Support is a fact about the values
+  and a stage moves them**, so it is re-measured at the answer: a phase that
+  appeared is *released*, one that **collapsed** while solving is put back
+  where the stage found it and held; one extra solve, never a third, and the
+  restore is as licensed as the hold, since under 1σ a phase contributes under
+  1σ wherever its peaks sit. **A value that is not a measurement is the
+  caller's**: held paths leave `RefinementResult.parameters`, a trajectory
+  starts at the onset. Which phases is `CompiledModel.phase_support`, its zero
+  limit `phase_line_counts` the other statement ("no line in range"); both
+  feed the `PHASE_UNCONSTRAINED` that now says what was done, and
+  `SEQUENTIAL_PERSISTENT_FINDING` still says what no per-pattern one can: "42
   of 68".
 - **Pydantic knows no crystallography, so a whole-model swap is checked by
   building its table.** Every symmetry refusal is raised in
@@ -828,7 +828,7 @@ anything may change in any release, versions bumping per observable change.
 **1.0.2 was written and never published**, folded into v1.1 (2026-08-23), so
 1.0.1 is what anyone upgrades *from* and `docs/releases/1.0.2.md` describes a
 release that never existed. `pyproject.version` tracks the milestone in flight,
-or the **last shipped when none is** — `1.2.0.dev0` today, v1.2 open. It is the string
+or the **last shipped when none is** — `1.3.0.dev0` today, v1.3 open. It is the string
 every `RefinementResult.provenance` and history node stamps, and a new milestone opens at `1.x.0.dev0`.
 
 **Indexing — the rules that govern behavior outside `indexing/`.** The full

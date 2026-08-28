@@ -1,6 +1,6 @@
 # WP-1301 — An unsupported phase is held for the stage, never bounded
 
-Milestone: v1.3 · Status: ⬜
+Milestone: v1.3 · Status: ✅ 2026-08-28 — held, put back and released; the ramp's 13 sub-onset patterns need no user bound and report no cell
 Depends on: — (first of the v1.3 block; opens 13xx)
 
 ## Goal
@@ -66,10 +66,6 @@ reported, not silent; nothing changes for a fit with no unsupported phase.
   (`agent-surface-audit-insitu-ramp`); the raw run at
   `~/rietx-agent-runs/2026-08-26-insitu-ramp/` with `agent_call.txt` (the exact call).
 
-### Inherited
-
-Nothing yet.
-
 ## Non-goals
 
 Per-iteration re-anchoring (TOPAS's shape; unavailable under scipy's fixed bounds).
@@ -78,24 +74,24 @@ is present (that is `SEQUENTIAL_PERSISTENT_FINDING`'s and the agent's).
 
 ## Tasks
 
-- [ ] `StageResult.held` + the hold in `_run_stage` + the diagnostic message; goldens
+- [x] `StageResult.held` + the hold in `_run_stage` + the diagnostic message; goldens
       bit-identical (`tests/test_golden*.py`: no unsupported phase → no hold).
-- [ ] The zero-reflection case: the LaB₆ 22.5-29.5° window asserts the diagnostic and
+- [x] The zero-reflection case: the LaB₆ 22.5-29.5° window asserts the diagnostic and
       the hold.
-- [ ] The release rule (second solve) + event fields; test: a phase appearing mid-series
+- [x] The release rule (second solve) + event fields; test: a phase appearing mid-series
       is refined in the pattern where it appears, not one later (synthetic: the ramp's
       generator at N = 13 straddling the onset, regenerated in-test from
       `tests/data/cod_1000236.cif`).
-- [ ] The runaway guard test (`slow`): the ramp's 13 sub-onset patterns through the
+- [x] The runaway guard test (`slow`): the ramp's 13 sub-onset patterns through the
       agent's exact call, no user bounds; wall clock under a runaway guard (60 s),
       `n_iterations` against the bounded baseline (1638); and cpd-1c (`cell_window`'s
       docstring case) unchanged: a *supported* phase is never held.
-- [ ] `lebail`/`pawley` and the joint path: the same rule (an absent phase's cell is flat
+- [x] `lebail`/`pawley` and the joint path: the same rule (an absent phase's cell is flat
       in every mode); tests.
-- [ ] Docs: `using/results.md` (`held`), `using/series.md` (what a held phase looks like
+- [x] Docs: `using/results.md` (`held`), `using/series.md` (what a held phase looks like
       in a chain), `help.py` entry if a name is added, the protocol/skill row for the
       changed message.
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/`.
+- [x] Tests + obs/calc/diff PNGs to `tests/output/`.
 
 ## Acceptance
 
@@ -115,5 +111,110 @@ The ramp reproduction under 60 s; goldens unchanged; full suite once on the fina
   (what the data can support).
 
 ## Handover log
+
+### 2026-08-28 (2nd session) — Held, put back, and released
+
+A refinement no longer spends its budget on a phase that is not in the
+specimen, and no longer reports a number for it. Where the fit measures that a
+phase contributes less than 1σ anywhere in the pattern, the stage holds every
+structural parameter of it and leaves its scale free — the one direction that
+is not flat, and the only way the phase can come back. A caller gets the value
+they supplied rather than wherever a flat walk stopped, `PHASE_UNCONSTRAINED`
+names the parameters and the stages that held them, and the held rows are
+absent from `RefinementResult.parameters` because nothing measured them. On a
+series that means a phase appearing part-way through has a trajectory that
+*starts at the onset* instead of running the whole way over values that were
+never measurements (`Trajectory.x`: 2 points of 4 on the straddling fixture).
+
+The WP as filed covered only the phase that is invisible when the stage
+starts, and that is not the case the in-situ ramp hit. `phase_support`
+measures the *modelled* contribution, so CaF₂ seeded at scale 1e-4 — how the
+agent seeded it for all 68 patterns — is well above the noise at stage start
+whatever the specimen holds; nothing is held, and the flat direction opens
+only as the solver drives that scale to nothing. So support is re-measured at
+the answer as well, and it moves both ways: a held phase that has *appeared*
+is released and the stage re-solved (the pattern where a phase first appears
+is the one an operator reads), one that has *collapsed* is put back where the
+stage found it and held. One extra solve covers either, never a third. The
+restore is licensed by the measurement that licensed the hold: under 1σ a
+phase contributes under 1σ wherever its peaks sit, since the peak height is
+`scale·|F|²·profile` and the cell only moves them.
+
+**Done** — all seven checklist items; the WP closes. `StageResult.held` and
+`.released` (`SCHEMA_VERSION` 0.10 → 0.11); the hold and both post-solve arms
+in `refine._run_stage`; `CompiledModel.phase_line_counts` for the zero-line
+limit; `PHASE_UNCONSTRAINED` rewritten to say what was done, and now firing
+for a single-phase model, which it never did; `held`/`released` on
+`stage_start`/`stage_end`, with a **second `stage_start`** before a resumed
+solve so `eval.values` keeps its declared alignment with
+`stage_start.free_paths`; the same rule in `lebail`/`pawley` and in `multi.py`
+under the joint authority (below σ in *every* histogram) plus the
+`PHASE_UNCONSTRAINED` the joint path never had.
+`_phase_support_diagnostics` now takes the measured arrays rather than a
+model, so the two callers quote one implementation. Docs:
+`using/refining.md` (the fields — `results.md` does not carry `StageResult`),
+`using/series.md` (a phase that appears part-way through), `using/model.md`
+(what the cell window is still for), both AGENT_PROTOCOL rows, and CLAUDE.md's
+flat-direction invariant rewritten in place at its cap. v1.3 opened with the
+version bump and `milestones/v1.3.md`.
+
+**Measured** — the 13 sub-onset patterns of the ramp, the agent's exact call,
+2251 points, macOS/arm64, `[dev]` venv:
+
+| arm | wall | iterations | worst \|a − 5.4631\| |
+|---|---|---|---|
+| main, the agent's own bounds 5.30-5.60 | 2.8 s | 1342 | 0.163 Å (on a bound) |
+| main, no bounds | 5.3 s | 2164 | 14.88 Å |
+| hold at stage start only | 3.1 s | 927 | 11.96 Å (one at −6.49 Å) |
+| + the collapse rule (shipped) | 3.5 s | 1669 | 0 |
+
+The shipped arm needs no user bound at all, holds every CaF₂ cell at the
+declared 5.4631 Å and fires no `HIGH_CORRELATION`. It costs 742 iterations
+more than the start-of-stage hold alone, which is the price of not reporting a
+cell of 20.3 Å with an esd of 1e24. The WP's remembered 1638 is another
+machine's *bounded* number; this one measures 1342 bounded and 2164 unbounded
+one flag apart, and the test asserts against the unbounded one because the
+point is that no bound is needed.
+
+Beside that: on one pattern where CaF₂ *is* present, seeded truthfully at
+5.4631 Å in the collapsed single stage, main returns 5.6390 Å at Rwp 0.194 —
+the cell wanders while the scale is still 1e-7 and never recovers — against
+5.46301 Å at Rwp 0.055 here; from a 1.2 % wrong seed, main takes 400
+iterations to 5.46313 Å and this takes 37 to 5.46303 Å. A four-pattern chain
+straddling the onset: 549 iterations → 68, the two patterns above the onset
+agreeing with main to 1e-5 Å. cpd-1c holds nothing in any of its eight stages.
+Counts (this venv, this platform): fast suite 3216 → **3252 passed, 122
+skipped** (+36: 31 fast tests in `tests/test_held_phase.py`, which has 35 of
+which 4 are `slow`, plus 5 parametrised rows from the new validation-matrix
+claim), 124-173 s across runs; the WP's own selection 123 passed in 29.8 s;
+bit-identity goldens green. Full suite: FULL_SUITE.
+
+**Gotchas for a successor** — (i) the hold lives in the table until the *next*
+stage lifts it, because the free set a stage ends with is the set its solve
+used and the esd map, the guard and `n_free` are indexed by it;
+`_record_free_paths` is what stops it leaking into the state a checkout
+restores, and `test_a_later_stage_re_decides_the_hold_rather_than_inheriting_it`
+is what proves the lift (it went missing in `multi.py` and nothing was red).
+(ii) A released or collapsed stage solves twice and the record is one stage:
+the second solve's status, the first's `cost_initial`, both solves'
+iterations. (iii) Le Bail and Pawley answer the same question differently and
+that is the measurement, not a bug — their per-hkl intensities are fitted, so
+an absent phase takes a share of what lies under its peaks; only the zero-line
+case holds there. (iv) xdist **unions** every `xdist_group` mark on an item
+rather than taking the closest, so a per-test group on a file that already
+carries one at module level makes a third group and re-runs a shared fixture
+on another worker; that is why the cpd-1c counter-example lives in
+`test_acceptance_qpa_roundrobin.py`.
+
+**Not done, deliberately** — per-iteration re-anchoring (the WP's non-goal,
+and the only thing that would remove the *first* solve's wasted iterations:
+400 of them on one ramp pattern before the collapse is detectable). A cell
+length still has no absolute floor outside `cell_window`, which applies to
+unsupported phases only, so a phase that stays supported can in principle
+still be driven somewhere unphysical; this WP removes the case that produced
+those here, and a general floor is a separate measurement that would have to
+clear the goldens.
+
+**Next** — WP-1302, the termination view. Nothing is owed back to this WP.
 
 - **2026-08-28** — created, from the parked v1.3 plan.

@@ -204,6 +204,34 @@ measures each phase's strongest modelled point in σ of the observation noise �
 `SEQUENTIAL_PERSISTENT_FINDING`, which says the thing no per-pattern diagnostic
 can: *42 of 68*. Read R_B beside that and beside the weight with its esd.
 
+### A phase that appears part-way through
+
+This is the ordinary shape of an in-situ series: a product phase is in the
+model from the first pattern and in the specimen only from some point on. Below
+that point the fit holds its structural parameters, because they cannot be
+measured against a phase the data cannot see, and the entries say so three ways
+at once:
+
+* `SeriesEntry.parameters` does not list them. A held parameter was not in the
+  free vector, has no esd and did not move, so it is absent rather than present
+  with a number beside it.
+* `SeriesEntry.diagnostics` carries `PHASE_UNCONSTRAINED`, naming the phase and
+  the stages that held it.
+* the fitted model keeps the value you supplied. Read it as your own input,
+  never as a measurement that happens to agree with it.
+
+Above that point nothing is held and the parameters refine normally — including
+in the pattern where the phase *first* appears, which is the one an operator
+reads. If it appears while a stage is still solving, that stage lifts the hold
+and solves again rather than deferring to the next pattern.
+
+A trajectory follows from that. `SeriesResult.trajectory` reads the entries'
+parameter lists, so a held pattern contributes no point at all: `Trajectory.x`
+begins at the onset, and its length is the number of patterns that measured the
+parameter rather than the number in the series. That is the difference this
+makes to a plot — before, the same trajectory ran the whole way with a stretch
+of values that were never measurements.
+
 `SeriesEntry.rung` and `SeriesEntry.reseeded` answer different questions.
 `rung` says where the numbers came from; the first pattern of a chain is always
 `"cold"` because it has no predecessor. `reseeded` says whether the chain was

@@ -76,7 +76,15 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: pre-feature document byte for byte — but both are noticeable to a consumer,
 #: which since WP-1117 is the whole test (the ``Identifiability`` docstring is
 #: the sentence that first talked a reader out of this bump).
-SCHEMA_VERSION = "0.10"
+#: 0.10 → 0.11 (WP-1301): ``StageResult.held`` and ``StageResult.released`` —
+#: the structural parameters of a phase the data could not see, held for the
+#: stage rather than refined down a flat direction, and the subset the same
+#: stage let go again.  Additive and defaulted, and the empty lists are the
+#: honest answer for every fit with no unsupported phase (they are written on
+#: every stage, so an empty one means "nothing was held", not "nobody looked").
+#: A consumer notices, which is the whole test: a parameter the plan freed can
+#: now come back unrefined, and these two fields are where it says so.
+SCHEMA_VERSION = "0.11"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
