@@ -70,6 +70,36 @@ def test_normalize_cif_species_covers_both_wild_forms_and_only_them():
     assert normalize_cif_species("Xx1") == ("Xx1", None)
 
 
+def test_the_spelling_hint_offers_only_a_rewrite_that_resolves():
+    """The hint never sends a caller to edit a file for a spelling that fails too.
+
+    ``species_spelling_hint`` and ``normalize_cif_species`` are one decision
+    made once: the hint is the repair, phrased for a refusal that cannot make
+    it.  A hint that only matched the *pattern* would offer ``Xx+2`` → ``Xx2+``
+    (as unreadable as the input) and ``Og+2`` → ``Og2+`` (a real element with no
+    row in either table) — advice that costs an edit and changes nothing.
+    """
+    from rietx.crystallography.cif import (
+        normalize_cif_species,
+        species_spelling_hint,
+    )
+
+    assert species_spelling_hint("Cu+1").endswith("Cu1+")
+    assert species_spelling_hint("O-2").endswith("O2-")
+    # pattern matches, candidate does not resolve — so no hint is offered
+    assert species_spelling_hint("Xx+2") == ""
+    assert species_spelling_hint("Og+2") == ""
+    # forms the hint never claimed: a bare label and an unhelpable typo
+    assert species_spelling_hint("O1") == ""
+    assert species_spelling_hint("Wat") == ""
+    # and the two functions cannot disagree about the same input
+    for species in ("Cu+1", "O-2", "Xx+2", "Og+2", "O1", "Wat", "Na"):
+        candidate, note = normalize_cif_species(species)
+        offered = species_spelling_hint(species)
+        assert bool(offered) is (note == "sign-first charge"), species
+        assert not offered or offered.endswith(candidate), species
+
+
 def test_site_label_type_symbols_normalise_at_read(tmp_path):
     diags = []
     structure = Structure.from_cif(_nacl_cif(tmp_path, na="Na1", cl="Cl1"),
@@ -346,6 +376,30 @@ def test_a_neutron_compile_names_the_atom_its_own_table_choked_on(
     assert "neutron scattering length" in message       # the table actually consulted
     assert nuclide_label not in message                 # the nuclide is not blamed
     assert "Waasmaier" not in message                   # nor the X-ray table it never touched
+
+
+def test_a_neutron_compile_names_the_atom_its_own_parse_pass_choked_on():
+    """The neutron re-walk follows ``compile_phase_sites``' two passes, not one.
+
+    ``compile_phase_sites`` parses every atom's species first
+    (``neutron_normalize_species`` in the site loop) and only then looks every
+    atom up (``neutron_b_coh`` for the b vector) — two passes, parse first.
+    ``Xx`` parses as a symbol and has no Sears row; ``123`` does not parse at
+    all.  So the compile raises in pass one on atom 1, while a single re-walk
+    over ``b_coh`` — which parses and looks up in one call — stops at atom 0
+    and reports a missing scattering length, a table pass one never reached.
+    Same misattribution the X-ray arm had, one table over: the two-pass re-walk
+    names atom 1 with the parser's own reason.
+    """
+    with pytest.raises(ValueError) as excinfo:
+        _compile_neutron(_neutron_structure("Xx", "A0", second="123",
+                                            second_label="A1"))
+    message = str(excinfo.value)
+    assert "atom 1" in message and "'A1'" in message  # the real fault, not Xx
+    assert "'123'" in message
+    assert "cannot read a species" in message         # the pass that refused
+    assert "Xx" not in message                        # the parseable atom is not blamed
+    assert "scattering length" not in message         # nor the table pass one never reached
 
 
 @pytest.mark.parametrize("spelling", ["Cu+1", "Fe+3"])

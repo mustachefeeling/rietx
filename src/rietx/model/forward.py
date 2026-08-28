@@ -63,6 +63,9 @@ from ..crystallography.lattice import (
     two_theta_deg,
 )
 from ..crystallography.neutron import b_coh as neutron_b_coh
+from ..crystallography.neutron import (
+    normalize_species as neutron_normalize_species,
+)
 from ..crystallography.scattering import normalize_species
 from ..crystallography.stephens import S_NAMES, monomial_matrix, strain_width_deg
 from ..crystallography.structure_factor import (
@@ -2202,19 +2205,30 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
     blame it for a fault in a table this compile never touched, hiding the real
     one; the boundary must ask the same question the compile asked.
 
-    The X-ray re-walk is **two passes in the compile's own order**, not one
-    interleaved loop.  ``compile_model`` resolves dispersion over *every* atom
-    of the phase first (``resolve_dispersion``, which raises on the first
-    species it cannot read) and only if that whole pass succeeds calls
-    ``compile_phase_sites``, which walks the atoms again and calls
-    ``normalize_species`` per atom — two full passes, dispersion first.  A
-    single loop that checked both lookups per atom would stop at an earlier atom
-    that passes dispersion but has no form-factor row (``D`` — deuterium reads
-    as hydrogen for dispersion but the Waasmaier-Kirfel table carries no ``D``
-    row) and blame it, even when the real fault the compile raised on was a
-    *later* atom's dispersion, a table ``normalize_species`` never reached.  So
-    the dispersion pass runs to completion before the form-factor pass begins,
-    and the boundary re-walks the same sequence the compile did.
+    **Both arms re-walk in two passes, in the compile's own order**, because
+    both compiles are two passes.  On the X-ray arm ``compile_model`` resolves
+    dispersion over *every* atom of the phase first (``resolve_dispersion``,
+    which raises on the first species it cannot read) and only if that whole
+    pass succeeds calls ``compile_phase_sites``, which walks the atoms again
+    calling ``normalize_species`` per atom.  On the neutron arm
+    ``compile_phase_sites`` is itself two passes over its own table's parser:
+    ``neutron_normalize_species`` per atom in the site loop, then
+    ``neutron_b_coh`` per atom for the b vector.  In both cases a single loop
+    that checked both lookups per atom would stop at an earlier atom that
+    survives pass one but fails pass two, and blame it for a fault the compile
+    never reached:
+
+    * X-ray — ``D`` reads as hydrogen for dispersion but the Waasmaier-Kirfel
+      table carries no ``D`` row, so an interleaved loop blames ``D`` when the
+      real fault was a *later* atom's dispersion;
+    * neutron — ``Xx`` parses as a symbol but has no Sears row, so an
+      interleaved loop (or a single loop over ``b_coh``, which parses and
+      looks up in one call) blames ``Xx`` for a missing scattering length when
+      the compile actually choked on a *later* atom's unreadable label
+      (``123``) in pass one, a table the lookup pass never reached.
+
+    So on each arm pass one runs to completion before pass two begins, and the
+    boundary re-walks the same sequence the compile did.
 
     The sign-first spelling hint (``Cu+1`` → ``Cu1+``) is an X-ray-table
     artifact and is added on the X-ray arm only: the neutron parser accepts the
@@ -2223,6 +2237,15 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
     (the emission-line dispersion-edge guard, which is about two wavelengths and
     not a spelling) matches no single-wavelength lookup here and is re-raised
     untouched.
+
+    **This function is a hand-maintained mirror** of ``compile_phase_sites``'s
+    loops and ``dispersion.resolve``'s per-species checks, tied to them by this
+    prose alone.  Anything that changes the *number or order* of lookups on
+    either side — a pass added to ``compile_phase_sites``, a check added to
+    ``resolve``, a lookup moved between them — has to be mirrored here in the
+    same order, or this boundary starts naming the wrong atom and the wrong
+    table with full confidence, which is worse than the anonymous ``KeyError``
+    it replaced.
     """
     def _name_atom(index, atom, atom_exc):
         # ``str(KeyError(...))`` re-quotes its arg; take the message itself
@@ -2232,16 +2255,21 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
             f"phase {phase.name!r} atom {index} ({atom.label!r}): "
             f"{reason}{hint}") from exc
 
-    if neutron:
-        # b_coh normalises (nuclide-keyed) then looks up in one call, so a
-        # single loop reproduces both neutron failure modes: an unreadable label
-        # and a readable one with no tabulated length.  Genuinely one lookup,
-        # not two, so there is no pass order to honour.
+    def _walk(check):
+        """One full pass of ``check`` over the atoms, naming the first to fail."""
         for index, atom in enumerate(phase.atoms):
             try:
-                neutron_b_coh(atom.species)
+                check(atom.species)
             except (KeyError, ValueError) as atom_exc:
                 _name_atom(index, atom, atom_exc)
+
+    if neutron:
+        # The parse pass, then the table pass — compile_phase_sites' own two,
+        # in its order.  b_coh does both in one call, which is why the lookup
+        # pass alone is not enough: it would refuse a parseable-but-untabulated
+        # species before the parse pass had reached a later unreadable label.
+        _walk(neutron_normalize_species)
+        _walk(neutron_b_coh)
         raise exc
 
     # X-ray: the dispersion pass first (all atoms), then the form-factor pass
@@ -2256,11 +2284,7 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
                     dispersion(sym, lams[0])
             except (KeyError, ValueError) as atom_exc:
                 _name_atom(index, atom, atom_exc)
-    for index, atom in enumerate(phase.atoms):
-        try:
-            normalize_species(atom.species)
-        except (KeyError, ValueError) as atom_exc:
-            _name_atom(index, atom, atom_exc)
+    _walk(normalize_species)
     raise exc
 
 
