@@ -368,6 +368,22 @@ describe("positionEdits", () => {
     expect(xyzText(0.1993)).toBe("0.19930");
   });
 
+  it("keeps the stored precision of an axis retyped as it was shown", () => {
+    // the cell shows five places and the model holds more, so an axis the user
+    // clicked into and typed back contributes the *stored* value: pushing the
+    // rounded one would move a coordinate nobody changed by up to 5e-6, which
+    // is five times `POSITION_TOL` and can turn a reachable position into a
+    // refusal on a constrained site
+    const s = structure();
+    s.phases[0].atoms[1].x.value = 0.199317;
+    expect(xyzText(0.199317)).toBe("0.19932");
+    const delta = positionEdits(s, 0, edits({
+      "phases.0.atoms.1.x": "0.19932", "phases.0.atoms.1.z": "0.55",
+    }));
+    expect(delta.moves).toEqual([
+      { atom: "phases.0.atoms.1", xyz: [0.199317, 0.5, 0.55] }]);
+  });
+
   it("groups three typed axes into one move, in atom order", () => {
     const delta = positionEdits(structure(), 0, edits({
       "phases.0.atoms.1.z": "0.55",

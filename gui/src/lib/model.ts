@@ -471,7 +471,7 @@ export interface PositionDelta {
  * skip a fully fixed atom: the cells are read-only, so nothing can be typed into
  * one, and skipping it here would be a rule with no way to fail.  And it
  * compares against **what the cell shows**, like `splitEdits`, so a coordinate
- * retyped to the four decimals it was displaying at is not a move — otherwise
+ * retyped to the five decimals it was displaying at is not a move — otherwise
  * every rounded display would send a tiny one on Apply.
  */
 export function positionEdits(structure: any, phase: number,
@@ -508,8 +508,14 @@ export function positionEdits(structure: any, phase: number,
         bad = true;
         continue;
       }
-      xyz.push(value);
-      if (text.trim() !== xyzText(current)) moved = true;
+      // an axis retyped as it was shown contributes the *stored* value, not the
+      // rounded one it displays at: the cell shows five places and the model
+      // holds more, so pushing what was typed would move a coordinate the user
+      // did not change by up to 5e-6 — enough to put a constrained site outside
+      // `POSITION_TOL` and turn a reachable position into a refusal
+      const shown = text.trim() === xyzText(current);
+      xyz.push(shown ? current : value);
+      if (!shown) moved = true;
     }
     if (!bad && moved) delta.moves.push({ atom: base, xyz });
   }

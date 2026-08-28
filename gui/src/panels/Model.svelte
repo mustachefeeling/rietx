@@ -1571,14 +1571,24 @@
                 <td class="varycell">
                   {#if row.dofs.length}
                     {@const glob = `${row.base}.dof.*`}
-                    {@const state = varyOfAll(rows, varyEdits, glob)}
-                    <input type="checkbox" class="vary" data-vary={glob}
-                      checked={state === true}
-                      indeterminate={state === null}
-                      disabled={busy}
-                      aria-label="refine the position of {row.base}"
-                      onchange={(e) => toggleVaryGlob(glob,
-                        (e.currentTarget as HTMLInputElement).checked)} />
+                    {#if row.dofs.some((dof) => dof.refinable)}
+                      {@const state = varyOfAll(rows, varyEdits, glob)}
+                      <input type="checkbox" class="vary" data-vary={glob}
+                        checked={state === true}
+                        indeterminate={state === null}
+                        disabled={busy}
+                        aria-label="refine the position of {row.base}"
+                        onchange={(e) => toggleVaryGlob(glob,
+                          (e.currentTarget as HTMLInputElement).checked)} />
+                    {:else}
+                      <!-- held for a reason the whole group shares — a Le Bail
+                           or Pawley mode force-fixes every `.atoms.` path — so
+                           the mark rather than a box, which is what `varyBox`
+                           draws for every other flag in this row -->
+                      <span class="vary muted" data-vary={glob}
+                        title={why(row.dofs[0].path)}
+                        >{heldGlyph(row.dofs[0])}</span>
+                    {/if}
                   {:else}
                     {@render varyBox(`${row.base}.x`)}
                   {/if}
