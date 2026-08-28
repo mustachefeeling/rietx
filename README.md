@@ -39,26 +39,28 @@ result.plot(path="fit.png")                          # obs/calc/diff/ticks
 Output of the full script (trimmed at the `…`):
 
 ```text
-Le Bail:  status=converged  Rwp=0.1457  GoF=5.52  a=10.251214 A
-Rietveld: status=converged  Rwp=0.0932  GoF=3.53
+Le Bail:  status=converged  Rwp=0.1435  GoF=5.44  a=10.251214 A
+Rietveld: status=converged  Rwp=0.0933  GoF=3.54
           a = 10.251216 +/- 0.000046 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
           [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound
+          [info] CAPILLARY_OFFSET_UNAVAILABLE: this capillary geometry declares no goniometer radius, …
 
-FitReport: Rwp=0.0932 GoF=3.53; 52 regions, top 15 shown (74% of χ²); 54 unmatched observed peak(s); …
+FitReport: Rwp=0.0933 GoF=3.54; 53 regions, top 15 shown (74% of χ²); 53 unmatched observed peak(s); …
   region  14.22- 14.54 deg  localRwp=0.154  chi2share=13.6%  max|d/sig|=49.5
   …
 
 Refinement history (every stage is a restorable checkpoint):
 t5544a638  13 nodes  data=11BM_NAC.fxye
  n0000  root                   —
-└─  n0001  stage:bkg              Rwp 3.1725
+└─  n0001  stage:bkg              Rwp 3.1772
    …
-                                 └─ *n0012  stage:biso             Rwp 0.0932
+                                 └─ *n0012  stage:biso             Rwp 0.0933
 ```
 
 ## Current features
 
 - Multi-phase Rietveld, Le Bail and Pawley
+- X-ray and constant-wavelength [neutron](https://rietx.org/using/data.html#a-neutron-source) data
 - Preset [staged plans](https://rietx.org/using/concepts.html#refinement-plans)
 - Extensively documented [forward model](https://rietx.org/forward-model.html)
 - [Multiple solvers](https://rietx.org/estimation.html#solvers)
