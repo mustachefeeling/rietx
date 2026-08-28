@@ -166,6 +166,10 @@ describe("edge segments", () => {
         expect(diagonal ? Math.abs(part.toRow - part.fromRow) : 1).toBe(1);
       }
     }
+    // every edge's `toLane` was a `-1` placeholder until the child was placed,
+    // and a lane of −1 is drawn off the rail rather than raising
+    const laneOf = new Map(placed.map((p) => [p.node.id, p.lane]));
+    for (const edge of edges) expect(edge.toLane).toBe(laneOf.get(edge.to));
     // and the pieces still join the two nodes end to end
     const parts = edgeSegments(fork);
     expect([parts[0].fromLane, parts[0].fromRow]).toEqual([fork.fromLane, fork.fromRow]);

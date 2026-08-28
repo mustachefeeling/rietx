@@ -1,6 +1,7 @@
 # WP-1217 — History: the graph and the compare table
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.2 · Status: ✅ 2026-08-28 — the graph reads like a git graph and
+the compare table's numbers hold their columns; five rules in `gui/CLAUDE.md`
 Depends on: WP-1201
 
 ## Goal
@@ -94,5 +95,77 @@ npm --prefix gui test && npm --prefix gui run check
 - WP-1012 (the panel), WP-1029 (OKLab rotation).
 
 ## Handover log
+
+- **2026-08-28** — The history panel now draws a graph a person can follow and
+  a table a person can read down. Before this, a branch that forked from a node
+  ten rows up was one long shallow curve, which reads as a slope rather than as
+  "this came from that"; and the compare table's four numeric cells were each
+  formatted independently, so a column could hold a decimal point on one row and
+  an exponent on the next. Both are fixed at their causes rather than their
+  symptoms — a lane is now reserved for an edge's whole span, which is what makes
+  a one-row sideways step drawable at all, and each parameter family declares its
+  own number of decimal places, with the formatter guaranteeing the column's
+  width rather than the CSS hoping for it. The difference is now given twice,
+  absolute and as a percentage, which is what makes a 12 ppm cell shift legible
+  next to a background term that doubled. Nothing about the history *model*
+  changed: no new verb, no new route, no change to what a node holds.
+
+  **Done.** All three checklist items. `layout` assigns lanes by **arc** (one
+  parent→child edge holding a lane from the parent's row to the child's) instead
+  of by tip; `edgeSegments` returns the vertical run and the one-row crossing;
+  `LANE_HUES` + `laneColor` compose a lane's ink against `app.css`'s new
+  `--lane-l`/`--lane-c` (three theme blocks). The compare table gets `PLACES`,
+  `formatFor`, `formatSide`, `formatDelta`, `formatPercent`, `DIFF_CAP` and the
+  three width constants, a sticky header naming the two nodes, and a notice that
+  states the cap and the ranking. `tests/test_gui_palette.py` grew the lane
+  arithmetic; its module docstring now says it covers the GUI's colours rather
+  than the plot's.
+
+  **Measured** (`[dev]` venv — numpy + numba, no jax/torch — darwin/arm64,
+  nothing else mid-suite):
+
+  - vitest 572 → **583 passed, 21 files**, ~9.4-9.8 s. All eleven are in
+    `history.test.ts` (9 → 20); the App-level compare test grew assertions
+    rather than cases.
+  - `tests/test_gui_palette.py` 10 → **15 collected**, +5 (two parametrized ×
+    two themes, plus the twice-declared-and-agrees check). Fast selection
+    **3206 passed, 122 skipped** in 2:11; no new skip.
+  - The full selection did **not** run: GUI-only plus one test file, which is
+    `tests/CLAUDE.md`'s rung-3 exemption.
+  - Browser (Chrome 1223, a 12-node fixture with a six-row fork, a merge and a
+    second fork): rail 34 px, 12 edge paths, every crossing one row. Compare
+    columns right-aligned at 1252/1335/1417/1492 on every row including the
+    header. At a 1500 px window (sidebar 559) the row does not overflow; at a
+    1000 px window (sidebar 380) it overflows by 34 px and scrolls, which is
+    the designed give.
+
+  **Gotchas**, all three found in the browser and none reachable from jsdom:
+
+  - `ch` is the **element's own** zero. A `--text-xs` header inside `--w-val`
+    tracks sat at 1266/1341/1420 against the body's 1252/1335/1417, and a `Δ`
+    cell without `mono` widened its track by a further 4 px. The family and the
+    size now sit on `.drow`, not on each cell — the rule is in `gui/CLAUDE.md`.
+  - A percentage of a **signed** `a` disagrees with its own Δ: a Caglioti V
+    refining −0.0002 → +0.0024 printed `+0.002601` beside `-1.30e+3%`. It is
+    of |a| now.
+  - Dashing both of a merge's edges was harmless while they were short curves
+    and puts three dashed rows down the trunk once the runs are vertical. Only
+    a **second** parent is dashed.
+
+  Two design points a successor should not re-litigate. **No esd is reachable
+  in a history diff** — `RefinementTree.diff` reads values off a
+  `ParameterTable` built from each node's stored schemas, and neither carries
+  one — so the `formatValue`-with-esd half of this WP's design line was struck
+  rather than implemented. And the client **does** match a path to a family
+  here, through `lib/fnmatch.ts`, against `help.py`'s rule that the server owns
+  the match: licensed because this is a display choice (a wrong match shows a
+  digit too many, it decides nothing), and pinned by crossing `PLACES` against
+  `help_keys.json` both ways.
+
+  **Next:** [1017](1017-gui-manual-onboarding.md), the GUI manual and the
+  in-app help anchors — the last of v1.2, and now unblocked, this having been
+  the last of the triage. Nothing here is owed to it beyond the two widths its
+  screenshots will be taken at (1256 px is where the model pane stacks; the
+  compare row fits a 559 px sidebar and side-scrolls a 380 px one).
 
 - **2026-08-25** — created from the v1.2 triage.

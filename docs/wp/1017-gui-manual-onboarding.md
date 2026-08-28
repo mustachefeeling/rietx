@@ -83,6 +83,23 @@ not against the notes.
 
 ### Inherited
 
+**From [1217](1217-history-graph-compare.md), 2026-08-28 — the history panel
+draws a git graph and its compare table has five columns.** Three things for a
+chapter describing it. The rail is **lanes with colours**, and what a colour
+means is worth one clause: a lane is where the tree divided, not a named
+branch — there are no moving refs here, so a fifth lane repeats the first
+lane's hue and that is a collision the reader can see rather than a fifth
+branch. An edge runs down its lane and steps sideways in one row; **only a
+second parent is dashed**, so a dashed line means "this rival strategy was
+folded in", never "this is a merge". The compare table now reads
+`path · a · b · Δ · Δ %`, each side at its family's own number of decimal
+places and the percentage of |a| — so prose must not promise a fixed number of
+significant figures, and a screenshot of it taken before today is stale. Below
+about a 400 px sidebar the row side-scrolls rather than squeezing, which is
+deliberate and worth not apologising for. And the panel still has **no verb
+this WP could document as read-only**: comparing two nodes is a `GET`, but
+`Project.open` has already written to the log by then.
+
 **From [1216](1216-instrument-form.md), 2026-08-28 — the instrument section is
 a form of three groups.** A chapter describing it names **Source**, **Geometry**
 and **Profile** (and Background under them), not one list of fields: the axial
