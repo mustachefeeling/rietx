@@ -191,6 +191,13 @@ and never a silent cap.
   worktree session running it measures the wrong tree — green, and about code
   it did not change. Build one per worktree (`uv venv --python 3.12 && uv pip
   install -e ".[dev]"`), and say `[dev]` vs `[dev,jax,torch]` with every figure.
+  **Name the interpreter when you build it**: `uv pip install` prefers an
+  inherited `VIRTUAL_ENV` over the `.venv` in the working directory, so that
+  command run inside a fresh worktree can install *the worktree's source into
+  the main checkout's venv* — which points another session's tests at this
+  session's tree, silently and in the direction the rule above does not cover.
+  `uv pip install --python <worktree>/.venv/bin/python -e ".[dev]"` cannot;
+  after either, check `python -c "import rietx; print(rietx.__file__)"` in both.
   The same discipline extends to the **tree**: when `main` has moved under a
   branch, that branch's counts are not the merged tree's and the two parents'
   additions cannot simply be summed — re-measure after the merge.

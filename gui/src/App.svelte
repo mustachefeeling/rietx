@@ -20,6 +20,7 @@
 
   import { ApiError, api } from "./api";
   import Help from "./Help.svelte";
+  import Checklist from "./panels/Checklist.svelte";
   import Console from "./panels/Console.svelte";
   import History from "./panels/History.svelte";
   import Model from "./panels/Model.svelte";
@@ -42,6 +43,7 @@
   import { isShortcutTarget, type Command } from "./lib/palette";
   import { cellText, type PeaksPayload } from "./lib/peaks";
   import { consoleLine, follow, type EngineEvent, type RunState } from "./lib/stream";
+  import { TABS, type Tab } from "./lib/tabs";
   import {
     THEME_CHOICES,
     applyTheme,
@@ -66,38 +68,18 @@
   let dropped = $state(0);
   let plotKey = $state(0);
 
-  /** The nine panels, and the one that is showing.
-   *
-   * Model and Text joined the strip in WP-1034 — an edit and the fit it changes
-   * are now one glance, which is what every other panel already had.  WP-1013
-   * and WP-1014 had made both of them modes over the whole window on grounds
-   * that were sound and are now **measured**: the atom table needs 472 px and
-   * the `.rxt` document's editable columns 546 px, against a sidebar that
-   * clamps at 560 and drags to 72 % of the window.  So they fit at the ceiling,
-   * they do not fit at the 340 px floor, and the full-window layout below is
-   * what covers the difference.
-   *
-   * `Series` is the ninth (WP-1016) and its label is one word for the reason
-   * WP-1034 measured: eight already fill a 455 px strip, so a ninth costs a
-   * second row at a narrow column and nothing else — the strip wraps rather than
-   * shortening a label. It needs no mode of its own either: the header's
-   * `Split | Full` already gives any panel the whole window. */
-  const TABS = [
-    { id: "params", label: "Parameters" },
-    { id: "plan", label: "Plan" },
-    { id: "peaks", label: "Peaks" },
-    { id: "model", label: "Model" },
-    { id: "text", label: "Text" },
-    { id: "series", label: "Series" },
-    { id: "report", label: "Report" },
-    { id: "history", label: "History" },
-    { id: "build", label: "Build" },
-  ] as const;
-  type Tab = (typeof TABS)[number]["id"];
+  /** The nine panels, and the one that is showing.  The strip itself is
+   *  `lib/tabs.ts` — data, because the manual is held to it (WP-1017). */
   let tab = $state<Tab>("params");
   const modelTab = $derived(tab === "model");
   const textTab = $derived(tab === "text");
   const seriesTab = $derived(tab === "series");
+  // The checklist's last step, ticked wherever the tab was reached from — the
+  // strip, the palette, `?`, or the report's own link from the header
+  // (WP-1017). One effect rather than a flag at four call sites.
+  $effect(() => {
+    if (tab === "report") reportSeen = true;
+  });
 
   /** Whether the panel column has the whole window (WP-1034).
    *
@@ -118,6 +100,12 @@
       title: "the panel column across the whole window — the tabs stay with it" },
   ];
   let simple = $state(true);
+  /** The first-run checklist's own two pieces of state (WP-1017): whether it
+   *  has been dismissed for this project, and whether the Report tab has been
+   *  looked at — the one step that is about the person rather than the
+   *  project, and therefore session-local rather than persisted. */
+  let firstRun = $state(true);
+  let reportSeen = $state(false);
   let consoleHeight = $state(150);
   /** The panel column's width in px, or `null` for "nobody has said".
    *
@@ -279,6 +267,9 @@
    *  the next `Open…`. It lives in `/api/settings`, loaded once at boot. */
   function readUi() {
     simple = project?.doc?.ui?.simple ?? true;
+    // Absent means "not dismissed yet", so a project made before this existed
+    // gets the strip once. Only `false` hides it (WP-1017).
+    firstRun = project?.doc?.ui?.first_run !== false;
     consoleHeight = project?.doc?.ui?.console_height ?? 150;
     sideWidth = project?.doc?.ui?.side_width ?? null;
     modelColumns = project?.doc?.ui?.model_columns ?? null;
@@ -369,6 +360,11 @@
     project = doc;
     readUi();
     openError = "";
+    // a different project, so the checklist's session-local step starts over
+    // (WP-1017) — this belongs with `tab = "params"` rather than in `readUi`,
+    // which `moved()` also calls on every head move: reset there, reading the
+    // report and then running a stage would un-tick it
+    reportSeen = false;
     tab = "params";
     indexAnswer = null;
     forgetCandidates();
@@ -394,6 +390,7 @@
       project = await api.openProject(path);
       readUi();
       openError = "";
+      reportSeen = false;   // a different project — see `opened` (WP-1017)
       tab = "params";
       indexAnswer = null;
       forgetCandidates();
@@ -633,6 +630,13 @@
     simple = next;
     await setUi({ simple: next });
     say(`project.doc.ui["simple"] = ${next ? "True" : "False"}`);
+  }
+
+  /** Dismiss the first-run checklist, for this project (WP-1017). */
+  async function dismissFirstRun() {
+    firstRun = false;
+    await setUi({ first_run: false });
+    say('project.doc.ui["first_run"] = False');
   }
 
   async function setConsoleHeight(next: number) {
@@ -1111,6 +1115,13 @@
              against a column that clamps at 340 px on a narrow window.  A strip
              that hides a tab is worse than the mode buttons it replaced, so no
              label is ever shortened and the strip takes a second row instead. -->
+        {#if firstRun}
+          <!-- above the strip and inside the column: it is about what to do
+               next, so it sits where the next thing is, and it is dismissible
+               rather than modal (WP-1017) -->
+          <Checklist hasPhase={!noPhases} hasResult={!!result} {reportSeen} {busy}
+            ongo={(next) => (tab = next as Tab)} ondismiss={dismissFirstRun} />
+        {/if}
         <nav class="tabs">
           {#each TABS as entry (entry.id)}
             <button class="tab" class:on={tab === entry.id} onclick={() => (tab = entry.id)}

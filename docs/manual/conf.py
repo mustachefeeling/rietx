@@ -15,6 +15,9 @@ from pathlib import Path as _Path
 from rietx._about import DIST_NAME
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
 from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
+from rietx.examples import list_examples
+from rietx.gui.textdoc import FORMAT_VERSION as RXT_FORMAT_VERSION
+from rietx.gui.textdoc import VALUE_DIGITS as RXT_VALUE_DIGITS
 from rietx.help import help_registry
 from rietx.indexing.ambiguity import MAX_AMBIGUITY_INDEX
 from rietx.indexing.dichotomy import ANGLE_STEP_DEG, AXIS_STEP
@@ -41,7 +44,11 @@ from rietx.optimize.statistics import (
 from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, STRAIN_CAP_RANGE_FRACTION
 from rietx.refine import SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
 from rietx.report.layer2 import IMPURITY_SIGMA
-from rietx.report.schemas import THRESHOLDS_VERSION, VALIDITY_RADIUS_FWHM
+from rietx.report.schemas import (
+    MATURITY_MAX_RWP,
+    THRESHOLDS_VERSION,
+    VALIDITY_RADIUS_FWHM,
+)
 from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
 from rietx.schemas.suggest import SUGGEST_MIN_GAIN
 from rietx.strategy.staged import BACKGROUND_PEAK_MIN_WIDTH_MULT
@@ -100,6 +107,22 @@ myst_substitutions = {
     "MAX_AMBIGUITY_INDEX": MAX_AMBIGUITY_INDEX,
     "MAX_RELATIVE_SIGMA_Q": MAX_RELATIVE_SIGMA_Q,
     "MIN_LINES_PER_DOF": MIN_LINES_PER_DOF,
+    # How many example projects the wheel carries.  A *count* in prose is the
+    # same class of stale number as a retuned threshold, and it rots the same
+    # silent way: `using/quickstart.md` said "Three" while the page's own
+    # listing showed two, because a standard whose data may not ship in the
+    # wheel leaves `list_examples()` and nothing reads the sentence again.
+    "N_EXAMPLES": len(list_examples()),
+    # The `.rxt` document's own version and precision (WP-1009 asked for this
+    # explicitly: a format bump that misses the manual must fail the docs
+    # build).  `gui-power.md` states the grammar normatively, so both numbers
+    # are quoted from the parser rather than typed beside it.
+    "RXT_FORMAT_VERSION": RXT_FORMAT_VERSION,
+    "RXT_VALUE_DIGITS": RXT_VALUE_DIGITS,
+    # The Rwp past which Layer 1 abstains and the GUI header wears
+    # `⚠ not a fit yet`.  The GUI chapters state it, so it is injected for the
+    # same reason every other threshold here is: a retune must move the page.
+    "MATURITY_MAX_RWP": MATURITY_MAX_RWP,
     "NEAR_EDGE_EV": NEAR_EDGE_EV,
     "NIGGLI_EPS_RELATIVE": NIGGLI_EPS_RELATIVE,
     "NODES_PER_FWHM": NODES_PER_FWHM,

@@ -158,12 +158,9 @@ standard and variant keys.
 
 ## `rietx gui`: the refinement GUI
 
-:::{admonition} Beta
-:class: warning
-The GUI is **beta**. Its panels are still moving, so it is not documented here
-beyond this section, and its behaviour may change between releases even
-more freely than the library API around it does.
-:::
+This section is the command. The application it starts is three chapters of its
+own: [](gui-quickstart.md) for a first fit, [](gui-guide.md) for the panels, and
+[](gui-power.md) for the text document, the keyboard and the routes.
 
 ```console
 $ rietx gui my_sample.rex

@@ -1,0 +1,41 @@
+{
+  "_comment": "Written by gui/src/lib/tabs.test.ts from lib/tabs.ts. Do not edit: edit the strip. Read by tests/test_gui_manual.py, which fails when a GUI chapter of the manual does not name a tab.",
+  "tabs": [
+    {
+      "id": "params",
+      "label": "Parameters"
+    },
+    {
+      "id": "plan",
+      "label": "Plan"
+    },
+    {
+      "id": "peaks",
+      "label": "Peaks"
+    },
+    {
+      "id": "model",
+      "label": "Model"
+    },
+    {
+      "id": "text",
+      "label": "Text"
+    },
+    {
+      "id": "series",
+      "label": "Series"
+    },
+    {
+      "id": "report",
+      "label": "Report"
+    },
+    {
+      "id": "history",
+      "label": "History"
+    },
+    {
+      "id": "build",
+      "label": "Build"
+    }
+  ]
+}
