@@ -900,3 +900,39 @@ needs a result, `_EXPORT_MODEL_ONLY` declaring the exception so the stricter
 gate stays the default. One more browser trap and it is a width: a rule aimed at
 the value reaches the control beside it, and `.cellrow input { width: 100% }`
 drew the esd next to the box at zero width.
+
+**One row per atom, and the coordinate is a cell in it** (WP-1215,
+`Model.svelte`, `lib/model.ts:positionEdits`, `gui/symmetry.py:position_values`).
+Four rules. **A coordinate is typed and the site answers**: `POST
+/api/structure/position` takes a whole position — the projection is a whole
+position, since a `[1 1 0]` site cannot say what x should be without y — least-
+squares it onto the site's own basis, and **refuses** an unreachable one naming
+the directions it allows and the nearest position they reach. Never snapped:
+that would move the atom to a *different site* than the one asked for, which is
+`check_cell_angles`' objection one rank up. It is a `set_value` node, not an
+`edit_model` one, because a position changes what the table holds and never what
+it contains — the line `structure_aniso` is on the other side of. The client
+computes none of it; a second copy of the DOF basis there is `symbolChanged`'s
+trap. **A vary key is a path *or a glob***: a site's DOFs are freed together
+("per-axis intent does not map onto rows such as [1,1,0]"), so the position's one
+box says `phases.i.atoms.j.dof.*` and records one node, and a group that
+disagrees with itself answers `null` and draws the DOM's `indeterminate` —
+`false` over a half-freed site is untrue about the other half. **A memoised
+answer may be asked for automatically, and the route it is on stays split**: the
+Wyckoff search is keyed on (space group, positions) — the content tuple, not a
+digest, and not the label, which cannot change a letter — so the `site` column
+fetches itself, but a *miss* still costs 2.0-5.5 ms an atom, so it is not folded
+into `GET /api/structure` and not awaited with it. Three client rules ride with
+that and each is a bug the other two do not cover: the effect keys on `stamp`,
+not `head`, because a local write calls `load()` and moves no head prop; the
+better `causes` are held in their own field, because merged, two concurrent
+fetches would let arrival order decide the sentence; and a stale *response* is
+dropped rather than a fresh request. And **a width written in three places has
+one test**: the atom table's floor is the table's `min-width`, the structure
+column's `flex-basis` and `MODEL_MIN`, and only the third had one — the basis
+was still WP-1034's number, so at exactly the stacking threshold the column came
+out short and side-scrolled the table the threshold exists to give room to. Two
+corollaries, both found by looking: a `colspan` cell's grid **is** part of the
+table's min-content, so a track floor there must be `min(210px, 100%)` or opening
+a disclosure widens the whole table; and the threshold must count the **grips
+inside the row it is measuring**, which no version of it had.

@@ -249,8 +249,19 @@ them, and a stage then drops them again, reporting them as `mode_fixed`.
 
 The GUI calls the same verb from its Model panel: a box beside each value frees
 that one path, and a held value shows which of the four reasons holds it in
-place of the box. Globs stay in the parameter panel, since a family freed by a
-glob is one call and one history node.
+place of the box. The atom table's `vary` column is the one box that names a
+family rather than a path — `phases.0.atoms.2.dof.*`, because a site's
+coordinate degrees of freedom are freed together and per-axis intent does not
+map onto a direction such as `[1 1 0]`. Other globs stay in the parameter
+panel, since a family freed by a glob is one call and one history node.
+
+Coordinates are typed as x, y and z there, not as displacements. The panel
+sends the whole position and the server projects it onto the site's own basis:
+a position the site cannot reach is refused, naming the directions it allows
+and the nearest position they lead to, so the choice stays the caller's. On a
+general position the projection is the identity and every value is accepted.
+Either way what lands in θ is `set_values` on the `…dof.k` paths, so the
+history reads the same as any other value edit.
 
 `Refinement.set_values` takes a dict of paths to values. It is plural because a
 table is edited a set of cells at a time, and one node per keystroke would bury
