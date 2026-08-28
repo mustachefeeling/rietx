@@ -21,7 +21,7 @@ from ._about import DIST_NAME
 from .backend.api import backend_dtype_note
 from .background.diagnostics import STEPS_PER_FWHM_MIN, sampling_steps_per_fwhm
 from .help import help_key_for
-from .history.events import as_event_stream
+from .history.events import _attach_progress, as_event_stream
 from .history.store import fingerprint
 from .history.tree import RefinementTree
 from .model.absorption import (
@@ -1450,11 +1450,20 @@ class Refinement:
         guard = check_guards(table, outcome, correlation_guard, model=model,
                              scan_exchangeability=stage_index == n_stages)
         if events is not None:
+            # a real number, not the raw least-squares cost: additive on the
+            # existing kind (history/events.py's rule), paid only when a
+            # caller asked for events at all — one forward evaluation, not a
+            # fit, the same pattern _record uses for a history node's metrics
+            values = table.decode(outcome.theta)
+            stage_rwp = compute_statistics(
+                model.y_obs, model.evaluate(values), model.sigma,
+                n_free=len(table.free_paths) + _pawley_n(model),
+                y_background=model.background(values)).rwp
             events.emit("stage_end", stage=stage.name, status=outcome.status,
                         n_iterations=outcome.n_iterations,
                         termination=outcome.termination,
                         cost_initial=outcome.cost_initial,
-                        cost_final=outcome.cost_final,
+                        cost_final=outcome.cost_final, rwp=stage_rwp,
                         held=list(held), released=list(released))
         return model, outcome, guard, freed, _StageHold(held=list(held),
                                                         released=list(released))
@@ -1463,13 +1472,21 @@ class Refinement:
             plan: RefinementPlan | str = "mccusker_default",
             two_theta_limits: tuple[float, float] | None = None,
             events=None, cancel=None,
-            stage_reports: bool = False) -> RefinementResult:
+            stage_reports: bool = False, progress=None) -> RefinementResult:
         """Run a staged refinement.
 
         ``events`` — optional per-iteration telemetry: a path (JSONL appended),
         a callable (called per event dict), or an
         :class:`~rietx.history.events.EventStream`.  See that module for the
         record format; ``rietx watch`` tails it live.
+
+        ``progress`` — a text stream or path; one line per stage boundary
+        (``[series 7/13] 250C stage cell converged Rwp 0.0812 12s`` under
+        :func:`refine_sequential`, ``stage cell converged Rwp 0.0812 12s``
+        here).  Implemented as an ``events=`` consumer
+        (:func:`~rietx.history.events.progress_writer`), never a second
+        telemetry channel — combine both freely, ``progress`` adds a
+        subscriber rather than replacing ``events``'s.
 
         ``cancel`` — an :class:`~rietx.optimize.cancel.CancelToken` another
         thread can set.  The stage in flight is abandoned (no node, no commit,
@@ -1516,7 +1533,7 @@ class Refinement:
         self._free_paths = []
         self._held = []
         tree = self._ensure_history(data, plan)
-        stream = as_event_stream(events)
+        stream = _attach_progress(as_event_stream(events), progress)
         if stream is not None:
             stream.emit("fit_start", mode=mode,
                         stages=[s.name for s in plan.stages],

@@ -174,7 +174,7 @@ the model; the summary lives on `Refinement`).
 - [x] Docstring lines on the files above.
 - [x] `HIGH_CORRELATION` dedup + cap + the new code's rows; GUI diagnostics strip
       unaffected (`npm --prefix gui test`).
-- [ ] `progress=` on `fit`/`refine_sequential` + a test that every line's numbers equal
+- [x] `progress=` on `fit`/`refine_sequential` + a test that every line's numbers equal
       the event's fields.
 - [ ] `RefinementResult.__str__`, `Refinement.summary(deliverable=…, plot=…)`,
       `SeriesResult` + tests + a golden text on 11-BM NAC that changes only when a field

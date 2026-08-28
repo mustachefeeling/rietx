@@ -104,7 +104,7 @@ from typing import Any
 import numpy as np
 
 from .backend.api import backend_dtype_note
-from .history.events import EventStream, as_event_stream
+from .history.events import EventStream, _attach_progress, as_event_stream
 from .history.tree import RefinementTree
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import NFEV_PER_ITERATION, SOLVERS
@@ -564,7 +564,7 @@ class SequentialRefinement:
             prepare: Callable[[int, PatternData, Structure, Instrument],
                               None] | None = None,
             on_result: Callable[[int, RefinementResult], None] | None = None,
-            events=None, cancel=None,
+            events=None, cancel=None, progress=None,
             ) -> SeriesResult:
         """Run the series.
 
@@ -643,6 +643,12 @@ class SequentialRefinement:
             series **returns** the entries that completed and reports
             ``SEQUENTIAL_CANCELLED`` — see the module docstring for why that is
             WP-1006's rule rather than an exception to it.
+        progress:
+            A text stream or path — one line per stage boundary per pattern
+            (``[series 7/13] 250C stage cell converged Rwp 0.0812 12s``), the
+            series stamp making it read one line per pattern here rather than
+            per fit.  Same mechanism as ``Refinement.fit``'s ``progress``,
+            combining freely with ``events``.
         """
         # Refused here rather than pattern by pattern: every member fit would
         # raise identically, and the ladder would read the first raise as a
@@ -668,7 +674,7 @@ class SequentialRefinement:
         order = list(range(len(patterns)))
         if direction == "backward":
             order.reverse()
-        stream = as_event_stream(events)
+        stream = _attach_progress(as_event_stream(events), progress)
         entries, results, trees, models = self._chain(
             order, patterns, names, xs, mode, base_plan, ladder,
             two_theta_limits, reseed, reseed_factor, prepare, on_result,
