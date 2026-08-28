@@ -165,7 +165,7 @@ the model; the summary lives on `Refinement`).
 
 ## Tasks
 
-- [ ] `Base.__getattr__` + meta-test over every `Base` subclass (recursive
+- [x] `Base.__getattr__` + meta-test over every `Base` subclass (recursive
       `__subclasses__`) that deepcopy, pickle, `model_copy`, `validate_assignment` and
       `model_dump` round-trip still hold.
 - [ ] The closest-match on the two dataclasses.
