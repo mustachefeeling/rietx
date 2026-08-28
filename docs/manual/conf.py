@@ -15,6 +15,7 @@ from pathlib import Path as _Path
 from rietx._about import DIST_NAME
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
 from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
+from rietx.examples import list_examples
 from rietx.help import help_registry
 from rietx.indexing.ambiguity import MAX_AMBIGUITY_INDEX
 from rietx.indexing.dichotomy import ANGLE_STEP_DEG, AXIS_STEP
@@ -100,6 +101,12 @@ myst_substitutions = {
     "MAX_AMBIGUITY_INDEX": MAX_AMBIGUITY_INDEX,
     "MAX_RELATIVE_SIGMA_Q": MAX_RELATIVE_SIGMA_Q,
     "MIN_LINES_PER_DOF": MIN_LINES_PER_DOF,
+    # How many example projects the wheel carries.  A *count* in prose is the
+    # same class of stale number as a retuned threshold, and it rots the same
+    # silent way: `using/quickstart.md` said "Three" while the page's own
+    # listing showed two, because a standard whose data may not ship in the
+    # wheel leaves `list_examples()` and nothing reads the sentence again.
+    "N_EXAMPLES": len(list_examples()),
     "NEAR_EDGE_EV": NEAR_EDGE_EV,
     "NIGGLI_EPS_RELATIVE": NIGGLI_EPS_RELATIVE,
     "NODES_PER_FWHM": NODES_PER_FWHM,

@@ -9,8 +9,8 @@ prints back at you, `rietx` is imported as `rx`.
 
 ## If you have no data yet
 
-Three example projects ship inside the package. Each is a real specimen with a
-published reference value, and each carries the refinement protocol its
+The package ships {{ N_EXAMPLES }} example projects. Each is a real specimen
+with a published reference value, and each carries the refinement protocol its
 acceptance suite measures, so a fit of one is comparable with a number
 somebody else recorded.
 
