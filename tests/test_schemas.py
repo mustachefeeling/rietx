@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import dataclasses
 import inspect
@@ -5,13 +6,33 @@ import json
 import math
 import pickle
 import re
+import types
+import typing
 
 import pytest
 from pydantic import ValidationError
 
 import rietx as rx
+
+# Force every module that defines a Base subclass to be imported, so
+# ``Base.__subclasses__()`` below sees the whole family regardless of what
+# else this file happens to import — this test must find the same set
+# whether it runs alone or as part of the suite.
+import rietx.report.schemas  # noqa: F401
+import rietx.schemas.history  # noqa: F401
+import rietx.schemas.indexing  # noqa: F401
+import rietx.schemas.instrument  # noqa: F401
+import rietx.schemas.params  # noqa: F401
+import rietx.schemas.pattern  # noqa: F401
+import rietx.schemas.plan  # noqa: F401
+import rietx.schemas.project  # noqa: F401
+import rietx.schemas.results  # noqa: F401
+import rietx.schemas.sequential  # noqa: F401
+import rietx.schemas.structure  # noqa: F401
+import rietx.schemas.suggest  # noqa: F401
 from rietx import Instrument, Parameter, PatternData, Structure
 from rietx.schemas import Atom, Cell, Phase
+from rietx.schemas.common import Base
 
 
 def make_lab6() -> Structure:
@@ -245,6 +266,96 @@ def test_the_hint_is_a_pointer_and_not_an_alias():
     assert copy.deepcopy(result) == result
     assert pickle.loads(pickle.dumps(result)) == result
     assert type(result).model_validate_json(result.model_dump_json()) == result
+
+
+def _all_base_subclasses() -> list[type]:
+    """Every ``Base`` subclass currently defined, recursively.
+
+    Depends on the explicit import block above: a subclass ``__subclasses__``
+    has not seen does not exist yet, so this walk is only as complete as that
+    list.
+    """
+    seen: set[type] = set()
+    frontier = [Base]
+    while frontier:
+        for sub in frontier.pop().__subclasses__():
+            if sub not in seen:
+                seen.add(sub)
+                frontier.append(sub)
+    return sorted(seen, key=lambda c: f"{c.__module__}.{c.__qualname__}")
+
+
+def _dummy_scalar(annotation: object, depth: int) -> object:
+    """A type-shaped placeholder, never a validated value.
+
+    Only used for *required* fields, so a model-level validator reading a
+    sibling mid-``validate_assignment`` finds something of the right shape
+    (a nonzero tuple, a populated nested model) instead of the "declared but
+    never given a value" case one rank up — that case is real and tested on
+    its own; here it would just be noise from this helper's own construction.
+    Business-rule rejection of the placeholder (a ``ValidationError``) is the
+    caller's to accept, not this function's to avoid.
+    """
+    if depth > 8:
+        return None
+    origin = typing.get_origin(annotation)
+    if origin is typing.Literal:
+        return typing.get_args(annotation)[0]
+    if origin in (types.UnionType, typing.Union):
+        args = [a for a in typing.get_args(annotation) if a is not type(None)]
+        return _dummy_scalar(args[0], depth + 1) if args else None
+    if origin is list:
+        args = typing.get_args(annotation) or (typing.Any,)
+        return [_dummy_scalar(args[0], depth + 1)]
+    if origin is dict:
+        args = typing.get_args(annotation)
+        if len(args) == 2:
+            return {_dummy_scalar(args[0], depth + 1): _dummy_scalar(args[1], depth + 1)}
+        return {}
+    if origin is tuple:
+        args = typing.get_args(annotation)
+        if len(args) == 2 and args[1] is Ellipsis:
+            return ()
+        return tuple(_dummy_scalar(a, depth + 1) for a in args)
+    if isinstance(annotation, type) and issubclass(annotation, Base):
+        return _dummy_instance(annotation, depth + 1)
+    return {bool: False, int: 1, float: 1.0, str: "x"}.get(annotation)
+
+
+def _dummy_instance(cls: type, depth: int = 0):
+    """``model_construct`` with every *required* field filled, recursively.
+
+    Optional fields are left to ``model_construct``'s own default/
+    ``default_factory`` handling — only a required field can leave a model
+    validator looking at something unset.
+    """
+    required = {f: _dummy_scalar(info.annotation, depth)
+                for f, info in cls.model_fields.items() if info.is_required()}
+    return cls.model_construct(**required)
+
+
+@pytest.mark.parametrize(
+    "cls", _all_base_subclasses(), ids=lambda c: f"{c.__module__}.{c.__qualname__}")
+def test_every_base_subclass_survives_the_new_getattr(cls):
+    """``Base.__getattr__`` must not break pydantic's own machinery.
+
+    Required fields carry a type-shaped dummy (see ``_dummy_instance``) so a
+    model validator touching a sibling field during ``validate_assignment``
+    finds a value rather than exercising the *other*, already-tested "declared
+    but never given a value" branch; a business-rule rejection of that dummy
+    (``ValidationError``) is not this test's concern, only an ``AttributeError``
+    escaping from ``Base.__getattr__`` itself is.
+    """
+    obj = _dummy_instance(cls)
+    assert copy.deepcopy(obj) == obj
+    assert pickle.loads(pickle.dumps(obj)) == obj
+    assert obj.model_copy() == obj
+    obj.model_dump(mode="json")
+    defaulted = next(
+        (f for f, info in cls.model_fields.items() if not info.is_required()), None)
+    if defaulted is not None:
+        with contextlib.suppress(ValidationError):
+            setattr(obj, defaulted, getattr(obj, defaulted))  # validate_assignment path
 
 
 def test_plan_spec_is_one_class_everywhere():
