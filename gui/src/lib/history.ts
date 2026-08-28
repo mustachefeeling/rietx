@@ -58,7 +58,15 @@ export interface Edge {
   toLane: number;
   /** the lane this edge's vertical run occupies, held from `fromRow` to `toRow` */
   lane: number;
-  /** true when `to` has more than one parent — a merge, drawn dashed */
+  /**
+   * True where `from` is not `to`'s **first** parent — drawn dashed.
+   *
+   * Not "`to` is a merge", which dashed both of a merge's edges and, once the
+   * runs became long, put three dashed rows in the middle of the trunk.  The
+   * first parent is the lineage `Refinement.lineage` follows and the one
+   * `rwpDelta` reads against; a second is a rival strategy that was folded in,
+   * and that is the edge worth marking.
+   */
   merge: boolean;
 }
 
@@ -139,10 +147,10 @@ export function layout(nodes: readonly HistoryNode[]) {
   });
 
   const laneOf = new Map(placed.map((p) => [p.node.id, p.lane]));
-  const parents = new Map(nodes.map((n) => [n.id, n.parents.length]));
+  const parents = new Map(nodes.map((n) => [n.id, n.parents]));
   for (const edge of edges) {
     edge.toLane = laneOf.get(edge.to) as number;
-    edge.merge = (parents.get(edge.to) as number) > 1;
+    edge.merge = (parents.get(edge.to) as string[]).indexOf(edge.from) > 0;
   }
   return { placed, edges, lanes: Math.max(1, held.length) };
 }
@@ -305,9 +313,12 @@ export type Format = number | "exp";
  * column.  A place count per family fixes the width, and the count is chosen to
  * resolve the smallest move the family actually makes — a cell length shifts
  * 10-1000 ppm on 3-40 Å, so five places show a 2 ppm move and a sixth would show
- * the solver's noise.  The families whose values span orders of magnitude
- * instead (a phase scale, an extinction coefficient, a background polynomial's
- * terms) are exponential, which is a fixed width too.
+ * the solver's noise.  The two families whose values span orders of magnitude
+ * instead — a phase scale and an extinction coefficient, both of which reach
+ * 1e-6 and neither of which has a natural place count — are exponential, which
+ * is a fixed width too.  A background term is *not*: measured on the FAP
+ * example its six coefficients run 159 to -15, and `-1.5321e+1` is a worse way
+ * to write -15.321 than three places are.
  *
  * The keys are `rietx.help.PARAMETER_HELP`'s own family globs, and
  * `history.test.ts` crosses them against `tests/data/gui/help_keys.json` **both
@@ -320,8 +331,8 @@ export type Format = number | "exp";
  * matcher (`lib/fnmatch.ts`, held to Python by its own corpus) is enough.
  */
 export const PLACES: Readonly<Record<string, Format>> = {
-  "instrument.background.air": "exp",
-  "instrument.background.c*": "exp",
+  "instrument.background.air": 3,
+  "instrument.background.c*": 3,
   "instrument.background_peaks.*.fwhm": 4,
   "instrument.background_peaks.*.height": 3,
   "instrument.background_peaks.*.position": 4,
@@ -460,6 +471,11 @@ export function formatDelta(path: string, delta: number | null | undefined): str
  * percentage to state: a parameter absent on one side, or an `a` of zero, where
  * every move is an infinite fraction of it.
  *
+ * Of |a|, so the sign is the difference's own.  Measured in a browser on a
+ * Caglioti V that refined from −0.0002 to +0.0024: against a signed `a` the row
+ * read `+0.002601` beside `-1.30e+3%`, two marks disagreeing about which way a
+ * parameter went.  The magnitude is the fraction of its own size either way.
+ *
  * Three significant figures rather than two decimal places: a cell length
  * moving 12 ppm is a real refinement result and `0.00%` is not a way to say it.
  */
@@ -468,7 +484,7 @@ export function formatPercent(a: number | null | undefined,
                               chars = PERCENT_CHARS): string {
   if (a === null || a === undefined || !a) return "—";
   if (delta === null || delta === undefined) return "—";
-  const percent = (100 * delta) / a;
+  const percent = (100 * delta) / Math.abs(a);
   if (!Number.isFinite(percent)) return "—";
   const magnitude = Math.abs(percent);
   const body = magnitude >= 1000 || (percent !== 0 && magnitude < 1e-3)

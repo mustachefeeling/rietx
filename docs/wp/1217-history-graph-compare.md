@@ -81,7 +81,7 @@ magnitudes.
 - [x] Compare formatting in `lib/history.ts` (`formatSide`, `formatDelta`,
       `formatPercent`, family place counts); the table on aligned columns;
       the cap notice.
-- [ ] Browser pass on a tree with a branch and a merge; dist.
+- [x] Browser pass on a tree with a branch and a merge; dist.
 
 ## Acceptance
 

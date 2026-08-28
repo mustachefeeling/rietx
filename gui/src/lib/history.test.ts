@@ -66,7 +66,11 @@ describe("lane layout", () => {
     expect(placed.map((p) => p.lane)).toEqual([0, 0, 1, 0, 0, 1]);
     const merge = edges.filter((e) => e.to === "n0003");
     expect(merge).toHaveLength(2);
-    expect(merge.every((e) => e.merge)).toBe(true);
+    // only the *second* parent is dashed: the first is the lineage, and dashing
+    // both put three dashed rows in the middle of the trunk (WP-1217, seen in a
+    // browser once the runs stopped being curves)
+    expect(merge.map((e) => [e.from, e.merge]))
+      .toEqual([["n0001", false], ["n0002", true]]);
   });
 
   it("draws no edge to a parent outside the payload", () => {
@@ -298,6 +302,8 @@ describe("the compare table's numbers", () => {
     expect(formatPercent(0.00025, 0.00025)).toBe("+100%");
     expect(formatPercent(4.1566, -0.0002)).toBe("-0.00481%");
     expect(formatPercent(1, 1e-9)).toBe("+1.00e-7%");
+    // of |a|, so the two marks cannot disagree about which way it went
+    expect(formatPercent(-0.0002, 0.0026)).toBe("+1.30e+3%");
     expect(formatPercent(0, 0.5)).toBe("—");        // every move is infinite
     expect(formatPercent(4.1566, null)).toBe("—");  // a parameter that appeared
     expect(formatPercent(null, 0.5)).toBe("—");

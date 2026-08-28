@@ -329,18 +329,18 @@
       <div class="rows">
         <div class="drow heads">
           <span class="path">path</span>
-          <span class="val mono">{selected}</span>
-          <span class="val mono">{against}</span>
+          <span class="val">{selected}</span>
+          <span class="val">{against}</span>
           <span class="val">Δ</span>
           <span class="pct">Δ %</span>
         </div>
         {#each rows.slice(0, DIFF_CAP) as row (row.path)}
           <div class="drow">
-            <span class="path mono" title={row.path}>{row.path}</span>
-            <span class="val mono tabular muted">{formatSide(row.path, row.a)}</span>
-            <span class="val mono tabular">{formatSide(row.path, row.b)}</span>
-            <span class="val mono tabular">{formatDelta(row.path, row.delta)}</span>
-            <span class="pct mono tabular muted">{formatPercent(row.a, row.delta)}</span>
+            <span class="path" title={row.path}>{row.path}</span>
+            <span class="val tabular muted">{formatSide(row.path, row.a)}</span>
+            <span class="val tabular">{formatSide(row.path, row.b)}</span>
+            <span class="val tabular">{formatDelta(row.path, row.delta)}</span>
+            <span class="pct tabular muted">{formatPercent(row.a, row.delta)}</span>
           </div>
         {/each}
       </div>
@@ -547,22 +547,31 @@
     margin: 1px 0;
   }
 
+  /* The family is on the *row*, not on each cell, because the columns are
+     measured in `ch` and `ch` is the element's own zero: a header cell that was
+     not mono made its track 4 px wider than the mono one below it (measured in
+     Chrome, 1414 against 1417). A `ch` column is a shared column only while
+     every cell in it is one font at one size. */
   .drow {
     display: flex;
     gap: 6px;
     padding: 0 8px;
+    font-family: var(--mono-family);
     font-size: var(--text-sm);
     line-height: 18px;
   }
 
-  /* the header is inside the scroller, so it has to be opaque or the rows
-     travel under it (WP-1032's sticky-header finding, one panel over) */
+  /* The header is inside the scroller, so it has to be opaque or the rows
+     travel under it (WP-1032's sticky-header finding, one panel over) — and it
+     keeps `--text-sm`, the size of everything on a cell's row, for the reason
+     above: at `--text-xs` its tracks came out narrower and the header sat
+     inside its own columns by a growing offset (1266/1341/1420 against
+     1252/1335/1417). */
   .drow.heads {
     position: sticky;
     top: 0;
     z-index: 1;
     background: var(--panel);
-    font-size: var(--text-xs);
     color: var(--muted);
   }
 
