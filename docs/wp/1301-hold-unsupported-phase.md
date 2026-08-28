@@ -80,7 +80,7 @@ is present (that is `SEQUENTIAL_PERSISTENT_FINDING`'s and the agent's).
 
 - [x] `StageResult.held` + the hold in `_run_stage` + the diagnostic message; goldens
       bit-identical (`tests/test_golden*.py`: no unsupported phase → no hold).
-- [ ] The zero-reflection case: the LaB₆ 22.5-29.5° window asserts the diagnostic and
+- [x] The zero-reflection case: the LaB₆ 22.5-29.5° window asserts the diagnostic and
       the hold.
 - [ ] The release rule (second solve) + event fields; test: a phase appearing mid-series
       is refined in the pattern where it appears, not one later (synthetic: the ramp's

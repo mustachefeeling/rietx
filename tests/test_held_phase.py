@@ -221,3 +221,78 @@ def test_the_held_fit_is_drawn_for_inspection(held_fit):
     plot_result(result, path=str(OUT / "held_phase.png"))
     plt.close("all")
     assert (OUT / "held_phase.png").exists()
+
+
+# ----------------------------------------------------------------------
+# the limit case: no line of the phase in the fitted range
+# ----------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def no_reflection_fit():
+    """NIST SRM 660c LaB₆ fitted where the certification data has no peak.
+
+    That dataset is measured in windows around its own reflections, so the
+    interval 22.5-29.5° reduces to 41 points at 29.1-29.5° — real data, real
+    counts, and no line of LaB₆ anywhere in it (the 100 sits at 21.4°, the 110
+    at 30.4°).  A single-phase fit of a phase the range cannot see.
+    """
+    import rietx as rx
+    from tests.test_acceptance_srm660c import (
+        _nist_calibrated_plan,
+        build_srm_inputs,
+    )
+
+    data, structure, instrument = build_srm_inputs()
+    ref = rx.Refinement(structure, instrument, history=False)
+    return ref, ref.fit(data, plan=_nist_calibrated_plan(),
+                        two_theta_limits=(22.5, 29.5))
+
+
+def test_no_reflection_in_range_is_reported_rather_than_silent(no_reflection_fit):
+    """rietx 1.0.1 crashed here; then it converged and said nothing.
+
+    Measured on ``main`` before this: ``converged``, Rwp 0.334, and the only
+    diagnostic ``DISPERSION_NEGLECTED`` — a fit that refined a cell, two Biso
+    and a profile against no reflection at all and reported success.  A
+    contributor's campaign brief spent a paragraph telling its agents to work
+    around the state by hand.
+    """
+    _, result = no_reflection_fit
+    fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert len(fired) == 1, [d.code for d in result.diagnostics]
+    assert "no reflection of phase 0" in fired[0].message
+    assert "LaB6" in fired[0].message
+
+
+def test_the_zero_line_case_is_the_limit_of_support_not_a_second_test():
+    """``phase_line_counts`` is zero exactly where nothing can be measured.
+
+    A different statement from a small ``phase_support`` and worth separating:
+    a phase whose scale is at its floor may appear in the next pattern of a
+    series, one with no line in the window will not, whatever the specimen
+    does.  Read off the frozen windows, so a reflection generated just outside
+    the fitted ends counts as the absence it is.
+    """
+    from tests.test_acceptance_srm660c import build_srm_inputs
+
+    data, structure, instrument = build_srm_inputs()
+    blind = compile_model(structure, instrument, data, mode="rietveld",
+                          two_theta_limits=(22.5, 29.5))
+    seeing = compile_model(structure, instrument, data, mode="rietveld",
+                           two_theta_limits=(29.5, 32.0))
+    assert int(blind.phase_line_counts()[0]) == 0
+    assert int(seeing.phase_line_counts()[0]) > 0
+
+
+def test_the_blind_range_holds_everything_but_the_scale(no_reflection_fit):
+    """Held, not refined: a single-phase model gets the rule too.
+
+    The phase count never entered it — "the data cannot see this phase" is a
+    measurement on the phase, and a lone phase under the noise is exactly as
+    unmeasurable as one of six.
+    """
+    ref, result = no_reflection_fit
+    held = {p for stage in result.stages for p in stage.held}
+    assert "phases.0.cell.a" in held
+    assert not [p for p in held if p.endswith(".scale")]
+    # the cell is the value the protocol declared, to the digit
+    assert ref.structure.phases[0].cell.a.value == 4.1568
