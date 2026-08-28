@@ -127,13 +127,25 @@ MAX_CANDIDATE_TICKS = 2000
 #: the mechanism stays for the next reserved surface.
 RESERVED_ROUTES: dict[tuple[str, str], str] = {}
 
-_EXPORT_DEFAULTS = {
+#: ``kind → default filename``.  The route table's export family is built from
+#: this, so a kind added here is reachable from the wire with no second list.
+EXPORT_DEFAULTS = {
     "cif": "refinement.cif",
     "reflections": "reflections.csv",
     "qpa": "qpa.csv",
     "html": "fit.html",
     "result_json": "result.json",
+    "instrument_profile": "instrument_profile.json",
 }
+
+#: Exports that describe the **model** rather than a fit, and are therefore
+#: gated on a project alone.  Declared as the exception, so the default for a
+#: new kind is the stricter gate: an export of a fit written before one has run
+#: is an empty file, while an instrument profile is exactly the state a
+#: calibration is frozen *from* — the file is written to be loaded into the next
+#: sample's project, and the fit that produced it has already been run and its
+#: numbers already stand in the model (WP-1214).
+_EXPORT_MODEL_ONLY = frozenset({"instrument_profile"})
 
 
 def _utcnow() -> str:
@@ -2793,18 +2805,26 @@ class GuiSession:
 
         Idle-only, and not because it writes: ``write_cif`` and the reflection
         table read the *compiled model*, which a running stage owns.
+
+        Two gates, not one.  Everything here describes a fit and needs a result;
+        ``_EXPORT_MODEL_ONLY`` names the kinds that describe the model instead
+        and are answered from the project alone.
         """
         self._require_idle()
         p = self._need_project()
-        if kind not in _EXPORT_DEFAULTS:
+        if kind not in EXPORT_DEFAULTS:
             raise GuiError(f"unknown export {kind!r}; "
-                           f"available: {sorted(_EXPORT_DEFAULTS)}",
+                           f"available: {sorted(EXPORT_DEFAULTS)}",
                            code="NOT_FOUND", status=404)
-        res = self._need_result()
-        target = self._export_target(body.get("filename") or _EXPORT_DEFAULTS[kind])
+        res = None if kind in _EXPORT_MODEL_ONLY else self._need_result()
+        target = self._export_target(body.get("filename") or EXPORT_DEFAULTS[kind])
         ref = p.refinement
         try:
-            if kind == "cif":
+            if kind == "instrument_profile":
+                from ..io.instrument_profile import save_instrument_profile
+
+                save_instrument_profile(ref.instrument, target)
+            elif kind == "cif":
                 ref.write_cif(target)
             elif kind == "reflections":
                 ref.write_reflection_table(target)
@@ -2813,9 +2833,10 @@ class GuiSession:
             elif kind == "html":
                 from ..viz.html import write_html
 
-                write_html(res, str(target))
+                write_html(res, str(target))  # type: ignore[arg-type]
             else:
-                target.write_text(res.model_dump_json(indent=2), encoding="utf-8")
+                target.write_text(res.model_dump_json(indent=2),  # type: ignore[union-attr]
+                                  encoding="utf-8")
         except RuntimeError as exc:
             # "no QPA on this result (Rietveld fits only)" is the interesting
             # one: a Le Bail fit has no weight fractions, and saying so beats

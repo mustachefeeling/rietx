@@ -33,6 +33,9 @@ export interface ParamRow {
   locked: boolean;
   esd: number | null;
   mode_fixed: boolean;
+  /** the fourth reason a row can be held: a free wavelength needs this
+   *  histogram's cell held, since d = λ/(2 sin θ) fixes only the product */
+  needs_held_cell: boolean;
   refinable: boolean;
   held_because: string;
   /** the corpus family glob this path belongs to (WP-1202), or null when no
@@ -72,17 +75,65 @@ export function normalize(rows: readonly any[]): ParamRow[] {
   }));
 }
 
-/** Which of the three reasons holds this row, as a class name — or "" if free.
+/** Which reason holds this row, as a class name — or "" if free.
  *
  * Read off the row's own flags in `ParameterRow.held_because`'s order, and kept
- * as three states rather than "greyed": `mode_fixed` comes back when the mode
+ * as separate states rather than "greyed": `mode_fixed` comes back when the mode
  * changes, and a Le Bail phase's mandatory dummy atom is exactly the row a user
- * must not read as structurally fixed (WP-1004). */
-export function heldKind(row: ParamRow): "" | "locked" | "tied" | "mode" {
+ * must not read as structurally fixed (WP-1004).
+ *
+ * **Four** of them, not the three WP-1011 wrote: a free wavelength needs its
+ * histogram's cell held, and that row arrived after the vocabulary did.  It went
+ * unnoticed because the glyph was a ternary chain whose last arm caught
+ * everything, so the wavelength of every project on screen wore the mode-fixed
+ * mark (found in a browser on the 11-BM example, WP-1214). */
+export function heldKind(row: ParamRow): "" | "locked" | "tied" | "mode" | "degenerate" {
   if (row.locked) return "locked";
   if (row.tie) return "tied";
   if (row.mode_fixed) return "mode";
+  if (row.needs_held_cell) return "degenerate";
   return "";
+}
+
+/** The mark a held row wears where its vary checkbox would be, or "" if free.
+ *
+ * Here rather than in either panel because two of them draw it now (WP-1214):
+ * the parameter table and the model editor show the same reasons, and a second
+ * copy of the glyphs is how they would come to disagree.  The marks distinguish;
+ * `held_because` explains, and every caller shows it.  `≈` is a *degeneracy*
+ * rather than a tie, which is why it is not `=`: nothing derives this row's
+ * value, another free parameter merely makes it unmeasurable.
+ *
+ * A row the server holds for a reason with no mark here still gets one.
+ * `refinable` is the server's answer and it knows reasons this client may not,
+ * and a held row drawn with nothing in the box's place reads as a control that
+ * failed to render — which is what the fourth reason did until WP-1214.
+ * `tests/test_gui_server.py` fails when a fifth arrives. */
+export function heldGlyph(row: ParamRow): string {
+  const kind = heldKind(row);
+  if (kind === "locked") return "🔒";
+  if (kind === "tied") return "=";
+  if (kind === "degenerate") return "≈";
+  return kind === "" && row.refinable ? "" : "·";
+}
+
+/** The vary flag a row would be sent with: what was toggled, else what it has. */
+export function varyOf(row: ParamRow, edits: ReadonlyMap<string, boolean>): boolean {
+  return edits.get(row.path) ?? row.vary;
+}
+
+/** One row toggled, as a new map.
+ *
+ * A toggle back onto the row's own flag **drops** the entry rather than
+ * recording it: the pending count is what the Apply button is enabled by, and a
+ * box clicked twice has nothing to apply — `set_vary` would record a node
+ * saying nothing. */
+export function varyEdit(edits: ReadonlyMap<string, boolean>, row: ParamRow,
+                         checked: boolean): Map<string, boolean> {
+  const next = new Map(edits);
+  if (checked === row.vary) next.delete(row.path);
+  else next.set(row.path, checked);
+  return next;
 }
 
 /**

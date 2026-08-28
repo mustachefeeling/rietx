@@ -43,6 +43,14 @@ export interface Field {
   label: string;
   kind: FieldKind;
   unit?: string;
+  /** the parameter-table path, where it is not the model path prefixed.
+   *
+   *  One field needs it: the polarization factor is `source.polarization` in
+   *  the instrument and `instrument.polarization` in θ.  Without it the table
+   *  is not asked about the field at all — it rendered off the model, applied
+   *  as a whole-model PATCH past `set_values`' bounds, and had no row for a
+   *  vary toggle to act on (WP-1214). */
+  param?: string;
   /** the corpus key that explains this name (WP-1203), as `arm:name`.
    *
    *  Data rather than derived: most of these are parameter paths, whose family
@@ -139,6 +147,11 @@ export function paramPath(kind: "structure" | "instrument", path: string): strin
   return kind === "instrument" ? `instrument.${path}` : path;
 }
 
+/** The parameter-table path a *field* is about: its own, else the prefixed one. */
+export function fieldParam(kind: "structure" | "instrument", field: Field): string {
+  return field.param ?? paramPath(kind, field.path);
+}
+
 /**
  * What a field's cell shows — the parameter row's value when the table owns it.
  *
@@ -152,7 +165,7 @@ export function paramPath(kind: "structure" | "instrument", path: string): strin
 export function fieldText(model: any, field: Field,
                           rows: ReadonlyMap<string, ParamRow>,
                           kind: "structure" | "instrument"): string {
-  const row = rows.get(paramPath(kind, field.path));
+  const row = rows.get(fieldParam(kind, field));
   return row ? formatValue(row.value, row.esd) : renderField(model, field);
 }
 
@@ -199,9 +212,9 @@ export function splitEdits(
     // against what the cell *shows*, never against the stored float
     if (text.trim() === fieldText(model, field, byPath, kind)) continue;
     delta.touched += 1;
-    const owned = byPath.has(paramPath(kind, path));
+    const owned = byPath.has(fieldParam(kind, field));
     if (owned && (field.kind === "number" || field.kind === "optnumber")) {
-      delta.values[paramPath(kind, path)] = Number(text);
+      delta.values[fieldParam(kind, field)] = Number(text);
     } else {
       delta.fields.push(field);
     }
@@ -256,6 +269,7 @@ export function instrumentFields(instrument: any): Field[] {
     { path: "zero_shift", label: "zero", kind: "number", unit: "°2θ",
       help: "parameters:instrument.zero_shift" },
     { path: "source.polarization", label: "polarization", kind: "number",
+      param: "instrument.polarization",
       help: "parameters:instrument.polarization" },
   ];
   const lines = instrument?.source?.lines ?? [];
@@ -471,12 +485,41 @@ export function structureFields(structure: any): Field[] {
       out.push({ path: `phases.${i}.cell.${angle}`, label: angle, kind: "number",
                  unit: "°" });
     }
-    out.push({ path: `phases.${i}.scale`, label: "scale", kind: "number" });
+    out.push(...phaseFields(i));
     (phase.atoms ?? []).forEach((_: unknown, j: number) => {
       out.push(...atomFields(i, j), ...atomParamFields(i, j));
     });
   });
   return out;
+}
+
+/** The phase's own numbers: the scale, and the sample broadening beside it.
+ *
+ * Sample broadening is the phase's half of the instrument ⊕ sample split, and
+ * the reason it is here rather than left to the parameter table is the whole of
+ * WP-1214: it is the family a crystallographer most often frees by hand, and
+ * `instrument.profile.u` is already two columns away on the same screen.
+ * Gaussian *variances* add and Lorentzian *FWHMs* do, which is why the two
+ * pairs carry different units.
+ *
+ * The phase's corrections (extinction, preferred orientation, the Stephens
+ * block) are **not** here: each is declared per phase rather than always
+ * present, so offering one is offering to declare it, and that is a model edit
+ * this form does not make.
+ */
+export function phaseFields(phase: number): Field[] {
+  return [
+    { path: `phases.${phase}.scale`, label: "scale", kind: "number",
+      help: "parameters:phases.*.scale" },
+    { path: `phases.${phase}.lor_size`, label: "lor size", kind: "number",
+      unit: "°2θ", help: "parameters:phases.*.lor_size" },
+    { path: `phases.${phase}.lor_strain`, label: "lor strain", kind: "number",
+      unit: "°2θ", help: "parameters:phases.*.lor_strain" },
+    { path: `phases.${phase}.gauss_size`, label: "gauss size", kind: "number",
+      unit: "deg²", help: "parameters:phases.*.gauss_size" },
+    { path: `phases.${phase}.gauss_strain`, label: "gauss strain", kind: "number",
+      unit: "deg²", help: "parameters:phases.*.gauss_strain" },
+  ];
 }
 
 /** The atom fields this editor types directly — the ones that are not in θ. */

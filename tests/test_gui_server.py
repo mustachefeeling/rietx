@@ -2472,6 +2472,77 @@ def test_exports_land_in_the_project_and_cannot_escape_it(fitted, tmp_path):
     assert client.post("/api/export/nonsense")[0] == 404
 
 
+def test_the_client_draws_a_mark_for_every_reason_a_row_can_be_held():
+    """`lib/table.ts:heldKind` has one state per reason, and this is the list.
+
+    Not a taste: a held row gets no vary control, so the mark is the *only*
+    thing where the control would be, and a reason the client does not know
+    draws nothing at all — which reads as a checkbox that failed to render.
+    That is what happened to the fourth: ``needs_held_cell`` arrived after
+    WP-1011's three-glyph vocabulary, the glyph was a ternary chain whose last
+    arm caught everything, and every project's wavelength wore the mode-fixed
+    mark until a browser pass on the 11-BM example (WP-1214).
+
+    Derived from ``refinable`` rather than listed, because ``refinable`` *is*
+    the definition of held: a fifth reason has to be written into it, and it
+    fails here the moment it is.  The fields it reads, not the words its source
+    contains — ``set_vary`` in a docstring is not a read of ``vary``, and
+    ``locked`` contains ``lo``.
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    from rietx.schemas.params import ParameterRow
+
+    tree = ast.parse(textwrap.dedent(inspect.getsource(ParameterRow.refinable.fget)))
+    read = {node.attr for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+            and node.value.id == "self" and node.attr in ParameterRow.model_fields}
+    assert read == {"locked", "tie", "mode_fixed", "needs_held_cell"}
+
+
+def test_the_instrument_profile_saves_from_a_project_that_has_not_been_fitted(
+        blank, tmp_path, pattern_file):
+    """The one export gated on the model rather than on a result (WP-1214).
+
+    A profile is what a calibration is frozen *into*, so the fit that produced
+    the numbers has already run and they already stand in the instrument — and
+    the GUI could load one since WP-1014 while having no way to write one.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "profile.rex", pattern_file)
+    assert project.refinement.result_ is None      # nothing has been fitted here
+    # a value to recognise on the way back, and a flag that must not survive
+    client.patch("/api/params", {"values": {"instrument.profile.w": 0.00456},
+                                 "vary": {"instrument.profile.w": True}})
+
+    status, payload = client.post("/api/export/instrument_profile")
+    assert status == 200, payload
+    written = Path(payload["path"])
+    assert written.parent == project.exports_dir
+    assert written.name == "instrument_profile.json" and payload["bytes"] > 0
+
+    frozen = rx.load_instrument_profile(written)
+    assert frozen.profile.w.value == pytest.approx(0.00456)
+    # every stored parameter comes back held: a calibration is data, not a
+    # starting guess — so the flag just set is *not* what round-trips.  The
+    # reader's own walk, rather than a list of fields here, so the assertion
+    # covers whatever the format carries
+    from rietx.io.instrument_profile import _iter_parameters
+
+    assert not any(q.vary for q in _iter_parameters(frozen))
+    # …and what belongs to the mounted specimen rather than the goniometer is
+    # gone: displacement and transparency zeroed, the absorption terms dropped
+    assert frozen.geometry.sample_displacement.value == 0.0
+    assert frozen.geometry.sample_transparency.value == 0.0
+    assert frozen.geometry.mu_r is None and frozen.geometry.mu_t is None
+
+    status, payload = client.post("/api/export/instrument_profile",
+                                  {"filename": "../escaped.json"})
+    assert status == 400 and payload["error"]["where"] == ["filename"]
+
+
 # ----------------------------------------------------------------------
 # the run state machine (refinement stubbed — see the module docstring)
 # ----------------------------------------------------------------------

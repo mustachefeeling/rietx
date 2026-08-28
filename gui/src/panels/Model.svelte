@@ -37,9 +37,11 @@
     axialWarning,
     clone,
     editableValue,
+    fieldParam,
     fieldText,
     instrumentFields,
     newAtom,
+    phaseFields,
     splitEdits,
     structureFields,
     withAtom,
@@ -57,7 +59,16 @@
     type PhaseSymmetry,
     type SiteLetter,
   } from "../lib/symmetry";
-  import { editState, formatEsd, formatValue, normalize, type ParamRow } from "../lib/table";
+  import {
+    editState,
+    formatEsd,
+    formatValue,
+    heldGlyph,
+    normalize,
+    varyEdit,
+    varyOf,
+    type ParamRow,
+  } from "../lib/table";
   import {
     PRESET_FIELDS,
     PRESET_TITLES,
@@ -370,6 +381,15 @@
   let edits = $state(new Map<string, string>());
   /** typed text for raw parameter rows (the coordinate DOFs and the ADP patterns) */
   let pedits = $state(new Map<string, string>());
+  /** the refine flags this pane has toggled, keyed by **parameter** path.
+   *
+   *  Keyed by the parameter path rather than the model path because that is
+   *  what `set_vary` takes, and because two of the paths here are not the same
+   *  string (`source.polarization` is `instrument.polarization` in θ).  They
+   *  ride the same Apply as the value edits and go in the same `PATCH
+   *  /api/params`, one `set_vary` node per path — the parameter table's own
+   *  per-row behaviour, reached from where the model is read (WP-1214). */
+  let varyEdits = $state(new Map<string, boolean>());
   /** The last verb's refusal.  Separate from `loadError` because they are
    *  different facts: found in a browser, an unknown species was refused with a
    *  400 and the message vanished, because `apply` reloads after a failure (the
@@ -378,6 +398,12 @@
   let error = $state("");
   let loadError = $state("");
   let note = $state("");
+  /** where the last `Save profile…` wrote, or "".
+   *
+   *  Cleared by `load()`, so the line only ever stands beside the model it was
+   *  written from: an export moves no head, and every head move that follows
+   *  makes the file a description of something else. */
+  let profileSaved = $state("");
   let draft = $state({ label: "", species: "", x: "0", y: "0", z: "0" });
   /** The 3D view is a **third column of this pane**, not a sixth tab and not a
    *  window of its own: it answers questions about the rows beside it (is that
@@ -397,13 +423,33 @@
   const strDelta = $derived(structure
     ? splitEdits(structure, strFields, edits, rows, "structure")
     : null);
-  const pending = $derived(editState(rows, pedits));
+  /** the phase's own numbers: the scale and the four sample-broadening terms */
+  const phFields = $derived(structure && !noPhases ? phaseFields(phase) : []);
+  const warning = $derived(instrument ? axialWarning(instrument) : "");
+  const byPath = $derived(new Map(rows.map((r) => [r.path, r])));
+  /** the toggles that still say something, against the rows as they now stand.
+   *
+   *  `load()` keeps the typed edits across a head move — a run, a checkout, a
+   *  free/fix from the parameter panel — and a value edit that the new state
+   *  already matches drops itself, because `splitEdits` compares against what
+   *  the cell shows.  A flag has no such comparison of its own, so it is made
+   *  here: without it a box ticked before someone else freed the same path
+   *  stayed pending and Apply sent a `set_vary` whose hits are empty, which is
+   *  the node-saying-nothing `varyEdit` exists to prevent (WP-1214). */
+  const varyPending = $derived(new Map([...varyEdits].filter(([path, flag]) => {
+    const row = byPath.get(path);
+    return row !== undefined && row.vary !== flag;
+  })));
+  const pending = $derived(editState(rows, pedits, varyPending.size));
+  /** the instrument column's own unapplied *values* — what `Save profile…`
+   *  waits on.  Not `dirty`, which counts a renamed atom too, and not the
+   *  refine flags, which a profile does not carry (`load_instrument_profile`
+   *  holds every stored parameter). */
+  const insPending = $derived((insDelta?.touched ?? 0) > 0);
   const dirty = $derived((insDelta?.touched ?? 0) + (strDelta?.touched ?? 0)
     + pending.touched);
   const invalid = $derived([...(insDelta?.invalid ?? []), ...(strDelta?.invalid ?? []),
                             ...pending.invalid]);
-  const warning = $derived(instrument ? axialWarning(instrument) : "");
-  const byPath = $derived(new Map(rows.map((r) => [r.path, r])));
   const phaseSym = $derived<PhaseSymmetry | null>(symmetry[phase] ?? null);
   const symLine = $derived(symmetryLine(phaseSym));
   const symDirty = $derived(symbolChanged(symbolDraft ?? "",
@@ -457,6 +503,7 @@
       lettersFor = null;
       symPreview = null;
       symbolDraft = null;
+      profileSaved = "";
       // the signal the 3D view follows: this runs on every head move *and*
       // immediately after every local write, which is one frame earlier than
       // the head reaches the shell
@@ -477,8 +524,14 @@
   function revert() {
     edits = new Map();
     pedits = new Map();
+    varyEdits = new Map();
     error = "";
     note = "";
+  }
+
+  /** Free or hold one row, pending Apply. */
+  function toggleVary(row: ParamRow, checked: boolean) {
+    varyEdits = varyEdit(varyEdits, row, checked);
   }
 
   /** Send the delta: values through the parameter table, shape through the model.
@@ -490,13 +543,26 @@
     error = note = "";   // a refusal must not read as the last success's note
     const values = { ...(insDelta?.values ?? {}), ...(strDelta?.values ?? {}),
                      ...pending.values };
+    const vary = Object.fromEntries(varyPending);
     const moves: string[] = [];
     try {
-      if (Object.keys(values).length) {
-        await api.patchParams({ values });
-        say(`ref.set_values({${Object.entries(values)
-          .map(([k, v]) => `"${k}": ${v}`).join(", ")}})`);
-        moves.push(`${Object.keys(values).length} value(s)`);
+      // One PATCH for both, because the route applies values then vary flags —
+      // "put it here, then let it move", which is also the order that leaves the
+      // freed parameter's node last in the log.  It runs *before* the model
+      // patches below for the same reason their model is read fresh: a whole
+      // model carries every `vary` on it, so a flag set after the read would be
+      // reverted by the PATCH that follows.
+      if (Object.keys(values).length || Object.keys(vary).length) {
+        await api.patchParams({ values, vary });
+        if (Object.keys(values).length) {
+          say(`ref.set_values({${Object.entries(values)
+            .map(([k, v]) => `"${k}": ${v}`).join(", ")}})`);
+          moves.push(`${Object.keys(values).length} value(s)`);
+        }
+        for (const [path, flag] of varyPending) {
+          say(`ref.set_vary(${JSON.stringify(path)}, ${flag ? "True" : "False"})`);
+        }
+        if (varyPending.size) moves.push(`${varyPending.size} refine flag(s)`);
       }
       if (strDelta?.fields.length) {
         const fresh = (await api.structure()).structure;
@@ -674,15 +740,41 @@
     }
   }
 
+  /** Freeze this instrument to a profile file under the project's `exports/`.
+   *
+   * The counterpart of `Load profile…` beside it, and the same file format, so
+   * a lab calibrates once and every later sample loads it (`io/
+   * instrument_profile.py` has the three-step workflow).  The route is
+   * **model-gated**, not result-gated like the rest of the export family: the
+   * profile describes the instrument as it stands, and the fit that calibrated
+   * it has already put its numbers there.
+   *
+   * What the file does *not* carry is the server's decision, not this button's:
+   * the background, the specimen displacement and transparency, the roughness
+   * and the specimen absorption all describe one mounted sample rather than the
+   * goniometer.
+   */
+  async function saveProfile() {
+    try {
+      const out = await api.export("instrument_profile");
+      profileSaved = out.path;
+      say(`save_instrument_profile(ref.fitted_instrument, "${out.path}")`);
+      error = "";
+    } catch (exc) {
+      profileSaved = "";
+      error = exc instanceof ApiError && exc.busy
+        ? "a run is in flight — the model is read-only until it ends"
+        : (exc as Error).message;
+    }
+  }
+
   /** A field's current text: what the user typed, else what the cell shows. */
   function text(model: any, field: Field, kind: "structure" | "instrument"): string {
     return edits.get(field.path) ?? fieldText(model, field, byPath, kind);
   }
 
   function heldReason(field: Field, kind: "structure" | "instrument"): string {
-    const row = byPath.get(kind === "instrument" ? `instrument.${field.path}`
-                                                 : field.path);
-    return row?.held_because ?? "";
+    return byPath.get(fieldParam(kind, field))?.held_because ?? "";
   }
 
   /** Open the wizard over an already-open project (the palette's entry). */
@@ -733,6 +825,30 @@
       <button class="ghost" onclick={revert}>Revert</button>
     {/if}
   </header>
+
+  <!-- The refine flag, drawn once and rendered beside every value this pane
+       shows (WP-1214).  A checkbox where `set_vary` could free the row, and
+       **no checkbox at all** where it could not — the parameter table's rule
+       (WP-1011), with the same three marks and the same sentence, because both
+       come from `lib/table.ts` rather than from two panels that agree today.
+       `why()` supplies the reason: `held_because` plus, on a structure path,
+       the symmetry that is responsible. -->
+  {#snippet varyBox(path: string)}
+    {@const row = byPath.get(path)}
+    {#if row?.refinable}
+      <input
+        type="checkbox"
+        class="vary"
+        data-vary={path}
+        checked={varyOf(row, varyEdits)}
+        disabled={busy}
+        aria-label="refine {path}"
+        onchange={(e) =>
+          toggleVary(row, (e.currentTarget as HTMLInputElement).checked)} />
+    {:else if row}
+      <span class="vary muted" data-vary={path} title={why(path)}>{heldGlyph(row)}</span>
+    {/if}
+  {/snippet}
 
   {#if showWizard}
     <!-- ---------------------------------------------------------- -->
@@ -1082,6 +1198,11 @@
     </div>
   {:else if structure && instrument}
     <!-- ---------------------------------------------------------- -->
+    <p class="muted caption">
+      A box beside a value frees it for the next fit, through the same
+      <span class="mono">set_vary</span> the parameter table calls. Where a value
+      is held, the reason stands in place of the box.
+    </p>
     <div class="editors" class:stacked bind:this={editorsEl} bind:clientWidth={editorsWidth}>
       <div class="column structure" bind:clientWidth={colMeasured[0]}
         style:flex={cols ? `0 0 ${cols[0]}px` : null}>
@@ -1207,7 +1328,38 @@
                   value={text(structure, field, "structure")}
                   oninput={(e) => type(path, (e.currentTarget as HTMLInputElement).value)} />
               {/if}
-              {#if row?.esd}<span class="muted">{formatEsd(row.value, row.esd)}</span>{/if}
+              <span class="varyline">
+                {@render varyBox(path)}
+                <span class="muted">{row ? formatEsd(row.value, row.esd) : ""}</span>
+              </span>
+            </label>
+          {/each}
+        </div>
+
+        <h3>Phase</h3>
+        <!-- The scale and the sample broadening: the phase's half of the
+             instrument ⊕ sample split, two columns from the instrument's own
+             U V W X Y.  `lib/model.ts:phaseFields` says why the corrections are
+             not here. -->
+        <div class="grid">
+          {#each phFields as field (field.path)}
+            {@const row = byPath.get(field.path)}
+            <label class="cell" title={why(field.path)}>
+              <span class="muted">
+                <Help for={field.help!}>{field.label}</Help>{field.unit
+                  ? ` (${field.unit})` : ""}</span>
+              {#if !editableValue(row)}
+                <span class="mono fixed">{formatValue(row!.value, row!.esd)}</span>
+              {:else}
+                <input class="mono" data-field={field.path}
+                  value={text(structure, field, "structure")}
+                  oninput={(e) => type(field.path,
+                    (e.currentTarget as HTMLInputElement).value)} />
+              {/if}
+              <span class="varyline">
+                {@render varyBox(field.path)}
+                <span class="muted">{row ? formatEsd(row.value, row.esd) : ""}</span>
+              </span>
             </label>
           {/each}
         </div>
@@ -1250,18 +1402,26 @@
                   {@const prow = byPath.get(path)}
                   {@const cell = { path, label: path, kind: "number" } as Field}
                   <td>
-                    {#if !editableValue(prow)}
-                      <span class="mono fixed" title={why(path)}
-                        >{formatValue(prow!.value, prow!.esd)}</span>
-                    {:else}
-                      <input class="mono narrow" data-field={path}
-                        value={text(structure, cell, "structure")}
-                        oninput={(e) => type(path,
-                          (e.currentTarget as HTMLInputElement).value)} />
-                    {/if}
+                    <span class="valrow">
+                      {#if !editableValue(prow)}
+                        <span class="mono fixed" title={why(path)}
+                          >{formatValue(prow!.value, prow!.esd)}</span>
+                      {:else}
+                        <input class="mono narrow" data-field={path}
+                          value={text(structure, cell, "structure")}
+                          oninput={(e) => type(path,
+                            (e.currentTarget as HTMLInputElement).value)} />
+                      {/if}
+                      {@render varyBox(path)}
+                    </span>
                   </td>
                 {/each}
-                <td><input type="checkbox" checked={row.site?.aniso ?? false}
+                <!-- `data-aniso` names it the way every value cell here is
+                     named by `data-field`: this column is one of several
+                     checkboxes in the row now, and "the first one in the table"
+                     stopped being an address the day the refine flags arrived. -->
+                <td><input type="checkbox" data-aniso={row.base}
+                  checked={row.site?.aniso ?? false}
                   disabled={busy}
                   onchange={(e) => toggleAniso(row.base,
                     (e.currentTarget as HTMLInputElement).checked)} /></td>
@@ -1286,6 +1446,7 @@
                           ?? formatValue(dof.value, dof.esd)}
                           oninput={(e) => typeParam(dof.path,
                             (e.currentTarget as HTMLInputElement).value)} />
+                        {@render varyBox(dof.path)}
                       </label>
                     {/each}
                   </div>
@@ -1303,6 +1464,7 @@
                           ?? formatValue(adp.value, adp.esd)}
                           oninput={(e) => typeParam(adp.path,
                             (e.currentTarget as HTMLInputElement).value)} />
+                        {@render varyBox(adp.path)}
                       </label>
                     {/each}
                   </div>
@@ -1344,7 +1506,19 @@
             <input type="file" onchange={(e) => replaceFrom("instrument", e)} />
             <span>Load profile…</span>
           </label>
+          <!-- refused while this column has unapplied edits: the file is
+               written from the instrument the *server* holds, so a typed W
+               nobody applied would be absent from it with nothing said. -->
+          <button class="ghost" disabled={busy || insPending}
+            title={insPending
+              ? "apply the instrument edits first — a profile is written from "
+                + "the model the server holds"
+              : "freeze this instrument to a profile file under exports/"}
+            onclick={saveProfile}>Save profile…</button>
         </h2>
+        {#if profileSaved}
+          <p class="muted mono">wrote {profileSaved}</p>
+        {/if}
         {#if warning}
           <p class="warn">{warning} Nudge one if you free both — the guard
             reports the pair, and two solvers escape the corner in two
@@ -1381,6 +1555,10 @@
                     oninput={(e) => type(field.path,
                       (e.currentTarget as HTMLInputElement).value)} />
                 {/if}
+                <!-- geometry, shape, the radius and the specimen dimensions are
+                     not in θ, so `varyBox` draws nothing for them: the row it
+                     asks for does not exist (WP-1214). -->
+                <span class="varyline">{@render varyBox(fieldParam("instrument", field))}</span>
               </label>
             {/if}
           {/each}
@@ -1435,6 +1613,7 @@
           {Object.keys({ ...(insDelta?.values ?? {}), ...(strDelta?.values ?? {}),
                          ...pending.values }).length} through
           <code>set_values</code> ·
+          {varyPending.size} through <code>set_vary</code> ·
           {(insDelta?.fields.length ?? 0) + (strDelta?.fields.length ?? 0)} as a
           model edit
         </p>
@@ -1752,9 +1931,54 @@
     min-width: 0;
   }
 
-  .cellrow input,
+  /* the *value* fills its column; the refine flag beside it is a control of
+     fixed size and must be excluded by name.  Found in Chrome: a checkbox at
+     `width: 100%` took all 84 px of the line and left the esd beside it at
+     zero width — present in the DOM, drawn nowhere (WP-1214). */
+  .cellrow input:not(.vary),
   .cellrow .fixed {
     width: 100%;
+  }
+
+  /* The refine flag's own line, under the value it is about.  A line of its own
+     rather than beside the box because a cell row is six columns wide: at the
+     structure column's 472 px floor a shared line leaves ~57 px for a number
+     that wants seven characters.  Rendered whether or not the field has a
+     parameter row, so the cells of a wrapped grid keep one rhythm — an esd
+     appearing after a fit must not move the form (WP-1213's rule one panel
+     over). */
+  .varyline {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 16px;
+    min-width: 0;
+  }
+
+  .varyline span {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  /* …and beside the value where the row *is* the layout: a table cell and a
+     DOF's bracketed pattern both read left to right. */
+  .valrow {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .vary {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  .caption {
+    margin: 0;
+    padding: 0 12px 4px;
+    font-size: var(--text-sm);
   }
 
   /* the size is the control register's (app.css); this is the chrome */

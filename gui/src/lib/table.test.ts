@@ -18,12 +18,15 @@ import {
   formatEsd,
   formatValue,
   groupOf,
+  heldGlyph,
   leafName,
   heldKind,
   normalize,
   num,
   selection,
   validateEdit,
+  varyEdit,
+  varyOf,
   windowSlice,
   type ParamRow,
 } from "./table";
@@ -47,12 +50,16 @@ function row(path: string, over: Partial<ParamRow> = {}): ParamRow {
     locked: false,
     esd: null,
     mode_fixed: false,
+    needs_held_cell: false,
     refinable: true,
     held_because: "",
     help_key: null,
     ...over,
   };
-  base.refinable = !base.locked && base.tie === null && !base.mode_fixed;
+  // the server's own definition (`ParameterRow.refinable`), so a fixture cannot
+  // claim a row is free while carrying a reason it is not
+  base.refinable = over.refinable ?? (!base.locked && base.tie === null
+    && !base.mode_fixed && !base.needs_held_cell);
   return base;
 }
 
@@ -179,6 +186,48 @@ describe("the three held states", () => {
     expect(simple.shown).toBe(1);
     expect(simple.hidden).toBe(2);   // a count, not a silent truncation
     expect(flatten(rows).hidden).toBe(0);
+  });
+});
+
+describe("the refine flag", () => {
+  it("marks each held reason and leaves a free row unmarked", () => {
+    // two panels draw this now (WP-1214), which is why the glyphs are here and
+    // not in either of them
+    expect(heldGlyph(row("a", { locked: true }))).toBe("🔒");
+    expect(heldGlyph(row("a", { tie: { sources: ["b"] } }))).toBe("=");
+    expect(heldGlyph(row("a", { mode_fixed: true }))).toBe("·");
+    // the fourth, which the three-arm ternary this replaced drew as the third:
+    // a free wavelength needs its cell held, and that is a degeneracy rather
+    // than a tie — nothing derives the row, another free parameter merely makes
+    // it unmeasurable (found in a browser, WP-1214)
+    expect(heldGlyph(row("a", { needs_held_cell: true, refinable: false })))
+      .toBe("≈");
+    expect(heldKind(row("a", { needs_held_cell: true }))).toBe("degenerate");
+    expect(heldGlyph(row("a"))).toBe("");
+    // …and a reason this client does not know still gets a mark: an empty box
+    // reads as a control that failed to render
+    expect(heldGlyph(row("a", { refinable: false }))).toBe("·");
+  });
+
+  it("shows what was toggled, else what the row has", () => {
+    const free = row("a", { vary: true });
+    expect(varyOf(free, new Map())).toBe(true);
+    expect(varyOf(free, new Map([["a", false]]))).toBe(false);
+  });
+
+  it("drops a toggle that lands back on the row's own flag", () => {
+    const held = row("a", { vary: false });
+    const once = varyEdit(new Map(), held, true);
+    expect([...once]).toEqual([["a", true]]);
+    // …and back again is not an edit: `set_vary` would record a node saying
+    // nothing, and the Apply button is enabled by this count
+    expect([...varyEdit(once, held, false)]).toEqual([]);
+  });
+
+  it("does not mutate the map it was given", () => {
+    const before = new Map<string, boolean>();
+    varyEdit(before, row("a"), true);
+    expect(before.size).toBe(0);
   });
 });
 

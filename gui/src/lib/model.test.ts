@@ -15,13 +15,16 @@ import {
   atomRows,
   axialWarning,
   editableValue,
+  fieldParam,
   fieldText,
   instrumentFields,
   newAtom,
   paramPath,
+  phaseFields,
   readValue,
   renderField,
   splitEdits,
+  structureFields,
   validateField,
   withAtom,
   withoutAtom,
@@ -195,6 +198,56 @@ describe("splitEdits — the parameter table owns what it has", () => {
   it("prefixes only the instrument's paths", () => {
     expect(paramPath("instrument", "profile.u")).toBe("instrument.profile.u");
     expect(paramPath("structure", "phases.0.cell.a")).toBe("phases.0.cell.a");
+  });
+});
+
+describe("the parameter path a field is about", () => {
+  const fields = instrumentFields(instrument());
+  const find = (path: string) => fields.find((f) => f.path === path)!;
+
+  it("prefixes the instrument's, and takes the field's own where it has one", () => {
+    // the polarization factor is `source.polarization` in the instrument and
+    // `instrument.polarization` in θ.  Before WP-1214 the prefixed guess named
+    // no row, so the cell rendered off the model, applied as a whole-model
+    // PATCH past `set_values`' bounds, and had no row for a refine flag to act
+    // on — silently, because a field the table does not have is an ordinary
+    // model field.
+    expect(fieldParam("instrument", find("profile.u"))).toBe("instrument.profile.u");
+    expect(fieldParam("instrument", find("source.polarization")))
+      .toBe("instrument.polarization");
+    expect(fieldParam("structure", { path: "phases.0.scale", label: "scale",
+                                     kind: "number" })).toBe("phases.0.scale");
+  });
+
+  it("sends polarization through set_values under the name the table has", () => {
+    const rows = [row("instrument.polarization", { value: 0.5 })];
+    const delta = splitEdits(instrument(), fields,
+                             new Map([["source.polarization", "0.9"]]), rows,
+                             "instrument");
+    expect(delta.values).toEqual({ "instrument.polarization": 0.9 });
+    expect(delta.fields).toEqual([]);
+  });
+});
+
+describe("the phase's own numbers", () => {
+  it("offers the scale and both broadening pairs, at their own units", () => {
+    // the phase half of the instrument ⊕ sample split: Gaussian variances add,
+    // Lorentzian FWHMs do, which is why the units differ
+    const fields = phaseFields(0);
+    expect(fields.map((f) => f.path)).toEqual([
+      "phases.0.scale", "phases.0.lor_size", "phases.0.lor_strain",
+      "phases.0.gauss_size", "phases.0.gauss_strain",
+    ]);
+    expect(fields.map((f) => f.unit))
+      .toEqual([undefined, "°2θ", "°2θ", "deg²", "deg²"]);
+    expect(fields.every((f) => f.help?.startsWith("parameters:phases.*."))).toBe(true);
+  });
+
+  it("is what the structure form carries for each phase", () => {
+    // one list, so a field cannot render in the form and be missing from the
+    // delta — the shape `Field` exists to make impossible
+    const paths = structureFields(structure()).map((f) => f.path);
+    for (const field of phaseFields(0)) expect(paths).toContain(field.path);
   });
 });
 

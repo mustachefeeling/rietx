@@ -3,9 +3,10 @@
    * The parameter table: every row the θ vector has, grouped, filtered, editable.
    *
    * Three rules come from the API rather than from taste.  A row that cannot be
-   * freed has **no vary checkbox at all** — the three reasons are distinct
-   * (`locked`, `tied`, `mode_fixed`) and `held_because` is the tooltip, already
-   * written server-side, so nothing here re-derives why (WP-1004).  A bulk
+   * freed has **no vary checkbox at all** — the four reasons are distinct
+   * (`locked`, `tied`, `mode_fixed`, `needs_held_cell`) and `held_because` is
+   * the tooltip, already written server-side, so nothing here re-derives why
+   * (WP-1004).  A bulk
    * free/fix sends the **glob**, because `set_vary` takes one and records one
    * history node for it.  And value edits accumulate until Apply, because
    * `set_values` takes a dict and a node per keystroke would bury the log.
@@ -24,11 +25,14 @@
     formatEsd,
     formatValue,
     groupOf,
+    heldGlyph,
     heldKind,
     leafName,
     normalize,
     selection,
     validateEdit,
+    varyEdit,
+    varyOf,
     windowSlice,
     type ParamRow,
   } from "../lib/table";
@@ -146,19 +150,12 @@
   }
 
   function toggleVary(row: ParamRow, checked: boolean) {
-    const next = new Map(varyEdits);
-    if (checked === row.vary) next.delete(row.path);
-    else next.set(row.path, checked);
-    varyEdits = next;
+    varyEdits = varyEdit(varyEdits, row, checked);
   }
 
   function shownValue(row: ParamRow): string {
     const pending = edits.get(row.path);
     return pending !== undefined ? pending : formatValue(row.value, row.esd);
-  }
-
-  function varyOf(row: ParamRow): boolean {
-    return varyEdits.get(row.path) ?? row.vary;
   }
 
   export function focusFilter() {
@@ -261,7 +258,7 @@
               <input
                 type="checkbox"
                 class="vary"
-                checked={varyOf(row)}
+                checked={varyOf(row, varyEdits)}
                 disabled={busy}
                 title="free this parameter"
                 onchange={(event) =>
@@ -269,7 +266,8 @@
             {:else}
               <!-- no checkbox at all: a control that errors on click is worse
                    than an absent one, and `held_because` says which of the
-                   three reasons holds it.
+                   four reasons holds it (`heldGlyph` in `lib/table.ts` is the
+                   one vocabulary, WP-1214).
 
                    The one `<Help label=…>` in the app, because it is the one
                    term whose children are a glyph: `·` names nothing, and no
@@ -278,7 +276,7 @@
               <span class="vary muted">
                 <Help text={row.held_because} title="This row is held"
                   label="why this row is held"
-                  >{held === "locked" ? "🔒" : held === "tied" ? "=" : "·"}</Help>
+                  >{heldGlyph(row)}</Help>
               </span>
             {/if}
           </div>
