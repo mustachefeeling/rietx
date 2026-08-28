@@ -165,8 +165,9 @@ export const GRIP = 5;
  * Does the model pane have to become one stacked column?
  *
  * Three columns side by side need the structure column's floor plus a form
- * column plus what the 3D view keeps **plus the two grips between them** — 1136
- * px since WP-1215, 932 before it. Below that something is being squeezed under
+ * column plus what the 3D view keeps **plus the two grips between them** — 1256
+ * px since WP-1216 (1136 while `form` was 200, 932 before WP-1215 counted the
+ * grips). Below that something is being squeezed under
  * its minimum, and the thing that loses is the atom table, which side-scrolls
  * *the whole column* and takes the cell row and the headings with it (measured
  * at 860 px: `10.25710.25790` where a, b, c should be).

@@ -198,6 +198,30 @@ and U V W directly above X Y Z.
     columns now too, and the phase name takes a row. Looked at, both themes; it
     is tidier, not a regression.
 
+  **The review pass** (`/code-review medium --fix`) raised five and four were
+  fixed, one of them a real defect this session introduced. **The focus
+  paragraph I rewrote deleted `origin/main`'s v1.3 queue**: the sentence I
+  carried over was copied from the ROADMAP read at session start, in the *main
+  checkout*, which was three commits behind — PR #173 had filed v1.3 (agents and
+  programs, 1301-1307) and pushed free-standing peaks to v1.4 that same day, so
+  Current focus contradicted the milestone table two screens below it and seven
+  WP files were left with no milestone. Restored verbatim. The lesson is small
+  and expensive: **a worktree is cut from `origin/main`, so read the file you
+  are about to rewrite in the worktree, not in the checkout the session started
+  in**. Two more were stale numbers of exactly the kind this WP is about —
+  `modelStacks`'s own docstring still said 1136, and `.column.structure`'s
+  `flex-basis` still restated `MODEL_MIN.structure` as a literal, which is
+  WP-1215's defect still sitting in the sibling of the column this WP fixed; it
+  is handed down as `--structure-min` now, the way `--col-min` is. The fourth
+  was a duplicated `select` rule, folded in. Declined: the `320px` fallback in
+  `flex: 1 1 var(--col-min, 320px)`, because dropping it makes the declaration
+  invalid-at-computed-value-time if the style directive is ever absent, which is
+  a worse failure than a stale fallback. One more stale sentence of my own went
+  with them — the comment above the width rule still described a `max-width`
+  that the three-column grid had replaced. The nine browser configurations and
+  the structure column were re-measured on the reviewed tree: identical at every
+  one.
+
   **Next**: [1217](1217-history-graph-compare.md), the history graph and the
   compare table, then [1017](1017-gui-manual-onboarding.md), the manual, last.
   1217 is the last of the maintainer's triage; nothing here blocks it.

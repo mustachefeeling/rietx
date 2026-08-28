@@ -1370,7 +1370,8 @@
       is held, the reason stands in place of the box.
     </p>
     <div class="editors" class:stacked bind:this={editorsEl} bind:clientWidth={editorsWidth}
-      style:--col-min="{MODEL_MIN.form}px">
+      style:--col-min="{MODEL_MIN.form}px"
+      style:--structure-min="{MODEL_MIN.structure}px">
       <div class="column structure" bind:clientWidth={colMeasured[0]}
         style:flex={cols ? `0 0 ${cols[0]}px` : null}>
         <h2>Structure
@@ -2077,13 +2078,14 @@
   }
 
   /* the same `MODEL_MIN.structure` the stacking threshold is arithmetic over,
-     as the column's preferred width.  Found stale in a browser (WP-1215): this
-     is the **third** place the number is written — the table's `min-width`, this
-     basis, and `lib/resize.ts` — and only the third had a test, so at exactly
-     the stacking threshold the column came out 505 px and side-scrolled a table
-     the threshold exists to give room to. */
+     as the column's preferred width.  Found stale in a browser (WP-1215): the
+     number was *written* here as well as in `lib/resize.ts`, and only the
+     latter had a test, so at exactly the stacking threshold the column came out
+     505 px and side-scrolled a table the threshold exists to give room to.  It
+     is handed down as `--structure-min` now, the way `--col-min` is, so the
+     constant is stated once and this basis cannot go stale again. */
   .column.structure {
-    flex-basis: 666px;
+    flex-basis: var(--structure-min, 666px);
   }
 
   /* only where no splitter sits between them — the grip carries the rule
@@ -2187,15 +2189,12 @@
   /* the *value*, and only it — the refine flag beside it is a control of fixed
      size.  The child combinator is the fence: the flag lives inside
      `.varyline`, and a rule that reached it took all 84 px of the line and left
-     the esd at zero width (WP-1214).  `--w-num` is a cap rather than the width
-     so a wide column gives the *label* the slack and every input in the panel
-     still measures the same. */
+     the esd at zero width (WP-1214).  The width is the *track's*, and the grid
+     caps itself at three `--w-num` tracks, so every control in the panel
+     measures the same without one of them naming a width. */
   .grid .cell > input,
+  .grid .cell > select,
   .grid .cell > .fixed {
-    width: 100%;
-  }
-
-  .grid .cell > select {
     width: 100%;
   }
 
