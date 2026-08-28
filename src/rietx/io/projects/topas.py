@@ -118,6 +118,16 @@ a = b = 3.042, c = 5.337. The coupled edge carries **no** refine flag of its own
 — it states an equation, so it is a dependent parameter, and only the edge it
 names is refined.
 
+What resolution copies is the **value**; the tie does not travel with it, and
+that is a repair, so it is reported. Whether it costs anything turns on the
+space group, which is why ``TOPAS_CELL_COUPLING_DROPPED`` asks it: where the
+phase's symmetry ties the pair anyway the built model states what the file
+stated and the code stays silent — all 11 couplings across those 4 files are
+tetragonal or cubic and raise none. Where it does not, one edge refines and the
+other is held at the value it was handed, which is a third thing neither the
+file nor rietx meant, and the reader may make that trade only because it can
+say here that it made it (:func:`_symmetry_reproduces`).
+
 Reading a *reference* is not reading a statement, which is why the cell scan has
 two views of the mask: ``b = Get(a);`` states ``b`` and merely mentions ``a``, so
 the text that **locates** a key hides the referenced name while the text that
@@ -799,12 +809,22 @@ class _Read:
     where the file gave one, which is what makes the value a *declaration*
     another equation can reference. ``rest`` is the text after the number,
     where a ``min``/``max`` window sits.
+
+    ``expr`` is the **equation this value was computed from**, and only the
+    equation form sets it: an evaluated tail carries TOPAS's own number and a
+    stated value names nothing, so for those two there is no expression and it
+    stays None. It is what lets a caller ask *how* a number was arrived at
+    rather than only what it is — the cell scan uses it to see that ``b`` came
+    from ``Get(a)``, which is a coupling and not just a 5.128. Carried on the
+    read rather than re-matched off the line because the line may state several
+    keys, and re-matching would attribute one key's equation to another.
     """
 
     value: float | None
     vary: bool | None
     name: str | None = None
     rest: str = ""
+    expr: str | None = None
 
 
 def _flag(*tokens: str | None, named: str | None = None) -> bool | None:
@@ -873,7 +893,8 @@ def _read_tail(tail: str, symbols: dict[str, float],
                      m["name"], tail[m.end():])
     if m := _TAIL_EQUATION.match(tail):
         return _Read(_resolve(m["expr"].strip(), symbols, getters),
-                     _flag(m["pre"], m["post"]), m["name"], tail[m.end():])
+                     _flag(m["pre"], m["post"]), m["name"], tail[m.end():],
+                     expr=m["expr"].strip())
     if m := _TAIL_VALUE.match(tail):
         return _Read(float(m["value"]),
                      _flag(m["pre"], m["post"], m["tick"], named=m["name"]),
@@ -1261,22 +1282,6 @@ _CELL_MACRO_LIST = (", ".join(list(_CELL_MACROS)[:-1])
 #: analogy with the ones already there.
 _UNDEFINED_CELL_MACROS = ("Orthorhombic", "Monoclinic", "Triclinic")
 
-#: Cell-shaped macro names that are **not** cell macros of this format. The
-#: reference's lattice-parameter list (§19.3.2) has exactly four entries, and
-#: none of these is among them: across the whole manual the three words occur
-#: only as English — crystal-system labels in the indexing tables, and a
-#: ``Orthorhombic_Bipyramide`` bond-length restraint, which is not a cell at
-#: all. They occur in **no** archive file either, in live text or in a comment.
-#:
-#: So a file invoking one is invoking a macro somebody defined themselves, whose
-#: body `_excise_macro_defs` has already removed and whose argument order
-#: nothing establishes — and a wrong order is a wrong cell with nothing raised.
-#: Refused by name, and only where the macro is the phase's *only* cell: beside
-#: explicit ``a``/``b``/``c`` lines there is nothing left to get wrong. A name
-#: is added to :data:`_CELL_MACROS` only with its own citation, never by
-#: analogy with the ones already there.
-_UNDEFINED_CELL_MACROS = ("Orthorhombic", "Monoclinic", "Triclinic")
-
 #: What **ends** a ``str`` block. A `.inp` has no closing brace, so a phase's
 #: text runs to the next block opener — and splitting on ``str`` alone made a
 #: trailing ``hkl_Is``/``xo_Is`` Pawley block part of the phase above it, so
@@ -1593,6 +1598,59 @@ def _cell_search_text(chunk: str, *, keep_get: bool = False) -> str:
 
 _CELL_KEYS = ("a", "b", "c", "al", "be", "ga")
 
+#: TOPAS's cell keys spelled the way `crystallography.symmetry` keys its ties.
+#: The two vocabularies meet here and nowhere else, so a comparison against the
+#: constraint table cannot quietly compare ``ga`` with ``gamma`` and conclude
+#: nothing is tied.
+_CELL_KEY_LONG = {"a": "a", "b": "b", "c": "c",
+                  "al": "alpha", "be": "beta", "ga": "gamma"}
+
+
+def _symmetry_reproduces(space_group: str, target: str, source: str) -> bool:
+    """Would this phase's own symmetry tie ``target`` to ``source`` anyway?
+
+    ``Get`` resolution copies a **value**; the constraint that produced it does
+    not reach the model, so ``b = Get(a);`` builds a ``b`` that is merely
+    *numerically equal* to ``a``. Whether that loses anything turns entirely on
+    the space group, which is why this asks it rather than reporting every
+    coupling: under ``P 4/m m m`` rietx ties ``b ← a`` itself, so the built
+    model states exactly what the file did and there is nothing to report;
+    under ``P 1`` it does not, and ``a`` refines away from a frozen ``b`` —
+    a third thing neither the file nor rietx meant.
+
+    Ties are followed to their **root**, because a tie table names one
+    representative and not every pair: cubic ties both ``b`` and ``c`` to ``a``,
+    so ``c = Get(b);`` is reproduced even though no entry says ``c → b``. An
+    angle pair is also reproduced where symmetry fixes *both* to the same
+    constant — they then move together by not moving at all, which is what the
+    file said.
+
+    A symbol this package cannot resolve returns False, i.e. **report**. Not
+    being able to show that the model carries the coupling is not the same as
+    showing that it does, and the quiet answer is the one this reader owes an
+    argument for.
+    """
+    try:
+        import gemmi
+
+        from ...crystallography.symmetry import cell_constraints
+        cons = cell_constraints(gemmi.SpaceGroup(space_group))
+    except Exception:
+        return False
+
+    def root(key: str) -> str:
+        seen: set[str] = set()
+        while key in cons.ties and key not in seen:
+            seen.add(key)
+            key = cons.ties[key]
+        return key
+
+    lo_t, lo_s = _CELL_KEY_LONG[target], _CELL_KEY_LONG[source]
+    if lo_t in cons.ties and root(lo_t) == root(lo_s):
+        return True
+    fixed = cons.fixed_angles
+    return lo_t in fixed and lo_s in fixed and fixed[lo_t] == fixed[lo_s]
+
 
 def _cell_reads(cell_scan: str, symbols: dict[str, float]) -> dict[str, float]:
     """Best-effort ``{key: value}`` for the cell keys an *already cell-masked*
@@ -1613,8 +1671,8 @@ def read_topas_inp(path: str | Path, *,
                    diagnostics: list[Diagnostic] | None = None) -> TopasModel:
     """Parse a ``.inp``. Raises :class:`TopasInpError` naming the file and line.
 
-    Pass ``diagnostics=`` a list to record the two repairs this reader makes on
-    a successful parse — the ones the model carries but a caller reading it back
+    Pass ``diagnostics=`` a list to record the repairs this reader makes on a
+    successful parse — the ones the model carries but a caller reading it back
     cannot tell from a stated value (the same channel
     :func:`~rietx.crystallography.cif.structure_from_cif` and
     :func:`~rietx.io.readers.read_pattern` take). Each distinct rewritten species
@@ -1625,9 +1683,14 @@ def read_topas_inp(path: str | Path, *,
     one ``TOPAS_ORIGIN_TRANSLATED``. Each ``str`` block that stated no
     ``phase_name``/``space_group`` — recorded on ``model.skipped_blocks`` whether
     or not a list is passed, so the read never drops it in silence — also reports
-    one ``TOPAS_BLOCK_SKIPPED`` naming what it lacked and what it carried. All of
-    this happens whether or not a list is passed — the model is the same — so
-    ``diagnostics`` makes it *visible*, it does not change what is built.
+    one ``TOPAS_BLOCK_SKIPPED`` naming what it lacked and what it carried. A cell
+    key read through ``Get`` on another key (``b = Get(a);``) appends one
+    ``TOPAS_CELL_COUPLING_DROPPED`` — but **only** where the phase's space group
+    does not tie the pair itself, because where it does the built model states
+    what the file stated and there is nothing to report
+    (:func:`_symmetry_reproduces`). All of this happens whether or not a list is
+    passed — the model is the same — so ``diagnostics`` makes it *visible*, it
+    does not change what is built.
 
     The channel is the **report** arm of "report or refuse, never drop", not a
     way to turn a refusal into a silent drop. A stated-but-unreadable key still
@@ -1750,6 +1813,9 @@ def read_topas_inp(path: str | Path, *,
     # a rewrite are one diagnostic, not N.
     species_rewrites: dict[str, tuple[str, list[str]]] = {}
     origin_translations: list[tuple[str, str, str]] = []
+    #: ``(phase, space group, key, the key it was read through)`` — see
+    #: :func:`_symmetry_reproduces` for why the space group travels with it.
+    cell_couplings: list[tuple[str, str, str, str]] = []
     for index, opener in enumerate(openers):
         if opener["kw"] in _DATASET_OPENERS:
             dataset = 0 if dataset is None else dataset + 1
@@ -1857,6 +1923,15 @@ def read_topas_inp(path: str | Path, *,
             phase.cell[key] = read.value
             if read.vary is not None:
                 phase.vary[key] = read.vary
+            # A key resolved through `Get(other_key)` was **coupled** to that
+            # key, and resolution copies only the number. Recorded from this
+            # key's own equation — not from the line, which may state several —
+            # and reported past the guards below, where the space group can say
+            # whether the model reproduces the tie or has dropped it.
+            for g in _GET.finditer(read.expr or ""):
+                if g["name"] in _CELL_KEYS and g["name"] != key:
+                    cell_couplings.append(
+                        (phase.name, phase.space_group, key, g["name"]))
             # TOPAS bounds a cell explicitly (`min 3.61 max 3.66;`). Those
             # are part of the author's model: without them a phase the data
             # cannot see is a flat direction and its cell runs away.
@@ -2080,6 +2155,29 @@ def read_topas_inp(path: str | Path, *,
                 message=(f"species {raw!r} in {path} read as {canonical!r} "
                          f"(IUCr digit-first order)"),
                 where=where))
+        # The coupled-edge arm. `b = Get(a);` is *read* now where it used to
+        # refuse the whole file, and the trade costs the tie: resolution copies
+        # `a`'s number into `b` and nothing carries "these move together". Where
+        # the phase's symmetry ties them anyway the built model states what the
+        # file did, so there is nothing to report and this stays silent — which
+        # is why the archive's four PbPdO2/PdO fits (tetragonal and cubic) raise
+        # none of these. Where it does not, one edge refines and the other sits
+        # frozen at the value it was copied: a third thing neither the file nor
+        # rietx meant, and a repair the reader may make only because it can say
+        # here that it made it.
+        for phase_name, sg, key, source in cell_couplings:
+            if _symmetry_reproduces(sg, key, source):
+                continue
+            diagnostics.append(Diagnostic(
+                level="warning", code="TOPAS_CELL_COUPLING_DROPPED",
+                message=(f"{path}: {phase_name}: {key} is written as "
+                         f"`Get({source})`, so the file ties it to {source}; "
+                         f"the value was copied but the tie was not, and space "
+                         f"group {sg!r} does not tie them either. {source} may "
+                         f"refine away from a {key} held at the value it was "
+                         f"given. Tie them in the refinement plan, or read "
+                         f"`model.phases` for what the file states"),
+                where=[f"phases.{phase_name}.cell.{key}"]))
         for phase_name, raw, canonical in origin_translations:
             diagnostics.append(Diagnostic(
                 level="info", code="TOPAS_ORIGIN_TRANSLATED",

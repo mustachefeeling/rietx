@@ -1191,6 +1191,101 @@ def test_get_couples_all_three_edges_of_a_cubic_phase(tmp_path):
         pytest.approx((3.615081, 3.615081, 3.615081))
 
 
+def _coupling_diags(inp):
+    """The `TOPAS_CELL_COUPLING_DROPPED` records one read leaves behind."""
+    diags = []
+    read_topas_inp(inp, diagnostics=diags)
+    return [d for d in diags if d.code == "TOPAS_CELL_COUPLING_DROPPED"]
+
+
+_COUPLED = ('str\nphase_name "P"\nspace_group "%s"\n'
+            'a @ 5.0\nb =Get(a);\nc @ 7.0\nal 90\nbe 90\nga 90\n'
+            'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+
+
+def test_a_dropped_cell_coupling_is_reported_not_dropped_in_silence(tmp_path):
+    """`Get` resolution copies the **value**; the constraint does not travel.
+
+    Before this round the four archive files that write `b = Get(a);` refused
+    outright, so reading them is a repair — and root `CLAUDE.md`'s rule is that
+    a reader may repair a file only where it can say that it did. In `P 1`
+    nothing ties `b` to `a`: the built model frees `a` and holds `b` at the 5.0
+    it was handed, which is a third thing neither the file (they move together)
+    nor rietx unaided (both free) would have produced. The channel exists and
+    three codes already go down it, so this one does too.
+    """
+    inp = _inp(tmp_path, "p1.inp", _COUPLED % "P 1")
+    diags = _coupling_diags(inp)
+    assert len(diags) == 1
+    only = diags[0]
+    assert only.level == "warning"
+    assert only.where == ["phases.P.cell.b"]
+    # It names the *pair*, not just "a coupling was lost".
+    assert "b" in only.message and "Get(a)" in only.message
+    assert "P 1" in only.message           # and the symmetry it asked
+    # The value still arrives: this reports the repair, it does not undo it.
+    assert read_topas_inp(inp).phases[0].cell["b"] == pytest.approx(5.0)
+
+
+@pytest.mark.parametrize("sg", ["P 4/m m m", "P42/mmc", "Fm-3m", "P63/mmc"])
+def test_a_coupling_the_phases_symmetry_reproduces_is_not_reported(tmp_path, sg):
+    """The half that makes the code a fact rather than a reflex.
+
+    Under any of these rietx ties `b <- a` itself through `cell_constraints`, so
+    the built model states exactly what the file stated and nothing was dropped.
+    Reporting anyway would fire on **every** coupled file in the corroborating
+    archive — all 11 couplings across those 4 PbPdO2/PdO fits are tetragonal,
+    hexagonal or cubic — and a warning that is always on tells a caller nothing.
+    """
+    inp = _inp(tmp_path, "sym.inp", _COUPLED % sg)
+    assert _coupling_diags(inp) == []
+
+
+def test_a_coupling_is_followed_to_its_tie_root_before_being_reported(tmp_path):
+    """A tie table names one representative, not every pair.
+
+    Cubic ties `b -> a` and `c -> a`, so `c = Get(b);` *is* reproduced even
+    though no entry reads `c -> b`. Comparing the two keys against each other
+    rather than against their roots would report this one, on a phase whose
+    symmetry holds all three edges equal by construction.
+    """
+    inp = _inp(tmp_path, "root.inp",
+               'str\nphase_name "P"\nspace_group "Pm-3m"\n'
+               'a @ 4.0\nb =Get(a);\nc =Get(b);\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    assert _coupling_diags(inp) == []
+    assert read_topas_inp(inp).phases[0].cell["c"] == pytest.approx(4.0)
+
+
+def test_an_unresolvable_symbol_reports_the_coupling_rather_than_assuming_it(
+        tmp_path):
+    """Not being able to *show* the model carries the tie is not showing it does.
+
+    A symbol this package cannot turn into constraints gets the reported answer,
+    because silence here is the claim "rietx ties these anyway" and that claim
+    needs a space group behind it. `_symmetry_reproduces` returns False on any
+    lookup failure for exactly this reason.
+    """
+    inp = _inp(tmp_path, "odd.inp", _COUPLED % "not a space group")
+    assert len(_coupling_diags(inp)) == 1
+
+
+def test_the_coupling_record_comes_from_the_keys_own_equation(tmp_path):
+    """TOPAS is whitespace-insensitive, so one line may state several keys.
+
+    `a @ 5.0 b =Get(a); c @ 7.0` is three keys on one line. Scanning the *line*
+    for `Get(` would attribute `b`'s equation to `a` and to `c` as well and
+    report three couplings where the file wrote one — which is why the
+    expression travels on the `_Read` that was computed from it.
+    """
+    inp = _inp(tmp_path, "oneline.inp",
+               'str\nphase_name "P"\nspace_group "P 1"\n'
+               'a @ 5.0 b =Get(a); c @ 7.0\nal 90 be 90 ga 90\n'
+               'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n')
+    diags = _coupling_diags(inp)
+    assert [d.where for d in diags] == [["phases.P.cell.b"]]
+
+
 def test_a_get_reference_is_not_a_statement_of_the_key_it_names(tmp_path):
     """The trap the two mask views exist for.
 
