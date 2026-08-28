@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import warnings
 from contextlib import contextmanager
@@ -120,6 +121,78 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     if mode not in ("lebail", "pawley"):
         return False
     return ".atoms." in path or path.endswith(".scale") or ".source.lines." in path
+
+
+@dataclasses.dataclass(frozen=True)
+class _StageHold:
+    """What one stage held, and what it let go again (WP-1301).
+
+    Carried out of ``_run_stage`` rather than read back off the table, because
+    by then the release has already put the freed paths back and the table can
+    no longer tell the two apart.
+    """
+
+    held: list[str]
+    released: list[str]
+
+
+def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
+                            values: dict[str, float] | None = None) -> list[str]:
+    """The free structural paths of every phase the data cannot see.
+
+    "Cannot see" is ``CompiledModel.phase_support`` below
+    :data:`~rietx.model.forward.PHASE_SUPPORT_SIGMA` — the one authority, shared
+    with the ``PHASE_UNCONSTRAINED`` diagnostic and the default cell window, and
+    read here at the values the stage *starts* from like every other per-stage
+    freeze.
+
+    **The phase's own scale is never held.**  Every structural parameter of a
+    phase reaches the pattern only through ``scale × |F|² × profile``, so with
+    the scale at its floor they are all flat — but the scale itself is the one
+    direction that is *not* flat, and it is how a phase legitimately climbs out
+    of the noise.  Holding it would make the hold permanent, which is the one
+    outcome this must never have.
+
+    Every currently free structural path, not only the ones this stage turned
+    on: staging is cumulative, so a cell freed two stages ago is still refining
+    against nothing, and the ``refit="single"`` collapse — one stage carrying
+    the whole plan — is exactly the shape the ramp that motivated this ran.
+    """
+    if values is None:
+        values = table.decode(table.x0())
+    absent = {ip for ip, s in enumerate(model.phase_support(values))
+              if s < PHASE_SUPPORT_SIGMA}
+    if not absent:
+        return []
+    prefixes = tuple(f"phases.{ip}." for ip in sorted(absent))
+    return [p for p in table.free_paths
+            if p.startswith(prefixes) and not p.endswith(".scale")]
+
+
+def _hold_unsupported_phases(model: CompiledModel,
+                             table: ParameterTable) -> list[str]:
+    """Apply :func:`_unsupported_phase_paths` to the table; returns what it held."""
+    held = _unsupported_phase_paths(model, table)
+    if held:
+        table.set_vary(held, False)
+    return held
+
+
+def _released_phases(model: CompiledModel, table: ParameterTable,
+                     held: list[str]) -> list[str]:
+    """Of ``held``, the paths whose phase has risen above support since.
+
+    Measured at the values the solve *landed* on, against the same threshold
+    the hold was taken at — a phase whose scale climbed while the stage ran is
+    now one the data can see, and its parameters are measurable in this stage
+    rather than the next one.
+    """
+    support = model.phase_support(table.decode(table.x0()))
+    seen = {ip for ip, s in enumerate(support) if s >= PHASE_SUPPORT_SIGMA}
+    if not seen:
+        return []
+    prefixes = tuple(f"phases.{ip}." for ip in sorted(seen))
+    return [p for p in held if p.startswith(prefixes)]
 
 
 class NoPhasesError(ValueError):
@@ -242,6 +315,15 @@ class Refinement:
         self._mode: Mode = "rietveld"
         self._two_theta_limits: tuple[float, float] | None = None
         self._free_paths: list[str] = []
+        #: paths the *last* stage held because the data could not see their
+        #: phase (WP-1301).  Carried between stages rather than lifted at the
+        #: end of one, because the free set a stage ends with is the set its
+        #: solve used and everything downstream — the esd map, the guard, the
+        #: statistics' ``n_free`` — is indexed by it.  So the lift happens at
+        #: the *start* of the next stage, which is also where the hold is
+        #: re-decided: a hold is a claim about one stage's data, never a change
+        #: to what the caller asked to refine.
+        self._held: list[str] = []
         self._pending_reflections: list[ReflectionState] = []
         #: user constraints (WP-1070), path → the affine dependence declared for
         #: it.  The one authority for *which* ties are the user's: the symmetry
@@ -342,6 +424,9 @@ class Refinement:
         self._mode = node.state.mode
         self._two_theta_limits = node.state.two_theta_limits
         self._free_paths = list(node.state.free_paths)
+        # the node's free set is the declared one (``_record_free_paths``), so
+        # a checkout starts with no hold and the next stage takes its own
+        self._held = []
         self._ties = {p: s.model_copy(deep=True) for p, s in node.state.ties.items()}
         self._pending_reflections = [r.model_copy(deep=True) for r in node.state.reflections]
         self._head_id = node.id
@@ -1104,6 +1189,23 @@ class Refinement:
                     UserWarning, stacklevel=3)
         return table
 
+    def _record_free_paths(self, table: ParameterTable) -> None:
+        """Carry the **declared** free set forward — the current hold included.
+
+        A hold (WP-1301) is one stage's answer to what the data can see, not a
+        change to what the caller asked to refine, so it must not survive into
+        the state a checkout or a later ``run_stage`` restores: that would turn
+        one stage's measurement into a permanently fixed parameter, and the
+        phase would then stay unrefined in the very pattern where it appears.
+
+        Entry order, because the restore in :meth:`_prepare_table` replays
+        ``set_vary`` one path at a time and the cell-before-λ ordering is
+        load-bearing there (``ParameterTable._cell_is_free``).
+        """
+        held = set(self._held)
+        self._free_paths = [e.path for e in table.entries
+                            if e.vary or e.path in held]
+
     @contextmanager
     def _abandon_on_cancel(self, cancel, stage_name: str, completed: list, stream):
         """Make "the in-flight stage is abandoned" literally true.
@@ -1124,11 +1226,11 @@ class Refinement:
             yield
             return
         saved = (self.structure.model_copy(deep=True),
-                 self.instrument.model_copy(deep=True))
+                 self.instrument.model_copy(deep=True), list(self._held))
         try:
             yield
         except RefinementCancelled as exc:
-            self.structure, self.instrument = saved
+            self.structure, self.instrument, self._held = saved
             exc.stage = exc.stage or stage_name
             exc.completed_stages = list(completed)
             exc.node_id = self._head_id
@@ -1151,6 +1253,12 @@ class Refinement:
         frozen here and never move until the next stage.
         """
         freed = table.set_vary(stage.turn_on, True)
+        if self._held:
+            # lift the previous stage's hold before this one decides its own:
+            # a phase invisible then may be plain now, and a cumulative plan
+            # need not name its cell again for it to keep refining
+            table.set_vary(self._held, True)
+            self._held = []
         if stage.seed:
             # lift softplus coefficients (e.g. extinction) off the zero floor
             # so TRF has a live gradient this stage
@@ -1210,10 +1318,25 @@ class Refinement:
             # intensities (constant within the coming least-squares run)
             model.build_pawley_restraint()
 
+        # A phase the data cannot see is a flat direction, and holding it is
+        # cheaper and truer than bounding it (WP-1301).  Decided *after* the
+        # compile, so the frozen state — windows, FCJ node counts, off-state
+        # gates — was sized with these parameters still in ``moving_paths``:
+        # a superset claim, which is the safe direction and is what lets the
+        # release below free them again inside the same stage.
+        held = _hold_unsupported_phases(model, table)
+        if held:
+            freed = [p for p in freed if p not in set(held)]
+        self._held = list(held)
+
         if events is not None:
             events.emit("stage_start", stage=stage.name, turn_on=list(stage.turn_on),
                         freed=freed, n_free=len(table.free_paths),
                         free_paths=list(table.free_paths),
+                        # open dict, so no EVENT_SCHEMA_VERSION bump: an
+                        # existing kind gaining a field is additive by the rule
+                        # in history/events.py
+                        held=list(held),
                         n_points=len(model.tt),
                         index=stage_index, n_stages=n_stages)
         # ftol is passed only when there is one to pass, so a stage with no
@@ -1228,6 +1351,34 @@ class Refinement:
                                     cancel=cancel, **stage_ftol)
         table.commit(outcome.theta)
 
+        released: list[str] = []
+        if held:
+            # Did the phase appear while the stage solved?  Its scale stayed
+            # free precisely so it could, and the answer is worth a second
+            # solve *here* rather than a stage later: on a series the pattern
+            # where a phase first appears is the one an operator reads.  Once —
+            # never a third solve, so the cost of a wrong hold is bounded at
+            # one stage's budget.
+            released = _released_phases(model, table, held)
+            if released:
+                table.set_vary(released, True)
+                held = [p for p in held if p not in set(released)]
+                self._held = list(held)
+                second = run_least_squares(
+                    model, table, max_iter=stage.max_iter, events=events,
+                    stage=stage.name, backend=self._backend,
+                    solver=self._solver, cancel=cancel, **stage_ftol)
+                table.commit(second.theta)
+                # the record is one stage: the second solve's answer, the
+                # first solve's starting cost, and the iterations of both —
+                # the whole point being that the hold cost something and it
+                # must be visible where the budget is read
+                outcome = dataclasses.replace(
+                    second, cost_initial=outcome.cost_initial,
+                    n_iterations=outcome.n_iterations + second.n_iterations,
+                    n_constraint_truncations=(outcome.n_constraint_truncations
+                                              + second.n_constraint_truncations))
+
         if mode == "lebail":
             model.lebail_update(table.decode(outcome.theta), n_cycles=stage.lebail_cycles)
 
@@ -1238,8 +1389,10 @@ class Refinement:
                         n_iterations=outcome.n_iterations,
                         termination=outcome.termination,
                         cost_initial=outcome.cost_initial,
-                        cost_final=outcome.cost_final)
-        return model, outcome, guard, freed
+                        cost_final=outcome.cost_final,
+                        held=list(held), released=list(released))
+        return model, outcome, guard, freed, _StageHold(held=list(held),
+                                                        released=list(released))
 
     def fit(self, data: PatternData, *, mode: Mode = "rietveld",
             plan: RefinementPlan | str = "mccusker_default",
@@ -1296,6 +1449,7 @@ class Refinement:
         self._mode = mode
         self._two_theta_limits = two_theta_limits
         self._free_paths = []
+        self._held = []
         tree = self._ensure_history(data, plan)
         stream = as_event_stream(events)
         if stream is not None:
@@ -1344,7 +1498,7 @@ class Refinement:
         assert model is not None and outcome is not None
         self._model = model
         table.apply_to_models(self.structure, self.instrument)
-        self._free_paths = list(table.free_paths)
+        self._record_free_paths(table)
 
         if mode == "pawley":
             diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
@@ -1393,7 +1547,7 @@ class Refinement:
         for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
                                           start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
-                model, outcome, guard, freed = self._run_stage(
+                model, outcome, guard, freed, hold = self._run_stage(
                     stage, data, mode, table, model, two_theta_limits,
                     plan.correlation_guard, events=stream, cancel=cancel,
                     stage_index=k, n_stages=len(plan.stages), ftol=ftol)
@@ -1404,7 +1558,7 @@ class Refinement:
                 cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
-                ftol=ftol,
+                ftol=ftol, held=hold.held, released=hold.released,
             ))
             if stage_reports:
                 self.stage_reports_.append(self._stage_report(
@@ -1415,7 +1569,7 @@ class Refinement:
                 stream.write_snapshot(model, table, outcome, stage.name)
             if tree is not None:
                 table.apply_to_models(self.structure, self.instrument)
-                self._free_paths = list(table.free_paths)
+                self._record_free_paths(table)
                 self._record(tree, NodeAction(
                     kind="stage", name=stage.name, turn_on=list(stage.turn_on),
                     max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
@@ -1498,7 +1652,7 @@ class Refinement:
         declared_wavelengths = list(self._declared_wavelengths)
         try:
             with self._abandon_on_cancel(cancel, stage.name, [], stream):
-                model, outcome, guard, freed = self._run_stage(
+                model, outcome, guard, freed, hold = self._run_stage(
                     stage, data, mode, table, self._model, ttl, correlation_guard,
                     events=stream, cancel=cancel,
                     # no plan here, so no notion of an intermediate stage: one
@@ -1515,14 +1669,14 @@ class Refinement:
 
         self._model = model
         table.apply_to_models(self.structure, self.instrument)
-        self._free_paths = list(table.free_paths)
+        self._record_free_paths(table)
 
         stage_result = StageResult(
             name=stage.name, status=outcome.status, n_iterations=outcome.n_iterations,
             cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
             freed=freed,
             n_constraint_truncations=outcome.n_constraint_truncations,
-            ftol=stage.ftol)
+            ftol=stage.ftol, held=hold.held, released=hold.released)
         if tree is not None:
             self._record(tree, NodeAction(
                 kind="stage", name=stage.name, turn_on=list(stage.turn_on),
@@ -2265,11 +2419,13 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
             declared_wavelengths, table, values, stderr_phys,
             pinned_by=_WAVELENGTH_PINNED_BY_HELD_CELL)
 
-    # A phase the data cannot see, refined anyway (WP-1110).  Named here rather
-    # than left to HIGH_CORRELATION, which reports the ρ≈1 between the phase's
-    # cell and its scale — the symptom — while this reports the cause.
+    # A phase the data cannot see (WP-1110), and what the run did about it
+    # (WP-1301).  Named here rather than left to HIGH_CORRELATION, which reports
+    # the ρ≈1 between the phase's cell and its scale — the symptom — while this
+    # reports the cause.  The stage records carry the hold, so the message and
+    # the record quote one measurement.
     diagnostics = diagnostics + _phase_support_diagnostics(
-        model, values, list(table.free_paths), structure)
+        model, values, list(table.free_paths), structure, stage_results)
 
     # A strain broader than solved refinements normally use — a flag to check,
     # not a bound (the bound is params.vector.strain_cap, one tier up).
@@ -2944,10 +3100,35 @@ def _max_iter_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
     )]
 
 
+def _held_by_phase(stage_results: list[StageResult], n_phases: int
+                   ) -> tuple[list[set[str]], list[list[str]]]:
+    """Per phase: the paths held anywhere in the run, and the stages that held.
+
+    Read off the stage records rather than tracked separately, so the message
+    and the record cannot disagree about what happened (WP-1301).  Stage names
+    come out in the order the stages ran, which is how a reader looks for them
+    in the plan.
+    """
+    paths: list[set[str]] = [set() for _ in range(n_phases)]
+    stages: list[dict[str, None]] = [{} for _ in range(n_phases)]
+    for sr in stage_results:
+        for path in sr.held:
+            try:
+                ip = int(path.split(".", 2)[1])
+            except (IndexError, ValueError):
+                continue
+            if 0 <= ip < n_phases:
+                paths[ip].add(path)
+                stages[ip][sr.name] = None
+    return paths, [list(s) for s in stages]
+
+
 def _phase_support_diagnostics(model: CompiledModel, values: dict[str, float],
                                free_paths: list[str],
-                               structure: Structure) -> list[Diagnostic]:
-    """``PHASE_UNCONSTRAINED`` — a phase the data cannot see, refining anyway.
+                               structure: Structure,
+                               stage_results: list[StageResult] | None = None,
+                               ) -> list[Diagnostic]:
+    """``PHASE_UNCONSTRAINED`` — a phase the data cannot see, and what was done.
 
     Every structural parameter of a phase reaches the pattern only through
     ``scale × |F|² × profile``.  So when a phase's scale falls to its floor,
@@ -2968,14 +3149,27 @@ def _phase_support_diagnostics(model: CompiledModel, values: dict[str, float],
     running away — but a windowed cell re-anchors on every stage, so it walks
     quietly instead of loudly and ``BOUND_HIT`` need never fire.  This names
     the cause, which is the half a caller can act on.
+
+    Since WP-1301 the flat direction is **held** rather than walked, so this
+    also reports what the run did about it: which parameters were held and in
+    which stages, and — the limit case that was silent altogether — that no
+    line of the phase lies in the fitted range at all.  The code and its
+    meaning do not move: it fires when the phase is one the data cannot see at
+    the end of the run, which is what an agent has been told to read it as
+    (``AGENT_PROTOCOL`` §"do not quote anything about this phase").  A phase
+    that was held and then *released* is one the fit could see after all, so it
+    fires nothing here and says so in ``StageResult.released``: a warning on a
+    healthy phase teaches a consumer to ignore the code.
+
+    Fires for a single-phase model only when there is something to say — a hold
+    that acted, or a phase with no line in range.  A lone phase under the noise
+    with nothing held is MODEL_FAR_FROM_DATA's statement, not this one, and
+    that is what it was before this diagnostic said anything about holds.
     """
     n_phases = len(model.phases)
-    if n_phases < 2:
-        # a single-phase fit has no "absent phase" reading: if the one phase is
-        # under the noise the pattern is not this material at all, which is
-        # MODEL_FAR_FROM_DATA's statement rather than this one
-        return []
     support_by_phase = model.phase_support(values)
+    line_counts = model.phase_line_counts()
+    held_paths, held_stages = _held_by_phase(stage_results or [], n_phases)
     out: list[Diagnostic] = []
     for ip in range(n_phases):
         prefix = f"phases.{ip}."
@@ -2984,26 +3178,54 @@ def _phase_support_diagnostics(model: CompiledModel, values: dict[str, float],
         # parameters that are being refined against nothing
         unconstrained = sorted(p for p in free_paths
                                if p.startswith(prefix) and p != f"{prefix}scale")
-        if not unconstrained:
+        held = held_paths[ip]
+        no_lines = int(line_counts[ip]) == 0
+        if not unconstrained and not held and not no_lines:
             continue
         support = float(support_by_phase[ip])
         if support >= PHASE_SUPPORT_SIGMA:
             continue
+        if n_phases < 2 and not held and not no_lines:
+            continue
         name = structure.phases[ip].name
+        if no_lines:
+            cause = (f"no reflection of phase {ip} ({name}) lies in the fitted "
+                     f"range {model.tt_min:.4g}-{model.tt_max:.4g}°, so nothing "
+                     f"about it is measurable here")
+        else:
+            cause = (f"phase {ip} ({name}) contributes at most {support:.2g}σ of "
+                     f"the observation noise anywhere in the fitted range, so "
+                     f"the data cannot distinguish it from absent")
+        clauses = []
+        if held:
+            stages = held_stages[ip]
+            clauses.append(f"its {len(held)} structural parameter"
+                           f"{'' if len(held) == 1 else 's'} "
+                           f"{'was' if len(held) == 1 else 'were'} held for "
+                           f"stage{'' if len(stages) == 1 else 's'} "
+                           f"{', '.join(stages)}")
+        if unconstrained:
+            clauses.append(f"{len(unconstrained)} of its parameters were "
+                           f"refined against it")
+        message = cause if not clauses else f"{cause} — {'; and '.join(clauses)}"
         out.append(Diagnostic(
             level="warning", code="PHASE_UNCONSTRAINED",
-            where=unconstrained,
+            # the held paths as well as the still-free ones: a held value is
+            # the one the caller handed in rather than a measurement, and
+            # reading it as a result is the same mistake either way
+            where=sorted(set(unconstrained) | set(held)),
             value=support,
-            message=(f"phase {ip} ({name}) contributes at most {support:.2g}σ of "
-                     f"the observation noise anywhere in the fitted range, so "
-                     f"the data cannot distinguish it from absent — yet "
-                     f"{len(unconstrained)} of its parameters were refined "
-                     f"against it"),
-            suggestion="treat those values as unmeasured, not as results: they "
-                       "moved in a flat direction. Either the phase is not in "
-                       "this specimen and belongs out of the model, or its "
-                       "scale is stuck at its floor and needs seeding before "
-                       "anything else of it is freed",
+            message=message,
+            suggestion=(
+                "this specimen or this fitted range cannot measure the phase: "
+                "either it is not present and belongs out of the model, or the "
+                "range must cover a reflection of it"
+                if no_lines else
+                "treat those values as unmeasured, not as results: a held one "
+                "is what you handed in, a refined one moved in a flat "
+                "direction. Either the phase is not in this specimen and "
+                "belongs out of the model, or its scale is stuck at its floor "
+                "and needs seeding before anything else of it is freed"),
         ))
     return out
 

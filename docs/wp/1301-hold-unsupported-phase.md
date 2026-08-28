@@ -78,7 +78,7 @@ is present (that is `SEQUENTIAL_PERSISTENT_FINDING`'s and the agent's).
 
 ## Tasks
 
-- [ ] `StageResult.held` + the hold in `_run_stage` + the diagnostic message; goldens
+- [x] `StageResult.held` + the hold in `_run_stage` + the diagnostic message; goldens
       bit-identical (`tests/test_golden*.py`: no unsupported phase → no hold).
 - [ ] The zero-reflection case: the LaB₆ 22.5-29.5° window asserts the diagnostic and
       the hold.

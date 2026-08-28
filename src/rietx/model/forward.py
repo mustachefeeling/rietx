@@ -1445,6 +1445,28 @@ class CompiledModel:
             out[ip] = float(np.max(y / sigma)) if len(y) else 0.0
         return out
 
+    def phase_line_counts(self) -> np.ndarray:
+        """How many (emission line, reflection) windows of each phase cover a point.
+
+        Zero is the **limit** of :meth:`phase_support`, and a different
+        statement from a small one: no line of the phase lies in the fitted
+        range at all, so no value of its scale could make it visible and
+        nothing about it is measurable here.  Worth separating because the two
+        have different answers — a phase whose scale sits at its floor might
+        appear in the next pattern of a series; a phase with no line in the
+        window will not, whatever the specimen does.
+
+        Read off the **frozen windows** rather than ``len(reflections)``: a
+        reflection generated just outside the fitted ends (the compiler keeps
+        a margin) has an empty window and contributes exactly as much as one
+        that does not exist.  Frozen at stage compile like everything else the
+        windows carry, so this is a fact about the stage, not about θ.
+        """
+        out = np.zeros(len(self.phases), dtype=np.int64)
+        for ip, cp in enumerate(self.phases):
+            out[ip] = int(np.count_nonzero(cp.win[:, :, 1] > cp.win[:, :, 0]))
+        return out
+
     # ------------------------------------------------------------------
     # analytic Jacobian support
     # ------------------------------------------------------------------
