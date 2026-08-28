@@ -1264,9 +1264,16 @@ describe("the history worktree", () => {
     expect(stub.calls.some((c) => c.url.includes("/api/history/diff?a=n0001&b=n0002"))).toBe(true);
     expect(host.textContent).toContain("2 paths differ");
     // biggest relative move first: w doubled, a moved 5e-5
-    const paths = [...host.querySelectorAll(".drow .path")].map((n) => n.textContent?.trim());
-    expect(paths).toEqual(["instrument.profile.w", "phases.0.cell.a"]);
+    const rows = [...host.querySelectorAll(".drow:not(.heads)")];
+    expect(rows.map((n) => n.querySelector(".path")?.textContent?.trim()))
+      .toEqual(["instrument.profile.w", "phases.0.cell.a"]);
     expect(host.textContent).toContain("21.00% → 4.00%");
+    // each side at its family's own places, the difference twice (WP-1217): the
+    // percentage is what says a 5e-5 Å move on a 4.15 Å axis is 48 ppm
+    expect([...rows[1].querySelectorAll("span")].map((n) => n.textContent?.trim()))
+      .toEqual(["phases.0.cell.a", "4.15660", "4.15680", "+0.00020", "+0.00481%"]);
+    expect([...rows[0].querySelectorAll("span")].map((n) => n.textContent?.trim()))
+      .toEqual(["instrument.profile.w", "0.000250", "0.000500", "+0.000250", "+100%"]);
   });
 });
 

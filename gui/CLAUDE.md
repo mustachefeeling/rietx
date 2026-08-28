@@ -960,3 +960,36 @@ rows**, so a label wrapping to two lines no longer pushes its own input below
 its neighbours': the span follows the content (`:has(.varyline)`) rather than a
 class on the grid, since a subgrid clamps a child past its last track *into* it
 and would draw the refine flag on top of the value with nothing failing.
+
+**A git graph, and a table whose numbers hold their columns** (WP-1217,
+`lib/history.ts`, `panels/History.svelte`, `app.css`). Five rules. **An edge
+holds a lane for its whole span** — a *lane* rule, not a drawing one. A
+tip-following pass frees a lane the moment its node is drawn, so a later fork
+could be handed a lane an edge was still travelling down, and the only way to
+draw that edge was a diagonal across the whole gap: the shallow line the user
+reported. Reserved, `edgeSegments` steps sideways in exactly one row, and which
+end it steps at needs no second rule — the edge leaves the lane that goes on
+without it, so a fork crosses below its parent and a merge above its child.
+Only a **second** parent is dashed: the first is the lineage `rwpDelta` reads
+against, and dashing both put three dashed rows in the middle of the trunk.
+Lanes are half a palette in each place — the rotation is `LANE_HUES` (five at
+72°, a sixth landing inside the phase palette's floor at `--lane-c`), the
+lightness and chroma are `app.css`'s per theme, and `test_gui_palette.py` owns
+the distance. **A `ch` column is one column only while every cell in it is one
+font at one size**: `ch` is the element's own zero, so a `--text-xs` header sat
+inside its own tracks by a growing offset and a non-mono `Δ` widened one by
+4 px — the family and the size go on the **row**. **A format is declared per
+family and the width is a promise the formatter keeps**: `PLACES` is keyed by
+`rietx.help.PARAMETER_HELP`'s own globs and crossed against `help_keys.json`
+both ways, so a new family fails until it is given one, and `formatSide` writes
+exponentially rather than anything longer than `VALUE_CHARS` — which is why the
+three widths are stated once in TypeScript and handed down as
+`--w-val`/`--w-pct`/`--w-path` with no arithmetic to cross. Below the sidebar's
+clamp the row scrolls rather than squeezes, the path being the column that
+gives because it is drawn `rtl` and its leaf survives. **A difference is given
+twice and the percentage is of |a|** — measured on a Caglioti V refining from
+−0.0002 to +0.0024, a signed denominator printed `+0.002601` beside `-1.30e+3%`,
+two marks disagreeing about which way a parameter went — at three significant
+figures, because 12 ppm on a cell length is a result and `0.00%` is not a way to
+say it. And **only the Rwp badge may be green**: `.better` was on every compare
+row with a non-zero delta, and a parameter difference has no good direction.

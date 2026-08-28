@@ -21,7 +21,11 @@
    * difference against the parent and claims nothing about significance.
    */
   import { ApiError, api } from "../api";
-  import { layout, nodeLabel, rwpDelta, diffRows, type HistoryNode } from "../lib/history";
+  import {
+    DIFF_CAP, PATH_CHARS, PERCENT_CHARS, VALUE_CHARS, diffRows, edgeSegments,
+    formatDelta, formatPercent, formatSide, laneColor, layout, nodeLabel,
+    rwpDelta, type Edge, type HistoryNode,
+  } from "../lib/history";
 
   let {
     head = null,
@@ -170,12 +174,17 @@
     return row * ROW + ROW / 2;
   }
 
-  function edgePath(e: { fromRow: number; toRow: number; fromLane: number; toLane: number }) {
-    const [x1, y1] = [laneX(e.fromLane), rowY(e.fromRow)];
-    const [x2, y2] = [laneX(e.toLane), rowY(e.toRow)];
-    if (x1 === x2) return `M ${x1} ${y1} L ${x2} ${y2}`;
-    const mid = (y1 + y2) / 2;
-    return `M ${x1} ${y1} C ${x1} ${mid}, ${x2} ${mid}, ${x2} ${y2}`;
+  /** An edge as one polyline: `edgeSegments` in pixels (WP-1217).
+   *
+   * Straight pieces and no curve at all.  The Bézier this replaced spanned the
+   * whole gap between two rows, so a child ten rows below its parent got a
+   * shallow diagonal nobody can follow — the user's report, and the reason the
+   * lane algorithm now reserves a lane for the arc's whole span. */
+  function edgePath(edge: Edge): string {
+    const parts = edgeSegments(edge);
+    let d = `M ${laneX(parts[0].fromLane)} ${rowY(parts[0].fromRow)}`;
+    for (const part of parts) d += ` L ${laneX(part.toLane)} ${rowY(part.toRow)}`;
+    return d;
   }
 
   function pct(value: number | null): string {
@@ -205,13 +214,15 @@
       <div class="graph" style:padding-left="{rail}px" style:--row="{ROW}px">
         <svg class="rail" width={rail} height={nodes.length * ROW} aria-hidden="true">
           {#each graph.edges as edge (edge.from + edge.to)}
-            <path d={edgePath(edge)} class:merge={edge.merge} />
+            <path d={edgePath(edge)} class:merge={edge.merge}
+              style:--lane={laneColor(edge.lane)} />
           {/each}
           {#each graph.placed as placed (placed.node.id)}
             <circle cx={laneX(placed.lane)} cy={rowY(placed.row)}
               r={placed.node.id === head ? 4.5 : 3}
               class:head={placed.node.id === head}
-              class:selected={placed.node.id === selected} />
+              class:selected={placed.node.id === selected}
+              style:--lane={laneColor(placed.lane)} />
           {/each}
         </svg>
 
@@ -292,7 +303,10 @@
   {/if}
 
   {#if diff !== null}
-    <div class="diff">
+    <!-- the three column widths are `lib/history.ts`'s, in the unit its
+         formatters keep their promise in: one digit of the mono family -->
+    <div class="diff" style:--w-val="{VALUE_CHARS}ch" style:--w-pct="{PERCENT_CHARS}ch"
+      style:--w-path="{PATH_CHARS}ch">
       <div class="bar">
         <strong class="mono">{selected} → {against}</strong>
         <span class="spacer"></span>
@@ -308,18 +322,25 @@
       {/if}
       <p class="muted">
         {rows.length} path{rows.length === 1 ? "" : "s"} differ — the route returns
-        only what changed, so there is nothing to filter out; biggest relative move
-        first, an appearing parameter on top.
+        only what changed, so there is nothing to filter out. Ranked by |Δ| against
+        the larger of the two values, an appearing parameter first{
+          rows.length > DIFF_CAP ? `; showing the first ${DIFF_CAP}` : ""}.
       </p>
       <div class="rows">
-        {#each rows.slice(0, 200) as row (row.path)}
+        <div class="drow heads">
+          <span class="path">path</span>
+          <span class="val">{selected}</span>
+          <span class="val">{against}</span>
+          <span class="val">Δ</span>
+          <span class="pct">Δ %</span>
+        </div>
+        {#each rows.slice(0, DIFF_CAP) as row (row.path)}
           <div class="drow">
-            <span class="path mono" title={row.path}>{row.path}</span>
-            <span class="mono tabular muted">{row.a === null ? "—" : row.a.toPrecision(7)}</span>
-            <span class="mono tabular">{row.b === null ? "—" : row.b.toPrecision(7)}</span>
-            <span class="mono tabular" class:better={(row.delta ?? 0) !== 0}>
-              {row.delta === null ? "new" : (row.delta > 0 ? "+" : "") + row.delta.toPrecision(3)}
-            </span>
+            <span class="path" title={row.path}>{row.path}</span>
+            <span class="val tabular muted">{formatSide(row.path, row.a)}</span>
+            <span class="val tabular">{formatSide(row.path, row.b)}</span>
+            <span class="val tabular">{formatDelta(row.path, row.delta)}</span>
+            <span class="pct tabular muted">{formatPercent(row.a, row.delta)}</span>
           </div>
         {/each}
       </div>
@@ -369,9 +390,13 @@
     top: 0;
   }
 
+  /* `--lane` is the ink `lib/history.ts:laneColor` composed for this lane, set
+     inline per element — a custom property rather than a `stroke`, so the
+     selected and HEAD rules below still win the cascade instead of losing to an
+     inline declaration. */
   svg.rail path {
     fill: none;
-    stroke: var(--line);
+    stroke: var(--lane, var(--line));
     stroke-width: 1.5;
   }
 
@@ -381,7 +406,7 @@
 
   svg.rail circle {
     fill: var(--panel);
-    stroke: var(--muted);
+    stroke: var(--lane, var(--muted));
     stroke-width: 1.5;
   }
 
@@ -448,8 +473,10 @@
     color: var(--muted);
   }
 
-  .delta.better,
-  .better {
+  /* Green is a *judgement* and only the Rwp badge is entitled to one: a
+     parameter difference has no better side, which is what the old
+     `class:better={delta !== 0}` on every compare row was claiming. */
+  .delta.better {
     color: var(--ok);
   }
 
@@ -520,16 +547,53 @@
     margin: 1px 0;
   }
 
+  /* The family is on the *row*, not on each cell, because the columns are
+     measured in `ch` and `ch` is the element's own zero: a header cell that was
+     not mono made its track 4 px wider than the mono one below it (measured in
+     Chrome, 1414 against 1417). A `ch` column is a shared column only while
+     every cell in it is one font at one size. */
   .drow {
+    --cell-gap: 6px;
+    --row-pad: 8px;
     display: flex;
-    gap: 6px;
-    padding: 0 8px;
+    gap: var(--cell-gap);
+    padding: 0 var(--row-pad);
+    /* Every row is at least the floor its own columns declare, so when `.rows`
+       scrolls sideways each row's box scrolls with it. Without a floor the row
+       is exactly the scroller's width and the sticky header's background stops
+       at the visible edge, letting the data travel under its last columns; with
+       `min-content` instead, a row is as wide as its own longest path, so the
+       rows disagree with each other *and* with the header, and the path stops
+       ellipsising (both measured in Chrome at a 380 px sidebar: header 421 px
+       against a body row's 476, scroll extent set by the longest dot-path).
+       Every number here is stated once — the widths in `lib/history.ts`, the
+       gap and the padding above — and the counts are the row's own shape. */
+    min-width: calc(var(--w-path) + 3 * var(--w-val) + var(--w-pct)
+                    + 4 * var(--cell-gap) + 2 * var(--row-pad));
+    font-family: var(--mono-family);
     font-size: var(--text-sm);
     line-height: 18px;
   }
 
+  /* The header is inside the scroller, so it has to be opaque or the rows
+     travel under it (WP-1032's sticky-header finding, one panel over) — and it
+     keeps `--text-sm`, the size of everything on a cell's row, for the reason
+     above: at `--text-xs` its tracks came out narrower and the header sat
+     inside its own columns by a growing offset (1266/1341/1420 against
+     1252/1335/1417). */
+  .drow.heads {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--panel);
+    color: var(--muted);
+  }
+
+  /* the column that gives: below `--w-path` the row stops squeezing and the
+     scroller takes over, so the numbers never lose their tracks */
   .drow .path {
     flex: 1 1 auto;
+    min-width: var(--w-path);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -537,8 +601,19 @@
     text-align: left;
   }
 
-  .drow span:not(.path) {
-    flex: 0 0 74px;
+  /* A column is scanned, so its width is a promise and the formatter keeps it:
+     `--w-val` and `--w-pct` are `VALUE_CHARS`/`PERCENT_CHARS` handed down in
+     `ch`, and `formatSide` falls back to exponential rather than write anything
+     longer.  Before WP-1217 these were one 74 px rule over four cells of
+     `toPrecision`, which chooses fixed or exponential per value — so a decimal
+     point and a mantissa shared a column. */
+  .drow .val {
+    flex: 0 0 var(--w-val);
+    text-align: right;
+  }
+
+  .drow .pct {
+    flex: 0 0 var(--w-pct);
     text-align: right;
   }
 

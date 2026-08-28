@@ -506,7 +506,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # and a declared column count is a declared minimum, which is what moved
     # `MODEL_MIN.form` and put WP-1215's stale-width lesson under a test rather
     # than a comment.  The nine measured configurations are in the WP.
-    "gui/CLAUDE.md": 962,
+    # 962 -> 995 for WP-1217: the history graph becomes a git graph and the
+    # compare table's numbers hold their columns.  Five rules, and the two that
+    # earn the lines are browser findings no jsdom test could make — an edge has
+    # to *hold* a lane for its whole span before a one-row crossing is drawable
+    # at all, and a `ch` width is a shared column only while every cell in it is
+    # one font at one size.  The measured offsets are in the WP.
+    "gui/CLAUDE.md": 995,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the

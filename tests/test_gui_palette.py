@@ -1,4 +1,4 @@
-"""WP-1210 — the plot's colours, held apart in OKLab.
+"""WP-1210 — the GUI's colours, held apart in OKLab.
 
 The values are CSS custom properties in ``gui/src/app.css`` and the distance
 that decides whether two of them are one colour is
@@ -13,16 +13,21 @@ Why it is worth asserting at all: before this WP the peak layer had no colours
 of its own, and the two it borrowed were `--plot-diff` and `--plot-calc`
 **exactly** on the light theme.  Nothing failed; the picture simply drew the
 picked-peak fit and the model in one red.
+
+WP-1217 added the history graph's lanes at the bottom, which are the same
+question about a different set: the rail is where two marks of one shape and
+one weight mean different things, so following a line is the whole job.
 """
 
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 
 import pytest
 
-from rietx.gui.structure3d import MIN_SEPARATION, _oklab, _oklab_distance
+from rietx.gui.structure3d import MIN_SEPARATION, _oklab, _oklab_distance, _oklab_hex
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_CSS = ROOT / "gui" / "src" / "app.css"
@@ -183,3 +188,75 @@ def test_every_layer_colour_reads_against_its_own_page(themes, theme):
     for token in LAYERS:
         gap = _oklab_distance(_oklab(palette[token]), page)
         assert gap >= 0.30, f"{theme}: {token} is {gap:.3f} from the page"
+
+
+# --- the history graph's lanes (WP-1217) -----------------------------------
+#
+# Half a palette in each place, on purpose: `lib/history.ts` owns the hue
+# *rotation* and `app.css` owns the lightness and chroma a rail is read at, so
+# a lane's ink is `oklch(var(--lane-l) var(--lane-c) <hue>)` and neither file
+# holds a colour.  What decides whether the rotation is fine enough is a
+# distance, and this is the file that has one.
+
+HISTORY_TS = ROOT / "gui" / "src" / "lib" / "history.ts"
+
+
+def _lane_lc(block: str) -> tuple[float, float]:
+    """One theme block's `--lane-l` and `--lane-c`, which `_block` cannot see."""
+    css = APP_CSS.read_text(encoding="utf-8")
+    body = css[css.index(block):]
+    return (float(re.search(r"--lane-l:\s*([\d.]+)", body).group(1)),
+            float(re.search(r"--lane-c:\s*([\d.]+)", body).group(1)))
+
+
+def _lanes(theme: str) -> list[tuple[float, float, float]]:
+    """The lane inks of one theme, as OKLab — through sRGB, as a screen shows them."""
+    lightness, chroma = _lane_lc(
+        ":root {" if theme == "light" else ':root[data-theme="dark"]')
+    source = HISTORY_TS.read_text(encoding="utf-8")
+    hues = [float(h) for h in re.search(
+        r"LANE_HUES\s*=\s*\[([^\]]+)\]", source).group(1).split(",")]
+    return [_oklab(_oklab_hex((lightness,
+                               chroma * math.cos(math.radians(hue)),
+                               chroma * math.sin(math.radians(hue)))))
+            for hue in hues]
+
+
+def test_the_dark_theme_declares_the_lane_pair_twice_and_agrees():
+    """The `themes` fixture's rule, for the two numbers that are not hex.
+
+    `app.css` declares the dark palette twice on purpose — the media block
+    paints before the app has booted, the attribute block is what an explicit
+    choice sets — and `_block` reads only `#rrggbb`, so these two would have
+    been free to drift.
+    """
+    assert (_lane_lc(':root:not([data-theme="light"])')
+            == _lane_lc(':root[data-theme="dark"]'))
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_every_pair_of_lanes_clears_the_floor(themes, theme):
+    """Two lanes 72° apart at this chroma; a sixth lane at 60° would not.
+
+    The rail is the one place in this app where two marks of the same shape and
+    the same weight mean different things, so following a line across ten rows
+    is the whole job and the hues have to be nameable apart.  Hue-only at
+    constant L and C puts a pair 2·C·sin(Δh/2) apart before the sRGB gamut has
+    its say, which is why the measurement goes through the hex a browser will
+    actually paint.
+    """
+    lanes = _lanes(theme)
+    assert len(lanes) == 5
+    for i, one in enumerate(lanes):
+        for two in lanes[i + 1:]:
+            gap = _oklab_distance(one, two)
+            assert gap >= MIN_SEPARATION, f"{theme}: two lanes are {gap:.3f} apart"
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_every_lane_reads_against_the_panel_it_is_drawn_on(themes, theme):
+    """`--panel`, not `--bg`: the graph sits inside a panel's surface."""
+    surface = _oklab(themes[theme]["--panel"])
+    for index, lane in enumerate(_lanes(theme)):
+        gap = _oklab_distance(lane, surface)
+        assert gap >= 0.30, f"{theme}: lane {index} is {gap:.3f} from the panel"
