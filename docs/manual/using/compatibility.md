@@ -85,9 +85,14 @@ something that works, not promoting it.
 Even in a preview, some parts move more than others, and the ones expected
 to move are declared rather than left to be inferred:
 
-- **The GUI as a whole ships as beta**, its HTTP routes included. Two things
-  about the wire are nevertheless stated normatively below: the JSON dialect,
-  and that the upload routes carry raw bytes.
+- **The GUI's HTTP routes.** The application itself is documented in
+  [](gui-quickstart.md), [](gui-guide.md) and [](gui-power.md), and stopped
+  being a beta feature when those landed; its wire surface did not. A route may
+  be added, renamed or split in any release, and the route table in
+  [](gui-power.md) describes the one this release serves. Two things about the
+  wire are nevertheless stated normatively below: the JSON dialect, and that
+  the upload routes carry raw bytes. The `.rxt` document is the part of that
+  surface that does carry a version, and it is the next entry.
 - **The `.rxt` text document.** It is rendered in-session and never
   persisted, so nothing accumulates in it. If it ever becomes a saveable
   file, its `Capabilities.textdoc_format_version` starts moving.

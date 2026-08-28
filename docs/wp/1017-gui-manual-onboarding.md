@@ -199,15 +199,27 @@ surviving substance — each one is something the screen cannot say about itself
 - [x] `gui-power.md` — normative `.rxt` spec with `FORMAT_VERSION` as a
       fenced constant (conf.py line + chapter use), keyboard/palette table,
       console-to-script story.
-- [ ] `static/help.json` + tooltip wiring + "learn more" anchors;
-      `tests/test_gui_help.py` dead-link guard.
+- [x] `static/help.json` + tooltip wiring + "learn more" anchors;
+      `tests/test_gui_help.py` dead-link guard. **Landed elsewhere**: the
+      corpus is WP-1202's `rietx.help` served at `GET /api/help` (not a
+      `static/help.json`), the popover is WP-1203, and the dead-link guard is
+      `test_help.py::test_every_anchor_resolves_in_the_built_manual`, which
+      checks each anchor against the *built* HTML. What was owed here was that
+      it stays green over the finished chapters, and it does — the anchors
+      point into Part 2, which these chapters did not move.
 - [x] First-run progressive checklist (non-modal), persisted dismissal.
 - [x] Route partition test (`server.ROUTES` documented or excluded with a
       reason) and the panel-name corpus (vitest writes, pytest reads).
 - [x] `docs/manual/make_screenshots.py` over the shipped examples +
       the referenced-screenshot test; light/dark pairs committed.
-- [ ] The glossary and every `{ref}` to it from the chapters; lift the beta
-      declaration in README and `using/compatibility.md`.
+- [x] The glossary and every `{ref}` to it from the chapters; lift the beta
+      declaration in README and `using/compatibility.md`. The glossary is
+      generated from `rietx.help` in `conf.py` (WP-1202); the chapters link it
+      rather than restating an entry. Beta lifted in README, `using/cli.md`
+      (whose admonition said the GUI "is not documented here", which is no
+      longer true) and `using/compatibility.md` — where the entry now says the
+      **routes** are provisional rather than the application, since it is the
+      wire that still moves.
 
 ## Acceptance
 

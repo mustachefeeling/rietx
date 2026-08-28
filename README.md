@@ -71,7 +71,7 @@ t5544a638  13 nodes  data=11BM_NAC.fxye
 - [Sequential refinements](https://rietx.org/using/series.html)
 - [Indexing](https://rietx.org/using/indexing.html)
 - [Extensive agentic surface](https://rietx.org/using/agents.html)
-- GUI mode `rietx gui` (currently in beta)
+- [GUI mode](https://rietx.org/using/gui-quickstart.html) `rietx gui`
 
 ## Validation
 

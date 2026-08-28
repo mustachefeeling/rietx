@@ -14,7 +14,7 @@ keyboard and the wire.
 :class: agent
 This chapter is for a person at a screen. Driving rietx from a program is
 [](agents.md), and the operating protocol is `docs/AGENT_PROTOCOL.md`. The GUI's
-routes are listed in [](gui-power.md), but they are a beta surface and the
+routes are listed in [](gui-power.md), but they are declared provisional and the
 Python API is the one to build on.
 :::
 

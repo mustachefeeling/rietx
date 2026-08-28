@@ -5,14 +5,17 @@ and the HTTP routes. Each of them exists for the same reason — the GUI is a
 front end for the Python API, and none of what it does should be reachable only
 by pointing at it.
 
-:::{admonition} Beta
+:::{admonition} What here is a promise, and what is not
 :class: warning
-The GUI ships as a beta feature and its HTTP routes are declared provisional:
-see {ref}`provisional-by-declaration`. The `.rxt` grammar below is normative for
-the format version it states, and the format carries its own version number so a
-change to it is visible. The routes are not normative and may move between
-releases. Build programs on the Python API in [](agents.md), not on these
+The GUI's **HTTP routes are declared provisional**: see
+{ref}`provisional-by-declaration`. They are the surface this chapter describes
+for the release it ships with, and a route may be added, renamed or split in
+any release. Build programs on the Python API in [](agents.md), not on these
 routes.
+
+The **`.rxt` grammar is normative** for the format version it states, and the
+format carries its own version number, so a change to it is something a reader
+can see rather than infer.
 :::
 
 ## The `.rxt` document
