@@ -1,13 +1,13 @@
 # WP-1216 — Model: the instrument form
 
-Milestone: v1.2 · Status: ⬜
+Milestone: v1.2 · Status: ✅ 2026-08-28 — three groups, one grid of three columns, and the form column's floor measured
 Depends on: WP-1214
 
 ## Goal
 
 The instrument section is a grid in the order a crystallographer expects,
-with U V W over X Y Z as two parallel rows, aligned inputs, and the geometry
-select where it cannot move the other fields.
+with U V W over X Y as two parallel rows (there is no Z — see Design), aligned
+inputs, and the geometry select where it cannot move the other fields.
 
 ## Context
 
@@ -112,5 +112,94 @@ and U V W directly above X Y Z.
 - WP-1014, WP-1029 (no mute fields), WP-1034 (measured widths).
 
 ## Handover log
+
+- **2026-08-28** — shipped: **the instrument section is a form rather than a
+  list**. Its fields sit under Source, Geometry and Profile, in the order the
+  quantities are decided in, and U V W stand directly above X Y as the two
+  parallel rows a crystallographer reads them as. Every number in the panel is
+  the same width and in the same three columns, at every window size and in
+  both themes, so nothing shifts when a column is dragged; a refined value now
+  shows its esd beside its refine flag, which this form had never done although
+  the cell row and the phase grid next to it always had. It cost one number the
+  panel had inherited rather than measured: a form with a *declared* column
+  count has a declared minimum width, so the model pane becomes one stacked
+  column below 1256 px instead of 1136.
+
+  **Done** (four commits).
+
+  - **Which group a field is in is data** (`InstrumentField.group`), because two
+    of them disagree with their own path and the crystallographer is right both
+    times: the axial apertures are `geometry.axial_*` and shape the peak, the
+    zero shift is top-level and belongs beside the displacement and
+    transparency it is refined against. `PROFILE_ROWS` is the one authority for
+    the profile's order *and* where each row begins, so nothing downstream can
+    put U over anything but X.
+  - **The panel is one grid of three columns** — not a wrapping flex, whose
+    widest item picked the break (that is how one `<select>` moved every field
+    after it), and not an auto-fill count, which the container picks. A control
+    whose content is a word takes the row rather than a track (`.fullrow`): the
+    geometry select, the anode, mode, plan, and a phase named `fluorapatite`
+    that a 92 px box was too small for. Each cell is a `subgrid` of its group's
+    rows, so a label wrapping to two lines no longer pushes its own input below
+    its neighbours'.
+  - **`MODEL_MIN.form` is 320** = 3 x 92 + 2 x 10 + 24, stated once: `COL_MIN`
+    reads it and the CSS basis takes it as `--col-min`. `resize.test.ts`
+    crosses it against `--w-num`, `--grid-gap` and the column's padding read
+    out of `Model.svelte`, which is WP-1215's stale-width lesson turned from a
+    comment into a test.
+  - Two decisions the WPs before this one left here: the **esd is drawn**, in
+    the slot and by the call the cell row and phase grid already use, and the
+    `h2` **wraps** rather than clipping `Save profile…` at the column's floor.
+
+  **Two departures from the WP's own design sketch**, both because it named
+  something that does not exist. There is no **Z**: this profile's Lorentzian
+  terms are X (strain, tanθ) and Y (size, 1/cosθ), so the second row is two wide
+  and its third slot is empty rather than invented — which also puts S/L and H/L
+  on a row of their own rather than beside. And there is no **background**
+  group: the family is not offered as an edit and the term count is a shape
+  change with its own verb, so neither is a `Field`, and a fourth member of the
+  union would have been a name with no writer (CLAUDE.md, WP-1076).
+
+  **Measured** (`[dev]`, darwin/arm64; browser pass on Chrome for Testing 1223,
+  the fluorapatite example fitted *through* the server, Rwp 9.70 %).
+
+  - vitest **567 → 572** (three in `model.test.ts`, one in `App.test.ts`, one in
+    `resize.test.ts`); `svelte-check` 378 files, 0 errors.
+  - fast python **3201 passed / 122 skipped**, exactly WP-1215's — no python
+    test was added and no python behaviour moved. The full selection did not
+    run: nothing outside `gui/` changed but a docs cap, and the dist's own
+    freshness test (`tests/test_gui_dist.py`) and `tests/test_gui_server.py`
+    (153 passed) were run directly.
+  - Nine browser configurations — the sidebar floor (form column 341 px) and
+    ceiling (559), Full at 1600 and 2200 (426 and 610), and both sides of the
+    new threshold (323 above, stacked below) — in light and dark. At every one:
+    every numeric input **92 px**, U directly above X, no control out of line
+    with its row, no clipped value, no column side-scrolling, `Save profile…`
+    unclipped.
+  - What the pass found, and jsdom cannot: at the 559 px ceiling the auto-fill
+    count gave Source and Geometry **five** columns against Profile's three, so
+    two groups of one form did not line up; and at the old 200 px floor the
+    profile's tracks came out at **53 px** with `-0.0002` clipped inside one.
+    Both are why the grid is fixed at three and the floor is 320.
+  - `gui/CLAUDE.md` 938 → 962 lines, with its reason beside the cap in
+    `tests/test_docs_consistency.py`.
+
+  **Gotchas.**
+
+  - **The server serves the committed dist, not the working tree.** The first
+    browser pass reported "no `.grid.profile` on the page" — a stale dist, not
+    a defect. `npm --prefix gui run build` before every pass that is about
+    source changes.
+  - A cell's row span follows its content (`:has(.varyline)`) rather than a
+    class on the grid, because a grid told the wrong number fails nothing: a
+    subgrid clamps a child past its last track *into* it, drawing the refine
+    flag on top of the value.
+  - The structure column shares `.grid`, so the phase's five numbers are three
+    columns now too, and the phase name takes a row. Looked at, both themes; it
+    is tidier, not a regression.
+
+  **Next**: [1217](1217-history-graph-compare.md), the history graph and the
+  compare table, then [1017](1017-gui-manual-onboarding.md), the manual, last.
+  1217 is the last of the maintainer's triage; nothing here blocks it.
 
 - **2026-08-25** — created from the v1.2 triage.
