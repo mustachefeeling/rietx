@@ -727,6 +727,14 @@ def test_the_ramp_reproduction_no_longer_runs_away():
         assert "phases.1.cell.a" not in paths, entry.label
         assert "PHASE_UNCONSTRAINED" in [d.code for d in entry.diagnostics]
 
+    # and the aggregation is untouched: it reads `where`, which now carries the
+    # held paths, so the chain still says the thing no per-pattern code can
+    persistent = [d for d in series.diagnostics
+                  if d.code == "SEQUENTIAL_PERSISTENT_FINDING"]
+    assert len(persistent) == 1
+    assert persistent[0].where == ["phases.1.cell.a"]
+    assert "13 of 13" in persistent[0].message
+
 
 @pytest.mark.slow
 def test_no_cell_leaves_the_physical_range_in_that_chain():

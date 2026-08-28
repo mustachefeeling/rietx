@@ -137,7 +137,7 @@ class _StageHold:
 
 
 def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
-                            values: dict[str, float] | None = None) -> list[str]:
+                             support: np.ndarray | None = None) -> list[str]:
     """The free structural paths of every phase the data cannot see.
 
     "Cannot see" is ``CompiledModel.phase_support`` below
