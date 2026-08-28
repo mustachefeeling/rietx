@@ -61,6 +61,27 @@ Design:
 
 ### Inherited
 
+From **WP-1214** (2026-08-28, shipped):
+
+- **Every value in this panel now carries a refine flag beside it**, drawn by
+  one `{#snippet varyBox(path)}` in `Model.svelte` and addressed by
+  `data-vary="<parameter path>"`. In the atom table that puts a checkbox in
+  the `occ` and `Biso` cells and one on each DOF/ADP box, so a row that was
+  four controls is seven: whatever shape this WP gives the row has to place
+  them, and the flag belongs *after* its value in the DOM (inside a `<label>`,
+  the first labelable descendant is what the label names, so a flag placed
+  first steals the value's label). The aniso checkbox is addressed by
+  `data-aniso` for the same reason — "the first checkbox in the table" stopped
+  being an address.
+- A **held** value gets the mark rather than a box, and there are **four**
+  reasons, not three (`heldGlyph` in `lib/table.ts`). If this WP makes x/y/z
+  typed, each coordinate is a *tied* row (`=`) until the edit routes through
+  its DOFs.
+- The phase's scale and its four sample-broadening terms are a `Phase` grid
+  between the cell row and the atom table (`lib/model.ts:phaseFields`). It is
+  the structure column's third block now; the corrections (extinction,
+  preferred orientation, Stephens) are still nowhere, deliberately.
+
 From **WP-1201** (2026-08-25, shipped):
 
 - The phase selector `nav.phases` is the `.segmented` register now. It used to

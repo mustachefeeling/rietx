@@ -48,6 +48,28 @@ fields reuse the same grid.
 
 ### Inherited
 
+From **WP-1214** (2026-08-28, shipped):
+
+- **Every instrument field now has a refine flag under it**, in a
+  `<span class="varyline">` that renders whether or not the field is in θ, so
+  the wrapped grid keeps one rhythm — `geometry.kind`, the radius and the
+  specimen dimensions draw an empty slot. Any regrouping this WP does has to
+  keep the flag with its field, and a width rule aimed at the value reaches
+  the control beside it (`.cellrow input { width: 100% }` drew an esd at zero
+  width until it was excluded by name).
+- **`Field.param`** carries the parameter-table path where it is not the model
+  path prefixed. One field needs it — `source.polarization` is
+  `instrument.polarization` in θ — and until WP-1214 that field rendered off
+  the model and applied as a whole-model PATCH past `set_values`' bounds. Any
+  new field this WP adds should be checked the same way: `fieldParam` is what
+  every lookup asks.
+- The form shows **no esds**, unlike the cell row and the Phase grid beside
+  it. Left for this WP: the row is there (`byPath.get(fieldParam(…))?.esd`),
+  the slot exists, and only the decision is missing.
+- `Save profile…` sits beside `Load profile…` in the `Instrument` heading and
+  prints the path it wrote under it (`POST /api/export/instrument_profile`,
+  model-gated). Two controls in that `h2` now, so it wraps at ~1000 px.
+
 From **WP-1203** (2026-08-26, shipped):
 
 - **`lib/model.ts`'s `Field` gained `help`**, a corpus key carried as *data*
