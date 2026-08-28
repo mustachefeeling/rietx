@@ -60,6 +60,16 @@ Open the fluorapatite example. It is an ordinary laboratory pattern from an
 ordinary diffractometer, with seven atomic sites — the point at which a
 refinement starts to need a plan rather than a button.
 
+```{image} screenshots/empty-state-light.png
+:class: only-light
+:alt: The panel with no project open: two example projects with their descriptions, a Browse button, and the four numbered wizard steps below
+```
+
+```{image} screenshots/empty-state-dark.png
+:class: only-dark
+:alt: The panel with no project open: two example projects with their descriptions, a Browse button, and the four numbered wizard steps below
+```
+
 ## What is on the screen
 
 The window is two columns. On the left is the pattern; on the right is a column
@@ -76,6 +86,16 @@ of nine tabs, all mounted at once:
 | **Report** | what the package will say about the fit it just ran |
 | **History** | every state the refinement has passed through |
 | **Build** | what this build of the package can do |
+
+```{image} screenshots/first-fit-light.png
+:class: only-light
+:alt: The whole window after a run: the fitted pattern with its difference curve on the left, the parameter table on the right, the console below
+```
+
+```{image} screenshots/first-fit-dark.png
+:class: only-dark
+:alt: The whole window after a run: the fitted pattern with its difference curve on the left, the parameter table on the right, the console below
+```
 
 `Split | Full` in the header chooses how much of the window that column gets;
 the tabs travel with it. Where you are is the tab, how wide it is, is the
@@ -129,6 +149,23 @@ Then open the **Report** tab. It states what the package is prepared to say abou
 this fit, and it is built to refuse a confident wrong answer: where two
 explanations fit the misfit equally well it says so and names both, rather than
 picking one. [](report.md) is the full account of what those statements mean.
+
+```{image} screenshots/report-light.png
+:class: only-light
+:alt: The report panel: Rwp and GoF, a paragraph naming an exchangeable pair of parameters, and suggested actions with one carrying a could-not-rule-out line
+```
+
+```{image} screenshots/report-dark.png
+:class: only-dark
+:alt: The report panel: Rwp and GoF, a paragraph naming an exchangeable pair of parameters, and suggested actions with one carrying a could-not-rule-out line
+```
+
+The screenshot above is the fluorapatite example after the run this chapter
+just described, and it is worth reading rather than glancing at. The report has
+found a real degeneracy in it — a sample displacement that "stands 39σ from 0
+but is exchangeable with the held zero shift" — and says the fit cannot tell
+which is physical. That is the package declining to give you a confident wrong
+number, which is the behaviour the rest of the manual keeps referring back to.
 
 ## Then your own data
 

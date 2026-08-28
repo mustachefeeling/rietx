@@ -48,6 +48,16 @@ instrument
   background.c0                         @       0
 ```
 
+```{image} screenshots/text-document-light.png
+:class: only-light
+:alt: The text panel showing the rxt document with syntax highlighting, an in-sync badge, and Apply and Re-read buttons
+```
+
+```{image} screenshots/text-document-dark.png
+:class: only-dark
+:alt: The text panel showing the rxt document with syntax highlighting, an in-sync badge, and Apply and Re-read buttons
+```
+
 ### Grammar
 
 **The header line is `rxt {{ RXT_FORMAT_VERSION }}`** and states the format
@@ -77,20 +87,25 @@ Document-level keywords:
 | `peaks` | opens the picked-line block |
 | `guard` | a guard setting |
 
-A parameter row is a dot-path, then the value, then any number of modifiers:
+A parameter row is a dot-path, then the value, then any number of modifiers.
+They render in this order:
 
-| Modifier | Means |
-|---|---|
-| `@` before the value | **this parameter is free**; a bare value holds it |
-| `min` / `max` | the bound the solver is given |
-| `locked` | structurally fixed — by symmetry, or by the model |
-| `softplus` | the transform the parameter refines through |
-| `= …` | this parameter is **tied**: its value follows the expression |
+| Modifier | Means | Editable |
+|---|---|---|
+| `@` before the value | **this parameter is free**; a bare value holds it | yes |
+| the value itself | the parameter's value | yes |
+| `min` / `max` | the bound the solver is given | no — bounds come from the schema, not from this document |
+| `softplus` / `logit` | the transform the parameter refines through | no — a transform is part of how the parameter is stored |
+| `locked` | structurally fixed, by symmetry or by a representation that owns the value | no |
+| `mode-fixed` | held because the intensity mode holds it — Le Bail and Pawley force-fix every atom parameter, the phase scale and the emission lines | no |
+| `esd` | the standard uncertainty the last fit produced | no — an esd is a result of a fit, not an input to one |
+| `= …` | this parameter is **tied**: its value follows the expression | no |
 
 **A tie renders last on its line**, because the expression contains spaces and
-runs to the end of the line. **Column widths are per block**, not fixed across
-the document, which is what keeps a narrow value from being padded into its
-neighbour.
+runs to the end of the line.
+
+**Column widths are per block**, not fixed across the document, which is what
+keeps a narrow value from being padded into its neighbour.
 
 Everything after `#` is a comment. **Comments do not survive a re-render**: a
 document regenerated from the project has one authority, and storing your

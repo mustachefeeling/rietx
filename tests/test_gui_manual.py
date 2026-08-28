@@ -25,8 +25,10 @@ from being silently forgotten.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
+import sys
 from pathlib import Path
 
 from rietx.gui.server import ROUTES, UPLOAD_ROUTES
@@ -36,6 +38,30 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 USING_DIR = REPO_ROOT / "docs" / "manual" / "using"
 GUI_PAGES = sorted(USING_DIR.glob("gui-*.md"))
 PANELS_CORPUS = REPO_ROOT / "tests" / "data" / "gui" / "panels.json"
+SHOTS_DIR = USING_DIR / "screenshots"
+MAKE_SHOTS = REPO_ROOT / "docs" / "manual" / "make_screenshots.py"
+
+IMAGE_REF = re.compile(r"^```\{image\}\s+(\S+)\s*$", re.M)
+
+
+def _declared_shots():
+    """`SHOTS` out of `make_screenshots.py`, without importing playwright.
+
+    Loaded by path rather than imported as a module: `docs/` is not a package,
+    and the script's own imports of playwright are inside its functions for
+    exactly this reason — the declaration has to be readable by a suite that
+    will never drive a browser.
+    """
+    name = "_make_screenshots"
+    spec = importlib.util.spec_from_file_location(name, MAKE_SHOTS)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    # Registered before it is executed: `Shot` is a dataclass, and resolving a
+    # field's annotation reads `sys.modules[cls.__module__]`, which is None for
+    # a module loaded by path alone.
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module.SHOTS, module.THEMES
 
 CODE_SPAN = re.compile(r"`([^`\n]+)`")
 #: `GET /api/params` inside a code span.  The method is part of the name on
@@ -112,6 +138,97 @@ def test_no_chapter_names_a_route_that_does_not_exist():
         "GUI chapter names route(s) the server does not serve: "
         + ", ".join(f"{m} {p}" for m, p in invented)
     )
+
+
+def test_every_screenshot_a_chapter_shows_is_one_the_script_takes():
+    """A referenced screenshot is declared in `make_screenshots.py`.
+
+    `test_manual_api.test_every_figure_reference_exists` already catches a
+    reference to a file that is not there.  This catches the other half, which
+    is the one that matters for a picture of a moving user interface: a file
+    that *is* there, was taken by hand or by an older version of the script,
+    and no longer has anything regenerating it.  A control then moves, the
+    build stays green, and the reader is looking at last month's app.
+    """
+    shots, themes = _declared_shots()
+    declared = {f"{shot.name}-{theme}.png" for shot in shots for theme in themes}
+    for page in GUI_PAGES:
+        for target in IMAGE_REF.findall(page.read_text(encoding="utf-8")):
+            if not target.startswith("screenshots/"):
+                continue
+            name = target.split("/", 1)[1]
+            assert name in declared, (
+                f"{page.name}: `{target}` is not a shot make_screenshots.py "
+                f"produces — add it to SHOTS, or reference a declared one"
+            )
+            assert (SHOTS_DIR / name).exists(), (
+                f"{page.name}: `{target}` is declared but not committed — run "
+                "docs/manual/make_screenshots.py"
+            )
+
+
+def test_no_committed_screenshot_is_undeclared():
+    """The other direction: a committed picture nothing regenerates.
+
+    It would sit in the tree looking current for as long as nobody opened it,
+    which is what `make_figures.py`'s one-authority rule exists to prevent.
+    """
+    if not SHOTS_DIR.exists():
+        return
+    shots, themes = _declared_shots()
+    declared = {f"{shot.name}-{theme}.png" for shot in shots for theme in themes}
+    orphans = sorted(p.name for p in SHOTS_DIR.glob("*.png") if p.name not in declared)
+    assert not orphans, (
+        f"committed screenshot(s) make_screenshots.py does not produce: {orphans}"
+    )
+
+
+def test_every_declared_shot_is_committed_and_used():
+    """A declared shot that nothing shows is dead weight in a slow script, and
+    one that is declared but missing from the tree is a broken image waiting
+    for the next build."""
+    shots, themes = _declared_shots()
+    prose = "\n".join(page.read_text(encoding="utf-8") for page in GUI_PAGES)
+    for shot in shots:
+        for theme in themes:
+            name = f"{shot.name}-{theme}.png"
+            assert (SHOTS_DIR / name).exists(), (
+                f"{name} is declared but not committed — run "
+                "docs/manual/make_screenshots.py"
+            )
+        assert f"screenshots/{shot.name}-" in prose, (
+            f"{shot.name} is taken by make_screenshots.py but no chapter shows it"
+        )
+        assert len(shot.caption.split()) >= 5, f"{shot.name}: caption says nothing"
+
+
+def test_nothing_gitignores_the_screenshots():
+    """The repo-wide `*.png` rule matched them, which is the third committed
+    image directory it has swallowed (`test_gui_dist`'s `*.html` twin, and
+    Part 1's figures before that).
+
+    It fails in the worst way: the build is green on the machine that took the
+    pictures, and a fresh clone has a manual whose images are all broken. The
+    filter is on the *shape* of the matching rule rather than its text — a
+    rule beginning `!` is a negation — because spelling the un-ignore path
+    here would be a second copy of a .gitignore line, which is how a guard of
+    this shape goes quiet (`tests/CLAUDE.md`).
+    """
+    import subprocess
+
+    files = sorted(SHOTS_DIR.glob("*.png"))
+    assert files, "no screenshots committed — run docs/manual/make_screenshots.py"
+    result = subprocess.run(
+        # --no-index: check-ignore answers for a *tracked* file from the index
+        # without reading the rules at all, and every file here is committed.
+        ["git", "check-ignore", "-v", "--no-index", *[str(f) for f in files]],
+        cwd=REPO_ROOT, capture_output=True, text=True, check=False,
+    )
+    ignored = [
+        line for line in result.stdout.splitlines()
+        if line and not line.split("\t")[0].rpartition(":")[2].startswith("!")
+    ]
+    assert not ignored, f"committed screenshots are gitignored: {ignored}"
 
 
 def test_every_panel_is_named_in_a_chapter():
