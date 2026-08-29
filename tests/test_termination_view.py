@@ -159,6 +159,19 @@ def test_summary_unknown_deliverable_raises():
         ref.summary(deliverable="not_a_real_one")
 
 
+@pytest.mark.parametrize("mode", ["lebail", "pawley"])
+def test_summary_next_line_survives_the_extraction_modes(mode):
+    """The `next:` probe compiles in the fit's own mode and carries its
+    extracted intensities, so Le Bail and Pawley reach `suggest` by a different
+    path from Rietveld — and a termination view that raised there would raise
+    only after the fit had been paid for."""
+    ref = rx.Refinement(make_lab6(), _instrument(), history=False)
+    ref.fit(synthesize(), mode=mode, plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["instrument.background.*"]),
+        rx.Stage("cell", ["phases.*.cell.*"])]))
+    assert _next_line(ref.summary())
+
+
 def test_summary_plot_writes_the_file_and_names_it(tmp_path):
     ref, _result = _fit()
     path = tmp_path / "fit.png"

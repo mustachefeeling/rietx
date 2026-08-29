@@ -253,7 +253,9 @@ class _SeriesStream(EventStream):
     (``history/events.py``'s additivity rule): ``series_index`` is the pattern's
     place in **series** order, not in walk order, so a backward chain's frames
     carry the same index as the forward chain's for the same pattern, and
-    ``series_pass`` is what distinguishes them.
+    ``series_pass`` is what distinguishes them — ``"forward"``, ``"backward"``,
+    or ``"verify"`` for a post-walk discontinuity refit (WP-1305), a new *value*
+    of an existing key and so not a schema move either.
     """
 
     def __init__(self, inner: EventStream, **stamp: Any) -> None:

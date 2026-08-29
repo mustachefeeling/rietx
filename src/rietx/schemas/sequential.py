@@ -506,14 +506,14 @@ class SeriesResult(Base):
         esds are about.  They print as an instruction to state them, since a
         blank there is exactly how an unanchored absolute gets quoted.
         """
-        if deliverable != "series":
+        if deliverable in DELIVERABLES and deliverable != "series":
             raise ValueError(
                 f"{deliverable!r} is decided on one pattern's own fit, not on "
-                f"a series: print it from that pattern's Refinement.summary"
-                f"(deliverable={deliverable!r}) — one of "
-                f"{', '.join(repr(d) for d in DELIVERABLES if d != 'series')}"
-                f" — or 'series' here"
-                if deliverable in DELIVERABLES else
+                f"a series: print it from that pattern's "
+                f"Refinement.summary(deliverable={deliverable!r}) — the series' "
+                f"own deliverable is 'series'")
+        if deliverable != "series":
+            raise ValueError(
                 f"unknown deliverable {deliverable!r}; one of "
                 f"{', '.join(repr(d) for d in DELIVERABLES)}")
 
