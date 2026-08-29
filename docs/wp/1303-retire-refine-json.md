@@ -51,6 +51,13 @@ the break is recorded the way `docs/manual/using/compatibility.md` prescribes.
   shim's target list changes in WP-1307 with its protocol bump); docstring mentions in
   `schemas/plan.py:159`, `indexing/engines.py:412`, `schemas/common.py:70` (history,
   keep).
+- **Callers the list above missed** (grepped on arrival, 2026-08-29). Five test files
+  outside `test_agent_surface.py` reach the envelope to exercise *other* features, so
+  each needs its arm rewritten against the Python API rather than deleted:
+  `tests/test_report_loop.py` (WP-1058's acceptance, one call), `tests/test_report_apply.py`
+  (a docstring), `tests/test_search_controls.py` (four, WP-1045's JSON path),
+  `tests/test_schemas.py` and `tests/test_fitreport_layers.py`. Plus
+  `docs/manual/using/indexing.md:759`.
 - **The break, recorded.** `docs/releases/1.3.0.md` § Upgrading, "Who has to do
   something": *You called `rietx.agent.refine_json`* → `rx.refine(...)` /
   `Refinement.fit`, `result.model_dump(mode="json")`, and catch `ValueError` /
@@ -58,10 +65,6 @@ the break is recorded the way `docs/manual/using/compatibility.md` prescribes.
   registered `tool_definition()`* → none existed in any traced run; a tool loop should
   wrap the Python API with path arguments. Rule: old files must always open, old code
   need not (rietx has few users, all in direct contact).
-
-### Inherited
-
-Nothing yet.
 
 ## Non-goals
 
