@@ -1,10 +1,12 @@
 name: Docs site
 
 # Builds the Sphinx manual under -W and publishes it to GitHub Pages
-# (WP-1003), with docs/AGENT_PROTOCOL.md copied verbatim into the site root —
-# _about.DOCS_URL is the one authority for the resulting URLs, and
-# agent._TOOL_DESCRIPTION appends /AGENT_PROTOCOL.md to it, so the layout
-# here (manual at the root, protocol beside it) is part of that contract.
+# (WP-1003), with the agent skill copied verbatim into the site root beside it
+# — _about.DOCS_URL is the one authority for the resulting URLs, and the skill
+# is fetchable file by file at /skill/rietx/… so a harness with network and no
+# wheel can pull the body without pulling the reference files it does not need
+# (WP-1304).  docs/AGENT_PROTOCOL.md rides along as the pointer it became, so
+# the URL published since v1.0 still resolves; it goes in v1.4.
 #
 # The package itself is installed before the build because docs/manual/conf.py
 # injects fenced constants from the live package; a source-only checkout
@@ -42,8 +44,11 @@ jobs:
       - run: uv pip install -e ".[docs]"
       - name: Build the manual (-W, as the test suite does)
         run: .venv/bin/python -m sphinx -W -b html docs/manual site
-      - name: The agent protocol, verbatim, beside the manual
-        run: cp docs/AGENT_PROTOCOL.md site/AGENT_PROTOCOL.md
+      - name: The agent skill, verbatim, beside the manual
+        run: |
+          mkdir -p site/skill
+          cp -R docs/skill/rietx site/skill/rietx
+          cp docs/AGENT_PROTOCOL.md site/AGENT_PROTOCOL.md
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site

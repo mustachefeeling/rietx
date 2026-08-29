@@ -40,12 +40,11 @@ Notes for agents are marked like this:
 
 :::{admonition} For agents
 :class: agent
-Read
-[`docs/AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)
-first, then come back here for the object model. The protocol says what to do in
-what order, what to check before believing a number, and which measured findings
-should change what you do. This manual describes the surface and does not
-restate the protocol.
+Read the agent skill first — `rietx skill --path` prints it, and
+[](using/skill.md) is the same text rendered — then come back here for the
+object model. The skill says what to do in what order, what to check before
+believing a number, and which measured findings should change what you do. This
+manual describes the surface and does not restate it.
 :::
 
 ## How to read this manual
@@ -115,6 +114,7 @@ using/gui-quickstart
 using/gui-guide
 using/gui-power
 using/agents
+using/skill
 using/compatibility
 using/glossary
 ```

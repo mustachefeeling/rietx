@@ -63,6 +63,21 @@ direction fired, and the stopping criterion the agent states.
 
 ### Inherited
 
+- **From WP-1304 (2026-08-29): a round run after today does not pool with one
+  run before it**, on any row that turns on what the agent could read. The
+  python arm's workspace now carries `skill/` — the whole tree, body and
+  references — where earlier rounds carried one `AGENT_PROTOCOL.md`: the same
+  text, arriving split across files an agent opens on demand rather than as one
+  file it must page through. `tests/eval_report_agent/PROTOCOL.md` carries the
+  dated note. The JSON arms are unaffected — the §5/§6 excerpts were verified
+  against the pre-split document at `6feda6f8`, §6 byte-identical and §5
+  differing only by a dead relative link the move repaired.
+- **Round 1.2's second-harness behavioural test is now a one-line episode
+  change**, which is what 1304's non-goal deferred to this WP:
+  `rietx skill --install <workspace> --agent <name>` puts the skill where that
+  harness looks, and `--list-agents` prints the fifteen-row table with each
+  row's source URL and the date its directories were read.
+
 - **From WP-1303 (2026-08-29): the tracer's target list lost the four JSON-envelope
   entries** (`agent.refine_json`, `agent.tool_definition`, `agent.request_schema`,
   `agent.response_schema`), because the module they name is deleted — a target that

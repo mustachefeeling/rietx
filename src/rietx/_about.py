@@ -89,7 +89,8 @@ DATA_PACKAGE = "rietx.data"
 SERVER_TOKEN = "rietx"
 
 #: Root of the hosted documentation (GitHub Pages, WP-1003), no trailing
-#: slash.  The agent tool description appends ``/AGENT_PROTOCOL.md``; the
-#: README and ``pyproject.urls`` quote it.  A brand token: a rename or a
-#: hosting move changes it here and nowhere else.
+#: slash.  The README, ``pyproject.urls`` and the skill's own frontmatter quote
+#: it; the JSON tool description that used to append a document path to it went
+#: with ``rietx.agent`` in WP-1303.  A brand token: a rename or a hosting move
+#: changes it here and nowhere else.
 DOCS_URL = "https://rietx.org"

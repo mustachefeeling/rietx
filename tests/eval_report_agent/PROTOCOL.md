@@ -616,6 +616,18 @@ and is part of the surface being tested, not a treatment; and `prompt.md` —
 the v2 answer contract plus `final_result.json`, the workspace rules, and
 the budget.
 
+> **2026-08-29 (WP-1304).** That document is now a *directory*, so the
+> workspace carries `skill/` — the whole tree, body and reference files,
+> verbatim — where earlier rounds carried the single `AGENT_PROTOCOL.md`.
+> The rule is unchanged and so is the argument for it: what ships with the
+> package is part of the surface, never a treatment. **A round run after
+> this date does not pool with one run before it** on any row that turns on
+> what the agent could read, because the same text now arrives split across
+> files an agent opens on demand rather than as one file it must page
+> through. The §5/§6 excerpts the JSON arms quote were verified unchanged by
+> the split (byte-identical for §6; §5 differs only by a dead relative link
+> the move had to repair), so the JSON rows are unaffected.
+
 **Environment**: rietx installed **non-editable into a venv outside the
 repo tree**; no repo checkout reachable from the workspace; the truth tree
 stays scorer-side.

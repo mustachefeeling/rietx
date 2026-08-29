@@ -16,7 +16,7 @@ paragraph of prose written for exactly that reader.
 This chapter is the **object model**: what a `FitReport` carries, field by
 field, and how to get one. The judgement (what to believe, in what order, when
 to disbelieve Rwp, and how to act on an abstention) is
-[`docs/AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)
+{doc}`the agent skill <skill>`
 §4 to §6, and this chapter does not restate a line of it.
 :::
 

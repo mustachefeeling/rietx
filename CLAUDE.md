@@ -4,9 +4,9 @@ API-first Rietveld refinement package (powder XRD). MIT. numpy/scipy fp64
 core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `rietx`,
 aliased `rx` throughout (`import rietx as rx`).
 
-**This file is for changing the package.** To *use* it — refine someone's data
-— read `docs/AGENT_PROTOCOL.md` (the operating protocol) and `docs/manual/`
-Part 1 instead; nothing here is a substitute for either.
+**This file is for changing the package.** To *use* it — refine someone's data —
+read `docs/skill/rietx/SKILL.md` (the agent skill) and `docs/manual/` Part 1
+instead; nothing here is a substitute for either.
 
 ## Commands
 
@@ -215,13 +215,12 @@ Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes `"rietveld"`
 appended in `run_least_squares`; overlapped groups get equal-split restraints and
 come back flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split).
 **There is one integration surface and it is the python API** (WP-1303, which
-deleted WP-0602's JSON-in-JSON-out second one after measuring zero use of it):
-a caller runs `Refinement.fit` and dumps the answer with
-`model_dump(mode="json")`, and a failure *raises*. The rule to carry, not the
-history: **a dedicated tool surface earns its place only where it gates,
-renders, audits or parallelises** — none of which a shell-equipped agent needs
-here — and one that a process boundary does want takes **paths**, never inline
-payloads. Two shape rules outlived it. The four answers are different *types*
+deleted WP-0602's JSON-in-JSON-out second one after measuring zero use of it): a
+caller runs `Refinement.fit`, dumps the answer with `model_dump(mode="json")`,
+and a failure *raises*. The rule to carry, not the history: **a dedicated tool
+surface earns its place only where it gates, renders, audits or parallelises** —
+none of which a shell-equipped agent needs here — and one that a process
+boundary does want takes **paths**, never inline payloads. Two shape rules outlived it. The four answers are different *types*
 (`RefinementResult`/`SeriesResult`/`IndexingResult`/`SuggestionResult`), and an
 indexing answer carries no `cell` key. And a **companion rides beside an
 answer, never inside it** — `IndexingResult.evidence()` (WP-1043, the answer
@@ -240,8 +239,8 @@ The **GUI** is `rietx gui [PROJECT.rex]` — stdlib `http.server` on 127.0.0.1
 serving a committed Svelte 5 dist. Its rulebook — the session/wire split, the
 server contract, the `.rxt` document, the editors, the nine panels, the 3D
 viewer, theming — is `gui/CLAUDE.md`, which loads under `gui/`. Four rules
-matter outside the GUI too: mutating verbs return **409 while
-a run is in flight** (frozen-per-stage discreteness enforced structurally); the
+matter outside the GUI too: mutating verbs return **409 while a run is in
+flight** (frozen-per-stage discreteness enforced structurally); the
 **run state is not an event** — `EventKind` is closed, and `live/events.jsonl`
 stays the one stream `watch` tails; a **project setting is one that is about
 the project** — the theme is the person's, lives in `/api/settings` beside the
@@ -741,11 +740,11 @@ a file added to the wheel adds an example.
 - `RefinementResult.ticks` carries **every emission line's** positions, not
   just the primary — otherwise Layer 0 flags each Kα2 peak as an unindexed
   impurity (this was a real bug, caught by the misfit-injection suite).
-- Tests, timing, budgets, CI: `tests/CLAUDE.md` (loads when working under
-  `tests/`); the headline rules are in Commands above.
-- Comparing against another code means **adopting its protocol**, not just
-  its numbers: mirror its refine flags, held parameters and excluded regions,
-  then check the channel count matches before believing any Rwp comparison.
+- Tests, timing, budgets, CI: `tests/CLAUDE.md` (loads under `tests/`); the
+  headline rules are in Commands above.
+- Comparing against another code means **adopting its protocol**, not just its
+  numbers: mirror its refine flags, held parameters and excluded regions, then
+  check the channel count matches before believing any Rwp comparison.
 - The **manual** (`docs/manual/`) is one `-W` Sphinx tree in two parts, each
   guarded differently because each fails differently. **Part 2 — Theory**
   (`tests/test_manual.py`): fenced constants are MyST substitutions injected
@@ -786,8 +785,7 @@ a file added to the wheel adds an example.
 
 ## Roadmap & how to work on it
 
-Planning docs are split so a session loads only what it needs — do not read
-them all:
+Planning docs are split so a session loads only what it needs; do not read all:
 
 - `docs/ROADMAP.md` — the index: session protocol, a "Current focus" capped by
   `CURRENT_FOCUS_CAP` (tests/test_docs_consistency.py), milestones, WP index.
@@ -800,8 +798,10 @@ them all:
 - The **paper corpus** (location and unread list) is maintainer-local, outside
   this repo; `AGENTS.md` names the split and the maintainer's memory holds it.
   **Search it before asking for a paper or re-deriving a published constant.**
-- `docs/AGENT_PROTOCOL.md` — consumer-facing operator guide; a WP that adds
-  a diagnostic code or a correction adds its row there.
+- `docs/skill/rietx/` — the **agent skill** (agentskills.io), consumer-facing:
+  `SKILL.md` the judgement core read whole, `references/` the lookups read on
+  demand. A WP adding a diagnostic code or a correction adds its row there;
+  `rietx skill --install . --copy` re-syncs the two committed copies.
 - `docs/RELEASING.md` — how a version reaches PyPI, and the one rule that
   governs it: never `twine upload` by hand, because the workflow builds from
   the tag and a by-hand build cannot be held to it (measured on 1.0.1).

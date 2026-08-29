@@ -109,7 +109,7 @@ reference datasets, and a specimen outside one is not thereby wrong.
 
 The corpus describes parameters, not strategy. Which parameter to free next is
 {doc}`refining`; what a diagnostic code means for a whole refinement is
-`docs/AGENT_PROTOCOL.md`.
+{doc}`the agent skill <skill>`.
 
 ```{include} ../_generated/glossary-body.md
 ```

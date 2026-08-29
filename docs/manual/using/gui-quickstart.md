@@ -13,7 +13,7 @@ keyboard and the wire.
 :::{admonition} For agents
 :class: agent
 This chapter is for a person at a screen. Driving rietx from a program is
-[](agents.md), and the operating protocol is `docs/AGENT_PROTOCOL.md`. The GUI's
+[](agents.md), and the operating protocol is {doc}`the agent skill <skill>`. The GUI's
 routes are listed in [](gui-power.md), but they are declared provisional and the
 Python API is the one to build on.
 :::

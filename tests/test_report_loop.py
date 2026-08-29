@@ -9,7 +9,8 @@ branch → verify stage → keep on >1 % χ² improvement → checkout winner /
 structural rollback) and check that the planted *parameter* is recovered — Rwp
 alone is never the criterion — that the loop stops when nothing actionable
 remains, and that every rejection leaves the DAG clean.  It is the first
-executable version of AGENT_PROTOCOL §9's canonical agent loop.
+executable version of the agent skill's §9 (`references/history.md`)
+canonical agent loop.
 
 ``_run_report_loop`` is a measurement instrument, not product: WP-1050's fence
 holds verbatim — *"No automatic stage insertion: the staged runner stays
@@ -806,7 +807,8 @@ def test_srm660c_degraded_zero_is_refused(srm660c_baseline):
     preset's zero/displacement stage would fix this start; the loop's refusal
     is the never-act-on-a-non-separable-attribution rule paying its real
     price, and the report hands the capped pair (with alternatives) to a
-    caller who can hold one of the two — AGENT_PROTOCOL §6, closed-loop.
+    caller who can hold one of the two — the skill's §6
+    (`references/abstention.md`), closed-loop.
 
     (``add_impurity_phase`` at 0.4 outranks the capped family — the shift's
     derivative-shaped residuals read as unindexed lines — but it is advice,

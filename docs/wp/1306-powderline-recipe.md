@@ -73,6 +73,16 @@ their GSAS-II and TOPAS tables.
 
 ### Inherited
 
+- **From WP-1304 (2026-08-29): the protocol is a skill, and a recipe should
+  reach for it rather than restate it.** `docs/skill/rietx/` is the operating
+  protocol in the open agentskills.io format; `rietx skill --install [DIR]` puts
+  it in a target repository (one copy in `.agents/skills/`, a link from each
+  harness that reads elsewhere), `rietx skill --print` gives it as plain text
+  for a harness that reads no skills, and `capabilities().skill_path` /
+  `rietx skill --path` answer where this build keeps it. If the recipe wants an
+  agent to know the protocol, installing the skill is the move, not copying
+  paragraphs into a prompt.
+
 - **From WP-1303 (2026-08-29): the `{ok, error}` envelope is no longer in the
   package**, so this WP designs its recipe from scratch rather than reusing a
   shipped one — which was the decision behind the delete. There is one worked

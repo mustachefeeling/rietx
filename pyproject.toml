@@ -137,11 +137,17 @@ packages = ["src/rietx"]
 exclude = ["**/CLAUDE.md"]
 
 [tool.hatch.build.targets.wheel.force-include]
-# The agent protocol ships inside the wheel (WP-1003): the tool description
-# points at the hosted copy AND this one, because an agent's sandbox may have
-# no network.  docs/AGENT_PROTOCOL.md stays the one authority; this is a
-# build-time copy, absent from an editable install (where the repo file is
-# present instead).
+# The agent skill ships inside the wheel (WP-1003, retargeted by WP-1304): an
+# agent's sandbox may have no network, so `rietx skill --path` must resolve
+# without one.  docs/skill/rietx/ stays the one authority; this is a build-time
+# copy, absent from an editable install, where `skill_path()` falls back to the
+# repository tree.  The two committed copies (.agents/skills/, .claude/skills/)
+# are for sessions working *in* this repository and are not shipped.
+"docs/skill/rietx" = "rietx/data/skill/rietx"
+# The path the wheel carried from 1.0 to 1.2 keeps resolving for one release,
+# as the pointer that file became: a 1.2 caller reading it by
+# importlib.resources gets the ten lines that say where the skill is, not a
+# missing file.  Goes with docs/AGENT_PROTOCOL.md in v1.4.
 "docs/AGENT_PROTOCOL.md" = "rietx/data/AGENT_PROTOCOL.md"
 
 [tool.hatch.build.targets.sdist]

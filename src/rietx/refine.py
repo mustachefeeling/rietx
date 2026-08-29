@@ -1902,7 +1902,7 @@ class Refinement:
         """The termination view (WP-1302): "done, or not, and why" from one call.
 
         Numerical heuristics first, agreement indices second-to-last, the
-        visual check named but never substituted for them (`AGENT_PROTOCOL.md`
+        visual check named but never substituted for them (the agent skill
         §10's design rule) — the two fits that agree on every index and the
         plot alike (one with a correct background, one over-flexible) are told
         apart only by ``worst_absorption`` in the deliverable rows below, never
@@ -2056,7 +2056,7 @@ class Refinement:
 
     def _visual_check_line(self, report, plot: str | None) -> str:
         """Section 6: named, never substituted — the picture confirms the
-        text; the text stays the criterion (`AGENT_PROTOCOL.md` §10)."""
+        text; the text stays the criterion (the agent skill §10)."""
         if plot is not None:
             from .viz.plots import plot_for_vlm
 
@@ -3391,7 +3391,7 @@ def _max_iter_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
     spread with no difference in the answer (WP-1028 §(d)).
 
     Naming the stage is still the fix, because the stages that stall are the
-    degenerate groups AGENT_PROTOCOL §3 enumerates rather than merely slow
+    degenerate groups the agent skill §3 enumerates rather than merely slow
     ones.  What *has* changed since (WP-1109) is what the cap means: it was
     ``max_iter × n_par``, a multiplier that priced a finite-difference
     Jacobian nothing builds any more, so at 42 free parameters a
@@ -3411,7 +3411,7 @@ def _max_iter_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
                     " stopped on their iteration budgets rather than converging")),
         where=[],
         suggestion="the parameters freed there are probably degenerate "
-                   "(AGENT_PROTOCOL §3) rather than merely slow: free fewer "
+                   "(the agent skill §3) rather than merely slow: free fewer "
                    "at once, or check the diagnostics for a correlation or "
                    "bound hit in the same stage — raising max_iter buys "
                    "solver evaluations, not a different minimum",
@@ -3482,7 +3482,7 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
     line of the phase lies in the fitted range at all.  The code and its
     meaning do not move: it fires when the phase is one the data cannot see at
     the end of the run, which is what an agent has been told to read it as
-    (``AGENT_PROTOCOL`` §"do not quote anything about this phase").  A phase
+    (the agent skill's "do not quote anything about this phase" row).  A phase
     that was held and then *released* is one the fit could see after all, so it
     fires nothing here and says so in ``StageResult.released``: a warning on a
     healthy phase teaches a consumer to ignore the code.

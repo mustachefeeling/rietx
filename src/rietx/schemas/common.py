@@ -97,7 +97,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: ``SuggestionResult``) are untouched and still serialize byte for byte, so a
 #: caller that dumps ``Refinement.fit``'s result gets what the ``result`` arm
 #: carried.  ``Capabilities.features`` loses ``agent_json`` with it.
-SCHEMA_VERSION = "0.12"
+#: 0.12 → 0.13 (WP-1304): ``Capabilities`` gains ``skill_path``, the directory
+#: of the agent skill this build carries (``None`` where it carries none).
+#: Additive, and a client that ignores the field is unaffected — but the field
+#: list of that model *is* the contract a client reads to decide what it may
+#: ask for, which is the argument for moving the string rather than letting a
+#: new arm ride along silently.
+SCHEMA_VERSION = "0.13"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

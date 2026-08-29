@@ -416,7 +416,7 @@ Three further ordering rules are this package's own rather than the guidelines':
 
 :::{admonition} For agents
 :class: agent
-[`docs/AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)
+{doc}`the agent skill <skill>`
 §2 and §3 give the same order as an operating discipline, with the measured
 findings behind each rule, including what a Le Bail pass does that one `fit`
 call cannot.

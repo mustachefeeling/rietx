@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -109,7 +110,7 @@ class Condition:
     Every switch is enforced by the shim rather than by the prompt:
     ``report`` is the converged-state FitReport and ``trajectory`` is
     WP-1058's per-stage delivery of it.  ``sections`` names the
-    AGENT_PROTOCOL excerpts the prompt quotes.  The 1.1 instruction axis
+    skill excerpts the prompt quotes.  The 1.1 instruction axis
     (§9: ``prompt``/``both``) is retired — round 2 measured zero bootstrap
     calls under it, so no 2.0 prompt quotes §9.
 
@@ -271,7 +272,7 @@ def build_episodes() -> dict[str, dict]:
                 "Rwp 0.04048, GoF 2.970; lebail_gap ratio 2.381 (>2); the "
                 "alternating-sign contents clause fires; the action list is "
                 "empty (honest silence).  One state, two correct answers, "
-                "decided by the declared deliverable (AGENT_PROTOCOL 4b).")
+                "decided by the declared deliverable (the agent skill §4b).")
     episodes["J1P"] = {
         "core": j1_core,
         "truth": {
@@ -535,18 +536,70 @@ def build_qarr_episode() -> dict[str, dict]:
 # ----------------------------------------------------------------------
 # prompt
 # ----------------------------------------------------------------------
+SKILL_TREE = REPO_ROOT / "docs" / "skill" / "rietx"
+
+
 def _protocol_excerpt(heading: str) -> str:
-    """One ``##`` section of docs/AGENT_PROTOCOL.md, verbatim, ending at the
-    next heading of the same rank or the ``---`` separator — the manual ships
-    with the feature, so the excerpt is extracted live rather than copied,
-    and a rewritten section reaches the prompt by itself."""
-    text = (REPO_ROOT / "docs" / "AGENT_PROTOCOL.md").read_text(encoding="utf-8")
-    lines = text.splitlines()
-    start = next(i for i, line in enumerate(lines)
-                 if line.startswith(f"## {heading}"))
-    end = next(i for i in range(start + 1, len(lines))
-               if lines[i].startswith(("---", "## ")))
-    return "\n".join(lines[start:end]).rstrip()
+    """One numbered section of the agent skill, verbatim.
+
+    The document ships with the feature, so the excerpt is extracted live
+    rather than copied, and a rewritten section reaches the prompt by itself.
+
+    WP-1304 made the document a *directory*, and the two sections this renders
+    (§5, §6) are now whole reference files under their promoted ``#`` heading,
+    holding the same text the single document carried.  **The reference files
+    are searched first for exactly that reason**: the body's §6 is a condensed
+    rule list pointing at the table, so a body-first search would quietly
+    shorten a registered condition's prompt.
+
+    The section text itself did not change.  What is skipped is the two lines
+    each reference file gained — the "load it when" blurb and the back-link —
+    which are navigation for an agent browsing the tree and noise in a prompt.
+
+    Fence-aware, because ``SKILL.md``'s worked example is python whose comments
+    begin with ``#``: a naive scan matches ``# 5. numbers, not pixels`` inside
+    the code block and returns four lines of someone else's example.
+    """
+    candidates = [*sorted((SKILL_TREE / "references").glob("*.md")),
+                  SKILL_TREE / "SKILL.md"]
+    for path in candidates:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        headings = _headings(lines)
+        start = next((i for i in headings
+                      if re.match(rf"^#{{1,2}} {re.escape(heading)}", lines[i])), None)
+        if start is None:
+            continue
+        rank = len(lines[start]) - len(lines[start].lstrip("#"))
+        end = next((i for i in range(start + 1, len(lines))
+                    if lines[i].startswith("---")
+                    or (i in headings and re.match(rf"^#{{1,{rank}}} ", lines[i]))),
+                   len(lines))
+        body = []
+        for line in lines[start + 1:end]:
+            if line.startswith(("Load it when", "*A reference file")):
+                continue
+            body.append(line)
+        while body and not body[0].strip():  # the blanks those two lines sat in
+            body.pop(0)
+        return "\n".join([lines[start], "", *body]).rstrip()
+    raise KeyError(f"no section {heading!r} anywhere in {SKILL_TREE}")
+
+
+def _headings(lines: list[str]) -> set[int]:
+    """Indices of real markdown headings — never a ``#`` inside a code fence."""
+    out, fence = set(), None
+    for i, line in enumerate(lines):
+        stripped = line.lstrip()
+        if fence is None and stripped.startswith(("```", "~~~")):
+            fence = stripped[:3]
+            continue
+        if fence is not None:
+            if stripped.startswith(fence):
+                fence = None
+            continue
+        if line.startswith("#"):
+            out.add(i)
+    return out
 
 
 #: the glossaries the prompt renders.  Keys are checked against the scorer's
@@ -697,7 +750,7 @@ def render_prompt(eid: str, episode_dir: Path, *, condition: str,
                   deliverable: str | None = None) -> str:
     """The one shared prompt (PROTOCOL.md pins it; no per-model tuning).
 
-    Report arms get the AGENT_PROTOCOL excerpts their condition declares —
+    Report arms get the skill excerpts their condition declares —
     the manual ships with the feature, so §5/§6 track the report; ``off``
     gets neither the report nor the manual.  Every arm gets the v2 answer
     contract, which is why no 2.0 cell — ``off`` included — is readable

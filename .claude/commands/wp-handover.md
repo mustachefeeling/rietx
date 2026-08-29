@@ -74,7 +74,7 @@ steps below run unchanged.
    meta-tests on a registry member missing from its arm). Did this session
    add physics with Part 1 prose but no Part 2 manual equation — **four of
    the six McCusker WPs** did exactly that (WP-1067's log)? A diagnostic code
-   or a correction with no `docs/AGENT_PROTOCOL.md` row? A declared name with
+   or a correction with no row in the agent skill? A declared name with
    no writer — a defaulted `False`/`0` that reads as an *answer* about
    something nothing checked, a `Literal` member no code produces (**nine in
    WP-1076 alone**, and they were found by writing a manual chapter over the

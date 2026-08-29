@@ -82,7 +82,7 @@ BOOTSTRAP_MAX_STAGES = 2
 
 #: paths always legitimate to free, whatever was planted: the background is
 #: co-refined, never subtracted (CLAUDE.md Weights), and scale + background
-#: is the mandatory first stage of every legitimate plan (AGENT_PROTOCOL §2)
+#: is the mandatory first stage of every legitimate plan (the agent skill §2)
 #: — a metric that flagged textbook stage 1 on every episode would measure
 #: the protocol, not the agent's localisation
 ALWAYS_LEGIT = ("instrument.background.*", "phases.*.scale")

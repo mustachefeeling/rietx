@@ -276,9 +276,16 @@ def test_the_dist_is_in_the_wheel(wheel_names):
     # needs it is opened
     wanted += [f"rietx/gui/static/assets/{p.name}"
                for p in sorted((DIST / "assets").glob("*.js"))]
-    # the agent protocol rides the same build (WP-1003): force-included as
-    # package data so a pip-only agent with no network has its own copy
-    # offline (it was the JSON tool description's pointer until WP-1303)
+    # the agent skill rides the same build (WP-1003, retargeted from the single
+    # AGENT_PROTOCOL.md by WP-1304): force-included as package data so a
+    # pip-only agent with no network has its own copy offline, and so
+    # `rietx skill --path` resolves without one.  The whole tree, not just the
+    # body: a reference file that failed to ship is a pointer into nothing.
+    from rietx.skill import skill_path
+    wanted += [f"rietx/data/skill/rietx/{p.relative_to(skill_path()).as_posix()}"
+               for p in sorted(skill_path().rglob("*.md"))]
+    # ...and the path 1.0-1.2 shipped the document at, now the pointer, for
+    # one release (pyproject's force-include says why; gone in v1.4)
     wanted.append("rietx/data/AGENT_PROTOCOL.md")
     # the GUI's *python* modules, not only its static assets: the sdist
     # excludes are gitignore-style, and an unanchored "gui" pattern once
@@ -338,10 +345,10 @@ def test_the_wheel_ships_no_maintainer_rulebook(wheel_names):
     though it were the package's documentation (WP-1110 item 20).  They cite
     `tests/`, `docs/wp/` and commands an installed copy does not have.
 
-    The consumer-facing document is the force-included `AGENT_PROTOCOL.md`
-    asserted above, which is why this is an exclusion and not a warning.  The
-    pattern is a glob rather than three paths: a fourth rulebook lands next to
-    its subsystem, never on a list here.
+    The consumer-facing document is the force-included skill tree asserted
+    above, which is why this is an exclusion and not a warning.  The pattern is
+    a glob rather than three paths: a fourth rulebook lands next to its
+    subsystem, never on a list here.
     """
     assert not [n for n in wheel_names if Path(n).name == "CLAUDE.md"]
 

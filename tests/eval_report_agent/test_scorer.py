@@ -1016,8 +1016,13 @@ def test_conditions_are_delivery_only_plus_the_baseline():
 def test_prompt_quotes_the_manual_its_condition_declares(condition, tmp_path):
     spec = bf.CONDITIONS[condition]
     text = _prompt(condition, tmp_path)
-    assert ("## 5. Read numbers, not pixels" in text) is spec.report
-    assert ("## 6. Abstention is a result" in text) is spec.report
+    # `#` rather than `##` since WP-1304: each of these two sections is now a
+    # whole reference file of the skill tree, under its promoted heading.  The
+    # text under them is the same — the excerpt was verified byte-identical
+    # against the pre-split document at 6feda6f8, §5 differing only by a dead
+    # relative link that the move had to fix.
+    assert ("# 5. Read numbers, not pixels" in text) is spec.report
+    assert ("# 6. Abstention is a result" in text) is spec.report
     # a report arm without the surface must say so, or it hunts for a key §5
     # promises; an arm that has the trajectory must not be told it is absent
     assert ("stripped by the harness" in text) is (spec.report

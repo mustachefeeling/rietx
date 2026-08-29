@@ -51,7 +51,7 @@ from .schemas import (
 
 def is_exchangeable(r2: float, partner_significance: float | None) -> bool:
     """The two-condition discriminator — the one predicate the summary
-    clause, the ``exchangeable`` field and AGENT_PROTOCOL's reading share.
+    clause, the ``exchangeable`` field and the agent skill's reading share.
 
     Both halves are required because either alone fires on a clean fit:
     R² is a design-matrix property (measured identical on E2 and its clean
@@ -192,7 +192,7 @@ def identifiability_clause(evidence: IdentifiabilityEvidence | None
       stays the reader's.
 
     It names the experiment, never the API: :func:`~rietx.report.layer2
-    .compare_rivals` runs exactly this and AGENT_PROTOCOL §9 names it, but a
+    .compare_rivals` runs exactly this and the agent skill §9 names it, but a
     summary string that named a function would be advice a non-python
     consumer cannot take.
     """

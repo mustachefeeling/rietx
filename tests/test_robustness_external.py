@@ -520,7 +520,8 @@ def test_an_unseeded_background_hands_the_pedestal_to_the_reflections():
     # (h): auto_background picks the knot spacing but starts every coefficient
     # at 0.0, and the first lebail_update runs before the background has ever
     # been fitted — so the partition is handed max(y_obs − 0, 0).  This is a
-    # caller-protocol requirement (AGENT_PROTOCOL §2), pinned rather than
+    # caller-protocol requirement (the skill's §2, and its measurement in
+    # references/judging.md), pinned rather than
     # fixed: seeding every background would change where every fit starts
     from rietx.background.auto import auto_background
     from rietx.model.forward import compile_model
