@@ -805,6 +805,145 @@ def test_discontinuity_is_flagged_and_the_value_is_left_alone(jump_patterns):
     assert value[3] - value[2] == pytest.approx(2e-3, abs=3e-4)
 
 
+def test_discontinuity_verification_is_off_by_default(jump_patterns):
+    """The flag is the caller's decision, and its absence must not look like a
+    measured answer: ``value`` stays ``None`` (WP-1003's absent-for-cause rule,
+    the one ``Diagnostic.value`` is documented under)."""
+    structure, ins = _start_models()
+    series = refine_sequential(jump_patterns, structure, ins)
+    jump = next(d for d in series.diagnostics
+                if d.code == "SEQUENTIAL_DISCONTINUITY")
+    assert jump.value is None
+    assert "refitted cold" not in jump.message
+
+
+@pytest.mark.slow
+def test_verified_discontinuity_reproduces_a_real_step(jump_patterns):
+    """WP-1305 (c): a step that is in the data survives two fits that never
+    saw each other.  The fixture's step is injected into the *specimen*, so
+    the honest answer is a ratio of 1."""
+    structure, ins = _start_models()
+    series = refine_sequential(jump_patterns, structure, ins,
+                               verify_discontinuities=True)
+    jump = next(d for d in series.diagnostics
+                if d.code == "SEQUENTIAL_DISCONTINUITY"
+                and d.where == ["phases.0.cell.a"])
+    assert jump.value == pytest.approx(1.0, abs=0.1)
+    assert "refitted cold and independently" in jump.message
+    assert "a ratio near 1.0" in jump.suggestion
+
+
+@pytest.mark.slow
+def test_verified_step_renders_for_inspection(jump_patterns):
+    """The trajectory and the two patterns the check refitted, drawn to
+    tests/output/ (gitignored) — a ratio of 1.00 is a number, and the curve
+    either side of the step is what says it is a step (memory: plot every test
+    refinement)."""
+    from pathlib import Path
+
+    from rietx.viz.plots import plot_result, plot_trajectory
+
+    structure, ins = _start_models()
+    runner = SequentialRefinement(structure, ins)
+    series = runner.fit(jump_patterns, labels=[f"p{k}" for k in range(6)],
+                        verify_discontinuities=True)
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    plot_trajectory(series, ["phases.0.cell.a"],
+                    path=str(out / "sequential_verified_step.png"))
+    for k in (2, 3):                       # the pair the verification refitted
+        plot_result(runner.results_[k],
+                    path=str(out / f"sequential_verified_step_p{k}.png"))
+    assert (out / "sequential_verified_step.png").exists()
+
+
+@pytest.mark.slow
+def test_verification_moves_no_fitted_value(jump_patterns):
+    """The post-walk guarantee: a check that changed the answer would be a
+    ladder rung, and the module docstring says why this cannot be one."""
+    structure, ins = _start_models()
+    plain = refine_sequential(jump_patterns, structure, ins)
+    checked = refine_sequential(jump_patterns, structure, ins,
+                                verify_discontinuities=True)
+    for a, b in zip(plain.entries, checked.entries, strict=True):
+        assert a.rung == b.rung and a.status == b.status
+        assert a.n_iterations == b.n_iterations
+        assert [(p.path, p.value) for p in a.parameters] == \
+               [(p.path, p.value) for p in b.parameters]
+
+
+class _StubColdFits(SequentialRefinement):
+    """A runner whose verification refits are canned.
+
+    The ratio arithmetic, the one-refit-per-pattern cache and the branch where
+    a cold fit determines nothing are all decidable without fitting, and a
+    *measured* false step is the one case the ramp can no longer supply: after
+    WP-1301 the CaF₂ cell that used to wander is held instead (WP-1305's
+    handover has the run).  So the "the chain made it" direction is pinned
+    here, on numbers chosen for it.
+    """
+
+    def __init__(self, values: dict[str, dict[str, float]]):
+        super().__init__(*_start_models())
+        self._values = values
+        self.refits: list[str] = []
+
+    def _fit_one(self, data, label, previous, previous_hkl, plan, mode,
+                 two_theta_limits, position, previous_tag, prepare, index,
+                 history_suffix="", *, stream=None, stamp=None, cancel=None):
+        assert previous is None and previous_hkl == []   # cold, by construction
+        assert history_suffix == ".verify"
+        self.refits.append(label)
+        return None, _fake_result(0.1, parameters=[
+            RefinedParameter(path=p, value=v)
+            for p, v in self._values[label].items()])
+
+
+def _flagged(path: str, step: float, labels=("p2", "p3")):
+    from rietx.sequential import _FlaggedStep
+
+    return _FlaggedStep(path=path, labels=labels, step=step,
+                        diagnostic=rx.Diagnostic(
+                            level="info", code="SEQUENTIAL_DISCONTINUITY",
+                            where=[path], message="m", suggestion="s"))
+
+
+def test_verification_reports_a_chain_made_step_as_a_small_ratio():
+    """Two patterns that agree when fitted independently, in a chain that
+    stepped by 2e-3: the step is the chain's, and the ratio says so."""
+    runner = _StubColdFits({"p2": {"phases.0.cell.a": 4.1566},
+                            "p3": {"phases.0.cell.a": 4.1567}})
+    steps = [_flagged("phases.0.cell.a", 2e-3)]
+    runner._verify_discontinuities(steps, [None] * 6, [f"p{i}" for i in range(6)],
+                                   "rietveld", _CHEAP, None, None)
+    d = steps[0].diagnostic
+    assert d.value == pytest.approx(0.05, rel=1e-6)
+    assert "0.05× the chain's" in d.message
+    assert runner.refits == ["p2", "p3"]
+
+
+def test_verification_refits_each_pattern_once_for_all_its_flagged_paths():
+    """Two paths flagged at the same step is one pair of refits, not two."""
+    runner = _StubColdFits({"p2": {"phases.0.cell.a": 4.0, "phases.0.cell.b": 4.0},
+                            "p3": {"phases.0.cell.a": 4.002, "phases.0.cell.b": 4.002}})
+    steps = [_flagged("phases.0.cell.a", 2e-3), _flagged("phases.0.cell.b", 2e-3)]
+    runner._verify_discontinuities(steps, [None] * 6, [f"p{i}" for i in range(6)],
+                                   "rietveld", _CHEAP, None, None)
+    assert runner.refits == ["p2", "p3"]
+    assert all(s.diagnostic.value == pytest.approx(1.0, rel=1e-6) for s in steps)
+
+
+def test_verification_says_so_when_a_cold_fit_determines_nothing():
+    """A ratio needs both ends; a path a cold fit did not measure is not a
+    zero, so no ``value`` is written at all."""
+    runner = _StubColdFits({"p2": {"phases.0.cell.a": 4.0}, "p3": {}})
+    steps = [_flagged("phases.0.cell.a", 2e-3)]
+    runner._verify_discontinuities(steps, [None] * 6, [f"p{i}" for i in range(6)],
+                                   "rietveld", _CHEAP, None, None)
+    assert steps[0].diagnostic.value is None
+    assert "could not be re-measured" in steps[0].diagnostic.message
+
+
 def _synthetic_series(path: str, values, stderr) -> SeriesResult:
     return SeriesResult(entries=[
         SeriesEntry(index=k, label=f"p{k}", parameters=[
@@ -1060,13 +1199,13 @@ def test_argument_validation(thermal_patterns):
         seq.fit(thermal_patterns[:1], plan="does_not_exist")
 
 
-def _fake_result(rwp: float, *, status: str = "converged"):
+def _fake_result(rwp: float, *, status: str = "converged", parameters=()):
     """A minimal RefinementResult standing in for a fit, for the guard units."""
     from rietx.schemas.common import Provenance
     from rietx.schemas.results import RefinementResult
 
     return RefinementResult(
-        status=status, mode="rietveld", parameters=[],
+        status=status, mode="rietveld", parameters=list(parameters),
         statistics=Statistics(rwp=rwp, rp=rwp, rexp=0.05, chi2=1.0, gof=1.0,
                               n_points=10, n_free_parameters=1),
         provenance=Provenance(package_version="test"))

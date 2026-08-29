@@ -355,6 +355,33 @@ the parameters they named were quoted as a measured trajectory.
 What to do about each is {doc}`the agent skill <skill>`'s
 diagnostic table, which this chapter does not restate.
 
+### Checking a step against two independent fits
+
+`SEQUENTIAL_DISCONTINUITY` names both readings — the science, or a chain
+failure — and asks you to open that pattern's own fit before choosing one.
+`verify_discontinuities=True` runs that check for you: each flagged step's two
+patterns are refitted **cold and independently**, with no warm start and no
+neighbour, and what the pair reproduces goes on the diagnostic as `value`, the
+cold step over the chain's:
+
+<!-- api-doc: no-exec — it refines a whole series twice over -->
+```python
+series = rx.refine_sequential(patterns, structure, instrument, x=temperatures,
+                              verify_discontinuities=True)
+```
+
+Near 1.0 the step is in the data. Near 0 the chain made it: the two patterns
+agree when nothing carried an error between them. Nothing else changes — the
+refits are separate `Refinement` runs writing to their own `<label>.verify`
+histories, and no fitted value, `rung` or median moves because of one.
+
+It is off by default because it is not free. A cold fit is the full staged
+plan from the initial models, and a series flagging `s` steps pays up to `2s`
+of them — once per pattern, since two paths flagged at the same step share a
+refit. Measured on a 68-pattern thermal ramp flagging four steps over four
+patterns: 11.6-12.0 s for the chain and 12.1-12.2 s with the check, `+5 %`.
+The cost scales with the patterns flagged, not with the series length.
+
 ### The ladder, and quarantine
 
 A rejected warm fit escalates **one rung at a time**: the collapsed warm refit,
