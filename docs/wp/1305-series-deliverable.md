@@ -1,6 +1,8 @@
 # WP-1305 — The series deliverable, and the checks the agent ran by hand
 
-Milestone: v1.3 · Status: ⬜
+Milestone: v1.3 · Status: ✅ 2026-08-29 — §4b's fourth deliverable and the rows it
+prints; `suggest` answers in ΔBIC as well as Δχ²; a flagged step checks itself
+against an independent cold pair at +5 % of a 68-pattern chain
 Depends on: 1304 (the text lands in `SKILL.md`)
 
 ## Goal
@@ -143,5 +145,81 @@ single figure.
   audit (maintainer memory `agent-surface-audit-insitu-ramp`).
 
 ## Handover log
+
+- **2026-08-29** — shipped. Someone refining a temperature ramp can now ask the
+  package whether they are finished, and get an answer about *their* question
+  rather than about one fit: which parameters the refinement order might have
+  invented, whether a step in the curve survives two fits that never saw each
+  other, which phases were never really there, and — printed as instructions
+  because no file records them — that they must say what pinned their 2θ scale
+  and that their esds are precision on the *shape* of the curve, not accuracy on
+  its absolute. `suggest` now answers the question an agent actually asks before
+  freeing a parameter: not "which has the most leverage" but "does the leverage
+  pay for the parameter", which at 22 000 channels is a different question.
+  What it cost: a required field that a stored 1.2 suggestion will not validate
+  against, and 283 bytes of a body that had 407 left.
+
+  **Done.** (a) A fourth row in `SKILL.md` §4b, *Trajectory — a parameter against
+  T, t, p or composition*, naming four diagnostics as stopping criteria for the
+  first time and the two statements no diagnostic can make. It prints from
+  **`SeriesResult.summary(deliverable="series")`** — decided here, against the
+  Inherited note's assumption that `ref.summary(deliverable=…)` would carry it: a
+  caller of `refine_sequential` holds no `Refinement`, and no single pattern
+  carries a `SEQUENTIAL_*` row. `Refinement.summary(deliverable="series")` answers
+  with where it is decided and the two caller-supplied statements, and
+  `schemas.results.DELIVERABLES` is the one vocabulary both read.
+  (b) `CandidateGroup.delta_bic`, `SCHEMA_VERSION` 0.13 → 0.14, and WP-1302's
+  `"next: run suggest"` placeholder replaced by the number.
+  (c) `SequentialRefinement.fit(verify_discontinuities=False)`.
+
+  **Measured** (darwin/arm64, `[dev]` — no jax, no torch — python 3.12.12,
+  nothing else running):
+  - Fast selection **3428 passed / 122 skipped** in 1:57 before the review commit;
+    20 tests added over the WP (17 fast, 3 slow), no new skip. The pre-change
+    baseline was not re-measured locally (CI's job, `tests/CLAUDE.md` § Running);
+    the count is quoted with its added tests rather than as a difference.
+  - The ramp, twice, both forward on the 68 recorded patterns of the 2026-08-26
+    run. Its **own protocol** (`agent_call.txt`): chain 11.6-12.0 s, with the
+    check 12.1-12.2 s, **+5 %**. `ramp.py`'s narrower reference plan: 3.8-4.3 s
+    against 4.2 s, **+9 %**. Four flagged steps over four patterns either way, and
+    the cost is two cold refits per flagged *pattern*.
+  - Every flagged step reproduces at **1.00** under an independent cold pair —
+    including the real transition, `phases.0.cell.{a,b,c}` stepping 0.01757 Å at
+    430 → 440 °C. The CaF₂ cell wander the decision rule named as the *false* step
+    no longer exists: under WP-1301 `PHASE_UNCONSTRAINED` fires on it in 40 of 68
+    patterns and the cell is held rather than walked.
+  - `Refinement.summary()` on 11-BM NAC: **0.71 s** for the whole view, the
+    `suggest` probe included (one Jacobian build, no solve); 0.03-0.04 s on the
+    synthetic LaB₆ in Le Bail and Pawley.
+  - `SKILL.md` 31 593 → **31 876 B** of 32 000, 470 → **465** lines.
+
+  **Decisions worth carrying.** The WP prescribed `gain − k·ln N` for ΔBIC; what
+  shipped is `report.layer2.delta_bic` evaluated at the Gauss-Newton prediction
+  (χ²_full = SSR − gain), because the prescribed form is that expression only
+  where the probe's χ²/N is 1 — and the noise floor one gate over already refuses
+  that assumption with `max(chi2_red, 1)`. It is imported *inside*
+  `build_suggestion`, the way `indexing/extinction.py` reaches the same function,
+  so there is one BIC formula rather than a copy pinned by a test;
+  `strategy/suggest.py`'s docstring now says that is the single edge to `report`.
+  The field is **required**: a defaulted 0.0 on a model-selection field reads as
+  "worth exactly its cost", WP-1076's lie. Bytes for the §4b row came from
+  compressing the QPA and resolution-limited evidence to its decisive numbers
+  (both already in `references/judging.md` in full) and moving the `rietx compare`
+  pointer to `references/surprises.md` beside the §8.1 rule it cites — the cap was
+  not raised.
+
+  **Gotchas.** `Diagnostic.value` is the verification ratio and stays `None` when
+  the flag is off or when a cold fit does not determine the path — an absent
+  ratio, never a zero. The "the chain made it" direction (ratio ≪ 1) is **not
+  measured on real data**: after 1301 the ramp has no false step left to catch, so
+  it is pinned on canned cold fits in `tests/test_sequential.py`, where the
+  arithmetic is what is under test. And the cost bar is data-dependent: +5 % here
+  is four flagged patterns of 68, so a chain flagging thirty would pay far more.
+
+  Next: **[1306](1306-powderline-recipe.md)**, the PowderLine recipe — unaffected
+  by this WP, which is why it takes no `### Inherited` note. Then
+  **[1307](1307-recapture-round-1-1.md)** last, which now has three things to look
+  for in a re-capture and a re-runnable ramp harness; its `### Inherited` says
+  where.
 
 - **2026-08-28** — created, from the parked v1.3 plan.
