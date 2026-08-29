@@ -155,8 +155,11 @@ produce new ones.
       fixed a rotting count there: "Three things an operator must know" stood
       above five bullets.)*
 - [x] `rietx skill --install . --copy` to re-sync both committed copies.
-- [ ] Tests: the gate above, plus its meta-test if the exclusion list is data.
+- [x] Tests: the gate above, plus its meta-test if the exclusion list is data.
       No refinement runs, so no `tests/output/` PNGs.
+      *(Two tests; the exclusion list is data, so the meta-test checks each
+      entry live, reasoned, and not also documented. `tests/test_skill.py`
+      22 → 24 passed, both new ones passes and no new skip.)*
 
 ## Acceptance
 
