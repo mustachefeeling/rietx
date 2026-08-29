@@ -174,10 +174,16 @@ single figure.
 
   **Measured** (darwin/arm64, `[dev]` — no jax, no torch — python 3.12.12,
   nothing else running):
-  - Fast selection **3428 passed / 122 skipped** in 1:57 before the review commit;
-    20 tests added over the WP (17 fast, 3 slow), no new skip. The pre-change
-    baseline was not re-measured locally (CI's job, `tests/CLAUDE.md` § Running);
-    the count is quoted with its added tests rather than as a difference.
+  - **Full suite on the final tree, in two selections, nothing else running:
+    3432 passed / 122 skipped (1:55) fast and 150 passed / 11 skipped (20:17)
+    slow — 3582 / 133.** `origin/main` had not moved since the branch was cut
+    (`fe677a62`), so this *is* the merged tree. 22 tests added over the WP (19
+    fast, 3 slow), no new skip; the fast selection's own arithmetic is exact
+    across the review round (3428 → 3432 for the four tests added after it).
+    The WP-level baseline was not re-measured locally — CI's job
+    (`tests/CLAUDE.md` § Running) — and WP-1304's quoted 3558/131 was taken
+    *before* its own review round, so the difference against it is not an
+    accounting of this WP's additions.
   - The ramp, twice, both forward on the 68 recorded patterns of the 2026-08-26
     run. Its **own protocol** (`agent_call.txt`): chain 11.6-12.0 s, with the
     check 12.1-12.2 s, **+5 %**. `ramp.py`'s narrower reference plan: 3.8-4.3 s
@@ -207,6 +213,22 @@ single figure.
   (both already in `references/judging.md` in full) and moving the `rietx compare`
   pointer to `references/surprises.md` beside the §8.1 rule it cites — the cap was
   not raised.
+
+  **The review round** (`/code-review medium --fix`) found seven and applied
+  five, all real. Three were the same shape — a line claiming more than it had
+  tested: the ordering row read `direction="both"` as *measured* when a cancel
+  can leave the reverse chain unrun, so a cancelled series printed "0 parameters
+  disagree" for a comparison that never happened; `"nothing ΔBIC admits"` was a
+  claim about the whole ranked list from testing only its leader, and since
+  groups rank by Δχ² while ΔBIC charges `k·ln N`, a lower group can be admitted
+  while the leader is refused; and the steps verdict read an absent `value` as
+  "not verified" when it equally means "verified, and the cold pair determined
+  nothing". It also caught the verification pass ignoring the chain's `cancel`
+  token, and a docstring quoting numbers the handover contradicts. Two it left
+  open I took: the ratio is now **signed**, because a cold pair stepping as far
+  the *other* way was reported as 1.00 — the one reading the check exists to
+  rule out — and `_discontinuity_diagnostics` is deleted, a second name for
+  `_discontinuity_steps` with no production caller left.
 
   **Gotchas.** `Diagnostic.value` is the verification ratio and stays `None` when
   the flag is off or when a cold fit does not determine the path — an absent
