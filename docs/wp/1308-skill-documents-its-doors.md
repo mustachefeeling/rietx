@@ -124,11 +124,21 @@ produce new ones.
       diagnostic message in `refine.py` and by `using/data.md`, and SKILL.md
       §"capillary µR" says µR "is computed from the specimen" without ever
       naming the call that computes it. All four documented.)*
-- [ ] The **gate**: a derived partition relating the skill's documented call
+- [x] The **gate**: a derived partition relating the skill's documented call
       surface to the package's public one, modelled on `tests/api_surface.py`
       (documented / excluded-with-a-reason / deferred), failing until a new
       public entry point is documented in the skill or explicitly excluded.
       Derived, never a curated list.
+      *(`tests/test_skill.py`, two tests. Denominator: the module-level
+      functions in `rietx.__all__` — 26 verbs — because a free verb is the one
+      thing nothing an agent holds leads to. Documented means named in
+      `references/api.md`, not anywhere in the tree: `read_recipe` was in
+      `diagnostics.md` all along and a tree-wide test would have called that
+      coverage. Two exclusions with reasons (`help_registry`, `help_key_for`),
+      each meta-tested live, reasoned, and not also documented. Alternative
+      constructors are deliberately out of the denominator, with the reason
+      recorded in the file — 30 of 35 are reached another way, so a partition
+      over them would be 30 shrugs.)*
 - [ ] `SKILL.md` routing table: a row for *you were handed another program's
       input file* → `references/api.md` + the manual's `recipe` page, within
       the 124 B headroom or by buying bytes without deleting a fact. Say in the
