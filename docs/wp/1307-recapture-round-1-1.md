@@ -169,8 +169,11 @@ archived outside the repo.
 
 - Acceptance, `pytest tests/eval_agent_surface -n auto --dist loadgroup`:
   **22 passed in 3.69 s** (41 with `test_docs_consistency.py`).
-- Fast suite, `-m "not slow"`: unchanged from the previous session's final
-  tree, and it must be — **this session added no test and no `src/` file**.
+- Fast suite, `-m "not slow"`: **3554 passed, 122 skipped in 2:01**, alone on
+  the machine (`pgrep -f "[p]ytest"` empty before it started). Identical to the
+  previous session's final tree, which is the expected answer — **this session
+  added no test and no `src/` file**, so passed+skipped must not move, and it
+  did not.
 - Full suite **not run**: docs-and-data only, no `src/` file touched. CI's job.
 
 | | `zrm-bare-sonnet` | `zrm-skill-sonnet` | `zrm-bare-opus5` | `zrm-skill-opus5` |
