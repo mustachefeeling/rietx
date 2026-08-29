@@ -24,7 +24,13 @@ from typing import ClassVar, Literal
 from pydantic import Field
 
 from .common import Base, Diagnostic, Mode, Provenance
-from .results import PhaseAgreement, QuantitativePhaseAnalysis, RefinedParameter, Statistics
+from .results import (
+    PhaseAgreement,
+    QuantitativePhaseAnalysis,
+    RefinedParameter,
+    Statistics,
+    _diagnostic_lines,
+)
 
 
 class SeriesEntry(Base):
@@ -462,15 +468,10 @@ class SeriesResult(Base):
         n = len(self.entries)
         lines = [f"SeriesResult: {n} pattern(s), {self.mode}, "
                  f"direction={self.direction}"]
-        if self.diagnostics:
-            lines.append(f"  diagnostics: {len(self.diagnostics)}")
-            for d in self.diagnostics:
-                line = f"    {d.level.upper()} {d.code}: {d.message}"
-                if d.suggestion:
-                    line += f" — {d.suggestion}"
-                lines.append(line)
-        else:
-            lines.append("  diagnostics: none")
+        # the same renderer RefinementResult.__str__ calls (schemas/results.py)
+        # — one diagnostics-line format for the whole package, never a second
+        # copy that a future change to it would not know to keep in step with
+        lines += _diagnostic_lines(self.diagnostics)
         lines.append(f"  trajectory ({self.x_label}):")
         shown = (list(range(n)) if n <= 2 * max_entries else
                 [*range(max_entries), None, *range(n - max_entries, n)])

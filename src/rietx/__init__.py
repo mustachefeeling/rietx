@@ -214,13 +214,30 @@ def __getattr__(name: str) -> object:
     (``difflib``, cutoff 0.6), falling back to one curated pointer for a name
     that exists but answers to a different address, and failing that the
     plain ``ImportError``-shaped message untouched.
+
+    A submodule that exists but fails to import for its own reason — ``viz``
+    and ``gui`` both pull in optional dependencies (``matplotlib``,
+    ``plotly``) that a minimal install does not have — raises
+    ``AttributeError`` rather than letting the underlying
+    ``ModuleNotFoundError`` escape: the two look identical from outside
+    (``rietx.viz`` is not there either way), but only ``AttributeError`` is
+    what ``hasattr``/``getattr(default=)`` catch, and a caller checking
+    "is this built with plotting support" before touching it must not crash
+    instead of getting ``False``.  The original exception rides along as
+    ``__cause__``, so nothing about *why* is actually hidden.
     """
     if not name.startswith("_"):
         try:
             module = importlib.import_module(f"{__name__}.{name}")
         except ModuleNotFoundError as exc:
-            if exc.name != f"{__name__}.{name}":
-                raise
+            if exc.name == f"{__name__}.{name}":
+                pass  # no such submodule at all — falls through below
+            else:
+                raise AttributeError(
+                    f"rietx.{name} exists but failed to import: {exc}. A "
+                    "dependency it needs is probably missing — see "
+                    "pyproject.toml's [project.optional-dependencies] for "
+                    "the extra that provides it") from exc
         else:
             globals()[name] = module
             return module

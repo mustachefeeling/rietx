@@ -21,7 +21,7 @@ Refinement.summary: converged (rietveld)
     CaF#: # ± #
   protocol:
     plan: scale_bkg, zero, cell, profile_w, profile, biso
-    held: # symmetry-locked, # user-fixed, # other
+    held: # symmetry-locked, # user-fixed, # wavelength-blocked
     N points=#, N reflections=#, effective obs=#
     σ source: file
   provenance: rietx #dev#, backend=numpy, solver=trf

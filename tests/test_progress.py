@@ -99,3 +99,24 @@ def test_a_series_line_carries_the_series_stamp_and_the_numbers_still_match():
         assert m["label"] == data["series_label"]
         assert m["label"] == ["250C", "300C"][i]
         assert float(m["rwp"]) == round(data["rwp"], 4)
+
+
+def test_elapsed_time_covers_a_release_and_re_solve_not_just_the_second():
+    """A WP-1301 phase release emits a second ``stage_start`` for the same
+    name before re-solving (``history/events.py``'s own docstring). The
+    printed elapsed time must cover the whole named stage, not just the
+    solve that happened to be running when it last saw a start — found by
+    code review, not by the acceptance fit (no fixture here reliably
+    triggers a release), so this drives the writer directly off synthetic
+    events instead.
+    """
+    from rietx.history.events import progress_writer
+
+    buf = io.StringIO()
+    write = progress_writer(buf)
+    write({"t": 0.0, "kind": "stage_start", "data": {"stage": "cell"}})
+    write({"t": 5.0, "kind": "stage_start", "data": {"stage": "cell"}})  # release, re-solve
+    write({"t": 8.0, "kind": "stage_end",
+          "data": {"stage": "cell", "status": "converged", "rwp": 0.05}})
+    line = buf.getvalue().strip()
+    assert line.endswith("8s"), line  # 8 - 0, not 8 - 5

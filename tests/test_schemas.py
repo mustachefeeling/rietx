@@ -255,6 +255,38 @@ def test_package_getattr_names_where_a_miss_actually_lives():
         rx.not_a_real_export
 
 
+def test_package_getattr_reports_a_broken_submodule_as_attributeerror():
+    """A submodule that fails on its *own* missing dependency (``viz``/``gui``
+    pull in matplotlib/plotly, absent on a minimal install) must raise
+    ``AttributeError``, not let the underlying ``ModuleNotFoundError``
+    escape — only ``AttributeError`` is what ``hasattr``/``getattr(default=)``
+    catch, so a caller checking "is this built with plotting support" must
+    get ``False``, not a crash (found by code review).
+    """
+    import importlib
+    import sys
+    from unittest.mock import patch
+
+    sys.modules.pop("rietx.viz", None)
+    if hasattr(rx, "viz"):
+        del rx.__dict__["viz"]
+
+    real_import = importlib.import_module
+
+    def fake_import(name, *a, **kw):
+        if name == "rietx.viz":
+            raise ModuleNotFoundError("No module named 'matplotlib'",
+                                      name="matplotlib")
+        return real_import(name, *a, **kw)
+
+    with patch("rietx.importlib.import_module", side_effect=fake_import):
+        with pytest.raises(AttributeError, match=r"rietx\.viz exists but "
+                           r"failed to import.*matplotlib") as excinfo:
+            rx.viz
+        assert isinstance(excinfo.value.__cause__, ModuleNotFoundError)
+        assert hasattr(rx, "viz") is False
+
+
 @pytest.mark.parametrize("obj, mirror", [
     (rx.RefinementPlan.mccusker_default(), "PlanSpec.from_plan"),
     (rx.Stage("cell", ["phases.*.cell.*"]), "StageSpec.from_stage"),

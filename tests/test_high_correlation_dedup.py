@@ -9,12 +9,9 @@ run just to re-check dedup arithmetic already covered here.
 
 from __future__ import annotations
 
-from rietx.refine import (
-    HIGH_CORRELATION_MAX,
-    _cap_high_correlation,
-    _dedup_high_correlations,
-)
+from rietx.refine import _dedup_high_correlations
 from rietx.schemas.common import Diagnostic
+from rietx.schemas.results import HIGH_CORRELATION_MAX, _cap_high_correlation
 
 
 def _corr(a: str, b: str, rho: float) -> Diagnostic:
@@ -42,6 +39,20 @@ def test_a_pair_seen_once_keeps_the_original_message_untouched():
     hits = {frozenset((a, b)): [("cell", _corr(a, b, 0.99))]}
     out = _dedup_high_correlations(hits)
     assert out[0].message == "phases.0.cell.a ~ phases.0.scale (ρ=+0.990)"
+
+
+def test_where_stays_in_the_order_the_message_names_them():
+    """``where`` must not be rebuilt from the ``frozenset`` dict key — its
+    iteration order is hash-randomized per process, so ``list(pair)`` could
+    name the two paths in the opposite order from the one already baked
+    into ``message`` (found by code review).
+    """
+    a, b = "instrument.zero_shift", "instrument.geometry.sample_displacement"
+    hits = {frozenset((a, b)): [
+        ("stage1", _corr(a, b, 0.996)), ("stage2", _corr(a, b, 0.999))]}
+    out = _dedup_high_correlations(hits)
+    assert out[0].where == [a, b]
+    assert out[0].message.startswith(f"{a} ~ {b}")
 
 
 def test_distinct_pairs_stay_distinct_and_sort_worst_first():
@@ -84,3 +95,34 @@ def test_cap_leaves_every_other_code_untouched():
     assert other in out
     assert sum(1 for d in out if d.code == "HIGH_CORRELATION") == HIGH_CORRELATION_MAX
     assert sum(1 for d in out if d.code == "HIGH_CORRELATION_OMITTED") == 1
+
+
+def test_the_cap_is_never_applied_to_a_stored_diagnostics_list():
+    """The cap is display-only (WP-1302, moved after code review): a pair
+    ranked outside the top ten in every pattern of a series must still be
+    countable by ``sequential._persistent_diagnostics`` as "N of M" — which
+    reads straight off ``RefinementResult.diagnostics``/``SeriesEntry.diagnostics``,
+    never a rendered view. Only ``_diagnostic_lines`` (schemas/results.py,
+    what ``str(result)`` calls) applies :func:`_cap_high_correlation`.
+    """
+    from rietx.schemas.common import Provenance
+    from rietx.schemas.results import RefinementResult, Statistics, _diagnostic_lines
+
+    many = [_corr(f"a{i}", f"b{i}", 0.9 - i * 0.001) for i in range(15)]
+    result = RefinementResult(
+        status="converged", mode="rietveld", parameters=[], diagnostics=many,
+        statistics=Statistics(rwp=0.1, rp=0.08, rexp=0.05, chi2=4.0, gof=2.0,
+                              n_points=100, n_free_parameters=5),
+        provenance=Provenance(package_version="0.0.0+test"))
+
+    # the stored list carries all 15 — nothing was dropped from the data
+    assert sum(1 for d in result.diagnostics if d.code == "HIGH_CORRELATION") == 15
+
+    # only the rendered view is bounded
+    text = str(result)
+    assert text.count("HIGH_CORRELATION:") == HIGH_CORRELATION_MAX
+    assert "HIGH_CORRELATION_OMITTED" in text
+    assert "diagnostics: 15 unresolved" in text
+
+    lines = _diagnostic_lines(result.diagnostics)
+    assert sum(1 for ln in lines if "HIGH_CORRELATION:" in ln) == HIGH_CORRELATION_MAX

@@ -204,7 +204,13 @@ def progress_writer(sink) -> Any:
     """
     owns_fh = not hasattr(sink, "write")
     fh = open(sink, "a", encoding="utf-8") if owns_fh else sink
-    last_start: dict[str, float] = {}
+    #: the *first* stage_start seen for a name, not the most recent — a
+    #: WP-1301 phase release emits a second stage_start before re-solving,
+    #: and the elapsed time a caller reads on the stage_end wants the whole
+    #: named stage's wall clock, both solves included, not just the second's
+    #: (unlike ``values``, which does want the most recent alignment; see
+    #: this module's docstring — a different question, a different answer).
+    first_start: dict[str, float] = {}
 
     def _write(event: dict) -> None:
         kind = event.get("kind")
@@ -213,7 +219,7 @@ def progress_writer(sink) -> Any:
         if stage is None:
             return
         if kind == "stage_start":
-            last_start[stage] = event["t"]
+            first_start.setdefault(stage, event["t"])
             return
         if kind != "stage_end":
             return
@@ -226,7 +232,7 @@ def progress_writer(sink) -> Any:
         parts.append(str(data.get("status", "?")))
         if data.get("rwp") is not None:
             parts.append(f"Rwp {data['rwp']:.4f}")
-        start_t = last_start.pop(stage, None)
+        start_t = first_start.pop(stage, None)
         if start_t is not None:
             parts.append(f"{event['t'] - start_t:.0f}s")
         fh.write(" ".join(parts) + "\n")

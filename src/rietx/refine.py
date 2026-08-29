@@ -1462,12 +1462,16 @@ class Refinement:
             # a real number, not the raw least-squares cost: additive on the
             # existing kind (history/events.py's rule), paid only when a
             # caller asked for events at all — one forward evaluation, not a
-            # fit, the same pattern _record uses for a history node's metrics
+            # fit, the same pattern _record uses for a history node's metrics.
+            # background(values) computed once and reused, never twice —
+            # evaluate() is background + bragg_component internally, so
+            # calling both would price this at two background passes
             values = table.decode(outcome.theta)
+            y_bkg = model.background(values)
             stage_rwp = compute_statistics(
-                model.y_obs, model.evaluate(values), model.sigma,
+                model.y_obs, y_bkg + model.bragg_component(values), model.sigma,
                 n_free=len(table.free_paths) + _pawley_n(model),
-                y_background=model.background(values)).rwp
+                y_background=y_bkg).rwp
             events.emit("stage_end", stage=stage.name, status=outcome.status,
                         n_iterations=outcome.n_iterations,
                         termination=outcome.termination,
@@ -1692,7 +1696,7 @@ class Refinement:
                     ftol=ftol, window_slack_deg=stage.window_slack_deg,
                 ), model, table, outcome, stage_diagnostics)
         diagnostics.extend(_dedup_high_correlations(correlation_hits))
-        return model, outcome, guard, stage_results, _cap_high_correlation(diagnostics)
+        return model, outcome, guard, stage_results, diagnostics
 
     def _stage_report(self, name, plan, data, mode, table, model, outcome,
                       guard, stage_diagnostics) -> StageReport:
@@ -1774,7 +1778,7 @@ class Refinement:
         finally:
             if stream is not None and stream is not events:
                 stream.close()  # we created it from a path/callable
-        diagnostics = _cap_high_correlation(_guard_diagnostics(guard))
+        diagnostics = _guard_diagnostics(guard)
         if mode == "pawley":
             diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
         diagnostics.extend(_constraint_diagnostics(stage.name, outcome))
@@ -2007,8 +2011,15 @@ class Refinement:
         if plan is not None:
             lines.append(f"    plan: {', '.join(s.name for s in plan.stages)}")
         rows = self.parameters()
+        # exhaustive over ParameterRow.held_because's four reasons, minus
+        # "tied" (excluded above: a tied path moves with its source, so it
+        # is not held in this sense — CLAUDE.md's moving_paths rule). A row
+        # reaching neither mode_fixed, locked nor refinable can only be
+        # needs_held_cell, so this catches it by name rather than into a
+        # silent "other" (code review finding: a row held because its cell
+        # is free was landing unlabelled).
         held: dict[str, list[str]] = {"mode_fixed": [], "symmetry-locked": [],
-                                      "user-fixed": [], "other": []}
+                                      "user-fixed": [], "wavelength-blocked": []}
         for row in rows:
             if row.tie is not None or row.vary:
                 continue
@@ -2019,7 +2030,7 @@ class Refinement:
             elif row.refinable:
                 held["user-fixed"].append(row.path)
             else:
-                held["other"].append(row.path)
+                held["wavelength-blocked"].append(row.path)
         phase_unsupported = list(self.result_.stages[-1].held) if self.result_.stages else []
         counts = ", ".join(f"{len(v)} {k}" for k, v in held.items() if v)
         if phase_unsupported:
@@ -2216,16 +2227,6 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
     return out
 
 
-#: Above this many *distinct* pairs, a fit's diagnostics list stops growing
-#: and names the rest as one count instead (WP-1302).  A persistently
-#: correlated pair is common — the background-peak precedent in
-#: ``strategy.staged`` measured a 110 → 145 count for one inert stage — and
-#: an unbounded list is exactly the 40 kB dump a caller has to grep
-#: ``HIGH_CORRELATION`` out of by hand.  10 is not tuned: it is "more than a
-#: reader scans, fewer than a reader ignores".
-HIGH_CORRELATION_MAX = 10
-
-
 def _dedup_high_correlations(
     hits: dict[frozenset, list[tuple[str, Diagnostic]]],
 ) -> list[Diagnostic]:
@@ -2248,40 +2249,13 @@ def _dedup_high_correlations(
         message = worst.message if len(stage_names) == 1 else (
             f"{worst.message} — flagged in stages: {', '.join(stage_names)}")
         out.append(Diagnostic(
+            # worst.where, never list(pair): the dict key is a frozenset for
+            # dedup only, and its iteration order is hash-randomized per
+            # process — list(pair) could name the two paths in the opposite
+            # order from the one worst.message already spelled them in
             level=worst.level, code=worst.code, message=message,
-            where=list(pair), value=worst.value, suggestion=worst.suggestion))
+            where=list(worst.where), value=worst.value, suggestion=worst.suggestion))
     out.sort(key=lambda d: abs(d.value) if d.value is not None else 0.0, reverse=True)
-    return out
-
-
-def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
-    """Bound ``HIGH_CORRELATION`` at :data:`HIGH_CORRELATION_MAX`, worst first.
-
-    Every other code passes through untouched and in place; the correlation
-    entries are pulled out, ordered by |ρ|, truncated, and the survivors
-    appended where the last one used to sit — so a fit under the cap is
-    byte-for-byte what it always was, and one over it reads as "the ones that
-    mattered most" rather than "whatever the stage loop visited last".
-    """
-    is_hc = [d.code == "HIGH_CORRELATION" for d in diagnostics]
-    if sum(is_hc) <= HIGH_CORRELATION_MAX:
-        return diagnostics
-    correlated = sorted((d for d, hc in zip(diagnostics, is_hc) if hc),
-                        key=lambda d: abs(d.value) if d.value is not None else 0.0,
-                        reverse=True)
-    kept, omitted = correlated[:HIGH_CORRELATION_MAX], correlated[HIGH_CORRELATION_MAX:]
-    out = [d for d, hc in zip(diagnostics, is_hc) if not hc]
-    last_hc = max(i for i, hc in enumerate(is_hc) if hc)
-    insert_at = sum(not hc for hc in is_hc[:last_hc + 1])
-    out[insert_at:insert_at] = [*kept, Diagnostic(
-        level="info", code="HIGH_CORRELATION_OMITTED", where=[],
-        value=float(len(omitted)),
-        message=f"{len(omitted)} more correlated pair(s) below the "
-                f"{HIGH_CORRELATION_MAX} shown here, weaker than all of them",
-        suggestion="result.identifiability carries the full correlation "
-                   "matrix and top_correlations list — nothing here was "
-                   "dropped from the fit, only from this message",
-    )]
     return out
 
 

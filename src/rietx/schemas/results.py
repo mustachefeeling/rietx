@@ -741,17 +741,65 @@ def _stage_lines(stages: list[StageResult], max_shift_over_esd: float | None) ->
     return lines
 
 
+#: Above this many *distinct* pairs, a printed diagnostics list stops growing
+#: and names the rest as one count instead (WP-1302). Display-only: it caps
+#: what `_diagnostic_lines` renders, never `RefinementResult.diagnostics`
+#: itself — `sequential._persistent_diagnostics` counts `HIGH_CORRELATION`
+#: occurrences across a whole series from that stored list, and a pair
+#: ranked just outside the top ten in every pattern must still be countable
+#: as "N of M" there even though no single pattern's *printed* view shows it.
+#: 10 is not tuned: it is "more than a reader scans, fewer than a reader
+#: ignores".
+HIGH_CORRELATION_MAX = 10
+
+
+def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
+    """Bound ``HIGH_CORRELATION`` at :data:`HIGH_CORRELATION_MAX`, worst first,
+    for **rendering only** — see that constant's docstring for why this must
+    never be applied to a stored diagnostics list.
+
+    Every other code passes through untouched and in place; the correlation
+    entries are pulled out, ordered by |ρ|, truncated, and the survivors
+    appended where the last one used to sit.
+    """
+    is_hc = [d.code == "HIGH_CORRELATION" for d in diagnostics]
+    if sum(is_hc) <= HIGH_CORRELATION_MAX:
+        return diagnostics
+    correlated = sorted((d for d, hc in zip(diagnostics, is_hc) if hc),
+                        key=lambda d: abs(d.value) if d.value is not None else 0.0,
+                        reverse=True)
+    kept, omitted = correlated[:HIGH_CORRELATION_MAX], correlated[HIGH_CORRELATION_MAX:]
+    out = [d for d, hc in zip(diagnostics, is_hc) if not hc]
+    last_hc = max(i for i, hc in enumerate(is_hc) if hc)
+    insert_at = sum(not hc for hc in is_hc[:last_hc + 1])
+    out[insert_at:insert_at] = [*kept, Diagnostic(
+        level="info", code="HIGH_CORRELATION_OMITTED", where=[],
+        value=float(len(omitted)),
+        message=f"{len(omitted)} more correlated pair(s) below the "
+                f"{HIGH_CORRELATION_MAX} shown here, weaker than all of them",
+        suggestion="result.identifiability carries the full correlation "
+                   "matrix and top_correlations list — nothing here was "
+                   "dropped from the fit, only from this message",
+    )]
+    return out
+
+
 def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
     """Section 2a: the first stop condition — every diagnostic, resolved or not.
 
     Present even at zero (WP-1302's acceptance: the stop-condition lines are
     on *every* fit, including one with nothing to report), so a caller never
     has to distinguish "no diagnostics" from "this section did not run".
+
+    The header count is the *stored* list's — accurate, uncapped; only the
+    rows actually printed below are bounded (:func:`_cap_high_correlation`),
+    so "23 unresolved" can be followed by fewer than 23 lines without lying
+    about how many there are.
     """
     if not diagnostics:
         return ["  diagnostics: none"]
     lines = [f"  diagnostics: {len(diagnostics)} unresolved"]
-    for d in diagnostics:
+    for d in _cap_high_correlation(diagnostics):
         line = f"    {d.level.upper()} {d.code}: {d.message}"
         if d.suggestion:
             line += f" — {d.suggestion}"
