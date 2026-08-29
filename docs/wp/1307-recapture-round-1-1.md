@@ -157,13 +157,21 @@ routes by which a `bare` cell reaches the skill, as measured inheritances.
 `score_1_1.py` prints R7 to two decimals.
 
 **Measured** (darwin, this worktree's own `[dev]` venv; the cells' venvs are
-`[viz]`, build `1.3.0.dev0` in all four). Acceptance `pytest
-tests/eval_agent_surface -n auto --dist loadgroup`: **22 passed in 3.63 s**,
-the same 22 as before this session — no test was added, so no count moved.
-`ruff check src tests examples` clean. The fast suite was **not re-run**: this
-session changed two docstrings, one print format and two prose files, none of
-which any test outside that directory reads. Full suite not run, for the same
-reason and because no `src/` file changed.
+`[viz]`, build `1.3.0.dev0` in all four). All counts are on **current `main`
+merged into this branch**, not the bare branch: `origin/main` moved from
+`7f81df11` to `0fadd4cf` under this session, which carries the previous
+session's own PR #184.
+
+- Acceptance, `pytest tests/eval_agent_surface -n auto --dist loadgroup`:
+  **22 passed in 3.35 s** (41 with `test_docs_consistency.py`).
+- Fast suite, `-m "not slow"`: **3554 passed, 122 skipped in 2:06**, alone on
+  the machine (`pgrep -f "[p]ytest"` empty before it started). That is the same
+  pair the previous session measured on its final tree, which is the expected
+  answer: **this session added no test**, so passed+skipped must not move, and
+  it did not.
+- `ruff check src tests examples` clean.
+- Full suite **not run**: no `src/` file changed, and this WP is test- and
+  docs-only. Its counts are CI's job.
 
 | | baseline | `bare-sonnet` | `skill-sonnet` | `bare-opus5` | `skill-opus5` |
 | --- | --- | --- | --- | --- | --- |
