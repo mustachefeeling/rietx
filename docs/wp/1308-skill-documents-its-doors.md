@@ -308,6 +308,16 @@ committed copies do not drift.
   across patterns. It sounds right, no measurement showed it, and the term count
   does not vary down a warm-started chain anyway.
 
+  **A second rule is now owed to `tests/CLAUDE.md`'s consolidation pass**, which
+  this WP's Non-goals already record as owing WP-1307 one, and which cannot take
+  either while the file sits at its 253-line cap: *an eval finding that asserts
+  something about the package is checked against the package before it is quoted
+  into a WP.* § "An eval's expected answer is a measurement, not a definition"
+  is the neighbouring rule and does not cover this — that one guards a scored
+  row's expected answer, this one guards a **result** on its way out. Round
+  1.1's `read_recipe` finding was re-read twice, both times for framing, and
+  reached a WP file, a milestone record and ROADMAP before anyone ran it.
+
   **Next:** v1.3 ships. The milestone's acceptance block, ROADMAP's v1.3 row and
   the version are the remaining work, and nothing in this WP blocks them. Two
   items stay recorded and unowned, neither a blocker: round 1.2 owes a sealed
