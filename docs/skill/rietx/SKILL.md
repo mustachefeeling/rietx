@@ -232,9 +232,9 @@ measured evidence behind each rule is
     ≈1.51 even for perfectly white residuals, so it is an upper bound on the
     damage rather than a measurement of it. `report.identifiability` carries the
     trio to pass on with any esd — raw χ²_red, the inflation, Durbin-Watson —
-    plus the δR line. Scaling variances by GoF² alone is what Schwarzenbach et
-    al. (1989) call "highly questionable"; measured, the same data under
-    different protocols spread by ×17–25 of the quoted esds on cell dimensions.
+    plus the δR line. Scaling variances by GoF² alone is "highly questionable"
+    (Schwarzenbach, 1989): the same data under different protocols spread by
+    ×17–25 of the quoted esds on cell dimensions.
 14. **Ask whether the converged answer is the only one, and settle it by a
     swap.** `report.identifiability.exchanges` and `.soft_modes` outrank the
     statistics, and **the verdict that licenses is `ambiguous`, not
@@ -258,8 +258,8 @@ measured evidence behind each rule is
 
     What you must **not** do is free the held parameter alongside its partner and
     refit: both free lands on §3's degenerate ridge and reports the unconstrained
-    combination at a *better* Rwp. This is the most common misreading of the
-    clause. The swap runs each rival **alone**; the ridge runs them **together**.
+    combination at a *better* Rwp — the most common misreading of the clause. The
+    swap runs each rival **alone**; the ridge runs them **together**.
 15. **Read what the background is doing before you read Rwp**, because it decides
     how to read Rwp. In `report.background`, `worst_absorption` (with
     `worst_absorption_path`) is how much of a structural parameter the background
@@ -277,9 +277,9 @@ measured evidence behind each rule is
     powder pattern does not measure individual reflection intensities, so I(obs)
     is the pattern *partitioned in proportion to I(calc)*: a wrong model receives
     the intensity it predicted and both flatter it (Toby 2006: R_Bragg "has no
-    statistical validity"). They are for watching R_B fall as you improve a model,
-    never as evidence that a correction helped, and are absent in Le Bail and
-    Pawley mode, where the intensities *are* the fit. **Do not compare a trace
+    statistical validity"). Watch R_B fall as you improve a model; never read it
+    as evidence a correction helped. Absent in Le Bail and Pawley, where the
+    intensities *are* the fit. **Do not compare a trace
     phase's R_B with the major phase's**: neither is weighted, and a minor phase's
     windows sit under the major phase's peaks.
 
@@ -299,34 +299,32 @@ gave 9.73 % against GSAS's 10.05 % on an identical 5750 channels.
 
 ## 4b. Declare the deliverable — "good enough" is a question about purpose
 
-Much real work is non-ideal by construction: nanoparticle broadening erases the
-detail a sharp-line protocol assumes, and porous frameworks carry intensity error
-from unknown pore contents that no profile correction touches. **No bar moves for
-such data** — the gates auto-scale to information content — and "good enough" is a
-different question answered exactly, not a relaxed standard. What changes is
-*which report rows decide your deliverable*. Declare it, then read its rows: the
-report is purpose-neutral and will not infer your purpose for you.
-`ref.summary(deliverable=…)` prints the rows for one.
+Much real work is non-ideal by construction — nanoparticle broadening, intensity
+error from unknown pore contents. **No bar moves for such data**: the gates
+auto-scale to information content, and "good enough" is a different question
+answered exactly, not a relaxed standard. What changes is *which report rows
+decide your deliverable*. Declare it, then read its rows: the report is
+purpose-neutral and will not infer your purpose for you.
+`ref.summary(deliverable=…)` prints them for one fit, and a chain's are on
+`SeriesResult.summary(deliverable="series")`.
 
 | Deliverable | The rows that decide it | Stop when |
 |---|---|---|
 | **Phase ID** — which phases are present? | `report.unmatched` (`kind="unmatched_obs"`: strong entries are lines your phase set does not produce), and `report.lebail_gap`, the structural-against-profile triage. The gap re-partitions the per-hkl intensities at the frozen converged state and reports both Rwp: a `ratio` ≫ 1 means positions and profile alone account for the pattern, so every line is indexed and identification is safe **at any absolute Rwp** | no strong unmatched observed peaks and the gap readable, whatever Rwp says. An `abstained_kind="resolution_limited"` does not block this deliverable |
 | **QPA** — how much of each? | Fractions ride on scales, so the deciding rows are the ones that bias scales silently. `report.background.absorption` first, keyed by parameter path: the block projection R² of each structural parameter's Jacobian column onto the background column span, the detector for §3's scale↔Biso↔background degeneracy that a pairwise ρ cannot see. Then absorption geometry, then physically-impossible values — a negative Biso is a background error laundered through a scale. Read the Le Bail gap the *other* way here: a large ratio means the intensity model is wrong, and wrong intensities **are** wrong fractions | fractions stable under a background-flexibility change, `worst_absorption` below its threshold, and no unresolved scale-family diagnostic. **Never** "Rwp stopped falling", which here points the wrong way |
+| **Trajectory** — a parameter against T, t, p or composition | The chain's rows, from `SeriesResult.summary(deliverable="series")`: `SEQUENTIAL_PATH_DEPENDENT` (an ordering artefact — only `direction="both"` produces one, so a one-way chain has not looked), `SEQUENTIAL_PERSISTENT_FINDING` ("42 of 68", which no per-pattern code can say), `SEQUENTIAL_DISCONTINUITY` (the science or a chain failure; `verify_discontinuities=True` re-measures it against an independent cold pair) and `PHASE_UNCONSTRAINED` (held, so that value is the one you handed in). Then the two nothing measures for you: a stated **2θ-scale anchor** (standard, calibrant, or none) and the **precision/accuracy split** — esds are precision on the *shape*; nothing pins the absolute without an anchor | every number you quote names the one thing that would have to be wrong for it to be wrong, and that thing has been checked |
 | **Structure** — where are the atoms? | Everything above, plus the intensity-model rows: per-region intensity coefficients and their angular trends, `report.texture` and `report.strain` with their caveats, restraint tension, ADP positive-definiteness, and `report.identifiability.exchanges` with `.soft_modes` (step 14). Here a notable Le Bail gap is a **blocker**, not a comfort: the intensity model carries the structural claim, and the gap says it does not carry the pattern | §10's full ladder, with no `exchangeable` row unaddressed. Addressed means the swap was run and either **won** (adopt the winner and quote it without caveat) or **tied** (resolve by protocol). Never by freeing the rival into the same fit |
 
-**The QPA row outranks every statistic beside it**, and one measurement says why:
-on the same LaB₆ data an over-flexible background wins on *every* agreement index
-(Rwp 0.08852 against 0.08969, GoF 1.022 against 1.025) while returning
-displacement parameters of 0.958 and 0.000 Å² against a truth of 0.5.
-`worst_absorption` reads 0.46 against 0.08, and **nothing else in the report
-distinguishes the two fits; the plot does not either.**
+**The QPA row outranks every statistic beside it**: an over-flexible background
+wins on *every* agreement index while biasing displacement parameters to 0.958
+and 0.000 Å² against a truth of 0.5, and `worst_absorption` (0.46 against 0.08)
+is the only row separating the two fits — the plot does not either.
 
-**Resolution-limited is a stopping point, not a failure.** On broad-peak data a
-real aggregate misfit can be unattributable per kind, and the abstention then
-carries `abstained_kind="resolution_limited"`: the shape basis *explains* the
-failing regions and only its edit directions are indistinguishable on merged
-peaks. For phase-ID-grade work that is a legitimate end state; for
-structure-grade work it means *collect better data*.
+**Resolution-limited is a stopping point, not a failure.** An
+`abstained_kind="resolution_limited"` says the edit directions are
+indistinguishable on merged peaks, not that the model is wrong: a legitimate end
+state for phase-ID-grade work, and for structure-grade work *collect better
+data*.
 
 **The capability floor.** Verify before acting (`rx.report.predict_then_verify`,
 or a history branch), treat a *capped* confidence as an **unresolved question**
@@ -465,6 +463,3 @@ them is checked against the installed package by test.
   table, worked examples), `docs/DESIGN.md` (why the FitReport is shaped this
   way), `tests/data/README.md` (provenance and reference values for every
   bundled dataset). None of these ships in the wheel
-- `rietx compare` — a browser UI comparing refinement settings side by side on
-  the bundled standards. Its cumulative-Δχ² panel is the machine-readable form of
-  §8.1's rule: it shows *where* a correction acted, not just whether Rwp moved

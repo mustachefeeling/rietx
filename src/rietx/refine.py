@@ -65,6 +65,7 @@ from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.pattern import PatternData
 from .schemas.results import (
+    DELIVERABLES,
     AbsorptionCorrection,
     Identifiability,
     PhaseAgreement,
@@ -1909,9 +1910,13 @@ class Refinement:
         by looking harder at either.
 
         ``deliverable`` selects §4b's deciding rows for one purpose —
-        ``"phase_id"``, ``"qpa"``, ``"structure"``, or ``"series"`` (pending
-        WP-1305 a).  The report will not infer your purpose for you: ``None``
-        (the default) prints the three stop conditions and nothing past them.
+        ``"phase_id"``, ``"qpa"`` or ``"structure"``.  The report will not
+        infer your purpose for you: ``None`` (the default) prints the three
+        stop conditions and nothing past them.  ``"series"`` is accepted and
+        answers with where it is decided: a trajectory's deciding rows are
+        the chain's, on
+        :meth:`~rietx.schemas.sequential.SeriesResult.summary`, because no
+        single pattern carries a ``SEQUENTIAL_*`` row.
 
         ``plot`` writes :func:`~rietx.viz.plots.plot_for_vlm` to that path and
         names it on the last line — the picture confirms the text, the text
@@ -2026,12 +2031,23 @@ class Refinement:
             else:
                 lines.append("    identifiability: not measured on this result")
         elif deliverable == "series":
-            lines.append("    series deliverable rows: pending WP-1305 a "
-                         "(SequentialRefinement.summary() carries the trajectory)")
+            # A series deliverable is decided one rank up and this is the
+            # honest thing one pattern can say about it: no single fit carries
+            # a SEQUENTIAL_* row, and the two statements below are the
+            # caller's on any fit (WP-1305 a).
+            lines.append("    the deciding rows are the series': run the chain "
+                         "with rx.refine_sequential and print "
+                         "SeriesResult.summary(deliverable='series') — no "
+                         "single pattern carries a SEQUENTIAL_* row")
+            lines.append("    2θ-scale anchor: state it — an internal standard, "
+                         "a calibrant, or none. Nothing in this result knows")
+            lines.append("    precision vs accuracy: the esds are precision on "
+                         "the *shape* of the trajectory; without an anchor "
+                         "there is no accuracy claim on the absolute")
         else:
             raise ValueError(
                 f"unknown deliverable {deliverable!r}; one of "
-                "'phase_id', 'qpa', 'structure', 'series'")
+                f"{', '.join(repr(d) for d in DELIVERABLES)}")
         return lines
 
     def _protocol_lines(self) -> list[str]:

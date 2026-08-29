@@ -626,6 +626,21 @@ between them), the `SEQUENTIAL_*` series-level diagnostics, and each shown
 entry's status and Rwp. See [](series.md) for what the series-level
 diagnostics mean.
 
+The fourth deliverable is the series' own, because no single pattern carries a
+`SEQUENTIAL_*` row: `series.summary(deliverable="series")` adds the rows that
+decide a parameter measured against the series axis — whether the ordering was
+checked at all (`direction="both"`, or a plain statement that it was not), the
+persistent findings, each step with what an independent cold pair reproduced,
+the phases held for want of support, and the two things no diagnostic can
+supply, a stated 2θ-scale anchor and the precision/accuracy split. The other
+three purposes are refused there by name, and `Refinement.summary
+(deliverable="series")` answers with where they live:
+
+<!-- api-doc: no-exec — needs a completed series -->
+```python
+print(series.summary(deliverable="series"))
+```
+
 (progress-lines)=
 
 ## Progress

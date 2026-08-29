@@ -121,7 +121,7 @@ A refinement, a series, an indexing run and a suggestion each return their own t
 - `rx.SeriesResult.trajectory(path: str) -> Trajectory` — One parameter's trajectory across the series.
 - `rx.SeriesResult.to_table(*, paths: list[str] | None = None) -> tuple[list[str], list[list]]` — `(header, rows)`: one row per pattern, value + esd per parameter.
 - `rx.SeriesResult.write_csv(path, *, delimiter: str | None = None, paths: list[str] | None = None)` — Write `to_table` to CSV/TSV (delimiter inferred from suffix).
-- `rx.SeriesResult.summary(*, max_entries: int = 5) -> str` — The series termination view (WP-1302): the trajectory table, the `SEQUENTIAL_*` rows, first and last `max_entries` with the count.
+- `rx.SeriesResult.summary(*, max_entries: int = 5, deliverable: str | None = None) -> str` — The series termination view (WP-1302): the trajectory table, the `SEQUENTIAL_*` rows, first and last `max_entries` with the count.
 - `rx.SeriesEntry` — One pattern's place in the series: what was fitted and how it went.
   Fields: `index: int`, `label: str = ''`, `x: float | None = None`, `status: Literal['converged', 'max_iter', 'diverged'] = 'converged'`, `statistics: Statistics | None = None`, `parameters: list[RefinedParameter] = []`, `qpa: QuantitativePhaseAnalysis | None = None`, `phase_agreement: list[PhaseAgreement] = []`, `diagnostics: list[Diagnostic] = []`, `n_iterations: int = 0`, `reseeded: bool = False`, `rwp_warm: float | None = None`, `rung: Literal['warm', 'warm_staged', 'cold'] = 'warm'`, `rungs_tried: list[str] = []`, `node_id: str | None = None`, `tree_id: str | None = None`
 - `rx.IndexingResult` — What `rietx.index_pattern` returns — and what it *cannot* return.

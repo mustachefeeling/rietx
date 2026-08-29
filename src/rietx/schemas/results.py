@@ -784,6 +784,14 @@ def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
     return out
 
 
+#: What ``summary(deliverable=…)`` accepts, on a result and on a series alike
+#: (the agent skill §4b's four purposes).  Data rather than two literal lists:
+#: :meth:`rietx.refine.Refinement.summary` implements the first three and
+#: :meth:`rietx.schemas.sequential.SeriesResult.summary` the fourth, and each
+#: refuses the other's by naming where it lives — a vocabulary neither owns.
+DELIVERABLES = ("phase_id", "qpa", "structure", "series")
+
+
 def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
     """Section 2a: the first stop condition — every diagnostic, resolved or not.
 

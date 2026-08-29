@@ -85,6 +85,29 @@ value is then the step's reproduction) and cost ≤ 10 % of the chain's wall clo
 default-off if the cost bar fails; do not ship if the separation fails; record either
 outcome here.
 
+**Measured 2026-08-29, darwin/arm64 `[dev]`, no other session running — it ships,
+default-off as declared.** Reproducing the 2026-08-26 run's *own* protocol
+(`agent_call.txt` verbatim, forward only) on its 68 recorded patterns: the chain
+**11.6-12.0 s** over three runs against **12.1-12.2 s** with the check, **+5 %**
+best-of-3, inside the ≤ 10 % bar. On the reference protocol of `ramp.py` (a
+narrower plan, 3.8-4.3 s) the same four steps cost **+9 %** — the cost is 2 cold
+refits per flagged *pattern*, so it scales with what is flagged and not with the
+series, and both chains flagged 4 steps over 4 patterns.
+
+The separation resolved as the rule anticipated it might: **the CaF₂ wander is
+gone**. Under WP-1301 `PHASE_UNCONSTRAINED` fires on `phases.1.cell.a` in 40 of
+68 patterns (the audit's own count) and the cell is *held* rather than walked, so
+no discontinuity is raised on it at 284→295 °C at all. What remains is the real
+transition — `phases.0.cell.{a,b,c}`, one step through three tied edges, 0.01757 Å
+at 430→440 °C — and the CaF₂ scale's onset at 481→492 °C; **all four reproduce at
+1.00** under an independent cold pair. So the criterion's fallback clause is what
+was measured: the value is the step's reproduction.
+
+The other direction (a chain-made step, ratio ≪ 1) therefore has no case left on
+this dataset and is **not claimed as measured**; it is pinned in
+`tests/test_sequential.py` on canned cold fits instead, where the arithmetic is
+what is under test.
+
 ## Non-goals
 
 A general model-selection engine; Hamilton's R-ratio (ΔBIC is the protocol's choice, §8).
@@ -92,14 +115,16 @@ Any change to the ladder or `_reseed_needed`.
 
 ## Tasks
 
-- [ ] (a) the §4b text in `SKILL.md`, as copyable sentences.
+- [x] (a) the §4b text in `SKILL.md`, as copyable sentences, plus the rows it names:
+      `SeriesResult.summary(deliverable="series")`, and `Refinement.summary
+      (deliverable="series")` answering with where a trajectory is decided.
 - [x] (b) `delta_bic` + `_summary` + `SCHEMA_VERSION` bump + docs (`using/report.md` §
       Which parameter to free next — where `suggest` is actually documented; `refining.md`
       only mentions it — plus `results.md` § Printing a result and the release notes) +
       the sign test.
-- [ ] (c) the verify flag behind the decision rule; the measurement in the handover
-      with wall-clock ranges; the decision recorded.
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/`.
+- [x] (c) the verify flag behind the decision rule; the measurement in the handover
+      with wall-clock ranges; the decision recorded (above).
+- [x] Tests + obs/calc/diff PNGs to `tests/output/`.
 
 ## Acceptance
 
