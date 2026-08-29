@@ -94,9 +94,9 @@ WP).
 
 ## Tasks
 
-- [ ] `PROTOCOL.md` 1.1: episodes, condition, shim targets, read-outs, registered before
+- [x] `PROTOCOL.md` 1.1: episodes, condition, shim targets, read-outs, registered before
       any run.
-- [ ] `trail.py` committed with the two attribution rules above and a test on a fixture
+- [x] `trail.py` committed with the two attribution rules above and a test on a fixture
       transcript.
 - [ ] The runs (cost recorded per cell).
 - [ ] The numbers in `docs/milestones/v1.3.md` § Acceptance and the decision on each
