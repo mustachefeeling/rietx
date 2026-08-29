@@ -203,7 +203,7 @@ reel moved it:
 | 1304 | **findable: confirmed eight times. The registered contrast: withdrawn, and worse than the ramp said** | on the reel **both** `bare` cells reached the maintainer's *checkout*, not the wheel. Across the round the wheel route was taken once in four `bare` cells. Route and latency replicate and sharpen: workspace at records 12, 13, 23, 26; the hunt at 37, 43, 51, 53 |
 | 1305 | **improved**, strengthened again | all four reel cells stopped on the row `deliverable="series"` prints, and three declined a first-ranked `suggest` move *with a reason* — one ran it, measured ΔBIC −109, and refused it anyway because the occupancy landed on its bound. A `delta_bic` consumer arguing with `delta_bic` on physics is what the field was for |
 | 1202 | **reached, verdict reversed** | `help_for` went from **0 of 4** ramp cells to **4 of 4** reel cells, 10-14 calls each. The reel hands the agent a foreign model file full of names it does not know, which is the question `help_for` answers. A surface can look unreached because no episode posed its question |
-| 1306 | **unreached — the round's clearest action item** | `read_recipe` was called by nothing and **named** by nothing: zero mentions of the string in all four transcripts, in the one episode that ships a `.inp`. All four parsed it by hand; two were good enough to catch that its saved state is the *output* of the other program's 68-pattern run, with cells on their bounds. A reader was built for that exact file and no agent found it |
+| 1306 | **unreached — and the skill, not the agents, is why** | `read_recipe` was called by nothing and **named** by nothing: zero mentions in all four transcripts, in the one episode that ships a `.inp`. All four parsed it by hand; two caught that its saved state is the *output* of the other program's 68-pattern run, with cells on their bounds. Checked afterwards, `read_recipe` appears in **one** skill file — `references/diagnostics.md`, inside the `RECIPE_*` rows — and not in `SKILL.md` or `references/api.md`, with no routing row for a foreign input file. The only documentation of the entry point is behind a diagnostic that cannot fire until it is called. A **coverage** failure of 1304's artefact, not a discovery failure by 1306's reader |
 
 **R1b is withdrawn, not replicated.** On the ramp neither `bare` cell named
 `mccusker_default` and both `skill` cells did. On the reel the only cell naming
@@ -256,8 +256,12 @@ stated in full in `PROTOCOL.md` § R2, which § Two eval protocols already point
 at, so nothing is lost meanwhile.
 
 **Next.** Nothing in this WP. The round is complete and the findings are for
-other WPs, in this order: **`read_recipe` is undiscoverable** (WP-1306 built it,
-zero of four agents on its own episode found it); **`background.worst_absorption`
+other WPs, in this order: **`read_recipe` is undocumented, not merely
+undiscovered** — it appears in one skill file, inside the `RECIPE_*` diagnostic
+rows, behind a diagnostic that cannot fire until it has been called, and in
+neither `SKILL.md` nor `references/api.md`; the fix is an entry-point row and a
+routing row for a foreign input file, plus the rule that lets a WP add its
+diagnostics to the skill without adding its door; **`background.worst_absorption`
 is in §4b's QPA row but absent from its Trajectory row**, which is the
 deliverable a series task names, though it is the only row that catches a 45 wt %
 phantom phase; and **round 1.2 owes a sealed

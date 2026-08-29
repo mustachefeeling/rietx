@@ -972,6 +972,12 @@ rely on an agent noticing that its numbers are also QPA numbers. The fourth cell
 quoted `worst_absorption` without acting on it, which is what relying on the
 notice looks like when it does not come.
 
+And the omission is not only §4b's. `references/series.md` — the file the
+routing table names for "an in-situ ramp, a sweep or a tray", which is this
+episode's task exactly — contains the word **background** zero times. So both
+routes an agent on a trajectory task would take omit the check, and the two
+cells that made it got there by leaving their own deliverable for the QPA one.
+
 ### R2 — surfaces reached, and the one that nothing reached
 
 | surface | ramp, 4 cells | reel, 4 cells |
@@ -1001,8 +1007,27 @@ ships a `.inp`. All four agents parsed the file by hand instead, and two of
 them did it well enough to catch that its saved state is the *output* of the
 other program's 68-pattern run rather than a starting model, with cells sitting
 on their bounds. WP-1306 built a reader for this exact file and no agent found
-it. That is a **discovery** failure of the kind R2 exists to separate from a
-judgement one, and it is the round's clearest single action item.
+it.
+
+**Read afterwards, the skill says why, and it is not the agents' failure.**
+`read_recipe` appears in **one** file of the whole skill tree:
+`references/diagnostics.md`, inside the `RECIPE_*` rows. It is absent from
+`SKILL.md`, the judgement core read whole, and absent from `references/api.md`,
+which the routing table names for "you are about to call rietx: entry points".
+The routing table has **no row** for *you were handed another program's input
+file*. So the only documentation of the entry point sits behind a diagnostic
+family that cannot fire until `read_recipe` has already been called.
+
+That inverts the read-out. This is a **coverage** failure of the skill, not a
+discovery failure by four agents: they could not find in the guidance what the
+guidance does not contain, and all four did the reasonable thing instead. It is
+still the round's clearest single action item, with a different owner — 1304's
+artefact rather than 1306's reader, and the two shipped on the same day.
+
+It also exposes a gap in the rule that was followed. CLAUDE.md says a WP adding
+a diagnostic code or a correction adds its row to the skill, and WP-1306 did
+exactly that: the `RECIPE_*` rows are there. Nothing told it to add the **entry
+point**, so the diagnostics arrived and the door did not.
 
 ### R3, R4, R7, R8, R10
 
