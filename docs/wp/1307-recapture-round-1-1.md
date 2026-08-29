@@ -146,6 +146,14 @@ the two models on every price row. The finding that governs the rest of the
 round is smaller and worse: **no cell was without the skill**, so the
 registered contrast was never measurable on this machine.
 
+Checked against the episode's known truth afterwards, every cell that quoted a
+trajectory got the shape right and they part only on the absolute cell. The run
+that stopped best was **not** the run that was most right: it was wrong about the
+wavelength by 770 ppm and refused to quote the number that error would have
+spoiled, while the run beside it kept the doublet and landed 36 ppm out. And the
+R1 cost table is a record of what each run *chose to spend*, not of efficiency —
+the plan preset alone moves the refinement seconds 25×.
+
 **Done.** Ran, collected and scored `ramp-bare-opus5` ($8.50, 79 API calls,
 20.1 min, 253.7 s refining) and `ramp-skill-opus5` ($4.43, 35 calls, 17.3 min,
 227.0 s). `PROTOCOL.md` gains § Results — round 1.1, the ramp episode
@@ -192,7 +200,7 @@ cell has run:
 | 1302 | **improved on R3; R11 now 3 of 4** | the pilot's split resolves toward the package criterion: both `opus-5` cells stated a §4b row, so only `bare-sonnet` ended waiting. Errored calls no longer favour one condition — 5/1 under sonnet, 5/8 under opus-5 |
 | 1303 | **not testable, as registered** | unchanged; the alternative is deleted, recorded as observed |
 | 1304 | **findable: confirmed four times. The registered contrast: withdrawn** | this is the revision. The pilot called the contrast "weaker than it looks"; four cells show it is **not measurable on this machine**. Every cell read the skill — two from the workspace, one from the wheel, one from the maintainer's checkout. The wheel route supports 1304's claim (a property of the shipped package); the checkout route is contamination (a property of this machine). What survives is route and latency: the workspace copy is reached about twice as early (records 23, 26 against 43, 51) and without a hunt |
-| 1305 | **improved**, strengthened | all three checks made as **calls** by all four cells, and three of the four stopped on the §4b row they belong to |
+| 1305 | **improved**, strengthened twice | all three checks made as **calls** by all four cells, and three of the four stopped on the §4b row they belong to. Strengthened again by the truth check: the one cell with a materially wrong number (−770 ppm on the absolute cell) is the cell whose §4b caveat **refused to quote exactly that number**, which is the row's demand rather than an accident |
 | 1202 | **unreached** | not one of the five WPs under test, but the round measures it: `help_for`, `help_key_for` and `help_registry` were called by **no cell**, across two models and both conditions |
 | 1306 | **not testable in this episode** | E-RAMP ships no recipe file, so `read_recipe` has no route. The reel cells carry the `.inp`; that read-out exists only there |
 
@@ -204,6 +212,34 @@ against the machine's user-level `yue-figure-style` skill and read its own
 three PNGs. Making the library present did not make the package's plotting
 surface the obvious way to draw, and that is a finding for a WP rather than
 for this round to act on.
+
+**The destination, and what R1 does not support.** Both were added after the
+maintainer asked why the `opus-5` runs were dearer and whether the four cells
+are comparable at all; the first was owed from the start, since § What is not
+being scored requires the truth recorded against every run.
+
+Every cell that quoted a trajectory got the **shape** right — both expansion
+coefficients, the step inside its stated error, its size to better than 3 %.
+They part on the absolute cell, on the source model. `bare-opus5` kept the Kα
+doublet, which is the truth, and lands **+36 ppm** on a(25 °C) and +37 ppm on
+the frozen CaF₂ cell it named as the thing to explain before publishing: the
+episode's trap, caught. `skill-opus5` concluded there is no Kα2, is **−770 ppm**
+in consequence, refused to quote the absolute, and named the wavelength that
+lands on the published value — **its caveat covers its error exactly**. So a
+stated criterion sat over a wrong number and still did its job, which argues for
+1305's rows, and **the best epistemics and the best physics were different
+cells**, which no read-out here can see.
+
+R1 is honest as *what each run cost* and is not a measure of efficiency.
+Refinement seconds are a **plan** choice: per pattern-fit, `mccusker_default`
+costs 0.057-0.086 s in every cell and both models against `lab_bragg_brentano`'s
+0.731 s and 1.843 s for the plan object `bare-opus5` built — 25× before the
+chain counts (1, 2, 4, 11) each agent chose. `skill-sonnet`'s 17.5 s is a full
+68-pattern both-ways chain with verification (192 nested fits), not a truncated
+one. Wall is dominated by agent time. `bare-sonnet` never delivered, so its
+$1.44 prices a partial session. And the `sonnet` pair's wall is contaminated by
+127.6 s where the `opus-5` pair recorded 0.0, so that comparison sets a dirty
+pair beside a clean one. **R2 and R11 are what survive as comparable.**
 
 **The review pass** (`/code-review medium --fix`) found eight and all eight
 were taken; three matter beyond tidiness. The run record was written only

@@ -604,6 +604,48 @@ the four still cost 12 % fewer API calls and 39 % less cache read than a
 baseline that was **primed with the protocol**. The baseline is a different
 model, brief and build, so that stays a before-and-after rather than a contrast.
 
+### What the R1 table does and does not support
+
+The table above is honest as *what each run cost*. It is *not* a measure of
+efficiency, and three of its rows carry a confound large enough to swamp what
+they are being read for.
+
+**Refinement seconds are a plan choice, not a model property, and the plan
+spans 25×.** Measured per pattern-fit across all four cells:
+
+| plan | s per pattern-fit | where |
+| --- | --- | --- |
+| `mccusker_default` | 0.057 – 0.086 | every cell, **both models** |
+| `lab_bragg_brentano` | 0.731 | `bare-sonnet` |
+| the agent's own plan object | 1.843 | `bare-opus5`'s 204.6 s chain |
+
+`mccusker_default` lands in the same 0.06-0.09 s band under `sonnet` and
+`opus-5` alike, so the arithmetic is not what separates the cells: **the preset
+is**, and after it the number of chains each agent chose to run (1, 2, 4 and
+11). `skill-sonnet`'s 17.5 s is not a truncated run — its chain carries **192
+nested pattern-fits**, a full 68-pattern both-directions chain with cold
+verification, at 0.060 s/fit. Read the refinement row as "what this agent chose
+to spend", never as thoroughness.
+
+**Wall clock is dominated by agent time.** Refinement is 21.0 % and 21.9 % of
+the two `opus-5` cells' wall. The rest is turns and output: 77 k and 60 k output
+tokens against `sonnet`'s 31 k and 44 k.
+
+**`bare-sonnet` did not deliver**, so its $1.44 and 7.5 min price a partial
+session and do not belong beside three that finished.
+
+**The two `sonnet` cells' wall clocks are contaminated and the two `opus-5`
+cells' are not.** `bare-sonnet`'s chain ran 127.6 s into `skill-sonnet`'s
+session; every later cell recorded `outlived_session_seconds` 0.0. So a
+`sonnet`-against-`opus-5` wall comparison sets a contaminated pair beside a
+clean one, and the amendment that fixed it arrived between them.
+
+**What survives as comparable** across all four: the same data, prompt, build
+and machine, and therefore **R2** (which surfaces were reached) and **R11** (how
+each run stopped) — both behavioural, and neither a function of how much work an
+agent chose to do. The baseline shares only the data: different model, brief,
+build and harness. And N = 1 per (model, condition), with no replicate anywhere.
+
 ### R6 — the condition, and a disagreement on every price row
 
 | row | sonnet: bare → skill | opus-5: bare → skill |
@@ -641,6 +683,51 @@ the specific thing I would want explained before publishing any of this."
 without the skill.** All four read it (§ What the ramp episode says about its
 own instrument). The count says the §4b row is reachable and gets used; it does
 not say a workspace install is what put it there.
+
+### The destination, recorded against every run and scored in nothing
+
+§ What is not being scored requires the episode's known truth to be recorded
+against every run, precisely because "it is worth seeing whether a stated
+criterion sits over a wrong answer". E-RAMP's truth, which no agent was told:
+a(25 °C) = **10.2570 Å**, α_a = **8.0 ×10⁻⁶/K** below the step, a first-order
+step of **+0.16 % at 430 °C**, α_a = **11.0 ×10⁻⁶/K** above it, a CaF₂ phase
+absent below the step and growing to a plateau over 90 K, its cell **held at
+5.4631 Å** (the deliberate trap), and a **CuKα doublet** source.
+
+| | a(25 °C) | α_low | α_high | the step | CaF₂ |
+| --- | --- | --- | --- | --- | --- |
+| truth | 10.2570 | 8.0 | 11.0 | +0.16 % at 430 °C | 5.4631, held |
+| `bare-sonnet` | — | — | — | "~430-440 °C" | seen, not fitted |
+| `skill-sonnet` | 10.2568 (**−20 ppm**) | 8.0 ✓ | not quoted | 430→440 ✓ | "a hint, not an identification" |
+| `bare-opus5` | 10.25736 (**+36 ppm**) | 8.01(6) ✓ | 10.89(11) | 435 ± 5 °C ✓ | 5.4633 (**+37 ppm**), trap named |
+| `skill-opus5` | 10.24914 (**−770 ppm**) | 8.02(7) ✓ | 10.96(11) ✓ | 430→440 ✓ | identified, plateau ✓ |
+
+Every cell that quoted a trajectory got the **shape** right: both legs' expansion
+coefficients, the step's position within its own stated error, and its size to
+better than 3 %. The absolute is where they part, and the reason is the source
+model. `bare-opus5` tested the doublet against a single line and kept the
+doublet, which is the truth, and lands **+36 ppm** on the absolute cell. It also
+recovered the frozen CaF₂ cell to +37 ppm and named it as the thing it would
+want explained before publishing — the trap, caught.
+
+`skill-opus5` concluded there is **no Kα2**, which is wrong, and its absolute
+cell is **−770 ppm** in consequence. What it then did is the part worth keeping:
+it refused to quote the absolute at all, and named λ = 1.54178 Å as the
+alternative that "puts the 25 °C cell exactly on the published 10.257(1) Å" —
+which is the right answer. **Its caveat covers its error exactly.**
+
+Two things follow, and neither is a read-out.
+
+- **A stated stopping criterion sat over a wrong number, and the criterion
+  still did its job.** This is the case § What is not being scored was written
+  to catch, and it argues for WP-1305's rows rather than against them: the run
+  was wrong about λ and correct about *what it could not quote without an
+  anchor*, which is the §4b trajectory row's actual demand.
+- **The best epistemics and the best physics were different cells.** R11 ranks
+  `skill-opus5` and `bare-opus5` together; against truth `bare-opus5` is the
+  better answer on every row. No read-out in this round can see that, by
+  design, and the pilot's "neither cell is better at everything" holds at
+  `opus-5` with the roles swapped.
 
 ### R2 — surfaces reached, and three that nothing reached
 
