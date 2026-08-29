@@ -38,10 +38,15 @@ import sys
 import uuid
 from pathlib import Path
 
-from tests.eval_agent_surface.episodes import ramp
-
 HARNESS = Path(__file__).resolve().parent
 REPO = HARNESS.parents[1]
+
+# Run as a script from anywhere as well as imported as a test module: the repo
+# root is where `tests` is a package, and a cell is prepared from a shell.
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from tests.eval_agent_surface.episodes import ramp  # noqa: E402
 
 EPISODES = ("ramp", "zrm")
 CONDITIONS = ("bare", "skill")
@@ -237,5 +242,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, str(REPO))
     sys.exit(main(sys.argv))
