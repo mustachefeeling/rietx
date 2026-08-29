@@ -176,7 +176,8 @@ def read(section: str | None = None) -> str:
         parts = []
         for name in sections():
             rel = "SKILL.md" if name == "SKILL" else f"references/{name}.md"
-            parts.append(f"===== {rel} =====\n\n{(root / rel).read_text('utf-8')}")
+            text = (root / rel).read_text(encoding="utf-8")
+            parts.append(f"===== {rel} =====\n\n{text}")
         return "\n\n".join(parts)
     if section in (None, "SKILL"):
         return (root / "SKILL.md").read_text(encoding="utf-8")
