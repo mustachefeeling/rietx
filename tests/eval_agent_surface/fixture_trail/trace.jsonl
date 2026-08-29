@@ -1,0 +1,10 @@
+{"event": "import", "t": 1000.0, "pid": 4001, "cwd": "/w/ramp-skill-opus5", "argv": ["driver.py"], "import_dt": 1.9, "missing": [], "version": "1.3.0.dev0"}
+{"event": "call", "name": "capabilities", "t": 1002.0, "pid": 4001, "cwd": "/w/ramp-skill-opus5", "kwargs": [], "values": {}, "nargs": 0, "path": null, "depth": 0, "ok": true, "dt": 0.2}
+{"event": "call", "name": "read_pattern", "t": 1003.0, "pid": 4001, "cwd": "/w/ramp-skill-opus5", "kwargs": [], "values": {}, "nargs": 1, "path": "/w/ramp-skill-opus5/ramp_00_25C.xye", "depth": 0, "ok": true, "dt": 0.05}
+{"event": "call", "name": "SequentialRefinement.fit", "t": 1016.0, "pid": 4001, "cwd": "/w/ramp-skill-opus5", "kwargs": ["direction", "plan", "verify_discontinuities"], "values": {"direction": "both", "plan": "mccusker_default", "verify_discontinuities": true}, "nargs": 2, "path": null, "depth": 1, "ok": true, "dt": 12.4}
+{"event": "call", "name": "refine_sequential", "t": 1016.1, "pid": 4001, "cwd": "/w/ramp-skill-opus5", "kwargs": ["carry", "direction", "verify_discontinuities"], "values": {"direction": "both", "verify_discontinuities": true}, "nargs": 3, "path": null, "depth": 0, "ok": true, "dt": 12.5}
+{"event": "call", "name": "SeriesResult.summary", "t": 1016.4, "pid": 4001, "cwd": "/w/ramp-skill-opus5", "kwargs": ["deliverable"], "values": {"deliverable": "series"}, "nargs": 1, "path": null, "depth": 0, "ok": true, "dt": 0.01}
+{"event": "exit", "t": 1020.0, "pid": 4001, "cwd": "/w/ramp-skill-opus5", "wall": 20.0}
+{"event": "import", "t": 1030.0, "pid": 4002, "cwd": "/w/ramp-skill-opus5", "argv": ["-c"], "import_dt": 1.8, "missing": ["Refinement.nonesuch"], "version": "1.3.0.dev0"}
+{"event": "call", "name": "help_for", "t": 1032.0, "pid": 4002, "cwd": "/w/ramp-skill-opus5", "kwargs": [], "values": {}, "nargs": 1, "path": null, "depth": 0, "ok": true, "dt": 0.002}
+{"event": "exit", "t": 1032.5, "pid": 4002, "cwd": "/w/ramp-skill-opus5", "wall": 2.5}

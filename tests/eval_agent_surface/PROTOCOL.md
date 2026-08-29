@@ -1,3 +1,536 @@
+# Runner protocol — the agent-surface round, 1.1 (WP-1307)
+
+**Protocol version: 1.1**, registered 2026-08-29 **before any 1.1 run**.
+Bump it on any change that alters comparability: the episode, the workspace
+contents, the prompt text, the condition set, the shim's target list, or the
+scoring rules.
+
+**A 1.1 cell pools with nothing in 1.0.** Every one of those six things moves
+between the rounds, and so does the package under them: WP-1301 to WP-1305
+landed in between. Round 1.0's registration and its results are preserved
+below, from its own heading down, **unedited** — a pre-registered round is not
+rewritten once it has run, and `score_round.py` says in its docstring that it
+scores that round and nothing later. 1.1 declares its own read-outs and gets
+its own scorer.
+
+## The question
+
+1.0 asked which surface an agent reaches for when handed files and a job. It
+answered, and its answer deleted a surface: no unaided cell called the JSON
+envelope, the tool definition was fetched zero times in 235 traced interpreter
+starts, and WP-1303 removed `rietx.agent` on that evidence.
+
+1.1 asks the question after it. Six things were built on the strength of that
+answer and of the 2026-08-26 ramp audit — a held phase (1301), an error that
+answers with the right name and a result that states whether it is done (1302),
+one integration surface (1303), the protocol as a discoverable skill (1304),
+the trajectory deliverable and its two hand-checks turned into calls (1305), and
+a foreign recipe format (1306). The question is:
+
+> **Did any of it change what an agent pays, and how it decides it is done?**
+
+Read out: API calls, cache-read tokens per call, wall clock against refinement
+seconds, discovery errors, surfaces reached, whether a flat direction fired, and
+the stopping criterion the agent states.
+
+## The baselines, and what none of them can say
+
+| baseline | what it is | its headline numbers |
+| --- | --- | --- |
+| **the ramp run**, 2026-08-26 | one Opus 5 subagent, 68 simulated VT patterns, primed with `AGENT_PROTOCOL.md` | 90 API calls, 14.6 M cache-read (mean context 168 k), 87 k output, 34.7 min wall for **34 s** of refinement, 9 discovery errors + 4 source hunts, none of the built surfaces used, a flat direction 27 % of wall |
+| **the contributor's campaign**, 2026-08 | 86 runs, 5 430 tool calls, six of which refined, all briefed by one coordinator | stopping criteria: 0 on a §10 condition, 0 on a §4b row, 0 on an index alone, 1 external comparison, 1 script exit, 1 instruction, 3 ended waiting. `suggest` 0, `plot_for_vlm` 0, `report()` 2 |
+| **round 1.0**, 2026-08-20 | six Sonnet cells on E-ZRM | R1 0/2, R2 split, the schema export called zero times in 235 interpreter starts |
+
+None of the three is a control, and the protocol states the reason at every row
+that quotes one.
+
+- The ramp is **n = 1**, on data simulated by rietx's own forward model, with a
+  prompt in the protocol's vocabulary and an instruction to read the protocol.
+  It is a **primed** run.
+- The campaign's workers were briefed with the rules restated inline by their
+  coordinator, which is the obvious confound for every instruction-source
+  read-out, and they ran a stale release (1.0.1) for a week.
+- 1.0's cells were all `sonnet`, on an episode 1.1 keeps and a package 1.1 has
+  moved.
+
+So a 1.1 row compared with a baseline is a **before-and-after on a moving
+build**, never a controlled contrast. The one controlled contrast in this round
+is the condition below, which is why it is the only within-round comparison the
+decision rules lean on.
+
+**The deployment shape is recorded, not run.** The campaign's
+coordinator-plus-workers arrangement is how this package is actually reached in
+the field, and it is written down here as an observed deployment. It is not a
+cell: the single cold agent is the one whose brief this protocol controls, and a
+coordinator's brief is not ours to hold fixed.
+
+## The episodes
+
+Two, because they fail differently and each carries one baseline.
+
+### E-ZRM — kept from round 1.0, unchanged
+
+Real data, unknown truth, four phases, and the episode 1.0's cells ran, so its
+rows are the ones comparable with 1.0.
+
+| file | what it is |
+| --- | --- |
+| `d8_01612.raw` | Bruker RAW v3, **82 scans**, 318 → 1123 K, 4168 points each, 10–70° 2θ, λ = 1.5406 Å (Cu Kα1, Ge(111) mono, Bragg–Brentano) |
+| `d8_01612_vt_reel_02.inp` | the TOPAS input the maintainer refined it with: 4 phases (ZrMo₂O₇(OH)₂·2H₂O, cubic-, trigonal- and LT-ZrMo₂O₈), sites, and the instrument declarations |
+
+Provenance, and the withheld helper scripts, are as 1.0 registered them: the
+maintainer's TOPAS workshop dataset `zrmo2o8_vt.zip`, fetched 2026-08-20, **not
+committed anywhere in this repo**. Re-running this episode means fetching it
+again, and a dead link costs this protocol its episode and nothing else.
+
+### E-RAMP — new
+
+Synthetic, **known truth**, a 68-pattern series, and the episode of the
+2026-08-26 baseline, so its rows are the ones comparable with that audit.
+
+The generator is committed as `episodes/ramp.py` — the same script that made the
+baseline's data, moved into the harness so the episode can be rebuilt rather
+than being a directory someone kept. It writes 68 `.xye` patterns and
+`host.cif`:
+
+- NAC (COD 1000236) on a Cu Kα Bragg–Brentano geometry, 15–60° 2θ at 0.02°;
+- the host cell expands 0.8 % over 25 → 720 °C with a first-order step of
+  +0.16 % at 430 °C;
+- a **CaF₂ phase absent below the step**, growing above it to a plateau, whose
+  cell is held constant in the simulation;
+- Poisson noise, σ = √counts.
+
+`host.cif` is the host phase only. The second phase is the agent's to find, the
+step is the agent's to verify, and the held CaF₂ cell is the trap the baseline
+agent caught. **The truth is recorded against every run and scored in no
+read-out** (§ What is not being scored).
+
+## The condition — one, and it is environmental
+
+| cell | what differs | what it isolates |
+| --- | --- | --- |
+| `bare` | nothing added to the workspace | the floor: an agent with the package, the data and no rules |
+| `skill` | `rietx skill --install <workspace>` has run before the agent starts, putting the skill in `.agents/skills/rietx/` with a link from `.claude/skills/` | whether WP-1304's skill is **found** without being named, and what it changes |
+
+**Never a prompt sentence.** The ramp baseline was *told* to read
+`docs/AGENT_PROTOCOL.md` and the campaign's workers had the rules restated
+inline; both confound the instruction's source with the instruction itself. A
+skill in the harness's own directory is discovered by the harness and offered to
+the agent with its one-line description, so `skill` is the environmental form of
+that priming — the cell comparable with the primed baseline — and `bare` is
+comparable with neither baseline. `bare` is this round's new floor and its rows
+are quoted as such.
+
+1.0's `pointed` and `mandated` cells have no successor. Both pointed at a
+surface that no longer exists, and neither question survives it.
+
+## The prompts — unprimed, and written down
+
+Registered verbatim, because a prompt that is paraphrased in the protocol is a
+condition nobody can reproduce. Neither names a module, a plan, a method or a
+document.
+
+**E-RAMP** is the 2026-08-26 baseline's own prompt, word for word:
+
+> Here are 68 patterns from a variable-temperature run, 25 to 720 °C. Refine
+> them in order, tell me what the cell does, and flag anything you would not
+> quote.
+
+**E-ZRM** states the physical facts an operator would know and caps the scope,
+since the surface choice is made in the first handful of calls and the science
+is not what is scored:
+
+> `d8_01612.raw` is a variable-temperature powder reel: 82 scans from 318 K to
+> 1123 K, Cu Kα1 at λ = 1.5406 Å from a Ge(111) monochromator, Bragg–Brentano
+> geometry. `d8_01612_vt_reel_02.inp` is the input file another program refined
+> it with, and it holds the starting model: four phases, their cells and their
+> sites. Refine the first five scans, tell me how the phase fractions and the
+> cell parameters move with temperature, and flag anything you would not quote.
+
+Each run is additionally given, in both cells, exactly what the baseline was
+given beyond its prompt and nothing more: **the interpreter path and the
+workspace directory**. What the baseline had and 1.1 removes is the sentence
+naming a document to read. That sentence is the condition now.
+
+## N, the models, and what N = 2 can say
+
+Four cells — two episodes × two conditions — and **two runs each: one
+`sonnet`, one `opus-5`**. Eight runs. Cost recorded per run.
+
+**N = 2 cannot measure a rate and this protocol never quotes one.** It exists so
+that one agent's idiosyncrasy shows up as a disagreement rather than as a
+result, which is what it did in 1.0, whose `pointed` cell came back split and
+was reported split.
+
+The price of covering both baselines' models in eight runs rather than sixteen
+is stated here rather than discovered later: because a cell's two runs differ by
+model, **a within-cell disagreement cannot be told from a model difference**, and
+every such row is reported as a disagreement with both models named. A row that
+moves the same way in all four cells is reported as a direction, never as a
+factor.
+
+## The shim
+
+`rietx_surface_trace.py` plus a `.pth` line, installed into the **experiment
+venv's** site-packages — never into the package under test. A `.pth` executes at
+interpreter start, so every python that venv starts is traced however the agent
+invokes it: no environment variable to miss, no wrapper to bypass.
+
+**One venv per run, with its log path baked into the `.pth` line.** This is
+1.0's own recommendation for 1.1, and it closes 1.0's attribution defect:
+attribution becomes a property of the environment instead of an inference from
+which file a process happened to touch. The `RIETX_SURFACE_LOG` environment
+variable stays as a fallback and is not how a 1.1 run is attributed.
+
+Each traced call appends one JSONL line carrying the name, the keyword names,
+the positional count, the elapsed seconds, and `cwd`/`pid`.
+
+### What is recorded, and the one exception
+
+- **Keyword names always; values only from a declared allowlist**:
+  `deliverable`, `direction`, `refit`, `mode`, `preset`,
+  `verify_discontinuities`, and `plan` when it is a string. Three read-outs turn
+  on *which* value was passed rather than on whether a keyword was, and every
+  member of that list is an enum, a bool or a preset name. No other argument
+  value is ever recorded.
+- **The first positional argument when it is a path** (1.0's amendment, kept):
+  it is what names the workspace when an agent runs python from elsewhere.
+
+### What 1.1 adds to the events
+
+- every `call` carries `dt`, its own elapsed seconds. **Fit seconds are
+  attributed by where the fit ran**, from this number, never from the command
+  head — which is how a driver script and a backgrounded job get counted, and
+  the campaign's projection could count neither.
+- every `call` carries `depth`, how deep it sat inside other traced calls, and
+  **seconds are summed at `depth == 0` only**. `rx.refine` *is*
+  `Refinement.fit` one frame down and `refine_sequential` *is*
+  `SequentialRefinement.fit`, so a sum over names reports a 12.5 s chain as
+  24.9 s. The inner name still counts as *reached*, because R2 asks which
+  surfaces a run touched.
+- `import` carries the seconds from interpreter start to the end of
+  `import rietx`, and an `atexit` `exit` event carries the process's whole wall
+  clock. Those two are R8's numerator and denominator.
+- `import` also carries **`missing`**, the declared targets that did not resolve
+  in that interpreter. A stale target and an unreached surface are the same
+  empty column otherwise, which is how 1.0's list would have scored
+  `SequentialRefinement.run`'s rename;
+  `test_trail.py::test_every_shim_target_resolves_against_this_build` fails on
+  a non-empty list.
+
+### The target list, 1.1
+
+Round 1.0's four JSON-envelope entries are gone: the module they name is
+deleted, and a target that cannot be reached is a read-out that cannot fail.
+One more correction, measured 2026-08-29: **`SequentialRefinement.run` no longer
+exists** — the class exposes `.fit` — so 1.0's list would have scored a rename
+as a surface nobody reached. A 1.1 target that does not resolve at patch time is
+reported by the scorer rather than passing silently.
+
+| group | targets |
+| --- | --- |
+| entry | `capabilities`, `read_pattern`, `crystallography.cif.structure_from_cif`, `read_recipe`, `write_recipe_tables`, `list_examples` |
+| fitting | `refine`, `refine_sequential`, `refine_multi`, `replay`, `Refinement.fit`, `Refinement.run_stage`, `Refinement.predict`, `SequentialRefinement.fit` |
+| judging | `build_report`, `diagnose`, `Refinement.report`, `Refinement.summary`, `SeriesResult.summary`, `Refinement.suggest` |
+| the table | `Refinement.parameters`, `Refinement.set_vary`, `Refinement.set_values`, `Refinement.tie`, `Refinement.tie_equal`, `Refinement.untie` |
+| help | `help_for`, `help_key_for`, `help_registry` |
+| pictures | `viz.plot_result`, `viz.plot_for_vlm`, `viz.write_html` |
+| the rest | `index_pattern`, `auto_background`, `load_instrument_profile`, `save_instrument_profile`, `Refinement.branch`, `Refinement.checkout`, `Project.create`, `Project.open`, `Project.save` |
+
+### Invisibility
+
+A shim has to be invisible to its subject. It wraps with
+`functools.update_wrapper`, so `inspect.signature` shows the real signature —
+1.0 wrapped without it and an agent went reading source to recover one — and it
+swallows every exception it can raise, because a shim that breaks the run it
+watches has destroyed its own measurement.
+
+## The projection — `trail.py`
+
+`trail.py` turns one session transcript into one line per tool call: offset,
+duration, output size, error flag, and the first line of the command. That table
+answers most of the round's questions on its own, and it is committed with a
+test on a fixture transcript so its two rules cannot rot.
+
+- **Usage is summed once per `message.id`, last record wins.** A thinking block
+  and its tool_use share an id, so the 2026-08-27 audit's first pass
+  over-counted cache reads by 151/90 by summing per record.
+- **Fit seconds come from the shim's trace**, per the rule above.
+
+## Pre-registered read-outs
+
+Round 1.0 declared four, and three of them are about a surface that no longer
+exists. So 1.1 declares its own eleven. Only **R4** keeps its number and its
+meaning across the rounds.
+
+- **R1 (primary) — the price of an answer.** Per run: API calls, cache-read
+  tokens, mean context, output tokens, wall clock, and refinement seconds inside
+  it. The E-RAMP cells are set beside the baseline's 90 / 14.6 M / 34.7 min /
+  34 s; the E-ZRM cells beside 1.0's 73–206 tool uses and 144–226 k tokens.
+- **R2 — surfaces reached.** Which targets each run called. Two sublists are
+  read separately: the five the audit found **invisible** (`capabilities`, the
+  three `help_*` calls, `set_vary`, the history DAG, any CLI verb) and the five
+  1301–1305 **added** (`Refinement.summary`, `SeriesResult.summary` with
+  `deliverable=`, `CandidateGroup.delta_bic`, `verify_discontinuities=True`,
+  `read_recipe`).
+- **R3 — discovery errors.** Tool calls that failed because the agent did not
+  know a shape (9 of 19 errors in the baseline), classified by hand into: wrong
+  name, wrong signature, wrong module path, wrong attribute owner. Counted
+  beside them: **source hunts**, reads of `src/rietx/**` that answer what the
+  docs did not (4 in the baseline). WP-1302's claim is that the error text now
+  carries the right name, so a wrong name corrected **from the error itself** is
+  counted separately from one corrected by reading source.
+- **R4 — the friction ledger** (carried from 1.0). Which of WP-1110's verified
+  items 2–11 fire again, unprompted, in any cell.
+- **R5 — the flat direction.** Did an unsupported phase's cell run away, and
+  what share of wall clock did it cost? 27 % in the baseline, >115× on the
+  reproduction. WP-1301 holds such a phase for the stage instead of bounding it,
+  and this is its behavioural test: `PHASE_UNCONSTRAINED` and `StageResult.held`
+  in the run's own output, against wall clock.
+- **R6 — the condition.** `skill` against `bare` on every row above and on R11,
+  per episode. The round's **only** controlled contrast.
+- **R7 — the scaffolding ratio.** Bash tool calls per traced fit.
+- **R8 — the per-process floor.** `import rietx` summed over the run's traced
+  processes, against those processes' whole wall clock. A run that starts a
+  fresh interpreter for every question pays it every time. The numerator is the
+  shim's `import_dt` and nothing else, which is narrower than the WP's filed
+  wording: **the shim cannot separate kernel load**, since the compiled tier
+  loads on a kernel's first call and the background compile finishes when it
+  finishes. Measured on the registration build, darwin `[dev]`, three runs:
+  `import rietx` **0.50–0.51 s**, plus 0.17–0.34 s to the first forward call,
+  0.67–0.84 s together. The WP filed 1.75–2.37 s for import-plus-kernel-load on
+  2026-08-28 and this session did not reproduce it on either definition; the
+  registered number is the one above, measured here.
+- **R9 — the build.** `capabilities().package_version` recorded in every run's
+  record, because a round whose build is not written down cannot be compared
+  with the next one.
+- **R10 — backgrounding.** Did the agent put a fit in the background, and what
+  did it see while waiting? The progress sink's first measurement.
+- **R11 — the stopping criterion the agent states**, classified by hand from its
+  closing text into exactly one of: **a §10 condition** (SKILL.md's three stop
+  conditions) / **a §4b deliverable row** / **an agreement index alone** /
+  **an external comparison** / **a script exiting** / **an instruction** /
+  **none** (ended waiting). Counted beside it, each a distinct observation
+  because the 2026-08-26 agent did all three **by hand**:
+
+  1. did it print `SeriesResult.summary(deliverable="series")` or
+     `Refinement.summary(deliverable=…)` — §4b's rows, which that agent wrote
+     for itself across about 34 of its 90 calls;
+  2. did it read `CandidateGroup.delta_bic`, or run two refits per candidate to
+     compute ΔBIC itself;
+  3. did it pass `verify_discontinuities=True`, or hand-refit the step's two
+     patterns cold.
+
+  A run that still does these by hand has had a **discovery** failure, not a
+  judgement one, and the read-out separates the two. Whether `plot_for_vlm` was
+  called, and whether the agent looked at a plot it drew itself, are counted
+  here too.
+
+Which read-outs are scored by machine and which by hand is fixed in advance:
+R1, R2, R7, R8, R9 off the trace log and the transcript by `trail.py` and the
+1.1 scorer; R3, R4, R10, R11 by hand from the transcript; R5 from the run's own
+diagnostics plus the trace's timings.
+
+## Decision rules, fixed in advance
+
+Each WP's claim is judged **improved / unchanged / worse**, by the read-out
+named here and no other. A claim whose read-out disagrees within a cell is
+**split**, and split is a result.
+
+| WP | the claim | judged by | improved means |
+| --- | --- | --- | --- |
+| 1301 | an unsupported phase is held, not bounded, so it cannot eat a chain's wall clock | R5 | no runaway in any E-RAMP cell, or one that costs under 5 % of wall |
+| 1302 | the error is the documentation, and a result says whether it is done | R3, R11 | discovery errors under the baseline's 9, with wrong names corrected from the error text rather than from source; and R11 lands on a package criterion rather than on `none` |
+| 1303 | there is one integration surface | R2 | **not a testable claim in this round** — the alternative is deleted, so the row is recorded as observed and judged nothing |
+| 1304 | the protocol is a skill, and it is found without being named | R6 on R2 and R11 | the `skill` cells reach the skill unprompted, and their document reading costs less than the baseline's 31 k tokens × 80 calls ≈ 2.5 M cache-read, ~17 % of its total |
+| 1305 | §4b's trajectory rows are stopping criteria, and its two hand-checks are calls | R11's three sub-rows | at least one cell states a §4b row as its stopping criterion, and the hand-checks appear as calls rather than as hand-written refits |
+
+Two rules over all of them, and they bind: **no rate is quoted from N = 2**, and
+**no row is attributed to a WP when the baseline it moves against ran a
+different build, a different model and a different brief** — such a row is
+reported as a before-and-after with all three differences named.
+
+## What is not being scored
+
+Rwp, the phase fractions, the cells, whether the refinement is any good. The
+round measures the route and the price, not the destination, and a cell that
+reaches a bad refinement while stating a good stopping criterion still counts as
+having stated one. Scoring the science would make the model's crystallography
+the confound.
+
+E-RAMP's known truth is **recorded against every run and scored in no read-out**
+for the same reason. It is worth seeing whether a stated criterion sits over a
+wrong answer; it is not worth turning this round into a crystallography exam.
+
+## This round's own instrument
+
+Known defects of 1.0, and what 1.1 does about each:
+
+- **Attribution by inference** → one venv per run with its log path baked in.
+- **A visible shim** → `functools.update_wrapper`, fixed before this round.
+- **A workspace with no plotting library** → every 1.1 workspace installs
+  `rietx[viz]`, so `plot_result`, `plot_for_vlm` and `write_html` are usable.
+  Four of 1.0's six agents hand-rolled an SVG writer because they were not, and
+  no conclusion was drawn from it. R11 counts plotting calls, so the library has
+  to be there.
+
+### Amendment, 2026-08-29, made between the pilot's two runs
+
+Declared here rather than versioned, on 1.0's precedent: it changes how cells
+are **isolated**, not what is measured, which cell is under which condition, or
+what the package does.
+
+**A cell's work can outlive its session, and the next cell then inherits it.**
+The first pilot run put a 68-pattern chain in the background, wrote its answer
+without waiting for it, and `refine_sequential` went on writing for **127.6 s
+after `claude -p` had returned** — into the launch of the run after it. Wall
+clock is R1, R5 and R8's unit, so `runner.launch` now waits for the trace to be
+silent for 20 s before it returns, and records `outlived_session_seconds` in the
+cell's own record. Two consequences for reading this round's numbers:
+
+- `ramp-bare-sonnet` and `ramp-skill-sonnet` **overlapped by up to 127.6 s** and
+  their wall clocks are quoted with that said. Every later cell is isolated.
+- **Collect after quiet, never at the exit code.** A trail read while a
+  backgrounded chain was still running showed 5.7 s of refinement where the
+  finished log shows 193.5 s: the outermost rows are written on completion, so
+  an early read sees the children and none of their parents.
+
+### A known limit of R8's numerator, left alone until the round ends
+
+`import_dt` is measured from the `.pth` — interpreter start — to the end of
+`rietx`'s execution, so it absorbs whatever the process did *before*
+`import rietx`: a driver that parses arguments, reads files or imports numpy
+first inflates the floor. § R8 declares the numerator to be `import rietx`, and
+this is wider than that.
+
+It is **not corrected mid-round**. The shim is copied into each cell's venv at
+`prepare`, so changing it now would measure the six outstanding cells
+differently from the two that have run, which is the one thing a round may not
+do to itself. Fix between rounds, by timing from the start of `exec_module` or
+by emitting `exec_dt` beside `import_dt`.
+
+And one defect this round cannot fix: **the harness is Claude Code's**.
+WP-1304's harness-neutral claim is tested structurally in that WP and
+behaviourally only when a Codex or opencode cell exists. That is round 1.2's,
+and `rietx skill --install <workspace> --agent <name>` makes it a one-line
+change to the episode setup.
+
+## Results — round 1.1, pilot of 2026-08-29
+
+**Two of the eight cells ran**, both `sonnet` on the simulated ramp, one per
+condition. That is **N = 1 per condition**, one rung below what the protocol
+registered, so nothing here is a rate and nothing here is a disagreement
+either: a single observation cannot be split. The six remaining cells — both
+`opus-5` ramp cells and all four reel cells — are outstanding, and the reel's
+two data files are staged for them.
+
+Build `1.3.0.dev0` in both (R9). Machine rows from `score_1_1.py`, hand rows
+from the transcripts.
+
+### R1 — the price of an answer
+
+| | baseline 2026-08-26 | `ramp-bare-sonnet` | `ramp-skill-sonnet` |
+| --- | --- | --- | --- |
+| model, brief | opus-5, primed | sonnet, unprimed | sonnet, unprimed |
+| API calls | 90 | 36 | 55 |
+| cache-read | 14.6 M | 3.12 M | 4.74 M |
+| mean context | 168 k | 90 k | 88 k |
+| output | 87 k | 31 k | 44 k |
+| wall | 34.7 min | 7.5 min | 10.5 min |
+| refining | 34 s (1.6 %) | 193.5 s (43 %) | 17.5 s (2.8 %) |
+| tool calls, errored | 91, 19 | 42, 5 | 57, **1** |
+| cost | not recorded | $1.44 | $1.88 |
+
+The baseline row is a **different model, a different brief and a different
+build**, so the comparison is a before-and-after and is quoted as one. The
+within-round contrast is the last two columns, and it is one run each.
+
+### R11 — the stopping criterion, and the result that outranks the table
+
+`ramp-bare-sonnet` ended on **none — waiting**. Its closing message is that
+the chain "is running in the background … I'll report back with the full
+trajectory and reliability flags once the chain finishes", and the session
+returned 127.6 s before that chain finished. It is cheaper than the baseline
+partly because it never delivered an answer.
+
+`ramp-skill-sonnet` ended on **a §4b deliverable row**, and on the trajectory
+row specifically: the step re-measured cold by `verify_discontinuities`
+(ratio 1.00×), forward and backward agreeing, a stated 2θ-scale anchor ("no
+calibration standard was in this dataset … the absolute scale carries an
+un-anchored offset") and the precision/accuracy split, plus a Bérar-Lelann
+inflation of 1.58 to apply to any quoted esd. Its "would not quote" list names
+five things and a reason for each. This is the first time in any round or
+campaign that a run has stopped on a §4b row: the campaign's six refining runs
+scored 0 on that criterion, and the baseline built its own rules because §4b
+had no trajectory row to reach for.
+
+**The two runs are not both better at the same thing.** The bare run built the
+second phase into the model and found CaF₂; the skill run fitted the high-T
+half with a one-phase model, called the extra lines "a hint, not an
+identification", and recommended indexing them. Better epistemics, worse model,
+in the run that delivered.
+
+### R2 — surfaces reached
+
+Both reached `capabilities()`, `SeriesResult.summary(deliverable="series")`,
+`verify_discontinuities=True` and `direction="both"`. The bare run also reached
+`Refinement.suggest`, `Refinement.summary(deliverable="structure")` and
+`Refinement.report`; the skill run also reached `Refinement.set_vary` and read
+the skill's `references/series.md` through the harness's own Skill tool.
+
+The three checks WP-1305 turned into calls were **all three made as calls** by
+both runs. The 2026-08-26 agent did all three by hand.
+
+### R3 — discovery errors
+
+Five errored calls in the bare run, of which **two** are discovery
+(`No module named 'rietx.plans'`, and a pydantic model constructed
+positionally); one is environmental (`bin/pip` absent from a `uv` venv) and two
+are not rietx's. **One** in the skill run, and it is not a discovery error. The
+baseline had nine discovery errors of nineteen.
+
+Source hunts went the other way: the bare run read the skill and the wheel's
+own files, the skill run read `src/rietx/refine.py` and `strategy/staged.py` to
+learn how a parameter is held — a question §4b does not answer and the skill
+does not carry.
+
+### R5 — the flat direction
+
+`PHASE_UNCONSTRAINED` fired **82 times** in the bare run's chain, and the whole
+68-pattern both-directions chain with cold verification finished in **187.7 s**.
+The same absent phase cost the baseline 27 % of a 35-minute session and, on
+reproduction without bounds, more than 115× that. Nothing ran away in either
+cell.
+
+### R7, R8, R10
+
+R7: **1.8** Bash calls per fit in the bare run, **1.4** in the skill run; the
+baseline's 87 Bash calls sat over one chain. R8: the floor is a cold-start
+question — the first `import rietx` in a fresh venv cost **14.8 s**, the next
+**0.53 s**, and per run the import total was 21.6 s of 220.9 s (9.8 %) and
+28.5 s of 50.2 s (56.8 %). R10: the bare run **backgrounded** its chain, wired
+`progress="series_progress.log"` and tailed it once; the skill run did not
+background anything.
+
+### What the pilot says about its own instrument
+
+**The `bare` cell is not bare, and this is the round's first correction to
+itself.** Within its first minute that agent ran `rietx skill --path`, read the
+wheel's forwarding stub at `rietx/data/AGENT_PROTOCOL.md`, and read
+`site-packages/rietx/data/skill/rietx/SKILL.md` and three of its reference
+files. The skill ships **inside the wheel**, so no workspace can withhold it.
+The condition therefore separates *the harness offering the skill* from *the
+agent finding it in the package* — not instructions from no instructions — and
+every R6 row is to be read that way. It is a finding rather than only a defect:
+WP-1304's claim is that the skill is findable, and an agent with no reason to
+expect one found it unprompted from an empty directory.
+
+Both runs also read the maintainer's checkout at `/Users/yue/Code/rietx/src`,
+which is on the machine and outside the workspace. A cell cannot be sealed from
+it here; the reel cells should run with that in mind.
+
+---
+
 # Runner protocol — the agent-surface round (WP-1110)
 
 **Protocol version: 1.0**, registered 2026-08-20 **before any 1.0 run**.
