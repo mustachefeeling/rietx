@@ -67,7 +67,19 @@ outcome here.
 
 ### Inherited
 
-Nothing yet.
+**From [1302](1302-error-is-documentation.md), 2026-08-29 — the termination view
+already has two stubs waiting for this WP.** `Refinement.summary()`
+(`refine.py`) prints `"next: run suggest"` unconditionally for stop condition
+(c) — replace with the real `delta_bic` line once (b) lands, and update
+`docs/manual/using/results.md` § Printing a result, which documents the
+placeholder by name. `Refinement._deliverable_lines()` has a `"series"` branch
+that only prints `"series deliverable rows: pending WP-1305 a"` — wire in the
+`SEQUENTIAL_*` deciding rows this WP's (a) names once they exist; the method
+already routes `deliverable="series"` there, nothing else needs to change to
+reach it. `SeriesResult.summary()` (`schemas/sequential.py`) is the series'
+own termination view (trajectory table, `SEQUENTIAL_*` rows) and may be a
+better home for the series deliverable than `Refinement.summary()`'s branch —
+worth deciding when (a)'s rows are chosen, not before.
 
 ## Non-goals
 
