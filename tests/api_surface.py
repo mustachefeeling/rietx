@@ -451,6 +451,73 @@ def derive_surface(*, apply_exclusions: bool = True) -> dict[str, Entry]:
     return surface
 
 
+def rietx_class_in(annotation: object) -> type | None:
+    """The rietx class inside an annotation, past any Optional/list/dict."""
+    stack = [annotation]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, type) and (getattr(node, "__module__", "") or "").startswith("rietx"):
+            return node
+        stack.extend(arg for arg in typing.get_args(node) if arg is not None)
+    return None
+
+
+def attr_step(obj: object, attr: str) -> tuple[bool, object]:
+    """One attribute hop, over classes and pydantic fields alike.
+
+    A pydantic v2 model does not carry its fields as class attributes, so
+    ``getattr(Capabilities, "backends")`` raises: a field hop reads
+    ``model_fields`` and continues from the annotated type.
+
+    A plain dataclass has the same shape for a different reason: a field with
+    no default is never assigned on the class, so ``getattr(PlanInfo, "modes")``
+    is ``None`` and ``Stage.name`` and ``GuardFinding.code`` do not resolve
+    either.  Read those from ``dataclasses.fields`` and continue from the
+    annotation, the same way (WP-1067; :func:`declared_members` rule 4 is the
+    half of this that fixes the *denominator*).
+
+    Shared by the manual's name partition and the skill's API index (WP-1304),
+    which ask the same question of two documents.
+    """
+    if isinstance(obj, type):
+        fields = getattr(obj, "model_fields", None) or {}
+        if attr in fields:
+            return True, rietx_class_in(fields[attr].annotation)
+        if dataclasses.is_dataclass(obj) and any(
+            f.name == attr for f in dataclasses.fields(obj)
+        ):
+            try:
+                hint = typing.get_type_hints(obj).get(attr)
+            except Exception:  # a forward reference that only resolves later
+                hint = None
+            return True, rietx_class_in(hint)
+    value = getattr(obj, attr, None)
+    return value is not None, value
+
+
+def resolve_dotted(dotted: str, where: str) -> None:
+    """Resolve a fully-spelled ``rietx.…`` name, module path included.
+
+    Walks the longest importable prefix first, because ``rietx.viz`` is not an
+    attribute of ``rietx`` until something imports it.
+    """
+    import importlib
+
+    parts = dotted.split(".")
+    for cut in range(len(parts), 0, -1):
+        try:
+            obj: object = importlib.import_module(".".join(parts[:cut]))
+        except ImportError:
+            continue
+        for attr in parts[cut:]:
+            ok, obj = attr_step(obj, attr)
+            assert ok, f"{where}: `{dotted}` — no {attr!r}"
+            if obj is None:
+                return
+        return
+    raise AssertionError(f"{where}: `{dotted}` — nothing importable in it")
+
+
 def declares(module: str | None, prefix: str) -> bool:
     """True if `module` is `prefix` or a submodule of it.
 

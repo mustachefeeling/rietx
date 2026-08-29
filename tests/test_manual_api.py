@@ -40,10 +40,8 @@ from being forgotten.
 from __future__ import annotations
 
 import ast
-import dataclasses
 import importlib
 import re
-import typing
 from fnmatch import fnmatch
 from pathlib import Path
 
@@ -62,11 +60,13 @@ from tests.api_surface import (
     EXCLUDED_TYPES,
     EXCLUSIONS,
     PROVISIONAL_MODULES,
+    attr_step,
     declares,
     derive_surface,
     load_deferred,
     provisional_names,
     reachable_types,
+    resolve_dotted,
 )
 from tests.test_coordinates import make_rutile
 from tests.test_schemas import make_lab6
@@ -241,62 +241,14 @@ def _parameter_paths() -> set[str]:
 # --- names ----------------------------------------------------------------
 
 
-def _rietx_class_in(annotation: object) -> type | None:
-    """The rietx class inside an annotation, past any Optional/list/dict."""
-    stack = [annotation]
-    while stack:
-        node = stack.pop()
-        if isinstance(node, type) and (getattr(node, "__module__", "") or "").startswith("rietx"):
-            return node
-        stack.extend(arg for arg in typing.get_args(node) if arg is not None)
-    return None
-
-
+# The two hops below moved to tests/api_surface.py in WP-1304, where the skill
+# tree's API index asks the same question of a second document.
 def _step(obj: object, attr: str) -> tuple[bool, object]:
-    """One attribute hop, over classes and pydantic fields alike.
-
-    A pydantic v2 model does not carry its fields as class attributes, so
-    `getattr(Capabilities, "backends")` raises: a field hop reads
-    `model_fields` and continues from the annotated type.
-
-    A plain dataclass has the same shape for a different reason: a field with
-    no default is never assigned on the class, so `getattr(PlanInfo, "modes")`
-    is `None` and `Stage.name` and `GuardFinding.code` do not resolve either.
-    Read those from `dataclasses.fields` and continue from the annotation, the
-    same way (WP-1067; `api_surface.declared_members` rule 4 is the half of
-    this that fixes the *denominator*).
-    """
-    if isinstance(obj, type):
-        fields = getattr(obj, "model_fields", None) or {}
-        if attr in fields:
-            return True, _rietx_class_in(fields[attr].annotation)
-        if dataclasses.is_dataclass(obj) and any(
-            f.name == attr for f in dataclasses.fields(obj)
-        ):
-            try:
-                hint = typing.get_type_hints(obj).get(attr)
-            except Exception:  # a forward reference that only resolves later
-                hint = None
-            return True, _rietx_class_in(hint)
-    value = getattr(obj, attr, None)
-    return value is not None, value
+    return attr_step(obj, attr)
 
 
 def _resolve_absolute(page: Path, dotted: str) -> None:
-    """Resolve a fully-spelled `rietx.…` name, module path included."""
-    parts = dotted.split(".")
-    for cut in range(len(parts), 0, -1):
-        try:
-            obj: object = importlib.import_module(".".join(parts[:cut]))
-        except ImportError:
-            continue
-        for attr in parts[cut:]:
-            ok, obj = _step(obj, attr)
-            assert ok, f"{page.name}: `{dotted}` — no {attr!r}"
-            if obj is None:
-                return
-        return
-    raise AssertionError(f"{page.name}: `{dotted}` — nothing importable in it")
+    resolve_dotted(dotted, page.name)
 
 
 def test_every_dotted_name_resolves():

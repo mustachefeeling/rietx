@@ -12,8 +12,9 @@ vision model cannot do that reliably: frontier VLMs fail precise value
 extraction from dense plots (the CharXiv, ChartMuseum and ExChart benchmarks),
 and one PNG costs ~1000–1600 tokens — about the same as 50 regions of exact
 numbers. All three prior agentic Rietveld systems (AgentBuild, Rongzai,
-guillemot — [DESIGN.md](DESIGN.md) § "Outputs & fit assessment" holds the
-survey) fed plot images to a VLM and all three report the same failure:
+guillemot — the repository's `docs/DESIGN.md` § "Outputs & fit assessment"
+holds the survey) fed plot images to a VLM and all three report the same
+failure:
 *locally bad, globally fine* fits that the image hides.
 
 So:

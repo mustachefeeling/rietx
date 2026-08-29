@@ -73,9 +73,16 @@ table "task → manual chapter / reference file", and a See-also linking
 `rx.help_for` and `capabilities()`); `references/diagnostics.md` (§7's 99 "must not do"
 rows, complementary to the runtime `suggestion`, not the same text),
 `references/diagnostics-indexing.md` (§7b-7f), `references/surprises.md` (§8),
-`references/history.md` (§9), `references/series.md` (§9b). §5 has no home in that list
-and does not fit the body's budget: it goes to `references/numbers.md`, its rule in the
-body's list and the detail under the pointer. There is no §9c — WP-1303 deleted it with
+`references/history.md` (§9), `references/series.md` (§9b). **Four more reference files
+than that list, all forced by the same cap** (measured 2026-08-29): the material this
+Shape puts in the body is ~39.5 kB written as tightly as it can be, so what does not fit
+is the part that is a *lookup* rather than a rule. §5 → `references/numbers.md`; §6's
+25-row signal table → `references/abstention.md` (its rules stay in the body); §4/§4b's
+long-form measured evidence → `references/judging.md` (each rule keeps its decisive
+number); the API index → `references/api.md`, reached by a four-line pointer that keeps
+the one rule (one integration surface, a failure raises). The body is 31.6 kB / 475
+lines, and the headroom is thin enough that 1305's fourth deliverable row should expect
+to pay for itself somewhere. There is no §9c — WP-1303 deleted it with
 `rietx.agent`, so the skill must not expect the envelope's request/response vocabulary;
 the one rule that survived (engine `Diagnostic` codes against the GUI server's session
 codes, two vocabularies sharing an UPPER_SNAKE shape) is in **§7's preamble** and the
@@ -124,11 +131,11 @@ episode change).
 
 ## Tasks
 
-- [ ] The split, mechanical: move sections into the files, no rewriting; caps test.
-- [ ] Rewrite `SKILL.md` to budget (the only authored change: condensation as a numbered
+- [x] The split, mechanical: move sections into the files, no rewriting; caps test.
+- [x] Rewrite `SKILL.md` to budget (the only authored change: condensation as a numbered
       rule list, the tested API index with every dotted name resolving and every `rx.X`
       in `__all__`, no signature quoted by hand, the `suggestion` line in §10, the links).
-- [ ] Spec-only frontmatter + its test (field set equals the spec's; `description` ≤
+- [x] Spec-only frontmatter + its test (field set equals the spec's; `description` ≤
       1024 chars; `SKILL.md` < 500 lines).
 - [ ] Wheel copy + `rietx skill --path | --print | --install` with the harness table as
       data + `capabilities().skill_path`; `--install` into a temp dir passes a spec
