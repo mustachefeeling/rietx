@@ -433,7 +433,9 @@ converted any of these coefficients to a size or a strain at all.
 Fundamental Parameters Approach as a differentiable convolution stack
 (Cheary-Coelho 1992); neutron CW; TOF (new Source/Profile implementations
 behind the frozen seams); spherical-harmonics texture (Von Dreele 1997);
-rigid bodies; MCP server wrapping `refine_json`; internal-standard/amorphous
+Z-matrices and rigid bodies (torsion-angle/orientation DOFs replacing
+per-atom coordinate DOFs, for molecular and framework structures); MCP
+server wrapping `refine_json`; internal-standard/amorphous
 QPA; `vmap`-batched in-situ series; notebook widgets. *(The human GUI was
 un-fenced from this list into v1.0 on 2026-07-29 — WP-1004…1017; grounds in
 [DESIGN.md](DESIGN.md#locked-decisions).)*
