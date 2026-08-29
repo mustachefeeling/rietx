@@ -1,6 +1,7 @@
 # WP-1308 — The skill documents its own doors
 
-Milestone: v1.3 · Status: ⬜
+Milestone: v1.3 · Status: ✅ 2026-08-30 — both gaps closed, and a derived gate
+so neither reopens. It found two more of the same shape on its first run.
 Depends on: 1304 (the skill), 1306 (the reader it omits), 1307 (which measured it)
 
 ## Goal
@@ -186,6 +187,86 @@ committed copies do not drift.
 - `docs/manual/using/recipe.md` — the manual chapter the skill should point at.
 
 ## Handover log
+
+- **2026-08-30** — closed. An agent handed another program's input file can now
+  find the reader for it: the skill's routing table has a row for that
+  situation, and it lands in the api index's § In, which names `read_recipe` in
+  its opening sentence. An agent whose job is a trajectory of phase fractions is
+  now told, in its own row, that the background check decides whether those
+  fractions mean anything — the thing three of four agents last round only found
+  by wandering into someone else's deliverable. Behind both is a test that
+  fails when a public entry point ships without a door, so the two fixes are the
+  last of their kind rather than the latest.
+
+  The gate was worth more than the two names it was built for. Run against the
+  package before anything was fixed, it named **four**: `read_recipe` and
+  `write_recipe_tables` as expected, plus `diagnose` and `estimate_mu_r` — both
+  the identical failure, a concept documented and its door unnamed. SKILL.md's
+  degeneracy table has said for a long time that capillary µR "is computed from
+  the specimen and never refined" without ever naming the call that computes it,
+  and `refine.py`'s own diagnostic message says "rietx.estimate_mu_r() shows …"
+  to an agent whose skill has never heard of it. Neither was suspected. That is
+  the argument for a derived denominator over a careful reading.
+
+  **Done.** All six tasks. (1) The api index gains four rows, edited in
+  `make_api_index.py`'s `SECTIONS` because the file is generated; both § In and
+  § Out gained a sentence of prose signage as well as rows, so the routing
+  reads in passing. (2) The gate, `tests/test_skill.py`, two tests. (3) A
+  dedicated routing row for the foreign-input-file case. (4) The
+  background-flexibility check in §4b's Trajectory row and, at length, in
+  `references/series.md`. (5) Copies re-synced. (6) The exclusion table is data,
+  so it has a meta-test.
+
+  **The gate's three design decisions**, all in the file's own comment block.
+  *The denominator is the free verbs* — the module-level functions in
+  `rietx.__all__`, 26 of them — not the whole call surface, which
+  `tests/api_surface.py` already partitions against the manual, whose job is
+  coverage. The skill is a protocol, and the only names it owes a reader are the
+  ones nothing leads to: a type is returned by a verb, or constructed from a
+  class the index renders with its signature, so an agent holding an
+  `Instrument` reaches its constructors through `help()`. Nothing an agent holds
+  leads to `read_recipe`. *Documented means named in `references/api.md`*, not
+  anywhere in the tree — `read_recipe` sat in `diagnostics.md` all along, and a
+  tree-wide test would have called that coverage and stayed green straight
+  through the failure this WP exists to fix. *Alternative constructors are out*,
+  and that is recorded in the file as a gap rather than a decision: 30 of the 35
+  are reached another way, so a partition over them would be 30 shrugs.
+
+  **Measured.** SKILL.md 31 876 → 31 968 B, 465 lines both sides: **no cap
+  raised**, the routing row and the Trajectory clause bought with three
+  tightenings that delete no fact (§ The API was restating the routing table's
+  own enumeration of what api.md holds; that row dropped ", the exports", which
+  the § Out row already routes; "will not infer your purpose for you" → "will
+  not infer yours"). 32 B of headroom left. api.md 27 729 → 28 889 B (cap
+  36 000), series.md 4 703 → 5 887 B. The acceptance experiment: a public verb
+  added to `__all__` and not to the skill sends the gate red naming it;
+  reverted. `tests/test_skill.py` 22 → 24 passed, both new tests passes, no new
+  skip. Fast suite on the final tree 3556 passed, 122 skipped in 2:06, `[dev]`
+  venv (no jax/torch), darwin/arm64, Python 3.12.12, nothing else mid-suite.
+  Rung 3 not run and not owed: docs and tests only.
+
+  **Gotchas for whoever is next.** CLAUDE.md's skill bullet still states half
+  the rule — "a WP adding a diagnostic code or a correction adds its row there"
+  — which is exactly the half WP-1306 followed. Adding the entry-point clause
+  was written, measured at +1 line against a file sitting at **exactly** its
+  906-line cap, and reverted: fitting it in four lines needed ~32 characters of
+  real deletion, and this WP's brief says the gate should be what makes the rule
+  self-enforcing rather than a longer sentence there. The gate's failure message
+  names `SECTIONS` and the re-sync command, which is where a stranger needs to
+  be sent. `series.md` also had "Three things an operator must know" standing
+  above five bullets; the count is dropped rather than corrected, per v1.2's
+  rule that a count in prose rots like a retuned threshold. And one sentence was
+  drafted and cut — that a chain should hold its background's flexibility fixed
+  across patterns. It sounds right, no measurement showed it, and the term count
+  does not vary down a warm-started chain anyway.
+
+  **Next:** v1.3 ships. The milestone's acceptance block, ROADMAP's v1.3 row and
+  the version are the remaining work, and nothing in this WP blocks them. Two
+  items stay recorded and unowned, neither a blocker: round 1.2 owes a sealed
+  workspace before any `bare` cell can be read as an access claim (WP-1307), and
+  `Instrument.flat_plate_transmission` is a real door outside this gate's
+  denominator — the one alternative constructor that gave me pause, since an
+  agent must know the geometry exists before it can ask for it.
 
 - **2026-08-29** — created, from WP-1307's round-1.1 findings, after the round's
   own conclusions were re-read against the skill's text in both directions. The
