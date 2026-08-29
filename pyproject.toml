@@ -137,12 +137,13 @@ packages = ["src/rietx"]
 exclude = ["**/CLAUDE.md"]
 
 [tool.hatch.build.targets.wheel.force-include]
-# The agent protocol ships inside the wheel (WP-1003): the tool description
-# points at the hosted copy AND this one, because an agent's sandbox may have
-# no network.  docs/AGENT_PROTOCOL.md stays the one authority; this is a
-# build-time copy, absent from an editable install (where the repo file is
-# present instead).
-"docs/AGENT_PROTOCOL.md" = "rietx/data/AGENT_PROTOCOL.md"
+# The agent skill ships inside the wheel (WP-1003, retargeted by WP-1304): an
+# agent's sandbox may have no network, so `rietx skill --path` must resolve
+# without one.  docs/skill/rietx/ stays the one authority; this is a build-time
+# copy, absent from an editable install, where `skill_path()` falls back to the
+# repository tree.  The two committed copies (.agents/skills/, .claude/skills/)
+# are for sessions working *in* this repository and are not shipped.
+"docs/skill/rietx" = "rietx/data/skill/rietx"
 
 [tool.hatch.build.targets.sdist]
 # tests/ stays out: the QARR round-robin patterns are not redistributable

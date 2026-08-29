@@ -30,12 +30,18 @@ def main(argv: list[str] | None = None) -> int:
               "                                    phase (rietx index --help)\n"
               "  compare [--data DIR] [--port N] [--open]\n"
               "                                    browser UI comparing refinement\n"
-              "                                    settings on the bundled standards")
+              "                                    settings on the bundled standards\n"
+              "  skill [--path | --print [SECTION] | --install [DIR]]\n"
+              "                                    the agent skill: where it is, its\n"
+              "                                    text, or install it into a repo\n"
+              "                                    (rietx skill --help)")
         return 0
 
     command, rest = argv[0], argv[1:]
     if command == "index":
         return _index(rest)
+    if command == "skill":
+        return _skill(rest)
     if command == "gui":
         from .gui.server import main as gui_main
 
@@ -64,6 +70,91 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"rietx: unknown command {command!r} (try --help)", file=sys.stderr)
     return 2
+
+
+def _skill(argv: list[str]) -> int:
+    """``rietx skill`` — the agent-facing protocol, and how it reaches a repo.
+
+    Terminal-shaped for the same reason ``index`` is: the three questions here
+    are asked *about the installation* rather than about a refinement.  Where is
+    the skill (so a harness can be pointed at it)?  What does it say (for a
+    harness that reads no skills, and takes plain text)?  And put it in this
+    repository (so every harness working here finds it).
+
+    ``--install`` prints the `AGENTS.md` / `CLAUDE.md` snippet and never writes
+    it: see :mod:`rietx.skill` on why those files stay their owner's.
+    """
+    import argparse
+
+    from . import skill as skill_module
+
+    p = argparse.ArgumentParser(
+        prog="rietx skill",
+        description="The rietx agent skill (agentskills.io format): print its "
+                    "path, print its text, or install it into a repository.")
+    mode = p.add_mutually_exclusive_group()
+    mode.add_argument("--path", action="store_true",
+                      help="print the skill directory this build carries")
+    mode.add_argument("--print", nargs="?", const="SKILL", metavar="SECTION",
+                      dest="print_section",
+                      help="print the skill as text: the body by default, a "
+                           "reference file by name, or 'all' for the tree")
+    mode.add_argument("--install", nargs="?", const=".", metavar="DIR",
+                      help="install into DIR (default the current directory): "
+                           "one copy in .agents/skills/, a link from each "
+                           "requested harness's own directory")
+    mode.add_argument("--list-agents", action="store_true",
+                      help="print the harness table with its sources and dates")
+    p.add_argument("--user", action="store_true",
+                   help="install for the user (~) rather than into a project")
+    p.add_argument("--agent", action="append", default=None, metavar="NAME",
+                   help="harness to link for; repeatable (default: "
+                        + ", ".join(skill_module.DEFAULT_AGENTS) + ")")
+    p.add_argument("--copy", action="store_true",
+                   help="copy rather than symlink (always so on Windows)")
+    args = p.parse_args(argv)
+
+    if args.list_agents:
+        width = max(len(h.name) for h in skill_module.HARNESSES)
+        for h in skill_module.HARNESSES:
+            print(f"{h.name:<{width}}  {h.project_dir:<18}  {h.user_dir:<24}  "
+                  f"{h.label} ({h.verified}) {h.source}")
+        return 0
+
+    if args.print_section is not None:
+        try:
+            print(skill_module.read(args.print_section))
+        except KeyError as exc:
+            print(f"rietx skill: {exc.args[0]}", file=sys.stderr)
+            return 2
+        return 0
+
+    if args.install is not None:
+        agents = tuple(args.agent) if args.agent else skill_module.DEFAULT_AGENTS
+        try:
+            written = skill_module.install(args.install, user=args.user,
+                                           agents=agents, copy=args.copy)
+        except KeyError as exc:
+            print(f"rietx skill: {exc.args[0]}", file=sys.stderr)
+            return 2
+        print(f"skill installed at {written['canonical']}")
+        for name in agents:
+            target = written[name]
+            note = " (already there)" if target == written["canonical"] else ""
+            print(f"  {name}: {target}{note}")
+        print("\nAdd these two lines to the project's AGENTS.md or CLAUDE.md "
+              "(not written for you):\n")
+        print(skill_module.instructions_snippet())
+        return 0
+
+    # --path, and the bare default: the question a harness asks first
+    path = skill_module.skill_path()
+    if path is None:
+        print("rietx skill: this build carries no skill directory",
+              file=sys.stderr)
+        return 1
+    print(path)
+    return 0
 
 
 def _index(argv: list[str]) -> int:

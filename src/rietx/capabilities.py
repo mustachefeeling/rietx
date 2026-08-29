@@ -262,6 +262,12 @@ class Capabilities(Base):
     #: keeping a second copy of the vocabulary
     reader_options: list[ReaderOptionCapability] = Field(default_factory=list)
     features: dict[str, bool] = Field(default_factory=dict)
+    #: Absolute path of the agent skill this build carries (WP-1304), or
+    #: ``None`` where neither the wheel's copy nor a repository tree is present.
+    #: A *path* rather than the text: the skill is ~156 kB across nine files and
+    #: a harness wants to point at the directory, not to be handed it — and this
+    #: call is the one place a client already asks "what does this build have?".
+    skill_path: str | None = None
 
 
 def capabilities() -> Capabilities:
@@ -271,8 +277,12 @@ def capabilities() -> Capabilities:
     # package is initialised and the constant is reachable — still quoted from
     # where it is defined, never copied.
     from .gui.textdoc import FORMAT_VERSION as TEXTDOC_FORMAT_VERSION
+    from .skill import skill_path
+
+    _skill = skill_path()
 
     return Capabilities(
+        skill_path=str(_skill) if _skill is not None else None,
         package_version=_VERSION,
         schema_version=SCHEMA_VERSION,
         report_thresholds_version=THRESHOLDS_VERSION,

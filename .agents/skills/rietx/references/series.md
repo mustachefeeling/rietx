@@ -1,0 +1,61 @@
+# 9b. Series: refine a ramp as a chain, and check it both ways
+
+Load it for an in-situ ramp, a parametric sweep or a tray of related specimens.
+
+*A reference file of the `rietx` skill. The body it belongs to is [`SKILL.md`](../SKILL.md); section numbers are the ones the body cites.*
+
+An in-situ ramp, a parametric sweep or a tray of related specimens is
+`rx.SequentialRefinement` / `rx.refine_sequential`: N separate refinements,
+each warm-started from its predecessor.  (One *joint* residual over patterns
+that share structural parameters is the different verb `rx.refine_multi`.)
+What comes back is a `SeriesResult` — per-pattern summaries plus
+`trajectory(path)`, `qpa_trajectory(phase)`, `to_table()`, `write_csv()`.
+
+```python
+series = rx.refine_sequential(patterns, structure, instrument,
+                              x=temperatures, x_label="T (K)",
+                              plan="lab_sample_refine")
+a_of_T = series.trajectory("phases.0.cell.a")     # x, value, stderr
+```
+
+`x` is the series coordinate, and where it comes from is the file: a reader
+puts a scan's own temperature in `data.metadata["temperature_k"]`, and
+`rx.io.readers.list_scans(path)` reports the same number per scan before any of
+them is read.  Today the Bruker `.raw` v3 range header is the one format here
+with such a field; the others record no specimen temperature and none is
+guessed from an axis named for something else.  A missing key is a file that
+recorded nothing — **refuse rather than substitute an ambient value**, because
+an invented coordinate makes the trajectory a fiction while every fit in it
+stays perfectly good.
+
+Three things an operator must know, all measured:
+
+- **Chaining is worth ~3x in iterations, not in accuracy.**  On the eight
+  round-robin sample-1 mixtures: 2863 iterations unchained, 904 chained, at
+  identical Rwp and identical weight fractions.  Use it to make a long series
+  affordable, never to make an individual fit better.
+- **The default `refit="single"` collapses the plan into one stage** for every
+  pattern after the first.  The staged turn-on order exists to keep early
+  stages conditioned from a *poor* starting model; a converged neighbour is not
+  one.  A pattern where that turns out to be wrong is caught by the reseed
+  fence, which **escalates one rung at a time** — the full staged plan from the
+  warm state, then the full staged plan cold — and keeps the best attempt.
+  `entry.rung` says which one produced the values and `entry.rungs_tried` says
+  what else was tried; `entry.reseeded` still means only the cold rung won, so
+  a `"warm_staged"` point is one whose chain is unbroken.
+- **A pattern that no rung recovers is quarantined, not merely flagged**
+  (`SEQUENTIAL_UNRECOVERED`): it seeds no successor and its Rwp is left out of
+  the median that decides every later trigger.  So a single failure cannot
+  propagate down the chain or quietly raise the bar for the patterns after it —
+  but it is still *reported*, and reading its parameters is on you.
+- **A sequential trajectory is path-dependent by construction**, so a smooth
+  curve is exactly what a poisoned chain produces.  `direction="both"` runs the
+  series each way and reports `SEQUENTIAL_PATH_DEPENDENT` per parameter.  For
+  any trajectory you intend to publish, run it — it is the only check that
+  separates a measurement from an ordering artefact.
+
+`carry` (dot-path globs) restricts what crosses a pattern boundary.  Reach for
+it when a parameter must provably not be chained; do **not** reach for it
+because a parameter jumps.  That hypothesis was tested on a series whose
+composition swings 1 → 94 wt % and it is false: carrying everything is cheaper
+there than excluding the scales.

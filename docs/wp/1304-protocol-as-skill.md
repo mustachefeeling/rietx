@@ -137,11 +137,11 @@ episode change).
       in `__all__`, no signature quoted by hand, the `suggestion` line in §10, the links).
 - [x] Spec-only frontmatter + its test (field set equals the spec's; `description` ≤
       1024 chars; `SKILL.md` < 500 lines).
-- [ ] Wheel copy + `rietx skill --path | --print | --install` with the harness table as
+- [x] Wheel copy + `rietx skill --path | --print | --install` with the harness table as
       data + `capabilities().skill_path`; `--install` into a temp dir passes a spec
       validator (`skills-ref` as a dev dependency, or the check re-implemented in twenty
       lines if it stays "demonstration only").
-- [ ] The two committed copies + the byte-equality test.
+- [x] The two committed copies + the byte-equality test.
 - [ ] Sphinx pages + the pointer file.
 - [ ] The three consistency tests over the tree; the eval harness's fixture builder.
 - [ ] Docs, `CLAUDE.md` and `AGENTS.md` (`docs/AGENT_PROTOCOL.md` mentions → the skill;
@@ -150,10 +150,14 @@ episode change).
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_docs_consistency.py tests/test_gui_dist.py tests/test_manual.py tests/test_cli.py -n auto --dist loadgroup
+.venv/bin/python -m pytest tests/test_docs_consistency.py tests/test_gui_dist.py tests/test_manual.py tests/test_manual_api.py tests/test_skill.py tests/test_skill_cli.py -n auto --dist loadgroup
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html
 .venv/bin/python -m ruff check src tests examples
 ```
+
+(`tests/test_cli.py`, which this line named when the WP was written, does not exist and
+never did: the CLI's only coverage was `test_events_viz_history.py::test_cli_help_and_html`.
+The skill's own CLI is `tests/test_skill_cli.py`, named for what it covers.)
 
 `rietx skill --path` resolves from a fresh venv install; `rietx skill --install` into a
 temp dir lands in both directories and validates. A token count of `SKILL.md` measured
