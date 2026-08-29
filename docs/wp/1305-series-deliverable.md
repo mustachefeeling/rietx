@@ -41,6 +41,23 @@ absolute without an anchor). The operational definition, written once: *good eno
 reached when every quoted number names the one thing that would have to be wrong for it
 to be wrong, and that thing has been checked.*
 
+**The row is paid for, not appended.** `docs/skill/rietx/SKILL.md` is capped at
+32 000 B / 500 lines by `tests/test_skill.py` and measured 31 593 B / 470 lines on
+arrival — 407 B and 30 lines of headroom against a row worth ~700 B. WP-1304's rule
+decides where the difference comes from: **a lookup leaves the body, a rule and its
+decisive number stay**, so the long-form evidence goes to `references/judging.md` (which
+already holds §4/§4b's measurements under per-deliverable headings) and the cap is not
+raised — raising it is the decision the cap exists to make visible.
+
+**Which call prints the rows.** The body points a reader at `ref.summary(deliverable=…)`,
+so the name has to be one that call accepts, and the §4b row names the rows it prints.
+`Refinement._deliverable_lines()` already routes `deliverable="series"` to a branch
+printing `"series deliverable rows: pending WP-1305 a"`. But a caller of
+`refine_sequential` holds no `Refinement` at all, and no single pattern carries a
+`SEQUENTIAL_*` row, so `SeriesResult.summary()` — the series' own termination view —
+is where the deciding rows have to live; `Refinement.summary(deliverable="series")` says
+what one pattern of a series can answer and names the other call.
+
 ### (b) `delta_bic` on `CandidateGroup`
 
 `schemas/suggest.py:82-94` (79e5ae82): `gain − len(members)·ln(N)` with N the residual
@@ -50,7 +67,10 @@ the field doc and the manual). `_summary` (`strategy/suggest.py:183-202`) quotes
 WP-1302's termination view prints it as its condition (c). `SCHEMA_VERSION` bump. Test:
 on a fit where freeing a parameter is refused by ΔBIC in a full refit, the predicted sign
 agrees (the ramp's `sample_displacement` at 25 °C, ΔBIC +6.7 measured by the agent;
-synthetic).
+synthetic). WP-1302 left the consumer stubbed: `Refinement.summary()` prints
+`"next: run suggest"` unconditionally for stop condition (c), and
+`docs/manual/using/results.md` § Printing a result documents that placeholder by name —
+both take the real ΔBIC line here.
 
 ### (c) Discontinuity verification, measure first
 
@@ -64,35 +84,6 @@ CaF₂ wander (284→295 °C; after 1301 there should be no such diagnostic at a
 value is then the step's reproduction) and cost ≤ 10 % of the chain's wall clock. Ship
 default-off if the cost bar fails; do not ship if the separation fails; record either
 outcome here.
-
-### Inherited
-
-- **From WP-1304 (2026-08-29): the deliverable table now lives in a body with
-  ~400 bytes of headroom.** §4b's three rows are in `docs/skill/rietx/SKILL.md`,
-  capped at 32 000 B / 500 lines by `tests/test_skill.py` and currently at
-  31 593 B / 470 lines. A fourth row costs ~700 B, so this WP pays for it
-  somewhere. The rule 1304 landed on is **a lookup leaves the body, a rule and
-  its decisive number stay** — the long-form evidence behind a deliverable
-  belongs in `references/judging.md`, which already holds §4/§4b's measurements
-  under per-deliverable headings. Do not raise the cap to fit a row; that is the
-  decision the cap exists to make visible.
-- **`ref.summary(deliverable=…)` is what the body points a reader at**, so a new
-  deliverable name has to be one that call accepts, and the skill's §4b row
-  should name the rows it prints.
-
-**From [1302](1302-error-is-documentation.md), 2026-08-29 — the termination view
-already has two stubs waiting for this WP.** `Refinement.summary()`
-(`refine.py`) prints `"next: run suggest"` unconditionally for stop condition
-(c) — replace with the real `delta_bic` line once (b) lands, and update
-`docs/manual/using/results.md` § Printing a result, which documents the
-placeholder by name. `Refinement._deliverable_lines()` has a `"series"` branch
-that only prints `"series deliverable rows: pending WP-1305 a"` — wire in the
-`SEQUENTIAL_*` deciding rows this WP's (a) names once they exist; the method
-already routes `deliverable="series"` there, nothing else needs to change to
-reach it. `SeriesResult.summary()` (`schemas/sequential.py`) is the series'
-own termination view (trajectory table, `SEQUENTIAL_*` rows) and may be a
-better home for the series deliverable than `Refinement.summary()`'s branch —
-worth deciding when (a)'s rows are chosen, not before.
 
 ## Non-goals
 
