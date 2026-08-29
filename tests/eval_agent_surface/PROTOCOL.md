@@ -853,6 +853,218 @@ record stream (23, 26 against 43, 51), and reached without a hunt.
 Round 1.2 owes a sealed workspace. Until it has one, a `bare` cell means "the
 skill was not offered", never "the skill was not available".
 
+## Results — round 1.1, the reel episode, 2026-08-29
+
+E-ZRM's four cells, which completes round 1.1 at the registered **N = 2 per
+condition on both episodes, eight cells of eight**. Appended as a pure
+insertion: everything above is byte-identical to what it was before these runs,
+because a registered round is not rewritten once it has run.
+
+The reel is the episode the ramp could not stand in for. It is real
+four-phase data whose truth nobody knows, it is the only episode that ships a
+recipe file, and it is the only place `read_recipe` was reachable at all.
+
+### R1 — the price of an answer, the reel's four cells
+
+| cell | calls | cache M | ctx k | out k | wall m | fit s | $ |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `zrm-bare-sonnet` | 68 | 9.37 | 141 | 77 | 19.9 | 209.5 | 3.42 |
+| `zrm-skill-sonnet` | 54 | 5.99 | 114 | 73 | 14.6 | 32.5 | 2.57 |
+| `zrm-bare-opus5` | 72 | 8.11 | 115 | 70 | 29.6 | 1167.3 | 7.60 |
+| `zrm-skill-opus5` | 68 | 8.26 | 124 | 96 | 29.9 | 485.7 | 8.55 |
+
+The reel costs more than the ramp in every cell of the same model, and the
+spread within a model is narrower: $2.57-$3.42 under sonnet, $7.60-$8.55 under
+opus-5. Read the price as **the model's**, not the condition's — see R6.
+
+Fit seconds are again a plan choice and not an efficiency, exactly as
+§ What the R1 table does and does not support set out for the ramp.
+`zrm-bare-opus5` spent 1167.3 s refining, 65.8 % of its own process wall, on
+141 fit calls; `zrm-bare-sonnet` spent 209.5 s on 15. Neither number measures
+the surface. R1b records what each agent named:
+
+| cell | plans named at the outermost call |
+| --- | --- |
+| `zrm-bare-sonnet` | `profile_only`×2, unnamed plan object×13 |
+| `zrm-skill-sonnet` | unnamed plan object×22 |
+| `zrm-bare-opus5` | `lab_sample_refine`×19, `mccusker_default`×1, unnamed plan object×114 |
+| `zrm-skill-opus5` | `profile_only`×10, unnamed plan object×330 |
+
+**The ramp's R1b split does not survive the reel.** On the ramp, neither `bare`
+cell ever named `mccusker_default` and both `skill` cells did, which was worth
+reporting as plausibly downstream of the guidance under test. On the reel the
+only cell that names `mccusker_default` is a **`bare`** one, and both `skill`
+cells are dominated by plan objects the trace cannot name. Four more runs
+therefore **withdraw** the ramp's reading rather than replicating it: with
+N = 2 per condition per episode and the direction reversing between episodes,
+the honest statement is that this round cannot say whether the condition moves
+the plan. It stays a read-out, still not a condition, and round 1.2 inherits
+the question.
+
+### R11 — four of four stopped on a §4b deliverable row
+
+Every reel cell closed with an explicit "what I would not quote" section, and
+every one of them was built from rows WP-1305 put there. Against the
+2026-08-26 baseline, which was primed with the protocol and still stopped only
+because its script exited, and against the campaign's six refining runs, where
+the count was zero.
+
+| cell | the criterion it stated |
+| --- | --- |
+| `zrm-bare-sonnet` | held cells are inputs and not measurements; fractions within 1σ of zero are not trace amounts; no internal standard, so no 2θ-scale anchor; Biso held, so no ADP trend |
+| `zrm-skill-sonnet` | `PHASE_UNCONSTRAINED` on all three absent phases; `zero_shift`/`sample_displacement` exchangeable at R² = 1.0000 with a χ² ratio of 1.02 against the 1.10 that would let the data decide; esd inflation 2.1-2.5×; background-subtracted Rwp 20.7-21.1 % against a raw 7.9-8.2 % |
+| `zrm-bare-opus5` | ρ(cell.a, displacement) = −0.85, so only the *change* in a is a measurement; fractions below a few wt % unquotable; the two temperature axes disagree by 23 % in span; esd inflation 1.96-2.13 |
+| `zrm-skill-opus5` | the background order changes a phase fraction by tens of wt % at equal Rwp; the `.inp`'s starting cells are bound values, not measurements; α_a scales by 23 % with the choice of temperature axis, "a systematic that no esd covers" |
+
+Three of the four also **declined a suggestion the package ranked first**, with
+a reason. `zrm-skill-opus5` ran the top-ranked move (freeing an occupancy,
+predicted ΔBIC +166), measured ΔBIC −109, and refused it anyway because the
+occupancy refined to 1.50 ± 0.48 on its bound for an atom contributing about
+one electron in 1900: "an intensity knob, not a measurement". That is a
+`suggest` consumer arguing with `suggest` on physical grounds, which is the
+behaviour WP-1305's `delta_bic` was added to make possible.
+
+### The finding the round did not go looking for
+
+**Both `opus-5` cells, independently and without being asked, ran a background
+sensitivity study, and both concluded that the only report row that separates
+a good fit from a nonsense one is `background.worst_absorption`.**
+
+- `zrm-bare-opus5`: with a stiffer or an over-flexible background the fit hands
+  **40-96 wt %** to trigonal-ZrMo₂O₈ at 318 K while Rwp barely moves
+  (0.0846 → 0.0899). "Fractions are stable only on the Chebyshev-10-to-20
+  plateau, and `worst_absorption` (0.16-0.23 inside, 0.29-0.99 outside) is the
+  only row that separates the good fits from the nonsense. **Rwp does not, and
+  the difference plot does not.**"
+- `zrm-skill-opus5`: an 8-, 6- or 4-term Chebyshev "lands in a different basin
+  with 42-45 wt % of a phase that is not present, at Rwp within 0.01 of the
+  correct answer and a difference curve that looks fine". One 12-term cold fit
+  reached the same basin, LT-ZrMo₂O₈ at 77.9 wt %, Rwp 0.0821 against 0.0822
+  for the right answer. "The only report row that separated them was
+  `background.worst_absorption`: 1.000 on that phase's scale against 0.34 for
+  the good fit. If the full 82-scan series is run unattended, that check has to
+  be in the loop; **Rwp points the wrong way.**"
+
+`worst_absorption` is named 8, 11, 25 and 27 times across the four cells, so
+all four used it and the two that quantified it agree. This is CLAUDE.md's
+"background flexibility is a correctness question, not a cosmetic one"
+rediscovered from the data by agents that were told none of it, on a real
+specimen, with the failure mode it predicts and the Rwp blindness it predicts.
+It is evidence for the row rather than for this round's five WPs, and it is
+recorded here because § What is not being scored requires the destination to be
+recorded against every run.
+
+It also carries an ask that belongs to a WP and not to this round: **the row is
+not in §4b**. Three of these four agents reached it anyway; the fourth quoted
+it without acting on it. A deliverable list that stops a series run before it
+publishes 45 wt % of an absent phase should say so itself.
+
+### R2 — surfaces reached, and the one that nothing reached
+
+| surface | ramp, 4 cells | reel, 4 cells |
+| --- | --- | --- |
+| `capabilities` | 4 | 4 |
+| `help_for` | **0** | **4** |
+| `Refinement.set_vary` | 2 | 3 |
+| `Refinement.branch` | 0 | 1 |
+| `SeriesResult.summary` | 4 | 4 |
+| `Refinement.report` | 4 | 4 |
+| `Refinement.summary` | 1 | 2 |
+| `Refinement.suggest` | 1 | 2 |
+| `deliverable="series"` | 4 | 4 |
+| `verify_discontinuities=True` | 4 | 3 |
+| `direction="both"` | 4 | 4 |
+| **`read_recipe`** | not reachable | **0 of 4** |
+
+**WP-1202's verdict from the ramp is reversed.** `help_for` was called by no
+ramp cell and by every reel cell, 10 to 14 times each. The difference between
+the episodes is that the reel hands the agent a **foreign model file** with
+parameter names it does not know, and that is exactly the question `help_for`
+answers. A surface can look unreached because no episode posed its question.
+
+**`read_recipe` was reached by nothing, and named by nothing.** Zero calls and
+zero mentions of the string in all four transcripts, in the one episode that
+ships a `.inp`. All four agents parsed the file by hand instead, and two of
+them did it well enough to catch that its saved state is the *output* of the
+other program's 68-pattern run rather than a starting model, with cells sitting
+on their bounds. WP-1306 built a reader for this exact file and no agent found
+it. That is a **discovery** failure of the kind R2 exists to separate from a
+judgement one, and it is the round's clearest single action item.
+
+### R3, R4, R7, R8, R10
+
+| cell | errored results | source hunts | Bash/fit (R7) | floor (R8) | backgrounded |
+| --- | --- | --- | --- | --- | --- |
+| `zrm-bare-sonnet` | 1 | 19 | 4.40 | 32.7 s of 252.8 s (12.9 %) | 0 |
+| `zrm-skill-sonnet` | 3 | **0** | 1.83 | 37.4 s of 84.1 s (44.5 %) | 0 |
+| `zrm-bare-opus5` | 10 | 17 | 0.46 | 35.0 s of 1205.9 s (2.9 %) | **8** |
+| `zrm-skill-opus5` | 6 | 11 | 0.21 | 37.0 s of 565.7 s (6.5 %) | 0 |
+
+Two discovery errors are worth naming because the protocol predicted one of
+them. `zrm-skill-opus5` hit `AttributeError: type object 'SequentialRefinement'
+has no attribute 'run'` — the rename § The target list, 1.1 corrected before
+the round began, met here by a live agent rather than by a stale target list.
+Both `opus-5` cells hit `ImportError: cannot import name 'plans' from
+'rietx.strategy'` while hunting for the preset list, which `capabilities()`
+already returns and all four cells had already called.
+
+R10 has its first real observation: `zrm-bare-opus5` backgrounded **8** Bash
+calls, the only cell in the round to background anything, and it is also the
+cell that spent 1167.3 s refining. It did not end waiting — it stopped on a §4b
+row like the others. The pilot's `ramp-bare-sonnet`, which backgrounded a chain
+and returned before it finished, remains the round's only run that ended
+waiting.
+
+### What the reel says about its own instrument
+
+**All four reel cells reached the skill, and this time neither `bare` cell
+reached the wheel.**
+
+| cell | first skill reference | route |
+| --- | --- | --- |
+| `zrm-skill-sonnet` | record 12 | `.claude/skills/rietx/` in the workspace |
+| `zrm-skill-opus5` | record 13 | `.claude/skills/rietx/` in the workspace |
+| `zrm-bare-opus5` | record 37 | `cd` into the **maintainer's checkout**, its README, then `docs/skill/` |
+| `zrm-bare-sonnet` | record 53 | the **maintainer's checkout**, `docs/skill/rietx/` |
+
+The route-and-latency finding replicates and sharpens: the workspace copy is
+reached at records 12 and 13, the checkout at 37 and 53. Eight cells now agree
+that installing the skill in the workspace is reached about three times earlier
+in the record stream and without a hunt.
+
+But the *kind* of leak got worse. On the ramp, one `bare` cell found the
+**wheel's** copy, which is a property of the shipped package and therefore
+evidence for WP-1304. On the reel, **both** `bare` cells found the maintainer's
+**checkout**, which is a property of this machine and evidence for nothing. So
+across the whole round the wheel route was taken **once in four `bare` cells**,
+and the conclusion registered after the ramp stands unweakened: the contrast
+between `skill` and `bare` **is not measurable on this machine**, and a `bare`
+cell means "the skill was not offered", never "the skill was not available".
+
+Round 1.2 owes a sealed workspace before any `bare` row is read as an access
+claim. Note what has to be sealed: not only the wheel, but any checkout on the
+machine, since a `cd` to an absolute path is one Bash call away.
+
+### One cell was killed and re-run, and it is declared here
+
+The first `zrm-bare-opus5` launch was killed from outside the session 16.2 min
+in, as it began its sequential run. It produced no answer and no run record.
+**No read-out above comes from it**: the cell was re-run from a clean workspace,
+same prompt, same model, same shim, and its trace is preserved beside the
+round's data under `killed-attempt-zrm-bare-opus5/` rather than deleted.
+
+Measured before it was discarded: 56 API calls, 5.08 M cache-read, 46 k output,
+16.2 min wall, 59 tool calls of which 4 errored, 30 traced fits, 46.9 fit
+seconds. Cost was never recorded, because cost arrives in the result row and
+the run died before one was written.
+
+Declared rather than folded in, on the rule the amendments above already carry:
+a round that silently re-rolls a cell has stopped being pre-registered. A
+re-roll is legitimate **only** when the discarded attempt produced no read-out,
+which is why the numbers it did produce are written down here.
+
+---
+
 ---
 
 # Runner protocol — the agent-surface round (WP-1110)
