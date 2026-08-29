@@ -68,9 +68,9 @@ outcome here.
 ### Inherited
 
 - **From WP-1304 (2026-08-29): the deliverable table now lives in a body with
-  375 bytes of headroom.** §4b's three rows are in `docs/skill/rietx/SKILL.md`,
+  ~400 bytes of headroom.** §4b's three rows are in `docs/skill/rietx/SKILL.md`,
   capped at 32 000 B / 500 lines by `tests/test_skill.py` and currently at
-  31 623 B / 475 lines. A fourth row costs ~700 B, so this WP pays for it
+  31 593 B / 470 lines. A fourth row costs ~700 B, so this WP pays for it
   somewhere. The rule 1304 landed on is **a lookup leaves the body, a rule and
   its decisive number stay** — the long-form evidence behind a deliverable
   belongs in `references/judging.md`, which already holds §4/§4b's measurements

@@ -179,6 +179,57 @@ asserted.
 
 ## Handover log
 
+### 2026-08-29 — review round: the plan re-read against the tree, six findings, all landed
+
+The user asked for the implementation to be checked against the plan and the design
+intent, this being a load-bearing WP. Held file by file against this WP's Shape and the
+parked plan's WP-1304 section, and against what a fresh wheel install actually does,
+rather than against the session's memory of it. Everything the first entry claims
+holds, and the acceptance item it had *not* run — `rietx skill --path` from a fresh
+venv install of a built wheel — was run: it resolves into `site-packages`,
+`capabilities().skill_path` agrees, `--install` lands and links, `--print` prints.
+
+Six gaps, in the order they mattered, each fixed on this branch:
+
+1. **The API index was not the document the plan specified.** The plan asked for
+   entry points *with signatures* and model objects *with their constructors*, no
+   signature quoted by hand — rendered from `inspect.signature` or asserted equal to it.
+   The first cut satisfied "none by hand" by quoting none: 4.1 kB of names. The
+   campaign's errors were signature errors, which a name list cannot prevent. Now
+   `docs/skill/make_api_index.py` holds the selection as data and renders every
+   signature, pydantic field, dataclass field and default from the installed package,
+   with its own annotation spelling so the file is identical on 3.11-3.14 where
+   `inspect`'s is not; 92 entries, 27.7 kB against the 36 kB cap; pinned byte for byte
+   by `test_skill.py`, which says how to regenerate.
+2. **`api.md` claimed a guard that did not exist** — "every name here is checked by
+   test" — while the test's regex reached `rx.X…` only, not the ~60 `.field` items.
+   All were correct (checked by hand); the claim was the WP-1076 shape. The generated
+   file makes it true by construction, and a second test walks the body's own
+   `report.x` / `result.x` / `statistics.x` names through the types.
+3. **The installed skill named documents no install has** — twelve `using/*.md`
+   chapters and three repository files — under a `compatibility:` line saying every
+   document it refers to ships in the wheel. The index table now maps each situation
+   to its reference file *and* its manual page as `https://rietx.org/using/x.html`,
+   See also names the repository as the repository, and one link still on the old
+   host moved to `DOCS_URL`.
+4. **`description` was three sentences, 638 chars**, against the plan's one sentence
+   budgeted for Codex's 8 000-char catalogue. Now one sentence, 354.
+5. **The milestone record had no 1304 entry** where 1301-1303 each have one.
+6. **Minor**: a Claude Code tool name (`Read`) in a harness-neutral body; install
+   symlinks absolute where `npx skills add` uses relative, so a moved project broke
+   them; the wheel's 1.0-1.2 path `rietx/data/AGENT_PROTOCOL.md` simply gone where
+   the transition clause wanted the pointer there for one release; rules 8 and 14
+   with their explanation inside the numbered item rather than under it.
+
+Body after the round: **31 593 B / 470 lines**. Fast selection **3411 → 3413 passed,
+122 skipped at both ends** (`[dev]`, darwin/arm64, this worktree's venv, nothing else
+running): exactly +2 for the two new tests. Acceptance selection 85 → 87; `sphinx -W`
+clean with the rendered page checked; `ruff` clean.
+The full suite is **not** re-run: the post-review commits touch the skill text, a
+generator script, a symlink target and a force-include, none of which reaches a
+measured number, and the rule is once on the final tree only when it could. The
+3558 / 131 below stands for the numeric tree, which is unchanged.
+
 ### 2026-08-29 — shipped: the document is a directory, and the cap decided its shape
 
 The operating protocol is an Agent Skill. `docs/skill/rietx/` holds a `SKILL.md`
@@ -263,6 +314,9 @@ guard is why nothing in this tree reads under a platform default.
 - Fast selection **3378 → 3411 passed, 122 skipped at both ends**. Exactly +33,
   and 33 is what `--collect-only` counts in the two new files (20 in
   `test_skill.py`, 13 in `test_skill_cli.py`): no new skip, nothing else moved.
+- Full suite, once, on this entry's final tree (`0c66671d`): **3558 passed /
+  131 skipped in 24:03** — exactly +33 on WP-1303's 3525 / 131, machine
+  otherwise idle.
 - Sizes: `SKILL.md` 31 623 B / 475 lines against caps of 32 000 / 500; the
   largest reference is `diagnostics-indexing.md` at 30 824 B against 36 000.
   Whole tree 155 858 B across ten files, against the single document's 144 427 B
@@ -285,7 +339,7 @@ the session that wrote it, and no test could have shown it.
 **Next.**
 
 **1305** adds the fourth deliverable, which means a row in §4b's table inside a
-body with 375 bytes of headroom. **1306** and **1307** both build on the skill
+body with ~400 bytes of headroom (407 after the review round). **1306** and **1307** both build on the skill
 being installable: 1307's round 1.2 wanted a behavioural test on a second
 harness, which `rietx skill --install` now makes a one-line episode change.
 
