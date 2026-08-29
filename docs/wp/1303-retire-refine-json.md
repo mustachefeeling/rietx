@@ -204,7 +204,12 @@ owned, which is the same argument the delete rests on.
   `Base` subclass — `agent.py` defined twelve of them. Per-file
   `--collect-only` diffs against the snapshot are what found that; the
   arithmetic alone would have been quietly wrong.
-- Fast suite 2:10-2:13 on both trees. Full suite: see the note appended below.
+- Fast suite 2:10-2:13 on both trees. **Full suite green on the final tree:
+  3525 passed, 131 skipped** (~23 min in this run; two short docs-test
+  selections overlapped its first minute). WP-1302's post-review figure was
+  3578/131, so the full selection moved by the same **−53** the fast one did
+  and no skip moved — which is the check that says every removed test was in
+  the fast selection, none of them slow.
 
 **Gotchas for whoever follows.**
 
