@@ -1,6 +1,6 @@
 # WP-1306 — PowderLine recipe: the interchange format rietx did not have to invent
 
-Milestone: v1.3 · Status: ⬜
+Milestone: v1.3 · Status: ✅ 2026-08-29
 Depends on: 1303 (soft: it is the replacement for the JSON surface, not a dependency)
 
 ## Goal
@@ -142,5 +142,97 @@ standard row if a correction is added (none planned).
   544-549); the FAP.EXP cross-code precedent (`tests/data/README.md`).
 
 ## Handover log
+
+- **2026-08-29** — **shipped.** This package can now be handed a PowderLine
+  recipe and hand back its four tables, which was the deliverable. What the WP
+  turned out to be *about* is smaller and more useful: what happens to an
+  acceptance bar when a fixture carries two reference engines and they disagree
+  with each other. Its own acceptance asked for both phases' cells within
+  ±300 ppm of GSAS-II **and** TOPAS; those two differ by 2665 ppm on the cubic
+  cell, so no answer could have passed, and the bar became the envelope they
+  bracket. That is the rule the round is worth carrying, and it is now one
+  clause of the root CLAUDE.md's cross-code bullet: **two references are an
+  envelope, not a second tolerance.**
+
+  **Where this package falls in their argument.** 11-93 ppm from TOPAS on all
+  five free cell parameters of DRX_33, at Rwp 7.333 % against TOPAS's 7.326 %,
+  while sitting the same 1004-2575 ppm from GSAS-II that TOPAS does. Asserted
+  as its own test rather than folded into the gate, because the gate cannot
+  state it. The disagreement is not a puzzle either: upstream's own
+  `DESCRIPTION.md` records two SVD singularities and a 100 %
+  `Mustrain;mx`/`;i` correlation on that recipe, its GSAS-II output returns a
+  **negative** crystallite size for the monoclinic phase, and TOPAS returns
+  5×10⁸ µm — no size broadening at all. Across engines the cells are the
+  comparable quantity and the broadening coefficients are not.
+
+  **Every convention was measured before the reader was written**, against the
+  reference output rather than the format's prose, and only then corroborated
+  against upstream's second engine. Their LaB6 peak list's `sigma_squared`
+  reproduces `U tan²θ + V tanθ + W` to six decimals on all 49 reflections; the
+  drawn FWHM of their own `y_calc` fixes the centidegree unit to 0.1-0.9 %
+  (the residue is the SH/L asymmetry, absent from the check); and the excess in
+  their `gamma` over the instrument terms is *exactly* `1.8λ/(πD cosθ) +
+  0.018µ tanθ/π` at D = 1 µm, µ = 1000 — two free constants landing on round
+  numbers across eight reflections, which is GSAS-II's undocumented fill for a
+  null magnitude. Three conventions the format states nowhere came out of that
+  discipline: that fill, a **0.001 centideg floor** on gamma that clamps 26 of
+  49 LaB6 reflections (the other half of its negative refined Y), and its
+  keeping the first channel past the stated upper limit — 3768 fitted channels
+  against this package's inclusive 3767.
+
+  **`Zero` is refused rather than chosen**, and that is the row to remember.
+  Upstream states its unit twice and disagrees with itself:
+  `easydiff/conversions.py` converts it as centidegrees,
+  `config_loader.py` annotates it "degrees 2theta". A 100× difference is a
+  wrong cell rather than a slightly wrong one, and no committed recipe carries
+  a non-zero one to settle it — so it raises, naming both readings. Two other
+  refusals matter for the same reason. A non-zero `Z` has nowhere to go (this
+  Lorentzian has no constant term), and a **negative** `W`/`X`/`Y` would arrive
+  as ≈0 rather than as itself because `to_internal` clamps a non-positive
+  softplus value — and both LaB6 references converge to a negative Y, so a
+  recipe seeded from a previous fit will carry one. Everything else splits by
+  magnitude, which is the CIF-cell-angle rule one format over: a value at the
+  model's identity is *dropped and said*, a live one contradicts and raises.
+
+  **Two things landed against the WP's letter, both forced by measurement.**
+  The plan is staged, not the recipe's single pass: translating "N cycles of
+  everything flagged" faithfully walked the monoclinic cell to a = 4231 Å from
+  a cold start. Staging here is cumulative, so the last stage *is* that single
+  pass — the free set at the end is the recipe's and only the route is this
+  engine's, which is the engine's business under upstream's own rule 3. And a
+  broadening half that `LG_eta` puts at exactly zero is **held rather than
+  declared free**: softplus's slope is its own value there, so freeing it is
+  WP-1076's dead column wearing a refine flag. Both are reported, at `warning`,
+  naming what they cost.
+
+  **Numbers**, `[dev]` (no jax/torch), darwin/arm64, python 3.12.12, numba
+  0.67.0, alone on the machine. Fast selection **3532 passed / 122 skipped** in
+  1:52-1:54; **+100 passes and no new skips** against the branch point, being
+  50 in `test_recipe.py` and 50 from the ten new `validation_matrix` Claim rows
+  (five parametrized tests each). Full suite: **3692 passed / 131 skipped** in 21:27, green, run once on the final tree. Both fits are fast —
+  LaB6 0.7 s, DRX_33 0.4 s — so the slow suite is slow only by marker.
+
+  **Two things a successor should know.** The LaB6 fit ends `max_iter`, and
+  that is the recipe rather than the reader: it declares a background peak
+  23.5° wide on a 14° range *beside* six Chebyshev terms, so the peak
+  correlates with the low-order background at |ρ| = 1 and its stage spends its
+  budget. `read_recipe` warns before the fit does
+  (`RECIPE_BACKGROUND_PEAK_DEGENERATE`), both reference engines resolved it
+  differently and neither resolved it well, and the acceptance asserts the
+  degeneracy rather than a convergence. Second: **the LaB6 Rwp gap to GSAS-II
+  is fully accounted for and none of it was fitted around** — no `Z`, no
+  negative `Y`, and GSAS-II's 1 µm / 1000 microstrain fill declined. Adopting
+  that fill would close most of the gap and would be putting another engine's
+  project default into a model no document asked for; the diagnostic says so
+  instead.
+
+  **Not done, and deliberately.** The upstream PR offering
+  `src/powderline/rietx/` is the WP's own non-goal and is still a follow-up
+  worth filing now that this is green — their contract is a subpackage with one
+  `run_rietx_recipe(recipe, output_dir, ...)` returning the locked result dict,
+  which is a ~50-line call over what landed here. Anisotropic ADPs through a
+  recipe are refused by name rather than read (their `anisoADP` variant
+  exercises it), and `cell_volume`'s esd is written empty because nothing here
+  propagates dV through the cell covariance. Next: WP-1307, last of the block.
 
 - **2026-08-28** — created, from the parked v1.3 plan.
