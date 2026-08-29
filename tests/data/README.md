@@ -1008,6 +1008,16 @@ attached — and the two opinions turn out to disagree.
 | `examples/example_DRX_33/output/topas/DRX_33_peak_list_report.csv` | 2 316 | `8799263e2c22db90` |
 | `examples/example_DRX_33/output/topas/Li4MgWO6_SG12_unit_cell_report.csv` | 211 | `fe89864c4e136a33` |
 | `examples/example_DRX_33/output/topas/Li4MgWO6_SG12_peak_list_report.csv` | 67 254 | `4650b77698fc33fd` |
+| `examples/example_LaB6/output/dummy.lst` | 8 600 | `9b4c78339987a4f0` |
+| `examples/example_LaB6/output/topas/example_LaB6_results.csv` | 977 | `ce942d214fb25b2f` |
+| `examples/example_DRX_33/output/dummy.lst` | 17 234 | `cb22ad84b11a6fae` |
+| `examples/example_DRX_33/output/topas/example_DRX_33_results.csv` | 1 607 | `8b8d6b3fefb9e1a5` |
+
+The last four carry each engine's own Rwp — GSAS-II's in its `.lst` log
+(`Final refinement wR = 6.53%`), TOPAS's in its results CSV (`r_wp`) — so the
+acceptance test **reads** the reference figure instead of quoting a number
+typed into a docstring, which is the same rule the manual's injected constants
+follow.
 
 Every file is pure LF, asserted at vendoring time.  The **TOPAS** `fit_profile.txt`
 of each example is deliberately *not* vendored: it is 340 kB per example and

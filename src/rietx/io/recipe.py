@@ -89,6 +89,7 @@ rule of the root ``CLAUDE.md`` applied one format over.
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 from dataclasses import dataclass, field
@@ -98,7 +99,9 @@ from typing import Any
 import numpy as np
 
 from ..crystallography.dispersion import dispersion
+from ..crystallography.lattice import cell_volume
 from ..model.forward import seed_phase_scales
+from ..model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from ..params.vector import background_parameters, background_peak_parameters
 from ..schemas.common import Diagnostic, Parameter
 from ..schemas.instrument import (
@@ -114,7 +117,7 @@ from ..schemas.pattern import PatternData
 from ..schemas.structure import Atom, Cell, Phase, Structure
 from ..strategy.staged import RefinementPlan, Stage
 
-__all__ = ["Recipe", "RecipeError", "read_recipe"]
+__all__ = ["Recipe", "RecipeError", "read_recipe", "write_recipe_tables"]
 
 
 # --- measured conversion constants ------------------------------------------
@@ -528,13 +531,20 @@ def _read_instrument(payload: dict, pattern: PatternData,
                                 ("X", "x", CENTIDEG_TO_DEG),
                                 ("Y", "y", CENTIDEG_TO_DEG)):
         raw = _iparm(iparm, letter)
+        path = f"payload.instrument.parameterization.broadening.{letter}"
         param = getattr(profile, attr)
-        if raw is not None:
-            param.value = float(raw) * scale
-        _apply(param, broadening.get(letter),
-               f"payload.instrument.parameterization.broadening.{letter}",
-               diagnostics=diags, scale=scale)
-        _refuse_negative_width(letter, attr, param, raw, scale)
+        # Checked *before* assignment: ``Base`` validates on assignment, so a
+        # negative value would come back as pydantic's bounds error naming a
+        # field rather than as the refusal that names the recipe's own letter.
+        declared, _, _, _ = _spec(broadening.get(letter), path)
+        if declared is None and raw is not None:
+            declared = float(raw)
+        if declared is not None:
+            _refuse_negative_width(letter, attr, param, declared, scale)
+            param.min = min(param.min, declared * scale)
+            param.value = declared * scale
+        _apply(param, broadening.get(letter), path, diagnostics=diags,
+               scale=scale)
         _widen(param, f"instrument.profile.{attr}")
 
     _refuse_constant_lorentzian(iparm, broadening, diags)
@@ -629,7 +639,7 @@ def _iparm(iparm: dict, key: str):
 
 
 def _refuse_negative_width(letter: str, attr: str, param: Parameter,
-                           raw, scale: float) -> None:
+                           declared: float, scale: float) -> None:
     """A width this package transforms through softplus cannot start negative.
 
     ``ProfileTCHZ``'s W, X and Y are softplus-bounded at zero because a
@@ -644,12 +654,11 @@ def _refuse_negative_width(letter: str, attr: str, param: Parameter,
     declared −15.81 would arrive as ~0 and the fit would answer from a model
     the recipe did not describe.  Refused by name instead.
     """
-    if param.transform != "softplus" or param.value >= 0.0:
+    if param.transform != "softplus" or declared >= 0.0:
         return
-    original = param.value / scale if scale else param.value
     raise RecipeError(
-        f"instrument {letter} = {original:g} converts to "
-        f"instrument.profile.{attr} = {param.value:g}, and this package's "
+        f"instrument {letter} = {declared:g} converts to "
+        f"instrument.profile.{attr} = {declared * scale:g}, and this package's "
         f"{'Gaussian variance' if attr == 'w' else 'Lorentzian FWHM'} term is "
         f"softplus-bounded at zero — a width is not a shape when it is "
         f"negative. GSAS-II bounds none of U V W X Y Z, so a recipe seeded "
@@ -1411,3 +1420,283 @@ def _refuse_single_peak_fitting(payload: dict,
         f"is not this package's yet — it is the v1.4 fit_peaks work. Note this "
         f"is the *top-level* single_peaks block; background.single_peaks, "
         f"which describes a broad background feature, is read")
+
+
+# ============================================================================
+# Writing the four tables back
+# ============================================================================
+#
+# Three of the four headers are a real contract and one is not, which is a
+# measurement rather than an opinion: on the committed fixtures GSAS-II and
+# TOPAS write byte-identical headers for ``refined_parameters.csv``,
+# ``<phase>_unit_cell_report.csv`` and ``fit_profile.txt``, and *different*
+# ones for the peak list (GSAS-II's 15 columns against TOPAS's 11, agreeing on
+# only nine).  So the first three are reproduced byte for byte and the peak
+# list carries the columns this package can honestly fill — which is what the
+# two reference engines already do.
+
+#: ``refined_parameters.csv``, both engines, byte for byte.
+REFINED_PARAMETERS_HEADER = (
+    "parameter_name", "descriptive_name", "phase_name", "phase_idx",
+    "atom_name", "atom_idx", "value", "esd", "category")
+
+#: ``<phase>_unit_cell_report.csv``, both engines, byte for byte.
+UNIT_CELL_HEADER = ("parameter", "value", "esd")
+
+#: ``fit_profile.txt``, both engines, byte for byte, tab separated.
+FIT_PROFILE_HEADER = ("two_theta", "y_obs", "y_weights", "y_calc", "y_diff",
+                      "y_bkg", "q_values", "d_spacings")
+
+#: ``<phase>_peak_list_report.csv``.  **Not** a contract — the two reference
+#: engines disagree — so this is the columns they share, plus GSAS-II's
+#: ``sigma_squared``/``gamma`` written back in its own centidegree convention,
+#: minus ``F_obs_squared``.  That last omission is deliberate: an observed |F|²
+#: from a Rietveld fit is I(calc) times the reflection's own obs/calc count
+#: ratio, so it flatters whatever model partitioned it, and the root
+#: ``CLAUDE.md`` forbids shipping one as evidence.  An absent column is honest
+#: where a derived one would not be (WP-1076).
+PEAK_LIST_HEADER = ("h", "k", "l", "multiplicity", "d_spacing", "2theta",
+                    "sigma_squared", "gamma", "F_calc_squared", "phase")
+
+#: ``descriptive_name`` and ``category`` per parameter family.  Where the two
+#: reference engines disagree on a name, TOPAS's is taken: it says ``cell_a``
+#: and ``cell`` where GSAS-II says ``phase_1_reciprocal_metric_tensor_A11`` and
+#: ``reciprocal_metric_tensor``, and this package refines the direct cell, so
+#: the reciprocal spelling would describe a parameter that is not here.
+#: GSAS-II's ``other`` bucket for size and strain is not used either — TOPAS's
+#: ``size_broadening`` / ``strain_broadening`` name the thing.
+_CATEGORIES: tuple[tuple[str, str, str], ...] = (
+    ("scale", "phase_{ip}_scale_factor", "scale"),
+    ("cell", "cell_{sub}", "cell"),
+    ("lor_size", "size_lorentzian_deg", "size_broadening"),
+    ("gauss_size", "size_gaussian_deg2", "size_broadening"),
+    ("lor_strain", "strain_lorentzian_deg", "strain_broadening"),
+    ("gauss_strain", "strain_gaussian_deg2", "strain_broadening"),
+    ("biso", "atom_displacement_biso", "atom_displacement_isotropic"),
+    ("occ", "atom_occupancy", "atom_occupancy"),
+    ("dof", "atom_coordinate_dof_{sub}", "atom_position"),
+)
+
+
+def write_recipe_tables(refinement, out_dir: str | Path, *,
+                        phase_names: dict[str, str] | None = None
+                        ) -> dict[str, Path]:
+    """Write a finished refinement as PowderLine's four output tables.
+
+    Takes the :class:`~rietx.Refinement`, not its ``RefinementResult``, and the
+    reason is the peak list: a result carries the fitted *curve* but not the
+    compiled model, so the per-reflection widths and |F|² have to be read off
+    the refinement — the same split that keeps a history node storing state
+    rather than curves.  Everything else comes from ``refinement.result_``.
+
+    ``phase_names`` maps this package's phase names to the recipe's own keys
+    where they differ, because the file names are
+    ``<phase>_unit_cell_report.csv`` and PowderLine's consumer looks them up by
+    the key the recipe used.  Left ``None``, each phase's own name is used —
+    which is what :attr:`Recipe.phase_names` already holds for a recipe read
+    here.
+
+    Returns ``{name: path}`` for every file written.  Nothing else is:
+    ``dummy.gpx`` and ``dummy.lst`` are GSAS-II artefacts, and a project in
+    this package is a ``.rex`` directory (:class:`rietx.Project`).
+    """
+    result = getattr(refinement, "result_", None)
+    if result is None:
+        raise RuntimeError(
+            "write_recipe_tables needs a finished refinement: call fit() first")
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    names = phase_names or {}
+
+    written: dict[str, Path] = {}
+    written["refined_parameters"] = _write_refined_parameters(
+        result, refinement.fitted_structure, out)
+    for ip, phase in enumerate(refinement.fitted_structure.phases):
+        key = names.get(phase.name, phase.name)
+        written[f"unit_cell:{key}"] = _write_unit_cell(result, phase, ip, key,
+                                                       out)
+    for key, path in _write_peak_lists(refinement, names, out).items():
+        written[f"peak_list:{key}"] = path
+    written["fit_profile"] = _write_fit_profile(refinement, result, out)
+    return written
+
+
+def _num(x: float | None) -> str:
+    """One number, or an empty field where there is none.
+
+    Empty rather than ``0``: a zero esd in these tables means *held*, which is
+    a different statement from *unmeasurable*, and the two must not collapse
+    (WP-1076 — a defaulted number is a claim nothing checked).
+    """
+    return "" if x is None else f"{float(x):.8e}"
+
+
+def _write_refined_parameters(result, structure: Structure, out: Path) -> Path:
+    path = out / "refined_parameters.csv"
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh, lineterminator="\n")
+        w.writerow(REFINED_PARAMETERS_HEADER)
+        for row in result.parameters:
+            if not row.vary:
+                continue
+            desc, category, phase_name, phase_idx, atom_name, atom_idx = \
+                _describe(row.path, structure)
+            w.writerow([row.path, desc, phase_name,
+                        "" if phase_idx is None else phase_idx,
+                        atom_name, "" if atom_idx is None else atom_idx,
+                        _num(row.value), _num(row.stderr), category])
+    return path
+
+
+def _describe(path: str, structure: Structure):
+    """``(descriptive_name, category, phase, phase_idx, atom, atom_idx)``.
+
+    Built from the dot-path, which is this package's own vocabulary, so nothing
+    here becomes a second authority on what a parameter *is* — ``help.py``
+    stays the one place a name is explained, and this fills the recipe format's
+    four label columns and nothing else.
+    """
+    parts = path.split(".")
+    if path.startswith("instrument.profile."):
+        return (f"instrument_broadening_{parts[-1].upper()}",
+                "instrument_broadening", "", None, "", None)
+    if path == "instrument.zero_shift":
+        return ("zero_point_correction", "instrument_correction", "", None,
+                "", None)
+    if path.startswith("instrument.geometry.axial"):
+        return (f"axial_divergence_{parts[-1]}", "instrument_correction", "",
+                None, "", None)
+    if path == "instrument.source.polarization":
+        return ("polarization_correction", "instrument_correction", "", None,
+                "", None)
+    if path.startswith("instrument.background_peaks."):
+        return (f"background_peak_{parts[2]}_{parts[3]}", "background_peak",
+                "", None, "", None)
+    if path.startswith("instrument.background."):
+        sub = parts[-1]
+        n = sub[1:] if sub.startswith("c") and sub[1:].isdigit() else sub
+        return (f"background_coefficient_{n}", "background", "", None, "",
+                None)
+    if not path.startswith("phases."):
+        return (path, "other", "", None, "", None)
+
+    ip = int(parts[1])
+    phase = structure.phases[ip] if ip < len(structure.phases) else None
+    phase_name = phase.name if phase is not None else ""
+    atom_name, atom_idx = "", None
+    if len(parts) > 3 and parts[2] == "atoms":
+        atom_idx = int(parts[3])
+        if phase is not None and atom_idx < len(phase.atoms):
+            atom_name = phase.atoms[atom_idx].label
+    tail = parts[2] if len(parts) > 2 else ""
+    sub = parts[-1]
+    for key, template, category in _CATEGORIES:
+        if key == tail or (tail == "atoms" and key in parts):
+            return (template.format(ip=ip, sub=sub), category, phase_name, ip,
+                    atom_name, atom_idx)
+    return (path, "other", phase_name, ip, atom_name, atom_idx)
+
+
+def _write_unit_cell(result, phase: Phase, ip: int, key: str,
+                     out: Path) -> Path:
+    esds = {row.path: row.stderr for row in result.parameters}
+    path = out / f"{key}_unit_cell_report.csv"
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh, lineterminator="\n")
+        w.writerow(UNIT_CELL_HEADER)
+        for axis in ("a", "b", "c", "alpha", "beta", "gamma"):
+            # 0 rather than empty for a cell parameter with no esd row: every
+            # cell parameter is *in* the model, so no row means held — by the
+            # recipe or by symmetry — and 0 is what both reference engines
+            # write for exactly that.  The volume below is the different case.
+            esd = esds.get(f"phases.{ip}.cell.{axis}")
+            w.writerow([f"cell_{axis}",
+                        _num(getattr(phase.cell, axis).value),
+                        _num(0.0 if esd is None else esd)])
+        # The volume's esd needs the free cell block's covariance through
+        # dV/d(a,b,c,alpha,beta,gamma), which nothing here propagates yet. Left
+        # empty rather than written as 0: a 0 in this column means *held*, and
+        # the volume of a refined cell is not held.
+        w.writerow(["cell_volume",
+                    _num(cell_volume(*phase.cell.lengths_angles())), ""])
+    return path
+
+
+def _write_peak_lists(refinement, names: dict[str, str],
+                      out: Path) -> dict[str, Path]:
+    rows = refinement.reflection_table()
+    instrument = refinement.fitted_instrument
+    by_phase: dict[str, list] = {}
+    for row in rows:
+        if row.line != 0:   # the primary line, which is what both engines write
+            continue
+        by_phase.setdefault(row.phase, []).append(row)
+
+    written: dict[str, Path] = {}
+    for phase in refinement.fitted_structure.phases:
+        key = names.get(phase.name, phase.name)
+        path = out / f"{key}_peak_list_report.csv"
+        with path.open("w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh, lineterminator="\n")
+            w.writerow(PEAK_LIST_HEADER)
+            for row in by_phase.get(phase.name, []):
+                sig2, gam = _gsas_widths(instrument, phase, row.two_theta)
+                w.writerow([row.h, row.k, row.l, row.multiplicity,
+                            _num(row.d), _num(row.two_theta),
+                            _num(sig2), _num(gam),
+                            _num(row.f_squared), phase.name])
+        written[key] = path
+    return written
+
+
+def _gsas_widths(instrument: Instrument, phase: Phase,
+                 two_theta: float) -> tuple[float, float]:
+    """This fit's widths at one reflection, in GSAS-II's own units.
+
+    The inverse of the read conversions through the *same* constants, so the
+    two directions cannot drift: a Gaussian FWHM in degrees back to a variance
+    in centidegrees², a Lorentzian FWHM in degrees back to centidegrees.  The
+    widths come from :mod:`rietx.model.profiles.caglioti`, the authority the
+    residual itself uses, rather than being recomputed here.
+    """
+    theta = np.asarray([0.5 * two_theta])
+    p = instrument.profile
+    fwhm_g = float(gaussian_fwhm(theta, p.u.value, p.v.value, p.w.value,
+                                 phase.gauss_size.value,
+                                 phase.gauss_strain.value)[0])
+    fwhm_l = float(lorentzian_fwhm(theta,
+                                   p.x.value + phase.lor_size.value,
+                                   p.y.value + phase.lor_strain.value)[0])
+    sig2 = (fwhm_g / CENTIDEG_TO_DEG) ** 2 * 1e-4 / GAUSS_CENTIDEG2_TO_DEG2
+    return sig2, fwhm_l / CENTIDEG_TO_DEG
+
+
+def _write_fit_profile(refinement, result, out: Path) -> Path:
+    """The fitted curve, on the channels the fit actually used.
+
+    GSAS-II writes the whole scan with zeros outside the range and TOPAS writes
+    only what it fitted; this writes the fitted channels, which is the set
+    ``result.two_theta`` holds and the one every other number in the file
+    belongs to.
+    """
+    path = out / "fit_profile.txt"
+    lam = refinement.fitted_instrument.source.lines[0].wavelength.value
+    tth = np.asarray(result.two_theta, dtype=float)
+    obs = np.asarray(result.y_obs, dtype=float)
+    calc = np.asarray(result.y_calc, dtype=float)
+    bkg = np.asarray(result.y_background, dtype=float)
+    sigma = np.asarray(result.sigma, dtype=float)
+    with np.errstate(divide="ignore"):
+        weights = np.where(sigma > 0, 1.0 / np.square(sigma), 0.0)
+    theta = np.radians(0.5 * tth)
+    s = np.sin(theta)
+    q = 4.0 * math.pi * s / lam
+    with np.errstate(divide="ignore"):
+        d = np.where(s > 0, lam / (2.0 * s), np.inf)
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        fh.write("\t".join(FIT_PROFILE_HEADER) + "\n")
+        for i in range(tth.size):
+            fh.write("\t".join(f"{v:.8f}" for v in (
+                tth[i], obs[i], weights[i], calc[i], obs[i] - calc[i],
+                bkg[i], q[i], d[i])) + "\n")
+    return path
