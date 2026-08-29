@@ -2620,3 +2620,35 @@ def _build_pawley_block(phases: list[CompiledPhase]) -> PawleyBlock:
                 groups.append([offset + k for k in g])
         offset += n
     return PawleyBlock(n=offset, phase_slices=phase_slices, groups=groups)
+
+
+def seed_phase_scales(structure: Structure, instrument: Instrument,
+                      pattern: PatternData, *,
+                      mode: Mode = "rietveld") -> float:
+    """Match the summed calculated intensity to the data, split evenly.
+
+    Deterministic, and it keeps a first stage inside the softplus transform's
+    live range: a scale orders of magnitude off is the most common reason a
+    first stage goes nowhere, and it is what a model assembled from somewhere
+    *else* usually arrives with — every code's scale factor carries its own
+    normalisation (on one committed pattern GSAS-II's converged scale is
+    3.77e-2 and TOPAS's 2.61e-6, for the same specimen), so a scale read out of
+    a foreign document is a *start* and not a measurement.
+
+    Mutates ``structure`` in place and returns the ratio applied.  Two callers
+    and one authority: :mod:`rietx.viz.compare`, which assembles a standard
+    from a phase library, and :func:`rietx.io.recipe.read_recipe`, which
+    assembles one from another code's recipe.
+    """
+    from ..params.vector import ParameterTable
+
+    if not structure.phases:
+        return 1.0
+    model = compile_model(structure, instrument, pattern, mode=mode)
+    table = ParameterTable(structure, instrument)
+    y = model.evaluate(table.decode(table.x0()))
+    obs = np.asarray(pattern.intensity, dtype=float)
+    ratio = float((obs.sum() - obs.min() * len(obs)) / max(float(y.sum()), 1e-9))
+    for ph in structure.phases:
+        ph.scale.value *= ratio / len(structure.phases)
+    return ratio

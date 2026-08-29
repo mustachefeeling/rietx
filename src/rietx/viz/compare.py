@@ -183,20 +183,14 @@ def qpa_plan(*, texture: bool = False) -> RefinementPlan:
 def _seed_scales(structure: Structure, ins: Instrument, data) -> None:
     """Match the summed calculated intensity to the data (equal split).
 
-    Deterministic, and keeps TRF's first stage inside the softplus transform's
-    live range — a scale that starts orders of magnitude off is the most common
-    reason a first stage goes nowhere.
+    One authority, in :func:`rietx.model.forward.seed_phase_scales`, since
+    WP-1306 gave it a second caller — the PowderLine recipe reader, which
+    assembles a model from a foreign document whose scale carries a foreign
+    normalisation.
     """
-    from ..model.forward import compile_model
-    from ..params.vector import ParameterTable
+    from ..model.forward import seed_phase_scales
 
-    model = compile_model(structure, ins, data, mode="rietveld")
-    table = ParameterTable(structure, ins)
-    y = model.evaluate(table.decode(table.x0()))
-    obs = np.asarray(data.intensity)
-    ratio = float((obs.sum() - obs.min() * len(obs)) / max(float(y.sum()), 1e-9))
-    for ph in structure.phases:
-        ph.scale.value *= ratio / len(structure.phases)
+    seed_phase_scales(structure, ins, data)
 
 
 def corundum_phase() -> Phase:

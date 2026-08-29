@@ -144,7 +144,7 @@ def check_wavelength_freedom(free_wavelengths: list[str], n_wavelengths: int,
             "best-calibrated histogram's) and leave the others free")
 
 
-def _background_parameters(bkg) -> list[tuple[str, Parameter]]:
+def background_parameters(bkg) -> list[tuple[str, Parameter]]:
     """(sub-path, Parameter) pairs for any background model, in design order."""
     if isinstance(bkg, BackgroundPSpline):
         out = [(f"c{n}", p) for n, p in enumerate(bkg.coefficients)]
@@ -997,7 +997,7 @@ class ParameterTable:
             self._add(f"instrument.geometry.surface_roughness.{sub}", cp)
         for name in ("u", "v", "w", "x", "y"):
             self._add(f"instrument.profile.{name}", getattr(instrument.profile, name))
-        for sub, cp in _background_parameters(instrument.background):
+        for sub, cp in background_parameters(instrument.background):
             self._add(f"instrument.background.{sub}", cp)
         # Additive broad peaks: skipped when none is declared rather than added
         # locked, the surface-roughness idiom one loop up.  No gate — a peak
@@ -1609,7 +1609,7 @@ class ParameterTable:
             put(cp, f"instrument.geometry.surface_roughness.{sub}")
         for name in ("u", "v", "w", "x", "y"):
             put(getattr(instrument.profile, name), f"instrument.profile.{name}")
-        for sub, cp in _background_parameters(instrument.background):
+        for sub, cp in background_parameters(instrument.background):
             put(cp, f"instrument.background.{sub}")
         # the other half of the pair the helper exists for (see
         # background_peak_parameters): registered in _collect_instrument and
