@@ -226,8 +226,13 @@ all; a progress line per stage.
   § progress; the quickstart prints `result` instead of two hand-picked fields.
 
   **Measured** (`[dev]` venv, darwin/arm64, this session alone on the machine): fast
-  selection 3386 → 3427 passed (Base.__getattr__'s meta-test alone parametrizes 134
-  cases), 122 skipped throughout — every added test a pass, no new skip. Full selection
+  selection 3427 passed, 122 skipped, final. This session added 170 items to that
+  selection — 36 new `def test_`, two parametrized (`Base.__getattr__`'s meta-test over
+  134 subclasses, `summary(deliverable=)` over 3 cases) — plus one slow-only test
+  (11-BM NAC's golden shape) outside the fast selection entirely; no test this session
+  added skips, so passed+skipped moved by exactly 170 in the fast selection (counted from
+  the diff, not from memory of intermediate runs — the honest way round when a session
+  did not capture a pre-change baseline at its own start). Full selection
   3574 passed, 131 skipped, 24:14 — quoted because HIGH_CORRELATION's dedup and the new
   event field are the kind of change root CLAUDE.md's rule means; `origin/main` had not
   moved since this worktree branched (`git fetch origin main` at handover:
