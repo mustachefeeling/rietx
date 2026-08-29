@@ -954,10 +954,23 @@ It is evidence for the row rather than for this round's five WPs, and it is
 recorded here because § What is not being scored requires the destination to be
 recorded against every run.
 
-It also carries an ask that belongs to a WP and not to this round: **the row is
-not in §4b**. Three of these four agents reached it anyway; the fourth quoted
-it without acting on it. A deliverable list that stops a series run before it
-publishes 45 wt % of an absent phase should say so itself.
+It also carries an ask that belongs to a WP and not to this round, and the ask
+is narrower than it first looks. `worst_absorption` **is** in §4b — in the
+**QPA** row's stop-when, which §4b bolds as outranking every statistic beside
+it. It is **absent from the Trajectory row**, and Trajectory is the deliverable
+this episode asked for: "how the phase fractions and the cell parameters move
+with temperature". That row lists the four `SEQUENTIAL_*`/`PHASE_UNCONSTRAINED`
+codes, the 2θ-scale anchor and the precision/accuracy split, and nothing about
+background flexibility.
+
+So the agents were not compensating for a missing rule; they were reading
+**across** a deliverable boundary, from the row their task named to the row that
+governs the quantity they were quoting. That is the right move and three of the
+four made it. But **a trajectory of phase fractions is a QPA question at every
+point of the chain**, so the Trajectory row should carry the check rather than
+rely on an agent noticing that its numbers are also QPA numbers. The fourth cell
+quoted `worst_absorption` without acting on it, which is what relying on the
+notice looks like when it does not come.
 
 ### R2 — surfaces reached, and the one that nothing reached
 

@@ -155,8 +155,15 @@ is not there at an Rwp within 0.01 of the right answer. One wrote "Rwp does not,
 and the difference plot does not"; the other, "if the full 82-scan series is run
 unattended, that check has to be in the loop; Rwp points the wrong way." That is
 CLAUDE.md's own background-flexibility invariant rediscovered from the data by
-agents told none of it. **The row is not in §4b**, and putting it there is an
-ask for a WP, not for this round.
+agents told none of it. The ask that follows is narrower than it first looked,
+and the correction is worth stating plainly because the first version of this
+entry got it wrong: `worst_absorption` **is** in §4b, in the **QPA** row, which
+§4b bolds as outranking every statistic beside it. What it is absent from is the
+**Trajectory** row — the deliverable this episode's task named. Three of four
+agents read across the boundary to the QPA row; the fourth quoted the number
+without acting on it. A trajectory of phase fractions is a QPA question at every
+point of the chain, so the Trajectory row should carry the check rather than
+rely on the reader noticing. That is a WP's job, not this round's.
 
 **Done.** Ran, collected and scored the four reel cells. `PROTOCOL.md` gains
 § Results — round 1.1, the reel episode as a **pure insertion**, 212 lines,
@@ -251,8 +258,9 @@ at, so nothing is lost meanwhile.
 **Next.** Nothing in this WP. The round is complete and the findings are for
 other WPs, in this order: **`read_recipe` is undiscoverable** (WP-1306 built it,
 zero of four agents on its own episode found it); **`background.worst_absorption`
-is not in §4b** though three of four agents reached it unaided and it is the only
-row that catches a 45 wt % phantom phase; and **round 1.2 owes a sealed
+is in §4b's QPA row but absent from its Trajectory row**, which is the
+deliverable a series task names, though it is the only row that catches a 45 wt %
+phantom phase; and **round 1.2 owes a sealed
 workspace** — sealed against any checkout on the machine, not only the wheel,
 since a `cd` to an absolute path is one Bash call away.
 
