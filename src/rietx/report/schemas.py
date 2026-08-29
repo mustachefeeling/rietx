@@ -494,7 +494,7 @@ class BackgroundEvidence(Base):
     is deliberately **not** a summary trigger — every background-dominated
     pattern crosses any useful threshold on it (ratio 3.6 and 5.6 on those two
     *converged* controls), so a trigger would be a sentence on every lab fit.
-    Read it wherever a raw Rwp is about to be quoted; AGENT_PROTOCOL §4 says
+    Read it wherever a raw Rwp is about to be quoted; the agent skill §4 says
     where in the order.
     """
 
@@ -553,7 +553,7 @@ class ExchangeFinding(Base):
     the data could be accused of failing to distinguish, so asserting an
     exchange there would be a confident statement with no significance half.
 
-    ``exchangeable`` is the verdict the summary clause and AGENT_PROTOCOL's
+    ``exchangeable`` is the verdict the summary clause and the agent skill's
     reading share (:func:`~rietx.report.identifiability.is_exchangeable`):
     the fitted partner is significantly away from its null *and* the held
     parameter's column is reproducible in the fitted span, so the data
@@ -959,7 +959,7 @@ class RivalComparison(Base):
     held at its null.  **There is deliberately no ``decisive`` field.**  The
     numbers are the answer; whether a χ² ratio of 0.86 on 5332 points settles
     a question is the caller's judgement, and a report that made it for them
-    would be the autopilot this package does not ship (AGENT_PROTOCOL §1 —
+    would be the autopilot this package does not ship (the agent skill §1 —
     report and suggest inform, never drive).
 
     ``rivals`` is ordered: index 0 frees the finding's **held** candidate (the
@@ -1002,7 +1002,7 @@ class StageReport(Base):
     the WP-1072 geometry table, which no rung carries — against 0.6–0.8 kB a
     rung, 3.5 kB for the whole five-rung trajectory, ~3 % of the report it
     ships beside.  It carries the numbers
-    AGENT_PROTOCOL §4 judges a fit on, the summary sentence every section's
+    the agent skill §4 judges a fit on, the summary sentence every section's
     headline clause already lands in (by construction — see
     :func:`~rietx.report.build_report`), and the active suggestions
     themselves.

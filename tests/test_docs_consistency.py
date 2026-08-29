@@ -9,7 +9,7 @@ code) and test_compare_ui.py (the compare registry cannot drift from the
 acceptance protocols).
 
 Everything here reads documentation files only — no data, and no rietx import
-except in the AGENT_PROTOCOL coverage tests (WP-1105), which import the closed
+except in the agent-protocol coverage tests (WP-1105), which import the closed
 vocabularies on purpose: quoting the live registry instead of restating it is
 the point (the ``capabilities()`` idiom).
 
@@ -807,7 +807,7 @@ def test_current_focus_stays_a_focus_not_a_diary():
 
 
 # ----------------------------------------------------------------------
-# AGENT_PROTOCOL.md coverage (WP-1105)
+# Agent-protocol coverage (WP-1105, re-pointed at the skill tree by WP-1304)
 #
 # Root CLAUDE.md's rule — "a WP that adds a diagnostic code or a correction
 # adds its row there" — was enforced by nothing, and the drift it permits is
@@ -815,9 +815,15 @@ def test_current_focus_stays_a_focus_not_a_diary():
 # three tests give the rule teeth.  They deliberately import the closed
 # vocabularies rather than restating them, so a new member fails coverage the
 # day it lands.
+#
+# The document is now a directory (`docs/skill/rietx/`), so what these read is
+# the **concatenation** of every file in it.  That is the right denominator for
+# all three: a code's row may sit in any reference file, and a citation's
+# journal is given at its first mention *somewhere in the document*, which the
+# split moved across files without changing what the reader has available.
 # ----------------------------------------------------------------------
 
-AGENT_PROTOCOL = ROOT / "docs" / "AGENT_PROTOCOL.md"
+SKILL_TREE = ROOT / "docs" / "skill" / "rietx"
 SRC = ROOT / "src" / "rietx"
 REFERENCES_BIB = ROOT / "docs" / "manual" / "references.bib"
 
@@ -829,7 +835,10 @@ STATIC_INVISIBLE_CODES: dict[str, str] = {}
 
 
 def _protocol_text() -> str:
-    return AGENT_PROTOCOL.read_text(encoding="utf-8")
+    """Every `.md` in the skill tree, concatenated — body and references."""
+    paths = sorted(SKILL_TREE.rglob("*.md"))
+    assert paths, f"no skill files under {SKILL_TREE}"
+    return "\n".join(p.read_text(encoding="utf-8") for p in paths)
 
 
 def _engine_codes() -> set[str]:
@@ -877,8 +886,9 @@ def test_every_vocabulary_member_appears_in_the_protocol():
     text = _protocol_text()
     missing = [m for m in members if f"`{m}`" not in text]
     assert not missing, (
-        f"vocabulary members with no AGENT_PROTOCOL mention: {missing} — "
-        "add the row to §6's gate table or §5's action table"
+        f"vocabulary members with no mention in the skill tree: {missing} — "
+        "add the row to references/abstention.md's gate table or "
+        "references/numbers.md's action table"
     )
 
 
@@ -901,8 +911,9 @@ def test_every_engine_diagnostic_code_has_a_protocol_row():
     text = _protocol_text()
     missing = sorted(c for c in codes if f"`{c}`" not in text)
     assert not missing, (
-        f"engine diagnostic codes with no AGENT_PROTOCOL row: {missing} — "
-        "add each to the §7 table its family lives in (root CLAUDE.md's rule)"
+        f"engine diagnostic codes with no row in the skill tree: {missing} — "
+        "add each to the references/ table its family lives in "
+        "(root CLAUDE.md's rule)"
     )
 
 

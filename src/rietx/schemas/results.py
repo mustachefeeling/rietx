@@ -1006,7 +1006,7 @@ class RefinementResult(Base):
         Not the full view — ``Refinement.summary()`` adds the rows that need
         the compiled model (Layer 1's summary sentence, the next suggestion,
         a deliverable's rows, the plan and held paths) around this one, in
-        the order ``AGENT_PROTOCOL.md`` §10's stop conditions declare.  This
+        the order the agent skill §10's stop conditions declare.  This
         is what a caller holding only the result — the return value of
         ``fit()``, or one read back from a project — can print without it.
         """

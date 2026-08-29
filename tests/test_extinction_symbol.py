@@ -690,7 +690,8 @@ def test_corundum_returns_the_class_its_certificate_names(corundum_screen):
 
     Before WP-1077 this returned ``R - - -``, whose five members do not include
     ``R -3 c`` at all.  That was not the package abstaining; it was a wrong
-    answer, reached from the workflow ``docs/AGENT_PROTOCOL.md`` §7d prescribes.
+    answer, reached from the workflow the agent skill's §7d prescribes
+    (``docs/skill/rietx/references/diagnostics-indexing.md``).
     """
     best = corundum_screen.best_or_none()
     assert best is not None, [(c.symbol, c.refuted_reason)

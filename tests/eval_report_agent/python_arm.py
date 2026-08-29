@@ -11,9 +11,11 @@ Each workspace ``<workspace_dir>/<eid>/`` holds:
 - ``episode.json`` — the identical fixed request core the JSON arms get
   (pydantic JSON round-trip *is* the library-native form; the agent loads it
   through the schemas and drives the package directly — no shim);
-- ``AGENT_PROTOCOL.md`` — the manual, **verbatim and complete**, in *every*
+- ``skill/`` — the agent skill tree, **verbatim and complete**, in *every*
   python cell: it ships with the package, so it is part of the surface being
-  tested, never a treatment;
+  tested, never a treatment.  A directory since WP-1304, and the whole of it:
+  handing over the body without its reference files would be testing a
+  surface nobody ships;
 - ``prompt.md`` — the v2 answer contract plus ``final_result.json``, the
   workspace rules and the budget.
 
@@ -44,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -126,8 +129,8 @@ and a transcript that reaches outside invalidates the run.
   pass it to `fit`.  These inputs are the episode: the pattern is fixed, and
   the models are your starting point.  How you refine — plans, stages, what
   you free or hold, model corrections you have evidence for — is yours.
-- `AGENT_PROTOCOL.md` — the package's operator manual, verbatim and
-  complete.
+- `skill/SKILL.md` — the package's operating protocol, with its reference
+  files in `skill/references/`, verbatim and complete.
 - Budget: plan on at most 6 fit-bearing script runs — a script run counts
   once however many fits it performs; the hard cap is {max_runs}, enforced
   by the session audit.  Run at least one fit — an answer with no
@@ -194,8 +197,7 @@ def write_workspaces(workspace_dir: Path, truth_dir: Path, *, python: str,
             "(PROTOCOL.md 2.0 § The python-capable arm)")
     wanted = tuple(only or bf.EPISODE_IDS)
     episodes = bf.assemble_episodes(wanted)
-    manual = (REPO_ROOT / "docs" / "AGENT_PROTOCOL.md").read_text(
-        encoding="utf-8")
+    skill_src = REPO_ROOT / "docs" / "skill" / "rietx"
     workspace_dir.mkdir(parents=True, exist_ok=True)
     truth_dir.mkdir(parents=True, exist_ok=True)
     written = []
@@ -205,7 +207,10 @@ def write_workspaces(workspace_dir: Path, truth_dir: Path, *, python: str,
         wdir.mkdir(exist_ok=True)
         (wdir / "episode.json").write_text(
             json.dumps(ep["core"], indent=1) + "\n", encoding="utf-8")
-        (wdir / "AGENT_PROTOCOL.md").write_text(manual, encoding="utf-8")
+        skill_dst = wdir / "skill"
+        if skill_dst.exists():
+            shutil.rmtree(skill_dst)
+        shutil.copytree(skill_src, skill_dst)
         (wdir / "prompt.md").write_text(
             render_prompt(eid, python=python,
                           deliverable=ep["truth"].get("deliverable")),

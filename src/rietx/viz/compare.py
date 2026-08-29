@@ -27,8 +27,8 @@ views, in increasing order of how much they actually settle:
 
 Alongside them go the statistics **and the structured diagnostics**, because a
 variant can win panel 3 and still be inadmissible (`STEPHENS_STRAIN_NOT_POSITIVE`,
-`ROUGHNESS_UNCONSTRAINED`, `BACKGROUND_ABSORPTION` …).  See
-`docs/AGENT_PROTOCOL.md` §7-8.
+`ROUGHNESS_UNCONSTRAINED`, `BACKGROUND_ABSORPTION` …).  See the agent skill
+§7-8 (`docs/skill/rietx/references/diagnostics.md` and `surprises.md`).
 
 The standards mirror the acceptance suites' protocols exactly — same phases,
 same instrument, same staged plan — because a comparison run under a different
@@ -396,7 +396,7 @@ def _build_nac(data_dir: Path) -> StandardInputs:
       lower bound and therefore cannot take its share of the shift.
     * **Biso held**: the two runs separate by 1.4 × 10⁻⁴ in Rwp — larger, and
       reading *that* as the correction working is exactly the mistake
-      `docs/AGENT_PROTOCOL.md` §8.1 warns about. It is the leftover of an exact
+      the agent skill §8.1 warns about. It is the leftover of an exact
       degeneracy that a frozen parameter turned into an inexact one.
 
     Unlike the acceptance test this goes straight to Rietveld rather than

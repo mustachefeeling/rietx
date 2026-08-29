@@ -50,13 +50,19 @@ def test_workspace_carries_the_core_the_manual_and_the_contract(tmp_path):
                         only=["E1", "J1P"])
     e1 = tmp_path / "ws" / "E1"
     assert {p.name for p in e1.iterdir()} == {
-        "episode.json", "AGENT_PROTOCOL.md", "prompt.md"}
+        "episode.json", "skill", "prompt.md"}
     episodes = bf.build_episodes()
     assert (json.loads((e1 / "episode.json").read_text(encoding="utf-8"))
             == episodes["E1"]["core"])
-    manual = (pa.REPO_ROOT / "docs" / "AGENT_PROTOCOL.md").read_text(
-        encoding="utf-8")
-    assert (e1 / "AGENT_PROTOCOL.md").read_text(encoding="utf-8") == manual
+    # the whole tree, byte for byte per file: a cell handed the body without
+    # its reference files would be measuring a surface nobody ships (WP-1304)
+    source = pa.REPO_ROOT / "docs" / "skill" / "rietx"
+    shipped = e1 / "skill"
+    assert ({p.relative_to(source) for p in source.rglob("*") if p.is_file()}
+            == {p.relative_to(shipped) for p in shipped.rglob("*") if p.is_file()})
+    for path in source.rglob("*"):
+        if path.is_file():
+            assert (shipped / path.relative_to(source)).read_bytes() == path.read_bytes()
 
     text = (e1 / "prompt.md").read_text(encoding="utf-8")
     assert "final_result.json" in text and "model_dump_json" in text

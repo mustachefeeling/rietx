@@ -665,7 +665,7 @@ def audit_row(cell: Cell) -> list[dict]:
     """Audit candidates: probed events matching a forbidden-surface pattern.
 
     Pointers for the human audit, never verdicts — the python arm reads its
-    *own* ``AGENT_PROTOCOL.md`` legitimately, and a flagged event may quote a
+    *own* agent skill legitimately, and a flagged event may quote a
     path without opening it.  What a flag buys is that nobody has to re-read
     thirty transcripts to find the three worth reading.
     """

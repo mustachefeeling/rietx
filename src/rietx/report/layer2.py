@@ -659,7 +659,7 @@ def reindex_action(attributions: list[RegionAttribution]
             f"from the data: pick_peaks(data, instrument) then "
             f"index_pattern(peaks, data=data, instrument=instrument), and "
             f"read best_or_none() — it returns None rather than a cell "
-            f"whenever the evidence does not choose one (AGENT_PROTOCOL §7d)"),
+            f"whenever the evidence does not choose one (the agent skill §7d)"),
         parameter_paths=["phases.*.cell.*"],
         alternatives=["refine_zero_shift", "refine_sample_displacement"])
 
