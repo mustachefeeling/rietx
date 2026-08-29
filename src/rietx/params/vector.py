@@ -214,6 +214,13 @@ class AffineTie:
 
 @dataclass
 class Entry:
+    """One row of the internal free-parameter vector — ``.value`` is the number.
+
+    Public callers want the mirror instead:
+    ``rietx.ParameterRow``/``Refinement.parameters()``, which adds the esd a
+    completed fit measured and every held row this internal table drops.
+    """
+
     path: str
     value: float
     vary: bool
@@ -664,6 +671,14 @@ def size_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
 
 
 class ParameterTable:
+    """The tree-to-flat-θ machinery behind a fit — internal, not the agent surface.
+
+    A caller wanting numbers out wants ``Refinement.parameters()`` instead:
+    this table's own :meth:`decode` returns a plain dict, by design (no
+    pydantic in the hot loop), and it holds only free/tied entries, unlike the
+    public surface, which also lists held rows and why.
+    """
+
     def __init__(self, structure: Structure, instrument: Instrument, *,
                  joint: bool = False):
         #: ``True`` when this table is one histogram of a joint fit, so the

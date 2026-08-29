@@ -7,8 +7,10 @@ interface convention.  See ``ATTRIBUTION.md``.
 
 from __future__ import annotations
 
+import difflib
 import math
-from typing import Annotated, Literal
+from functools import lru_cache
+from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -98,17 +100,102 @@ TransformKind = Literal["identity", "softplus", "exp", "logit"]
 Mode = Literal["rietveld", "lebail", "pawley"]
 
 
+@lru_cache(maxsize=None)
+def _nested_field_paths(cls: type, name: str) -> tuple[str, ...]:
+    """``field.name`` for every *singular* nested schema of ``cls`` holding ``name``.
+
+    Derived from the live annotations rather than listed, for the reason
+    ``tests/api_surface.py`` gives one rank up: a hand-written map of "misses
+    people have made" cannot notice a field added tomorrow, and this is a hint
+    whose whole value is being right about where the number actually is.
+
+    Optional blocks are searched too, and are the reason the answer is a tuple:
+    ``n_points`` is on both ``Statistics`` and ``DataSupport`` (WP-1071's whole
+    point — they count different things), so naming both is the honest reply.
+    Cached per (class, name) because the miss happens on a hot-ish path:
+    pydantic probes absent attributes during copy and serialization.
+    """
+    out: list[str] = []
+    for field, info in cls.model_fields.items():
+        for candidate in getattr(info.annotation, "__args__", (info.annotation,)):
+            if (isinstance(candidate, type) and issubclass(candidate, Base)
+                    and name in candidate.model_fields):
+                out.append(f"{field}.{name}")
+    return tuple(out)
+
+
 class Base(BaseModel):
     """Base for every rietx schema.
 
     ``extra="forbid"`` makes unknown fields a loud error, which gives agents an
     actionable message instead of a silently dropped key.
+
+    A wrong attribute name is answered with the right one wherever one can be
+    found (WP-1302): a name that lives on a nested block gets that block's
+    path (``result.rwp`` → "it is ``result.statistics.rwp``"), a typo of an
+    own field gets the closest match, and a small schema with neither lists
+    its fields outright. This complements, and does not replace, pydantic's
+    own ``AttributeError`` for dunders, private attributes and ``model_extra``.
     """
 
     # ser_json_inf_nan="strings": ±inf bounds serialize as "Infinity" (valid
     # strict JSON, unlike the default null) and coerce back to float on load.
     model_config = ConfigDict(extra="forbid", validate_assignment=True,
                               ser_json_inf_nan="strings")
+
+    #: Example variable name a subclass wants its nested-path hints prefixed
+    #: with (``"result"`` → ``result.statistics.rwp``). ``None`` (the default)
+    #: prints the bare field path — most schemas have no canonical call-site
+    #: name, and inventing one would be a hint that lies half the time.
+    _attr_hint_name: ClassVar[str | None] = None
+
+    #: Above this many fields, an unresolved miss with no close match does not
+    #: try to list them all — the list would be longer than the error.
+    _ATTR_HINT_FIELD_CAP: ClassVar[int] = 12
+
+    def __getattr__(self, name: str):
+        """A pointer, not an alias — see :func:`_nested_field_paths`.
+
+        Order: pydantic's own machinery first (dunders, private attributes,
+        ``model_extra`` — none of these is ever a typo); then a *declared but
+        unset* own field (only reachable through ``model_construct`` skipping
+        a required field, most often a model validator probing a sibling
+        mid-assignment — never a typo, so it gets its own message rather than
+        the closest-match one, which would otherwise trivially "suggest"
+        itself); then a nested block that carries this name; then the closest
+        own-field match (``difflib``, cutoff 0.6); then, for a small schema,
+        every field name; otherwise the plain pydantic-shaped message
+        untouched, so a caller matching on ``"no attribute 'x'"`` keeps
+        working.
+        """
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            pass
+        plain = f"{type(self).__name__!r} object has no attribute {name!r}"
+        if name.startswith("_"):
+            raise AttributeError(plain)
+        if name in type(self).model_fields:
+            raise AttributeError(
+                f"{plain}; {name!r} is declared on {type(self).__name__} "
+                "but was never given a value")
+        where = _nested_field_paths(type(self), name)
+        if where:
+            prefix = type(self)._attr_hint_name
+            paths = [f"{prefix}.{p}" if prefix else p for p in where]
+            raise AttributeError(
+                f"{type(self).__name__} has no {name!r} — it is "
+                + " or ".join(paths)
+                + ". The top level carries what this schema declares; a value "
+                  "computed about it lives in the block that computed it.")
+        close = difflib.get_close_matches(
+            name, list(type(self).model_fields), n=3, cutoff=0.6)
+        if close:
+            raise AttributeError(f"{plain}; did you mean {', '.join(close)!r}?")
+        fields = list(type(self).model_fields)
+        if len(fields) <= type(self)._ATTR_HINT_FIELD_CAP:
+            raise AttributeError(f"{plain}; its fields are {fields}")
+        raise AttributeError(plain)
 
 
 class Parameter(Base):

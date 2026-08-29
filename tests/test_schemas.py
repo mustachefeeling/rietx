@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import dataclasses
 import inspect
@@ -5,13 +6,33 @@ import json
 import math
 import pickle
 import re
+import types
+import typing
 
 import pytest
 from pydantic import ValidationError
 
 import rietx as rx
+
+# Force every module that defines a Base subclass to be imported, so
+# ``Base.__subclasses__()`` below sees the whole family regardless of what
+# else this file happens to import — this test must find the same set
+# whether it runs alone or as part of the suite.
+import rietx.report.schemas  # noqa: F401
+import rietx.schemas.history  # noqa: F401
+import rietx.schemas.indexing  # noqa: F401
+import rietx.schemas.instrument  # noqa: F401
+import rietx.schemas.params  # noqa: F401
+import rietx.schemas.pattern  # noqa: F401
+import rietx.schemas.plan  # noqa: F401
+import rietx.schemas.project  # noqa: F401
+import rietx.schemas.results  # noqa: F401
+import rietx.schemas.sequential  # noqa: F401
+import rietx.schemas.structure  # noqa: F401
+import rietx.schemas.suggest  # noqa: F401
 from rietx import Instrument, Parameter, PatternData, Structure
 from rietx.schemas import Atom, Cell, Phase
+from rietx.schemas.common import Base
 
 
 def make_lab6() -> Structure:
@@ -166,6 +187,106 @@ def test_a_preset_is_the_builder_and_says_so():
     assert inspect.getdoc(factory) == inspect.getdoc(rx.RefinementPlan.mccusker_default)
 
 
+def test_a_wrong_stage_or_plan_field_gets_the_closest_match():
+    """``Stage``/``RefinementPlan`` are dataclasses, not ``Base`` subclasses,
+    so they carry their own hand-written version of the same idea (WP-1302).
+
+    ``free`` is a real historical miss (agents reading a *declared* stage for
+    what it *did*), and it is nobody's typo of a field name, so it exercises
+    the field-listing branch plus the one named cross-class hint.
+    """
+    stage = rx.Stage("cell", ["phases.*.cell.*"])
+    with pytest.raises(AttributeError, match=r"its fields are .*'turn_on'.*"
+                                               r"what a stage freed is StageResult\.freed"):
+        stage.free
+    with pytest.raises(AttributeError, match=r"did you mean 'turn_on'"):
+        stage.turnon  # a close typo, not the historical miss above
+
+    plan = rx.RefinementPlan.mccusker_default()
+    with pytest.raises(AttributeError, match=r"did you mean 'stages'"):
+        plan.stagess
+
+
+def test_every_public_schema_class_is_a_top_level_export():
+    """WP-1302: no `Source`/`EmissionLine`/`BackgroundChebyshev`-shaped gap.
+
+    Derived, not typed — walks every ``rietx.schemas`` submodule the same way
+    ``rietx/__init__.py`` does, rather than re-listing the classes by hand,
+    so a schema added tomorrow is covered the day it lands.
+    """
+    import pkgutil
+
+    schema_names = set()
+    for info in pkgutil.iter_modules(rx.schemas.__path__):
+        module = __import__(f"rietx.schemas.{info.name}", fromlist=["_"])
+        for name, obj in vars(module).items():
+            if (not name.startswith("_") and inspect.isclass(obj)
+                    and obj.__module__ == module.__name__ and issubclass(obj, Base)):
+                schema_names.add(name)
+
+    # Base itself is excluded from the public surface (tests/api_surface.py)
+    # rather than from this export list — see that file for the reason.
+    missing = {n for n in schema_names if n != "Base"} - set(rx.__all__)
+    assert not missing
+
+
+def test_package_getattr_lazily_imports_a_submodule():
+    """``rx.viz`` works without an explicit ``import rietx.viz`` first
+    (WP-1302) — a real historical miss (`module 'rietx' has no attribute
+    'viz'`), fixed rather than merely explained.
+    """
+    import sys
+    import types
+
+    sys.modules.pop("rietx.viz", None)
+    if hasattr(rx, "viz"):
+        del rx.__dict__["viz"]
+
+    assert isinstance(rx.viz, types.ModuleType)
+    assert rx.viz is sys.modules["rietx.viz"]
+
+
+def test_package_getattr_names_where_a_miss_actually_lives():
+    with pytest.raises(AttributeError, match=r"did you mean 'Instrument'"):
+        rx.Insrument
+    with pytest.raises(AttributeError, match=r"io\.readers\.PATTERN_FORMATS"):
+        rx.identify_format
+    with pytest.raises(AttributeError, match=r"no attribute 'not_a_real_export'"):
+        rx.not_a_real_export
+
+
+def test_package_getattr_reports_a_broken_submodule_as_attributeerror():
+    """A submodule that fails on its *own* missing dependency (``viz``/``gui``
+    pull in matplotlib/plotly, absent on a minimal install) must raise
+    ``AttributeError``, not let the underlying ``ModuleNotFoundError``
+    escape — only ``AttributeError`` is what ``hasattr``/``getattr(default=)``
+    catch, so a caller checking "is this built with plotting support" must
+    get ``False``, not a crash (found by code review).
+    """
+    import importlib
+    import sys
+    from unittest.mock import patch
+
+    sys.modules.pop("rietx.viz", None)
+    if hasattr(rx, "viz"):
+        del rx.__dict__["viz"]
+
+    real_import = importlib.import_module
+
+    def fake_import(name, *a, **kw):
+        if name == "rietx.viz":
+            raise ModuleNotFoundError("No module named 'matplotlib'",
+                                      name="matplotlib")
+        return real_import(name, *a, **kw)
+
+    with patch("rietx.importlib.import_module", side_effect=fake_import):
+        with pytest.raises(AttributeError, match=r"rietx\.viz exists but "
+                           r"failed to import.*matplotlib") as excinfo:
+            rx.viz
+        assert isinstance(excinfo.value.__cause__, ModuleNotFoundError)
+        assert hasattr(rx, "viz") is False
+
+
 @pytest.mark.parametrize("obj, mirror", [
     (rx.RefinementPlan.mccusker_default(), "PlanSpec.from_plan"),
     (rx.Stage("cell", ["phases.*.cell.*"]), "StageSpec.from_stage"),
@@ -245,6 +366,96 @@ def test_the_hint_is_a_pointer_and_not_an_alias():
     assert copy.deepcopy(result) == result
     assert pickle.loads(pickle.dumps(result)) == result
     assert type(result).model_validate_json(result.model_dump_json()) == result
+
+
+def _all_base_subclasses() -> list[type]:
+    """Every ``Base`` subclass currently defined, recursively.
+
+    Depends on the explicit import block above: a subclass ``__subclasses__``
+    has not seen does not exist yet, so this walk is only as complete as that
+    list.
+    """
+    seen: set[type] = set()
+    frontier = [Base]
+    while frontier:
+        for sub in frontier.pop().__subclasses__():
+            if sub not in seen:
+                seen.add(sub)
+                frontier.append(sub)
+    return sorted(seen, key=lambda c: f"{c.__module__}.{c.__qualname__}")
+
+
+def _dummy_scalar(annotation: object, depth: int) -> object:
+    """A type-shaped placeholder, never a validated value.
+
+    Only used for *required* fields, so a model-level validator reading a
+    sibling mid-``validate_assignment`` finds something of the right shape
+    (a nonzero tuple, a populated nested model) instead of the "declared but
+    never given a value" case one rank up — that case is real and tested on
+    its own; here it would just be noise from this helper's own construction.
+    Business-rule rejection of the placeholder (a ``ValidationError``) is the
+    caller's to accept, not this function's to avoid.
+    """
+    if depth > 8:
+        return None
+    origin = typing.get_origin(annotation)
+    if origin is typing.Literal:
+        return typing.get_args(annotation)[0]
+    if origin in (types.UnionType, typing.Union):
+        args = [a for a in typing.get_args(annotation) if a is not type(None)]
+        return _dummy_scalar(args[0], depth + 1) if args else None
+    if origin is list:
+        args = typing.get_args(annotation) or (typing.Any,)
+        return [_dummy_scalar(args[0], depth + 1)]
+    if origin is dict:
+        args = typing.get_args(annotation)
+        if len(args) == 2:
+            return {_dummy_scalar(args[0], depth + 1): _dummy_scalar(args[1], depth + 1)}
+        return {}
+    if origin is tuple:
+        args = typing.get_args(annotation)
+        if len(args) == 2 and args[1] is Ellipsis:
+            return ()
+        return tuple(_dummy_scalar(a, depth + 1) for a in args)
+    if isinstance(annotation, type) and issubclass(annotation, Base):
+        return _dummy_instance(annotation, depth + 1)
+    return {bool: False, int: 1, float: 1.0, str: "x"}.get(annotation)
+
+
+def _dummy_instance(cls: type, depth: int = 0):
+    """``model_construct`` with every *required* field filled, recursively.
+
+    Optional fields are left to ``model_construct``'s own default/
+    ``default_factory`` handling — only a required field can leave a model
+    validator looking at something unset.
+    """
+    required = {f: _dummy_scalar(info.annotation, depth)
+                for f, info in cls.model_fields.items() if info.is_required()}
+    return cls.model_construct(**required)
+
+
+@pytest.mark.parametrize(
+    "cls", _all_base_subclasses(), ids=lambda c: f"{c.__module__}.{c.__qualname__}")
+def test_every_base_subclass_survives_the_new_getattr(cls):
+    """``Base.__getattr__`` must not break pydantic's own machinery.
+
+    Required fields carry a type-shaped dummy (see ``_dummy_instance``) so a
+    model validator touching a sibling field during ``validate_assignment``
+    finds a value rather than exercising the *other*, already-tested "declared
+    but never given a value" branch; a business-rule rejection of that dummy
+    (``ValidationError``) is not this test's concern, only an ``AttributeError``
+    escaping from ``Base.__getattr__`` itself is.
+    """
+    obj = _dummy_instance(cls)
+    assert copy.deepcopy(obj) == obj
+    assert pickle.loads(pickle.dumps(obj)) == obj
+    assert obj.model_copy() == obj
+    obj.model_dump(mode="json")
+    defaulted = next(
+        (f for f, info in cls.model_fields.items() if not info.is_required()), None)
+    if defaulted is not None:
+        with contextlib.suppress(ValidationError):
+            setattr(obj, defaulted, getattr(obj, defaulted))  # validate_assignment path
 
 
 def test_plan_spec_is_one_class_everywhere():

@@ -21,7 +21,7 @@ from ._about import DIST_NAME
 from .backend.api import backend_dtype_note
 from .background.diagnostics import STEPS_PER_FWHM_MIN, sampling_steps_per_fwhm
 from .help import help_key_for
-from .history.events import as_event_stream
+from .history.events import _attach_progress, as_event_stream
 from .history.store import fingerprint
 from .history.tree import RefinementTree
 from .model.absorption import (
@@ -71,6 +71,10 @@ from .schemas.results import (
     RefinedParameter,
     RefinementResult,
     StageResult,
+    _agreement_line,
+    _diagnostic_lines,
+    _provenance_line,
+    _stage_lines,
 )
 from .schemas.structure import Structure
 from .strategy.staged import (
@@ -340,6 +344,11 @@ class Refinement:
         #: what ``TieSpec.user`` is answered from, so a row names whose tie is
         #: *in force* on it rather than whose was asked for
         self._applied_ties: set[str] = set()
+        #: what :meth:`fit` last ran, for :meth:`summary` alone — nothing
+        #: computes from these, only prints them back (WP-1302)
+        self._last_plan: RefinementPlan | None = None
+        self._sigma_from_file: bool | None = None
+        self._excluded_regions: list[tuple[float, float]] = []
 
     # ------------------------------------------------------------------
     # history plumbing
@@ -1450,11 +1459,24 @@ class Refinement:
         guard = check_guards(table, outcome, correlation_guard, model=model,
                              scan_exchangeability=stage_index == n_stages)
         if events is not None:
+            # a real number, not the raw least-squares cost: additive on the
+            # existing kind (history/events.py's rule), paid only when a
+            # caller asked for events at all — one forward evaluation, not a
+            # fit, the same pattern _record uses for a history node's metrics.
+            # background(values) computed once and reused, never twice —
+            # evaluate() is background + bragg_component internally, so
+            # calling both would price this at two background passes
+            values = table.decode(outcome.theta)
+            y_bkg = model.background(values)
+            stage_rwp = compute_statistics(
+                model.y_obs, y_bkg + model.bragg_component(values), model.sigma,
+                n_free=len(table.free_paths) + _pawley_n(model),
+                y_background=y_bkg).rwp
             events.emit("stage_end", stage=stage.name, status=outcome.status,
                         n_iterations=outcome.n_iterations,
                         termination=outcome.termination,
                         cost_initial=outcome.cost_initial,
-                        cost_final=outcome.cost_final,
+                        cost_final=outcome.cost_final, rwp=stage_rwp,
                         held=list(held), released=list(released))
         return model, outcome, guard, freed, _StageHold(held=list(held),
                                                         released=list(released))
@@ -1463,13 +1485,21 @@ class Refinement:
             plan: RefinementPlan | str = "mccusker_default",
             two_theta_limits: tuple[float, float] | None = None,
             events=None, cancel=None,
-            stage_reports: bool = False) -> RefinementResult:
+            stage_reports: bool = False, progress=None) -> RefinementResult:
         """Run a staged refinement.
 
         ``events`` — optional per-iteration telemetry: a path (JSONL appended),
         a callable (called per event dict), or an
         :class:`~rietx.history.events.EventStream`.  See that module for the
         record format; ``rietx watch`` tails it live.
+
+        ``progress`` — a text stream or path; one line per stage boundary
+        (``[series 7/13] 250C stage cell converged Rwp 0.0812 12s`` under
+        :func:`refine_sequential`, ``stage cell converged Rwp 0.0812 12s``
+        here).  Implemented as an ``events=`` consumer
+        (:func:`~rietx.history.events.progress_writer`), never a second
+        telemetry channel — combine both freely, ``progress`` adds a
+        subscriber rather than replacing ``events``'s.
 
         ``cancel`` — an :class:`~rietx.optimize.cancel.CancelToken` another
         thread can set.  The stage in flight is abandoned (no node, no commit,
@@ -1515,8 +1545,13 @@ class Refinement:
         self._two_theta_limits = two_theta_limits
         self._free_paths = []
         self._held = []
+        # state summary() reads for the "protocol actually run" section —
+        # nothing computes from these, they are only ever printed back
+        self._last_plan = plan
+        self._sigma_from_file = data.sigma is not None
+        self._excluded_regions = list(data.excluded_regions)
         tree = self._ensure_history(data, plan)
-        stream = as_event_stream(events)
+        stream = _attach_progress(as_event_stream(events), progress)
         if stream is not None:
             stream.emit("fit_start", mode=mode,
                         stages=[s.name for s in plan.stages],
@@ -1606,9 +1641,19 @@ class Refinement:
         rungs of the stages that *did* complete, for the same reason
         :class:`~rietx.optimize.cancel.RefinementCancelled` carries them:
         the in-flight stage is abandoned, the ones before it happened.
+
+        ``HIGH_CORRELATION`` findings are collected as the loop runs
+        (``correlation_hits``) rather than extended straight into
+        ``diagnostics`` like every other code: a persistently correlated pair
+        fires on every stage that re-measures it, and ``_dedup_high_correlations``
+        needs the per-stage attribution to say so.  ``stage_diagnostics`` itself
+        — unfiltered, duplicates and all — still goes to :meth:`_stage_report`
+        and the history node below: a trajectory rung and a replay both
+        describe *that stage's* guard run, not the fit's final summary.
         """
         model = outcome = guard = None
         ftols = plan.stage_ftols()
+        correlation_hits: dict[frozenset, list[tuple[str, Diagnostic]]] = {}
         for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
                                           start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
@@ -1617,7 +1662,12 @@ class Refinement:
                     plan.correlation_guard, events=stream, cancel=cancel,
                     stage_index=k, n_stages=len(plan.stages), ftol=ftol)
             stage_diagnostics = _guard_diagnostics(guard)
-            diagnostics.extend(stage_diagnostics)
+            for d in stage_diagnostics:
+                if d.code == "HIGH_CORRELATION":
+                    correlation_hits.setdefault(frozenset(d.where), []).append(
+                        (stage.name, d))
+                else:
+                    diagnostics.append(d)
             stage_results.append(StageResult(
                 name=stage.name, status=outcome.status, n_iterations=outcome.n_iterations,
                 cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
@@ -1645,6 +1695,7 @@ class Refinement:
                     # schedule), because a cherry-pick re-runs what happened
                     ftol=ftol, window_slack_deg=stage.window_slack_deg,
                 ), model, table, outcome, stage_diagnostics)
+        diagnostics.extend(_dedup_high_correlations(correlation_hits))
         return model, outcome, guard, stage_results, diagnostics
 
     def _stage_report(self, name, plan, data, mode, table, model, outcome,
@@ -1846,6 +1897,174 @@ class Refinement:
                             values=table.decode(table.x0()), plan=plan,
                             free_paths=list(self._free_paths), **kw)
 
+    def summary(self, *, deliverable: str | None = None, plot: str | None = None,
+               plan: RefinementPlan | str | None = None) -> str:
+        """The termination view (WP-1302): "done, or not, and why" from one call.
+
+        Numerical heuristics first, agreement indices second-to-last, the
+        visual check named but never substituted for them (`AGENT_PROTOCOL.md`
+        §10's design rule) — the two fits that agree on every index and the
+        plot alike (one with a correct background, one over-flexible) are told
+        apart only by ``worst_absorption`` in the deliverable rows below, never
+        by looking harder at either.
+
+        ``deliverable`` selects §4b's deciding rows for one purpose —
+        ``"phase_id"``, ``"qpa"``, ``"structure"``, or ``"series"`` (pending
+        WP-1305 a).  The report will not infer your purpose for you: ``None``
+        (the default) prints the three stop conditions and nothing past them.
+
+        ``plot`` writes :func:`~rietx.viz.plots.plot_for_vlm` to that path and
+        names it on the last line — the picture confirms the text, the text
+        stays the criterion.  Without it, the line names the call instead.
+
+        Requires the compiled model (call :meth:`fit` first); a caller holding
+        only the result prints ``str(result)`` for the rows that need no
+        model — see :meth:`~rietx.schemas.results.RefinementResult.__str__`.
+        """
+        if self._model is None or self.result_ is None:
+            raise RuntimeError("call fit() first")
+        result = self.result_
+        report = self.report(plan=plan)
+
+        lines = [f"Refinement.summary: {result.status} ({result.mode})"]
+        lines += _stage_lines(result.stages, result.statistics.max_shift_over_esd)
+        lines += _diagnostic_lines(result.diagnostics)
+        lines += self._report_stop_condition_lines(report)
+        lines.append("  next: run suggest")  # WP-1305 b supplies delta_bic
+        if deliverable is not None:
+            lines += self._deliverable_lines(deliverable, report)
+        lines += self._protocol_lines()
+        lines.append(_provenance_line(result.provenance))
+        lines.append(_agreement_line(result.statistics))
+        lines.append(self._visual_check_line(report, plot))
+        return "\n".join(lines)
+
+    def _report_stop_condition_lines(self, report) -> list[str]:
+        """Section 2b: the second stop condition — is the misfit explained?"""
+        lines = [f"  layer0/1: {report.summary}"]
+        if report.abstained_kind:
+            lines.append(f"    abstained: {report.abstained_kind} "
+                         f"— {report.abstained_reason}")
+        worst = sorted(report.regions, key=lambda r: r.chi2_share, reverse=True)[:3]
+        for r in worst:
+            lines.append(f"    region {r.two_theta_lo:.1f}-{r.two_theta_hi:.1f}°: "
+                         f"{r.chi2_share:.0%} of χ², "
+                         f"max|Δ|/σ={r.max_abs_delta_over_sigma:.1f}")
+        n_unmatched_obs = sum(1 for u in report.unmatched if u.kind == "unmatched_obs")
+        lines.append(f"    unmatched obs peaks: {n_unmatched_obs}")
+        stats = self.result_.statistics
+        if stats.durbin_watson is not None:
+            note = (f", esds inflated ×{stats.esd_inflation:.2f}"
+                    if stats.esd_inflation is not None else "")
+            lines.append(f"    serial correlation (DW): {stats.durbin_watson:.2f}{note}")
+        return lines
+
+    def _deliverable_lines(self, deliverable: str, report) -> list[str]:
+        """Section 3: §4b's deciding rows for one declared purpose only."""
+        result = self.result_
+        lines = [f"  deliverable: {deliverable}"]
+        if deliverable == "phase_id":
+            n_unmatched_obs = sum(1 for u in report.unmatched
+                                  if u.kind == "unmatched_obs")
+            lines.append(f"    unmatched obs peaks: {n_unmatched_obs}")
+            if report.lebail_gap is not None:
+                lines.append(f"    lebail_gap ratio: {report.lebail_gap.ratio:.2f}")
+            else:
+                lines.append("    lebail_gap: not computed (needs a Le Bail "
+                             "re-partition, mccusker_default/lebail mode)")
+        elif deliverable == "qpa":
+            bg = report.background
+            if bg is not None and bg.absorption:
+                worst_path, worst_r2 = max(bg.absorption.items(), key=lambda kv: kv[1])
+                lines.append(f"    background.absorption worst: "
+                             f"{worst_path} R²={worst_r2:.2f}")
+            if result.qpa is not None:
+                for row in result.qpa.phases:
+                    esd = (f" ± {row.weight_fraction_stderr:.3f}"
+                          if row.weight_fraction_stderr is not None else "")
+                    lines.append(f"    {row.name}: {row.weight_fraction:.3f}{esd}")
+            else:
+                lines.append("    qpa: none (Le Bail scales are degenerate)")
+        elif deliverable == "structure":
+            if result.identifiability is not None:
+                exch = result.identifiability.exchangeability
+                lines.append(f"    exchangeability: {len(exch)} row(s)")
+                for row in exch[:5]:
+                    lines.append(f"      {row.held} ~ {', '.join(row.partners)} "
+                                 f"(R²={row.r2:.2f})")
+            else:
+                lines.append("    identifiability: not measured on this result")
+        elif deliverable == "series":
+            lines.append("    series deliverable rows: pending WP-1305 a "
+                         "(SequentialRefinement.summary() carries the trajectory)")
+        else:
+            raise ValueError(
+                f"unknown deliverable {deliverable!r}; one of "
+                "'phase_id', 'qpa', 'structure', 'series'")
+        return lines
+
+    def _protocol_lines(self) -> list[str]:
+        """Section 4 (minus provenance, appended separately — the one clause
+        a bare result can also answer): the protocol actually run."""
+        plan = self._last_plan
+        lines = ["  protocol:"]
+        if plan is not None:
+            lines.append(f"    plan: {', '.join(s.name for s in plan.stages)}")
+        rows = self.parameters()
+        # exhaustive over ParameterRow.held_because's four reasons, minus
+        # "tied" (excluded above: a tied path moves with its source, so it
+        # is not held in this sense — CLAUDE.md's moving_paths rule). A row
+        # reaching neither mode_fixed, locked nor refinable can only be
+        # needs_held_cell, so this catches it by name rather than into a
+        # silent "other" (code review finding: a row held because its cell
+        # is free was landing unlabelled).
+        held: dict[str, list[str]] = {"mode_fixed": [], "symmetry-locked": [],
+                                      "user-fixed": [], "wavelength-blocked": []}
+        for row in rows:
+            if row.tie is not None or row.vary:
+                continue
+            if row.mode_fixed:
+                held["mode_fixed"].append(row.path)
+            elif row.locked:
+                held["symmetry-locked"].append(row.path)
+            elif row.refinable:
+                held["user-fixed"].append(row.path)
+            else:
+                held["wavelength-blocked"].append(row.path)
+        phase_unsupported = list(self.result_.stages[-1].held) if self.result_.stages else []
+        counts = ", ".join(f"{len(v)} {k}" for k, v in held.items() if v)
+        if phase_unsupported:
+            counts += (", " if counts else "") + \
+                f"{len(phase_unsupported)} phase-unsupported (WP-1301)"
+        lines.append(f"    held: {counts or 'none'}")
+        if self._excluded_regions:
+            ranges = ", ".join(f"{lo:.2f}-{hi:.2f}°" for lo, hi in self._excluded_regions)
+            lines.append(f"    excluded: {ranges}")
+        support = self.result_.data_support
+        stats = self.result_.statistics
+        if support is not None:
+            lines.append(f"    N points={stats.n_points}, "
+                         f"N reflections={support.n_unique_reflections}, "
+                         f"effective obs={support.n_effective_observations:.0f}")
+        else:
+            lines.append(f"    N points={stats.n_points}")
+        sigma_source = ("file" if self._sigma_from_file else
+                        "Poisson √max(y,1)" if self._sigma_from_file is not None else
+                        "unknown")
+        lines.append(f"    σ source: {sigma_source}")
+        return lines
+
+    def _visual_check_line(self, report, plot: str | None) -> str:
+        """Section 6: named, never substituted — the picture confirms the
+        text; the text stays the criterion (`AGENT_PROTOCOL.md` §10)."""
+        if plot is not None:
+            from .viz.plots import plot_for_vlm
+
+            plot_for_vlm(self.result_, report, path=plot)
+            return f"  visual check written: {plot}"
+        return ("  visual check: call summary(plot='fit.png') or "
+                "plot_for_vlm(result, report) to draw these regions")
+
     # ------------------------------------------------------------------
     # exporters (WP-0309): reflection table, refinement CIF, QPA table
     # ------------------------------------------------------------------
@@ -2005,6 +2224,38 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                         "roughness drives Biso negative, so neither leaving it "
                         "out nor freeing it blind is safe)"),
         ))
+    return out
+
+
+def _dedup_high_correlations(
+    hits: dict[frozenset, list[tuple[str, Diagnostic]]],
+) -> list[Diagnostic]:
+    """One ``HIGH_CORRELATION`` per pair across a whole plan.
+
+    A pair that stays correlated fires on every stage that re-measures the
+    Jacobian after it becomes free, so ``hits`` — built by the caller as it
+    walks the stage loop — routinely holds several entries under one
+    ``frozenset(where)`` key.  Keeps the worst |ρ| (correlation only ever
+    strengthens or weakens; the largest magnitude is the most informative
+    one to show) and names every stage the pair was flagged in, because
+    "still correlated at the last stage" and "correlated once, early, and
+    never again" are different findings a client should be able to tell
+    apart without re-running the fit.
+    """
+    out = []
+    for pair, stage_hits in hits.items():
+        stage_names = list(dict.fromkeys(name for name, _ in stage_hits))
+        worst = max(stage_hits, key=lambda sd: abs(sd[1].value))[1]
+        message = worst.message if len(stage_names) == 1 else (
+            f"{worst.message} — flagged in stages: {', '.join(stage_names)}")
+        out.append(Diagnostic(
+            # worst.where, never list(pair): the dict key is a frozenset for
+            # dedup only, and its iteration order is hash-randomized per
+            # process — list(pair) could name the two paths in the opposite
+            # order from the one worst.message already spelled them in
+            level=worst.level, code=worst.code, message=message,
+            where=list(worst.where), value=worst.value, suggestion=worst.suggestion))
+    out.sort(key=lambda d: abs(d.value) if d.value is not None else 0.0, reverse=True)
     return out
 
 

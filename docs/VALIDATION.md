@@ -282,6 +282,14 @@ The synchrotron vertical slice, and the FitReport's impurity claim: CaF2 is foun
 
 **Measured:** min E > 0.8 on the main phase; phases[1].extinction == 0.0 exactly
 
+#### `test_nac_termination_view_golden_shape`
+
+`ceiling` · dataset `nac`
+
+**Claims:** Refinement.summary()'s shape (WP-1302: sections, labels, ordering) survives untouched when only a number moves — no accuracy claim, a text-shape regression bar only, referenced to a masked golden file
+
+**Measured:** 28 lines (summary(deliverable='qpa') on the two-phase Rietveld fit); str(result) alone is 12
+
 ### `tests/test_acceptance_qpa_roundrobin.py`
 
 Quantitative phase analysis against weighed truth, at tolerances referenced to what the round robin's participants achieved.

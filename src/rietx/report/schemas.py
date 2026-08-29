@@ -444,6 +444,11 @@ class Region(Base):
 
 
 class UnmatchedPeak(Base):
+    """One Layer-0 peak-accounting row; the list is ``FitReport.unmatched``,
+    and its counts alone (no positions) ride on
+    :class:`StageReport` as ``n_unmatched_obs``/``n_unmatched_calc``.
+    """
+
     two_theta: float
     height_over_sigma: float
     kind: str  # "unmatched_obs" (no calc tick nearby) | "unmatched_calc"

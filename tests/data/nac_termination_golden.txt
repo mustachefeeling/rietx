@@ -1,0 +1,29 @@
+Refinement.summary: converged (rietveld)
+  stage scale_bkg: converged (# it, ftol=#e#)
+  stage zero: converged (# it, ftol=#e#)
+  stage cell: converged (# it, ftol=#e#)
+  stage profile_w: converged (# it, ftol=#e#)
+  stage profile: converged (# it, ftol=#e#)
+  stage biso: converged (# it, ftol=solver default), max|Δθ|/esd=#
+  diagnostics: # unresolved
+    WARNING BOUND_HIT: phases.#atoms.#biso refined to its bound — widen the bound or fix the parameter
+    INFO CAPILLARY_OFFSET_UNAVAILABLE: this capillary geometry declares no goniometer radius, so the eq (#) specimen-offset aberrations are held at zero — which is not the same statement as having measured them to be zero — set instrument.geometry.goniometer_radius_mm if the diffractometer's is known; an unmodelled offset of this kind lands in the cell as a uniform d-scale error, moving both axes together, which leaves an axial ratio looking better than either axis deserves
+  layer#/#: Rwp=# GoF=#; # regions, top # shown (#% of χ²); # unmatched observed peak(s); remaining # regions carry #% of χ²; between the peak regions the residual is systematic, not noise — χ²_red=# over # channels at Durbin-Watson d=# (# = uncorrelated), misfit no region entry covers; Layer # on #/# regions, # active suggestion(s)
+    region ##°: #% of χ², max|Δ|/σ=#
+    region ##°: #% of χ², max|Δ|/σ=#
+    region ##°: #% of χ², max|Δ|/σ=#
+    unmatched obs peaks: #
+    serial correlation (DW): #, esds inflated ×#
+  next: run suggest
+  deliverable: qpa
+    background.absorption worst: phases.#atoms.#biso R²=#
+    #: # ± #
+    CaF#: # ± #
+  protocol:
+    plan: scale_bkg, zero, cell, profile_w, profile, biso
+    held: # symmetry-locked, # user-fixed, # wavelength-blocked
+    N points=#, N reflections=#, effective obs=#
+    σ source: file
+  provenance: rietx #dev#, backend=numpy, solver=trf
+  Rwp # / Rexp # (GoF #), Rp #, χ² #, DW #
+  visual check: call summary(plot='fit.png') or plot_for_vlm(result, report) to draw these regions

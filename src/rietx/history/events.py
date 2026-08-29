@@ -179,3 +179,101 @@ def read_events(path: str | Path) -> list[EventRecord]:
             if line:
                 out.append(EventRecord.model_validate_json(line))
     return out
+
+
+def progress_writer(sink) -> Any:
+    """Turn ``progress=`` into an ``events=`` callback (WP-1302): one text
+    line per ``stage_end``, and per pattern under a series (the ``series_*``
+    stamp — see :class:`~rietx.sequential._SeriesStream` — arrives on the
+    same event, so this needs no series-aware branch of its own).
+
+    Never a second telemetry channel: this reads the exact events a JSONL
+    log or a caller's own callback would, so ``rietx watch`` and a progress
+    line always agree, by construction, about what happened and when.  Every
+    number on the line is read straight off the event's own ``data`` (and its
+    own ``t``, against the matching ``stage_start``'s, for elapsed time) —
+    this function formats, it never computes.
+
+    ``sink`` is a text stream (``hasattr(sink, "write")``) or a path, opened
+    for append — the caller's to close if they passed a stream (untouched
+    here), and closed by :func:`_attach_progress` alongside its
+    ``EventStream`` if they passed a path, matching how that class treats its
+    own file handle. The returned callback carries that file as ``.close``
+    when it owns one, which is what ``_attach_progress`` chains onto the
+    stream's own ``close``.
+    """
+    owns_fh = not hasattr(sink, "write")
+    fh = open(sink, "a", encoding="utf-8") if owns_fh else sink
+    #: the *first* stage_start seen for a name, not the most recent — a
+    #: WP-1301 phase release emits a second stage_start before re-solving,
+    #: and the elapsed time a caller reads on the stage_end wants the whole
+    #: named stage's wall clock, both solves included, not just the second's
+    #: (unlike ``values``, which does want the most recent alignment; see
+    #: this module's docstring — a different question, a different answer).
+    first_start: dict[str, float] = {}
+
+    def _write(event: dict) -> None:
+        kind = event.get("kind")
+        data = event.get("data", {})
+        stage = data.get("stage")
+        if stage is None:
+            return
+        if kind == "stage_start":
+            first_start.setdefault(stage, event["t"])
+            return
+        if kind != "stage_end":
+            return
+        parts = []
+        if "series_index" in data and "series_n" in data:
+            parts.append(f"[series {data['series_index'] + 1}/{data['series_n']}]")
+            if data.get("series_label"):
+                parts.append(str(data["series_label"]))
+        parts.append(f"stage {stage}")
+        parts.append(str(data.get("status", "?")))
+        if data.get("rwp") is not None:
+            parts.append(f"Rwp {data['rwp']:.4f}")
+        start_t = first_start.pop(stage, None)
+        if start_t is not None:
+            parts.append(f"{event['t'] - start_t:.0f}s")
+        fh.write(" ".join(parts) + "\n")
+        fh.flush()
+
+    if owns_fh:
+        _write.close = fh.close
+    return _write
+
+
+def _attach_progress(stream: EventStream | None, progress) -> EventStream | None:
+    """Fold ``progress=`` into an ``events=`` stream as one more callback.
+
+    ``progress`` alone (no ``events=``) gets a bare callback-only
+    ``EventStream``, so a caller never has to pass both just to see lines.
+    With both, the caller's own callback (if ``events=`` was one) still runs
+    — this adds a second subscriber, it does not replace the first.  A
+    progress *path* (as opposed to a stream the caller owns) gets its file
+    closed alongside the returned stream's own ``close()``, the same way a
+    bare ``events=`` path does.
+    """
+    if progress is None:
+        return stream
+    writer = progress_writer(progress)
+    if stream is None:
+        stream = EventStream(callback=writer)
+    else:
+        prior = stream.callback
+
+        def _combined(event: dict, _prior=prior, _writer=writer) -> None:
+            if _prior is not None:
+                _prior(event)
+            _writer(event)
+
+        stream.callback = _combined
+    if hasattr(writer, "close"):
+        close_stream = stream.close
+
+        def _close(_close_stream=close_stream, _writer=writer) -> None:
+            _close_stream()
+            _writer.close()
+
+        stream.close = _close
+    return stream

@@ -11,6 +11,10 @@ from .common import Base
 class PatternData(Base):
     """A 1-D constant-wavelength powder pattern.
 
+    Numbers out: ``tt()``, ``y()``, ``sig()`` — numpy views of the two theta,
+    intensity and per-point σ; the fields themselves stay plain lists so the
+    model round-trips through JSON.
+
     ``sigma`` is the per-point standard deviation of the intensity.  When it is
     absent the refinement assumes raw Poisson counting statistics,
     σᵢ = √max(yᵢ, 1) — which is *invalid* for normalised/merged/smoothed data;

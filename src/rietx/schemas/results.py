@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
-from typing import Literal
+from typing import ClassVar, Literal
 
 import numpy as np
 from pydantic import Field
@@ -49,6 +48,11 @@ class RefinedParameter(Base):
 
 class Statistics(Base):
     """Agreement indices, defined per Toby (2006), Powder Diffraction 21, 67.
+
+    Per-fit only: ``n_iterations`` is on :class:`~rietx.schemas.sequential.SeriesEntry`
+    (a series has one count per pattern, not one pooled figure here), and an
+    unmatched-peak count is the report's — ``FitReport.unmatched`` (rows) or
+    ``StageReport.n_unmatched_obs``/``n_unmatched_calc`` (counts), never here.
 
     ``rwp_background_subtracted`` re-evaluates Rwp with the background removed
     from both y_obs and y_calc, which Toby recommends as the more meaningful
@@ -714,32 +718,119 @@ class HistogramResult(Base):
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
 
-@lru_cache(maxsize=None)
-def _nested_field_paths(cls: type, name: str) -> tuple[str, ...]:
-    """``field.name`` for every *singular* nested schema of ``cls`` holding ``name``.
+# ----------------------------------------------------------------------
+# The termination view (WP-1302) — shared projections, never a re-derivation.
+# ``Refinement.summary()`` (refine.py) reuses these three for the rows a bare
+# result already carries, and adds the rows that need the compiled model
+# (Layer 1, suggest, a deliverable) around them.
+# ----------------------------------------------------------------------
+def _stage_lines(stages: list[StageResult], max_shift_over_esd: float | None) -> list[str]:
+    """Section 1: per-stage status, and the last stage's convergence number.
 
-    Derived from the live annotations rather than listed, for the reason
-    ``tests/api_surface.py`` gives one rank up: a hand-written map of "misses
-    people have made" cannot notice a field added tomorrow, and this is a hint
-    whose whole value is being right about where the number actually is.
-
-    Optional blocks are searched too, and are the reason the answer is a tuple:
-    ``n_points`` is on both :class:`Statistics` and :class:`DataSupport`, and
-    naming both is the honest reply — they count different things, which is
-    WP-1071's whole point.  Cached per (class, name) because the miss happens
-    on a hot-ish path: pydantic probes absent attributes during copy and
-    serialization, and a v1.1 session is not the one to add a scan to those.
+    ``max_shift_over_esd`` (McCusker et al. 1999 §7) is the answer-producing
+    solve's own number, not one per stage — ``Statistics`` carries it exactly
+    once, on the fit as a whole.
     """
-    out: list[str] = []
-    for field, info in cls.model_fields.items():
-        for candidate in getattr(info.annotation, "__args__", (info.annotation,)):
-            if (isinstance(candidate, type) and issubclass(candidate, Base)
-                    and name in candidate.model_fields):
-                out.append(f"{field}.{name}")
-    return tuple(out)
+    lines = []
+    for i, s in enumerate(stages):
+        ftol = f"{s.ftol:.0e}" if s.ftol is not None else "solver default"
+        line = f"  stage {s.name}: {s.status} ({s.n_iterations} it, ftol={ftol})"
+        if i == len(stages) - 1 and max_shift_over_esd is not None:
+            line += f", max|Δθ|/esd={max_shift_over_esd:.3f}"
+        lines.append(line)
+    return lines
+
+
+#: Above this many *distinct* pairs, a printed diagnostics list stops growing
+#: and names the rest as one count instead (WP-1302). Display-only: it caps
+#: what `_diagnostic_lines` renders, never `RefinementResult.diagnostics`
+#: itself — `sequential._persistent_diagnostics` counts `HIGH_CORRELATION`
+#: occurrences across a whole series from that stored list, and a pair
+#: ranked just outside the top ten in every pattern must still be countable
+#: as "N of M" there even though no single pattern's *printed* view shows it.
+#: 10 is not tuned: it is "more than a reader scans, fewer than a reader
+#: ignores".
+HIGH_CORRELATION_MAX = 10
+
+
+def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
+    """Bound ``HIGH_CORRELATION`` at :data:`HIGH_CORRELATION_MAX`, worst first,
+    for **rendering only** — see that constant's docstring for why this must
+    never be applied to a stored diagnostics list.
+
+    Every other code passes through untouched and in place; the correlation
+    entries are pulled out, ordered by |ρ|, truncated, and the survivors
+    appended where the last one used to sit.
+    """
+    is_hc = [d.code == "HIGH_CORRELATION" for d in diagnostics]
+    if sum(is_hc) <= HIGH_CORRELATION_MAX:
+        return diagnostics
+    correlated = sorted((d for d, hc in zip(diagnostics, is_hc) if hc),
+                        key=lambda d: abs(d.value) if d.value is not None else 0.0,
+                        reverse=True)
+    kept, omitted = correlated[:HIGH_CORRELATION_MAX], correlated[HIGH_CORRELATION_MAX:]
+    out = [d for d, hc in zip(diagnostics, is_hc) if not hc]
+    last_hc = max(i for i, hc in enumerate(is_hc) if hc)
+    insert_at = sum(not hc for hc in is_hc[:last_hc + 1])
+    out[insert_at:insert_at] = [*kept, Diagnostic(
+        level="info", code="HIGH_CORRELATION_OMITTED", where=[],
+        value=float(len(omitted)),
+        message=f"{len(omitted)} more correlated pair(s) below the "
+                f"{HIGH_CORRELATION_MAX} shown here, weaker than all of them",
+        suggestion="result.identifiability carries the full correlation "
+                   "matrix and top_correlations list — nothing here was "
+                   "dropped from the fit, only from this message",
+    )]
+    return out
+
+
+def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
+    """Section 2a: the first stop condition — every diagnostic, resolved or not.
+
+    Present even at zero (WP-1302's acceptance: the stop-condition lines are
+    on *every* fit, including one with nothing to report), so a caller never
+    has to distinguish "no diagnostics" from "this section did not run".
+
+    The header count is the *stored* list's — accurate, uncapped; only the
+    rows actually printed below are bounded (:func:`_cap_high_correlation`),
+    so "23 unresolved" can be followed by fewer than 23 lines without lying
+    about how many there are.
+    """
+    if not diagnostics:
+        return ["  diagnostics: none"]
+    lines = [f"  diagnostics: {len(diagnostics)} unresolved"]
+    for d in _cap_high_correlation(diagnostics):
+        line = f"    {d.level.upper()} {d.code}: {d.message}"
+        if d.suggestion:
+            line += f" — {d.suggestion}"
+        lines.append(line)
+    return lines
+
+
+def _provenance_line(provenance: Provenance) -> str:
+    """The provenance clause of section 4 — the only part of it a bare
+    result can answer (the rest needs the compiled model: held paths, the
+    plan, N reflections)."""
+    return (f"  provenance: rietx {provenance.package_version}, "
+            f"backend={provenance.backend}, solver={provenance.solver}")
+
+
+def _agreement_line(stats: Statistics) -> str:
+    """Section 5: agreement indices last, Rwp beside Rexp — their ratio is GoF."""
+    line = (f"  Rwp {stats.rwp:.4f} / Rexp {stats.rexp:.4f} (GoF {stats.gof:.2f}), "
+            f"Rp {stats.rp:.4f}, χ² {stats.chi2:.1f}")
+    if stats.durbin_watson is not None:
+        line += f", DW {stats.durbin_watson:.2f}"
+    return line
 
 
 class RefinementResult(Base):
+    #: ``result.rwp`` is the single most expensive miss in WP-1110's evidence,
+    #: because of *when* it fires: the ``AttributeError`` arrived after a
+    #: 105 s refinement had completed, and took it with it — see
+    #: ``Base.__getattr__``. This is the class calls it commonly bind to.
+    _attr_hint_name: ClassVar[str | None] = "result"
+
     status: Literal["converged", "max_iter", "diverged"]
     mode: Mode
     parameters: list[RefinedParameter]
@@ -834,47 +925,6 @@ class RefinementResult(Base):
     # the pooled combined number and ``two_theta``/``y_*`` mirror histogram 0.
     histograms: list[HistogramResult] = Field(default_factory=list)
 
-    def __getattr__(self, name: str):
-        """An attribute that is really a nested one, answered with its path.
-
-        ``result.rwp`` is the single most expensive miss in WP-1110's evidence,
-        because of *when* it fires: the `AttributeError` arrived after a 105 s
-        refinement had completed, and took it with it.  The number is
-        ``result.statistics.rwp``, and nothing in the bare
-        ``'RefinementResult' object has no attribute 'rwp'`` says so.
-
-        A **pointer, not an alias.**  Forwarding the value instead would put
-        every nested field on the top level, giving two spellings of one fact
-        and — under the v1.0 freeze — promoting a dozen names nobody asked for
-        to frozen public API.  Nothing here is a new name: ``model_fields`` is
-        unchanged, the JSON is unchanged, and a caller who was going to succeed
-        still succeeds by the same route.
-
-        It is one lookup wide by design.  ``result.gof``, ``result.chi2``,
-        ``result.esd_inflation``, ``result.backend`` and ``result.solver`` are
-        the same keystroke as ``rwp`` and are answered by the same scan, so the
-        message is derived from the live field annotations rather than from a
-        list of the misses seen so far.  Lists are deliberately not searched:
-        ``result.path`` would have to name every ``RefinedParameter``, and
-        ``result.parameter(path)`` is the verb for that.
-        """
-        try:
-            return super().__getattr__(name)     # model_extra, private attrs
-        except AttributeError:
-            pass
-        # dunder and private probes (copy, pickle, pydantic's own) never reach
-        # the scan — they are the common miss and none of them is a typo
-        where = [] if name.startswith("_") else _nested_field_paths(type(self), name)
-        if not where:
-            raise AttributeError(
-                f"{type(self).__name__!r} object has no attribute {name!r}")
-        raise AttributeError(
-            f"{type(self).__name__} has no {name!r} — it is "
-            + " or ".join(f"result.{path}" for path in where)
-            + ". The top level carries the curves, the parameter rows and the "
-              "blocks; a number computed about the fit lives in the block that "
-              "computed it.")
-
     # -- numpy views -------------------------------------------------------
     def sig(self) -> np.ndarray:
         """Per-point σ for this result — **the one authority** (WP-1029 (s)).
@@ -948,3 +998,21 @@ class RefinementResult(Base):
             if p.path == path:
                 return p
         raise KeyError(path)
+
+    def __str__(self) -> str:
+        """The termination view a bare result can answer (WP-1302): per-stage
+        status, every diagnostic, provenance, agreement indices last.
+
+        Not the full view — ``Refinement.summary()`` adds the rows that need
+        the compiled model (Layer 1's summary sentence, the next suggestion,
+        a deliverable's rows, the plan and held paths) around this one, in
+        the order ``AGENT_PROTOCOL.md`` §10's stop conditions declare.  This
+        is what a caller holding only the result — the return value of
+        ``fit()``, or one read back from a project — can print without it.
+        """
+        lines = [f"RefinementResult: {self.status} ({self.mode})"]
+        lines += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
+        lines += _diagnostic_lines(self.diagnostics)
+        lines.append(_provenance_line(self.provenance))
+        lines.append(_agreement_line(self.statistics))
+        return "\n".join(lines)
