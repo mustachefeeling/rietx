@@ -30,7 +30,7 @@ def test_the_workspace_holds_patterns_and_the_host_and_nothing_else(tmp_path):
 
 def test_a_pattern_is_three_columns_with_the_fallback_sigma(tmp_path):
     ramp.write_workspace(tmp_path, 1)
-    lines = (tmp_path / "ramp_00_25C.xye").read_text().splitlines()
+    lines = (tmp_path / "ramp_00_25C.xye").read_text(encoding="utf-8").splitlines()
     assert len(lines) == len(ramp.GRID)
     x, y, s = (float(v) for v in lines[0].split())
     assert x == pytest.approx(ramp.GRID[0])

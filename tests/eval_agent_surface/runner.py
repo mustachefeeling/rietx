@@ -219,7 +219,7 @@ def launch(root: Path, cell: str) -> None:
 
 def transcript_for(root: Path, cell: str) -> Path | None:
     """The harness writes one JSONL per session, under a slug of the cwd."""
-    record = json.loads(paths(root, cell)["run"].read_text())
+    record = json.loads(paths(root, cell)["run"].read_text(encoding="utf-8"))
     slug = str(paths(root, cell)["workspace"]).replace("/", "-").replace("_", "-")
     candidate = Path.home() / ".claude" / "projects" / slug / f"{record['session_id']}.jsonl"
     if candidate.is_file():
@@ -237,7 +237,7 @@ def collect(root: Path, cell: str) -> None:
     if transcript is None:
         raise SystemExit(f"{cell}: no transcript for that session id")
     text = trail.render(trail.load(transcript), trail.load(p["log"]))
-    record = json.loads(p["run"].read_text()).get("result") or {}
+    record = json.loads(p["run"].read_text(encoding="utf-8")).get("result") or {}
     head = (f"cell {cell}\ntranscript {transcript}\n"
             f"cost ${record.get('total_cost_usd', float('nan')):.2f}, "
             f"{record.get('num_turns', '?')} turns, "

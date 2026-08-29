@@ -145,7 +145,8 @@ def test_every_shim_target_resolves_against_this_build(tmp_path):
         env=env, capture_output=True, text=True, timeout=300)
     assert proc.returncode == 0, proc.stderr
 
-    rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()
+            if line.strip()]
     imports = [r for r in rows if r.get("event") == "import"]
     assert len(imports) == 1
     assert imports[0]["missing"] == [], (
