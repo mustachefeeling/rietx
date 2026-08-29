@@ -21,14 +21,17 @@ is free.
 
 ## In
 
-Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities()` lists and takes the file's esd column when it has one; a wavelength comes from the instrument preset or the file, never from memory (§1).
+Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities()` lists and takes the file's esd column when it has one; a wavelength comes from the instrument preset or the file, never from memory (§1). **Handed another program's input file** — a TOPAS `.inp`, a GSAS-II recipe — read it with `rx.read_recipe` rather than parsing it yourself: it returns the model, the instrument and a plan together, and every unit it could not carry across says so as a `RECIPE_*` diagnostic instead of arriving silently wrong.
 
 - `rx.read_pattern(path: str | Path, *, diagnostics: list[Diagnostic] | None = None, **options: Any) -> PatternData` — Read any supported pattern file, dispatching on *content* first.
 - `rx.read_pdcif(path: str | Path, *, block: str | None = None, diagnostics: list[Diagnostic] | None = None) -> PatternData` — Read a powder pattern from a pdCIF file.
+- `rx.read_recipe(source: str | Path | dict, *, diagnostics: list[Diagnostic] | None = None) -> Recipe` — Read a PowderLine `GSASII_Rietveld` recipe.
 - `rx.Structure.from_cif(path: str, *, phase_name: str | None = None, aniso: bool = False, diagnostics: list | None = None) -> Structure`
 - `rx.Instrument.bragg_brentano(*, radiation: str = 'CuKa', goniometer_radius_mm: float = 217.5, monochromator_two_theta: float | None = None, ka2_ratio: float = 0.5, mu_t: float | None = None, thickness_mm: float | None = None) -> Instrument` — Lab flat-plate diffractometer preset with a Kα1/Kα2 doublet.
 - `rx.Instrument.debye_scherrer(wavelength: float, *, polarization: float = 0.99, goniometer_radius_mm: float | None = None, capillary_radius_mm: float | None = None, packing_fraction: float = 0.6, mu_r: float | None = None) -> Instrument` — Synchrotron/capillary preset with a single wavelength.
+- `rx.estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None` — Starting µR for a packed capillary, from composition and geometry.
 - `rx.auto_background(data: PatternData, *, kind: str = 'pspline', diagnostics: PatternDiagnostics | None = None, wavelength: float | None = None) -> Background` — Build a background model sized to the pattern.
+- `rx.diagnose(data: PatternData, *, wavelength: float | None = None, baseline_lambda: float | None = None) -> PatternDiagnostics` — Compute `PatternDiagnostics` for a raw pattern.
 - `rx.load_instrument_profile(path: str | Path) -> Instrument` — Read a profile file back as a **frozen** instrument.
 - `rx.save_instrument_profile(instrument: Instrument, path: str | Path)` — Write the instrument's calibrated state to a JSON profile file.
 - `rx.capabilities() -> Capabilities` — Everything this build can do — see the module docstring.
@@ -172,12 +175,13 @@ Peaks, then a cell, then the extinction symbol — the closed loop of §7b-7f, e
 
 ## Out
 
-Files and figures. `rx.format_su` renders a value with its esd as `1.2345(12)`; `plot_for_vlm` is the montage §5 allows as a check on a conclusion already reached from numbers.
+Files and figures. `rx.format_su` renders a value with its esd as `1.2345(12)`; `plot_for_vlm` is the montage §5 allows as a check on a conclusion already reached from numbers. `rx.write_recipe_tables` is the return leg of `rx.read_recipe` — a finished refinement as PowderLine's four tables, for a pipeline that dispatched the job here.
 
 - `rx.write_refinement_cif(result: RefinementResult, structure: Structure, instrument: Instrument, path: str | Path)` — Write a refinement CIF: structure (values + esds), R-factors, wavelength, profile/background description, and the observed/calculated pattern loop.
 - `rx.write_qpa_table(qpa: QuantitativePhaseAnalysis, path: str | Path, *, delimiter: str | None = None)` — Write the QPA table to CSV/TSV (delimiter inferred from suffix).
 - `rx.write_reflection_table(rows: list[ReflectionRow], path: str | Path, *, delimiter: str | None = None)` — Write reflection rows to CSV/TSV (delimiter inferred from suffix).
 - `rx.reflection_table(model: CompiledModel, values: dict[str, float], structure: Structure) -> list[ReflectionRow]` — Reflection rows for every (emission line, reflection) of every phase.
+- `rx.write_recipe_tables(refinement, out_dir: str | Path, *, phase_names: dict[str, str] | None = None) -> dict[str, Path]` — Write a finished refinement as PowderLine's four output tables.
 - `rx.format_su(value: float, esd: float | None, *, decimals: int = 6) -> str` — A number with its standard uncertainty in `value(su)` notation.
 - `rx.viz.plot_result(result: RefinementResult, *, path: str | None = None, two_theta_range: tuple[float, float] | None = None, show_background: bool = True, weighted: bool = False, style: str = 'light', wavelength: float | None = None, x_axis: str = 'two_theta', y_scale: str = 'linear', label_align: str = 'bottom', figsize: tuple[float, float] | None = None, font_size: float = 11.0, dpi: int = 300)` — Standard Rietveld panel: observed, calculated, difference, tick rows.
 - `rx.viz.plot_for_vlm(result: RefinementResult, report=None, *, path: str, n_regions: int = 4, dpi: int = 140)` — Annotated multi-panel montage rendered for what VLMs *can* read.

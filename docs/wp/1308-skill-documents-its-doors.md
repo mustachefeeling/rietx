@@ -114,10 +114,16 @@ produce new ones.
 
 ## Tasks
 
-- [ ] `references/api.md`: `read_recipe` in § In and `write_recipe_tables` in
+- [x] `references/api.md`: `read_recipe` in § In and `write_recipe_tables` in
       § Out, in the section's existing one-line signature form. Check the same
       way for any *other* public entry point missing from § In — the gate in the
       next task will name them, so write the gate first if that is cheaper.
+      *(Done via the generator's `SECTIONS`, the file being generated. The gate
+      was written first and named **four**, not two: `diagnose` and
+      `estimate_mu_r` are the same shape — `estimate_mu_r` is named by a
+      diagnostic message in `refine.py` and by `using/data.md`, and SKILL.md
+      §"capillary µR" says µR "is computed from the specimen" without ever
+      naming the call that computes it. All four documented.)*
 - [ ] The **gate**: a derived partition relating the skill's documented call
       surface to the package's public one, modelled on `tests/api_surface.py`
       (documented / excluded-with-a-reason / deferred), failing until a new
