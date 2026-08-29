@@ -1930,7 +1930,7 @@ class Refinement:
         lines += _stage_lines(result.stages, result.statistics.max_shift_over_esd)
         lines += _diagnostic_lines(result.diagnostics)
         lines += self._report_stop_condition_lines(report)
-        lines.append("  next: run suggest")  # WP-1305 b supplies delta_bic
+        lines.append(self._next_parameter_line())
         if deliverable is not None:
             lines += self._deliverable_lines(deliverable, report)
         lines += self._protocol_lines()
@@ -1958,6 +1958,37 @@ class Refinement:
                     if stats.esd_inflation is not None else "")
             lines.append(f"    serial correlation (DW): {stats.durbin_watson:.2f}{note}")
         return lines
+
+    def _next_parameter_line(self) -> str:
+        """Section 2c: the third stop condition — is anything left to free?
+
+        Answered in **ΔBIC**, not in the Δχ² that ranks: §4's rule is that a
+        powder pattern's channel count blesses improvements that are
+        physically inert, so "the leverage does not pay for the parameter" is
+        the sentence a caller stops on (WP-1305 b).
+
+        The probe runs on the channels the last fit *ran on*, rebuilt from the
+        compiled model — the same σ (a lookup, never a re-derivation), the same
+        limits and exclusions already applied — so this asks about the fit that
+        produced the view above rather than about a pattern the caller happens
+        to still be holding.  One Jacobian build, no solve.
+        """
+        model = self._model
+        data = PatternData(two_theta=model.tt.tolist(),
+                           intensity=model.y_obs.tolist(),
+                           sigma=model.sigma.tolist())
+        s = self.suggest(data)
+        if not s.groups:
+            return (f"  next: nothing to free — no held parameter clears the "
+                    f"noise floor ({s.n_evaluated} evaluated)")
+        top = s.groups[0]
+        what = (top.members[0].path if top.resolved
+                else "|".join(pc.path for pc in top.members) + " (a tie)")
+        if top.delta_bic > 0.0:
+            return (f"  next: free {what}, predicted ΔBIC {top.delta_bic:+.1f} "
+                    f"(Δχ² {top.gain:.4g})")
+        return (f"  next: nothing ΔBIC admits — {what} leads on Δχ² "
+                f"{top.gain:.4g} and ΔBIC refuses it ({top.delta_bic:+.1f})")
 
     def _deliverable_lines(self, deliverable: str, report) -> list[str]:
         """Section 3: §4b's deciding rows for one declared purpose only."""

@@ -87,11 +87,38 @@ class CandidateGroup(Base):
     are interchangeable, and ``gain`` is then the *joint* gain of freeing the
     whole group (what the data actually measures; per-member gains are the
     members' own, near-equal by construction).
+
+    ``delta_bic`` is the same gain read as a **model-selection** answer
+    (WP-1305).  ``gain`` ranks; it does not say whether the improvement pays
+    for the parameter it costs, and at powder-pattern channel counts that is
+    the question — the protocol's §4 rule is ΔBIC, never Hamilton's R-ratio,
+    and the ramp run that motivated this field held zero shift and sample
+    displacement on a ΔBIC its agent had to measure by hand with two extra
+    refits per candidate.  It is :func:`~rietx.report.layer2.delta_bic`
+    (Schwarz 1978) — the package's one BIC form — evaluated at the
+    Gauss-Newton *prediction* of what freeing this group reaches:
+    ``chi2_restricted`` the probe's own weighted SSR, ``chi2_full`` that SSR
+    minus :attr:`gain`, ``n_points`` the probe residual's length and
+    ``n_added`` the number of members.  **Positive favours freeing**, the sign
+    layer2 defines, so a full refit's ΔBIC computed the same way is directly
+    comparable — that is what the test pins.
+
+    Predicted, not measured: the linearisation is the same one ``gain`` is,
+    and a group whose predicted ``chi2_full`` reaches zero leaves the linear
+    regime entirely, where layer2's own guard returns ``0.0`` — no claim
+    rather than an infinite one.
+
+    A positive ``gain`` above the noise floor with ``delta_bic`` at or below
+    zero is not a contradiction and is the common case on a long pattern: the
+    floor is the 3σ point of χ²₁ (:data:`SUGGEST_MIN_GAIN`) while BIC charges
+    ``ln N`` per parameter, ≈ 10 at 22 000 channels.  Read it as "this
+    parameter has leverage, and the leverage does not pay for it".
     """
 
     members: list[ParameterCandidate] = Field(min_length=1)
     gain: float
     resolved: bool
+    delta_bic: float
 
 
 class SuggestionResult(Base):

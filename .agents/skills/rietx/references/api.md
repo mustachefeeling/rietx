@@ -131,7 +131,7 @@ A refinement, a series, an indexing run and a suggestion each return their own t
 - `rx.SuggestionResult` — Ranked, gated answer to "which parameter should be freed next?".
   Fields: `groups: list[CandidateGroup] = []`, `non_separable: list[ParameterCandidate] = []`, `skipped: list[str] = []`, `n_evaluated: int = 0`, `chi2_red: float`, `noise_floor: float`, `summary: str`
 - `rx.CandidateGroup` — One rankable unit: a single candidate, or a tie the data cannot split.
-  Fields: `members: list[ParameterCandidate]`, `gain: float`, `resolved: bool`
+  Fields: `members: list[ParameterCandidate]`, `gain: float`, `resolved: bool`, `delta_bic: float`
 
 ## The report
 

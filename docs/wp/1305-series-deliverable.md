@@ -93,8 +93,10 @@ Any change to the ladder or `_reseed_needed`.
 ## Tasks
 
 - [ ] (a) the §4b text in `SKILL.md`, as copyable sentences.
-- [ ] (b) `delta_bic` + `_summary` + `SCHEMA_VERSION` bump + docs (`using/refining.md` §
-      suggest) + the sign test.
+- [x] (b) `delta_bic` + `_summary` + `SCHEMA_VERSION` bump + docs (`using/report.md` §
+      Which parameter to free next — where `suggest` is actually documented; `refining.md`
+      only mentions it — plus `results.md` § Printing a result and the release notes) +
+      the sign test.
 - [ ] (c) the verify flag behind the decision rule; the measurement in the handover
       with wall-clock ranges; the decision recorded.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/`.

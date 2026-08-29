@@ -582,15 +582,22 @@ stays under 80 lines on a five-stage fit.
 more, because a session holds the compiled model: the same per-stage and
 diagnostics rows, then the Layer 0/1 misfit summary (the worst regions by χ²
 share, the unmatched-peak count, the serial correlation read out as
-Durbin-Watson with the esd inflation it costs), the next held parameter
-`suggest` would point at, the protocol actually run (the plan, every held
-path grouped by why, the excluded ranges, N points against N reflections, the
-σ source), and finally the agreement indices and a named visual check:
+Durbin-Watson with the esd inflation it costs), the next parameter worth
+freeing, the protocol actually run (the plan, every held path grouped by why,
+the excluded ranges, N points against N reflections, the σ source), and
+finally the agreement indices and a named visual check:
 
 <!-- api-doc: no-exec — continues the earlier session, needs a completed fit -->
 ```python
 print(ref.summary())
 ```
+
+The `next:` line is a `Refinement.suggest` probe on the channels the fit ran
+on, read as **ΔBIC** rather than as the Δχ² that ranks — `next: free
+instrument.profile.w, predicted ΔBIC +48.2 (Δχ² 1.2e+03)`, or `next: nothing
+ΔBIC admits` when the leading candidate's gain does not pay for its parameter
+at this channel count. It costs one Jacobian build and no solve; [](report.md)
+has the field and the two questions it separates.
 
 `deliverable=` adds the rows one purpose actually decides on — `"phase_id"`
 (unmatched observed peaks, the Le Bail gap ratio), `"qpa"`
