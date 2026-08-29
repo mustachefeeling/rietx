@@ -349,7 +349,7 @@ Each WP carries its measured baseline; opens with the version bump when v1.2 shi
 | [1304](wp/1304-protocol-as-skill.md) | The protocol is a skill | ✅ 2026-08-29 | 1303 |
 | [1305](wp/1305-series-deliverable.md) | The series deliverable, and the checks the agent ran by hand | ✅ 2026-08-29 — §4b's fourth deliverable, a parameter against the series axis, printed by `SeriesResult.summary(deliverable="series")`; `CandidateGroup.delta_bic` (`SCHEMA_VERSION` 0.13 → 0.14) so `suggest` says whether the leverage pays for the parameter, and `Refinement.summary()`'s `next:` line is that number; `verify_discontinuities=True` refits a flagged step's two patterns cold — +5 % of a 68-pattern chain, every step reproducing at 1.00 | 1304 |
 | [1306](wp/1306-powderline-recipe.md) | PowderLine recipe: the interchange format rietx did not have to invent | ✅ 2026-08-29 | — (1303 soft) |
-| [1307](wp/1307-recapture-round-1-1.md) | Re-capture: surface round protocol 1.1 | ⬜ | 1301-1305 (last) |
+| [1307](wp/1307-recapture-round-1-1.md) | Re-capture: surface round protocol 1.1 | 🔄 | 1301-1305 (last) |
 
 ### v1.4 — free-standing peaks (shifted 2026-08-20, 2026-08-25 and 2026-08-28)
 
