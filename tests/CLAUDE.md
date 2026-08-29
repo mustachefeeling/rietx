@@ -94,15 +94,15 @@ failure message is the one you expected.
 
 `tests/eval_report_agent/` asks whether an agent **reads** a FitReport it was
 handed; `tests/eval_agent_surface/` (WP-1110) asks which **surface** an agent
-reaches for when handed files and a job. Different episodes, different answer
-contracts, different scoring, so a cell in one is comparable to nothing in the
-other and neither version number governs both. What they share is the
-discipline, and it is the part to copy into any third: **register the round
-before running it**, enforce the condition in a **shim** rather than in the
-prompt, and fix the read-outs in advance. The second one earned that last rule
-twice over: its headline result (zero `tool_definition()` calls in any cell)
-was not one of its read-outs, and its `pointed` cell came back **split** at
-N = 2, which is reported as split rather than resolved by argument.
+reaches for when handed files and a job. Different episodes, answer contracts
+and scoring, so a cell in one is comparable to nothing in the other and neither
+version number governs both. What they share is the discipline, and it is the
+part to copy into any third: **register the round before running it**, never
+rewritten afterwards; enforce the condition in a **shim** rather than in the
+prompt; fix the read-outs in advance. The second one earned that last rule
+twice over: its headline result (no cell called the JSON surface it was about,
+deleted in WP-1303) was not one of its read-outs, and its `pointed` cell came
+back **split** at N = 2, reported as split, not resolved.
 
 A shim also has to be **invisible to its subject**. Round 1.0's tracer wrapped
 without `functools.wraps`, so `inspect.signature` showed the wrapper and an

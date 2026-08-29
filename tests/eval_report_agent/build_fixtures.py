@@ -615,8 +615,8 @@ def _glossary(meanings: dict[str, str], vocabulary: tuple[str, ...]) -> str:
 _PROMPT = """\
 # Episode {eid} — powder XRD refinement
 
-You are operating the `rietx` Rietveld refinement package through its one
-JSON tool call, `agent.refine_json`.  This directory is your workspace:
+You are operating the `rietx` Rietveld refinement package through one JSON
+call, the shim command below.  This directory is your workspace:
 
 - `episode.json` — the fixed request core (structure, instrument, pattern).
   Read-only: the shim merges your overlay onto it; you never edit it.  It is

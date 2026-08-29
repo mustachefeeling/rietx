@@ -29,8 +29,8 @@ a paragraph that explains the wrong thing, so if a page misleads you, please
 ## Who this is written for
 
 This manual is written for a person to read, but parts of the package are built
-for a program: the `FitReport` and its three layers, `agent.refine_json` and its
-JSON envelope, `capabilities()`, the streaming event ladder, and the diagnostic
+for a program: the `FitReport` and its three layers, `capabilities()`, the JSON
+every answer type dumps to, the streaming event ladder, and the diagnostic
 codes. They are documented here because a person has to understand them to
 trust, debug or extend what a machine does with them. `FitReport` also answers
 the question anyone looking at a plot has: where is this model wrong, and how

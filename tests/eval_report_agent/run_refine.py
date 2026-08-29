@@ -1,4 +1,9 @@
-"""The agent's only sanctioned call path into ``refine_json`` (WP-1053).
+"""The agent's only sanctioned call path into a refinement (WP-1053).
+
+It called the package's JSON envelope until WP-1303 retired that; the request
+and response shapes are unchanged, because they were always this protocol's
+rather than the package's, and :func:`run_request` below now runs them against
+``Refinement.fit`` directly.
 
 The shim, not the prompt, enforces the condition — an agent can ignore a
 prompt; it cannot un-strip a response:
@@ -51,15 +56,94 @@ from pathlib import Path
 
 ALLOWED_OVERLAY_KEYS = frozenset({"plan", "mode", "two_theta_limits"})
 
+#: every key a request may carry, after the overlay is merged in.  The shim
+#: owns this vocabulary since WP-1303 — the package's request union used to —
+#: so an episode key nobody reads is refused here rather than validated away
+REQUEST_KEYS = frozenset({"task", "structure", "instrument", "pattern", "mode",
+                          "plan", "two_theta_limits", "include_report",
+                          "report_trajectory"})
+
 #: bulk per-point arrays elided from the logged/printed response; each is
 #: replaced by its length so the elision is visible, never silent
 _BULK_KEYS = ("two_theta", "y_obs", "y_calc", "y_background", "sigma")
 
 
 def _refusal(code: str, message: str) -> dict:
-    """Same envelope grammar as ``refine_json``'s failures, so the agent
-    branches on ``ok``/``error.code`` either way."""
+    """The envelope grammar, one grammar for every failure the agent can see,
+    so it branches on ``ok``/``error.code`` whether the shim refused the call
+    or the fit did."""
     return {"ok": False, "error": {"code": code, "message": message}}
+
+
+def run_request(request: dict) -> dict:
+    """One refinement request → the response envelope; never raises.
+
+    The package answered this shape until WP-1303 retired its JSON module;
+    retiring it moved the recipe here, which is where it belonged — the
+    envelope is the **eval protocol's** contract (PROTOCOL.md), read by the
+    scorer and the agent, and nothing outside this harness ever called it.
+    What the package contributes is unchanged and is the whole of the work:
+    ``Refinement.fit`` and ``Refinement.report``, dumped with
+    ``model_dump(mode="json")``.
+
+    Three error codes, the ones a request can actually reach here:
+    ``INVALID_REQUEST`` (a key or a model the shim will not build),
+    ``NO_PHASES`` (a structure with nothing to refine — the engine's own
+    refusal, kept apart because "index it first" is not "retry"), and
+    ``REFINEMENT_FAILED`` for anything the engine raises.
+    """
+    from pydantic import ValidationError
+
+    import rietx as rx
+    from rietx.refine import NoPhasesError
+    from rietx.schemas.plan import PlanSpec
+
+    unknown = sorted(set(request) - REQUEST_KEYS)
+    if unknown:
+        return _refusal("INVALID_REQUEST",
+                        f"unknown request key(s): {', '.join(unknown)}; "
+                        f"allowed: {', '.join(sorted(REQUEST_KEYS))}")
+    if request.get("task") != "refine":
+        return _refusal("INVALID_REQUEST",
+                        f"task must be \"refine\", not {request.get('task')!r}")
+    try:
+        structure = rx.Structure.model_validate(request["structure"])
+        instrument = rx.Instrument.model_validate(request["instrument"])
+        pattern = rx.PatternData.model_validate(request["pattern"])
+        plan = request.get("plan", "mccusker_default")
+        if not isinstance(plan, str):
+            plan = PlanSpec.model_validate(plan)
+    except (KeyError, ValidationError, TypeError) as exc:
+        return _refusal("INVALID_REQUEST", f"{type(exc).__name__}: {exc}")
+
+    limits = request.get("two_theta_limits")
+    include_report = bool(request.get("include_report", True))
+    # include_report is the master switch for report *content*: declining the
+    # report and being handed one a rung at a time would make the report-off
+    # arm of an A/B (WP-1053, WP-1059) not a report-off arm
+    trajectory = bool(request.get("report_trajectory")) and include_report
+
+    ref = rx.Refinement(structure, instrument)
+    try:
+        result = ref.fit(pattern, mode=request.get("mode", "rietveld"),
+                         plan=plan,
+                         two_theta_limits=tuple(limits) if limits else None,
+                         stage_reports=trajectory)
+        # built before the result is dumped: building the report is what
+        # writes the identifiability clause into ``result.statistics``
+        # (WP-1108's declared write, and the 2.2 projection's no-op check)
+        report = ref.report(plan=plan) if include_report else None
+    except NoPhasesError as exc:
+        return _refusal("NO_PHASES", str(exc))
+    except Exception as exc:  # noqa: BLE001 — the envelope IS the error channel
+        return _refusal("REFINEMENT_FAILED", f"{type(exc).__name__}: {exc}")
+
+    response = {"ok": True, "result": result.model_dump(mode="json")}
+    if report is not None:
+        response["report"] = report.model_dump(mode="json")
+    response["trajectory"] = [rung.model_dump(mode="json")
+                              for rung in ref.stage_reports_]
+    return response
 
 
 def trim_response(response: dict) -> dict:
@@ -124,9 +208,9 @@ def _project_license_placement(response: dict) -> dict | None:
     the re-render is the same mismatch one surface over, refused by the same
     code.  What the projection still constructs is the round's *moved* shape
     — the package ships the copy, the arm delivered one copy in one
-    location.  The equivalence with a real ``refine_json`` response is
-    pinned from the package side by ``tests/test_fitreport_layers.py::
-    test_refine_json_delivers_the_license_beside_the_numbers``.
+    location.  The equivalence with a real response is pinned from the package
+    side by ``tests/test_fitreport_layers.py::
+    test_a_serialized_answer_delivers_the_license_beside_the_numbers``.
     """
     from rietx.report import identifiability_clause
     from rietx.report.schemas import IdentifiabilityEvidence
@@ -221,9 +305,7 @@ def run_episode(episode_dir: Path) -> dict:
         include_trajectory = condition["include_trajectory"]
         request["include_report"] = include_report
         request["report_trajectory"] = include_trajectory
-        import rietx.agent as agent_mod
-
-        response = agent_mod.refine_json(request)
+        response = run_request(request)
         # the 2.2 projections (PROTOCOL.md 2.2), applied before the pops so
         # they see the report; ``.get`` defaults are the pre-2.2 shape, so a
         # marker without the keys — an archived round's — means status quo

@@ -483,9 +483,8 @@ protocol has the worked example.
 | `IndexingControls.validate_candidates` | whether to run whole-profile validation |
 | `IndexingControls.check_top` | how many candidates get the expensive checks |
 
-It is what a project document persists ([](files.md)) and what the agent
-request carries ([](agents.md)), so a run can be repeated from a stored
-setting rather than from a call site.
+It is what a project document persists ([](files.md)), so a run can be repeated
+from a stored setting rather than from a call site.
 
 ## The result object
 
@@ -756,9 +755,9 @@ Rwp reads 0.25 against 0.79. A reasoner given both can see that; the gate, readi
 one number, cannot. This is an argument for surfacing Rwp, never for ranking on
 it.
 
-The same shape arrives over JSON: `agent.refine_json`'s `index` task answers in
-an `indexing` arm with an `evidence` companion beside it, and the arm carries no
-`cell` key either. [](agents.md) has the envelope.
+The same shape survives serialisation: `IndexingResult.model_dump` carries no
+`cell` key either, and `IndexingResult.evidence` is the companion projection to
+dump beside it. [](agents.md) has the rest of the programmatic surface.
 :::
 
 `rietx.viz.plot_indexing` draws the ranked candidates as tick rows against the

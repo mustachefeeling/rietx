@@ -86,7 +86,18 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: every stage, so an empty one means "nothing was held", not "nobody looked").
 #: A consumer notices, which is the whole test: a parameter the plan freed can
 #: now come back unrefined, and these two fields are where it says so.
-SCHEMA_VERSION = "0.11"
+#: 0.11 → 0.12 (WP-1303): the **agent envelope is gone** — ``rietx.agent``, its
+#: request union (``RefineRequest`` and the four peers), its response arms
+#: (``AgentSuccess``/``AgentFailure``), the ``ERROR_CODES`` grammar and the
+#: exported JSON Schemas.  Every other bump on this ladder was additive; this
+#: one removes models a consumer could have been parsing, which is why it moves
+#: the string rather than riding along with a release note.  Nothing that
+#: *computes* moved: the answer types the envelope wrapped
+#: (``RefinementResult``, ``FitReport``, ``SeriesResult``, ``IndexingResult``,
+#: ``SuggestionResult``) are untouched and still serialize byte for byte, so a
+#: caller that dumps ``Refinement.fit``'s result gets what the ``result`` arm
+#: carried.  ``Capabilities.features`` loses ``agent_json`` with it.
+SCHEMA_VERSION = "0.12"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

@@ -328,8 +328,10 @@ _PULL_RES = {
 
 #: one *fit-bearing* script run: a probed event whose payload performs a
 #: solve.  Counted per event (a script that fits five times is one run) —
-#: the python arm's budget counter, PROTOCOL.md 2.0 § The python-capable arm
-_FIT_RE = re.compile(r"\.fit\s*\(|\.run_stage\s*\(|refine_json\s*\(")
+#: the python arm's budget counter, PROTOCOL.md 2.0 § The python-capable arm.
+#: A third alternative matched the JSON envelope's one call until WP-1303
+#: deleted it; a python-arm agent now has only these two ways to solve.
+_FIT_RE = re.compile(r"\.fit\s*\(|\.run_stage\s*\(")
 
 #: audit candidates (PROTOCOL.md 2.0 § Audit): deterministic pointers for
 #: the human audit, never verdicts — matched over *probed* payloads only

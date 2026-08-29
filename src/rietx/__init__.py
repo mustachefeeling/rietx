@@ -5,7 +5,7 @@ import importlib
 import inspect
 import pkgutil
 
-from . import agent, schemas
+from . import schemas
 
 # The background estimator and the model-free pattern diagnostics were reachable
 # only as ``rietx.background.auto_background`` — this module never imported
@@ -84,7 +84,6 @@ __all__ = [
     "__version__",
     "AnisoU",
     "Atom",
-    "agent",
     "CancelToken",
     "CandidateGroup",
     "Cell",
@@ -192,14 +191,20 @@ for _name, _cls in _schema_classes().items():
 del _name, _cls
 
 
-#: A miss that is really one level down under a *different* name than the one
-#: reached for — never a typo of a top-level export, so ``difflib`` below
-#: cannot find it.  ``identify_format`` is a real historical one (WP-1302):
-#: an agent wanted "what format is this", the function of that name lives in
-#: ``io.readers``, but the more useful landmark for that question is the
-#: registry it reads, not the function itself.
+#: A name ``difflib`` below cannot help with, answered with where the thing
+#: actually is.  Two kinds qualify, both real: a miss that is really one level
+#: down under a *different* name than the one reached for
+#: (``identify_format``, WP-1302 — an agent wanted "what format is this", the
+#: function of that name lives in ``io.readers``, but the more useful landmark
+#: for that question is the registry it reads); and a name this package
+#: **used** to export (``agent``, deleted in WP-1303), where the miss is a
+#: caller written against an older release and the useful answer is what
+#: replaces it, not a spelling.
 _TOP_LEVEL_HINTS: dict[str, str] = {
     "identify_format": "it lives one level down: rietx.io.readers.PATTERN_FORMATS",
+    "agent": ("removed in v1.3 — call rietx.refine() or Refinement.fit() and "
+              "dump the answer with result.model_dump(mode='json'); the "
+              "envelope's ok:false is now a raised ValueError/RuntimeError"),
 }
 
 

@@ -26,10 +26,13 @@ LOG = os.environ.get(
     "/Users/yue/.claude/jobs/9d6b0544/tmp/surface_trace.jsonl",
 )
 
-# dotted attribute paths below the ``rietx`` module, resolved after it executes
+# dotted attribute paths below the ``rietx`` module, resolved after it executes.
+# Round 1.0 traced four more, the JSON envelope's calls, and its headline
+# result was that no unaided cell reached any of them; WP-1303 then deleted
+# them, so they are gone from here too — a target that cannot be reached is a
+# read-out that cannot fail.  What the round measured stands in PROTOCOL.md,
+# and the next round's list is that protocol's to declare (WP-1307).
 _TARGETS = (
-    "agent.refine_json", "agent.tool_definition", "agent.request_schema",
-    "agent.response_schema",
     "capabilities", "read_pattern",
     "crystallography.cif.structure_from_cif",
     "refine", "refine_sequential", "refine_multi", "replay",
@@ -98,7 +101,6 @@ def _patch(module) -> None:
     import importlib
 
     try:
-        importlib.import_module("rietx.agent")
         importlib.import_module("rietx.crystallography.cif")
     except Exception:
         pass

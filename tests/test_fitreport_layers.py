@@ -1448,35 +1448,41 @@ def test_license_field_stays_none_when_nothing_fires(truth):
     assert dumped["statistics"]["identifiability_clause"] is None
 
 
-def test_refine_json_delivers_the_license_beside_the_numbers():
-    """The acceptance pin: a real ``refine_json`` response carries the field
-    inside ``result.statistics``, bit-identical to what the 2.2
-    ``report_stat`` arm delivered — the clause the response's *own* report
-    evidence renders, which is exactly the shim projection's equivalence
-    check (``run_refine._project_license_placement``) satisfied by the
-    package itself.  The summary keeps its copy: the placement decision
-    moved nothing out (the WP-1108 design note)."""
-    import rietx.agent as ag
+def test_a_serialized_answer_delivers_the_license_beside_the_numbers():
+    """The acceptance pin: a real serialized answer carries the field inside
+    ``result.statistics``, bit-identical to what the 2.2 ``report_stat`` arm
+    delivered — the clause the answer's *own* report evidence renders, which
+    is exactly the shim projection's equivalence check
+    (``run_refine._project_license_placement``) satisfied by the package
+    itself.  The summary keeps its copy: the placement decision moved nothing
+    out (the WP-1108 design note).
+
+    It was one ``refine_json`` call until WP-1303; the response it validated
+    is assembled here from the two dumps it wrapped, so what the shim's
+    projection is held to is unchanged.
+    """
     from rietx.report import identifiability_clause
     from rietx.report.schemas import IdentifiabilityEvidence
+    from rietx.schemas.plan import PlanSpec
 
     structure, ins, data = _truth(disp=-0.10)      # the R1 shape: a genuinely
     start = ins.model_copy(deep=True)              # displaced specimen, fitted
     start.geometry.sample_displacement.value = 0.0  # the lazy way (zero free)
-    response = ag.refine_json({
-        "task": "refine",
-        "structure": structure.model_dump(mode="json"),
-        "instrument": start.model_dump(mode="json"),
-        "pattern": data.model_dump(mode="json"),
-        "plan": {"stages": [
-            {"name": "scale_bkg",
-             "turn_on": ["phases.*.scale", "instrument.background.*"]},
-            {"name": "zero", "turn_on": ["instrument.zero_shift"]},
-            {"name": "cell", "turn_on": ["phases.*.cell.*"]},
-            {"name": "profile_w", "turn_on": ["instrument.profile.w"]},
-        ]},
-    })
-    assert response["ok"], response.get("error")
+    plan = PlanSpec.model_validate({"stages": [
+        {"name": "scale_bkg",
+         "turn_on": ["phases.*.scale", "instrument.background.*"]},
+        {"name": "zero", "turn_on": ["instrument.zero_shift"]},
+        {"name": "cell", "turn_on": ["phases.*.cell.*"]},
+        {"name": "profile_w", "turn_on": ["instrument.profile.w"]},
+    ]})
+    ref = rx.Refinement(structure, start)
+    result = ref.fit(data, plan=plan)
+    # the report is built *before* the result is dumped, because building it is
+    # what writes the clause into ``result.statistics`` (WP-1108's declared
+    # write) — the envelope did the same two steps in the same order
+    report = ref.report(plan=plan)
+    response = {"result": result.model_dump(mode="json"),
+                "report": report.model_dump(mode="json")}
     clause = response["result"]["statistics"]["identifiability_clause"]
     assert clause is not None
     assert clause == identifiability_clause(IdentifiabilityEvidence

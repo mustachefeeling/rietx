@@ -409,12 +409,12 @@ class EngineResult:
 # Registry
 # ----------------------------------------------------------------------
 #: name → callable.  Populated by each engine module at import; read by
-#: ``index_pattern`` and by ``agent.tool_definition()``, which must quote it
-#: **live** so a new engine cannot be missing from the exported schema.
+#: ``index_pattern`` and by ``capabilities()``, which must quote it **live**
+#: so a new engine cannot be missing from what a client is told exists.
 _REGISTRY: dict[str, Callable[..., EngineResult]] = {}
-#: name → one line of what the engine is for, quoted into the agent schema and
-#: the CLI help.  Kept beside the callable so an engine cannot register without
-#: saying what it does.
+#: name → one line of what the engine is for, quoted into ``capabilities()``
+#: and the CLI help.  Kept beside the callable so an engine cannot register
+#: without saying what it does.
 _DESCRIPTIONS: dict[str, str] = {}
 
 

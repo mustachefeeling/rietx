@@ -73,7 +73,16 @@ their GSAS-II and TOPAS tables.
 
 ### Inherited
 
-Nothing yet.
+- **From WP-1303 (2026-08-29): the `{ok, error}` envelope is no longer in the
+  package**, so this WP designs its recipe from scratch rather than reusing a
+  shipped one — which was the decision behind the delete. There is one worked
+  precedent to read if you want it: `tests/eval_report_agent/run_refine.py`'s
+  `run_request`, ~50 lines that validate a request dict, call `Refinement.fit`
+  and return `{ok, error}` with three codes. Two rules landed in the root
+  CLAUDE.md and govern the design here: an integration surface across a process
+  boundary takes **paths, never inline payloads** (a lab pattern serialized is
+  ~11 k tokens), and a dedicated tool surface earns its place only where it
+  gates, renders, audits or parallelises.
 
 ## Non-goals
 

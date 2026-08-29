@@ -1,7 +1,9 @@
 # Calling rietx from a program
 
 Two calls carry the whole integration surface. `capabilities()` says what this
-build can do; `agent.refine_json` does it.
+build can do; `Refinement.fit` does it. There is no third thing to learn, and
+no wire format between you and the package: the objects are the API and their
+JSON dumps are the wire.
 
 :::{admonition} For agents
 :class: agent
@@ -12,353 +14,87 @@ fastest way to answer "did my `jax` extra take?", but that is not what it is
 for.
 :::
 
-## `refine_json`: one call, five tasks
+## The Python API is the surface
 
-`agent.refine_json` takes a dict and returns a dict. It never raises and never
-returns a traceback:
+Up to version 1.2 there was a second one, an `agent` module holding a single
+JSON call that took a request dict and returned an `{"ok": …}` envelope, plus
+its exported JSON Schemas. All of it was retired
+in 1.3 because it was measured and not used. Across four traced rounds — 235
+instrumented interpreter starts, and 5 430 tool calls in one contributor's
+bundle — every agent that had the choice drove the package directly:
+`read_pattern`, `Structure`, `Refinement.fit`, `refine_sequential`,
+`build_report`. It also could not serve the case it was built for: its request
+carried patterns inline, so one lab pattern is 11 k tokens and a 68-pattern
+series is about 754 k of them in a single call.
 
+What replaces it is what those agents already did:
+
+<!-- api-doc: no-exec — it refines a pattern the reader supplies -->
 ```python
-from rietx import agent
+import rietx as rx
 
-envelope = agent.refine_json({"task": "capabilities-probe-is-not-a-task"})
-envelope["ok"], envelope["error"]["code"]
+data = rx.read_pattern("my_sample.xye")
+ref = rx.Refinement(structure, instrument)
+result = ref.fit(data, plan="mccusker_default")
+print(ref.summary())
 ```
 
-Success is `{"ok": true, …}` with **exactly one** of `result`, `series`,
-`indexing` or `suggestion` set, so a consumer branches on the arm that arrived.
+Three differences from the envelope are worth stating plainly, because they are
+the whole of the upgrade:
 
-| `task` | Does | Answers in |
-|---|---|---|
-| `refine` | fits one pattern | `result` |
-| `refine_multi` | fits N patterns as one joint residual | `result` |
-| `refine_sequential` | chains N patterns by warm start | `series` |
-| `index` | determines a unit cell from peaks or a pattern | `indexing` |
-| `suggest` | ranks held parameters by predicted Δχ², no solve, no mutation | `suggestion` |
+- **A failure raises.** Where the envelope answered `{"ok": false, "error":
+  {"code": …}}`, the call raises — `ValueError` for a model or a plan the
+  package refuses, `NoPhasesError` for a structure with nothing to refine,
+  `RuntimeError` from the engine. Catch what you would have branched on.
+- **The answer is an object.** `RefinementResult` is what the `result` arm
+  carried, `SeriesResult` what `series` carried, `IndexingResult` what
+  `indexing` carried, and `SuggestionResult` what `suggestion` carried. None of
+  them changed.
+- **The report is a separate call.** `Refinement.report` builds the
+  `FitReport` for the fit just run, and `Refinement.stage_reports_` holds the
+  report at every stage boundary when `Refinement.fit` was asked for them with
+  `stage_reports=True`. A converged report is routinely the least informative
+  one in a run, so ask for the rungs on a run you will actually read.
 
-The four arms are separate because they are different *shapes*. For indexing the
-shape is the rule: the serialized answer carries no `cell` key, because a powder
-pattern does not measure one cell. It measures a ranked set of candidates, and a
-singleton would be a confident guess.
+## The answer as JSON
 
-## The request
-
-A request is plain JSON. The five request types are the **schema of that dict**:
-they declare the key names, the types and the defaults, and nothing asks you to
-construct one. Their fields are the wire contract, which is why they are named
-here field by field.
-
-| `task` | Type |
-|---|---|
-| `refine` | `RefineRequest` |
-| `refine_multi` | `MultiRefineRequest` |
-| `refine_sequential` | `SequentialRefineRequest` |
-| `index` | `IndexRequest` |
-| `suggest` | `SuggestRequest` |
-
-The union is **discriminated on `task`**, so a validation failure names one
-branch's fields rather than five branches' worth:
+Every answer type is a pydantic model, so serialising one is one call and needs
+nothing from this package on the other side:
 
 ```python
-from rietx import agent
+from rietx import RefinementResult
 
-sorted(agent.request_schema()["discriminator"]["mapping"])
+"statistics" in RefinementResult.model_fields
 ```
 
-A tag outside that mapping comes back as one `INVALID_REQUEST` detail reading
-`Input tag 'diagnose' found using 'task' does not match any of the expected
-tags`, and a request with no `task` key at all reads `Unable to extract tag
-using discriminator 'task'`.
-
-Every request schema is strict: **unknown keys are errors, not ignored**. That
-is how a task learns it was sent a setting it does not have, rather than
-silently ignoring it.
-
-### `task="refine"`
-
-One pattern, one staged fit. The library equivalent is `Refinement.fit`, and
-[](refining.md) is where the settings below are argued for.
-
-| Key | Type and default | Meaning |
-|---|---|---|
-| `RefineRequest.task` | `"refine"`, required | the discriminator |
-| `RefineRequest.structure` | `Structure`, required | the starting model |
-| `RefineRequest.instrument` | `Instrument`, required | wavelength, profile, geometry, background |
-| `RefineRequest.pattern` | `PatternData`, required | the data, carrying its own σ when the file had one |
-| `RefineRequest.mode` | `"rietveld"` (default), `"lebail"`, `"pawley"` | how peak intensities are decided |
-| `RefineRequest.two_theta_limits` | pair of floats, default null | the fitted range |
-| `RefineRequest.backend` | str, default `"numpy"` | Jacobian backend |
-| `RefineRequest.solver` | str, default `"trf"` | least-squares driver |
-| `RefineRequest.plan` | str or `PlanSpec`, default `"mccusker_default"` | a preset name, or an explicit stage list |
-| `RefineRequest.history_path` | str, default null | JSONL file for the history DAG. Without it the call keeps no history and `RefinementResult.node_id` and `RefinementResult.tree_id` are null |
-| `RefineRequest.include_report` | bool, default true | attach `AgentSuccess.report` |
-| `RefineRequest.report_trajectory` | bool, default false | attach `AgentSuccess.trajectory` |
-
-`RefineRequest.include_report` is the master switch for report **content**:
-with it false, `RefineRequest.report_trajectory` is overridden and the envelope
-carries neither. A caller who declines the report is never handed one a rung at
-a time.
-
-### `task="refine_multi"`
-
-N patterns as one stacked residual, sharing the parameters that describe the
-specimen. This is not a series; [](series.md) is the chapter that separates the
-two, and it owns `SharingSpec`.
-
-| Key | Type and default | Meaning |
-|---|---|---|
-| `MultiRefineRequest.task` | `"refine_multi"`, required | the discriminator |
-| `MultiRefineRequest.structure` | `Structure`, required | one model for every histogram |
-| `MultiRefineRequest.instruments` | list of `Instrument`, required | one per pattern, at least one |
-| `MultiRefineRequest.patterns` | list of `PatternData`, required | at least one |
-| `MultiRefineRequest.mode` | `"rietveld"` | Rietveld only, and the type says so |
-| `MultiRefineRequest.two_theta_limits` | one pair of floats, or one per histogram; default null | the fitted range |
-| `MultiRefineRequest.weights` | list of floats, default null | inter-histogram residual weights; the default is unit, so each point's own esd governs |
-| `MultiRefineRequest.sharing` | `SharingSpec`, default null | overrides the default per-histogram rule |
-| `MultiRefineRequest.backend` | str, default `"numpy"` | Jacobian backend |
-| `MultiRefineRequest.solver` | str, default `"trf"` | least-squares driver |
-| `MultiRefineRequest.plan` | str or `PlanSpec`, default `"mccusker_default"` | a preset name, or an explicit stage list |
-
-Two lengths are checked before anything runs: one instrument per pattern, and
-one weight per pattern if weights are given. Both come back as
-`INVALID_REQUEST`.
-
-This task runs **without the history DAG**, because a fingerprint over several
-patterns is a seam the package has not cut yet. `RefinementResult.node_id` and
-`RefinementResult.tree_id` are therefore null by declaration rather than by
-accident. There is no `AgentSuccess.report` either: a report is per histogram,
-so the python route builds one from `RefinementResult.for_histogram`.
-
-### `task="refine_sequential"`
-
-N separate refinements chained by a warm start. [](series.md) owns the
-behaviour; these are the keys.
-
-| Key | Type and default | Meaning |
-|---|---|---|
-| `SequentialRefineRequest.task` | `"refine_sequential"`, required | the discriminator |
-| `SequentialRefineRequest.structure` | `Structure`, required | the starting model for the first pattern |
-| `SequentialRefineRequest.instrument` | `Instrument`, required | one instrument for the whole series |
-| `SequentialRefineRequest.patterns` | list of `PatternData`, required | the series, in order |
-| `SequentialRefineRequest.mode` | `"rietveld"` (default), `"lebail"`, `"pawley"` | as for a single fit |
-| `SequentialRefineRequest.two_theta_limits` | pair of floats, default null | applied to every pattern |
-| `SequentialRefineRequest.x` | list of floats, default null | the series coordinate; the pattern index is the axis without one |
-| `SequentialRefineRequest.x_label` | str, default `"index"` | what that coordinate is called |
-| `SequentialRefineRequest.labels` | list of str, default null | a name per pattern, used in messages and history filenames |
-| `SequentialRefineRequest.refit` | `"single"` (default), `"stages"` | collapse the plan into one stage for a warm pattern, or re-walk it |
-| `SequentialRefineRequest.direction` | `"forward"` (default), `"backward"`, `"both"` | which way the chain runs |
-| `SequentialRefineRequest.carry` | list of str, default `["*"]` | dot-path globs that cross a pattern boundary |
-| `SequentialRefineRequest.reseed` | bool, default true | let a rejected warm start fall back to the cold models |
-| `SequentialRefineRequest.history_dir` | str, default null | directory for the per-pattern trees, one JSONL file per label |
-| `SequentialRefineRequest.backend` | str, default `"numpy"` | Jacobian backend |
-| `SequentialRefineRequest.solver` | str, default `"trf"` | least-squares driver |
-| `SequentialRefineRequest.plan` | str or `PlanSpec`, default `"mccusker_default"` | run on the first pattern and on any reseeded one |
-
-`SequentialRefineRequest.x` and `SequentialRefineRequest.labels` are checked for
-length against the patterns before the run starts.
-
-A series has **one history tree per pattern**, so the ids are on each
-`SeriesEntry` and there is no run-level pair.
-
-:::{warning}
-`direction="both"` runs the chain each way and reports the parameters the two
-passes disagree on, but the JSON envelope carries only the **forward**
-`SeriesResult`. The backward chain is reachable as
-`SequentialRefinement.backward_` on the python object, and
-`refine_sequential`, which is what this task calls, discards it. Through this
-surface you get the `SEQUENTIAL_PATH_DEPENDENT` diagnostics and not the second
-trajectory.
-:::
-
-### `task="index"`
-
-Not a refinement, so it carries no backend, solver or plan. [](indexing.md) is
-the chapter; this is the request.
-
-| Key | Type and default | Meaning |
-|---|---|---|
-| `IndexRequest.task` | `"index"`, required | the discriminator |
-| `IndexRequest.peaks` | `PeakList`, default null | a fitted peak list, or positions from a publication |
-| `IndexRequest.pattern` | `PatternData`, default null | the profile; supplying it is what enables whole-profile validation |
-| `IndexRequest.instrument` | `Instrument`, default null | required with a pattern, and what makes the cell's geometric systematic quantifiable |
-| `IndexRequest.engines` | list of str, default null | which search engines to run; the default is all of them |
-| `IndexRequest.search` | `SearchSpecSpec`, its own defaults | bounds, budgets and the search preset |
-| `IndexRequest.two_theta_limits` | pair of floats, default null | the range peaks are picked and validated over |
-| `IndexRequest.validate_candidates` | bool, default true | run the Le Bail validation when a pattern is available |
-| `IndexRequest.check_top` | int, default null | how many candidates get the expensive per-candidate checks |
-
-A request with neither `IndexRequest.peaks` nor a
-`IndexRequest.pattern` + `IndexRequest.instrument` pair is refused before any
-search runs, with the reason in the detail's message: a pattern cannot be
-indexed without the wavelength and profile its instrument declares.
-
-Keep `IndexRequest.engines` at its default. `"high"` confidence *means* every
-engine that ran agreed on the lattice, so naming a subset narrows what the
-answer is able to say rather than what it costs.
-
-### `task="suggest"`
-
-Which parameter to free next, from one Jacobian evaluation. No least squares, no
-history, no mutation, which is what makes it safe to call between fits.
-
-| Key | Type and default | Meaning |
-|---|---|---|
-| `SuggestRequest.task` | `"suggest"`, required | the discriminator |
-| `SuggestRequest.structure` | `Structure`, required | the model at the state to be judged |
-| `SuggestRequest.instrument` | `Instrument`, required | the same |
-| `SuggestRequest.pattern` | `PatternData`, required | the data |
-| `SuggestRequest.mode` | `"rietveld"` (default), `"lebail"`, `"pawley"` | as for a fit |
-| `SuggestRequest.two_theta_limits` | pair of floats, default null | the evaluated range |
-| `SuggestRequest.backend` | str, default `"numpy"` | Jacobian backend |
-| `SuggestRequest.top_n` | int, default 5 | ranked groups to return |
-| `SuggestRequest.include` | str or list of str, default `"*"` | dot-path globs a candidate must match, with a stage's `turn_on` semantics |
-| `SuggestRequest.exclude` | list of str, default `[]` | dot-path globs to leave out |
-
-The models' own `vary` flags are the currently-free set, so this task asks "what
-next" about the state you send it.
-
-It is the only task with a backend and **no** solver and no plan. Sending either
-is a named error rather than an ignored knob: `solver` comes back as
-`Extra inputs are not permitted` at `where: "solver"`.
-
-## The response
-
-The envelope is one of two types, and `ok` says which: `AgentSuccess` or
-`AgentFailure`.
-
-### Success
-
-| Key | Type | Meaning |
-|---|---|---|
-| `AgentSuccess.ok` | `true` | always, and it is the field to branch on first |
-| `AgentSuccess.result` | `RefinementResult` | set by `refine` and `refine_multi` |
-| `AgentSuccess.series` | `SeriesResult` | set by `refine_sequential` |
-| `AgentSuccess.indexing` | `IndexingResult` | set by `index` |
-| `AgentSuccess.suggestion` | `SuggestionResult` | set by `suggest` |
-| `AgentSuccess.report` | `FitReport` | the three-layer report, for `refine` only |
-| `AgentSuccess.trajectory` | list of `StageReport` | that report at every stage boundary, in the order the stages ran |
-| `AgentSuccess.evidence` | `IndexingEvidence` | the indexing answer projected for a consumer that reasons |
-
-**Every field is serialized, including the arms that are null.** A `refine`
-answer has `series`, `indexing`, `suggestion` and `evidence` all present and
-all `null`, so branch on which arm is non-null, never on which key exists.
-
-`AgentSuccess.report` and `AgentSuccess.evidence` are **companions**: each rides
-beside an arm rather than being one, because each is the same answer projected
-for a different reader. `AgentSuccess.evidence` is set exactly when
-`AgentSuccess.indexing` is, and is computed from it at serialization time, so
-the two cannot disagree.
-
-`AgentSuccess.trajectory` is the same `FitReport` contract projected onto the
-states the run passed through, one `StageReport` per completed stage. Ask for
-it on a run you will read whole: **a converged report is routinely the least
-informative one in the run.** A plan absorbs an error it cannot free into
-whatever it can, then arrives converged with nothing to suggest, while its own
-first stage named the cause. Each rung's actions are the ones the plan you ran
-will *not* fix.
-
-It is off by default, and the default was measured rather than assumed: two eval
-rounds found that consumers handed the rungs unasked decided no better at more
-calls. `Refinement.fit(stage_reports=True)` is the library spelling of the same
-switch, off for the same reason plus one more, that `fit` is called in loops.
-
-What it costs, measured 2026-08-19 on a 4200-channel synthetic LaB₆ pattern
-through a five-stage default plan: the fit takes 2.7× the wall clock (0.30 s
-to 0.82 s) and the envelope grows 3.5 kB (0.6–0.8 kB a rung), about 3 % of
-the report's own 111 kB. That share is a property of the report, not of the
-trajectory: 89 of the report's 111 kB is its geometry table, which no rung
-carries, so beside a geometry-light report the same rungs weigh a far larger
-fraction. It changes no number the fit produces: Rwp came back bit-identical
-with the rungs on and off.
-
-### Failure
-
-| Key | Type | Meaning |
-|---|---|---|
-| `AgentFailure.ok` | `false` | always |
-| `AgentFailure.error` | `AgentError` | the whole of what went wrong |
-
-`AgentError` is the grammar of a `Diagnostic`, so a consumer keeps one
-vocabulary for "the fit warns" and "the call failed".
-
-| Key | Type | Meaning |
-|---|---|---|
-| `AgentError.code` | one of four strings | what to branch on |
-| `AgentError.message` | str | what happened, for a person |
-| `AgentError.suggestion` | str | what to do about it, when the package knows |
-| `AgentError.details` | list of `AgentErrorDetail` | one entry per field-level failure |
-
-| `AgentError.code` | Means |
-|---|---|
-| `INVALID_REQUEST` | the request did not validate. `AgentError.details` names the fields |
-| `BACKEND_UNAVAILABLE` | a valid backend name whose optional dependency is not importable here. Refused before dispatch, from the same answer `capabilities()` gives |
-| `NO_PHASES` | the model carries no phase, so there is nothing but the background to fit. The request is well-formed and the model is legal — what is missing is a cell, from `task="index"` or from a typed symbol. Retrying reproduces it |
-| `REFINEMENT_FAILED` | the request was valid, this build could run it, and the engine raised anyway |
-
-| Key | Type | Meaning |
-|---|---|---|
-| `AgentErrorDetail.where` | str | a dot-path into the request as you wrote it |
-| `AgentErrorDetail.message` | str | what is wrong with that field |
-| `AgentErrorDetail.type` | str | pydantic's machine-readable tag, e.g. `missing`, `extra_forbidden`, `value_error` |
-
-`AgentErrorDetail.where` is a path into **your** dict. The tagged union prefixes
-every location with the branch it tried, and that prefix is stripped before you
-see it, so a missing space group reads `structure.phases` and not the same path
-with the task tag in front of it.
-
-**An empty `AgentErrorDetail.where` is a whole-request error, not a field one.**
-Both a bad discriminator and a cross-field rule land there, because neither is
-about one key: a request naming no peaks and no pattern is one detail with an
-empty `where` and the reason in its message.
-
-```python
-from rietx import agent
-
-envelope = agent.refine_json({"task": "index"})
-envelope["error"]["code"], envelope["error"]["details"][0]["where"]
-```
-
-A backend this build cannot run is refused before anything runs. The check is
-`BackendCapability.available`, the same answer `capabilities()` publishes, so an
-attempt can never contradict the roster you read. On a build without the
-`jax` extra, `{"task": "refine", …, "backend": "jax"}` comes back
-`BACKEND_UNAVAILABLE` with the install command as its suggestion, and nothing
-is compiled or fitted first.
-
-`REFINEMENT_FAILED` is therefore what it says: the request was valid, this
-build could run it, and the engine still refused. That covers a model the
-physics rejects and a combination this build does not support, soft restraints
-in a joint multi-histogram fit for one, and in both cases
-`AgentError.message` carries the engine's own sentence, which usually names the
-way out.
-
-## Registering rietx as a tool
-
-`agent.tool_definition` returns a ready-to-register definition: `name`,
-`description`, `input_schema`. `agent.request_schema` and
-`agent.response_schema` are the JSON Schemas alone.
-
-```python
-from rietx import agent
-
-definition = agent.tool_definition()
-sorted(definition)
-agent.request_schema()["$defs"] is not None
-```
-
-**The vocabularies inside that schema are quoted from the live registries.** The
-backend, solver, plan and indexing-engine names come from the same tuples the
-package dispatches on, and a meta-test fails when a registered member is missing
-from the exported schema. A third engine cannot ship invisible.
+`model_dump(mode="json")` is the form to store and to send: non-finite floats
+serialise as the strings `"Infinity"`, `"-Infinity"` and `"NaN"`, which is what
+lets a parameter bound of ±inf survive a round-trip ([](compatibility.md)).
+`model_validate` reads one back.
 
 :::{admonition} For agents
 :class: agent
-That `description` is the first thing a calling agent reads about this package,
-before any schema, any result and any part of this manual. It therefore carries
-the two rules agents get wrong most often: read the diagnostics before the
-statistics, and read the whole trajectory rather than only the final report.
+`Refinement.summary` answers "is this done, and why" in one string, which is
+the question a result view is for. Read the diagnostics before the statistics,
+and prefer the trajectory over the final report — a plan absorbs an error it
+cannot free into whatever it can, converges, and suggests nothing, while its
+own first stage named the cause.
+:::
 
-It points at the operating protocol two ways, and both resolve for someone who
-only ran `pip install`: the hosted copy at `DOCS_URL/AGENT_PROTOCOL.md`, and an
+## Wrapping rietx in a tool call
+
+Nothing here is a tool definition, and the package no longer ships one. If you
+are exposing refinement to a tool-calling model, wrap the Python API yourself
+and give your tool **path** arguments — a pattern file, a CIF, a project
+directory — rather than inline payloads. A dedicated tool earns its place when
+it gates, renders, audits or parallelises something; a refinement driven by an
+agent that already has a shell needs none of those, and the pattern arrays are
+what make the inline form expensive.
+
+:::{admonition} For agents
+:class: agent
+The operating protocol resolves two ways, and both work for someone who only
+ran `pip install`: the hosted copy at `DOCS_URL/AGENT_PROTOCOL.md`, and an
 offline copy inside the wheel at
 `importlib.resources.files("rietx.data") / "AGENT_PROTOCOL.md"` for a sandbox
 with no network. In a checkout of the repository the wheel copy is absent and

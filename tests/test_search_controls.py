@@ -1,12 +1,14 @@
-"""WP-1045 — one indexing control surface, three chairs, held by meta-test.
+"""WP-1045 — one indexing control surface, two chairs, held by meta-test.
 
 ``SearchSpecSpec`` (the pydantic twin of the frozen ``SearchSpec``) lives in
-``schemas/indexing.py`` and every chair consumes it: the agent request
-re-exports it (the ``StageSpec`` precedent), the project document embeds it
-(``ProjectDoc.indexing``, which is what the GUI form edits and the index run
-reads), and ``index_pattern`` is called with what it maps to.  These tests are
-the bijection: a field added to one view and not the others fails here, not in
-a user's hands.
+``schemas/indexing.py`` and every chair consumes it: the project document
+embeds it (``ProjectDoc.indexing``, which is what the GUI form edits and the
+index run reads), and ``index_pattern`` is called with what it maps to.  These
+tests are the bijection: a field added to one view and not the other fails
+here, not in a user's hands.  There were three chairs until WP-1303 — the JSON
+request re-exported the same model (the ``StageSpec`` precedent) — and the
+bijection is what said the three could not disagree; deleting a chair removes a
+consumer, never the rule.
 
 The GUI form's own half lives in ``gui/src/lib/peaks.test.ts``, replaying the
 committed corpus this file writes (``tests/data/gui/index_controls.json``) —
@@ -141,30 +143,6 @@ def test_indexing_controls_cover_index_pattern():
 
 
 # ----------------------------------------------------------------------
-# the bijection: the agent request
-# ----------------------------------------------------------------------
-def test_the_agent_re_exports_the_one_model():
-    """``SearchSpecSpec`` reaches the agent as the one class (it is the
-    ``IndexRequest.search`` annotation); the pure ``IndexingControls``
-    re-export went pre-freeze (WP-1003), and its absence is the guard against
-    a private copy coming back under that name."""
-    import rietx.agent as ag
-
-    assert ag.SearchSpecSpec is SearchSpecSpec
-    assert not hasattr(ag, "IndexingControls")
-
-
-def test_the_agent_request_carries_every_control():
-    """Flat on the request (agent ergonomics), same names, same model."""
-    import rietx.agent as ag
-
-    fields = ag.IndexRequest.model_fields
-    assert fields["search"].annotation is SearchSpecSpec
-    for name in CONTROL_TO_KWARG:
-        assert name in fields, f"IndexRequest lacks the {name!r} control"
-
-
-# ----------------------------------------------------------------------
 # the project document
 # ----------------------------------------------------------------------
 def test_the_project_document_round_trips_the_controls():
@@ -238,16 +216,20 @@ def test_the_form_corpus_quotes_the_live_registries():
 # the acceptance criterion: two chairs, identical controls, identical notes
 # ----------------------------------------------------------------------
 @pytest.mark.xdist_group("search-controls-chairs")
-def test_gui_and_agent_runs_produce_identical_spec_notes(tmp_path):
+def test_gui_and_direct_runs_produce_identical_spec_notes(tmp_path):
     """The WP's acceptance sentence, run literally: the GUI chair (a project
-    whose document carries the controls, the run reading them) and the agent
-    chair (the same fields on the request) hand ``index_pattern`` the same
-    call, and the result's ``spec_notes`` — which since WP-1045 record every
-    ``SearchSpec`` field — are byte-identical."""
+    whose document carries the controls, the run reading them) and the direct
+    chair (the same controls handed to ``index_pattern`` by a caller) make the
+    same call, and the result's ``spec_notes`` — which since WP-1045 record
+    every ``SearchSpec`` field — are byte-identical.
+
+    The direct chair was the JSON request until WP-1303; what it asserts is
+    unchanged, because the request never did anything to the controls but
+    validate them into this same call (``IndexRequest`` → ``index_pattern``).
+    """
     import time
 
     import rietx as rx
-    import rietx.agent as ag
     from rietx.gui import GuiSession
     from tests.test_project import _write_xye
     from tests.test_refine_synthetic import perturbed_models, synthesize
@@ -277,14 +259,14 @@ def test_gui_and_agent_runs_produce_identical_spec_notes(tmp_path):
     finally:
         session.close()
 
-    out = ag.refine_json({
-        "task": "index",
-        "pattern": json.loads(pattern.model_dump_json()),
-        "instrument": json.loads(instrument.model_dump_json()),
-        **{k: v for k, v in controls.items() if k != "search"},
-        "search": controls["search"],
-    })
-    assert out["ok"] is True, out.get("error")
-    agent_notes = out["indexing"]["provenance"]["notes"]
+    # the same controls, validated through the same model and handed over as
+    # the call they map to — a chair, not a shortcut: nothing here bypasses
+    # ``SearchSpecSpec``, which is what makes the comparison meaningful
+    spec = SearchSpecSpec(**controls["search"])
+    answer = rx.index_pattern(
+        None, data=pattern, instrument=instrument,
+        spec=spec.to_spec(), preset=spec.preset,
+        validate=controls["validate_candidates"])
+    direct_notes = json.loads(answer.model_dump_json())["provenance"]["notes"]
 
-    assert gui_notes == agent_notes
+    assert gui_notes == direct_notes

@@ -63,7 +63,18 @@ direction fired, and the stopping criterion the agent states.
 
 ### Inherited
 
-Nothing yet.
+- **From WP-1303 (2026-08-29): the tracer's target list lost the four JSON-envelope
+  entries** (`agent.refine_json`, `agent.tool_definition`, `agent.request_schema`,
+  `agent.response_schema`), because the module they name is deleted — a target that
+  cannot be reached is a read-out that cannot fail. `rietx_surface_trace.py` now
+  patches the python surface only, and 1.1 declares whatever list it wants.
+  **Round 1.0's records were deliberately left unedited**: `eval_agent_surface/
+  PROTOCOL.md` and `score_round.py` still name that surface and still score its
+  three read-outs, because a pre-registered round is not rewritten once it has run
+  — the deletion *is* its result. `score_round.py` carries a docstring line saying
+  it scores round 1.0 and nothing later, so 1.1 needs its own scorer (or an
+  explicit read-out declaration this one can be generalised to). The same rule, in
+  one clause, is now in `tests/CLAUDE.md` § Two eval protocols.
 
 ## Non-goals
 

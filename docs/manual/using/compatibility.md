@@ -41,15 +41,20 @@ comment beside the constant says what. **Those comments are the changelog**:
 each constant carries its own bump history (what moved, in which change, and
 why) and no separate file restates it. Promoting that record to a hosted page
 is part of tightening the promise, when there are users to face it. The strings
-are the six contracts `capabilities()` reports, tabulated in [](agents.md):
+are the six contracts `capabilities()` reports, tabulated in [](agents.md);
+`Capabilities.report_thresholds_version` and
+`Capabilities.indexing_thresholds_version` share a bullet below because they
+answer the same kind of question:
 
 - **The schemas** (`Capabilities.schema_version`), the pydantic models
   everything else rides on: structure, pattern, instrument, plan, result,
-  history node, project document.
-- **The agent envelope.** `agent.refine_json`'s request union and response
-  arms, and its error grammar: `ok: false` with a structured error whose
-  `code` is one of the four in `agent.ERROR_CODES`, a closed list.
+  history node, project document. Version 0.12 is the first entry on that
+  ladder to *remove* something rather than add: the JSON envelope and its
+  request union went with the `agent` module in 1.3, and the answer types it
+  wrapped are unchanged.
 - **The `.rex` project directory** (`Capabilities.project_format_version`).
+- **The `.rxt` text document** (`Capabilities.textdoc_format_version`), which
+  is provisional for a different reason — see below.
 - **The streaming event ladder** (`Capabilities.event_schema_version`). An
   event's `data` dict is declared open on both sides, so a new key in it is
   the contract working rather than a change to it; a new event kind bumps.
@@ -109,10 +114,9 @@ to move are declared rather than left to be inferred:
   extinction class on a neighbouring peak's tail, so its *answer* moved in a
   patch release. Every such change is announced in the release notes, and the
   data contracts keep their own version strings
-  (`Capabilities.indexing_thresholds_version`, the engine and search-preset
-  capability types, and the `indexing` arm of the agent envelope), so a
-  consumer that parses an answer sees a bump when the answer's shape or
-  meaning moves.
+  (`Capabilities.indexing_thresholds_version`, and the engine and search-preset
+  capability types), so a consumer that parses an answer sees a bump when the
+  answer's shape or meaning moves.
 
 ## The JSON the package writes
 
@@ -128,9 +132,9 @@ Two facts about the wire are normative even where the routes above are not:
 
 ## The name and the formats are separate promises
 
-The brand tokens (the distribution name, the state directory, the agent tool
-name) track the distribution, and would move together if the package were ever
-renamed. The format tokens (the `.rex` suffix, the `rxt` header word, the
+The brand tokens (the distribution name, the state directory, the server's own
+short name) track the distribution, and would move together if the package were
+ever renamed. The format tokens (the `.rex` suffix, the `rxt` header word, the
 instrument-profile tag) name versioned contracts, and do not move because a
 brand did. A future rename is therefore not a format break: a
 project written today opens under whatever the package is called when you
@@ -142,7 +146,8 @@ One principle decides defaults, and it explains why the same content can
 default differently on two surfaces: **a library primitive is cheap, and a
 delivery surface is complete**. `Refinement.fit` is called in loops (suites,
 series, parameter sweeps), so anything that costs a multiple of the fit is
-opt-in there (`stage_reports=True`). The agent envelope is read once per fit
-by a consumer that was not watching, so it carries the complete story by
-default (`evidence` is on). A future addition lands under the same rule, on
+opt-in there (`stage_reports=True`). A surface read once per fit by a consumer
+that was not watching carries the complete story by default instead: the GUI's
+report route builds Layers 1-2 without being asked, and the JSON envelope did
+the same until 1.3 retired it. A future addition lands under the same rule, on
 whichever side its cost puts it.

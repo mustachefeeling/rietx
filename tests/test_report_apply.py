@@ -390,10 +390,10 @@ def test_the_report_says_what_applies_beside_what_it_suggests(narrow):
 def test_every_emitted_action_carries_its_execution_class(narrow):
     """WP-1106: the recipe table's ``how``, typed on the action itself.
 
-    Over ``refine_json`` an advice kind arrives with ``parameter_paths: []``
-    *by design*, and before this field nothing in the JSON separated that from
-    a bug — the sentence saying so reached agent context in 2 of 12 measured
-    cells (WP-1065), because agents pipe the response to a file and grep the
+    Serialized, an advice kind arrives with ``parameter_paths: []`` *by
+    design*, and before this field nothing in the JSON separated that from a
+    bug — the sentence saying so reached agent context in 2 of 12 measured
+    cells (WP-1065), because agents pipe the answer to a file and grep the
     statistics back.  So the classification is stamped on every emitted
     action, from the same table the GUI's apply arms quote; the two surfaces
     must agree because neither restates the mapping.
