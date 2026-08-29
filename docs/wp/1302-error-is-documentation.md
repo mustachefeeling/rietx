@@ -232,12 +232,14 @@ all; a progress line per stage.
   (11-BM NAC's golden shape) outside the fast selection entirely; no test this session
   added skips, so passed+skipped moved by exactly 170 in the fast selection (counted from
   the diff, not from memory of intermediate runs — the honest way round when a session
-  did not capture a pre-change baseline at its own start). Full selection
-  3574 passed, 131 skipped (wall clock not quoted — one unrepeated run, and root
-  CLAUDE.md is explicit that a single reading is a record, not a range) — quoted because
-  HIGH_CORRELATION's dedup and the new event field are the kind of change root
-  CLAUDE.md's rule means; `origin/main` had not
-  moved since this worktree branched (`git fetch origin main` at handover:
+  did not capture a pre-change baseline at its own start). Full selection, on the tree
+  with the code-review fixes below already landed: 3578 passed, 131 skipped (+4 against
+  the pre-review-pass run, exactly the four new regression tests those fixes added; wall
+  clock not quoted — root CLAUDE.md is explicit that a single unrepeated reading is a
+  record, not a range) — quoted because HIGH_CORRELATION's dedup and the new event field
+  are the kind of change root CLAUDE.md's rule means; `origin/main` had not
+  moved since this worktree branched (`git fetch origin main`, checked twice — once
+  before this run and again immediately before it, per step 10's own rule:
   `HEAD..origin/main` empty), so this figure is already the merged tree's, not only the
   branch's. The ramp campaign's call 30 (its `show()`
   loop over one Bragg-Brentano fit, `~/rietx-agent-runs/2026-08-26-insitu-ramp/`,
