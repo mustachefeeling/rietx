@@ -241,6 +241,23 @@ $1.44 prices a partial session. And the `sonnet` pair's wall is contaminated by
 127.6 s where the `opus-5` pair recorded 0.0, so that comparison sets a dirty
 pair beside a clean one. **R2 and R11 are what survive as comparable.**
 
+**The plan is a read-out, not a confound to control away**, and the scorer now
+prints it as R1b (outermost calls only, since a chain resolves its preset once
+and hands the object down). Counting what each agent itself chose: **neither
+`bare` cell ever named `mccusker_default` and both `skill` cells did**, and
+`bare-opus5` hand-built 33 plan objects where `skill-opus5` built one. So the
+25× is plausibly part of what the round found, not noise on top of it, because
+which plan an agent reaches for is downstream of the guidance under test.
+Fixing the plan across the reel cells was **considered and refused** on the
+maintainer's point that nothing in the field fixes it: an agent in deployment
+picks its own, and holding it constant would hold constant one of the things
+the round exists to see. Two limits, on four runs with no replicate: an
+observation, not a rate; and it tracks the workspace **install** rather than
+access, since all four cells read the guidance in the end and the `bare` pair
+only found it later by hunting. R1b is a projection, not a condition — the shim
+has recorded `plan` since registration, so every cell re-projects identically
+and none was measured differently.
+
 **The review pass** (`/code-review medium --fix`) found eight and all eight
 were taken; three matter beyond tidiness. The run record was written only
 *after* `wait_quiet`, so a crash during a wait of up to half an hour lost the
@@ -283,9 +300,11 @@ on `prepare`.
 
 **Next**, in order: the four reel cells with `--zrm`, serially and one pair at
 a time (they are real 4-phase data on 82 scans, so budget above the ramp's
-$1.44-$8.50). Then re-score and finish the round's table. The two questions
-the reel is the only place to answer are `read_recipe`'s reachability and
-whether a `bare` cell on real data still finds the wheel's skill.
+$1.44-$8.50), **leaving the plan free** as the ramp cells had it. Then re-score
+and finish the round's table. The three questions the reel is the only place to
+answer are `read_recipe`'s reachability, whether a `bare` cell on real data
+still finds the wheel's skill, and whether the R1b split above survives four
+more runs on data whose truth nobody knows.
 
 - **2026-08-29** — protocol 1.1 registered, and two of its eight cells run.
 

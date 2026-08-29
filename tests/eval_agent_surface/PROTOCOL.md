@@ -425,6 +425,17 @@ now interpolates its three numbers from `episodes/ramp.py` rather than restating
 them. The rendered prompt is **byte-identical** to the registered text, asserted
 in `test_runner.py` against this document's copy, so no cell's brief changed.
 
+The **projection** also gained **R1b, the plan each agent named**, printed
+beside R1. It is a projection and not a new condition: the shim has recorded
+`plan` as a value keyword since registration, so every cell that has run is
+re-projected identically and no cell was measured differently. It is added
+because the plan turned out to carry most of the cost spread R1 reports (25×
+per pattern-fit), which left R1 unreadable without it, and because the plan an
+agent chooses is itself downstream of the condition rather than a nuisance
+parameter — see § What the R1 table does and does not support. The alternative,
+**fixing the plan across cells, is refused**: it would hold constant one of the
+things the round exists to see, and no deployment fixes it either.
+
 The **projection** prints R7 to two decimals, and marks R8's share OVERSTATED
 where a traced process left an `import` row and no `exit` row — a process killed
 rather than exited contributes to the numerator and not the denominator. No
@@ -626,6 +637,33 @@ is**, and after it the number of chains each agent chose to run (1, 2, 4 and
 nested pattern-fits**, a full 68-pattern both-directions chain with cold
 verification, at 0.060 s/fit. Read the refinement row as "what this agent chose
 to spend", never as thoroughness.
+
+**The plan is a read-out, not a confound to control away** — printed as R1b,
+counting outermost calls only, since a chain resolves its preset once and hands
+the object down:
+
+| cell | the plans it named |
+| --- | --- |
+| `bare-sonnet` | `profile_only`×10, `lab_bragg_brentano`×7 |
+| `bare-opus5` | `profile_only`×12, `lab_bragg_brentano`×6, **unnamed plan object×33** |
+| `skill-sonnet` | `profile_only`×18, **`mccusker_default`×9**, `lab_bragg_brentano`×3 |
+| `skill-opus5` | `profile_only`×802, **`mccusker_default`×45**, `lab_bragg_brentano`×2, `mccusker_structural`×1, unnamed×1 |
+
+**Neither `bare` cell ever named `mccusker_default`; both `skill` cells did**,
+and `bare-opus5` hand-built 33 plan objects where `skill-opus5` built one. So
+the 25× is not noise sitting on top of the measurement — it is plausibly *part
+of what the measurement found*, because which plan an agent reaches for is
+downstream of the guidance under test. Fixing the plan across cells would hold
+constant one of the things this round exists to see, and **nothing in the field
+fixes it either**: an agent in deployment picks its own. The reel cells
+therefore leave it free, and R1b is what makes the cost rows readable.
+
+Two limits on that reading, since it rests on four runs with no replicate. It
+is an observation, not a rate. And it tracks the **workspace install** rather
+than access to the guidance, because all four cells read the guidance in the
+end; the `bare` pair only found it later, by hunting. The honest statement is
+that having it offered up front, rather than found halfway through, is what
+appears to change which tool the agent picks.
 
 **Wall clock is dominated by agent time.** Refinement is 21.0 % and 21.9 % of
 the two `opus-5` cells' wall. The rest is turns and output: 77 k and 60 k output
