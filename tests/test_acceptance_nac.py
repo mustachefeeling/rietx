@@ -7,6 +7,7 @@ wavelength-calibration uncertainty; internal consistency (Le Bail vs
 Rietveld) is checked much more tightly.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -133,6 +134,40 @@ def test_nac_lebail_then_rietveld(nac_lebail, nac_rietveld):
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     plot_result(result, path=str(out / "nac_fit.png"))
+
+
+_MASK_NUMBER = re.compile(r"[-+]?\d[\d.]*")
+GOLDEN_TERMINATION_VIEW = Path(__file__).parent / "data" / "nac_termination_golden.txt"
+
+
+def _masked(text: str) -> str:
+    """Every digit run replaced by ``#`` — the termination view's *shape*,
+    stripped of the numbers that carry no structural meaning for this test
+    (a platform-libm ulp, a re-measured Rwp) but would otherwise break an
+    exact-text comparison the way this codebase's other goldens are pinned to
+    a platform (``tests/CLAUDE.md``, ``GOLDEN_PLATFORM``) — this one is not,
+    on purpose: it changes only when a *field* does, never when a number
+    moves within its own precision.
+    """
+    return _MASK_NUMBER.sub("#", text)
+
+
+def test_nac_termination_view_golden_shape(nac_rietveld):
+    """``Refinement.summary()``'s shape on 11-BM NAC, masked (WP-1302).
+
+    Every message is checked by substring elsewhere in this suite (never by
+    equality with a sentence — the acceptance rule this WP declares); this
+    test is the complementary one, checking the view's *structure* — which
+    sections appear, in which order, with which labels — survives untouched
+    when only a number moves. Regenerate the golden file at
+    ``tests/data/nac_termination_golden.txt`` with
+    ``_masked(ref.summary(deliverable="qpa"))`` when a field genuinely
+    changes, and say why in the commit.
+    """
+    ref, _result = nac_rietveld
+    text = ref.summary(deliverable="qpa")
+    golden = GOLDEN_TERMINATION_VIEW.read_text(encoding="utf-8")
+    assert _masked(text) == golden.rstrip("\n")
 
 
 def _min_extinction_factor(structure, instrument, data, ip: int) -> float:

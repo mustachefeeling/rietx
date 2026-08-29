@@ -444,3 +444,42 @@ class SeriesResult(Base):
         from ..viz.plots import plot_trajectory
 
         return plot_trajectory(self, paths, path=path, **kw)
+
+    def __str__(self) -> str:
+        return self.summary()
+
+    def summary(self, *, max_entries: int = 5) -> str:
+        """The series termination view (WP-1302): the trajectory table, the
+        ``SEQUENTIAL_*`` rows, first and last ``max_entries`` with the count.
+
+        A per-entry ``RefinementResult.__str__`` is not repeated here — a
+        60-pattern series printing 60 nested reports is not a summary — so
+        this reads each entry's own :attr:`SeriesEntry.status`/``rwp`` and
+        leaves the full termination view to ``result.entries[i]`` (which is
+        not a ``RefinementResult`` and carries no ``__str__`` of its own for
+        exactly that reason: it is the row, not the fit).
+        """
+        n = len(self.entries)
+        lines = [f"SeriesResult: {n} pattern(s), {self.mode}, "
+                 f"direction={self.direction}"]
+        if self.diagnostics:
+            lines.append(f"  diagnostics: {len(self.diagnostics)}")
+            for d in self.diagnostics:
+                line = f"    {d.level.upper()} {d.code}: {d.message}"
+                if d.suggestion:
+                    line += f" — {d.suggestion}"
+                lines.append(line)
+        else:
+            lines.append("  diagnostics: none")
+        lines.append(f"  trajectory ({self.x_label}):")
+        shown = (list(range(n)) if n <= 2 * max_entries else
+                [*range(max_entries), None, *range(n - max_entries, n)])
+        for i in shown:
+            if i is None:
+                lines.append(f"    … {n - 2 * max_entries} more …")
+                continue
+            e = self.entries[i]
+            rwp = f"{e.statistics.rwp:.4f}" if e.statistics else "n/a"
+            lines.append(f"    [{i + 1}/{n}] {e.label} x={self.x[i]:g} "
+                         f"{e.status} Rwp={rwp}")
+        return "\n".join(lines)

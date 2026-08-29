@@ -460,6 +460,15 @@ CLAIMS: tuple[Claim, ...] = (
         measured="min E > 0.8 on the main phase; phases[1].extinction == 0.0 "
                  "exactly",
     ),
+    Claim(
+        "test_acceptance_nac", "test_nac_termination_view_golden_shape", "nac",
+        ("ceiling",),
+        "Refinement.summary()'s shape (WP-1302: sections, labels, ordering) "
+        "survives untouched when only a number moves — no accuracy claim, a "
+        "text-shape regression bar only, referenced to a masked golden file",
+        measured="28 lines (summary(deliverable='qpa') on the two-phase "
+                 "Rietveld fit); str(result) alone is 12",
+    ),
     # ---- IUCr QPA round robin: the participant-spread rows ---------------
     Claim(
         "test_acceptance_qpa_roundrobin", "test_read_prn_two_column_ascii",

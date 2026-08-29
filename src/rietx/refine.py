@@ -71,6 +71,10 @@ from .schemas.results import (
     RefinedParameter,
     RefinementResult,
     StageResult,
+    _agreement_line,
+    _diagnostic_lines,
+    _provenance_line,
+    _stage_lines,
 )
 from .schemas.structure import Structure
 from .strategy.staged import (
@@ -340,6 +344,11 @@ class Refinement:
         #: what ``TieSpec.user`` is answered from, so a row names whose tie is
         #: *in force* on it rather than whose was asked for
         self._applied_ties: set[str] = set()
+        #: what :meth:`fit` last ran, for :meth:`summary` alone — nothing
+        #: computes from these, only prints them back (WP-1302)
+        self._last_plan: RefinementPlan | None = None
+        self._sigma_from_file: bool | None = None
+        self._excluded_regions: list[tuple[float, float]] = []
 
     # ------------------------------------------------------------------
     # history plumbing
@@ -1532,6 +1541,11 @@ class Refinement:
         self._two_theta_limits = two_theta_limits
         self._free_paths = []
         self._held = []
+        # state summary() reads for the "protocol actually run" section —
+        # nothing computes from these, they are only ever printed back
+        self._last_plan = plan
+        self._sigma_from_file = data.sigma is not None
+        self._excluded_regions = list(data.excluded_regions)
         tree = self._ensure_history(data, plan)
         stream = _attach_progress(as_event_stream(events), progress)
         if stream is not None:
@@ -1878,6 +1892,167 @@ class Refinement:
         return build_report(self.result_, model=self._model,
                             values=table.decode(table.x0()), plan=plan,
                             free_paths=list(self._free_paths), **kw)
+
+    def summary(self, *, deliverable: str | None = None, plot: str | None = None,
+               plan: RefinementPlan | str | None = None) -> str:
+        """The termination view (WP-1302): "done, or not, and why" from one call.
+
+        Numerical heuristics first, agreement indices second-to-last, the
+        visual check named but never substituted for them (`AGENT_PROTOCOL.md`
+        §10's design rule) — the two fits that agree on every index and the
+        plot alike (one with a correct background, one over-flexible) are told
+        apart only by ``worst_absorption`` in the deliverable rows below, never
+        by looking harder at either.
+
+        ``deliverable`` selects §4b's deciding rows for one purpose —
+        ``"phase_id"``, ``"qpa"``, ``"structure"``, or ``"series"`` (pending
+        WP-1305 a).  The report will not infer your purpose for you: ``None``
+        (the default) prints the three stop conditions and nothing past them.
+
+        ``plot`` writes :func:`~rietx.viz.plots.plot_for_vlm` to that path and
+        names it on the last line — the picture confirms the text, the text
+        stays the criterion.  Without it, the line names the call instead.
+
+        Requires the compiled model (call :meth:`fit` first); a caller holding
+        only the result prints ``str(result)`` for the rows that need no
+        model — see :meth:`~rietx.schemas.results.RefinementResult.__str__`.
+        """
+        if self._model is None or self.result_ is None:
+            raise RuntimeError("call fit() first")
+        result = self.result_
+        report = self.report(plan=plan)
+
+        lines = [f"Refinement.summary: {result.status} ({result.mode})"]
+        lines += _stage_lines(result.stages, result.statistics.max_shift_over_esd)
+        lines += _diagnostic_lines(result.diagnostics)
+        lines += self._report_stop_condition_lines(report)
+        lines.append("  next: run suggest")  # WP-1305 b supplies delta_bic
+        if deliverable is not None:
+            lines += self._deliverable_lines(deliverable, report)
+        lines += self._protocol_lines()
+        lines.append(_provenance_line(result.provenance))
+        lines.append(_agreement_line(result.statistics))
+        lines.append(self._visual_check_line(report, plot))
+        return "\n".join(lines)
+
+    def _report_stop_condition_lines(self, report) -> list[str]:
+        """Section 2b: the second stop condition — is the misfit explained?"""
+        lines = [f"  layer0/1: {report.summary}"]
+        if report.abstained_kind:
+            lines.append(f"    abstained: {report.abstained_kind} "
+                         f"— {report.abstained_reason}")
+        worst = sorted(report.regions, key=lambda r: r.chi2_share, reverse=True)[:3]
+        for r in worst:
+            lines.append(f"    region {r.two_theta_lo:.1f}-{r.two_theta_hi:.1f}°: "
+                         f"{r.chi2_share:.0%} of χ², "
+                         f"max|Δ|/σ={r.max_abs_delta_over_sigma:.1f}")
+        n_unmatched_obs = sum(1 for u in report.unmatched if u.kind == "unmatched_obs")
+        lines.append(f"    unmatched obs peaks: {n_unmatched_obs}")
+        stats = self.result_.statistics
+        if stats.durbin_watson is not None:
+            note = (f", esds inflated ×{stats.esd_inflation:.2f}"
+                    if stats.esd_inflation is not None else "")
+            lines.append(f"    serial correlation (DW): {stats.durbin_watson:.2f}{note}")
+        return lines
+
+    def _deliverable_lines(self, deliverable: str, report) -> list[str]:
+        """Section 3: §4b's deciding rows for one declared purpose only."""
+        result = self.result_
+        lines = [f"  deliverable: {deliverable}"]
+        if deliverable == "phase_id":
+            n_unmatched_obs = sum(1 for u in report.unmatched
+                                  if u.kind == "unmatched_obs")
+            lines.append(f"    unmatched obs peaks: {n_unmatched_obs}")
+            if report.lebail_gap is not None:
+                lines.append(f"    lebail_gap ratio: {report.lebail_gap.ratio:.2f}")
+            else:
+                lines.append("    lebail_gap: not computed (needs a Le Bail "
+                             "re-partition, mccusker_default/lebail mode)")
+        elif deliverable == "qpa":
+            bg = report.background
+            if bg is not None and bg.absorption:
+                worst_path, worst_r2 = max(bg.absorption.items(), key=lambda kv: kv[1])
+                lines.append(f"    background.absorption worst: "
+                             f"{worst_path} R²={worst_r2:.2f}")
+            if result.qpa is not None:
+                for row in result.qpa.phases:
+                    esd = (f" ± {row.weight_fraction_stderr:.3f}"
+                          if row.weight_fraction_stderr is not None else "")
+                    lines.append(f"    {row.name}: {row.weight_fraction:.3f}{esd}")
+            else:
+                lines.append("    qpa: none (Le Bail scales are degenerate)")
+        elif deliverable == "structure":
+            if result.identifiability is not None:
+                exch = result.identifiability.exchangeability
+                lines.append(f"    exchangeability: {len(exch)} row(s)")
+                for row in exch[:5]:
+                    lines.append(f"      {row.held} ~ {', '.join(row.partners)} "
+                                 f"(R²={row.r2:.2f})")
+            else:
+                lines.append("    identifiability: not measured on this result")
+        elif deliverable == "series":
+            lines.append("    series deliverable rows: pending WP-1305 a "
+                         "(SequentialRefinement.summary() carries the trajectory)")
+        else:
+            raise ValueError(
+                f"unknown deliverable {deliverable!r}; one of "
+                "'phase_id', 'qpa', 'structure', 'series'")
+        return lines
+
+    def _protocol_lines(self) -> list[str]:
+        """Section 4 (minus provenance, appended separately — the one clause
+        a bare result can also answer): the protocol actually run."""
+        plan = self._last_plan
+        lines = ["  protocol:"]
+        if plan is not None:
+            lines.append(f"    plan: {', '.join(s.name for s in plan.stages)}")
+        rows = self.parameters()
+        held: dict[str, list[str]] = {"mode_fixed": [], "symmetry-locked": [],
+                                      "user-fixed": [], "other": []}
+        for row in rows:
+            if row.tie is not None or row.vary:
+                continue
+            if row.mode_fixed:
+                held["mode_fixed"].append(row.path)
+            elif row.locked:
+                held["symmetry-locked"].append(row.path)
+            elif row.refinable:
+                held["user-fixed"].append(row.path)
+            else:
+                held["other"].append(row.path)
+        phase_unsupported = list(self.result_.stages[-1].held) if self.result_.stages else []
+        counts = ", ".join(f"{len(v)} {k}" for k, v in held.items() if v)
+        if phase_unsupported:
+            counts += (", " if counts else "") + \
+                f"{len(phase_unsupported)} phase-unsupported (WP-1301)"
+        lines.append(f"    held: {counts or 'none'}")
+        if self._excluded_regions:
+            ranges = ", ".join(f"{lo:.2f}-{hi:.2f}°" for lo, hi in self._excluded_regions)
+            lines.append(f"    excluded: {ranges}")
+        support = self.result_.data_support
+        stats = self.result_.statistics
+        if support is not None:
+            lines.append(f"    N points={stats.n_points}, "
+                         f"N reflections={support.n_unique_reflections}, "
+                         f"effective obs={support.n_effective_observations:.0f}")
+        else:
+            lines.append(f"    N points={stats.n_points}")
+        sigma_source = ("file" if self._sigma_from_file else
+                        "Poisson √max(y,1)" if self._sigma_from_file is not None else
+                        "unknown")
+        lines.append(f"    σ source: {sigma_source}")
+        return lines
+
+    def _visual_check_line(self, report, plot: str | None) -> str:
+        """Section 6: named, never substituted — the picture confirms the
+        text; the text stays the criterion (`AGENT_PROTOCOL.md` §10)."""
+        if plot is not None:
+            from .viz.plots import plot_for_vlm
+
+            plot_for_vlm(self.result_, report, path=plot)
+            return f"  visual check written: {plot}"
+        return ("  visual check: call summary(plot='fit.png') or "
+                "plot_for_vlm(result, report) to draw these regions")
 
     # ------------------------------------------------------------------
     # exporters (WP-0309): reflection table, refinement CIF, QPA table

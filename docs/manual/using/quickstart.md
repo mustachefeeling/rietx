@@ -68,13 +68,23 @@ structure = rx.Structure.from_cif("cod_1000236.cif")
 instrument = rx.Instrument.debye_scherrer(wavelength=0.4139090)
 
 result = rx.refine(data, structure, instrument)
-print(result.status, result.statistics.rwp)
+print(result)
 ```
 
-The print line writes two values:
+`print(result)` — or equivalently `str(result)` — is the termination view a bare
+result can answer without the model that produced it: per-stage status, every
+diagnostic, provenance, agreement indices last.
 
 ```text
-converged 0.0933
+RefinementResult: converged (rietveld)
+  stage scale_bkg: converged (10 it, ftol=1e-06)
+  ...
+  stage biso: converged (8 it, ftol=solver default), max|Δθ|/esd=0.000
+  diagnostics: 2 unresolved
+    WARNING BOUND_HIT: phases.1.atoms.0.biso refined to its bound — widen the bound or fix the parameter
+    INFO CAPILLARY_OFFSET_UNAVAILABLE: ...
+  provenance: rietx 1.3.0, backend=numpy, solver=trf
+  Rwp 0.0933 / Rexp 0.0264 (GoF 3.53), Rp 0.0623, χ² 12.5, DW 0.18
 ```
 
 `RefinementResult.status` is a plain string, one of `converged`, `max_iter` and
@@ -83,7 +93,8 @@ not mean the fit failed.
 
 `Statistics.rwp` is a fraction rather than a percentage: 0.0933 is the Rwp of
 9.3 % you would quote in a paper, and every R-factor in the package is stored
-this way. [](results.md) says what each statistic measures.
+this way. A `Refinement` session prints more — {ref}`printing-a-result` — and
+[](results.md) says what each statistic measures.
 
 One more line draws the fit:
 

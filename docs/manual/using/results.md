@@ -559,3 +559,94 @@ means "no single number", not zero.
 The codes are an open vocabulary, deliberately: a new correction ships with the
 diagnostic that states what it changed. Read them before the statistics, every
 time.
+
+A persistently correlated pair is deduplicated across a plan's stages (the
+worst |ρ| kept, every stage it fired in named in the message) and the whole
+list is capped at ten `HIGH_CORRELATION` findings, worst first — a
+`HIGH_CORRELATION_OMITTED` entry past the cap gives the omitted count and
+points at `result.identifiability` for the rest, never a silently truncated
+list.
+
+(printing-a-result)=
+
+## Printing a result
+
+`print(result)` — `str(result)` — is the view a bare `RefinementResult` can
+answer on its own: per-stage status and the last stage's convergence number
+(McCusker et al. 1999 §7's max|Δθ|/esd), every diagnostic, provenance, and
+the agreement indices last. It needs no compiled model, so it works on a
+result read back from a project or handed across a process boundary, and it
+stays under 80 lines on a five-stage fit.
+
+`Refinement.summary()` — after `fit()`, on the session that ran it — prints
+more, because a session holds the compiled model: the same per-stage and
+diagnostics rows, then the Layer 0/1 misfit summary (the worst regions by χ²
+share, the unmatched-peak count, the serial correlation read out as
+Durbin-Watson with the esd inflation it costs), the next held parameter
+`suggest` would point at, the protocol actually run (the plan, every held
+path grouped by why, the excluded ranges, N points against N reflections, the
+σ source), and finally the agreement indices and a named visual check:
+
+<!-- api-doc: no-exec — continues the earlier session, needs a completed fit -->
+```python
+print(ref.summary())
+```
+
+`deliverable=` adds the rows one purpose actually decides on — `"phase_id"`
+(unmatched observed peaks, the Le Bail gap ratio), `"qpa"`
+(`background.absorption`'s worst entry, the weight fractions with esds),
+`"structure"` (`identifiability.exchangeability`) — because the report will
+not infer your purpose for you ([](qpa.md), and "Structure agreement
+indices" above, say what each row means):
+
+<!-- api-doc: no-exec — continues the earlier session, needs a completed fit -->
+```python
+print(ref.summary(deliverable="qpa"))
+```
+
+`plot=` writes `plot_for_vlm` to that path and names it on the last line —
+the same regions the text names, with their numbers in the panel titles, so
+the picture confirms the text rather than standing in for it:
+
+<!-- api-doc: no-exec — continues the earlier session, needs a completed fit -->
+```python
+print(ref.summary(plot="fit.png"))
+```
+
+A series prints its own view: `SeriesResult.summary()` — `str(series_result)`
+— is the trajectory table (first and last few entries, with the count
+between them), the `SEQUENTIAL_*` series-level diagnostics, and each shown
+entry's status and Rwp. See [](series.md) for what the series-level
+diagnostics mean.
+
+(progress-lines)=
+
+## Progress
+
+A staged fit or a long series can take longer than a caller wants to wait on
+silently. `progress=` — a text stream or a path, on `fit()` and on
+`refine_sequential()`/`SequentialRefinement.fit()` — writes one line per
+stage boundary (one per pattern under a series, each stamped with its place
+in it):
+
+<!-- api-doc: no-exec — illustrates the stream it writes, not a runnable step -->
+```python
+result = ref.fit(data, progress=sys.stdout)
+# stage scale_bkg converged Rwp 0.0933 2s
+# stage zero converged Rwp 0.0894 1s
+# ...
+```
+
+<!-- api-doc: no-exec — illustrates the stream it writes, not a runnable step -->
+```python
+series = rx.refine_sequential(patterns, structure, instrument,
+                              labels=["250C", "300C"], progress="run.log")
+# [series 1/2] 250C stage scale_bkg converged Rwp 0.0812 3s
+# [series 2/2] 300C stage warm_refit converged Rwp 0.0805 1s
+```
+
+It is implemented as an `events=` consumer, never a second telemetry
+channel — every number on the line is read straight off the same event
+`rietx watch` tails, so the two never disagree about what happened. Pass
+both freely: `progress=` adds a subscriber, it does not replace a callback or
+path already given as `events=`.

@@ -176,12 +176,12 @@ the model; the summary lives on `Refinement`).
       unaffected (`npm --prefix gui test`).
 - [x] `progress=` on `fit`/`refine_sequential` + a test that every line's numbers equal
       the event's fields.
-- [ ] `RefinementResult.__str__`, `Refinement.summary(deliverable=…, plot=…)`,
+- [x] `RefinementResult.__str__`, `Refinement.summary(deliverable=…, plot=…)`,
       `SeriesResult` + tests + a golden text on 11-BM NAC that changes only when a field
       does.
 - [ ] Measure: rerun the ramp's call 31 output size (40 kB → ?) and its four print
       scripts against `print(result)`; record both in the handover.
-- [ ] Docs: `using/results.md` § diagnostics, § printing, § progress; the quickstart
+- [x] Docs: `using/results.md` § diagnostics, § printing, § progress; the quickstart
       prints the summary.
 - [ ] Tests + obs/calc/diff PNGs to `tests/output/`.
 

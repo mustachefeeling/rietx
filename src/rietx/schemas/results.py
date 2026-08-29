@@ -718,6 +718,64 @@ class HistogramResult(Base):
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
 
+# ----------------------------------------------------------------------
+# The termination view (WP-1302) — shared projections, never a re-derivation.
+# ``Refinement.summary()`` (refine.py) reuses these three for the rows a bare
+# result already carries, and adds the rows that need the compiled model
+# (Layer 1, suggest, a deliverable) around them.
+# ----------------------------------------------------------------------
+def _stage_lines(stages: list[StageResult], max_shift_over_esd: float | None) -> list[str]:
+    """Section 1: per-stage status, and the last stage's convergence number.
+
+    ``max_shift_over_esd`` (McCusker et al. 1999 §7) is the answer-producing
+    solve's own number, not one per stage — ``Statistics`` carries it exactly
+    once, on the fit as a whole.
+    """
+    lines = []
+    for i, s in enumerate(stages):
+        ftol = f"{s.ftol:.0e}" if s.ftol is not None else "solver default"
+        line = f"  stage {s.name}: {s.status} ({s.n_iterations} it, ftol={ftol})"
+        if i == len(stages) - 1 and max_shift_over_esd is not None:
+            line += f", max|Δθ|/esd={max_shift_over_esd:.3f}"
+        lines.append(line)
+    return lines
+
+
+def _diagnostic_lines(diagnostics: list[Diagnostic]) -> list[str]:
+    """Section 2a: the first stop condition — every diagnostic, resolved or not.
+
+    Present even at zero (WP-1302's acceptance: the stop-condition lines are
+    on *every* fit, including one with nothing to report), so a caller never
+    has to distinguish "no diagnostics" from "this section did not run".
+    """
+    if not diagnostics:
+        return ["  diagnostics: none"]
+    lines = [f"  diagnostics: {len(diagnostics)} unresolved"]
+    for d in diagnostics:
+        line = f"    {d.level.upper()} {d.code}: {d.message}"
+        if d.suggestion:
+            line += f" — {d.suggestion}"
+        lines.append(line)
+    return lines
+
+
+def _provenance_line(provenance: Provenance) -> str:
+    """The provenance clause of section 4 — the only part of it a bare
+    result can answer (the rest needs the compiled model: held paths, the
+    plan, N reflections)."""
+    return (f"  provenance: rietx {provenance.package_version}, "
+            f"backend={provenance.backend}, solver={provenance.solver}")
+
+
+def _agreement_line(stats: Statistics) -> str:
+    """Section 5: agreement indices last, Rwp beside Rexp — their ratio is GoF."""
+    line = (f"  Rwp {stats.rwp:.4f} / Rexp {stats.rexp:.4f} (GoF {stats.gof:.2f}), "
+            f"Rp {stats.rp:.4f}, χ² {stats.chi2:.1f}")
+    if stats.durbin_watson is not None:
+        line += f", DW {stats.durbin_watson:.2f}"
+    return line
+
+
 class RefinementResult(Base):
     #: ``result.rwp`` is the single most expensive miss in WP-1110's evidence,
     #: because of *when* it fires: the ``AttributeError`` arrived after a
@@ -892,3 +950,21 @@ class RefinementResult(Base):
             if p.path == path:
                 return p
         raise KeyError(path)
+
+    def __str__(self) -> str:
+        """The termination view a bare result can answer (WP-1302): per-stage
+        status, every diagnostic, provenance, agreement indices last.
+
+        Not the full view — ``Refinement.summary()`` adds the rows that need
+        the compiled model (Layer 1's summary sentence, the next suggestion,
+        a deliverable's rows, the plan and held paths) around this one, in
+        the order ``AGENT_PROTOCOL.md`` §10's stop conditions declare.  This
+        is what a caller holding only the result — the return value of
+        ``fit()``, or one read back from a project — can print without it.
+        """
+        lines = [f"RefinementResult: {self.status} ({self.mode})"]
+        lines += _stage_lines(self.stages, self.statistics.max_shift_over_esd)
+        lines += _diagnostic_lines(self.diagnostics)
+        lines.append(_provenance_line(self.provenance))
+        lines.append(_agreement_line(self.statistics))
+        return "\n".join(lines)
