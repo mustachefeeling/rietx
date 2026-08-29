@@ -48,8 +48,10 @@ the whole of the upgrade:
   `RuntimeError` from the engine. Catch what you would have branched on.
 - **The answer is an object.** `RefinementResult` is what the `result` arm
   carried, `SeriesResult` what `series` carried, `IndexingResult` what
-  `indexing` carried, and `SuggestionResult` what `suggestion` carried. None of
-  them changed.
+  `indexing` carried, and `SuggestionResult` what `suggestion` carried. None
+  changed when the envelope went; `SuggestionResult` has since gained a
+  required `CandidateGroup.delta_bic`, which is the one thing in this list a
+  stored 1.2 answer does not validate against.
 - **The report is a separate call.** `Refinement.report` builds the
   `FitReport` for the fit just run, and `Refinement.stage_reports_` holds the
   report at every stage boundary when `Refinement.fit` was asked for them with

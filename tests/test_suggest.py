@@ -276,11 +276,11 @@ def _result(groups, **kw):
 def test_suggestion_result_json_round_trip():
     res = _result(
         [CandidateGroup(members=[_candidate(action_kind="refine_zero_shift")],
-                        gain=120.0, resolved=True),
+                        gain=120.0, resolved=True, delta_bic=104.0),
          CandidateGroup(members=[_candidate("instrument.profile.w", 40.0),
                                  _candidate("phases.0.gauss_size", 38.0,
                                             seeded=True, seed_value=1e-3)],
-                        gain=41.0, resolved=False)],
+                        gain=41.0, resolved=False, delta_bic=8.5)],
         non_separable=[_candidate("phases.0.scale", 5.0, absorption=0.99)],
         skipped=["phases.0.extinction"], n_evaluated=5)
     back = SuggestionResult.model_validate_json(res.model_dump_json())
@@ -291,7 +291,8 @@ def test_suggestion_result_json_round_trip():
 def test_suggestion_schemas_forbid_extras():
     for cls, kwargs in [
         (ParameterCandidate, dict(path="p", gain=1.0, gradient=0.0)),
-        (CandidateGroup, dict(members=[_candidate()], gain=1.0, resolved=True)),
+        (CandidateGroup, dict(members=[_candidate()], gain=1.0, resolved=True,
+                              delta_bic=0.5)),
         (SuggestionResult, dict(chi2_red=1.0, noise_floor=9.0, summary="s")),
     ]:
         with pytest.raises(ValidationError):
@@ -300,16 +301,24 @@ def test_suggestion_schemas_forbid_extras():
 
 def test_candidate_group_needs_a_member():
     with pytest.raises(ValidationError):
-        CandidateGroup(members=[], gain=0.0, resolved=True)
+        CandidateGroup(members=[], gain=0.0, resolved=True, delta_bic=0.0)
+
+
+def test_candidate_group_needs_its_delta_bic():
+    """Required, not defaulted (WP-1305): a 0.0 nobody computed reads as "the
+    parameter is exactly worth its cost", which is WP-1076's defaulted lie."""
+    with pytest.raises(ValidationError):
+        CandidateGroup(members=[_candidate()], gain=120.0, resolved=True)
 
 
 def test_best_or_none_gates():
     """Empty list and unresolved-top both refuse; a resolved top answers."""
     assert _result([]).best_or_none() is None
     tie = CandidateGroup(members=[_candidate(), _candidate("instrument.profile.w")],
-                         gain=50.0, resolved=False)
+                         gain=50.0, resolved=False, delta_bic=30.0)
     assert _result([tie]).best_or_none() is None
-    win = CandidateGroup(members=[_candidate()], gain=120.0, resolved=True)
+    win = CandidateGroup(members=[_candidate()], gain=120.0, resolved=True,
+                         delta_bic=104.0)
     best = _result([win, tie]).best_or_none()
     assert best is not None and best.path == "instrument.zero_shift"
 
@@ -476,6 +485,116 @@ def test_lebail_mode_fixed_paths_never_enumerate(truth):
     held = [row for row in r.parameters(mode="lebail")
             if row.refinable and not row.vary]
     assert res.n_evaluated + len(res.skipped) == len(held)
+
+
+# ----------------------------------------------------------------------
+# ΔBIC (WP-1305 b).  The gain ranks; ΔBIC says whether the ranking's winner
+# pays for the parameter it costs — the two are different questions and the
+# ramp agent had to answer the second by hand, with two refits per candidate.
+# ----------------------------------------------------------------------
+def test_delta_bic_is_schwarzs_form_at_the_gauss_newton_chi2():
+    """Recomputed here rather than re-called: this pins both the *form*
+    (Schwarz 1978, as ``report.layer2.delta_bic`` writes it) and the arguments
+    the group feeds it — N the probe residual's length, k the member count,
+    χ²_full the current SSR minus the predicted gain."""
+    import math
+
+    jac, r = _planted(signal=30.0)
+    res = _build(jac, r, [0, 1, 2], [(f"c{i}", 3 + i, 1.0, {}) for i in range(4)])
+    ssr, n = float(r @ r), len(r)
+    assert res.groups
+    for g in res.groups:
+        expected = (n * math.log(ssr / (ssr - g.gain))
+                    - len(g.members) * math.log(n))
+        assert g.delta_bic == pytest.approx(expected, rel=1e-12)
+
+
+def test_delta_bic_refuses_a_tie_that_clears_the_noise_floor():
+    """The floor and ΔBIC disagree, and the disagreement is the point.
+
+    The floor is the 3σ point of χ²₁ whatever the pattern; BIC charges
+    ``k·ln N``, which at 100 000 rows is 11.5 per parameter.  So a two-member
+    tie can carry a gain the floor admits (16 against 9) and still cost more
+    than it buys (−7 in ΔBIC), and the summary has to say so rather than
+    ranking it as the next thing to free.
+
+    The gain is *planted*, not drawn: the noise is projected off the span of
+    the free block and the candidate before the signal is added, so the gain
+    is exactly the squared amplitude and neither margin depends on the seed
+    (drawn, it ran 10.7 to 32.5 across four seeds at one amplitude)."""
+    rng = np.random.default_rng(53)
+    m = 100_000
+    jac = rng.standard_normal((m, 5))
+    jac[:, 4] = jac[:, 3] + 1e-4 * rng.standard_normal(m)      # an honest tie
+    q, _ = np.linalg.qr(jac[:, :4])
+    r = rng.standard_normal(m)
+    r -= q @ (q.T @ r)                     # ⟂ the free block and candidate a
+    unit = jac[:, 3] - q[:, :3] @ (q[:, :3].T @ jac[:, 3])
+    r += 4.0 * unit / np.linalg.norm(unit)                     # gain ≡ 16.0
+    res = _build(jac, r, [0, 1, 2], [("a", 3, 1.0, {}), ("b", 4, 1.0, {})])
+    top = res.groups[0]
+    assert not top.resolved
+    assert top.gain == pytest.approx(16.0, rel=0.05)
+    assert top.gain > res.noise_floor
+    assert top.delta_bic == pytest.approx(-7.0, abs=0.5)
+    assert "ΔBIC refuses it" in res.summary
+
+
+_FREE = ("phases.*.scale", "instrument.background.*")
+
+
+def _refit_ssr(result) -> float:
+    """A result's own weighted SSR, through the one σ every renderer uses."""
+    d = (np.asarray(result.y_obs) - np.asarray(result.y_calc)) / result.sig()
+    return float(d @ d)
+
+
+def _measured_delta_bic(restricted, full, n_added: int) -> float:
+    """What the agent measured by hand: two nested refits, one ΔBIC."""
+    from rietx.report.layer2 import delta_bic
+
+    return delta_bic(_refit_ssr(restricted), _refit_ssr(full),
+                     len(restricted.two_theta), n_added)
+
+
+def _fitted(truth, free, **edits):
+    """Refine ``free`` in one stage from the truth state, edited by ``edits``."""
+    r, data = _refinement(truth, free=free)
+    for attr, value in edits.items():
+        getattr(r.instrument.profile, attr).value = value
+    return r, r.run_stage(data, rx.Stage("stage", list(free))), data
+
+
+def test_predicted_delta_bic_agrees_with_a_full_refit_when_it_admits(truth):
+    """A W error: the prediction admits freeing W, and so does the refit.
+
+    The comparison is made where an agent would make it — at the *converged*
+    restricted state, since the score is a local statistic — and the two
+    numbers are computed the same way from the same nested pair, so their
+    signs are directly comparable."""
+    r, restricted, data = _fitted(truth, _FREE, w=6e-3)
+    res = r.suggest(data)
+    top = res.groups[0]
+    assert top.resolved and top.members[0].path == "instrument.profile.w"
+    assert top.delta_bic > 0.0
+
+    _, full, _ = _fitted(truth, (*_FREE, "instrument.profile.w"), w=6e-3)
+    assert _measured_delta_bic(restricted, full, 1) > 0.0
+
+
+def test_predicted_and_refit_agree_that_an_inert_parameter_is_refused(truth):
+    """The other direction, and the ramp's own case: at a converged fit of a
+    pattern with no specimen displacement, ``sample_displacement`` is not
+    worth its parameter.  The prediction says so by never listing it; a full
+    refit says so with a negative ΔBIC.  (The agent measured exactly this at
+    25 °C and quoted it in the other sign convention, +6.7 to refuse.)"""
+    path = "instrument.geometry.sample_displacement"
+    r, restricted, data = _fitted(truth, _FREE)
+    res = r.suggest(data)
+    assert path not in _member_paths(res)
+
+    _, full, _ = _fitted(truth, (*_FREE, path))
+    assert _measured_delta_bic(restricted, full, 1) < 0.0
 
 
 def test_include_glob_limits_enumeration(truth):

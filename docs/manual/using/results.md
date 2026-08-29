@@ -582,15 +582,22 @@ stays under 80 lines on a five-stage fit.
 more, because a session holds the compiled model: the same per-stage and
 diagnostics rows, then the Layer 0/1 misfit summary (the worst regions by χ²
 share, the unmatched-peak count, the serial correlation read out as
-Durbin-Watson with the esd inflation it costs), the next held parameter
-`suggest` would point at, the protocol actually run (the plan, every held
-path grouped by why, the excluded ranges, N points against N reflections, the
-σ source), and finally the agreement indices and a named visual check:
+Durbin-Watson with the esd inflation it costs), the next parameter worth
+freeing, the protocol actually run (the plan, every held path grouped by why,
+the excluded ranges, N points against N reflections, the σ source), and
+finally the agreement indices and a named visual check:
 
 <!-- api-doc: no-exec — continues the earlier session, needs a completed fit -->
 ```python
 print(ref.summary())
 ```
+
+The `next:` line is a `Refinement.suggest` probe on the channels the fit ran
+on, read as **ΔBIC** rather than as the Δχ² that ranks — `next: free
+instrument.profile.w, predicted ΔBIC +48.2 (Δχ² 1.2e+03)`, or `next: nothing
+ΔBIC admits` when the leading candidate's gain does not pay for its parameter
+at this channel count. It costs one Jacobian build and no solve; [](report.md)
+has the field and the two questions it separates.
 
 `deliverable=` adds the rows one purpose actually decides on — `"phase_id"`
 (unmatched observed peaks, the Le Bail gap ratio), `"qpa"`
@@ -618,6 +625,21 @@ A series prints its own view: `SeriesResult.summary()` — `str(series_result)`
 between them), the `SEQUENTIAL_*` series-level diagnostics, and each shown
 entry's status and Rwp. See [](series.md) for what the series-level
 diagnostics mean.
+
+The fourth deliverable is the series' own, because no single pattern carries a
+`SEQUENTIAL_*` row: `series.summary(deliverable="series")` adds the rows that
+decide a parameter measured against the series axis — whether the ordering was
+checked at all (`direction="both"`, or a plain statement that it was not), the
+persistent findings, each step with what an independent cold pair reproduced,
+the phases held for want of support, and the two things no diagnostic can
+supply, a stated 2θ-scale anchor and the precision/accuracy split. The other
+three purposes are refused there by name, and `Refinement.summary
+(deliverable="series")` answers with where they live:
+
+<!-- api-doc: no-exec — needs a completed series -->
+```python
+print(series.summary(deliverable="series"))
+```
 
 (progress-lines)=
 

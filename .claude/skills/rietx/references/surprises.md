@@ -22,6 +22,10 @@ parameter 8 × 10⁻¹² Å, and **both** displacement parameters moved by
 +0.0166542 Å² against a predicted 0.0166542. That is what "exact" means here.
 It is not a general property of absorption corrections — see 8.12.
 
+`rietx compare` is this rule made mechanical: a browser UI comparing refinement
+settings side by side on the bundled standards, whose cumulative-Δχ² panel shows
+*where* a correction acted rather than whether Rwp moved.
+
 **8.2 The opposite also happens: an improvement that passes every statistical
 test and is still rejected.** On round-robin brucite, adding anisotropic strain
 improves Rwp 18.55 → 17.90 % with ΔBIC +488 — and drives σ²(M) negative on 12

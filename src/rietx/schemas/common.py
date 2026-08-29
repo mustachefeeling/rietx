@@ -103,7 +103,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: list of that model *is* the contract a client reads to decide what it may
 #: ask for, which is the argument for moving the string rather than letting a
 #: new arm ride along silently.
-SCHEMA_VERSION = "0.13"
+#: 0.13 → 0.14 (WP-1305): ``CandidateGroup.delta_bic`` — what ``suggest``'s
+#: ranking never said, whether the predicted gain pays for the parameter.
+#: **Required, not defaulted**: 0.0 on a model-selection field reads as "no
+#: preference", which is the defaulted-``False`` lie WP-1076 named, so a
+#: document written before this field does not load rather than loading with an
+#: answer nobody computed.
+SCHEMA_VERSION = "0.14"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

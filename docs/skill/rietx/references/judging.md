@@ -215,3 +215,36 @@ The gates auto-scale to information content. Measured: a zero error read at
 confidence 0.997 on sharp data produces silence, GoF 1.02, on the same error
 under 0.6° of broadening. Pushing finer corrections into a fit whose attribution
 is resolution-limited changes numbers it cannot justify.
+
+## §4b — the trajectory deliverable, and where its rows come from
+
+The row exists because an agent needed it and wrote it itself. Given 68 patterns
+of a variable-temperature ramp, `rietx`, and "tell me what the cell does, and
+flag anything you would not quote", a run recorded in full built its own
+stopping rules and they were the right ones: model selection by ΔBIC and the
+rival χ² ratio rather than by Rwp; the step at 430 → 440 °C verified by an
+**independent cold refit** of both patterns; tan θ against cos θ to tell a cell
+change from a specimen-height jump; a CaF₂ impurity used as an internal standard
+to bound 2θ drift to ±27 ppm over 280 K; and the explicit split — precision on
+the shape of a(T) at ±0.00015 Å, no accuracy claim on the absolute beyond
+~100 ppm, *because nothing pinned the 2θ scale*. About 34 of its 90 calls went
+into those checks. None of them is a fit statistic, and §4b named none of them.
+
+Two are now the package's:
+
+- **The cold-refit check is `verify_discontinuities=True`.** Each flagged step's
+  two patterns are refitted cold and independently, and the diagnostic's `value`
+  becomes the cold step over the chain's — 1.0 in the data, 0 the chain's own.
+  Measured on that ramp, reproducing the run's own protocol: the chain takes
+  11.6–12.0 s and the check adds 5 % (12.1–12.2 s) for four flagged steps over
+  four patterns, and the real transition reproduces at **1.00**. The cost scales
+  with the patterns flagged, not with the series length.
+- **The rows are `SeriesResult.summary(deliverable="series")`.** In the same
+  re-run, `PHASE_UNCONSTRAINED` fires on the impurity's cell in **40 of 68**
+  patterns and the trajectory of a *held* value is not a measurement — which is
+  exactly the "would not quote" list the agent arrived at by hand.
+
+The two the package cannot supply stay the caller's, and the row says so rather
+than leaving them blank: nothing in a pattern file records what pinned the 2θ
+scale, and no esd can tell you it is a precision on the shape rather than an
+accuracy on the absolute.

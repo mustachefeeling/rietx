@@ -109,12 +109,16 @@ def test_str_result_is_a_pointer_not_an_alias_still_holds():
 
 
 # ------------------------------------------------------- Refinement.summary
+def _next_line(text: str) -> str:
+    return next(ln for ln in text.splitlines() if ln.startswith("  next:"))
+
+
 def test_summary_default_prints_the_three_stop_conditions_only():
     ref, _result = _fit()
     text = ref.summary()
     assert "diagnostics:" in text
     assert "layer0/1:" in text
-    assert "next: run suggest" in text
+    assert _next_line(text)
     assert "deliverable:" not in text
 
 
@@ -124,7 +128,22 @@ def test_summary_the_three_stop_condition_lines_survive_zero_diagnostics():
     text = ref.summary()
     assert "diagnostics: none" in text
     assert "layer0/1:" in text
-    assert "next: run suggest" in text
+    assert _next_line(text)
+
+
+def test_summary_next_line_is_the_suggest_probe_read_as_delta_bic():
+    """WP-1305 b: the third stop condition is a number, not an instruction to
+    go and get one — and it is *that* probe's number, run on the channels the
+    fit ran on, rather than a second opinion computed some other way."""
+    ref, _result = _fit()
+    line = _next_line(ref.summary())
+    s = ref.suggest(synthesize())          # the same pattern, same channels
+    if not s.groups:
+        assert "nothing to free" in line
+    else:
+        top = s.groups[0]
+        assert f"{top.delta_bic:+.1f}" in line
+        assert ("free " in line) if top.delta_bic > 0 else ("refuses it" in line)
 
 
 @pytest.mark.parametrize("deliverable", ["phase_id", "qpa", "structure"])
@@ -138,6 +157,19 @@ def test_summary_unknown_deliverable_raises():
     ref, _result = _fit()
     with pytest.raises(ValueError, match="unknown deliverable"):
         ref.summary(deliverable="not_a_real_one")
+
+
+@pytest.mark.parametrize("mode", ["lebail", "pawley"])
+def test_summary_next_line_survives_the_extraction_modes(mode):
+    """The `next:` probe compiles in the fit's own mode and carries its
+    extracted intensities, so Le Bail and Pawley reach `suggest` by a different
+    path from Rietveld — and a termination view that raised there would raise
+    only after the fit had been paid for."""
+    ref = rx.Refinement(make_lab6(), _instrument(), history=False)
+    ref.fit(synthesize(), mode=mode, plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["instrument.background.*"]),
+        rx.Stage("cell", ["phases.*.cell.*"])]))
+    assert _next_line(ref.summary())
 
 
 def test_summary_plot_writes_the_file_and_names_it(tmp_path):
@@ -225,3 +257,77 @@ def test_series_summary_diagnostics_line_present_even_at_zero():
                     max_iter=5)]))
     if not res.diagnostics:
         assert "diagnostics: none" in res.summary()
+
+
+# ------------------------------------------- the series deliverable (WP-1305)
+def _series_result(**kw) -> rx.SeriesResult:
+    """A SeriesResult with no fitting: these rows are a projection of fields."""
+    from rietx.schemas.results import RefinedParameter
+    from rietx.schemas.sequential import SeriesEntry
+
+    kw.setdefault("entries", [
+        SeriesEntry(index=k, label=f"p{k}", x=float(k), parameters=[
+            RefinedParameter(path="phases.0.cell.a", value=4.15 + 1e-4 * k,
+                             stderr=1e-5)])
+        for k in range(3)])
+    return rx.SeriesResult(**kw)
+
+
+def test_series_deliverable_prints_every_deciding_row():
+    text = _series_result().summary(deliverable="series")
+    assert "deliverable: series" in text
+    for row in ("ordering artefact:", "persistent findings:", "steps:",
+                "phase support:", "2θ-scale anchor:", "precision vs accuracy:",
+                "good enough:"):
+        assert row in text, row
+
+
+def test_series_deliverable_says_a_one_way_chain_did_not_measure_ordering():
+    """The absence of a SEQUENTIAL_PATH_DEPENDENT row is not evidence: a
+    forward-only chain never ran the comparison that produces one."""
+    assert "NOT measured" in _series_result().summary(deliverable="series")
+    both = _series_result(direction="both", backward=_series_result())
+    assert "measured both ways" in both.summary(deliverable="series")
+
+
+def test_series_deliverable_will_not_call_a_cancelled_both_run_measured():
+    """`direction` is what was asked for, not what ran.  A cancel takes the
+    reverse chain out — never started, or started and never compared — and an
+    empty SEQUENTIAL_PATH_DEPENDENT list then means silence, not agreement."""
+    never_started = _series_result(direction="both")
+    assert "NOT measured" in never_started.summary(deliverable="series")
+
+    stopped = _series_result(
+        direction="both", backward=_series_result(),
+        diagnostics=[rx.Diagnostic(level="warning", code="SEQUENTIAL_CANCELLED",
+                                   message="cancelled after 2 of 3")])
+    assert "NOT measured" in stopped.summary(deliverable="series")
+
+
+def test_series_deliverable_reads_a_steps_verification_state():
+    unverified = _series_result(diagnostics=[rx.Diagnostic(
+        level="info", code="SEQUENTIAL_DISCONTINUITY",
+        where=["phases.0.cell.a"], message="m")])
+    assert "not verified" in unverified.summary(deliverable="series")
+
+    verified = _series_result(diagnostics=[rx.Diagnostic(
+        level="info", code="SEQUENTIAL_DISCONTINUITY",
+        where=["phases.0.cell.a"], message="m", value=0.05)])
+    assert "reproduces 0.05×" in verified.summary(deliverable="series")
+
+
+def test_series_deliverable_refuses_a_per_pattern_purpose_by_name():
+    """WP-1302's rule: the error is the documentation.  A QPA is decided on
+    one pattern's own fit, and saying so is more useful than 'unknown'."""
+    res = _series_result()
+    with pytest.raises(ValueError, match="decided on one pattern"):
+        res.summary(deliverable="qpa")
+    with pytest.raises(ValueError, match="unknown deliverable"):
+        res.summary(deliverable="not_a_real_one")
+
+
+def test_refinement_summary_series_deliverable_points_one_rank_up():
+    ref, _result = _fit()
+    text = ref.summary(deliverable="series")
+    assert "SeriesResult.summary(deliverable='series')" in text
+    assert "2θ-scale anchor" in text

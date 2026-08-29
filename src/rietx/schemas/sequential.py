@@ -25,6 +25,7 @@ from pydantic import Field
 
 from .common import Base, Diagnostic, Mode, Provenance
 from .results import (
+    DELIVERABLES,
     PhaseAgreement,
     QuantitativePhaseAnalysis,
     RefinedParameter,
@@ -454,7 +455,8 @@ class SeriesResult(Base):
     def __str__(self) -> str:
         return self.summary()
 
-    def summary(self, *, max_entries: int = 5) -> str:
+    def summary(self, *, max_entries: int = 5,
+                deliverable: str | None = None) -> str:
         """The series termination view (WP-1302): the trajectory table, the
         ``SEQUENTIAL_*`` rows, first and last ``max_entries`` with the count.
 
@@ -464,6 +466,13 @@ class SeriesResult(Base):
         leaves the full termination view to ``result.entries[i]`` (which is
         not a ``RefinementResult`` and carries no ``__str__`` of its own for
         exactly that reason: it is the row, not the fit).
+
+        ``deliverable="series"`` adds §4b's fourth deliverable — a parameter
+        as a function of the series variable — as its deciding rows, printed
+        **after** the trajectory: the table is the answer, and these are what
+        would have to be wrong for it to be wrong (WP-1305).  The other three
+        purposes are decided on one pattern's own fit and are refused here by
+        name.
         """
         n = len(self.entries)
         lines = [f"SeriesResult: {n} pattern(s), {self.mode}, "
@@ -483,4 +492,103 @@ class SeriesResult(Base):
             rwp = f"{e.statistics.rwp:.4f}" if e.statistics else "n/a"
             lines.append(f"    [{i + 1}/{n}] {e.label} x={self.x[i]:g} "
                          f"{e.status} Rwp={rwp}")
+        if deliverable is not None:
+            lines += self._deliverable_lines(deliverable)
         return "\n".join(lines)
+
+    def _deliverable_lines(self, deliverable: str) -> list[str]:
+        """§4b's fourth deliverable: the rows that decide a trajectory.
+
+        Four of them are diagnostics this class already carries, read as
+        stopping criteria rather than as messages; the last two are the ones
+        **no diagnostic can supply**, because nothing in a pattern file records
+        them — what pins the 2θ scale, and which of precision and accuracy the
+        esds are about.  They print as an instruction to state them, since a
+        blank there is exactly how an unanchored absolute gets quoted.
+        """
+        if deliverable in DELIVERABLES and deliverable != "series":
+            raise ValueError(
+                f"{deliverable!r} is decided on one pattern's own fit, not on "
+                f"a series: print it from that pattern's "
+                f"Refinement.summary(deliverable={deliverable!r}) — the series' "
+                f"own deliverable is 'series'")
+        if deliverable != "series":
+            raise ValueError(
+                f"unknown deliverable {deliverable!r}; one of "
+                f"{', '.join(repr(d) for d in DELIVERABLES)}")
+
+        by_code: dict[str, list[Diagnostic]] = {}
+        for d in self.diagnostics:
+            by_code.setdefault(d.code, []).append(d)
+        lines = ["  deliverable: series (a parameter against the series axis)"]
+
+        depend = by_code.get("SEQUENTIAL_PATH_DEPENDENT", [])
+        # `direction` is what was *asked for*; the comparison exists only when
+        # the reverse chain actually completed.  A cancel takes the backward
+        # pass out (forward-cancelled: it is never started, so `backward` stays
+        # None despite direction="both"; backward-cancelled: the pass is
+        # recorded but `_path_dependence_diagnostics` is not run) — and an
+        # empty `depend` then reads as "checked, nothing disagreed", which is
+        # the confident wrong answer this row exists to avoid.
+        interrupted = any(d.code == "SEQUENTIAL_CANCELLED"
+                          for d in self.diagnostics)
+        if self.direction == "both" and self.backward is not None \
+                and not interrupted:
+            paths = ", ".join(p for d in depend for p in d.where) or "none"
+            lines.append(f"    ordering artefact: measured both ways, "
+                         f"{len(depend)} parameter(s) disagree ({paths})")
+        elif self.direction == "both":
+            lines.append("    ordering artefact: NOT measured — direction="
+                         "'both' was asked for but the chain was cancelled "
+                         "before the two directions could be compared, so an "
+                         "empty disagreement list is silence, not agreement")
+        else:
+            lines.append(f"    ordering artefact: NOT measured — this chain ran "
+                         f"{self.direction} only, and direction='both' is the "
+                         f"one check that separates a trajectory from the order "
+                         f"it was refined in")
+
+        persistent = by_code.get("SEQUENTIAL_PERSISTENT_FINDING", [])
+        lines.append(f"    persistent findings: {len(persistent)}")
+        for d in persistent[:5]:
+            lines.append(f"      {d.message}")
+
+        steps = by_code.get("SEQUENTIAL_DISCONTINUITY", [])
+        lines.append(f"    steps: {len(steps)}")
+        for d in steps:
+            where = ", ".join(d.where)
+            # `value` absent covers two cases and the row must not pick one:
+            # the check was never asked for, and the check ran and the cold
+            # pair did not determine this parameter (the diagnostic's own
+            # message says which).  Naming only the first tells a caller who
+            # already ran it to run it again.
+            verdict = ("not verified — pass fit(verify_discontinuities=True), "
+                       "or, if it was passed, the cold pair did not determine "
+                       "this parameter (the message says which)"
+                       if d.value is None else
+                       f"an independent cold pair reproduces {d.value:.2f}× of it")
+            lines.append(f"      {where}: {verdict}")
+
+        held = sorted({p for e in self.entries for d in e.diagnostics
+                       if d.code == "PHASE_UNCONSTRAINED" for p in d.where})
+        n_held = sum(any(d.code == "PHASE_UNCONSTRAINED" for d in e.diagnostics)
+                     for e in self.entries)
+        if held:
+            lines.append(f"    phase support: held in {n_held} of "
+                         f"{len(self.entries)} patterns ({', '.join(held[:4])}"
+                         f"{' …' if len(held) > 4 else ''}) — a held value is "
+                         f"the one you handed in, not a measurement, so it is "
+                         f"not a point on a trajectory either")
+        else:
+            lines.append("    phase support: every phase carried the data in "
+                         "every pattern (no PHASE_UNCONSTRAINED)")
+
+        lines.append("    2θ-scale anchor: state it — an internal standard, a "
+                     "calibrant, or none. Nothing in this result knows")
+        lines.append("    precision vs accuracy: the esds are precision on the "
+                     "*shape*; without an anchor there is no accuracy claim on "
+                     "the absolute")
+        lines.append("    good enough: when every number you quote names the "
+                     "one thing that would have to be wrong for it to be wrong, "
+                     "and that thing has been checked")
+        return lines

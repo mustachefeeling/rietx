@@ -78,6 +78,22 @@ direction fired, and the stopping criterion the agent states.
   harness looks, and `--list-agents` prints the fifteen-row table with each
   row's source URL and the date its directories were read.
 
+- **From WP-1305 (2026-08-29): three new read-outs, and the ramp is cheap to
+  re-run.** The round's "stopping criterion the agent states" row now has
+  package-side answers to look for, and each is a distinct observation: does it
+  print `SeriesResult.summary(deliverable="series")` (§4b's fourth row, which
+  the 2026-08-26 agent had to write for itself in about 34 of its 90 calls); does
+  it read `CandidateGroup.delta_bic` rather than running two refits per candidate
+  to compute ΔBIC by hand (that run did the latter, five `suggest` calls
+  notwithstanding); and does it reach `verify_discontinuities=True` rather than
+  hand-refitting the step's two patterns cold. All three are *the same checks that
+  run made*, so a re-capture that still does them by hand is a discovery failure
+  rather than a judgement one — and worth separating in the read-out.
+  The re-run harness lives beside the run it measures, at
+  `~/rietx-agent-runs/2026-08-26-insitu-ramp/verify_1305.py` (the agent's own
+  protocol from `agent_call.txt`, forward, with and without the check): the whole
+  68-pattern chain is 11.6-12.0 s now, so a baseline re-measurement costs seconds
+  rather than a session.
 - **From WP-1303 (2026-08-29): the tracer's target list lost the four JSON-envelope
   entries** (`agent.refine_json`, `agent.tool_definition`, `agent.request_schema`,
   `agent.response_schema`), because the module they name is deleted — a target that

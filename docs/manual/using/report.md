@@ -549,6 +549,18 @@ of the models, no history node is recorded, and the working state is untouched.
 | `CandidateGroup.members` | one or more `ParameterCandidate` | |
 | `CandidateGroup.gain` | the *joint* gain of freeing the whole group | what the data measures; the members' own gains are near-equal by construction |
 | `CandidateGroup.resolved` | false exactly when there is more than one member | a tie the data cannot split, merged by pairwise collinearity rather than reported as a winner |
+| `CandidateGroup.delta_bic` | the same gain read as a model-selection answer | Schwarz's ΔBIC (`report.layer2.delta_bic`, the form the whole package uses) at the Gauss-Newton prediction of what freeing the group reaches. **Positive favours freeing**, so a full refit's ΔBIC computed the same way is directly comparable |
+
+The two numbers answer different questions and can disagree, which is the
+reason both are there. `gain` ranks: it is the leverage the parameter has on
+χ² at this state. `delta_bic` decides: it charges `ln N` per parameter, so it
+asks whether the leverage pays for what it costs at this pattern's channel
+count. A group can clear the noise floor — the 3σ point of χ²₁, the same
+whatever the pattern — and still be refused by ΔBIC on a long pattern, and
+"this parameter has leverage, and the leverage does not pay for it" is then
+the honest reading. It is what a *measured* pair of nested refits would tell
+you, available before you run them; `Refinement.summary`'s `next:` line is
+exactly this number.
 
 | Field | Is | Reads as |
 |---|---|---|

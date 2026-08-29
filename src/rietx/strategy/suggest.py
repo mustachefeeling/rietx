@@ -7,8 +7,17 @@ of a candidate by the currently-free block directly, candidate-vs-candidate
 ties on the free-block-projected columns.  This module sees only matrices,
 paths and constants: enumerating candidates, seeding transform floors and
 compiling the probe model are :meth:`rietx.refine.Refinement.suggest`'s
-job, and the Layer-2 cross-reference arrives as already-built actions,
-because ``strategy`` must not import ``report``.
+job, and the Layer-2 cross-reference arrives as already-built *objects*,
+because ``strategy`` builds no ``report`` object and imports none at module
+scope.
+
+The single exception is a *number*: ΔBIC (WP-1305) is
+:func:`rietx.report.layer2.delta_bic`, imported inside the call the way
+``indexing/extinction.py`` reaches the same function, so the package keeps one
+BIC formula instead of a second copy pinned to the first by a test.  Writing
+``gain − n·ln(N)`` here would have been that copy *and* a weaker statement: it
+is the exact form only where the probe's χ²/N is 1, and the noise floor one
+gate over already refuses that assumption (``max(chi2_red, 1)``).
 """
 
 from __future__ import annotations
@@ -157,18 +166,25 @@ def build_suggestion(jac: np.ndarray, resid: np.ndarray, free: list[int],
         links += [(a, int(key)) for key, r2 in rho2.items()
                   if r2 > SUGGEST_GROUP_R2]
 
+    # the restricted model's own weighted SSR and row count: what ΔBIC below
+    # compares the predicted freed model against (the residual carries every
+    # block — penalty and restraint rows included — because the gain does)
+    chi2_state = float(resid @ resid)
+    n_rows = len(resid)
+
     groups: list[CandidateGroup] = []
     for comp in _union_find_groups(len(survivors), links):
         members = sorted((survivors[i][1] for i in comp),
                          key=lambda pc: (-pc.gain, pc.path))
         if len(members) == 1:
-            groups.append(CandidateGroup(members=members,
-                                         gain=members[0].gain, resolved=True))
+            gain = members[0].gain
         else:
             cols = [survivors[i][0].index for i in comp]
-            joint = one_parameter_gains(jac, resid, free, [(cols, "g")])["g"]
-            groups.append(CandidateGroup(members=members, gain=joint,
-                                         resolved=False))
+            gain = one_parameter_gains(jac, resid, free, [(cols, "g")])["g"]
+        groups.append(CandidateGroup(
+            members=members, gain=gain, resolved=len(members) == 1,
+            delta_bic=_predicted_delta_bic(gain, len(members),
+                                           chi2_state, n_rows)))
     groups.sort(key=lambda g: (-g.gain, g.members[0].path))
     groups = groups[:top_n]
 
@@ -177,12 +193,32 @@ def build_suggestion(jac: np.ndarray, resid: np.ndarray, free: list[int],
         skipped=skipped, n_evaluated=len(scored), chi2_red=chi2_red,
         noise_floor=floor,
         summary=_summary(groups, floor, len(scored), len(non_separable),
-                         len(skipped)))
+                         len(skipped), n_rows))
+
+
+def _predicted_delta_bic(gain: float, n_added: int, chi2_state: float,
+                         n_rows: int) -> float:
+    """Schwarz's ΔBIC for freeing ``n_added`` parameters, predicted not fitted.
+
+    The package's one BIC form (:func:`rietx.report.layer2.delta_bic`,
+    positive favouring the fuller model) evaluated at the Gauss-Newton answer:
+    the freed model is predicted to reach ``chi2_state - gain``.  Imported
+    inside the call — see this module's docstring on the one edge to
+    ``report``.
+    """
+    from ..report.layer2 import delta_bic
+
+    return delta_bic(chi2_state, chi2_state - gain, n_rows, n_added)
 
 
 def _summary(groups: list[CandidateGroup], floor: float, n_evaluated: int,
-             n_non_separable: int, n_skipped: int) -> str:
-    """One deterministic sentence a human or agent can quote."""
+             n_non_separable: int, n_skipped: int, n_rows: int) -> str:
+    """One deterministic sentence a human or agent can quote.
+
+    The sentence carries both numbers because they answer different questions
+    and can disagree: ``Δχ²`` is the leverage that ranks, ΔBIC is whether the
+    leverage pays for the parameter at this ``N`` (WP-1305).
+    """
     tail = (f"{n_evaluated} candidate(s) evaluated, {n_non_separable} "
             f"non-separable from the free set, {n_skipped} without leverage; "
             f"noise floor {floor:.4g}")
@@ -192,11 +228,15 @@ def _summary(groups: list[CandidateGroup], floor: float, n_evaluated: int,
     top = groups[0]
     if top.resolved:
         head = (f"free {top.members[0].path} next: predicted "
-                f"Δχ² {top.gain:.4g}")
+                f"Δχ² {top.gain:.4g}, ΔBIC {top.delta_bic:+.4g}")
         if top.members[0].action_kind:
             head += f" (Layer 2 agrees: {top.members[0].action_kind})"
     else:
         paths = ", ".join(pc.path for pc in top.members)
         head = (f"the data cannot separate {paths}: joint predicted "
-                f"Δχ² {top.gain:.4g} — free one, not on this evidence alone")
+                f"Δχ² {top.gain:.4g}, ΔBIC {top.delta_bic:+.4g} — free one, "
+                "not on this evidence alone")
+    if top.delta_bic <= 0.0:
+        head += (f"; ΔBIC refuses it — the predicted gain does not pay for "
+                 f"{len(top.members)} parameter(s) at N={n_rows}")
     return f"{head} ({tail})"

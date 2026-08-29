@@ -65,6 +65,7 @@ from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.pattern import PatternData
 from .schemas.results import (
+    DELIVERABLES,
     AbsorptionCorrection,
     Identifiability,
     PhaseAgreement,
@@ -1909,9 +1910,13 @@ class Refinement:
         by looking harder at either.
 
         ``deliverable`` selects §4b's deciding rows for one purpose —
-        ``"phase_id"``, ``"qpa"``, ``"structure"``, or ``"series"`` (pending
-        WP-1305 a).  The report will not infer your purpose for you: ``None``
-        (the default) prints the three stop conditions and nothing past them.
+        ``"phase_id"``, ``"qpa"`` or ``"structure"``.  The report will not
+        infer your purpose for you: ``None`` (the default) prints the three
+        stop conditions and nothing past them.  ``"series"`` is accepted and
+        answers with where it is decided: a trajectory's deciding rows are
+        the chain's, on
+        :meth:`~rietx.schemas.sequential.SeriesResult.summary`, because no
+        single pattern carries a ``SEQUENTIAL_*`` row.
 
         ``plot`` writes :func:`~rietx.viz.plots.plot_for_vlm` to that path and
         names it on the last line — the picture confirms the text, the text
@@ -1930,7 +1935,7 @@ class Refinement:
         lines += _stage_lines(result.stages, result.statistics.max_shift_over_esd)
         lines += _diagnostic_lines(result.diagnostics)
         lines += self._report_stop_condition_lines(report)
-        lines.append("  next: run suggest")  # WP-1305 b supplies delta_bic
+        lines.append(self._next_parameter_line())
         if deliverable is not None:
             lines += self._deliverable_lines(deliverable, report)
         lines += self._protocol_lines()
@@ -1958,6 +1963,47 @@ class Refinement:
                     if stats.esd_inflation is not None else "")
             lines.append(f"    serial correlation (DW): {stats.durbin_watson:.2f}{note}")
         return lines
+
+    def _next_parameter_line(self) -> str:
+        """Section 2c: the third stop condition — is anything left to free?
+
+        Answered in **ΔBIC**, not in the Δχ² that ranks: §4's rule is that a
+        powder pattern's channel count blesses improvements that are
+        physically inert, so "the leverage does not pay for the parameter" is
+        the sentence a caller stops on (WP-1305 b).
+
+        The probe runs on the channels the last fit *ran on*, rebuilt from the
+        compiled model — the same σ (a lookup, never a re-derivation), the same
+        limits and exclusions already applied — so this asks about the fit that
+        produced the view above rather than about a pattern the caller happens
+        to still be holding.  One Jacobian build, no solve.
+        """
+        model = self._model
+        data = PatternData(two_theta=model.tt.tolist(),
+                           intensity=model.y_obs.tolist(),
+                           sigma=model.sigma.tolist())
+        s = self.suggest(data)
+        if not s.groups:
+            return (f"  next: nothing to free — no held parameter clears the "
+                    f"noise floor ({s.n_evaluated} evaluated)")
+        top = s.groups[0]
+        what = (top.members[0].path if top.resolved
+                else "|".join(pc.path for pc in top.members) + " (a tie)")
+        if top.delta_bic > 0.0:
+            return (f"  next: free {what}, predicted ΔBIC {top.delta_bic:+.1f} "
+                    f"(Δχ² {top.gain:.4g})")
+        # The groups are ranked by Δχ², and ΔBIC charges k·ln N — so a
+        # multi-member tie can lead the ranking and still be refused while a
+        # single-member group below it is admitted.  "The leader is refused"
+        # is what this line can say; "nothing is admitted" would be a claim
+        # about the whole list that only the leader was tested for.
+        admits = next((g for g in s.groups if g.delta_bic > 0.0), None)
+        tail = ("" if admits is None else
+                f"; {admits.members[0].path} ranks lower on Δχ² "
+                f"{admits.gain:.4g} and ΔBIC does admit it "
+                f"({admits.delta_bic:+.1f})")
+        return (f"  next: {what} leads on Δχ² {top.gain:.4g} and ΔBIC "
+                f"refuses it ({top.delta_bic:+.1f}){tail}")
 
     def _deliverable_lines(self, deliverable: str, report) -> list[str]:
         """Section 3: §4b's deciding rows for one declared purpose only."""
@@ -1995,12 +2041,23 @@ class Refinement:
             else:
                 lines.append("    identifiability: not measured on this result")
         elif deliverable == "series":
-            lines.append("    series deliverable rows: pending WP-1305 a "
-                         "(SequentialRefinement.summary() carries the trajectory)")
+            # A series deliverable is decided one rank up and this is the
+            # honest thing one pattern can say about it: no single fit carries
+            # a SEQUENTIAL_* row, and the two statements below are the
+            # caller's on any fit (WP-1305 a).
+            lines.append("    the deciding rows are the series': run the chain "
+                         "with rx.refine_sequential and print "
+                         "SeriesResult.summary(deliverable='series') — no "
+                         "single pattern carries a SEQUENTIAL_* row")
+            lines.append("    2θ-scale anchor: state it — an internal standard, "
+                         "a calibrant, or none. Nothing in this result knows")
+            lines.append("    precision vs accuracy: the esds are precision on "
+                         "the *shape* of the trajectory; without an anchor "
+                         "there is no accuracy claim on the absolute")
         else:
             raise ValueError(
                 f"unknown deliverable {deliverable!r}; one of "
-                "'phase_id', 'qpa', 'structure', 'series'")
+                f"{', '.join(repr(d) for d in DELIVERABLES)}")
         return lines
 
     def _protocol_lines(self) -> list[str]:
