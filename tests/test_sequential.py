@@ -35,7 +35,7 @@ from rietx.sequential import (
     _better,
     _carry_into,
     _collapse,
-    _discontinuity_diagnostics,
+    _discontinuity_steps,
     _entry_from_result,
     _labels_for,
     _path_dependence_diagnostics,
@@ -933,6 +933,19 @@ def test_verification_refits_each_pattern_once_for_all_its_flagged_paths():
     assert all(s.diagnostic.value == pytest.approx(1.0, rel=1e-6) for s in steps)
 
 
+def test_verification_ratio_is_signed_so_the_other_way_is_not_a_reproduction():
+    """A cold pair that steps as far the *other* way is the opposite of a
+    reproduction, and dividing two magnitudes would report it as 1.00 — the
+    one reading this check exists to rule out."""
+    runner = _StubColdFits({"p2": {"phases.0.cell.a": 4.002},
+                            "p3": {"phases.0.cell.a": 4.0}})
+    steps = [_flagged("phases.0.cell.a", 2e-3)]
+    runner._verify_discontinuities(steps, [None] * 6, [f"p{i}" for i in range(6)],
+                                   "rietveld", _CHEAP, None, None)
+    assert steps[0].diagnostic.value == pytest.approx(-1.0, rel=1e-6)
+    assert "-1.00× the chain's" in steps[0].diagnostic.message
+
+
 def test_verification_says_so_when_a_cold_fit_determines_nothing():
     """A ratio needs both ends; a path a cold fit did not measure is not a
     zero, so no ``value`` is written at all."""
@@ -961,15 +974,17 @@ def test_an_inert_parameter_cannot_carry_a_discontinuity():
         "instrument.profile.y",
         [1e-16, 2e-16, 1.3e-11, 1.4e-11, 1.5e-11, 1.6e-11],
         [4e-55] * 6)
-    assert _discontinuity_diagnostics(inert) == []
+    assert _discontinuity_steps(inert) == []
 
     # the same shape at a physical magnitude is still reported
     real = _synthetic_series(
         "phases.0.cell.a",
         [4.1566, 4.15661, 4.15962, 4.15963, 4.15964, 4.15965],
         [1e-5] * 6)
-    assert [d.code for d in _discontinuity_diagnostics(real)] == [
-        "SEQUENTIAL_DISCONTINUITY"]
+    flagged = _discontinuity_steps(real)
+    assert [s.diagnostic.code for s in flagged] == ["SEQUENTIAL_DISCONTINUITY"]
+    # the signed step the verification ratio divides by (WP-1305)
+    assert flagged[0].step == pytest.approx(4.15962 - 4.15661)
 
 
 def test_path_dependence_ignores_numerically_identical_chains():

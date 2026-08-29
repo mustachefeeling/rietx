@@ -55,8 +55,9 @@ Three things an operator must know, all measured:
   separates a measurement from an ordering artefact.
 - **A flagged step can check itself.**  `verify_discontinuities=True` refits
   each `SEQUENTIAL_DISCONTINUITY`'s two patterns **cold and independently** and
-  writes the cold step over the chain's step to the diagnostic's `value`: near
-  1.0 the step is in the data, near 0 the chain made it.  Off by default because
+  writes the cold step over the chain's step to the diagnostic's `value`, signed:
+  near 1.0 the step is in the data, near 0 the chain made it, negative a cold
+  pair that moved the other way.  Off by default because
   a cold fit is the full staged plan from the initial models; measured on a
   68-pattern ramp flagging four steps over four patterns it costs 5 % of the
   chain, and the cost scales with the patterns flagged rather than with the

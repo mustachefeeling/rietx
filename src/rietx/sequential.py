@@ -650,17 +650,19 @@ class SequentialRefinement:
             Re-measure every ``SEQUENTIAL_DISCONTINUITY`` by refitting its two
             patterns **cold and independently** — no warm start, no neighbour —
             and record what that pair reproduces as the diagnostic's ``value``:
-            the cold step over the chain's.  Near 1.0 the step is in the data;
-            near 0 the chain made it.  It is the check the diagnostic's own
-            suggestion asks the reader for, run automatically.
+            the cold step over the chain's, **signed**.  Near 1.0 the step is in
+            the data; near 0 the chain made it; negative is a pair that moved
+            the other way, which is neither.  It is the check the diagnostic's
+            own suggestion asks the reader for, run automatically.
 
             **Off by default because it is not cheap**, and the flag exists so
             the cost is the caller's decision rather than a surprise: a cold fit
             is the full staged plan from the initial models, roughly triple a
             warm one, and a series flagging s steps pays up to 2s of them (once
             per pattern, since two flagged paths at the same step share a
-            refit).  Measured on the 68-pattern thermal ramp, 7 flagged steps
-            over 13 distinct patterns: WP-1305's handover has the ranges.
+            refit).  Measured on the 68-pattern thermal ramp, four flagged
+            steps over four patterns, the check adds ~5 %: WP-1305's handover
+            has the ranges.
 
             It is a **post-walk check and never a ladder trigger** — the module
             docstring says why one cannot be: the refits are separate
@@ -742,7 +744,7 @@ class SequentialRefinement:
         if verify_discontinuities and steps and not cancelled:
             self._verify_discontinuities(
                 steps, patterns, names, mode, base_plan, two_theta_limits,
-                prepare, stream=stream)
+                prepare, stream=stream, cancel=cancel)
         # what the per-pattern diagnostics could not say: "42 of 68" (WP-1110)
         diagnostics += _persistent_diagnostics(series)
 
@@ -970,8 +972,8 @@ class SequentialRefinement:
 
     def _verify_discontinuities(self, steps: list[_FlaggedStep], patterns,
                                 names, mode, base_plan, two_theta_limits,
-                                prepare, *, stream: EventStream | None = None
-                                ) -> None:
+                                prepare, *, stream: EventStream | None = None,
+                                cancel=None) -> None:
         """Refit each flagged step's two patterns cold, and record the ratio.
 
         The measurement the ramp agent ran by hand: a step that survives two
@@ -985,6 +987,13 @@ class SequentialRefinement:
         flagged, and the diagnostic is left alone when a cold fit does not
         determine the path (a held phase, a stage that returned nothing for
         it): a ratio needs both ends, and an absent one is not a zero.
+
+        ``cancel`` is the chain's own token, threaded through because these are
+        ordinary fits and up to ``2s`` of them: a caller who can stop the walk
+        must be able to stop the check.  A cancel here leaves every diagnostic
+        it had not reached exactly as the walk wrote it — ``value`` absent, the
+        absent-for-cause state — so a stopped check reports nothing about a
+        step rather than a half-measured something.
         """
         index_of = {name: i for i, name in enumerate(names)}
         cold: dict[int, RefinementResult] = {}
@@ -994,30 +1003,40 @@ class SequentialRefinement:
                 _ref, result = self._fit_one(
                     patterns[k], names[k], None, [], base_plan, mode,
                     two_theta_limits, k, (None, None), prepare, k, ".verify",
-                    stream=stream,
+                    stream=stream, cancel=cancel,
                     stamp={"series_index": k, "series_label": names[k],
                            "series_n": len(patterns), "series_pass": "verify"})
                 cold[k] = result
             return cold[k]
 
         for s in steps:
+            if cancel is not None and bool(cancel):
+                return
             a, b = index_of[s.labels[0]], index_of[s.labels[1]]
-            va = _value_of(refit(a), s.path)
-            vb = _value_of(refit(b), s.path)
+            try:
+                va = _value_of(refit(a), s.path)
+                vb = _value_of(refit(b), s.path)
+            except RefinementCancelled:
+                return
             d = s.diagnostic
             if va is None or vb is None or not s.step:
                 d.message += ("; an independent cold refit of both patterns "
                               "does not determine this parameter, so the step "
                               "could not be re-measured")
                 continue
-            cold_step = abs(vb - va)
+            # signed, both sides: a cold pair stepping as far the *other* way
+            # is not a reproduction, and two magnitudes divided would call it
+            # one (see _FlaggedStep.step)
+            cold_step = vb - va
             d.value = cold_step / s.step
             d.message += (f"; refitted cold and independently the two patterns "
                           f"step by {cold_step:.4g}, {d.value:.2f}× the "
                           f"chain's")
             d.suggestion += ("; that check has been run, and a ratio near 1.0 "
                              "means the step is in the data while one near 0 "
-                             "means the chain made it")
+                             "means the chain made it — a negative one is a "
+                             "cold pair that moved the other way, which is "
+                             "neither")
 
     def _history_spec(self, label: str):
         """Per-pattern history target: a file under the given directory.
@@ -1206,6 +1225,13 @@ class _FlaggedStep:
     the same step rather than re-deriving which one was meant from the
     message (the one-authority rule: the flagging code is the only place that
     knows which pair it flagged).
+
+    ``step`` is the **signed** difference, later minus earlier, and the
+    verification ratio is signed with it: two magnitudes divided would report a
+    cold pair that stepped the *other way* as 1.00, which reads as the one
+    thing the check exists to distinguish it from.  The diagnostic's own
+    message keeps the magnitude, which is what a reader compares with the
+    median step.
     """
 
     path: str
@@ -1214,13 +1240,12 @@ class _FlaggedStep:
     diagnostic: Diagnostic
 
 
-def _discontinuity_diagnostics(series: SeriesResult) -> list[Diagnostic]:
-    """Steps far larger than the same parameter's typical step in this series."""
-    return [s.diagnostic for s in _discontinuity_steps(series)]
-
-
 def _discontinuity_steps(series: SeriesResult) -> list[_FlaggedStep]:
     """Steps far larger than the same parameter's typical step in this series.
+
+    The one authority: every caller takes the diagnostics off these (there is
+    no second function returning only the diagnostics, which would be a second
+    name for one fact).
 
     Reported, never smoothed: a jump is either the science (a transition) or a
     chain failure, and nothing here can tell them apart — so the diagnostic
@@ -1246,7 +1271,7 @@ def _discontinuity_steps(series: SeriesResult) -> list[_FlaggedStep]:
         k = int(np.argmax(step * big))
         out.append(_FlaggedStep(
             path=path, labels=(traj.labels[k], traj.labels[k + 1]),
-            step=float(step[k]),
+            step=float(value[k + 1] - value[k]),
             diagnostic=Diagnostic(
                 level="info", code="SEQUENTIAL_DISCONTINUITY", where=[path],
                 message=(f"{path} steps by {step[k]:.4g} between "

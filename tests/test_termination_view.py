@@ -286,8 +286,22 @@ def test_series_deliverable_says_a_one_way_chain_did_not_measure_ordering():
     """The absence of a SEQUENTIAL_PATH_DEPENDENT row is not evidence: a
     forward-only chain never ran the comparison that produces one."""
     assert "NOT measured" in _series_result().summary(deliverable="series")
-    both = _series_result(direction="both")
+    both = _series_result(direction="both", backward=_series_result())
     assert "measured both ways" in both.summary(deliverable="series")
+
+
+def test_series_deliverable_will_not_call_a_cancelled_both_run_measured():
+    """`direction` is what was asked for, not what ran.  A cancel takes the
+    reverse chain out — never started, or started and never compared — and an
+    empty SEQUENTIAL_PATH_DEPENDENT list then means silence, not agreement."""
+    never_started = _series_result(direction="both")
+    assert "NOT measured" in never_started.summary(deliverable="series")
+
+    stopped = _series_result(
+        direction="both", backward=_series_result(),
+        diagnostics=[rx.Diagnostic(level="warning", code="SEQUENTIAL_CANCELLED",
+                                   message="cancelled after 2 of 3")])
+    assert "NOT measured" in stopped.summary(deliverable="series")
 
 
 def test_series_deliverable_reads_a_steps_verification_state():

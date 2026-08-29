@@ -1992,8 +1992,18 @@ class Refinement:
         if top.delta_bic > 0.0:
             return (f"  next: free {what}, predicted ΔBIC {top.delta_bic:+.1f} "
                     f"(Δχ² {top.gain:.4g})")
-        return (f"  next: nothing ΔBIC admits — {what} leads on Δχ² "
-                f"{top.gain:.4g} and ΔBIC refuses it ({top.delta_bic:+.1f})")
+        # The groups are ranked by Δχ², and ΔBIC charges k·ln N — so a
+        # multi-member tie can lead the ranking and still be refused while a
+        # single-member group below it is admitted.  "The leader is refused"
+        # is what this line can say; "nothing is admitted" would be a claim
+        # about the whole list that only the leader was tested for.
+        admits = next((g for g in s.groups if g.delta_bic > 0.0), None)
+        tail = ("" if admits is None else
+                f"; {admits.members[0].path} ranks lower on Δχ² "
+                f"{admits.gain:.4g} and ΔBIC does admit it "
+                f"({admits.delta_bic:+.1f})")
+        return (f"  next: {what} leads on Δχ² {top.gain:.4g} and ΔBIC "
+                f"refuses it ({top.delta_bic:+.1f}){tail}")
 
     def _deliverable_lines(self, deliverable: str, report) -> list[str]:
         """Section 3: §4b's deciding rows for one declared purpose only."""

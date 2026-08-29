@@ -371,7 +371,9 @@ series = rx.refine_sequential(patterns, structure, instrument, x=temperatures,
 ```
 
 Near 1.0 the step is in the data. Near 0 the chain made it: the two patterns
-agree when nothing carried an error between them. Nothing else changes — the
+agree when nothing carried an error between them. The ratio is signed, so a
+cold pair that stepped the other way reads as about −1 rather than as a
+reproduction. Nothing else changes — the
 refits are separate `Refinement` runs writing to their own `<label>.verify`
 histories, and no fitted value, `rung` or median moves because of one.
 

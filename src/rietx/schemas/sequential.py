@@ -523,10 +523,25 @@ class SeriesResult(Base):
         lines = ["  deliverable: series (a parameter against the series axis)"]
 
         depend = by_code.get("SEQUENTIAL_PATH_DEPENDENT", [])
-        if self.direction == "both":
+        # `direction` is what was *asked for*; the comparison exists only when
+        # the reverse chain actually completed.  A cancel takes the backward
+        # pass out (forward-cancelled: it is never started, so `backward` stays
+        # None despite direction="both"; backward-cancelled: the pass is
+        # recorded but `_path_dependence_diagnostics` is not run) — and an
+        # empty `depend` then reads as "checked, nothing disagreed", which is
+        # the confident wrong answer this row exists to avoid.
+        interrupted = any(d.code == "SEQUENTIAL_CANCELLED"
+                          for d in self.diagnostics)
+        if self.direction == "both" and self.backward is not None \
+                and not interrupted:
             paths = ", ".join(p for d in depend for p in d.where) or "none"
             lines.append(f"    ordering artefact: measured both ways, "
                          f"{len(depend)} parameter(s) disagree ({paths})")
+        elif self.direction == "both":
+            lines.append("    ordering artefact: NOT measured — direction="
+                         "'both' was asked for but the chain was cancelled "
+                         "before the two directions could be compared, so an "
+                         "empty disagreement list is silence, not agreement")
         else:
             lines.append(f"    ordering artefact: NOT measured — this chain ran "
                          f"{self.direction} only, and direction='both' is the "
@@ -542,8 +557,15 @@ class SeriesResult(Base):
         lines.append(f"    steps: {len(steps)}")
         for d in steps:
             where = ", ".join(d.where)
-            verdict = ("not verified — fit(verify_discontinuities=True) refits "
-                       "both patterns cold" if d.value is None else
+            # `value` absent covers two cases and the row must not pick one:
+            # the check was never asked for, and the check ran and the cold
+            # pair did not determine this parameter (the diagnostic's own
+            # message says which).  Naming only the first tells a caller who
+            # already ran it to run it again.
+            verdict = ("not verified — pass fit(verify_discontinuities=True), "
+                       "or, if it was passed, the cold pair did not determine "
+                       "this parameter (the message says which)"
+                       if d.value is None else
                        f"an independent cold pair reproduces {d.value:.2f}× of it")
             lines.append(f"      {where}: {verdict}")
 
