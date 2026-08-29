@@ -81,14 +81,19 @@ class Call:
     head: str
     offset: float | None = None
     duration: float | None = None
-    out_chars: int = 0
-    error: bool = False
+    # `None` until the result arrives, never a defaulted answer: a session can
+    # end with a call in flight (the pilot's bare run left a backgrounded chain
+    # running), and `error = False` there would say "this did not fail" about
+    # something nothing has checked.
+    out_chars: int | None = None
+    error: bool | None = None
 
     def line(self) -> str:
         off = f"{self.offset:7.1f}" if self.offset is not None else "      ?"
         dur = f"{self.duration:6.1f}" if self.duration is not None else "     ?"
-        return (f"{self.index:4d} {off} {dur} {self.out_chars:8d} "
-                f"{'ERR' if self.error else '   '} {self.tool:<10} {self.head[:88]}")
+        size = f"{self.out_chars:8d}" if self.out_chars is not None else "       ?"
+        flag = "   " if self.error is False else ("ERR" if self.error else " ? ")
+        return f"{self.index:4d} {off} {dur} {size} {flag} {self.tool:<10} {self.head[:88]}"
 
 
 @dataclass

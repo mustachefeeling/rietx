@@ -59,6 +59,18 @@ def test_a_tool_call_carries_its_timing_size_and_error_flag():
     assert calls[0].out_chars == len("host.cif\nramp_00_25C.xye\n")
 
 
+def test_a_call_whose_result_never_arrived_answers_neither_way():
+    """A session can end with a call in flight; `False` would be a lie."""
+    rows = [r for r in _rows()
+            if not (r.get("type") == "user" and r["message"]["content"][0]
+                    .get("tool_use_id") == "call_3")]
+    unanswered = [c for c in trail.tool_calls(rows) if c.index == 3][0]
+    assert unanswered.error is None
+    assert unanswered.out_chars is None
+    assert unanswered.duration is None
+    assert " ? " in unanswered.line()
+
+
 def test_fit_seconds_come_from_the_trace_and_not_from_the_command_head():
     """The rule the campaign's projection could not follow.
 
