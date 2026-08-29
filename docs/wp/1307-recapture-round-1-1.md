@@ -238,6 +238,16 @@ rebuildable.
   in all four ramp `skill` cells already scored, so it stays; it inflates R8's
   numerator for `skill` cells and belongs with the R8 limit already declared.
 
+**One standing rule is owed to `tests/CLAUDE.md` and did not fit.** *An
+unreached surface is evidence only where an episode posed its question* —
+`help_for` was 0 of 4 on the synthetic ramp and 4 of 4 on the reel, the episode
+that hands an agent a foreign model file, which is also what makes
+`read_recipe`'s 0 of 4 a discovery failure rather than an absent question. The
+file is at **exactly** its pinned cap of 253 lines, so the rule needs the
+consolidation pass that owns the cap, not prose shrunk to make room. It is
+stated in full in `PROTOCOL.md` § R2, which § Two eval protocols already points
+at, so nothing is lost meanwhile.
+
 **Next.** Nothing in this WP. The round is complete and the findings are for
 other WPs, in this order: **`read_recipe` is undiscoverable** (WP-1306 built it,
 zero of four agents on its own episode found it); **`background.worst_absorption`
