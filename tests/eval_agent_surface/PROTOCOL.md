@@ -395,6 +395,46 @@ cell's own record. Two consequences for reading this round's numbers:
   finished log shows 193.5 s: the outermost rows are written on completion, so
   an early read sees the children and none of their parents.
 
+### Amendment, 2026-08-29, made after the ramp episode and before the reel
+
+Declared here rather than versioned, on the same footing as the amendment
+above: it changes whether a run **survives** an edge case, and how the
+projection **prints**, not what is measured, which cell is under which
+condition, or what the package does. It came out of the review pass over the
+session that completed E-RAMP.
+
+The **shim** gained two guards. `os.getcwd()` raises once the working directory
+has been deleted under the process, which an agent running a script from a temp
+directory it then removes will do; that call sits in `_emit`, which `traced`
+calls from a `finally`, so an unguarded raise would break the run the tracer
+promises never to break. `json.dumps` is guarded the same way and drops the row
+instead. This is the one change that touches the instrument the outstanding
+cells will be prepared with, so it is stated plainly rather than folded in:
+**E-RAMP's four cells were traced by the unguarded shim and E-ZRM's four will be
+traced by the guarded one.** It cannot bias a comparison between them, because
+the guard can only fire where the unguarded shim would have **aborted the run** —
+where it fires there is no number to compare against, only a lost cell. `cwd` is
+recorded in every row and read by no read-out.
+
+The **runner** writes a cell's record as soon as `claude -p` returns and rewrites
+it after the quiet wait, so a crash during a wait that may last half an hour no
+longer loses the session id of a run that has already been paid for; it
+validates `--zrm` and the two third-party filenames before `build_venv` spends
+minutes, which is what `check_unprepared` already claimed; and E-RAMP's prompt
+now interpolates its three numbers from `episodes/ramp.py` rather than restating
+them. The rendered prompt is **byte-identical** to the registered text, asserted
+in `test_runner.py` against this document's copy, so no cell's brief changed.
+
+The **projection** prints R7 to two decimals, and marks R8's share OVERSTATED
+where a traced process left an `import` row and no `exit` row — a process killed
+rather than exited contributes to the numerator and not the denominator. No
+ramp cell trips it: all four record **more** exit rows than import rows, which
+is the design, since the `atexit` hook is registered by the `.pth` for every
+interpreter that loads it whether or not it goes on to import `rietx`.
+
+Re-scored after all of it, the four ramp cells return **identical** numbers on
+every row of R1, R7 and R8.
+
 ### A known limit of R8's numerator, left alone until the round ends
 
 `import_dt` is measured from the `.pth` — interpreter start — to the end of

@@ -101,8 +101,19 @@ _state = threading.local()
 
 
 def _emit(**fields) -> None:
-    fields.update(t=round(time.time(), 3), pid=os.getpid(), cwd=os.getcwd())
-    line = (json.dumps(fields, default=str) + "\n").encode()
+    # `os.getcwd()` raises when the working directory has been deleted under the
+    # process — an agent that runs a script from a temp dir it then removes.  A
+    # tracer must never break the run it watches, and this call sits inside a
+    # `finally`, so it is guarded like the write below rather than left to raise.
+    try:
+        cwd = os.getcwd()
+    except OSError:
+        cwd = None
+    fields.update(t=round(time.time(), 3), pid=os.getpid(), cwd=cwd)
+    try:
+        line = (json.dumps(fields, default=str) + "\n").encode()
+    except (TypeError, ValueError):
+        return
     try:
         fd = os.open(LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
         try:

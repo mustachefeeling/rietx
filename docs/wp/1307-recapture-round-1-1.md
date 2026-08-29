@@ -197,6 +197,29 @@ three PNGs. Making the library present did not make the package's plotting
 surface the obvious way to draw, and that is a finding for a WP rather than
 for this round to act on.
 
+**The review pass** (`/code-review medium --fix`) found eight and all eight
+were taken; three matter beyond tidiness. The run record was written only
+*after* `wait_quiet`, so a crash during a wait of up to half an hour lost the
+session id of a cell already paid for. The shim's `os.getcwd()` sat outside
+`_emit`'s `try` and `_emit` is called from a `finally`, so an agent running a
+script from a temp directory it then deleted would have had the tracer break
+the run it promises never to break. And `trail.render` still printed R7 at one
+decimal after `score_1_1.py` had been fixed, which is the same defect surviving
+in the second of two renderers.
+
+Three were declined as noted-not-changed, and the reasons are in the review, not
+here: a `transcript_for` slug that misses when the round root contains a dot
+(the glob fallback covers it), the cell venv installing `-e` from the
+maintainer's checkout (the `bare` leak this WP deliberately defers to round
+1.2), and a speculative id collision. **One fix touched the shim**, which is the
+instrument the four outstanding cells will be prepared with, so it is declared
+as an amendment in `PROTOCOL.md` rather than folded in silently: E-RAMP ran on
+the unguarded shim and E-ZRM will run on the guarded one, and the guard can only
+fire where the old shim would have aborted the run outright. Re-scored after
+every fix, the four ramp cells return **identical** numbers on every row of R1,
+R7 and R8, and the rendered ramp prompt is byte-identical to the registered
+text.
+
 **In flight.** Four cells, all E-ZRM, at
 `~/rietx-agent-runs/2026-08-29-round-1-1/` with data staged in `zrm-source/`.
 A reel cell needs `--zrm ~/rietx-agent-runs/2026-08-29-round-1-1/zrm-source`
