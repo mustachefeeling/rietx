@@ -1,6 +1,6 @@
 # WP-1307 — Re-capture: surface round protocol 1.1
 
-Milestone: v1.3 · Status: 🔄 2026-08-29 — protocol 1.1 registered and its harness green; E-RAMP complete at N = 2 per condition (4 of 8 cells), the four reel cells outstanding
+Milestone: v1.3 · Status: ✅ 2026-08-29 — round 1.1 complete, 8 of 8 cells at the registered N = 2 per condition on both episodes; 7 of 8 runs stopped on a §4b row, `read_recipe` reached by none
 Depends on: 1301-1305 (the milestone's acceptance; 1306 is measured by its own fixtures)
 
 ## Goal
@@ -98,14 +98,19 @@ WP).
       any run.
 - [x] `trail.py` committed with the two attribution rules above and a test on a fixture
       transcript.
-- [ ] The runs (cost recorded per cell). **4 of 8 run 2026-08-29**, which completes
-      **E-RAMP at the registered N = 2 per condition**: `ramp-bare-sonnet` ($1.44),
-      `ramp-skill-sonnet` ($1.88), `ramp-bare-opus5` ($8.50), `ramp-skill-opus5`
-      ($4.43). The two `opus-5` cells were isolated (`outlived_session_seconds` 0.0
-      each); the two `sonnet` cells overlapped by up to 127.6 s and are quoted with
-      that said. Outstanding: **all four reel cells**, whose two data files are
-      staged at `~/rietx-agent-runs/2026-08-29-round-1-1/zrm-source/` and which are
-      the only cells where `read_recipe` is reachable at all.
+- [x] The runs (cost recorded per cell). **8 of 8 run 2026-08-29**, the round
+      complete at the registered N = 2 per condition on both episodes.
+      E-RAMP: `ramp-bare-sonnet` ($1.44), `ramp-skill-sonnet` ($1.88),
+      `ramp-bare-opus5` ($8.50), `ramp-skill-opus5` ($4.43).
+      E-ZRM: `zrm-bare-sonnet` ($3.42), `zrm-skill-sonnet` ($2.57),
+      `zrm-bare-opus5` ($7.60), `zrm-skill-opus5` ($8.55). Round total $38.39,
+      plus a killed `zrm-bare-opus5` attempt whose cost was never recorded.
+      Every cell but the two pilot `sonnet` ones was isolated
+      (`outlived_session_seconds` 0.0); those two overlapped by up to 127.6 s and
+      are quoted with that said. Artifacts for all eight, plus the discarded
+      attempt, the harness at its commit and every transcript, are archived
+      outside the repo at `~/rietx-agent-runs/2026-08-29-round-1-1-archive/`
+      (90 MB, `archive_round.py` re-runnable; the per-cell venvs are excluded).
 - [x] The numbers in `docs/milestones/v1.3.md` § Acceptance and the decision on each
       WP's claim ("improved / unchanged / worse", by read-out) in the handover. The
       pilot's numbers are in the rolling narrative, which is where an in-flight
@@ -129,6 +134,139 @@ judged by read-out.
   projection of the campaign).
 
 ## Handover log
+
+### 2026-08-29 (3rd session) — the round complete, and the reader nobody found
+
+All four reel cells run. Round 1.1 is **complete at eight cells of eight**, the
+registered N = 2 per condition on both episodes, and the WP closes.
+
+The reel is where the round earns its keep, because it is real four-phase data
+whose truth nobody knows and the ramp could not stand in for it. Four of four
+runs stopped on a §4b deliverable row, against zero in the campaign's six
+refining runs and a baseline that stopped because its script exited. Two of the
+verdicts the ramp reached are **reversed by four more runs**, in both
+directions, which is what a second episode is for.
+
+The result the round did not go looking for is the one worth acting on. Both
+`opus-5` cells, independently and unasked, ran a background sensitivity study
+on real data, and both concluded that `background.worst_absorption` is the only
+report row separating a good fit from one that hands 40-96 wt % to a phase that
+is not there at an Rwp within 0.01 of the right answer. One wrote "Rwp does not,
+and the difference plot does not"; the other, "if the full 82-scan series is run
+unattended, that check has to be in the loop; Rwp points the wrong way." That is
+CLAUDE.md's own background-flexibility invariant rediscovered from the data by
+agents told none of it. The ask that follows is narrower than it first looked,
+and the correction is worth stating plainly because the first version of this
+entry got it wrong: `worst_absorption` **is** in §4b, in the **QPA** row, which
+§4b bolds as outranking every statistic beside it. What it is absent from is the
+**Trajectory** row — the deliverable this episode's task named. Three of four
+agents read across the boundary to the QPA row; the fourth quoted the number
+without acting on it. A trajectory of phase fractions is a QPA question at every
+point of the chain, so the Trajectory row should carry the check rather than
+rely on the reader noticing. That is a WP's job, not this round's.
+
+**Done.** Ran, collected and scored the four reel cells. `PROTOCOL.md` gains
+§ Results — round 1.1, the reel episode as a **pure insertion**, 212 lines,
+nothing deleted: the registered text and the ramp results are byte-identical
+below it, as a registered round requires. Every artifact of all eight cells is
+archived outside the repo.
+
+**Measured** (darwin, this worktree's own `[dev]` venv; the cells' venvs are
+`[viz]`, build `1.3.0.dev0` in all eight).
+
+- Acceptance, `pytest tests/eval_agent_surface -n auto --dist loadgroup`:
+  **22 passed in 3.69 s** (41 with `test_docs_consistency.py`).
+- Fast suite, `-m "not slow"`: **3554 passed, 122 skipped in 2:01**, alone on
+  the machine (`pgrep -f "[p]ytest"` empty before it started). Identical to the
+  previous session's final tree, which is the expected answer — **this session
+  added no test and no `src/` file**, so passed+skipped must not move, and it
+  did not.
+- Full suite **not run**: docs-and-data only, no `src/` file touched. CI's job.
+
+| | `zrm-bare-sonnet` | `zrm-skill-sonnet` | `zrm-bare-opus5` | `zrm-skill-opus5` |
+| --- | --- | --- | --- | --- |
+| API calls / cache-read | 68 / 9.37 M | 54 / 5.99 M | 72 / 8.11 M | 68 / 8.26 M |
+| wall / refining | 19.9 min / 209.5 s | 14.6 / 32.5 s | 29.6 / 1167.3 s | 29.9 / 485.7 s |
+| errored results, source hunts | 1, 19 | 3, **0** | 10, 17 | 6, 11 |
+| Bash per fit (R7) | 4.40 | 1.83 | 0.46 | 0.21 |
+| stopping criterion | **§4b row** | **§4b row** | **§4b row** | **§4b row** |
+| cost | $3.42 | $2.57 | $7.60 | $8.55 |
+
+**The decision on each WP's claim**, over all eight cells, revised where the
+reel moved it:
+
+| WP | verdict | evidence, and what changed from the ramp |
+| --- | --- | --- |
+| 1301 | **improved**, unchanged | nothing ran away in any of the eight; `PHASE_UNCONSTRAINED` did the work on the reel too, and `zrm-skill-sonnet` quoted it as its reason for refusing three phases |
+| 1302 | **improved**, strengthened | R11 goes from 3 of 4 to **7 of 8**; the only run that ended waiting is still the pilot's `ramp-bare-sonnet`. Errored results still favour no condition (1/3 under sonnet, 10/6 under opus-5) |
+| 1303 | **not testable, as registered** | unchanged; the alternative is deleted, recorded as observed |
+| 1304 | **findable: confirmed eight times. The registered contrast: withdrawn, and worse than the ramp said** | on the reel **both** `bare` cells reached the maintainer's *checkout*, not the wheel. Across the round the wheel route was taken once in four `bare` cells. Route and latency replicate and sharpen: workspace at records 12, 13, 23, 26; the hunt at 37, 43, 51, 53 |
+| 1305 | **improved**, strengthened again | all four reel cells stopped on the row `deliverable="series"` prints, and three declined a first-ranked `suggest` move *with a reason* — one ran it, measured ΔBIC −109, and refused it anyway because the occupancy landed on its bound. A `delta_bic` consumer arguing with `delta_bic` on physics is what the field was for |
+| 1202 | **reached, verdict reversed** | `help_for` went from **0 of 4** ramp cells to **4 of 4** reel cells, 10-14 calls each. The reel hands the agent a foreign model file full of names it does not know, which is the question `help_for` answers. A surface can look unreached because no episode posed its question |
+| 1306 | **unreached — and the skill, not the agents, is why** | `read_recipe` was called by nothing and **named** by nothing: zero mentions in all four transcripts, in the one episode that ships a `.inp`. All four parsed it by hand; two caught that its saved state is the *output* of the other program's 68-pattern run, with cells on their bounds. Checked afterwards, `read_recipe` appears in **one** skill file — `references/diagnostics.md`, inside the `RECIPE_*` rows — and not in `SKILL.md` or `references/api.md`, with no routing row for a foreign input file. The only documentation of the entry point is behind a diagnostic that cannot fire until it is called. A **coverage** failure of 1304's artefact, not a discovery failure by 1306's reader |
+
+**R1b is withdrawn, not replicated.** On the ramp neither `bare` cell named
+`mccusker_default` and both `skill` cells did. On the reel the only cell naming
+it is a `bare` one. With the direction reversing between episodes at N = 2, the
+honest statement is that this round cannot say whether the condition moves the
+plan. It stays a read-out, not a condition; round 1.2 inherits the question.
+
+**One cell was killed and re-run, and it is declared in `PROTOCOL.md`.** The
+first `zrm-bare-opus5` launch was killed from outside the session 16.2 min in,
+as it began its sequential run, with no answer and no run record. No read-out
+comes from it, the cell was re-run from a clean workspace with the same prompt,
+model and shim, and the discarded attempt's numbers are written down (56 API
+calls, 5.08 M cache-read, 30 fits, 46.9 fit s; cost never recorded, because cost
+arrives in the result row). A round that silently re-rolls a cell has stopped
+being pre-registered, so the re-roll is legitimate only because the discarded
+attempt produced no read-out — and that is only checkable if its numbers exist.
+
+**Everything is archived**, outside the repo and outside any checkout, at
+`~/rietx-agent-runs/2026-08-29-round-1-1-archive/` — 90 MB, all eight cells plus
+the discarded attempt, each with `run.json`, `trace.jsonl`, `transcript.jsonl`,
+`trail.txt` and the full `workspace/`, beside `harness/` at its commit,
+`zrm-source/`, a `MANIFEST.md` and the re-runnable `archive_round.py`. The
+transcripts were the fragile part: they live under `~/.claude/projects/`, which
+the harness prunes on its own schedule. Per-cell venvs are excluded, 3.0 GB and
+rebuildable.
+
+**Gotchas added to the previous two sessions'.**
+- **`setsid` does not exist on macOS.** A launch wrapped as `nohup setsid …`
+  dies instantly with `nohup: setsid: No such file or directory`, and a watcher
+  waiting on the run record then waits forever. Cost 50 min of wall clock and
+  nothing else. Plain `nohup … & disown` is enough, and **the check is that the
+  process is alive, never that it was spawned**.
+- **A backgrounded launch can be killed with the session's task.** One cell died
+  that way at 16 min. Launch detached and watch the run record file, so a killed
+  watcher costs a notification and not a paid run.
+- **`prepare` writes into a `skill` cell's log before the agent starts.**
+  `rietx skill --install` runs under the cell's own venv, so every `skill` cell's
+  trace opens with an import+exit pair, 13.5 s cold, `cwd` the worktree. Present
+  in all four ramp `skill` cells already scored, so it stays; it inflates R8's
+  numerator for `skill` cells and belongs with the R8 limit already declared.
+
+**One standing rule is owed to `tests/CLAUDE.md` and did not fit.** *An
+unreached surface is evidence only where an episode posed its question* —
+`help_for` was 0 of 4 on the synthetic ramp and 4 of 4 on the reel, the episode
+that hands an agent a foreign model file, which is also what makes
+`read_recipe`'s 0 of 4 a discovery failure rather than an absent question. The
+file is at **exactly** its pinned cap of 253 lines, so the rule needs the
+consolidation pass that owns the cap, not prose shrunk to make room. It is
+stated in full in `PROTOCOL.md` § R2, which § Two eval protocols already points
+at, so nothing is lost meanwhile.
+
+**Next.** Nothing in this WP. The round is complete and the findings are for
+other WPs, in this order: **`read_recipe` is undocumented, not merely
+undiscovered** — it appears in one skill file, inside the `RECIPE_*` diagnostic
+rows, behind a diagnostic that cannot fire until it has been called, and in
+neither `SKILL.md` nor `references/api.md`; the fix is an entry-point row and a
+routing row for a foreign input file, plus the rule that lets a WP add its
+diagnostics to the skill without adding its door; **`background.worst_absorption`
+is in §4b's QPA row but absent from its Trajectory row**, which is the
+deliverable a series task names, though it is the only row that catches a 45 wt %
+phantom phase; and **round 1.2 owes a sealed
+workspace** — sealed against any checkout on the machine, not only the wheel,
+since a `cd` to an absolute path is one Bash call away.
 
 ### 2026-08-29 (2nd session) — the ramp episode complete, and a contrast withdrawn
 
