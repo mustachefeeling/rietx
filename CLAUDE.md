@@ -744,7 +744,15 @@ a file added to the wheel adds an example.
   headline rules are in Commands above.
 - Comparing against another code means **adopting its protocol**, not just its
   numbers: mirror its refine flags, held parameters and excluded regions, then
-  check the channel count matches before believing any Rwp comparison.
+  check the channel count matches before believing any Rwp comparison. **Two
+  references are an envelope, not a second tolerance** (WP-1306): where a
+  fixture carries two engines' answers they may disagree by more than any bar
+  worth setting — 2665 ppm on a cell against the FAP suite's ±300 — and then
+  agreement with both is arithmetically impossible, so the gate is the span
+  they bracket and the spread itself is reported. **A foreign format's unit is
+  measured against that format's own reference output, never adopted from its
+  prose**, and a row the format states two ways is **refused** rather than
+  chosen, exactly as a CIF whose angle contradicts its symbol is.
 - The **manual** (`docs/manual/`) is one `-W` Sphinx tree in two parts, each
   guarded differently because each fails differently. **Part 2 — Theory**
   (`tests/test_manual.py`): fenced constants are MyST substitutions injected

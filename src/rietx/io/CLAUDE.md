@@ -218,6 +218,32 @@ a convention, which is the one repair a reader may never make.
 | `dif_peaklist` | `.dif` **and** peak-list content | — | refused; matched on evidence not suffix, so a real profile misnamed `.dif` still reaches `xy` |
 | `xy` | text, not binary — **last** | third column when written | a NUL in the first 4 kB is refused by name unless behind a BOM: ASCII-range UTF-16LE is valid UTF-8 with interleaved NULs, and Windows vendor software exports it |
 
+## `recipe.py` — a whole refinement, and **not** a pattern format
+
+`read_recipe`/`write_recipe_tables` speak the PowderLine `GSASII_Rietveld` JSON
+recipe (WP-1306). It lives here because it reads a file and is deliberately
+**outside `PATTERN_FORMATS`**: a recipe carries a structure, an instrument, a
+plan and refine flags too, so it returns a `Recipe`, nothing dispatches to it,
+and none of the sniffing, `scans`, `READER_OPTIONS` or σ policy above reaches
+it. Chapter: `docs/manual/using/recipe.md`; measured convention table:
+`tests/data/README.md` § v1.3. What generalises to the next foreign format:
+
+- **Measure its units against its own reference output before writing the
+  reader**, then use the format's prose only as corroboration. Three rows
+  PowderLine does not state anywhere were found that way.
+- **A row the format states two ways is refused, not picked** — `Zero` is
+  centidegrees in one upstream module and degrees in another, 100× apart. §
+  What a reader may repair, one rank up: a contradiction is the caller's.
+- **Magnitude decides drop against refuse, and the refine flag does not.** A
+  value at the model's identity is dropped with a diagnostic even when flagged;
+  a non-zero one raises.
+- **Never adopt the other engine's project defaults, and never carry a quantity
+  normalised in its units** — the Chebyshev coefficients and the phase scale
+  are re-seeded, each saying so.
+- **A parameter that cannot move is held, not declared free**: a softplus
+  coefficient at zero has gradient ≈ its own value, so freeing one is WP-1076's
+  dead column. Drop the flag at `warning` naming what it costs.
+
 ## Adding a format
 
 1. **Check the fixture licence per *file*, before writing the reader.** A repo

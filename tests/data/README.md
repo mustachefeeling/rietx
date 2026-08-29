@@ -965,3 +965,151 @@ reasons **not** to widen the change:
   right-justified in the low six characters).  The *compressed* variant — a
   non-blank repeat count — is a question no obtainable file answers, and it is
   not guessed at.
+
+## v1.3 PowderLine recipe fixtures (WP-1306)
+
+`powderline/` holds two complete **cross-engine** refinement fixtures vendored
+verbatim from [NSLS2/PowderLine](https://github.com/NSLS2/PowderLine) at commit
+`e9aba0c8f8da314e64e85025fc4b9ef8ebfd16ea` (2026-08-27), BSD-3-Clause,
+copyright 2026 Daniel Olds.  The upstream directory names are kept (`LaB6/`,
+`DRX_33/`, each with `output/` for GSAS-II and `output/topas/` for TOPAS) so a
+later session can diff the tree against a fresh clone; `powderline/LICENSE` is
+the copy the BSD-3 redistribution clause requires.  **Nothing here enters the
+wheel** — the recipe reader is `src/rietx/io/recipe.py`, its fixtures are test
+data only.
+
+What makes these worth vendoring is not the interchange format.  It is that
+each is one pattern refined by **two independent engines** whose outputs are
+both committed, which is the `FAP.EXP` cross-code check with a second opinion
+attached — and the two opinions turn out to disagree.
+
+| File (upstream path under the repo root) | Bytes | sha256 (first 16) |
+|---|---|---|
+| `LICENSE` | 1 498 | `db8057805ceeebdb` |
+| `examples/example_LaB6/DESCRIPTION.md` | 3 334 | `615fa0ba50cf6eca` |
+| `examples/example_LaB6/input.json` | 455 017 | `bb19011a62f48b09` |
+| `examples/example_LaB6/output/refined_parameters.csv` | 1 482 | `605d14d734f45f94` |
+| `examples/example_LaB6/output/LaB6_unit_cell_report.csv` | 243 | `2556a5f5bb765f1b` |
+| `examples/example_LaB6/output/LaB6_peak_list_report.csv` | 8 511 | `3127394b0f2ce995` |
+| `examples/example_LaB6/output/fit_profile.txt` | 377 143 | `f136702695fff8f9` |
+| `examples/example_LaB6/output/topas/refined_parameters.csv` | 1 427 | `1d3ad5e1dcf21e55` |
+| `examples/example_LaB6/output/topas/LaB6_unit_cell_report.csv` | 142 | `a69c9d16986577ac` |
+| `examples/example_LaB6/output/topas/LaB6_peak_list_report.csv` | 6 038 | `4050a4d23310ea9c` |
+| `examples/example_DRX_33/DESCRIPTION.md` | 4 765 | `da229bd6d629a5ed` |
+| `examples/example_DRX_33/input.json` | 421 522 | `2b808bb74cf6ef9e` |
+| `examples/example_DRX_33/output/refined_parameters.csv` | 1 969 | `d1757260b774c5fb` |
+| `examples/example_DRX_33/output/DRX_33_unit_cell_report.csv` | 243 | `21bec7db090ae510` |
+| `examples/example_DRX_33/output/DRX_33_peak_list_report.csv` | 2 879 | `6d76d62db5c04193` |
+| `examples/example_DRX_33/output/Li4MgWO6_SG12_unit_cell_report.csv` | 245 | `22f4a29da53cb03e` |
+| `examples/example_DRX_33/output/Li4MgWO6_SG12_peak_list_report.csv` | 77 577 | `4a2093fd137a06d8` |
+| `examples/example_DRX_33/output/fit_profile.txt` | 378 300 | `2eeaea5df455d592` |
+| `examples/example_DRX_33/output/topas/refined_parameters.csv` | 1 790 | `06699c08ec83b997` |
+| `examples/example_DRX_33/output/topas/DRX_33_unit_cell_report.csv` | 191 | `fe3b27762c9b8663` |
+| `examples/example_DRX_33/output/topas/DRX_33_peak_list_report.csv` | 2 316 | `8799263e2c22db90` |
+| `examples/example_DRX_33/output/topas/Li4MgWO6_SG12_unit_cell_report.csv` | 211 | `fe89864c4e136a33` |
+| `examples/example_DRX_33/output/topas/Li4MgWO6_SG12_peak_list_report.csv` | 67 254 | `4650b77698fc33fd` |
+| `examples/example_LaB6/output/dummy.lst` | 8 600 | `9b4c78339987a4f0` |
+| `examples/example_LaB6/output/topas/example_LaB6_results.csv` | 977 | `ce942d214fb25b2f` |
+| `examples/example_DRX_33/output/dummy.lst` | 17 234 | `cb22ad84b11a6fae` |
+| `examples/example_DRX_33/output/topas/example_DRX_33_results.csv` | 1 607 | `8b8d6b3fefb9e1a5` |
+
+The last four carry each engine's own Rwp — GSAS-II's in its `.lst` log
+(`Final refinement wR = 6.53%`), TOPAS's in its results CSV (`r_wp`) — so the
+acceptance test **reads** the reference figure instead of quoting a number
+typed into a docstring, which is the same rule the manual's injected constants
+follow.
+
+Every file is pure LF, asserted at vendoring time.  The **TOPAS** `fit_profile.txt`
+of each example is deliberately *not* vendored: it is 340 kB per example and
+carries the same header contract as the GSAS-II one on a different x grid
+(TOPAS writes only the fitted range, 3 769 rows from 1.000356°; GSAS-II writes
+all 4 096 channels with zeros outside it).  Its upstream paths are
+`examples/example_*/output/topas/fit_profile.txt`.
+
+### What the data is
+
+Both patterns are NSLS-II beamline 28-ID-1 (PDF), λ = 0.1665 Å, 4 096 channels
+over 0.647–15.867 °2θ, with `fit_range` [1, 15] leaving **3 768 fitted
+channels** — the number both engines report their residual on.  The recipes are
+*file-less*: `payload.xrd_data` carries `tth`, `Itth` and `Itth_weights`
+(= 1/σ²) inline, which is why an `input.json` is 0.4 MB.
+
+* **LaB6** — NIST SRM 660c, `P m -3 m`, a = 4.15682 Å **held**.  Refines the
+  phase scale, six Chebyshev terms, one background peak and the six instrument
+  broadening terms U V W X Y Z.  It is an instrument-profile calibration, so
+  the cell is a fixed input rather than an answer.
+* **DRX_33** — a disordered-rocksalt battery cathode: `F m -3 m` DRX plus
+  monoclinic `C2/m` Li₄MgWO₆.  Refines both phases' scales, cells, isotropic
+  size and strain with their `LG_eta` mixing terms, and six Chebyshev terms;
+  instrument and atoms held.  Data from
+  [doi:10.26434/chemrxiv.15003271/v1](https://doi.org/10.26434/chemrxiv.15003271/v1)
+  — **cite that work when using this pattern**.
+
+### The two reference engines disagree, and by how much
+
+This is the reason the acceptance bar for `test_acceptance_powderline.py` is an
+*envelope* rather than a tolerance against either engine.  Measured off the
+committed `*_unit_cell_report.csv` files:
+
+| Phase | Parameter | GSAS-II | TOPAS | Δ |
+|---|---|---|---|---|
+| DRX_33 | a (Å) | 4.171 525 | 4.182 656 | **+2 665 ppm** |
+| Li₄MgWO₆ | a (Å) | 5.124 071 | 5.133 141 | +1 770 ppm |
+| Li₄MgWO₆ | b (Å) | 8.791 228 | 8.787 832 | −386 ppm |
+| Li₄MgWO₆ | c (Å) | 5.097 912 | 5.104 563 | +1 304 ppm |
+| Li₄MgWO₆ | β (°) | 110.708 935 | 110.821 300 | +1 015 ppm |
+
+So no answer can be within the WP's original ±300 ppm of *both*: the two
+engines are 9× that apart on the cubic phase alone.  Their own
+`docs/regression-tolerance.md` does not contradict this — its `rtol 1e-4` on a
+cell is a **cross-build** tolerance (same engine, different OS), measured at
+~2e-7 drift, and it says in as many words to "compare lattice parameters, not
+Rwp, across engines".
+
+The disagreement is not mysterious, and upstream documents its cause.
+`example_DRX_33/DESCRIPTION.md` records that GSAS-II reports **2 soft (SVD)
+Hessian singularities** on `0:0:Size;mx` and `1:0:Size;i`, with
+`Mustrain;mx`/`Mustrain;i` correlated at 100 % in *both* phases.  The two
+engines land in different minima of that flat valley, and their broadening
+answers say so plainly:
+
+| | GSAS-II | TOPAS |
+|---|---|---|
+| DRX_33 size | `Size;i` 253.2 µm, `Size;mx` 1.51e4 ± 7.4e3 | 4.92e6 µm (i.e. none), η = 0.0781 |
+| DRX_33 strain | `Mustrain;i` 145.9, `;mx` 137.8 | 16 737 ± 587, η = 0.296 |
+| Li₄MgWO₆ size | `Size;i` **−1 364.6** µm (unphysical) | 5.05e8 µm (none), η = 0.0156 |
+| Rwp | 10.83 % | 7.33 % |
+
+For **LaB6** the same holds one rank smaller: GSAS-II's background peak ran off
+to position 8.77e10 °2θ with intensity −2.79e8 and **esd 0** — an unmeasured
+direction that contributes exactly nothing over 1–15° — while TOPAS placed a
+real hump at 1.628° with a 12.3° Gaussian FWHM.  GSAS-II's `Y` is −15.81
+centideg against TOPAS's −8.97.  Rwp 6.53 % against 8.52 %.
+
+Read as: **the cells are the comparable quantity and even they carry a 2 665 ppm
+cross-code spread on this specimen; the broadening terms are not comparable at
+all.**
+
+### The convention table, and how each row was established
+
+`src/rietx/io/recipe.py` carries the conversions.  Every row below marked
+*measured* was checked against the committed LaB6 GSAS-II output before the
+reader was written — the peak list's own `sigma_squared`/`gamma` columns and the
+drawn width of `y_calc − y_bkg` in `fit_profile.txt`:
+
+| Recipe field | Unit | rietx target | How established |
+|---|---|---|---|
+| `U`, `V`, `W` | centideg² Gaussian **variance** | `profile.u/v/w` × 8ln2·1e-4 | *Measured*: `sigma_squared` reproduces `U tan²θ + V tanθ + W` to 6 dp on all 49 reflections, and the drawn FWHM of their own `y_calc` matches √(8ln2)·√sig/100 to 0.1–0.9 % (the residue is the SH/L asymmetry, not modelled in the check) |
+| `X`, `Y` | centideg Lorentzian **FWHM** | `profile.x/y` × 0.01 | *Measured*, same route |
+| `isotropic_size` | µm | `lor_size` = 0.018·η·λ/(π·D); `gauss_size` = [0.018·(1−η)·λ/(π·D)]² | *Measured*: the peak list's `gamma` exceeds the instrument-only X/cosθ + Y·tanθ + Z by exactly 1.8λ/(π·D·cosθ) + 0.018·µ·tanθ/π centideg at GSAS-II's defaults D = 1 µm, µ = 1000 |
+| `isotropic_strain` | 1e-6 Δd/d | `lor_strain` = 1.8e-4·η·µ/π; `gauss_strain` = [1.8e-4·(1−η)·µ/π]² | *Measured*, same route |
+| `LG_eta` | — | the Lorentzian **share**; (1−η) goes to the Gaussian | Upstream's own second engine (`src/powderline/topas/conversions.py`) splits it this way |
+| `Lam` | Å | `source.lines[0].wavelength` | Direct |
+| `Polariz.` | — | `source.polarization` | Direct |
+| `SH/L` | (S+H)/L | `axial_sl` = `axial_hl` = SH/L / 2 | **Adopted, not measured** — at SH/L = 5e-4 on 0.027° peaks the split is below what this pattern can show (see `test_recipe.py`) |
+| `Zero` | ✗ | — | **Refused when non-zero.** Upstream states the unit twice and disagrees with itself: `easydiff/conversions.py` says centidegrees, `config_loader.py` says "degrees 2theta". Every committed recipe has `Zero = 0`, where the readings coincide |
+| `Z` | centideg constant Lorentzian | — | Dropped when fixed at 0 (`RECIPE_FIELD_DROPPED`), refused otherwise: rietx's Lorentzian has no constant term |
+| `Itth_weights` | 1/σ² | `PatternData.sigma` = 1/√w | Confirmed against `easydiff/conversions.py:crop_and_sigma` |
+| `fit_range` | °2θ, **inclusive** both ends | `two_theta_limits` | Same source |
+| `Uiso` | Å² | `biso` = 8π²·Uiso | Direct |
+| Chebyshev coefficients | GSAS-II domain | count and `refine_flag` carried; **coefficients re-seeded** | The two codes scale the Chebyshev domain differently; carrying the numbers would be a wrong start dressed as a right one |

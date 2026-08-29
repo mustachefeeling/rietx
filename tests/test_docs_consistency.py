@@ -287,7 +287,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # the clause a session that never opens `docs/manual/` still needs — adding
     # or renaming a GUI route or a tab now fails a test until a chapter covers
     # it, which is the manual bullet's existing shape one vocabulary over.
-    "CLAUDE.md": 898,
+    # 898 -> 906 for WP-1306 (2026-08-29): the PowderLine recipe reader, folded
+    # into the existing cross-code bullet rather than given one of its own.  The
+    # operating detail went down a rank as this comment requires — the whole
+    # convention table with how each row was measured is `tests/data/README.md`
+    # § v1.3, the format's own rules are `src/rietx/io/CLAUDE.md`, and the
+    # consumer-facing chapter is `docs/manual/using/recipe.md`.  What cannot go
+    # down a rank is what a session comparing against *any* other code needs
+    # before it sets a tolerance: two references that disagree by more than the
+    # bar make agreement with both impossible, and a unit a format states two
+    # ways is refused rather than picked.
+    "CLAUDE.md": 906,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one
@@ -583,7 +593,15 @@ SIZE_CAPS: dict[str, int | None] = {
     "src/rietx/indexing/CLAUDE.md": 296,
     # 200 at the .ras/.uxd consolidation; raised once with three container
     # formats still to land, each of which is a row in its per-format table
-    "src/rietx/io/CLAUDE.md": 250,
+    # 250 -> 271 for WP-1306 (2026-08-29): `recipe.py`, whose first job is to
+    # say it is **not** a pattern format, so none of the dispatch, options and
+    # sigma rules above govern it.  The operating detail went down a rank as
+    # this comment requires — the measured convention table is
+    # `tests/data/README.md` § v1.3, the consumer chapter is
+    # `docs/manual/using/recipe.md`, and every refusal's wording is the module
+    # docstring.  What cannot go down a rank is the five rules the *next*
+    # foreign format read in this subtree will need before it is written.
+    "src/rietx/io/CLAUDE.md": 271,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 

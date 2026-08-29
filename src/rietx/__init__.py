@@ -28,6 +28,7 @@ from .io.exporters import (
 )
 from .io.instrument_profile import load_instrument_profile, save_instrument_profile
 from .io.readers import read_pattern, read_pdcif
+from .io.recipe import Recipe, RecipeError, read_recipe, write_recipe_tables
 from .multi import MultiHistogramRefinement, refine_multi
 from .optimize.cancel import CancelToken, RefinementCancelled
 from .params.multi import SharingMap
@@ -114,6 +115,8 @@ __all__ = [
     "PreferredOrientation",
     "Project",
     "ProjectDoc",
+    "Recipe",
+    "RecipeError",
     "Refinement",
     "RefinementCancelled",
     "RefinementPlan",
@@ -147,6 +150,7 @@ __all__ = [
     "pick_peaks",
     "read_pattern",
     "read_pdcif",
+    "read_recipe",
     "reflection_table",
     "refine",
     "refine_sequential",
@@ -155,6 +159,7 @@ __all__ = [
     "save_instrument_profile",
     "write_qpa_table",
     "estimate_mu_r",
+    "write_recipe_tables",
     "write_reflection_table",
     "write_refinement_cif",
 ]

@@ -418,6 +418,11 @@ _SURFACE_FLAGS: dict[str, str] = {
     "indexing": "index_pattern",
     # run control (WP-1006): a client that cannot cancel must not offer to
     "cancellation": "CancelToken",
+    # the PowderLine interchange format (WP-1306).  Deliberately here and not
+    # in ``reader_formats``: that arm answers "what can ``read_pattern``
+    # open", and a recipe is a whole refinement rather than a pattern, so it
+    # is a *feature* of the build and not a pattern format.
+    "powderline_recipe": "read_recipe",
 }
 
 
