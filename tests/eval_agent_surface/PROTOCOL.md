@@ -374,6 +374,27 @@ Known defects of 1.0, and what 1.1 does about each:
   no conclusion was drawn from it. R11 counts plotting calls, so the library has
   to be there.
 
+### Amendment, 2026-08-29, made between the pilot's two runs
+
+Declared here rather than versioned, on 1.0's precedent: it changes how cells
+are **isolated**, not what is measured, which cell is under which condition, or
+what the package does.
+
+**A cell's work can outlive its session, and the next cell then inherits it.**
+The first pilot run put a 68-pattern chain in the background, wrote its answer
+without waiting for it, and `refine_sequential` went on writing for **127.6 s
+after `claude -p` had returned** — into the launch of the run after it. Wall
+clock is R1, R5 and R8's unit, so `runner.launch` now waits for the trace to be
+silent for 20 s before it returns, and records `outlived_session_seconds` in the
+cell's own record. Two consequences for reading this round's numbers:
+
+- `ramp-bare-sonnet` and `ramp-skill-sonnet` **overlapped by up to 127.6 s** and
+  their wall clocks are quoted with that said. Every later cell is isolated.
+- **Collect after quiet, never at the exit code.** A trail read while a
+  backgrounded chain was still running showed 5.7 s of refinement where the
+  finished log shows 193.5 s: the outermost rows are written on completion, so
+  an early read sees the children and none of their parents.
+
 And one defect this round cannot fix: **the harness is Claude Code's**.
 WP-1304's harness-neutral claim is tested structurally in that WP and
 behaviourally only when a Codex or opencode cell exists. That is round 1.2's,

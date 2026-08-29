@@ -35,6 +35,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -173,6 +174,25 @@ def prompt_for(cell: str, root: Path) -> str:
                               workspace=p["workspace"]))
 
 
+def wait_quiet(log: Path, idle: float = 20.0, limit: float = 1800.0) -> float:
+    """Block until the trace has been silent for `idle` seconds.
+
+    **A cell's work can outlive its session.** Measured on the first pilot run
+    (2026-08-29): the agent put a 68-pattern chain in the background, wrote its
+    answer without it, and `refine_sequential` went on writing for 127.6 s after
+    `claude -p` had returned — into the wall clock of the cell launched next.
+    A round whose read-outs include wall clock cannot let two cells overlap, so
+    `launch` waits here before it returns rather than trusting the exit code.
+    """
+    began = time.time()
+    while time.time() - began < limit:
+        last = log.stat().st_mtime if log.exists() else 0.0
+        if time.time() - last >= idle:
+            return time.time() - began
+        time.sleep(2.0)
+    return time.time() - began
+
+
 def launch(root: Path, cell: str) -> None:
     _, _, model = split(cell)
     p = paths(root, cell)
@@ -191,8 +211,10 @@ def launch(root: Path, cell: str) -> None:
         record["result"] = json.loads(proc.stdout)
     except json.JSONDecodeError:
         record["stdout"] = proc.stdout[-8000:]
+    record["outlived_session_seconds"] = round(wait_quiet(p["log"]), 1)
     p["run"].write_text(json.dumps(record, indent=1), encoding="utf-8")
-    print(f"{cell}: rc={proc.returncode} session={session} -> {p['run']}")
+    print(f"{cell}: rc={proc.returncode} session={session} "
+          f"(+{record['outlived_session_seconds']}s quiet wait) -> {p['run']}")
 
 
 def transcript_for(root: Path, cell: str) -> Path | None:
