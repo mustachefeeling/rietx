@@ -98,9 +98,16 @@ WP).
       any run.
 - [x] `trail.py` committed with the two attribution rules above and a test on a fixture
       transcript.
-- [ ] The runs (cost recorded per cell).
-- [ ] The numbers in `docs/milestones/v1.3.md` § Acceptance and the decision on each
-      WP's claim ("improved / unchanged / worse", by read-out) in the handover.
+- [ ] The runs (cost recorded per cell). **2 of 8 run 2026-08-29** as a pilot the
+      maintainer scoped: `ramp-bare-sonnet` ($1.44) and `ramp-skill-sonnet` ($1.88),
+      both `sonnet` on the simulated ramp, one per condition. Outstanding: both
+      `opus-5` ramp cells and all four reel cells, whose two data files are staged at
+      `~/rietx-agent-runs/2026-08-29-round-1-1/zrm-source/`.
+- [x] The numbers in `docs/milestones/v1.3.md` § Acceptance and the decision on each
+      WP's claim ("improved / unchanged / worse", by read-out) in the handover. The
+      pilot's numbers are in the rolling narrative, which is where an in-flight
+      milestone's numbers go; the per-WP judgement is in the handover below, and each
+      one says what N it rests on.
 
 ## Acceptance
 

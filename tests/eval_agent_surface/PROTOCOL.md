@@ -401,9 +401,119 @@ behaviourally only when a Codex or opencode cell exists. That is round 1.2's,
 and `rietx skill --install <workspace> --agent <name>` makes it a one-line
 change to the episode setup.
 
-## Results — round 1.1
+## Results — round 1.1, pilot of 2026-08-29
 
-Not yet run. Registered 2026-08-29.
+**Two of the eight cells ran**, both `sonnet` on the simulated ramp, one per
+condition. That is **N = 1 per condition**, one rung below what the protocol
+registered, so nothing here is a rate and nothing here is a disagreement
+either: a single observation cannot be split. The six remaining cells — both
+`opus-5` ramp cells and all four reel cells — are outstanding, and the reel's
+two data files are staged for them.
+
+Build `1.3.0.dev0` in both (R9). Machine rows from `score_1_1.py`, hand rows
+from the transcripts.
+
+### R1 — the price of an answer
+
+| | baseline 2026-08-26 | `ramp-bare-sonnet` | `ramp-skill-sonnet` |
+| --- | --- | --- | --- |
+| model, brief | opus-5, primed | sonnet, unprimed | sonnet, unprimed |
+| API calls | 90 | 36 | 55 |
+| cache-read | 14.6 M | 3.12 M | 4.74 M |
+| mean context | 168 k | 90 k | 88 k |
+| output | 87 k | 31 k | 44 k |
+| wall | 34.7 min | 7.5 min | 10.5 min |
+| refining | 34 s (1.6 %) | 193.5 s (43 %) | 17.5 s (2.8 %) |
+| tool calls, errored | 91, 19 | 42, 5 | 57, **1** |
+| cost | not recorded | $1.44 | $1.88 |
+
+The baseline row is a **different model, a different brief and a different
+build**, so the comparison is a before-and-after and is quoted as one. The
+within-round contrast is the last two columns, and it is one run each.
+
+### R11 — the stopping criterion, and the result that outranks the table
+
+`ramp-bare-sonnet` ended on **none — waiting**. Its closing message is that
+the chain "is running in the background … I'll report back with the full
+trajectory and reliability flags once the chain finishes", and the session
+returned 127.6 s before that chain finished. It is cheaper than the baseline
+partly because it never delivered an answer.
+
+`ramp-skill-sonnet` ended on **a §4b deliverable row**, and on the trajectory
+row specifically: the step re-measured cold by `verify_discontinuities`
+(ratio 1.00×), forward and backward agreeing, a stated 2θ-scale anchor ("no
+calibration standard was in this dataset … the absolute scale carries an
+un-anchored offset") and the precision/accuracy split, plus a Bérar-Lelann
+inflation of 1.58 to apply to any quoted esd. Its "would not quote" list names
+five things and a reason for each. This is the first time in any round or
+campaign that a run has stopped on a §4b row: the campaign's six refining runs
+scored 0 on that criterion, and the baseline built its own rules because §4b
+had no trajectory row to reach for.
+
+**The two runs are not both better at the same thing.** The bare run built the
+second phase into the model and found CaF₂; the skill run fitted the high-T
+half with a one-phase model, called the extra lines "a hint, not an
+identification", and recommended indexing them. Better epistemics, worse model,
+in the run that delivered.
+
+### R2 — surfaces reached
+
+Both reached `capabilities()`, `SeriesResult.summary(deliverable="series")`,
+`verify_discontinuities=True` and `direction="both"`. The bare run also reached
+`Refinement.suggest`, `Refinement.summary(deliverable="structure")` and
+`Refinement.report`; the skill run also reached `Refinement.set_vary` and read
+the skill's `references/series.md` through the harness's own Skill tool.
+
+The three checks WP-1305 turned into calls were **all three made as calls** by
+both runs. The 2026-08-26 agent did all three by hand.
+
+### R3 — discovery errors
+
+Five errored calls in the bare run, of which **two** are discovery
+(`No module named 'rietx.plans'`, and a pydantic model constructed
+positionally); one is environmental (`bin/pip` absent from a `uv` venv) and two
+are not rietx's. **One** in the skill run, and it is not a discovery error. The
+baseline had nine discovery errors of nineteen.
+
+Source hunts went the other way: the bare run read the skill and the wheel's
+own files, the skill run read `src/rietx/refine.py` and `strategy/staged.py` to
+learn how a parameter is held — a question §4b does not answer and the skill
+does not carry.
+
+### R5 — the flat direction
+
+`PHASE_UNCONSTRAINED` fired **82 times** in the bare run's chain, and the whole
+68-pattern both-directions chain with cold verification finished in **187.7 s**.
+The same absent phase cost the baseline 27 % of a 35-minute session and, on
+reproduction without bounds, more than 115× that. Nothing ran away in either
+cell.
+
+### R7, R8, R10
+
+R7: **1.8** Bash calls per fit in the bare run, **1.4** in the skill run; the
+baseline's 87 Bash calls sat over one chain. R8: the floor is a cold-start
+question — the first `import rietx` in a fresh venv cost **14.8 s**, the next
+**0.53 s**, and per run the import total was 21.6 s of 220.9 s (9.8 %) and
+28.5 s of 50.2 s (56.8 %). R10: the bare run **backgrounded** its chain, wired
+`progress="series_progress.log"` and tailed it once; the skill run did not
+background anything.
+
+### What the pilot says about its own instrument
+
+**The `bare` cell is not bare, and this is the round's first correction to
+itself.** Within its first minute that agent ran `rietx skill --path`, read the
+wheel's forwarding stub at `rietx/data/AGENT_PROTOCOL.md`, and read
+`site-packages/rietx/data/skill/rietx/SKILL.md` and three of its reference
+files. The skill ships **inside the wheel**, so no workspace can withhold it.
+The condition therefore separates *the harness offering the skill* from *the
+agent finding it in the package* — not instructions from no instructions — and
+every R6 row is to be read that way. It is a finding rather than only a defect:
+WP-1304's claim is that the skill is findable, and an agent with no reason to
+expect one found it unprompted from an empty directory.
+
+Both runs also read the maintainer's checkout at `/Users/yue/Code/rietx/src`,
+which is on the machine and outside the workspace. A cell cannot be sealed from
+it here; the reel cells should run with that in mind.
 
 ---
 
