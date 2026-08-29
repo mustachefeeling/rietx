@@ -73,7 +73,13 @@ table "task → manual chapter / reference file", and a See-also linking
 `rx.help_for` and `capabilities()`); `references/diagnostics.md` (§7's 99 "must not do"
 rows, complementary to the runtime `suggestion`, not the same text),
 `references/diagnostics-indexing.md` (§7b-7f), `references/surprises.md` (§8),
-`references/history.md` (§9), `references/series.md` (§9b). Caps pinned by test with the
+`references/history.md` (§9), `references/series.md` (§9b). §5 has no home in that list
+and does not fit the body's budget: it goes to `references/numbers.md`, its rule in the
+body's list and the detail under the pointer. There is no §9c — WP-1303 deleted it with
+`rietx.agent`, so the skill must not expect the envelope's request/response vocabulary;
+the one rule that survived (engine `Diagnostic` codes against the GUI server's session
+codes, two vocabularies sharing an UPPER_SNAKE shape) is in **§7's preamble** and the
+skill quotes it from there. Caps pinned by test with the
 numbers in the comment: `SKILL.md` ≤ 32 kB and < 500 lines (Read returned 66 kB; the
 spec's limit; a skill body is read whole), every reference ≤ 36 kB (Bash output above
 40 kB becomes a 2 kB preview). Committed copies at `.agents/skills/rietx/` and
@@ -106,16 +112,6 @@ assertions unchanged); `tests/test_gui_dist.py:282,341`;
 directory; byte equality per file); citations in `test_report_loop.py:12,802`,
 `test_extinction_symbol.py:693`, `test_robustness_external.py:523` re-pointed by section
 name.
-
-### Inherited
-
-- **From WP-1303 (2026-08-29): `AGENT_PROTOCOL.md` § 9c is gone.** The JSON envelope
-  it documented was deleted with `rietx.agent`, so a skill built from the protocol
-  must not expect that section or any of its request/response vocabulary. Its one
-  surviving rule — engine `Diagnostic` codes against the GUI server's session codes,
-  two vocabularies sharing an UPPER_SNAKE shape — moved **up into § 7's preamble**,
-  which is where a skill should quote it from. Section numbering is otherwise
-  unchanged (9b is still the series, 10 the worked default).
 
 ## Non-goals
 
