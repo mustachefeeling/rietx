@@ -201,11 +201,24 @@ moves on every release. Store the contract versions alongside any result you sto
 threshold compared across two `report_thresholds_version` values compares two
 different questions.
 
-## Further reading: the agent protocol
+`Capabilities.skill_path` is not a version. It is the directory holding the
+agent skill this build carries — the operating protocol, in the open Agent
+Skills format — or `None` where the build carries none. Point a harness at it,
+or read it yourself:
 
-This chapter describes the surface.
-[`docs/AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)
-covers the half an integrator cannot derive from a schema: the turn-on order,
-the degeneracies to memorise, what to check before believing a number, how to
-read an abstention, and the measured findings that should change what a calling
-agent does.
+<!-- api-doc: no-exec — it prints an absolute path that differs per install -->
+```python
+import rietx as rx
+from pathlib import Path
+
+print(Path(rx.capabilities().skill_path, "SKILL.md").read_text())
+```
+
+## Further reading: the agent skill
+
+This chapter describes the surface. The skill covers the half an integrator
+cannot derive from a schema: the turn-on order, the degeneracies to memorise,
+what to check before believing a number, how to read an abstention, and the
+measured findings that should change what a calling agent does. It is
+{doc}`the next chapter <skill>`, and `rietx skill --install` puts it where the
+harnesses working in your repository will find it.

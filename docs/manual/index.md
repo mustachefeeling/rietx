@@ -115,6 +115,7 @@ using/gui-quickstart
 using/gui-guide
 using/gui-power
 using/agents
+using/skill
 using/compatibility
 using/glossary
 ```
