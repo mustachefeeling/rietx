@@ -109,7 +109,13 @@ name.
 
 ### Inherited
 
-Nothing yet.
+- **From WP-1303 (2026-08-29): `AGENT_PROTOCOL.md` § 9c is gone.** The JSON envelope
+  it documented was deleted with `rietx.agent`, so a skill built from the protocol
+  must not expect that section or any of its request/response vocabulary. Its one
+  surviving rule — engine `Diagnostic` codes against the GUI server's session codes,
+  two vocabularies sharing an UPPER_SNAKE shape — moved **up into § 7's preamble**,
+  which is where a skill should quote it from. Section numbering is otherwise
+  unchanged (9b is still the series, 10 the worked default).
 
 ## Non-goals
 
