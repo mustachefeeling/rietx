@@ -65,7 +65,7 @@ loop between them closes:
 **These names are provisional, and the answers they return are versioned.**
 Indexing is under active development, so everything under `rietx.indexing` and
 every answer type in `rietx.schemas.indexing` may change in any release — the
-[compatibility promise](https://yue-here.github.io/rietx/using/compatibility.html#provisional-by-declaration)
+[compatibility promise](https://rietx.org/using/compatibility.html#provisional-by-declaration)
 declares the subsystem rather than listing names, and every change is in the
 release notes. Two things do not move with them:
 `capabilities().indexing_thresholds_version`, which is what the gates below are

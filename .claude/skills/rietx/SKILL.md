@@ -1,17 +1,13 @@
 ---
 name: rietx
 description: >-
-  Refine powder X-ray or neutron diffraction data with the rietx Python package:
-  Rietveld, Le Bail and Pawley fits, quantitative phase analysis, unit-cell
-  indexing of an unknown phase, and reading the FitReport that says whether the
-  answer can be quoted. Use it whenever a task involves a powder pattern (.xy,
-  .xye, .fxye, .raw, .brml, pdCIF), a CIF to fit against one, a cell to
-  determine, phase fractions to quantify, an in-situ or parametric series to
-  chain, or an existing rietx result to judge, extend or explain. Read it before
-  the first fit(), because it decides what to free in what order and which
-  numbers may be quoted afterwards.
+  Refine powder diffraction data with the rietx Python package (Rietveld, Le
+  Bail, Pawley, phase quantification, indexing an unknown cell, judging a
+  FitReport) — read it before the first fit() whenever a task involves a powder
+  pattern, a CIF to fit against one, phase fractions, a cell to determine, an
+  in-situ series, or an existing rietx result to judge.
 license: MIT
-compatibility: Requires the rietx Python package (pip install rietx) and Python 3.11+. No network access needed; every document it refers to ships in the wheel.
+compatibility: Requires the rietx Python package (pip install rietx) and Python 3.11+. Works offline — this file and its references ship in the wheel; the user manual it names is hosted at https://rietx.org.
 metadata:
   version: "1.3.0.dev0"
   homepage: "https://rietx.org"
@@ -34,25 +30,22 @@ specific to running it with no human at the plot.
 ## Load these when the task calls for them
 
 This file is the judgement core. The lookup tables live beside it and are loaded
-on demand, one `Read` each.
+on demand, one file each. The user manual holds the object model this protocol
+drives and is not restated here; a page named `x` below is
+`https://rietx.org/using/x.html`.
 
-| Load | When |
-|---|---|
-| [`references/api.md`](references/api.md) | you are about to call rietx: entry points, model objects, the four answer types and their fields, the report, the exports |
-| [`references/diagnostics.md`](references/diagnostics.md) | §7 — a `Diagnostic` fired and you need its row: every engine code, and what it forbids |
-| [`references/abstention.md`](references/abstention.md) | §6 — something declined to answer: abstentions, caveats, gate failures, `best_or_none()` returning `None` |
-| [`references/numbers.md`](references/numbers.md) | §5 — you are about to quote a number: which field carries which fact, and read numbers rather than pixels |
-| [`references/judging.md`](references/judging.md) | §4/§4b — a judging or deliverable rule needs its measurement, before you override one |
-| [`references/surprises.md`](references/surprises.md) | §8 — the fit did something that makes no sense: twenty measured results that contradict an intuition |
-| [`references/diagnostics-indexing.md`](references/diagnostics-indexing.md) | §7b-7f — the phase is unknown: peak picking, indexing, the closed loop, the extinction screen |
-| [`references/history.md`](references/history.md) | §9 — one fit is not the answer: the trajectory, and the history DAG as a search structure |
-| [`references/series.md`](references/series.md) | §9b — an in-situ ramp, a sweep or a tray: chaining N patterns, and checking the chain both ways |
-
-The user manual holds the object model this protocol drives and is not restated
-here: `using/quickstart.md`, `using/model.md`, `using/refining.md`,
-`using/results.md`, `using/report.md`, `using/constraints.md`, `using/series.md`,
-`using/history.md`, `using/indexing.md`, `using/qpa.md`, `using/exports.md`,
-`using/agents.md`.
+| When | Load | Manual page |
+|---|---|---|
+| you are about to call rietx: entry points, constructors, the four answer types and their fields, the report, the exports | [`references/api.md`](references/api.md) | `quickstart`, `model`, `refining`, `results`, `agents` |
+| §7 — a `Diagnostic` fired and you need its row: every engine code, and what it forbids | [`references/diagnostics.md`](references/diagnostics.md) | `results` |
+| §6 — something declined to answer: abstentions, caveats, gate failures, `best_or_none()` returning `None` | [`references/abstention.md`](references/abstention.md) | `report` |
+| §5 — you are about to quote a number: which field carries which fact, and read numbers rather than pixels | [`references/numbers.md`](references/numbers.md) | `report`, `results` |
+| §4/§4b — a judging or deliverable rule needs its measurement, before you override one | [`references/judging.md`](references/judging.md) | `report`, `qpa`, `constraints` |
+| §8 — the fit did something that makes no sense: twenty measured results that contradict an intuition | [`references/surprises.md`](references/surprises.md) | `refining` |
+| §7b-7f — the phase is unknown: peak picking, indexing, the closed loop, the extinction screen | [`references/diagnostics-indexing.md`](references/diagnostics-indexing.md) | `indexing` |
+| §9 — one fit is not the answer: the trajectory, and the history DAG as a search structure | [`references/history.md`](references/history.md) | `history` |
+| §9b — an in-situ ramp, a sweep or a tray: chaining N patterns, and checking the chain both ways | [`references/series.md`](references/series.md) | `series` |
+| writing the answer out: CIF, QPA table, reflection table, plots | [`references/api.md`](references/api.md) § Out | `exports` |
 
 ---
 
@@ -180,6 +173,7 @@ bugs; they are the geometry of the problem.
    than refining both.** `ref.tie_equal([paths])` makes an equality group,
    `ref.tie(path, source, scale=, offset=)` the general affine form (`occ₁ =
    1 − occ₀` on a mixed site is `scale=-1, offset=1`), `ref.untie` releases them.
+
    A constraint *removes* a parameter, unlike a restraint, which adds a weighted
    observation and leaves the count alone, so it is the one move that raises the
    observation-to-parameter ratio. The two cases worth reaching for are
@@ -243,11 +237,13 @@ measured evidence behind each rule is
     different protocols spread by ×17–25 of the quoted esds on cell dimensions.
 14. **Ask whether the converged answer is the only one, and settle it by a
     swap.** `report.identifiability.exchanges` and `.soft_modes` outrank the
-    statistics, because they are about what "converged" *means*: `converged` is a
-    statement about the free set, while an `exchangeable=True` row says a **held**
-    parameter's signature is reproducible inside the fitted span *and* that a
-    fitted partner stands many σ from its null. **The verdict that licenses is
-    `ambiguous`, not `converged`.**
+    statistics, and **the verdict that licenses is `ambiguous`, not
+    `converged`.**
+
+    They are about what "converged" *means*: `converged` is a statement about
+    the free set, while an `exchangeable=True` row says a **held** parameter's
+    signature is reproducible inside the fitted span *and* that a fitted partner
+    stands many σ from its null.
 
     The swap resolves it and is a measurement: fit each member of the pair
     *alone*, the other held at its **null**, and compare χ² — two warm fits,
@@ -463,13 +459,12 @@ them is checked against the installed package by test.
 
 ## See also
 
-- `README.md` — capability table and worked examples
-- `docs/DESIGN.md` — why the FitReport is shaped this way
-- `tests/data/README.md` — provenance and reference values for every dataset
+- The manual, Part 2 (theory): <https://rietx.org> — every equation with its
+  source, and the bibliography each author-year citation below resolves in
+- The repository, <https://github.com/yue-here/rietx>: `README.md` (capability
+  table, worked examples), `docs/DESIGN.md` (why the FitReport is shaped this
+  way), `tests/data/README.md` (provenance and reference values for every
+  bundled dataset). None of these ships in the wheel
 - `rietx compare` — a browser UI comparing refinement settings side by side on
   the bundled standards. Its cumulative-Δχ² panel is the machine-readable form of
   §8.1's rule: it shows *where* a correction acted, not just whether Rwp moved
-
-Papers are cited author-year throughout; each citation resolves in the manual's
-bibliography (`docs/manual/references.bib`) or carries its journal reference
-inline at first mention.

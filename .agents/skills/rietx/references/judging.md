@@ -187,9 +187,9 @@ Appl. Cryst.* **35**, 383.
 
 - A Rietveld σ(W) reflects only the fit's mathematical precision and is "not
   necessarily related to the accuracy". Judge a fraction against the published
-  participant spread, never against its own esd. (This is the policy
-  `tests/data/README.md` applies to the bundled `qarr/` patterns, which are the
-  round robin's own samples.)
+  participant spread, never against its own esd. (This is the policy the
+  repository's `tests/data/README.md` applies to the bundled `qarr/` patterns,
+  which are the round robin's own samples.)
 - Microabsorption is the largest physical obstacle to X-ray QPA — "may prove to
   be insurmountable in some circumstances" — and a Brindley correction applied
   where none is needed *reduces* accuracy (their sample 1 and synthetic bauxite;
