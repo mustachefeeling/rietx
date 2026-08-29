@@ -71,28 +71,15 @@ their GSAS-II and TOPAS tables.
 - **Risk.** Two stars on the repository; offset by the author being a beamline scientist
   in the maintainer's own field, and by the fixtures' value being independent of adoption.
 
-### Inherited
-
-- **From WP-1304 (2026-08-29): the protocol is a skill, and a recipe should
-  reach for it rather than restate it.** `docs/skill/rietx/` is the operating
-  protocol in the open agentskills.io format; `rietx skill --install [DIR]` puts
-  it in a target repository (one copy in `.agents/skills/`, a link from each
-  harness that reads elsewhere), `rietx skill --print` gives it as plain text
-  for a harness that reads no skills, and `capabilities().skill_path` /
-  `rietx skill --path` answer where this build keeps it. If the recipe wants an
-  agent to know the protocol, installing the skill is the move, not copying
-  paragraphs into a prompt.
-
-- **From WP-1303 (2026-08-29): the `{ok, error}` envelope is no longer in the
-  package**, so this WP designs its recipe from scratch rather than reusing a
-  shipped one — which was the decision behind the delete. There is one worked
-  precedent to read if you want it: `tests/eval_report_agent/run_refine.py`'s
-  `run_request`, ~50 lines that validate a request dict, call `Refinement.fit`
-  and return `{ok, error}` with three codes. Two rules landed in the root
-  CLAUDE.md and govern the design here: an integration surface across a process
-  boundary takes **paths, never inline payloads** (a lab pattern serialized is
-  ~11 k tokens), and a dedicated tool surface earns its place only where it
-  gates, renders, audits or parallelises.
+- **This format is inline-payload by construction, and that is not this
+  package's call to make.** WP-1303's rule — an integration surface across a
+  process boundary takes paths, never inline payloads — is a rule for a surface
+  *this package designs*. Here rietx is a consumer of someone else's format, and
+  their rule 3 (no schema changes) governs: `payload.xrd_data` carries `tth`,
+  `Itth` and `Itth_weights` inline, which is why an `input.json` is 0.4 MB, and
+  `read_recipe` takes a **path** to that file so the payload never crosses a
+  prompt. (WP-1304's skill note is folded out as not applicable: the recipe
+  serves pipelines, not agents, so nothing here restates the protocol.)
 
 ## Non-goals
 
@@ -102,7 +89,7 @@ green"); series, Le Bail, Pawley, indexing through the recipe; pandas as a depen
 
 ## Tasks
 
-- [ ] Fixtures + `README.md` provenance rows.
+- [x] Fixtures + `README.md` provenance rows.
 - [ ] `read_recipe`: instrument block with the convention table, each row's unit measured
       against the LaB₆ output; refusals by name.
 - [ ] `read_recipe`: phases, atoms, parameterization, plan.
@@ -120,12 +107,29 @@ green"); series, Le Bail, Pawley, indexing through the recipe; pandas as a depen
 .venv/bin/python -m ruff check src tests examples
 ```
 
-Slow: DRX_33, both phases' cells within ±300 ppm of GSAS-II *and* TOPAS (the FAP bar;
-their own `rtol 1e-4` is a same-engine cross-build tolerance, not a cross-code one), Rwp
-reported beside their 10.83 % and never gated; LaB₆: the cell is held in their recipe,
-so the check is the refined broadening set within their `1e-2` size/strain class bar and
-Rwp beside 6.53 %. Fast: both recipes parse, every refusal names its field, a round trip
-of flags is exact, the tables' headers match theirs byte for byte. Add a `compare.py`
+**The ±300 ppm bar was measured impossible and is replaced by an envelope**
+(2026-08-29; the numbers are `tests/data/README.md` § v1.3 PowderLine recipe
+fixtures). The two reference engines disagree by **2 665 ppm** on DRX_33's cubic
+`a` and 386-1 770 ppm on Li₄MgWO₆'s four free cell parameters, so no answer can
+sit within ±300 ppm of both. The cause is documented upstream: GSAS-II reports
+two SVD singularities and a 100 % `Mustrain;mx`/`;i` correlation on this recipe,
+and the two engines settle in different minima of that valley (GSAS-II returns a
+**negative** crystallite size for phase 1; TOPAS returns 5×10⁸ µm, i.e. none).
+
+Slow, revised: DRX_33, each free cell parameter inside the **envelope** the two
+engines span, widened by the FAP cross-code allowance of ±300 ppm at each end —
+so the check still fails on a translation error, which is what it is for, while
+not asserting agreement neither reference achieves. The spread itself is
+reported, never gated. Rwp beside their 10.83 % / 7.33 % and never gated.
+LaB₆: the cell is held in their recipe, so the check is the *drawn* profile —
+rietx's fitted FWHM per reflection against the width GSAS-II's own
+`y_calc` shows — within their `1e-2` size/strain class bar, and Rwp beside
+6.53 % / 8.52 %. The refined broadening **coefficients** are not comparable and
+the record says why: GSAS-II's background peak ran to 8.77e10 °2θ at esd 0 while
+TOPAS placed a real 12.3°-wide hump at 1.628°.
+
+Fast: both recipes parse, every refusal names its field, a round trip of flags is
+exact, the tables' headers match theirs byte for byte. Add a `compare.py`
 standard row if a correction is added (none planned).
 
 ## References
