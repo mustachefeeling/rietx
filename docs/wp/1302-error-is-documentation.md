@@ -233,8 +233,10 @@ all; a progress line per stage.
   added skips, so passed+skipped moved by exactly 170 in the fast selection (counted from
   the diff, not from memory of intermediate runs — the honest way round when a session
   did not capture a pre-change baseline at its own start). Full selection
-  3574 passed, 131 skipped, 24:14 — quoted because HIGH_CORRELATION's dedup and the new
-  event field are the kind of change root CLAUDE.md's rule means; `origin/main` had not
+  3574 passed, 131 skipped (wall clock not quoted — one unrepeated run, and root
+  CLAUDE.md is explicit that a single reading is a record, not a range) — quoted because
+  HIGH_CORRELATION's dedup and the new event field are the kind of change root
+  CLAUDE.md's rule means; `origin/main` had not
   moved since this worktree branched (`git fetch origin main` at handover:
   `HEAD..origin/main` empty), so this figure is already the merged tree's, not only the
   branch's. The ramp campaign's call 30 (its `show()`
@@ -251,6 +253,24 @@ all; a progress line per stage.
   `str(result)`/`summary()` now provide natively. `str(result)` on 11-BM NAC: 12 lines;
   `ref.summary(deliverable="qpa")`: 28 lines — both comfortably under the 80/120 bars,
   frozen (masked) as `tests/data/nac_termination_golden.txt`.
+
+  **`/code-review medium` found 8, all fixed, none declined.** The one worth flagging past
+  its own commit message: the `HIGH_CORRELATION` cap was originally applied to
+  `RefinementResult.diagnostics` itself, which silently broke
+  `sequential._persistent_diagnostics`'s cross-pattern "N of M" count for any pair ranked
+  outside the top ten in every single pattern — the cap now lives in `_diagnostic_lines`
+  (render time) only, dedup stays on the stored list. The other seven: a progress line's
+  elapsed time on a WP-1301 release/re-solve was measuring only the second solve; a held
+  parameter blocked because its cell is free was landing in an unlabelled "other" bucket;
+  `Diagnostic.where` could come back in the opposite order from the one its own `message`
+  named (a `frozenset` iterated for the rebuild); `hasattr(rx, "viz")` could crash rather
+  than answer `False` on a build without the `viz` extra; the `stage_end` rwp computation
+  priced every stage boundary at two background passes instead of one; this entry's own
+  wall-clock figure was quoted as a bare reading against root CLAUDE.md's own rule; and
+  `SeriesResult.summary()` had a second inline copy of `_diagnostic_lines`'s rendering
+  loop. Four new regression tests landed with the fixes; the NAC golden text was
+  regenerated (the held-bucket rename is its only visible change, confirmed against a
+  live fit).
 
   **Gotchas for the next session.** `multi.py`'s (`MultiHistogramRefinement`) own
   diagnostics accumulation loop is a
