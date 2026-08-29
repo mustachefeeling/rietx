@@ -132,8 +132,8 @@ EXCLUSIONS: dict[str, str] = {}
 # `Capabilities.indexing_thresholds_version` and the engine and preset
 # capability types are data contracts with their own version strings, and a
 # consumer that parses an answer keeps its hard freeze.  The risk is the
-# caller's who imports a type, not the reader's of a response.  (`rietx.agent`
-# was the second name on this line until WP-1303 deleted it.)
+# caller's who imports a type, not the reader's of a response.
+# (WP-1303: the JSON envelope's module was the second name on that line.)
 
 PROVISIONAL_MODULES: dict[str, str] = {
     "rietx.indexing": (

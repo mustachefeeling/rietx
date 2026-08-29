@@ -1,5 +1,12 @@
 """Score one agent-surface round from the shim's trace log (WP-1110).
 
+**This scores round 1.0 and nothing later.** Its three read-outs are about a
+surface that no longer exists — WP-1303 deleted `rietx.agent` on the strength
+of what they measured — and the cells below are that round's. It is kept
+beside the PROTOCOL.md that registered it, unedited, because a pre-registered
+round's read-outs are not rewritten after the fact; a later round declares its
+own, and the tracer's target list moves with that declaration.
+
 Reads the JSONL `rietx_surface_trace` appends and answers the round's
 pre-registered read-outs (PROTOCOL.md § Pre-registered read-outs):
 

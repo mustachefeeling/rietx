@@ -77,22 +77,43 @@ server (v2; its substrate is the GUI server's `/api`, ROADMAP's v2+ row).
       its test. (`SCHEMA_VERSION` 0.11 → 0.12 with it: the removal is the first
       non-additive step on that ladder. `report_trajectory` re-derives from
       `Refinement.fit`'s keyword, `rietx.agent` becomes a `_TOP_LEVEL_HINTS` pointer.)
-- [ ] Manual, `CLAUDE.md`, protocol §9c, consistency test, dist test, eval harness
-      references.
-- [ ] `docs/releases/1.3.0.md` § Upgrading (or the section of the notes file v1.3 opens).
+- [x] Manual, `CLAUDE.md`, protocol §9c, consistency test, dist test, eval harness
+      references. (The chapter is **rewritten, not deleted** — it also documents
+      `capabilities()` and the six version strings, whose names survive; deleting it
+      would have dropped them from the manual-API partition and broken ten
+      cross-references. The eval shim keeps the envelope and now runs it itself.)
+- [x] `docs/releases/1.3.0.md` § Upgrading (the file is opened by this WP; later v1.3
+      WPs add their own sections).
 - [ ] Tests: fast-suite count moves by exactly the deleted count (quote venv + platform).
 
 ## Acceptance
 
 ```sh
-grep -rn "refine_json\|tool_definition\|request_schema\|response_schema\|rietx.agent" src tests gui examples docs/manual CLAUDE.md   # hits nothing
+# 1. no live use: no import, no call, no attribute access
+grep -rn "refine_json(\|tool_definition(\|request_schema(\|response_schema(\|import rietx\.agent\|from rietx import agent\|from \.agent import\|rietx\.agent\." src tests gui examples docs/manual CLAUDE.md | grep -v PROTOCOL.md   # hits nothing
+# 2. every surviving mention is history: a WP-1303 note, or an eval round's record
+grep -rn "refine_json\|tool_definition\|request_schema\|response_schema\|rietx\.agent" src tests gui examples docs/manual CLAUDE.md | grep -v "WP-1303\|eval_agent_surface/\|eval_report_agent/PROTOCOL.md\|tests/CLAUDE.md"   # hits nothing
 .venv/bin/python -m pytest tests/test_capabilities.py tests/test_manual_api.py tests/test_docs_consistency.py -n auto --dist loadgroup
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html
 .venv/bin/python -m ruff check src tests examples
 ```
 
-`capabilities()` lists five contracts; the `test_manual_api.py` partition is green (the
-deleted names leave the surface).
+The `test_manual_api.py` partition is green (the deleted names leave the surface, and
+the chapter that documented them keeps documenting `capabilities()`).
+
+**The acceptance grep was sharpened on arrival, and the reason is a rule.** As
+written it demanded no mention at all, which cannot be met without editing two
+things that must not be edited: the **pre-registered** eval records
+(`eval_agent_surface/PROTOCOL.md` + its round-1.0 scorer, `eval_report_agent/
+PROTOCOL.md`'s kill/keep table), whose whole discipline is that a round's
+registration is not rewritten once it has run — the retirement is *their result*
+— and the **removal notes** themselves (`SCHEMA_VERSION`'s comment, which must
+name what it removed to be a changelog at all). So the check is now two greps: no
+live use, and every survivor identifiable as history. `capabilities()` still lists
+**six** contracts, not five: the WP file predicted a `Capabilities` field for the
+envelope and there was never one — the six are schema / report-thresholds /
+event-schema / project-format / textdoc-format / indexing-thresholds, and the
+envelope rode on `schema_version`, which is what bumps.
 
 ## References
 
