@@ -1,7 +1,8 @@
 # WP-1308 — The skill documents its own doors
 
 Milestone: v1.3 · Status: ✅ 2026-08-30 — both gaps closed, and a derived gate
-so neither reopens. It found two more of the same shape on its first run.
+so neither reopens; it found two more of the same shape on its first run. The
+WP's own premise was corrected on close: `read_recipe` does not read a `.inp`.
 Depends on: 1304 (the skill), 1306 (the reader it omits), 1307 (which measured it)
 
 ## Goal
@@ -12,6 +13,20 @@ that decides whether its phase fractions mean anything. A **derived gate** then
 fails when the next entry point ships undocumented, so neither gap can reopen.
 
 ## Context
+
+> **Premise corrected on close, 2026-08-30.** Everything below about Gap 1
+> assumes `read_recipe` would have opened the reel episode's TOPAS `.inp`. It
+> would not: it reads a PowderLine `GSASII_Rietveld` **JSON** recipe and raises
+> `RecipeError: not valid JSON` on a `.inp` (verified). This package has no
+> `.inp` reader at all — WP-1118 is where one would go — so hand-parsing was
+> the only route and **the four agents were right on that file**. The claim
+> came from `PROTOCOL.md`, which said "WP-1306 built a reader for this exact
+> file" in one section and "no `.inp` reader" in another; the false half is now
+> corrected there. What survives is the narrower, real gap the WP still closes:
+> `read_recipe` and `write_recipe_tables` were entry points documented nowhere
+> in the skill outside a diagnostic row that cannot fire until they have been
+> called. The Goal's first sentence should be read as *can find the reader for
+> a PowderLine recipe, and is told plainly that a `.inp` has none*.
 
 **Both gaps were measured, not guessed** (WP-1307, round 1.1, eight cells,
 $38.39; `tests/eval_agent_surface/PROTOCOL.md` § Results — round 1.1, the reel
@@ -188,15 +203,30 @@ committed copies do not drift.
 
 ## Handover log
 
-- **2026-08-30** — closed. An agent handed another program's input file can now
-  find the reader for it: the skill's routing table has a row for that
-  situation, and it lands in the api index's § In, which names `read_recipe` in
-  its opening sentence. An agent whose job is a trajectory of phase fractions is
-  now told, in its own row, that the background check decides whether those
-  fractions mean anything — the thing three of four agents last round only found
-  by wandering into someone else's deliverable. Behind both is a test that
-  fails when a public entry point ships without a door, so the two fixes are the
-  last of their kind rather than the latest.
+- **2026-08-30** — closed. An agent handed another program's input file now gets
+  a straight answer in the skill's routing table: `read_recipe` if it is a
+  PowderLine recipe, and *this build has no reader, transcribe it by hand* if it
+  is a TOPAS `.inp`, a GSAS `.EXP`/`.PRM` or a FullProf `.pcr`. An agent whose
+  job is a trajectory of phase fractions is now told, in its own row, that the
+  background check decides whether those fractions mean anything — the thing
+  three of four agents last round only found by wandering into someone else's
+  deliverable. Behind both is a test that fails when a public entry point ships
+  without a door.
+
+  **The correction that matters most is to the premise.** This WP was written
+  to make an agent handed a `.inp` reach `read_recipe`, and that goal was
+  wrong: `read_recipe` reads PowderLine **JSON** and raises `RecipeError: not
+  valid JSON` on a `.inp` (verified this session). There is no `.inp` reader in
+  this package. The first routing row I wrote said "a TOPAS `.inp`" and would
+  have sent an agent in exactly the measured episode at a door that does not
+  open — worse than the silence it replaced. `/code-review` caught it; I had
+  not. The source is `PROTOCOL.md`, which asserted "WP-1306 built a reader for
+  this exact file" in one section while stating "no `.inp` reader" in another,
+  and I carried the quotable half into this WP's Context without checking it.
+  Both are now corrected in place, and the round's own record says plainly that
+  **on that file the four agents were right to parse by hand**. This is the
+  third correction this one finding has needed, which is itself the lesson: it
+  was re-read twice for *framing* and never once against the code.
 
   The gate was worth more than the two names it was built for. Run against the
   package before anything was fixed, it named **four**: `read_recipe` and
@@ -232,18 +262,36 @@ committed copies do not drift.
   and that is recorded in the file as a gap rather than a decision: 30 of the 35
   are reached another way, so a partition over them would be 30 shrugs.
 
-  **Measured.** SKILL.md 31 876 → 31 968 B, 465 lines both sides: **no cap
+  **Measured.** SKILL.md 31 876 → 31 973 B, 465 lines both sides: **no cap
   raised**, the routing row and the Trajectory clause bought with three
   tightenings that delete no fact (§ The API was restating the routing table's
   own enumeration of what api.md holds; that row dropped ", the exports", which
   the § Out row already routes; "will not infer your purpose for you" → "will
-  not infer yours"). 32 B of headroom left. api.md 27 729 → 28 889 B (cap
-  36 000), series.md 4 703 → 5 887 B. The acceptance experiment: a public verb
+  not infer yours"). **27 B of headroom left.** api.md 27 729 → 29 093 B (cap
+  36 000), series.md 4 703 → 6 240 B. The acceptance experiment: a public verb
   added to `__all__` and not to the skill sends the gate red naming it;
   reverted. `tests/test_skill.py` 22 → 24 passed, both new tests passes, no new
-  skip. Fast suite on the final tree 3556 passed, 122 skipped in 2:06, `[dev]`
-  venv (no jax/torch), darwin/arm64, Python 3.12.12, nothing else mid-suite.
-  Rung 3 not run and not owed: docs and tests only.
+  skip — measured at file granularity, which is the exact form of the "say
+  which numbers moved" check; no pre-change fast-suite baseline was taken on
+  this tree. Fast suite on the final tree 3556 passed, 122 skipped in 2:06,
+  `[dev]` venv (no jax/torch), darwin/arm64, Python 3.12.12, nothing else
+  mid-suite. Rung 3 not run and not owed: docs and tests only.
+
+  **The review pass** (`/code-review medium --fix`) found five and changed the
+  work in four places, none of them declined. Two HIGH were the one premise
+  error above, in the routing row and in § In's prose; § In now names the
+  PowderLine recipe *and* fences the other way, so an agent holding a `.inp` is
+  told it has no reader here rather than left to infer one. One MEDIUM: the
+  `series.md` bullet said to read `background.worst_absorption` per pattern and
+  named no route, and `SeriesResult` does not carry one — it now gives the class
+  form, `rx.SequentialRefinement(...)` → `.fit(...)` →
+  `rx.build_report(sr.results_[i])`, which I verified against
+  `sequential.py:562` (`results_: list[RefinementResult]`). One LOW worth more
+  than its rank: my gate matched `` `rx.name` `` **anywhere** in api.md, so a
+  verb named only in a section's introductory sentence would have satisfied it —
+  the prose loophole is the gate's own thesis turned against it. It now matches
+  entry rows only (`API_INDEX_ENTRY`); same verdict today, 0 undocumented. The
+  last LOW corrected the note pushed to WP-1118.
 
   **Gotchas for whoever is next.** CLAUDE.md's skill bullet still states half
   the rule — "a WP adding a diagnostic code or a correction adds its row there"

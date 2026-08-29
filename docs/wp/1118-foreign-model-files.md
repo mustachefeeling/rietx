@@ -103,11 +103,16 @@ missing from its arm applies unchanged. A new format token is spelled in
   obligations beyond the code, and `tests/test_skill.py` enforces only the
   first: every new public verb must appear in `docs/skill/make_api_index.py`'s
   `SECTIONS` or in `SKILL_EXCLUDED_VERBS` with a reason (the gate goes red until
-  it does), and — no test for this — that routing row's wording says "a TOPAS
-  `.inp`" and will need widening. Measured caution for the second: SKILL.md sits
-  at **31 968 B of its 32 000 B cap**, 32 B of headroom, so widening the row
-  costs bytes that must be bought elsewhere. WP-1308's entry records the three
-  tightenings it used and that no cap was raised.
+  it does), and — no test for this — that routing row's wording says "a
+  PowderLine recipe", the only such reader that exists, and will need widening.
+  § In's paragraph states the same fence the other way, that a `.inp`, an
+  `.EXP`/`.PRM` and a `.pcr` have no reader and are still transcribed by hand;
+  a reader landed here must delete that sentence as well as add its row, or the
+  skill will keep telling an agent to transcribe a file it can now open.
+  Measured caution: SKILL.md sits at **31 973 B of its 32 000 B cap**, 27 B of
+  headroom, so widening the row costs bytes that must be bought elsewhere.
+  WP-1308's entry records the three tightenings it used and that no cap was
+  raised.
 
 - **2026-08-23, from [1131](1131-sample-broadening-is-a-specimen-property.md):
   rietx has no constant Lorentzian instrument term, so a GSAS-II profile cannot

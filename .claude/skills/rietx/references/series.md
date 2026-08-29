@@ -79,7 +79,12 @@ What an operator must know, all measured:
   absent phase took **40-96 wt %** at an Rwp within 0.01 of the right one.
   Neither Rwp nor the plot separates them.  So read
   `background.worst_absorption` per pattern — at least on the first, the last
-  and every flagged step — before quoting a fraction trajectory at all.
+  and every flagged step — before quoting a fraction trajectory at all.  The
+  route is not `SeriesResult`, which carries summaries only, and not
+  `rx.refine_sequential`, which discards the per-pattern results: use the class
+  form, whose `results_` holds them.  `sr = rx.SequentialRefinement(structure,
+  instrument)`, `series = sr.fit(patterns, ...)`, then
+  `rx.build_report(sr.results_[i]).background.worst_absorption`.
 
 When the deliverable *is* the trajectory, print its deciding rows:
 `series.summary(deliverable="series")` — §4b's fourth row, and the two

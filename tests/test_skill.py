@@ -328,6 +328,18 @@ def test_the_api_index_resolves_through_a_field_hop():
 # over them would be thirty shrugs, which is the curated list this file exists
 # to avoid.
 
+#: An entry *row* of the api index, which always renders as ``- `rx.name(…``.
+#: A prose mention is not a door: the paragraph above a section may name a verb
+#: in passing, and matching those would let a sentence satisfy the gate that a
+#: signature row is supposed to.
+API_INDEX_ENTRY = re.compile(r"^- `rx\.([A-Za-z_][A-Za-z0-9_]*)", re.M)
+
+
+def _documented_verbs() -> set[str]:
+    """Names the api index gives an entry row of its own."""
+    return set(API_INDEX_ENTRY.findall(API_INDEX.read_text(encoding="utf-8")))
+
+
 #: A verb the skill deliberately does not carry, and why.  Each entry is a
 #: *reason*, never a shrug; the meta-test below fails on one that names
 #: nothing, so a rename cannot leave a dead exclusion behind.
@@ -367,7 +379,7 @@ def test_every_public_verb_is_documented_in_the_skill_or_excluded():
     verbs = _public_verbs()
     assert len(verbs) > 20, f"only {len(verbs)} verbs found — __all__ moved"
 
-    documented = set(RX_DOT_NAME.findall(API_INDEX.read_text(encoding="utf-8")))
+    documented = _documented_verbs()
     undocumented = sorted(set(verbs) - documented - set(SKILL_EXCLUDED_VERBS))
     assert not undocumented, (
         "public entry points the skill does not name — add each to "
@@ -386,7 +398,7 @@ def test_the_verb_exclusions_are_live_and_reasoned():
     dead = sorted(set(SKILL_EXCLUDED_VERBS) - set(verbs))
     assert not dead, f"excluded, but no longer a public verb: {dead}"
 
-    documented = set(RX_DOT_NAME.findall(API_INDEX.read_text(encoding="utf-8")))
+    documented = _documented_verbs()
     both = sorted(set(SKILL_EXCLUDED_VERBS) & documented)
     assert not both, f"excluded and documented — drop the exclusion: {both}"
 

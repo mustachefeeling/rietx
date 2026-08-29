@@ -56,11 +56,14 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "Readers and constructors. `rx.read_pattern` opens every format "
         "`rx.capabilities()` lists and takes the file's esd column when it has "
         "one; a wavelength comes from the instrument preset or the file, never "
-        "from memory (§1). **Handed another program's input file** — a TOPAS "
-        "`.inp`, a GSAS-II recipe — read it with `rx.read_recipe` rather than "
-        "parsing it yourself: it returns the model, the instrument and a plan "
-        "together, and every unit it could not carry across says so as a "
-        "`RECIPE_*` diagnostic instead of arriving silently wrong.",
+        "from memory (§1). **Handed another program's input file** — a "
+        "PowderLine `GSASII_Rietveld` recipe — read it with `rx.read_recipe` "
+        "rather than parsing it yourself: it returns the model, the instrument "
+        "and a plan together, and every unit it could not carry across says so "
+        "as a `RECIPE_*` diagnostic instead of arriving silently wrong. It is "
+        "the only foreign-input reader this build has: a TOPAS `.inp`, a GSAS "
+        "`.EXP`/`.PRM` or a FullProf `.pcr` has none, so those are still "
+        "transcribed by hand — `rx.read_recipe` will not open one.",
         ("rx.read_pattern", "rx.read_pdcif", "rx.read_recipe",
          "rx.Structure.from_cif", "rx.Instrument.bragg_brentano",
          "rx.Instrument.debye_scherrer", "rx.estimate_mu_r",
