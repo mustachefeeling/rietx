@@ -130,93 +130,95 @@ judged by read-out.
 
 ## Handover log
 
-- **2026-08-29, later** — both `opus-5` ramp cells run; E-RAMP complete at the
-  registered N = 2 per condition. Four of eight cells done, four reel cells left.
+### 2026-08-29 (2nd session) — the ramp episode complete, and a contrast withdrawn
 
-  The maintainer scoped this session to the two `opus-5` ramp cells. They ran
-  serially and **isolated**: each `launch` held for 20 s of trace silence and
-  both recorded `outlived_session_seconds` **0.0**, so the overlap that cost the
-  pilot up to 127.6 s did not recur and needs no allowance here.
+Both `opus-5` ramp cells run; E-RAMP complete at the registered N = 2 per
+condition. Four of eight cells done, four reel cells left.
 
-  Three of the four cells now stop on a §4b deliverable row, all four make
-  WP-1305's three checks as calls, and the condition contradicts itself between
-  the two models on every price row. The finding that governs the rest of the
-  round is smaller and worse: **no cell was without the skill**, so the
-  registered contrast was never measurable on this machine.
+The maintainer scoped this session to the two `opus-5` ramp cells. They ran
+serially and **isolated**: each `launch` held for 20 s of trace silence and
+both recorded `outlived_session_seconds` **0.0**, so the overlap that cost the
+pilot up to 127.6 s did not recur and needs no allowance here.
 
-  **Done.** Ran, collected and scored `ramp-bare-opus5` ($8.50, 79 API calls,
-  20.1 min, 253.7 s refining) and `ramp-skill-opus5` ($4.43, 35 calls, 17.3 min,
-  227.0 s). `PROTOCOL.md` gains § Results — round 1.1, the ramp episode
-  complete as a **pure insertion**, 154 lines, nothing deleted: the pilot's
-  record and round 1.0's text are byte-identical below it, and the pilot section
-  carries a forward pointer rather than a rewrite, because a registered round is
-  not rewritten once it has run. `runner.py`'s docstring now declares **both**
-  routes by which a `bare` cell reaches the skill, as measured inheritances.
-  `score_1_1.py` prints R7 to two decimals.
+Three of the four cells now stop on a §4b deliverable row, all four make
+WP-1305's three checks as calls, and the condition contradicts itself between
+the two models on every price row. The finding that governs the rest of the
+round is smaller and worse: **no cell was without the skill**, so the
+registered contrast was never measurable on this machine.
 
-  **Measured** (darwin, this worktree's own `[dev]` venv; the cells' venvs are
-  `[viz]`, build `1.3.0.dev0` in all four). Acceptance `pytest
-  tests/eval_agent_surface -n auto --dist loadgroup`: **22 passed in 3.63 s**,
-  the same 22 as before this session — no test was added, so no count moved.
-  `ruff check src tests examples` clean. The fast suite was **not re-run**: this
-  session changed two docstrings, one print format and two prose files, none of
-  which any test outside that directory reads. Full suite not run, for the same
-  reason and because no `src/` file changed.
+**Done.** Ran, collected and scored `ramp-bare-opus5` ($8.50, 79 API calls,
+20.1 min, 253.7 s refining) and `ramp-skill-opus5` ($4.43, 35 calls, 17.3 min,
+227.0 s). `PROTOCOL.md` gains § Results — round 1.1, the ramp episode
+complete as a **pure insertion**, 154 lines, nothing deleted: the pilot's
+record and round 1.0's text are byte-identical below it, and the pilot section
+carries a forward pointer rather than a rewrite, because a registered round is
+not rewritten once it has run. `runner.py`'s docstring now declares **both**
+routes by which a `bare` cell reaches the skill, as measured inheritances.
+`score_1_1.py` prints R7 to two decimals.
 
-  | | baseline | `bare-sonnet` | `skill-sonnet` | `bare-opus5` | `skill-opus5` |
-  | --- | --- | --- | --- | --- | --- |
-  | API calls / cache-read | 90 / 14.6 M | 36 / 3.12 M | 55 / 4.74 M | 79 / 8.95 M | 35 / 3.07 M |
-  | wall / refining | 34.7 min / 34 s | 7.5 / 193.5 s | 10.5 / 17.5 s | 20.1 / 253.7 s | 17.3 / 227.0 s |
-  | tool calls, errored | 91, 19 | 42, 5 | 57, 1 | 78, 5 | 38, 8 |
-  | Bash per fit (R7) | 87 over one chain | 1.82 | 1.40 | 1.35 | **0.04** |
-  | stopping criterion | (primed) | **none — waiting** | **§4b row** | **§4b row** | **§4b row** |
-  | cost | not recorded | $1.44 | $1.88 | $8.50 | $4.43 |
+**Measured** (darwin, this worktree's own `[dev]` venv; the cells' venvs are
+`[viz]`, build `1.3.0.dev0` in all four). Acceptance `pytest
+tests/eval_agent_surface -n auto --dist loadgroup`: **22 passed in 3.63 s**,
+the same 22 as before this session — no test was added, so no count moved.
+`ruff check src tests examples` clean. The fast suite was **not re-run**: this
+session changed two docstrings, one print format and two prose files, none of
+which any test outside that directory reads. Full suite not run, for the same
+reason and because no `src/` file changed.
 
-  **The decision on each WP's claim**, revised where the second model moved it.
-  Every row now rests on N = 2 per condition **for E-RAMP only**, and no reel
-  cell has run:
+| | baseline | `bare-sonnet` | `skill-sonnet` | `bare-opus5` | `skill-opus5` |
+| --- | --- | --- | --- | --- | --- |
+| API calls / cache-read | 90 / 14.6 M | 36 / 3.12 M | 55 / 4.74 M | 79 / 8.95 M | 35 / 3.07 M |
+| wall / refining | 34.7 min / 34 s | 7.5 / 193.5 s | 10.5 / 17.5 s | 20.1 / 253.7 s | 17.3 / 227.0 s |
+| tool calls, errored | 91, 19 | 42, 5 | 57, 1 | 78, 5 | 38, 8 |
+| Bash per fit (R7) | 87 over one chain | 1.82 | 1.40 | 1.35 | **0.04** |
+| stopping criterion | (primed) | **none — waiting** | **§4b row** | **§4b row** | **§4b row** |
+| cost | not recorded | $1.44 | $1.88 | $8.50 | $4.43 |
 
-  | WP | verdict | evidence, and what changed from the pilot |
-  | --- | --- | --- |
-  | 1301 | **improved**, unchanged | `PHASE_UNCONSTRAINED` held the absent phase in 40 of 68 patterns in both `opus-5` cells; nothing ran away in any of the four, against 27 % of the baseline's wall and >115× on reproduction |
-  | 1302 | **improved on R3; R11 now 3 of 4** | the pilot's split resolves toward the package criterion: both `opus-5` cells stated a §4b row, so only `bare-sonnet` ended waiting. Errored calls no longer favour one condition — 5/1 under sonnet, 5/8 under opus-5 |
-  | 1303 | **not testable, as registered** | unchanged; the alternative is deleted, recorded as observed |
-  | 1304 | **findable: confirmed four times. The registered contrast: withdrawn** | this is the revision. The pilot called the contrast "weaker than it looks"; four cells show it is **not measurable on this machine**. Every cell read the skill — two from the workspace, one from the wheel, one from the maintainer's checkout. The wheel route supports 1304's claim (a property of the shipped package); the checkout route is contamination (a property of this machine). What survives is route and latency: the workspace copy is reached about twice as early (records 23, 26 against 43, 51) and without a hunt |
-  | 1305 | **improved**, strengthened | all three checks made as **calls** by all four cells, and three of the four stopped on the §4b row they belong to |
-  | 1202 | **unreached** | not one of the five WPs under test, but the round measures it: `help_for`, `help_key_for` and `help_registry` were called by **no cell**, across two models and both conditions |
-  | 1306 | **not testable in this episode** | E-RAMP ships no recipe file, so `read_recipe` has no route. The reel cells carry the `.inp`; that read-out exists only there |
+**The decision on each WP's claim**, revised where the second model moved it.
+Every row now rests on N = 2 per condition **for E-RAMP only**, and no reel
+cell has run:
 
-  **The `viz` fix did not take.** 1.1 installs `rietx[viz]` in every workspace
-  *precisely* so `plot_result`, `plot_for_vlm` and `write_html` would be usable,
-  as its declared repair of a 1.0 defect. Zero calls to all three, in four
-  cells. The one cell that plotted (`bare-opus5`) wrote matplotlib by hand
-  against the machine's user-level `yue-figure-style` skill and read its own
-  three PNGs. Making the library present did not make the package's plotting
-  surface the obvious way to draw, and that is a finding for a WP rather than
-  for this round to act on.
+| WP | verdict | evidence, and what changed from the pilot |
+| --- | --- | --- |
+| 1301 | **improved**, unchanged | `PHASE_UNCONSTRAINED` held the absent phase in 40 of 68 patterns in both `opus-5` cells; nothing ran away in any of the four, against 27 % of the baseline's wall and >115× on reproduction |
+| 1302 | **improved on R3; R11 now 3 of 4** | the pilot's split resolves toward the package criterion: both `opus-5` cells stated a §4b row, so only `bare-sonnet` ended waiting. Errored calls no longer favour one condition — 5/1 under sonnet, 5/8 under opus-5 |
+| 1303 | **not testable, as registered** | unchanged; the alternative is deleted, recorded as observed |
+| 1304 | **findable: confirmed four times. The registered contrast: withdrawn** | this is the revision. The pilot called the contrast "weaker than it looks"; four cells show it is **not measurable on this machine**. Every cell read the skill — two from the workspace, one from the wheel, one from the maintainer's checkout. The wheel route supports 1304's claim (a property of the shipped package); the checkout route is contamination (a property of this machine). What survives is route and latency: the workspace copy is reached about twice as early (records 23, 26 against 43, 51) and without a hunt |
+| 1305 | **improved**, strengthened | all three checks made as **calls** by all four cells, and three of the four stopped on the §4b row they belong to |
+| 1202 | **unreached** | not one of the five WPs under test, but the round measures it: `help_for`, `help_key_for` and `help_registry` were called by **no cell**, across two models and both conditions |
+| 1306 | **not testable in this episode** | E-RAMP ships no recipe file, so `read_recipe` has no route. The reel cells carry the `.inp`; that read-out exists only there |
 
-  **In flight.** Four cells, all E-ZRM, at
-  `~/rietx-agent-runs/2026-08-29-round-1-1/` with data staged in `zrm-source/`.
-  A reel cell needs `--zrm ~/rietx-agent-runs/2026-08-29-round-1-1/zrm-source`
-  on `prepare`.
+**The `viz` fix did not take.** 1.1 installs `rietx[viz]` in every workspace
+*precisely* so `plot_result`, `plot_for_vlm` and `write_html` would be usable,
+as its declared repair of a 1.0 defect. Zero calls to all three, in four
+cells. The one cell that plotted (`bare-opus5`) wrote matplotlib by hand
+against the machine's user-level `yue-figure-style` skill and read its own
+three PNGs. Making the library present did not make the package's plotting
+surface the obvious way to draw, and that is a finding for a WP rather than
+for this round to act on.
 
-  **Gotchas added to the pilot's.**
-  - **`prepare` both cells of a pair before launching either.** A `uv pip
-    install` running beside a live cell competes for the CPU that cell's fit
-    seconds are measured on, and fit seconds are R1 and R5's unit.
-  - **A `bare` cell is not sealed and cannot be here.** Beyond the wheel, the
-    maintainer's checkout is on the machine; `bare-opus5` found the skill tree
-    in it by `find`. Round 1.2 owes a sealed workspace before any `bare` row is
-    read as an access claim.
-  - **R7 can round to zero.** 37 Bash over 852 outermost fits is 0.04, not
-    "no Bash". The scaffolding ratio is smallest where the surface worked best,
-    so the display had to hold a small number apart from zero.
+**In flight.** Four cells, all E-ZRM, at
+`~/rietx-agent-runs/2026-08-29-round-1-1/` with data staged in `zrm-source/`.
+A reel cell needs `--zrm ~/rietx-agent-runs/2026-08-29-round-1-1/zrm-source`
+on `prepare`.
 
-  **Next**, in order: the four reel cells with `--zrm`, serially and one pair at
-  a time (they are real 4-phase data on 82 scans, so budget above the ramp's
-  $1.44-$8.50). Then re-score and finish the round's table. The two questions
-  the reel is the only place to answer are `read_recipe`'s reachability and
-  whether a `bare` cell on real data still finds the wheel's skill.
+**Gotchas added to the pilot's.**
+- **`prepare` both cells of a pair before launching either.** A `uv pip
+  install` running beside a live cell competes for the CPU that cell's fit
+  seconds are measured on, and fit seconds are R1 and R5's unit.
+- **A `bare` cell is not sealed and cannot be here.** Beyond the wheel, the
+  maintainer's checkout is on the machine; `bare-opus5` found the skill tree
+  in it by `find`. Round 1.2 owes a sealed workspace before any `bare` row is
+  read as an access claim.
+- **R7 can round to zero.** 37 Bash over 852 outermost fits is 0.04, not
+  "no Bash". The scaffolding ratio is smallest where the surface worked best,
+  so the display had to hold a small number apart from zero.
+
+**Next**, in order: the four reel cells with `--zrm`, serially and one pair at
+a time (they are real 4-phase data on 82 scans, so budget above the ramp's
+$1.44-$8.50). Then re-score and finish the round's table. The two questions
+the reel is the only place to answer are `read_recipe`'s reachability and
+whether a `bare` cell on real data still finds the wheel's skill.
 
 - **2026-08-29** — protocol 1.1 registered, and two of its eight cells run.
 

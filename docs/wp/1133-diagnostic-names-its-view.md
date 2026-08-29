@@ -67,6 +67,41 @@ eval discipline: register the read-out before running, enforce the condition
 in a shim rather than the prompt, real subagents with model and effort as
 variables, and no pooling across rounds.
 
+### Inherited
+
+From **WP-1307** (round 1.1, E-RAMP complete 2026-08-29, four cells): **making
+the plotting library present did not make the package's plotting surface the
+way an agent draws.** Round 1.1 installs `rietx[viz]` in every workspace
+*precisely* so `plot_result`, `plot_for_vlm` and `write_html` are usable — that
+was 1.1's declared repair of a round-1.0 defect, where four of six agents
+hand-rolled an SVG writer because no plotting library was installed and no
+conclusion was drawn from it. The repair did not take. Across **four cells, two
+models (`sonnet` and `opus-5`) and both conditions, all three surfaces were
+called zero times.** The one cell that plotted at all (`ramp-bare-opus5`) wrote
+matplotlib by hand against the machine's user-level figure-style skill, saved
+three PNGs and read them back.
+
+Two things follow for this WP, and they pull in opposite directions.
+
+- The **positive** half of 1133's open claim gains its first unprompted
+  observation: an agent that had no instruction to draw anything drew three
+  figures and looked at them, mid-run, while deciding. Availability was not the
+  blocker for *drawing*.
+- The **channel** claim is untouched, and the read-out that would have measured
+  it did not fire. Nothing here says the montage pays for itself, because no
+  agent reached the montage. A view an agent renders for itself is not the view
+  a diagnostic named, and 1133's question is the second one.
+
+So the design question this sharpens is not "is the image channel worth it" but
+**why a hand-rolled plot beat a purpose-built one that was installed and
+documented**. Whatever this WP builds, presence plus documentation is now
+measured as insufficient to get it called: a finding has to *name* the view at
+the point the reader is deciding. That is this WP's own thesis, and round 1.1
+is the first evidence that the weaker version of it fails.
+
+Round 1.1's four cells are E-RAMP only; the four E-ZRM reel cells are
+outstanding, so this is a finding at N = 4 on synthetic data, not a rate.
+
 ## Non-goals
 
 - **Not embedding an image in a diagnostic.** The pointer is a name; the
