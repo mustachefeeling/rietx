@@ -395,6 +395,20 @@ cell's own record. Two consequences for reading this round's numbers:
   finished log shows 193.5 s: the outermost rows are written on completion, so
   an early read sees the children and none of their parents.
 
+### A known limit of R8's numerator, left alone until the round ends
+
+`import_dt` is measured from the `.pth` — interpreter start — to the end of
+`rietx`'s execution, so it absorbs whatever the process did *before*
+`import rietx`: a driver that parses arguments, reads files or imports numpy
+first inflates the floor. § R8 declares the numerator to be `import rietx`, and
+this is wider than that.
+
+It is **not corrected mid-round**. The shim is copied into each cell's venv at
+`prepare`, so changing it now would measure the six outstanding cells
+differently from the two that have run, which is the one thing a round may not
+do to itself. Fix between rounds, by timing from the start of `exec_module` or
+by emitting `exec_dt` beside `import_dt`.
+
 And one defect this round cannot fix: **the harness is Claude Code's**.
 WP-1304's harness-neutral claim is tested structurally in that WP and
 behaviourally only when a Codex or opencode cell exists. That is round 1.2's,

@@ -166,7 +166,8 @@ judged by read-out.
   `[viz]`, build `1.3.0.dev0`). Fast suite on this branch: **3553 passed, 122
   skipped, 1 failed in 2:08** — the failure was this session's own
   (`test_every_text_io_call_names_its_encoding`, four `read_text()` calls without
-  an encoding), fixed and re-run green. The harness contributes **22 tests**, and
+  an encoding); fixed, and the final tree measures **3554 passed, 122 skipped in
+  2:05**, alone on the machine. The harness contributes **22 tests**, and
   `git ls-tree origin/main` shows no test file in that directory before this
   session, so the fast selection gains 22 passes and **no new skip**. No `main`
   baseline is quoted: this session did not measure one, and re-measuring `main`

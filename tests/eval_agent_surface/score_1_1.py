@@ -34,10 +34,15 @@ if str(REPO) not in sys.path:
 
 from tests.eval_agent_surface import runner, trail  # noqa: E402
 
-# The five the 2026-08-27 audit found invisible to the reader they were built
-# for, and the five WP-1301..1305 added.  R2 reads the two lists separately
-# because they answer different questions: whether a surface is *findable*, and
-# whether a *new* one is reached at all.
+# What the 2026-08-27 audit found invisible to the reader they were built for,
+# and what WP-1301..1305 added.  R2 reads the two lists separately because they
+# answer different questions: whether a surface is *findable*, and whether a
+# *new* one is reached at all.  Both are the protocol's R2 sublists spelled as
+# *traced targets*: the audit's "the history DAG" is `replay`/`branch`/
+# `checkout`, and `CandidateGroup.delta_bic` is not an entry point, so what is
+# observable of it is the `Refinement.suggest`/`Refinement.report` call that
+# renders it.  `verify_discontinuities=True` is a value and is scored under
+# DELIBERATE.  A CLI verb is not traceable as a name and is scored by hand.
 INVISIBLE = ("capabilities", "help_for", "help_key_for", "help_registry",
              "Refinement.set_vary", "Refinement.branch", "Refinement.checkout",
              "replay")
@@ -89,8 +94,8 @@ def report(root: Path, cells: list[str]) -> str:
         invisible = [n for n in INVISIBLE if calls.get(n)]
         added = [n for n in ADDED if calls.get(n)]
         marks = {k for counter in c["trace"].kwargs.values() for k in counter}
-        out.append(f"  {c['cell']:<20} invisible-5: {', '.join(invisible) or 'none'}")
-        out.append(f"  {'':<20} added-5:     {', '.join(added) or 'none'}")
+        out.append(f"  {c['cell']:<20} invisible:   {', '.join(invisible) or 'none'}")
+        out.append(f"  {'':<20} added:       {', '.join(added) or 'none'}")
         out.append(f"  {'':<20} deliberate:  "
                    f"{', '.join(m for m in DELIBERATE if m in marks) or 'none'}")
         if c["trace"].missing:
@@ -102,7 +107,9 @@ def report(root: Path, cells: list[str]) -> str:
         seen, bash = c["trace"], sum(1 for k in c["calls"] if k.tool == "Bash")
         ratio = f"{bash / seen.fit_calls:.1f}" if seen.fit_calls else "no traced fit"
         floor = f"{seen.floor_share:.1%}" if seen.floor_share is not None else "?"
-        version = next((r.get("version") for r in trail.load(runner.paths(root, c["cell"])["log"])
+        log = runner.paths(root, c["cell"])["log"]
+        rows = trail.load(log) if log.is_file() else []
+        version = next((r.get("version") for r in rows
                         if r.get("event") == "import" and r.get("version")), "?")
         out.append(f"  {c['cell']:<20} {bash:3d} Bash / {seen.fit_calls} fits = {ratio}; "
                    f"floor {seen.import_seconds:.1f}s of {seen.process_wall:.1f}s ({floor}); "

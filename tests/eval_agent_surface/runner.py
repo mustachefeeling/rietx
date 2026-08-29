@@ -84,7 +84,11 @@ ZRM_FILES = ("d8_01612.raw", "d8_01612_vt_reel_02.inp")
 
 
 def split(cell: str) -> tuple[str, str, str]:
-    episode, condition, model = cell.split("-")
+    parts = cell.split("-")
+    if len(parts) != 3:
+        raise SystemExit(f"unknown cell {cell!r}: <{'|'.join(EPISODES)}>-"
+                         f"<{'|'.join(CONDITIONS)}>-<{'|'.join(MODELS)}>")
+    episode, condition, model = parts
     if episode not in EPISODES or condition not in CONDITIONS or model not in MODELS:
         raise SystemExit(f"unknown cell {cell!r}: <{'|'.join(EPISODES)}>-"
                          f"<{'|'.join(CONDITIONS)}>-<{'|'.join(MODELS)}>")
@@ -131,11 +135,45 @@ def build_venv(venv: Path, log: Path) -> Path:
     return python
 
 
+def check_unprepared(workspace: Path) -> None:
+    """A cell is prepared once, and the refusal comes before anything is spent.
+
+    Asked before the venv is built as well as inside `build_workspace`: the
+    venv is minutes of `uv pip install` and it is *also* where the shim and its
+    baked log path live, so re-preparing a cell that has already run would
+    overwrite the environment its trace was written by before saying no.
+    """
+    if workspace.exists() and any(workspace.iterdir()):
+        raise SystemExit(f"{workspace} is not empty — a cell is prepared once")
+
+
+# Files that make an agent's context a property of where the round's root
+# happens to sit.  Claude Code reads `CLAUDE.md`/`AGENTS.md` from the working
+# directory *upwards* and project skills from a `.claude`/`.agents` above it,
+# so a root inside any checkout hands the `bare` cells that checkout's rules
+# and there is no condition left to measure.  The user-level `~/.claude` is
+# declared in the module docstring and is deliberately not caught here.
+INHERITED = ("CLAUDE.md", "AGENTS.md", ".claude", ".agents")
+
+
+def check_no_inherited_context(workspace: Path) -> None:
+    for parent in workspace.parents:
+        for name in INHERITED:
+            if parent == Path.home() and name in (".claude", ".agents"):
+                continue  # the user-level directory, declared above
+            if (parent / name).exists():
+                raise SystemExit(
+                    f"{parent / name} sits above the workspace: every cell would "
+                    "inherit it, and the bare condition would not be bare. Put the "
+                    "round's root outside any checkout.")
+        if parent == Path.home() or parent == parent.parent:
+            break
+
+
 def build_workspace(workspace: Path, episode: str, condition: str,
                     python: Path, zrm: Path | None) -> None:
     workspace.mkdir(parents=True, exist_ok=True)
-    if any(workspace.iterdir()):
-        raise SystemExit(f"{workspace} is not empty — a cell is prepared once")
+    check_unprepared(workspace)
 
     if episode == "ramp":
         ramp.write_workspace(workspace)
@@ -158,6 +196,8 @@ def build_workspace(workspace: Path, episode: str, condition: str,
 def prepare(root: Path, cell: str, zrm: Path | None) -> None:
     episode, condition, _ = split(cell)
     p = paths(root, cell)
+    check_unprepared(p["workspace"])
+    check_no_inherited_context(p["workspace"])
     for key in ("log", "run"):
         p[key].parent.mkdir(parents=True, exist_ok=True)
     p["log"].touch()
@@ -174,7 +214,8 @@ def prompt_for(cell: str, root: Path) -> str:
                               workspace=p["workspace"]))
 
 
-def wait_quiet(log: Path, idle: float = 20.0, limit: float = 1800.0) -> float:
+def wait_quiet(log: Path, idle: float = 20.0,
+               limit: float = 1800.0) -> tuple[float, bool]:
     """Block until the trace has been silent for `idle` seconds.
 
     **A cell's work can outlive its session.** Measured on the first pilot run
@@ -183,14 +224,22 @@ def wait_quiet(log: Path, idle: float = 20.0, limit: float = 1800.0) -> float:
     `claude -p` had returned — into the wall clock of the cell launched next.
     A round whose read-outs include wall clock cannot let two cells overlap, so
     `launch` waits here before it returns rather than trusting the exit code.
+
+    Returns *how long the work outlived the session*, which is the time to the
+    **last write** and not the time to noticing it: detection costs a whole
+    `idle` window, and returning the wall clock of the wait would overstate
+    every real overlap by that window while reading 0 for a cell that never
+    overlapped. The flag says whether `limit` was reached, so a run still
+    writing when the wait gave up cannot be read as a quiet one.
     """
     began = time.time()
     while time.time() - began < limit:
         last = log.stat().st_mtime if log.exists() else 0.0
         if time.time() - last >= idle:
-            return time.time() - began
+            return max(0.0, last - began), False
         time.sleep(2.0)
-    return time.time() - began
+    last = log.stat().st_mtime if log.exists() else 0.0
+    return max(0.0, last - began), True
 
 
 def launch(root: Path, cell: str) -> None:
@@ -211,10 +260,14 @@ def launch(root: Path, cell: str) -> None:
         record["result"] = json.loads(proc.stdout)
     except json.JSONDecodeError:
         record["stdout"] = proc.stdout[-8000:]
-    record["outlived_session_seconds"] = round(wait_quiet(p["log"]), 1)
+    outlived, gave_up = wait_quiet(p["log"])
+    record["outlived_session_seconds"] = round(outlived, 1)
+    record["still_writing_at_limit"] = gave_up
     p["run"].write_text(json.dumps(record, indent=1), encoding="utf-8")
     print(f"{cell}: rc={proc.returncode} session={session} "
-          f"(+{record['outlived_session_seconds']}s quiet wait) -> {p['run']}")
+          f"(work outlived the session by {record['outlived_session_seconds']}s"
+          f"{', STILL WRITING when the wait gave up' if gave_up else ''}) "
+          f"-> {p['run']}")
 
 
 def transcript_for(root: Path, cell: str) -> Path | None:
@@ -238,10 +291,13 @@ def collect(root: Path, cell: str) -> None:
         raise SystemExit(f"{cell}: no transcript for that session id")
     text = trail.render(trail.load(transcript), trail.load(p["log"]))
     record = json.loads(p["run"].read_text(encoding="utf-8")).get("result") or {}
+    # `or` rather than a default: a failed run's record carries the keys with a
+    # null, and a default only covers a key that is absent.
+    cost = record.get("total_cost_usd") or float("nan")
+    minutes = (record.get("duration_ms") or 0) / 60000
     head = (f"cell {cell}\ntranscript {transcript}\n"
-            f"cost ${record.get('total_cost_usd', float('nan')):.2f}, "
-            f"{record.get('num_turns', '?')} turns, "
-            f"{record.get('duration_ms', 0) / 60000:.1f} min reported\n\n")
+            f"cost ${cost:.2f}, {record.get('num_turns', '?')} turns, "
+            f"{minutes:.1f} min reported\n\n")
     p["trail"].write_text(head + text + "\n", encoding="utf-8")
     print(head + text.rsplit("\n\n", 1)[-1])
 
@@ -251,7 +307,12 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 2
     verb, root, cell = argv[1], Path(argv[2]).resolve(), argv[3]
-    zrm = Path(argv[argv.index("--zrm") + 1]).resolve() if "--zrm" in argv else None
+    zrm = None
+    if "--zrm" in argv:
+        after = argv.index("--zrm") + 1
+        if after >= len(argv):
+            raise SystemExit("--zrm needs a directory")
+        zrm = Path(argv[after]).resolve()
     if verb == "prepare":
         prepare(root, cell, zrm)
     elif verb == "launch":

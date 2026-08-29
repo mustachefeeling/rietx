@@ -138,8 +138,11 @@ def test_every_shim_target_resolves_against_this_build(tmp_path):
     neither of which belongs in the suite's own interpreter.
     """
     log = tmp_path / "trace.jsonl"
+    # No empty entry: an empty PYTHONPATH element is the *current directory*,
+    # which would put the repo root on the subprocess's path.
     env = dict(os.environ, RIETX_SURFACE_LOG=str(log),
-               PYTHONPATH=os.pathsep.join([str(HARNESS), os.environ.get("PYTHONPATH", "")]))
+               PYTHONPATH=os.pathsep.join(
+                   [str(HARNESS), *filter(None, [os.environ.get("PYTHONPATH", "")])]))
     proc = subprocess.run(
         [sys.executable, "-c", "import rietx_surface_trace, rietx; rietx.capabilities()"],
         env=env, capture_output=True, text=True, timeout=300)
