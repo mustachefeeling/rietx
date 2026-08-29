@@ -109,6 +109,7 @@ using/indexing
 using/series
 using/qpa
 using/exports
+using/recipe
 using/cli
 using/gui-quickstart
 using/gui-guide
