@@ -26,8 +26,13 @@ just the required members.
 **The names.**  `references/api.md` is the document three "explore the library"
 runs (114 calls) were trying to write from source, and one of them asserted
 that everything public is re-exported from the top-level package, which is
-false.  So every dotted name in it resolves against the installed package and
-every `rx.X` is really exported — the WP-1037 bug's shape, one document over.
+false.  So the file is **generated** from the installed package by
+`docs/skill/make_api_index.py` — every signature, field and default rendered,
+none typed — and pinned byte for byte here, so a rename, a new keyword or a
+changed default fails until it is regenerated.  The body's own `report.x` /
+`result.x` names, which no generator writes, are walked through the types the
+same way the manual's are (`tests/api_surface.attr_step`), and every `rx.X` in
+the tree is really exported — the WP-1037 bug's shape, one document over.
 """
 
 from __future__ import annotations
@@ -179,6 +184,62 @@ def test_every_dotted_name_in_the_api_index_resolves():
     for name in sorted(names):
         dotted = name if name.startswith("rietx.") else "rietx." + name[len("rx."):]
         resolve_dotted(dotted, API_INDEX.name)
+
+
+def test_the_api_index_is_what_the_generator_renders():
+    """`references/api.md` is generated and committed (it ships in the wheel
+    with no build step), so the committed bytes must be what the generator
+    renders from *this* package — a rename, a new keyword or a changed default
+    fails here until the file is regenerated."""
+    import difflib
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "make_api_index", ROOT / "docs" / "skill" / "make_api_index.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    rendered = mod.render()
+    committed = API_INDEX.read_text(encoding="utf-8")
+    if rendered != committed:
+        diff = list(difflib.unified_diff(
+            committed.splitlines(), rendered.splitlines(),
+            "committed", "rendered", lineterm="", n=0))
+        pytest.fail(
+            "references/api.md is stale — regenerate with\n"
+            "  .venv/bin/python docs/skill/make_api_index.py && "
+            "rietx skill --install . --copy\n"
+            + "\n".join(diff[:40]))
+    # the selection cannot be wider than what a reader can reach
+    assert " at 0x" not in rendered
+
+
+#: `report.regions`, `result.statistics.rwp`, `statistics.esd_inflation`,
+#: `d.suggestion` — the body's own field names, which no generator writes.
+BODY_DOTTED = re.compile(
+    r"`(report|result|statistics|d)((?:\.[A-Za-z_][A-Za-z0-9_]*)+)(?:\(|`)")
+
+
+def test_every_dotted_name_in_the_body_resolves():
+    """The judgement core names result and report fields by hand (`report.
+    identifiability.exchanges`, `statistics.max_shift_over_esd`), and a rule
+    written against a field that has moved is a rule nobody can follow.
+    Each is walked through the types the way the manual's names are."""
+    import rietx as rx
+
+    roots = {"report": rx.FitReport, "result": rx.RefinementResult,
+             "statistics": rx.Statistics, "d": rx.Diagnostic}
+    text = SKILL.read_text(encoding="utf-8")
+    bad = []
+    for root, chain in BODY_DOTTED.findall(text):
+        obj = roots[root]
+        for step in chain.lstrip(".").split("."):
+            ok, obj = attr_step(obj, step)
+            if not ok:
+                bad.append(f"{root}{chain}: no {step!r}")
+                break
+    assert not bad, bad
+    assert len(BODY_DOTTED.findall(text)) > 15, "the regex found too little"
 
 
 RX_DOT_NAME = re.compile(r"`rx\.([A-Za-z_][A-Za-z0-9_]*)")
