@@ -30,6 +30,14 @@ direction fired, and the stopping criterion the agent states.
   recorded, and the coordinator-plus-workers shape **recorded as an observed deployment,
   not run as a condition**: the single cold agent is the cell whose brief the protocol
   controls.
+- **The build boundary.** A round run after 2026-08-29 does not pool with one run
+  before it on any row that turns on what the agent could read: 1304 replaced the single
+  `AGENT_PROTOCOL.md` with a `skill/` tree opened on demand, and 1301-1305 moved the
+  package under it. Both baselines above are therefore **pre-1.3** by construction, which
+  is the comparison this round wants. Re-measuring the ramp baseline is cheap — the
+  agent's own protocol is preserved at
+  `~/rietx-agent-runs/2026-08-26-insitu-ramp/verify_1305.py` and the 68-pattern chain runs
+  in 11.6-12.0 s — so a moved refinement second is separable from a moved agent second.
 - **Design.** `PROTOCOL.md` → **1.1** (the shim's target list changes, so the bump is
   mandatory). Episodes: E-ZRM (kept; real, 82 scans, four phases) and E-RAMP (the ramp
   generator committed to the harness as `episodes/ramp.py`, synthetic, known truth).
@@ -37,7 +45,14 @@ direction fired, and the stopping criterion the agent states.
   directories) versus not; environmental, never a prompt sentence. Prompt unprimed (no
   protocol vocabulary). Shim targets: drop `agent.*`; add `Refinement.suggest`,
   `Refinement.summary`, `read_recipe`, `help_for`, `capabilities`,
-  `SequentialRefinement.fit`, `plot_for_vlm`. The projection script from the audit
+  `SequentialRefinement.fit`, `plot_for_vlm`. Two of those are corrections rather than
+  additions: WP-1303's four JSON-envelope entries are already gone from
+  `rietx_surface_trace.py` (a target that cannot be reached is a read-out that cannot
+  fail), and `SequentialRefinement.run` — traced by 1.0 — **no longer exists**; the class
+  exposes `.fit` (measured 2026-08-29), so 1.0's list would have scored a rename as a
+  surface nobody reached. `score_round.py` scores round 1.0 and says so in its docstring:
+  1.1 declares its own read-outs and gets its own scorer, and 1.0's records stay unedited
+  because a pre-registered round is not rewritten once it has run. The projection script from the audit
   committed as `tests/eval_agent_surface/trail.py`: one line per tool call; usage summed
   **once per `message.id`, last record wins** (a thinking block and its tool_use share
   an id; per-record summing over-counted cache reads by 151/90 in the first audit);
@@ -55,57 +70,21 @@ direction fired, and the stopping criterion the agent states.
   its closing text into: a §10 condition / a §4b deliverable row / an agreement index
   alone / an external comparison / a script exiting / an instruction / none (ended
   waiting), with whether `summary()` and `plot_for_vlm` were called and whether the agent
-  looked at a plot it drew itself counted beside it.
+  looked at a plot it drew itself counted beside it. WP-1305 gave three of those a
+  package-side answer, and each is a distinct observation because the 2026-08-26 agent
+  did all three **by hand**: does the run print
+  `SeriesResult.summary(deliverable="series")` (§4b's fourth row, which that agent wrote
+  for itself across about 34 of its 90 calls); does it read `CandidateGroup.delta_bic`
+  rather than running two refits per candidate to compute ΔBIC itself; does it reach
+  `verify_discontinuities=True` rather than hand-refitting the step's two patterns cold.
+  A re-capture that still does them by hand is a **discovery** failure, not a judgement
+  one, and the read-out separates the two.
 - **Second harness.** The eval shim is Claude Code's, so 1304's harness-neutral claim is
   tested structurally in 1304 and behaviourally only when a Codex or opencode cell exists;
-  that is round 1.2's, and `rietx skill --install` makes it a one-line change to the
-  episode setup.
-
-### Inherited
-
-- **From WP-1304 (2026-08-29): a round run after today does not pool with one
-  run before it**, on any row that turns on what the agent could read. The
-  python arm's workspace now carries `skill/` — the whole tree, body and
-  references — where earlier rounds carried one `AGENT_PROTOCOL.md`: the same
-  text, arriving split across files an agent opens on demand rather than as one
-  file it must page through. `tests/eval_report_agent/PROTOCOL.md` carries the
-  dated note. The JSON arms are unaffected — the §5/§6 excerpts were verified
-  against the pre-split document at `6feda6f8`, §6 byte-identical and §5
-  differing only by a dead relative link the move repaired.
-- **Round 1.2's second-harness behavioural test is now a one-line episode
-  change**, which is what 1304's non-goal deferred to this WP:
-  `rietx skill --install <workspace> --agent <name>` puts the skill where that
-  harness looks, and `--list-agents` prints the fifteen-row table with each
-  row's source URL and the date its directories were read.
-
-- **From WP-1305 (2026-08-29): three new read-outs, and the ramp is cheap to
-  re-run.** The round's "stopping criterion the agent states" row now has
-  package-side answers to look for, and each is a distinct observation: does it
-  print `SeriesResult.summary(deliverable="series")` (§4b's fourth row, which
-  the 2026-08-26 agent had to write for itself in about 34 of its 90 calls); does
-  it read `CandidateGroup.delta_bic` rather than running two refits per candidate
-  to compute ΔBIC by hand (that run did the latter, five `suggest` calls
-  notwithstanding); and does it reach `verify_discontinuities=True` rather than
-  hand-refitting the step's two patterns cold. All three are *the same checks that
-  run made*, so a re-capture that still does them by hand is a discovery failure
-  rather than a judgement one — and worth separating in the read-out.
-  The re-run harness lives beside the run it measures, at
-  `~/rietx-agent-runs/2026-08-26-insitu-ramp/verify_1305.py` (the agent's own
-  protocol from `agent_call.txt`, forward, with and without the check): the whole
-  68-pattern chain is 11.6-12.0 s now, so a baseline re-measurement costs seconds
-  rather than a session.
-- **From WP-1303 (2026-08-29): the tracer's target list lost the four JSON-envelope
-  entries** (`agent.refine_json`, `agent.tool_definition`, `agent.request_schema`,
-  `agent.response_schema`), because the module they name is deleted — a target that
-  cannot be reached is a read-out that cannot fail. `rietx_surface_trace.py` now
-  patches the python surface only, and 1.1 declares whatever list it wants.
-  **Round 1.0's records were deliberately left unedited**: `eval_agent_surface/
-  PROTOCOL.md` and `score_round.py` still name that surface and still score its
-  three read-outs, because a pre-registered round is not rewritten once it has run
-  — the deletion *is* its result. `score_round.py` carries a docstring line saying
-  it scores round 1.0 and nothing later, so 1.1 needs its own scorer (or an
-  explicit read-out declaration this one can be generalised to). The same rule, in
-  one clause, is now in `tests/CLAUDE.md` § Two eval protocols.
+  that is round 1.2's, and `rietx skill --install <workspace> --agent <name>` makes it a
+  one-line change to the episode setup — it puts the skill where that harness looks, and
+  `--list-agents` prints the fifteen-row table with each row's source URL and the date its
+  directories were read.
 
 ## Non-goals
 
