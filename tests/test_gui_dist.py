@@ -277,8 +277,8 @@ def test_the_dist_is_in_the_wheel(wheel_names):
     wanted += [f"rietx/gui/static/assets/{p.name}"
                for p in sorted((DIST / "assets").glob("*.js"))]
     # the agent protocol rides the same build (WP-1003): force-included as
-    # package data so the tool description's offline pointer resolves for a
-    # pip-only agent with no network
+    # package data so a pip-only agent with no network has its own copy
+    # offline (it was the JSON tool description's pointer until WP-1303)
     wanted.append("rietx/data/AGENT_PROTOCOL.md")
     # the GUI's *python* modules, not only its static assets: the sdist
     # excludes are gitignore-style, and an unanchored "gui" pattern once

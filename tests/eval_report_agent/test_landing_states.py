@@ -355,14 +355,18 @@ def test_e8p_lazy_path_fires_the_clause_and_the_rivals_tie():
 
 @pytest.mark.xdist_group("eval-synth")
 def test_e8p_through_the_agent_surface_carries_the_clause():
-    """The end-to-end pin at synthetic cost: the episode core through
-    ``refine_json`` itself — the surface the shim drives — converges with
+    """The end-to-end pin at synthetic cost: the episode core through the
+    shim's own request runner — the surface the agent drives — converges with
     the planted path never freed (the vary-or-tie serialisation) and the
-    clause in the delivered report's summary."""
-    from rietx import agent as agent_mod
+    clause in the delivered report's summary.
+
+    It ran through the package's ``refine_json`` until WP-1303; the request is
+    the same dict and the runner is the same two package calls.
+    """
+    from tests.eval_report_agent.run_refine import run_request
 
     core = bf.build_episodes()["E8p"]["core"]
-    response = agent_mod.refine_json(dict(core, include_report=True))
+    response = run_request(dict(core, include_report=True))
     assert response["ok"], response.get("error")
     values = {p["path"] for p in response["result"]["parameters"]}
     assert DISP not in values

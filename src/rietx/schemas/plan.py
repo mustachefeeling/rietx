@@ -155,12 +155,14 @@ class PlanSpec(Base):
         places, this one inbound and ``strategy.staged.resolve_plan`` outbound.
         Before WP-1110 it was crossed nowhere, so a caller had to know which of
         two same-shaped types each surface wanted: two agents driving the
-        trigger dataset took a preset out of ``PLAN_PRESETS``, were answered
-        ``INVALID_REQUEST`` by ``refine_json``, and rebuilt the plan field by
-        field.  Here rather than in ``agent.py`` because every JSON boundary in
-        the package asks the same question — a request, a ``TreeHeader``, a
-        ``ProjectDoc`` — and one of them answering differently is the
-        duplication ``schemas/plan.py`` exists to end.
+        trigger dataset took a preset out of ``PLAN_PRESETS``, were refused by
+        the JSON request surface of the day, and rebuilt the plan field by
+        field.  Here rather than at any one boundary because every JSON
+        boundary in the package asks the same question — a ``TreeHeader``, a
+        ``ProjectDoc``, whatever a caller validates — and one of them answering
+        differently is the duplication ``schemas/plan.py`` exists to end.  (The
+        request surface that provoked it went in WP-1303; the other boundaries
+        are why the rule outlived it.)
 
         By ``isinstance`` on the real class, never by duck-typing on
         ``.stages``: the two types share **every** field name, which is what

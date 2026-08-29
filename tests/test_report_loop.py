@@ -35,7 +35,6 @@ import numpy as np
 import pytest
 
 import rietx as rx
-from rietx.agent import refine_json
 from rietx.report import predict_then_verify
 from rietx.report.apply import recipe
 from rietx.report.schemas import FitReport, VerificationOutcome
@@ -426,11 +425,17 @@ def test_e2_sample_displacement_baseline(truth):
 
 
 def test_e2_one_json_call_names_the_cause(truth):
-    """WP-1058's acceptance: one ``refine_json`` call on the E2 request,
-    asking for the trajectory, comes back naming the displacement family.
+    """WP-1058's acceptance: one fit on the E2 model, asking for the
+    trajectory, comes back naming the displacement family.
     (``report_trajectory`` defaulted on when this landed; WP-1003 flipped it
     on WP-1064's measured criterion, so the one call now asks explicitly —
     what is asserted here is the *content*, which the flip does not touch.)
+
+    The call was ``refine_json`` until WP-1303 and the answer is read here the
+    way that retirement prescribes: run the fit, ask for the report, and dump
+    both with ``model_dump(mode="json")``.  Every assertion below is on the
+    JSON, unchanged — which is the point, since the envelope only ever wrapped
+    these same dumps.
 
     The two halves are what the answer is made of, and neither is the other:
 
@@ -453,12 +458,14 @@ def test_e2_one_json_call_names_the_cause(truth):
     start = ins.model_copy(deep=True)
     start.geometry.sample_displacement.value = -0.02
 
-    out = refine_json({"task": "refine",
-                       "report_trajectory": True,
-                       "structure": structure.model_dump(mode="json"),
-                       "instrument": start.model_dump(mode="json"),
-                       "pattern": data.model_dump(mode="json")})
-    assert out["ok"], out.get("error")
+    ref = rx.Refinement(structure, start)
+    result = ref.fit(data, plan="mccusker_default", stage_reports=True)
+    out = {
+        "result": result.model_dump(mode="json"),
+        "report": ref.report(plan="mccusker_default").model_dump(mode="json"),
+        "trajectory": [rung.model_dump(mode="json")
+                       for rung in ref.stage_reports_],
+    }
 
     # half one: converged-looking, no action, and the culprit not even listed
     assert out["result"]["statistics"]["rwp"] < 0.02

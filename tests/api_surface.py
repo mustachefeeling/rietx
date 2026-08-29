@@ -128,12 +128,12 @@ EXCLUSIONS: dict[str, str] = {}
 # name that no chapter documents: provisional is a weaker *promise*, never
 # thinner coverage.
 #
-# What is deliberately NOT here: `rietx.capabilities` and `rietx.agent`.
-# `Capabilities.indexing_thresholds_version`, the engine and preset
-# capability types and the agent envelope's `indexing` arm are data
-# contracts with their own version strings, and a consumer that parses an
-# answer keeps its hard freeze.  The risk is the caller's who imports a type,
-# not the reader's of a response.
+# What is deliberately NOT here: `rietx.capabilities`.
+# `Capabilities.indexing_thresholds_version` and the engine and preset
+# capability types are data contracts with their own version strings, and a
+# consumer that parses an answer keeps its hard freeze.  The risk is the
+# caller's who imports a type, not the reader's of a response.  (`rietx.agent`
+# was the second name on this line until WP-1303 deleted it.)
 
 PROVISIONAL_MODULES: dict[str, str] = {
     "rietx.indexing": (
@@ -344,9 +344,10 @@ def _annotated_types(cls: type) -> set[type]:
 def _module_members(module: types.ModuleType) -> list[tuple[str, object]]:
     """A module's own public names — defined there, not imported into it.
 
-    `rietx.agent` declares no `__all__`, so `dir()` on it is mostly the types
-    it imported to build its request union; `__module__` is what separates its
-    own surface from its imports.
+    A module that declares no `__all__` has a `dir()` that is mostly the types
+    it imported (`rietx.agent`, deleted in WP-1303, was the standing example:
+    its request union pulled in half the schemas); `__module__` is what
+    separates a module's own surface from its imports.
     """
     return [
         (name, value)
@@ -359,8 +360,8 @@ def _module_members(module: types.ModuleType) -> list[tuple[str, object]]:
 def _annotated_types_of(func: object) -> set[type]:
     """rietx classes named in a function's signature — its return type above
     all.  `capabilities()` returns a `Capabilities`, which is exported
-    nowhere: seeding only from exported *classes* left the one type
-    `using/agents.md` documents off the surface entirely.
+    nowhere: seeding only from exported *classes* left a documented type off
+    the surface entirely.
     """
     try:
         annotations = list(typing.get_type_hints(func).values())

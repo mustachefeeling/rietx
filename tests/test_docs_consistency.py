@@ -890,9 +890,10 @@ def test_every_engine_diagnostic_code_has_a_protocol_row():
     codes known to be missing (EXTINCTION_SCREEN_FAILED,
     INDEX_VALIDATION_FAILED) out of 79 collected.
     """
-    from rietx.agent import ERROR_CODES
-
-    codes = _engine_codes() | set(ERROR_CODES) | set(STATIC_INVISIBLE_CODES)
+    # the envelope's four ``ERROR_CODES`` were in this union until WP-1303
+    # deleted them with the envelope; what remains is every code the engine
+    # itself emits, plus the ones no AST walk can see
+    codes = _engine_codes() | set(STATIC_INVISIBLE_CODES)
     assert len(codes) >= 60, (
         f"only {len(codes)} codes collected — the AST walk broke, it does not "
         "mean the protocol got shorter"

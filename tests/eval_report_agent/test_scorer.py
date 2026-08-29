@@ -1,7 +1,7 @@
 """Deterministic unit tests for the eval scorer, shim and fixtures.
 
 Everything here is synthetic JSON in ``tmp_path`` — no refinement runs, no
-network, no LLM.  The shim's enforcement is tested with ``refine_json``
+network, no LLM.  The shim's enforcement is tested with its request runner
 monkeypatched, because what these tests pin is the *harness contract*
 (overlay restriction, report and trajectory stripping, budget, logging, the
 sibling condition marker), not the solver.  The episodes' physics — every
@@ -636,7 +636,7 @@ def test_shim_merges_overlay_and_forces_condition(tmp_path, monkeypatch):
         seen.update(request)
         return _stub_response()
 
-    monkeypatch.setattr("rietx.agent.refine_json", stub)
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request", stub)
     (edir / "overlay.json").write_text(json.dumps(
         {"plan": "profile_only", "two_theta_limits": [20.0, 100.0]}), encoding="utf-8")
     response = run_episode(edir)
@@ -662,7 +662,7 @@ def test_shim_merges_overlay_and_forces_condition(tmp_path, monkeypatch):
 def test_shim_report_on_keeps_report_and_elides_bulk(tmp_path, monkeypatch):
     edir = _write_shim_episode(tmp_path, include_report=True,
                                include_trajectory=True)
-    monkeypatch.setattr("rietx.agent.refine_json",
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request",
                         lambda request: _stub_response())
     response = run_episode(edir)
     assert response["report"] == {"layer1_available": True}
@@ -679,7 +679,7 @@ def test_shim_refuses_unsanctioned_overlay_keys(tmp_path, monkeypatch):
     def stub(request):  # pragma: no cover - must not be reached
         raise AssertionError("refine_json called on a refused overlay")
 
-    monkeypatch.setattr("rietx.agent.refine_json", stub)
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request", stub)
     (edir / "overlay.json").write_text(json.dumps(
         {"plan": "profile_only", "include_report": False,
          "pattern": {"two_theta": []}}), encoding="utf-8")
@@ -693,7 +693,7 @@ def test_shim_refuses_unsanctioned_overlay_keys(tmp_path, monkeypatch):
 
 def test_shim_call_budget_is_a_runaway_guard(tmp_path, monkeypatch):
     edir = _write_shim_episode(tmp_path, include_report=True, max_calls=2)
-    monkeypatch.setattr("rietx.agent.refine_json",
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request",
                         lambda request: _stub_response())
     (edir / "overlay.json").write_text("{}", encoding="utf-8")
     assert run_episode(edir)["ok"]
@@ -739,7 +739,7 @@ def test_shim_delivers_exactly_what_the_condition_declares(
         full["report"] = report          # ...with a firing clause and an
         return full                      # execution-stamped action
 
-    monkeypatch.setattr("rietx.agent.refine_json", stub)
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request", stub)
     response = run_episode(edir)
     assert seen["include_report"] is spec.report
     assert seen["report_trajectory"] is spec.trajectory
@@ -770,7 +770,7 @@ def test_shim_requires_both_switches_in_the_marker(tmp_path, monkeypatch):
     to guess."""
     edir = _write_shim_episode(tmp_path, include_report=True,
                                include_trajectory=None)  # key omitted
-    monkeypatch.setattr("rietx.agent.refine_json",
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request",
                         lambda request: _stub_response())
     with pytest.raises(KeyError):
         run_episode(edir)
@@ -792,7 +792,7 @@ def test_shim_moves_the_clause_beside_the_statistics(tmp_path, monkeypatch):
                                license_placement="statistics")
     stub = _stub_response()
     stub["report"] = report
-    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request", lambda request: stub)
     response = run_episode(edir)
     assert response["result"]["statistics"]["identifiability_clause"] == clause
     assert response["report"]["summary"] == "Rwp=0.0100 GoF=1.00; 3 regions"
@@ -815,7 +815,7 @@ def test_shim_placement_mismatch_fails_the_call_loudly(tmp_path, monkeypatch):
                                license_placement="statistics")
     stub = _stub_response()
     stub["report"] = report
-    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request", lambda request: stub)
     response = run_episode(edir)
     assert response["ok"] is False
     assert response["error"]["code"] == "PLACEMENT_PROJECTION_MISMATCH"
@@ -842,7 +842,7 @@ def test_shim_projection_is_a_checked_noop_on_the_shipped_field(
     stub = _stub_response()
     stub["report"] = report
     stub["result"]["statistics"]["identifiability_clause"] = clause
-    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request", lambda request: stub)
     response = run_episode(edir)
     assert response["result"]["statistics"]["identifiability_clause"] == clause
     assert clause not in response["report"]["summary"]
@@ -860,7 +860,7 @@ def test_shim_refuses_a_shipped_field_that_disagrees(tmp_path, monkeypatch):
     stub = _stub_response()
     stub["report"] = report
     stub["result"]["statistics"]["identifiability_clause"] = "another sentence"
-    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request", lambda request: stub)
     response = run_episode(edir)
     assert response["ok"] is False
     assert response["error"]["code"] == "PLACEMENT_PROJECTION_MISMATCH"
@@ -877,7 +877,7 @@ def test_shim_placement_is_inert_without_a_clause(tmp_path, monkeypatch):
     stub = _stub_response()
     stub["report"] = {"layer1_available": True, "identifiability": None,
                       "summary": "Rwp=0.0100 GoF=1.00; 3 regions"}
-    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request", lambda request: stub)
     response = run_episode(edir)
     assert "identifiability_clause" not in response["result"]["statistics"]
     assert response["report"]["summary"] == "Rwp=0.0100 GoF=1.00; 3 regions"
@@ -894,7 +894,7 @@ def test_shim_strips_execution_when_the_condition_says_so(tmp_path,
                                include_execution=False)
     stub = _stub_response()
     stub["report"] = report
-    monkeypatch.setattr("rietx.agent.refine_json", lambda request: stub)
+    monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request", lambda request: stub)
     response = run_episode(edir)
     actions = response["report"]["suggested_actions"]
     assert actions == [{"kind": "add_impurity_phase", "confidence": 0.9}]

@@ -459,20 +459,20 @@ def test_every_base_subclass_survives_the_new_getattr(cls):
 
 
 def test_plan_spec_is_one_class_everywhere():
-    """History and the agent surface must not re-acquire private copies.
+    """History must not re-acquire a private copy.
 
     The compat re-exports went pre-freeze (WP-1003): ``StageSpec`` is spelled
-    only ``schemas.plan.StageSpec``, and its *absence* from the two old homes
-    is the guard — a re-acquired private copy would make the attribute exist.
-    ``PlanSpec`` stays imported in both because both use it, and it must be
-    the one class.
+    only ``schemas.plan.StageSpec``, and its *absence* from the old home is
+    the guard — a re-acquired private copy would make the attribute exist.
+    ``PlanSpec`` stays imported there because it is used, and it must be the
+    one class.  The agent envelope was the second consumer this test watched
+    until WP-1303 deleted it; the rule is unchanged, it just has one importer
+    fewer to police.
     """
-    from rietx import agent
     from rietx.schemas import history, plan
 
-    assert history.PlanSpec is plan.PlanSpec is agent.PlanSpec
+    assert history.PlanSpec is plan.PlanSpec
     assert not hasattr(history, "StageSpec")
-    assert not hasattr(agent, "StageSpec")
 
 
 def test_plan_spec_reads_a_pre_v1_history_header():
