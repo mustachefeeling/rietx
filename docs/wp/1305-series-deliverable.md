@@ -67,6 +67,19 @@ outcome here.
 
 ### Inherited
 
+- **From WP-1304 (2026-08-29): the deliverable table now lives in a body with
+  375 bytes of headroom.** §4b's three rows are in `docs/skill/rietx/SKILL.md`,
+  capped at 32 000 B / 500 lines by `tests/test_skill.py` and currently at
+  31 623 B / 475 lines. A fourth row costs ~700 B, so this WP pays for it
+  somewhere. The rule 1304 landed on is **a lookup leaves the body, a rule and
+  its decisive number stay** — the long-form evidence behind a deliverable
+  belongs in `references/judging.md`, which already holds §4/§4b's measurements
+  under per-deliverable headings. Do not raise the cap to fit a row; that is the
+  decision the cap exists to make visible.
+- **`ref.summary(deliverable=…)` is what the body points a reader at**, so a new
+  deliverable name has to be one that call accepts, and the skill's §4b row
+  should name the rows it prints.
+
 **From [1302](1302-error-is-documentation.md), 2026-08-29 — the termination view
 already has two stubs waiting for this WP.** `Refinement.summary()`
 (`refine.py`) prints `"next: run suggest"` unconditionally for stop condition

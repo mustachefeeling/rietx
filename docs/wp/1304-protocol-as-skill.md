@@ -1,6 +1,7 @@
 # WP-1304 — The protocol is a skill
 
-Milestone: v1.3 · Status: ⬜
+Milestone: v1.3 · Status: ✅ 2026-08-29 — the tree, the caps, `rietx skill`, the
+wheel copy, the manual chapter and every caller re-pointed
 Depends on: 1303 (§9c and the envelope rows go with it)
 
 ## Goal
@@ -172,5 +173,115 @@ asserted.
 - WP-1003 (the protocol in the wheel), WP-1110 (the surface round), WP-1202 (`help.py`).
 
 ## Handover log
+
+### 2026-08-29 — shipped: the document is a directory, and the cap decided its shape
+
+The operating protocol is an Agent Skill. `docs/skill/rietx/` holds a `SKILL.md`
+an agent reads whole when the task calls for it and nine reference files it
+loads only when it needs one; it ships in the wheel, is committed at
+`.agents/skills/rietx/` and `.claude/skills/rietx/` so a session in this
+repository loads it under any harness, installs into another repository with
+`rietx skill --install`, and is published at `rietx.org/skill/rietx/SKILL.md`.
+`docs/AGENT_PROTOCOL.md` is a ten-line pointer and goes in v1.4.
+
+**The one thing to carry forward is what the cap did to the shape.** The WP's
+Shape named five reference files and left everything else in the body. Written
+as tightly as it goes, that body is ~39.5 kB — 23 % over its own 32 kB cap — so
+four more things moved out, and choosing *which* is the rule worth keeping: **a
+lookup leaves the body, a rule and its decisive number stay.** §6's 25-row
+signal table went to `abstention.md` while its six rules stayed; §4/§4b's
+long-form measured evidence went to `judging.md` while each step kept the
+number that decides it; §5 went whole to `numbers.md`; and the API index went to
+`api.md` behind a four-line pointer that keeps the one rule (one integration
+surface, a failure raises). The body landed at 31 623 B / 475 lines, and the
+375-byte headroom is thin enough that 1305's fourth deliverable row should
+expect to pay for itself somewhere.
+
+I do not think the cap is wrong. It is what makes the skill a *skill* rather
+than the 144 kB document nobody loaded, and the split it forced is the same
+progressive disclosure the format is built around. But it is not free, and the
+next session to add to the body will meet it immediately.
+
+**What landed.**
+
+- **The split is verbatim.** Every non-separator line of the 1677-line source
+  is in the tree byte for byte, verified by reconstruction; the only mechanical
+  edit is heading level, fence-aware so a `#` python comment inside a code block
+  is untouched. Section numbers are unchanged, which is what keeps every `§7d`
+  and `§8.11` citation in `src/` resolving.
+- **Spec-only frontmatter**, against the specification re-fetched today: `name`
+  matching the directory and its character rules, `description` ≤ 1024,
+  `compatibility` ≤ 500, `metadata` values as strings, and nothing outside the
+  six fields (claude.ai's upload rejects a seventh; Codex caps the whole
+  catalogue at 8 000 chars, which is why `description` is budgeted).
+- **`rietx skill --path | --print [SECTION] | --install [DIR] | --list-agents`**,
+  with `--user`, repeatable `--agent` and `--copy`. One real copy in
+  `.agents/skills/`, symlinks from every harness that reads elsewhere, copies on
+  Windows. The harness table is data — fifteen rows, each with the URL its
+  directories came from and the date they were read.
+- **`capabilities().skill_path`**, `SCHEMA_VERSION` 0.12 → 0.13. Additive, but
+  that model's field list *is* the contract a client reads, so the string moves.
+- **The manual chapter** is generated in `conf.py` like the glossary, not
+  `{include}`d: the body's frontmatter is a contract with a harness and noise on
+  a page, and the tree's relative links are correct for an agent and nine
+  `myst.xref_missing` warnings under `-W`. File and section order are derived,
+  so a new reference file renders in protocol order with no edit there.
+
+**Two bugs the tests found, and one they found late.**
+
+The API index resolves every dotted name against the installed package, and it
+caught six names I had drafted from memory: `SeriesResult.trajectories`,
+`SuggestionResult.candidates`, `RefinedParameter.esd`,
+`Refinement.compare_rivals`, `Refinement.predict_then_verify`, `viz.plot`. The
+protocol's own names were all correct — this was my draft, not its rot — but it
+is exactly the WP-1037 shape and the reason the index is tested rather than
+written.
+
+The eval's excerpt extractor had two bugs on the naive port, both silent: it
+matched `# 5. numbers, not pixels` inside `SKILL.md`'s worked-example code fence
+and returned four lines of python comments, and it preferred the body's
+condensed §6 rule list over the reference file holding §6's table, which would
+have quietly *shortened* a registered condition's prompt. Fixed by searching the
+reference files first and tracking fences. Verified against the pre-split
+document at `6feda6f8`: §6 is byte-identical, §5 differs only by a dead relative
+link the move had to repair. `PROTOCOL.md` carries a dated note rather than a
+rewrite — a registered protocol is not edited after the fact — saying that a
+round run after today does not pool with one before it on any row that turns on
+what the agent could read.
+
+`test_portability` caught `read_text('utf-8')` passing the encoding
+positionally in `skill.read`. It works; the guard wants the keyword, and the
+guard is why nothing in this tree reads under a platform default.
+
+**Numbers** (`[dev]`, darwin/arm64, this worktree's own venv, machine otherwise idle).
+
+- Fast selection **3378 → 3411 passed, 122 skipped at both ends**. Exactly +33,
+  and 33 is what `--collect-only` counts in the two new files (20 in
+  `test_skill.py`, 13 in `test_skill_cli.py`): no new skip, nothing else moved.
+- Sizes: `SKILL.md` 31 623 B / 475 lines against caps of 32 000 / 500; the
+  largest reference is `diagnostics-indexing.md` at 30 824 B against 36 000.
+  Whole tree 155 858 B across ten files, against the single document's 144 427 B
+  — the ~8 % growth is the per-file blurb and back-link, and the point is that
+  no *one* read is over 31 kB where the old one was 144.
+- **The harness token count the acceptance asks for was not taken.** `/context`
+  is a user-facing command this session cannot invoke, and I would rather record
+  that than convert bytes to tokens with a ratio and call it a measurement. The
+  byte counts above are what I measured; the check the number was for — does the
+  body fit one Read — is answered by 31 623 B against the ~66 kB the tool
+  returned on the old document.
+
+**The install works end to end, observed rather than asserted.** Partway through
+this session the harness running it listed `rietx` among its available skills,
+sourced from `.claude/worktrees/wp1304-protocol-as-skill/.claude/skills` — the
+committed copy `rietx skill --install . --copy` had just written. That is the
+whole claim of the WP (a skill a harness finds without being told) happening to
+the session that wrote it, and no test could have shown it.
+
+**Next.**
+
+**1305** adds the fourth deliverable, which means a row in §4b's table inside a
+body with 375 bytes of headroom. **1306** and **1307** both build on the skill
+being installable: 1307's round 1.2 wanted a behavioural test on a second
+harness, which `rietx skill --install` now makes a one-line episode change.
 
 - **2026-08-28** — created, from the parked v1.3 plan.
