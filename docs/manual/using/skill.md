@@ -33,7 +33,8 @@ rietx skill --install           # into this repository, for every harness
 
 `rietx skill --install [DIR]` writes one real copy to `DIR/.agents/skills/rietx/`
 — the directory the specification recommends and most harnesses scan — and
-points each harness that reads somewhere else at it with a symlink. `--agent
+points each harness that reads somewhere else at it with a relative symlink, so
+the link survives the project being moved or cloned elsewhere. `--agent
 NAME` (repeatable) chooses which, and `--list-agents` prints the harness table
 with the source and date each row's directories were read from. `--user`
 installs for the user rather than for a project; `--copy` copies instead of

@@ -14,7 +14,10 @@ a task calls for one. Section numbers are unchanged, so a citation of §7d or
 The skill ships inside the wheel. `rietx skill --path` prints the directory,
 `rietx skill --print` prints its text for a harness that reads no skills, and
 `rietx skill --install` puts it where every harness working in your repository
-will find it. `capabilities().skill_path` is the same answer from Python.
+will find it. `capabilities().skill_path` is the same answer from Python. The
+path the wheel carried from 1.0 to 1.2, `rietx/data/AGENT_PROTOCOL.md`, now
+holds this pointer, so a caller reading it by `importlib.resources` gets these
+lines rather than a missing file.
 
 Why the change: this file reached 144 427 B, 2.2× what an agent's Read tool
 returns in one call, so the document written to be read was in practice never

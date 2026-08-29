@@ -201,7 +201,10 @@ def _link_or_copy(source: Path, target: Path, *, copy: bool) -> str:
         shutil.copytree(source, target)
         return "copied"
     try:
-        target.symlink_to(source, target_is_directory=True)
+        # relative, so the link survives the project being moved or cloned to
+        # another path — the canonical copy travels with it
+        target.symlink_to(os.path.relpath(source, target.parent),
+                          target_is_directory=True)
         return "linked"
     except OSError:  # a filesystem or a policy that refuses symlinks
         shutil.copytree(source, target)

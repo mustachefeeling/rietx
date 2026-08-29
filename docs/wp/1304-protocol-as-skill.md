@@ -81,9 +81,14 @@ is the part that is a *lookup* rather than a rule. §5 → `references/numbers.m
 25-row signal table → `references/abstention.md` (its rules stay in the body); §4/§4b's
 long-form measured evidence → `references/judging.md` (each rule keeps its decisive
 number); the API index → `references/api.md`, reached by a four-line pointer that keeps
-the one rule (one integration surface, a failure raises). The body is 31.6 kB / 475
-lines, and the headroom is thin enough that 1305's fourth deliverable row should expect
-to pay for itself somewhere. There is no §9c — WP-1303 deleted it with
+the one rule (one integration surface, a failure raises). **The API index is
+generated, not written** (the review round, below): `docs/skill/make_api_index.py`
+holds the selection as data and renders every signature, constructor field and default
+from the installed package, and `tests/test_skill.py` pins the committed file to what
+the generator renders. The body is 31.6 kB / 470 lines, and the headroom is thin enough
+that 1305's fourth deliverable row should expect to pay for itself somewhere. The manual
+is reached by URL (`https://rietx.org/using/<page>.html`), never by repository path: an
+installed skill sits in a repository that has no `docs/`. There is no §9c — WP-1303 deleted it with
 `rietx.agent`, so the skill must not expect the envelope's request/response vocabulary;
 the one rule that survived (engine `Diagnostic` codes against the GUI server's session
 codes, two vocabularies sharing an UPPER_SNAKE shape) is in **§7's preamble** and the

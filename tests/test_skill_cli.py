@@ -95,6 +95,9 @@ def test_install_lands_in_both_places_and_links_rather_than_copies(tmp_path):
     assert written["claude"] == claude
     if os.name != "nt":
         assert claude.is_symlink()
+        # relative, so a moved or re-cloned project keeps a working link
+        assert not Path(os.readlink(claude)).is_absolute()
+        assert claude.resolve() == canonical.resolve()
     assert (claude / "SKILL.md").is_file()
 
 
