@@ -11,9 +11,11 @@ agent — and any human — changing this code.
   [`src/rietx/io/CLAUDE.md`](src/rietx/io/CLAUDE.md),
   [`src/rietx/indexing/CLAUDE.md`](src/rietx/indexing/CLAUDE.md).
 - To *use* the package — refine someone's data rather than change the code —
-  read [`docs/AGENT_PROTOCOL.md`](docs/AGENT_PROTOCOL.md) first, then the
-  manual's Part 1 (`docs/manual/using/`). Nothing in the rulebooks
-  substitutes for either.
+  read the agent skill [`docs/skill/rietx/SKILL.md`](docs/skill/rietx/SKILL.md)
+  first (it is also installed at `.agents/skills/rietx/` and
+  `.claude/skills/rietx/`, so your harness may have loaded it already), then the
+  manual's Part 1 (`docs/manual/using/`). Nothing in the rulebooks substitutes
+  for either.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) has setup, the test ladder, and the
   style essentials a change is held to.
 

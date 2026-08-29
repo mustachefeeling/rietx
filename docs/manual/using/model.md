@@ -385,6 +385,6 @@ anything: every row, each held one saying why, and the esds from the last fit
 merged in. `ParameterRow.refinable` is one predicate to gate an offer on, and
 `TieSpec.user` separates a tie you may release from one you may not, without
 having to try it and read the error.
-[`docs/AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)
+{doc}`the agent skill <skill>`
 §2 has the order to free them in.
 :::

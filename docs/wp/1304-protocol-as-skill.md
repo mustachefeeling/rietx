@@ -144,7 +144,7 @@ episode change).
 - [x] The two committed copies + the byte-equality test.
 - [x] Sphinx pages + the pointer file.
 - [x] The three consistency tests over the tree; the eval harness's fixture builder.
-- [ ] Docs, `CLAUDE.md` and `AGENTS.md` (`docs/AGENT_PROTOCOL.md` mentions → the skill;
+- [x] Docs, `CLAUDE.md` and `AGENTS.md` (`docs/AGENT_PROTOCOL.md` mentions → the skill;
       `using/cli.md` gets the one sentence on why there is no `rietx[<harness>]` extra).
 
 ## Acceptance

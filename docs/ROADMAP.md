@@ -3,7 +3,7 @@
 Canonical milestone **index**. The content that used to live here is split so
 a work session loads only what it needs:
 
-- **[AGENT_PROTOCOL.md](AGENT_PROTOCOL.md)** — how to *use* the package as an
+- **[skill/rietx/](skill/rietx/SKILL.md)** — the agent skill: how to *use* the package as an
   automated operator: turn-on order, degeneracies, abstention handling,
   diagnostic-code semantics, and the measured findings that change agent
   behaviour. Written for consumers, not maintainers; a WP that adds a

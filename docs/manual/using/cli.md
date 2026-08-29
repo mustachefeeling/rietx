@@ -1,16 +1,17 @@
 # The command line
 
-`rietx` is a small command with five subcommands. It is deliberately small: the
+`rietx` is a small command with six subcommands. It is deliberately small: the
 package is API-first, and the terminal gets only the jobs that are genuinely
 terminal-shaped. Asking what the cell of a pattern is, watching a running
-refinement, rendering a saved result, and launching the two browser tools.
+refinement, rendering a saved result, launching the two browser tools, and
+putting the agent skill where a harness will find it.
 
 ```console
 $ rietx --help
 usage: rietx <command> [...]
 
 commands:
-  gui [PROJECT.rex] [--port N] [--no-open] [--machine]
+  gui [PROJECT.rex] [--scratch] [--port N] [--no-open]
                                     the refinement GUI (localhost)
   watch <dir> [--port N] [--open]   live viewer for a LiveSession directory
   html <result.json> <out.html>     render a saved RefinementResult to HTML
@@ -20,6 +21,10 @@ commands:
   compare [--data DIR] [--port N] [--open]
                                     browser UI comparing refinement
                                     settings on the bundled standards
+  skill [--path | --print [SECTION] | --install [DIR]]
+                                    the agent skill: where it is, its
+                                    text, or install it into a repo
+                                    (rietx skill --help)
 ```
 
 An unknown command exits 2. Nothing here refines a structure: a refinement is a
@@ -197,3 +202,17 @@ deletes it: the point of a scratch run is usually to look at what happened.
 
 The GUI needs the `gui` extra ([](install.md)), which is plotly only: the built
 front end is committed inside the package, so installing it never needs node.
+
+## `rietx skill`: the protocol, where your harness looks
+
+The operating protocol ships as an Agent Skill, and this subcommand is how it
+reaches a repository. [](skill.md) is the whole of it; the short form is
+`rietx skill --path` to find it, `--print` to read it as text, and `--install`
+to put it in `.agents/skills/` with a link from each harness that reads
+somewhere else.
+
+There is deliberately no `rietx[claude]` or `rietx[codex]` extra. A pip extra
+can only add a dependency; it cannot write a file into your project, which is
+the whole of what installing a skill means. So the install is a verb you run,
+not a package you resolve — and it stays visible, reversible and yours to
+re-run when the skill changes.

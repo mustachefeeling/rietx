@@ -82,7 +82,8 @@ Validation suites are run in CI against real data. Details here: [docs/VALIDATIO
 ## Documentation
 
 - HTML manual: https://rietx.org/
-- Driving instructions for agents: [AGENT_PROTOCOL.md](https://rietx.org/AGENT_PROTOCOL.md)
+- Driving instructions for agents: the [agent skill](https://rietx.org/skill/rietx/SKILL.md)
+  (`rietx skill --install` puts it where your harness looks)
 
 ## Development
 

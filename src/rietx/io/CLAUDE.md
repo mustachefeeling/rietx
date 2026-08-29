@@ -173,7 +173,7 @@ agree: `.raw`'s scanned drive is the record that is flagged *and* parked at the
 range's start angle, because one real file is not enough to trust either alone.
 One code rather than four because
 the operator's answer is identical in every case, and four near-duplicate rows
-in `AGENT_PROTOCOL.md` was the smell (factored WP-1047 at the fourth consumer,
+in the agent skill was the smell (factored WP-1047 at the fourth consumer,
 which is where the previous session said the trigger was).
 
 ## Metadata

@@ -352,7 +352,7 @@ single unread warning multiplies: in the episode this diagnostic comes from,
 the parameters they named were quoted as a measured trajectory.
 ```
 
-What to do about each is [`AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)'s
+What to do about each is {doc}`the agent skill <skill>`'s
 diagnostic table, which this chapter does not restate.
 
 ### The ladder, and quarantine

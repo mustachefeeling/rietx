@@ -47,7 +47,7 @@ a version number that has already been published.
    `--refresh` matters: uv's index cache will otherwise report the version as
    nonexistent for a while after upload. Check three things beyond the import,
    because each has failed before: `capabilities()` answers, the bundled
-   `rietx/data/AGENT_PROTOCOL.md` resolves, and `rietx.gui.textdoc` imports
+   `rietx skill --path` resolves into the wheel, and `rietx.gui.textdoc` imports
    with its static dist present. The last of those caught an sdist exclude that
    had silently dropped the GUI's Python modules from every wheel.
 

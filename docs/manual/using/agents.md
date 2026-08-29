@@ -94,11 +94,11 @@ what make the inline form expensive.
 :::{admonition} For agents
 :class: agent
 The operating protocol resolves two ways, and both work for someone who only
-ran `pip install`: the hosted copy at `DOCS_URL/AGENT_PROTOCOL.md`, and an
-offline copy inside the wheel at
-`importlib.resources.files("rietx.data") / "AGENT_PROTOCOL.md"` for a sandbox
-with no network. In a checkout of the repository the wheel copy is absent and
-`docs/AGENT_PROTOCOL.md` is the file itself.
+ran `pip install`: the hosted copy at `DOCS_URL/skill/rietx/SKILL.md`, and an
+offline copy inside the wheel for a sandbox with no network. Do not construct
+either path — `capabilities().skill_path` and `rietx skill --path` answer with
+whichever this build has, and in a checkout of the repository that is
+`docs/skill/rietx/` itself.
 :::
 
 ## `capabilities()`

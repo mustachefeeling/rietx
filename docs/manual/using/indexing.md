@@ -36,7 +36,7 @@ returns `None` unless a gate is fully satisfied. On a first run against real
 laboratory data, `None` is the ordinary outcome rather than a failure, and the
 reasons are on the answer. The gate is
 {ref}`described below <the-confidence-gate>`, and what to do about each reason is the
-[agent protocol](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)'s
+{doc}`agent skill <skill>`'s
 §7c rather than this chapter's.
 
 The physics is Part 2. {ref}`ch-indexing` carries the quadratic form the search
@@ -941,7 +941,7 @@ to make that check.
 ## Further reading
 
 - **What to do about each answer**: the [agent
-  protocol](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md),
+  skill <skill>`,
   §7b (peak-picking diagnostics), §7c (the answer's own diagnostics), §7d (the
   closed loop from an unknown pattern to a refinement), §7e (extinction) and
   §7f (the gate against the evidence). This chapter is the surface; that is the
