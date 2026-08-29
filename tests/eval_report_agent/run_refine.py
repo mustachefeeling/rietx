@@ -92,8 +92,9 @@ def run_request(request: dict) -> dict:
     refusal, kept apart because "index it first" is not "retry"), and
     ``REFINEMENT_FAILED`` for anything the engine raises.
     """
-    import rietx as rx
     from pydantic import ValidationError
+
+    import rietx as rx
     from rietx.refine import NoPhasesError
     from rietx.schemas.plan import PlanSpec
 

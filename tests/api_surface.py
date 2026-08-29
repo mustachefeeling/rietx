@@ -197,7 +197,7 @@ class Entry:
     kind, which is what would notice a new kind losing its module quietly.
     """
 
-    name: str  # "refine", "RefinementResult.statistics", "agent.refine_json"
+    name: str  # "refine", "RefinementResult.statistics", "Refinement.fit"
     kind: str  # "function" | "class" | "constant" | "field" | "member" | "module"
     owner: str | None = None  # the type or module the member is declared on
     module: str | None = None  # the rietx module that defines it

@@ -213,26 +213,26 @@ Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes `"rietveld"`
 `"lebail"` (intensity partitioning in `CompiledModel.lebail_update`) and `"pawley"`
 (per-hkl intensities refined as an off-table θ block — `model.forward.PawleyBlock`,
 appended in `run_least_squares`; overlapped groups get equal-split restraints and
-come back flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split). For
-tool-calling there is `agent.refine_json(dict) → dict` (`agent.py`, WP-0602): one
-call covering refine/refine_multi/refine_sequential/**index**/suggest behind a
-strict task union, errors as a structured `{ok:false, error:{code,…}}` envelope
-(never a traceback), and `agent.tool_definition()` exporting the JSON Schema with
-the backend/solver/plan/**engine** names quoted from the live registries — a
-meta-test fails if a registry member is missing from the schema. The four answers
-live in separate arms (`result`/`series`/`indexing`/`suggestion`) because they are
-different *shapes*, and for indexing the shape is the rule: the serialized answer
-carries no `cell` key either. Two **companions** ride beside an arm rather than
-being one, additive as defaulted fields: `evidence` (WP-1043, the answer
-projected for a reasoning consumer) and `trajectory` (WP-1058) — **the report at
-every stage boundary, because a run's last state is routinely its least
-informative**: a plan absorbs an error it cannot free into whatever it can and
-converges suggesting nothing, while its own first stage named the cause.
-Default-off on both halves since WP-1003 (1064 measured: unasked rungs bought
-no better decisions at more calls) — `report_trajectory`, and
-`fit(stage_reports=True)` → `stage_reports_`, called in loops. Rungs are states
-the plan already visits (the answer is bit-identical), and a report is derived
-from a result, so it rides *beside* one, never inside.
+come back flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split).
+**There is one integration surface and it is the python API** (WP-1303, which
+deleted WP-0602's JSON-in-JSON-out second one after measuring zero use of it):
+a caller runs `Refinement.fit` and dumps the answer with
+`model_dump(mode="json")`, and a failure *raises*. The rule to carry, not the
+history: **a dedicated tool surface earns its place only where it gates,
+renders, audits or parallelises** — none of which a shell-equipped agent needs
+here — and one that a process boundary does want takes **paths**, never inline
+payloads. Two shape rules outlived it. The four answers are different *types*
+(`RefinementResult`/`SeriesResult`/`IndexingResult`/`SuggestionResult`), and an
+indexing answer carries no `cell` key. And a **companion rides beside an
+answer, never inside it** — `IndexingResult.evidence()` (WP-1043, the answer
+projected for a reasoning consumer) and the stage trajectory (WP-1058) — **the
+report at every stage boundary, because a run's last state is routinely its
+least informative**: a plan absorbs an error it cannot free into whatever it
+can and converges suggesting nothing, while its own first stage named the
+cause. Default-off since WP-1003 (1064 measured: unasked rungs bought no better
+decisions at more calls): `fit(stage_reports=True)` → `stage_reports_`, called
+in loops. Rungs are states the plan already visits (bit-identical answer), and
+a report is derived from a result.
 
 ### GUI
 

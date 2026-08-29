@@ -551,7 +551,7 @@ def test_python_arm_watch_reads_off_the_dump(tmp_path):
 
 
 # ----------------------------------------------------------------------
-# shim: enforcement, with refine_json stubbed
+# shim: enforcement, with the request runner stubbed
 # ----------------------------------------------------------------------
 
 
@@ -677,7 +677,7 @@ def test_shim_refuses_unsanctioned_overlay_keys(tmp_path, monkeypatch):
     edir = _write_shim_episode(tmp_path, include_report=True)
 
     def stub(request):  # pragma: no cover - must not be reached
-        raise AssertionError("refine_json called on a refused overlay")
+        raise AssertionError("a refused overlay reached the runner")
 
     monkeypatch.setattr("tests.eval_report_agent.run_refine.run_request", stub)
     (edir / "overlay.json").write_text(json.dumps(
@@ -834,7 +834,7 @@ def test_shim_projection_is_a_checked_noop_on_the_shipped_field(
     package ships the copy, the arm delivered one copy in one location.
     (The package side of this equivalence is pinned by
     ``test_fitreport_layers.py::
-    test_refine_json_delivers_the_license_beside_the_numbers``.)"""
+    test_a_serialized_answer_delivers_the_license_beside_the_numbers``.)"""
     report, clause = _firing_report()
     edir = _write_shim_episode(tmp_path, include_report=True,
                                condition="report_stat",

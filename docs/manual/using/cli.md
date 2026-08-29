@@ -28,7 +28,7 @@ it. Use the API ([](quickstart.md)) or the GUI.
 
 :::{admonition} For agents
 :class: agent
-Prefer `agent.refine_json` ([](agents.md)) over shelling out. The one exception
+Prefer the Python API ([](agents.md)) over shelling out. The one exception
 is `rietx index`, whose **exit status is a contract**: 0 when a cell reached the
 confidence gate, 1 when the result abstains. That is the same statement the
 diagnostics make, in the one channel a shell pipeline can branch on without

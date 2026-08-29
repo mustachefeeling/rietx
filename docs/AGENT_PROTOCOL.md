@@ -59,8 +59,9 @@ The plans in `strategy/staged.py` encode this. Use them; do not hand-roll a
 free set unless you have a reason you can state. The staged *discipline* is
 what is not negotiable; the preset *sequence* is a default, because the right
 next group depends on the data and the current values (Toby, 2024) — and
-`task="suggest"` (§9c) answers that question at the current state, one
-analytic-Jacobian evaluation ranking every held parameter by predicted Δχ².
+`Refinement.suggest` answers that question at the current state, one
+analytic-Jacobian evaluation ranking every held parameter by predicted Δχ²
+(no fit, no mutation, safe between fits).
 
 ```python
 plan="mccusker_default"      # scale+bkg → zero → cell → W → U,V,X,Y      (profile only)
@@ -674,6 +675,12 @@ Every code below is a structured `Diagnostic` on `result.diagnostics` with a
 `level`, a `where` list of parameter paths, a `message` and a `suggestion`.
 **Branch on the code, not on the message text.**
 
+One namespace note, because two vocabularies share the same UPPER_SNAKE shape:
+every code in this document is the **engine's**, a `Diagnostic.code`. The GUI
+server's session codes (`NOT_FOUND`, `RUN_IN_FLIGHT`, `STALE_REVISION`, …) are
+a separate vocabulary with no rows here, so a code met outside
+`result.diagnostics` is the server's, not the engine's.
+
 | Code | What it means you must not do |
 |---|---|
 | `HIGH_CORRELATION` | Quote both members of the pair as independently measured. Deduplicated across a plan's stages (worst \|ρ\| kept, every stage it fired in named in the message) and capped at 10 per fit, worst first — a `HIGH_CORRELATION_OMITTED` row past the cap gives the omitted count, never a truncated list with no notice |
@@ -817,9 +824,9 @@ every answer type in `rietx.schemas.indexing` may change in any release — the
 declares the subsystem rather than listing names, and every change is in the
 release notes. Two things do not move with them:
 `capabilities().indexing_thresholds_version`, which is what the gates below are
-versioned by, and the `indexing` arm of `refine_json`'s response (§9c). So a
-tool loop that *reads* an answer sees any observable change as a version bump;
-one that imports these types should pin an exact version.
+versioned by, and the serialized shape of an `IndexingResult`. So a tool loop
+that *reads* an answer sees any observable change as a version bump; one that
+imports these types should pin an exact version.
 
 **How long will this take?** Since WP-1042 the default answers this itself:
 `index_pattern` resolves the **`quick` preset** — every engine, every requested
@@ -866,10 +873,9 @@ idx = rietx.index_pattern(
         prior_cells=((4.99, 4.99, 17.06, 90.0, 90.0, 120.0),),
         prior_spacegroups=("R -3 c",)))   # trigonal jumps the queue; the
                                           # centring steers the prior's check
-# or, as the one JSON call (§9c):
-# {"task": "index", "peaks": ..., "search": {
-#      "prior_cells": [[4.99, 4.99, 17.06, 90, 90, 120]],
-#      "prior_spacegroups": ["R -3 c"]}}
+# the same controls survive a JSON round trip (a project document stores them):
+# {"search": {"prior_cells": [[4.99, 4.99, 17.06, 90, 90, 120]],
+#             "prior_spacegroups": ["R -3 c"]}}
 ```
 
 If the analogue is right, the truth arrives in the *first* streamed
@@ -1030,8 +1036,8 @@ a tool loop, or a human at a screen — wants the inputs, not only the verdict.
 The design call this section serves: give them all the information, and let
 the judge, human or machine, be the judge.
 
-**What a reasoning consumer reads**: `result.evidence()` — the `evidence` arm
-of `refine_json`'s answer. Per candidate: every caveat with its
+**What a reasoning consumer reads**: `result.evidence()`, the companion to dump
+beside the answer. Per candidate: every caveat with its
 `refuting`/`capping` **kind** (the split `confidence_caveats` alone withholds);
 the panel members that ranked, with values, beside `fom_undefined` — the
 figures that could not be computed, each *absent with its reason*, never
@@ -1588,92 +1594,6 @@ it when a parameter must provably not be chained; do **not** reach for it
 because a parameter jumps.  That hypothesis was tested on a series whose
 composition swings 1 → 94 wt % and it is false: carrying everything is cheaper
 there than excluding the scales.
-
----
-
-## 9c. One JSON call from a tool loop
-
-`rietx.agent.refine_json(dict) → dict` wraps the entry points for a
-tool-calling agent, and `rietx.agent.tool_definition()` returns a
-ready-to-register tool whose schema quotes the backend/solver/plan/**engine**
-vocabularies from the live registries.  Five tasks: `"refine"` (one pattern →
-`result`, with the FitReport beside it and — requested, see below — the
-per-stage `trajectory`), `"refine_multi"` (one joint residual — its
-`node_id`/`tree_id` are null **by design**, a joint fit keeps no history DAG,
-and it returns **no report either**: reports are per-histogram and python-only
-(`result.for_histogram(h)` + `build_report`), so §4's report ladder does not
-run on this task — judge a joint fit from `result.statistics` and §7's
-diagnostics), `"refine_sequential"` (a warm-started series → `series`
-of per-pattern summaries; history ids live per entry, never per run), `"index"`
-(a peak list or a pattern → `indexing`, an `IndexingResult`, with the
-`evidence` companion riding beside it — §7f's projection for a consumer that
-reasons), and `"suggest"` (a model → `suggestion`, one Jacobian evaluation
-ranking the held parameters by
-predicted Δχ² — no fit, no mutation, safe between fits).
-
-The whole of §9 arrives on one request field — `"report_trajectory": true`,
-without which the response's `trajectory` is `[]` (the default is off since
-WP-1003; §9 has the measured reason):
-
-```json
-{"task": "refine", "structure": {…}, "instrument": {…}, "pattern": {…},
- "report_trajectory": true}
-```
-
-```json
-{"ok": true,
- "result": {"statistics": {"rwp": 0.0137, …}, …},
- "report":     {"rwp": 0.0137, "suggested_actions": []},
- "trajectory": [
-   {"stage": "scale_bkg", "rwp": 0.0575, "n_actions_vetoed": 3,
-    "actions": [{"kind": "refine_sample_displacement", "confidence": 0.997,
-                 "rationale": "position error follows the cos_theta template
-                               (-0.01003 ± 0.00022 deg, R²=1.00, 69% of χ²,
-                               8 regions)",
-                 "parameter_paths": ["instrument.geometry.sample_displacement"]}]},
-   {"stage": "zero",      "rwp": 0.0150, "actions": [],
-    "abstained_kind": "unreadable"},
-   {"stage": "cell",      "rwp": 0.0137, "actions": []},
-   {"stage": "profile_w", "rwp": 0.0137, "actions": []},
-   {"stage": "profile",   "rwp": 0.0137, "actions": []}]}
-```
-
-That is the shape to expect from a compensated fit: an empty final action list
-over a first rung that names the cause — and the `trajectory` above is there
-only because the request asked for it.  `include_report: false` outranks
-`report_trajectory: true` and declines **both** — a caller who says it does
-not want the report is never handed one a rung at a time.
-
-`"index"` answers in its own arm because its answer is a different *shape*: there
-is no cell in it.  Read the `evidence` arm first (WP-1043, §7f) — every
-candidate with each caveat's refuting/capping kind, the ranked figures beside
-the ones absent for cause, and the whole-profile numbers together — then
-`indexing.candidates` for the full record; `best_or_none()` is the only
-singleton and it is null far more often than not (§7d).  Its `search` object
-mirrors the one option surface every engine reads — set `max_volume` and
-`n_unindexed` once and every engine means the same thing, which is what makes
-their agreement evidence.
-
-The envelope never raises: `{"ok": true, "result"|"series"|"indexing"|"suggestion": …,
-"evidence": …, "report": …, "trajectory": […]}`
-on success, else `{"ok": false, "error": {code, message, suggestion,
-details}}` with `error.code` one of `INVALID_REQUEST` (per-field dot-paths in
-`details[]` — the schemas are strict, unknown keys are errors),
-`BACKEND_UNAVAILABLE` (a real backend whose optional dependency is not
-importable here — checked before dispatch, so nothing ran; the install command
-is the suggestion), or `NO_PHASES` (the model carries no phase, so there is
-nothing but the background to fit — see the row below), or
-`REFINEMENT_FAILED` (the engine's own message,
-preserved — the request was valid *and* runnable here, so read the message).  Everything else in this document applies unchanged: the
-`result` inside the envelope is the same `RefinementResult`, and §7's
-diagnostics are still the first thing to read.
-
-One namespace note: every code in this document is the **engine's** — a
-`Diagnostic.code` or one of the three envelope codes above. The GUI server's
-session codes (`NOT_FOUND`, `RUN_IN_FLIGHT`, `STALE_REVISION`, …) share the
-same UPPER_SNAKE shape but are a separate vocabulary with no rows here, so a
-code met outside `result.diagnostics` or the error envelope is the server's,
-not the engine's.
 
 ---
 
