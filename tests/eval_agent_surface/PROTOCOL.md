@@ -395,6 +395,57 @@ cell's own record. Two consequences for reading this round's numbers:
   finished log shows 193.5 s: the outermost rows are written on completion, so
   an early read sees the children and none of their parents.
 
+### Amendment, 2026-08-29, made after the ramp episode and before the reel
+
+Declared here rather than versioned, on the same footing as the amendment
+above: it changes whether a run **survives** an edge case, and how the
+projection **prints**, not what is measured, which cell is under which
+condition, or what the package does. It came out of the review pass over the
+session that completed E-RAMP.
+
+The **shim** gained two guards. `os.getcwd()` raises once the working directory
+has been deleted under the process, which an agent running a script from a temp
+directory it then removes will do; that call sits in `_emit`, which `traced`
+calls from a `finally`, so an unguarded raise would break the run the tracer
+promises never to break. `json.dumps` is guarded the same way and drops the row
+instead. This is the one change that touches the instrument the outstanding
+cells will be prepared with, so it is stated plainly rather than folded in:
+**E-RAMP's four cells were traced by the unguarded shim and E-ZRM's four will be
+traced by the guarded one.** It cannot bias a comparison between them, because
+the guard can only fire where the unguarded shim would have **aborted the run** —
+where it fires there is no number to compare against, only a lost cell. `cwd` is
+recorded in every row and read by no read-out.
+
+The **runner** writes a cell's record as soon as `claude -p` returns and rewrites
+it after the quiet wait, so a crash during a wait that may last half an hour no
+longer loses the session id of a run that has already been paid for; it
+validates `--zrm` and the two third-party filenames before `build_venv` spends
+minutes, which is what `check_unprepared` already claimed; and E-RAMP's prompt
+now interpolates its three numbers from `episodes/ramp.py` rather than restating
+them. The rendered prompt is **byte-identical** to the registered text, asserted
+in `test_runner.py` against this document's copy, so no cell's brief changed.
+
+The **projection** also gained **R1b, the plan each agent named**, printed
+beside R1. It is a projection and not a new condition: the shim has recorded
+`plan` as a value keyword since registration, so every cell that has run is
+re-projected identically and no cell was measured differently. It is added
+because the plan turned out to carry most of the cost spread R1 reports (25×
+per pattern-fit), which left R1 unreadable without it, and because the plan an
+agent chooses is itself downstream of the condition rather than a nuisance
+parameter — see § What the R1 table does and does not support. The alternative,
+**fixing the plan across cells, is refused**: it would hold constant one of the
+things the round exists to see, and no deployment fixes it either.
+
+The **projection** prints R7 to two decimals, and marks R8's share OVERSTATED
+where a traced process left an `import` row and no `exit` row — a process killed
+rather than exited contributes to the numerator and not the denominator. No
+ramp cell trips it: all four record **more** exit rows than import rows, which
+is the design, since the `atexit` hook is registered by the `.pth` for every
+interpreter that loads it whether or not it goes on to import `rietx`.
+
+Re-scored after all of it, the four ramp cells return **identical** numbers on
+every row of R1, R7 and R8.
+
 ### A known limit of R8's numerator, left alone until the round ends
 
 `import_dt` is measured from the `.pth` — interpreter start — to the end of
@@ -423,6 +474,11 @@ registered, so nothing here is a rate and nothing here is a disagreement
 either: a single observation cannot be split. The six remaining cells — both
 `opus-5` ramp cells and all four reel cells — are outstanding, and the reel's
 two data files are staged for them.
+
+> This section records what was known when the pilot ran and is left as
+> written. The two `opus-5` ramp cells have since run: § Results — round 1.1,
+> the ramp episode complete supersedes its statement of what is outstanding,
+> and revises how the `bare` condition may be read at all.
 
 Build `1.3.0.dev0` in both (R9). Machine rows from `score_1_1.py`, hand rows
 from the transcripts.
@@ -528,6 +584,274 @@ expect one found it unprompted from an empty directory.
 Both runs also read the maintainer's checkout at `/Users/yue/Code/rietx/src`,
 which is on the machine and outside the workspace. A cell cannot be sealed from
 it here; the reel cells should run with that in mind.
+
+## Results — round 1.1, the ramp episode complete, 2026-08-29
+
+Both `opus-5` ramp cells ran after the pilot, **isolated**: each `launch` held
+until the trace had been silent for 20 s, and both recorded
+`outlived_session_seconds` **0.0**, so neither overlapped the other or anything
+after it. The ramp episode is therefore at the **N = 2 per condition, one run
+per model** the protocol registered. The four reel cells are still outstanding.
+
+Build `1.3.0.dev0` in all four cells (R9). Machine rows from `score_1_1.py`,
+hand rows from the transcripts.
+
+### R1 — the price of an answer, four cells
+
+| | baseline 2026-08-26 | `bare-sonnet` | `skill-sonnet` | `bare-opus5` | `skill-opus5` |
+| --- | --- | --- | --- | --- | --- |
+| model, brief | opus-5, primed | sonnet, unprimed | sonnet, unprimed | opus-5, unprimed | opus-5, unprimed |
+| API calls | 90 | 36 | 55 | 79 | 35 |
+| cache-read | 14.6 M | 3.12 M | 4.74 M | 8.95 M | 3.07 M |
+| mean context | 168 k | 90 k | 88 k | 116 k | 92 k |
+| output | 87 k | 31 k | 44 k | 77 k | 60 k |
+| wall | 34.7 min | 7.5 min | 10.5 min | 20.1 min | 17.3 min |
+| refining | 34 s (1.6 %) | 193.5 s (43 %) | 17.5 s (2.8 %) | 253.7 s (21.0 %) | 227.0 s (21.9 %) |
+| tool calls, errored | 91, 19 | 42, 5 | 57, **1** | 78, 5 | 38, 8 |
+| cost | not recorded | $1.44 | $1.88 | $8.50 | $4.43 |
+
+Every cell is cheaper than the baseline on every price row, and the dearest of
+the four still cost 12 % fewer API calls and 39 % less cache read than a
+baseline that was **primed with the protocol**. The baseline is a different
+model, brief and build, so that stays a before-and-after rather than a contrast.
+
+### What the R1 table does and does not support
+
+The table above is honest as *what each run cost*. It is *not* a measure of
+efficiency, and three of its rows carry a confound large enough to swamp what
+they are being read for.
+
+**Refinement seconds are a plan choice, not a model property, and the plan
+spans 25×.** Measured per pattern-fit across all four cells:
+
+| plan | s per pattern-fit | where |
+| --- | --- | --- |
+| `mccusker_default` | 0.057 – 0.086 | every cell, **both models** |
+| `lab_bragg_brentano` | 0.731 | `bare-sonnet` |
+| the agent's own plan object | 1.843 | `bare-opus5`'s 204.6 s chain |
+
+`mccusker_default` lands in the same 0.06-0.09 s band under `sonnet` and
+`opus-5` alike, so the arithmetic is not what separates the cells: **the preset
+is**, and after it the number of chains each agent chose to run (1, 2, 4 and
+11). `skill-sonnet`'s 17.5 s is not a truncated run — its chain carries **192
+nested pattern-fits**, a full 68-pattern both-directions chain with cold
+verification, at 0.060 s/fit. Read the refinement row as "what this agent chose
+to spend", never as thoroughness.
+
+**The plan is a read-out, not a confound to control away** — printed as R1b,
+counting outermost calls only, since a chain resolves its preset once and hands
+the object down:
+
+| cell | the plans it named |
+| --- | --- |
+| `bare-sonnet` | `profile_only`×10, `lab_bragg_brentano`×7 |
+| `bare-opus5` | `profile_only`×12, `lab_bragg_brentano`×6, **unnamed plan object×33** |
+| `skill-sonnet` | `profile_only`×18, **`mccusker_default`×9**, `lab_bragg_brentano`×3 |
+| `skill-opus5` | `profile_only`×802, **`mccusker_default`×45**, `lab_bragg_brentano`×2, `mccusker_structural`×1, unnamed×1 |
+
+**Neither `bare` cell ever named `mccusker_default`; both `skill` cells did**,
+and `bare-opus5` hand-built 33 plan objects where `skill-opus5` built one. So
+the 25× is not noise sitting on top of the measurement — it is plausibly *part
+of what the measurement found*, because which plan an agent reaches for is
+downstream of the guidance under test. Fixing the plan across cells would hold
+constant one of the things this round exists to see, and **nothing in the field
+fixes it either**: an agent in deployment picks its own. The reel cells
+therefore leave it free, and R1b is what makes the cost rows readable.
+
+Two limits on that reading, since it rests on four runs with no replicate. It
+is an observation, not a rate. And it tracks the **workspace install** rather
+than access to the guidance, because all four cells read the guidance in the
+end; the `bare` pair only found it later, by hunting. The honest statement is
+that having it offered up front, rather than found halfway through, is what
+appears to change which tool the agent picks.
+
+**Wall clock is dominated by agent time.** Refinement is 21.0 % and 21.9 % of
+the two `opus-5` cells' wall. The rest is turns and output: 77 k and 60 k output
+tokens against `sonnet`'s 31 k and 44 k.
+
+**`bare-sonnet` did not deliver**, so its $1.44 and 7.5 min price a partial
+session and do not belong beside three that finished.
+
+**The two `sonnet` cells' wall clocks are contaminated and the two `opus-5`
+cells' are not.** `bare-sonnet`'s chain ran 127.6 s into `skill-sonnet`'s
+session; every later cell recorded `outlived_session_seconds` 0.0. So a
+`sonnet`-against-`opus-5` wall comparison sets a contaminated pair beside a
+clean one, and the amendment that fixed it arrived between them.
+
+**What survives as comparable** across all four: the same data, prompt, build
+and machine, and therefore **R2** (which surfaces were reached) and **R11** (how
+each run stopped) — both behavioural, and neither a function of how much work an
+agent chose to do. The baseline shares only the data: different model, brief,
+build and harness. And N = 1 per (model, condition), with no replicate anywhere.
+
+### R6 — the condition, and a disagreement on every price row
+
+| row | sonnet: bare → skill | opus-5: bare → skill |
+| --- | --- | --- |
+| API calls | 36 → 55 (worse) | 79 → 35 (better) |
+| wall | 7.5 → 10.5 min (worse) | 20.1 → 17.3 min (better) |
+| cost | $1.44 → $1.88 (worse) | $8.50 → $4.43 (better) |
+| errored calls | 5 → 1 (better) | 5 → 8 (worse) |
+
+**The condition's sign flips with the model on all four rows**, and the two
+price directions are opposite to the two error directions. Under § Decision
+rules this is reported as a disagreement with both models named, and no rate is
+quoted. What the four cells jointly support is weaker and worth stating on its
+own: the spread between the cheapest and dearest cell is 2.4× in calls and 5.9×
+in money, and *the model chosen accounts for more of it than the condition does*.
+
+### R11 — three of four stopped on a §4b row, and why that is not a condition effect
+
+| cell | stopping criterion stated |
+| --- | --- |
+| `bare-sonnet` | **none — ended waiting** on a chain that had not finished |
+| `skill-sonnet` | **a §4b deliverable row** (trajectory) |
+| `bare-opus5` | **a §4b deliverable row** (trajectory) |
+| `skill-opus5` | **a §4b deliverable row** (trajectory) |
+
+Against 0 of 6 in the contributor's campaign, 0 in round 1.0 and a baseline that
+built its own rules because §4b had no trajectory row to reach for. All three
+名 that stopped there did what the row asks: each number quoted names the one
+thing that would have to be wrong for it to be wrong, and that thing was
+checked. `bare-opus5` carried the longest such list of the round, nine items,
+ending "I would report the observations and stop there. The frozen CaF₂ cell is
+the specific thing I would want explained before publishing any of this."
+
+**This cannot be read as an effect of the condition, because no cell was
+without the skill.** All four read it (§ What the ramp episode says about its
+own instrument). The count says the §4b row is reachable and gets used; it does
+not say a workspace install is what put it there.
+
+### The destination, recorded against every run and scored in nothing
+
+§ What is not being scored requires the episode's known truth to be recorded
+against every run, precisely because "it is worth seeing whether a stated
+criterion sits over a wrong answer". E-RAMP's truth, which no agent was told:
+a(25 °C) = **10.2570 Å**, α_a = **8.0 ×10⁻⁶/K** below the step, a first-order
+step of **+0.16 % at 430 °C**, α_a = **11.0 ×10⁻⁶/K** above it, a CaF₂ phase
+absent below the step and growing to a plateau over 90 K, its cell **held at
+5.4631 Å** (the deliberate trap), and a **CuKα doublet** source.
+
+| | a(25 °C) | α_low | α_high | the step | CaF₂ |
+| --- | --- | --- | --- | --- | --- |
+| truth | 10.2570 | 8.0 | 11.0 | +0.16 % at 430 °C | 5.4631, held |
+| `bare-sonnet` | — | — | — | "~430-440 °C" | seen, not fitted |
+| `skill-sonnet` | 10.2568 (**−20 ppm**) | 8.0 ✓ | not quoted | 430→440 ✓ | "a hint, not an identification" |
+| `bare-opus5` | 10.25736 (**+36 ppm**) | 8.01(6) ✓ | 10.89(11) | 435 ± 5 °C ✓ | 5.4633 (**+37 ppm**), trap named |
+| `skill-opus5` | 10.24914 (**−770 ppm**) | 8.02(7) ✓ | 10.96(11) ✓ | 430→440 ✓ | identified, plateau ✓ |
+
+Every cell that quoted a trajectory got the **shape** right: both legs' expansion
+coefficients, the step's position within its own stated error, and its size to
+better than 3 %. The absolute is where they part, and the reason is the source
+model. `bare-opus5` tested the doublet against a single line and kept the
+doublet, which is the truth, and lands **+36 ppm** on the absolute cell. It also
+recovered the frozen CaF₂ cell to +37 ppm and named it as the thing it would
+want explained before publishing — the trap, caught.
+
+`skill-opus5` concluded there is **no Kα2**, which is wrong, and its absolute
+cell is **−770 ppm** in consequence. What it then did is the part worth keeping:
+it refused to quote the absolute at all, and named λ = 1.54178 Å as the
+alternative that "puts the 25 °C cell exactly on the published 10.257(1) Å" —
+which is the right answer. **Its caveat covers its error exactly.**
+
+Two things follow, and neither is a read-out.
+
+- **A stated stopping criterion sat over a wrong number, and the criterion
+  still did its job.** This is the case § What is not being scored was written
+  to catch, and it argues for WP-1305's rows rather than against them: the run
+  was wrong about λ and correct about *what it could not quote without an
+  anchor*, which is the §4b trajectory row's actual demand.
+- **The best epistemics and the best physics were different cells.** R11 ranks
+  `skill-opus5` and `bare-opus5` together; against truth `bare-opus5` is the
+  better answer on every row. No read-out in this round can see that, by
+  design, and the pilot's "neither cell is better at everything" holds at
+  `opus-5` with the roles swapped.
+
+### R2 — surfaces reached, and three that nothing reached
+
+All four cells reached `capabilities()`, `Refinement.report`,
+`SeriesResult.summary(deliverable="series")`, `verify_discontinuities=True` and
+`direction="both"`. **The three checks WP-1305 turned into calls were made as
+calls by all four**, where the 2026-08-26 agent made all three by hand.
+`Refinement.suggest` was reached once, by `bare-sonnet` alone.
+
+Three surfaces were reached by **no cell**, and they fail differently:
+
+- **`viz.plot_result`, `viz.plot_for_vlm`, `viz.write_html` — zero calls.**
+  Every 1.1 workspace installs `rietx[viz]` *precisely so these are usable*,
+  which was 1.1's declared fix for a 1.0 defect (§ This round's own
+  instrument). The fix did not take. The one cell that plotted, `bare-opus5`,
+  wrote matplotlib by hand against the machine's user-level `yue-figure-style`
+  skill, then read its own three PNGs. Making the library present did not make
+  the package's plotting surface the obvious way to draw.
+- **`help_for`, `help_key_for`, `help_registry` — zero calls.** WP-1202's help
+  surface went unreached by four agents across two models, both conditions.
+- **`index_pattern` — zero calls**, though `skill-opus5` identified the second
+  phase by indexing three unmatched lines **by hand** (d ratios √(3:8:11),
+  F-centred cubic, a = 5.459 Å). An agent that wanted indexing did it itself.
+
+`read_recipe` and `write_recipe_tables` were also unreached, but E-RAMP ships no
+recipe file, so WP-1306's surface is **not testable in this episode**; the reel
+cells, which carry a `.inp`, are where that read-out exists.
+
+### R5, R7, R8, R10
+
+**R5.** `PHASE_UNCONSTRAINED` held the absent phase in **40 of 68** patterns in
+both `opus-5` cells, by their own reports, and 82 firings in `bare-sonnet`.
+Nothing ran away in any of the four: the whole both-directions chain with cold
+verification cost 187.7 s in the pilot, and total refinement was 253.7 s and
+227.0 s in the two `opus-5` cells. The same absent phase cost the baseline 27 %
+of a 35-minute session, and more than 115× that on reproduction without bounds.
+
+**R7**, Bash calls per outermost fit: 1.82, 1.40, 1.35 and **0.04**.
+`skill-opus5`'s figure is the interesting one: 37 Bash calls over 852 fits,
+because that agent looped inside one script instead of spending a shell call per
+fit. The scaffolding ratio is smallest where the surface worked, which is why
+the scorer prints two decimals rather than rounding it to `0.0`.
+
+**R8**, the per-process floor: 9.8 %, 56.8 %, 8.5 % and 14.2 % of process wall.
+The floor is a cold-start question, and the two numbers that bracket it are
+unchanged: the first `import rietx` in a fresh venv costs **14.8 s**, the next
+**0.53 s**. § A known limit of R8's numerator still applies to all four.
+
+**R10.** `bare-opus5` backgrounded three times, wired a progress file and read
+three plots while waiting; it is the first cell in any round here to background
+a fit **and deliver**. `bare-sonnet` backgrounded its chain and ended waiting.
+Neither `skill` cell backgrounded anything: both ran the chain in the
+foreground and finished inside it.
+
+### What the ramp episode says about its own instrument
+
+**No cell was without the skill, and the two `bare` cells reached it by
+different routes.** First reference, by transcript record index:
+
+| cell | first skill reference | route |
+| --- | --- | --- |
+| `skill-opus5` | record 23 | `.claude/skills/rietx/` in the workspace |
+| `skill-sonnet` | record 26 | `.claude/skills/rietx/` in the workspace |
+| `bare-opus5` | record 43 | `find` over the **maintainer's checkout**, then `docs/skill/rietx/SKILL.md` |
+| `bare-sonnet` | record 51 | `rietx skill --path`, then the **wheel's** copy in site-packages |
+
+The pilot's correction stands and is now doubled. The two leaks are not the same
+kind, and the round's conclusions depend on telling them apart:
+
+- The **wheel's** copy is a property of the shipped package. Every deployment
+  has it, so a `bare` cell that finds it there is measuring what a real unprimed
+  user would meet. That is a finding in WP-1304's favour: the skill is findable
+  by an agent with no reason to expect one.
+- The **checkout's** copy is a property of this machine, and no user has it.
+  It is contamination, not a deployment fact.
+
+Both are recorded rather than repaired: 1.1 is registered, and measuring the
+outstanding cells differently from the four that have run is the one thing a
+round may not do to itself. The consequence for reading this round is fixed and
+should not be softened later: **the registered contrast between `skill` and
+`bare` is not measurable on this machine.** What the four cells do measure is
+*route and latency* — the workspace copy is reached about twice as early in the
+record stream (23, 26 against 43, 51), and reached without a hunt.
+
+Round 1.2 owes a sealed workspace. Until it has one, a `bare` cell means "the
+skill was not offered", never "the skill was not available".
 
 ---
 

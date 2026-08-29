@@ -27,6 +27,21 @@ the user-level skills, which on the registration machine are `tufte`,
 `yue-docs-style` and `yue-figure-style` — none of them about diffraction.  They
 are constant across cells, so they cannot produce the `skill`/`bare`
 difference, and they are declared here rather than assumed away.
+
+**And what `bare` does not withhold, measured rather than assumed.** The
+condition is the *workspace*, and the skill is reachable from outside it by two
+routes, both observed in the ramp episode: it ships inside the wheel, where
+`ramp-bare-sonnet` found it in site-packages, and the maintainer's own checkout
+sits on the registration machine, where `ramp-bare-opus5` found
+`docs/skill/rietx/SKILL.md` by `find` and read it whole.  The two are not the
+same kind of leak.  The wheel's copy is a **property of the shipped package** —
+every deployment has it, so a `bare` cell that reaches it is measuring what a
+real unprimed user would meet.  The checkout's copy is a **property of this
+machine** and no user has it.  Neither is fixed here: 1.1 is registered, and
+measuring the outstanding cells differently from the ones that have run is the
+one thing a round may not do to itself (PROTOCOL.md § This round's own
+instrument).  A sealed workspace is round 1.2's, and until it exists every
+`bare` read-out is a statement about *route and latency*, never about access.
 """
 
 from __future__ import annotations
@@ -56,9 +71,15 @@ MODELS = {"sonnet": "sonnet", "opus5": "opus"}
 # The prompts are authored here and quoted by PROTOCOL.md; `test_runner.py`
 # holds the two copies together, so the registered text and the launched text
 # cannot drift.  Neither names a module, a plan, a method or a document.
+# The ramp prompt's three numbers are the episode's, interpolated rather than
+# typed again: `ramp.py` is the authority for how many patterns are written and
+# over what range, and a prompt that restates them can drift into describing a
+# workspace nobody built.  `test_runner.py` still pins the rendered text against
+# PROTOCOL.md, so a real change to the episode fails there rather than silently.
 PROMPTS = {
     "ramp": (
-        "Here are 68 patterns from a variable-temperature run, 25 to 720 °C. "
+        f"Here are {ramp.N_PATTERNS} patterns from a variable-temperature run, "
+        f"{ramp.T0:.0f} to {ramp.T1:.0f} °C. "
         "Refine them in order, tell me what the cell does, and flag anything "
         "you would not quote."
     ),
@@ -170,6 +191,25 @@ def check_no_inherited_context(workspace: Path) -> None:
             break
 
 
+def check_episode_inputs(episode: str, zrm: Path | None) -> None:
+    """Everything the episode needs from outside, refused before anything is spent.
+
+    Asked from `prepare` *before* `build_venv` as well as from
+    `build_workspace`: the venv is minutes of `uv pip install`, and a missing
+    third-party file is knowable before the first byte of it is downloaded.
+    """
+    if episode != "zrm":
+        return
+    if zrm is None:
+        raise SystemExit(
+            "E-ZRM needs --zrm DIR holding d8_01612.raw and "
+            "d8_01612_vt_reel_02.inp; the files are a third party's and are "
+            "not committed (PROTOCOL.md § The episodes)")
+    for name in ZRM_FILES:
+        if not (zrm / name).is_file():
+            raise SystemExit(f"missing {zrm / name}")
+
+
 def build_workspace(workspace: Path, episode: str, condition: str,
                     python: Path, zrm: Path | None) -> None:
     workspace.mkdir(parents=True, exist_ok=True)
@@ -178,16 +218,9 @@ def build_workspace(workspace: Path, episode: str, condition: str,
     if episode == "ramp":
         ramp.write_workspace(workspace)
     else:
-        if zrm is None:
-            raise SystemExit(
-                "E-ZRM needs --zrm DIR holding d8_01612.raw and "
-                "d8_01612_vt_reel_02.inp; the files are a third party's and are "
-                "not committed (PROTOCOL.md § The episodes)")
+        check_episode_inputs(episode, zrm)
         for name in ZRM_FILES:
-            source = zrm / name
-            if not source.is_file():
-                raise SystemExit(f"missing {source}")
-            shutil.copyfile(source, workspace / name)
+            shutil.copyfile(zrm / name, workspace / name)
 
     if condition == "skill":
         _run(str(python.parent / "rietx"), "skill", "--install", str(workspace), "--copy")
@@ -198,6 +231,7 @@ def prepare(root: Path, cell: str, zrm: Path | None) -> None:
     p = paths(root, cell)
     check_unprepared(p["workspace"])
     check_no_inherited_context(p["workspace"])
+    check_episode_inputs(episode, zrm)
     for key in ("log", "run"):
         p[key].parent.mkdir(parents=True, exist_ok=True)
     p["log"].touch()
@@ -260,6 +294,11 @@ def launch(root: Path, cell: str) -> None:
         record["result"] = json.loads(proc.stdout)
     except json.JSONDecodeError:
         record["stdout"] = proc.stdout[-8000:]
+    # Written before the wait, and again after it. `wait_quiet` blocks for up to
+    # half an hour, and everything that cost money — the session id `collect`
+    # needs to find the transcript at all, the cost, the turns — is already known
+    # here: a Ctrl-C or a crash during the wait must not lose a paid run.
+    p["run"].write_text(json.dumps(record, indent=1), encoding="utf-8")
     outlived, gave_up = wait_quiet(p["log"])
     record["outlived_session_seconds"] = round(outlived, 1)
     record["still_writing_at_limit"] = gave_up

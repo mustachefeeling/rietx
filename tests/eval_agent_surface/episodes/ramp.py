@@ -11,7 +11,7 @@ can be rebuilt instead of being a directory somebody kept
 (``~/rietx-agent-runs/2026-08-26-insitu-ramp/``).  The simulation half is
 unchanged — same seed, same grid, same order of draws — so the patterns are
 byte-for-byte the ones that run was given, which is what makes the baseline's
-economics comparable at all.  `test_ramp_episode.py` asserts that against the
+economics comparable at all.  `test_episode_ramp.py` asserts that against the
 preserved copy when it is present and skips when it is not.  The half that is
 new is the writer: the original script simulated and refined in one process and
 never wrote the patterns out.

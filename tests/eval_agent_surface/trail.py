@@ -208,6 +208,7 @@ class Trace:
     outer: Counter = field(default_factory=Counter)
     seconds: dict[str, float] = field(default_factory=dict)
     processes: int = 0
+    exits: int = 0
     import_seconds: float = 0.0
     process_wall: float = 0.0
     kwargs: dict[str, Counter] = field(default_factory=dict)
@@ -230,7 +231,15 @@ class Trace:
 
     @property
     def floor_share(self) -> float | None:
-        """R8: import plus kernel load against the processes' whole wall clock."""
+        """R8: import plus kernel load against the processes' whole wall clock.
+
+        The denominator comes from `atexit`, which does not run under SIGKILL or
+        `os._exit`: a backgrounded chain the agent killed contributes its
+        `import_dt` to the numerator and nothing here, so the share is an
+        **over**-estimate whenever `exits` is short of `processes`.  Reported
+        rather than clamped — `render` says so — because a clamped share and a
+        true one read alike.
+        """
         return self.import_seconds / self.process_wall if self.process_wall else None
 
 
@@ -254,6 +263,7 @@ def trace(rows: list[dict]) -> Trace:
             out.import_seconds += float(row.get("import_dt") or 0.0)
             out.missing.update(row.get("missing") or ())
         elif event == "exit":
+            out.exits += 1
             out.process_wall += float(row.get("wall") or 0.0)
     return out
 
@@ -266,9 +276,13 @@ def render(rows: list[dict], trace_rows: list[dict] | None = None) -> str:
 
     by_tool = Counter(c.tool for c in calls)
     errors = sum(1 for c in calls if c.error)
+    # A call whose result never arrived is neither, and folding it into "not
+    # errored" is the defaulted `False` this module refuses one rank up.
+    unknown = sum(1 for c in calls if c.error is None)
     lines.append(f"{len(calls)} tool calls "
                  f"({', '.join(f'{n} {t}' for t, n in by_tool.most_common())}), "
-                 f"{errors} errored")
+                 f"{errors} errored"
+                 + (f", {unknown} unanswered" if unknown else ""))
     wall = f"{bill.wall_seconds / 60:.1f} min" if bill.wall_seconds else "?"
     lines.append(f"{bill.api_calls} API calls, {wall} wall, "
                  f"{bill.cache_read / 1e6:.2f} M cache-read, "
@@ -286,10 +300,17 @@ def render(rows: list[dict], trace_rows: list[dict] | None = None) -> str:
                      + (f" ({seen.fit_seconds / bill.wall_seconds:.1%} of wall)"
                         if bill.wall_seconds else ""))
         if seen.fit_calls:
-            lines.append(f"{by_tool.get('Bash', 0) / seen.fit_calls:.1f} Bash calls per fit")
+            # Two decimals: one rounds a real ratio (37 Bash over 852 fits) to
+            # `0.0`, which reads as "no Bash at all" — and the ratio is smallest
+            # exactly where the surface worked.
+            lines.append(f"{by_tool.get('Bash', 0) / seen.fit_calls:.2f} Bash calls per fit")
         if seen.floor_share is not None:
             lines.append(f"per-process floor {seen.import_seconds:.1f} s of "
-                         f"{seen.process_wall:.1f} s ({seen.floor_share:.1%})")
+                         f"{seen.process_wall:.1f} s ({seen.floor_share:.1%})"
+                         + ("" if seen.exits >= seen.processes else
+                            f" — OVERSTATED: {seen.processes - seen.exits} traced "
+                            "process(es) left no exit row, so their wall clock is "
+                            "missing from the denominator"))
         for name, n in sorted(seen.calls.items()):
             marks = seen.kwargs.get(name) or Counter()
             detail = " [" + ", ".join(k for k, _ in marks.most_common(6)) + "]" if marks else ""

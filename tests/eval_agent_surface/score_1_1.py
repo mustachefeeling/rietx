@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 HARNESS = Path(__file__).resolve().parent
@@ -59,12 +60,54 @@ def read_cell(root: Path, cell: str) -> dict | None:
         return None
     record = json.loads(p["run"].read_text(encoding="utf-8"))
     result = record.get("result") or {}
-    seen = trail.trace(trail.load(p["log"])) if p["log"].is_file() else trail.Trace()
+    log_rows = trail.load(p["log"]) if p["log"].is_file() else []
+    seen = trail.trace(log_rows) if log_rows else trail.Trace()
     transcript = runner.transcript_for(root, cell)
     rows = trail.load(transcript) if transcript else []
     return {"cell": cell, "record": record, "result": result, "trace": seen,
-            "transcript": transcript, "bill": trail.usage(rows),
-            "calls": trail.tool_calls(rows)}
+            "log_rows": log_rows, "transcript": transcript,
+            "bill": trail.usage(rows), "calls": trail.tool_calls(rows)}
+
+
+def plans(cell: dict) -> list[str]:
+    """Which plan each fitting call named, and how often, plus the unnamed ones.
+
+    Printed beside R1 because **the plan is most of the cost**: measured across
+    the ramp episode, `mccusker_default` costs 0.057-0.086 s per pattern-fit in
+    every cell and both models, against 0.731 s for `lab_bragg_brentano` — so a
+    cost row read without it invites "this agent did 14× less work" where the
+    truth is "this agent chose a preset 14× cheaper per fit".
+
+    It is a **read-out and not a condition**. Which plan an agent reaches for is
+    downstream of the guidance under test, so fixing it would hold constant one
+    of the things the round is trying to see, and nothing in the field fixes it
+    either. An unnamed plan is counted separately: `plan` passed as an object
+    rather than a preset name is itself a choice, and the trace cannot record
+    the object.
+
+    **Outermost calls only.** A chain resolves its preset once and hands the
+    object down, so every per-pattern fit inside it carries an unnamed plan;
+    counting those buries the agent's own choice under its consequences (1013
+    inherited against 58 chosen, in the worst cell measured).
+    """
+    named: Counter = Counter()
+    passed = 0
+    for row in cell["log_rows"]:
+        if row.get("event") != "call" or row.get("depth"):
+            continue
+        if row.get("name") not in trail.FIT_CALLS:
+            continue
+        if "plan" not in (row.get("kwargs") or ()):
+            continue
+        passed += 1
+        plan = (row.get("values") or {}).get("plan")
+        if plan is not None:
+            named[plan] += 1
+    out = [f"{plan}×{count}" for plan, count in named.most_common()]
+    unnamed = passed - sum(named.values())
+    if unnamed > 0:
+        out.append(f"unnamed plan object×{unnamed}")
+    return out or ["none passed (defaults)"]
 
 
 def _row(cell: dict) -> str:
@@ -88,6 +131,11 @@ def report(root: Path, cells: list[str]) -> str:
            f"{'wall m':>7} {'fit s':>7} {'  $':>7}",
            *(_row(c) for c in found), ""]
 
+    out.append("R1b — the plan each agent chose (most of the cost above)")
+    for c in found:
+        out.append(f"  {c['cell']:<20} {', '.join(plans(c))}")
+    out.append("")
+
     out.append("R2 — surfaces reached")
     for c in found:
         calls = c["trace"].calls
@@ -105,7 +153,13 @@ def report(root: Path, cells: list[str]) -> str:
     out.append("R7/R8/R9 — scaffolding, floor, build")
     for c in found:
         seen, bash = c["trace"], sum(1 for k in c["calls"] if k.tool == "Bash")
-        ratio = f"{bash / seen.fit_calls:.1f}" if seen.fit_calls else "no traced fit"
+        # Two decimals, because one rounds a real ratio to `0.0` and that reads
+        # as "no Bash at all": measured 37 Bash over 852 outermost fits in
+        # `ramp-skill-opus5`, an agent that looped inside one script rather
+        # than spending a shell call per fit. The scaffolding ratio is small
+        # exactly where the surface worked, so the format has to hold a small
+        # number apart from zero.
+        ratio = f"{bash / seen.fit_calls:.2f}" if seen.fit_calls else "no traced fit"
         floor = f"{seen.floor_share:.1%}" if seen.floor_share is not None else "?"
         log = runner.paths(root, c["cell"])["log"]
         rows = trail.load(log) if log.is_file() else []
