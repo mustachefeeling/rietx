@@ -51,6 +51,7 @@ import pytest
 
 import rietx as rx
 from rietx.io.recipe import read_recipe, write_recipe_tables
+from rietx.strategy.staged import INTERMEDIATE_FTOL
 
 DATA = Path(__file__).parent / "data" / "powderline"
 pytestmark = [pytest.mark.slow, pytest.mark.xdist_group("powderline")]
@@ -62,18 +63,18 @@ ENVELOPE_PPM = 300.0
 
 def _cell_report(path: Path) -> dict[str, float]:
     return {r[0]: float(r[1])
-            for r in csv.reader(path.read_text().splitlines()[1:]) if r}
+            for r in csv.reader(path.read_text(encoding="utf-8").splitlines()[1:]) if r}
 
 
 def _gsas_rwp(path: Path) -> float:
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         if "Final refinement wR" in line:
             return float(line.split("wR =")[1].split("%")[0]) / 100.0
     raise AssertionError(f"no wR line in {path}")
 
 
 def _topas_rwp(path: Path) -> float:
-    for row in csv.reader(path.read_text().splitlines()):
+    for row in csv.reader(path.read_text(encoding="utf-8").splitlines()):
         if row and row[0] == "r_wp":
             return float(row[1]) / 100.0
     raise AssertionError(f"no r_wp row in {path}")
@@ -81,6 +82,28 @@ def _topas_rwp(path: Path) -> float:
 
 def _fit(name: str):
     recipe = read_recipe(DATA / name / "input.json")
+
+    # **Anomalous scattering is declined, and `read_recipe` declined it** —
+    # asserted here rather than inherited, because a suite whose numbers move
+    # when a default moves is not pinning a protocol.  λ = 0.1665 Å is 74.5 keV,
+    # outside the bundled Cromer-Liberman table's 3-70 keV band, and every edge
+    # of every species in these recipes is more than an order of magnitude
+    # below it — so f = f₀ is the correct limit rather than a concession, and
+    # extrapolating the table is what would be wrong.  The reader says so with
+    # `RECIPE_DISPERSION_DECLINED`; setting it again makes the declaration
+    # local to the numbers below.
+    assert recipe.instrument.source.dispersion is None
+    recipe.instrument.source.dispersion = None
+
+    # **`intermediate_ftol` stays at the shipped value**, so these figures are
+    # what a caller's own `read_recipe` → `fit` produces rather than a
+    # converge-everything variant nothing ships.  The plan is this package's
+    # route to the recipe's single free set (§ the module docstring), and its
+    # last stage takes the solver default either way — so the schedule can only
+    # affect how the intermediate stages hand over, which is exactly the thing
+    # a user would meet.
+    assert recipe.plan.intermediate_ftol == INTERMEDIATE_FTOL
+
     ref = rx.Refinement(recipe.structure, recipe.instrument, history=False)
     result = ref.fit(recipe.pattern, plan=recipe.plan,
                      two_theta_limits=recipe.limits)
@@ -180,7 +203,7 @@ def test_drx_phase_scales_are_the_same_answer_as_topas(drx):
     topas = {}
     for row in csv.DictReader(
             (DATA / "example_DRX_33" /
-             "output/topas/refined_parameters.csv").read_text().splitlines()):
+             "output/topas/refined_parameters.csv").read_text(encoding="utf-8").splitlines()):
         if row["category"] == "scale":
             topas[row["phase_name"]] = float(row["value"])
     mine = {p.name: p.scale.value for p in ref.fitted_structure.phases}
@@ -218,7 +241,7 @@ def test_lab6_drawn_peak_widths_match_the_reference_profile(lab6):
     recipe, _, result = lab6
     rows = [ln.split() for ln in
             (DATA / "example_LaB6" /
-             "output/fit_profile.txt").read_text().splitlines()[1:]]
+             "output/fit_profile.txt").read_text(encoding="utf-8").splitlines()[1:]]
     a = np.asarray([[float(v) for v in r] for r in rows])
     their_tth, their_peak = a[:, 0], a[:, 3] - a[:, 5]
     my_tth = np.asarray(result.two_theta)
@@ -296,7 +319,7 @@ def test_lab6_background_peak_is_the_degenerate_direction_both_engines_found(
     gsas = {r["descriptive_name"]: (float(r["value"]), float(r["esd"]))
             for r in csv.DictReader(
                 (DATA / "example_LaB6" /
-                 "output/refined_parameters.csv").read_text().splitlines())}
+                 "output/refined_parameters.csv").read_text(encoding="utf-8").splitlines())}
     position, esd = gsas["background_peak_0_position"]
     assert position > 1e9 and esd == 0.0     # walked off, and unmeasured
 
@@ -314,7 +337,7 @@ def test_the_written_tables_reproduce_the_answer_they_came_from(drx, tmp_path):
     assert cells["cell_beta"] == pytest.approx(mono.cell.beta.value, rel=1e-8)
     profile = np.asarray(
         [[float(v) for v in ln.split("\t")]
-         for ln in paths["fit_profile"].read_text().splitlines()[1:]])
+         for ln in paths["fit_profile"].read_text(encoding="utf-8").splitlines()[1:]])
     assert profile.shape[0] == len(result.two_theta)
     rwp = math.sqrt(
         np.sum(profile[:, 2] * (profile[:, 1] - profile[:, 3]) ** 2)

@@ -160,6 +160,19 @@ DATASETS: dict[str, Dataset] = {
         "GSAS-II LabData tutorial fluorapatite; FAP.EXP is GSAS's converged "
         "fit and supplies both the reference values and the protocol",
         "cross_code"),
+    "powderline_lab6": Dataset(
+        "powderline/example_LaB6/input.json",
+        "NSLS-II 28-ID-1 SRM 660c LaB6, lambda = 0.1665 A, as a PowderLine "
+        "recipe with the SRM cell HELD -- an instrument-profile calibration, "
+        "so there is no cell to compare and the reference is the profile "
+        "GSAS-II and TOPAS each drew",
+        "cross_code"),
+    "powderline_drx33": Dataset(
+        "powderline/example_DRX_33/input.json",
+        "NSLS-II 28-ID-1 disordered-rocksalt cathode + Li4MgWO6, two phases, "
+        "as a PowderLine recipe.  The only dataset here with TWO committed "
+        "reference engines, and they disagree by 2665 ppm on the cubic cell",
+        "cross_code"),
     "hl2": Dataset(
         "hl2_peaks.txt",
         "74 peaks from a genuinely UNIDENTIFIED laboratory pattern -- our own "
@@ -392,6 +405,154 @@ CLAIMS: tuple[Claim, ...] = (
                  "c -424 ppm, the same uniform d-scale systematic the Rietveld "
                  "row measures at -313 / -283; Rwp 0.150, GoF 1.67",
         starts=2,
+    ),
+    # ---- PowderLine: the only fixtures with TWO reference engines --------
+    Claim(
+        "test_acceptance_powderline", "test_drx_cells_land_inside_the_two_engines_envelope",
+        "powderline_drx33", ("cross_code", "ceiling"),
+        "both phases' cells land inside the interval the two reference "
+        "engines bracket, widened by the FAP band at each end",
+        reference="GSAS-II and TOPAS, both committed by upstream for this "
+                  "specimen, and the bar is the SPAN they leave rather than "
+                  "either of them: they differ by 2665 ppm on the cubic a "
+                  "and 386-1770 ppm on the monoclinic phase's four free "
+                  "parameters, so the WP's original +/-300 ppm against both "
+                  "is arithmetically impossible.  +/-300 ppm of slack at "
+                  "each end of the span is the FAP cross-code band applied "
+                  "where it can mean something",
+        measured="every free parameter inside the span with margin; the two "
+                 "engines' own gap is 386-2668 ppm",
+    ),
+    Claim(
+        "test_acceptance_powderline",
+        "test_drx_agrees_with_topas_far_more_closely_than_the_engines_agree",
+        "powderline_drx33", ("cross_code", "characterisation"),
+        "this package sits on TOPAS's side of the two engines' disagreement "
+        "by an order of magnitude, which is the finding the envelope gate "
+        "cannot state",
+        reference="the two engines' own spread on the same five free cell "
+                  "parameters.  A one-sided claim on purpose: it asserts "
+                  "WHERE in the argument this answer falls, not that either "
+                  "engine is right.  GSAS-II reports two SVD singularities "
+                  "and 100 % Mustrain;mx/;i correlation on this recipe and "
+                  "returns a negative crystallite size for phase 1, so "
+                  "neither reference is truth here",
+        measured="worst deviation from TOPAS 93 ppm (bar 200) against an "
+                 "engine-to-engine gap of 2668 ppm (bar 1000); the ratio "
+                 "asserted under a tenth",
+    ),
+    Claim(
+        "test_acceptance_powderline",
+        "test_drx_rwp_is_reported_beside_both_engines_and_gated_at_neither",
+        "powderline_drx33", ("ceiling",),
+        "Rwp is a regression ceiling and is reported beside both engines' "
+        "own figures, which are READ from their committed files",
+        reference="deliberately nothing: an Rwp comparison is never this "
+                  "package's evidence, and the two references disagree by "
+                  "3.5 percentage points on this specimen anyway.  The "
+                  "assertion is a 0.15 ceiling plus a 0.01 band on TOPAS, "
+                  "which is a sanity check and not an accuracy claim",
+        measured="Rwp 7.333 % against TOPAS's 7.326 % and GSAS-II's 10.83 %",
+    ),
+    Claim(
+        "test_acceptance_powderline", "test_drx_phase_scales_are_the_same_answer_as_topas",
+        "powderline_drx33", ("cross_code",),
+        "the phase-scale RATIO agrees with TOPAS's, which is the quantity "
+        "the recipe exists to produce and the only transferable one",
+        reference="TOPAS's own refined scales for the same two phases.  The "
+                  "absolute values are not comparable and are not compared: "
+                  "each code normalises the scale its own way (GSAS-II "
+                  "converges four orders from TOPAS on the LaB6 fixture), "
+                  "which is why read_recipe re-seeds a recipe's scale rather "
+                  "than carrying it.  20 % relative, sized to the ratio's "
+                  "own dependence on the size/strain valley both engines "
+                  "reported singular",
+        measured="within the 20 % band; the two engines' size/strain answers "
+                 "for the same specimen differ by six orders of magnitude",
+    ),
+    Claim(
+        "test_acceptance_powderline", "test_lab6_cell_is_held_exactly_where_the_recipe_put_it",
+        "powderline_lab6", ("identity",),
+        "a cell the recipe holds comes back at exactly the value the recipe "
+        "stated, matching both engines bit for bit",
+        reference="the recipe's own 4.15682 A, which both reference engines "
+                  "also report unchanged with esd 0.  1e-9 A, an identity "
+                  "bar: a held parameter that moved would be a translation "
+                  "bug, not a refinement result",
+        measured="exact against both engines' unit_cell_report.csv",
+    ),
+    Claim(
+        "test_acceptance_powderline", "test_lab6_drawn_peak_widths_match_the_reference_profile",
+        "powderline_lab6", ("cross_code", "characterisation"),
+        "the fitted profile's peak widths reproduce GSAS-II's own calculated "
+        "profile, reflection by reflection, despite three stated model "
+        "differences that make the width COEFFICIENTS incomparable",
+        reference="the FWHM of GSAS-II's committed y_calc minus its y_bkg, "
+                  "measured on the first ten reflections.  Widths rather "
+                  "than U V W X Y Z because the reference model carries a "
+                  "constant Lorentzian Z this package has not got, a "
+                  "NEGATIVE Y whose gamma is clamped at a 0.001 centideg "
+                  "floor on 26 of its 49 reflections, and GSAS-II's own "
+                  "1 um / 1000 microstrain fill for the recipe's null "
+                  "size/strain.  The bar is 5 %, sized above those three "
+                  "rather than to the profile's own precision",
+        measured="median 1.2 %, worst 2.3 % over ten reflections",
+    ),
+    Claim(
+        "test_acceptance_powderline", "test_lab6_rwp_is_reported_beside_both_engines",
+        "powderline_lab6", ("ceiling",),
+        "Rwp is a regression ceiling, reported beside both engines' figures "
+        "read from their own committed files",
+        reference="nothing, for the reason the DRX row gives; a 0.12 ceiling "
+                  "and a 0.01 band on TOPAS, which shares neither Z nor the "
+                  "negative-Y clamp with GSAS-II",
+        measured="Rwp 8.857 % against TOPAS's 8.519 % and GSAS-II's 6.53 %",
+    ),
+    Claim(
+        "test_acceptance_powderline", "test_lab6_declares_the_three_model_differences_it_has",
+        "powderline_lab6", ("characterisation",),
+        "every place this fit differs from the reference engine's model is "
+        "SAID at read time rather than absorbed silently",
+        reference="no numeric bar: the assertion is that three diagnostic "
+                  "codes fire.  This is the row that keeps the Rwp gap above "
+                  "from being a mystery — a difference nobody declared is "
+                  "indistinguishable from a bug",
+        measured="RECIPE_FLAG_DROPPED, RECIPE_ENGINE_DEFAULT_DECLINED and "
+                 "RECIPE_BACKGROUND_PEAK_DEGENERATE all present",
+        diagnostics=("RECIPE_FLAG_DROPPED", "RECIPE_ENGINE_DEFAULT_DECLINED",
+                     "RECIPE_BACKGROUND_PEAK_DEGENERATE"),
+    ),
+    Claim(
+        "test_acceptance_powderline",
+        "test_lab6_background_peak_is_the_degenerate_direction_both_engines_found",
+        "powderline_lab6", ("characterisation",),
+        "a background peak the recipe declares wider than its own fitted "
+        "range is a degenerate direction, and this package reaches the same "
+        "verdict both reference engines did",
+        reference="the two engines' own answers for the same peak, from "
+                  "opposite ends: GSAS-II let it run to 8.77e10 deg 2theta "
+                  "at esd 0 (off the pattern, unmeasured) and TOPAS kept it "
+                  "at 1.63 deg with an esd 188x its own value.  Here it "
+                  "correlates with the low-order background at |rho| = 1 and "
+                  "its stage spends its budget.  A measured failure recorded "
+                  "as a result: the recipe is over-parameterised and no fit "
+                  "of it can say otherwise",
+        measured="HIGH_CORRELATION on the peak against the background, and "
+                 "the background_peaks stage at max_iter; GSAS-II's own "
+                 "committed position 8.77e10 with esd exactly 0",
+        diagnostics=("HIGH_CORRELATION", "STAGE_MAX_ITER"),
+    ),
+    Claim(
+        "test_acceptance_powderline", "test_the_written_tables_reproduce_the_answer_they_came_from",
+        "powderline_drx33", ("identity",),
+        "the four tables written back out carry the same answer the fit "
+        "produced -- an Rwp recomputed from the written profile reproduces "
+        "the result's own",
+        reference="this fit's own numbers, so the bar is floating point: "
+                  "1e-8 on a cell parameter and 1e-6 on an Rwp recomputed "
+                  "from the file's y_obs, y_calc and y_weights columns.  A "
+                  "writer that dropped or reordered a channel would fail it",
+        measured="orders inside both bars",
     ),
     # ---- FAP: the one cross-code row ------------------------------------
     Claim(
@@ -2036,6 +2197,12 @@ SUITE_INTROS: dict[str, str] = {
     "test_acceptance_fap":
         "The one cross-code comparison. GSAS-II's converged fluorapatite "
         "tutorial, with its protocol mirrored parameter for parameter.",
+    "test_acceptance_powderline":
+        "The only fixtures carrying **two** reference engines, and they "
+        "disagree: 2665 ppm on a cell where the FAP band is 300, because "
+        "GSAS-II reports its own fit singular. So the bar is the envelope "
+        "the two engines bracket, and where this package falls inside it is "
+        "the finding rather than the gate.",
     "test_acceptance_nac":
         "The synchrotron vertical slice, and the FitReport's impurity claim: "
         "CaF2 is found from unmatched peaks rather than declared.",

@@ -41,12 +41,12 @@ DRX = DATA / "example_DRX_33"
 
 @pytest.fixture(scope="module")
 def lab6_doc() -> dict:
-    return json.loads((LAB6 / "input.json").read_text())
+    return json.loads((LAB6 / "input.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
 def drx_doc() -> dict:
-    return json.loads((DRX / "input.json").read_text())
+    return json.loads((DRX / "input.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
@@ -129,7 +129,7 @@ def test_conventions_reproduce_the_reference_peak_list(lab6_doc):
     softplus-bounded and monotone in tanθ, so it cannot reproduce that shape —
     which is a stated part of the Rwp gap in ``test_acceptance_powderline.py``.
     """
-    lines = (LAB6 / "output/LaB6_peak_list_report.csv").read_text().splitlines()
+    lines = (LAB6 / "output/LaB6_peak_list_report.csv").read_text(encoding="utf-8").splitlines()
     head = lines[0].split(",")
     col = {n: i for i, n in enumerate(head)}
     rows = [[float(v) for v in ln.split(",")] for ln in lines[1:]]
@@ -137,7 +137,7 @@ def test_conventions_reproduce_the_reference_peak_list(lab6_doc):
     # the refined values, from their own refined_parameters.csv
     refined = {}
     for r in csv.DictReader(
-            (LAB6 / "output/refined_parameters.csv").read_text().splitlines()):
+            (LAB6 / "output/refined_parameters.csv").read_text(encoding="utf-8").splitlines()):
         refined[r["descriptive_name"]] = float(r["value"])
     U = refined["instrument_broadening_U"]
     V = refined["instrument_broadening_V"]
@@ -358,7 +358,7 @@ def test_a_missing_file_and_bad_json_both_name_the_file(tmp_path):
     with pytest.raises(RecipeError, match="cannot be read"):
         read_recipe(tmp_path / "nope.json")
     bad = tmp_path / "bad.json"
-    bad.write_text("{not json")
+    bad.write_text("{not json", encoding="utf-8")
     with pytest.raises(RecipeError, match="not valid JSON"):
         read_recipe(bad)
 
@@ -440,7 +440,7 @@ def test_the_reference_engines_fit_one_more_channel_than_this_mask():
     the recipe's stated upper limit of 15.
     """
     rows = [ln.split() for ln in
-            (LAB6 / "output/fit_profile.txt").read_text().splitlines()[1:]]
+            (LAB6 / "output/fit_profile.txt").read_text(encoding="utf-8").splitlines()[1:]]
     a = np.asarray([[float(v) for v in r] for r in rows])
     fitted = a[a[:, 3] != 0.0]
     assert fitted.shape[0] == 3768
@@ -553,15 +553,15 @@ def written(tmp_path_factory, drx):
 def test_the_contracted_headers_match_both_engines_byte_for_byte(
         written, engine, key, name):
     _, _, paths = written
-    theirs = (DRX / engine / name).read_text().splitlines()[0]
-    ours = paths[key].read_text().splitlines()[0]
+    theirs = (DRX / engine / name).read_text(encoding="utf-8").splitlines()[0]
+    ours = paths[key].read_text(encoding="utf-8").splitlines()[0]
     assert ours == theirs
 
 
 def test_the_fit_profile_header_matches_byte_for_byte(written):
     _, _, paths = written
-    theirs = (DRX / "output/fit_profile.txt").read_text().splitlines()[0]
-    assert paths["fit_profile"].read_text().splitlines()[0] == theirs
+    theirs = (DRX / "output/fit_profile.txt").read_text(encoding="utf-8").splitlines()[0]
+    assert paths["fit_profile"].read_text(encoding="utf-8").splitlines()[0] == theirs
     assert theirs.split("\t") == list(FIT_PROFILE_HEADER)
 
 
@@ -573,9 +573,9 @@ def test_the_peak_list_header_is_not_a_contract_and_says_so():
     "theirs" has no referent when the two of them disagree.
     """
     gsas = (DRX / "output/DRX_33_peak_list_report.csv"
-            ).read_text().splitlines()[0].split(",")
+            ).read_text(encoding="utf-8").splitlines()[0].split(",")
     topas = (DRX / "output/topas/DRX_33_peak_list_report.csv"
-             ).read_text().splitlines()[0].split(",")
+             ).read_text(encoding="utf-8").splitlines()[0].split(",")
     assert gsas != topas
     shared = [c for c in gsas if c in topas]
     assert len(shared) == 9 and len(gsas) == 15 and len(topas) == 11
@@ -587,7 +587,7 @@ def test_the_peak_list_header_is_not_a_contract_and_says_so():
 def test_refined_parameters_carries_only_refined_rows_with_esds(written):
     ref, _, paths = written
     rows = list(csv.DictReader(
-        paths["refined_parameters"].read_text().splitlines()))
+        paths["refined_parameters"].read_text(encoding="utf-8").splitlines()))
     assert [r["parameter_name"] for r in rows]
     assert all(r["esd"] for r in rows)
     assert {r["category"] for r in rows} >= {
@@ -603,7 +603,7 @@ def test_refined_parameters_carries_only_refined_rows_with_esds(written):
 def test_the_unit_cell_report_writes_a_volume_with_no_esd(written):
     _, _, paths = written
     rows = list(csv.reader(
-        paths["unit_cell:DRX_33"].read_text().splitlines()))
+        paths["unit_cell:DRX_33"].read_text(encoding="utf-8").splitlines()))
     assert rows[0] == list(UNIT_CELL_HEADER)
     names = [r[0] for r in rows[1:]]
     assert names == ["cell_a", "cell_b", "cell_c", "cell_alpha", "cell_beta",
@@ -620,7 +620,7 @@ def test_the_peak_list_widths_round_trip_through_the_read_conversion(written):
     """Written sigma_squared/gamma, converted back, are this fit's own widths."""
     ref, _, paths = written
     rows = list(csv.DictReader(
-        paths["peak_list:DRX_33"].read_text().splitlines()))
+        paths["peak_list:DRX_33"].read_text(encoding="utf-8").splitlines()))
     assert rows
     phase = ref.fitted_structure.phases[0]
     p = ref.fitted_instrument.profile
@@ -645,7 +645,7 @@ def test_the_peak_list_widths_round_trip_through_the_read_conversion(written):
 
 def test_the_fit_profile_columns_are_what_the_header_names(written):
     ref, _, paths = written
-    lines = paths["fit_profile"].read_text().splitlines()
+    lines = paths["fit_profile"].read_text(encoding="utf-8").splitlines()
     assert len(lines) - 1 == len(ref.result_.two_theta)
     a = np.asarray([[float(v) for v in ln.split("\t")] for ln in lines[1:]])
     lam = ref.fitted_instrument.source.lines[0].wavelength.value
@@ -655,7 +655,7 @@ def test_the_fit_profile_columns_are_what_the_header_names(written):
     s = np.sin(np.radians(a[:, 0] / 2.0))
     assert np.allclose(a[:, 6], 4.0 * np.pi * s / lam)             # q
     assert np.allclose(a[:, 7], lam / (2.0 * s))                   # d
-    assert "\r" not in paths["fit_profile"].read_text()            # pure LF
+    assert "\r" not in paths["fit_profile"].read_text(encoding="utf-8")            # pure LF
 
 
 def test_the_writer_refuses_a_refinement_that_has_not_run(drx):
@@ -666,9 +666,9 @@ def test_the_writer_refuses_a_refinement_that_has_not_run(drx):
 
 def test_every_written_header_constant_is_the_one_the_file_carries(written):
     _, _, paths = written
-    assert (paths["refined_parameters"].read_text().splitlines()[0]
+    assert (paths["refined_parameters"].read_text(encoding="utf-8").splitlines()[0]
             == ",".join(REFINED_PARAMETERS_HEADER))
-    assert (paths["unit_cell:DRX_33"].read_text().splitlines()[0]
+    assert (paths["unit_cell:DRX_33"].read_text(encoding="utf-8").splitlines()[0]
             == ",".join(UNIT_CELL_HEADER))
-    assert (paths["peak_list:DRX_33"].read_text().splitlines()[0]
+    assert (paths["peak_list:DRX_33"].read_text(encoding="utf-8").splitlines()[0]
             == ",".join(PEAK_LIST_HEADER))

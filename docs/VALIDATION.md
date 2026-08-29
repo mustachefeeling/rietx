@@ -89,6 +89,8 @@ either fine or broken depending on which seed the suite happened to pin.
 | `si640c` | `tests/data/11BM_Si640c.xy` | cross-code | APS 11-BM synchrotron NIST SRM 640c silicon, run 4918 (Feb 2010), the beamline's provided standard scan; lambda seeded at the header's stated 0.412359 A and refined against the held certificate cell.  Real propagated esds (twelve analysers).  The refined wavelength is cross-code against XND 1.42; the held cell is the NIST certificate |
 | `nac` | `tests/data/11BM_NAC.fxye` | characterisation | APS 11-BM synchrotron Na2Ca3Al2F14 with a CaF2 impurity, lambda = 0.4139090 A from the .prm |
 | `fap` | `tests/data/FAP.XRA` | cross-code | GSAS-II LabData tutorial fluorapatite; FAP.EXP is GSAS's converged fit and supplies both the reference values and the protocol |
+| `powderline_lab6` | `tests/data/powderline/example_LaB6/input.json` | cross-code | NSLS-II 28-ID-1 SRM 660c LaB6, lambda = 0.1665 A, as a PowderLine recipe with the SRM cell HELD -- an instrument-profile calibration, so there is no cell to compare and the reference is the profile GSAS-II and TOPAS each drew |
+| `powderline_drx33` | `tests/data/powderline/example_DRX_33/input.json` | cross-code | NSLS-II 28-ID-1 disordered-rocksalt cathode + Li4MgWO6, two phases, as a PowderLine recipe.  The only dataset here with TWO committed reference engines, and they disagree by 2665 ppm on the cubic cell |
 | `hl2` | `tests/data/hl2_peaks.txt` | characterisation | 74 peaks from a genuinely UNIDENTIFIED laboratory pattern -- our own derived product from datalab-org/guillemot's MIT examples, carried with attribution; the compound is unknown and stays unknown |
 | `qarr` | `tests/data/qarr` | **absolute anchor** | IUCr CPD QPA round-robin patterns (samples 1a-1h, 2, 4 and six pure phases), Cu Ka doublet, graphite diffracted-beam monochromator |
 | `srm660a_capillary` | `tests/data/11BM_LaB6_660a.fxye` | consistency only — *never* an anchor | APS 11-BM SRM 660a LaB6 in the beamline's documented 0.81 mm Kapton bore; lambda was calibrated against this very standard |
@@ -233,6 +235,114 @@ The second absolute anchor, and the sharper one — but only on the axial ratio,
 **Referenced to:** ITA's rhombohedral/hexagonal relations for an R lattice (a_H = 2 a_R sin(alpha/2), c_H = a_R sqrt(3 + 6 cos alpha), V_H = 3 V_R) as the identity bar, and this package's own hexagonal-axes Le Bail fit of the same pattern from the same physical starting lattice as the own_result bar.  **No certificate claim**: the +-1e-3 band against SRM 676a is a sanity check that the fit found the right lattice, not a graded comparison — this is Le Bail with only w/u/v/x/y and lor_size free, deliberately looser than the Rietveld row above, which owns this specimen's certificate claim.  Registered because WP-1036 made the RHOMBOHEDRAL description representable at all; before it, c refined free of a and all three angles were locked, so this row could not have been written
 
 **Measured:** a = b = c and alpha = beta = gamma bitwise after the fit; alpha walks 54.987 -> 55.292 from a 0.3 deg displacement (certificate 55.287); the two descriptions agree to 1.4e-9 (a) and 1.2e-8 (c) relative with Rwp equal to five decimals; V_H = 3 V_R to 1e-9; against the certificate a -312 / c -424 ppm, the same uniform d-scale systematic the Rietveld row measures at -313 / -283; Rwp 0.150, GoF 1.67
+
+### `tests/test_acceptance_powderline.py`
+
+The only fixtures carrying **two** reference engines, and they disagree: 2665 ppm on a cell where the FAP band is 300, because GSAS-II reports its own fit singular. So the bar is the envelope the two engines bracket, and where this package falls inside it is the finding rather than the gate.
+
+#### `test_drx_cells_land_inside_the_two_engines_envelope`
+
+`cross_code` `ceiling` · dataset `powderline_drx33`
+
+**Claims:** both phases' cells land inside the interval the two reference engines bracket, widened by the FAP band at each end
+
+**Referenced to:** GSAS-II and TOPAS, both committed by upstream for this specimen, and the bar is the SPAN they leave rather than either of them: they differ by 2665 ppm on the cubic a and 386-1770 ppm on the monoclinic phase's four free parameters, so the WP's original +/-300 ppm against both is arithmetically impossible.  +/-300 ppm of slack at each end of the span is the FAP cross-code band applied where it can mean something
+
+**Measured:** every free parameter inside the span with margin; the two engines' own gap is 386-2668 ppm
+
+#### `test_drx_agrees_with_topas_far_more_closely_than_the_engines_agree`
+
+`cross_code` `characterisation` · dataset `powderline_drx33`
+
+**Claims:** this package sits on TOPAS's side of the two engines' disagreement by an order of magnitude, which is the finding the envelope gate cannot state
+
+**Referenced to:** the two engines' own spread on the same five free cell parameters.  A one-sided claim on purpose: it asserts WHERE in the argument this answer falls, not that either engine is right.  GSAS-II reports two SVD singularities and 100 % Mustrain;mx/;i correlation on this recipe and returns a negative crystallite size for phase 1, so neither reference is truth here
+
+**Measured:** worst deviation from TOPAS 93 ppm (bar 200) against an engine-to-engine gap of 2668 ppm (bar 1000); the ratio asserted under a tenth
+
+#### `test_drx_rwp_is_reported_beside_both_engines_and_gated_at_neither`
+
+`ceiling` · dataset `powderline_drx33`
+
+**Claims:** Rwp is a regression ceiling and is reported beside both engines' own figures, which are READ from their committed files
+
+**Referenced to:** deliberately nothing: an Rwp comparison is never this package's evidence, and the two references disagree by 3.5 percentage points on this specimen anyway.  The assertion is a 0.15 ceiling plus a 0.01 band on TOPAS, which is a sanity check and not an accuracy claim
+
+**Measured:** Rwp 7.333 % against TOPAS's 7.326 % and GSAS-II's 10.83 %
+
+#### `test_drx_phase_scales_are_the_same_answer_as_topas`
+
+`cross_code` · dataset `powderline_drx33`
+
+**Claims:** the phase-scale RATIO agrees with TOPAS's, which is the quantity the recipe exists to produce and the only transferable one
+
+**Referenced to:** TOPAS's own refined scales for the same two phases.  The absolute values are not comparable and are not compared: each code normalises the scale its own way (GSAS-II converges four orders from TOPAS on the LaB6 fixture), which is why read_recipe re-seeds a recipe's scale rather than carrying it.  20 % relative, sized to the ratio's own dependence on the size/strain valley both engines reported singular
+
+**Measured:** within the 20 % band; the two engines' size/strain answers for the same specimen differ by six orders of magnitude
+
+#### `test_lab6_cell_is_held_exactly_where_the_recipe_put_it`
+
+`identity` · dataset `powderline_lab6`
+
+**Claims:** a cell the recipe holds comes back at exactly the value the recipe stated, matching both engines bit for bit
+
+**Referenced to:** the recipe's own 4.15682 A, which both reference engines also report unchanged with esd 0.  1e-9 A, an identity bar: a held parameter that moved would be a translation bug, not a refinement result
+
+**Measured:** exact against both engines' unit_cell_report.csv
+
+#### `test_lab6_drawn_peak_widths_match_the_reference_profile`
+
+`cross_code` `characterisation` · dataset `powderline_lab6`
+
+**Claims:** the fitted profile's peak widths reproduce GSAS-II's own calculated profile, reflection by reflection, despite three stated model differences that make the width COEFFICIENTS incomparable
+
+**Referenced to:** the FWHM of GSAS-II's committed y_calc minus its y_bkg, measured on the first ten reflections.  Widths rather than U V W X Y Z because the reference model carries a constant Lorentzian Z this package has not got, a NEGATIVE Y whose gamma is clamped at a 0.001 centideg floor on 26 of its 49 reflections, and GSAS-II's own 1 um / 1000 microstrain fill for the recipe's null size/strain.  The bar is 5 %, sized above those three rather than to the profile's own precision
+
+**Measured:** median 1.2 %, worst 2.3 % over ten reflections
+
+#### `test_lab6_rwp_is_reported_beside_both_engines`
+
+`ceiling` · dataset `powderline_lab6`
+
+**Claims:** Rwp is a regression ceiling, reported beside both engines' figures read from their own committed files
+
+**Referenced to:** nothing, for the reason the DRX row gives; a 0.12 ceiling and a 0.01 band on TOPAS, which shares neither Z nor the negative-Y clamp with GSAS-II
+
+**Measured:** Rwp 8.857 % against TOPAS's 8.519 % and GSAS-II's 6.53 %
+
+#### `test_lab6_declares_the_three_model_differences_it_has`
+
+`characterisation` · dataset `powderline_lab6`
+
+**Claims:** every place this fit differs from the reference engine's model is SAID at read time rather than absorbed silently
+
+**Referenced to:** no numeric bar: the assertion is that three diagnostic codes fire.  This is the row that keeps the Rwp gap above from being a mystery — a difference nobody declared is indistinguishable from a bug
+
+**Measured:** RECIPE_FLAG_DROPPED, RECIPE_ENGINE_DEFAULT_DECLINED and RECIPE_BACKGROUND_PEAK_DEGENERATE all present
+
+**Diagnostics:** `RECIPE_FLAG_DROPPED`, `RECIPE_ENGINE_DEFAULT_DECLINED`, `RECIPE_BACKGROUND_PEAK_DEGENERATE`
+
+#### `test_lab6_background_peak_is_the_degenerate_direction_both_engines_found`
+
+`characterisation` · dataset `powderline_lab6`
+
+**Claims:** a background peak the recipe declares wider than its own fitted range is a degenerate direction, and this package reaches the same verdict both reference engines did
+
+**Referenced to:** the two engines' own answers for the same peak, from opposite ends: GSAS-II let it run to 8.77e10 deg 2theta at esd 0 (off the pattern, unmeasured) and TOPAS kept it at 1.63 deg with an esd 188x its own value.  Here it correlates with the low-order background at |rho| = 1 and its stage spends its budget.  A measured failure recorded as a result: the recipe is over-parameterised and no fit of it can say otherwise
+
+**Measured:** HIGH_CORRELATION on the peak against the background, and the background_peaks stage at max_iter; GSAS-II's own committed position 8.77e10 with esd exactly 0
+
+**Diagnostics:** `HIGH_CORRELATION`, `STAGE_MAX_ITER`
+
+#### `test_the_written_tables_reproduce_the_answer_they_came_from`
+
+`identity` · dataset `powderline_drx33`
+
+**Claims:** the four tables written back out carry the same answer the fit produced -- an Rwp recomputed from the written profile reproduces the result's own
+
+**Referenced to:** this fit's own numbers, so the bar is floating point: 1e-8 on a cell parameter and 1e-6 on an Rwp recomputed from the file's y_obs, y_calc and y_weights columns.  A writer that dropped or reordered a channel would fail it
+
+**Measured:** orders inside both bars
 
 ### `tests/test_acceptance_fap.py`
 

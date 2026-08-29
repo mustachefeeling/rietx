@@ -90,14 +90,16 @@ green"); series, Le Bail, Pawley, indexing through the recipe; pandas as a depen
 ## Tasks
 
 - [x] Fixtures + `README.md` provenance rows.
-- [ ] `read_recipe`: instrument block with the convention table, each row's unit measured
+- [x] `read_recipe`: instrument block with the convention table, each row's unit measured
       against the LaB₆ output; refusals by name.
-- [ ] `read_recipe`: phases, atoms, parameterization, plan.
-- [ ] `write_recipe_tables`: the four tables, headers byte for byte.
-- [ ] Acceptance (slow): DRX_33 and LaB₆ against both engines.
-- [ ] Docs: `using/data.md` (or a `using/recipe.md`), `io/CLAUDE.md` row for the format,
-      `help.py` reader-option entries if any.
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/`.
+- [x] `read_recipe`: phases, atoms, parameterization, plan.
+- [x] `write_recipe_tables`: the four tables, headers byte for byte.
+- [x] Acceptance (slow): DRX_33 and LaB₆ against both engines.
+- [x] Docs: `using/recipe.md`, `io/CLAUDE.md` section for the format (and why it is not
+      a *pattern* format), the fifteen `RECIPE_*` rows in the skill's diagnostics
+      reference. No `help.py` entry is owed: `read_recipe` takes no format option, so
+      `READER_OPTIONS` is unchanged.
+- [x] Tests + obs/calc/diff PNGs to `tests/output/`.
 
 ## Acceptance
 
