@@ -139,15 +139,22 @@ produce new ones.
       constructors are deliberately out of the denominator, with the reason
       recorded in the file — 30 of 35 are reached another way, so a partition
       over them would be 30 shrugs.)*
-- [ ] `SKILL.md` routing table: a row for *you were handed another program's
+- [x] `SKILL.md` routing table: a row for *you were handed another program's
       input file* → `references/api.md` + the manual's `recipe` page, within
       the 124 B headroom or by buying bytes without deleting a fact. Say in the
       commit message which, and what the file measured before and after.
-- [ ] §4b's Trajectory row and `references/series.md`: the background-flexibility
+      *(A dedicated row, not a merge — the "When" column is the scanning
+      surface. Bytes bought, no cap raised: 31 876 → 31 968 B, 32 B headroom
+      left, 465 lines both sides.)*
+- [x] §4b's Trajectory row and `references/series.md`: the background-flexibility
       check, on the ground that a trajectory of phase fractions is a QPA question
       at every point. Quote round 1.1's measured numbers (40-96 wt %, Rwp within
       0.01) rather than restating the LaB₆ case that `judging.md` already holds.
-- [ ] `rietx skill --install . --copy` to re-sync both committed copies.
+      *(The row carries the pointer and the headline number in ~100 B, the
+      argument goes in `series.md` where bytes are free — 4 703 → 5 887 B. Also
+      fixed a rotting count there: "Three things an operator must know" stood
+      above five bullets.)*
+- [x] `rietx skill --install . --copy` to re-sync both committed copies.
 - [ ] Tests: the gate above, plus its meta-test if the exclusion list is data.
       No refinement runs, so no `tests/output/` PNGs.
 
