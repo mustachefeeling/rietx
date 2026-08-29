@@ -27,6 +27,21 @@ the user-level skills, which on the registration machine are `tufte`,
 `yue-docs-style` and `yue-figure-style` — none of them about diffraction.  They
 are constant across cells, so they cannot produce the `skill`/`bare`
 difference, and they are declared here rather than assumed away.
+
+**And what `bare` does not withhold, measured rather than assumed.** The
+condition is the *workspace*, and the skill is reachable from outside it by two
+routes, both observed in the ramp episode: it ships inside the wheel, where
+`ramp-bare-sonnet` found it in site-packages, and the maintainer's own checkout
+sits on the registration machine, where `ramp-bare-opus5` found
+`docs/skill/rietx/SKILL.md` by `find` and read it whole.  The two are not the
+same kind of leak.  The wheel's copy is a **property of the shipped package** —
+every deployment has it, so a `bare` cell that reaches it is measuring what a
+real unprimed user would meet.  The checkout's copy is a **property of this
+machine** and no user has it.  Neither is fixed here: 1.1 is registered, and
+measuring the outstanding cells differently from the ones that have run is the
+one thing a round may not do to itself (PROTOCOL.md § This round's own
+instrument).  A sealed workspace is round 1.2's, and until it exists every
+`bare` read-out is a statement about *route and latency*, never about access.
 """
 
 from __future__ import annotations

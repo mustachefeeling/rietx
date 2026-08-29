@@ -424,6 +424,11 @@ either: a single observation cannot be split. The six remaining cells — both
 `opus-5` ramp cells and all four reel cells — are outstanding, and the reel's
 two data files are staged for them.
 
+> This section records what was known when the pilot ran and is left as
+> written. The two `opus-5` ramp cells have since run: § Results — round 1.1,
+> the ramp episode complete supersedes its statement of what is outstanding,
+> and revises how the `bare` condition may be read at all.
+
 Build `1.3.0.dev0` in both (R9). Machine rows from `score_1_1.py`, hand rows
 from the transcripts.
 
@@ -528,6 +533,160 @@ expect one found it unprompted from an empty directory.
 Both runs also read the maintainer's checkout at `/Users/yue/Code/rietx/src`,
 which is on the machine and outside the workspace. A cell cannot be sealed from
 it here; the reel cells should run with that in mind.
+
+## Results — round 1.1, the ramp episode complete, 2026-08-29
+
+Both `opus-5` ramp cells ran after the pilot, **isolated**: each `launch` held
+until the trace had been silent for 20 s, and both recorded
+`outlived_session_seconds` **0.0**, so neither overlapped the other or anything
+after it. The ramp episode is therefore at the **N = 2 per condition, one run
+per model** the protocol registered. The four reel cells are still outstanding.
+
+Build `1.3.0.dev0` in all four cells (R9). Machine rows from `score_1_1.py`,
+hand rows from the transcripts.
+
+### R1 — the price of an answer, four cells
+
+| | baseline 2026-08-26 | `bare-sonnet` | `skill-sonnet` | `bare-opus5` | `skill-opus5` |
+| --- | --- | --- | --- | --- | --- |
+| model, brief | opus-5, primed | sonnet, unprimed | sonnet, unprimed | opus-5, unprimed | opus-5, unprimed |
+| API calls | 90 | 36 | 55 | 79 | 35 |
+| cache-read | 14.6 M | 3.12 M | 4.74 M | 8.95 M | 3.07 M |
+| mean context | 168 k | 90 k | 88 k | 116 k | 92 k |
+| output | 87 k | 31 k | 44 k | 77 k | 60 k |
+| wall | 34.7 min | 7.5 min | 10.5 min | 20.1 min | 17.3 min |
+| refining | 34 s (1.6 %) | 193.5 s (43 %) | 17.5 s (2.8 %) | 253.7 s (21.0 %) | 227.0 s (21.9 %) |
+| tool calls, errored | 91, 19 | 42, 5 | 57, **1** | 78, 5 | 38, 8 |
+| cost | not recorded | $1.44 | $1.88 | $8.50 | $4.43 |
+
+Every cell is cheaper than the baseline on every price row, and the dearest of
+the four still cost 12 % fewer API calls and 39 % less cache read than a
+baseline that was **primed with the protocol**. The baseline is a different
+model, brief and build, so that stays a before-and-after rather than a contrast.
+
+### R6 — the condition, and a disagreement on every price row
+
+| row | sonnet: bare → skill | opus-5: bare → skill |
+| --- | --- | --- |
+| API calls | 36 → 55 (worse) | 79 → 35 (better) |
+| wall | 7.5 → 10.5 min (worse) | 20.1 → 17.3 min (better) |
+| cost | $1.44 → $1.88 (worse) | $8.50 → $4.43 (better) |
+| errored calls | 5 → 1 (better) | 5 → 8 (worse) |
+
+**The condition's sign flips with the model on all four rows**, and the two
+price directions are opposite to the two error directions. Under § Decision
+rules this is reported as a disagreement with both models named, and no rate is
+quoted. What the four cells jointly support is weaker and worth stating on its
+own: the spread between the cheapest and dearest cell is 2.4× in calls and 5.9×
+in money, and *the model chosen accounts for more of it than the condition does*.
+
+### R11 — three of four stopped on a §4b row, and why that is not a condition effect
+
+| cell | stopping criterion stated |
+| --- | --- |
+| `bare-sonnet` | **none — ended waiting** on a chain that had not finished |
+| `skill-sonnet` | **a §4b deliverable row** (trajectory) |
+| `bare-opus5` | **a §4b deliverable row** (trajectory) |
+| `skill-opus5` | **a §4b deliverable row** (trajectory) |
+
+Against 0 of 6 in the contributor's campaign, 0 in round 1.0 and a baseline that
+built its own rules because §4b had no trajectory row to reach for. All three
+名 that stopped there did what the row asks: each number quoted names the one
+thing that would have to be wrong for it to be wrong, and that thing was
+checked. `bare-opus5` carried the longest such list of the round, nine items,
+ending "I would report the observations and stop there. The frozen CaF₂ cell is
+the specific thing I would want explained before publishing any of this."
+
+**This cannot be read as an effect of the condition, because no cell was
+without the skill.** All four read it (§ What the ramp episode says about its
+own instrument). The count says the §4b row is reachable and gets used; it does
+not say a workspace install is what put it there.
+
+### R2 — surfaces reached, and three that nothing reached
+
+All four cells reached `capabilities()`, `Refinement.report`,
+`SeriesResult.summary(deliverable="series")`, `verify_discontinuities=True` and
+`direction="both"`. **The three checks WP-1305 turned into calls were made as
+calls by all four**, where the 2026-08-26 agent made all three by hand.
+`Refinement.suggest` was reached once, by `bare-sonnet` alone.
+
+Three surfaces were reached by **no cell**, and they fail differently:
+
+- **`viz.plot_result`, `viz.plot_for_vlm`, `viz.write_html` — zero calls.**
+  Every 1.1 workspace installs `rietx[viz]` *precisely so these are usable*,
+  which was 1.1's declared fix for a 1.0 defect (§ This round's own
+  instrument). The fix did not take. The one cell that plotted, `bare-opus5`,
+  wrote matplotlib by hand against the machine's user-level `yue-figure-style`
+  skill, then read its own three PNGs. Making the library present did not make
+  the package's plotting surface the obvious way to draw.
+- **`help_for`, `help_key_for`, `help_registry` — zero calls.** WP-1202's help
+  surface went unreached by four agents across two models, both conditions.
+- **`index_pattern` — zero calls**, though `skill-opus5` identified the second
+  phase by indexing three unmatched lines **by hand** (d ratios √(3:8:11),
+  F-centred cubic, a = 5.459 Å). An agent that wanted indexing did it itself.
+
+`read_recipe` and `write_recipe_tables` were also unreached, but E-RAMP ships no
+recipe file, so WP-1306's surface is **not testable in this episode**; the reel
+cells, which carry a `.inp`, are where that read-out exists.
+
+### R5, R7, R8, R10
+
+**R5.** `PHASE_UNCONSTRAINED` held the absent phase in **40 of 68** patterns in
+both `opus-5` cells, by their own reports, and 82 firings in `bare-sonnet`.
+Nothing ran away in any of the four: the whole both-directions chain with cold
+verification cost 187.7 s in the pilot, and total refinement was 253.7 s and
+227.0 s in the two `opus-5` cells. The same absent phase cost the baseline 27 %
+of a 35-minute session, and more than 115× that on reproduction without bounds.
+
+**R7**, Bash calls per outermost fit: 1.82, 1.40, 1.35 and **0.04**.
+`skill-opus5`'s figure is the interesting one: 37 Bash calls over 852 fits,
+because that agent looped inside one script instead of spending a shell call per
+fit. The scaffolding ratio is smallest where the surface worked, which is why
+the scorer prints two decimals rather than rounding it to `0.0`.
+
+**R8**, the per-process floor: 9.8 %, 56.8 %, 8.5 % and 14.2 % of process wall.
+The floor is a cold-start question, and the two numbers that bracket it are
+unchanged: the first `import rietx` in a fresh venv costs **14.8 s**, the next
+**0.53 s**. § A known limit of R8's numerator still applies to all four.
+
+**R10.** `bare-opus5` backgrounded three times, wired a progress file and read
+three plots while waiting; it is the first cell in any round here to background
+a fit **and deliver**. `bare-sonnet` backgrounded its chain and ended waiting.
+Neither `skill` cell backgrounded anything: both ran the chain in the
+foreground and finished inside it.
+
+### What the ramp episode says about its own instrument
+
+**No cell was without the skill, and the two `bare` cells reached it by
+different routes.** First reference, by transcript record index:
+
+| cell | first skill reference | route |
+| --- | --- | --- |
+| `skill-opus5` | record 23 | `.claude/skills/rietx/` in the workspace |
+| `skill-sonnet` | record 26 | `.claude/skills/rietx/` in the workspace |
+| `bare-opus5` | record 43 | `find` over the **maintainer's checkout**, then `docs/skill/rietx/SKILL.md` |
+| `bare-sonnet` | record 51 | `rietx skill --path`, then the **wheel's** copy in site-packages |
+
+The pilot's correction stands and is now doubled. The two leaks are not the same
+kind, and the round's conclusions depend on telling them apart:
+
+- The **wheel's** copy is a property of the shipped package. Every deployment
+  has it, so a `bare` cell that finds it there is measuring what a real unprimed
+  user would meet. That is a finding in WP-1304's favour: the skill is findable
+  by an agent with no reason to expect one.
+- The **checkout's** copy is a property of this machine, and no user has it.
+  It is contamination, not a deployment fact.
+
+Both are recorded rather than repaired: 1.1 is registered, and measuring the
+outstanding cells differently from the four that have run is the one thing a
+round may not do to itself. The consequence for reading this round is fixed and
+should not be softened later: **the registered contrast between `skill` and
+`bare` is not measurable on this machine.** What the four cells do measure is
+*route and latency* — the workspace copy is reached about twice as early in the
+record stream (23, 26 against 43, 51), and reached without a hunt.
+
+Round 1.2 owes a sealed workspace. Until it has one, a `bare` cell means "the
+skill was not offered", never "the skill was not available".
 
 ---
 

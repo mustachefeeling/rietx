@@ -105,7 +105,13 @@ def report(root: Path, cells: list[str]) -> str:
     out.append("R7/R8/R9 — scaffolding, floor, build")
     for c in found:
         seen, bash = c["trace"], sum(1 for k in c["calls"] if k.tool == "Bash")
-        ratio = f"{bash / seen.fit_calls:.1f}" if seen.fit_calls else "no traced fit"
+        # Two decimals, because one rounds a real ratio to `0.0` and that reads
+        # as "no Bash at all": measured 37 Bash over 852 outermost fits in
+        # `ramp-skill-opus5`, an agent that looped inside one script rather
+        # than spending a shell call per fit. The scaffolding ratio is small
+        # exactly where the surface worked, so the format has to hold a small
+        # number apart from zero.
+        ratio = f"{bash / seen.fit_calls:.2f}" if seen.fit_calls else "no traced fit"
         floor = f"{seen.floor_share:.1%}" if seen.floor_share is not None else "?"
         log = runner.paths(root, c["cell"])["log"]
         rows = trail.load(log) if log.is_file() else []
