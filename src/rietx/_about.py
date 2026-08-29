@@ -9,10 +9,9 @@ Two rules the values below follow, and they point in opposite directions:
 
 * **The brand tokens track the distribution.**  :data:`DIST_NAME` is what
   ``importlib.metadata.version`` is asked for, and :data:`STATE_DIR_NAME`,
-  :data:`STATE_DIR_ENV`, :data:`PROJECTS_DIR_NAME`, :data:`AGENT_TOOL_NAME`,
-  :data:`DATA_PACKAGE`, :data:`SERVER_TOKEN` and :data:`DOCS_URL` are
-  user-visible spellings of the same name.  Renaming the package moves all
-  eight together.
+  :data:`STATE_DIR_ENV`, :data:`PROJECTS_DIR_NAME`, :data:`DATA_PACKAGE`,
+  :data:`SERVER_TOKEN` and :data:`DOCS_URL` are user-visible spellings of the
+  same name.  Renaming the package moves all seven together.
 * **The format tokens do not.**  :data:`PROJECT_SUFFIX`, :data:`TEXTDOC_MAGIC`
   and :data:`PROFILE_FORMAT_KEY` name *versioned contracts*
   (``schemas.project.PROJECT_FORMAT_VERSION``, ``gui.textdoc.FORMAT_VERSION``,
@@ -80,9 +79,6 @@ COMPILED_ENV = "RIETX_COMPILED"
 #: ``min(8, cpu_count)``.  Set it to ``1`` where the parallelism is already one
 #: rank up — a suite under ``xdist``, a series fanned out over processes.
 COMPILED_THREADS_ENV = "RIETX_COMPILED_THREADS"
-
-#: Default ``name`` of the LLM tool definition wrapping ``refine_json``.
-AGENT_TOOL_NAME = "rietx_refine"
 
 #: Import path of the bundled data package (scattering factors, attenuation
 #: and dispersion tables), read through ``importlib.resources``.

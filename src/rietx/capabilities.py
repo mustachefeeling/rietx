@@ -10,8 +10,9 @@ measured rather than stylistic: the fourth backend name arrived two days after
 the third (WP-0408), and a hand-written list would have been wrong for those two
 days while looking authoritative. ``tests/test_capabilities.py`` fails if a
 member of ``BACKEND_NAMES``, ``SOLVERS``, ``PLAN_PRESETS``, ``Mode``, the anode
-table or ``PATTERN_FORMATS`` is missing from its arm — the WP-0602 meta-test
-pattern, one level up from ``agent.tool_definition()``.
+table or ``PATTERN_FORMATS`` is missing from its arm — the registry-membership
+meta-test WP-0602 wrote for the JSON tool schema, which outlived it (that
+schema and its module went in WP-1303; this call is what a client asks now).
 
 The same rule shapes :attr:`Capabilities.features`: each flag is a **derived
 predicate** — a schema field's presence, a top-level export's existence — and not
@@ -405,7 +406,6 @@ _SURFACE_FLAGS: dict[str, str] = {
     "pattern_diagnostics": "diagnose",
     "peak_picking": "pick_peaks",
     "indexing": "index_pattern",
-    "agent_json": "agent",
     # run control (WP-1006): a client that cannot cancel must not offer to
     "cancellation": "CancelToken",
 }
@@ -420,10 +420,12 @@ def _features() -> dict[str, bool]:
     :data:`_SURFACE_FLAGS` names, so a flag flips on its own when its entry
     point lands — provided the name is right, which is the meta-test's job.
     """
+    import inspect
+
     import rietx as rx
 
-    from .agent import AgentSuccess
     from .model import compiled
+    from .refine import Refinement
     from .schemas.instrument import Geometry, Source
     from .schemas.structure import Atom, Phase
 
@@ -452,10 +454,14 @@ def _features() -> dict[str, bool]:
         # client reporting "why is this build slow" needs the second.
         "compiled_kernels": compiled.available(),
         "compiled_kernels_active": compiled.enabled(),
-        # delivery, asked of the envelope a JSON consumer actually receives
-        # (WP-1058): whether a refine answer carries the report at every stage
-        # boundary as well as at the end
-        "report_trajectory": "trajectory" in AgentSuccess.model_fields,
+        # delivery (WP-1058): whether a fit can hand back the report at every
+        # stage boundary as well as at the end.  Asked of the keyword that
+        # turns it on, because the envelope whose field this used to read was
+        # deleted in WP-1303 and ``Refinement.fit`` is where the feature now
+        # lives — a signature is as derived as a ``model_fields`` lookup and
+        # stops importing the same way if the keyword is renamed
+        "report_trajectory": "stage_reports" in inspect.signature(
+            Refinement.fit).parameters,
         # entry points, asked of the package through the one table the
         # meta-test also reads
         **{flag: hasattr(rx, name) for flag, name in _SURFACE_FLAGS.items()},

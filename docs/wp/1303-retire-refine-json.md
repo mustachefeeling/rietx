@@ -73,8 +73,10 @@ server (v2; its substrate is the GUI server's `/api`, ROADMAP's v2+ row).
 
 ## Tasks
 
-- [ ] Delete the module, test and chapter; fix `__init__`, `_about`, `capabilities` and
-      its test.
+- [x] Delete the module, test and chapter; fix `__init__`, `_about`, `capabilities` and
+      its test. (`SCHEMA_VERSION` 0.11 → 0.12 with it: the removal is the first
+      non-additive step on that ladder. `report_trajectory` re-derives from
+      `Refinement.fit`'s keyword, `rietx.agent` becomes a `_TOP_LEVEL_HINTS` pointer.)
 - [ ] Manual, `CLAUDE.md`, protocol §9c, consistency test, dist test, eval harness
       references.
 - [ ] `docs/releases/1.3.0.md` § Upgrading (or the section of the notes file v1.3 opens).

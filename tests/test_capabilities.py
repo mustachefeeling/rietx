@@ -358,7 +358,7 @@ def test_the_documented_feature_keys_are_present(caps):
         "capillary_absorption", "flat_plate_absorption", "anomalous_dispersion",
         "anomalous_dispersion_default_on", "multi_histogram",
         "sequential_series", "project_container", "background_estimation",
-        "pattern_diagnostics", "peak_picking", "indexing", "agent_json",
+        "pattern_diagnostics", "peak_picking", "indexing",
         "cancellation", "report_trajectory",
         "compiled_kernels", "compiled_kernels_active",
     }
