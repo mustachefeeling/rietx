@@ -31,6 +31,9 @@ survived the first sweep.
 from __future__ import annotations
 
 import ast
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -190,3 +193,52 @@ def test_webbrowser_open_is_not_mistaken_for_file_io():
     named ``open`` that must never be asked for an encoding."""
     snippet = 'import webbrowser\nwebbrowser.open("http://localhost:8000")\n'
     assert not _text_io_calls(ast.parse(snippet), snippet)
+
+
+# ----------------------------------------------------------------------
+# the CLI's own output
+# ----------------------------------------------------------------------
+#: Commands whose output carries characters cp1252 has no code point for.
+#: ``skill --print`` reaches ``α`` at character 4795 of the body; ``index
+#: --help`` reaches ``Å`` in argparse's own help text.  Both exited 1 on the
+#: nightly's Windows runner (run 33251188429) before ``cli._utf8_output``.
+_NON_ASCII_COMMANDS = (("skill", "--print"), ("index", "--help"))
+
+
+def _cli_through_an_ansi_pipe(*command: str) -> subprocess.CompletedProcess[bytes]:
+    """The CLI with stdout claiming cp1252 — a Windows capture, on any platform.
+
+    ``PYTHONIOENCODING`` is the same fallback the runner takes when stdout is
+    not a console, which is what kept this invisible here for a whole
+    milestone.  Bytes, never ``text=True``: the decode *is* the assertion.
+    """
+    return subprocess.run(
+        [sys.executable, "-m", "rietx.cli", *command],
+        capture_output=True,
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+        timeout=120,  # a runaway guard, not a timer (tests/CLAUDE.md)
+    )
+
+
+@pytest.mark.parametrize("command", _NON_ASCII_COMMANDS, ids=lambda c: " ".join(c))
+def test_the_cli_writes_utf8_into_an_ansi_code_page_pipe(command):
+    """A pipe that claims cp1252 gets UTF-8, not a ``UnicodeEncodeError``."""
+    out = _cli_through_an_ansi_pipe(*command)
+    assert out.returncode == 0, out.stderr.decode("utf-8", "replace")
+    text = out.stdout.decode("utf-8")  # raises if the stream is not UTF-8
+    assert any(ord(c) > 127 for c in text), "nothing non-ASCII survived to assert on"
+
+
+def test_the_skill_body_arrives_whole_through_the_pipe():
+    """``skill --print`` is documented as the way into a harness that reads no
+    skills, so the pipe must carry the file rather than a rendering of it.
+
+    This is the assertion ``errors="replace"`` would fail where an exit status
+    would not: that also exits 0, and hands an agent ``K?`` for ``Kα``.
+    """
+    from rietx import skill as skill_module
+
+    out = _cli_through_an_ansi_pipe("skill", "--print")
+    assert out.returncode == 0, out.stderr.decode("utf-8", "replace")
+    body = out.stdout.decode("utf-8").replace("\r\n", "\n")
+    assert body.rstrip("\n") == skill_module.read(None).rstrip("\n")

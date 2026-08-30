@@ -16,7 +16,38 @@ from __future__ import annotations
 import sys
 
 
+def _utf8_output() -> None:
+    """Pin this CLI's own output to UTF-8, whatever the console code page is.
+
+    The prose this package prints carries ``Å``, ``θ``, ``°`` and ``Kα``, and
+    ``skill --print`` emits a whole UTF-8 document.  A Windows *console* has
+    been UTF-8 since PEP 528, but a captured **pipe** falls back to the ANSI
+    code page, and cp1252 cannot encode ``α``: on the nightly's Windows runner
+    both ``rietx skill --print`` and ``rietx index --help`` exited 1 with
+    ``UnicodeEncodeError`` (run 33251188429).
+
+    ``examples/`` met the same wall in WP-1003 and pinned the pipe from the
+    *test* side, on the argument that a reader runs those scripts interactively
+    and only the capture is cp1252.  That argument does not reach here: the
+    documented purpose of ``skill --print`` is to be piped into a harness that
+    reads no skills, so for this command the pipe **is** the consumer.  A
+    document is handed over whole or not at all, which also rules out
+    ``errors="replace"`` — ``K?`` in an instruction an agent will follow is a
+    corruption, not a degradation.
+
+    Reconfiguring a stream already UTF-8 is a no-op, and a stream that cannot
+    be reconfigured at all (a pytest capture object, a closed stream) is left
+    as it is rather than made an error of its own.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _utf8_output()
     argv = sys.argv[1:] if argv is None else argv
     if not argv or argv[0] in ("-h", "--help"):
         print("usage: rietx <command> [...]\n\n"
