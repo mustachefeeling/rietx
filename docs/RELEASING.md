@@ -38,8 +38,17 @@ a version number that has already been published.
    established: the OS classifiers claim Windows, and the claim ships only
    verified. No workflow can wait the ~2 h this takes, so it is asserted by a
    person at step 6.
-5. Tag `vX.Y.Z` and publish the GitHub release from the notes file:
-   `gh release create vX.Y.Z --title "rietx X.Y.Z" --notes-file docs/releases/X.Y.Z.md --verify-tag`.
+5. Tag `vX.Y.Z` and publish the GitHub release from the notes file. This reads
+   as one command and is three, because `--verify-tag` requires the tag to
+   already be on the remote:
+
+   ```sh
+   git tag vX.Y.Z                 # on the `main` commit from step 3
+   git push origin vX.Y.Z
+   gh release create vX.Y.Z --title "rietx X.Y.Z" \
+     --notes-file docs/releases/X.Y.Z.md --verify-tag
+   ```
+
    Publishing the release is what triggers the workflow.
 6. Approve the `pypi` deployment when the run pauses. That approval is where
    steps 3 and 4 are asserted by a human, and it is the only manual step in the
