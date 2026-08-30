@@ -242,3 +242,66 @@ def test_the_skill_body_arrives_whole_through_the_pipe():
     assert out.returncode == 0, out.stderr.decode("utf-8", "replace")
     body = out.stdout.decode("utf-8").replace("\r\n", "\n")
     assert body.rstrip("\n") == skill_module.read(None).rstrip("\n")
+
+
+def _cli_subprocess_calls(tree: ast.AST) -> list[ast.Call]:
+    """``subprocess.run``/``Popen`` calls whose argv mentions ``rietx.cli``."""
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (isinstance(func, ast.Attribute) and func.attr in {"run", "Popen"}):
+            continue
+        argv = node.args[0] if node.args else None
+        if not isinstance(argv, (ast.List, ast.Tuple)):
+            continue
+        literals = [e.value for e in argv.elts if isinstance(e, ast.Constant)]
+        if any(isinstance(v, str) and "rietx.cli" in v for v in literals):
+            out.append(node)
+    return out
+
+
+def test_a_pipe_from_the_cli_names_utf8_rather_than_the_locale():
+    """The other half of ``cli._utf8_output``, and it fails on the same platform.
+
+    The CLI writes UTF-8 on every platform; a reader that takes ``text=True``
+    decodes with ``locale.getpreferredencoding(False)``, cp1252 on Windows. The
+    two disagree and the **reader** raises — measured on the nightly's Windows
+    runner at byte 12858 of the skill body, the ``₁`` of ``occ₁``, whose UTF-8
+    lead byte 0x81 cp1252 has no code point for.
+
+    The producer's fix cannot close this; only the consumer's can, and there is
+    no platform here on which forgetting it goes red, which is what makes it a
+    source guard rather than a behaviour test.
+
+    **Bytes are not an offender.**  A call that asks for neither ``text`` nor
+    ``encoding`` gets bytes and decodes them itself, which is what
+    ``_cli_through_an_ansi_pipe`` above does deliberately — there the decode is
+    the assertion.  What cannot be right is asking the *pipe* to decode without
+    saying with what.
+    """
+    offenders = []
+    for path in _python_files():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for call in _cli_subprocess_calls(tree):
+            kw = {k.arg: k.value for k in call.keywords}
+            decodes = any(isinstance(kw.get(name), ast.Constant) and kw[name].value
+                          for name in ("text", "universal_newlines"))
+            if decodes and "encoding" not in kw:
+                offenders.append(f"{path.relative_to(ROOT)}:{call.lineno}")
+    assert not offenders, (
+        "these ask the pipe to decode the rietx CLI's output without saying "
+        f"with what, so they use the locale codec: {offenders}"
+    )
+
+
+def test_the_cli_pipe_guard_can_actually_fail():
+    """The guard above is an absence assertion (`tests/CLAUDE.md`), so prove it
+    still fails on the construct it is written for."""
+    snippet = ('import subprocess\n'
+               'subprocess.run(["python", "-m", "rietx.cli", "skill"], text=True)\n')
+    calls = _cli_subprocess_calls(ast.parse(snippet))
+    assert len(calls) == 1
+    names = {kw.arg for kw in calls[0].keywords}
+    assert "text" in names and "encoding" not in names
