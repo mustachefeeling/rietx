@@ -291,3 +291,116 @@ def test_the_api_index_resolves_through_a_field_hop():
     ok, obj = attr_step(rx.RefinementResult, "statistics")
     assert ok and obj is rx.Statistics
     assert not attr_step(rx.RefinementResult, "no_such_field")[0]
+
+
+# --- the skill's doors -----------------------------------------------------
+#
+# `tests/api_surface.py` partitions the package's whole call surface against
+# the **manual**, whose job is coverage.  The skill is a different document
+# with a different denominator: it is a protocol, not a reference, and the
+# only names it is obliged to carry are the ones a caller cannot arrive at by
+# following an object already in hand.
+#
+# That set is derived, not listed: the module-level **functions** in
+# `rietx.__all__`.  A free verb is the one thing nothing leads to.  A type is
+# either returned by a verb — and the index renders its fields where the
+# answer is described — or constructed from a class the index already carries
+# with its full signature, so an agent holding an `Instrument` reaches its
+# constructors through `help(rx.Instrument)`.  Nothing an agent holds leads to
+# `read_recipe`, which is why four agents of four, both models, handed a real
+# TOPAS `.inp` beside the data it describes, parsed it by hand and never
+# called it (WP-1307 round 1.1; `tests/eval_agent_surface/PROTOCOL.md`).
+#
+# **Documented means named in `references/api.md`**, not merely somewhere in
+# the tree.  `read_recipe` was in `references/diagnostics.md` the whole time,
+# inside a `RECIPE_*` row that cannot fire until the door has already been
+# used, so a tree-wide test would have called that coverage.  `api.md` is the
+# file the routing table names for *"you are about to call rietx: entry
+# points"*, and it is generated, so this gate lands on `make_api_index.py`'s
+# SECTIONS selection — the thing WP-1306 had no reason to touch when it added
+# the `RECIPE_*` rows and shipped the diagnostics without the door.
+#
+# Deliberately NOT covered, recorded so a later session reads it as a gap and
+# not as a decision: alternative constructors (`Instrument.
+# flat_plate_transmission`, the seven `RefinementPlan.*` presets).  Thirty of
+# the thirty-five are reached another way — a plan by its name string through
+# `rx.PLAN_INFO`, a `GuardFinding.*` never by a caller at all — so a partition
+# over them would be thirty shrugs, which is the curated list this file exists
+# to avoid.
+
+#: An entry *row* of the api index, which always renders as ``- `rx.name(…``.
+#: A prose mention is not a door: the paragraph above a section may name a verb
+#: in passing, and matching those would let a sentence satisfy the gate that a
+#: signature row is supposed to.
+API_INDEX_ENTRY = re.compile(r"^- `rx\.([A-Za-z_][A-Za-z0-9_]*)", re.M)
+
+
+def _documented_verbs() -> set[str]:
+    """Names the api index gives an entry row of its own."""
+    return set(API_INDEX_ENTRY.findall(API_INDEX.read_text(encoding="utf-8")))
+
+
+#: A verb the skill deliberately does not carry, and why.  Each entry is a
+#: *reason*, never a shrug; the meta-test below fails on one that names
+#: nothing, so a rename cannot leave a dead exclusion behind.
+SKILL_EXCLUDED_VERBS: dict[str, str] = {
+    "help_registry": (
+        "the whole corpus in one call, for the GUI server's GET /api/help "
+        "(`gui/session.py`). An agent reads one path at a time with "
+        "`rx.help_for(path)`, which section In carries."
+    ),
+    "help_key_for": (
+        "the lookup behind `ParameterRow.help_key`, which `refine.py` has "
+        "already done by the time a caller holds a row. The index renders "
+        "that field, so a caller has the key without making the call."
+    ),
+}
+
+
+def _public_verbs() -> dict[str, object]:
+    """The package's free verbs, read out of the live package."""
+    import inspect
+
+    import rietx as rx
+
+    return {n: getattr(rx, n) for n in rx.__all__
+            if inspect.isroutine(getattr(rx, n))}
+
+
+def test_every_public_verb_is_documented_in_the_skill_or_excluded():
+    """A new entry point ships with its door signed, or with a reason.
+
+    The rule CLAUDE.md already carried — a WP adding a diagnostic code adds
+    its row to the skill — is what WP-1306 followed: the `RECIPE_*` rows are
+    present and good. Nothing told it to add the *entry point*, so the
+    diagnostics arrived and the door did not. This is that rule made
+    self-enforcing.
+    """
+    verbs = _public_verbs()
+    assert len(verbs) > 20, f"only {len(verbs)} verbs found — __all__ moved"
+
+    documented = _documented_verbs()
+    undocumented = sorted(set(verbs) - documented - set(SKILL_EXCLUDED_VERBS))
+    assert not undocumented, (
+        "public entry points the skill does not name — add each to "
+        "docs/skill/make_api_index.py's SECTIONS (then regenerate, and "
+        "`rietx skill --install . --copy`), or to SKILL_EXCLUDED_VERBS with "
+        f"the reason a reader never needs it: {undocumented}")
+
+
+def test_the_verb_exclusions_are_live_and_reasoned():
+    """The exclusion table is the authored half, so it rots like any list.
+
+    An entry naming a verb that no longer exists is a dead promise; one that
+    is *also* documented is a contradiction, and the documentation wins.
+    """
+    verbs = _public_verbs()
+    dead = sorted(set(SKILL_EXCLUDED_VERBS) - set(verbs))
+    assert not dead, f"excluded, but no longer a public verb: {dead}"
+
+    documented = _documented_verbs()
+    both = sorted(set(SKILL_EXCLUDED_VERBS) & documented)
+    assert not both, f"excluded and documented — drop the exclusion: {both}"
+
+    for name, reason in SKILL_EXCLUDED_VERBS.items():
+        assert len(reason) > 40, f"{name}'s exclusion is a shrug, not a reason"

@@ -36,7 +36,8 @@ drives and is not restated here; a page named `x` below is
 
 | When | Load | Manual page |
 |---|---|---|
-| you are about to call rietx: entry points, constructors, the four answer types and their fields, the report, the exports | [`references/api.md`](references/api.md) | `quickstart`, `model`, `refining`, `results`, `agents` |
+| you are about to call rietx: entry points, constructors, the four answer types and their fields, the report | [`references/api.md`](references/api.md) | `quickstart`, `model`, `refining`, `results`, `agents` |
+| you were handed another program's input file: a PowderLine recipe | [`references/api.md`](references/api.md) § In | `recipe` |
 | §7 — a `Diagnostic` fired and you need its row: every engine code, and what it forbids | [`references/diagnostics.md`](references/diagnostics.md) | `results` |
 | §6 — something declined to answer: abstentions, caveats, gate failures, `best_or_none()` returning `None` | [`references/abstention.md`](references/abstention.md) | `report` |
 | §5 — you are about to quote a number: which field carries which fact, and read numbers rather than pixels | [`references/numbers.md`](references/numbers.md) | `report`, `results` |
@@ -304,7 +305,7 @@ error from unknown pore contents. **No bar moves for such data**: the gates
 auto-scale to information content, and "good enough" is a different question
 answered exactly, not a relaxed standard. What changes is *which report rows
 decide your deliverable*. Declare it, then read its rows: the report is
-purpose-neutral and will not infer your purpose for you.
+purpose-neutral and will not infer yours.
 `ref.summary(deliverable=…)` prints them for one fit, and a chain's are on
 `SeriesResult.summary(deliverable="series")`.
 
@@ -312,7 +313,7 @@ purpose-neutral and will not infer your purpose for you.
 |---|---|---|
 | **Phase ID** — which phases are present? | `report.unmatched` (`kind="unmatched_obs"`: strong entries are lines your phase set does not produce), and `report.lebail_gap`, the structural-against-profile triage. The gap re-partitions the per-hkl intensities at the frozen converged state and reports both Rwp: a `ratio` ≫ 1 means positions and profile alone account for the pattern, so every line is indexed and identification is safe **at any absolute Rwp** | no strong unmatched observed peaks and the gap readable, whatever Rwp says. An `abstained_kind="resolution_limited"` does not block this deliverable |
 | **QPA** — how much of each? | Fractions ride on scales, so the deciding rows are the ones that bias scales silently. `report.background.absorption` first, keyed by parameter path: the block projection R² of each structural parameter's Jacobian column onto the background column span, the detector for §3's scale↔Biso↔background degeneracy that a pairwise ρ cannot see. Then absorption geometry, then physically-impossible values — a negative Biso is a background error laundered through a scale. Read the Le Bail gap the *other* way here: a large ratio means the intensity model is wrong, and wrong intensities **are** wrong fractions | fractions stable under a background-flexibility change, `worst_absorption` below its threshold, and no unresolved scale-family diagnostic. **Never** "Rwp stopped falling", which here points the wrong way |
-| **Trajectory** — a parameter against T, t, p or composition | The chain's rows, from `SeriesResult.summary(deliverable="series")`: `SEQUENTIAL_PATH_DEPENDENT` (an ordering artefact — only `direction="both"` produces one, so a one-way chain has not looked), `SEQUENTIAL_PERSISTENT_FINDING` ("42 of 68", which no per-pattern code can say), `SEQUENTIAL_DISCONTINUITY` (the science or a chain failure; `verify_discontinuities=True` re-measures it against an independent cold pair) and `PHASE_UNCONSTRAINED` (held, so that value is the one you handed in). Then the two nothing measures for you: a stated **2θ-scale anchor** (standard, calibrant, or none) and the **precision/accuracy split** — esds are precision on the *shape*; nothing pins the absolute without an anchor | every number you quote names the one thing that would have to be wrong for it to be wrong, and that thing has been checked |
+| **Trajectory** — a parameter against T, t, p or composition | The chain's rows, from `SeriesResult.summary(deliverable="series")`: `SEQUENTIAL_PATH_DEPENDENT` (an ordering artefact — only `direction="both"` produces one, so a one-way chain has not looked), `SEQUENTIAL_PERSISTENT_FINDING` ("42 of 68", which no per-pattern code can say), `SEQUENTIAL_DISCONTINUITY` (the science or a chain failure; `verify_discontinuities=True` re-measures it against an independent cold pair) and `PHASE_UNCONSTRAINED` (held, so that value is the one you handed in). Then the two nothing measures for you: a stated **2θ-scale anchor** (standard, calibrant, or none) and the **precision/accuracy split** — esds are precision on the *shape*; nothing pins the absolute without an anchor. Then the QPA row's background check, **at every point**: an absent phase took 40-96 wt % at equal Rwp | every number you quote names the one thing that would have to be wrong for it to be wrong, and that thing has been checked |
 | **Structure** — where are the atoms? | Everything above, plus the intensity-model rows: per-region intensity coefficients and their angular trends, `report.texture` and `report.strain` with their caveats, restraint tension, ADP positive-definiteness, and `report.identifiability.exchanges` with `.soft_modes` (step 14). Here a notable Le Bail gap is a **blocker**, not a comfort: the intensity model carries the structural claim, and the gap says it does not carry the pattern | §10's full ladder, with no `exchangeable` row unaddressed. Addressed means the swap was run and either **won** (adopt the winner and quote it without caveat) or **tied** (resolve by protocol). Never by freeing the rival into the same fit |
 
 **The QPA row outranks every statistic beside it**: an over-flexible background
@@ -450,10 +451,9 @@ file is wanted. A failure **raises**: there is no envelope and no error code.
 
 **Do not quote a signature from memory.** `rx.capabilities()` says what this
 build supports, `rx.help_for(path)` says what a parameter is, and
-`inspect.signature(obj)` or `help(obj)` gives any call's arguments. The names —
-entry points, model objects, the four answer types and their fields, the report,
-the exports — are [`references/api.md`](references/api.md), and every one of
-them is checked against the installed package by test.
+`inspect.signature(obj)` or `help(obj)` gives any call's arguments. The names
+are [`references/api.md`](references/api.md), every one of them checked against
+the installed package by test.
 
 ## See also
 

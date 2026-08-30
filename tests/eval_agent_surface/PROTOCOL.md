@@ -1006,8 +1006,22 @@ zero mentions of the string in all four transcripts, in the one episode that
 ships a `.inp`. All four agents parsed the file by hand instead, and two of
 them did it well enough to catch that its saved state is the *output* of the
 other program's 68-pattern run rather than a starting model, with cells sitting
-on their bounds. WP-1306 built a reader for this exact file and no agent found
-it.
+on their bounds.
+
+> **Corrected 2026-08-30 (WP-1308).** This paragraph ended "WP-1306 built a
+> reader for this exact file and no agent found it", and that is **false**.
+> `read_recipe` reads a PowderLine `GSASII_Rietveld` **JSON** recipe; handed
+> `d8_01612_vt_reel_02.inp` it raises `RecipeError: not valid JSON` (verified).
+> This package has no TOPAS `.inp` reader — WP-1118, unscheduled, is where one
+> would go — which §"Two hypotheses closed" of this same file states correctly
+> ("no `.inp` reader"), so the round contradicted itself and the wrong half was
+> the quotable one. **Hand-parsing was the only route available, so on this
+> file the four agents were right.** What survives is narrower and still worth
+> the WP it opened: `read_recipe` and `write_recipe_tables` were entry points
+> the skill documented **nowhere** outside a `RECIPE_*` diagnostic row that
+> cannot fire until the door has been used. That is a coverage failure, but it
+> is not what this episode measured, and no read-out of this round tested a
+> PowderLine recipe. The third correction this finding has needed.
 
 **Read afterwards, the skill says why, and it is not the agents' failure.**
 `read_recipe` appears in **one** file of the whole skill tree:

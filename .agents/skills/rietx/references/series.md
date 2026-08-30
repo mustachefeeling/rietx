@@ -28,7 +28,7 @@ recorded nothing — **refuse rather than substitute an ambient value**, because
 an invented coordinate makes the trajectory a fiction while every fit in it
 stays perfectly good.
 
-Three things an operator must know, all measured:
+What an operator must know, all measured:
 
 - **Chaining is worth ~3x in iterations, not in accuracy.**  On the eight
   round-robin sample-1 mixtures: 2863 iterations unchained, 904 chained, at
@@ -63,6 +63,28 @@ Three things an operator must know, all measured:
   chain, and the cost scales with the patterns flagged rather than with the
   series length.  Nothing else moves: the refits are separate `Refinement` runs
   writing to their own `<label>.verify` histories.
+
+- **A trajectory of phase fractions is a QPA question at every point of it, and
+  the background is what decides it.**  Fractions ride on scales, and an
+  over-flexible background biases scales silently while *improving* every
+  agreement index — which is why §4b's QPA row reads
+  `report.background.worst_absorption` before any statistic beside it.  Nothing
+  in `SeriesResult` repeats that check for you, and no `SEQUENTIAL_*` code can:
+  they compare each pattern against its neighbours, and a background too
+  flexible for the *specimen* is wrong in the same direction at every point, so
+  the trajectory it produces is smooth, self-consistent and false.  Measured on
+  a real 68-pattern reel: a 12-term cold fit put LT-ZrMo₂O₈ at **77.9 wt %**
+  when that phase is not present at all, Rwp 0.0821 against 0.0822 for the
+  correct answer, with a difference curve that looks fine; over the round the
+  absent phase took **40-96 wt %** at an Rwp within 0.01 of the right one.
+  Neither Rwp nor the plot separates them.  So read
+  `background.worst_absorption` per pattern — at least on the first, the last
+  and every flagged step — before quoting a fraction trajectory at all.  The
+  route is not `SeriesResult`, which carries summaries only, and not
+  `rx.refine_sequential`, which discards the per-pattern results: use the class
+  form, whose `results_` holds them.  `sr = rx.SequentialRefinement(structure,
+  instrument)`, `series = sr.fit(patterns, ...)`, then
+  `rx.build_report(sr.results_[i]).background.worst_absorption`.
 
 When the deliverable *is* the trajectory, print its deciding rows:
 `series.summary(deliverable="series")` — §4b's fourth row, and the two

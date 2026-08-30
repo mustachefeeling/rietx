@@ -94,6 +94,26 @@ missing from its arm applies unchanged. A new format token is spelled in
 
 ### Inherited
 
+- **2026-08-30, from [1308](1308-skill-documents-its-doors.md): the skill now
+  has a routing row for *you were handed another program's input file*, and a
+  reader added here must claim it.** The row is in `SKILL.md`'s routing table
+  and points at `references/api.md` § In plus the manual's `recipe` page; § In's
+  own paragraph opens the case by name and currently names only `read_recipe`.
+  A second such reader (TOPAS `.inp`, `.EXP`/`.PRM`, `.pcr`) therefore has two
+  obligations beyond the code, and `tests/test_skill.py` enforces only the
+  first: every new public verb must appear in `docs/skill/make_api_index.py`'s
+  `SECTIONS` or in `SKILL_EXCLUDED_VERBS` with a reason (the gate goes red until
+  it does), and — no test for this — that routing row's wording says "a
+  PowderLine recipe", the only such reader that exists, and will need widening.
+  § In's paragraph states the same fence the other way, that a `.inp`, an
+  `.EXP`/`.PRM` and a `.pcr` have no reader and are still transcribed by hand;
+  a reader landed here must delete that sentence as well as add its row, or the
+  skill will keep telling an agent to transcribe a file it can now open.
+  Measured caution: SKILL.md sits at **31 973 B of its 32 000 B cap**, 27 B of
+  headroom, so widening the row costs bytes that must be bought elsewhere.
+  WP-1308's entry records the three tightenings it used and that no cap was
+  raised.
+
 - **2026-08-23, from [1131](1131-sample-broadening-is-a-specimen-property.md):
   rietx has no constant Lorentzian instrument term, so a GSAS-II profile cannot
   round-trip.** GSAS-II's CW Lorentzian is `γ = X/cosθ + Y·tanθ + **Z**`;

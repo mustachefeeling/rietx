@@ -56,10 +56,18 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "Readers and constructors. `rx.read_pattern` opens every format "
         "`rx.capabilities()` lists and takes the file's esd column when it has "
         "one; a wavelength comes from the instrument preset or the file, never "
-        "from memory (§1).",
-        ("rx.read_pattern", "rx.read_pdcif", "rx.Structure.from_cif",
-         "rx.Instrument.bragg_brentano", "rx.Instrument.debye_scherrer",
-         "rx.auto_background", "rx.load_instrument_profile",
+        "from memory (§1). **Handed another program's input file** — a "
+        "PowderLine `GSASII_Rietveld` recipe — read it with `rx.read_recipe` "
+        "rather than parsing it yourself: it returns the model, the instrument "
+        "and a plan together, and every unit it could not carry across says so "
+        "as a `RECIPE_*` diagnostic instead of arriving silently wrong. It is "
+        "the only foreign-input reader this build has: a TOPAS `.inp`, a GSAS "
+        "`.EXP`/`.PRM` or a FullProf `.pcr` has none, so those are still "
+        "transcribed by hand — `rx.read_recipe` will not open one.",
+        ("rx.read_pattern", "rx.read_pdcif", "rx.read_recipe",
+         "rx.Structure.from_cif", "rx.Instrument.bragg_brentano",
+         "rx.Instrument.debye_scherrer", "rx.estimate_mu_r",
+         "rx.auto_background", "rx.diagnose", "rx.load_instrument_profile",
          "rx.save_instrument_profile", "rx.capabilities", "rx.help_for"),
     ),
     (
@@ -138,9 +146,12 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "Out",
         "Files and figures. `rx.format_su` renders a value with its esd as "
         "`1.2345(12)`; `plot_for_vlm` is the montage §5 allows as a check on a "
-        "conclusion already reached from numbers.",
+        "conclusion already reached from numbers. `rx.write_recipe_tables` is "
+        "the return leg of `rx.read_recipe` — a finished refinement as "
+        "PowderLine's four tables, for a pipeline that dispatched the job here.",
         ("rx.write_refinement_cif", "rx.write_qpa_table",
-         "rx.write_reflection_table", "rx.reflection_table", "rx.format_su",
+         "rx.write_reflection_table", "rx.reflection_table",
+         "rx.write_recipe_tables", "rx.format_su",
          "rx.viz.plot_result", "rx.viz.plot_for_vlm",
          "rietx.viz.html.write_html"),
     ),
