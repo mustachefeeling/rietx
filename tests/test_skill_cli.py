@@ -144,7 +144,9 @@ def _cli(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
     cp1252 on Windows, and `rietx.cli._utf8_output` makes the child write UTF-8
     on every platform — so the two disagree and the *parent* raises
     ``UnicodeDecodeError`` on the first byte cp1252 has no code point for
-    (0x81, from the ``₁`` in ``occ₁`` at byte 12858 of the skill body).
+    (0x81, from the ``₁`` in ``occ₁`` — byte 12858 of the body here, and 13032
+    on the runner, which is the same byte: 174 newlines precede it and Windows
+    text mode writes each as CRLF).
 
     That is the same defect as the one the CLI fix cured, standing on its other
     foot: before, the child could not encode ``α``; after, a caller that assumes
