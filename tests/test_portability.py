@@ -268,8 +268,8 @@ def test_a_pipe_from_the_cli_names_utf8_rather_than_the_locale():
     The CLI writes UTF-8 on every platform; a reader that takes ``text=True``
     decodes with ``locale.getpreferredencoding(False)``, cp1252 on Windows. The
     two disagree and the **reader** raises — measured on the nightly's Windows
-    runner at byte 12858 of the skill body, the ``₁`` of ``occ₁``, whose UTF-8
-    lead byte 0x81 cp1252 has no code point for.
+    runner (run 33297474071) on the ``₁`` of ``occ₁``, whose UTF-8 lead byte
+    0x81 cp1252 has no code point for.
 
     The producer's fix cannot close this; only the consumer's can, and there is
     no platform here on which forgetting it goes red, which is what makes it a
