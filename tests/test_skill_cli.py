@@ -138,8 +138,22 @@ def test_every_harness_row_carries_a_source_and_a_date():
 
 
 def _cli(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
+    """Run the CLI and decode its output as **UTF-8**, not as the locale's codec.
+
+    ``text=True`` decodes with ``locale.getpreferredencoding(False)``, which is
+    cp1252 on Windows, and `rietx.cli._utf8_output` makes the child write UTF-8
+    on every platform — so the two disagree and the *parent* raises
+    ``UnicodeDecodeError`` on the first byte cp1252 has no code point for
+    (0x81, from the ``₁`` in ``occ₁`` at byte 12858 of the skill body).
+
+    That is the same defect as the one the CLI fix cured, standing on its other
+    foot: before, the child could not encode ``α``; after, a caller that assumes
+    the console code page cannot decode ``₁``.  Decoding UTF-8 here is not
+    papering over it — it is what the CLI's contract now says a consumer does,
+    and it is what ``tests/test_portability.py`` asserts that contract to be.
+    """
     return subprocess.run([sys.executable, "-m", "rietx.cli", *args],
-                          capture_output=True, text=True, cwd=cwd)
+                          capture_output=True, encoding="utf-8", cwd=cwd)
 
 
 def test_cli_path_print_and_list(tmp_path):

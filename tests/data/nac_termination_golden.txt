@@ -24,6 +24,6 @@ Refinement.summary: converged (rietveld)
     held: # symmetry-locked, # user-fixed, # wavelength-blocked
     N points=#, N reflections=#, effective obs=#
     σ source: file
-  provenance: rietx #dev#, backend=numpy, solver=trf
+  provenance: rietx #, backend=numpy, solver=trf
   Rwp # / Rexp # (GoF #), Rp #, χ² #, DW #
   visual check: call summary(plot='fit.png') or plot_for_vlm(result, report) to draw these regions
