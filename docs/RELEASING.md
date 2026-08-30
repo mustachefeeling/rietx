@@ -16,7 +16,15 @@ a version number that has already been published.
 
 1. Set `pyproject.version`. The convention is in
    [CLAUDE.md](../CLAUDE.md): the milestone in flight, or the last shipped when
-   none is.
+   none is. **Two things follow it and neither is automatic.** Reinstall
+   (`uv pip install -e ".[dev]"`), because `rietx.__version__` is
+   `importlib.metadata.version()` and reads the dist-info written at install
+   time — until you do, every number the suite measures is stamped with the old
+   version. Then set `metadata.version` in `docs/skill/rietx/SKILL.md` to match
+   and re-sync the two committed copies with `rietx skill --install . --copy`;
+   `test_metadata_values_are_strings_and_the_version_is_the_packages` fails
+   until both are done, and it fails *after* the reinstall rather than before,
+   which is the order that hides it.
 2. Write `docs/releases/X.Y.Z.md`. It becomes the GitHub release body verbatim,
    so it is written for a reader upgrading, not for a maintainer. The
    precedents are [1.0.0](releases/1.0.0.md), a milestone, and
