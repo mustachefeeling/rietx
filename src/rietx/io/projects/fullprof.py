@@ -1675,10 +1675,14 @@ def nuclear_parameter_ties(phase: FullProfPhase, where: str | None = None
     corpus land here — ``300q-1p5K_1.pcr``'s O1 ties x, y and z to parameter 41
     on ``F d -3 m:2``'s 32e site (one DOF), and ``crwo6002_BV2andBV4.pcr`` ties
     O1's and O2's x to their y (parameters 56 and 57) on ``P 42/m n m``'s 4f
-    (one DOF each). The phase's **cell** ties are carried for the same reason by
-    ``crystallography.symmetry.cell_constraints``, which is the one authority on
-    them; the corpus's ``a = b`` (parameter 5) and ``a = b = c`` (parameter 40)
-    are both reproduced exactly, so they are not analysed again here.
+    (one DOF each). The phase's **cell** ties are the same kind of shared-number
+    tie, but whether rietx reproduces one turns on the space group rather than on
+    a site's DOFs, so they are analysed by :func:`cell_parameter_ties` against
+    ``crystallography.symmetry.cell_constraints`` — the one authority on which
+    edges a setting holds equal — not here. The corpus's ``a = b`` (parameter 5,
+    tetragonal) and ``a = b = c`` (parameter 40, cubic) land carried there
+    because their symmetry ties the edges; the same codewords under an
+    orthorhombic or triclinic symbol do not, and are reported dropped.
 
     **Dropped** — anything else, and the two that matter are a group spanning
     **two atoms** (a shared ``Biso`` across sites, the reviewer's case) and a
@@ -1750,6 +1754,113 @@ def nuclear_parameter_ties(phase: FullProfPhase, where: str | None = None
     return carried, dropped
 
 
+#: Two decoded multipliers count as the same coefficient within this tolerance.
+#: They come off the same ``round(magnitude - 10*number, 6)`` path, so equality
+#: is exact for a well-formed codeword; the tolerance guards the float compare.
+_CELL_TIE_MULTIPLIER_TOL = 1e-6
+
+
+def _symmetry_reproduces(space_group: str, target: str, source: str) -> bool:
+    """Would this phase's own symmetry tie cell edge ``target`` to ``source``?
+
+    A ``.pcr`` ties two cell parameters the same way it ties two coordinates —
+    one shared ``Code.number`` — but rietx carries such a tie on a
+    :class:`~rietx.schemas.Structure` only where the space group's own metric
+    already holds the edges equal, which
+    ``crystallography.symmetry.cell_constraints`` is the authority on. ``b = a``
+    is rietx's own constraint under a tetragonal or cubic setting, so the built
+    cell states exactly what the file did and there is nothing to report; under
+    an orthorhombic or triclinic one it is not, and the built ``b`` refines away
+    from an ``a`` the file tied it to — a free parameter FullProf did not spend.
+
+    Ties are followed to their **root**, because a cubic constraint table names
+    ``b -> a`` and ``c -> a`` but not ``c -> b``, yet a codeword shared by ``b``
+    and ``c`` is one parameter and both root to ``a``. An angle pair is also
+    reproduced where symmetry fixes *both* at the same value — they then move
+    together by not moving at all, which is what the file said.
+
+    This is the same discriminator ``io/projects/topas.py`` makes for
+    ``TOPAS_CELL_COUPLING_DROPPED``, one reader over, so the two agree on the same
+    defect. A symbol this package cannot resolve returns ``False``, i.e.
+    **report**: not being able to show the model carries the tie is not the same
+    as showing it does.
+    """
+    try:
+        import gemmi
+
+        from ...crystallography.symmetry import cell_constraints
+        cons = cell_constraints(gemmi.SpaceGroup(space_group))
+    except Exception:
+        return False
+
+    def root(key: str) -> str:
+        seen: set[str] = set()
+        while key in cons.ties and key not in seen:
+            seen.add(key)
+            key = cons.ties[key]
+        return key
+
+    if target in cons.ties and root(target) == root(source):
+        return True
+    fixed = cons.fixed_angles
+    return target in fixed and source in fixed and fixed[target] == fixed[source]
+
+
+def cell_parameter_ties(phase: FullProfPhase, where: str | None = None
+                        ) -> tuple[list[str], list[str]]:
+    """Which of a nuclear phase's **cell** codeword ties rietx reproduces.
+
+    The cell analogue of :func:`nuclear_parameter_ties`. FullProf ties two cell
+    parameters by giving them one ``Code.number``, signed by ``Code.multiplier``:
+    ``51.00000`` on both ``a`` and ``b`` ties ``a = b``, while ``52.00000`` on
+    ``b`` against ``51.00000`` on ``a`` ties ``b = 2a`` — a scaled relation, not
+    an equality. Whether rietx reproduces such a tie is decided entirely by the
+    space group, through :func:`_symmetry_reproduces`, and *not* by any site's
+    DOFs. Returns ``(carried, dropped)``, each a list of human-readable group
+    descriptions.
+
+    **Carried** — a group whose members share one multiplier (so the tie is an
+    *equality*) and whose edges ``cell_constraints`` already holds equal: ``a =
+    b`` on a tetragonal cell, ``a = b = c`` on a cubic one. rietx's own metric
+    carries these, so re-declaring them is redundant and the built cell has the
+    free parameters the file refined.
+
+    **Dropped** — anything the setting does not already hold: ``a = b`` under an
+    orthorhombic or triclinic symbol (symmetry leaves both free — the reviewer's
+    round-three case), or any scaled relation such as ``b = 2a`` (symmetry only
+    *equates* edges, so it never expresses a multiplier), which stays dropped
+    even under a symbol that ties the edges. A dropped cell tie means the built
+    ``Cell`` carries one more free length or angle than the refinement did.
+    """
+    where = where or f"phase {phase.index} ({phase.name!r})"
+    groups: dict[int, list[tuple[str, float]]] = {}
+    for key in _CELL_COLUMNS:
+        value = phase.cell.get(key)
+        if value is None:
+            continue
+        code = value.code
+        if code is None:
+            continue
+        groups.setdefault(code.number, []).append((key, code.multiplier))
+
+    carried: list[str] = []
+    dropped: list[str] = []
+    for number in sorted(groups):
+        members = groups[number]
+        if len(members) < 2:
+            continue
+        described = ", ".join(
+            f"{key}(x{multiplier:+g})" for key, multiplier in members)
+        text = f"parameter {number}: {described}"
+        ref_key, ref_multiplier = members[0]
+        equality_reproduced = all(
+            abs(multiplier - ref_multiplier) < _CELL_TIE_MULTIPLIER_TOL
+            and _symmetry_reproduces(phase.space_group, key, ref_key)
+            for key, multiplier in members[1:])
+        (carried if equality_reproduced else dropped).append(text)
+    return carried, dropped
+
+
 def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                                 drop_parameter_ties: bool = False,
                                 diagnostics: list[Diagnostic] | None = None):
@@ -1772,11 +1883,17 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
     the same channel and code shape as ``crystallography.cif.structure_from_cif``
     (``CIF_SPECIES_NORMALISED``). A file that needs no rewrite appends nothing.
 
-    Two more repairs are reported the same way where ``diagnostics=`` is passed:
-    ``FULLPROF_ORIGIN_CHOICE`` where :func:`normalize_space_group` added an
-    origin or axes suffix the file did not write (``F D -3 M`` →
-    ``F d -3 m:2``), and ``FULLPROF_OCCUPANCY_UNCHECKED`` where the
-    occupancy-ratio test that licenses that choice had no discriminating power.
+    Three more repairs are reported the same way where ``diagnostics=`` is
+    passed: ``FULLPROF_ORIGIN_CHOICE`` where :func:`normalize_space_group` added
+    an origin or axes suffix the file did not write (``F D -3 M`` →
+    ``F d -3 m:2``), ``FULLPROF_OCCUPANCY_UNCHECKED`` where the occupancy-ratio
+    test that licenses that choice had no discriminating power, and
+    ``FULLPROF_TIE_DROPPED`` where a **cell** codeword tie the space group does
+    not reproduce is lost (see :func:`cell_parameter_ties`). The cell case only
+    *reports* — the cell is built either way — matching what the TOPAS reader
+    does for the same defect (``TOPAS_CELL_COUPLING_DROPPED``); it does not refuse
+    and is not gated on ``drop_parameter_ties``, which the *atom*-tie refusal
+    below is.
 
     Six refusals, each naming what it would otherwise have dropped:
 
@@ -1805,17 +1922,19 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
       indistinguishable from one it genuinely fixed. That is the collapse this
       module's own docstring forbids ("never collapses an absent column into
       ``False``"), so it is refused instead of invented.
-    * **A codeword tie rietx cannot express** — see
-      :func:`nuclear_parameter_ties`. FullProf ties two values by giving them
-      one parameter number, and a tie that symmetry does not already reproduce
-      has nowhere to live on a ``Structure``: building anyway yields a model
-      with strictly more free parameters than the fit it represents. The tie
-      *can* be re-declared one layer up — ``Refinement.tie_equal`` and
-      ``Refinement.tie`` take exactly this shape — so the refusal names the
-      calls that reproduce it rather than only naming the loss.
-      ``drop_parameter_ties=True`` is how a caller *declares* it accepts the
-      looser model; the omission is then the caller's and is recorded as a
-      ``FULLPROF_TIE_DROPPED`` diagnostic.
+    * **An atom-coordinate or cross-atom codeword tie rietx cannot express** —
+      see :func:`nuclear_parameter_ties`. FullProf ties two values by giving
+      them one parameter number, and a tie that a site's symmetry does not
+      already reproduce (a shared ``Biso`` across two sites, say) has nowhere to
+      live on a ``Structure``: building anyway yields a model with strictly more
+      free parameters than the fit it represents. The tie *can* be re-declared
+      one layer up — ``Refinement.tie_equal`` and ``Refinement.tie`` take exactly
+      this shape — so the refusal names the calls that reproduce it rather than
+      only naming the loss. ``drop_parameter_ties=True`` is how a caller
+      *declares* it accepts the looser model; the omission is then the caller's
+      and is recorded as a ``FULLPROF_TIE_DROPPED`` diagnostic. A **cell** tie is
+      the one case that reports rather than refuses — see the repairs above and
+      :func:`cell_parameter_ties`.
 
     ``Scale`` is carried through **verbatim** as a starting value and a refine
     flag, and is *not* comparable with a rietx scale: FullProf's folds ``ATZ``,
@@ -1846,6 +1965,11 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
     rewrites: dict[str, tuple[str, list[str]]] = {}
     #: (phase path, group description) per tie the caller declared it would drop.
     dropped_ties: list[tuple[str, str]] = []
+    #: (cell path, group description) per *cell* codeword tie the space group does
+    #: not reproduce. Reported unconditionally — never a refusal — because the
+    #: cell is built either way and the loss is the same whether or not a caller
+    #: passed a list; this matches ``TOPAS_CELL_COUPLING_DROPPED`` one reader over.
+    dropped_cell_ties: list[tuple[str, str]] = []
     #: Origin/axes suffixes this reader added that the file did not write.
     origin_choices: list[tuple[str, str, str]] = []
     #: Phases whose occupancy-ratio cross-check could not discriminate.
@@ -1923,6 +2047,18 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                 f"looser model is what you want.")
         for group in dropped:
             dropped_ties.append((f"phases.{structure_index}", group))
+
+        # The cell's ties are the one tie the atom analysis above does not reach.
+        # rietx's own metric carries them where the space group holds the edges
+        # equal (the corpus's tetragonal a = b, cubic a = b = c) and drops them
+        # where it does not (a = b under an orthorhombic or triclinic symbol, or
+        # a scaled b = 2a symmetry never expresses). Unlike a cross-atom group
+        # this only *reports*: the cell is built the same either way, so refusing
+        # would gate a build on a diagnostic that the sibling reader emits without
+        # one. See `cell_parameter_ties` and `_symmetry_reproduces`.
+        _, cell_dropped = cell_parameter_ties(ph, where)
+        for group in cell_dropped:
+            dropped_cell_ties.append((f"phases.{structure_index}.cell", group))
 
         def _p(value: Value, what: str, **kw):
             """One rietx Parameter carrying the file's own refine flag.
@@ -2033,6 +2169,20 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                          f"therefore has more free parameters than the "
                          f"refinement the file records. Re-declare it with "
                          f"Refinement.tie_equal/tie to recover the constraint"),
+                where=[path]))
+        # The cell arm of the same code: a cell codeword tie the space group does
+        # not reproduce. No `drop_parameter_ties=True` prefix — this is not gated
+        # on the flag (the cell builds either way), so the sentence is the loss
+        # itself, the same one `TOPAS_CELL_COUPLING_DROPPED` carries.
+        for path, group in dropped_cell_ties:
+            diagnostics.append(Diagnostic(
+                level="warning", code="FULLPROF_TIE_DROPPED",
+                message=(f"the cell codeword tie {group} in {named} is not "
+                         f"carried onto the Structure: the space group does not "
+                         f"tie these cell parameters, so the built cell has more "
+                         f"free parameters than the refinement the file records. "
+                         f"Re-declare it with Refinement.tie_equal/tie to recover "
+                         f"the constraint"),
                 where=[path]))
     try:
         return rx.Structure(phases=phases)

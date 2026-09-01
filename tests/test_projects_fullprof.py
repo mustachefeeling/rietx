@@ -35,6 +35,7 @@ import pytest
 from rietx.io.projects.fullprof import (
     FullProfPcrError,
     _strip,
+    cell_parameter_ties,
     decode_codeword,
     normalize_space_group,
     normalize_species,
@@ -1448,6 +1449,117 @@ def test_a_sites_own_coordinate_tie_is_carried_by_symmetry_not_refused(tmp_path)
     assert carried == ["parameter 56: O1.x(x+1), O1.y(x+1)"]
     # and it builds without the caller having to declare anything
     assert len(to_structure(model).phases[0].atoms) == 4
+
+
+# Round-three finding — a *cell* codeword tie is the one tie the atom analysis
+# above does not reach. Whether rietx reproduces it turns on the space group,
+# not on a site's DOFs, so the same `51 51 61` codewords are carried under a
+# tetragonal symbol and dropped under an orthorhombic or triclinic one. The
+# corpus has only the tetragonal (`crwo6002_*`, param 5) and cubic
+# (`300q-1p5K_1`, param 40) cases, both carried, so the dropped case is driven
+# synthetically the way the reviewer drove it.
+
+
+def test_a_tetragonal_cell_tie_is_carried_by_symmetry_not_reported(tmp_path):
+    """`51 51 61` under `P 42/m n m` is `a = b`, which the setting ties itself.
+
+    This is the corpus's own case (`crwo6002_momcomp.pcr`:105) and it must stay
+    silent: rietx's metric already holds `b = a` under a tetragonal setting, so
+    the built cell has exactly the two free lengths the file refined and there is
+    nothing dropped. The default fixture carries these codewords, so this pins
+    that the new cell analysis does not raise a false alarm on the real file.
+    """
+    model = read_fullprof_pcr(_pcr(tmp_path, "tetra.pcr", _phase()))
+    carried, dropped = cell_parameter_ties(model.phases[0])
+    assert carried == ["parameter 5: a(x+1), b(x+1)"]
+    assert dropped == []
+    diagnostics: list = []
+    to_structure(model, diagnostics=diagnostics)
+    assert [d for d in diagnostics if d.code == "FULLPROF_TIE_DROPPED"] == []
+
+
+@pytest.mark.parametrize("sg", ["P m m m", "P 1"])
+def test_a_cell_tie_symmetry_does_not_hold_is_reported_not_dropped(tmp_path, sg):
+    """The same `a = b` codewords under a symbol that leaves `a` and `b` free.
+
+    Orthorhombic and triclinic do not tie the two edges, so `51 51 61` builds a
+    cell with three free lengths where FullProf refined two — the function's own
+    definition of a dropped tie, reached by the one path the atom analysis never
+    consulted. It is *reported* through `FULLPROF_TIE_DROPPED` (the sibling
+    reader's `TOPAS_CELL_COUPLING_DROPPED` shape) rather than refused: the cell
+    is built either way, so no `drop_parameter_ties=True` is needed to see it.
+
+    A one-site phase, as the reviewer drove it: the occupancy-ratio check is
+    trivially self-consistent there, so what is under test is the cell tie and
+    not the multiplicities.
+    """
+    site = ("Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000"
+            "   0   0   0    1\n"
+            "                  0.00     0.00     0.00     0.00      0.00")
+    model = read_fullprof_pcr(
+        _pcr(tmp_path, "loose.pcr", _phase(sg=sg, nat=1, atoms=site)))
+    carried, dropped = cell_parameter_ties(model.phases[0])
+    assert carried == []
+    assert dropped == ["parameter 5: a(x+1), b(x+1)"]
+    diagnostics: list = []
+    # No flag passed, and it still builds — this reports, it does not refuse.
+    structure = to_structure(model, diagnostics=diagnostics)
+    assert len(structure.phases[0].atoms) == 1
+    tie = [d for d in diagnostics if d.code == "FULLPROF_TIE_DROPPED"]
+    assert len(tie) == 1
+    assert tie[0].level == "warning"
+    assert "a(x+1), b(x+1)" in tie[0].message
+    assert "drop_parameter_ties=True" not in tie[0].message
+    assert tie[0].where == ["phases.0.cell"]
+
+
+def test_a_scaled_cell_relation_is_dropped_even_under_a_symbol_that_ties(
+        tmp_path):
+    """`b = 2a` is a multiplier, and symmetry only ever *equates* two edges.
+
+    `51.00000` on `a` and `52.00000` on `b` share parameter 5 but with
+    multipliers 1 and 2, so the file states `b = 2a`, not `b = a`. Even under
+    `P 42/m n m`, whose symmetry ties `b = a`, rietx reproduces the equality and
+    not the scaled relation, so the file's actual tie is dropped. The check must
+    read the multiplier, not just the shared number — otherwise it would wave
+    this through as the tetragonal `a = b` it is not.
+    """
+    scaled = "   51.00000   52.00000   61.00000    0.00000    0.00000    0.00000"
+    model = read_fullprof_pcr(
+        _pcr(tmp_path, "scaled.pcr", _phase(sg="P 42/m n m", cell_codes=scaled)))
+    carried, dropped = cell_parameter_ties(model.phases[0])
+    assert carried == []
+    assert dropped == ["parameter 5: a(x+1), b(x+2)"]
+    diagnostics: list = []
+    to_structure(model, diagnostics=diagnostics)
+    tie = [d for d in diagnostics if d.code == "FULLPROF_TIE_DROPPED"]
+    assert len(tie) == 1
+    assert "a(x+1), b(x+2)" in tie[0].message
+
+
+def test_a_cubic_cell_tie_is_carried_including_the_edge_named_only_transitively(
+        tmp_path):
+    """`a = b = c` (parameter 40) under a cubic setting, the corpus's other case.
+
+    `300q-1p5K_1.pcr` ties all three lengths to one parameter on `F d -3 m:2`.
+    The cubic constraint table names `b -> a` and `c -> a` but not `c -> b`, so
+    the check must follow ties to their root to see that `c` shares `a`'s root.
+    All three land carried, and nothing is reported.
+    """
+    cubic = "  401.00000  401.00000  401.00000    0.00000    0.00000    0.00000"
+    sites = ("Co1    CO      0.12500  0.12500  0.12500  0.35000   0.12500"
+             "   0   0   0    1\n"
+             "                  0.00     0.00     0.00     0.00      0.00")
+    cell = "   8.068200   8.068200   8.068200  90.000000  90.000000  90.000000"
+    model = read_fullprof_pcr(_pcr(tmp_path, "cubic.pcr",
+                                   _phase(nat=1, sg="F D -3 M", atoms=sites,
+                                          cell=cell, cell_codes=cubic)))
+    carried, dropped = cell_parameter_ties(model.phases[0])
+    assert carried == ["parameter 40: a(x+1), b(x+1), c(x+1)"]
+    assert dropped == []
+    diagnostics: list = []
+    to_structure(model, diagnostics=diagnostics)
+    assert [d for d in diagnostics if d.code == "FULLPROF_TIE_DROPPED"] == []
 
 
 # Finding 4 — the R_Bragg count is asserted, not truncated into agreement.
