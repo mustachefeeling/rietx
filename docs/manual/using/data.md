@@ -720,69 +720,110 @@ figure can say how close the three refined parameters came. The lower panel is
 the informative one: with the peak-free background subtracted, what is left is
 the feature, and the fitted peak lies along it.
 
-#### Why three parameters can beat fifty-three
+#### Three parameters against three polynomial terms
 
-The argument is not that a peak lowers Rwp. Measured on a NIST BT-1
-constant-wavelength neutron pattern of Cr₂WO₆ at 60 K (λ = 2.078 Å, 2941
-channels, 5–152° 2θ, σ from the file) with a broad background feature near
-14.4° 2θ, one phase, `plan="mccusker_structural"`:
+The argument is not that a peak lowers Rwp — a free position, height and width
+will lower any Rwp, which is exactly the kind of evidence this package does not
+accept. The argument has to be two things at once: that the peak buys **far more
+than the same number of polynomial terms buys**, and that something outside the
+fit says what the feature *is*.
 
-| background | terms | Rwp | GoF | Biso(Cr) / Å² | `HIGH_CORRELATION` |
+The pattern is `tests/data/11BM_Si640c.xy`, the same APS 11-BM scan of NIST SRM
+640c silicon that `tests/test_acceptance_si640c.py` refines — run 4918,
+λ seeded at the header's 0.412359 Å, 47 999 channels over 1.997–49.996° 2θ with
+the file's own propagated esds. The specimen sits in a **Kapton capillary**, and
+Kapton scatters: there is a broad envelope maximum near 5° 2θ that no Bragg peak
+of silicon accounts for. The protocol is that acceptance test's full-range fit —
+cell held at the NIST certificate, FCJ axial divergence tied, `lor_size` and
+`lor_strain` on the phase, dispersion off, λ and Biso freed last — with the
+background swapped from its P-spline to a low-order Chebyshev, and, in the peak
+arms, one `BackgroundPeak` freed after the first stage and polished jointly with
+the polynomial at the end.
+
+| background | free background terms | Rwp | GoF | Biso(Si) / Å² | `HIGH_CORRELATION` |
 |---|---|---|---|---|---|
-| Chebyshev, 7 terms | 7 | 0.05303 | 2.0558 | −0.019(222) | 0 |
-| Chebyshev-7 **+ one background peak** | 7 + 3 | 0.05252 | 2.0373 | −0.029(219) | 0 |
-| Chebyshev, order from `auto_background` | 16 | 0.05137 | 1.9947 | −0.040(215) | 0 |
-| that **+ one background peak** | 16 + 3 | 0.05126 | 1.9915 | −0.053(213) | **617** |
-| P-spline, knots from `auto_background` | 57 | 0.05256 | 2.0560 | −0.039(218) | 145 |
-| the data owner's TOPAS fit (unpublished): 7 Chebyshev + 1 Gaussian | 7 + 3 | 0.06663 | 2.583 | +0.215(76) | — |
+| Chebyshev, 3 terms | 3 | 0.119977 | 1.9695 | 0.414(75) | 0 |
+| Chebyshev-3 **+ one background peak** | 3 + 3 | 0.082503 | 1.3544 | 0.421(12) | 0 |
+| Chebyshev, 6 terms | 6 | 0.088597 | 1.4545 | 0.422(29) | 0 |
+| Chebyshev-6 + one background peak | 6 + 3 | 0.077152 | 1.2666 | 0.4235(85) | 0 |
 
-Three things to read out of it, and only the first is the happy one.
+**Three parameters beat three parameters.** The first two rows differ by three
+numbers, and so do the first and third — three peak parameters against three
+extra polynomial coefficients, the same cost to the same fit. The peak takes Rwp
+from 0.119977 to 0.082503, a fall of 0.037 or 31 % relative; three more
+Chebyshev terms take it to 0.088597, 26 %. That is the whole comparison, and it
+is a fair one only because the parameter counts match.
 
-**The peak finds the feature.** On the low-order background it refines to
-2θ₀ = 14.50(1.46)°, Γ = 6.06(3.83)° against TOPAS's 14.4158(539)° and
-5.815(1.504)° — the same feature, from a different code, with a different
-peak-shape model. The fitted width is 20.8× the instrumental FWHM at that
-angle (0.291°), which is what a diffuse feature looks like and is well clear
-of the guard in the next section.
+**The peak does not compete with the Bragg intensity, it releases it.** Biso(Si)
+barely moves — 0.414 → 0.421 Å², well inside one esd — but its **esd falls by a
+factor of six**, 0.075 → 0.012 Å². So do the esds of everything the background
+was trading against: λ 5.9×, the scale 6.0×, the zero shift 5.9×. A background
+the model cannot describe does not bias this fit so much as blur it, and the
+three numbers that describe the hump give back the precision.
 
-**A peak needs a low-order background to be identifiable.** On the 16-term
-polynomial the same peak walks off to 24.8° and 31.9° wide, becomes a
-low-order background term in all but name, and the fit comes back with 617
-`HIGH_CORRELATION` findings. The peak and the polynomial are describing the
-same freedom. Declare a peak *instead of* extra polynomial terms, never on top
-of them.
+**What the fitted peak is.** Position 4.18(11)°, height 115.3(38) counts,
+FWHM 5.57(27)°. The instrumental Gaussian FWHM at that angle, from this fit's
+own refined *u*, *v*, *w*, is 0.00346° — the peak is **1 608×** the resolution,
+which is what a diffuse feature looks like and is 400× clear of the
+`BACKGROUND_PEAK_TOO_NARROW` guard in the next section. Neither peak arm returns
+a single `HIGH_CORRELATION` finding.
 
-**Biso(Cr) stays negative, so the background was not the whole story.** This
-was the expectation the feature was built to test, and on this dataset it is
-not met: the peak moves Biso(Cr) by −0.010 Å², the wrong way, on a parameter
-whose esd is 0.22. Site by site against the reference, from the Chebyshev-7
-row:
+#### The hump is the container, on three independent legs
 
-| site | TOPAS | this package | Δ | in combined σ | esd ratio |
-|---|---|---|---|---|---|
-| Cr1 | +0.2150(761) | −0.0186(2222) | −0.234 | 0.99 | 2.9 |
-| W1 | +0.5143(1114) | +0.5304(3347) | +0.016 | 0.05 | 3.0 |
-| O1 | +0.3759(567) | +0.2374(1580) | −0.139 | 0.83 | 2.8 |
-| O2 | +0.3223(333) | +0.2445(940) | −0.078 | 0.78 | 2.8 |
+Rwp cannot tell a container halo from a missed reflection. Three things outside
+this fit can.
 
-The two refinements therefore *agree* — every site inside one combined σ — and
-Biso(Cr) is not significantly negative. It is the smallest and least determined
-of the four in both codes, and its central value here happens to land just
-below zero. The offsets are not uniform either (W agrees to 0.016 Å²), so they
-are not the signature of a missing whole-Q-range factor. What is systematic is
-the **esd**: 2.8–3.0× the reference's at every site. That is the number to
-attack before the sign of Biso(Cr) means anything, and the places to look are
-the three things the protocols differ by — the reference refines a specimen
-displacement of 0.0975 (a cos θ position error this geometry cannot express
-without a goniometer radius), it uses a Pearson VII peak shape where this
-package uses a TCHZ pseudo-Voigt, and it carries a second phase at about
-1.2 vol %.
+**The blank.** 11-BM's published standards listing carries run 4736 from the
+same February 2010 beamtime, header `Chemical formula = empty Kapton capillary
+(Kapton)` — the container with no sample in it. Fitted **independently of this
+package** (numpy Chebyshev, scipy least-squares, the file's own σ) over the same
+1.997–49.996° range, a 3-term Chebyshev plus one Gaussian reaches χ²ᵣ = 1.125
+on 48 000 channels at position 4.2417(111)°, FWHM 6.153(23)°. Chebyshev-3 alone
+reaches only 5.33, and it takes **fourteen** polynomial terms — eleven more than
+the Gaussian's three — for a peak-free polynomial to match those six parameters.
+Two codes, two scans, one feature, agreeing on position to 0.06° and on width to
+0.6°.
 
-So the honest reading of this feature is narrower than the one it was built
-for: it is the right *description* of a localised background feature, and the
-recovered parameters agree with an independent refinement of the same data —
-but a negative displacement parameter is not, on this evidence, a background
-problem.
+**The air-scatter control.** The same listing carries a "No sample — Air Scatter
+Only" scan. Binned over 2–50° it decays strictly monotonically, bin after bin,
+with nothing localised anywhere — so the hump is not in the beam or the air
+path. It is the container. (That scan was taken at a different wavelength, so
+the claim has to be "no feature anywhere" rather than "no feature at 5°": at
+0.458735 Å the same d-spacing would sit at 5.56°, and the stronger form is
+free of that.)
+
+**Physics.** The envelope maximum of the blank sits at 4.98° 2θ, which at that
+scan's 0.412225 Å is d = 4.74 Å, Q = 1.33 Å⁻¹: the polyimide amorphous halo.
+
+Together those make the peak a *description of a known scatterer* rather than a
+three-parameter Rwp reduction, which is the only thing that makes this feature
+quotable.
+
+#### Where the fitted centre is not the halo position
+
+Read the table honestly and one number does not fit: the halo is at 4.98–5.05°
+by envelope, and the refined peak comes back at 4.18(11)°. The two are answering
+different questions.
+
+A symmetric Gaussian spanning 2–50° has to absorb whatever the 3-term polynomial
+cannot, and what the polynomial cannot do at this end of the range is the
+residual direct-beam rise below 3°. So the fitted centre is pulled low: it is
+the best single Gaussian for *the halo plus that rise*, not a measurement of the
+halo. Give the polynomial three more terms and the rise becomes the polynomial's
+job — the Chebyshev-6 arm's peak relaxes to 5.245(41)°, onto the envelope, and
+narrows from 5.57(27)° to 1.94(11)°.
+
+So: quote the **envelope** (and the blank) for where the halo is, and the **fit**
+for the model that describes it. Do not read the refined position as a physical
+d-spacing.
+
+The same arithmetic is where one standing rule comes from.
+Between the Chebyshev-3 and Chebyshev-6 arms the peak moves 1.07° and changes
+width by a factor of nearly three while Rwp moves by 0.005 — the peak and the
+polynomial are describing overlapping freedom, and the more flexible the
+polynomial, the less the peak's own parameters mean. **Declare a peak instead of
+extra polynomial terms, not on top of them**, and if a peak's parameters are
+what you intend to quote, keep the background as low-order as the fit tolerates.
 
 #### What a background peak is not
 
@@ -790,8 +831,11 @@ A free position, height and width is a peak with no cell and no structure factor
 behind it, and enough of those will improve any Rwp — which is exactly the kind
 of evidence this package does not accept. What makes the term a *background*
 term is that its width comes from disorder rather than from the goniometer, and
-disorder is many times the resolution: the case above is 5.8° wide where the
-instrument's lines are 0.25–0.30°, a factor of about 20.
+disorder is many times the resolution: the case above is 5.57° wide where this
+synchrotron's Gaussian FWHM at the same angle is 0.00346°, a factor of 1 608. A
+laboratory or neutron instrument will show a smaller ratio — the same Kapton
+halo against 0.3° lines is a factor of 20 — and the guard is set for that
+weaker case.
 
 So a peak that refines to less than
 `BACKGROUND_PEAK_MIN_WIDTH_MULT` ({{ BACKGROUND_PEAK_MIN_WIDTH_MULT }}) times
@@ -810,12 +854,14 @@ from rietx import Instrument
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import BACKGROUND_PEAK_FWHM_MIN, BackgroundPeak
 
-instrument = Instrument.constant_wavelength_neutron(2.078, fwhm_deg=0.30)
+instrument = Instrument.debye_scherrer(wavelength=0.412359)
+# seeded at the envelope, not at the value the fit above converged to: a seed
+# is a starting guess, and the halo is where the blank says it is
 instrument.background_peaks = [BackgroundPeak(
-    label="diffuse hump",
-    position=Parameter(value=14.4, unit="deg"),
-    height=Parameter(value=5.0, min=0.0, unit="counts", transform="softplus"),
-    fwhm=Parameter(value=5.8, min=BACKGROUND_PEAK_FWHM_MIN, unit="deg",
+    label="Kapton halo",
+    position=Parameter(value=5.0, unit="deg"),
+    height=Parameter(value=50.0, min=0.0, unit="counts", transform="softplus"),
+    fwhm=Parameter(value=2.0, min=BACKGROUND_PEAK_FWHM_MIN, unit="deg",
                    transform="softplus"))]
 assert len(instrument.background_peaks) == 1
 ```

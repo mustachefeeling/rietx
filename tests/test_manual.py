@@ -147,3 +147,74 @@ def test_source_lines_cover_every_labelled_equation():
         n_sources = len(SOURCE_LINE.findall(text))
         if n_labels:
             assert n_sources > 0, f"{page.name}: {n_labels} labelled equations, no *Source:* lines"
+
+
+def test_the_background_peak_table_agrees_with_the_refinement_that_produced_it():
+    """`using/data.md`'s background-peak evidence table, against the fixture.
+
+    That section's headline is a comparison of measured Rwp values — one
+    background peak against three more Chebyshev terms, at equal parameter cost
+    — and the refinements behind it are `tests/test_acceptance_si640c.py`'s
+    `cheb3`/`cheb3_peak`/`cheb6` fixtures, which assert the same numbers by
+    running them.  This is the *other* half of that chain: the prose cannot say
+    a different number from the one the slow test pins, which is what would
+    otherwise happen when a solver change moves the fit and only the test is
+    updated.
+
+    It is here rather than in the acceptance module for a scheduling reason —
+    this half is a file read and belongs in the fast selection, and the half
+    that needs four fits does not.
+
+    **Both prose copies, not one.**  The same table is transcribed twice — the
+    Markdown table in `using/data.md` and the reST table in the
+    :class:`~rietx.schemas.instrument.BackgroundPeak` docstring — and the second
+    is the one that drifted last time (7dbd27c fixed the manual's claim and left
+    the docstring stating the old one).  Both are checked against `MANUAL_RWP`
+    here, so neither copy can say a number no refinement produced.
+    """
+    sys.path.insert(0, str(MANUAL_DIR.parent.parent / "tests"))
+    manual_rwp = importlib.import_module("test_acceptance_si640c").MANUAL_RWP
+    page = (MANUAL_DIR / "using" / "data.md").read_text(encoding="utf-8")
+
+    # --- the Markdown table in using/data.md, keyed by row label ---
+    rows = {
+        "cheb3": "| Chebyshev, 3 terms |",
+        "cheb3_peak": "| Chebyshev-3 **+ one background peak** |",
+        "cheb6": "| Chebyshev, 6 terms |",
+        "cheb6_peak": "| Chebyshev-6 + one background peak |",
+    }
+    for key, prefix in rows.items():
+        line = next((ln for ln in page.splitlines() if ln.startswith(prefix)),
+                    None)
+        assert line is not None, f"the {key} row is gone from data.md"
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        # | background | terms | Rwp | GoF | Biso | HIGH_CORRELATION |
+        assert float(cells[2]) == manual_rwp[key], (
+            f"data.md's {key} row says Rwp {cells[2]}, the fixture that "
+            f"produced it says {manual_rwp[key]}")
+
+    # --- the reST table in the BackgroundPeak docstring, keyed by the `terms`
+    # column (its two peak rows share the label "that **+ one peak**", so the
+    # label cannot key them; the term count can) ---
+    doc = importlib.import_module(
+        "rietx.schemas.instrument").BackgroundPeak.__doc__
+    lines = doc.splitlines()
+    seps = [i for i, ln in enumerate(lines)
+            if ln.strip() and set(ln.strip()) <= {"=", " "}]
+    assert len(seps) >= 3, "the BackgroundPeak docstring table lost its rules"
+    terms_to_key = {"3": "cheb3", "3 + 3": "cheb3_peak",
+                    "6": "cheb6", "6 + 3": "cheb6_peak"}
+    seen: set[str] = set()
+    for ln in lines[seps[1] + 1:seps[-1]]:  # body rows, between the inner rules
+        cols = re.split(r"\s{2,}", ln.strip())
+        # background | terms | Rwp | Biso(Si)/Å² | HIGH_CORRELATION
+        key = terms_to_key.get(cols[1]) if len(cols) >= 3 else None
+        if key is None:
+            continue
+        assert float(cols[2]) == manual_rwp[key], (
+            f"the BackgroundPeak docstring's {key} row says Rwp {cols[2]}, the "
+            f"fixture that produced it says {manual_rwp[key]}")
+        seen.add(key)
+    assert seen == set(terms_to_key.values()), (
+        f"the BackgroundPeak docstring table is missing rows: "
+        f"{set(terms_to_key.values()) - seen}")

@@ -277,6 +277,22 @@ def restraint_schedule() -> None:
             _save(fig, "restraint-schedule", style)
 
 
+def _su(value: float, esd: float | None) -> str:
+    """One authority for esd notation in this file (issue #166).
+
+    ``rx.format_su``'s last-place digits when the su is **below 1** —
+    ``14.37(17)``, the crystallographic convention every neighbour in the manual
+    uses — and decimal-in-parentheses at or above 1, where last-place digits
+    stop being readable and the manual's wide-esd prose already writes
+    ``14.50(1.46)``.
+    """
+    if esd is None or not (esd > 0.0):
+        return f"{value:.2f}"
+    if esd < 1.0:
+        return rx.format_su(value, esd)
+    return f"{value:.2f}({esd:.2f})"
+
+
 def background_peak() -> None:
     """A localised background feature, described two ways.
 
@@ -285,11 +301,22 @@ def background_peak() -> None:
     follow, and for the same reason: a figure with its own copy of a case can
     disagree with the test that proves the claim.
 
-    Why synthetic rather than the real Cr₂WO₆ / BT-1 pattern the feature was
-    built for: that pattern is not in the repository, so a figure drawn from it
-    would be one this script cannot regenerate, which is exactly what this
-    file's docstring exists to prevent.  The real measurement is a **table**,
-    in ``using/data.md``, where a number can carry its own provenance.
+    Why synthetic rather than the manual's real worked example (11-BM Si SRM
+    640c in a Kapton capillary, ``tests/data/11BM_Si640c.xy``): two reasons, and
+    the first is the one that matters.  Only a synthetic hump has a **known**
+    position and width, so only here can the figure say how close the three
+    refined parameters came — on the real pattern the halo's position is itself
+    an envelope reading, and a figure drawing an arrow from a fit to another
+    estimate would be claiming a truth it does not have.  Second, that fit is
+    four minutes over 47 999 channels, and this script's own bargain (see the
+    module docstring) is that regenerating a figure stays cheap.  The real
+    measurement is a **table**, in ``using/data.md``, where a number can carry
+    its own provenance.
+
+    esd notation follows the decision on issue #166: ``rx.format_su``'s
+    last-place digits below su = 1, decimal-in-parentheses at or above, where
+    last-place digits stop being readable.  It lives in ``_su`` below so the
+    crossover has one home rather than one per figure.
     """
     # explicit rather than through ``rx.viz``: this runs *before* the figure
     # that calls ``result.plot`` and imports the subpackage as a side effect
@@ -334,9 +361,9 @@ def background_peak() -> None:
             axes[1].set_xlim(float(tt.min()), 40.0)
             axes[1].legend(frameon=False, loc="upper right")
             axes[1].annotate(
-                f"2θ₀ {got['position'].value:.2f}({got['position'].stderr:.2f})°"
+                f"2θ₀ {_su(got['position'].value, got['position'].stderr)}°"
                 f"  vs {truth['position']:.1f}° true\n"
-                f"Γ {got['fwhm'].value:.2f}({got['fwhm'].stderr:.2f})°"
+                f"Γ {_su(got['fwhm'].value, got['fwhm'].stderr)}°"
                 f"  vs {HUMP_TRUTH['fwhm']:.1f}° true",
                 xy=(0.02, 0.95), xycoords="axes fraction", ha="left",
                 va="top", color=FG[style])
