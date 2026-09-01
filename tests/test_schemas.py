@@ -210,6 +210,32 @@ def test_atom_reusing_one_parameter_for_occ_and_biso_gets_each_fields_own_range(
     assert (a.occ.min, a.occ.max, a.occ.unit) == (0.0, 1.5, None)
 
 
+def test_schema_version_bumped_and_pre_fix_documents_still_load():
+    """Review item 2 on PR #206: ``SCHEMA_VERSION`` must move, since the set
+    of legal ``Atom`` constructions shrank — the constant's own changelog
+    names this exact bump. Also pins the claim the comment makes and issue
+    #209 depends on: a document written *before* this fix, carrying the
+    unbounded ``biso`` the bug allowed (explicit ``-Infinity``/``Infinity``,
+    the shape ``model_dump_json`` actually wrote), still loads unaffected —
+    the break is to construction, not to persisted documents, because
+    ``model_fields_set``/dict-keys are already complete on load and nothing
+    is inherited."""
+    from rietx.schemas.common import SCHEMA_VERSION
+
+    assert SCHEMA_VERSION == "0.16"
+
+    pre_fix_doc = (
+        '{"label": "Fe1", "species": "Fe",'
+        ' "x": {"value": 0.0}, "y": {"value": 0.0}, "z": {"value": 0.0},'
+        ' "occ": {"value": 1.0, "min": 0.0, "max": 1.5},'
+        ' "biso": {"value": -165.0, "min": "-Infinity", "max": "Infinity",'
+        ' "unit": null}}'
+    )
+    a = Atom.model_validate_json(pre_fix_doc)
+    assert (a.biso.value, a.biso.min, a.biso.max, a.biso.unit) == (
+        -165.0, float("-inf"), float("inf"), None)
+
+
 def test_structure_json_round_trip():
     s = make_lab6()
     s2 = Structure.model_validate_json(s.model_dump_json())
