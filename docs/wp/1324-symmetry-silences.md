@@ -1,6 +1,6 @@
 # WP-1324 — symmetry silences: an orbit that is not a multiplicity, and a setting nobody chose
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-02
 Depends on: —
 
 ## Goal
@@ -106,3 +106,98 @@ the validation matrix's real-data suites are the check.
 
 - **2026-09-01** — created from issues #215 and #217 during the roadmap
   reorder; no code touched.
+
+- **2026-09-02** — **done.** All five tasks; four commits. No `### Inherited`
+  section existed, so nothing to prune.
+
+  **The orbit (#215).** `symmetry.site_orbit` is the one authority:
+  candidates fixing the site within `tol`, their Reynolds average as the snap,
+  then the *snapped* point's own stabiliser and one operation per left coset.
+  Recomputing the stabiliser after the snap is what makes
+  `ORBIT_NOT_A_MULTIPLICITY` unreachable rather than merely rare — step 1's
+  set need not be a subgroup, and a first cut that trusted it raised on **157
+  of 16 920** fuzzed sites, all jittered cubic ¼¼¼ and ⅛⅛⅛ positions where a
+  tolerance admits some members of the site symmetry and misses others. Steps
+  3 and 4 measure one point's own stabiliser and one point's own orbit, so
+  orbit-stabiliser settles it: 0 non-divisors and 0 raises over all 564 gemmi
+  settings × 30 positions. The guard is kept as the invariant and provoked in
+  the test by monkeypatching the coincidence tolerance.
+
+  The tolerance comparison is now **inclusive to a relative 1e-9**, which is
+  what makes the boron case come out at 18 rather than 36. A five-decimal file
+  lands on the boundary exactly (`1.0000000000000286e-04` against
+  `9.999999999998899e-05` for the same nominal 1e-4), so a strict `<` let
+  binary rounding decide which side of a crystallographic threshold a
+  coordinate fell on.
+
+  Three implementations became one reader: `select_orbit_ops` (the subset
+  frozen onto the compiled model, and what `phase_zmv` counts atoms with),
+  `stabilizer_rotations` (the constraint bases) and `site_constraints` (one
+  expansion, not two). That was the second half of the bug — taken separately,
+  the allowed directions and the orbit length answer different questions
+  whenever the tolerance admits a non-subgroup, and only the second was
+  reported.
+
+  **Acceptance clause, measured directly.** "No fitted number may move for a
+  structure whose orbits were already right" was checked against the old
+  greedy implementation rather than inferred from a green suite: **28 of 28**
+  site op-subsets bit-identical over the standards the acceptance suites fit
+  (LaB6, spinel both settings, FAP, corundum, brucite, cBN/Si, NaCl/CaF2,
+  rutile) and both bundled CIFs. The forward model reads exactly that subset,
+  so bit-identity of it is the whole claim.
+
+  **The setting (#217).** `setting_alternatives` reads the ambiguous set off
+  gemmi — **40** H-M symbols, the `:1`/`:2` origin choices plus the
+  rhombohedral `:H`/`:R` axes, so it cannot drift. Two departures from the WP
+  as written, both deliberate:
+
+  1. **Not in `Phase.space_group` validation.** A pydantic validator has no
+     diagnostics channel, which is the same reason `ParameterTable` refuses a
+     bad cell angle instead of correcting it, so the report is built at fit
+     time in `refine._symmetry_silence_diagnostics` and lands on
+     `result.diagnostics`. The *silence* the WP asked for falls out anyway: a
+     symbol carrying its setting returns `("", ())`, so the CIF and TOPAS
+     routes never fire it. Issue #217's tail ask — assert the symbol resolved
+     and name the string that failed — is already `get_spacegroup`'s
+     behaviour, and this gemmi resolves `P42/mnm` fine, so nothing was owed.
+  2. **The message quotes the composition each setting implies**, not the
+     symbols. That was the issue's "stronger version" and it is the part a
+     caller can recognise: spinel's origin-2 coordinates print
+     `F d -3 m:1 → Al8 Mg16 O32` against `F d -3 m:2 → Al16 Mg8 O32`, and one
+     of those is obviously not the compound. "Ambiguous symbol" is a warning
+     nobody reads.
+
+  **The boron file is not in the tree.** The WP asked for ICSD 18318's sixteen
+  sites as a test; ICSD is licensed data and the root CLAUDE.md fences it, so
+  the reproduction is pinned to the *arithmetic* that bit — a five-decimal
+  x/y pair whose `y − 2x` lands at `1.0000000000000286e-04`, asserted to be
+  that float and to be over a strict `1e-4`. The mechanism is the coordinates,
+  not the file, and `test_b11_shape_is_the_float_that_bit` says so.
+
+  **The snap is reported, not applied.** `SITE_SNAPPED_TO_SPECIAL_POSITION`
+  names the site, the shift and the multiplicity; the stored coordinate is
+  left alone. Rewriting it would change a refinement's start values, and the
+  deviation may be real — the coordinate DOF anchor keeps it either way
+  (`x = x₀ + Σ Bₖθₖ`), so the site refines from where the file put it while
+  counting the atoms symmetry says are there. `shift` reports 0.0 below 1e-12,
+  because a site already on its position averages to itself only to within an
+  ulp (h·x/h is not exactly x unless h is a power of two) and reporting that
+  is reporting arithmetic.
+
+  **One thing not done, and it is a judgement call for the maintainer.**
+  `SKILL.md` got a pointer (`no unresolved scale- or ZMV-family diagnostic`,
+  +8 B) rather than the two rows: the body is **31 968 B against its 32 000
+  cap**, and `tests/test_skill.py`'s docstring says the fix for a full body is
+  to move a lookup into a reference file, never to raise the cap for one. The
+  rows are in `references/diagnostics.md`, which is where the root CLAUDE.md
+  rule points. If the QPA row should name both codes outright, something else
+  in the body has to go — that is a call about every future session's fixed
+  cost, not one to make in passing.
+
+  **Numbers**, `[dev]` venv (no jax/torch), darwin/arm64, this worktree:
+  acceptance `tests/test_wyckoff.py tests/test_symmetry_orbits.py` **104
+  passed**; ruff clean over `src tests examples`; sphinx `-W` clean; fast
+  selection green before the docs commit at **3920 passed, 122 skipped**
+  (+31 from the new file after it, re-measured on the final tree below).
+
+  **Next.** Nothing blocks on this. The two issues can close on the PR.

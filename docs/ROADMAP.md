@@ -488,7 +488,7 @@ not a multiplicity (1324).
 | [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ⬜ | — (1310 soft) |
 | [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | — (PR #206 first) |
 | [1323](wp/1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | — |
-| [1324](wp/1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, a setting nobody chose | ⬜ | — |
+| [1324](wp/1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, a setting nobody chose | ✅ 2026-09-02 | — |
 
 #### One file, many patterns
 
