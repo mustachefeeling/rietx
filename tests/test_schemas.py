@@ -67,6 +67,117 @@ def test_unknown_field_rejected():
     assert "vry" in str(err.value)
 
 
+def _atom(**kw) -> Atom:
+    """An otherwise-minimal Atom, so each bound-inheritance test only names
+    the field it is exercising."""
+    kw.setdefault("label", "X")
+    kw.setdefault("species", "H")
+    kw.setdefault("x", Parameter(value=0.0))
+    kw.setdefault("y", Parameter(value=0.0))
+    kw.setdefault("z", Parameter(value=0.0))
+    return Atom(**kw)
+
+
+def test_atom_bare_biso_parameter_inherits_declared_bounds():
+    """Issue #204: a caller's own bare ``Parameter`` for ``biso`` — the
+    natural way to set a starting value or hold one — used to silently lose
+    the field's declared (0, 25, "A^2") range to Parameter's own bare
+    defaults. Fails on the parent commit (a4eec1db), where ``a.biso.min``
+    reads ``-inf``."""
+    a = _atom(biso=Parameter(value=1.0, vary=False))
+    assert (a.biso.min, a.biso.max, a.biso.unit) == (0.0, 25.0, "A^2")
+
+
+def test_atom_bare_occ_parameter_inherits_declared_bounds():
+    """Same mechanism as biso, on occ's declared (0, 1.5) range. Fails on
+    the parent commit, where ``a.occ.max`` reads ``inf``."""
+    a = _atom(occ=Parameter(value=0.8))
+    assert (a.occ.min, a.occ.max) == (0.0, 1.5)
+
+
+def test_atom_omitted_biso_still_gets_declared_bounds():
+    """Not a regression by itself (the parent commit already got this right
+    for the omitted-field case), but pinned here so the inheritance path and
+    the omitted-field path are asserted to agree on the same numbers."""
+    a = _atom()
+    assert (a.biso.min, a.biso.max, a.biso.unit) == (0.0, 25.0, "A^2")
+
+
+def test_atom_xyz_have_no_declared_bounds_to_lose():
+    """x/y/z are required with no default_factory, so the inheritance loop
+    (which only fires for fields carrying one) never touches them — pinned
+    per the issue's own claim that they "lose nothing"."""
+    a = _atom()
+    assert (a.x.min, a.x.max) == (float("-inf"), float("inf"))
+
+
+def test_atom_biso_out_of_declared_bounds_now_raises():
+    """The issue's measured consequence, reproduced directly: a bare
+    ``Parameter(value=-165.0)`` for biso used to be accepted silently
+    (refined Biso of -165 A^2 at unchanged Rwp). With the declared bound
+    inherited, -165 lies outside [0, 25] and construction raises. Fails on
+    the parent commit, where this construction succeeds."""
+    with pytest.raises(ValidationError, match=r"outside bounds"):
+        _atom(biso=Parameter(value=-165.0, vary=True))
+
+
+def test_atom_explicit_parameter_bound_is_not_overwritten():
+    """An explicit bound must win over the declared default — the whole
+    point of inheriting only what model_fields_set says was omitted, rather
+    than always overwriting from the field's default_factory."""
+    a = _atom(biso=Parameter(value=1.0, min=-5.0, max=5.0, unit="foo"))
+    assert (a.biso.min, a.biso.max, a.biso.unit) == (-5.0, 5.0, "foo")
+
+
+def test_the_always_overwrite_design_would_clobber_an_explicit_bound():
+    """Guards against over-firing. A parent-commit check can't demonstrate
+    why the model_fields_set discriminator matters — the parent applies no
+    inheritance at all, so it would pass a "the explicit bound survived"
+    comparison trivially, for the wrong reason. Demonstrate instead against
+    the design this PR rejected: unconditionally overwrite min/max/unit from
+    the field's declared default, without consulting model_fields_set. Run
+    on the very Parameter the test above proves the real validator leaves
+    alone, so the two tests are directly comparable."""
+    a = _atom(biso=Parameter(value=1.0, min=-5.0, max=5.0, unit="foo"))
+    default = Atom.model_fields["biso"].default_factory()
+    rejected = a.biso.model_copy()
+    for attr in ("min", "max", "unit"):  # the rejected design has no gate here
+        setattr(rejected, attr, getattr(default, attr))
+    assert (rejected.min, rejected.max, rejected.unit) == (0.0, 25.0, "A^2")
+    assert (rejected.min, rejected.max, rejected.unit) != (a.biso.min, a.biso.max, a.biso.unit)
+
+
+def test_every_bounds_carrying_atom_field_is_inherited():
+    """The generalisation guard the issue asked for most: rather than
+    trusting that ``occ`` and ``biso`` are the only two fields shaped this
+    way, discover every ``Parameter`` field on ``Atom`` whose
+    ``default_factory`` declares a min/max/unit beyond Parameter's own bare
+    defaults, and check each one inherits. A field added later the same way
+    is exercised here automatically, with no edit to this test; if
+    ``Atom._inherit_declared_bounds`` ever regresses to naming fields
+    explicitly and misses one, this fails. Fails on the parent commit for
+    both fields it currently finds (occ, biso)."""
+    bare = Parameter(value=0.0)
+    checked = []
+    for name, info in Atom.model_fields.items():
+        if info.annotation is not Parameter or info.default_factory is None:
+            continue
+        default = info.default_factory()
+        declared = {attr: getattr(default, attr) for attr in ("min", "max", "unit")
+                    if getattr(default, attr) != getattr(bare, attr)}
+        if not declared:
+            continue
+        checked.append(name)
+        got = getattr(_atom(**{name: Parameter(value=default.value)}), name)
+        for attr, want in declared.items():
+            assert getattr(got, attr) == want, (name, attr, got)
+    # Guards against a no-op loop (e.g. the annotation check silently
+    # matching nothing) rather than pinning the exact set, so a future field
+    # shaped like occ/biso is exercised above without needing this line
+    # touched.
+    assert {"occ", "biso"} <= set(checked)
+
+
 def test_structure_json_round_trip():
     s = make_lab6()
     s2 = Structure.model_validate_json(s.model_dump_json())

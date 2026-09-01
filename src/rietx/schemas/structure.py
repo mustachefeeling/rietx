@@ -292,6 +292,56 @@ class Atom(Base):
     aniso: AnisoU | None = None
 
     @model_validator(mode="after")
+    def _inherit_declared_bounds(self) -> "Atom":
+        """Fill a caller-supplied Parameter's min/max/unit from the field's
+        own declared default, wherever the caller left that attribute unset.
+
+        ``occ``/``biso`` declare their physical range in a ``default_factory``
+        (min=0, max=1.5 for occ; min=0, max=25, unit="A^2" for biso) rather
+        than as a field constraint, so the range only ever applied when the
+        field was omitted entirely — a caller supplying their own
+        ``Parameter(value=..., vary=...)``, the natural way to set a starting
+        value or hold one, silently got ``(-inf, +inf)`` and no unit instead
+        (issue #204). Measured cost: a refined Biso of -165 A^2 and an
+        81-point QPA error at unchanged Rwp, invisible at the call site.
+
+        Detected with ``model_fields_set`` rather than by comparing against
+        ``Parameter``'s own bare defaults: an *explicit* ``min=-inf`` is
+        indistinguishable from an omission by value alone, and must still
+        win — an explicit bound always beats a declared one, in either
+        direction.
+
+        Generalised over every ``Parameter`` field on this class carrying a
+        ``default_factory`` (today: ``occ`` and ``biso`` — not ``x``/``y``/
+        ``z``, which are required with no factory and default to (-inf, inf)
+        regardless, so they lose nothing), rather than naming the two fields,
+        so a field added later the same way is covered without touching this
+        validator. See ``test_every_bounds_carrying_atom_field_is_inherited``
+        in ``tests/test_schemas.py``, which fails if a new such field is
+        added and *not* covered by this loop.
+
+        Inherits rather than refuses a bound-less ``Parameter``: requiring
+        every caller to restate the physical range on every construction
+        would break existing ones (the recipe and CIF readers already pass
+        their own explicit bounds and are unaffected either way — checked
+        against this repo's own call sites before landing this). If the
+        caller's value falls outside the inherited bound,
+        ``Parameter._check_bounds`` still raises once the attribute is set
+        below — that is this fix doing its job, not a new refusal.
+        """
+        for name, info in type(self).model_fields.items():
+            if info.annotation is not Parameter or info.default_factory is None:
+                continue
+            current = getattr(self, name)
+            missing = {"min", "max", "unit"} - current.model_fields_set
+            if not missing:
+                continue
+            default = info.default_factory()
+            for attr in missing:
+                setattr(current, attr, getattr(default, attr))
+        return self
+
+    @model_validator(mode="after")
     def _one_displacement_model(self) -> "Atom":
         if self.aniso is not None and self.biso.vary:
             raise ValueError(
