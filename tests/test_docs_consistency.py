@@ -130,15 +130,19 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #   2026-09-01  gui/CLAUDE.md                1019 -> 1028 for the placement pass
 #   2026-09-01  src/rietx/indexing/CLAUDE.md  296 -> 300  for the placement pass
 #   2026-09-01  tests/CLAUDE.md               253 -> 275  for the placement pass
+#   2026-09-01  docs/ROADMAP.md               589 -> 597  for the roadmap reorder: landed 573, cap landed + 24
 SIZE_CAPS: dict[str, int | None] = {
     "CLAUDE.md": 722,
-    "docs/ROADMAP.md": 589,
+    "docs/ROADMAP.md": 597,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,
     "src/rietx/io/CLAUDE.md": 300,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
+# Words, because a line cap alone was met by nine 1000-character paragraphs
+# (measured 2026-09-01: 9 lines, ~1300 words).  The reorder landed at 210.
+CURRENT_FOCUS_WORD_CAP: int | None = 300
 
 
 def _wp_files() -> list[Path]:
@@ -207,6 +211,73 @@ def test_roadmap_glyph_mirrors_the_wp_status_line():
         assert cell_glyphs, f"ROADMAP row {wp_id}: status cell {cell!r} has no glyph"
         assert cell_glyphs[0] == file_glyph, (
             f"WP {wp_id}: file says {file_glyph}, ROADMAP row says {cell_glyphs[0]}"
+        )
+
+
+_MILESTONE_LINE_RE = re.compile(r"^Milestone: (\S+) ·", re.M)
+_SECTION_RE = re.compile(r"^### (v\d+\.\d+(?:\.x)?|Unscheduled|v2\+)(?=\s|$)", re.M)
+
+
+def _index_sections() -> dict[str, str]:
+    """WP id -> the milestone token of the `###` section its row sits under.
+
+    Sub-headings (`####`) group rows inside a section and carry no token.
+    """
+    text = ROADMAP.read_text(encoding="utf-8").split("## Work packages", 1)[1]
+    row_re = re.compile(r"^\| \[(\d{4})\]\(wp/")
+    sections: dict[str, str] = {}
+    current: str | None = None
+    for line in text.splitlines():
+        if line.startswith("### "):
+            m = _SECTION_RE.match(line)
+            assert m, (
+                f"ROADMAP section {line!r} does not open with a milestone token "
+                "(vN.N, vN.N.x, Unscheduled, v2+) — every section under Work "
+                "packages is one milestone's, so a row's section can be checked "
+                "against its WP file"
+            )
+            current = m.group(1)
+            continue
+        m = row_re.match(line)
+        if m:
+            assert current, f"ROADMAP row {m.group(1)} sits above any section"
+            sections[m.group(1)] = current
+    return sections
+
+
+def test_index_section_mirrors_the_wp_milestone_line():
+    """The WP file's `Milestone:` line is the authority on where a WP stands;
+    the section its ROADMAP row sits under mirrors it.  The number cannot
+    carry this (1101-1103 opened for v1.1 and are queued for v1.4), which is
+    why it is a line and a test rather than a naming rule.
+    """
+    sections = _index_sections()
+    for path in _wp_files():
+        wp_id = path.name[:4]
+        m = _MILESTONE_LINE_RE.search(path.read_text(encoding="utf-8"))
+        assert m, f"{path.name}: no 'Milestone: <token> ·' line"
+        token = m.group(1)
+        section = sections[wp_id]
+        assert token.lower() == section.lower(), (
+            f"WP {wp_id}: file says Milestone: {token}, ROADMAP row sits under "
+            f"§ {section} — move the row or fix the line"
+        )
+
+
+_STATUS_CELL_RE = re.compile(r"^(?:⬜|(?:🔄|✅|🛑) \d{4}-\d{2}-\d{2})$")
+
+
+def test_roadmap_status_cell_is_a_glyph_and_a_date():
+    """An index row's status cell is the glyph and the date, nothing else.
+
+    The free text belongs on the WP file's own Status line (TEMPLATE.md);
+    ROADMAP's cells had grown six-line close narratives, which is how the
+    file reached 8600 words before the 2026-09-01 reorder.
+    """
+    for wp_id, (_link, cell) in _index_rows().items():
+        assert _STATUS_CELL_RE.match(cell), (
+            f"ROADMAP row {wp_id}: status cell {cell!r} is not '<glyph> <date>' "
+            "— put the summary on the WP file's Status line"
         )
 
 
@@ -356,6 +427,11 @@ def test_current_focus_stays_a_focus_not_a_diary():
         f"Current focus is {n_lines} lines (cap {CURRENT_FOCUS_CAP}).  On WP close "
         "it is rewritten, and the outgoing narrative MOVES to the in-flight "
         "milestone record (protocol rule 5) — it does not accumulate here."
+    )
+    n_words = len(section.split())
+    assert CURRENT_FOCUS_WORD_CAP is None or n_words <= CURRENT_FOCUS_WORD_CAP, (
+        f"Current focus is {n_words} words (cap {CURRENT_FOCUS_WORD_CAP}).  A "
+        "shipped milestone's summary belongs in its record, not here."
     )
 
 

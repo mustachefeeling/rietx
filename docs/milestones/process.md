@@ -428,6 +428,20 @@ unscheduled WPs — three index rows and their evidence sentences across
 the two existing sections whose subjects they extend; #202 and #204's
 construction half cost no lines, being in-flight PRs (#208, #206).
 
+589 -> 597 for the roadmap reorder (2026-09-01): the file was rewritten in
+milestone order — one section per milestone, status cells reduced to glyph
+and date, seven Unscheduled sections merged into one, Current focus cut from
+nine ~1000-character paragraphs to 210 words — and landed at 573 lines and
+6791 words (from 589 and 8613).  The line count barely moved because the
+old file's prose ran to 1000-character lines and the new one wraps; the word
+count is the honest measure, and the new word cap on Current focus exists
+because a line cap was met by exactly that.  Three WP rows were added (1323,
+1324, 1325) and every close narrative a cell carried went to the WP file's
+own Status line, checked number by number.  Cap landed + 24, as CLAUDE.md's
+compression pass set the convention; the admission rule is unchanged, and
+two new tests keep the shape — a row's section mirrors its WP's Milestone
+line, and a status cell is a glyph and a date.
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
