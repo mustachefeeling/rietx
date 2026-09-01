@@ -359,8 +359,14 @@ its commits are reachable only through the PR ref, not through any local branch.
   day's issue-triage session
   had touched the file, so the date rule passed. A `/pr-review` merge writes no
   handover entry by design, so a contributor PR carrying a WP prefix is the one
-  shape of work this repo can land with no record on the WP. Worth a line in
-  `.claude/commands/pr-review.md`; not fixed here.
+  shape of work this repo can land with no record on the WP. **Closed in
+  `.claude/commands/pr-review.md`** (this session, after the entry above was
+  written): the triage call now reads `commits[].messageHeadline`, which is the
+  only place that shape is visible at all — rank 1 batches such a PR when the WP
+  is in flight, and step 9 makes the handover entry part of the merge
+  disposition rather than a later session's archaeology. The scan is unchanged
+  and still cannot ask for the entry; what changed is that the run holding the
+  reading is now the one that writes it.
 - Name audit, for the classes no test catches: all six diagnostic codes have
   skill rows, all four `Stance` members have writers in the table, the reader
   adds no physics (so no Part 2 equation is owed) and claims no Rwp comparison
