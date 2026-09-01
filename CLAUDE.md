@@ -14,8 +14,8 @@ record the clause names.
 ## Commands
 
 ```sh
-uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once); a WORKTREE needs its own venv — main's .venv imports main's src (tests/CLAUDE.md)
-uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
+uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"   # setup (once); a WORKTREE needs its own venv, and --python stops an inherited VIRTUAL_ENV retargeting main's (tests/CLAUDE.md)
+uv pip install --python .venv/bin/python -e ".[dev,jax,torch]"   # + optional jax/torch backends
 .venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~15-30 min, incl. real-data acceptance (counts: § Numbers)
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance, ~1-3 min
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend

@@ -1,6 +1,6 @@
 # WP-1072 — Interatomic distances and angles, with esds from the full covariance
 
-Milestone: v1.0 · Status: ✅ 2026-08-15
+Milestone: v1.0 · Status: ✅ 2026-08-15 — distances and angles over the frozen orbits, J·Cov·Jᵀ with the diagonal-only twin beside it, `_geom_` CIF loops
 Depends on: — (either side of 1003: purely additive, no closed vocabulary
 touched; before it if capacity allows — the freeze sequences, see 1003's
 Inherited)

@@ -21,8 +21,11 @@ Run the session-start ritual. The SessionStart hook's report
    session leaves both satisfied whatever the entry says, so a quiet report is
    a prompt, not proof.
 2. **Identify the WP**: the one the user names, else ROADMAP "Current
-   focus". Read that one WP file only (plus the DESIGN.md sections it
-   links); do not read other WP files.
+   focus" — read that section, not the file
+   (`sed -n '/^## Current focus/,/^## Milestones/p' docs/ROADMAP.md`): the
+   section is ~1k tokens, the whole file ~13k, and a WP file is
+   self-contained. Read that one WP file only (plus the DESIGN.md sections
+   it links); do not read other WP files.
 3. **Worktree, then branch.** If the hook's first line names the main
    checkout, call `EnterWorktree` with the WP's name (`wp1208-<slug>`) before
    anything else. The `WorktreeCreate` hook cuts that branch from `origin/main`
@@ -38,7 +41,7 @@ Run the session-start ritual. The SessionStart hook's report
    2026-08-26). Commit to your branch instead.
 4. **Venv.** If the hook flagged a mismatch or a missing venv (the create hook
    reports when its build failed), build this worktree's own
-   (`uv venv --python 3.12 && uv pip install -e ".[dev]"`) and say which extras
+   (`uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"`) and say which extras
    were installed — every test count quoted later depends on that statement
    (`tests/CLAUDE.md`).
 5. **Prune the WP's `### Inherited`** on arrival: fold still-true entries

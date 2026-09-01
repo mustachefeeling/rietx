@@ -169,7 +169,7 @@ line if the checkpoint ended it. Close with
    merged tree is the tree under test**: branch protection is `strict: false`,
    so nothing else ever tests it; a conflict here *is* the finding — report,
    ask for a rebase, stop. Venv:
-   `(cd "$BENCH" && uv venv --python 3.12 && uv pip install -e ".[dev,jax]")`,
+   `(cd "$BENCH" && uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev,jax]")`,
    reinstalled only when the PR touches `pyproject.toml`; `[dev,jax]` matches
    `nightly.yml`'s full job so counts compare and cross-backend rows pass
    rather than skip.

@@ -1,6 +1,6 @@
 # WP-1302 — The error is the documentation; the output is bounded; the result is a termination view
 
-Milestone: v1.3 · Status: ✅ 2026-08-29 — the termination view, HIGH_CORRELATION
+Milestone: v1.3 · Status: ✅ 2026-08-29 — the ramp's 35.2 kB diagnostics dump is 3.5 kB on the same fit, `print(result)` smaller still; the termination view, HIGH_CORRELATION
 dedup/cap, progress=, and the closest-match/re-export surface all shipped in one session
 Depends on: — (1305 supplies `delta_bic` for one line of the summary; until then that line says "run `suggest`")
 

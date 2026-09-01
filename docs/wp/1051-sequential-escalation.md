@@ -1,6 +1,6 @@
 # WP-1051 — Sequential escalation ladder + chain hygiene
 
-Milestone: v1.0 (proposed 2026-07-30) · Status: ✅ 2026-08-09
+Milestone: v1.0 · Status: ✅ 2026-08-09 — three rungs, keep-best; a diverged pattern seeds nothing and joins no median
 Depends on: —
 
 ## Goal

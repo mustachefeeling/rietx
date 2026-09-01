@@ -31,7 +31,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-VENV = 'uv venv --python 3.12 && uv pip install -e ".[dev]"'
+VENV = 'uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"'
 
 
 def sh(*args: str, cwd: Path, check: bool = True) -> subprocess.CompletedProcess:

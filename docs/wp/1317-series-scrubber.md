@@ -57,6 +57,18 @@ screenshots come from `docs/manual/make_screenshots.py`.
   held-path counts summarise the same marker vocabulary this panel draws.
   The one-vocabulary rule now spans both consumers: neither surface invents
   a second set of names.
+- **From the roadmap reorder, 2026-09-01 (issue #218)**: a scrubber over a
+  `direction="both"` run needs the forward pass before the backward one
+  finishes, and today it cannot have it — `sequential.py` assembles the
+  forward `SeriesResult` and runs `_persistent_diagnostics` on it before the
+  backward branch, exposes `self.backward_`, and has no `self.forward_`. The
+  issue asks for exactly that attribute (set before the backward walk, with
+  every diagnostic except the path-dependence ones, which cannot exist yet)
+  or an `on_pass_complete` callback beside `progress=`, plus a
+  movement-ranked `SeriesResult.moved_paths(n, min_sigma)` so every caller
+  of `plot_trajectory` stops inventing the same ranking. Both belong to the
+  series surface this panel reads; land them here or split them out, but
+  the panel should not be the only consumer.
 
 ## Non-goals
 

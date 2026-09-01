@@ -122,6 +122,19 @@ clause).
   registry-shape
   task — but a general pass borders this WP's equation scope, and 1118's file
   says explicitly that the boundary is decided **here, not twice**.
+- **From the roadmap reorder, 2026-09-01 (issue #212)**: the first concrete
+  ask for this WP's linear half is a *restraint row* rather than a tie — a
+  conserved elemental ratio across phases (Cu/(Ca+Al) = 1.935 through a
+  reduction series, where diffraction alone moves 17 wt % between two
+  phases for 0.2–0.5 pp of Rwp). It is linear in the phase scales because
+  moles of E ∝ Σ_p S_p·V_p·n_{E,p} and `phase_zmv`'s `element_counts`
+  already carries n_{E,p}; a `√w·(Σ c_k·x_k − target)/σ` row over
+  (path, coefficient) pairs needs no expression language. The seam question
+  the issue isolates: `Phase.restraints` is per phase and `Structure` holds
+  no cross-phase list, so the row lives beside `resolve_phase_restraints`
+  at Structure level. Decide here whether that row is this WP's first
+  deliverable or a WP of its own; [1325](1325-parametric-series.md) names it
+  as one instance of a parametric constraint.
 
 ## Non-goals
 

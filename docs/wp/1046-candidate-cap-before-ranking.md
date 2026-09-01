@@ -1,6 +1,6 @@
 # WP-1046 — The per-engine candidate cap decides the ranking
 
-Milestone: v1.0 · Status: ✅ 2026-08-09
+Milestone: v1.0 · Status: ✅ 2026-08-09 — reported cap applied once by consensus, `corroborated` the first ranking key
 Depends on: — (found by 1026's reopen; 1024 owns the consensus it feeds)
 
 ## Goal

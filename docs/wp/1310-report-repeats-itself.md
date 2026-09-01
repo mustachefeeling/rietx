@@ -75,6 +75,21 @@ invites exactly the "zero or absent?" ambiguity the trajectory work avoided.
 The class is [1076](1076-result-row-honesty.md)'s: a declared shape whose
 empty state reads as an answer.
 
+### Inherited
+
+- **From the roadmap reorder, 2026-09-01 (issue #211)**: a fourth member of
+  this WP's class — a surface that reads as an answer and is not. A stage's
+  `turn_on` glob frees a parameter the caller pinned with `vary=False`
+  (`ParameterTable.set_vary` cannot tell a deliberate pin from a default,
+  and `apply_to_models` writes the value back but never `vary`), so the
+  value moves while `Parameter.vary` still reads `False`. WP-1208's rule
+  already says a plan *replaces* the vary flags rather than continuing them,
+  so the defect is the record, not the precedence: which declaration won
+  has to be said (a diagnostic naming the pinned paths the plan freed, and
+  `vary` written back or reported per stage). Measured cost in the issue:
+  an invalidated pin-and-scan study, and it is the failure mode of
+  calibrate-on-a-certified-standard.
+
 ## Non-goals
 
 - **Not #166's esd notation** — the maintainer ruled it not worth a figure

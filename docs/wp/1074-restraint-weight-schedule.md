@@ -1,6 +1,6 @@
 # WP-1074 — The restraint weight schedule: c_w per stage
 
-Milestone: v1.0.x · Status: ✅ 2026-08-16
+Milestone: v1.0 · Status: ✅ 2026-08-16 — eq (7)'s c_w per stage, identity default bit-identical; measured: a flat c_w = 1 converges to a 4.834 Å bond at Rwp 0.0393, the schedule to 1.872 Å at 0.0327
 Depends on: WP-0406 (the restraint rows this scales) — post-freeze is fine:
 one additive defaulted `Stage` field
 

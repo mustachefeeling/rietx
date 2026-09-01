@@ -62,7 +62,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple, Optional
 
-VENV_FIX = 'uv venv --python 3.12 && uv pip install -e ".[dev]"'
+VENV_FIX = 'uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"'
 REPAIR_HINT = "repair first (/wp-handover, repair mode)"
 SHARED_HINT = "one session per tree: EnterWorktree before editing (/wp-start step 3)"
 

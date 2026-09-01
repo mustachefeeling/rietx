@@ -4,13 +4,19 @@ Milestone: v0.X · Status: ⬜
 Depends on: WP-MMMM (or —)
 
 <!--
-Numbering: milestone-blocked MMNN — the next free number in the block of the
-milestone this WP targets (v1.1 → 11xx). Never recycle a retired number.
+Numbering: MMNN — the block of the milestone this WP is OPENED for, then the
+next free sequence number (v1.1 → 11xx); an unscheduled WP takes the newest
+block. The number never changes when the WP moves, so it is not where the WP
+stands: the Milestone line is, and the ROADMAP section the row sits under
+mirrors it (tests/test_docs_consistency.py). Never recycle a retired number.
+Milestone values: vN.N (a row of ROADMAP's table), vN.N.x (shipped after that
+milestone, in its patch releases), unscheduled.
 Status values: ⬜ not started · 🔄 in progress · ✅ shipped · 🛑 no-go.
 Format: "Status: <glyph> <YYYY-MM-DD> — <free text>". The date is required
 for every glyph except ⬜; the free text is optional and may wrap.
 Keep the Status line here and the WP's row in ../ROADMAP.md in sync
-(tests/test_docs_consistency.py asserts both).
+(tests/test_docs_consistency.py asserts both). The ROADMAP cell carries the
+glyph and the date only; the free text lives on this line.
 A WP file must be self-contained: a session that reads ONLY this file
 (plus the auto-loaded CLAUDE.md) can start work. Link specific DESIGN.md
 sections instead of restating them, but restate anything short and

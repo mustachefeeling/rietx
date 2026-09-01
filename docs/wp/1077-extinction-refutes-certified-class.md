@@ -1,6 +1,6 @@
 # WP-1077 — The extinction screen refutes a certified class
 
-Milestone: 1.0.x · Status: ✅ 2026-08-18 — **the evidence was wrong, and the fix
+Milestone: v1.0.x · Status: ✅ 2026-08-18 — **the evidence was wrong, and the fix
 is in the test.** Both refuting positions sit on the low-angle flank of a strong
 allowed line; at the same offsets, *sham* positions carrying no reflection of any
 kind clear the same 3σ test on 40-50 % of probes (up to 24.7σ, low-angle flank
