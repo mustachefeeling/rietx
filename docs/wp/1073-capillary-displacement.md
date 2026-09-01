@@ -1,6 +1,6 @@
 # WP-1073 — Capillary sample displacement: eq (4) for Debye-Scherrer geometry
 
-Milestone: v1.0.x · Status: ✅ 2026-08-15 — eq (4) on both forward paths and
+Milestone: v1.0 · Status: ✅ 2026-08-15 — eq (4) on both forward paths and
 the analytic chain, position templates and actions keyed by geometry, and the
 measured finding that 11-BM is where the correction must *not* be refined
 Depends on: — (post-freeze is fine: additive defaulted schema fields; a

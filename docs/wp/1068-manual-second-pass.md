@@ -1,6 +1,6 @@
 # WP-1068 — Part 1 second pass: voice, figures, structure
 
-Milestone: v1.0 § Floor · Status: ✅ 2026-08-15 — voice, sectioning, two new
+Milestone: v1.0 · Status: ✅ 2026-08-15 — voice, sectioning, two new
 chapters, four diagrams, three figures; and the McCusker section, once the paper
 arrived, which also produced the compliance audit in the v1.0 record
 Depends on: WP-1067 (the chapters and their guards)

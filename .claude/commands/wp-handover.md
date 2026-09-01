@@ -88,7 +88,8 @@ steps below run unchanged.
    section, rewrite ROADMAP's "Current focus" for the successor (within
    `CURRENT_FOCUS_CAP`, tests/test_docs_consistency.py), and MOVE the
    outgoing focus narrative to the in-flight milestone record
-   (`docs/milestones/v1.0.md` § "How v1.0 is getting here").
+   (the in-flight `docs/milestones/vX.Y.md` § "How vX.Y is getting here";
+   the last shipped record's when no milestone is open).
 8. **Sweep session memory notes**: anything in the assistant memory
    directory that corrects or extends the repo record gets ported into the
    repo now — a memory note is not a channel to the next session's repo

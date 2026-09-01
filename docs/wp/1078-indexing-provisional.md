@@ -1,6 +1,6 @@
 # WP-1078 — Indexing is provisional, and every surface says so
 
-Milestone: 1.0.x · Status: ✅ 2026-08-18 — **257 names declared provisional,
+Milestone: v1.0.x · Status: ✅ 2026-08-18 — **257 names declared provisional,
 derived from the module that defines each one.** Five guards over the tier,
 each failed on purpose once; the promise is one `{ref}` target the manual, the
 protocol, the release notes and the README all point at rather than restate.
