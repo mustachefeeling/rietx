@@ -95,7 +95,8 @@ in-flight stage is *abandoned* — no node, no commit, models restored to pre-st
 seeding stage writes before solving). `RefinementCancelled` carries `.completed_stages` and
 `.node_id`, the last completed node the working state stands at. Event `data` is an **open
 dict**: a new field in a kind is no `EVENT_SCHEMA_VERSION` bump, a new kind is
-(`history/events.py`).
+(`history/events.py`). The **run state is not an event** — `EventKind` is closed, so a run's
+status travels beside the stream and `live/events.jsonl` stays the one thing `watch` tails.
 
 **Series** = N refinements chained by warm start (in-situ ramp, parametric sweep, tray of
 related specimens). `sequential.py` (`SequentialRefinement`/`refine_sequential`) →
@@ -180,7 +181,9 @@ agreeing bytes + disagreeing fingerprint = a reader change, not a corrupt projec
 channels the next run fits** (`compile_model`'s first act; a function, so a pattern the project
 does not own — a series member — asks the same question); and an inverted or empty interval is
 **refused, not reordered** by `schemas.project.check_interval`, one sentence the verb, the
-`.rxt` parser and the document's validators all quote.
+`.rxt` parser and the document's validators all quote. **There is no read-only way to open one**:
+every verb writes into the directory and `Project.open` appends a head annotation before any verb
+runs, so looking without changing means a copy — `rietx gui --scratch` (byte-for-byte, temp dir).
 
 **Entry points**: `Refinement.fit()` / `refine()` in `refine.py`. Modes: `"rietveld"`;
 `"lebail"` (intensity partitioning in `CompiledModel.lebail_update`); `"pawley"` (per-hkl
@@ -204,24 +207,11 @@ rungs are states the plan already visits, so the answer is bit-identical.
 
 ### GUI
 
-`rietx gui [PROJECT.rex]` — stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist.
-Rulebook (session/wire split, server contract, `.rxt` document, editors, the nine panels, 3D
-viewer, theming): `gui/CLAUDE.md`, loaded under `gui/`. Four rules matter outside the GUI too:
-mutating verbs return **409 while a run is in flight** (frozen-per-stage discreteness enforced
-structurally); the **run state is not an event** — `EventKind` is closed, `live/events.jsonl`
-stays the one stream `watch` tails; **a project setting is one that is about the project**, so
-the theme is the person's, lives in `/api/settings` beside the recent list, and is not behind
-the 409 (WP-1044); **there is no read-only way to open a project** — every verb writes into the
-directory and `Project.open` appends a head annotation before any verb runs, so looking without
-changing means a copy: `rietx gui --scratch` (byte-for-byte, temp dir), `--state-dir` for the
-recent list, `*.rex/` in `.gitignore` (1204). Since WP-1017 the GUI is **documented**
-(`using/gui-quickstart|guide|power.md`) and no longer beta; its **routes stay provisional by
-declaration**, and routes + panel names are partitioned against those chapters by test.
-
-**An example project *is* a `compare.py` standard** (WP-1204, `src/rietx/examples.py`), so no
-protocol is restated — `test_compare_ui.py` already pins those to the acceptance suites.
-`list_examples()`'s membership is `STANDARDS` filtered by what is in
-`src/rietx/data/examples/`, so a file added to the wheel adds an example.
+`rietx gui [PROJECT.rex]` — stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist,
+**documented** since WP-1017 (`using/gui-quickstart|guide|power.md`) with its **routes still
+provisional by declaration**. Rulebook — session/wire split, server contract (the 409 while a run
+is in flight), `.rxt` document, editors, the nine panels, 3D viewer, theming, the example
+projects: `gui/CLAUDE.md`, loaded under `gui/`.
 
 ## Invariants (do not break)
 - **Frozen-per-stage discreteness**: hkl list, symmetry-op subsets, FCJ quadrature node counts,
@@ -595,8 +585,9 @@ protocol is restated — `test_compare_ui.py` already pins those to the acceptan
 - `RefinementResult.ticks` carries **every emission line's** positions, not just the primary —
   otherwise Layer 0 flags each Kα2 peak as an unindexed impurity (a real bug, caught by the
   misfit-injection suite).
-- Tests, timing, budgets, CI: `tests/CLAUDE.md` (loads under `tests/`); headline rules in Commands
-  above.
+- Tests, timing, budgets, CI, and what each key dataset can prove: `tests/CLAUDE.md` (loads under
+  `tests/`; provenance and every reference value in `tests/data/README.md`); headline rules in
+  Commands above.
 - Comparing against another code means **adopting its protocol**, not just its numbers: mirror its
   refine flags, held parameters and excluded regions, then check the channel count matches before
   believing any Rwp comparison. **Two references are an envelope, not a second tolerance**
@@ -680,36 +671,20 @@ release that never existed. `pyproject.version` tracks the milestone in flight, 
 shipped when none is** — `1.3.0` today, v1.4 not yet open. It is the string every
 `RefinementResult.provenance` and history node stamps; a new milestone opens at `1.x.0.dev0`.
 
-**Indexing — the rules that govern behavior outside `indexing/`.** Full dossier
-`src/rietx/indexing/CLAUDE.md` (auto-loads when a session works there); measured stories in the v1.0
-record's appendix.
+**Indexing.** Full dossier `src/rietx/indexing/CLAUDE.md` (auto-loads when a session works there);
+measured stories in the v1.0 record's appendix. **A new indexing rule lands there; it earns a
+clause here only if it changes behavior outside `indexing/`.** Three do:
 
-- **The tolerance an engine searches with is not the per-line σ.** A fitted σ(2θ) is the right
-  *weight* and the wrong *matching window*: on certified corundum the lines sit a median 11σ from
-  the true positions (a cos θ displacement), so at 3σ the true cell indexes zero lines. Hence
-  `DEFAULT_UNKNOWN_SHIFT_DEG`, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must
-  never look like a measured one, and `refine_with_shift` *after* a candidate survives — a cell
-  never shift-refined is biased by roughly the shift (+1400 ppm).
 - **Never a confident singleton**: `IndexingResult` has no `.cell`/`.best`, only a gated
   `best_or_none()`; `determine_extinction_symbol` returns ranked classes each carrying a *list* of
   space groups — the extinction symbol, not the space group, is what a powder measures.
-- **The gate**: `high` requires zero caveats; whole-profile Le Bail validation is mandatory (the FoM
-  panel sees ≤20 lines and cannot see a reflection predicted where there is no intensity); read
-  `predicted_but_absent` as "this cell predicts lines the pattern lacks", never "this cell is too
-  big".
-- **Confidence is engines agreeing** — three, failing differently (wide domain / poisoned base line
-  / bad starting basin), so adding one raises the bar rather than diluting it; and the FoM panel
-  ranks, never scores.
-- **`quick` is `index_pattern`'s default** (WP-1042): all engines, all requested systems run
-  **system-major** under a whole-run ceiling, with progress and a graded shortlist per completed
-  system streamed on the event ladder, so GUI, CLI and agent inherit a bounded, anytime first
-  click. A caller's own `total_budget_seconds` is never overridden (the result records
-  `preset="custom"`); `preset="full"` is the unbounded pre-1.0 run, and a test asserting a complete
-  search declares it explicitly.
+- **`quick` is `index_pattern`'s default** (WP-1042): all engines, all requested systems under a
+  whole-run ceiling, with progress and a graded shortlist streamed on the event ladder, so GUI, CLI
+  and agent inherit a bounded, anytime first click. A caller's own `total_budget_seconds` is never
+  overridden (the result records `preset="custom"`); `preset="full"` is the unbounded pre-1.0 run,
+  and a test asserting a complete search declares it explicitly.
 - **Run `tests/test_acceptance_indexing.py` before closing anything that touches an engine** — a
   real ranking regression once sat under 115 green fast indexing tests (WP-1030).
-- A new indexing rule lands in `src/rietx/indexing/CLAUDE.md`; it earns a clause here only if it
-  changes behavior outside `indexing/`.
 
 **Backends (v0.4).** `backend=` takes `"numpy"` (the default and the only one anyone needs),
 `"jax"`, or the **experimental** `"torch"` (CPU fp64) / `"torch-mps"` (Apple GPU, necessarily fp32)
@@ -721,18 +696,3 @@ precision validation, not speed (the v0.4 record). Also since v0.4: true Voigt (
 TCHZ still the default), soft restraints, the Bérar-Lelann esd inflation. v2 fence: FPA, neutron
 **TOF**, spherical-harmonics texture, MCP server — and the **peaks buffer with FPA**, never before:
 shape reuse needs > 2.8-4.2 FCJ images a window point (WP-1122).
-
-Key test data (provenance + every reference value in `tests/data/README.md`):
-- `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC + CaF₂ impurity;
-  acceptance expects a≈10.2513, Rwp<0.12.
-- `nist_srm660c_100a.cif` — NIST LaB6 certification data, CuKα doublet + graphite analyzer; fits the
-  `…_meas` block with zero fixed / displacement refined; expects a≈4.15678±2e-4, Rwp<0.10.
-  **Absolute** anchor.
-- `FAP.XRA` + `FAP.EXP` — GSAS-II LabData tutorial fluorapatite; the `.EXP` is GSAS's converged fit
-  and supplies both the reference values and the protocol the test mirrors. **Cross-code
-  consistency** check (±300 ppm), not truth.
-- `qarr/*.prn` — IUCr CPD QPA round-robin patterns (samples 1a-1h, 2, 4 + six pure phases; 2-column
-  ASCII, Cu Kα doublet, graphite diffracted-beam mono). QPA truth is the **weighed composition**;
-  tolerances referenced to the published participant spread, never to σ(W). `corundum.prn` doubles
-  as the SRM 676a cell-anchor specimen (c/a is the certificate-grade assertion; absolute axes carry
-  lab d-scale systematics).

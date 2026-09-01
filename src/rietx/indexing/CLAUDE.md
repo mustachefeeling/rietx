@@ -185,12 +185,16 @@ wider than the shift manufactures a confident wrong singleton** (at 0.060° SRM
 amplitude's *standard error*, never the pair scatter; and **an allowance is not
 a correction** — it finds lines, only `shift_template` moves the cell.
 
-**The tolerance an engine searches with is not the per-line σ** — the root
-CLAUDE.md clause, whose absolute numbers live here: certified corundum's lines
-sit a median 0.060° from truth against a median fitted σ of 0.0056° (the 11σ),
-`DEFAULT_UNKNOWN_SHIFT_DEG` is 0.05° 2θ (the fallback when the pair screen
-declines), and `refine_with_shift` runs after survival because the shift's
-*shape* needs reference positions, which a candidate cell supplies.
+**The tolerance an engine searches with is not the per-line σ.** A fitted σ(2θ)
+is the right *weight* and the wrong *matching window*: certified corundum's
+lines sit a median 0.060° from truth (a cos θ displacement) against a median
+fitted σ of 0.0056° — the 11σ — so at 3σ the true cell indexes zero lines.
+Hence `DEFAULT_UNKNOWN_SHIFT_DEG`, 0.05° 2θ, the fallback when the pair screen
+declines, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must
+never look like a measured one; and `refine_with_shift` runs *after* a
+candidate survives, because the shift's *shape* needs reference positions,
+which a candidate cell supplies — a cell never shift-refined is biased by
+roughly the shift (+1400 ppm).
 
 ## Fourteen more rules, each learned the hard way
 

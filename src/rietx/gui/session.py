@@ -2123,7 +2123,7 @@ class GuiSession:
     def index_ticks(self, index: int) -> dict:
         """Where candidate ``index`` says the lines are, on the pattern's axis.
 
-        The overlay behind root CLAUDE.md's reading rule for
+        The overlay behind ``src/rietx/indexing/CLAUDE.md``'s reading rule for
         ``predicted_but_absent`` — "this cell predicts lines the pattern lacks",
         never "this cell is too big" — which is a claim about *positions* and
         was until now servable only as a count.  One

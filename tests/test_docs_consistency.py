@@ -312,7 +312,21 @@ SIZE_CAPS: dict[str, int | None] = {
     # clause plus a pointer.  A future session finding a clause too thin
     # should restore it from the WP file it names rather than reasoning from
     # what is left here.
-    "CLAUDE.md": 760,
+    # 760 -> 722 for the placement pass (2026-09-01), the compression pass's
+    # other half: that one shortened prose, this one moves whole clauses to the
+    # rulebook that already owns them.  Three sections went down a rank — the
+    # GUI section to gui/CLAUDE.md, the indexing bullets to
+    # src/rietx/indexing/CLAUDE.md, the key-test-data table to tests/CLAUDE.md
+    # — and each destination's cap moved by what it received, so the fact count
+    # across the four files is unchanged (checked mechanically against the
+    # pre-pass copies: every WP number, SHOUTING constant, measured number and
+    # file path still present in the union).  What stayed here is what a
+    # session that never opens the subtree still needs: the run state is not an
+    # event, a project has no read-only open, and indexing's three clauses that
+    # reach outside indexing/ (no confident singleton, `quick` is the default,
+    # run the indexing acceptance suite before closing an engine change).
+    # Landed at 698, cap landed + 24 as above.
+    "CLAUDE.md": 722,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one
@@ -553,7 +567,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # requires: how each picture is taken is `make_screenshots.py`'s docstring,
     # the partition's shape is `test_gui_manual.py`'s, and the counts are in
     # the WP.
-    "gui/CLAUDE.md": 1019,
+    # 1019 -> 1028 for the placement pass (2026-09-01): the two clauses root was
+    # carrying about this app that nothing here restated — a project has no
+    # read-only way to open it (`--scratch`, `--state-dir`, `*.rex/` in
+    # .gitignore) and an example project *is* a `compare.py` standard, so the
+    # examples route restates no protocol.  Root kept the half that governs
+    # `Project.open` itself; the flags are here because they are flags on this
+    # command.  The other two root GUI rules needed no lines: the 409 and the
+    # theme's scope were already stated here in full.
+    "gui/CLAUDE.md": 1028,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
     # about *cadence*, which nothing else in this file carried — the sections
     # below all say how to run or read one suite, none said how often the
@@ -593,7 +615,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # checkout's venv — pointing a concurrent session's tests at this session's
     # tree.  A rule about which venv a count came from is worth nothing if the
     # command that builds it can silently retarget the other one.
-    "tests/CLAUDE.md": 253,
+    # 253 -> 275 for the placement pass (2026-09-01): the key-test-data table
+    # came down from root, where it was a third copy of a subset.  It is not
+    # provenance — that is tests/data/README.md, which this file already
+    # pointed at — but the rule a session needs before it picks a fixture:
+    # which dataset is an absolute anchor, which is a cross-code consistency
+    # check and not truth, and which carries a weighed composition.  A claim
+    # referenced to the wrong one is green and worth nothing, and nothing in
+    # this file said so.
+    "tests/CLAUDE.md": 275,
     # 250 at the WP-1060 split; raised once, for WP-1046's two standing rules
     # (which layer may apply a cap, and that agreement outranks the panel) —
     # both measured, and every number behind them is in the v1.0 appendix
@@ -605,7 +635,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # *invisible* until the covariance was equilibrated, so a session reading
     # the peak list's history will otherwise assume the not_separable fix
     # cleared it.
-    "src/rietx/indexing/CLAUDE.md": 296,
+    # 296 -> 300 for the placement pass (2026-09-01): the search-tolerance
+    # paragraph stops deferring to root for its rule and states it whole,
+    # absorbing the two facts that lived only there — the diagnostic code the
+    # allowance is reported under (an assumed precision must never look like a
+    # measured one) and the +1400 ppm bias a cell that was never shift-refined
+    # carries.  Root's clause is gone, so the cross-reference had to go too.
+    "src/rietx/indexing/CLAUDE.md": 300,
     # 200 at the .ras/.uxd consolidation; raised once with three container
     # formats still to land, each of which is a row in its per-format table
     # 250 -> 271 for WP-1306 (2026-08-29): `recipe.py`, whose first job is to

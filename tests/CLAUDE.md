@@ -40,8 +40,8 @@ steps 6 and 9; rungs 1-2 skip it, being cheap to repeat.
   one worker, and `conftest.pytest_configure` refuses a run without it.
 - Fast unit/property tests always; real-data acceptance marked
   `@pytest.mark.slow` (`test_acceptance_nac.py`, `_srm660c.py`, `_fap.py`,
-  `_capillary.py`, `_indexing.py`). Reference values and data provenance in
-  `tests/data/README.md`. Every test refinement also writes obs/calc/diff
+  `_capillary.py`, `_indexing.py`); what each dataset may be asked is § Key
+  test data below. Every test refinement also writes obs/calc/diff
   PNGs to `tests/output/` (gitignored) for visual inspection — Rwp hides
   locally-bad fits. **The indexing suite draws through
   `tests/indexing_gallery.py`** rather than calling the renderers directly: it
@@ -50,6 +50,28 @@ steps 6 and 9; rungs 1-2 skip it, being cheap to repeat.
   into the scoreboard and a summary page. Declare a new dataset in its
   `DATASETS`/`TRUTHS` tables — `draw()` refuses an undeclared stem, because a
   silent skip is a dataset in the suite and not in the summary.
+
+## Key test data, and what each dataset can prove
+
+Provenance and every reference value are in `tests/data/README.md`; what a
+dataset may be *asked* is here, because a claim referenced to the wrong one is
+green and worth nothing.
+
+- `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +
+  CaF₂ impurity; acceptance expects a≈10.2513, Rwp<0.12. Internal consistency
+  (Le Bail vs Rietveld) and the wavelength calibration, not a certificate.
+- `nist_srm660c_100a.cif` — NIST LaB6 certification data, CuKα doublet +
+  graphite analyzer; fits the `…_meas` block with zero fixed / displacement
+  refined; expects a≈4.15678±2e-4, Rwp<0.10. The **absolute** anchor.
+- `FAP.XRA` + `FAP.EXP` — GSAS-II LabData tutorial fluorapatite; the `.EXP` is
+  GSAS's converged fit and supplies both the reference values and the protocol
+  the test mirrors. **Cross-code consistency** check (±300 ppm), not truth.
+- `qarr/*.prn` — IUCr CPD QPA round-robin patterns (samples 1a-1h, 2, 4 + six
+  pure phases; 2-column ASCII, Cu Kα doublet, graphite diffracted-beam mono).
+  QPA truth is the **weighed composition**; tolerances referenced to the
+  published participant spread, never to σ(W). `corundum.prn` doubles as the
+  SRM 676a cell-anchor specimen (c/a is the certificate-grade assertion;
+  absolute axes carry lab d-scale systematics).
 
 ## Shared fixtures and xdist groups
 
