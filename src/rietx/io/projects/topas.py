@@ -157,6 +157,17 @@ from pathlib import Path
 
 from ...schemas.common import Diagnostic
 from ..formats.base import decode
+from . import coverage as _coverage
+
+#: What a phase scope keyword this reader does not build into the model costs a
+#: caller, decided per construct in :mod:`.coverage` rather than at each call
+#: site. Compiled here because the *scan* is this module's — it owns the mask
+#: that makes a token scan safe — while what a stance means is the registry's.
+#: Longest first, so ``\b`` never truncates ``occ_merge_radius`` to
+#: ``occ_merge`` or ``min_r`` to ``min``.
+_COVERED = re.compile(
+    r"\b(?:" + "|".join(sorted((re.escape(k) for k in _coverage.SCANNED),
+                               key=len, reverse=True)) + r")\b")
 
 #: TOPAS origin/axis suffixes → the Hermann-Mauguin extension gemmi wants.
 #: ``Z`` is *Zentrum*, the centrosymmetric origin (choice 2); ``S`` is the
@@ -312,6 +323,15 @@ class TopasModel:
     #: and has none" about a file carrying a cell and two sites. So it is
     #: recorded, and :func:`to_structure` quotes it instead.
     skipped_blocks: list = field(default_factory=list)
+    #: What the phases state that this import does **not** carry
+    #: (:mod:`.coverage`). A ``.inp`` states more than a structure, and before
+    #: this the difference was invisible: a construct nobody had written a
+    #: branch for was dropped exactly as silently as one that does not matter.
+    #: It is on the model rather than only on the ``diagnostics`` channel for
+    #: the reason ``skipped_blocks`` is — a fact about the answer should not
+    #: depend on the caller having asked for messages. ``coverage.partial`` is
+    #: the yes/no; ``coverage.reported`` and ``.refused`` are the story.
+    coverage: _coverage.Coverage = field(default_factory=_coverage.Coverage)
 
 
 def strip_comments(text: str) -> str:
@@ -734,7 +754,8 @@ _GET = re.compile(rf"\bGet\s*\(\s*(?P<name>{_NAME})\s*\)")
 
 
 def _resolve(expr: str, symbols: dict[str, float],
-             getters: dict[str, float] | None = None) -> float | None:
+             getters: dict[str, float] | None = None,
+             refs: set[str] | None = None) -> float | None:
     """An equation's value: resolve ``Get(...)``, substitute named parameters,
     then evaluate.
 
@@ -753,6 +774,15 @@ def _resolve(expr: str, symbols: dict[str, float],
 
     Longest name first, so a name that is a prefix of another is never
     half-replaced (``Fe1_1_x`` inside ``Fe1_1_x2``).
+
+    ``refs`` collects the **file symbols** this expression was resolved
+    through, because a value copied out of a shared symbol is a coupling in
+    exactly the way ``Get(a)`` is: ``a = edge; b = edge;`` under one
+    ``prm edge`` is the format's other way of tying two cell edges, and the
+    number arrives with the tie left behind either way. Collected here rather
+    than re-matched off the expression by a caller, for the reason the flag
+    travels with the value — a second reading of the same text is a second
+    grammar, and the two drift.
     """
     scope = getters or {}
     expr = _GET.sub(
@@ -760,7 +790,11 @@ def _resolve(expr: str, symbols: dict[str, float],
         expr)
     for sym in sorted(symbols, key=len, reverse=True):
         if sym in expr:
-            expr = re.sub(rf"\b{re.escape(sym)}\b", repr(symbols[sym]), expr)
+            substituted, n = re.subn(rf"\b{re.escape(sym)}\b",
+                                     repr(symbols[sym]), expr)
+            if n and refs is not None:
+                refs.add(sym)
+            expr = substituted
     return _arith(expr)
 
 
@@ -825,6 +859,13 @@ class _Read:
     name: str | None = None
     rest: str = ""
     expr: str | None = None
+    #: The file symbols the equation was resolved **through**, from
+    #: :func:`_resolve`. Empty for the two non-equation forms, which reference
+    #: nothing. Its use is the same as ``expr``'s — asking *how* a number was
+    #: arrived at — one step further out: ``expr`` says the value came from an
+    #: equation, this says which declared parameters that equation reached, and
+    #: those are what carry a refine flag of their own.
+    refs: tuple[str, ...] = ()
 
 
 def _flag(*tokens: str | None, named: str | None = None) -> bool | None:
@@ -892,9 +933,11 @@ def _read_tail(tail: str, symbols: dict[str, float],
         return _Read(float(m["value"]), _flag(m["pre"], m["post"], m["tick"]),
                      m["name"], tail[m.end():])
     if m := _TAIL_EQUATION.match(tail):
-        return _Read(_resolve(m["expr"].strip(), symbols, getters),
-                     _flag(m["pre"], m["post"]), m["name"], tail[m.end():],
-                     expr=m["expr"].strip())
+        refs: set[str] = set()
+        value = _resolve(m["expr"].strip(), symbols, getters, refs)
+        return _Read(value, _flag(m["pre"], m["post"]), m["name"],
+                     tail[m.end():], expr=m["expr"].strip(),
+                     refs=tuple(sorted(refs)))
     if m := _TAIL_VALUE.match(tail):
         return _Read(float(m["value"]),
                      _flag(m["pre"], m["post"], m["tick"], named=m["name"]),
@@ -1171,8 +1214,26 @@ def symbol_table(text: str) -> dict[str, float]:
 
     A *declaration*, never any ``<name> <number>`` pair: see
     :data:`_DECLARING_KEYWORDS` for what that bought and what it cost.
+
+    The values half of :func:`_symbol_reads`, kept as its own name because it is
+    what every resolver takes and what the tests read.
     """
-    out: dict[str, float] = {}
+    return {name: read.value for name, read in _symbol_reads(text).items()}
+
+
+def _symbol_reads(text: str) -> dict[str, _Read]:
+    """:func:`symbol_table`'s single pass, keeping the whole read.
+
+    The flag is on it because **a declared parameter carries a refine state and
+    a value that copies it does not** — ``prm edge @ 5.0`` with ``a = edge;``
+    refines the cell edge, and reading only the number made that file
+    byte-identical to one declaring a constant. This module's own rule is that
+    the flag travels *with* the value through one grammar, and re-reading the
+    declaration for its flag alone would be the second grammar that rule exists
+    to prevent, so the whole :class:`_Read` is kept and the callers take the
+    half they need.
+    """
+    out: dict[str, _Read] = {}
     for m in _DECLARATION.finditer(text):
         tail = text[m.end():]
         if m["kw"] == "occ":
@@ -1186,9 +1247,13 @@ def symbol_table(text: str) -> dict[str, float]:
         # `prm Fe1_1_x = 1/4 + Fe1_1_dx;: 0.25000` binds the evaluated value,
         # which is the whole reason the deeper chain never has to be walked.
         if read is not None and read.name and read.value is not None:
-            out.setdefault(read.name, read.value)
+            out.setdefault(read.name, read)
     for m in _DECLARED_ARG.finditer(text):
-        out.setdefault(m["name"], float(m["value"]))
+        # A macro's named argument states a value and may carry a flag with it,
+        # which `_DECLARED_ARG` captures as part of the same match rather than
+        # by a second look at the text.
+        out.setdefault(m["name"], _Read(float(m["value"]),
+                                        _flag(named=m["name"]), m["name"]))
     return out
 
 
@@ -1742,7 +1807,10 @@ def read_topas_inp(path: str | Path, *,
     # located on the mask that hides it (see `_masked`).
     gmasked = _masked(active, keep_get=True)
     model = TopasModel(path=str(path))
-    symbols = symbol_table(active)
+    # The declarations, whole: the values every resolver takes, and the refine
+    # flag a value resolved *through* one of them has to inherit (`_symbol_reads`).
+    symbol_reads = _symbol_reads(active)
+    symbols = {name: read.value for name, read in symbol_reads.items()}
 
     # A `str` block ends at the next block opener of any kind, not at the next
     # `str`: see `_BLOCK_OPENERS` for the numbers, and `test_projects_topas.py`
@@ -1813,9 +1881,19 @@ def read_topas_inp(path: str | Path, *,
     # a rewrite are one diagnostic, not N.
     species_rewrites: dict[str, tuple[str, list[str]]] = {}
     origin_translations: list[tuple[str, str, str]] = []
-    #: ``(phase, space group, key, the key it was read through)`` — see
-    #: :func:`_symmetry_reproduces` for why the space group travels with it.
-    cell_couplings: list[tuple[str, str, str, str]] = []
+    #: ``(phase, space group, key, the key it is coupled to, how the file wrote
+    #: it)`` — see :func:`_symmetry_reproduces` for why the space group travels
+    #: with it. The last field is there because the format has **two** ways of
+    #: coupling two edges, `Get(a)` and a parameter both edges name, and a
+    #: message that names the wrong one sends a reader looking for a line that
+    #: is not in the file.
+    cell_couplings: list[tuple[str, str, str, str, str]] = []
+    #: ``keyword -> the phases that stated it``, for every phase-scope construct
+    #: with a stance that produces an outcome (:data:`_COVERED`). Collected per
+    #: phase rather than per file so a report can say *which* phase carries the
+    #: rigid body — on a four-phase QPA file, "the file states a rigid body" is
+    #: a sentence a caller cannot act on.
+    covered: dict[str, set[str]] = {}
     for index, opener in enumerate(openers):
         if opener["kw"] in _DATASET_OPENERS:
             dataset = 0 if dataset is None else dataset + 1
@@ -1865,6 +1943,13 @@ def read_topas_inp(path: str | Path, *,
                            dataset=dataset)
         if norm_sg != raw_sg:
             origin_translations.append((phase.name, raw_sg, norm_sg))
+        # What this phase states that the import does not carry. Scanned on THE
+        # masked chunk for the same reason every other token scan is: a `rotate`
+        # inside `Out_X_Ycalc("rotate.xy")` is a path, and `prm hat 0.1` names a
+        # parameter rather than invoking a convolution. The stances are
+        # `coverage`'s; the scan is this module's, because the mask is.
+        for m in _COVERED.finditer(mchunk):
+            covered.setdefault(m.group(), set()).add(phase.name)
         # The cell keys are read token-wise (WP-1118): the grammar is unified per
         # keyword but the scan was still per line, and TOPAS is whitespace-
         # insensitive, so `a 5.4 b 6.1 c 7.2` on one line read only `a` and built
@@ -1884,6 +1969,12 @@ def read_topas_inp(path: str | Path, *,
         masked_lines = list(zip(chunk.split("\n"),
                                 _blank_sites(mchunk).split("\n"),
                                 _blank_sites(gchunk).split("\n")))
+        #: ``declared parameter -> the first cell key that resolved through it``,
+        #: for this phase. A second key reaching the same parameter is the
+        #: format's other coupled-edge idiom, and the pair is what gets reported
+        #: — the parameter itself is not a cell key and has nowhere on the phase
+        #: to live, which is exactly why the coupling used to vanish.
+        from_symbol: dict[str, str] = {}
         for key in _CELL_KEYS:
             stated = [(orig, gmask) for orig, mask, gmask in masked_lines
                       if re.search(rf"\b{key}\b", mask)]
@@ -1923,15 +2014,40 @@ def read_topas_inp(path: str | Path, *,
             phase.cell[key] = read.value
             if read.vary is not None:
                 phase.vary[key] = read.vary
-            # A key resolved through `Get(other_key)` was **coupled** to that
-            # key, and resolution copies only the number. Recorded from this
-            # key's own equation — not from the line, which may state several —
-            # and reported past the guards below, where the space group can say
-            # whether the model reproduces the tie or has dropped it.
+            elif any(symbol_reads[r].vary for r in read.refs
+                     if r in symbol_reads):
+                # **A cell edge resolved through a declared parameter inherits
+                # that parameter's refine flag.** `prm edge @ 5.0` with
+                # `a = edge;` is a refined cell edge, and reading the number
+                # alone made it byte-identical to a file declaring a constant —
+                # a Structure saying "this cell was not refined" about a fit
+                # that refined it. The equation is a *constraint* (§2.4), so the
+                # edge is a dependent parameter and has no flag of its own to
+                # read; the flag it depends on is the one it is dependent on.
+                # Any source, because a dependent value moves when any of them
+                # does. Where the phase's symmetry ties the key this is absorbed
+                # (a tied entry is not a column of theta), so the inheritance
+                # costs nothing where the tie already carries it and restores a
+                # refined edge where it does not.
+                phase.vary[key] = True
+            # A key resolved through another cell key (`b = Get(a);`) or through
+            # a parameter a second key also names (`a = edge; b = edge;`) was
+            # **coupled** to it, and resolution copies only the number. Both
+            # idioms are recorded from this key's own equation — not from the
+            # line, which may state several — and reported past the guards
+            # below, where the space group can say whether the model reproduces
+            # the tie or has dropped it.
             for g in _GET.finditer(read.expr or ""):
                 if g["name"] in _CELL_KEYS and g["name"] != key:
                     cell_couplings.append(
-                        (phase.name, phase.space_group, key, g["name"]))
+                        (phase.name, phase.space_group, key, g["name"],
+                         f"`Get({g['name']})`"))
+            for ref in read.refs:
+                if (twin := from_symbol.get(ref)) is not None and twin != key:
+                    cell_couplings.append(
+                        (phase.name, phase.space_group, key, twin,
+                         f"the parameter `{ref}` that {twin} also names"))
+                from_symbol.setdefault(ref, key)
             # TOPAS bounds a cell explicitly (`min 3.61 max 3.66;`). Those
             # are part of the author's model: without them a phase the data
             # cannot see is a flat direction and its cell runs away.
@@ -1950,7 +2066,8 @@ def read_topas_inp(path: str | Path, *,
                     f"{path}: {phase.name}: {bad[0]}(...) states this phase's "
                     f"only cell, and it is not one of this format's cell macros "
                     f"— {_CELL_MACRO_LIST} are the ones this reader reads, and "
-                    f"nothing establishes which cell key each argument of a "
+                    f"nothing establishes which cell key each argument of "
+                    f"{'an' if bad[0][0] in 'AEIOU' else 'a'} "
                     f"{bad[0]} carries. Reading it would be a guess at a cell; "
                     f"write the a/b/c/al/be/ga lines out instead.")
             # A **stated** cell macro this reader could not read refuses too,
@@ -2122,6 +2239,10 @@ def read_topas_inp(path: str | Path, *,
         parsed_site_tokens += len(site_texts)
         model.phases.append(phase)
 
+    # Set before the site-count guard's refusal has a chance to fire, so that on
+    # every path where a model exists at all it carries its own coverage.
+    model.coverage = _coverage.classify(covered)
+
     # A file-level count of `site` tokens, computed over THE masked text and so
     # independent of how the file was split into blocks (WP-1118). A splitter
     # error — a `macro` truncating a `str`, a `str` chunk cut short — that drops
@@ -2165,19 +2286,47 @@ def read_topas_inp(path: str | Path, *,
         # frozen at the value it was copied: a third thing neither the file nor
         # rietx meant, and a repair the reader may make only because it can say
         # here that it made it.
-        for phase_name, sg, key, source in cell_couplings:
+        for phase_name, sg, key, source, via in cell_couplings:
             if _symmetry_reproduces(sg, key, source):
                 continue
             diagnostics.append(Diagnostic(
                 level="warning", code="TOPAS_CELL_COUPLING_DROPPED",
-                message=(f"{path}: {phase_name}: {key} is written as "
-                         f"`Get({source})`, so the file ties it to {source}; "
-                         f"the value was copied but the tie was not, and space "
-                         f"group {sg!r} does not tie them either. {source} may "
-                         f"refine away from a {key} held at the value it was "
-                         f"given. Tie them in the refinement plan, or read "
+                message=(f"{path}: {phase_name}: {key} is written through "
+                         f"{via}, so the file ties it to {source}; the value "
+                         f"was copied but the tie was not, and space group "
+                         f"{sg!r} does not tie them either. The two edges are "
+                         f"independent in the built model and may refine apart. "
+                         f"Tie them in the refinement plan, or read "
                          f"`model.phases` for what the file states"),
                 where=[f"phases.{phase_name}.cell.{key}"]))
+        # The coverage arm (:mod:`.coverage`): a `.inp` states more than a
+        # structure, and the constructs in between used to be dropped exactly as
+        # silently as the ones that do not matter. One diagnostic per stance,
+        # not per keyword — a file stating six convolutions is one partial
+        # import, and a caller reading a message wants the feature's name.
+        if model.coverage.reported:
+            diagnostics.append(Diagnostic(
+                level="warning", code="TOPAS_FEATURES_NOT_IMPORTED",
+                message=(f"{path}: this import is partial — the file states "
+                         f"{model.coverage.summary_of(model.coverage.reported)}"
+                         f", and none of it reaches the built structure. The "
+                         f"numbers that do are unaffected; what is missing is "
+                         f"the model around them. Read `model.coverage` for the "
+                         f"list, and `model.phases` for what the file states"),
+                where=[f"coverage.reported.{h.feature.name}"
+                       for h in model.coverage.reported]))
+        if model.coverage.refused:
+            diagnostics.append(Diagnostic(
+                level="warning", code="TOPAS_FEATURE_REFUSED",
+                message=(f"{path}: the file states "
+                         f"{model.coverage.summary_of(model.coverage.refused)}"
+                         f", which `to_structure` refuses rather than drops — "
+                         f"building the phase without it would misrepresent the "
+                         f"refinement, not merely simplify it. The model is "
+                         f"still an honest account of the text: read "
+                         f"`model.phases`"),
+                where=[f"coverage.refused.{h.feature.name}"
+                       for h in model.coverage.refused]))
         for phase_name, raw, canonical in origin_translations:
             diagnostics.append(Diagnostic(
                 level="info", code="TOPAS_ORIGIN_TRANSLATED",
@@ -2296,6 +2445,26 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
             f"them, or read `model.phases` (each carries its own `.dataset`).")
     else:
         phases_in = list(model.phases)
+
+    # **Refuse the constructs whose absence would misrepresent the file**, and
+    # refuse them here rather than at read (:mod:`.coverage`). The split is the
+    # skipped-block one: `read_topas_inp` returns what the text states, so a
+    # caller can always look; `to_structure` is where a *claim about a
+    # refinement* is made, and that is where a claim it cannot support has to
+    # stop. Filtered to the phases actually being built, so `dataset=` selecting
+    # a specimen without the rigid body still builds.
+    building = {ph.name for ph in phases_in}
+    blocked = [h for h in model.coverage.refused
+               if not h.phases or building.intersection(h.phases)]
+    if blocked:
+        raise TopasInpError(
+            f"{model.path or '<model>'}: "
+            f"{model.coverage.summary_of(blocked)} — this reader has no model "
+            f"for it, and building the phase without it would not simplify the "
+            f"refinement but misrepresent it: "
+            f"{'; '.join(h.feature.why for h in blocked if h.feature.why)}. "
+            f"Read `model.phases` for what the file states, and "
+            f"`model.coverage` for every construct this import does not carry.")
 
     # The window is `Atom.biso`'s own declaration, read off the schema rather
     # than restated here: the bound this refusal quotes must not be the reader's

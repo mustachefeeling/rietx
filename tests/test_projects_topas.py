@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from rietx.io.projects import coverage
 from rietx.io.projects.topas import (
     _CELL_MACROS,
     TopasInpError,
@@ -535,7 +536,15 @@ CELL_SPELLINGS = [
     ("a !lpa 7.301139`", 7.301139, False),
     ("a =mlpa;:7.301139`", 7.301139, True),
     ("a = 7.3;", 7.3, None),
-    ("a = mlpa;", 7.30114, None),
+    # An equation resolved through a *declared* parameter inherits that
+    # parameter's refine state, because the edge is dependent on it and the
+    # edge itself has no flag to read. `prm mlpa 7.30114` names the parameter
+    # and so refines it — Technical Reference 2.2, where `prm b1 0.2` is
+    # described as a new parameter that will be refined and `prm !b1 0.2` as
+    # the held form. This row read `None` for as long as the inheritance was
+    # missing, which is a file that refined its cell arriving as one that held
+    # it.
+    ("a = mlpa;", 7.30114, True),
 ]
 
 
@@ -740,6 +749,9 @@ def test_the_undefined_macro_refusal_lists_the_macros_this_reader_reads(tmp_path
         assert name in msg, f"{name} is read but the refusal does not offer it"
     assert "Trigonal" in msg          # the one the four-name sentence dropped
     assert "the reference defines" not in msg
+    # The message is templated over the macro name, so the article has to agree
+    # with the name it is given rather than with the one it was written for.
+    assert "an Orthorhombic" in msg and "a Orthorhombic" not in msg
 
 
 def test_a_lattice_macro_beside_an_explicit_cell_is_not_needed(tmp_path):
@@ -2680,3 +2692,225 @@ def test_a_load_this_reader_does_not_read_is_left_alone(tmp_path):
                'site A1 x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
                'load out_record { out_eqn = Get(r_wp); out_fmt "%11.5f" }\n')
     assert read_topas_inp(inp).phases[0].cell["a"] == pytest.approx(4.0)
+
+
+# ---------------------------------------------- the coverage registry (WP-1118)
+
+#: A phase with nothing in it but what this reader builds. Every coverage test
+#: below adds one construct to this, so what fires is attributable to the line
+#: that was added rather than to the fixture.
+_PLAIN = ('str\nphase_name "P"\nspace_group "P 1"\n'
+          'a 5.0 b 6.0 c 7.0 al 90 be 90 ga 90\nscale @ 0.001\n'
+          'site A1 x 0 y 0 z 0 occ Ca+2 1 beq 0.5\n')
+
+
+def test_every_phase_scope_keyword_has_exactly_one_stance():
+    """The completeness oracle, and the reason the registry is a mechanism
+    rather than a list.
+
+    A construct with no stance is one that is dropped in silence, which is the
+    single shape all nine review rounds of this reader found. Partitioned both
+    ways: a keyword in the scope without a stance fails, and a stance naming a
+    keyword outside the scope fails — so support for a new construct is a row
+    that moves, and the test says whether anything was left behind.
+    """
+    seen: dict[str, str] = {}
+    for feat in coverage.FEATURES:
+        assert feat.keywords, f"{feat.name} declares no keyword"
+        assert feat.stance in coverage.Stance
+        for kw in feat.keywords:
+            assert kw not in seen, (
+                f"{kw!r} is claimed by both {seen[kw]!r} and {feat.name!r}; a "
+                f"keyword has one stance or the stance is not a fact about it")
+            seen[kw] = feat.name
+    assert set(seen) == set(coverage.PHASE_SCOPE)
+    # A refusal has to say what building without it would misrepresent, and a
+    # report what the caller loses. An unargued refusal is a rule nobody can
+    # check against a file.
+    for feat in coverage.FEATURES:
+        if feat.stance in (coverage.Stance.REFUSED, coverage.Stance.REPORTED):
+            assert feat.why, f"{feat.name} takes a stance without an argument"
+
+
+def test_scanned_is_exactly_the_stances_that_produce_an_outcome():
+    """`READ` and `IGNORED` cost a scan and answer nothing, and several of them
+    are one character long. The registry still carries them because the oracle
+    above is the whole scope."""
+    assert coverage.SCANNED == {
+        kw for feat in coverage.FEATURES
+        if feat.stance in (coverage.Stance.REPORTED, coverage.Stance.REFUSED)
+        for kw in feat.keywords}
+    assert not coverage.SCANNED.intersection({"a", "b", "c", "x", "y", "z"})
+
+
+def test_a_file_this_reader_fully_understands_reports_nothing(tmp_path):
+    """The silence has an argument behind it, which is what the registry is for:
+    every construct in this file is `READ`."""
+    diags = []
+    model = read_topas_inp(_inp(tmp_path, "plain.inp", _PLAIN), diagnostics=diags)
+    assert model.coverage.partial is False
+    assert model.coverage.reported == () and model.coverage.refused == ()
+    assert [d.code for d in diags] == ["TOPAS_SPECIES_NORMALISED"]
+
+
+def test_a_construct_the_import_drops_is_named_as_a_partial_import(tmp_path):
+    """`REPORTED`: the structure built is right as far as it goes, and one
+    diagnostic says how far. It still builds — a dropped peak shape does not
+    make the atoms wrong."""
+    inp = _inp(tmp_path, "profile.inp",
+               _PLAIN + "lor_fwhm = 0.1;\npush_peak 0.01\n")
+    diags = []
+    model = read_topas_inp(inp, diagnostics=diags)
+    assert model.coverage.partial is True
+    (hit,) = model.coverage.reported
+    assert hit.feature.name == "peak profile"
+    assert hit.keywords == ("lor_fwhm", "push_peak")
+    assert hit.phases == ("P",)
+    (report,) = [d for d in diags if d.code == "TOPAS_FEATURES_NOT_IMPORTED"]
+    assert "peak profile" in report.message and "lor_fwhm" in report.message
+    # The keywords named are the ones the file wrote, not the feature's whole
+    # list: a message naming every convolution TOPAS has is one nobody reads.
+    assert "axial_conv" not in report.message
+    assert to_structure(model).phases[0].cell.a.value == pytest.approx(5.0)
+
+
+@pytest.mark.parametrize("line, feature_name", [
+    ("rigid\n   point_for_site A1 ux 0 uy 0 uz 0\n   rotate @ 0 qx 1\n",
+     "rigid body"),
+    ('occ_merge "A1" occ_merge_radius 0.5\n', "merged occupancies"),
+    ("generate_stack_sequences { number_of_sequences 20 }\n", "stacking faults"),
+])
+def test_a_construct_whose_absence_would_misrepresent_the_file_refuses(
+        tmp_path, line, feature_name):
+    """`REFUSED`, and refused at *build* rather than at read.
+
+    The split is the skipped-block one: the model is an honest account of the
+    text either way, so reading it is how a caller finds out what the file
+    states; `to_structure` is where a claim about a refinement is made, and that
+    is where a claim this reader cannot support has to stop.
+    """
+    inp = _inp(tmp_path, "refused.inp", _PLAIN + line)
+    diags = []
+    model = read_topas_inp(inp, diagnostics=diags)          # reads
+    (hit,) = model.coverage.refused
+    assert hit.feature.name == feature_name
+    assert model.phases[0].cell["a"] == pytest.approx(5.0)  # and states the cell
+    assert [d.code for d in diags].count("TOPAS_FEATURE_REFUSED") == 1
+    with pytest.raises(TopasInpError, match=re.escape(feature_name)) as exc:
+        to_structure(model)
+    # The refusal carries its argument, not just its verdict.
+    assert hit.feature.why[:40] in str(exc.value)
+
+
+def test_a_refused_construct_in_another_dataset_does_not_block_this_one(
+        tmp_path):
+    """Filtered to the phases actually being built, so `dataset=` selecting the
+    specimen without the rigid body builds — the same discrimination
+    `to_structure` already makes about which phases are one specimen's."""
+    two = ('xdd "a.xy"\n' + _PLAIN
+           + 'xdd "b.xy"\nstr\nphase_name "Q"\nspace_group "P 1"\n'
+             "a 8.0 b 8.0 c 8.0 al 90 be 90 ga 90\n"
+             "site B1 x 0 y 0 z 0 occ Na+1 1 beq 0.5\n"
+             "rigid\n   point_for_site B1 ux 0 uy 0 uz 0\n")
+    model = read_topas_inp(_inp(tmp_path, "two.inp", two))
+    (hit,) = model.coverage.refused
+    assert hit.phases == ("Q",)
+    assert to_structure(model, dataset=0).phases[0].name == "P"
+    with pytest.raises(TopasInpError, match="rigid body"):
+        to_structure(model, dataset=1)
+
+
+def test_the_coverage_scan_reads_the_mask_and_not_the_text(tmp_path):
+    """A `rotate` inside a quoted path is a path, and `prm hat 0.1` names a
+    parameter. The scan is the reader's for exactly this reason — the mask is
+    what makes a token scan safe, and the registry does not own it."""
+    inp = _inp(tmp_path, "masked.inp",
+               _PLAIN + 'out "C:\\data\\rotate\\run1.txt"\nprm hat 0.1\n')
+    model = read_topas_inp(inp)
+    assert model.coverage.partial is False
+
+
+def test_coverage_is_on_the_model_without_a_diagnostics_list(tmp_path):
+    """A fact about the answer does not depend on the caller having asked for
+    messages — `skipped_blocks`' rule, and for the same reason."""
+    inp = _inp(tmp_path, "nochannel.inp", _PLAIN + "lor_fwhm = 0.1;\n")
+    assert read_topas_inp(inp).coverage.partial is True
+
+
+# ------------------------------------- a cell edge coupled through a parameter
+
+
+def _cell_of(tmp_path, name, head, cell, sg="P 1"):
+    inp = _inp(tmp_path, name,
+               f'{head}\nstr\nphase_name "P"\nspace_group "{sg}"\n{cell}\n'
+               "site A1 x 0 y 0 z 0 occ Ca+2 1 beq 0.5\n")
+    diags = []
+    return read_topas_inp(inp, diagnostics=diags).phases[0], diags
+
+
+def test_a_cell_edge_resolved_through_a_parameter_inherits_its_refine_flag(
+        tmp_path):
+    """The file refines `edge`, so it refines the edge that names it.
+
+    Reading only the number made `prm edge @ 5.0` and `prm !edge 5.0` produce
+    byte-identical models with every edge held — a Structure saying "this cell
+    was not refined" about a fit that refined it. Technical Reference 2.2 is
+    what settles the bare form: `prm b1 0.2` declares a parameter that will be
+    refined, and `prm !b1 0.2` is the held one.
+    """
+    for head, expected in (("prm edge @ 5.0", True),
+                           ("prm edge 5.0", True),
+                           ("prm !edge 5.0", None)):
+        phase, _ = _cell_of(tmp_path, "inherit.inp", head,
+                            "a = edge;\n   b 6.0\n   c @ 7.0")
+        assert phase.cell["a"] == pytest.approx(5.0)
+        assert phase.vary.get("a") is expected, head
+
+
+def test_two_edges_naming_one_parameter_report_the_dropped_coupling(tmp_path):
+    """The format's *other* coupled-edge idiom. `Get(a)` was reported and this
+    was not, though the loss is identical: the value is copied, the tie is not,
+    and the two edges are independent in the built model."""
+    phase, diags = _cell_of(tmp_path, "shared.inp", "prm edge @ 5.0",
+                            "a = edge;\n   b = edge;\n   c @ 7.0")
+    assert phase.cell["a"] == phase.cell["b"] == pytest.approx(5.0)
+    assert phase.vary["a"] is True and phase.vary["b"] is True
+    (drop,) = [d for d in diags if d.code == "TOPAS_CELL_COUPLING_DROPPED"]
+    assert "`edge`" in drop.message and drop.where == ["phases.P.cell.b"]
+
+
+def test_the_shared_parameter_coupling_stays_silent_where_symmetry_ties_it(
+        tmp_path):
+    """The same discrimination the `Get` arm already makes, reached by the
+    second route: under `P 4/m m m` rietx ties b to a itself, so the built model
+    states what the file stated and there is nothing to report. The inherited
+    refine flag is absorbed by the tie rather than making a second free
+    column."""
+    phase, diags = _cell_of(tmp_path, "tied.inp", "prm edge @ 5.0",
+                            "a = edge;\n   b = edge;\n   c @ 7.0",
+                            sg="P 4/m m m")
+    assert not [d for d in diags if d.code == "TOPAS_CELL_COUPLING_DROPPED"]
+    assert phase.vary["a"] is True and phase.vary["b"] is True
+
+
+def test_one_edge_from_a_parameter_is_not_a_coupling(tmp_path):
+    """A coupling is two keys reaching one parameter. One key reaching one
+    parameter is an ordinary equation, and reporting it would be the noise that
+    makes a real report unreadable."""
+    _, diags = _cell_of(tmp_path, "single.inp", "prm edge @ 5.0",
+                        "a = edge;\n   b 6.0\n   c @ 7.0")
+    assert not [d for d in diags if d.code == "TOPAS_CELL_COUPLING_DROPPED"]
+
+
+def test_the_get_arm_is_unchanged(tmp_path):
+    """`b = Get(a);` still copies `a`'s value, still leaves `b` without a flag
+    of its own, and still reports. The two idioms differ in what carries the
+    refinement — under `Get` it lives on `a`, which is a cell key and stays
+    free; under a shared parameter it lives on a name the phase has no room
+    for, which is why only that one inherits."""
+    phase, diags = _cell_of(tmp_path, "get.inp", "",
+                            "a @ 5.0\n   b = Get(a);\n   c @ 7.0")
+    assert phase.cell["b"] == pytest.approx(5.0)
+    assert phase.vary.get("b") is None
+    (drop,) = [d for d in diags if d.code == "TOPAS_CELL_COUPLING_DROPPED"]
+    assert "`Get(a)`" in drop.message
