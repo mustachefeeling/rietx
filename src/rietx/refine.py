@@ -1576,7 +1576,7 @@ class Refinement:
         declared_wavelengths = list(self._declared_wavelengths)
 
         diagnostics: list[Diagnostic] = (
-            _symmetry_silence_diagnostics(self.structure)
+            _symmetry_silence_diagnostics(self.structure, mode)
             + _dispersion_diagnostics(self.structure, self.instrument))
         stage_results: list[StageResult] = []
         self.stage_reports_ = []
@@ -2985,7 +2985,8 @@ DISPERSION_NEGLECT_FRAC = 0.02
 DISPERSION_NEGLECT_SEVERE = 0.05
 
 
-def _symmetry_silence_diagnostics(structure: Structure) -> list[Diagnostic]:
+def _symmetry_silence_diagnostics(structure: Structure,
+                                  mode: str = "rietveld") -> list[Diagnostic]:
     """The two ways a structure's symmetry can be wrong without saying so.
 
     Both are about *how many atoms a site puts in the cell* — the number that
@@ -3004,6 +3005,13 @@ def _symmetry_silence_diagnostics(structure: Structure) -> list[Diagnostic]:
     multiplicities swap between ``F d -3 m:1`` and ``:2``, so origin-2
     coordinates under the bare symbol give A₂BO₄ where AB₂O₄ was meant — so the
     message quotes both, and the caller recognises which one they meant.
+
+    ``mode`` decides how much of that a phase's atoms can be asked.  Outside
+    ``"rietveld"`` they are a Le Bail or Pawley **scaffold** — one dummy atom
+    standing in for a structure nobody supplied — so a snap is a report about a
+    placeholder and a composition is a fiction (``C8`` from the dummy carbon).
+    The setting still matters there and is still reported: ``:H`` against
+    ``:R`` changes the operators themselves, not only the origin.
     """
     from .crystallography.symmetry import (
         get_spacegroup,
@@ -3012,28 +3020,32 @@ def _symmetry_silence_diagnostics(structure: Structure) -> list[Diagnostic]:
     )
     from .optimize.qpa import phase_zmv
 
+    structural = mode == "rietveld"
     out: list[Diagnostic] = []
     for i, phase in enumerate(structure.phases):
         sg = get_spacegroup(phase.space_group)
-        out.extend(snap_diagnostics(
-            sg, [(a.label, (a.x.value, a.y.value, a.z.value)) for a in phase.atoms],
-            source=f"phase {phase.name!r}", prefix=f"phases.{i}"))
+        if structural:
+            out.extend(snap_diagnostics(
+                sg,
+                [(a.label, (a.x.value, a.y.value, a.z.value)) for a in phase.atoms],
+                source=f"phase {phase.name!r}", prefix=f"phases.{i}"))
 
         taken, others = setting_alternatives(phase.space_group)
         if not others:
             continue
-        cell = tuple(getattr(phase.cell, n).value
-                     for n in ("a", "b", "c", "alpha", "beta", "gamma"))
-        sites = [(a.species, a.x.value, a.y.value, a.z.value, a.occ.value)
-                 for a in phase.atoms]
         implied = []
-        for setting in (taken, *others):
-            try:
-                counts = phase_zmv(setting, cell, sites).element_counts
-            except (ValueError, KeyError):
-                continue
-            formula = " ".join(f"{s}{c:g}" for s, c in sorted(counts.items()))
-            implied.append(f"{setting} → {formula}")
+        if structural:
+            cell = tuple(getattr(phase.cell, n).value
+                         for n in ("a", "b", "c", "alpha", "beta", "gamma"))
+            sites = [(a.species, a.x.value, a.y.value, a.z.value, a.occ.value)
+                     for a in phase.atoms]
+            for setting in (taken, *others):
+                try:
+                    counts = phase_zmv(setting, cell, sites).element_counts
+                except (ValueError, KeyError):
+                    continue
+                formula = " ".join(f"{s}{c:g}" for s, c in sorted(counts.items()))
+                implied.append(f"{setting} → {formula}")
         detail = ("; ".join(implied) if implied
                   else f"{taken}, against {', '.join(others)}")
         out.append(Diagnostic(
@@ -3042,9 +3054,10 @@ def _symmetry_silence_diagnostics(structure: Structure) -> list[Diagnostic]:
             message=(f"phase {phase.name!r} names space group "
                      f"{phase.space_group!r}, which the tables hold in "
                      f"{1 + len(others)} settings; it was resolved to {taken}. "
-                     f"Cell contents each setting implies: {detail}"),
-            suggestion="if that composition is the one you meant, nothing is "
-                       "wrong — write the setting into the symbol "
+                     + (f"Cell contents each setting implies: {detail}"
+                        if implied else f"The alternatives are {detail}")),
+            suggestion="if that is the setting you meant, nothing is "
+                       "wrong — write it into the symbol "
                        f"({taken!r}) to say so. If it is not, the coordinates "
                        "belong to another setting: name it instead "
                        f"({', '.join(repr(s) for s in others)}). The site "

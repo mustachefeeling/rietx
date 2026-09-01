@@ -267,3 +267,19 @@ def test_the_setting_diagnostic_quotes_the_composition_each_implies() -> None:
 def test_naming_the_setting_silences_it() -> None:
     assert [d for d in _symmetry_silence_diagnostics(_spinel("F d -3 m:2"))
             if d.code == "SPACE_GROUP_SETTING_ASSUMED"] == []
+
+
+def test_a_scaffold_is_not_asked_for_a_composition() -> None:
+    """Outside rietveld the atoms are a placeholder, so the composition is a
+    fiction — but ``:H`` against ``:R`` changes the operators, so the setting
+    is still reported."""
+    from rietx.schemas.structure import lebail_scaffold
+
+    scaffold = lebail_scaffold("F d -3 m", [8.08, 8.08, 8.08, 90.0, 90.0, 90.0])
+    found = _symmetry_silence_diagnostics(scaffold, "lebail")
+    assert [d.code for d in found] == ["SPACE_GROUP_SETTING_ASSUMED"]
+    assert "→" not in found[0].message          # no dummy-carbon formula
+    assert "F d -3 m:2" in found[0].message
+    # and the snap is not reported about a dummy atom
+    assert [d for d in _symmetry_silence_diagnostics(scaffold, "pawley")
+            if d.code == "SITE_SNAPPED_TO_SPECIAL_POSITION"] == []
