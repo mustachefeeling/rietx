@@ -7,6 +7,7 @@ corrupts one histogram and checks its own Rwp exposes it rather than the pooled
 number masking it.
 """
 
+import math
 from pathlib import Path
 
 import numpy as np
@@ -231,6 +232,21 @@ TRUE_STRAIN = 1e-3
 LAM_RATIO = 0.71070 / 0.41390
 
 
+def _true_width(term: str, lam: float) -> float:
+    """The coefficient a 400 Å / Δd/d = 1e-3 specimen needs, never typed.
+
+    The Gaussian pair are *variances*, so each is the square of its Lorentzian
+    twin's coefficient — which is the whole of why ``gauss_size`` goes as λ².
+    """
+    if term == "lor_size":
+        return size_coefficient_for_size(TRUE_SIZE_A, lam)
+    if term == "gauss_size":
+        return size_coefficient_for_size(TRUE_SIZE_A, lam) ** 2
+    if term == "gauss_strain":
+        return strain_coefficient_for_microstrain(TRUE_STRAIN) ** 2
+    return strain_coefficient_for_microstrain(TRUE_STRAIN)
+
+
 def _broadened(term: str, lam: float, tt_lo: float, tt_hi: float, seed: int):
     """One LaB6 pattern whose *only* sample broadening is ``term``.
 
@@ -239,8 +255,7 @@ def _broadened(term: str, lam: float, tt_lo: float, tt_hi: float, seed: int):
     one the synthesis put in.  The width is set from the physics, never typed:
     a 400 Å crystallite at this λ, or Δd/d = 1e-3 at any λ.
     """
-    value = (size_coefficient_for_size(TRUE_SIZE_A, lam) if term == "lor_size"
-             else strain_coefficient_for_microstrain(TRUE_STRAIN))
+    value = _true_width(term, lam)
     structure = make_lab6()
     for k in ("a", "b", "c"):
         getattr(structure.phases[0].cell, k).value = TRUE_A
@@ -441,3 +456,43 @@ def test_a_scaled_path_may_not_be_tied():
         table.apply_value_scale({"phases.0.cell.b": 2.0})
     with pytest.raises(ValueError, match="sources must be unscaled"):
         table.apply_value_scale({"phases.0.cell.a": 2.0})
+
+
+def test_the_gaussian_size_variance_is_normalised_as_lambda_squared():
+    """``gauss_size`` is a *variance*, so it goes as λ² and was hurt worse.
+
+    Measured on this fixture with the normalisation switched off: +11.9 % /
+    −62.1 % against the two truths, implied sizes 378.2 Å and 649.3 Å, and
+    histogram 1's Rwp 0.0817 → 0.3807 — against ``lor_size``'s 0.2450, because
+    the error in the width is squared into the variance.  With it, 400.2 Å in
+    both and both Rwp exactly what each pattern gives alone.
+
+    Asserted through the square root, which is where the λ² lives: ``sqrt`` of
+    the variance coefficient is a FWHM coefficient and reads as a size through
+    the same function ``lor_size`` uses.
+    """
+    p0, _ = _broadened("gauss_size", 0.41390, 3.0, 24.0, seed=1)
+    p1, _ = _broadened("gauss_size", 0.71070, 5.0, 42.0, seed=2)
+    structure, _ = _width_start(0.41390)
+    instruments = [_width_start(lam)[1] for lam in (0.41390, 0.71070)]
+    ref = MultiHistogramRefinement(structure, instruments)
+    result = ref.fit([p0, p1], plan=_width_plan("gauss_size"))
+
+    assert result.status == "converged"
+    coeffs = [ref.fitted_structures[h].phases[0].gauss_size.value for h in (0, 1)]
+    assert coeffs[1] / coeffs[0] == pytest.approx(LAM_RATIO ** 2, rel=1e-12)
+    sizes = [apparent_size_from_size_coefficient(math.sqrt(c), lam)
+             for c, lam in zip(coeffs, (0.41390, 0.71070), strict=True)]
+    assert sizes[0] == pytest.approx(sizes[1], rel=1e-9)
+    for h, size in enumerate(sizes):
+        assert size == pytest.approx(TRUE_SIZE_A, rel=0.05), f"hist {h}: {size} Å"
+    for h, hist in enumerate(result.histograms):
+        assert hist.statistics.rwp < 0.12, f"hist {h} Rwp {hist.statistics.rwp}"
+        OUT.mkdir(exist_ok=True)
+        result.for_histogram(h).plot(OUT / f"wp1131_gauss_size_joint_h{h}.png")
+
+    row = next(d for d in result.diagnostics
+               if d.code == "SIZE_NORMALISED_ACROSS_WAVELENGTHS")
+    assert row.where == ["phases.0.gauss_size"]
+    assert row.value == pytest.approx(LAM_RATIO ** 2, rel=1e-12)
+    assert "λ²" in row.message

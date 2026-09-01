@@ -179,6 +179,40 @@ domain* size, which is smaller than (and unrelated to) the particle"
 (`schemas/structure.py:418-426`). Whatever this WP reports must be named a
 **coherent domain size** and must never be confused with it.
 
+### Finding 7 — re-measured on this tree, before and after, including `gauss_size`
+
+2026-09-02, one script (`tests/output/wp1131_fixture.py`, session-local, and
+`WP1131_NO_SCALE=1` disables the normalisation on the same build so the pair is
+one measurement rather than two trees). LaB₆, p = 400 Å or Δd/d = 1e-3,
+`profile.x` held at 0, λ 0.41390 over 3-24° and 0.71070 over 5-42°, three
+stages: scale+background / cell / the one width.
+
+| term | fitted alone | joint **before** | joint **after** |
+|---|---|---|---|
+| `lor_size` | −2.1 % / −2.2 % | +10.1 % / −35.9 % | −2.2 % / −2.2 % |
+| implied size (Å) | — | **363.3 and 623.9** | **408.8 and 408.8** |
+| Rwp | 0.1024 / 0.1372 | 0.1236 / **0.2450** | 0.1024 / 0.1374 |
+| `gauss_size` | −0.1 % / −0.2 % | +11.9 % / **−62.1 %** | −0.1 % / −0.1 % |
+| implied size (Å) | — | **378.2 and 649.3** | **400.2 and 400.2** |
+| Rwp | 0.0412 / 0.0817 | 0.0809 / **0.3807** | 0.0412 / 0.0817 |
+| `lor_strain` (control) | −0.8 % / −0.4 % | −0.7 % / −0.7 % | −0.7 % / −0.7 % |
+| Rwp | 0.0538 / 0.0890 | 0.0538 / 0.0890 | 0.0538 / 0.0890 |
+
+Three things this settles that Finding 2 could not. **The λ² derivation is
+right and costs more than λ**: `gauss_size`'s joint Rwp on the long-wavelength
+histogram was 4.7× its single-pattern value against `lor_size`'s 1.8×, because
+the error in a width is squared into a variance. **The fix is exact, not
+approximate**: after it the two implied sizes agree to floating point (the
+coefficients are one number times two wavelengths), and both Rwp are what each
+pattern gives alone to the fourth decimal. **The control is untouched to every
+digit printed**, which is what makes the size result a measurement rather than
+an argument — the same machinery, the same wavelengths, one λ-free quantity.
+
+The percentages differ from Finding 2's (+12.5 % / −34.5 %) because the ranges,
+seeds and starting values are this session's, rebuilt from Finding 2's recipe
+rather than restored; the story, the implied-size ratio (1.7171, the wavelength
+ratio exactly) and the cell's indifference (±2 ppm) are identical.
+
 ### Finding 5 — four independent coefficients can disagree about one specimen
 
 GSAS-II parameterises one physical magnitude per mechanism plus a mixing
@@ -338,9 +372,9 @@ needs it any more.
       compare the size implied by `lor_size` against the one implied by
       `gauss_size` (and the two strains likewise) and report a disagreement.
       Finding 5 is why; one line once the authority exists.
-- [ ] **Measure `gauss_size` the way Finding 2 measured `lor_size`.** The λ²
-      dependence is derived here and not measured; the joint-fit error should be
-      larger. Same fixture, same control.
+- [x] **Measure `gauss_size` the way Finding 2 measured `lor_size`.** ✔ Done,
+      and the derivation held: the damage is larger. Same fixture, same control,
+      the normalisation switched off on the same build (§ Finding 7).
 - [ ] **Manual + protocol.** `docs/manual/microstructure.md` gains the extraction
       it currently omits (the chapter states the laws and gives no route to a
       number), the theory manual gains the equations per the root CLAUDE.md's
