@@ -178,6 +178,38 @@ def test_every_bounds_carrying_atom_field_is_inherited():
     assert {"occ", "biso"} <= set(checked)
 
 
+def test_atom_construction_does_not_mutate_the_callers_parameter():
+    """Review item 1 on PR #206: an earlier ``mode="after"`` version of this
+    validator filled the missing attributes by ``getattr``/``setattr`` on
+    ``self``'s own field — but pydantic stores a passed-in ``Parameter`` by
+    reference, so that object *was* the caller's, and ``Base``'s
+    ``validate_assignment=True`` meant the ``setattr`` calls both wrote to it
+    and added the names to *its own* ``model_fields_set``. Fixed by filling
+    the raw input in a ``mode="before"`` validator, before any ``Parameter``
+    exists to mutate. Pin the caller's object exactly as handed in."""
+    p = Parameter(value=1.0)
+    before = (p.min, p.max, p.unit, frozenset(p.model_fields_set))
+    _atom(biso=p)
+    after = (p.min, p.max, p.unit, frozenset(p.model_fields_set))
+    assert after == before
+
+
+def test_atom_reusing_one_parameter_for_occ_and_biso_gets_each_fields_own_range():
+    """The mutation in the previous test's defect wasn't only visible on the
+    caller's own object — it leaked *across fields* the moment the same
+    ``Parameter`` was reused: filling ``biso``'s bounds onto the shared
+    object also added them to its ``model_fields_set``, so a second ``Atom``
+    built from the same object for ``occ`` saw them as "already present" and
+    inherited nothing of its own. An occupancy silently carrying Biso's
+    range *and unit* is the defect class PR #206 exists to close, reopened
+    through this door. Each field must get its own declared range from one
+    shared, untouched source object."""
+    p = Parameter(value=1.0)
+    _atom(biso=p)
+    a = _atom(occ=p)
+    assert (a.occ.min, a.occ.max, a.occ.unit) == (0.0, 1.5, None)
+
+
 def test_structure_json_round_trip():
     s = make_lab6()
     s2 = Structure.model_validate_json(s.model_dump_json())
