@@ -610,7 +610,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # the derived format model is `projects/topas.py`'s own docstring, the
     # per-construct decisions and every incidence are the audit table in the
     # WP, the measured counts are `tests/data/README.md`.
-    "src/rietx/io/CLAUDE.md": 294,
+    # 294 -> 300 for WP-1118: the coverage registry is the "classify every name"
+    # rule of the section above acquiring an implementation, so the clause names
+    # where the table lives rather than restating what it decides.
+    "src/rietx/io/CLAUDE.md": 300,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 

@@ -283,7 +283,13 @@ and the protocol that produced it — not a pattern. One module per format;
   *name* is its refine flag; a block comment *nests*; a conditional is a token,
   not a line). Enumerate the keyword space from the spec, classify **every**
   name read / refused / deliberately ignored, and decide even at zero
-  incidence. Numbers: `tests/data/README.md` and the WP.
+  incidence. Numbers: `tests/data/README.md` and the WP. **That classification is
+  a table, not a habit** — `projects/coverage.py` declares one stance per
+  construct (read / ignored / reported / refused) with the argument for it, and
+  `PHASE_SCOPE` is partitioned against the spec's own phase tree by test, so a
+  keyword without a stance fails rather than being dropped in silence. Support
+  for a construct arrives by moving its row; until then every import that meets
+  it says so.
 - **A project reader refuses where a pattern reader would repair.** A pattern
   reader repairs only where it can say it did; a project reader mostly cannot,
   because its output is a whole model and a caller cannot see which part is the
