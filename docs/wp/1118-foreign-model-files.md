@@ -1,6 +1,8 @@
 # WP-1118 — foreign model files: read a refinement in, write one back
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-01 — the TOPAS `.inp` reader
+landed (PR #98); the model-format registry, the other two readers and every
+writer remain
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -183,7 +185,12 @@ missing from its arm applies unchanged. A new format token is spelled in
 - [ ] Decide the answer's shape (model + vary set, or a `Project`) and stand up
       the model-format registry beside `PATTERN_FORMATS`, with the diagnostics
       channel and the "report or refuse, never drop" rule written down first.
-- [ ] TOPAS `.inp` reader — the format with the evidence behind it.
+      *Half landed with the TOPAS reader* — the diagnostics channel, the rule
+      (`io/CLAUDE.md` § Project readers) and a per-format shape (`TopasModel`
+      + `to_structure`). What remains is the registry itself, whether the
+      answer is a `Project`, and whether the readers are top-level `rx.`
+      exports; #107, #103 and [1314](1314-mfile-reader.md) all wait on it.
+- [x] TOPAS `.inp` reader — the format with the evidence behind it.
 - [ ] GSAS `.EXP` + `.PRM` reader, and make `tests/test_acceptance_fap.py` take
       its protocol from the reader instead of from transcribed constants.
 - [ ] FullProf `.pcr` reader.
@@ -195,7 +202,10 @@ missing from its arm applies unchanged. A new format token is spelled in
 - [ ] `capabilities()` arm, skill rows for the new diagnostic codes
       (`docs/skill/rietx/` — `AGENT_PROTOCOL.md` is a redirect stub since
       WP-1304), a Part 1 manual section, and an `ATTRIBUTION.md` row per
-      format.
+      format. The TOPAS half of the diagnostic rows and its `ATTRIBUTION.md`
+      row landed; still owed, and now **false rather than merely missing**,
+      are `SKILL.md`'s routing row and `references/api.md` § In, which both
+      still say a `.inp` has no reader (Inherited, from WP-1308).
 - [ ] Fixtures with provenance rows in `tests/data/README.md`; tests, and the
       obs/calc/diff PNGs for any refinement one of them drives.
 
@@ -234,17 +244,129 @@ work this WP does.
 
 ## Handover log
 
-- **2026-09-01** — the issue triage folded four issues in rather than
-  opening WPs beside this one: #148 (write direction — round-trip as
-  acceptance, GSAS-II as a target), #107 (the `STR(...)` decision, parked at
-  the registry-shape task), #101 (the origin-choice task), #196 (Rietica/XND
-  named as the family's deliberate boundary). Two standing offers recorded:
-  the filer of #103 volunteers for the `.EXP`/`.PRM` task once the registry
-  shape lands, bringing two spec findings for its docstring (GSAS-II's
-  `Rvals['GOF']` is reduced χ², not its root; instrument parameters are
-  `[default, current, refine_flag]` triples, current at index 1) — and #107's
-  filer offers either fix once told which. The Jana reader is
-  [1314](1314-mfile-reader.md), gated on this WP's first task. Next: the
-  answer's shape, unchanged.
+### 2026-09-01 (2nd session) — the issue triage folded four issues in
+
+The issue triage folded four issues in rather than opening WPs beside this
+one: #148 (write direction — round-trip as
+acceptance, GSAS-II as a target), #107 (the `STR(...)` decision, parked at
+the registry-shape task), #101 (the origin-choice task), #196 (Rietica/XND
+named as the family's deliberate boundary). Two standing offers recorded:
+the filer of #103 volunteers for the `.EXP`/`.PRM` task once the registry
+shape lands, bringing two spec findings for its docstring (GSAS-II's
+`Rvals['GOF']` is reduced χ², not its root; instrument parameters are
+`[default, current, refine_flag]` triples, current at index 1) — and #107's
+filer offers either fix once told which. The Jana reader is
+[1314](1314-mfile-reader.md), gated on this WP's first task. Next: the
+answer's shape, unchanged.
+
+### 2026-09-01 (1st session) — the TOPAS `.inp` reader landed (PR #98, reconstructed post hoc)
+
+A TOPAS `.inp` no longer has to be transcribed by hand.
+`rietx.io.projects.read_topas_inp` opens one and returns what the file states —
+phases, cells, sites, ADPs, the emission profile, the run's own Rwp/GoF — and
+`projects.topas.to_structure` builds a `Structure` from it that carries the
+**file's own refine flags**, which is the half nobody can reconstruct from a CIF
+plus a pattern. What the reader will not do is guess: every construct of the
+format declares a stance in a table, so a keyword nobody wrote a branch for
+fails a test rather than vanishing, and a file whose phases cannot be honoured
+without it is refused by name instead of returned half-built. That table is what
+nine review rounds bought — each round found one more construct being dropped in
+silence, which is a property of the reader's structure and not of the nine
+constructs, so the tenth is now a row rather than a round. The other two formats
+are unmoved: `.EXP`/`.PRM` and `.pcr` still have no merged reader, and there is
+still no writer in any direction.
+
+*Reconstructed post hoc.* Written from `git log --stat` over PR #98's 47 commits
+(`a3268cd1`..`03179f2a`, merged `0576726f`) and the state of the tree they left.
+The review ran on the `/pr-review` bench, which writes no handover entry, so
+what follows is what the commits show; where the diff does not say why, this
+entry does not invent a reason.
+
+*Done* — all of it PR #98 (`mustachefeeling/topas-inp-reader`), merged
+2026-09-01, +6078/−1 across 11 files:
+
+- `src/rietx/io/projects/` — a package for readers of someone else's *refinement
+  input*, beside `io/formats/`, one module per format. `topas.py` (2668 lines)
+  exports `read_topas_inp` and `TopasInpError` only; `to_structure` stays
+  module-level so #111's FullProf `to_structure` has nothing to shadow through
+  the package export.
+- The answer's shape, for this format: `TopasModel` is *what the file states*
+  and seeds nothing (a site with no `beq` carries `None`, not 0.5), and
+  `to_structure(model, *, cell_limits=True, aniso=False, dataset=None)` is the
+  conversion, applying `TopasPhase.vary` / `TopasSite.vary` onto each
+  `rx.Parameter(vary=…)`. `vary` is a **tri-state**: a key absent means the file
+  said nothing, which is not "held".
+- `coverage.py` (360 lines) — one declared stance per construct, `READ` /
+  `IGNORED` / `REPORTED` / `REFUSED` (7 / 4 / 12 / 8 rows). `PHASE_SCOPE` is
+  partitioned by test against the reference's own §5.1 phase tree, so a keyword
+  with no stance fails and a stance naming a keyword outside the scope fails
+  too.
+- Six diagnostics, each with a row in all three synced skill copies:
+  `TOPAS_SPECIES_NORMALISED`, `TOPAS_ORIGIN_TRANSLATED`, `TOPAS_BLOCK_SKIPPED`,
+  `TOPAS_CELL_COUPLING_DROPPED`, `TOPAS_FEATURES_NOT_IMPORTED`,
+  `TOPAS_FEATURE_REFUSED`.
+- `src/rietx/io/CLAUDE.md` § Project readers (+29) — two standing rules: derive
+  the obligations from the specification and use files only to corroborate (three
+  of the six grammar corrections here are invisible to any archive sweep — a
+  parameter's *name* is its refine flag, a block comment *nests*, a conditional
+  is a token not a line); and a project reader **refuses** where a pattern
+  reader would repair, four classes by name, with `to_structure(model,
+  dataset=N)` following `read_pattern`'s `scan=` rather than concatenating.
+- `ATTRIBUTION.md` — the `.inp` row, citing the Technical Reference section by
+  section and each supported cell macro on its own line, recording that the
+  606-file private archive is corroboration only and is not redistributable.
+  `tests/data/README.md` (+54) holds the archive facts against the file each was
+  read off.
+- `tests/test_projects_topas.py` — 159 tests, every fixture synthesized inline
+  because no `.inp` may be vendored.
+
+*Measured* (this handover session, macOS darwin 25.5.0, worktree `.venv`
+python 3.12, `[dev]` extras — no jax/torch, so the cross-backend rows self-skip):
+`-m "not slow"` is **3919 passed, 122 skipped** in 156 s on the merged tree.
+This handover moved neither count: it adds no test, and the tree it measured is
+`origin/main` plus documentation.
+
+*In flight*: PR #111 — the FullProf `.pcr` reader, same contributor — is open
+with 9 commits, head `71fb7094`. Its review has already produced
+`FULLPROF_TIE_DROPPED` and the decision to analyse a cell codeword tie against
+symmetry rather than against corpus incidence. **Nothing of it is merged**, and
+its commits are reachable only through the PR ref, not through any local branch.
+
+*Gotchas*:
+
+- **`STR(...)` still parses zero phases** (#107). Five archive files open a
+  phase with the macro form, the line-based split cannot see it, and
+  `to_structure` then reports "a Pawley or indexing-only `.inp` is legal and has
+  none" — a confident wrong diagnosis of a parse failure, which is the class
+  this reader exists to remove. So PR #98's incidence figures are **floors**.
+  Parked at the registry-shape task by the same day's triage.
+- **The skill now contradicts the build.** `references/api.md` § In still reads
+  "a TOPAS `.inp` … has none, so those are still transcribed by hand", and
+  `SKILL.md`'s routing row for *you were handed another program's input file*
+  still names only a PowderLine recipe. Both are false as of this merge. The fix
+  is WP-1308's Inherited note above, still unspent: SKILL.md has 27 B of
+  headroom, so widening the row costs bytes bought elsewhere, and three copies
+  (`docs/skill/`, `.agents/skills/`, `.claude/skills/`) must stay in sync.
+- **No registry and no `capabilities()` arm.** There is no `PROJECT_FORMATS`
+  beside `PATTERN_FORMATS`; the reader is found by importing it. The meta-test
+  that fails on a registry member missing from its arm therefore has nothing to
+  check yet.
+- `read_topas_inp` is not a top-level `rx.` export, so `tests/test_skill.py`'s
+  public-verb gate never fired for it and `docs/skill/make_api_index.py` carries
+  no row. Whether it *should* be top-level is part of the answer's-shape task,
+  not an oversight to patch.
+- No Part 1 manual section for the reader.
+- Name audit, for the classes no test catches: all six diagnostic codes have
+  skill rows, all four `Stance` members have writers in the table, the reader
+  adds no physics (so no Part 2 equation is owed) and claims no Rwp comparison
+  as evidence.
+
+*Next*: the **registry-shape task**, which is now the single gate on three other
+pieces of work — the `STR(...)` decision (#107), the `.EXP`/`.PRM` offer (#103)
+and [1314](1314-mfile-reader.md)'s Jana reader — and which also settles whether
+`read_topas_inp` becomes a top-level export with a `capabilities()` arm. Then
+the skill correction above: small, independent of the registry, and currently
+telling an agent to transcribe by hand a file the build can open.
+
 - **2026-08-21** — created, from WP-1110 item 19. Stub: the fences, the seams
   and the acceptance are settled; the answer's shape is the first open decision.

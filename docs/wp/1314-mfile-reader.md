@@ -51,6 +51,31 @@ It is this WP's final, explicitly-later task, and its consumer is the
 handoff workflow (refine here, finish in Jana for modulated work / charge
 flipping).
 
+### Inherited
+
+- **2026-09-01, from [1118](1118-foreign-model-files.md): the package this
+  reader belongs in now exists, and so do the two rules that govern it.**
+  `src/rietx/io/projects/` landed with the TOPAS `.inp` reader (PR #98) — one
+  module per format, exporting only format-named entry points, with the
+  model→`Structure` conversion kept *module-level* (`projects.topas.to_structure`)
+  precisely so a sibling format's `to_structure` cannot shadow it through the
+  package export. `src/rietx/io/CLAUDE.md` § Project readers carries the two
+  standing rules to follow here: **derive the obligations from the specification
+  and use real files only to corroborate** (three of the TOPAS reader's six
+  grammar corrections were invisible to any archive sweep, so a sweep-and-fix
+  loop finds one dialect's bugs and never the silent ones), and **a project
+  reader refuses where a pattern reader would repair**, because its output is a
+  whole model and a caller cannot see which part came from the file.
+  The mechanism both rest on is worth copying rather than reinventing:
+  `io/projects/coverage.py` declares one **stance** per construct of the format
+  (read / ignored / reported / refused) with the argument for it, and its scope
+  table is partitioned by test against the format's own keyword tree, so a
+  construct with no stance fails rather than being dropped in silence.
+  **What has still not landed is the thing this WP depends on**: there is no
+  `PROJECT_FORMATS` registry beside `PATTERN_FORMATS` and no `capabilities()`
+  arm — `read_topas_inp` is reached by importing it, and whether these readers
+  become top-level `rx.` exports is still open. 1118's first task, unchanged.
+
 ## Non-goals
 
 - **Not single-crystal projects, not `.m90` data files.** Powder protocol
