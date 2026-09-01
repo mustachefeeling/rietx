@@ -1822,20 +1822,42 @@ CLAIMS: tuple[Claim, ...] = (
         "the fitted term is a *background* term -- its width comes from "
         "disorder and not from the goniometer -- and describing it returns "
         "precision to the structural parameters rather than moving them",
-        reference="the instrumental Gaussian FWHM at the peak's own position, "
-                  "computed from this fit's own refined u/v/w (the same "
-                  "quantity BACKGROUND_PEAK_MIN_WIDTH_MULT is measured "
-                  "against), and the peak-free arm's own esds.  The refined "
-                  "*position* is deliberately NOT referenced to the halo: a "
-                  "symmetric Gaussian over 2-50 deg also absorbs the residual "
-                  "direct-beam rise, so it lands at 4.18(11) deg where the "
-                  "envelope reads 4.98 deg, and the band here is wide enough "
-                  "to say so",
+        reference="the instrumental FWHM at the peak's own position from "
+                  "CompiledModel.instrument_fwhm_deg -- the same function "
+                  "check_background_peak_width (BACKGROUND_PEAK_MIN_WIDTH_MULT) "
+                  "measures against, called rather than re-derived, so the two "
+                  "stay equal if a later revision frees the Lorentzian X/Y this "
+                  "protocol holds at zero -- and the peak-free arm's own esds.  "
+                  "The refined *position* is deliberately NOT referenced to the "
+                  "halo: a symmetric Gaussian over 2-50 deg also absorbs the "
+                  "residual direct-beam rise, so it lands at 4.18(11) deg where "
+                  "the envelope reads 4.98 deg, and the band here is wide "
+                  "enough to say so",
         measured="FWHM 5.567(274) deg against an instrumental 0.00346 deg at "
                  "4.178 deg -- 1608x, where the guard is 4x and the bar here "
                  "1000x; Biso(Si) esd falls 6.0x and lambda's 5.9x while "
                  "neither value moves by half of the wider esd",
         diagnostics=("!BACKGROUND_PEAK_TOO_NARROW",),
+    ),
+    Claim(
+        "test_acceptance_si640c",
+        "test_the_chebyshev6_arm_relaxes_the_peak_onto_the_envelope",
+        "si640c", ("characterisation", "own_result"),
+        "the fitted peak and the polynomial describe overlapping freedom, so a "
+        "higher-order background changes what the peak's parameters mean -- "
+        "which is why the manual's rule is to declare a peak *instead of* extra "
+        "polynomial terms, not on top of them",
+        reference="this package's own two peak arms under the one protocol: the "
+                  "Chebyshev-3 arm, whose short polynomial cannot take the "
+                  "residual direct-beam rise, against the Chebyshev-6 arm, whose "
+                  "can.  Not referenced to any external number -- the halo's "
+                  "position is separate evidence (the blank and the envelope)",
+        measured="the peak moves from 4.18(11) deg / 5.57(27) deg with three "
+                 "Chebyshev terms onto the envelope at 5.245(41) deg and "
+                 "narrows to 1.94(11) deg with six, while Rwp moves only "
+                 "0.082503 -> 0.077152; zero HIGH_CORRELATION or "
+                 "BACKGROUND_PEAK_TOO_NARROW in either arm",
+        diagnostics=("!HIGH_CORRELATION", "!BACKGROUND_PEAK_TOO_NARROW"),
     ),
     Claim(
         "test_acceptance_si640c", "test_the_fit_renders",

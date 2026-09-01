@@ -91,6 +91,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
@@ -492,10 +493,29 @@ def test_the_fit_renders(full, symmetric, held):
 #: The manual's table, to 6 dp.  Bands below are ±0.002 in Rwp — wide enough to
 #: survive a solver tolerance change, narrow enough that the *comparison*
 #: (a peak beats three more polynomial terms, by a lot) cannot silently invert.
-MANUAL_RWP = {"cheb3": 0.119977, "cheb3_peak": 0.082503, "cheb6": 0.088597}
+MANUAL_RWP = {"cheb3": 0.119977, "cheb3_peak": 0.082503, "cheb6": 0.088597,
+              "cheb6_peak": 0.077152}
 
 
-def _fit_chebyshev(nterm: int, *, with_peak: bool):
+class _ChebFit(NamedTuple):
+    """A Chebyshev-background fit, carrying the authority its width is judged by.
+
+    ``model`` and ``values`` are here so a test that asks "how wide is this peak
+    against the instrument?" calls :meth:`CompiledModel.instrument_fwhm_deg` —
+    the same function ``check_background_peak_width`` uses — rather than
+    re-deriving the Gaussian-only ``√(U·tan²θ + V·tanθ + W)``, which is equal to
+    it only while this protocol holds ``profile.x``/``profile.y`` at zero.
+    ``values`` carries the full converged instrument profile (U,V,W and the
+    Lorentzian X,Y), so freeing X or Y in a later revision moves both the guard
+    and this assertion together instead of silently diverging.
+    """
+
+    result: object  # RefinementResult
+    model: object  # CompiledModel — evaluate-only, for instrument_fwhm_deg
+    values: dict  # instrument.profile.{u,v,w,x,y}, converged
+
+
+def _fit_chebyshev(nterm: int, *, with_peak: bool) -> _ChebFit:
     """The ``full`` protocol with a Chebyshev background, optionally + one peak.
 
     The peak is freed twice: once immediately after ``scale_bkg``, so the rest
@@ -541,7 +561,15 @@ def _fit_chebyshev(nterm: int, *, with_peak: bool):
     ref = rx.Refinement(_structure(), ins, history=False)
     ref.tie_equal(["instrument.geometry.axial_sl",
                    "instrument.geometry.axial_hl"])
-    return ref.fit(data, plan=plan, two_theta_limits=FULL_LIMITS)
+    res = ref.fit(data, plan=plan, two_theta_limits=FULL_LIMITS)
+    # The compiled model and the converged instrument profile, so a test can ask
+    # instrument_fwhm_deg the same question the width guard does.  X and Y are
+    # read from the converged instrument (0 under this protocol) rather than
+    # assumed, so the assertion follows the fit if a later revision frees them.
+    prof = ref.instrument.profile
+    values = {f"instrument.profile.{k}": getattr(prof, k).value
+              for k in ("u", "v", "w", "x", "y")}
+    return _ChebFit(result=res, model=ref._model, values=values)
 
 
 @pytest.fixture(scope="module")
@@ -569,8 +597,22 @@ def cheb6():
     return _fit_chebyshev(6, with_peak=False)
 
 
+@pytest.fixture(scope="module")
+def cheb6_peak():
+    """Chebyshev-6 + one background peak — the fourth table row.
+
+    Quoted in the manual (`using/data.md`), the ``BackgroundPeak`` docstring and
+    this module's `MANUAL_RWP`, and the arm the "relaxes to 5.245(41)°" caveat
+    turns on; a fixture so all three are pinned to a refinement rather than to a
+    number a solver change can silently move.
+    """
+    if not PATTERN.exists():
+        pytest.skip("11-BM Si SRM 640c dataset not present")
+    return _fit_chebyshev(6, with_peak=True)
+
+
 def test_one_background_peak_beats_three_more_polynomial_terms(
-        cheb3, cheb3_peak, cheb6):
+        cheb3, cheb3_peak, cheb6, cheb6_peak):
     """The manual's headline, and the reason it is a *comparison* and not a ΔRwp.
 
     A free position, height and width will lower any Rwp — that is exactly the
@@ -579,23 +621,29 @@ def test_one_background_peak_beats_three_more_polynomial_terms(
     beat the polynomial on equal terms.  It does, by a wide margin: 31 %
     relative against 26 %, and the assertion is on the *ordering* rather than on
     either figure alone.
+
+    The loop pins **all four** table rows to their fits — ``cheb6_peak`` too,
+    the row the manual, the docstring and `MANUAL_RWP` all carry and nothing
+    used to hold — so the prose cannot say a number no refinement produces.
     """
-    for name, res in (("cheb3", cheb3), ("cheb3_peak", cheb3_peak),
-                      ("cheb6", cheb6)):
+    for name, fit in (("cheb3", cheb3), ("cheb3_peak", cheb3_peak),
+                      ("cheb6", cheb6), ("cheb6_peak", cheb6_peak)):
+        res = fit.result
         assert res.status == "converged", f"{name} did not converge"
         assert len(res.two_theta) == 47999
         assert abs(res.statistics.rwp - MANUAL_RWP[name]) < 0.002, (
             f"{name} Rwp {res.statistics.rwp:.6f}, manual says "
             f"{MANUAL_RWP[name]:.6f}")
 
-    gain_peak = cheb3.statistics.rwp - cheb3_peak.statistics.rwp
-    gain_poly = cheb3.statistics.rwp - cheb6.statistics.rwp
+    gain_peak = cheb3.result.statistics.rwp - cheb3_peak.result.statistics.rwp
+    gain_poly = cheb3.result.statistics.rwp - cheb6.result.statistics.rwp
     assert gain_peak > 0.03, f"the peak bought only {gain_peak:.5f} in Rwp"
     assert gain_peak > 1.15 * gain_poly, (
         f"one peak ({gain_peak:.5f}) no longer beats three more Chebyshev "
         f"terms ({gain_poly:.5f}) by a clear margin")
     # and it is not bought by wrecking the identifiability
-    assert not [d for d in cheb3_peak.diagnostics if d.code == "HIGH_CORRELATION"]
+    assert not [d for d in cheb3_peak.result.diagnostics
+                if d.code == "HIGH_CORRELATION"]
 
 
 def test_the_peak_is_diffuse_by_three_orders_and_frees_the_structural_esd(
@@ -612,26 +660,27 @@ def test_the_peak_is_diffuse_by_three_orders_and_frees_the_structural_esd(
     for λ.  A background the model cannot describe blurs this fit rather than
     biasing it, which is the reading the manual carries.
     """
-    fwhm = cheb3_peak.parameter("instrument.background_peaks.0.fwhm")
-    pos = cheb3_peak.parameter("instrument.background_peaks.0.position")
+    res = cheb3_peak.result
+    fwhm = res.parameter("instrument.background_peaks.0.fwhm")
+    pos = res.parameter("instrument.background_peaks.0.position")
     assert fwhm.stderr is not None and pos.stderr is not None
     assert 5.0 < fwhm.value < 6.2, f"hump FWHM {fwhm.value:.3f}°"
     assert 3.5 < pos.value < 5.5, f"hump position {pos.value:.3f}°"
 
-    # instrumental Gaussian FWHM at the hump, from this fit's own u, v, w
-    tan_th = math.tan(math.radians(pos.value / 2.0))
-    inst = math.sqrt(
-        cheb3_peak.parameter("instrument.profile.u").value * tan_th ** 2
-        + cheb3_peak.parameter("instrument.profile.v").value * tan_th
-        + cheb3_peak.parameter("instrument.profile.w").value)
+    # The instrumental FWHM at the hump, from the *same* authority the width
+    # guard measures against — CompiledModel.instrument_fwhm_deg (Γ_G ⊕ Γ_L via
+    # TCH) — rather than re-deriving the Gaussian-only √(U·tan²θ + V·tanθ + W),
+    # which equals it only while profile.x/profile.y are held at zero.
+    inst = float(cheb3_peak.model.instrument_fwhm_deg(pos.value,
+                                                      cheb3_peak.values))
     assert fwhm.value / inst > 1000.0, (
         f"hump is only {fwhm.value / inst:.0f}× the instrumental FWHM")
-    assert not [d for d in cheb3_peak.diagnostics
+    assert not [d for d in res.diagnostics
                 if d.code == "BACKGROUND_PEAK_TOO_NARROW"]
 
     for path, floor in (("phases.0.atoms.0.biso", 4.0),
                         ("instrument.source.lines.0.wavelength", 4.0)):
-        wide, tight = cheb3.parameter(path), cheb3_peak.parameter(path)
+        wide, tight = cheb3.result.parameter(path), res.parameter(path)
         assert wide.stderr is not None and tight.stderr is not None
         assert wide.stderr / tight.stderr > floor, (
             f"{path}: esd only fell {wide.stderr / tight.stderr:.1f}×")
@@ -639,3 +688,32 @@ def test_the_peak_is_diffuse_by_three_orders_and_frees_the_structural_esd(
         assert abs(wide.value - tight.value) < 0.5 * wide.stderr, (
             f"{path} moved {abs(wide.value - tight.value):.3g}, more than half "
             f"the peak-free esd {wide.stderr:.3g}")
+
+
+def test_the_chebyshev6_arm_relaxes_the_peak_onto_the_envelope(
+        cheb3_peak, cheb6_peak):
+    """The manual's standing rule, from the numbers it rests on.
+
+    "Declare a peak *instead of* extra polynomial terms, never on top of them"
+    is argued from what the peak does between the two arms: with only three
+    Chebyshev terms it sits low and wide (4.18(11)°, 5.57(27)°), absorbing the
+    residual direct-beam rise the short polynomial cannot; give the polynomial
+    three more terms and the peak relaxes onto the envelope (5.245(41)°) and
+    narrows by nearly three (1.94(11)°) while Rwp barely moves.  That is the
+    "5.245(41)°" caveat the manual and the docstring both quote, held here to a
+    refinement rather than to prose.
+    """
+    p3 = cheb3_peak.result.parameter("instrument.background_peaks.0.position")
+    w3 = cheb3_peak.result.parameter("instrument.background_peaks.0.fwhm")
+    p6 = cheb6_peak.result.parameter("instrument.background_peaks.0.position")
+    w6 = cheb6_peak.result.parameter("instrument.background_peaks.0.fwhm")
+
+    # the Chebyshev-6 arm moves onto the envelope and narrows
+    assert 5.1 < p6.value < 5.4, f"relaxed position {p6.value:.3f}°"
+    assert 1.7 < w6.value < 2.2, f"relaxed FWHM {w6.value:.3f}°"
+    # and it is a genuine move relative to the three-term arm, not a re-quote
+    assert p6.value - p3.value > 0.8, "the peak did not move onto the envelope"
+    assert w3.value / w6.value > 2.0, "the peak did not narrow between arms"
+    # still a background width, and still identifiable
+    assert not [d for d in cheb6_peak.result.diagnostics
+                if d.code in ("BACKGROUND_PEAK_TOO_NARROW", "HIGH_CORRELATION")]
