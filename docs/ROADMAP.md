@@ -537,6 +537,23 @@ cannot cover the silent case. The branch-protection half stays by-hand.
 |---|---|---|---|
 | [1313](wp/1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | — |
 
+### Unscheduled — the moment, not only the nucleus (added 2026-09-02)
+
+The package refuses a magnetic structure in three places — `coverage.py`'s
+`Stance.REFUSED`, the TOPAS reader's raise on `mag_space_group`, and WP-1314's
+matching rule — each saying the same thing: importing the nuclear half alone
+*"would look complete"*. Meanwhile `refine.py`'s unexplained-intensity report
+already names *"a magnetic contribution"* as a candidate cause, so the package
+can tell a user their residual might be magnetic and offers no way to test it.
+Scoped, not planned: the open question is Shubnikov group versus propagation
+vector plus basis vectors, and the trap to settle first is that a magnetic
+contribution must never enter `phase_zmv`, which would double-count the
+specimen's mass and corrupt every `weight_percent`.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1323](wp/1323-magnetic-structure.md) | A magnetic structure: state it, refine it, report it | ⬜ | — |
+
 ## v2+ (seams pre-built, implementations fenced out)
 
 Fundamental Parameters Approach as a differentiable convolution stack

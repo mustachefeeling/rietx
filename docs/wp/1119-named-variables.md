@@ -123,6 +123,63 @@ clause).
   task — but a general pass borders this WP's equation scope, and 1118's file
   says explicitly that the boundary is decided **here, not twice**.
 
+### The cross-phase case: a known stoichiometry (issue #212)
+
+Requested by a user and filed as **issue #212**, and folded in here because its
+common case is *linear in the phase scales* and therefore already inside this
+WP's competence rather than needing an expression language.
+
+**The need.** A specimen's overall stoichiometry is often known independently,
+and there is no way to tell the package. Worked example from a supported-catalyst
+reduction series in which only oxygen leaves, so the elemental ratio
+**Cu/(Ca+Al)** is conserved at its as-prepared value throughout. Diffraction
+cannot resolve how the unexported mass divides between two of the phases —
+moving one of them by 17 wt% costs 0.2–0.5 pp of Rwp, inside the noise floor —
+but stoichiometry decides it outright: nominal **1.935**, one candidate
+partition **2.115**, the other **1.266**.
+
+**Why it is linear, which is the whole reason it belongs here.** Moles of element
+E ∝ Σ_p S_p·V_p·n_{E,p}, and the (ZM)_p cancels. So `Cu/(Ca+Al) = r` is
+
+```
+Σ_p a_p·S_p = 0     with     a_p = V_p·(n_Cu,p − r·(n_Ca,p + n_Al,p))
+```
+
+— constant coefficients over the phase scales, needing no expression parser and
+no new storage. `element_counts` is already computed in `phase_zmv`
+(`optimize/qpa.py`). This is the **multi-term tie** of missing-item 2 above,
+reaching across phases instead of within one.
+
+**Two things it needs that this WP does not currently give it**, and the second
+is a genuine scope question for the maintainer rather than a task:
+
+1. **Cross-phase reach.** `phase.restraints` cannot host a row spanning phases,
+   so a cross-phase relation needs a `Structure`-level list beside
+   `resolve_phase_restraints`. The row layout (`model/rows.py`) and the
+   statistics-exclusion convention need no change.
+2. **A soft form, which this WP's Non-goals currently exclude.** A hard tie is
+   the wrong instrument here: real phase weights genuinely change — in this very
+   specimen a mixed Ca–Cu–O phase forms and later disappears — so a hard
+   constraint would hide chemistry. What the case wants is a **restraint with an
+   honest σ that reports its own tension**, and this WP explicitly fences
+   restraints out. Recorded rather than resolved: either this WP's scope widens
+   to carry the soft form of a linear cross-phase relation, or that half becomes
+   a sibling WP and only the *hard* multi-term cross-phase tie lands here. **The
+   maintainer's call, and it should be made before either half is built.**
+
+`summarise_restraints` and a restraint-tension code already exist, so the
+reporting half is largely in place; the natural trigger for a series is a
+**coherent run** of high tension across consecutive patterns rather than a single
+outlier.
+
+**What not to do, from the issue's own reasoning.** A composition-aware restraint
+that knows about elements is the wrong first move, because its coefficients
+depend on refined occupancies: done honestly it must chain derivatives through
+them, done lazily it freezes them and becomes a confident wrong constraint. And a
+series-level "pool" or "tie" is wrong twice over — it cannot express a ratio, and
+it blurs the boundary the package draws between `sequential` (chained independent
+fits) and `multi` (one joint residual).
+
 ## Non-goals
 
 - **Nonlinear expressions.** `A*B`, `sqrt(A)`, trigonometry: outside `C·θ + d`,
@@ -155,6 +212,13 @@ clause).
 - [ ] An expression string for the linear subset, **if it survives the design**:
       a parser is where a wrong answer looks right, and the method calls already
       work.
+- [ ] **Take the cross-phase decision** (issue #212): whether the soft form of a
+      linear cross-phase relation belongs in this WP or in a sibling, and record
+      the reason. Blocks the two tasks below.
+- [ ] The cross-phase multi-term tie itself — a `Structure`-level list beside
+      `resolve_phase_restraints`, with the stoichiometry coefficients built from
+      `element_counts` in `phase_zmv`, and a test that a conserved elemental
+      ratio holds through a series in which a phase appears and disappears.
 - [ ] The manual: the reference sections `using/constraints.md` signposts, and a
       row in `AGENT_PROTOCOL.md` if a diagnostic code lands.
 - [ ] Tests, including the equivalence bar below.
@@ -188,6 +252,24 @@ this milestone asks for:
   authorities above. [1110](1110-agent-surface-friction.md) — items 5 and 16.
 
 ## Handover log
+
+### 2026-09-02 — the cross-phase stoichiometry case folded in
+
+A reader now knows why a user's known overall stoichiometry — the thing that
+issue #212 asks for — is not a separate feature but this WP's multi-term tie
+reaching across phases: a conserved elemental ratio is **linear in the phase scales**
+because the (ZM)_p cancels, so it needs constant coefficients and no expression
+parser. The worked case is a reduction series where diffraction cannot split two
+phases at all (17 wt% costs 0.2–0.5 pp of Rwp, inside the noise) while
+stoichiometry decides it outright (nominal 1.935 against candidates 2.115 and
+1.266).
+
+*Done:* the Context now carries the case, its algebra and the two things it needs
+beyond today's verbs; two tasks added. *Gotchas:* the case wants a **soft**
+restraint with an honest σ, because real phase weights change and a hard
+constraint would hide chemistry — and this WP's Non-goals currently fence
+restraints out, so that half is a scope question, not a task. *Next:* the
+maintainer takes the hard-versus-soft decision before either half is built.
 
 - **2026-08-21** — created, from the session that closed 1110. The Context
   block's demo is this tree's measured behaviour, not a sketch: the linear

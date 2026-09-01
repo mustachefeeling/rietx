@@ -414,7 +414,19 @@ SIZE_CAPS: dict[str, int | None] = {
     # unscheduled WPs — three index rows and their evidence sentences across
     # the two existing sections whose subjects they extend; #202 and #204's
     # construction half cost no lines, being in-flight PRs (#208, #206).
-    "docs/ROADMAP.md": 589,
+    # 589 -> 606 for WP-1323 (2026-09-02): magnetic structure refinement, scoped
+    # rather than planned.  A new Unscheduled section, because no existing one
+    # holds it — the three sections nearest in subject are about foreign files,
+    # missing references and what fires silently, and this is none of those.  It
+    # costs a section rather than a row because the section pattern this file
+    # already uses opens each one with the measured evidence its WP carries, and
+    # here that evidence is three separate refusals in the source saying the same
+    # sentence plus one diagnostic that names magnetic scattering as a cause the
+    # package cannot test.  Naming the QPA trap in the index costs two of the
+    # seventeen lines and is worth it: a magnetic contribution reaching
+    # `phase_zmv` would corrupt every weight_percent, and that is the decision
+    # the WP asks to be taken before any schema is written.
+    "docs/ROADMAP.md": 606,
     # 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
     # and the nine control registers, as a table of one rule each.  This file
     # grows for a rule nothing else in it carried, same as the bumps above: a
