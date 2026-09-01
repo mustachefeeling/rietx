@@ -389,6 +389,13 @@ def site_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
                tol: float = SITE_TOL) -> SiteOrbit:
     """Stabiliser, snapped position, multiplicity and orbit images of one site.
 
+    A site multiplicity is |G| / |G_x| with G_x the site-symmetry group
+    (International Tables for Crystallography Vol. A, Hahn ed., 2005,
+    sect. 8.3.2), so it always divides the group order.  Snapping a coordinate
+    onto the special position its stabiliser defines follows cctbx
+    (Grosse-Kunstleve & Adams, 2002, J. Appl. Cryst. 35, 477), which derives
+    the site symmetry the same way rather than counting coincidences.
+
     Four steps, in this order because each depends on the one before:
 
     1. **Candidates.** The operations with R·x + t ≡ x (mod 1) to within

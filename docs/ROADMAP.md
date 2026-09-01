@@ -90,9 +90,11 @@ PR #111; the exporter registry next. Two contributor PRs wait on review
 (#206 atom bounds, #208 species fallback).
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
-triage's 1309–1322 and the three opened the day after (1323–1325), grouped by
-what their evidence says; the older four, 1119, 1130, 1131 (1130 restructured
-behind it 2026-08-27) and 1133.
+triage's 1309–1322 and two of the three opened the day after (1323, 1325),
+grouped by what their evidence says; the older four, 1119, 1130, 1131 (1130
+restructured behind it 2026-08-27) and 1133. [1324](wp/1324-symmetry-silences.md)
+closed out of that group on 2026-09-02 — a site multiplicity is now
+|G|/|stabiliser| and both symmetry silences are reported (issues #215, #217).
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -478,8 +480,10 @@ neutron rows follow 1134.
 Each row is a silent wrong answer, the class the repo's rules are strictest
 about: a report that repeats itself (1310), a parameter that walks unflagged
 (1311), a confident fraction the pattern cannot fix (1320), a bound persisted
-as absent (1321), an alternation with no stop rule (1323), an orbit that is
-not a multiplicity (1324).
+as absent (1321), an alternation with no stop rule (1323). The orbit that was
+not a multiplicity (1324) is closed; what it measured — the same threshold
+deciding two questions, and 3.81 % of a cell mass riding on which side of a
+strict `<` a five-decimal file fell — is the shape the rest of the group has.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
