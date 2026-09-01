@@ -103,6 +103,26 @@ before fixing the shape; concepts only, and the licence fences in
 `ATTRIBUTION.md` apply (TOPAS closed, GSAS-II spec-only under its grant-back
 clause).
 
+### Inherited
+
+- **2026-09-01, from [1118](1118-foreign-model-files.md): the TOPAS `.inp`
+  reader merged (PR #98), and it resolves a `.inp`'s symbols without being an
+  expression evaluator — which is the boundary this WP has to draw.**
+  `io/projects/topas.py` carries module-level `symbol_table` and private
+  `_resolve` / `_arith` (none of them a package export):
+  enough arithmetic to read a value a file states through a named symbol, and
+  deliberately no more. Nothing of it is exported, so nothing here has to keep
+  it working — but do not redeclare it before deciding whether this WP's named
+  variable is what it should have been resolving into.
+  The live question 1118 parked **here**: seven archive files open a phase
+  with the macro form `STR(R-3)` / `STR(######, "#name#")`, which the reader's
+  line-based split cannot see, so it refuses such a file by name rather than
+  reading it (issue #107 — the refusal landed with PR #98, reading it did
+  not). Whether the fix is a special case or a general macro pass is 1118's
+  registry-shape
+  task — but a general pass borders this WP's equation scope, and 1118's file
+  says explicitly that the boundary is decided **here, not twice**.
+
 ## Non-goals
 
 - **Nonlinear expressions.** `A*B`, `sqrt(A)`, trigonometry: outside `C·θ + d`,
