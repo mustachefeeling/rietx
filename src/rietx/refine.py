@@ -1575,8 +1575,9 @@ class Refinement:
         # snapshot handed out by reference is a mutation waiting to happen.
         declared_wavelengths = list(self._declared_wavelengths)
 
-        diagnostics: list[Diagnostic] = _dispersion_diagnostics(
-            self.structure, self.instrument)
+        diagnostics: list[Diagnostic] = (
+            _symmetry_silence_diagnostics(self.structure)
+            + _dispersion_diagnostics(self.structure, self.instrument))
         stage_results: list[StageResult] = []
         self.stage_reports_ = []
         outcome = None
@@ -2982,6 +2983,76 @@ DISPERSION_NEGLECT_FRAC = 0.02
 #: above this the effect is large enough that the numbers should not be
 #: quoted without it, so the diagnostic escalates from info to warning
 DISPERSION_NEGLECT_SEVERE = 0.05
+
+
+def _symmetry_silence_diagnostics(structure: Structure) -> list[Diagnostic]:
+    """The two ways a structure's symmetry can be wrong without saying so.
+
+    Both are about *how many atoms a site puts in the cell* — the number that
+    feeds ``phase_zmv`` and therefore every weight fraction — and neither shows
+    up in Rwp, which is why they are reported here rather than left to a fit to
+    reveal (issues #215 and #217, WP-1324).
+
+    ``SITE_SNAPPED_TO_SPECIAL_POSITION``: a site within the site tolerance of a
+    special position but not on it.  ``crystallography.symmetry`` builds the
+    message, so a structure read from a CIF says the same thing on the reader's
+    channel that a hand-built one says here.
+
+    ``SPACE_GROUP_SETTING_ASSUMED``: a bare H-M symbol where the tables hold
+    more than one setting.  The **composition each setting implies** is the
+    discriminator, not the symbol — spinel's tetrahedral and octahedral
+    multiplicities swap between ``F d -3 m:1`` and ``:2``, so origin-2
+    coordinates under the bare symbol give A₂BO₄ where AB₂O₄ was meant — so the
+    message quotes both, and the caller recognises which one they meant.
+    """
+    from .crystallography.symmetry import (
+        get_spacegroup,
+        setting_alternatives,
+        snap_diagnostics,
+    )
+    from .optimize.qpa import phase_zmv
+
+    out: list[Diagnostic] = []
+    for i, phase in enumerate(structure.phases):
+        sg = get_spacegroup(phase.space_group)
+        out.extend(snap_diagnostics(
+            sg, [(a.label, (a.x.value, a.y.value, a.z.value)) for a in phase.atoms],
+            source=f"phase {phase.name!r}", prefix=f"phases.{i}"))
+
+        taken, others = setting_alternatives(phase.space_group)
+        if not others:
+            continue
+        cell = tuple(getattr(phase.cell, n).value
+                     for n in ("a", "b", "c", "alpha", "beta", "gamma"))
+        sites = [(a.species, a.x.value, a.y.value, a.z.value, a.occ.value)
+                 for a in phase.atoms]
+        implied = []
+        for setting in (taken, *others):
+            try:
+                counts = phase_zmv(setting, cell, sites).element_counts
+            except (ValueError, KeyError):
+                continue
+            formula = " ".join(f"{s}{c:g}" for s, c in sorted(counts.items()))
+            implied.append(f"{setting} → {formula}")
+        detail = ("; ".join(implied) if implied
+                  else f"{taken}, against {', '.join(others)}")
+        out.append(Diagnostic(
+            level="warning", code="SPACE_GROUP_SETTING_ASSUMED",
+            where=[f"phases.{i}.space_group"],
+            message=(f"phase {phase.name!r} names space group "
+                     f"{phase.space_group!r}, which the tables hold in "
+                     f"{1 + len(others)} settings; it was resolved to {taken}. "
+                     f"Cell contents each setting implies: {detail}"),
+            suggestion="if that composition is the one you meant, nothing is "
+                       "wrong — write the setting into the symbol "
+                       f"({taken!r}) to say so. If it is not, the coordinates "
+                       "belong to another setting: name it instead "
+                       f"({', '.join(repr(s) for s in others)}). The site "
+                       "multiplicities differ between settings, so the choice "
+                       "changes ZMV and every weight fraction while leaving "
+                       "Rwp alone",
+        ))
+    return out
 
 
 def _dispersion_diagnostics(structure: Structure,

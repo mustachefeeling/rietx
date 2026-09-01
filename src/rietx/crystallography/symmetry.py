@@ -19,11 +19,13 @@ approximate — thing to enumerate here.
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass, field
 
 import gemmi
 import numpy as np
 
+from ..schemas.common import Diagnostic
 from .lattice import d_spacings, two_theta_deg
 
 #: ceiling on the (2h+1)(2k+1)(2l+1) enumeration grid ``generate_reflections``
@@ -51,6 +53,49 @@ def get_spacegroup(symbol: str) -> gemmi.SpaceGroup:
     if sg is None:
         raise ValueError(f"unknown space group symbol: {symbol!r}")
     return sg
+
+
+@functools.lru_cache(maxsize=1)
+def _settings_by_hm() -> dict[str, tuple[str, ...]]:
+    """H-M symbols the tables hold more than one setting for, in table order.
+
+    Built from gemmi rather than listed, so it cannot drift out of date; on
+    the bundled tables it is **40** symbols, the origin-choice pairs
+    (``:1``/``:2``) plus the rhombohedral groups' axis choices (``:H``/``:R``).
+    """
+    by_hm: dict[str, list[str]] = {}
+    for sg in gemmi.spacegroup_table():
+        held = by_hm.setdefault(sg.hm, [])
+        if sg.xhm() not in held:
+            held.append(sg.xhm())
+    return {hm: tuple(v) for hm, v in by_hm.items() if len(v) > 1}
+
+
+def setting_alternatives(symbol: str) -> tuple[str, tuple[str, ...]]:
+    """The setting a **bare** symbol resolves to, and the ones it passed over.
+
+    Returns ``("", ())`` when the caller named a setting (the symbol carries a
+    ``:`` suffix) or when the tables hold only one — so the CIF and TOPAS
+    routes, which both carry a setting, stay silent: ``cif.py`` prefers gemmi's
+    own reading of the file, and the ``.inp`` reader maps TOPAS's trailing
+    ``Z`` to ``:2`` (WP-1118).
+
+    A bare symbol is not an error and this does not make it one — gemmi's
+    choice of the first setting has to be made and is defensible.  What it
+    cannot be is invisible.  ``F d -3 m`` resolves to ``:1``, and spinel
+    coordinates from a paper are almost always origin choice 2, where the 8a
+    and 16d multiplicities **swap**: A at (⅛,⅛,⅛) counts 16 under ``:1``
+    against 8 under ``:2``, B at (½,½,½) the reverse, so a hand-built phase
+    gives A₂BO₄ where AB₂O₄ was meant — wrong ``element_counts``, wrong ZMV,
+    wrong weight fractions, and a fit that converges anyway (issue #217).
+    """
+    if ":" in symbol:
+        return "", ()
+    taken = get_spacegroup(symbol).xhm()
+    settings = _settings_by_hm().get(get_spacegroup(symbol).hm, ())
+    if len(settings) < 2:
+        return "", ()
+    return taken, tuple(s for s in settings if s != taken)
 
 
 #: Largest deviation of a symmetry-fixed cell angle from its exact value that
@@ -281,6 +326,14 @@ _SITE_TOL_SLACK = 1e-9
 #: judgement is all in :data:`SITE_TOL`, one step earlier.
 _COINCIDENCE_TOL = 1e-9
 
+#: Below this the snap did nothing and ``SiteOrbit.shift`` reports 0.0.  A site
+#: already *on* its special position still averages to itself only to within an
+#: ulp or two — h·x/h is not exactly x unless h is a power of two — and a
+#: report of that is a report of arithmetic, not of the structure.  The floor
+#: sits seven orders under :data:`SITE_TOL`, so nothing a file could mean is
+#: swallowed by it.
+_SNAP_NOISE = 1e-12
+
 
 def _op_arrays(op: gemmi.Op) -> tuple[np.ndarray, np.ndarray]:
     """(R, t) of one gemmi operation as float64; gemmi scales both by Op.DEN."""
@@ -397,6 +450,8 @@ def site_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
         snapped = acc / len(candidates)
         delta = snapped - x
         shift = float(np.max(np.abs(delta - np.round(delta))))
+        if shift <= _SNAP_NOISE:
+            snapped, shift = x, 0.0      # already on it; the average is noise
 
     stab_ops = fixing(snapped, _COINCIDENCE_TOL)
     if len(stab_ops) == 1 and shift:
@@ -471,6 +526,61 @@ def expand_positions(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = SITE
     :func:`site_orbit` for why that is a derivation and not a count.
     """
     return [p for p, _ in expand_orbit(sg, xyz, tol=tol)]
+
+
+#: How many snapped sites a ``SITE_SNAPPED_TO_SPECIAL_POSITION`` message names
+#: before it says "and N more".  ``where`` still carries every one of them.
+_SNAP_MESSAGE_SITES = 4
+
+
+def snap_diagnostics(sg: gemmi.SpaceGroup, sites, *, source: str,
+                     prefix: str, tol: float = SITE_TOL) -> list[Diagnostic]:
+    """``SITE_SNAPPED_TO_SPECIAL_POSITION`` for the sites whose orbit needed one.
+
+    ``sites`` is an iterable of ``(label, (x, y, z))`` in model order; ``source``
+    names where the coordinates came from, and ``prefix`` is the dot-path of the
+    phase (``"phases.0"``) whose atoms they are.
+
+    A site within ``tol`` of a special position but not on it is expanded at the
+    snapped position, so its multiplicity is the special one — which is what the
+    file's own ``_atom_site_symmetry_multiplicity`` says, and what its density
+    implies.  The stored coordinate is **not** rewritten: the deviation is the
+    caller's number and may be real, and the fit is unharmed either way, but it
+    decides how many atoms the site puts in the cell and therefore ZMV and every
+    weight fraction, so it cannot be decided in silence (issue #215).
+
+    Empty when nothing moved, which is every structure whose sites sit on their
+    special positions exactly.
+    """
+    moved: list[tuple[str, float, int, str]] = []
+    for j, (label, xyz) in enumerate(sites):
+        orbit = site_orbit(sg, np.asarray(xyz, dtype=np.float64), tol=tol)
+        if orbit.shift:
+            moved.append((label, orbit.shift, orbit.multiplicity,
+                          f"{prefix}.atoms.{j}"))
+    if not moved:
+        return []
+    named = ", ".join(f"{lbl} ({shift:.1e} → multiplicity {m})"
+                      for lbl, shift, m, _ in moved[:_SNAP_MESSAGE_SITES])
+    if len(moved) > _SNAP_MESSAGE_SITES:
+        named += f", and {len(moved) - _SNAP_MESSAGE_SITES} more"
+    worst = max(shift for _, shift, _, _ in moved)
+    return [Diagnostic(
+        level="warning", code="SITE_SNAPPED_TO_SPECIAL_POSITION",
+        where=[path for *_, path in moved],
+        message=(f"{len(moved)} site(s) in {source} sit within {tol:g} of a "
+                 f"special position of {sg.xhm()!r} without being on it, and "
+                 f"were expanded at it: {named}. Largest shift {worst:.2e} in "
+                 f"fractional coordinates"),
+        suggestion="the stored coordinates are unchanged and the fit is "
+                   "unaffected, but the multiplicity is the special one — it "
+                   "is what decides how many atoms the site puts in the cell, "
+                   "hence ZMV and every weight fraction. Check these sites "
+                   "against the source's own multiplicities: if they agree, "
+                   "nothing is wrong and the coordinates are simply rounded; "
+                   "if they disagree, the coordinates and the space group are "
+                   "telling you different things",
+    )]
 
 
 @dataclass

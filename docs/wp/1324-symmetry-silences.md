@@ -72,14 +72,14 @@ multiplicity.
       within `tol` of; raise `ORBIT_NOT_A_MULTIPLICITY` if a count ever fails
       to divide |G| (a guard that should become unreachable, kept as the
       invariant).
-- [ ] The snap is reported: `SITE_SNAPPED_TO_SPECIAL_POSITION` with the site,
+- [x] The snap is reported: `SITE_SNAPPED_TO_SPECIAL_POSITION` with the site,
       the shift, and the multiplicity, on `structure_from_cif`'s channel and
       on the `Phase`/`Structure` construction path.
-- [ ] `SPACE_GROUP_SETTING_ASSUMED` on every bare-symbol resolution where the
+- [x] `SPACE_GROUP_SETTING_ASSUMED` on every bare-symbol resolution where the
       tables hold more than one setting, naming the setting taken and the
       others; `Phase.space_group` validation is the one place for it, so the
       CIF and TOPAS routes (which carry a setting) stay silent.
-- [ ] The issue's two reproductions as tests: the ±1.2e-4 sweep on `R -3 m:H`
+- [x] The issue's two reproductions as tests: the ±1.2e-4 sweep on `R -3 m:H`
       prints only 18 or 36; ICSD 18318's sixteen sites match the CIF's
       multiplicities; the spinel table under `:1` and `:2`.
 - [ ] Skill and manual rows for the two codes; a Part 2 note that a

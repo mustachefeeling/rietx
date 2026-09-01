@@ -10,6 +10,7 @@ import gemmi
 from ..schemas.common import Diagnostic, Parameter
 from ..schemas.structure import AnisoU, Atom, Cell, Phase, Structure
 from .adp import U_NAMES, u_equivalent
+from .symmetry import snap_diagnostics
 
 
 def _strip_su(value: str) -> float:
@@ -242,6 +243,9 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
                 message=(f"species {raw!r} in {path} read as "
                          f"{canonical!r} ({note})"),
                 where=where))
+        diagnostics.extend(snap_diagnostics(
+            sg, [(a.label, (a.x.value, a.y.value, a.z.value)) for a in atoms],
+            source=path, prefix="phases.0"))
 
     angles = {"alpha": cell.alpha, "beta": cell.beta, "gamma": cell.gamma}
     angles = _correct_symmetry_angles(sg, angles, path, diagnostics)
