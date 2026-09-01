@@ -430,11 +430,20 @@ is in flight. That class of bug is invisible until two panels share a screen,
 which is the argument for tabs restated as a defect. And **opening another
 project replaces the session's** with no prompt and no dialog: settings persist
 on the verb and the log is on disk, so there is nothing unsaved, and a run in
-flight is already refused by `project_open`'s 409.
+flight is already refused by `project_open`'s 409. **There is no read-only way
+to open one** — every verb writes into the directory and `Project.open` appends
+a head annotation before any verb runs — so looking without changing means a
+copy: `rietx gui --scratch` (byte-for-byte, temp dir), `--state-dir` to put the
+recent list somewhere else, and `*.rex/` in `.gitignore` (WP-1204).
 
 The **examples** (WP-1204, `rietx.examples`; `GET /api/examples`, `POST
 /api/examples/open`, `POST /api/examples/reset`) are the empty state's other
-list, for the person who has nothing of their own to open. Five rules. An
+list, for the person who has nothing of their own to open. Six rules. Upstream
+of the route, **an example project *is* a `compare.py` standard**
+(`src/rietx/examples.py`), so no protocol is restated here —
+`tests/test_compare_ui.py` already pins those to the acceptance suites, and
+`list_examples()`'s membership is `STANDARDS` filtered by what is in
+`src/rietx/data/examples/`, so a file added to the wheel adds an example. An
 **example is a project like any other from the moment it exists** — the open
 verb *ends in* `project_open` and returns exactly what it returns, so nothing
 downstream can tell. They build into **`state_dir/examples/`**, for the reason
