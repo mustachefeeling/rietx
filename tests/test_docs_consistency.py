@@ -297,7 +297,22 @@ SIZE_CAPS: dict[str, int | None] = {
     # before it sets a tolerance: two references that disagree by more than the
     # bar make agreement with both impossible, and a unit a format states two
     # ways is refused rather than picked.
-    "CLAUDE.md": 906,
+    # 906 -> 760 for the compression pass (2026-09-01), which is the direction
+    # this comment block has never gone before and so states its method: no
+    # rule, identifier, dot-path, diagnostic code or measured number left the
+    # file (checked mechanically against the pre-pass copy — 50 WP numbers, 57
+    # SHOUTING constants, 96 file paths and 477 inline code spans, all still
+    # present).  What left is connective prose and the mechanism a pointer
+    # already covers: a derivation the linked survey section carries, a
+    # private helper named only to explain why a rule holds, the sentence
+    # after the one that states the rule.  Landed at 736 lines and 8612 words
+    # (from 906 and 9529, i.e. -9.6 % of the words a session pays for on every
+    # request).  The cap is landed + 24 because the admission rule is
+    # unchanged: a line enters as a standing rule, evidence compressed to one
+    # clause plus a pointer.  A future session finding a clause too thin
+    # should restore it from the WP file it names rather than reasoning from
+    # what is left here.
+    "CLAUDE.md": 760,
     # 400 -> 416 for the agentic-report planning session (2026-08-18): four
     # v1.1 WP rows (1104-1107) plus their focus bullet.  Index rows cannot go
     # down a rank — the WP-file/row bijection test in this file requires one
