@@ -57,18 +57,20 @@ proposes those readers as a beyond-the-majors widening of this family;
 right home, deliberately unscheduled, no corpus, and the read/write
 asymmetry is intentional.
 
-**Two things arrive with the TOPAS files (issues #107, #101).** Five archive
-files open phases with the macro form `STR(R-3)` / `STR(######, "#name#")`,
-which the line-based split cannot see, so they parse **zero phases** and
-`to_structure` returns a confident wrong diagnosis ("a Pawley or
-indexing-only .inp is legal and has none"); two already-fixed macro bugs
-hide behind it, so **PR #98's incidence figures are floors until this is
-decided**. The minimum honest fix is independent of any design: recognise
-the spelling and refuse naming it — a reader may decline a construct, it may
-not describe it as absent. Whether `STR(...)` is special-cased or the reader
-grows a general macro pass is the registry-shape task's decision (and a
-general pass borders [1119](1119-named-variables.md)'s equations scope —
-decide the boundary there, not twice). Second, origin choice:
+**Two things arrive with the TOPAS files (issues #107, #101).** Seven
+archive files open phases with the macro form `STR(R-3)` /
+`STR(######, "#name#")`, which the line-based split cannot see. PR #98 took
+the minimum honest fix with it, which was independent of any design:
+recognise the spelling and **refuse naming it**, because a reader may decline
+a construct but may not describe it as absent. So such a file now raises,
+counting the phases it states, instead of parsing **zero phases** and letting
+`to_structure` answer "a Pawley or indexing-only .inp is legal and has none".
+What is still undone is *reading* them, and two already-fixed macro bugs hide
+behind them, so **PR #98's incidence figures are floors until this is
+decided**. Whether `STR(...)` is special-cased or the reader grows a general
+macro pass is the registry-shape task's decision (and a general pass borders
+[1119](1119-named-variables.md)'s equations scope — decide the boundary
+there, not twice). Second, origin choice:
 `gemmi.SpaceGroup("Pn-3m").ext` is `'1'`, so a structure transcribed from an
 origin-choice-2 source gets choice 1's symmetry with nothing raised — wrong
 structure factors under a healthy-looking fit — while the TOPAS spelling
@@ -244,22 +246,7 @@ work this WP does.
 
 ## Handover log
 
-### 2026-09-01 (2nd session) — the issue triage folded four issues in
-
-The issue triage folded four issues in rather than opening WPs beside this
-one: #148 (write direction — round-trip as
-acceptance, GSAS-II as a target), #107 (the `STR(...)` decision, parked at
-the registry-shape task), #101 (the origin-choice task), #196 (Rietica/XND
-named as the family's deliberate boundary). Two standing offers recorded:
-the filer of #103 volunteers for the `.EXP`/`.PRM` task once the registry
-shape lands, bringing two spec findings for its docstring (GSAS-II's
-`Rvals['GOF']` is reduced χ², not its root; instrument parameters are
-`[default, current, refine_flag]` triples, current at index 1) — and #107's
-filer offers either fix once told which. The Jana reader is
-[1314](1314-mfile-reader.md), gated on this WP's first task. Next: the
-answer's shape, unchanged.
-
-### 2026-09-01 (1st session) — the TOPAS `.inp` reader landed (PR #98, reconstructed post hoc)
+### 2026-09-01 (2nd session) — the TOPAS `.inp` reader landed (PR #98, reconstructed post hoc)
 
 A TOPAS `.inp` no longer has to be transcribed by hand.
 `rietx.io.projects.read_topas_inp` opens one and returns what the file states —
@@ -276,7 +263,7 @@ constructs, so the tenth is now a row rather than a round. The other two formats
 are unmoved: `.EXP`/`.PRM` and `.pcr` still have no merged reader, and there is
 still no writer in any direction.
 
-*Reconstructed post hoc.* Written from `git log --stat` over PR #98's 47 commits
+*Reconstructed post hoc.* Written from `git log --stat` over PR #98's 46 commits
 (`a3268cd1`..`03179f2a`, merged `0576726f`) and the state of the tree they left.
 The review ran on the `/pr-review` bench, which writes no handover entry, so
 what follows is what the commits show; where the diff does not say why, this
@@ -286,10 +273,10 @@ entry does not invent a reason.
 2026-09-01, +6078/−1 across 11 files:
 
 - `src/rietx/io/projects/` — a package for readers of someone else's *refinement
-  input*, beside `io/formats/`, one module per format. `topas.py` (2668 lines)
-  exports `read_topas_inp` and `TopasInpError` only; `to_structure` stays
-  module-level so #111's FullProf `to_structure` has nothing to shadow through
-  the package export.
+  input*, beside `io/formats/`, one module per format. The package `__init__`
+  exports `read_topas_inp` and `TopasInpError` only, out of `topas.py`'s 2668
+  lines; `to_structure` stays module-level so #111's FullProf `to_structure`
+  has nothing to shadow through the package export.
 - The answer's shape, for this format: `TopasModel` is *what the file states*
   and seeds nothing (a site with no `beq` carries `None`, not 0.5), and
   `to_structure(model, *, cell_limits=True, aniso=False, dataset=None)` is the
@@ -297,10 +284,10 @@ entry does not invent a reason.
   `rx.Parameter(vary=…)`. `vary` is a **tri-state**: a key absent means the file
   said nothing, which is not "held".
 - `coverage.py` (360 lines) — one declared stance per construct, `READ` /
-  `IGNORED` / `REPORTED` / `REFUSED` (7 / 4 / 12 / 8 rows). `PHASE_SCOPE` is
-  partitioned by test against the reference's own §5.1 phase tree, so a keyword
-  with no stance fails and a stance naming a keyword outside the scope fails
-  too.
+  `IGNORED` / `REPORTED` / `REFUSED` (6 / 3 / 9 / 5, 23 `FEATURES` rows over a
+  178-keyword `PHASE_SCOPE`), partitioned by test against the reference's own
+  §5.1 phase tree, so a keyword with no stance fails and a stance naming a
+  keyword outside the scope fails too.
 - Six diagnostics, each with a row in all three synced skill copies:
   `TOPAS_SPECIES_NORMALISED`, `TOPAS_ORIGIN_TRANSLATED`, `TOPAS_BLOCK_SKIPPED`,
   `TOPAS_CELL_COUPLING_DROPPED`, `TOPAS_FEATURES_NOT_IMPORTED`,
@@ -322,9 +309,11 @@ entry does not invent a reason.
 
 *Measured* (this handover session, macOS darwin 25.5.0, worktree `.venv`
 python 3.12, `[dev]` extras — no jax/torch, so the cross-backend rows self-skip):
-`-m "not slow"` is **3919 passed, 122 skipped** in 156 s. That was measured on
-`origin/main` itself — the branch is that commit plus documentation, and this
-handover adds no test — so it is the merged tree's count. The full selection was
+`-m "not slow"` is **3919 passed, 122 skipped**, in the 2-3 min band this
+selection runs in on this machine (two runs, 125 s and 156 s). That was
+measured on `origin/main` itself — the branch is that commit plus
+documentation, and this handover adds no test — so it is the merged tree's
+count. The full selection was
 not run: nothing here can move an acceptance number, and the reader carries no
 physics.
 
@@ -336,18 +325,24 @@ its commits are reachable only through the PR ref, not through any local branch.
 
 *Gotchas*:
 
-- **`STR(...)` still parses zero phases** (#107). Five archive files open a
-  phase with the macro form, the line-based split cannot see it, and
-  `to_structure` then reports "a Pawley or indexing-only `.inp` is legal and has
-  none" — a confident wrong diagnosis of a parse failure, which is the class
-  this reader exists to remove. So PR #98's incidence figures are **floors**.
-  Parked at the registry-shape task by the same day's triage.
+- **`STR(...)` is refused by name, not supported** (#107). The line-based
+  split still cannot see a phase opened with the macro form, but PR #98 took
+  the minimum honest fix with it (`_STR_MACRO`, `topas.py:1866`; the test
+  names seven affected archive files — `rigidb`, `split_fum`, `SPODI`, `D20`
+  and three `AT027-23_*`): such a file raises `TopasInpError` counting the
+  phases it states, rather than returning zero. Those files therefore parse
+  not at all, so PR #98's incidence figures are still **floors**, and what is
+  parked at the registry-shape task is only *whether* the macro is read — a
+  special case or a general macro pass. The Context section above was written
+  before this merge and said the file still got the wrong diagnosis; this
+  handover corrected it in place.
 - **The skill now contradicts the build.** `references/api.md` § In still reads
   "a TOPAS `.inp` … has none, so those are still transcribed by hand", and
   `SKILL.md`'s routing row for *you were handed another program's input file*
   still names only a PowderLine recipe. Both are false as of this merge. The fix
-  is WP-1308's Inherited note above, still unspent: SKILL.md has 27 B of
-  headroom, so widening the row costs bytes bought elsewhere, and three copies
+  is WP-1308's Inherited note above, still unspent: SKILL.md measures 31 968 B
+  against its 32 000 B cap — 32 B of headroom, not the 27 B that note quotes —
+  so widening the row costs bytes bought elsewhere, and three copies
   (`docs/skill/`, `.agents/skills/`, `.claude/skills/`) must stay in sync.
 - **No registry and no `capabilities()` arm.** There is no `PROJECT_FORMATS`
   beside `PATTERN_FORMATS`; the reader is found by importing it. The meta-test
@@ -358,9 +353,10 @@ its commits are reachable only through the PR ref, not through any local branch.
   no row. Whether it *should* be top-level is part of the answer's-shape task,
   not an oversight to patch.
 - No Part 1 manual section for the reader.
-- **This handover was owed and nothing flagged it.** 47 `WP-1118:` commits
-  merged with the WP file untouched, and `session_start.py` compares the newest
-  handover-entry date against the commits' — the same day's issue-triage session
+- **This handover was owed and nothing flagged it.** 45 `WP-1118:` commits (of
+  the PR's 46) merged with the WP file untouched, and `session_start.py`
+  compares the newest handover-entry date against the commits' — the same
+  day's issue-triage session
   had touched the file, so the date rule passed. A `/pr-review` merge writes no
   handover entry by design, so a contributor PR carrying a WP prefix is the one
   shape of work this repo can land with no record on the WP. Worth a line in
@@ -376,6 +372,21 @@ and [1314](1314-mfile-reader.md)'s Jana reader — and which also settles whethe
 `read_topas_inp` becomes a top-level export with a `capabilities()` arm. Then
 the skill correction above: small, independent of the registry, and currently
 telling an agent to transcribe by hand a file the build can open.
+
+### 2026-09-01 (1st session) — the issue triage folded four issues in
+
+The issue triage folded four issues in rather than opening WPs beside this
+one: #148 (write direction — round-trip as
+acceptance, GSAS-II as a target), #107 (the `STR(...)` decision, parked at
+the registry-shape task), #101 (the origin-choice task), #196 (Rietica/XND
+named as the family's deliberate boundary). Two standing offers recorded:
+the filer of #103 volunteers for the `.EXP`/`.PRM` task once the registry
+shape lands, bringing two spec findings for its docstring (GSAS-II's
+`Rvals['GOF']` is reduced χ², not its root; instrument parameters are
+`[default, current, refine_flag]` triples, current at index 1) — and #107's
+filer offers either fix once told which. The Jana reader is
+[1314](1314-mfile-reader.md), gated on this WP's first task. Next: the
+answer's shape, unchanged.
 
 - **2026-08-21** — created, from WP-1110 item 19. Stub: the fences, the seams
   and the acceptance are settled; the answer's shape is the first open decision.

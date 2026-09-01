@@ -423,9 +423,9 @@ hardest part of the work. **1119**: the named variable a `.inp` equation refers
 to. Its linear half already works through `tie`/`tie_equal`, so what is missing
 is a variable with its own name and bounds, multi-term ties and persistence;
 nonlinear stays fenced behind `Parameter.expr`. 1119 lands first if both run.
-The 2026-09-01 triage widened 1118 (#148, #107, #101, #103, #196, each folded
-into its file) rather than opening WPs beside it, and its **TOPAS `.inp`
-reader merged** with the refine flags (PR #98); the registry is its next task.
+The 2026-09-01 triage added the two rows below (1314, 1319) and widened 1118
+(#148, #107, #101, #103, #196 all folded into its file) rather than opening WPs
+beside it; 1118's **TOPAS `.inp` reader merged** (PR #98), registry next.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

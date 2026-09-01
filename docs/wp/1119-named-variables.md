@@ -108,15 +108,18 @@ clause).
 - **2026-09-01, from [1118](1118-foreign-model-files.md): the TOPAS `.inp`
   reader merged (PR #98), and it resolves a `.inp`'s symbols without being an
   expression evaluator — which is the boundary this WP has to draw.**
-  `io/projects/topas.py` carries private `symbol_table`, `_resolve` and `_arith`:
+  `io/projects/topas.py` carries module-level `symbol_table` and private
+  `_resolve` / `_arith` (none of them a package export):
   enough arithmetic to read a value a file states through a named symbol, and
   deliberately no more. Nothing of it is exported, so nothing here has to keep
   it working — but do not redeclare it before deciding whether this WP's named
   variable is what it should have been resolving into.
-  The live question 1118 parked **here**: five archive files open a phase with
-  the macro form `STR(R-3)` / `STR(######, "#name#")`, which the reader's
-  line-based split cannot see, so they parse zero phases (issue #107). Whether
-  the fix is a special case or a general macro pass is 1118's registry-shape
+  The live question 1118 parked **here**: seven archive files open a phase
+  with the macro form `STR(R-3)` / `STR(######, "#name#")`, which the reader's
+  line-based split cannot see, so it refuses such a file by name rather than
+  reading it (issue #107 — the refusal landed with PR #98, reading it did
+  not). Whether the fix is a special case or a general macro pass is 1118's
+  registry-shape
   task — but a general pass borders this WP's equation scope, and 1118's file
   says explicitly that the boundary is decided **here, not twice**.
 
