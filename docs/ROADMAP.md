@@ -423,11 +423,16 @@ hardest part of the work. **1119**: the named variable a `.inp` equation refers
 to. Its linear half already works through `tie`/`tie_equal`, so what is missing
 is a variable with its own name and bounds, multi-term ties and persistence;
 nonlinear stays fenced behind `Parameter.expr`. 1119 lands first if both run.
+The 2026-09-01 issue triage added two and widened 1118 rather than opening
+WPs beside it (#148 write direction, #107 `STR(...)`, #101 origin choice,
+#103's volunteer, #196's family boundary — all folded into its file).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | ⬜ | — |
 | [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ⬜ | — |
+| [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | 1118 |
+| [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | — |
 
 ### Unscheduled — the fit has no reference (added 2026-08-23)
 
@@ -436,10 +441,14 @@ TOPAS's** while `Rwp`/`GoF` matched TOPAS's to two decimals; a hand heuristic
 landed at 0.82–1.20. The gap is a **reference**: a quantity derived sharing no
 assumption with the fit, so disagreement is diagnostic rather than tautological.
 The suite has them for four known specimens; a user's own sample gets none.
+1309 adds the *measured* reference: the blank the beamline scanned, entering
+with a refinable scale and its own esds instead of coefficient-exactly-1
+(issue #171: the forced 1.0 sits 2.2 % high in Rwp on the Si640c blank).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | ⬜ | 1131 |
+| [1309](wp/1309-measured-background.md) | A measured background: the container exists, the scale and the esds do not | ⬜ | — |
 
 ### Unscheduled — the specimen is not an angle (added 2026-08-23)
 
@@ -457,6 +466,64 @@ converted any of these coefficients to a size or a strain at all.
 | [1133](wp/1133-diagnostic-names-its-view.md) | A diagnostic names the view that shows it | ⬜ | 1130 |
 | [1134](wp/1134-constant-wavelength-neutron.md) | Constant-wavelength neutron: b, lambda/n harmonics, a refinable wavelength | ✅ 2026-08-25 | — |
 | [1132](wp/1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | ⬜ | #108 |
+| [1312](wp/1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | ⬜ | — (1132 soft) |
+
+### Unscheduled — what fires, and what stays silent (added 2026-09-01)
+
+The issue triage's diagnostics cluster. One result carried 96
+`HIGH_CORRELATION` entries for 16 pairs, the two real findings at the
+truncatable tail (#106); a second `run_stage` reports its λ move against a
+value nobody declared (#123); a derived path yields a well-formed empty CSV
+column (#162); and a 1° FWHM, a 30 Å² Biso or an in-range negative Γ² is
+reached with nothing raised (#150, #102). 1310 fixes what the report says;
+1311 adds what the fit should have said.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1310](wp/1310-report-repeats-itself.md) | The report repeats itself: stage dedup, the declared wavelength, the empty column | ⬜ | — |
+| [1311](wp/1311-walking-parameter-bounds.md) | Bounds and flags for the remaining walking parameters | ⬜ | — (1310 soft) |
+
+### Unscheduled — one file, many patterns (added 2026-09-01)
+
+The `scan=` idiom extended to containers: a plain zip of 1372 `.fxye` is
+unreachable without extracting to disk — and a STORED zip is mis-claimed by
+the GSAS text sniff, a real dispatch bug — while a NeXus/HDF5 in-situ reel
+is refused at `looks_binary` (issues #134, #135). Both readers reuse the σ
+and axis authorities unchanged; the HDF5 one is the package's first
+optional-dependency format (`rietx[hdf5]`, because there is no pure-python
+fallback to keep exercised).
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1315](wp/1315-zip-collection-reader.md) | A zip of patterns is N scans | ⬜ | — |
+| [1316](wp/1316-hdf5-multiscan-reader.md) | A NeXus/HDF5 multi-scan reader, behind an extra | ⬜ | — |
+
+### Unscheduled — render what the fit already knows (added 2026-09-01)
+
+Two views over quantities already computed, no new physics: a series
+navigated by its own T/t trace, the shipped `SEQUENTIAL_*` findings as
+markers over a scrubbed pattern+fit view (issue #133, with #141's
+one-vocabulary rule — its verb was deleted by 1303, its answer shipped as
+1305); and the fitted Stephens S_HKL block drawn as the directional strain
+surface GSAS-II offers (issue #197's quick-win half; the maps half stays
+fenced).
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1317](wp/1317-series-scrubber.md) | Scrub the series along its own trace | ⬜ | — |
+| [1318](wp/1318-strain-surface.md) | The Stephens strain surface, rendered | ⬜ | — |
+
+### Unscheduled — the repo's own process, continued (added 2026-09-01)
+
+The deferred half of the ruling on issue #159: the committed GUI dist
+becomes main's artifact — post-merge rebuild on main, the PR check turned
+advisory — because `assets/app.js` auto-merges two builds silently while
+`build-info.json` conflicts loudly, and the merged `.gitattributes` interim
+cannot cover the silent case. The branch-protection half stays by-hand.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1313](wp/1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | — |
 
 ## v2+ (seams pre-built, implementations fenced out)
 
