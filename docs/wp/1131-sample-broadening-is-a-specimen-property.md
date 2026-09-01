@@ -253,7 +253,7 @@ needs it any more.
 
 ## Tasks
 
-- [x] **The physics, as one authority — `caglioti.py`, extended not duplicated.**
+- [x] **The physics, as one authority — `caglioti.py`, extended not duplicated.** ✔
       The size half landed in v1.2 (Finding 4); this WP adds the **strain** half
       beside it, in both directions, citing its source and stating its convention,
       with no wavelength argument because strain has none. Everything below
