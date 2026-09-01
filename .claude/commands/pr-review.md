@@ -30,7 +30,7 @@ One network call, no checkout, no diff:
 
 ```sh
 gh pr list --state open --limit 30 \
-  --json number,title,author,files,changedFiles,mergeStateStatus,latestReviews,headRefOid,updatedAt,statusCheckRollup
+  --json number,title,author,files,changedFiles,mergeStateStatus,latestReviews,headRefOid,updatedAt,statusCheckRollup,commits
 ```
 
 - **Reviewable size is a jq filter over `files[]`**, excluding
@@ -42,11 +42,19 @@ gh pr list --state open --limit 30 \
   size and collision degree downward; when they differ, say so.
 - **`latestReviews[].commit`** is the sha a *review* (not a comment) was posted
   at — what makes the `all` mode's skip check a field.
+- **`commits[].messageHeadline` is the only place a contributor's WP work is
+  visible**: a PR prefixing its commits `WP-NNNN:` edits no `docs/wp/` file, so
+  `files[]` cannot see it (#98: 45 `WP-1118:` commits, every one of them in
+  `src/` and `tests/`). The field carries each commit's *body* too: it took the
+  call from 27 kB to 60 kB on a three-PR backlog, so read it through jq, never
+  raw.
 
 Print one row per PR — number, title, reviewable lines, merge state, CI,
 whether a maintainer has commented — **and the reason for its rank**:
 
-1. **Touches an in-flight WP** (`Status:` 🔄 in `docs/wp/[0-9]*.md`).
+1. **Touches an in-flight WP** — `Status:` 🔄 in a `docs/wp/[0-9]*.md` the PR
+   edits, **or** a `WP-NNNN:` commit prefix naming one. Either way a live
+   session owns that WP's file.
 2. **Outside PR edits `docs/ROADMAP.md` or `docs/wp/**`** — a governance
    question for the user (`CONTRIBUTING.md` § Maintainer-only machinery), cheap
    and blocking nothing. Author-conditional: on the maintainer's own PR it is
@@ -220,8 +228,29 @@ line if the checkpoint ended it. Close with
    you merged**: `origin/main` moves under every live WP session. Close only
    when the contributor asked or the work was folded into another PR.
    Anything else stops and asks (`all`: defers).
+
+   **A merge carrying `WP-NNNN:` commits owes that WP a handover entry, and
+   nothing will ask for it.** `session_start.py`'s order rule is satisfied by
+   *any* later touch of the WP file and its date rule is day-dated, so a
+   same-day session editing that file for its own reasons clears both: PR #98's
+   45 `WP-1118:` commits merged (`0576726f`, 2026-09-01) with the WP file
+   untouched and the scan stayed quiet, and the entry was rebuilt a session
+   later out of `git log --stat`, which cannot recover a reason the diff does
+   not state. Pay it here, where the reading still exists.
+   `git -C "$BENCH" fetch origin main`, branch off it, add a
+   `### YYYY-MM-DD` entry to `docs/wp/NNNN-*.md` (the template's
+   multi-session suffix when the day already carries one) naming the PR, its
+   merge sha and what your review established — what the merge makes possible,
+   what it deliberately does not, the gotchas you found — update the `Status:`
+   line, and open it as a PR. Docs only, so no ladder; not yours to merge,
+   being the maintainer's own. Then put the bench back where step 4 expects it
+   (`git -C "$BENCH" checkout --detach origin/main`), or the next PR's
+   `reset --hard` rewrites the branch you just pushed. An in-flight WP never
+   reaches this step — rank 1 batches it — so the entry can never collide with
+   a live session's log.
 10. **Report to the person**: the plain-language paragraph, then what ran, the
-    open questions, the URL, and exactly `PR N: <decision>` — `merged`,
+    open questions, the URL, and exactly `PR N: <decision>` — `merged`
+    (`merged, handover PR M` where step 9's entry was owed),
     `closed`, `review posted`, `rebase requested`, `held, waiting on you`,
     plus `skipped (reviewed at <sha>)` and `deferred (<criterion>)` in the
     `all` mode. Kill this run's waiters first (step 5).
