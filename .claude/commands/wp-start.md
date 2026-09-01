@@ -21,8 +21,11 @@ Run the session-start ritual. The SessionStart hook's report
    session leaves both satisfied whatever the entry says, so a quiet report is
    a prompt, not proof.
 2. **Identify the WP**: the one the user names, else ROADMAP "Current
-   focus". Read that one WP file only (plus the DESIGN.md sections it
-   links); do not read other WP files.
+   focus" — read that section, not the file
+   (`sed -n '/^## Current focus/,/^## Milestones/p' docs/ROADMAP.md`): the
+   section is ~1k tokens, the whole file ~13k, and a WP file is
+   self-contained. Read that one WP file only (plus the DESIGN.md sections
+   it links); do not read other WP files.
 3. **Worktree, then branch.** If the hook's first line names the main
    checkout, call `EnterWorktree` with the WP's name (`wp1208-<slug>`) before
    anything else. The `WorktreeCreate` hook cuts that branch from `origin/main`
