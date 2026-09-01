@@ -135,6 +135,27 @@ missing from its arm applies unchanged. A new format token is spelled in
 
 ### Inherited
 
+- **2026-09-02, from [1324](1324-symmetry-silences.md): a space-group symbol
+  without a setting suffix now has one authority, and a reader landing here must
+  decide which side of it the format sits on.**
+  `crystallography.symmetry.setting_alternatives(symbol)` returns
+  `(taken, others)` for a bare symbol the tables hold in more than one setting —
+  40 of them, read off gemmi rather than listed — and `("", ())` for a symbol
+  carrying its own. The fit-time report `SPACE_GROUP_SETTING_ASSUMED`
+  (`refine._symmetry_silence_diagnostics`) fires on the first case only, so a
+  reader that resolves the setting itself keeps its callers silent: this is
+  exactly what `normalize_space_group`'s trailing-`Z` → `:2` mapping already
+  buys the `.inp` route, and what `cif.py` gets from preferring gemmi's own
+  reading of the file. **The `.pcr` reader and the exporter registry inherit the
+  question**: FullProf writes the symbol without a suffix in the common case, so
+  either the `.pcr` route establishes the setting from evidence the file carries
+  (the way `read_small_structure` picks R from the cell) or it hands a bare
+  symbol on and the caller gets the warning — both are defensible, but the
+  choice is now visible and should be made deliberately rather than inherited.
+  An **exporter** has the mirror obligation: write `get_spacegroup(sym).xhm()`,
+  not the phase's stored string, or a round-trip through a foreign format
+  launders a resolved setting back into an ambiguous one.
+
 - **2026-08-30, from [1308](1308-skill-documents-its-doors.md): the skill now
   has a routing row for *you were handed another program's input file*, and a
   reader added here must claim it.** The row is in `SKILL.md`'s routing table

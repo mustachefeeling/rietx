@@ -66,6 +66,27 @@ two-phase model where one phase's `scale × broadening` ridge admits distinct
 basins at indistinguishable Rwp, verified multi-modal by the probe itself
 before anything asserts on it.
 
+### Inherited
+
+- **2026-09-02, from [1324](1324-symmetry-silences.md): two ways a weight
+  fraction was wrong that no residual could see, both now closed and both
+  reported.** A fraction rides on `scale × ZMV`, and 1324 was about the ZMV
+  half: site multiplicities were counted by a greedy pairwise dedup that is not
+  transitive, so an orbit length could fail to divide the group order (22 and 30
+  under |G| = 36), and a bare origin-ambiguous H-M symbol resolved silently to a
+  setting whose multiplicities can *invert* a composition (spinel's origin-2
+  coordinates under a bare `F d -3 m` give A₂BO₄). Multiplicity is now
+  `|G|/|stabiliser|` from `symmetry.site_orbit`, the one authority the forward
+  model, the Wyckoff bases and `phase_zmv` all read.
+  Two consequences for the work here. (1) The **codes to know** are
+  `SITE_SNAPPED_TO_SPECIAL_POSITION` and `SPACE_GROUP_SETTING_ASSUMED`; SKILL.md
+  now calls them the *ZMV family*, against the scale family this WP's background
+  and absorption checks cover, and a QPA judgement that reads only the scale
+  side is half a judgement. (2) The **error is multiplicative and silent** — the
+  boron case moved cell mass 3.81 % at identical Rwp — so it is a systematic
+  offset on one phase's k, not the multimodality this WP is about; separating
+  the two is worth a sentence wherever the fraction's uncertainty is described.
+
 ## Non-goals
 
 - **Not a change to the esd computation** — the local covariance is correct

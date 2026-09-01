@@ -54,6 +54,24 @@ recorded as a complementary future direction, undecided. Coordinate-only
 formats are explicitly untrusted for aromatic/multiple-bond rigid bodies,
 stated here so no later WP builds bond perception on geometry alone.
 
+### Inherited
+
+- **2026-09-02, from [1324](1324-symmetry-silences.md): a CIF the writer emits
+  must name its space-group *setting*, not the symbol it was handed.** 40 H-M
+  symbols are held in more than one setting (the `:1`/`:2` origin choices and
+  the rhombohedral `:H`/`:R` axes), and the site multiplicities differ between
+  them — spinel's origin-2 coordinates under a bare `F d -3 m` describe a
+  different compound. `crystallography.symmetry.setting_alternatives` is the one
+  authority for whether a symbol is bare, and a hand-built `Phase` may well
+  carry one, because that is the exposure `SPACE_GROUP_SETTING_ASSUMED` exists
+  to report. So `write_refinement_cif` should write `get_spacegroup(...).xhm()`
+  rather than `phase.space_group`; checkCIF will not catch the difference, since
+  a bare symbol is perfectly valid CIF and merely means something else. The
+  **XYZ** half inherits the sharper form of it: a bare molecular file carries no
+  symmetry at all, so whatever symbol the landing type takes is the caller's
+  claim and arrives bare by construction — deciding whether to resolve it, or to
+  keep `P 1` and say so, is part of "the landing type decided honestly first".
+
 ## Non-goals
 
 - **Not model exporters to other Rietveld codes** —
