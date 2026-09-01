@@ -269,3 +269,32 @@ it. Chapter: `docs/manual/using/recipe.md`; measured convention table:
    circularity does not arise.
 5. A new rule lands here; it earns a root CLAUDE.md clause only if it changes
    behaviour outside `io/`.
+
+## Project readers (`io/projects/`)
+
+A **project reader** reads someone else's refinement *input* — the solved model
+and the protocol that produced it — not a pattern. One module per format;
+`topas.py` is the first. Two rules the pattern readers do not need:
+
+- **Derive the obligations from the specification; use files to corroborate.**
+  Sweeping an archive and fixing what broke finds the bugs one lab's dialect
+  contains, in rounds, and never the bugs that raise nothing — three of
+  WP-1118's six grammar corrections are invisible to any sweep (a parameter's
+  *name* is its refine flag; a block comment *nests*; a conditional is a token,
+  not a line). Enumerate the keyword space from the spec, classify **every**
+  name read / refused / deliberately ignored, and decide even at zero
+  incidence. Numbers: `tests/data/README.md` and the WP. **That classification is
+  a table, not a habit** — `projects/coverage.py` declares one stance per
+  construct (read / ignored / reported / refused) with the argument for it, and
+  `PHASE_SCOPE` is partitioned against the spec's own phase tree by test, so a
+  keyword without a stance fails rather than being dropped in silence. Support
+  for a construct arrives by moving its row; until then every import that meets
+  it says so.
+- **A project reader refuses where a pattern reader would repair.** A pattern
+  reader repairs only where it can say it did; a project reader mostly cannot,
+  because its output is a whole model and a caller cannot see which part is the
+  file's. Four classes are refused **by name** (numbers still readable on the
+  model): an unevaluated pre-processor directive, a card whose attachment moved
+  (`for`/`load`/`move_to`), a macro whose body lives in a library, and a file
+  whose phases belong to different patterns — the last a *selection*, following
+  `read_pattern`'s `scan=`: `to_structure(model, dataset=N)`, never concatenated.

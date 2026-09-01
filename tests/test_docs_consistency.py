@@ -664,7 +664,19 @@ SIZE_CAPS: dict[str, int | None] = {
     # `docs/manual/using/recipe.md`, and every refusal's wording is the module
     # docstring.  What cannot go down a rank is the five rules the *next*
     # foreign format read in this subtree will need before it is written.
-    "src/rietx/io/CLAUDE.md": 271,
+    # 271 -> 294 for WP-1118 (2026-08-27): `io/projects/` is a second kind of
+    # reader in this subtree and needs its two rules stated where a session
+    # working here loads them — derive obligations from the specification and
+    # corroborate with files (three of the round's six corrections are
+    # invisible to any archive sweep), and refuse where a pattern reader would
+    # repair.  The operating detail went down a rank as this comment requires:
+    # the derived format model is `projects/topas.py`'s own docstring, the
+    # per-construct decisions and every incidence are the audit table in the
+    # WP, the measured counts are `tests/data/README.md`.
+    # 294 -> 300 for WP-1118: the coverage registry is the "classify every name"
+    # rule of the section above acquiring an implementation, so the clause names
+    # where the table lives rather than restating what it decides.
+    "src/rietx/io/CLAUDE.md": 300,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 
