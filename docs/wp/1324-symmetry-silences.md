@@ -67,7 +67,7 @@ multiplicity.
 
 ## Tasks
 
-- [ ] `expand_orbit` by stabiliser: orbit = |G| / |stabiliser|, images generated
+- [x] `expand_orbit` by stabiliser: orbit = |G| / |stabiliser|, images generated
       once per coset, the coordinate snapped to the special position it is
       within `tol` of; raise `ORBIT_NOT_A_MULTIPLICITY` if a count ever fails
       to divide |G| (a guard that should become unreachable, kept as the

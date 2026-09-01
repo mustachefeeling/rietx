@@ -260,7 +260,187 @@ def rotation_matrices(sg: gemmi.SpaceGroup) -> np.ndarray:
     return np.array(mats)
 
 
-def expand_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = 1e-4
+#: Default tolerance, in fractional coordinates, for "this operation fixes this
+#: site".  A structure whose coordinates are quoted to five decimals — the
+#: ICSD's usual precision — can miss an exact relation such as y = 2x by 1e-4,
+#: which is why the boundary sits here rather than at roundoff.
+SITE_TOL = 1e-4
+
+#: Relative slack making the :data:`SITE_TOL` comparison **inclusive**.  A
+#: five-decimal file lands on the boundary *exactly*: the deviation computed
+#: from ICSD 18318's B11 site is ``1.0000000000000286e-04`` and from its B16
+#: ``9.999999999998899e-05`` — the same nominal 1e-4, on opposite sides of a
+#: strict ``<``.  Which side a coordinate falls on is then decided by binary
+#: rounding rather than by crystallography, so a deviation *at* the tolerance
+#: counts as within it (issue #215).
+_SITE_TOL_SLACK = 1e-9
+
+#: Tolerance at which two images of an *already snapped* position count as the
+#: same orbit member.  Coincidence after the snap is exact to roundoff, so this
+#: is a float-equality threshold and never a crystallographic judgement — the
+#: judgement is all in :data:`SITE_TOL`, one step earlier.
+_COINCIDENCE_TOL = 1e-9
+
+
+def _op_arrays(op: gemmi.Op) -> tuple[np.ndarray, np.ndarray]:
+    """(R, t) of one gemmi operation as float64; gemmi scales both by Op.DEN."""
+    return (np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN,
+            np.array(op.tran, dtype=np.float64) / gemmi.Op.DEN)
+
+
+@dataclass(frozen=True)
+class SiteOrbit:
+    """The orbit of one fractional position, derived from its stabiliser.
+
+    A site multiplicity is a group-theoretic fact — |G| / |stabiliser| — and
+    not a count of how many images survived a pairwise comparison.  This class
+    is the one authority for it: :func:`expand_orbit` reads the images with
+    their rotations,
+    :func:`~rietx.crystallography.structure_factor.select_orbit_ops` the
+    operation subset frozen onto the compiled model, and
+    :func:`~rietx.crystallography.wyckoff.stabilizer_rotations` the stabiliser
+    itself, so the forward model, the Wyckoff constraints and QPA can no longer
+    disagree about how many atoms a site puts in the cell.
+
+    Attributes
+    ----------
+    position : (3,) float — the given position **snapped** onto the special
+        position its stabiliser defines, wrapped into [0,1).  The snap is the
+        Reynolds average over the stabiliser, so it moves the coordinate only
+        along directions the site symmetry forbids, and never further than the
+        deviation it removes.  On a general position it is the input,
+        bit-identical.
+    shift : float — the largest periodic component of ``position − xyz``; 0.0
+        when nothing moved.
+    multiplicity : int — |G| / |stabilizer|, always a divisor of |G|.
+    stabilizer : (h,3,3) int — rotation parts of the operations fixing the
+        site.  Translations are dropped because a displacement or a tensor
+        transforms without them (see ``wyckoff.py``).
+    rot, tran : (m,3,3) float, (m,3) float — one operation per left coset of
+        the stabiliser, in gemmi's own order, so each generates a *distinct*
+        orbit image.
+    images : (m,3) float — those images of ``position``, wrapped into [0,1).
+    """
+
+    position: np.ndarray
+    shift: float
+    multiplicity: int
+    stabilizer: np.ndarray
+    rot: np.ndarray
+    tran: np.ndarray
+    images: np.ndarray
+
+
+def site_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
+               tol: float = SITE_TOL) -> SiteOrbit:
+    """Stabiliser, snapped position, multiplicity and orbit images of one site.
+
+    Four steps, in this order because each depends on the one before:
+
+    1. **Candidates.** The operations with R·x + t ≡ x (mod 1) to within
+       ``tol``, inclusive of the boundary (:data:`_SITE_TOL_SLACK`).
+    2. **Snap.** Their Reynolds average, each image taken on the lattice branch
+       nearest x.  Every term is within ``tol`` of x, so the average is too;
+       when the candidates are a group it is exactly a fixed point of every one
+       of them.
+    3. **Stabiliser.** The operations fixing the *snapped* position, to
+       roundoff.  This — not step 1 — is the stabiliser, and it is a genuine
+       subgroup because the exact stabiliser of a point always is.  Step 1's
+       set need not be one: a coordinate jittered off a cubic ¼¼¼ site can
+       satisfy some members of its site symmetry within ``tol`` and miss
+       others, and averaging over that set is a projection, not a claim.  When
+       the snap buys nothing — the stabiliser comes back trivial — the
+       caller's own numbers are kept and the shift is zero.
+    4. **Cosets.** The distinct images of the snapped position, and the first
+       operation reaching each.  Two operations give the same image iff they
+       share a left coset of the stabiliser, so by orbit-stabiliser the count
+       is |G| / |stabiliser| and cannot depend on the order gemmi yields
+       operations in.
+
+    A greedy pairwise dedup — what this replaced — has neither property: the
+    comparison is not transitive, so the partition follows the operation order,
+    and nothing forces the count to divide |G|.  Perturbing an 18h site of
+    ``R -3 m:H`` off its y = 2x relation by ±1e-4 returned orbits of 22 and 30
+    under a group of order 36 (issue #215), and one such site put 327 boron
+    atoms in a cell that holds 315 — 3.8 % carried silently into ZMV and every
+    ``weight_percent``, while the fit converged.
+
+    Raises ``ValueError`` prefixed ``ORBIT_NOT_A_MULTIPLICITY`` when the count
+    is not |G| / |stabiliser|.  Steps 3 and 4 make that unreachable — they
+    measure one point's own stabiliser and one point's own orbit — which is
+    exactly why the guard is kept: it is the invariant, and an invariant nobody
+    can currently break is the one worth asserting.
+    """
+    ops = list(sg.operations())
+    order = len(ops)
+    x = np.asarray(xyz, dtype=np.float64).reshape(3)
+
+    def fixing(p: np.ndarray, bound: float) -> list[gemmi.Op]:
+        held = []
+        for op in ops:
+            r, t = _op_arrays(op)
+            d = r @ p + t - p
+            d -= np.round(d)
+            if np.all(np.abs(d) <= bound):
+                held.append(op)
+        return held
+
+    candidates = fixing(x, tol * (1.0 + _SITE_TOL_SLACK))
+    if len(candidates) == 1:
+        snapped, shift = x, 0.0          # general position: no arithmetic at all
+    else:
+        acc = np.zeros(3)
+        for op in candidates:
+            r, t = _op_arrays(op)
+            p = r @ x + t
+            acc += p - np.round(p - x)   # this image on the branch nearest x
+        snapped = acc / len(candidates)
+        delta = snapped - x
+        shift = float(np.max(np.abs(delta - np.round(delta))))
+
+    stab_ops = fixing(snapped, _COINCIDENCE_TOL)
+    if len(stab_ops) == 1 and shift:
+        snapped, shift = x, 0.0          # the projection landed nowhere special
+    coincide = min(tol, _COINCIDENCE_TOL)
+    images: list[np.ndarray] = []
+    rots: list[np.ndarray] = []
+    trans: list[np.ndarray] = []
+    for op in ops:
+        r, t = _op_arrays(op)
+        p = (r @ snapped + t) % 1.0
+        for q in images:
+            diff = np.abs(p - q)
+            if np.all(np.minimum(diff, 1.0 - diff) <= coincide):
+                break
+        else:
+            images.append(p)
+            rots.append(r)
+            trans.append(t)
+
+    multiplicity = len(images)
+    if multiplicity * len(stab_ops) != order:
+        raise ValueError(
+            f"ORBIT_NOT_A_MULTIPLICITY: site "
+            f"{np.array2string(x, precision=6)} in {sg.xhm()!r} expands to "
+            f"{multiplicity} images against a stabiliser of order "
+            f"{len(stab_ops)} in a group of order {order}; a multiplicity is "
+            f"|G|/|stabiliser| and must divide |G|. Tolerance {tol:g} admitted "
+            f"operations that are not a subgroup — the coordinates are not "
+            f"consistent with this space group's setting")
+
+    return SiteOrbit(
+        position=snapped % 1.0,
+        shift=shift,
+        multiplicity=multiplicity,
+        stabilizer=np.array([np.rint(_op_arrays(op)[0]).astype(np.int64)
+                             for op in stab_ops]),
+        rot=np.asarray(rots),
+        tran=np.asarray(trans),
+        images=np.asarray(images),
+    )
+
+
+def expand_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = SITE_TOL
                  ) -> list[tuple[np.ndarray, np.ndarray]]:
     """Orbit of one fractional position, **with the rotation that produced each image**.
 
@@ -269,37 +449,26 @@ def expand_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = 1e-4
     rotation is what a caller needs when the site carries something that
     *transforms* rather than merely moves: a displacement ellipsoid is
     U\\* → R·U\\*·Rᵀ (see ``adp.py``), so an image drawn with the parent's tensor
-    is drawn wrong in every non-orthogonal setting.  Deduplication is by position
-    with tolerance ``tol``, so a special position keeps the first operation that
-    reached it — any of the stabiliser's members leaves the site's own tensor
-    invariant, which is why "the first" is well defined here rather than
-    arbitrary.
+    is drawn wrong in every non-orthogonal setting.
+
+    One operation per left coset of the stabiliser (:func:`site_orbit`), so a
+    special position keeps the first operation that reached it and "the first"
+    is well defined: the operations giving one image are exactly a coset, and
+    any of the stabiliser's members leaves the site's own tensor invariant.
+    That was the *claim* of the greedy version this replaced, and it did not
+    hold at the tolerance boundary, where the merged set was not a coset.
     """
-    ops = sg.operations()
-    seen: list[tuple[np.ndarray, np.ndarray]] = []
-    for op in ops:
-        r = np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN
-        t = np.array(op.tran, dtype=np.float64) / gemmi.Op.DEN
-        p = (r @ np.asarray(xyz, dtype=np.float64) + t) % 1.0
-        dup = False
-        for q, _ in seen:
-            diff = np.abs(p - q)
-            diff = np.minimum(diff, 1.0 - diff)  # periodic distance
-            if np.all(diff < tol):
-                dup = True
-                break
-        if not dup:
-            seen.append((p, r))
-    return seen
+    orbit = site_orbit(sg, xyz, tol=tol)
+    return [(orbit.images[i], orbit.rot[i]) for i in range(orbit.multiplicity)]
 
 
-def expand_positions(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = 1e-4
+def expand_positions(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = SITE_TOL
                      ) -> list[np.ndarray]:
     """Orbit of one fractional position under the space group.
 
     Returns the distinct equivalent positions (each wrapped into [0,1)); the
-    orbit length is the site multiplicity.  Coincident images (special
-    positions) are deduplicated with tolerance ``tol``.
+    orbit length is the site multiplicity, |G| / |stabiliser| — see
+    :func:`site_orbit` for why that is a derivation and not a count.
     """
     return [p for p, _ in expand_orbit(sg, xyz, tol=tol)]
 

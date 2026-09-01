@@ -39,7 +39,7 @@ import gemmi
 import numpy as np
 import spglib
 
-from .symmetry import expand_positions, get_spacegroup
+from .symmetry import SITE_TOL, expand_positions, get_spacegroup, site_orbit
 
 #: Index pairs of the symmetric-tensor components in storage order.
 _VOIGT: tuple[tuple[int, int], ...] = ((0, 0), (1, 1), (2, 2), (0, 1), (0, 2), (1, 2))
@@ -62,23 +62,22 @@ class SiteConstraints:
     adp_basis: np.ndarray  # (n_adp_free, 6) int
 
 
-def stabilizer_rotations(sg: gemmi.SpaceGroup, xyz, *, tol: float = 1e-4) -> list[np.ndarray]:
+def stabilizer_rotations(sg: gemmi.SpaceGroup, xyz, *,
+                         tol: float = SITE_TOL) -> list[np.ndarray]:
     """Integer rotation parts of every operation fixing ``xyz`` (mod 1).
 
     The stabilizer (site-symmetry group) of x is {(R, t) : R·x + t ≡ x mod 1};
     only the rotation parts matter for the constraint algebra because a
     displacement transforms without the translation.
+
+    Read off :func:`~rietx.crystallography.symmetry.site_orbit` rather than
+    recomputed, so the constraint bases below and the site multiplicity the
+    forward model freezes are derived from the *same* set of operations.  Taken
+    separately they can disagree: a threshold applied to each operation on its
+    own admits a set that is not a subgroup, and then the allowed directions
+    and the orbit length are answers to two different questions (issue #215).
     """
-    x = np.asarray(xyz, dtype=np.float64)
-    rots: list[np.ndarray] = []
-    for op in sg.operations():
-        r = np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN
-        t = np.array(op.tran, dtype=np.float64) / gemmi.Op.DEN
-        d = r @ x + t - x
-        d -= np.round(d)
-        if np.all(np.abs(d) < tol):
-            rots.append(np.rint(r).astype(np.int64))
-    return rots
+    return list(site_orbit(sg, xyz, tol=tol).stabilizer)
 
 
 def _nullspace_int(rows: list[list[Fraction]], n_cols: int) -> np.ndarray:
@@ -173,7 +172,7 @@ def _compatible_lattice(sg: gemmi.SpaceGroup) -> np.ndarray:
     return np.linalg.cholesky(g)
 
 
-def site_constraints(space_group: str, xyz, *, tol: float = 1e-4) -> SiteConstraints:
+def site_constraints(space_group: str, xyz, *, tol: float = SITE_TOL) -> SiteConstraints:
     """Wyckoff letter, oriented site symmetry, and constraint bases for a site.
 
     ``space_group`` is any symbol gemmi resolves; ``xyz`` is the fractional
@@ -185,11 +184,14 @@ def site_constraints(space_group: str, xyz, *, tol: float = 1e-4) -> SiteConstra
     sg = get_spacegroup(space_group)
     x = np.asarray(xyz, dtype=np.float64)
 
-    rots = stabilizer_rotations(sg, x, tol=tol)
+    # one expansion, so the constraint bases and the multiplicity below are
+    # the same operations read two ways rather than two independent answers
+    orbit = site_orbit(sg, x, tol=tol)
+    rots = list(orbit.stabilizer)
     coord = coordinate_basis(rots)
     adp = adp_basis(rots)
 
-    site_orbit = expand_positions(sg, x, tol=tol)
+    site_positions = [p for p in orbit.images]
     # the dummy general-position orbit pins the probe cell's symmetry to
     # exactly this group; if the site itself sits near the first probe point,
     # fall back to the second so no two probe atoms coincide
@@ -197,11 +199,11 @@ def site_constraints(space_group: str, xyz, *, tol: float = 1e-4) -> SiteConstra
                     np.array([0.0821, 0.3179, 0.4317])):
         dummy_orbit = expand_positions(sg, generic, tol=1e-8)
         sep = min(np.max(np.abs(((p - q + 0.5) % 1.0) - 0.5))
-                  for p in site_orbit for q in dummy_orbit)
+                  for p in site_positions for q in dummy_orbit)
         if sep > 1e-3:
             break
-    positions = [p for p in site_orbit] + [p for p in dummy_orbit]
-    numbers = [1] * len(site_orbit) + [2] * len(dummy_orbit)
+    positions = list(site_positions) + [p for p in dummy_orbit]
+    numbers = [1] * len(site_positions) + [2] * len(dummy_orbit)
 
     dataset = spglib.get_symmetry_dataset(
         (_compatible_lattice(sg), positions, numbers), symprec=1e-5)
@@ -213,9 +215,9 @@ def site_constraints(space_group: str, xyz, *, tol: float = 1e-4) -> SiteConstra
             "group's setting")
 
     return SiteConstraints(
-        wyckoff=f"{len(site_orbit)}{dataset.wyckoffs[0]}",
+        wyckoff=f"{orbit.multiplicity}{dataset.wyckoffs[0]}",
         site_symmetry=dataset.site_symmetry_symbols[0],
-        multiplicity=len(site_orbit),
+        multiplicity=orbit.multiplicity,
         coord_basis=coord,
         adp_basis=adp,
     )
