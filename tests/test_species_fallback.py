@@ -140,6 +140,31 @@ def test_the_twelve_known_affected_ions_are_detected(species):
     )
 
 
+#: the boundary the 12 cases above never reach: every one of them has
+#: charge < Z, so none exercises the branch where the ion's own electron
+#: count -- the denominator of delta_frac -- is itself zero.  ``H1+`` is the
+#: ICSD's own spelling (ICSD-exported CIFs write ``_atom_site_type_symbol``
+#: this way throughout); ``H+`` is the same ion without the explicit "1";
+#: ``He2+`` is the next element up where charge can still equal Z (found by
+#: running detect_fallback, not by reading it -- PR #208 review, item 1).
+CHARGE_EQUALS_Z = ["H+", "H1+", "He2+"]
+
+
+@pytest.mark.parametrize("species", CHARGE_EQUALS_Z)
+def test_charge_equal_to_z_does_not_raise(species):
+    """A bare proton (or He2+) has true_electrons == 0.0, so delta_frac's own
+    division would be by zero.  ``None`` is the contract's existing answer
+    for "no single number, which is not zero" (``Diagnostic.value``,
+    schemas.common) -- not a ``ZeroDivisionError`` three frames from
+    ``Refinement.fit``, which calls the collector unconditionally."""
+    z, charge = _z_and_charge(species)
+    assert z == charge, f"{species}: fixture no longer at the charge == Z boundary"
+    fb = detect_fallback(species)
+    assert fb is not None, f"{species}: expected a fallback, got none"
+    assert fb.true_electrons == 0.0
+    assert fb.delta_frac is None  # must not raise ZeroDivisionError
+
+
 def test_the_table_carries_111_ion_entries():
     """Sizes the corpus the next test checks against, so a change to the
     bundled WK table (a version bump, a re-export) is visible here rather
@@ -235,6 +260,22 @@ def test_diagnostics_fires_for_an_untabulated_ion():
 def test_diagnostics_silent_for_a_tabulated_ion():
     structure = _structure("O2-")
     assert _species_fallback_diagnostics(structure, _xray_instrument()) == []
+
+
+@pytest.mark.parametrize("species", CHARGE_EQUALS_Z)
+def test_diagnostics_reports_charge_equal_to_z_without_raising(species):
+    """The collector ``Refinement.fit`` calls unconditionally must not raise
+    for a structure carrying a bare-proton-like site -- that would be a
+    structure going from refining today to raising, the regression PR #208's
+    review found (item 1).  ``value`` is ``None`` (undefined, not zero) but
+    the message still names the substitution, same as every other row."""
+    structure = _structure(species)
+    diags = _species_fallback_diagnostics(structure, _xray_instrument())
+    assert len(diags) == 1
+    d = diags[0]
+    assert d.code == "SPECIES_FALLBACK_NEUTRAL"
+    assert d.value is None
+    assert species in d.message
 
 
 def test_diagnostics_silent_for_a_neutron_source():

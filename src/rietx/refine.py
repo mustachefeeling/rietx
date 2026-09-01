@@ -3209,16 +3209,23 @@ def _species_fallback_diagnostics(structure: Structure,
                 found[fb.species] = (fb, [path])
     out = []
     for fb, where in found.values():
-        if abs(fb.delta_frac) < SPECIES_FALLBACK_MIN_DELTA_FRAC:
+        delta = fb.delta_frac
+        # `delta` is None only when the ion's own electron count is zero
+        # (formal charge == Z, e.g. H1+/He2+) -- the fractional error is
+        # undefined, not below any threshold, so it always fires rather than
+        # being compared against SPECIES_FALLBACK_MIN_DELTA_FRAC.
+        if delta is not None and abs(delta) < SPECIES_FALLBACK_MIN_DELTA_FRAC:
             continue
+        frac_text = ("undefined — the ion's own electron count is zero"
+                     if delta is None else f"{delta:+.1%}")
         out.append(Diagnostic(
             level="warning", code="SPECIES_FALLBACK_NEUTRAL", where=where,
-            value=fb.delta_frac,
+            value=delta,
             message=(f"{fb.species!r} is absent from the Waasmaier-Kirfel "
                      f"table and was scattered as neutral {fb.element} "
                      f"instead — {fb.returned_electrons:.4g} electrons "
                      f"against the ion's {fb.true_electrons:.0f} "
-                     f"({fb.delta_frac:+.1%})"),
+                     f"({frac_text})"),
             suggestion=(f"this changes every reflection {fb.species!r} "
                         "contributes to by that fraction and biases site "
                         "occupancies, ADPs and QPA fractions together, "

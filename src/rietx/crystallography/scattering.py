@@ -108,8 +108,21 @@ class SpeciesFallback:
     returned_electrons: float  # f0(element, 0), what the fallback supplies
 
     @property
-    def delta_frac(self) -> float:
-        """Fractional error the substitution puts on the scattering power."""
+    def delta_frac(self) -> float | None:
+        """Fractional error the substitution puts on the scattering factor
+        f (not |f|²) at k = 0.
+
+        ``None`` when ``true_electrons`` is itself zero -- a bare proton
+        (``H+``/``H1+``) or ``He2+``, where the formal charge equals Z.  The
+        fraction is genuinely undefined there (division by the ion's own,
+        zero, electron count), not zero, so ``None`` is the honest answer:
+        the same "no single number" convention ``Diagnostic.value`` already
+        documents (``schemas.common.Diagnostic``), rather than a
+        ``ZeroDivisionError`` a caller three frames up (``Refinement.fit``,
+        unconditionally) has no way to expect.
+        """
+        if self.true_electrons == 0.0:
+            return None
         return (self.returned_electrons - self.true_electrons) / self.true_electrons
 
 
