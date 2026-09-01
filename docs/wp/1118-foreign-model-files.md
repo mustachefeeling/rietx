@@ -322,9 +322,11 @@ entry does not invent a reason.
 
 *Measured* (this handover session, macOS darwin 25.5.0, worktree `.venv`
 python 3.12, `[dev]` extras — no jax/torch, so the cross-backend rows self-skip):
-`-m "not slow"` is **3919 passed, 122 skipped** in 156 s on the merged tree.
-This handover moved neither count: it adds no test, and the tree it measured is
-`origin/main` plus documentation.
+`-m "not slow"` is **3919 passed, 122 skipped** in 156 s. That was measured on
+`origin/main` itself — the branch is that commit plus documentation, and this
+handover adds no test — so it is the merged tree's count. The full selection was
+not run: nothing here can move an acceptance number, and the reader carries no
+physics.
 
 *In flight*: PR #111 — the FullProf `.pcr` reader, same contributor — is open
 with 9 commits, head `71fb7094`. Its review has already produced
@@ -356,6 +358,13 @@ its commits are reachable only through the PR ref, not through any local branch.
   no row. Whether it *should* be top-level is part of the answer's-shape task,
   not an oversight to patch.
 - No Part 1 manual section for the reader.
+- **This handover was owed and nothing flagged it.** 47 `WP-1118:` commits
+  merged with the WP file untouched, and `session_start.py` compares the newest
+  handover-entry date against the commits' — the same day's issue-triage session
+  had touched the file, so the date rule passed. A `/pr-review` merge writes no
+  handover entry by design, so a contributor PR carrying a WP prefix is the one
+  shape of work this repo can land with no record on the WP. Worth a line in
+  `.claude/commands/pr-review.md`; not fixed here.
 - Name audit, for the classes no test catches: all six diagnostic codes have
   skill rows, all four `Stance` members have writers in the table, the reader
   adds no physics (so no Part 2 equation is owed) and claims no Rwp comparison
