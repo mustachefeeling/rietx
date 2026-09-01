@@ -554,3 +554,122 @@ def test_structure_from_candidate_is_the_scaffold_plus_the_symbol_default():
     got = structure_from_candidate(candidate, name="candidate")
     want = lebail_scaffold("P m -3 m", cell, name="candidate")
     assert got.model_dump() == want.model_dump()
+
+
+# ------------------------------------------ the shared form-factor grammar ---
+# The *where* of a bad species — the refusal naming the phase, the atom and the
+# label — is tested at the compile boundary, in test_robustness_external.py,
+# because that is where the lookups fire and ``docs/manual/using/data.md``
+# § Atom promises the check lives ("validated when the model compiles rather
+# than when the object is built").  What stays here is the property one rank
+# below: the two **X-ray** lookups parse the *same* grammar, which
+# ``cif._CANONICAL_SPECIES`` claims they "share deliberately" — an agreement
+# nothing asserted before, and the divergence class the first attempt fell into
+# (widening one lookup while the other still refused, invisibly).
+#
+# The guard is scoped to the X-ray pair on purpose: the compile boundary reaches
+# a *third* table on a neutron source (``neutron.normalize_species`` → ``b_coh``,
+# keyed by nuclide), and it parses the grammar more leniently — it keeps a
+# nuclide the X-ray table has no row for and *accepts* the sign-first charge the
+# X-ray pair refuses.  That is a property to pin, not a contradiction to
+# resolve: the neutron table discards the charge it is handed, so a spelling the
+# X-ray guard calls malformed is well-formed there.  The divergence is asserted
+# just below, so the X-ray guard cannot be misread as a claim about all three.
+
+
+def test_a_well_formed_symbol_that_names_no_element_is_the_lookups_business():
+    """``Xx`` is spelled correctly and is not an element: two questions, not one.
+
+    A structure can carry it — the schema knows no chemistry and does not gate
+    on a periodic table (which would also refuse a neutron nuclide ``2H`` for
+    the X-ray table's sake).  The tables are what refuse it, and they refuse it
+    at *different depths*, itself worth pinning: ``normalize_element`` validates
+    the shape only and hands ``"Xx"`` back, while ``dispersion`` is what has no
+    row for it.  Both refusals get named at the compile boundary — that is the
+    "well-formed symbol, no table row" half of the population, covered in
+    test_robustness_external.py.
+    """
+    from rietx.crystallography.dispersion import dispersion, normalize_element
+    from rietx.crystallography.scattering import normalize_species
+
+    assert normalize_element("Xx") == "Xx"          # shape is all this checks
+    with pytest.raises(KeyError, match="Xx"):
+        dispersion("Xx", 1.5405929)                 # the table is what refuses
+    with pytest.raises(KeyError, match="Xx"):
+        normalize_species("Xx")
+
+
+@pytest.mark.parametrize("spelling", ["Fe", "Fe3+", "Fe2+", "Fe+"])
+def test_both_xray_lookups_accept_every_well_formed_spelling(spelling):
+    """The shared grammar, checked on a species both tables carry.
+
+    ``cif._CANONICAL_SPECIES`` is declared as the grammar both X-ray lookups
+    parse, "which share it deliberately" — so the agreement is a property to
+    assert, not a comment to trust.
+    """
+    from rietx.crystallography.dispersion import normalize_element
+    from rietx.crystallography.scattering import normalize_species
+
+    assert normalize_element(spelling) == "Fe"
+    assert normalize_species(spelling)          # resolves; ion kept or not
+
+
+@pytest.mark.parametrize("bad", ["Cu+1", "O-2", "Ni+3", "Cu++", "Cu 1+",
+                                 "Cu+1+", "1Cu", ""])
+def test_both_xray_lookups_refuse_every_malformed_spelling(bad):
+    """The guard that was missing, and the reason this fix moved layers.
+
+    Widening one lookup alone leaves the two disagreeing with nothing asserting
+    otherwise, and the divergence is invisible: the second fires two lines after
+    the first at the same stage compile and reports a *missing element* for a
+    species that is in its table under another spelling. Measured on a
+    hand-built ``Cu+1`` structure: the error moved from
+    ``dispersion.py`` "cannot read an element symbol" to ``scattering.py``
+    "no Waasmaier-Kirfel coefficients for species 'Cu+1'" — same depth, still
+    naming neither the atom nor the phase, and now actively misleading, since Cu
+    is in that table.
+    """
+    from rietx.crystallography.dispersion import normalize_element
+    from rietx.crystallography.scattering import normalize_species
+
+    with pytest.raises((KeyError, ValueError)):
+        normalize_element(bad)
+    with pytest.raises((KeyError, ValueError)):
+        normalize_species(bad)
+
+
+@pytest.mark.parametrize("spelling, expected", [
+    ("Cu+1", "Cu"), ("Cu1+", "Cu"), ("O-2", "O"),   # sign-first accepted, charge dropped
+    ("2H", "2H"), ("D", "2H"), ("157Gd", "157Gd"),   # nuclide kept; alias resolved
+])
+def test_the_neutron_parser_diverges_from_the_xray_grammar_by_design(
+        spelling, expected):
+    """The third table the compile boundary reaches, and why the guard is X-ray only.
+
+    ``compile_phase_sites(neutron=True)`` normalises species through
+    ``neutron.normalize_species``, keyed by nuclide.  It is *lenient* exactly
+    where the X-ray pair above is strict: it accepts both charge spellings
+    (``Cu+1`` and ``Cu1+`` alike — the nucleus does not see valence electrons)
+    and keeps a mass number (``2H``, ``157Gd``) the Waasmaier-Kirfel table has
+    no row for.  So a spelling ``test_both_xray_lookups_refuse_every_malformed``
+    calls malformed is well-formed here, and the two guards are about two
+    different tables — the reason the locator picks the table by radiation.
+    """
+    from rietx.crystallography.neutron import normalize_species as neutron_normalize
+
+    assert neutron_normalize(spelling) == expected
+
+
+def test_a_reader_repairs_the_sign_first_charge_the_compile_boundary_refuses():
+    """The division of labour, asserted rather than described.
+
+    A schema has no diagnostics channel and the compile boundary raises; a
+    reader has one, so it may repair a sign-first charge and record it
+    (``CIF_SPECIES_NORMALISED``). That asymmetry is why the population a
+    hand-built structure reaches the compile boundary as is *not* served by the
+    reader — it never went through one.
+    """
+    from rietx.crystallography.cif import normalize_cif_species
+
+    assert normalize_cif_species("Cu+1") == ("Cu1+", "sign-first charge")
+    assert normalize_cif_species("O-2") == ("O2-", "sign-first charge")

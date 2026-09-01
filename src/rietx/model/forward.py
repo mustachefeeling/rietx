@@ -49,13 +49,25 @@ from ..background.models import (
     second_difference_matrix,
 )
 from ..crystallography.adp import U_NAMES, reciprocal_axis_lengths
-from ..crystallography.dispersion import resolve as resolve_dispersion
+from ..crystallography.cif import species_spelling_hint
+from ..crystallography.dispersion import (
+    dispersion,
+    normalize_element,
+)
+from ..crystallography.dispersion import (
+    resolve as resolve_dispersion,
+)
 from ..crystallography.lattice import (
     cell_volume,
     d_spacings,
     reciprocal_metric_tensor,
     two_theta_deg,
 )
+from ..crystallography.neutron import b_coh as neutron_b_coh
+from ..crystallography.neutron import (
+    normalize_species as neutron_normalize_species,
+)
+from ..crystallography.scattering import normalize_species
 from ..crystallography.stephens import S_NAMES, monomial_matrix, strain_width_deg
 from ..crystallography.structure_factor import (
     PhaseSites,
@@ -2274,6 +2286,144 @@ class DerivativeBases:
         return self._entries
 
 
+def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
+    """Name the phase, atom and label behind a species lookup that failed.
+
+    ``species`` is validated when the model *compiles*, not when the object is
+    built (``docs/manual/using/data.md`` § Atom): the scattering lookups are the
+    authority on what they can read, and duplicating their grammar in a schema
+    would put a periodic table in ``pydantic`` and, worse, refuse for one
+    radiation's sake a spelling the other reads — a neutron nuclide (``2H``) has
+    no X-ray table row, and a sign-first charge (``Cu+1``) the X-ray table
+    refuses is one the neutron parser accepts.  The cost of validating at
+    compile is that the raise names only the *species* — not the atom, the
+    phase, nor that the caller's own structure is at fault.
+
+    So this re-walks the atoms **in whichever table the compile actually
+    consulted**, to find the one it choked on, and re-raises naming the index,
+    label and species.  That table is decided by the source, exactly as
+    ``compile_phase_sites`` decides it: a ``neutron_cw`` source resolves bound
+    coherent scattering lengths (``neutron.b_coh``, keyed by nuclide), and every
+    other source resolves X-ray form factors (``resolve_dispersion`` then
+    ``normalize_species``).  Re-walking the X-ray tables on a neutron compile
+    would stop at the first nuclide the X-ray table cannot read — ``2H`` — and
+    blame it for a fault in a table this compile never touched, hiding the real
+    one; the boundary must ask the same question the compile asked.
+
+    **Both arms re-walk in two passes, in the compile's own order**, because
+    both compiles are two passes.  On the X-ray arm ``compile_model`` resolves
+    dispersion over *every* atom of the phase first (``resolve_dispersion``,
+    which raises on the first species it cannot read) and only if that whole
+    pass succeeds calls ``compile_phase_sites``, which walks the atoms again
+    calling ``normalize_species`` per atom.  On the neutron arm
+    ``compile_phase_sites`` is itself two passes over its own table's parser:
+    ``neutron_normalize_species`` per atom in the site loop, then
+    ``neutron_b_coh`` per atom for the b vector.  In both cases a single loop
+    that checked both lookups per atom would stop at an earlier atom that
+    survives pass one but fails pass two, and blame it for a fault the compile
+    never reached:
+
+    * X-ray — ``D`` reads as hydrogen for dispersion but the Waasmaier-Kirfel
+      table carries no ``D`` row, so an interleaved loop blames ``D`` when the
+      real fault was a *later* atom's dispersion;
+    * neutron — ``Xx`` parses as a symbol but has no Sears row, so an
+      interleaved loop (or a single loop over ``b_coh``, which parses and
+      looks up in one call) blames ``Xx`` for a missing scattering length when
+      the compile actually choked on a *later* atom's unreadable label
+      (``123``) in pass one, a table the lookup pass never reached.
+
+    So on each arm pass one runs to completion before pass two begins, and the
+    boundary re-walks the same sequence the compile did.
+
+    Within the X-ray dispersion pass the per-atom check is the *whole* of what
+    ``dispersion.resolve`` does per species — the primary line **and** the
+    emission-line edge guard over the secondary lines — because a walk that
+    checked the primary alone would fall straight through an edge-crossing
+    species and pin the source's fault on some later atom that fails for an
+    unrelated reason.  The guard is run by calling ``resolve_dispersion``
+    itself rather than by copying its drift arithmetic, so there is one
+    tolerance in the codebase and not two.
+
+    The sign-first spelling hint (``Cu+1`` → ``Cu1+``) is an X-ray-table
+    artifact and is added on the X-ray arm only: the neutron parser accepts the
+    sign-first charge, so on that arm the charge is never the fault and naming a
+    rewrite of it would be false advice.  A failure that belongs to *no* atom is
+    re-raised untouched — the edge guard is about the source's two wavelengths
+    and an element's core levels, not about one atom's spelling, and every atom
+    of that species shares it, so there is no index to name that would not be
+    arbitrary.
+
+    **This function is a hand-maintained mirror** of ``compile_phase_sites``'s
+    loops and ``dispersion.resolve``'s per-species checks, tied to them by this
+    prose alone.  Anything that changes the *number or order* of lookups on
+    either side — a pass added to ``compile_phase_sites``, a check added to
+    ``resolve``, a lookup moved between them — has to be mirrored here in the
+    same order, or this boundary starts naming the wrong atom and the wrong
+    table with full confidence, which is worse than the anonymous ``KeyError``
+    it replaced.
+    """
+    def _name_atom(index, atom, atom_exc):
+        # ``str(KeyError(...))`` re-quotes its arg; take the message itself
+        reason = atom_exc.args[0] if atom_exc.args else str(atom_exc)
+        hint = "" if neutron else species_spelling_hint(atom.species)
+        raise ValueError(
+            f"phase {phase.name!r} atom {index} ({atom.label!r}): "
+            f"{reason}{hint}") from exc
+
+    def _walk(check):
+        """One full pass of ``check`` over the atoms, naming the first to fail."""
+        for index, atom in enumerate(phase.atoms):
+            try:
+                check(atom.species)
+            except (KeyError, ValueError) as atom_exc:
+                _name_atom(index, atom, atom_exc)
+
+    if neutron:
+        # The parse pass, then the table pass — compile_phase_sites' own two,
+        # in its order.  b_coh does both in one call, which is why the lookup
+        # pass alone is not enough: it would refuse a parseable-but-untabulated
+        # species before the parse pass had reached a later unreadable label.
+        _walk(neutron_normalize_species)
+        _walk(neutron_b_coh)
+        raise exc
+
+    # X-ray: the dispersion pass first (all atoms), then the form-factor pass
+    # (all atoms) — matching compile_model's two passes, so the atom named is
+    # the one the compile actually choked on and in the table it choked in.
+    overrides = disp.overrides if disp is not None else None
+
+    def _line_guard_fires(species):
+        """True when ``resolve``'s edge guard is what refused this species.
+
+        Called only once the primary line has resolved for this species, so the
+        guard is the only refusal ``resolve`` has left; running the real
+        function keeps the drift tolerance in one place.
+        """
+        try:
+            resolve_dispersion([species], lams, overrides)
+        except ValueError:
+            return True
+        return False
+
+    if disp is not None:
+        for index, atom in enumerate(phase.atoms):
+            try:
+                sym = normalize_element(atom.species)
+                if not overrides or sym not in overrides:
+                    dispersion(sym, lams[0])
+            except (KeyError, ValueError) as atom_exc:
+                _name_atom(index, atom, atom_exc)
+            if _line_guard_fires(atom.species):
+                # Found the species resolve refused, and it is not a spelling:
+                # re-raise the compile's own message rather than pin an
+                # absorption edge on one atom, and stop — walking on would
+                # reach a later atom failing for an unrelated reason and name
+                # that one instead.
+                raise exc
+    _walk(normalize_species)
+    raise exc
+
+
 def compile_model(structure: Structure, instrument: Instrument, pattern: PatternData,
                   *, mode: Mode = "rietveld",
                   two_theta_limits: tuple[float, float] | None = None,
@@ -2408,15 +2558,17 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         refl = generate_reflections(phase.space_group, cell, lam_gen,
                                     two_theta_max=hi_eff, two_theta_min=gen_min)
         f_anom = None
-        if disp is not None:
-            f_anom = resolve_dispersion([a.species for a in phase.atoms], lams,
-                                        disp.overrides)
         # The source decides the radiation, exactly as it decides f_anom: a
         # neutron source resolves bound coherent scattering lengths instead of
         # X-ray form factors, and the two are mutually exclusive.
-        sites = compile_phase_sites(
-            phase, f_anom,
-            neutron=(instrument.source.kind == "neutron_cw"))
+        neutron = instrument.source.kind == "neutron_cw"
+        try:
+            if disp is not None:
+                f_anom = resolve_dispersion([a.species for a in phase.atoms],
+                                            lams, disp.overrides)
+            sites = compile_phase_sites(phase, f_anom, neutron=neutron)
+        except (KeyError, ValueError) as exc:
+            _reraise_species_fault(phase, disp, lams, exc, neutron=neutron)
 
         n = len(refl)
         n_lines = len(lams)

@@ -127,6 +127,42 @@ def normalize_cif_species(species: str) -> tuple[str, str | None]:
     return candidate, note
 
 
+def species_spelling_hint(species: str) -> str:
+    """A refusal-message suffix naming the spelling that would resolve, or ``""``.
+
+    Only the **sign-first charge** form (``"O-2"``, ``"Cu+1"`` — what ICSD
+    exports and TOPAS writes) earns a hint: it is by far the commonest wild
+    spelling reaching a hand-built structure, and the fix is unambiguous
+    (``O2-``, ``Cu1+``).  Everything else returns empty — a three-letter typo
+    (``"Wat"``) or a bare label (``"O1"``) has no single obvious correction to
+    offer.
+
+    Delegates to :func:`normalize_cif_species` rather than matching the pattern
+    again, so the rewrite is **resolved before it is offered**.  Matching alone
+    would hand out spellings that fail exactly as the input did — ``"Xx+2"`` →
+    ``"Xx2+"`` is no more readable than ``"Xx+2"``, and ``"Og+2"`` → ``"Og2+"``
+    names a real element with no row in either table — sending the caller to
+    edit a file for nothing.  The two functions then cannot disagree on the same
+    input, because there is one decision, made once.
+
+    The division of labour across that one decision:
+    :func:`normalize_cif_species` *repairs* this form at read (with a
+    ``CIF_SPECIES_NORMALISED`` diagnostic to record it, per ``io/CLAUDE.md``:
+    repair only where you can say that you did), and the model-compile boundary
+    — which has no diagnostics channel, so it raises rather than repairs —
+    reuses the same resolved candidate only to *name* the fix in its refusal.
+
+        >>> species_spelling_hint("Cu+1")
+        '; the charge is written after the digits, so Cu1+'
+        >>> species_spelling_hint("Xx+2"), species_spelling_hint("O1")
+        ('', '')
+    """
+    candidate, note = normalize_cif_species(species)
+    if note != "sign-first charge":
+        return ""
+    return f"; the charge is written after the digits, so {candidate}"
+
+
 def structure_from_cif(path: str, *, phase_name: str | None = None,
                        aniso: bool = False,
                        diagnostics: list[Diagnostic] | None = None) -> Structure:
