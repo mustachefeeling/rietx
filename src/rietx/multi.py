@@ -26,7 +26,13 @@ from .model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from .optimize.least_squares import SOLVERS, run_multi_least_squares
 from .optimize.qpa import compute_qpa, microabsorption_diagnostics
 from .optimize.statistics import background_absorption, compute_statistics
-from .params.multi import MultiParameterTable, SharingMap, _unscoped
+from .params.multi import (
+    SIZE_LAMBDA_POWER,
+    MultiParameterTable,
+    SharingMap,
+    _longest_wavelength,
+    _unscoped,
+)
 from .refine import (
     _VERSION,
     _WAVELENGTH_PINNED_BY_HELD_HISTOGRAM,
@@ -424,11 +430,14 @@ class MultiHistogramRefinement:
             # gets the tier-1 bound (``_freeze_strain_cap_multi`` /
             # ``_freeze_size_cap_multi``) and none of the interpretation the
             # two-tier split exists for.  Per histogram rather than once,
-            # because the *coefficient* is shared (``SharingMap``'s default puts
-            # size/strain on the structure) while what it means is not: the size
-            # flag reads a crystallite off the histogram's own λ, so one shared
-            # ``lor_size`` is a different apparent size in each pattern, and a
-            # single reading would quote one histogram's λ about all of them.
+            # because each reads this histogram's own copy against this
+            # histogram's own λ.  Since WP-1131 that is a *check* rather than a
+            # discrepancy: the shared column is normalised by λ, so the size
+            # flag reads the same crystallite in every pattern and a
+            # disagreement between two histograms' rows would mean the
+            # normalisation had come undone.  Before it, one shared ``lor_size``
+            # was a different apparent size in each pattern and a single reading
+            # would have quoted one histogram's λ about all of them.
             # The strain flag is λ-free and repeats per histogram for the same
             # reason the absorption and wavelength rows above do — a caller
             # reads one histogram's diagnostics and must not have to know that
@@ -568,7 +577,68 @@ class MultiHistogramRefinement:
                         report.high_correlations.append(
                             GuardFinding.correlation(free[i], free[j], c[i, j]))
         report.at_bounds = at_bounds
-        return _guard_diagnostics(report)
+        return _guard_diagnostics(report) + _size_sharing_diagnostics(mt)
+
+
+def _size_sharing_diagnostics(mtable) -> list[Diagnostic]:
+    """``SIZE_NORMALISED_ACROSS_WAVELENGTHS`` — what a joint fit did to a size.
+
+    An **info** row, and the WP-1076 shape is why it exists at all: before
+    WP-1131 a joint fit of histograms at different wavelengths served one
+    ``lor_size`` column to all of them, which is one specimen wearing as many
+    crystallite sizes as it has wavelengths — the fit reported ``converged``,
+    the cell came back right, and nothing named the cause.  Now the shared
+    column is the coefficient at the reference wavelength and each histogram
+    carries its own, so the finding is no longer a defect to warn about; it is
+    an action to *state*, exactly as ``PHASE_UNCONSTRAINED`` states what was
+    held.  A reader who does not know the coefficient was rescaled would read
+    ``phases.0.lor_size`` as the number their second pattern shows.
+
+    Silent unless there is something to say: no scaling declared (one
+    histogram, equal wavelengths, or a source with no declared line), or every
+    scaled term still sitting at zero, where the correction is 0.0 either way
+    and naming it would be noise on every joint fit that never freed a width.
+    """
+    scales = getattr(mtable, "value_scales", None)
+    if not scales or not any(scales):
+        return []
+    lams = [_longest_wavelength(ins) for ins in mtable.instruments]
+    out: list[Diagnostic] = []
+    ref = lams[0]
+    for path in sorted(scales[0].keys() | set().union(*(set(s) for s in scales))):
+        values = [t.entries[t._paths[path]].value for t in mtable.tables
+                  if path in t._paths]
+        if not any(v != 0.0 for v in values):
+            continue
+        factors = [s.get(path, 1.0) for s in scales]
+        term = path.rsplit(".", 1)[-1]
+        power = "λ" if SIZE_LAMBDA_POWER[term] == 1.0 else "λ²"
+        out.append(Diagnostic(
+            level="info", code="SIZE_NORMALISED_ACROSS_WAVELENGTHS",
+            where=[path], value=float(max(factors) / min(factors)),
+            message=(
+                f"{path} is a size term, which goes as {power}, and this joint "
+                f"fit spans λ = {min(lams):.5g}-{max(lams):.5g} Å. The shared "
+                f"column is therefore the coefficient at λ = {ref:.5g} Å "
+                f"(histogram 0), and each histogram's own copy carries "
+                f"{'/'.join(f'{f:.4g}' for f in factors)}× it: "
+                f"{', '.join(f'{v:.6g}' for v in values)} deg"
+                f"{'²' if term.startswith('gauss') else ''}. The specimen "
+                f"quantity being shared is the crystallite size, not the "
+                f"number of degrees — one number, {len(values)} coefficients"),
+            suggestion=(
+                "nothing to do: this is what makes one specimen one size across "
+                "wavelengths, and a joint fit that shared the degrees instead "
+                "would land the two histograms' implied sizes a factor "
+                f"{max(lams) / min(lams):.4g} apart. Read the size rather than "
+                "the coefficient (rietx.model.profiles.caglioti."
+                "apparent_size_from_size_coefficient with each histogram's own "
+                "λ — they agree by construction). To refine an independent size "
+                "per histogram instead, say so: "
+                'SharingMap(per_histogram=["phases.*.lor_size", '
+                '"phases.*.gauss_size"])'),
+        ))
+    return out
 
 
 def refine_multi(data: list[PatternData], structure: Structure,

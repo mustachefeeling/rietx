@@ -48,6 +48,80 @@ def _unscoped(path: str) -> str:
     return path
 
 
+#: Sample **size** terms and the power of λ each carries — the whole of what
+#: WP-1131 found wrong with the sharing map, written as data so a new size term
+#: joins it in one line.  ``lor_size`` is a FWHM coefficient and goes as λ
+#: (Scherrer, ``(180/π)·K·λ/L``); ``gauss_size`` is a *variance* coefficient and
+#: goes as λ².  Everything else a phase carries — strain (both), Stephens Λ(hkl),
+#: extinction, texture, cell, coordinates, ADPs — is λ-free and stays shared as
+#: it always was, which is what makes the strain control of WP-1131 § Finding 2
+#: bit-identical across this change.
+SIZE_LAMBDA_POWER = {"lor_size": 1.0, "gauss_size": 2.0}
+
+
+def _longest_wavelength(instrument: Instrument) -> float | None:
+    """The source's longest declared line (Å), or ``None`` if it has none.
+
+    A **deliberate second spelling** of
+    :func:`~rietx.optimize.least_squares._longest_line_wavelength`, not an
+    independent choice of "which λ": that one reads a *compiled* model and this
+    one a schema object, and the sharing map has to answer before anything is
+    compiled.  The two are held together by
+    ``tests/test_multi_histogram.py::test_the_two_wavelength_selectors_agree``
+    rather than by this comment — the same idiom
+    ``params.vector._SIZE_CAP_SCHERRER_K`` uses against ``caglioti.SCHERRER_K``.
+
+    **Longest** for the reason that function gives: every size surface in the
+    package attributes a coefficient to the longest line, so a Kα2 offset can
+    never move an attribution on its own.
+    """
+    lams = [line.wavelength.value for line in instrument.source.lines
+            if line.wavelength.value > 0.0]
+    return max(lams) if lams else None
+
+
+def size_value_scales(structure: Structure, instruments: list[Instrument],
+                      sharing: "SharingMap") -> list[dict[str, float]]:
+    """Per-histogram factors that turn a shared size column into one specimen.
+
+    One entry per histogram, each mapping a size path to the factor between
+    **that histogram's** coefficient and the shared column's, which is carried
+    in histogram 0's wavelength (so histogram 0's map is empty and its numbers
+    are unchanged, and a reader of ``phases.0.lor_size`` is reading the
+    coefficient at λ₀).
+
+    **The physics, and why the Scherrer constant is not in it** (WP-1131).  A
+    size coefficient is (180/π)·K·λ/L, so for one crystallite size L two
+    histograms need coefficients in the ratio λ₂/λ₁ — K and the degree
+    conversion cancel, which is why sharing a size across wavelengths is
+    provably wrong whatever convention K follows, and why the fix needs no
+    convention at all.  Microstrain is 2·(Δd/d)·tanθ with no λ in it, so it
+    stays one number and is not listed here.
+
+    Empty maps (⇒ the pre-WP-1131 behaviour, bit for bit) in three cases, and
+    each is the honest answer rather than a fallback: **one** histogram, where
+    there is nothing to normalise; a source with **no declared line**, where
+    there is no λ to normalise by; and equal wavelengths, where every factor is
+    exactly 1.0 — which is every joint fit that existed before this change.
+    """
+    lams = [_longest_wavelength(ins) for ins in instruments]
+    if len(lams) < 2 or any(lam is None for lam in lams):
+        return [{} for _ in instruments]
+    ref = lams[0]
+    scales: list[dict[str, float]] = []
+    for lam in lams:
+        ratio = lam / ref
+        one: dict[str, float] = {}
+        if ratio != 1.0:
+            for ip in range(len(structure.phases)):
+                for term, power in SIZE_LAMBDA_POWER.items():
+                    path = f"phases.{ip}.{term}"
+                    if sharing.is_shared(path):
+                        one[path] = ratio ** power
+        scales.append(one)
+    return scales
+
+
 @dataclass
 class SharingMap:
     """Which parameter paths are shared across histograms vs. per-histogram.
@@ -92,9 +166,24 @@ class MultiParameterTable:
         # read the single-histogram case and refuse a wavelength this fit is
         # entitled to free.  The count is made once, over all of them, in
         # :meth:`_rebuild_columns`.
+        # WP-1131: a *size* coefficient is not one number across wavelengths,
+        # so before any table is built each copy is put into its own
+        # histogram's units and the table is told the factor.  Empty maps
+        # everywhere (one histogram, equal wavelengths, or a source with no
+        # declared line) leave every table exactly as it was.
+        self.value_scales = size_value_scales(structure, self.instruments,
+                                              self.sharing)
+        for struct, scale in zip(self.structures, self.value_scales, strict=True):
+            for path, factor in scale.items():
+                _, ip, term = path.split(".")
+                param = getattr(struct.phases[int(ip)], term)
+                param.value = param.value * factor
         self.tables: list[ParameterTable] = [
             ParameterTable(s, ins, joint=True)
             for s, ins in zip(self.structures, self.instruments, strict=True)]
+        for table, scale in zip(self.tables, self.value_scales, strict=True):
+            if scale:
+                table.apply_value_scale(scale)
         self._rebuild_columns()
 
     @property
@@ -185,8 +274,8 @@ class MultiParameterTable:
         n = len(combined_paths)
         col_map: list[np.ndarray] = []
         x0 = np.zeros(n, dtype=np.float64)
-        lo = np.zeros(n, dtype=np.float64)
-        hi = np.zeros(n, dtype=np.float64)
+        lo = np.full(n, -np.inf, dtype=np.float64)
+        hi = np.full(n, np.inf, dtype=np.float64)
         for h, table in enumerate(self.tables):
             free = table.free_paths
             idx = np.array(
@@ -198,8 +287,16 @@ class MultiParameterTable:
             # shared columns get identical values from each histogram (harmless
             # overwrite); per-histogram columns are written once.
             x0[idx] = xh
-            lo[idx] = loh
-            hi[idx] = hih
+            # bounds are **intersected**, not overwritten.  A shared column has
+            # to satisfy every histogram's bound, and since WP-1131 the
+            # histograms can genuinely disagree about one: a size cap is a
+            # physical limit on each histogram's own coefficient, which the
+            # value scale divides by a different factor per histogram.  Identity
+            # wherever they agree — which is every bound the three per-stage
+            # freezes set, since each is made to agree deliberately — so this is
+            # bit-identical on every joint fit that predates the scaling.
+            lo[idx] = np.maximum(lo[idx], loh)
+            hi[idx] = np.minimum(hi[idx], hih)
 
         # The wavelength count, made where the whole set is visible.  A
         # wavelength is per-histogram under the default sharing rule (it starts
@@ -240,10 +337,13 @@ class MultiParameterTable:
         see ``optimize.least_squares._freeze_cell_windows_multi``, which decides
         a phase is invisible only when it is invisible in all of them.
         """
+        self._lo.fill(-np.inf)
+        self._hi.fill(np.inf)
         for h, table in enumerate(self.tables):
             loh, hih = table.bounds()
-            self._lo[self._col_map[h]] = loh
-            self._hi[self._col_map[h]] = hih
+            idx = self._col_map[h]
+            self._lo[idx] = np.maximum(self._lo[idx], loh)
+            self._hi[idx] = np.minimum(self._hi[idx], hih)
 
     # -- optimiser interface -------------------------------------------
     @property

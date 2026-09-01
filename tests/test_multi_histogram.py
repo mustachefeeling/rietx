@@ -21,8 +21,17 @@ from rietx import (
     refine_multi,
 )
 from rietx.model.forward import compile_model
+from rietx.model.profiles.caglioti import (
+    apparent_size_from_size_coefficient,
+    microstrain_from_strain_coefficient,
+    size_coefficient_for_size,
+    strain_coefficient_for_microstrain,
+)
+from rietx.optimize.least_squares import _longest_line_wavelength
+from rietx.params.multi import SharingMap, _longest_wavelength, size_value_scales
 from rietx.params.vector import ParameterTable
 from rietx.schemas.instrument import BackgroundChebyshev
+from rietx.strategy.staged import RefinementPlan, Stage
 from tests.test_schemas import make_lab6
 
 TRUE_A = 4.15660
@@ -212,3 +221,223 @@ def test_rietveld_only():
     dummy = PatternData(two_theta=[1.0, 2.0], intensity=[1.0, 1.0])
     with pytest.raises(NotImplementedError):
         ref.fit([dummy, dummy], mode="lebail")
+
+
+# --- WP-1131: a size is a specimen property, a size *coefficient* is not ----
+
+TRUE_SIZE_A = 400.0
+TRUE_STRAIN = 1e-3
+#: the two wavelengths above, and the ratio that is the whole finding
+LAM_RATIO = 0.71070 / 0.41390
+
+
+def _broadened(term: str, lam: float, tt_lo: float, tt_hi: float, seed: int):
+    """One LaB6 pattern whose *only* sample broadening is ``term``.
+
+    ``profile.x`` is held at 0 so every degree of 1/cosθ width is the
+    specimen's, which is what lets the fitted coefficient be compared with the
+    one the synthesis put in.  The width is set from the physics, never typed:
+    a 400 Å crystallite at this λ, or Δd/d = 1e-3 at any λ.
+    """
+    value = (size_coefficient_for_size(TRUE_SIZE_A, lam) if term == "lor_size"
+             else strain_coefficient_for_microstrain(TRUE_STRAIN))
+    structure = make_lab6()
+    for k in ("a", "b", "c"):
+        getattr(structure.phases[0].cell, k).value = TRUE_A
+    structure.phases[0].scale.value = 5e-4
+    getattr(structure.phases[0], term).value = value
+    ins = Instrument.debye_scherrer(wavelength=lam)
+    ins.profile.w.value = 3e-4
+    ins.profile.x.value = 0.0
+    ins.background = BackgroundChebyshev(
+        coefficients=[Parameter(value=v) for v in (40.0, -6.0, 1.5)])
+
+    tt = np.arange(tt_lo, tt_hi, 0.005)
+    blank = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, ins, blank, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    y = model.evaluate(table.decode(table.x0()))
+    y = np.random.default_rng(seed).poisson(np.maximum(y, 1.0)).astype(float)
+    return PatternData(two_theta=model.tt.tolist(), intensity=y.tolist()), value
+
+
+def _width_start(lam: float):
+    """A fresh structure/instrument pair: cell off, width at zero."""
+    structure = make_lab6()
+    for k in ("a", "b", "c"):
+        getattr(structure.phases[0].cell, k).value = TRUE_A + 0.002
+    structure.phases[0].scale.value = 5e-4
+    ins = Instrument.debye_scherrer(wavelength=lam)
+    ins.profile.w.value = 3e-4
+    ins.profile.x.value = 0.0
+    ins.background = BackgroundChebyshev.with_terms(3)
+    return structure, ins
+
+
+def _width_plan(term: str) -> RefinementPlan:
+    """scale+background, then cell, then the one width — nothing else moves."""
+    return RefinementPlan(stages=[
+        Stage(name="scale+bkg", turn_on=["phases.*.scale", "instrument.background.*"]),
+        Stage(name="cell", turn_on=["phases.*.cell.*"]),
+        Stage(name="width", turn_on=[f"phases.*.{term}"], seed=1e-3),
+    ])
+
+
+@pytest.fixture(scope="module")
+def size_fixture():
+    """Two patterns of ONE 400 Å specimen, at two wavelengths (WP-1131)."""
+    p0, v0 = _broadened("lor_size", 0.41390, 3.0, 24.0, seed=1)
+    p1, v1 = _broadened("lor_size", 0.71070, 5.0, 42.0, seed=2)
+    return [p0, p1], [v0, v1]
+
+
+def test_a_joint_fit_recovers_one_crystallite_at_both_wavelengths(size_fixture):
+    """The WP-1131 acceptance: one specimen, one size, two coefficients.
+
+    Before the fix this fit served one ``lor_size`` column to both histograms
+    and landed −2.2 % / −43.0 % from the two truths — 408.8 Å against 702.0 Å
+    for one specimen, the two implied sizes exactly ``LAM_RATIO`` apart — while
+    reporting ``converged`` and taking histogram 1's Rwp from 0.137 to 0.245.
+    Now the column is the coefficient at λ₀ and each histogram carries its own.
+
+    The size agreement is asserted **tight**, because after the fix it is
+    structural rather than statistical: the two coefficients are one number
+    times two wavelengths, so they read back as the same size to floating point.
+    The accuracy against the truth is the loose one, and matches what each
+    pattern gives alone (−2.2 %).
+    """
+    patterns, truths = size_fixture
+    structure, _ = _width_start(0.41390)
+    instruments = [_width_start(lam)[1] for lam in (0.41390, 0.71070)]
+    ref = MultiHistogramRefinement(structure, instruments)
+    result = ref.fit(patterns, plan=_width_plan("lor_size"))
+
+    assert result.status == "converged"
+    sizes = [apparent_size_from_size_coefficient(
+        ref.fitted_structures[h].phases[0].lor_size.value, lam)
+        for h, lam in enumerate((0.41390, 0.71070))]
+    assert sizes[0] == pytest.approx(sizes[1], rel=1e-9), (
+        f"one specimen, two crystallite sizes: {sizes}")
+    for h, size in enumerate(sizes):
+        assert size == pytest.approx(TRUE_SIZE_A, rel=0.05), f"hist {h}: {size} Å"
+
+    # each histogram's *coefficient* differs by exactly the wavelength ratio
+    coeffs = [ref.fitted_structures[h].phases[0].lor_size.value for h in (0, 1)]
+    assert coeffs[1] / coeffs[0] == pytest.approx(LAM_RATIO, rel=1e-12)
+
+    # and the fit is as good as each pattern alone, where sharing the degrees
+    # left histogram 1 at Rwp 0.245
+    for h, hist in enumerate(result.histograms):
+        assert hist.statistics.rwp < 0.16, f"hist {h} Rwp {hist.statistics.rwp}"
+        OUT.mkdir(exist_ok=True)
+        result.for_histogram(h).plot(OUT / f"wp1131_size_joint_h{h}.png")
+
+    codes = [d.code for d in result.diagnostics]
+    assert "SIZE_NORMALISED_ACROSS_WAVELENGTHS" in codes
+    row = next(d for d in result.diagnostics
+               if d.code == "SIZE_NORMALISED_ACROSS_WAVELENGTHS")
+    assert row.where == ["phases.0.lor_size"]
+    assert row.value == pytest.approx(LAM_RATIO, rel=1e-12)
+
+
+def test_the_lambda_free_strain_control_is_shared_exactly_as_before():
+    """The control that makes the size result a measurement, not an argument.
+
+    Microstrain has no λ in it, so ``SharingMap`` is right about it and this WP
+    must not touch it: one column, both histograms, and the value the joint fit
+    lands on is the one each pattern gives alone.  Run with the same machinery
+    and the same wavelengths as the size case, which is the point — the
+    difference between the two tests is the physics, not the fixture.
+    """
+    patterns = [_broadened("lor_strain", 0.41390, 3.0, 24.0, seed=1)[0],
+                _broadened("lor_strain", 0.71070, 5.0, 42.0, seed=2)[0]]
+    structure, _ = _width_start(0.41390)
+    instruments = [_width_start(lam)[1] for lam in (0.41390, 0.71070)]
+    ref = MultiHistogramRefinement(structure, instruments)
+    result = ref.fit(patterns, plan=_width_plan("lor_strain"))
+
+    assert result.status == "converged"
+    values = [ref.fitted_structures[h].phases[0].lor_strain.value for h in (0, 1)]
+    assert values[0] == values[1], "a λ-free quantity must stay one number"
+    assert microstrain_from_strain_coefficient(values[0]) == pytest.approx(
+        TRUE_STRAIN, rel=0.05)
+    # no size term was freed, so nothing to normalise and nothing to say
+    assert "SIZE_NORMALISED_ACROSS_WAVELENGTHS" not in [
+        d.code for d in result.diagnostics]
+
+
+def test_the_two_wavelength_selectors_agree():
+    """``params.multi._longest_wavelength`` is the compiled selector's twin.
+
+    Two spellings on purpose — one reads a schema object before anything is
+    compiled, the other a ``CompiledModel`` — so the pin is here rather than in
+    a comment, exactly as ``_SIZE_CAP_SCHERRER_K`` is pinned against
+    ``caglioti.SCHERRER_K``.
+    """
+    for lam in (0.41390, 0.71070, 1.5406):
+        ins = Instrument.debye_scherrer(wavelength=lam)
+        tt = np.arange(5.0, 20.0, 0.05)
+        blank = PatternData(two_theta=tt.tolist(),
+                            intensity=np.ones_like(tt).tolist())
+        model = compile_model(make_lab6(), ins, blank, mode="rietveld")
+        assert _longest_wavelength(ins) == _longest_line_wavelength(model)
+    # a Kα1/Kα2 doublet: both selectors take the *longer* line
+    ins = Instrument.bragg_brentano(radiation="CuKa")
+    lams = [line.wavelength.value for line in ins.source.lines]
+    assert len(lams) > 1
+    assert _longest_wavelength(ins) == max(lams)
+
+
+def test_equal_wavelengths_declare_no_scaling_at_all():
+    """Every joint fit that predates WP-1131 must be bit-identical.
+
+    The factor is ``λ_h/λ_0``, so equal wavelengths give exactly 1.0 and the
+    map is empty — not "1.0 everywhere", empty, so ``ParameterTable`` takes the
+    same branch it always took and no multiplication happens at all.
+
+    The third empty case, a source declaring no positive wavelength, is not
+    exercised here because the schema refuses to build one (``EmissionLine``
+    carries ``min = 0.001`` Å); the guard stands for a radiation kind that
+    arrives without one.
+    """
+    structure = make_lab6()
+    same = [Instrument.debye_scherrer(wavelength=0.41390) for _ in range(3)]
+    assert size_value_scales(structure, same, SharingMap()) == [{}, {}, {}]
+    # one histogram has nothing to normalise against
+    assert size_value_scales(structure, same[:1], SharingMap()) == [{}]
+
+
+def test_the_scale_map_is_the_wavelength_ratio_and_its_square():
+    """``lor_size`` goes as λ and ``gauss_size`` (a variance) as λ²."""
+    structure = make_lab6()
+    instruments = [Instrument.debye_scherrer(wavelength=lam)
+                   for lam in (0.41390, 0.71070)]
+    scales = size_value_scales(structure, instruments, SharingMap())
+    assert scales[0] == {}, "histogram 0 carries the reference wavelength"
+    assert scales[1]["phases.0.lor_size"] == pytest.approx(LAM_RATIO, rel=1e-15)
+    assert scales[1]["phases.0.gauss_size"] == pytest.approx(LAM_RATIO ** 2,
+                                                             rel=1e-15)
+    assert "phases.0.lor_strain" not in scales[1]
+    assert "phases.0.gauss_strain" not in scales[1]
+    # a caller who wants an independent size per histogram says so, and then
+    # there is nothing shared to normalise
+    per_hist = SharingMap(per_histogram=["phases.*.lor_size"])
+    scales = size_value_scales(structure, instruments, per_hist)
+    assert "phases.0.lor_size" not in scales[1]
+    assert "phases.0.gauss_size" in scales[1]
+
+
+def test_a_scaled_path_may_not_be_tied():
+    """The refusal ``apply_value_scale`` exists to make, checked by name."""
+    structure, ins = _width_start(0.41390)
+    table = ParameterTable(structure, ins)
+    with pytest.raises(KeyError):
+        table.apply_value_scale({"phases.0.no_such_thing": 2.0})
+    for bad in (0.0, -1.0, float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="finite and positive"):
+            table.apply_value_scale({"phases.0.lor_size": bad})
+    # a symmetry tie: b ← a in a cubic cell
+    with pytest.raises(ValueError, match="tied"):
+        table.apply_value_scale({"phases.0.cell.b": 2.0})
+    with pytest.raises(ValueError, match="sources must be unscaled"):
+        table.apply_value_scale({"phases.0.cell.a": 2.0})

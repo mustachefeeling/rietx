@@ -277,14 +277,36 @@ needs it any more.
       rietx's four coefficients are FWHM coefficients, so the FWHM convention is
       the one that inverts them without a peak-shape assumption, and the two
       spreads are what make the reported number an order-of-magnitude statement.
-- [ ] **Fix the sharing map.** `phases.*.lor_size` and `phases.*.gauss_size` may
+- [x] **Fix the sharing map.** ✔ *normalise*, per the measurement below.
+      `ParameterTable.apply_value_scale` declares a fixed factor between a
+      path's physical value and its free column (folded into C, so `decode`
+      multiplies, `x0`/`bounds` divide, an esd comes back multiplied and the
+      analytic Jacobian inherits it for free because `_peak_chain_column`
+      finite-differences θ *through* `decode`); `params.multi.size_value_scales`
+      hands each histogram λ_h/λ_ref for `lor_size` and its square for
+      `gauss_size`, and the structure copies are pre-scaled so the shared
+      internal coordinate is the coefficient at λ_ref. Shared bounds are now
+      **intersected** rather than last-write-wins, because the histograms can
+      genuinely disagree about a size cap once it is divided per histogram.
+      Measured on the fixture: two implied sizes 408.8 Å and 702.0 Å become one
+      408.8 Å, histogram 1's Rwp 0.2450 → 0.1374 against 0.1372 for that pattern
+      alone, and the λ-free strain control is unmoved to every digit printed
+      (0.113840, Rwp 0.0538/0.0890 before and after). Old task text: **Fix the
+      sharing map.** `phases.*.lor_size` and `phases.*.gauss_size` may
       not be one column across histograms of different wavelength. Two candidate
       shapes, and the WP picks one on measurement: normalise the shared column
       (share the size, derive each histogram's coefficient from its own λ), or
       refuse — make them per-histogram by default and raise when a caller shares
       them across differing λ. Whichever lands, **equal wavelengths must stay
       bit-identical**, since that is every existing joint fit.
-- [ ] **A diagnostic, because Finding 3 says the failure is unattributed.**
+- [x] **A diagnostic, because Finding 3 says the failure is unattributed.** ✔
+      `SIZE_NORMALISED_ACROSS_WAVELENGTHS`, level **info** — with the fix there
+      is no defect to warn about, so the row *states what was done*, the shape
+      `PHASE_UNCONSTRAINED` took in WP-1301. Carries the path, both wavelengths,
+      every histogram's factor and its resulting coefficient, and the
+      `SharingMap(per_histogram=…)` escape. Silent when nothing was scaled or
+      when every scaled term is still at zero. Old task text: **A diagnostic,
+      because Finding 3 says the failure is unattributed.**
       Sharing a wavelength-dependent path across differing λ is a named finding
       with the paths and the two wavelengths in it, not a silent 2.6× Rwp. Add it
       through the `GuardFinding` constructor per the root CLAUDE.md rule, and its
