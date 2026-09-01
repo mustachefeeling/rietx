@@ -86,6 +86,58 @@ carry $\min = 0$ and no maximum at all. Decide such a limit as a size; report
 it in degrees.
 ```
 
+(sec-width-as-strain)=
+## Reading a width as a strain
+
+Microstrain broadens by a fixed *fraction* of every d-spacing rather than by a
+fixed reciprocal-space width {cite}`stokes1944`. Differentiating Bragg's law
+$\lambda = 2d\sin\theta$ at fixed $\lambda$ gives $\Delta d/d = -\cot\theta\,
+\Delta\theta$, so a relative spread in $d$ appears as
+
+```{math}
+:label: ms-strain-law
+
+\Delta 2\theta \;=\; 2\,\frac{\Delta d}{d}\,\tan\theta
+\qquad [\text{radians}],
+```
+
+*Source:* `rietx.model.profiles.caglioti`
+
+which is the $\tan\theta$ term of {eq}`prof-caglioti-l`. Inverting it for the
+coefficient $Y_s$ in deg $2\theta$,
+
+```{math}
+:label: ms-strain-coefficient
+
+\frac{\Delta d}{d} \;=\; \frac{\pi}{180}\cdot\frac{Y_s}{2}
+\qquad\Longleftrightarrow\qquad
+Y_s \;=\; \frac{360}{\pi}\cdot\frac{\Delta d}{d},
+```
+
+*Source:* `rietx.model.profiles.caglioti`
+
+reading $\sqrt{U_s}$ in place of $Y_s$ for the Gaussian variance coefficient of
+{eq}`prof-caglioti-g`, exactly as {eq}`ms-size-coefficient` reads $\sqrt{P}$.
+
+**No wavelength appears in {eq}`ms-strain-coefficient` and no shape constant
+either**, and the contrast with {eq}`ms-size-coefficient` is the whole of the
+asymmetry: of the six sample-broadening quantities in {eq}`prof-caglioti-g` and
+{eq}`prof-caglioti-l` — two sizes, two strains, and the Stephens block of
+{eq}`ms-lambda` — exactly the two named "size" depend on $\lambda$. One
+specimen measured at two wavelengths therefore shows the *same* number of
+degrees of strain broadening and size coefficients in the ratio $\lambda_2 /
+\lambda_1$ (their Gaussian variances in the ratio squared). A joint refinement
+must share the size, not the coefficient; `rietx.params.multi` normalises it, reporting
+the rescaling as the `SIZE_NORMALISED_ACROSS_WAVELENGTHS` diagnostic.
+
+$\Delta d/d$ here is the **FWHM** of the d-spacing distribution, matching what
+{eq}`ms-strain-law` relates and what the coefficients of
+{eq}`prof-caglioti-g`–{eq}`prof-caglioti-l` are. Other codes publish other
+measures of the same width: GSAS-II's `mustrain` is $2\Delta d/d$ in units of
+$10^{-6}$, and FullProf's apparent strain is $\tfrac{1}{2}\beta^{*}d$, read off
+the integral breadth rather than the FWHM. A microstrain is not comparable
+between codes without its convention.
+
 ## Stephens anisotropic strain
 
 Stephens' phenomenological model {cite}`stephens1999` lets every

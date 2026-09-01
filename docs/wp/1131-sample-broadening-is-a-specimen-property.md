@@ -345,7 +345,18 @@ needs it any more.
       with the paths and the two wavelengths in it, not a silent 2.6× Rwp. Add it
       through the `GuardFinding` constructor per the root CLAUDE.md rule, and its
       row in `AGENT_PROTOCOL.md`.
-- [ ] **Report the size and the strain.** `FitReport` carries a per-phase
+- [x] **Report the size and the strain.** ✔ `RefinementResult.microstructure` /
+      `FitReport.microstructure`, one `PhaseMicrostructure` per phase, four
+      `MicrostructureTerm`s each. Built in `model/microstructure.py` (the peer of
+      `model/geometry.py`), called from `refine.py` beside `geometry_table` off
+      the same final Jacobian, through the same λ selector the size bound and
+      the size flag use. Each reading is a function of exactly **one**
+      coefficient, so J·Cov·Jᵀ is one variance with no cross-term to drop —
+      which is *why* a combined Gaussian+Lorentzian size is not reported.
+      Four absences, each named: `at_zero`, `no_wavelength`, `not_measured`,
+      and `None` for nothing missing. Named a coherent domain size, with
+      `particle_radius_um` disclaimed in the schema and in the manual. Old task
+      text: **Report the size and the strain.** `FitReport` carries a per-phase
       microstructure block: coherent domain size and microstrain with esds
       through J·Cov·Jᵀ off the final Jacobian, `None` wherever the coefficient is
       at zero, unmeasured (`ParameterTable.unmeasured_rows`) or gradient-free.
@@ -361,14 +372,23 @@ needs it any more.
       and `docs/manual/profiles.md`. Both thresholds are calibrated on the
       606-refinement TOPAS archive rather than invented, and both say the number
       is one to check rather than a refusal. 1130's dependency is discharged.
-- [ ] **State the separability caveat where the number is, not elsewhere.** Over
+- [x] **State the separability caveat where the number is, not elsewhere.** ✔
+      `PhaseMicrostructure.separable` + `size_strain_collinearity`, copied from
+      the width `TrendAnalysis`'s own verdict in `build_report` and **never**
+      recomputed. `None` — no claim made — on the result and on an abstained
+      report. Old task text: **State the separability caveat where the number
+      is, not elsewhere.** Over
       a narrow 2θ range size and strain are collinear, which the package already
       knows (`report/schemas.py:733`'s `max_template_collinearity`, and the
       Layer 2 bullet at `../DESIGN.md` 322-328). A size reported without that
       caveat is the confident wrong
       singleton the FitReport exists to refuse. Reuse the existing statistic;
       do not compute a second opinion.
-- [ ] **The Gaussian/Lorentzian consistency check.** Once the conversion exists,
+- [x] **The Gaussian/Lorentzian consistency check.** ✔
+      `PhaseMicrostructure.size_agreement` / `.strain_agreement`, the Gaussian
+      reading over the Lorentzian one, `None` when either is absent. One line
+      once the authority existed, exactly as Finding 5 predicted. Old task text:
+      **The Gaussian/Lorentzian consistency check.** Once the conversion exists,
       compare the size implied by `lor_size` against the one implied by
       `gauss_size` (and the two strains likewise) and report a disagreement.
       Finding 5 is why; one line once the authority exists.

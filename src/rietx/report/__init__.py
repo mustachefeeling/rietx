@@ -151,6 +151,28 @@ def _stamped(actions: list[SuggestedAction]) -> list[SuggestedAction]:
     return actions
 
 
+
+def _attach_separability(report: FitReport) -> None:
+    """Copy the width trend's separability verdict onto every phase block.
+
+    One statistic (``TrendAnalysis.separable`` and its
+    ``max_template_collinearity``), two readers: the Layer-2 action already
+    caps its confidence on it, and a reported domain size now carries it.
+    Per *report* rather than per phase because the trend is fitted across
+    regions and is not resolved by phase — which is itself worth knowing, and
+    is why the field is a caveat rather than a per-phase measurement.
+
+    Leaves ``separable`` at ``None`` when there is no width trend to read: no
+    claim made, the ``freeze_cell_windows`` convention.
+    """
+    width = next((t for t in report.trends if t.observable == "width"), None)
+    if width is None:
+        return
+    for block in report.microstructure:
+        block.separable = width.separable
+        block.size_strain_collinearity = width.max_template_collinearity
+
+
 def build_report(result: RefinementResult, *, model=None, values=None,
                  plan=None, free_paths: list[str] | None = None,
                  top_n: int = 15, match_tol_deg: float = 0.08,
@@ -181,6 +203,14 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # maturity, and "are these distances chemically sensible" is exactly the
     # question a reader asks first when Layer 1 abstains.
     report.geometry = result.geometry
+    # The microstructure block rides through on exactly those terms (WP-1131):
+    # a width is a width whether or not the fit is mature enough to linearise,
+    # and "how big are the domains" is the question a reader asks of a broad
+    # pattern first.  Its separability caveat is the part that needs Layer 1
+    # and is attached below, so a block read from the abstained branch says
+    # ``separable=None`` — no claim made — rather than claiming separability
+    # nothing measured.
+    report.microstructure = list(result.microstructure)
     # The identifiability section (WP-1056) is likewise read from the stored
     # result plus what the fit screened at Jacobian time, never linearised —
     # and an exchangeable held parameter is exactly the evidence a *converged*
@@ -262,6 +292,12 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     report.layer1_available = True
     report.trends = analyse_trends(attributions, model.wavelength,
                                    model.geometry_kind)
+    # The size/strain separability caveat, carried **beside the number**
+    # (WP-1131): over a narrow 2θ range 1/cosθ and tanθ are collinear, and a
+    # domain size quoted without saying so is the confident wrong singleton
+    # this report exists to refuse.  Read off the width trend's own verdict
+    # rather than recomputed — one statistic, two readers.
+    _attach_separability(report)
     # The contents-type clause (WP-1057): sign-alternating intensity misfit
     # with no angular trend is the one signature the trend templates are
     # structurally blind to, and the honest zero-action report it produces
