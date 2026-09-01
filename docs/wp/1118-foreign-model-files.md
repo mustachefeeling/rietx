@@ -215,6 +215,12 @@ set, the held Caglioti terms, the excluded region, the wavelengths — with the
 acceptance test then reading it rather than restating it, and the measured
 answer unmoved.
 
+Issue closure rides the tasks, not the WP: the PR landing the `STR(...)`
+decision carries `Closes #107`; the origin-choice task `Closes #101`; the
+`.EXP`/`.PRM` task `Closes #103`; the writers task `Closes #148`. Issue
+#196 (Rietica/XND) stays open — it is this family's recorded boundary, not
+work this WP does.
+
 ## References
 
 - Larson, A. C. & Von Dreele, R. B. (2004), *GSAS General Structure Analysis

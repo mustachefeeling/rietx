@@ -99,6 +99,10 @@ fires for an Yb-bearing structure and is silent for Ru/O; the mixed fit
 refines one structure against both histograms with dispersion active on the
 X-ray one only, and the audit's findings (if any) each carry a test.
 
+The shipping PR carries `Closes #124`, `Closes #194`, and a comment on
+issue #113 saying its (a) slice landed — #113 stays open for the fenced
+(b)/(c) halves.
+
 ## References
 
 - Issues #124, #113, #194; PR #108 / WP-1134 — where the seed and the fence

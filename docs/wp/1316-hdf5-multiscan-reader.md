@@ -100,6 +100,8 @@ reports it unavailable; with it, the declared-`@axes` fixture reads
 silently, the bare-HDF5 fixture reads with `PATTERN_X_AXIS_ASSUMED`, a Q-axis fixture raises naming Q, and a 256×256 matrix is
 refused.
 
+The shipping PR carries `Closes #135`.
+
 ## References
 
 - Issue #135 — the design, the prototype's rules, the archive facts.

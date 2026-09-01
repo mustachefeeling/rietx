@@ -83,6 +83,9 @@ module's σ²(M) evaluation direction for direction; an isotropic block draws
 a sphere; a deliberately non-positive block shows its unphysical region and
 the existing guard's finding beside it.
 
+The shipping PR comments on issue #197 saying its strain half landed —
+#197 stays open for the fenced Fourier-maps half.
+
 ## References
 
 - Issue #197 (the strain-surface half; GSAS-II parity target).

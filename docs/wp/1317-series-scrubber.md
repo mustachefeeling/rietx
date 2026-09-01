@@ -84,6 +84,9 @@ event cluster where the transition is; scrubbing across it updates the fit
 view with no per-step server round-trip cost beyond the pattern fetch; the
 manual partition is green with the new chapter.
 
+The shipping PR carries `Closes #133` — and `Closes #141` if that issue is
+still open, since its surviving residual lands here.
+
 ## References
 
 - Issues #133 and #141 — the motion, the measurements, and the vocabulary

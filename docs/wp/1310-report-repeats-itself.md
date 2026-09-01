@@ -116,6 +116,8 @@ that keeps 16; a second `run_stage` reports its move against the constructed
 λ; `to_table` on a derived path returns numbers or a refusal, never `None`
 rows. All accepted fit values bit-identical throughout.
 
+The shipping PR carries `Closes #106`, `Closes #123`, `Closes #162`.
+
 ## References
 
 - Issues #106, #123, #162 — measurements and fix-shape analyses.

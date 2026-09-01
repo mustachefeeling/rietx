@@ -93,6 +93,8 @@ build of main's tree (not of any branch's), the PR check reports without
 blocking, and two concurrent GUI branches merge with no conflict in
 `src/rietx/gui/static`.
 
+The shipping PR carries `Closes #159`.
+
 ## References
 
 - Issue #159 — the proposal, the maintainer's ruling, and both measurements

@@ -94,6 +94,8 @@ order, `scan=` selects and refuses out-of-range by name, member 0 defaults
 loudly, and the STORED-GSAS fixture is read as a zip — with every inner σ
 and axis decision demonstrably the inner reader's.
 
+The shipping PR carries `Closes #134`.
+
 ## References
 
 - Issue #134 — the measurements, the design points, and the archive facts.

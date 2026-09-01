@@ -91,6 +91,8 @@ matches its published refinement field for field; a modulated `.m50` refuses
 naming modulation; fuzzed files refuse naming the file, never a parser
 exception.
 
+The shipping PR carries `Closes #147`.
+
 ## References
 
 - Issue #147; issue #148 (the writer pairing); issue #196 (the family

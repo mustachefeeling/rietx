@@ -109,6 +109,9 @@ displacement ride, a 30 Å² Biso, the u/v/w collapse at 157°, a 1° FWHM on a
 synchrotron line, the ρ = −1.000 pair) and stays silent on the clean
 acceptance suites; no accepted value moves anywhere a signal merely reports.
 
+The shipping PR carries `Closes #150`, `Closes #102` (#106 closes with
+[1310](1310-report-repeats-itself.md)).
+
 ## References
 
 - Issues #150, #102, #106 (aside) — the rule, the measurements, the ceiling.

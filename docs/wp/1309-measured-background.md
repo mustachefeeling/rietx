@@ -131,6 +131,8 @@ freeing it on the Si640c blank fixture lands the interior minimum (s ≈ 0.85,
 Rwp below the fixed-scale fit) with an esd; the double-count configuration
 fails loudly; the compare panel localises where the correction acted.
 
+The shipping PR carries `Closes #171`.
+
 ## References
 
 - Issue #171 — the measurements, TOPAS `bkg_file` prior art, and the five

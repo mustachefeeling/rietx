@@ -90,6 +90,9 @@ errors in the classes this WP claims (residual findings each carry a
 written reason); the XYZ path either reads its fixtures into the decided
 type with refusals-by-name, or the file records why the slice waits.
 
+The shipping PR comments on issue #195 saying its checkCIF and XYZ slices
+landed — #195 stays open for the fenced VESTA/Z-matrix/rigid-body parts.
+
 ## References
 
 - Issue #195 — the cluster, its corrections, and the maintainer's
