@@ -1578,7 +1578,8 @@ class Refinement:
 
         diagnostics: list[Diagnostic] = (
             _symmetry_silence_diagnostics(self.structure, mode)
-            + _dispersion_diagnostics(self.structure, self.instrument))
+            + _dispersion_diagnostics(self.structure, self.instrument)
+            + _species_fallback_diagnostics(self.structure, self.instrument))
         stage_results: list[StageResult] = []
         self.stage_reports_ = []
         outcome = None
@@ -3155,6 +3156,81 @@ def _dispersion_diagnostics(structure: Structure,
                    "wavelength sits in an absorption-edge interval, supply the "
                    "measured pair through Dispersion.overrides instead",
     )]
+
+
+#: Fires when a substitution's |electron-count error| is at least this
+#: fraction of the ion's true count.  0.0 fires on **any** substitution — the
+#: choice issue #202 leaves to the maintainer, argued for on the grounds that
+#: a substitution the code chose silently is exactly what should be visible,
+#: with the user left to judge materiality.  A one-line change to a nonzero
+#: fraction restricts the diagnostic to substitutions past that size instead.
+SPECIES_FALLBACK_MIN_DELTA_FRAC = 0.0
+
+
+def _species_fallback_diagnostics(structure: Structure,
+                                  instrument: Instrument) -> list[Diagnostic]:
+    """Flag an ion ``normalize_species`` could not find, one row per label
+    (issue #202).
+
+    ``crystallography.scattering.normalize_species`` falls back to the neutral
+    atom when an ion is absent from the Waasmaier-Kirfel table — deliberate
+    (refusing would break files that currently refine, and 99 of 111
+    chemically-real oxidation states resolve correctly) but previously silent:
+    nothing recorded that the model's scattering power was not what the
+    species label claimed. A wrong electron count biases site occupancies,
+    ADPs and QPA fractions without moving Rwp much, because the model simply
+    rescales — the same shape as a phase compile silently accepting an
+    ambiguous choice, which is why this is computed alongside
+    ``_dispersion_diagnostics`` rather than left to whatever first calls
+    ``f0`` downstream.
+
+    Neutron phases resolve species through ``crystallography.neutron``
+    instead — a different table with a different (isotope-aware) fallback —
+    so this is silent there, the same gate ``_dispersion_diagnostics`` uses
+    for the reciprocal reason (an X-ray core-level effect neutron has none of).
+    """
+    from .crystallography.scattering import detect_fallback
+
+    if instrument.source.kind == "neutron_cw":
+        return []
+    # {raw species label -> (SpeciesFallback, [atom paths])}; grouped by the
+    # label as written so two different ions of the same element (Fe2+ *and*
+    # Fe3+, say) are not merged into one row if only one of them falls back.
+    found: dict[str, tuple] = {}
+    for ip, phase in enumerate(structure.phases):
+        for j, atom in enumerate(phase.atoms):
+            fb = detect_fallback(atom.species)
+            if fb is None:
+                continue
+            path = f"phases.{ip}.atoms.{j}.species"
+            if fb.species in found:
+                found[fb.species][1].append(path)
+            else:
+                found[fb.species] = (fb, [path])
+    out = []
+    for fb, where in found.values():
+        if abs(fb.delta_frac) < SPECIES_FALLBACK_MIN_DELTA_FRAC:
+            continue
+        out.append(Diagnostic(
+            level="warning", code="SPECIES_FALLBACK_NEUTRAL", where=where,
+            value=fb.delta_frac,
+            message=(f"{fb.species!r} is absent from the Waasmaier-Kirfel "
+                     f"table and was scattered as neutral {fb.element} "
+                     f"instead — {fb.returned_electrons:.4g} electrons "
+                     f"against the ion's {fb.true_electrons:.0f} "
+                     f"({fb.delta_frac:+.1%})"),
+            suggestion=(f"this changes every reflection {fb.species!r} "
+                        "contributes to by that fraction and biases site "
+                        "occupancies, ADPs and QPA fractions together, "
+                        "without moving Rwp much because the model "
+                        "rescales; there is no override table for this "
+                        "lookup the way Dispersion.overrides covers f'/f'', "
+                        f"so either accept that neutral {fb.element} is what "
+                        "was fitted or substitute a tabulated ion of the "
+                        "same element and a nearby charge as a deliberate "
+                        "approximation"),
+        ))
+    return out
 
 
 #: Below this refined fraction a declared λ/n harmonic is reported as **not
