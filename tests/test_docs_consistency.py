@@ -397,7 +397,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # (90 API calls, 14.6 M cache-read tokens, 34.7 min for 34 s of fitting)
     # every 13xx acceptance is measured against.  Nothing else in the file
     # moved; the free-standing peaks section changed only its title.
-    "docs/ROADMAP.md": 503,
+    # 503 -> 510 for issues #192-198 (2026-09-01): Z-matrices named beside
+    # rigid bodies in the v2+ list, and a new "Added" paragraph for the six
+    # other maintainer-requested features (PDF/total-scattering, charge
+    # flipping, Rietica/XND readers, RMCProfile export, VESTA I/O) fenced the
+    # same way the McCusker and low-symmetry-corpus additions were.
+    "docs/ROADMAP.md": 510,
     # 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
     # and the nine control registers, as a table of one rule each.  This file
     # grows for a rule nothing else in it carried, same as the bumps above: a
