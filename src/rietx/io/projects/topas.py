@@ -989,6 +989,12 @@ _SITE_KEYWORDS = r"\b(?:" + "|".join(
 #: the CIF ``_atom_site_aniso_U_ij`` convention, crystal frame — the same
 #: numbers rietx's :class:`~rietx.AnisoU` holds, so no 8π² conversion (a
 #: NaCl u11 = 0.013 is B_eq = 8π²·0.013 = 1.026, not 0.013).
+#:
+#: That magnitude is *corroboration*, and it is all there is: unlike the scale
+#: convention beside it, this one is **not measured against TOPAS's own
+#: output**, which ``io/CLAUDE.md`` asks for first. The row in
+#: ``tests/data/README.md`` says so and says what would settle it — the claim
+#: names the state of its own evidence rather than reading as established.
 _ADP_KEYS = ("u11", "u22", "u33", "u12", "u13", "u23")
 
 #: Any anisotropic component marks a site anisotropic — with or without the
