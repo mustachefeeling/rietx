@@ -91,10 +91,11 @@ def setting_alternatives(symbol: str) -> tuple[str, tuple[str, ...]]:
     """
     if ":" in symbol:
         return "", ()
-    taken = get_spacegroup(symbol).xhm()
-    settings = _settings_by_hm().get(get_spacegroup(symbol).hm, ())
+    sg = get_spacegroup(symbol)
+    settings = _settings_by_hm().get(sg.hm, ())
     if len(settings) < 2:
         return "", ()
+    taken = sg.xhm()
     return taken, tuple(s for s in settings if s != taken)
 
 
