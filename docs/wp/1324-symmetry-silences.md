@@ -82,7 +82,7 @@ multiplicity.
 - [x] The issue's two reproductions as tests: the ±1.2e-4 sweep on `R -3 m:H`
       prints only 18 or 36; ICSD 18318's sixteen sites match the CIF's
       multiplicities; the spinel table under `:1` and `:2`.
-- [ ] Skill and manual rows for the two codes; a Part 2 note that a
+- [x] Skill and manual rows for the two codes; a Part 2 note that a
       multiplicity is |G|/|stabiliser|.
 
 ## Acceptance
