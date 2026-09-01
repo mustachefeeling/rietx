@@ -70,6 +70,22 @@ an assumed number must never look like a measured one). A parameter the
 caller bounded keeps the caller's bound. New codes get skill rows and
 `help.py`/manual coverage per the standing gates.
 
+### Inherited
+
+- **From the 2026-09-01 triage's second batch (issues #204/#209,
+  PR #206)**: item 2's premise "the low side needs nothing (readers refuse
+  negative B; the transform floors at zero)" holds only once PR #206 lands
+  — before it, a caller-supplied `Parameter` silently dropped `Atom.biso`'s
+  declared bounds and a refined Biso reached −165 Å² at unchanged Rwp
+  (#204). The persisted-document repair and the wider `default_factory`
+  audit are [1321](1321-persisted-bounds-repair.md)'s, not this WP's.
+- **From the same batch**: `internal_bounds(0.0, inf, "softplus")` maps to
+  `(-inf, inf)`, so `BOUND_HIT` can never report "scale went to zero"
+  (#204's checked sub-finding; intended — the transform enforces
+  positivity, so there is no bound to hit). Relevant to item 5: a scale at
+  its softplus floor is visible only as a flat direction, never as a bound
+  hit.
+
 ## Non-goals
 
 - **Not width caps** — #144's, already landed with its size extension.

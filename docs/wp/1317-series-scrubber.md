@@ -49,6 +49,15 @@ assumed).
 partition test will demand a chapter for any new tab or route, and
 screenshots come from `docs/manual/make_screenshots.py`.
 
+### Inherited
+
+- **From the 2026-09-01 triage's second batch (issue #207 →
+  [1322](1322-events-aggregator.md))**: the headless counterpart is its own
+  WP — a `rietx events` aggregator whose `termination` histogram and
+  held-path counts summarise the same marker vocabulary this panel draws.
+  The one-vocabulary rule now spans both consumers: neither surface invents
+  a second set of names.
+
 ## Non-goals
 
 - **Not the batch computation** — `refine_sequential` already computes the

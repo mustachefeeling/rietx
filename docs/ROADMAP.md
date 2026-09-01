@@ -476,12 +476,20 @@ truncatable tail (#106); a second `run_stage` reports its λ move against a
 value nobody declared (#123); a derived path yields a well-formed empty CSV
 column (#162); and a 1° FWHM, a 30 Å² Biso or an in-range negative Γ² is
 reached with nothing raised (#150, #102). 1310 fixes what the report says;
-1311 adds what the fit should have said.
+1311 adds what the fit should have said. The second batch (same day, the
+benchmarking campaign's issues) adds two more silences: a phase fraction
+reported 1.41 ± 0.65 wt% with zero diagnostics where 0–98.7 wt% all fit
+within 0.011 pp of Rwp (#203), and the documents a silently-dropped `Atom`
+bound already persisted — the −165 Å² Biso — which PR #206's construction
+fix cannot reach (#204, #209). 1320 says what QPA cannot; 1321 repairs what
+the defect already wrote.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1310](wp/1310-report-repeats-itself.md) | The report repeats itself: stage dedup, the declared wavelength, the empty column | ⬜ | — |
 | [1311](wp/1311-walking-parameter-bounds.md) | Bounds and flags for the remaining walking parameters | ⬜ | — (1310 soft) |
+| [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ⬜ | — (1310 soft) |
+| [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | — (PR #206 first) |
 
 ### Unscheduled — one file, many patterns (added 2026-09-01)
 
@@ -500,18 +508,22 @@ fallback to keep exercised).
 
 ### Unscheduled — render what the fit already knows (added 2026-09-01)
 
-Two views over quantities already computed, no new physics: a series
+Three views over quantities already computed, no new physics: a series
 navigated by its own T/t trace, the shipped `SEQUENTIAL_*` findings as
 markers over a scrubbed pattern+fit view (issue #133, with #141's
 one-vocabulary rule — its verb was deleted by 1303, its answer shipped as
-1305); and the fitted Stephens S_HKL block drawn as the directional strain
+1305); the fitted Stephens S_HKL block drawn as the directional strain
 surface GSAS-II offers (issue #197's quick-win half; the maps half stays
-fenced).
+fenced); and — headless, from the second batch — a run's own `events.jsonl`
+aggregated after the fact, because 3/3 independent agents switched history
+off and transcript scraping recovered 2.7–16.6 % of the timing (issue
+#207). The scrubber and the aggregator read one marker vocabulary.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1317](wp/1317-series-scrubber.md) | Scrub the series along its own trace | ⬜ | — |
 | [1318](wp/1318-strain-surface.md) | The Stephens strain surface, rendered | ⬜ | — |
+| [1322](wp/1322-events-aggregator.md) | The run is instrumentable, and nothing says so | ⬜ | — |
 
 ### Unscheduled — the repo's own process, continued (added 2026-09-01)
 
