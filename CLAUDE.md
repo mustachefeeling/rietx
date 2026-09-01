@@ -7,6 +7,10 @@ schemas, gemmi for CIF/symmetry. Import name `rietx`, aliased `rx` (`import riet
 `docs/skill/rietx/SKILL.md` (the agent skill) + `docs/manual/` Part 1. Nothing here
 substitutes for either.
 
+Each rule below is stated with its identifiers and its measured anchor; the derivation, the
+run that found it and the numbers behind it stay in the WP file, module docstring or milestone
+record the clause names.
+
 ## Commands
 
 ```sh
@@ -27,9 +31,9 @@ npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fn
 ```
 
 `-n` deliberately not in `addopts`: a bare `pytest tests/x.py::y` stays serial, so `-s`/pdb
-keep working. `--dist loadgroup` is not optional — it honours the `xdist_group` marks keeping
-a shared fixture on one worker, and ignoring them is silent, so `tests/conftest.py` refuses a
-run without it.
+keep working. `--dist loadgroup` is not optional — it honours the `xdist_group` marks keeping a
+shared fixture on one worker, and ignoring them is silent, so `tests/conftest.py` refuses a run
+without it.
 
 Testing headlines (operating detail — xdist group ordering, budget narrowing, quoting counts —
 `tests/CLAUDE.md`; dated measurement diary `docs/milestones/v1.0.md` § Appendix):
@@ -41,8 +45,7 @@ Testing headlines (operating detail — xdist group ordering, budget narrowing, 
 - **Say which numbers moved**: +N tests → passed+skipped +N exactly in the fast selection; a
   new skip ≠ a new pass.
 - **Full suite fires once, on the final tree**, only when the change could move a measured
-  number — never mid-edit, never on `main` for a baseline (ladder, and what one session's
-  ~80 min bought: `tests/CLAUDE.md` § Running).
+  number — never mid-edit, never on `main` for a baseline (`tests/CLAUDE.md` § Running).
 
 ### Numbers
 
@@ -53,8 +56,8 @@ latest nightly `full` job log (`gh run list --workflow nightly.yml`; `[dev,jax]`
 (`tests/CLAUDE.md` § Quoting numbers); a session's own go in its WP handover.
 
 `rietx compare` answers "does this new correction actually help?": pick a standard, tick
-variants, read the **cumulative Δχ² vs reference** panel — it localises *where* a change
-acted, not just whether Rwp moved. Registry+runner `viz/compare.py` (headless
+variants, read the **cumulative Δχ² vs reference** panel — it localises *where* a change acted,
+not just whether Rwp moved. Registry+runner `viz/compare.py` (headless
 `compare.run(standard, variant)`); server/page `compare_app.py`. Its standards are the
 acceptance suites' protocols, asserted field by field by `tests/test_compare_ui.py` — **add a
 row there whenever a new correction lands.**
@@ -86,50 +89,47 @@ Structure/Instrument/PatternData (schemas/, pydantic, JSON round-trip)
 ```
 
 **Telemetry/cancel.** `fit`/`run_stage`/`refine` take `events=` and `cancel=` (an
-`optimize.cancel.CancelToken` another thread sets). Cancellation is **cooperative, read
-between residual evaluations**, never an interrupt, so frozen-per-stage discreteness holds;
-the in-flight stage is *abandoned* — no node, no commit, models restored to pre-stage values
-(a seeding stage writes before solving). `RefinementCancelled` carries `.completed_stages` and
+`optimize.cancel.CancelToken` another thread sets). Cancellation is **cooperative, read between
+residual evaluations**, never an interrupt, so frozen-per-stage discreteness holds; the
+in-flight stage is *abandoned* — no node, no commit, models restored to pre-stage values (a
+seeding stage writes before solving). `RefinementCancelled` carries `.completed_stages` and
 `.node_id`, the last completed node the working state stands at. Event `data` is an **open
-dict**: new field in a kind ≠ `EVENT_SCHEMA_VERSION` bump, new kind = bump (rule + both halves
-of its test: `history/events.py`).
+dict**: a new field in a kind is no `EVENT_SCHEMA_VERSION` bump, a new kind is
+(`history/events.py`).
 
 **Series** = N refinements chained by warm start (in-situ ramp, parametric sweep, tray of
 related specimens). `sequential.py` (`SequentialRefinement`/`refine_sequential`) →
 `SeriesResult`: per-pattern summaries + parameter *trajectories*, one history tree per pattern
 (pinned by `TreeHeader.data_fingerprint`), linked by annotation notes. Not `multi.py`, which
-stacks patterns into **one joint residual**. Chaining buys ≈3× in iterations, nothing in
+stacks patterns into **one joint residual**. Chaining buys ≈3× in iterations and nothing in
 accuracy, and its trajectory is path-dependent by construction → `direction="both"` runs the
 chain each way and flags parameters the two disagree on (`SEQUENTIAL_PATH_DEPENDENT`), the only
 check separating a measured trajectory from an ordering artefact. A rejected warm fit
 **escalates a rung at a time**, keeping the best attempt (`entry.rung`); still diverged after
-the last rung → **quarantined** (WP-1051, `SEQUENTIAL_UNRECOVERED`): seeds no successor, joins
-no median. **The first rung is a bet, budgeted from what a winning bet costs on this chain**
-(WP-1127): `first_rung_factor` × the dearest *converged* first rung; nothing until several
-have; never another fit's cost — the cold fit is the tempting second bound and is false
-(`_collapse` of a one-stage plan **is** that plan). Spending it escalates; `_prefer` ranks a
-truncated attempt below any completed one (`_reseed_needed` tests neither `max_iter` nor the
-budget; `_better` keeps the earlier at equal Rwp), so a bound only shortens work already being
-discarded and every accepted value stays bit-identical. Set it for **margin**: win/lose rung
-gap ~6×, and a factor tight enough to matter fired on a clean chain in CI only.
-`events=`/`cancel=` are **per pattern** (WP-1016): `data` carries
-`series_index`/`…_label`/`…_n`/`…_pass` (+`…_rung`/`…_cold` on a *restart*) → no new
-`EventKind`; a cancelled series **returns** what completed with `SEQUENTIAL_CANCELLED`
-(WP-1006's rule one rank up, not an exception; why: `sequential.py` docstring).
+the last rung → **quarantined** (`SEQUENTIAL_UNRECOVERED`): seeds no successor, joins no median
+(WP-1051). **The first rung is a bet, budgeted from what a winning bet costs on this chain**
+(WP-1127): `first_rung_factor` × the dearest *converged* first rung, nothing until several have,
+never another fit's cost. `_prefer` ranks a truncated attempt below any completed one, so a bound
+only shortens work already being discarded and accepted values stay bit-identical. Set it for
+**margin**: win/lose rung gap ~6×. `events=`/`cancel=` are **per pattern** (WP-1016): `data`
+carries `series_index`/`…_label`/`…_n`/`…_pass` (+`…_rung`/`…_cold` on a *restart*), so no
+`EventKind` is new; a cancelled series **returns** what completed with `SEQUENTIAL_CANCELLED`
+(WP-1006's rule one rank up; `sequential.py` docstring).
 
-**Parameter surface** (WP-1004) — the table without running a fit. `Refinement.parameters() →
-list[ParameterRow]` lists *every* entry (fixed, locked, tied included), esds from the last fit
+**Parameter surface** (WP-1004) — the table without running a fit.
+`Refinement.parameters() → list[ParameterRow]` lists *every* entry (fixed, locked, tied), esds
+from the last fit
 merged in, each held row naming which of the three reasons holds it (`.refinable`,
 `.held_because`). `set_vary(globs, vary)` / `set_values({path: value})` edit and auto-commit
 `set_vary`/`set_value` nodes. Three load-bearing rules: `ParameterRow` mirrors
-`params.vector.Entry` field for field (pinned by `dataclasses.fields`; `esd`/`mode_fixed` are
-the declared deliberate extras); a **tied** path refuses an edit and names its sources;
-`mode_fixed` (lebail/pawley force-fix every `.atoms.` path, `.scale`, `.source.lines.`) is
-*not* `locked` — that keeps a Le Bail phase's mandatory dummy atom from looking editable.
+`params.vector.Entry` field for field (pinned by `dataclasses.fields`; `esd`/`mode_fixed` the
+declared extras); a **tied** path refuses an edit and names its sources; `mode_fixed`
+(lebail/pawley force-fix every `.atoms.` path, `.scale`, `.source.lines.`) is *not* `locked` —
+that keeps a Le Bail phase's mandatory dummy atom from looking editable.
 
 **User constraints** (WP-1070) sit beside the derived ties: `tie`/`tie_equal`/`untie`,
 auto-committing `set_tie` nodes. `Refinement._ties` is the one authority for *which* ties are
-the user's (every `ParameterTable` build rederives the symmetry ties, knowing nothing of a
+the user's (every `ParameterTable` build rederives the symmetry ties and knows nothing of a
 user's); `RefinementState.ties` is why a checkout restores the parameter *count*. Symmetry
 outranks a user tie, enforced in `_apply_ties` and not only in the verbs' refusals — a model
 edit can make an already-tied path symmetry-tied after the fact.
@@ -140,9 +140,9 @@ title/description/modes/when-to-use per preset, in bijection with `PLAN_PRESETS`
 **A mirror is crossed at the two authorities that own it, never at a call site** (WP-1110):
 `PlanSpec`/`StageSpec` validate the `RefinementPlan`/`Stage` dataclass inbound, `resolve_plan`
 converts the spec outbound, so no surface is picky about which it gets. Dispatch by
-`isinstance`, never by shape — they share *every* field name, which let a `PlanSpec` run
-through `fit(plan=…)` to a bit-identical answer under an annotation that does not admit it, and
-a structural test would have certified that accident.
+`isinstance`, never by shape — they share *every* field name, which let a `PlanSpec` run through
+`fit(plan=…)` to a bit-identical answer under an annotation that does not admit it, and a
+structural test would have certified that accident.
 
 **`capabilities()`** (WP-1007, `capabilities.py`) — the one call saying what a build can do:
 backends *with whether each optional dependency imports here*, solvers, plans from `PLAN_INFO`,
@@ -152,11 +152,10 @@ the arm and not prose — a client reads the field list, and a meta-test fails o
 field that is not the constant it claims to quote. **Every arm is quoted from a live registry;
 a meta-test fails on a member missing from its arm.** `features` flags are *derived predicates*
 (a schema field's presence, a top-level export's existence), never literal `True`, so a flag
-flips by itself when its feature lands. **A derived flag still rots, silently**: the `hasattr`
-name and the real export drift together while the test asserts the flag's own expression —
-`features["indexing"]` spent its whole life `False` this way (`index` vs `index_pattern`, fixed
-WP-1037). So each surface flag's export name is *data* (`_SURFACE_FLAGS`), flags derive from
-that table, and a meta-test checks every name in it against `__all__`.
+flips by itself when its feature lands. **A derived flag still rots, silently** — the `hasattr`
+name and the real export drift apart while the test asserts the flag's own expression, which kept
+`features["indexing"]` `False` for its whole life (WP-1037) — so each surface flag's export name
+is *data* (`_SURFACE_FLAGS`), and a meta-test checks every name in it against `__all__`.
 
 **Guards.** Hits are `GuardFinding(code, paths, value, message)`; `GuardReport`'s six fields
 hold those; `str(finding)` is the pre-v1.0 text byte for byte (pinned by test — the diagnostics'
@@ -166,24 +165,22 @@ deliberately an open vocabulary, not a `Literal`.
 
 **Project** (WP-1005) = a `.rex/` **directory**: `project.json`, the pattern file copied
 byte-for-byte, `history.jsonl`, `live/`, `exports/`, via `Project.create/open/save`
-(`project.py`, `schemas/project.py`). Directory, not archive: crash safety is append-only
-writes by one writer, and rewrite-on-save would lose it. **One authority per fact** —
-`project.json` holds *settings* (selected plan/mode/limits, excluded regions, the GUI's own `ui`
-keys); `history.jsonl` holds model state and its head *is* the working state, so no parameter
-value is duplicated and **saving is about settings, not durability** (the tree exists from
-`create`, so every `set_vary`/`set_value` is already on disk). The pattern is a file, not a
+(`project.py`, `schemas/project.py`). Directory, not archive: crash safety is append-only writes
+by one writer. **One authority per fact** — `project.json` holds *settings* (selected
+plan/mode/limits, excluded regions, the GUI's own `ui` keys); `history.jsonl` holds model state
+and its head *is* the working state, so no parameter value is duplicated and **saving is about
+settings, not durability** (the tree exists from `create`). The pattern is a file, not a
 `PatternData`, so: the bytes are the contract (readers' esd column never overridden), and the
 **reader call** is part of the reference — `DataRef` records which `io.readers.PATTERN_FORMATS`
-entry claimed the file plus its options, because a pdCIF with a `_meas` and a `_calc` block is a
-different pattern per `block`. It carries sha256 of the bytes *and* the parsed-array fingerprint
-on purpose: agreeing bytes + disagreeing fingerprint = a reader change, not a corrupt project.
-`excluded_regions` live in the document because they are protocol in neither the file nor
-`RefinementState` (a node cannot say what was excluded when it ran). Two rules (WP-1033):
-`project.fitted_mask` is the one authority for **which channels the next run fits**
-(`compile_model`'s first act, pinned by asserting `len(result.two_theta)` against its sum; a
-function, so a pattern the project does not own — a series member — asks the same question); and
-an inverted or empty interval is **refused, not reordered** by `schemas.project.check_interval`,
-one sentence the verb, the `.rxt` parser and the document's validators all quote.
+entry claimed the file plus its options, a pdCIF with a `_meas` and a `_calc` block being a
+different pattern per `block`. It carries sha256 of the bytes *and* the parsed-array fingerprint:
+agreeing bytes + disagreeing fingerprint = a reader change, not a corrupt project.
+`excluded_regions` live in the document, being protocol in neither the file nor
+`RefinementState`. Two rules (WP-1033): `project.fitted_mask` is the one authority for **which
+channels the next run fits** (`compile_model`'s first act; a function, so a pattern the project
+does not own — a series member — asks the same question); and an inverted or empty interval is
+**refused, not reordered** by `schemas.project.check_interval`, one sentence the verb, the
+`.rxt` parser and the document's validators all quote.
 
 **Entry points**: `Refinement.fit()` / `refine()` in `refine.py`. Modes: `"rietveld"`;
 `"lebail"` (intensity partitioning in `CompiledModel.lebail_update`); `"pawley"` (per-hkl
@@ -193,19 +190,17 @@ intensities as an off-table θ block — `model.forward.PawleyBlock`, appended i
 
 **There is one integration surface and it is the python API** (WP-1303, which deleted WP-0602's
 JSON-in-JSON-out second one after measuring zero use): call `Refinement.fit`, dump with
-`model_dump(mode="json")`, and a failure *raises*. The rule to carry, not the history: **a
-dedicated tool surface earns its place only where it gates, renders, audits or parallelises** —
-none of which a shell-equipped agent needs here — and one a process boundary does want takes
-**paths**, never inline payloads. Two shape rules outlived it. (1) The four answers are
-different *types* — `RefinementResult`/`SeriesResult`/`IndexingResult`/`SuggestionResult` — and
-an indexing answer carries no `cell` key. (2) **A companion rides beside an answer, never inside
-it**: `IndexingResult.evidence()` (WP-1043, the answer projected for a reasoning consumer) and
-the stage trajectory (WP-1058) — **the report at every stage boundary, because a run's last
-state is routinely its least informative** (a plan absorbs an error it cannot free into whatever
-it can and converges suggesting nothing, while its first stage named the cause). Default-off
-since WP-1003 (1064 measured: unasked rungs bought no better decisions at more calls):
-`fit(stage_reports=True)` → `stage_reports_`, called in loops. Rungs are states the plan already
-visits (bit-identical answer); a report is derived from a result.
+`model_dump(mode="json")`, and a failure *raises*. The rule to carry: **a dedicated tool surface
+earns its place only where it gates, renders, audits or parallelises** — none of which a
+shell-equipped agent needs here — and one a process boundary does want takes **paths**, never
+inline payloads. Two shape rules outlived it. (1) The four answers are different *types* —
+`RefinementResult`/`SeriesResult`/`IndexingResult`/`SuggestionResult` — and an indexing answer
+carries no `cell` key. (2) **A companion rides beside an answer, never inside it**:
+`IndexingResult.evidence()` (WP-1043) and the stage trajectory (WP-1058) — **the report at every
+stage boundary, because a run's last state is routinely its least informative** (a plan absorbs
+an error it cannot free and converges suggesting nothing, while its first stage named the cause).
+Default-off since WP-1003/1064: `fit(stage_reports=True)` → `stage_reports_`, called in loops;
+rungs are states the plan already visits, so the answer is bit-identical.
 
 ### GUI
 
@@ -215,157 +210,145 @@ viewer, theming): `gui/CLAUDE.md`, loaded under `gui/`. Four rules matter outsid
 mutating verbs return **409 while a run is in flight** (frozen-per-stage discreteness enforced
 structurally); the **run state is not an event** — `EventKind` is closed, `live/events.jsonl`
 stays the one stream `watch` tails; **a project setting is one that is about the project**, so
-the theme is the person's, lives in `/api/settings` beside the recent list, and is not behind the
-409 (WP-1044); **there is no read-only way to open a project** — every verb writes into the
-directory as it runs and `Project.open` appends a head annotation before any verb is called, so
-looking without changing means a copy: `rietx gui --scratch` (byte-for-byte, temp dir),
-`--state-dir` for the recent list, `*.rex/` in `.gitignore` (1204). Since WP-1017 the GUI is
-**documented** (`using/gui-quickstart|guide|power.md`) and no longer beta; its **routes stay
-provisional by declaration**, and routes + panel names are partitioned against those chapters by
-test.
+the theme is the person's, lives in `/api/settings` beside the recent list, and is not behind
+the 409 (WP-1044); **there is no read-only way to open a project** — every verb writes into the
+directory and `Project.open` appends a head annotation before any verb runs, so looking without
+changing means a copy: `rietx gui --scratch` (byte-for-byte, temp dir), `--state-dir` for the
+recent list, `*.rex/` in `.gitignore` (1204). Since WP-1017 the GUI is **documented**
+(`using/gui-quickstart|guide|power.md`) and no longer beta; its **routes stay provisional by
+declaration**, and routes + panel names are partitioned against those chapters by test.
 
-**An example project *is* a `compare.py` standard** (WP-1204, `src/rietx/examples.py`) — no
-protocol restated, since `test_compare_ui.py` already pins those to the acceptance suites; and
-`list_examples()`'s membership is `STANDARDS` filtered by what is in `src/rietx/data/examples/`,
-so a file added to the wheel adds an example.
+**An example project *is* a `compare.py` standard** (WP-1204, `src/rietx/examples.py`), so no
+protocol is restated — `test_compare_ui.py` already pins those to the acceptance suites.
+`list_examples()`'s membership is `STANDARDS` filtered by what is in
+`src/rietx/data/examples/`, so a file added to the wheel adds an example.
 
 ## Invariants (do not break)
 - **Frozen-per-stage discreteness**: hkl list, symmetry-op subsets, FCJ quadrature node counts,
   window index ranges are computed at stage compile and NEVER change during a least-squares run;
   regenerate only between stages. Keeps the residual smooth for FD/autodiff Jacobians. (FCJ node
   *positions* follow the parameters smoothly, quadrature split at the overlap-trapezoid kink —
-  profiles/fcj.py.)
+  `profiles/fcj.py`.)
 - **fp64 everywhere** in the core; a GPU backend may compute Jacobian *columns* in fp32, but the
   residual used for cost/statistics and the solve stay fp64 on host — `backend/linalg64.py` is
-  that boundary. Holds on real hardware: an Apple-MPS refinement with every column in fp32 lands
-  3.5e-8 Å from the numpy fp64 cell, because the trust region re-measures each step against an
-  fp64 cost.
+  that boundary. Holds on real hardware: an all-fp32-column Apple-MPS refinement lands 3.5e-8 Å
+  from the numpy fp64 cell, because the trust region re-measures each step against an fp64 cost.
 - **No pydantic in the hot loop**: `ParameterTable.decode()` returns a plain dict; the forward
   model consumes floats/arrays only.
 - **An analytic Jacobian branch claims what one parameter *name* reaches.** `_make_jacobian`
-  dispatches on the free path's name; each branch computes only the rows it was written for (one
-  background design row, one atom's coordinate rows, the phases its own prefix names). A tie
-  moves rows outside that reach and the column comes back **short**, not raising. So
+  dispatches on the free path's name and each branch computes only the rows it was written for,
+  so a tie that moves rows outside that reach returns the column **short** rather than raising.
   `_column_extras` reads off C what each column also moves, every branch declares its reach, and
-  anything beyond takes the whole-model FD column — exact, since it decodes through C like the
-  residual. A new branch, or a new way to widen C, extends that gate;
-  `test_cross_backend.py`'s `families_tied` row is where other backends check it. WP-1070
-  measured an un-gated background column wrong by 49 % of its own scale.
-- **A branch's oracle must be exact where the branch is; the whole-model FD is not.** It decodes
-  through C like the residual → right *fallback*, wrong *reference* for an analytic column on a
-  transformed parameter: it perturbs θ, carries the transform's O(h) curvature, and certifies the
-  FD column it is a copy of. Measured (WP-1121): a phase scale's FD column was 4.6e-6 from the
-  truth and agreed with the whole-model FD to 2e-11 — the wrong column, certified. Check where
-  the check is exact instead. Where the model is *linear* in the parameter (phase scale, Pawley
-  intensity) a difference quotient in **physical** space has no truncation error at any step, so
-  the bar is agreement at a **100 % step** (3.6e-16 there), and error growing as the step shrinks
-  is cancellation, not a defect. Such a column's equivalence bar is exactness, not bit-identity,
+  anything beyond takes the whole-model FD column (exact: it decodes through C like the
+  residual). A new branch, or a new way to widen C, extends that gate;
+  `test_cross_backend.py`'s `families_tied` row is where other backends check it. Un-gated, a
+  background column measured wrong by 49 % of its own scale (WP-1070).
+- **A branch's oracle must be exact where the branch is; the whole-model FD is not.** It
+  perturbs θ, so on a transformed parameter it carries the transform's O(h) curvature and
+  certifies the FD column it is a copy of — a phase scale's FD column sat 4.6e-6 from the truth
+  while agreeing with the whole-model FD to 2e-11 (WP-1121). Check where the check is exact
+  instead: where the model is *linear* in the parameter (phase scale, Pawley intensity) a
+  difference quotient in **physical** space has no truncation error at any step, so the bar is
+  agreement at a **100 % step** (3.6e-16 there) and error growing as the step shrinks is
+  cancellation, not a defect. Such a column's equivalence bar is exactness, not bit-identity,
   and it moves every converged fit that frees the parameter.
 - **"Can this parameter move?" is `moving_paths`, never `free_paths`** — the rule above one rank
   up, governing every *structural* freeze. A tied entry is not a column of θ yet changes while θ
   does, so `ParameterTable.moving_paths` (free ∪ its ties, read off C's nonzero rows) licenses
-  any freeze resting on "this cannot change during the stage": `compile_model` takes that set;
-  `None` = *no claim made*, gating nothing, since an empty set claims nothing moves. Two freezes
-  rest on it — FCJ node sizing, and skipping a correction sitting at its off state
+  any freeze resting on "this cannot change during the stage": `compile_model` takes that set,
+  and `None` means *no claim made* and gates nothing, since an empty set claims nothing moves.
+  Two freezes rest on it — FCJ node sizing, and skipping a correction sitting at its off state
   (`CompiledPhase.skip_extinction`). Third rule keeping them honest: **a claim about what a name
   reaches is verified where it is used** — `_peak_chain_column` checks the scalars it
-  finite-differences anyway against the bases it was told to skip and raises naming the path, so a
-  wrong claim costs work, never a short column (WP-1109).
+  finite-differences anyway against the bases it was told to skip and raises naming the path, so
+  a wrong claim costs work, never a short column (WP-1109).
 - **A staged plan does not converge its intermediate stages; the one that does is the last**
   (WP-1123, flipping what 1113 measured). `RefinementPlan.intermediate_ftol` (1e-6 vs the
   solver's 1e-9) is the schedule; `stage_ftols()` the one authority applying it, since the plan
   alone knows which stage is last — no runner reads `Stage.ftol` itself. **Cumulative staging
   bounds the cost**: an intermediate stage's parameters keep refining in every later stage, so
   1.2-1.6× fewer evaluations costs ≤ 0.03 esd on every non-degenerate parameter — a bound for
-  **one fit**, not for a *chain*, where each pattern seeds the next and the effect is unbounded
-  and not even fixed in sign (measured both ways: 1.12× better, 1.04× worse, one commit apart).
-  A series is measured, never assumed. `intermediate_ftol=None` is the bit-identical way back and
-  what a golden declares; the record says what a stage **ran** at, never what it declared
-  (`StageResult.ftol`, `NodeAction.ftol`), or a cherry-pick replays what never happened.
-- **An unconstrained linear block is already solved jointly, so profiling it out cannot buy an
-  evaluation** (WP-1125, `docs/solver-survey.md` §2.A1). The background is an ordinary column of
-  θ, making the variable-projection step *identically* the joint Gauss-Newton step — the Schur
-  complement, exact wherever the block sits, since (I − P)·M = 0. VarPro's textbook advantage is
-  over **alternation**, which this package has never done: measured 1.00× on 34 of 34
-  pure-Gauss-Newton stages, 0.79× overall. What survives: *correctness* (esds marginalised over
+  **one fit**, not for a *chain*, where the effect is unbounded and not even fixed in sign
+  (measured both ways, 1.12× better and 1.04× worse). A series is measured, never assumed.
+  `intermediate_ftol=None` is the bit-identical way back and what a golden declares; the record
+  says what a stage **ran** at, never what it declared (`StageResult.ftol`, `NodeAction.ftol`),
+  or a cherry-pick replays what never happened.
+- **An unconstrained linear block is already solved jointly; profiling it out cannot buy an
+  evaluation** — VarPro's win is over alternation, never done here (measured 1.00× on 34 of 34
+  pure-Gauss-Newton stages, 0.79× overall). What survives: *correctness* (esds marginalised over
   the block, not conditional on it) and Pawley **dimension**, a per-step cost not a count. A
   **bounded** block (scales, Pawley intensities) leaves the identity the moment a bound goes
-  active.
+  active. WP-1125, `docs/solver-survey.md` §2.A1.
 - **A phase the data cannot see is a flat direction, held for the stage rather than bounded**
-  (WP-1301, past what WP-1110 could reach). It reaches the pattern only through
-  `scale × |F|² × profile`, so at a floored scale nothing of it moves Rwp while its cell leaves
-  the physical range; a bound narrows that walk, is never free, and is suppressed by a caller's
-  own (`params.vector.cell_window`). `_run_stage` therefore holds every free structural path of
-  such a phase — never its `scale`, the one direction that is not flat — and `StageResult.held`
-  records it. **Support is a fact about the values and a stage moves them** → re-measured at the
-  answer: a phase that appeared is *released*; one that **collapsed** while solving is put back
-  where the stage found it and held. One extra solve, never a third; the restore is as licensed
-  as the hold, since under 1σ a phase contributes under 1σ wherever its peaks sit. **A value that
-  is not a measurement is the caller's**: held paths leave `RefinementResult.parameters`, a
-  trajectory starts at the onset. Which phases: `CompiledModel.phase_support`, its zero limit
-  `phase_line_counts` the other statement ("no line in range"); both feed the
-  `PHASE_UNCONSTRAINED` that now says what was done, and `SEQUENTIAL_PERSISTENT_FINDING` still
-  says what no per-pattern one can: "42 of 68".
+  (WP-1301). It reaches the pattern only through `scale × |F|² × profile`, so at a floored scale
+  nothing of it moves Rwp while its cell leaves the physical range; a bound narrows that walk, is
+  never free, and is suppressed by a caller's own (`params.vector.cell_window`). `_run_stage`
+  holds every free structural path of such a phase — never its `scale`, the one direction that is
+  not flat — and `StageResult.held` records it. **Support is a fact about the values and a stage
+  moves them** → re-measured at the answer: a phase that appeared is *released*; one that
+  **collapsed** while solving is restored to where the stage found it and held (one extra solve,
+  never a third). **A value that is not a measurement is the caller's**: held paths leave
+  `RefinementResult.parameters`, a trajectory starts at the onset. Which phases:
+  `CompiledModel.phase_support`, its zero limit `phase_line_counts` ("no line in range"). Both
+  feed `PHASE_UNCONSTRAINED`, which now says what was done; `SEQUENTIAL_PERSISTENT_FINDING` says
+  what no per-pattern finding can: "42 of 68".
 - **Pydantic knows no crystallography, so a whole-model swap is checked by building its table.**
   Every symmetry refusal is raised in `ParameterTable.__init__`, and the snapshot
   `Refinement.edit` commits performs none of it, so `edit` builds the **proposed** pair's table
-  and refuses rather than recording (before WP-1035 such a model was accepted, recorded a node,
-  then raised from whatever next asked for the table).
+  and refuses rather than recording (WP-1035).
 - **Weights**: the file's esd column when present (readers), Poisson √max(y,1) only as fallback.
   Never subtract an estimated background — hold it additively
   (`BackgroundFixedPlusChebyshev`) or co-refine it under a smoothness penalty
   (`BackgroundPSpline`).
 - **The observation count is reflections, not points — and it gates nothing** (WP-1071).
   `n_points` is the algorithm's N; McCusker §9's warning is that refining against it outruns the
-  data in silence (measured: 22 003 points against 132 reflections on 11-BM NAC).
-  `optimize.statistics` is the one authority: `count_unique_reflections`,
-  `effective_observations` (Altomare 1995, overlap-corrected, a float). Its two bands, like
-  `background.diagnostics`' five-to-ten steps per FWHM, are **quoted from the papers, never
-  tuned**: they set a diagnostic's *level*, nothing else.
+  data in silence (22 003 points against 132 reflections on 11-BM NAC). `optimize.statistics` is
+  the one authority: `count_unique_reflections`, `effective_observations` (Altomare 1995,
+  overlap-corrected, a float). Its two bands, like `background.diagnostics`' five-to-ten steps
+  per FWHM, are **quoted from the papers, never tuned**: they set a diagnostic's *level*, nothing
+  else.
 - **A derived quantity's esd goes through the whole covariance; one that cannot be measured is
   absent rather than zero** (WP-1072, McCusker §10). `model/geometry.py` propagates J·Cov·Jᵀ off
   the final Jacobian and carries the diagonal-only number beside it (`qpa.weight_fractions`'
-  precedent) — on 11-BM NAC, dropping the correlations moves an esd ×0.71 to ×1.15, in *both*
-  directions, so a diagonal esd is not the conservative choice. `None` covers all four ways a
-  number is unavailable: no covariance; no free source; a quadratic form reaching zero by
-  cancelling (a symmetry-fixed 90° angle); a straight angle, where linear propagation does not
-  hold at all. Two rules for anything built on it: a geometry row **is** a restraint row
-  (σ = weight = 1), so `model/restraints.py` stays the one derivative chain; and a neighbour
-  search is proved complete by **orbit counting** (|A_ij|·m_i = |A_ji|·m_j), never by the
-  distances looking right — a wrong deduplication passed every distance-value test in the file.
+  precedent) — dropping the correlations moves an esd ×0.71 to ×1.15, in *both* directions, so a
+  diagonal esd is not the conservative choice. `None` covers all four ways a number is
+  unavailable: no covariance; no free source; a quadratic form reaching zero by cancelling (a
+  symmetry-fixed 90° angle); a straight angle, where linear propagation does not hold at all.
+  Two rules for anything built on it: a geometry row **is** a restraint row (σ = weight = 1), so
+  `model/restraints.py` stays the one derivative chain; and a neighbour search is proved complete
+  by **orbit counting** (|A_ij|·m_i = |A_ji|·m_j), never by the distances looking right.
 - **The normal matrix is equilibrated before inversion, and a direction the data does not move
-  has no esd rather than a small one** (numbers: WP-1110 item 14; mechanism:
+  has no esd rather than a small one** (WP-1110 item 14;
   `optimize.statistics.normal_covariance`'s docstring). `pinv` cuts every eigenvalue under
   `rcond × |λ|max`, so the *largest* column sets the cutoff for all of them and a flat direction
   returns at **zero** variance — the confident wrong singleton wearing an esd. Jacobi-scale first
-  (van der Sluis 1969). The test needs no dataset: an esd must not depend on another parameter's
-  units. A gradient-free column is then infinite variance, true and unpropagatable, so
-  `_cov_free` drops it and `ParameterTable.unmeasured_rows` names what it reached — and
+  (van der Sluis 1969); the test needs no dataset, since an esd must not depend on another
+  parameter's units. A gradient-free column is then infinite variance, true and unpropagatable,
+  so `_cov_free` drops it and `ParameterTable.unmeasured_rows` names what it reached — and
   **consumers mark, never clamp**: a tie inherits its source's blindness, a geometry row only if
   its own partials touch one, QPA the *whole* block since W normalises by a sum.
 - **A declared name is a claim, and an absent writer fails no test** (WP-1076, the rule above one
   rank up). Two shapes: a field whose empty state reads as an *answer*
-  (`RefinedParameter.at_bound` was `bool = False`, so every row of every result said "not at a
-  bound" about a parameter nothing had checked); a `Literal` member no code produces
-  (`StageResult.status`'s `"skipped"`; `NodeKind`'s `"lebail_update"`, whose `api_call` rendered
-  a method that does not exist). Nothing raises, nothing goes red → a new field's **default** and
-  a new vocabulary member each need their writer named at review. Where the fact already has a
-  computing authority the second surface is a *projection* of it: `staged.bound_findings` is one
-  bound test feeding both the `BOUND_HIT` diagnostics and `at_bound`, and a test pins them
-  **set-equal** rather than re-deriving (what a second opinion would pass). Where it has none the
-  honest empty state is `None`, which cannot regress into a lie the way a defaulted `False` can.
-  All nine of 1076's were found by writing a manual chapter over the type, never by reading code.
+  (`RefinedParameter.at_bound` was `bool = False`, so every result said "not at a bound" about
+  parameters nothing had checked); a `Literal` member no code produces (`StageResult.status`'s
+  `"skipped"`; `NodeKind`'s `"lebail_update"`, whose `api_call` rendered a method that does not
+  exist). Nothing raises and nothing goes red → a new field's **default** and a new vocabulary
+  member each need their writer named at review. Where the fact already has a computing authority
+  the second surface is a *projection* of it: `staged.bound_findings` is one bound test feeding
+  both the `BOUND_HIT` diagnostics and `at_bound`, pinned **set-equal** rather than re-derived.
+  Where it has none the honest empty state is `None`, which cannot regress into a lie the way a
+  defaulted `False` can. All nine of 1076's surfaced while writing a manual chapter over the type,
+  never by reading the code.
 - **A position correction belongs to a geometry, and so does the action that names it** (WP-1073,
   McCusker §5 eq 3/4). `sin 2θ` is flat-plate transparency on a plate and the along-beam
   capillary offset on a capillary → `report/layer1.POSITION_TEMPLATES` and
   `layer2._POSITION_ACTIONS_BY_GEOMETRY` are keyed by `Geometry.kind` and meta-tested against
   each other *and a real* `ParameterTable`; geometry-blind, the map suggested a force-fixed
-  parameter and the route answered 409. Three rules for a new aberration, all measured in 1073's
-  file: a parameter the forward branch skips is **force-fixed, not merely unfree** (else a free
-  entry is a dead column); "this instrument has no such error" ≠ "refine it and get zero" (on
-  11-BM the pair is a degeneracy the fit rides to a bound while Rwp *improves* and the cell moves
-  1117 ppm); its evidence is a **rung**, never the endpoint, which zero shift + cell leave with no
-  cause named.
+  parameter and the route answered 409. Three rules for a new aberration: a parameter the forward
+  branch skips is **force-fixed, not merely unfree** (else a free entry is a dead column); "this
+  instrument has no such error" ≠ "refine it and get zero" (on 11-BM that pair is a degeneracy the
+  fit rides to a bound while Rwp *improves* and the cell moves 1117 ppm); its evidence is a
+  **rung**, never the endpoint.
 - **A stage weights the restraints, and the scalar stops at the row build** (WP-1074, McCusker §8
   eq 7). `Stage.restraint_weight_scale` = c_w in S = S_y + c_w·S_G, frozen onto `CompiledModel`
   at stage compile, so a schedule changes it *between* stages, never inside one. √c_w multiplies
@@ -373,30 +356,29 @@ so a file added to the wheel adds an example.
   `rows.assemble`, and the analytic block in `least_squares`) and never the compiled items or
   `restraint_partials`, whose *second* consumer is `model/geometry.py` calling it at
   σ = weight = 1 for the unweighted partials every reported esd is built from. Default 1.0 is the
-  identity (measured bit-identical on a restrained five-stage fit); 0.0 silences the rows without
-  removing them, so the count the statistics exclusion rests on cannot move mid-plan. Two tests
-  cover this and neither covers the other: the geometry Monte Carlo catches an unconditional
-  error in `pref`; only a restraints-plus-c_w fixture catches a leak conditioned on the model.
+  identity (bit-identical on a restrained five-stage fit); 0.0 silences the rows without removing
+  them, so the count the statistics exclusion rests on cannot move mid-plan. Two tests cover this
+  and neither covers the other: the geometry Monte Carlo catches an unconditional error in `pref`;
+  only a restraints-plus-c_w fixture catches a leak conditioned on the model.
 - **A pattern reader may repair a file only where it can say that it did** (WP-1047).
   `read_pattern(..., diagnostics=[])` is `structure_from_cif`'s channel one layer down; four
   consequences reach a caller outside `io/`. (1) A multi-range file's ranges are **scans selected
   by `scan=`, never concatenated** (GSAS-II concatenates, mixing two weighting regimes). (2) A
   reader raises `ValueError`/`OSError` **naming the file**, never its parser's exception. (3)
   **Intensities and σ need not be the file's numbers** — an attenuator is applied or not by
-  *measured* vendor convention (four formats, three answers), σ goes through it either way, and an
-  unestablishable scale **withholds** σ (`PATTERN_INTENSITY_SCALED`; the fallback is wrong by √t
-  on a rate). (4) The scanned **axis** is never trusted — most vendor files are not powder scans,
-  so a non-2θ one is refused by name and an unknown one says so. Dispatch, repairs, options, how
-  to add a format: `src/rietx/io/CLAUDE.md`, under `io/`.
+  *measured* vendor convention (four formats, three answers), σ goes through it either way, and
+  an unestablishable scale **withholds** σ (`PATTERN_INTENSITY_SCALED`; the fallback is wrong by
+  √t on a rate). (4) The scanned **axis** is never trusted — most vendor files are not powder
+  scans, so a non-2θ one is refused by name and an unknown one says so. Dispatch, repairs,
+  options, how to add a format: `src/rietx/io/CLAUDE.md`.
 - **Every weighted residual in the package divides by `RefinementResult.sig()`** — every renderer
   and both GUI windows — a peer of `PatternData.sig()`, where the esd-column/Poisson choice was
   already made: `CompiledModel` stores `pattern.sig()`, `refine` copies it to `result.sigma`
-  verbatim, so a result's σ is a *lookup*, never a re-derivation (five call sites, three policies
-  before WP-1029, whose file has the story). **`weighted` is `DataRef.has_sigma`** (σ *measured*,
-  not σ *present* — what `textdoc` renders as "σ from file"); `delta` is always Δ/σ, because Δ/σ
-  is what the fit minimised either way, and the flag changes only the axis title. A test that
-  recomputes a residual cannot catch this class of bug: the pin compares what each renderer
-  **drew** against what the route **sent**.
+  verbatim, so a result's σ is a *lookup*, never a re-derivation (WP-1029). **`weighted` is
+  `DataRef.has_sigma`** (σ *measured*, not σ *present* — what `textdoc` renders as "σ from
+  file"); `delta` is always Δ/σ, because Δ/σ is what the fit minimised either way, and the flag
+  changes only the axis title. A test that recomputes a residual cannot catch this class of bug:
+  the pin compares what each renderer **drew** against what the route **sent**.
 - **Background flexibility is a correctness question, not a cosmetic one.** A background able to
   imitate the peaks biases ADPs up and scales (hence QPA fractions) down while Rwp *improves*.
   Measure it **once**, as the block projection R² of a structural Jacobian column onto the
@@ -404,7 +386,7 @@ so a file added to the wheel adds an example.
   carry the whole table to `FitReport.background` — whose other half, a too-stiff background,
   Layer 0's peak-cluster regions are blind to (WP-1055).
 - **Reciprocal-space symmetry action is Rᵀ** (transposed rotation) — matters for non-cubic
-  orbit/multiplicity counting (see symmetry.py comment). **This is about hkl; applying it to a
+  orbit/multiplicity counting (`symmetry.py` comment). **This is about hkl; applying it to a
   *tensor* is the opposite mistake**: a quantity contracting with h twice (G\*, or the U\* form of
   an ADP) is invariant under U → R·U·Rᵀ with R **untransposed**, since (Rᵀh)ᵀU(Rᵀh) = hᵀ(RURᵀ)h.
   So `wyckoff.adp_basis` takes untransposed rotations for a metric or an ADP basis. The trap: the
@@ -423,9 +405,8 @@ so a file added to the wheel adds an example.
   every broken case (2 for both R settings, 4 for all three monoclinic ones), so assert **which**
   angle is held and **which** length follows which, never how many — 79 of gemmi's 564 settings
   were served wrong under a correct count. A symmetry-fixed angle disagreeing with its symmetry is
-  **refused**, not normalised: the table has no diagnostics channel, so an edit there could not be
-  made visible, and it is held at its stored value — which is how a monoclinic β = 93.2° once
-  survived under an orthorhombic symbol.
+  **refused**, not normalised: the table has no diagnostics channel, so the correction could not be
+  made visible, and the value is held as stored.
 - **A silent correction is a reader's to make, never a table's — and only where the deviation is a
   *report* rather than a contradiction.** The rule above fixes *where*: `ParameterTable` has no
   diagnostics channel, `structure_from_cif` does, so a stranger's file is repaired at read with
@@ -433,9 +414,9 @@ so a file added to the wheel adds an example.
   `CIF_CELL_ANGLE_CORRECTED`) while both lookups and the table stay strict. *Whether* is decided
   by magnitude, because the reader cannot see intent: up to `cif.CIF_ANGLE_CORRECT_MAX_DEG` a
   fixed angle is an experimenter quoting a refined value (β = 90.002(3) under `P m m m`) and
-  snapping costs ≤ 830 ppm in d; past it the symbol and the angle contradict each other (β = 93.2:
-  an orthorhombic cell cannot have it), one of the two is wrong, and choosing is the caller's — so
-  the value is left byte-for-byte and still raises (WP-1028).
+  snapping costs ≤ 830 ppm in d; past it symbol and angle contradict each other (β = 93.2 under an
+  orthorhombic symbol), one of the two is wrong, and choosing is the caller's — so the value is
+  left byte-for-byte and still raises (WP-1028).
 - **A softplus `min=0.0` is safe wherever zero is the *off state*, and a bug wherever the physics
   divides.** `internal_bounds` maps any lower bound ≤ 1e-12 to −∞, and `log(1+e^u)` underflows to
   exactly 0.0 below u ≈ −745, so "strictly positive" is a promise the transform does not keep.
@@ -454,11 +435,10 @@ so a file added to the wheel adds an example.
   as *nested single fits* and reported non-separable. Confidence weights importance (share of χ²),
   not just statistical significance.
 - **A new correction ships with a record field or a diagnostic stating what it changed — never an
-  Rwp comparison as its evidence.** v0.5's measured method result: of eight corrections, two
-  provably cannot move Rwp, one moves it the wrong way when it is right, and the two largest
-  accuracy wins are invisible in it (`docs/milestones/v0.5.md`). **Nor an R_Bragg comparison**
-  (WP-1069): I(obs) is I(calc) times the reflection's own obs/calc count ratio, so it flatters
-  whatever model partitioned it.
+  Rwp comparison as its evidence.** Of v0.5's eight corrections, two provably cannot move Rwp, one
+  moves it the wrong way when it is right, and the two largest accuracy wins are invisible in it
+  (`docs/milestones/v0.5.md`). **Nor an R_Bragg comparison** (WP-1069): I(obs) is I(calc) times
+  the reflection's own obs/calc count ratio, so it flatters whatever model partitioned it.
 - **Licensing**: port code only from permissive sources, with ATTRIBUTION.md updates.
   BGMN/Profex/xrayutilities are GPL — concepts only, never code. TOPAS/FullProf are closed —
   papers only. **Data carries its own fence, per file**: a PyPI upload publishes harder than a
@@ -478,7 +458,7 @@ so a file added to the wheel adds an example.
   `unit`/`default` are the schema's own through `UNIT_DISPLAY`; `typical` and `label` (the short
   words a chip carries, WP-1209) are the only authored fields. A `ParameterRow` carries
   `help_key`, the family glob, never the entry: an entry describes a *family*, so inlining one
-  repeats a paragraph once per atom (3.4× the `/api/params` payload, measured).
+  repeats a paragraph once per atom (3.4× the `/api/params` payload).
   `docs/manual/using/glossary.md` is generated from it in `conf.py`, and every `anchor` is checked
   against the built HTML, not the sources.
 - Parameter paths are dot-separated, glob-matched with fnmatch in stage plans
@@ -508,44 +488,41 @@ so a file added to the wheel adds an example.
   (`_omega_batch`'s `spell`, `compiled.SPELL_*`) rather than sharing the build — lifting the wrong
   one moves every converged fit for nothing (WP-1120). The whole difference is one association,
   `-4ln2·(x/Γ)²` against `((-4ln2)·u)·u`; the Lorentzian is common to both, because multiplying by
-  a power of two is exact. So the numpy forward is batched while the per-reflection loop stays as
-  `_phase_component_scalar`: the traced backends' path *and* the oracle every batched claim is
-  measured against. The phase sum scatters **once per phase** — addition is commutative but not
-  associative, so one bincount across all phases regroups each shared point into a different
-  double; a guard for that builds the regrouped variant, never reverses the phase order, which
-  passes whatever the code does.
+  a power of two is exact. So the numpy forward is batched while the
+  per-reflection loop stays as `_phase_component_scalar`: the traced backends' path *and* the
+  oracle every batched claim is measured against. The phase sum scatters **once per phase** —
+  addition is not associative, so one bincount across all phases regroups each shared point into a
+  different double; a guard for that builds the regrouped variant, never reverses the phase order,
+  which passes whatever the code does.
 - **The numpy path has a compiled tier and it is what a default install runs** (WP-1115;
   `model/compiled.py` owns the tier, `model/_kernels_numba.py` the arithmetic). *Not* a fourth
   backend: jax and torch keep the traced twin, and nothing above `compile_model` may branch on
   whether the kernels ran. Four rules. (1) The **fallback is mandatory and must stay exercised** —
-  numba is a *required* dependency, because an extra can only add one and never subtract, so
-  "installable without the compiler" is a code property (soft import, every entry point declining
-  rather than raising), and `RIETX_COMPILED=0` / `compiled.set_enabled` is the switch the goldens
-  and `test_compiled_kernels.py` run the numpy side through. (2) A **new kernel is serial
+  numba is a *required* dependency (an extra can only add one, never subtract), so "installable
+  without the compiler" is a code property: soft import, every entry point declining rather than
+  raising, and `RIETX_COMPILED=0` / `compiled.set_enabled` the switch the goldens and
+  `test_compiled_kernels.py` run the numpy side through. (2) A **new kernel is serial
   `njit(cache=True, nogil=True)` over a row range on the shared pool, never `prange`**, which
   refuses to cache *and* measured slower. (3) Its **equivalence bar is per kernel, stated and
   asserted**: no library call in it means the bit, an `exp` in it means 1e-13 relative, and the
   numpy builder stays the bit-identity oracle against `_phase_component_scalar`. (4) **One path
-  per process** — deciding per call on whether the background compile had finished made the last
-  digits a function of machine speed.
+  per process** — deciding per call made the last digits a function of machine speed.
 - **Traced code runs inside `backend.traced.active(xp)`** — it makes `xp` the globally-bound
   backend *and* opens the backend's `full_precision()` scope. jax's fp64 is scoped, so a constant
-  (or a θ vector) materialised outside it is silently float32: this cost the Pawley aux columns
-  four orders of accuracy once, and is why constants are lifted inside the traced call, not at
+  (or a θ vector) materialised outside it is silently float32 (it once cost the Pawley aux columns
+  four orders of accuracy), which is why constants are lifted inside the traced call, not at
   closure build.
 - **Specimen absorption is one seam, three geometries, and their "off" states disagree**
   (`model/absorption.py`, `CompiledModel._absorption`). Capillary: `Geometry.mu_r`, Rouse (1970),
   off at µR = 0, and *exactly* a reparameterisation of {scale, Biso} — Rwp provably cannot move,
-  the whole content is ΔB = c(µR)·λ²/2 (measured on real 11-BM SRM 660a data to the predicted
-  digit; ROADMAP's v0.5 row and its record). Flat plate: `Geometry.mu_t`, ITC Table 6.3.3.1 case
-  (2) under `bragg_brentano`, case (3a) under `flat_plate_transmission`, **off at µt = ∞** (thick
-  specimen, ITC (1a), the assumption every flat-plate fit here made before v0.5) — so `mu_t` absent
-  ≠ `mu_t = 0`, which is a specimen of no thickness and raises. It is *not* an exact
-  reparameterisation (1-40 % of ln A survives the projection), so it moves Rwp, its ΔBiso is an
-  order of magnitude larger and negative, and on a genuinely thick specimen declaring a thickness
-  correctly makes the fit worse. Neither µR nor µt is refinable: µR is exactly singular, µt merely
-  ill-conditioned and knowable from the specimen, and the difference is recorded rather than
-  smoothed over.
+  the whole content is ΔB = c(µR)·λ²/2 (measured on 11-BM SRM 660a to the predicted digit;
+  ROADMAP's v0.5 row). Flat plate: `Geometry.mu_t`, ITC Table 6.3.3.1 case (2) under
+  `bragg_brentano`, case (3a) under `flat_plate_transmission`, **off at µt = ∞** (thick specimen,
+  ITC (1a)) — so `mu_t` absent ≠ `mu_t = 0`, a specimen of no thickness, which raises. It is *not*
+  an exact reparameterisation (1-40 % of ln A survives the projection), so it moves Rwp, its ΔBiso
+  is an order of magnitude larger and negative, and on a genuinely thick specimen declaring a
+  thickness correctly makes the fit worse. Neither µR nor µt is refinable: µR is exactly singular,
+  µt merely ill-conditioned and knowable from the specimen.
 - **Instrument ⊕ sample profile split**: Gaussian *variances* add (instrument U,V,W + phase
   `gauss_size`/`gauss_strain`), Lorentzian *FWHMs* add (instrument X,Y + phase
   `lor_size`/`lor_strain`). Workflow: `lab_calibrate` on a standard with its **certified cell held
@@ -565,52 +542,47 @@ so a file added to the wheel adds an example.
   U^ij·a\*ᵢa\*ⱼ that the structure factor uses (U\* is what transforms as R·U·Rᵀ, making `Rᵀh` on
   the parent *identically* the image's tensor); **U_cart**, where eigenvalues and U_eq are
   physical. Isotropic limit: U^ij = Uiso·G\*ᵢⱼ/(a\*ᵢa\*ⱼ), **not** Uiso·δᵢⱼ except for orthogonal
-  reciprocal axes. Non-positive-definite tensors raise an `ADP_NOT_POSITIVE_DEFINITE` diagnostic
-  (the Debye-Waller factor diverges at high Q — not cosmetic); positive-definiteness is not
-  enforced by bounds, since the constraint couples all six components.
-  `structure_from_cif(..., aniso=True)` is opt-in: several test CIFs carry aniso loops, and
-  reading a file must not silently change what a plan frees.
+  reciprocal axes. Non-positive-definite tensors raise `ADP_NOT_POSITIVE_DEFINITE` (the
+  Debye-Waller factor diverges at high Q — not cosmetic); the constraint couples all six
+  components, so it cannot be a bound. `structure_from_cif(..., aniso=True)` is opt-in: several
+  test CIFs carry aniso loops, and reading a file must not silently change what a plan frees.
 - **Anisotropic strain is opt-in per phase** (`Phase.microstrain`, Stephens 1999), the first width
   depending on hkl rather than only on θ: σ²(M) = 10⁻¹²·Σ S_HKL h^H k^K l^L adds Λ(hkl)·tanθ to
   the *Lorentzian* FWHM. Same shape as the ADP story one rank up — the Laue-allowed S_HKL patterns
-  are **derived** from the operators (`crystallography/stephens.py`, exact rational nullspace of
-  the induced rank-4 action, sharing `wyckoff._nullspace_int`), refine as absolute DOFs
-  `phases.i.microstrain.dof.k`, and an out-of-subspace set raises. Three load-bearing conventions,
-  stated in that module: √Σ·d²·10⁻⁶ is the **FWHM** (not σ) of the ΔM/M distribution; coefficients
-  are in **10⁻¹² Å⁻⁴** (physical Å⁻⁴ values ~10⁻⁸ would be finite-differenced with a step 100×
-  their own size); they multiply the **literal** monomials, where other codes fold symmetry
-  multiplicities in. A block **locks `lor_strain`** — its isotropic direction is identically that
-  column, the `biso`/`aniso` bargain again — so the block subsumes it and it must be freed *in* the
-  sample-broadening stage, not after. The isotropic limit S = ε²·[M²] (exactly in the subspace,
-  whatever the symmetry) is both the seed and the only legal start: at S ≡ 0 the √ has unbounded
-  slope, so `Stage.strain_seed`, not `Stage.seed`, which reaches softplus entries only. σ²(M) ≥ 0
-  is a *cone* coupling all fifteen, so it cannot be a box bound: under the default TRF driver it is
-  a guard (`STEPHENS_STRAIN_NOT_POSITIVE`); under `solver="lm"` (WP-0601) it is carried as a linear
-  inequality and the guard falls silent, there being nothing left to report. Read a firing as
-  "these coefficients are not quotable", never as evidence *of* anisotropy. **Zero is on the cone,
-  not outside it** — the guard's test is one-sided; the ≤ 0 form before v0.6 flagged the inert
-  all-zero block as unphysical (source of a since-withdrawn claim — v0.6's record has it, with the
-  re-measured brucite and corundum cone counts).
+  are **derived** from the operators (`crystallography/stephens.py`, sharing
+  `wyckoff._nullspace_int`), refine as absolute DOFs `phases.i.microstrain.dof.k`, and an
+  out-of-subspace set raises. Three load-bearing conventions, stated in that module: √Σ·d²·10⁻⁶ is
+  the **FWHM** (not σ) of the ΔM/M distribution; coefficients are in **10⁻¹² Å⁻⁴** (physical values
+  ~10⁻⁸ would be finite-differenced with a step 100× their own size); they multiply the **literal**
+  monomials, where other codes fold symmetry multiplicities in. A block **locks `lor_strain`** (its
+  isotropic direction is identically that column), so the block subsumes it and must itself be
+  freed *in* the sample-broadening stage, not after. The isotropic limit S = ε²·[M²] is both the
+  seed and the only legal start: at S ≡ 0 the √ has unbounded slope, so `Stage.strain_seed`, not
+  `Stage.seed`, which reaches softplus
+  entries only. σ²(M) ≥ 0 is a *cone* coupling all fifteen, so it cannot be a box bound: under the
+  default TRF driver it is a guard (`STEPHENS_STRAIN_NOT_POSITIVE`); under `solver="lm"` (WP-0601)
+  it is a linear inequality and the guard falls silent. Read a firing as "these coefficients are
+  not quotable", never as evidence *of* anisotropy. **Zero is on the cone, not outside it** — the
+  guard's test is one-sided; v0.6's record has the ≤ 0 form's withdrawn claim and the re-measured
+  brucite and corundum cone counts.
 - **Anomalous scattering is ON by default since v1.0** (`Source.dispersion`, f = f₀ + f′ + i·f″
   from bundled Cromer-Liberman `data/f1f2_CromerLiberman.dat`). The load-bearing part is *not* that
-  f goes complex — F always was. It is that `generate_reflections` merges ±h into one Laue orbit
-  and evaluates a single representative, exact only while f is real: with f″ ≠ 0 in a
+  f goes complex — F always was — but that `generate_reflections` merges ±h into one Laue orbit and
+  evaluates a single representative, exact only while f is real: with f″ ≠ 0 in a
   non-centrosymmetric group |F(h)|² ≠ |F(−h)|², and both land in the *same* powder peak. So
-  `structure_factors_squared` returns the **Friedel average**, closed form ⟨|F|²⟩ = |A|² + |B|²
-  over the *same* orbit sums (A: f₀+f′, B: f″) — no second orbit pass, no centro/non-centro case
-  split, and B ≡ 0 recovers |F|² bit-identically, which constrains the fp *association order* in
-  `_orbit_terms`. f′/f″ are frozen at stage compile onto `PhaseSites.f_anom`: they depend only on
-  species and λ, frozen per stage (WP-1134), so they can never be a function of θ. One |F|² is
-  shared across emission lines, *guarded* rather than smeared — `dispersion.resolve` raises when a
-  line differs from the primary by more than 1 % of Z (an edge between them); near an edge the
-  table is wrong in principle, not merely coarse, so that is refused too and `Dispersion.overrides`
-  takes measured pairs. It is the **only** correction needing no information the caller lacks
-  (species and λ suffice), which is why WP-1001 made it the default. `dispersion = None` declines
-  it, reproduces every ≤ v0.6 number bit-identically, and says so through `DISPERSION_NEGLECTED`.
-  **Every test that pins a number declares this setting explicitly rather than inheriting it** — a
-  suite whose numbers move when a default moves is not pinning a protocol, and
-  `tests/test_validation_matrix.py` enforces it for the acceptance suites. Ions resolve to the
-  element (core-level effect), unlike ionic f₀.
+  `structure_factors_squared` returns the **Friedel average** ⟨|F|²⟩ = |A|² + |B|² over the *same*
+  orbit sums (A: f₀+f′, B: f″); B ≡ 0 recovers |F|² bit-identically, which constrains the fp
+  *association order* in `_orbit_terms`. f′/f″ are frozen at stage compile onto
+  `PhaseSites.f_anom` — species and λ only, and λ is frozen per stage (WP-1134) — so they can never
+  be a function of θ. One |F|² is shared across emission lines, *guarded* rather than smeared:
+  `dispersion.resolve` raises when a line differs from the primary by more than 1 % of Z, and an
+  edge inside the range is refused too, `Dispersion.overrides` taking measured pairs. It is the
+  **only** correction needing no information the caller lacks (species and λ suffice), which is why
+  WP-1001 made it the default; `dispersion = None` declines it, reproduces every ≤ v0.6 number
+  bit-identically, and says so through `DISPERSION_NEGLECTED`. **Every test that pins a number
+  declares this setting explicitly rather than inheriting it** — a suite whose numbers move when a
+  default moves is not pinning a protocol (`tests/test_validation_matrix.py` enforces it for the
+  acceptance suites). Ions resolve to the element (core-level effect), unlike ionic f₀.
 - History nodes store **state, not curves** (~10 kB a node; embedding y_calc → ~1.24 MB). Cached
   metrics are *as-optimised*, measured on a model frozen at the values each stage *started* from,
   so `refine.replay` — recompiling at the values the stage *ended* on — can differ marginally: a
@@ -628,8 +600,8 @@ so a file added to the wheel adds an example.
 - Comparing against another code means **adopting its protocol**, not just its numbers: mirror its
   refine flags, held parameters and excluded regions, then check the channel count matches before
   believing any Rwp comparison. **Two references are an envelope, not a second tolerance**
-  (WP-1306): where a fixture carries two engines' answers they may disagree by more than any bar
-  worth setting — 2665 ppm on a cell against the FAP suite's ±300 — and agreement with both is then
+  (WP-1306): two engines' answers in one fixture may disagree by more than any bar worth setting
+  (2665 ppm on a cell against the FAP suite's ±300), and agreement with both is then
   arithmetically impossible, so the gate is the span they bracket and the spread itself is
   reported. **A foreign format's unit is measured against that format's own reference output, never
   adopted from its prose**, and a row the format states two ways is **refused** rather than chosen,
@@ -639,27 +611,26 @@ so a file added to the wheel adds an example.
   substitutions injected from the live package in `conf.py`, every displayed equation carries a
   `*Source:*` line whose symbol must import, every bib entry is cited — so renaming a physics
   symbol or retuning a fenced constant means touching the manual in the same change, and **a WP
-  that adds physics adds its equation there**, never only Part 1 prose (four of the six McCusker
-  WPs did the second only — WP-1067's log). **Part 1 — Using rietx** (`docs/manual/using/`,
-  `tests/test_manual_api.py`): a reference manual's failure is a *name*, so every dotted name and
-  dot-path must resolve, every python block parses and either executes or carries a written reason,
-  and the public call surface is partitioned into documented / excluded-with-a-reason /
-  generated-deferred. That surface is **derived** (`tests/api_surface.py`, whose docstring has the
-  rules), never listed — a curated list cannot notice a new public method (`_SURFACE_FLAGS` one
-  rank up) — so **adding a public method or field fails that partition until it is documented or
-  deferred**: a coverage gate, not a freeze (WP-1117). A subsystem under development says so by
-  declaration (1078): `PROVISIONAL_MODULES` keys a module prefix to a reason and the tier derives
-  from each name's **defining** module, so a new type inherits it and a re-export is reached;
-  indexing is the one entry, promised in `using/compatibility.md` § Provisional by declaration,
-  `{ref}`d not restated. **A green build is not a rendered page**: `-W` cannot see a paragraph that
-  printed its own TeX, so `test_no_unrendered_math_survives_the_build` scans the *built* HTML, and
-  a diagram or a themed figure is checked by looking at it. Part 1's figures are **committed** in
-  light/dark pairs, regenerated by `docs/manual/make_figures.py` (the one authority for how each
-  was drawn), and agent-facing prose carries the `agent` admonition rather than a sentence saying
-  so. Its **GUI chapters** (WP-1017) add a third guard, for a subject that is routes and panels
-  rather than importable names: `test_gui_manual.py` **partitions** both vocabularies and tightens
-  each way, so adding or renaming a GUI route or a tab fails until a chapter covers it, and naming
-  one the server does not serve fails too. Screenshots are generated the way the figures are, by
+  that adds physics adds its equation there**, never only Part 1 prose (WP-1067). **Part 1 — Using
+  rietx** (`docs/manual/using/`, `tests/test_manual_api.py`): its failure mode is a *name*, so
+  every dotted
+  name and dot-path must resolve, every python block parses and either executes or carries a
+  written reason, and the public call surface is partitioned into documented /
+  excluded-with-a-reason / generated-deferred. That surface is **derived**
+  (`tests/api_surface.py`'s docstring has the rules), never listed, so **adding a public method or
+  field fails the partition until documented or deferred** — a coverage gate, not a freeze
+  (WP-1117). Under-development subsystems declare themselves (1078): `PROVISIONAL_MODULES` keys a
+  module prefix to a reason and the tier derives from each name's **defining** module, so a new
+  type inherits it and a re-export is reached; indexing is the one entry, promised in
+  `using/compatibility.md` § Provisional by declaration, `{ref}`d not restated. **A green build is
+  not a rendered page**: `-W` cannot see a paragraph that printed its own TeX, so
+  `test_no_unrendered_math_survives_the_build` scans the *built* HTML, and diagrams and themed
+  figures are checked by looking. Part 1's figures are **committed** light/dark pairs from
+  `docs/manual/make_figures.py` (the one authority for how each was drawn); agent-facing prose
+  carries the `agent` admonition. **GUI chapters** (WP-1017) add a third guard, for routes and
+  panels rather than importable names: `test_gui_manual.py` **partitions** both vocabularies and
+  tightens each way, so adding or renaming a route or tab fails until a chapter covers it, and
+  naming one the server does not serve fails too; screenshots from
   `docs/manual/make_screenshots.py`.
 - **A walkthrough has one authority, and it is `examples/`.** The manual `{literalinclude}`s those
   scripts and `tests/test_examples.py` runs them, so a worked example is code that ran. Never write
@@ -684,9 +655,9 @@ Planning docs are split so a session loads only what it needs; do not read all:
   judgement core read whole, `references/` the lookups read on demand. A WP adding a diagnostic code
   or a correction adds its row there; `rietx skill --install . --copy` re-syncs the two committed
   copies.
-- `docs/RELEASING.md` — how a version reaches PyPI, and the one rule governing it: never `twine
-  upload` by hand, because the workflow builds from the tag and a by-hand build cannot be held to it
-  (measured on 1.0.1).
+- `docs/RELEASING.md` — how a version reaches PyPI, and the one rule governing it: never
+  `twine upload` by hand, because the workflow builds from the tag and a by-hand build cannot be
+  held to it (measured on 1.0.1).
 - `gui/`, `tests/`, `src/rietx/io/`, `src/rietx/indexing/` each hold a `CLAUDE.md`: subsystem
   rulebooks, loaded with their subtree, never restated.
 
@@ -718,7 +689,7 @@ record's appendix.
   the true positions (a cos θ displacement), so at 3σ the true cell indexes zero lines. Hence
   `DEFAULT_UNKNOWN_SHIFT_DEG`, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must
   never look like a measured one, and `refine_with_shift` *after* a candidate survives — a cell
-  never shift-refined is biased by roughly the shift (+1400 ppm measured).
+  never shift-refined is biased by roughly the shift (+1400 ppm).
 - **Never a confident singleton**: `IndexingResult` has no `.cell`/`.best`, only a gated
   `best_or_none()`; `determine_extinction_symbol` returns ranked classes each carrying a *list* of
   space groups — the extinction symbol, not the space group, is what a powder measures.
@@ -731,7 +702,7 @@ record's appendix.
   ranks, never scores.
 - **`quick` is `index_pattern`'s default** (WP-1042): all engines, all requested systems run
   **system-major** under a whole-run ceiling, with progress and a graded shortlist per completed
-  system streamed on the event ladder — so GUI, CLI and agent inherit a bounded, anytime first
+  system streamed on the event ladder, so GUI, CLI and agent inherit a bounded, anytime first
   click. A caller's own `total_budget_seconds` is never overridden (the result records
   `preset="custom"`); `preset="full"` is the unbounded pre-1.0 run, and a test asserting a complete
   search declares it explicitly.
