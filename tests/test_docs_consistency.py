@@ -409,7 +409,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # file already uses.  The remainder of the triage cost no lines here: four
     # issues folded into WP-1118's own file, and the fenced items were already
     # named by the #192-198 bump above.
-    "docs/ROADMAP.md": 578,
+    # 578 -> 589 for the triage's second batch (2026-09-01): the five issues
+    # newer than PR #205 (#202-204, #207, #209) arranged into three
+    # unscheduled WPs — three index rows and their evidence sentences across
+    # the two existing sections whose subjects they extend; #202 and #204's
+    # construction half cost no lines, being in-flight PRs (#208, #206).
+    "docs/ROADMAP.md": 589,
     # 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
     # and the nine control registers, as a table of one rule each.  This file
     # grows for a rule nothing else in it carried, same as the bumps above: a
