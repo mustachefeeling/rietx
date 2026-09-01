@@ -39,6 +39,43 @@ and +390 ppm on fluorapatite, the mirrored one 9.73 % against GSAS's 10.05 %).
 So the answer's shape is a model **plus** a vary set or a `PlanSpec`, never a
 `Structure` alone.
 
+**The write direction, sharpened by issue #148 (2026-09-01 triage).** The
+writers task below gains its strongest test for free: **round-trip** — export
+→ re-import must reproduce the model bit-for-bit wherever the format can
+carry it, the cheapest adversarial test the readers can get, no external
+fixture needed — so it belongs in this WP's acceptance, not only its tasks.
+GSAS-II joins the write targets (`.instprm` + CIF-shaped structure — text,
+documented, and the `Z`-term round-trip question is already in Inherited
+below). Every convention the validation campaign measured (FCJ vs A_T2,
+K = 1 vs 0.5 polarization, U vs B vs β, FWHM vs σ, centidegrees) becomes a
+written decision with a citation on the writer. Deliberately **not** here:
+an RMCProfile export (data + starting configuration, not a protocol —
+issue #192's territory), and Rietica/XND in either direction — issue #196
+proposes those readers as a beyond-the-majors widening of this family;
+right home, deliberately unscheduled, no corpus, and the read/write
+asymmetry is intentional.
+
+**Two things arrive with the TOPAS files (issues #107, #101).** Five archive
+files open phases with the macro form `STR(R-3)` / `STR(######, "#name#")`,
+which the line-based split cannot see, so they parse **zero phases** and
+`to_structure` returns a confident wrong diagnosis ("a Pawley or
+indexing-only .inp is legal and has none"); two already-fixed macro bugs
+hide behind it, so **PR #98's incidence figures are floors until this is
+decided**. The minimum honest fix is independent of any design: recognise
+the spelling and refuse naming it — a reader may decline a construct, it may
+not describe it as absent. Whether `STR(...)` is special-cased or the reader
+grows a general macro pass is the registry-shape task's decision (and a
+general pass borders [1119](1119-named-variables.md)'s equations scope —
+decide the boundary there, not twice). Second, origin choice:
+`gemmi.SpaceGroup("Pn-3m").ext` is `'1'`, so a structure transcribed from an
+origin-choice-2 source gets choice 1's symmetry with nothing raised — wrong
+structure factors under a healthy-looking fit — while the TOPAS spelling
+`Pn-3mZ` raises, and stripping the letter inverts the meaning. The
+translation table exists in the #98 draft (`normalize_space_group`: `Z`→`:2`,
+`S`→`:1`, `R`→`:R`, `H`→`:H`); the **diagnostic is the load-bearing half**
+and is general — it fires for any multi-origin symbol left unpinned, from
+any reader, in the reader diagnostics channel where such reports belong.
+
 ### The licence fences, which are stricter here than anywhere else in `io/`
 
 `ATTRIBUTION.md` carries the standing rows; each new format adds its own. What
@@ -150,9 +187,15 @@ missing from its arm applies unchanged. A new format token is spelled in
 - [ ] GSAS `.EXP` + `.PRM` reader, and make `tests/test_acceptance_fap.py` take
       its protocol from the reader instead of from transcribed constants.
 - [ ] FullProf `.pcr` reader.
-- [ ] The writers, each naming what did not cross.
-- [ ] `capabilities()` arm, `AGENT_PROTOCOL.md` rows for the new diagnostic
-      codes, a Part 1 manual section, and an `ATTRIBUTION.md` row per format.
+- [ ] Origin-choice honesty: `SPACE_GROUP_ORIGIN_ASSUMED` when a multi-origin
+      symbol resolves unpinned, and the TOPAS suffixes accepted on input
+      (issue #101; lift `normalize_space_group` from the #98 draft).
+- [ ] The writers, each naming what did not cross — GSAS-II included — with
+      export → re-import round-trip as each format's acceptance (issue #148).
+- [ ] `capabilities()` arm, skill rows for the new diagnostic codes
+      (`docs/skill/rietx/` — `AGENT_PROTOCOL.md` is a redirect stub since
+      WP-1304), a Part 1 manual section, and an `ATTRIBUTION.md` row per
+      format.
 - [ ] Fixtures with provenance rows in `tests/data/README.md`; tests, and the
       obs/calc/diff PNGs for any refinement one of them drives.
 
@@ -172,6 +215,12 @@ set, the held Caglioti terms, the excluded region, the wavelengths — with the
 acceptance test then reading it rather than restating it, and the measured
 answer unmoved.
 
+Issue closure rides the tasks, not the WP: the PR landing the `STR(...)`
+decision carries `Closes #107`; the origin-choice task `Closes #101`; the
+`.EXP`/`.PRM` task `Closes #103`; the writers task `Closes #148`. Issue
+#196 (Rietica/XND) stays open — it is this family's recorded boundary, not
+work this WP does.
+
 ## References
 
 - Larson, A. C. & Von Dreele, R. B. (2004), *GSAS General Structure Analysis
@@ -185,5 +234,17 @@ answer unmoved.
 
 ## Handover log
 
+- **2026-09-01** — the issue triage folded four issues in rather than
+  opening WPs beside this one: #148 (write direction — round-trip as
+  acceptance, GSAS-II as a target), #107 (the `STR(...)` decision, parked at
+  the registry-shape task), #101 (the origin-choice task), #196 (Rietica/XND
+  named as the family's deliberate boundary). Two standing offers recorded:
+  the filer of #103 volunteers for the `.EXP`/`.PRM` task once the registry
+  shape lands, bringing two spec findings for its docstring (GSAS-II's
+  `Rvals['GOF']` is reduced χ², not its root; instrument parameters are
+  `[default, current, refine_flag]` triples, current at index 1) — and #107's
+  filer offers either fix once told which. The Jana reader is
+  [1314](1314-mfile-reader.md), gated on this WP's first task. Next: the
+  answer's shape, unchanged.
 - **2026-08-21** — created, from WP-1110 item 19. Stub: the fences, the seams
   and the acceptance are settled; the answer's shape is the first open decision.

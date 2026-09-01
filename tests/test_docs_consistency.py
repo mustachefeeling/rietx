@@ -402,7 +402,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # other maintainer-requested features (PDF/total-scattering, charge
     # flipping, Rietica/XND readers, RMCProfile export, VESTA I/O) fenced the
     # same way the McCusker and low-symmetry-corpus additions were.
-    "docs/ROADMAP.md": 510,
+    # 510 -> 578 for the 2026-09-01 issue triage: the 28 open issues arranged
+    # into eleven unscheduled WPs (1309-1319) — eleven index rows across three
+    # existing Unscheduled sections and four new ones, each new section opened
+    # by the measured evidence its issues carry, per the section pattern this
+    # file already uses.  The remainder of the triage cost no lines here: four
+    # issues folded into WP-1118's own file, and the fenced items were already
+    # named by the #192-198 bump above.
+    "docs/ROADMAP.md": 578,
     # 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
     # and the nine control registers, as a table of one rule each.  This file
     # grows for a rule nothing else in it carried, same as the bumps above: a
