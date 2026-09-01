@@ -463,10 +463,18 @@ converted any of these coefficients to a size or a strain at all.
 Fundamental Parameters Approach as a differentiable convolution stack
 (Cheary-Coelho 1992); TOF (new Source/Profile implementations
 behind the frozen seams); spherical-harmonics texture (Von Dreele 1997);
-rigid bodies; MCP server wrapping `refine_json`; internal-standard/amorphous
-QPA; `vmap`-batched in-situ series; notebook widgets. *(The human GUI was
-un-fenced from this list into v1.0 on 2026-07-29 — WP-1004…1017; grounds in
+Z-matrices and rigid bodies; MCP server wrapping `refine_json`;
+internal-standard/amorphous QPA; `vmap`-batched in-situ series; notebook
+widgets. *(The human GUI was un-fenced from this list into v1.0 on
+2026-07-29 — WP-1004…1017; grounds in
 [DESIGN.md](DESIGN.md#locked-decisions).)*
+
+Added 2026-09-01 (maintainer feature-request review, issues #192–198):
+**PDF / total-scattering analysis**, X-ray and neutron (#192); **charge
+flipping** for ab initio structure solution (#198); **Rietica and XND**
+foreign-format readers, widening WP-1118's family (#196); an
+**RMCProfile-compatible export** (#192); and **VESTA import/export**
+(#195).
 
 Fenced **by** the v1.0 indexing WPs (1018…1027, 2026-07-29), i.e. deliberately
 left undone by work that could plausibly have grown to include them:
