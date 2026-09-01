@@ -144,27 +144,35 @@ never fired this. `lab_sample_refine` frees all four in one stage
 default 0.0 is 0.0 at every wavelength, so the defect needs a *refined nonzero*
 size term in a joint fit whose histograms differ in λ.
 
-### Finding 4 — no physical size or microstrain exists anywhere in the package
+### Finding 4 — half of it landed in v1.2; the strain half did not
 
-Verified by search across `src/`, `docs/manual/` and the exporters, not assumed:
+**Superseded in part, 2026-09-02.** Finding 4 as written ("no physical size or
+microstrain exists anywhere in the package") was true on 2026-08-23 and is half
+false now: `b5918f43`…`817cfdb3` (2026-08-24, v1.2) put the **size** conversion
+in `model/profiles/caglioti.py` — `apparent_size`, `delta_q_fwhm`,
+`apparent_size_from_size_coefficient` and its inverse `size_coefficient_for_size`,
+with `SCHERRER_K = 0.9` carrying the convention argument and Langford & Wilson
+(1978) cited for the shape spread. `params.vector.size_cap`,
+`refine._size_flag_diagnostics` and `report/layer2._size_clause` are its three
+consumers.
 
-- No Scherrer conversion, no `k`, no size in nm/μm/Å, no strain in ppm. Every
-  "Scherrer" in `src/` is either the `debye_scherrer` geometry literal or prose
-  naming the 1/cosθ law.
-- The four coefficients are plain `Parameter`s with `unit="deg"` / `"deg^2"`
-  (`schemas/structure.py:390-409`). Their comment states the θ-laws and the
-  instrument ⊕ sample workflow, and states no conversion constant.
-- `FitReport` carries no length and no dimensionless strain in any layer.
-  `TrendAnalysis`'s `inv_cos_theta` / `tan_theta` templates are *attribution*
-  amplitudes, and `StrainAnalysis.anisotropy` is a broadest/narrowest **ratio**.
-- Derived-quantity esd propagation exists three times and none is this:
-  `model/geometry.py` (bonds/angles), `optimize/qpa.py` (weight fractions),
-  `indexing/qspace.py`. `params/vector.stderr_physical` propagates only through
-  affine ties and transforms, so a `lor_size` esd is an esd on a FWHM in degrees.
-- `docs/manual/microstructure.md` goes from the θ-laws straight to Stephens. The
-  word "nm" does not appear in the manual.
+What that leaves for this WP:
 
-The one physical microstructural length in the schema is an input whose
+- **The conversion authority exists and this WP extends it rather than founding
+  a peer module.** The original task asked for a new module beside
+  `model/geometry.py`; there is now one authority in `caglioti.py` and a second
+  spelling would be the mistake the root CLAUDE.md names.
+- **There is still no strain conversion.** Nothing in `src/` reads a
+  `lor_strain`/`gauss_strain` coefficient as a Δd/d, so a strain is still a
+  number of degrees a user cannot check.
+- **Nothing reports either as a result field.** `FitReport` carries no length
+  and no dimensionless strain; both flags (below) compute a size or a width
+  inside a diagnostic message and throw it away.
+- **No esd anywhere.** Neither flag propagates, so the reporting half of this
+  WP — J·Cov·Jᵀ off the final Jacobian, `None` where the coefficient is at
+  zero, unmeasured or gradient-free — is untouched.
+
+The one physical microstructural length in the schema is still an input whose
 docstring rules out deriving it here, and rightly: `particle_radius_um` is
 Brindley's absorption path, and "profile broadening measures the *coherent
 domain* size, which is smaller than (and unrelated to) the particle"
@@ -206,20 +214,17 @@ coefficient is at zero, unmeasured, or gradient-free. That is WP-1072's rule —
 a quantity that cannot be measured is absent rather than zero — and
 `ParameterTable.unmeasured_rows` already marks the inputs.
 
-### Inherited
+### What the 2026-08-27 review left here, folded in
 
-From [1130](1130-background-reference.md)'s review, 2026-08-27:
-
-- 1130 now **depends on this WP**: its `BACKGROUND_BELOW_ANCHORS` defers to the
-  width finding below to tell a nanocrystalline fit from a phase that has
-  become a pedestal, so the width check and the conversions it reads land
-  before 1130's diagnostic.
-- The trigger scan is not in the repo — `zrmo2o8_vt.zip` from the Durham TOPAS
-  workshop, range 17 = `read_pattern(scan=16)`, four phases from
-  `d8_01612_vt_reel_02.inp`, 14–70°, CuKα1 with a Ge(111) monochromator — and
-  TOPAS's TCHZ `pkx`/`pky` map to rietx's `profile.y`/`profile.x`, not by
-  letter. Both are in 1130 § The trigger dataset, restated here so this WP can
-  build its own fixture without opening that file.
+1130 depends on this WP: its `BACKGROUND_BELOW_ANCHORS` defers to a width read in
+physical units to tell a nanocrystalline fit from a phase that has become a
+pedestal. **That dependency is discharged** — the width check landed in v1.2 as
+`SIZE_UNUSUALLY_SMALL` (below 5 nm apparent crystallite) and
+`STRAIN_UNUSUALLY_LARGE` (above 1.5 deg), with their bounds calibrated against
+the 606-refinement TOPAS archive, their `params.vector` bound twins
+(`size_cap`/`strain_cap`) and rows in `docs/skill/rietx/references/`. The
+trigger-dataset pointer stays in 1130 § The trigger dataset; nothing in this WP
+needs it any more.
 
 ## Non-goals
 
@@ -248,20 +253,30 @@ From [1130](1130-background-reference.md)'s review, 2026-08-27:
 
 ## Tasks
 
-- [ ] **The physics, as one authority.** A module (peer of `model/geometry.py`)
-      holding the four conversions in both directions, each citing its source and
-      stating its convention explicitly, with the wavelength as an argument
-      rather than an ambient. This is what everything below imports; nothing else
-      restates a constant.
-- [ ] **Settle the constants before writing them.** Two conventions are
-      genuinely open and must not be invented: the Scherrer constant `k` (shape
-      dependent; GSAS-II's slide writes `k=1`), and whether the reported
-      microstrain is Δd/d or 2Δd/d — Von Dreele's `M = 180·μ·tanΘ/π` against
-      Δ2θ = 2(Δd/d)tanθ implies his μ is the doubled one. Read the source, ask
-      the maintainer for Langford & Wilson (1978) if the corpus lacks it (a title
-      search found no size/Scherrer paper), and record the choice beside the
-      constant. Prior art decides this, per the root CLAUDE.md's fence on
-      invented defaults.
+- [x] **The physics, as one authority — `caglioti.py`, extended not duplicated.**
+      The size half landed in v1.2 (Finding 4); this WP adds the **strain** half
+      beside it, in both directions, citing its source and stating its convention,
+      with no wavelength argument because strain has none. Everything below
+      imports from there; nothing restates a constant.
+- [x] **Settle the constants before writing them.** Settled from prior art, not
+      invented, and recorded beside each constant. Size: `SCHERRER_K = 0.9`
+      already in the tree — the **FWHM** convention for roughly isotropic
+      crystallites, K an argument everywhere so a known morphology can say so
+      (Langford & Wilson 1978 tabulate 0.89 for a sphere's FWHM against 1.0747
+      for its integral breadth; the paper itself is still not in the corpus, and
+      the numbers quoted here come from the in-tree citation and FullProf's
+      manual). Strain: the coefficient is the **FWHM** of the Δd/d distribution,
+      matching the size convention, so `lor_strain = (360/π)·(Δd/d)` inverts with
+      no second constant. What the neighbours do, recorded because they disagree
+      with each other and one of them is quoted at the user: GSAS-II reads its
+      size off the FWHM with k = 1 and reports `mustrain` μ = 2·Δd/d in 10⁻⁶
+      (Von Dreele's `S = 180kλ/(πp cosΘ)`, `M = 180μ tanΘ/π`); FullProf reads
+      both off the **integral breadth** — apparent size `D = (360λ/π²)·(η+(1−η)√(π ln2))/Z_s`
+      and apparent strain `ε = ½·β*·d` in 10⁻⁴ — which for a pure Lorentzian is
+      π/2 = 1.571× rietx's size and half rietx's strain. Neither is adopted:
+      rietx's four coefficients are FWHM coefficients, so the FWHM convention is
+      the one that inverts them without a peak-shape assumption, and the two
+      spreads are what make the reported number an order-of-magnitude statement.
 - [ ] **Fix the sharing map.** `phases.*.lor_size` and `phases.*.gauss_size` may
       not be one column across histograms of different wavelength. Two candidate
       shapes, and the WP picks one on measurement: normalise the shared column
@@ -280,24 +295,16 @@ From [1130](1130-background-reference.md)'s review, 2026-08-27:
       at zero, unmeasured (`ParameterTable.unmeasured_rows`) or gradient-free.
       Name it a coherent domain size, and say beside it that it is not
       `particle_radius_um`.
-- [ ] **The width check — a phase's broadening is a claim about the specimen,
-      bounded in physical units.** On 1130's trigger scan a *visible* cubic
-      ZrMo₂O₈ refined to a Gaussian FWHM of 5.0°/cosθ (`gauss_size` 24.93) and
-      a Lorentzian of 6.0° at 2θ = 60° (`lor_strain` 10.37, i.e. Δd/d ≈ 9 %)
-      against an instrument width of 0.15°, became a second background, and
-      the fit reported `converged` at an Rwp matching TOPAS's to two decimals.
-      A `GuardFinding` (name settled with the constants) fires when the implied
-      coherent domain size falls below, or the implied microstrain rises above,
-      a bound with its physical argument recorded beside it — a domain of a
-      few unit cells is not a crystal, a Δd/d of several per cent is not a
-      lattice — checked against prior art per the root CLAUDE.md's fence on
-      invented constants. **Never a factor over the instrument**: that fires on
-      every genuine nanocrystal and cannot tell one from the trigger, and
-      `phase_support`/`cell_window` already cover the invisible phase. The
-      bound is calibrated silent on every bundled pattern's converged fit and
-      firing on 1130's trigger; 1130's ±0.5° cap was binding and is a direction,
-      not a value. Its `AGENT_PROTOCOL.md` row says the width is the first
-      suspect when a background sits far below any independent estimate.
+- [x] **The width check** — **landed in v1.2, not by this WP**:
+      `SIZE_UNUSUALLY_SMALL` (below `refine.SIZE_FLAG_SIZE_A` = 50 Å apparent
+      crystallite, via Scherrer at the pattern's longest line) and
+      `STRAIN_UNUSUALLY_LARGE` (above `refine.STRAIN_FLAG_WIDTH` = 1.5 deg),
+      each with a bound twin in `params.vector` (`size_cap` with its 2 nm physics
+      floor, `strain_cap` off the fitted range) that arms only on a term already
+      at the floor, and rows in `docs/skill/rietx/references/{diagnostics,abstention}.md`
+      and `docs/manual/profiles.md`. Both thresholds are calibrated on the
+      606-refinement TOPAS archive rather than invented, and both say the number
+      is one to check rather than a refusal. 1130's dependency is discharged.
 - [ ] **State the separability caveat where the number is, not elsewhere.** Over
       a narrow 2θ range size and strain are collinear, which the package already
       knows (`report/schemas.py:733`'s `max_template_collinearity`, and the
@@ -358,8 +365,15 @@ and put them in this file's handover entry.
   behind WP-0308's sharing map, which is what this WP corrects.
 - **Scherrer (1918)**, *Nachr. Ges. Wiss. Göttingen* **26**, 98 — the size law.
 - **Langford & Wilson (1978)**, *J. Appl. Cryst.* **11**, 102 — the Scherrer
-  constant and its shape dependence. **Not read and not in the corpus** (a title
-  search returned no size/Scherrer entry); request it before choosing `k`.
+  constant and its shape dependence. **Still not in the corpus** (a title search
+  returns no size/Scherrer entry) and still not read; `SCHERRER_K`'s in-tree
+  citation quotes its 0.89/1.0747 pair, which is what the convention note rests
+  on. Worth requesting before anyone quotes a two-figure size.
+- **Rodríguez-Carvajal**, *FullProf manual* — in the corpus, and the prior art
+  that settles the convention question the other way: apparent size and apparent
+  strain from the **integral breadth** of the size-only pseudo-Voigt, with the
+  TCH mixing rule spelled out. Read for this WP, adopted as the *record of what
+  the neighbours do*, not as the convention.
 - **Stephens (1999)**, *J. Appl. Cryst.* **32**, 281 — already cited in
   `crystallography/stephens.py`; relevant here because Λ(hkl) is λ-free and so
   stays correctly shared.
