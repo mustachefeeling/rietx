@@ -94,19 +94,20 @@ pointer, promised for v1.4 in the file itself.
 **In flight:** [1118](wp/1118-foreign-model-files.md) foreign model files — the
 TOPAS `.inp` reader merged 2026-09-01 (PR #98); the FullProf `.pcr` reader is
 PR #111; the exporter registry next. Two contributor PRs wait on review
-(#206 atom bounds, #208 species fallback).
+(#206 atom bounds, #208 species fallback). Also
+[1331](wp/1331-landing-page-in-repo.md): the landing page enters `docs/landing/`
+and takes `rietx.org/`, the manual moves to `manual.html`, and the contributor
+data it animates stays out, behind ignore rules a test asserts.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 and two of the three opened the day after (1323, 1325),
 grouped by what their evidence says; the magnetic scattering track
 (1326–1329, out of the v2 fence 2026-09-02); the older three, 1119, 1130 and
-1133. Three closed on 2026-09-02: [1330](wp/1330-skill-references-by-shape.md),
-one skill reference per task shape, `batch.md` first, every row tagged with
-its evidence; [1324](wp/1324-symmetry-silences.md), where a
-site multiplicity is now |G|/|stabiliser| and both symmetry silences are
-reported (issues #215, #217), and [1131](wp/1131-sample-broadening-is-a-specimen-property.md),
-which also discharges 1130's dependency on it — the width check 1130 was
-waiting for had already shipped in v1.2.
+1133. Three closed on 2026-09-02: [1330](wp/1330-skill-references-by-shape.md)
+(one skill reference per task shape), [1324](wp/1324-symmetry-silences.md)
+(both symmetry silences reported, issues #215, #217) and
+[1131](wp/1131-sample-broadening-is-a-specimen-property.md), which discharges
+1130's dependency on it.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -538,6 +539,7 @@ aggregated after the fact (1322).
 |---|---|---|---|
 | [1313](wp/1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | — |
 | [1330](wp/1330-skill-references-by-shape.md) | The skill grows by reference: one file per task shape, and the row an agent can write | ✅ 2026-09-02 | 1304, 1308 |
+| [1331](wp/1331-landing-page-in-repo.md) | The landing page enters the repository, and the data does not | 🔄 2026-09-03 | — (1003 soft) |
 
 #### Candidates — named on a use case, not yet on a measurement
 
