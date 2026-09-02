@@ -21,11 +21,15 @@ Run the session-start ritual. The SessionStart hook's report
    session leaves both satisfied whatever the entry says, so a quiet report is
    a prompt, not proof.
 2. **Identify the WP**: the one the user names, else ROADMAP "Current
-   focus" — read that section, not the file
-   (`sed -n '/^## Current focus/,/^## Milestones/p' docs/ROADMAP.md`): the
-   section is ~1k tokens, the whole file ~13k, and a WP file is
-   self-contained. Read that one WP file only (plus the DESIGN.md sections
-   it links); do not read other WP files.
+   focus" — read the two sections, not the file
+   (`sed -n '/^## Session protocol/,/^## Milestones/p' docs/ROADMAP.md`, one
+   contiguous block): ~2k tokens against the file's ~13k, and a WP file is
+   self-contained. **§ Session protocol is read for its step 3**, which is
+   the only statement of the handover trigger that stays in context after
+   this command scrolls away; narrowing this read to Current focus alone
+   (2026-09-01) cost the next two sessions their handover. Read that one WP
+   file only (plus the DESIGN.md sections it links); do not read other WP
+   files.
 3. **Worktree, then branch.** If the hook's first line names the main
    checkout, call `EnterWorktree` with the WP's name (`wp1208-<slug>`) before
    anything else. The `WorktreeCreate` hook cuts that branch from `origin/main`
@@ -62,3 +66,12 @@ Run the session-start ritual. The SessionStart hook's report
    user says stop, `/clear`, or "that's enough"; context is about to compact;
    or the work is blocked on something outside the session. The protocol's own
    words are "at the end — **or whenever interruption threatens**".
+
+   **Invoke the command; do not reproduce it.** The second failure mode is
+   writing the entry, syncing the glyph and opening the PR by hand and
+   reporting "handed over" — which is what WP-1131 did on 2026-09-02, having
+   skipped the diff review and the verify pass, the two steps that cost work.
+   A summary of the checklist is not the checklist.
+   `.claude/hooks/handover_owed.py` holds one stop open when a WP branch is
+   clean and pushed and this session never ran the command; a session that is
+   genuinely not finished says so in a line and carries on.

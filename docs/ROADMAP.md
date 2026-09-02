@@ -46,9 +46,13 @@ so a session loads only what it needs:
    same WP), rule 4 applied to anything this session wrote into a CLAUDE.md,
    working tree clean and pushed, and the branch's pull request opened or
    updated — a session is not handed over until its work is reviewable, and
-   merging stays the maintainer's. A missed handover is detected at the next
-   session start (`.claude/hooks/session_start.py`, two rules: the WP file
-   older than the work, or the log older than the commits) and repaired first.
+   merging stays the maintainer's. **Invoke the command, never reproduce its
+   checklist**: a handover written by hand skips the steps that cost work.
+   Two hooks watch for a miss — `handover_owed.py` (Stop) holds one stop open
+   when a WP branch is clean and pushed and the session never ran the command,
+   and `session_start.py` flags at the next session start (two rules: the WP
+   file older than the work, or the log older than the commits), which is
+   repaired first.
 4. **A CLAUDE.md takes rules, not findings.** A line enters a CLAUDE.md
    (root, `gui/`, `tests/`, `src/rietx/io/`, `src/rietx/indexing/`) only as a
    standing rule a stranger needs in six months — a few lines, evidence

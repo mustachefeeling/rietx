@@ -653,8 +653,12 @@ Planning docs are split so a session loads only what it needs; do not read all:
   rulebooks, loaded with their subtree, never restated.
 
 **Protocol**: `docs/ROADMAP.md` § Session protocol is the one authority
-(`tests/test_docs_consistency.py` enforces the mechanical parts). Two clauses to carry everywhere:
-commit per checklist item prefixed `WP-NNNN:`, and a CLAUDE.md takes **rules, not findings**.
+(`tests/test_docs_consistency.py` enforces the mechanical parts). Three clauses to carry
+everywhere: commit per checklist item prefixed `WP-NNNN:`; a CLAUDE.md takes **rules, not
+findings**; and a session **ends by invoking `/wp-handover`, never by reproducing its
+checklist** — writing the entry and opening the PR by hand skips the review and verify steps and
+still reads as done, so `.claude/hooks/handover_owed.py` (Stop) holds one stop open when a WP
+branch is clean and pushed and the command never ran.
 
 **A session works in a worktree, never in the main checkout.** Concurrent sessions in one checkout
 share its HEAD, index, stash and tree, so the first act of any session that will edit is
