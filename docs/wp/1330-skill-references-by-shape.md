@@ -84,7 +84,7 @@ Seams: `docs/skill/rietx/SKILL.md` (routing table, description, header),
       paragraph and the provenance line; a reference declaring "Every row
       carries its evidence" has every numbered row tagged `(Measured: …)` or
       `(Hypothesis: …)`, numbered under its own section, increasing
-- [ ] `references/batch.md` (§9c): the header, the row form, four seeded rows;
+- [x] `references/batch.md` (§9c): the header, the row form, four seeded rows;
       the routing row, the description phrase and the placement sentence in
       the body, paid for by cuts; copies re-synced
 - [ ] Root CLAUDE.md § skill: the three destinations and the shape rule; the
