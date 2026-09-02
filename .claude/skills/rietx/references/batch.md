@@ -25,8 +25,18 @@ A row is a rule an operator of a batch needs and a single fit never does, with
 the measurement that produced it. From a run's logs the form is: the rule as
 one imperative sentence in bold, numbered `9c.N`; what was measured — the
 dataset or episode, N, the number that decides — in two to four sentences;
-then the tag. `(Measured: …)` names the run so a reader can find it: a WP, an
-eval round, a dataset in `tests/data/README.md`. `(Hypothesis: …)` is for a
+then the tag. `(Measured: …)` names the run. Where the run is in this
+repository — a WP, an eval round, a dataset in `tests/data/README.md` — name
+it so a reader can go and look. Where it is not, name the **corpus** the file
+declares in its provenance line above, and name it the same way every time:
+the package has to be tested on data it cannot ship, so a row measured on data
+a reader cannot open is admitted, but it must be recognisable as one before
+the reader acts on it. Two things the private case does not relax. Every
+number still comes from the log, and anything the log does not decide is a
+`Hypothesis` row: unverifiable is not a licence to be vaguer. And a scientific
+magnitude derived from unpublished data stays out — quote the ratio, the
+shape, or the published figure instead, which is where the lesson was anyway.
+`(Hypothesis: …)` is for a
 rule the logs suggest but do not decide, and names what would decide it. A
 hypothesis row is not a weaker rule; it is an open question stated as one, and
 §6 applies to it — do not act on it as if it were measured. Before adding a

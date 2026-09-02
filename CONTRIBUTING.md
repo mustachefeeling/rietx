@@ -95,13 +95,22 @@ declares in its provenance line that every row carries its evidence, and each
 row then reads: the rule as one bold imperative sentence, numbered under the
 file's section; two to four sentences on what was measured — the dataset or
 episode, N, the number that decides; and a closing tag,
-`*(Measured: <the run a reader can find>)*` or
-`*(Hypothesis: <what would decide it>)*`. `references/batch.md` § Writing a
-row is the worked form. If an agent is writing the rows from your logs, hand
-it that section and this one: every number in a row comes from the log, and
-anything the log does not decide is a Hypothesis row, never a softer Measured
-one. Before a row, ask whether it holds for one fit alone — then it is the
-body's or §8's, not the shape's.
+`*(Measured: <the run>)*` or `*(Hypothesis: <what would decide it>)*`.
+`references/batch.md` § Writing a row is the worked form. If an agent is
+writing the rows from your logs, hand it that section and this one: every
+number in a row comes from the log, and anything the log does not decide is a
+Hypothesis row, never a softer Measured one. Before a row, ask whether it
+holds for one fit alone — then it is the body's or §8's, not the shape's.
+
+**Rows measured on data you cannot share** are admitted, because the package
+has to be tested on data it does not ship. The tag then names a *corpus* the
+file declares once in its provenance line, spelled the same way in every row,
+so a reader knows before the first row which tags they can follow and which
+they must take on trust — a private run that reads like a citation is the
+thing this rule exists to stop. Nothing else relaxes: the numbers still come
+from the log, and a scientific magnitude derived from unpublished data stays
+out. Quote the ratio, the shape, or a published figure, which is where the
+lesson was anyway.
 
 Then, in the same change:
 
