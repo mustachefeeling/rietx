@@ -233,7 +233,7 @@ though mass balance cannot catch the origin error above, so the two checks
 complement rather than substitute), and validate any reference-file reader
 against check values you did not derive. *(Measured: archive screening
 campaign — the Cu₂O transcription against its own TOPAS `.inp`, the FXYE reader
-fallback on the Zn/Mg chromite set, and the CuO/Cu₂O tranche's five-to-six-phase
+fallback on a ZnCr₂O₄ pattern, and the CuO/Cu₂O tranche's five-to-six-phase
 cost scaling and 12-pattern timing pilot.)*
 
 **9c.15 Re-derive the batch's inventory from the archive and de-duplicate by
@@ -394,7 +394,7 @@ a floor, seeding and flooring it away from zero is what makes the basin
 reachable at all — a `lor_strain` lower bound of 0.02 kept the optimiser off
 the bound in **14 of 15 patterns** and moved that phase from **1.39 % to
 10.08 wt %** against the reference's **10.56 %**, at an Rwp **0.10 pp better**
-than baseline. *(Measured: archive screening campaign — the Zn/Mg chromite
+than baseline. *(Measured: archive screening campaign — the ZnCr₂O₄
 size-strain arm, and the YBaCo₄O₇ strain-floor arm.)*
 
 **9c.28 Freeze the model between rounds when the purpose is regression.**
