@@ -491,7 +491,8 @@ screening campaign — the CuO/Cu₂O timing pilot's BLAS miss, and the campaign
 collapsed version baselines.)*
 
 **9c.32 Build the `FitReport` on the pilot fit and read `report.background` —
-`result.diagnostics` does not carry the between-peak verdict.** Almost every
+`result.diagnostics` does not carry the between-peak verdict, and
+`report.suggested_actions` names the remedy even when Layer 1 abstains.** Almost every
 capillary or cryostat pattern holds a container amorphous halo, and a low-order
 polynomial cuts straight through one while Rwp stays respectable because the
 Bragg channels dominate the weighted residual. A 6-term Chebyshev with no
@@ -501,9 +502,31 @@ once — `off_region_chi2_reduced` **2.885** against its 1.5 threshold,
 `off_region_durbin_watson` **0.393** against 1.0 over 7 408 off-region
 channels, the summary naming the between-peak residual "systematic, not noise",
 and the halo's own maximum listed **first** in `report.unmatched` at 7.6σ —
-while `result.diagnostics` carried only `BACKGROUND_ABSORPTION`. Model the
-feature with a `BackgroundPeak` or a `BackgroundPSpline` rather than more
+while `result.diagnostics` carried only `BACKGROUND_ABSORPTION`. The remedy was
+on the report too, under a `kind` a driver can branch on:
+`report.suggested_actions` held `increase_background_flexibility` **active and
+unvetoed** even though Layer 1 had abstained as unreadable, because
+`background_actions` runs on the abstain path by design — an over-stiff
+background is a *cause* of an immature fit, so branch on
+`suggested_actions[].kind` and do not read an abstention as "no advice". Model
+the feature with a `BackgroundPeak` or a `BackgroundPSpline` rather than more
 polynomial terms, which hide it while improving every statistic. *(Measured: archive screening campaign — the 11-BM VT Mn₃O₄ 8.281 K fit, whose report was
 rebuilt and read only after the tranche was written up; the package's own
 manual measures the same Kapton halo at d = 4.74 Å and needs fourteen Chebyshev
 terms to match one Gaussian's three.)*
+
+**9c.33 Never multiply a quoted esd by `esd_inflation` — the esds already carry
+it.** `Statistics.esd_inflation` is the Bérar-Lelann serial-correlation factor,
+and the fit-side and report-side docstrings both say the reported esds *have
+already been multiplied by it*; you divide it out to recover raw χ²·(JᵀJ)⁻¹
+esds. It is conservative by construction — perfectly white residuals land at
+≈1.51 — so it is an upper bound on serial-correlation damage rather than a
+measurement, and a batch acceptance bar set near 2 fires on sound fits. Read a
+large value as evidence about the *model*, i.e. unmodelled profile detail whose
+residual is serially correlated, which `report.background` and `report.regions`
+then localise — never as an uncertainty correction to apply. *(Measured: archive
+screening campaign — 8.45 on the 11-BM VT Mn₃O₄ 8.281 K fit, against the 2-4
+band the docstring gives for lab data and the ≈1.51 white-residual expectation
+the package verifies in its own tests; three independent readings of that number
+in one session inverted its direction, one while quoting the docstring that
+states it.)*
