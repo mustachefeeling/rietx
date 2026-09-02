@@ -137,6 +137,30 @@ on the atoms of the same phase, the magnetic supercell for k ≠ 0), Jana2020
 (magnetic superspace groups). `ATTRIBUTION.md`'s fences apply; the data-table
 rule above applies to the form factors.
 
+### Inherited
+
+- **2026-09-02, from [1330](1330-skill-references-by-shape.md): a magnetic
+  phase is a task *shape*, and the skill takes one reference file per
+  shape.** What an agent must know to refine a moment model — the turn-on
+  order for the magnetic parameters, what the powder cannot see, which
+  diagnostics decide the deliverable — goes in one
+  `docs/skill/rietx/references/` file (say `magnetic.md`), numbered under
+  the body section it specialises (`2b` if it is an ordering rule, `3b` if
+  a degeneracy, `4c` if a deliverable), never into `SKILL.md`, which takes
+  only what holds for every fit. The file opens with the pinned
+  three-paragraph header every reference carries (H1 with the section
+  number, "Load it when …", the provenance line — copy `series.md`'s), and
+  if its rows are written from runs it declares "Every row carries its
+  evidence" and tags each row `(Measured: …)` or `(Hypothesis: …)`;
+  `tests/test_skill.py` refuses either omission by name. Its routing row in
+  the body's table is keyed by the situation ("the phase carries a
+  moment", "satellites at G ± k", 1326's case) and costs ~200 B in a body
+  with 36 B of headroom, so it is paid for by a cut named in the commit
+  (root CLAUDE.md § skill). The engine's new diagnostic codes still go in
+  `references/diagnostics.md`'s tables, where `test_docs_consistency.py`
+  looks for them. The same holds for 1326, 1328 and 1329, which share the
+  file rather than opening one each.
+
 ## Non-goals
 
 - Determining a magnetic structure: representation analysis, k-SUBGROUPSMAG,

@@ -201,6 +201,23 @@ missing from its arm applies unchanged. A new format token is spelled in
   by law, while TOPAS's `pkx`/`pky` map to rietx's `y`/`x` and **not** by letter
   (measured in WP-1130).
 
+- **2026-09-02, from [1330](1330-skill-references-by-shape.md): the skill's
+  body cap is 33 000 B and the body sits at 32 964 B — 36 B of headroom, not
+  the 27 B against 32 000 the 1308 note above quotes.** The rule that now
+  governs the routing-row widening that note asks for: a routing row, or any
+  body sentence, is paid for by a cut in the body named in the commit, and
+  the cap moves only in a commit that says so (`tests/test_skill.py`'s
+  docstring, root CLAUDE.md § skill). Two things changed shape for the rows
+  this WP still owes. Every reference file now opens with a pinned
+  three-paragraph header (H1, "Load it when …", the provenance line), so
+  `references/api.md` § In and `references/diagnostics.md` keep theirs
+  when edited. And the skill's routing table is keyed by *situation*: the
+  row for a foreign input file must name the situation ("you were handed
+  another program's input file") and list the formats in § In, never a
+  reader's name in the *When* column. `docs/wp/TEMPLATE.md` now carries a
+  standing **Skill** task line; this WP's "skill rows for the new diagnostic
+  codes" task is that line already.
+
 ## Non-goals
 
 - **Not a TOPAS-compatible engine.** No macro language, no `prm` expression

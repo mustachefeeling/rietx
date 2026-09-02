@@ -100,7 +100,9 @@ PR #111; the exporter registry next. Two contributor PRs wait on review
 triage's 1309–1322 and two of the three opened the day after (1323, 1325),
 grouped by what their evidence says; the magnetic scattering track
 (1326–1329, out of the v2 fence 2026-09-02); the older three, 1119, 1130 and
-1133. Two closed on 2026-09-02: [1324](wp/1324-symmetry-silences.md), where a
+1133. Three closed on 2026-09-02: [1330](wp/1330-skill-references-by-shape.md),
+one skill reference per task shape, `batch.md` first, every row tagged with
+its evidence; [1324](wp/1324-symmetry-silences.md), where a
 site multiplicity is now |G|/|stabiliser| and both symmetry silences are
 reported (issues #215, #217), and [1131](wp/1131-sample-broadening-is-a-specimen-property.md),
 which also discharges 1130's dependency on it — the width check 1130 was
@@ -535,7 +537,7 @@ aggregated after the fact (1322).
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1313](wp/1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | — |
-| [1330](wp/1330-skill-references-by-shape.md) | The skill grows by reference: one file per task shape, and the row an agent can write | 🔄 2026-09-02 | 1304, 1308 |
+| [1330](wp/1330-skill-references-by-shape.md) | The skill grows by reference: one file per task shape, and the row an agent can write | ✅ 2026-09-02 | 1304, 1308 |
 
 #### Candidates — named on a use case, not yet on a measurement
 
