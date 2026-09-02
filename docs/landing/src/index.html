@@ -401,7 +401,7 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
 <script type="application/json" id="demo-data">%%DEMO%%</script>
 <script type="application/json" id="transcript-data">%%TRANSCRIPT%%</script>
 <script>
-(function(){
+(async function(){
   "use strict";
   const $ = s => document.querySelector(s);
   const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -422,9 +422,20 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
   tb.addEventListener("click", () => { theme = order[(order.indexOf(theme) + 1) % 3]; applyTheme(theme); onTheme(); });
 
   /* ---------- data ---------- */
-  const raw = document.getElementById("demo-data").textContent.trim();
-  if (!raw) return;                             // the site build fetches instead; see build.py
-  const D = JSON.parse(raw);
+  // Two builds, one page.  `build.py` inlines the payload (one file, what the
+  // artifact shows); `build.py --site` leaves the tag empty and writes
+  // data/demo.json beside index.html, because a 1.9 MB payload inlined into a
+  // landing page is 1.9 MB before the first paint.  Everything below is in this
+  // function's scope, so the fetch is an await here rather than a restructure.
+  // Nothing to fetch is a legitimate state: a fork has no payload, and the page
+  // is the page without the animation.
+  const json = async (el, url) => {
+    const raw = document.getElementById(el).textContent.trim();
+    if (raw) { try { return JSON.parse(raw); } catch (e) { return null; } }
+    try { const r = await fetch(url); return r.ok ? await r.json() : null; } catch (e) { return null; }
+  };
+  const D = await json("demo-data", "data/demo.json");
+  if (!D) return;
   const N = D.n, NP = D.npts, X = D.two_theta, X0 = X[0], X1 = X[NP - 1];
   const i16 = b64 => { const s = atob(b64), a = new Int16Array(s.length / 2); for (let i = 0; i < a.length; i++) a[i] = (s.charCodeAt(2*i) | (s.charCodeAt(2*i+1) << 8)) << 16 >> 16; return a; };
   const OBS = i16(D.obs_b64), CALC = i16(D.calc_x10_b64);
@@ -435,7 +446,7 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
   const WMAX = Math.ceil(Math.max(...F.map(fr => Math.max(...fr.wt))) / 10) * 10;   // top of the wt % axis
 
   /* ---------- transcript ---------- */
-  const TR = (() => { try { return JSON.parse(document.getElementById("transcript-data").textContent || "null"); } catch (e) { return null; } })();
+  const TR = await json("transcript-data", "data/transcript.json");
   const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const cutMarks = s => esc(s).replace(/\[…\]|\[\.\.\.\]/g, '<span class="cut">[…]</span>');
   // the brief and the agent's prose are markdown: inline code, bold and headings render, nothing else does

@@ -10,13 +10,16 @@ Time: `t` is the file's acquisition clock in seconds. `tm` is the plotted
 clock in minutes, where each pause longer than twice the median scan interval
 counts as one ordinary interval; `pauses` lists what was cut.
 """
-import base64, csv, json, sys
+import base64
+import csv
+import json
+import sys
 from collections import OrderedDict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build import leaks  # noqa: E402  (one leak list for payload, transcript and page)
 import numpy as np
+from build import leaks  # noqa: E402  (one leak list for payload, transcript and page)
 
 PHASES = [  # column suffix, display name, formula (HTML), determined-by-data, support
     ("Cu",                 "Cu",        "Cu",                              True,  False),
@@ -32,7 +35,8 @@ ATM = {"1N2atm": ("N₂", "n2"), "2H2mixatm": ("0.2 % H₂ in N₂", "h2"), "3ai
 def build(bundle: Path) -> dict:
     z = np.load(bundle / "curves.npz")
     x = z["two_theta"].astype(np.float64)
-    obs = z["y_obs"]; calc = z["y_calc"]
+    obs = z["y_obs"]
+    calc = z["y_calc"]
     assert obs.shape == calc.shape and obs.shape[1] == x.shape[0]
     assert np.all(obs == np.round(obs)), "observed counts are not integral"
     assert obs.max() < 32767 and calc.max() * 10 < 32767
@@ -61,7 +65,9 @@ def build(bundle: Path) -> dict:
     for i, (f, r) in enumerate(zip(frames, rows)):
         key = (f["T"], f["atm"])
         if key != prev:
-            segments.append(OrderedDict(start=i, T=f["T"], atm=f["atm"], key=ATM[r["atmosphere"]][1])); prev = key
+            segments.append(OrderedDict(start=i, T=f["T"], atm=f["atm"],
+                                        key=ATM[r["atmosphere"]][1]))
+            prev = key
     def b64(a: np.ndarray) -> str:
         return base64.b64encode(np.ascontiguousarray(a, dtype="<i2").tobytes()).decode("ascii")
     return OrderedDict(
@@ -89,14 +95,16 @@ def check_no_leak(text: str, bundle: Path, tokens: tuple[str, ...] = DEMO_TOKENS
     for r in rows:
         stem = r["filename"].rsplit(".", 1)[0]
         for token in (stem, r["filename"], f"_I{r['scan_index']}_"):
-            if token in text: bad.add(token)
+            if token in text:
+                bad.add(token)
     bad.update(leaks(text))
     bad.update(t for t in tokens if t in text)
     if bad:
         raise SystemExit(f"leak: {sorted(bad)[:5]}")
 
 if __name__ == "__main__":
-    bundle = Path(sys.argv[1]); out = Path(sys.argv[2])
+    bundle = Path(sys.argv[1])
+    out = Path(sys.argv[2])
     payload = build(bundle)
     text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     check_no_leak(text, bundle)
