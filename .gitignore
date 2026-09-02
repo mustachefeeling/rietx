@@ -69,3 +69,26 @@ docs/manual/_build/
 
 # Generated at Sphinx build time from rietx.help (docs/manual/conf.py).
 docs/manual/_generated/
+
+# The landing page (docs/landing/, WP-1331).  Four rules, and they are here
+# rather than beside the rules they answer because ORDER decides: the last
+# match wins, so an un-ignore for `*.png` and an ignore under `!docs/**/*.html`
+# both have to sit after those lines.
+#
+# Two of these fail in the direction no other rule in this file does — they
+# PUBLISH rather than hide.  `preview.html` and `dist/index.html` are the built
+# page with `data/demo.json` inlined, and that payload is a contributor's
+# observed in-situ series: it may not enter the repository, and a public
+# release asset would not do either.  `dist/` above already covers the second;
+# `preview.html` was matched by `!docs/**/*.html` and would have been committed,
+# 3.2 MB of it.  `docs/landing/site/` is the same build, unpacked, and
+# `docs/landing/data/` is the payload itself.
+docs/landing/preview.html
+docs/landing/data/
+docs/landing/site/
+# ...and the other direction, for the fourth time: `*.png` swallowed the
+# landing page's four committed figures exactly as it swallowed Part 1's, the
+# GUI chapters' screenshots and the GUI dist.  `tests/test_landing.py` asks
+# `git check-ignore` about all six paths, in both directions, because reading
+# this file correctly is what failed the first three times.
+!docs/landing/img/*.png
