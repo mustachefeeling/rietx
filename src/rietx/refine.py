@@ -2763,10 +2763,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # here for geometry's reason — the esds come off the same final Jacobian —
     # and through the same λ selector the size bound and the size flag use, so
     # the three cannot attribute one coefficient to different wavelengths.
+    # ``stderr_phys`` rather than a second ``stderr_physical`` call: with a
+    # correlation matrix that build is a dense n x n, which a Pawley table
+    # makes large, and the two calls would return the same dict.
     microstructure = microstructure_table(
         structure, values, wavelength=_longest_line_wavelength(model),
-        esds=(table.stderr_physical(theta, stderr_internal, correlation)
-              if stderr_internal is not None else None))
+        esds=stderr_phys)
 
     # Specimen absorption: report what was applied and, crucially, the Biso
     # bias it removed — for a capillary Rwp is provably unchanged by it, so
