@@ -1,6 +1,6 @@
 # WP-1131 — Sample broadening is a specimen property, not an angular coefficient
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-02
 Depends on: — (WP-0308 owns the sharing map this corrects; WP-1072 is the esd
 precedent the reporting half copies)
 
@@ -495,6 +495,93 @@ and put them in this file's handover entry.
   and published equations, never code.
 
 ## Handover log
+
+### 2026-09-02 — both halves landed, and a third of the WP was already done
+
+**What this means.** A joint fit of one specimen at two wavelengths now shares
+the *crystallite size* rather than the number of degrees, and every converged
+fit reports a coherent domain size and a Δd/d with esds or a named reason it
+has neither. The two halves needed one thing that did not exist — a conversion
+authority — and half of that had landed in v1.2 while this WP sat queued, which
+is the first thing this session found and the reason the checklist shrank
+before it grew.
+
+*Pruned on arrival* — Finding 4 said "no physical size or microstrain exists
+anywhere in the package". Half false since `b5918f43`…`817cfdb3` (2026-08-24):
+`caglioti.py` holds the size conversion in both directions with `SCHERRER_K`
+carrying the convention and Langford & Wilson cited. The **width check**
+inherited from 1130 had also shipped entire, as `SIZE_UNUSUALLY_SMALL` /
+`STRAIN_UNUSUALLY_LARGE` with their `params.vector` bound twins, calibrated on
+the 606-refinement TOPAS archive and rowed in the skill tree — so 1130's
+dependency on this WP is **discharged** and § Inherited is gone. What that
+left: the strain conversion, the sharing map, and the whole reporting half.
+
+*Settled, not invented* — both open conventions, from prior art, recorded beside
+the constants. rietx's four coefficients are **FWHM** coefficients, so the FWHM
+convention inverts them with no peak-shape assumption and no second constant:
+`Δd/d = (π/360)·lor_strain`. GSAS-II reads size off the FWHM with K = 1 and
+publishes `mustrain` = 2Δd/d; FullProf reads both off the **integral breadth**,
+which for a pure Lorentzian is 1.571× rietx's size and half its strain. Both
+recorded in the manual and the skill, because a microstrain is not comparable
+between codes without its convention. Langford & Wilson (1978) is **still not
+in the corpus** and still unread — worth requesting before anyone quotes a
+two-figure size.
+
+*Measured* — the before/after table is § Finding 7. The headline: `lor_size`
+joint went 363.3 Å / 623.9 Å (one specimen, two crystallites, exactly the
+wavelength ratio apart) to **408.8 Å / 408.8 Å** against a true 400; `gauss_size`,
+the λ² twin nobody had measured, went 378.2 / 649.3 to **400.2 / 400.2** and its
+long-wavelength Rwp 0.3807 → 0.0817, which is what each pattern gives alone.
+The λ-free strain control is unmoved to every digit printed, before and after,
+which is what makes the size result a measurement rather than an argument. The
+`WP1131_NO_SCALE=1` switch in the session-local fixture script disables the
+normalisation on the same build, so the pair is one measurement and not two
+trees.
+
+*The seam* — `ParameterTable.apply_value_scale`, a fixed factor between a path's
+physical value and the number its free column carries, folded into **C**. Chosen
+over the alternatives because of where the derivative chain already is:
+`_peak_chain_column` finite-differences θ *through* `decode`, so the analytic
+column picks the factor up exactly where the whole-model FD column does and no
+derivative branch is touched. Measured rather than argued — every column of the
+stacked multi Jacobian against a central difference of the stacked residual,
+worst relative error 2.7e-6 against the unscaled cell column's 9.8e-7.
+
+*Two things the seam dragged in, both of which would have failed silently.*
+Shared bounds are now **intersected** rather than last-write-wins, since a size
+cap is a physical limit on each histogram's own coefficient and the scale
+divides it differently per histogram. And `seed_softplus` seeds in **column**
+units: seeding the physical value gives the histograms different internal
+coordinates for one shared column, nothing raises, and the last write wins.
+
+*Gotchas for whoever touches this next.* (1) Sharing happens in **internal**
+coordinates — two histograms share a column by being given the same θ — so
+anything that writes an entry's value per histogram has to think about the
+scale; `commit`, `x0`, `bounds` and `seed_softplus` all do now, and a fifth
+writer would not inherit it. (2) `SIZE_LAMBDA_POWER` is the whole list of
+λ-dependent quantities, as data: a new size term is one line there, and a new
+*strain* term is nothing. (3) The reference is histogram **0**, so its factor is
+exactly 1.0 and `RefinementResult.parameters` reports its numbers unchanged —
+which is also why equal wavelengths produce an *empty* map rather than a map of
+1.0s, and why the pre-change arithmetic is untouched rather than merely equal.
+(4) `SKILL_MAX_BYTES` went 32 000 → 33 000; the body was 32 B from its ceiling
+before this WP, so the next addition to it will need the same decision.
+
+*Not done, and why.* **No `rietx compare` row**: the standing rule adds one when
+a *correction* lands, and this WP lands none — every compare standard is
+single-histogram, where the change is bit-identical by construction, so a
+variant would draw a flat Δχ² panel. Every standard's baseline already frees all
+four sample terms, so the microstructure block is populated on every run as it
+stands. **No combined Gaussian+Lorentzian size**: that one is a function of two
+correlated columns and would need a covariance this module is not given, so the
+two readings are compared through `size_agreement` instead — which is Finding 5's
+unmeasured consistency, now measured.
+
+*Next* — nothing in this WP. It is closed. Two threads lead out of it: 1130 can
+proceed (its dependency is discharged), and a **λ-free `gauss_strain`** joint
+fixture was never run — derived and believed, like `gauss_size` was until this
+session, and cheap to add to the same script if anyone wants the fourth cell of
+the table.
 
 - **2026-08-27** — 1130's review moved the width check here (Tasks, *The width check*) and made 1130 depend on this WP; the trigger numbers and the dataset pointer are in § Inherited. No code touched. *Next* is unchanged: the conversion authority first, since the check reads it, then the sharing fix.
 

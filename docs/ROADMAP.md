@@ -91,8 +91,9 @@ PR #111; the exporter registry next. Two contributor PRs wait on review
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 and the three opened the day after (1323–1325), grouped by
-what their evidence says; the older four, 1119, 1130, 1131 (1130 restructured
-behind it 2026-08-27) and 1133.
+what their evidence says; the older three, 1119, 1130 and 1133. **1131 closed
+2026-09-02**, which discharges 1130's dependency on it — the width check 1130
+was waiting for had already shipped in v1.2.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -429,8 +430,8 @@ Also owed to v1.4: deleting the `AGENT_PROTOCOL.md` pointer
 Opened by evidence — an issue, an agent round, a measurement — and owned by no
 milestone yet. Grouped by what the evidence says; each WP file carries it in
 full, with the issues it closes. Most of the 13xx rows come from the
-2026-09-01 issue triage (PRs #205, #213) and the day after; 1118, 1119, 1130,
-1131 and 1133 are older.
+2026-09-01 issue triage (PRs #205, #213) and the day after; 1118, 1119, 1130
+and 1133 are older.
 
 #### Coming from another code
 
@@ -455,20 +456,22 @@ with a refinable scale and its own esds (1309, issue #171).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | ⬜ | 1131 |
+| [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | ⬜ | — (1131 closed) |
 | [1309](wp/1309-measured-background.md) | A measured background: the container exists, the scale and the esds do not | ⬜ | — |
 
 #### The specimen is not an angle, and the neutron follow-through
 
-Sample broadening is stored as a deg-2θ coefficient and shared across
+Sample broadening was stored as a deg-2θ coefficient and shared across
 histograms as though it were a specimen property; for **size** it is not (the
-same crystallite broadens by a different angle at a different wavelength), and
-no coefficient has ever been converted to a size or a strain (1131). The
-neutron rows follow 1134.
+same crystallite broadens by a different angle at a different wavelength).
+**1131 closed 2026-09-02**: a joint fit now shares the crystallite size and each
+histogram carries its own coefficient (measured 363.3/623.9 Å → 408.8/408.8 Å
+for one specimen), and every converged fit reports a coherent domain size and a
+Δd/d with esds. The neutron rows follow 1134.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1131](wp/1131-sample-broadening-is-a-specimen-property.md) | Sample broadening is a specimen property, not an angular coefficient | ⬜ | — |
+| [1131](wp/1131-sample-broadening-is-a-specimen-property.md) | Sample broadening is a specimen property, not an angular coefficient | ✅ 2026-09-02 | — |
 | [1133](wp/1133-diagnostic-names-its-view.md) | A diagnostic names the view that shows it | ⬜ | 1130 |
 | [1132](wp/1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | ⬜ | #108 |
 | [1312](wp/1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | ⬜ | — (1132 soft) |
