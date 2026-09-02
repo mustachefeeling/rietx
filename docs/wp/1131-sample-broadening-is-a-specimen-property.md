@@ -577,6 +577,16 @@ correlated columns and would need a covariance this module is not given, so the
 two readings are compared through `size_agreement` instead — which is Finding 5's
 unmeasured consistency, now measured.
 
+*Counts* — fast selection `-m "not slow"`, this worktree's own `[dev]` venv
+(no jax, no torch — the cross-backend rows self-skip), darwin/arm64, python
+3.12.12, **alone on the machine**: **3977 passed, 122 skipped** in 3:01. The
+suite was started twice before this and both runs were discarded rather than
+quoted — one raced an edit of its own tree, the other started within three
+seconds of another session's suite in the `wp1324` worktree, which rung 3's
+exclusivity rule says is not quotable. **+54 tests**, all passes: 45 in the new
+`tests/test_microstructure.py` and 9 in `tests/test_multi_histogram.py`
+(5 → 14). No new skips — 122 in every run this session. Full suite: [see below].
+
 *Next* — nothing in this WP. It is closed. Two threads lead out of it: 1130 can
 proceed (its dependency is discharged), and a **λ-free `gauss_strain`** joint
 fixture was never run — derived and believed, like `gauss_size` was until this
