@@ -59,7 +59,10 @@ so a session loads only what it needs:
    compressed to one clause plus a pointer to the WP or milestone record that
    holds the measurement. Counts and timings a session measures go in its WP
    handover entry (root CLAUDE.md § Numbers holds the *recipe*; the dated
-   history is the v1.0 appendix diary).
+   history is the v1.0 appendix diary). A rule an agent *driving* rietx
+   needs is neither: it goes in the agent skill — the body if it holds for
+   every fit, the task shape's `references/` file otherwise (root CLAUDE.md
+   § skill, WP-1330).
 5. **WP closes** (✅/🛑): rewrite "Current focus" for the successor and MOVE
    the outgoing narrative to the **in-flight milestone record**
    (`milestones/vX.Y.md` § "How vX.Y is getting here"; when no milestone is
@@ -532,6 +535,7 @@ aggregated after the fact (1322).
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1313](wp/1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | — |
+| [1330](wp/1330-skill-references-by-shape.md) | The skill grows by reference: one file per task shape, and the row an agent can write | 🔄 2026-09-02 | 1304, 1308 |
 
 #### Candidates — named on a use case, not yet on a measurement
 
