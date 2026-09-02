@@ -1575,8 +1575,9 @@ class Refinement:
         # snapshot handed out by reference is a mutation waiting to happen.
         declared_wavelengths = list(self._declared_wavelengths)
 
-        diagnostics: list[Diagnostic] = _dispersion_diagnostics(
-            self.structure, self.instrument)
+        diagnostics: list[Diagnostic] = (
+            _symmetry_silence_diagnostics(self.structure, mode)
+            + _dispersion_diagnostics(self.structure, self.instrument))
         stage_results: list[StageResult] = []
         self.stage_reports_ = []
         outcome = None
@@ -2982,6 +2983,100 @@ DISPERSION_NEGLECT_FRAC = 0.02
 #: above this the effect is large enough that the numbers should not be
 #: quoted without it, so the diagnostic escalates from info to warning
 DISPERSION_NEGLECT_SEVERE = 0.05
+
+
+def _symmetry_silence_diagnostics(structure: Structure,
+                                  mode: str = "rietveld") -> list[Diagnostic]:
+    """The two ways a structure's symmetry can be wrong without saying so.
+
+    Both are about *how many atoms a site puts in the cell* — the number that
+    feeds ``phase_zmv`` and therefore every weight fraction — and neither shows
+    up in Rwp, which is why they are reported here rather than left to a fit to
+    reveal (issues #215 and #217, WP-1324).
+
+    ``SITE_SNAPPED_TO_SPECIAL_POSITION``: a site within the site tolerance of a
+    special position but not on it.  ``crystallography.symmetry`` builds the
+    message, so a structure read from a CIF says the same thing on the reader's
+    channel that a hand-built one says here.
+
+    ``SPACE_GROUP_SETTING_ASSUMED``: a bare H-M symbol where the tables hold
+    more than one setting.  The **composition each setting implies** is the
+    discriminator, not the symbol — spinel's tetrahedral and octahedral
+    multiplicities swap between ``F d -3 m:1`` and ``:2``, so origin-2
+    coordinates under the bare symbol give A₂BO₄ where AB₂O₄ was meant — so the
+    message quotes both, and the caller recognises which one they meant.
+
+    ``mode`` decides how much of that a phase's atoms can be asked.  Outside
+    ``"rietveld"`` they are a Le Bail or Pawley **scaffold** — one dummy atom
+    standing in for a structure nobody supplied — so a snap is a report about a
+    placeholder and a composition is a fiction (``C8`` from the dummy carbon).
+    The setting still matters there and is still reported: ``:H`` against
+    ``:R`` changes the operators themselves, not only the origin.
+    """
+    from .crystallography.symmetry import (
+        get_spacegroup,
+        setting_alternatives,
+        snap_diagnostics,
+    )
+    from .optimize.qpa import phase_zmv
+
+    structural = mode == "rietveld"
+    out: list[Diagnostic] = []
+    for i, phase in enumerate(structure.phases):
+        sg = get_spacegroup(phase.space_group)
+        if structural:
+            out.extend(snap_diagnostics(
+                sg,
+                [(a.label, (a.x.value, a.y.value, a.z.value)) for a in phase.atoms],
+                source=f"phase {phase.name!r}", prefix=f"phases.{i}"))
+
+        taken, others = setting_alternatives(phase.space_group)
+        if not others:
+            continue
+        # An origin choice keeps the axes, so one coordinate list means
+        # something under each setting and the compositions are comparable —
+        # that comparison is the whole point.  ``:H`` against ``:R`` changes
+        # the axes themselves, so the cell and the coordinates belong to one of
+        # the two and reading them under the other is arithmetic, not a
+        # composition: calcite's hexagonal 6/6/18 came back as 2/12/12.
+        same_axes = not any(s.rsplit(":", 1)[-1] in ("H", "R")
+                            for s in (taken, *others))
+        implied = []
+        if structural and same_axes:
+            cell = tuple(getattr(phase.cell, n).value
+                         for n in ("a", "b", "c", "alpha", "beta", "gamma"))
+            sites = [(a.species, a.x.value, a.y.value, a.z.value, a.occ.value)
+                     for a in phase.atoms]
+            for setting in (taken, *others):
+                try:
+                    counts = phase_zmv(setting, cell, sites).element_counts
+                except (ValueError, KeyError):
+                    continue
+                formula = " ".join(f"{s}{c:g}" for s, c in sorted(counts.items()))
+                implied.append(f"{setting} → {formula}")
+        detail = ("; ".join(implied) if implied
+                  else f"{taken}, against {', '.join(others)}"
+                  + ("" if same_axes else " — hexagonal against rhombohedral "
+                     "axes, so the cell and the coordinates belong to one of "
+                     "them and no composition compares the two"))
+        out.append(Diagnostic(
+            level="warning", code="SPACE_GROUP_SETTING_ASSUMED",
+            where=[f"phases.{i}.space_group"],
+            message=(f"phase {phase.name!r} names space group "
+                     f"{phase.space_group!r}, which the tables hold in "
+                     f"{1 + len(others)} settings; it was resolved to {taken}. "
+                     + (f"Cell contents each setting implies: {detail}"
+                        if implied else f"The alternatives are {detail}")),
+            suggestion="if that is the setting you meant, nothing is "
+                       "wrong — write it into the symbol "
+                       f"({taken!r}) to say so. If it is not, the coordinates "
+                       "belong to another setting: name it instead "
+                       f"({', '.join(repr(s) for s in others)}). The site "
+                       "multiplicities differ between settings, so the choice "
+                       "changes ZMV and every weight fraction while leaving "
+                       "Rwp alone",
+        ))
+    return out
 
 
 def _dispersion_diagnostics(structure: Structure,

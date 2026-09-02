@@ -104,6 +104,31 @@ exactly — a tensor outside the allowed subspace raises rather than being
 symmetrised. The same construction, one rank up, yields the Stephens
 $S_{HKL}$ bases of {ref}`ch-microstructure`.
 
+The stabiliser also fixes how many atoms the site puts in the cell. The
+site multiplicity is the orbit length, and by orbit-stabiliser it is
+
+```{math}
+:label: par-multiplicity
+
+m \;=\; \frac{|G|}{|G_{\mathbf{x}}|},
+\qquad G_{\mathbf{x}} = \{(R, \mathbf{t}) : R\,\mathbf{x} + \mathbf{t} \equiv
+\mathbf{x} \bmod 1\},
+```
+
+*Source:* `rietx.crystallography.symmetry.site_orbit`
+
+so $m$ always divides the group order {cite}`itc-a`, and the orbit is
+generated one image per left coset of $G_{\mathbf{x}}$. Counting distinct
+images by pairwise comparison instead gives the same answer wherever the
+comparison is exact and no answer at all where it is not: proximity within a
+tolerance is not transitive, so the partition follows the order the operators
+arrive in and its size need not divide $|G|$. A coordinate within the
+tolerance of a special position is therefore projected onto it — the Reynolds
+average over $G_{\mathbf{x}}$, which moves the coordinate only along the
+directions {eq}`par-coord` forbids — before the images are generated.
+Multiplicities feed $ZMV$ and hence every quantitative phase fraction of
+{ref}`ch-estimation`, and none of that reaches $R_{wp}$.
+
 ## Soft restraints
 
 A bond-length, angle or value restraint contributes one row to the residual

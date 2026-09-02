@@ -60,7 +60,7 @@ from .adp import VOIGT, ustar_from_ucif
 from .neutron import b_coh as neutron_b_coh
 from .neutron import normalize_species as neutron_normalize_species
 from .scattering import f0, normalize_species
-from .symmetry import get_spacegroup
+from .symmetry import SITE_TOL, get_spacegroup, site_orbit
 
 
 @dataclass
@@ -132,30 +132,25 @@ class PhaseSites:
         return any(self.aniso)
 
 
-def select_orbit_ops(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = 1e-4
-                     ) -> tuple[np.ndarray, np.ndarray]:
+def select_orbit_ops(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
+                     tol: float = SITE_TOL) -> tuple[np.ndarray, np.ndarray]:
     """Choose the operation subset giving distinct images of ``xyz``.
 
-    On a general position this is all operations; on a special position,
-    coincident images are dropped so each orbit member appears exactly once.
+    On a general position this is all operations; on a special position, one
+    operation per left coset of the site's stabiliser, so each orbit member
+    appears exactly once.  :func:`~rietx.crystallography.symmetry.site_orbit`
+    is the one authority for that split — the forward model, the Wyckoff
+    constraint bases and QPA all read it, and the multiplicity frozen here is
+    what ``phase_zmv`` counts atoms with, so a second implementation is a
+    second answer to "how many atoms does this site put in the cell".
+
+    The *positions* are not frozen — θ moves the coordinates and the forward
+    model recomputes the images from these operations every residual
+    evaluation — so no snapped coordinate reaches the fit from here; the split
+    is what freezes, per the frozen-per-stage rule.
     """
-    rots, trans, seen = [], [], []
-    for op in sg.operations():
-        r = np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN
-        t = np.array(op.tran, dtype=np.float64) / gemmi.Op.DEN
-        p = (r @ np.asarray(xyz, dtype=np.float64) + t) % 1.0
-        dup = False
-        for q in seen:
-            diff = np.abs(p - q)
-            diff = np.minimum(diff, 1.0 - diff)
-            if np.all(diff < tol):
-                dup = True
-                break
-        if not dup:
-            seen.append(p)
-            rots.append(r)
-            trans.append(t)
-    return np.asarray(rots), np.asarray(trans)
+    orbit = site_orbit(sg, xyz, tol=tol)
+    return orbit.rot, orbit.tran
 
 
 def compile_phase_sites(phase: Phase,
