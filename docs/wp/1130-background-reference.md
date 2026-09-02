@@ -1,8 +1,8 @@
 # WP-1130 — The fit has no reference: a background level it cannot argue with
 
 Milestone: unscheduled · Status: ⬜
-Depends on: WP-1131 (the width check, and the size/strain conversions the
-diagnostic's disambiguation reads)
+Depends on: — (WP-1131 closed 2026-09-02, and the width check it named had in
+fact shipped in v1.2; see ### Inherited)
 
 ## Goal
 
@@ -36,6 +36,47 @@ package** — the real data file, then TOPAS's own coefficients, then the
 maintainer's flat-basin heuristic. Nothing rietx computes participated in any
 of the three corrections. That is the finding this WP exists to fix; the
 background is the instance.
+
+### Inherited
+
+From [1131](1131-sample-broadening-is-a-specimen-property.md)'s session,
+2026-09-02, which closed. Four things change the work here.
+
+- **The dependency is discharged, and not by 1131.** This file's `Depends on:`
+  line names 1131 for "the width check, and the size/strain conversions". The
+  **width check shipped in v1.2**, before 1131 was ever worked:
+  `SIZE_UNUSUALLY_SMALL` (apparent crystallite below `refine.SIZE_FLAG_SIZE_A`
+  = 50 Å, via Scherrer at the pattern's longest line) and
+  `STRAIN_UNUSUALLY_LARGE` (above `refine.STRAIN_FLAG_WIDTH` = 1.5 deg), each
+  with a bound twin in `params.vector` (`size_cap` with its 2 nm physics floor,
+  `strain_cap` off the fitted range) that arms only on a term already at the
+  floor, and rows in `docs/skill/rietx/references/{diagnostics,abstention}.md`.
+  Both thresholds are calibrated on the 606-refinement TOPAS archive rather
+  than invented. **So this WP is unblocked now**, and the tasks below that say
+  "defers to 1131's width finding" should name those two codes instead.
+- **The conversions exist and are one import, not a hand computation.**
+  `model/profiles/caglioti.py` holds both directions of both laws:
+  `apparent_size_from_size_coefficient` / `size_coefficient_for_size` (which
+  need a λ) and `microstrain_from_strain_coefficient` /
+  `strain_coefficient_for_microstrain` (which do not). § Finding 2's "`lor_strain`
+  of 10.37 is Δd/d ≈ 9 %" is `microstrain_from_strain_coefficient(10.37)` and
+  need not be recomputed by hand; state no constant of your own.
+- **There is now a better input than a coefficient.**
+  `RefinementResult.microstructure` / `FitReport.microstructure` carry, per
+  phase, the coherent domain size in Å and the Δd/d with esds — or a named
+  reason there is none (`at_zero`, `no_wavelength`, `not_measured`) — plus
+  `separable`, the width trend's own size/strain separability verdict. A
+  background diagnostic that has to tell a nanocrystalline fit from a phase
+  that has become a pedestal can read a size with an esd and a separability
+  flag rather than a number of degrees. **Read `separable` before quoting
+  either number**; over a short 2θ range the two are one parameter.
+- **A gotcha if this WP ever touches a joint fit.** A size coefficient is now
+  normalised by wavelength across histograms (`params.multi.size_value_scales`),
+  so a shared `phases.N.lor_size` is the coefficient at histogram 0's λ and each
+  histogram's own structure copy carries a different number. Read the *size*,
+  which is one number; the degrees are not. The
+  `SIZE_NORMALISED_ACROSS_WAVELENGTHS` diagnostic says so on any fit it applies
+  to.
 
 ### The trigger dataset
 

@@ -47,6 +47,21 @@ Run the session-start ritual. The SessionStart hook's report
 5. **Prune the WP's `### Inherited`** on arrival: fold still-true entries
    into Context or Tasks, delete stale ones, and say why in the handover
    entry.
+
+   **Then check the WP's *Findings* the same way, before building on one.** A
+   findings block is a dated claim about the tree, not a standing fact, and a
+   queued WP can lose whole tasks to work that landed after it was written:
+   WP-1131, opened 2026-08-23 and started 2026-09-02, declared a conversion
+   module missing that had landed the next day, and the width check it had
+   inherited had shipped entire in v1.2 — three of eleven tasks already done,
+   one task changed shape, and a dependent WP's blocker discharged rather than
+   delivered. Grep for the names a finding says are missing and
+   `git log --oneline -- <the file it says lacks them>` since the WP's date;
+   rewrite what has gone stale **in place** with a dated "superseded in part"
+   note and commit that prune first, because the successor reads the WP file
+   and not your session. Then check whether any WP depending on this one is
+   now unblocked — that goes in *its* `### Inherited` at handover (step 5 of
+   `/wp-handover`).
 6. **Tick the checklist item in the same commit that lands it** (protocol
    step 2). This is the cheap insurance behind the whole ritual: it keeps a
    partial record on disk at every point, so an interrupted session leaves the
