@@ -89,7 +89,7 @@ Seams: `docs/skill/rietx/SKILL.md` (routing table, description, header),
       the body, paid for by cuts; copies re-synced
 - [x] Root CLAUDE.md § skill: the three destinations and the shape rule; the
       CLAUDE.md cap raised by the lines it costs, in the caps diary
-- [ ] `/wp-handover` step 6 and `/pr-review` step 6 ask the unmechanised
+- [x] `/wp-handover` step 6 and `/pr-review` step 6 ask the unmechanised
       question; `docs/wp/TEMPLATE.md` carries a Skill line in Tasks
 - [ ] `CONTRIBUTING.md` § The agent skill (placement, the row form, the two
       commands) and `AGENTS.md`'s pointer to it

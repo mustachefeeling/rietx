@@ -73,9 +73,14 @@ steps below run unchanged.
    `test_docs_consistency.py` on glyphs and links, the `capabilities`
    meta-tests on a registry member missing from its arm). Did this session
    add physics with Part 1 prose but no Part 2 manual equation — **four of
-   the six McCusker WPs** did exactly that (WP-1067's log)? A diagnostic code
-   or a correction with no row in the agent skill? A declared name with
-   no writer — a defaulted `False`/`0` that reads as an *answer* about
+   the six McCusker WPs** did exactly that (WP-1067's log)? Something this
+   session **measured that an agent driving rietx needs** — a rule, a stop
+   condition, a surprise — sitting in the handover entry and not in the
+   skill? Root CLAUDE.md § skill routes it: the body if it holds for every
+   fit, the task shape's `references/` file otherwise, a `(Measured: …)`
+   tag on the row; the mechanised half (a code without a row, a verb the
+   index omits, a copy out of sync) is `tests/test_skill.py`'s. A declared
+   name with no writer — a defaulted `False`/`0` that reads as an *answer* about
    something nothing checked, a `Literal` member no code produces (**nine in
    WP-1076 alone**, and they were found by writing a manual chapter over the
    type, never by reading the code)? A correction whose evidence is an Rwp

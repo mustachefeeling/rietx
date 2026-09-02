@@ -66,6 +66,7 @@ message with the WP id (`WP-NNNN: ...`). Check off as they land.
 - [ ] ...
 - [ ] ...
 - [ ] Tests (unit/property; acceptance if this WP carries it) + obs/calc/diff PNGs to `tests/output/`
+- [ ] Skill: the routing row, reference row or body rule an agent driving rietx needs from this WP, or "none" and why (root CLAUDE.md § skill)
 
 ## Acceptance
 
