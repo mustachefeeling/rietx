@@ -45,6 +45,19 @@ Gaussian variance coefficient.  :func:`apparent_size_from_size_coefficient` is
 (4) and :func:`size_coefficient_for_size` is its inverse, which is what seeds a
 width from a known specimen.
 
+Reading a width as a strain
+---------------------------
+The strain law inverts the same way and needs *less*: microstrain broadens by a
+fixed fraction of every d-spacing, Δ2θ = 2·(Δd/d)·tanθ in radians, so
+
+    Δd/d = (π/180)·y_strain / 2                                            (5)
+
+with **no wavelength and no shape constant** — :func:`microstrain_from_strain_coefficient`
+and its inverse :func:`strain_coefficient_for_microstrain`.  That asymmetry is
+the whole content of WP-1131: two of the six sample-broadening quantities depend
+on λ and they are exactly the two named "size", so one specimen measured at two
+wavelengths shares a strain coefficient and does **not** share a size one.
+
 **Which parameters this reaches**, since it is the point of reading a width as
 a size at all: exactly the two size coefficients of the laws above, and no
 others.  ``x_size`` is ``instrument.profile.x + phases.N.lor_size``,
@@ -194,6 +207,63 @@ def size_coefficient_for_size(size_a: float, wavelength_a: float,
     if not k > 0.0:
         raise ValueError(f"k must be positive, got {k!r}")
     return math.degrees(k * wavelength_a / size_a)
+
+
+def microstrain_from_strain_coefficient(coefficient_deg: float) -> float:
+    """Δd/d (dimensionless) from a **tanθ strain coefficient** — no λ, no angle.
+
+    The size reading three functions up needs a wavelength and a Scherrer
+    constant; this one needs neither, and that asymmetry *is* the physics this
+    WP-1131 turns on.  Strain broadens by a fixed *fraction* of every d-spacing,
+
+        Δ2θ = 2·(Δd/d)·tanθ                                    [radians]  (5)
+
+    which is Bragg's law differentiated (λ = 2d sinθ ⇒ Δd/d = −cotθ·Δθ) and is
+    the strain-broadening relation of Stokes & Wilson, 1944, Proc. Phys. Soc.
+    **56**, 174-181; Von Dreele's ``M = 180·μ·tanΘ/π`` is the same line with
+    μ = 2Δd/d.  So a coefficient in deg 2θ inverts to
+
+        Δd/d = (π/180)·``coefficient_deg`` / 2                            (6)
+
+    with no wavelength in it at all — the same specimen shows the *same* number
+    of degrees of strain broadening on every instrument, where it shows a
+    λ-proportional number of degrees of size broadening.
+
+    ``coefficient_deg`` is the Lorentzian ``y_strain`` —
+    ``instrument.profile.y + phases.N.lor_strain`` — directly, or
+    ``sqrt(phases.N.gauss_strain)`` for the Gaussian variance coefficient, the
+    same pairing :func:`apparent_size_from_size_coefficient` takes.
+
+    **The convention, stated because the neighbours disagree.**  The returned
+    number is Δd/d read as a **FWHM** of the d-spacing distribution, which is
+    what rietx's coefficients are: (5) is a relation between two FWHMs, so no
+    peak-shape assumption enters and no second constant is needed.  GSAS-II
+    reports ``mustrain`` μ = 2·Δd/d in units of 10⁻⁶ off the same FWHM, i.e.
+    twice this.  FullProf reports an *apparent strain* ``½·β*·d`` off the
+    **integral breadth** of the size-only pseudo-Voigt — half of this before the
+    breadth-vs-FWHM factor, which is π/2 for a pure Lorentzian and 1.0645 for a
+    pure Gaussian.  Quote the number with the convention or do not quote it.
+
+    Refuses a non-positive coefficient by name, for
+    :func:`apparent_size_from_size_coefficient`'s reason: zero strain is a
+    perfect lattice, which is true and is not a measurement.
+    """
+    if not coefficient_deg > 0.0:
+        raise ValueError(f"coefficient_deg must be positive, got {coefficient_deg!r}")
+    return math.radians(coefficient_deg) / 2.0
+
+
+def strain_coefficient_for_microstrain(microstrain: float) -> float:
+    """Inverse of :func:`microstrain_from_strain_coefficient`: deg 2θ per Δd/d.
+
+    ``(360/π)·microstrain``.  What seeds a width from a strain one already knows
+    — the seeding direction :func:`size_coefficient_for_size` serves on the size
+    side.  Seeds ``instrument.profile.y`` or ``phases.N.lor_strain`` directly,
+    and ``phases.N.gauss_strain`` as the square of what it returns.
+    """
+    if not microstrain > 0.0:
+        raise ValueError(f"microstrain must be positive, got {microstrain!r}")
+    return math.degrees(2.0 * microstrain)
 
 
 def gaussian_fwhm(theta_deg: np.ndarray, u: float, v: float, w: float,

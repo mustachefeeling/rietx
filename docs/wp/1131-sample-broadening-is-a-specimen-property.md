@@ -1,6 +1,6 @@
 # WP-1131 — Sample broadening is a specimen property, not an angular coefficient
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-02
 Depends on: — (WP-0308 owns the sharing map this corrects; WP-1072 is the esd
 precedent the reporting half copies)
 
@@ -144,32 +144,74 @@ never fired this. `lab_sample_refine` frees all four in one stage
 default 0.0 is 0.0 at every wavelength, so the defect needs a *refined nonzero*
 size term in a joint fit whose histograms differ in λ.
 
-### Finding 4 — no physical size or microstrain exists anywhere in the package
+### Finding 4 — half of it landed in v1.2; the strain half did not
 
-Verified by search across `src/`, `docs/manual/` and the exporters, not assumed:
+**Superseded in part, 2026-09-02.** Finding 4 as written ("no physical size or
+microstrain exists anywhere in the package") was true on 2026-08-23 and is half
+false now: `b5918f43`…`817cfdb3` (2026-08-24, v1.2) put the **size** conversion
+in `model/profiles/caglioti.py` — `apparent_size`, `delta_q_fwhm`,
+`apparent_size_from_size_coefficient` and its inverse `size_coefficient_for_size`,
+with `SCHERRER_K = 0.9` carrying the convention argument and Langford & Wilson
+(1978) cited for the shape spread. `params.vector.size_cap`,
+`refine._size_flag_diagnostics` and `report/layer2._size_clause` are its three
+consumers.
 
-- No Scherrer conversion, no `k`, no size in nm/μm/Å, no strain in ppm. Every
-  "Scherrer" in `src/` is either the `debye_scherrer` geometry literal or prose
-  naming the 1/cosθ law.
-- The four coefficients are plain `Parameter`s with `unit="deg"` / `"deg^2"`
-  (`schemas/structure.py:390-409`). Their comment states the θ-laws and the
-  instrument ⊕ sample workflow, and states no conversion constant.
-- `FitReport` carries no length and no dimensionless strain in any layer.
-  `TrendAnalysis`'s `inv_cos_theta` / `tan_theta` templates are *attribution*
-  amplitudes, and `StrainAnalysis.anisotropy` is a broadest/narrowest **ratio**.
-- Derived-quantity esd propagation exists three times and none is this:
-  `model/geometry.py` (bonds/angles), `optimize/qpa.py` (weight fractions),
-  `indexing/qspace.py`. `params/vector.stderr_physical` propagates only through
-  affine ties and transforms, so a `lor_size` esd is an esd on a FWHM in degrees.
-- `docs/manual/microstructure.md` goes from the θ-laws straight to Stephens. The
-  word "nm" does not appear in the manual.
+What that leaves for this WP:
 
-The one physical microstructural length in the schema is an input whose
+- **The conversion authority exists and this WP extends it rather than founding
+  a peer module.** The original task asked for a new module beside
+  `model/geometry.py`; there is now one authority in `caglioti.py` and a second
+  spelling would be the mistake the root CLAUDE.md names.
+- **There is still no strain conversion.** Nothing in `src/` reads a
+  `lor_strain`/`gauss_strain` coefficient as a Δd/d, so a strain is still a
+  number of degrees a user cannot check.
+- **Nothing reports either as a result field.** `FitReport` carries no length
+  and no dimensionless strain; both flags (below) compute a size or a width
+  inside a diagnostic message and throw it away.
+- **No esd anywhere.** Neither flag propagates, so the reporting half of this
+  WP — J·Cov·Jᵀ off the final Jacobian, `None` where the coefficient is at
+  zero, unmeasured or gradient-free — is untouched.
+
+The one physical microstructural length in the schema is still an input whose
 docstring rules out deriving it here, and rightly: `particle_radius_um` is
 Brindley's absorption path, and "profile broadening measures the *coherent
 domain* size, which is smaller than (and unrelated to) the particle"
 (`schemas/structure.py:418-426`). Whatever this WP reports must be named a
 **coherent domain size** and must never be confused with it.
+
+### Finding 7 — re-measured on this tree, before and after, including `gauss_size`
+
+2026-09-02, one script (`tests/output/wp1131_fixture.py`, session-local, and
+`WP1131_NO_SCALE=1` disables the normalisation on the same build so the pair is
+one measurement rather than two trees). LaB₆, p = 400 Å or Δd/d = 1e-3,
+`profile.x` held at 0, λ 0.41390 over 3-24° and 0.71070 over 5-42°, three
+stages: scale+background / cell / the one width.
+
+| term | fitted alone | joint **before** | joint **after** |
+|---|---|---|---|
+| `lor_size` | −2.1 % / −2.2 % | +10.1 % / −35.9 % | −2.2 % / −2.2 % |
+| implied size (Å) | — | **363.3 and 623.9** | **408.8 and 408.8** |
+| Rwp | 0.1024 / 0.1372 | 0.1236 / **0.2450** | 0.1024 / 0.1374 |
+| `gauss_size` | −0.1 % / −0.2 % | +11.9 % / **−62.1 %** | −0.1 % / −0.1 % |
+| implied size (Å) | — | **378.2 and 649.3** | **400.2 and 400.2** |
+| Rwp | 0.0412 / 0.0817 | 0.0809 / **0.3807** | 0.0412 / 0.0817 |
+| `lor_strain` (control) | −0.8 % / −0.4 % | −0.7 % / −0.7 % | −0.7 % / −0.7 % |
+| Rwp | 0.0538 / 0.0890 | 0.0538 / 0.0890 | 0.0538 / 0.0890 |
+
+Three things this settles that Finding 2 could not. **The λ² derivation is
+right and costs more than λ**: `gauss_size`'s joint Rwp on the long-wavelength
+histogram was 4.7× its single-pattern value against `lor_size`'s 1.8×, because
+the error in a width is squared into a variance. **The fix is exact, not
+approximate**: after it the two implied sizes agree to floating point (the
+coefficients are one number times two wavelengths), and both Rwp are what each
+pattern gives alone to the fourth decimal. **The control is untouched to every
+digit printed**, which is what makes the size result a measurement rather than
+an argument — the same machinery, the same wavelengths, one λ-free quantity.
+
+The percentages differ from Finding 2's (+12.5 % / −34.5 %) because the ranges,
+seeds and starting values are this session's, rebuilt from Finding 2's recipe
+rather than restored; the story, the implied-size ratio (1.7171, the wavelength
+ratio exactly) and the cell's indifference (±2 ppm) are identical.
 
 ### Finding 5 — four independent coefficients can disagree about one specimen
 
@@ -206,21 +248,6 @@ coefficient is at zero, unmeasured, or gradient-free. That is WP-1072's rule —
 a quantity that cannot be measured is absent rather than zero — and
 `ParameterTable.unmeasured_rows` already marks the inputs.
 
-### Inherited
-
-From [1130](1130-background-reference.md)'s review, 2026-08-27:
-
-- 1130 now **depends on this WP**: its `BACKGROUND_BELOW_ANCHORS` defers to the
-  width finding below to tell a nanocrystalline fit from a phase that has
-  become a pedestal, so the width check and the conversions it reads land
-  before 1130's diagnostic.
-- The trigger scan is not in the repo — `zrmo2o8_vt.zip` from the Durham TOPAS
-  workshop, range 17 = `read_pattern(scan=16)`, four phases from
-  `d8_01612_vt_reel_02.inp`, 14–70°, CuKα1 with a Ge(111) monochromator — and
-  TOPAS's TCHZ `pkx`/`pky` map to rietx's `profile.y`/`profile.x`, not by
-  letter. Both are in 1130 § The trigger dataset, restated here so this WP can
-  build its own fixture without opening that file.
-
 ## Non-goals
 
 - **Not the missing instrument `Z` term.** GSAS-II's Lorentzian is
@@ -248,81 +275,149 @@ From [1130](1130-background-reference.md)'s review, 2026-08-27:
 
 ## Tasks
 
-- [ ] **The physics, as one authority.** A module (peer of `model/geometry.py`)
-      holding the four conversions in both directions, each citing its source and
-      stating its convention explicitly, with the wavelength as an argument
-      rather than an ambient. This is what everything below imports; nothing else
-      restates a constant.
-- [ ] **Settle the constants before writing them.** Two conventions are
-      genuinely open and must not be invented: the Scherrer constant `k` (shape
-      dependent; GSAS-II's slide writes `k=1`), and whether the reported
-      microstrain is Δd/d or 2Δd/d — Von Dreele's `M = 180·μ·tanΘ/π` against
-      Δ2θ = 2(Δd/d)tanθ implies his μ is the doubled one. Read the source, ask
-      the maintainer for Langford & Wilson (1978) if the corpus lacks it (a title
-      search found no size/Scherrer paper), and record the choice beside the
-      constant. Prior art decides this, per the root CLAUDE.md's fence on
-      invented defaults.
-- [ ] **Fix the sharing map.** `phases.*.lor_size` and `phases.*.gauss_size` may
+- [x] **The physics, as one authority — `caglioti.py`, extended not duplicated.** ✔
+      The size half landed in v1.2 (Finding 4); this WP adds the **strain** half
+      beside it, in both directions, citing its source and stating its convention,
+      with no wavelength argument because strain has none. Everything below
+      imports from there; nothing restates a constant.
+- [x] **Settle the constants before writing them.** Settled from prior art, not
+      invented, and recorded beside each constant. Size: `SCHERRER_K = 0.9`
+      already in the tree — the **FWHM** convention for roughly isotropic
+      crystallites, K an argument everywhere so a known morphology can say so
+      (Langford & Wilson 1978 tabulate 0.89 for a sphere's FWHM against 1.0747
+      for its integral breadth; the paper itself is still not in the corpus, and
+      the numbers quoted here come from the in-tree citation and FullProf's
+      manual). Strain: the coefficient is the **FWHM** of the Δd/d distribution,
+      matching the size convention, so `lor_strain = (360/π)·(Δd/d)` inverts with
+      no second constant. What the neighbours do, recorded because they disagree
+      with each other and one of them is quoted at the user: GSAS-II reads its
+      size off the FWHM with k = 1 and reports `mustrain` μ = 2·Δd/d in 10⁻⁶
+      (Von Dreele's `S = 180kλ/(πp cosΘ)`, `M = 180μ tanΘ/π`); FullProf reads
+      both off the **integral breadth** — apparent size `D = (360λ/π²)·(η+(1−η)√(π ln2))/Z_s`
+      and apparent strain `ε = ½·β*·d` in 10⁻⁴ — which for a pure Lorentzian is
+      π/2 = 1.571× rietx's size and half rietx's strain. Neither is adopted:
+      rietx's four coefficients are FWHM coefficients, so the FWHM convention is
+      the one that inverts them without a peak-shape assumption, and the two
+      spreads are what make the reported number an order-of-magnitude statement.
+- [x] **Fix the sharing map.** ✔ *normalise*, per the measurement below.
+      `ParameterTable.apply_value_scale` declares a fixed factor between a
+      path's physical value and its free column (folded into C, so `decode`
+      multiplies, `x0`/`bounds` divide, an esd comes back multiplied and the
+      analytic Jacobian inherits it for free because `_peak_chain_column`
+      finite-differences θ *through* `decode`); `params.multi.size_value_scales`
+      hands each histogram λ_h/λ_ref for `lor_size` and its square for
+      `gauss_size`, and the structure copies are pre-scaled so the shared
+      internal coordinate is the coefficient at λ_ref. Shared bounds are now
+      **intersected** rather than last-write-wins, because the histograms can
+      genuinely disagree about a size cap once it is divided per histogram.
+      Measured on the fixture: two implied sizes 408.8 Å and 702.0 Å become one
+      408.8 Å, histogram 1's Rwp 0.2450 → 0.1374 against 0.1372 for that pattern
+      alone, and the λ-free strain control is unmoved to every digit printed
+      (0.113840, Rwp 0.0538/0.0890 before and after). Old task text: **Fix the
+      sharing map.** `phases.*.lor_size` and `phases.*.gauss_size` may
       not be one column across histograms of different wavelength. Two candidate
       shapes, and the WP picks one on measurement: normalise the shared column
       (share the size, derive each histogram's coefficient from its own λ), or
       refuse — make them per-histogram by default and raise when a caller shares
       them across differing λ. Whichever lands, **equal wavelengths must stay
       bit-identical**, since that is every existing joint fit.
-- [ ] **A diagnostic, because Finding 3 says the failure is unattributed.**
+- [x] **A diagnostic, because Finding 3 says the failure is unattributed.** ✔
+      `SIZE_NORMALISED_ACROSS_WAVELENGTHS`, level **info** — with the fix there
+      is no defect to warn about, so the row *states what was done*, the shape
+      `PHASE_UNCONSTRAINED` took in WP-1301. Carries the path, both wavelengths,
+      every histogram's factor and its resulting coefficient, and the
+      `SharingMap(per_histogram=…)` escape. Silent when nothing was scaled or
+      when every scaled term is still at zero. Old task text: **A diagnostic,
+      because Finding 3 says the failure is unattributed.**
       Sharing a wavelength-dependent path across differing λ is a named finding
       with the paths and the two wavelengths in it, not a silent 2.6× Rwp. Add it
       through the `GuardFinding` constructor per the root CLAUDE.md rule, and its
       row in `AGENT_PROTOCOL.md`.
-- [ ] **Report the size and the strain.** `FitReport` carries a per-phase
+- [x] **Report the size and the strain.** ✔ `RefinementResult.microstructure` /
+      `FitReport.microstructure`, one `PhaseMicrostructure` per phase, four
+      `MicrostructureTerm`s each. Built in `model/microstructure.py` (the peer of
+      `model/geometry.py`), called from `refine.py` beside `geometry_table` off
+      the same final Jacobian, through the same λ selector the size bound and
+      the size flag use. Each reading is a function of exactly **one**
+      coefficient, so J·Cov·Jᵀ is one variance with no cross-term to drop —
+      which is *why* a combined Gaussian+Lorentzian size is not reported.
+      Four absences, each named: `at_zero`, `no_wavelength`, `not_measured`,
+      and `None` for nothing missing. Named a coherent domain size, with
+      `particle_radius_um` disclaimed in the schema and in the manual. Old task
+      text: **Report the size and the strain.** `FitReport` carries a per-phase
       microstructure block: coherent domain size and microstrain with esds
       through J·Cov·Jᵀ off the final Jacobian, `None` wherever the coefficient is
       at zero, unmeasured (`ParameterTable.unmeasured_rows`) or gradient-free.
       Name it a coherent domain size, and say beside it that it is not
       `particle_radius_um`.
-- [ ] **The width check — a phase's broadening is a claim about the specimen,
-      bounded in physical units.** On 1130's trigger scan a *visible* cubic
-      ZrMo₂O₈ refined to a Gaussian FWHM of 5.0°/cosθ (`gauss_size` 24.93) and
-      a Lorentzian of 6.0° at 2θ = 60° (`lor_strain` 10.37, i.e. Δd/d ≈ 9 %)
-      against an instrument width of 0.15°, became a second background, and
-      the fit reported `converged` at an Rwp matching TOPAS's to two decimals.
-      A `GuardFinding` (name settled with the constants) fires when the implied
-      coherent domain size falls below, or the implied microstrain rises above,
-      a bound with its physical argument recorded beside it — a domain of a
-      few unit cells is not a crystal, a Δd/d of several per cent is not a
-      lattice — checked against prior art per the root CLAUDE.md's fence on
-      invented constants. **Never a factor over the instrument**: that fires on
-      every genuine nanocrystal and cannot tell one from the trigger, and
-      `phase_support`/`cell_window` already cover the invisible phase. The
-      bound is calibrated silent on every bundled pattern's converged fit and
-      firing on 1130's trigger; 1130's ±0.5° cap was binding and is a direction,
-      not a value. Its `AGENT_PROTOCOL.md` row says the width is the first
-      suspect when a background sits far below any independent estimate.
-- [ ] **State the separability caveat where the number is, not elsewhere.** Over
+- [x] **The width check** — **landed in v1.2, not by this WP**:
+      `SIZE_UNUSUALLY_SMALL` (below `refine.SIZE_FLAG_SIZE_A` = 50 Å apparent
+      crystallite, via Scherrer at the pattern's longest line) and
+      `STRAIN_UNUSUALLY_LARGE` (above `refine.STRAIN_FLAG_WIDTH` = 1.5 deg),
+      each with a bound twin in `params.vector` (`size_cap` with its 2 nm physics
+      floor, `strain_cap` off the fitted range) that arms only on a term already
+      at the floor, and rows in `docs/skill/rietx/references/{diagnostics,abstention}.md`
+      and `docs/manual/profiles.md`. Both thresholds are calibrated on the
+      606-refinement TOPAS archive rather than invented, and both say the number
+      is one to check rather than a refusal. 1130's dependency is discharged.
+- [x] **State the separability caveat where the number is, not elsewhere.** ✔
+      `PhaseMicrostructure.separable` + `size_strain_collinearity`, copied from
+      the width `TrendAnalysis`'s own verdict in `build_report` and **never**
+      recomputed. `None` — no claim made — on the result and on an abstained
+      report. Old task text: **State the separability caveat where the number
+      is, not elsewhere.** Over
       a narrow 2θ range size and strain are collinear, which the package already
       knows (`report/schemas.py:733`'s `max_template_collinearity`, and the
       Layer 2 bullet at `../DESIGN.md` 322-328). A size reported without that
       caveat is the confident wrong
       singleton the FitReport exists to refuse. Reuse the existing statistic;
       do not compute a second opinion.
-- [ ] **The Gaussian/Lorentzian consistency check.** Once the conversion exists,
+- [x] **The Gaussian/Lorentzian consistency check.** ✔
+      `PhaseMicrostructure.size_agreement` / `.strain_agreement`, the Gaussian
+      reading over the Lorentzian one, `None` when either is absent. One line
+      once the authority existed, exactly as Finding 5 predicted. Old task text:
+      **The Gaussian/Lorentzian consistency check.** Once the conversion exists,
       compare the size implied by `lor_size` against the one implied by
       `gauss_size` (and the two strains likewise) and report a disagreement.
       Finding 5 is why; one line once the authority exists.
-- [ ] **Measure `gauss_size` the way Finding 2 measured `lor_size`.** The λ²
-      dependence is derived here and not measured; the joint-fit error should be
-      larger. Same fixture, same control.
-- [ ] **Manual + protocol.** `docs/manual/microstructure.md` gains the extraction
-      it currently omits (the chapter states the laws and gives no route to a
-      number), the theory manual gains the equations per the root CLAUDE.md's
-      rule that a WP adding physics adds its equation to Part 2, and Part 1 gains
-      the new public names or the partition fails.
-- [ ] **`rietx compare` row** — the standing rule, and the cumulative Δχ² panel
-      is what would localise a width change to the regions it acts in.
-- [ ] Tests (unit for the conversions against hand-computed values; the
-      two-wavelength joint fixture from Finding 2 with its strain control, which
-      must stay in the suite as the thing that fails if the sharing regresses) +
-      obs/calc/diff PNGs to `tests/output/`.
+- [x] **Measure `gauss_size` the way Finding 2 measured `lor_size`.** ✔ Done,
+      and the derivation held: the damage is larger. Same fixture, same control,
+      the normalisation switched off on the same build (§ Finding 7).
+- [x] **Manual + protocol.** ✔ Part 2's `microstructure.md` gains
+      § *Reading a width as a strain* with {eq}`ms-strain-law` and
+      {eq}`ms-strain-coefficient`, both `*Source:*`-attributed, and Stokes &
+      Wilson (1944) joins the bibliography; the λ asymmetry is stated there
+      because that is where the two equations sit side by side. Part 1's
+      `using/results.md` gains § *The size and the strain, in physical units* —
+      the field table, the four absences, the separability caveat and the
+      joint-fit note — which is what the API partition demanded (20 new public
+      names). The skill's deliverable table gains a **Microstructure** row and
+      `references/judging.md` its worked measurement; `references/diagnostics.md`
+      gains the `SIZE_NORMALISED_ACROSS_WAVELENGTHS` row. `SKILL_MAX_BYTES` went
+      32 000 → 33 000 in the commit that needed it, argued there: the derivation
+      ("half the ~66 kB Read cap") is unchanged, and the alternative was a
+      deliverable whose row lived outside the table its four peers are in.
+- [x] **`rietx compare` row** — ✔ **none, and the reason is the rule itself.**
+      The standing rule is "add a row whenever a new *correction* lands", and
+      this WP lands none: on a single-histogram standard — which every one of
+      `compare`'s standards is — the sharing change is bit-identical by
+      construction, and the report block changes no residual, so a variant
+      toggling it would draw a flat Δχ² panel and assert nothing. The width
+      comparison the task imagined already exists: every standard's baseline
+      plan frees all four sample terms in its `sample_broadening` stage
+      (`viz/compare.py:171`), so `result.microstructure` is populated on every
+      run already, and the `stephens` variant is the width change the Δχ² panel
+      localises.
+- [x] Tests ✔ — `tests/test_microstructure.py` (the conversions against hand
+      computations and against the law evaluated at six angles; the block's
+      value, esd, four absences and the G/L agreement; an end-to-end fit whose
+      size and strain each cover their truth; a JSON round trip) and four new
+      rows in `tests/test_multi_histogram.py` (the two-wavelength size fixture,
+      the `gauss_size` λ² twin, the λ-free strain control, the two selectors'
+      agreement, the empty-scale cases and the `apply_value_scale` refusals).
+      PNGs to `tests/output/`: `wp1131_size_joint_h{0,1}`,
+      `wp1131_gauss_size_joint_h{0,1}`, `wp1131_microstructure_fit`, all
+      inspected.
 
 ## Acceptance
 
@@ -333,6 +428,18 @@ bit-identical to today; a converged single-pattern fit reports a size with an
 esd, or `None` with a reason; and a fit driven to 1130's trigger widths
 fires the width finding while every bundled pattern's converged fit stays
 silent.
+
+**Met, 2026-09-02**, clause by clause. The fixture recovers **408.8 Å at both
+wavelengths** (`lor_size`) and **400.2 Å at both** (`gauss_size`) against a true
+400 Å, where the shared column landed 363.3/623.9 and 378.2/649.3 before; the
+agreement between the two histograms is asserted at `rel=1e-9`, because after
+the fix it is structural rather than statistical. The strain control is unmoved
+to every digit printed. A single-wavelength joint fit declares **no scaling at
+all** — an empty map, not a map of 1.0s — so `ParameterTable` takes the branch
+it always took and the arithmetic is untouched. A converged single-pattern fit
+reports 399.9(26) Å and Δd/d 0.00084(27), and every absent number names its
+cause. The width finding is v1.2's and was already calibrated silent on the
+bundled patterns.
 
 ```sh
 .venv/bin/python -m pytest tests/test_multi_histogram.py tests/test_microstructure.py -q
@@ -358,8 +465,15 @@ and put them in this file's handover entry.
   behind WP-0308's sharing map, which is what this WP corrects.
 - **Scherrer (1918)**, *Nachr. Ges. Wiss. Göttingen* **26**, 98 — the size law.
 - **Langford & Wilson (1978)**, *J. Appl. Cryst.* **11**, 102 — the Scherrer
-  constant and its shape dependence. **Not read and not in the corpus** (a title
-  search returned no size/Scherrer entry); request it before choosing `k`.
+  constant and its shape dependence. **Still not in the corpus** (a title search
+  returns no size/Scherrer entry) and still not read; `SCHERRER_K`'s in-tree
+  citation quotes its 0.89/1.0747 pair, which is what the convention note rests
+  on. Worth requesting before anyone quotes a two-figure size.
+- **Rodríguez-Carvajal**, *FullProf manual* — in the corpus, and the prior art
+  that settles the convention question the other way: apparent size and apparent
+  strain from the **integral breadth** of the size-only pseudo-Voigt, with the
+  TCH mixing rule spelled out. Read for this WP, adopted as the *record of what
+  the neighbours do*, not as the convention.
 - **Stephens (1999)**, *J. Appl. Cryst.* **32**, 281 — already cited in
   `crystallography/stephens.py`; relevant here because Λ(hkl) is λ-free and so
   stays correctly shared.
@@ -369,6 +483,176 @@ and put them in this file's handover entry.
   and published equations, never code.
 
 ## Handover log
+
+### 2026-09-02 (2nd) — the handover run properly, and what the first pass missed
+
+**What this means.** The first pass reproduced the handover protocol from
+memory instead of running `/wp-handover`, and reported the WP closed. Running
+the ritual properly then found four things, two of them defects of the same
+shape this WP exists to correct. Nothing about the physics changed; what
+changed is that the work is now actually reviewable, actually verified against
+the tree it lands on, and the WP that depends on it can be picked up by someone
+who never reads this file.
+
+*Done, and each is a step of the protocol the first pass skipped.*
+
+- **Step 5, forward references.** `1130` depends on this WP and had **no**
+  `### Inherited` at all. Its next session would have read `Depends on:
+  WP-1131` and not known the dependency was discharged, nor that the width
+  check it wants shipped in v1.2 rather than here. It now carries the two
+  diagnostic codes and their bound twins, both conversions as imports rather
+  than hand computations, `result.microstructure` as a better input to its
+  background diagnostic than a coefficient (with `separable` to read first),
+  and the joint-fit gotcha. Its `Depends on:` line follows.
+- **Step 6, the name audit** — run against what this session *declared*, and it
+  found two WP-1076 shapes in this session's own diff. A joint fit reported
+  `microstructure=[]`, an empty list that reads as "no microstructure" about
+  the fits this whole correction exists for; it is filled from histogram 0 now,
+  whose value scale is exactly 1.0. And `PhaseMicrostructure.scherrer_k` was
+  `float = 0.0`, a defaulted constant a size scales linearly in — required now,
+  on WP-1305's `delta_bic` precedent.
+- **Step 7.** The consumed `### Inherited` was renamed rather than deleted.
+- **Step 9, `/code-review medium --fix`.** Six findings, all applied, **none
+  declined**. Two were real bugs and neither had a test, so each now has a guard
+  that was **confirmed to fail on the unfixed code**: `build_report` aliased the
+  result's blocks (`list(...)` is shallow and pydantic does not copy a nested
+  model on assignment), so building a report wrote `separable` into the
+  *result* — verified, it came back `separable=True, collinearity=0.0` — and a
+  second, abstaining report inherited the first one's verdict instead of the
+  `None` it promises; and a size term's declared window did not travel with its
+  scaled value, so any finite bound raised pydantic's own `min<=value<=max` at
+  `MultiParameterTable` construction, with a message saying nothing about
+  wavelengths. Three smaller ones applied as found, one of which caught a
+  commit message of mine claiming an esd dict was "built once" when the loop
+  above it had already built exactly that dict.
+- **Step 10, verified on the tree that lands.** `main` had moved **11 commits**
+  (WP-1324, PR #226) and the first pass's own check said zero — `git fetch
+  origin main` leaves `origin/main` stale, so the comparison was against a stale
+  ref, and the maintainer's "main has shifted" is what caught it. Merged, one
+  ROADMAP conflict resolved by hand (both WPs closed the same day and each side
+  of the conflict dropped the other's fact).
+
+*Measured, on the merged tree, this worktree's own `[dev]` venv (no jax, no
+torch), darwin/arm64, python 3.12.12, alone on the machine.* Full suite
+**4176 passed, 131 skipped** in 23:12, on the exact commit that is pushed; fast
+selection **4013 passed, 122 skipped**. The bare-branch figures the first pass
+quoted (4140/131 full, 3977/122 fast) were for a tree nothing will ever hold:
+branch protection is `strict: false`, so a PR merges green without being built
+against the main it lands on, and the difference here is WP-1324's +36 tests
+plus this pass's +4.
+
+*Gotchas this pass adds to the four already above.* (1) `git fetch origin
+<branch>` does not update `refs/remotes/origin/<branch>` here, so
+`rev-list HEAD..origin/main` after it answers about a stale ref and can report
+0 when main has moved eleven commits — fetch bare. (2) A module-scoped fixture
+makes an aliasing bug invisible: the test asserting `result.…separable is None`
+passed only because it ran *before* the one that builds a report. Order was
+doing the work, not the assertion.
+
+*Next* — nothing in this WP; it is closed and the PR is #227. The threads out
+of it are unchanged: 1130 is unblocked, and a λ-free `gauss_strain` joint
+fixture is still derived-and-believed rather than measured. One thing this pass
+declined to change, and it is worth someone's judgement rather than silence:
+the value scales are frozen at `MultiParameterTable.__init__` from the declared
+λ, so a joint fit that *refines* wavelength leaves the normalisation stale by
+the shift. It is ppm-level, and re-freezing per stage is a different change.
+
+### 2026-09-02 — both halves landed, and a third of the WP was already done
+
+**What this means.** A joint fit of one specimen at two wavelengths now shares
+the *crystallite size* rather than the number of degrees, and every converged
+fit reports a coherent domain size and a Δd/d with esds or a named reason it
+has neither. The two halves needed one thing that did not exist — a conversion
+authority — and half of that had landed in v1.2 while this WP sat queued, which
+is the first thing this session found and the reason the checklist shrank
+before it grew.
+
+*Pruned on arrival* — Finding 4 said "no physical size or microstrain exists
+anywhere in the package". Half false since `b5918f43`…`817cfdb3` (2026-08-24):
+`caglioti.py` holds the size conversion in both directions with `SCHERRER_K`
+carrying the convention and Langford & Wilson cited. The **width check**
+inherited from 1130 had also shipped entire, as `SIZE_UNUSUALLY_SMALL` /
+`STRAIN_UNUSUALLY_LARGE` with their `params.vector` bound twins, calibrated on
+the 606-refinement TOPAS archive and rowed in the skill tree — so 1130's
+dependency on this WP is **discharged** and § Inherited is gone. What that
+left: the strain conversion, the sharing map, and the whole reporting half.
+
+*Settled, not invented* — both open conventions, from prior art, recorded beside
+the constants. rietx's four coefficients are **FWHM** coefficients, so the FWHM
+convention inverts them with no peak-shape assumption and no second constant:
+`Δd/d = (π/360)·lor_strain`. GSAS-II reads size off the FWHM with K = 1 and
+publishes `mustrain` = 2Δd/d; FullProf reads both off the **integral breadth**,
+which for a pure Lorentzian is 1.571× rietx's size and half its strain. Both
+recorded in the manual and the skill, because a microstrain is not comparable
+between codes without its convention. Langford & Wilson (1978) is **still not
+in the corpus** and still unread — worth requesting before anyone quotes a
+two-figure size.
+
+*Measured* — the before/after table is § Finding 7. The headline: `lor_size`
+joint went 363.3 Å / 623.9 Å (one specimen, two crystallites, exactly the
+wavelength ratio apart) to **408.8 Å / 408.8 Å** against a true 400; `gauss_size`,
+the λ² twin nobody had measured, went 378.2 / 649.3 to **400.2 / 400.2** and its
+long-wavelength Rwp 0.3807 → 0.0817, which is what each pattern gives alone.
+The λ-free strain control is unmoved to every digit printed, before and after,
+which is what makes the size result a measurement rather than an argument. The
+`WP1131_NO_SCALE=1` switch in the session-local fixture script disables the
+normalisation on the same build, so the pair is one measurement and not two
+trees.
+
+*The seam* — `ParameterTable.apply_value_scale`, a fixed factor between a path's
+physical value and the number its free column carries, folded into **C**. Chosen
+over the alternatives because of where the derivative chain already is:
+`_peak_chain_column` finite-differences θ *through* `decode`, so the analytic
+column picks the factor up exactly where the whole-model FD column does and no
+derivative branch is touched. Measured rather than argued — every column of the
+stacked multi Jacobian against a central difference of the stacked residual,
+worst relative error 2.7e-6 against the unscaled cell column's 9.8e-7.
+
+*Two things the seam dragged in, both of which would have failed silently.*
+Shared bounds are now **intersected** rather than last-write-wins, since a size
+cap is a physical limit on each histogram's own coefficient and the scale
+divides it differently per histogram. And `seed_softplus` seeds in **column**
+units: seeding the physical value gives the histograms different internal
+coordinates for one shared column, nothing raises, and the last write wins.
+
+*Gotchas for whoever touches this next.* (1) Sharing happens in **internal**
+coordinates — two histograms share a column by being given the same θ — so
+anything that writes an entry's value per histogram has to think about the
+scale; `commit`, `x0`, `bounds` and `seed_softplus` all do now, and a fifth
+writer would not inherit it. (2) `SIZE_LAMBDA_POWER` is the whole list of
+λ-dependent quantities, as data: a new size term is one line there, and a new
+*strain* term is nothing. (3) The reference is histogram **0**, so its factor is
+exactly 1.0 and `RefinementResult.parameters` reports its numbers unchanged —
+which is also why equal wavelengths produce an *empty* map rather than a map of
+1.0s, and why the pre-change arithmetic is untouched rather than merely equal.
+(4) `SKILL_MAX_BYTES` went 32 000 → 33 000; the body was 32 B from its ceiling
+before this WP, so the next addition to it will need the same decision.
+
+*Not done, and why.* **No `rietx compare` row**: the standing rule adds one when
+a *correction* lands, and this WP lands none — every compare standard is
+single-histogram, where the change is bit-identical by construction, so a
+variant would draw a flat Δχ² panel. Every standard's baseline already frees all
+four sample terms, so the microstructure block is populated on every run as it
+stands. **No combined Gaussian+Lorentzian size**: that one is a function of two
+correlated columns and would need a covariance this module is not given, so the
+two readings are compared through `size_agreement` instead — which is Finding 5's
+unmeasured consistency, now measured.
+
+*Counts* — fast selection `-m "not slow"`, this worktree's own `[dev]` venv
+(no jax, no torch — the cross-backend rows self-skip), darwin/arm64, python
+3.12.12, **alone on the machine**: **3977 passed, 122 skipped** in 3:01. The
+suite was started twice before this and both runs were discarded rather than
+quoted — one raced an edit of its own tree, the other started within three
+seconds of another session's suite in the `wp1324` worktree, which rung 3's
+exclusivity rule says is not quotable. **+54 tests**, all passes: 45 in the new
+`tests/test_microstructure.py` and 9 in `tests/test_multi_histogram.py`
+(5 → 14). No new skips — 122 in every run this session. **Full suite**, same venv and platform, once on the final tree: **4140 passed, 131 skipped** in 33:52 — above the ~15-30 min the commands section quotes, and wall clock is a range not a figure, so read the green rather than the minutes.
+
+*Next* — nothing in this WP. It is closed. Two threads lead out of it: 1130 can
+proceed (its dependency is discharged), and a **λ-free `gauss_strain`** joint
+fixture was never run — derived and believed, like `gauss_size` was until this
+session, and cheap to add to the same script if anyone wants the fourth cell of
+the table.
 
 - **2026-08-27** — 1130's review moved the width check here (Tasks, *The width check*) and made 1130 depend on this WP; the trigger numbers and the dataset pointer are in § Inherited. No code touched. *Next* is unchanged: the conversion authority first, since the check reads it, then the sharing fix.
 

@@ -176,6 +176,86 @@ Pawley mode, where the dummy atom the mode requires is not a structure to
 measure, and it is computed at the close of the fit rather than on demand: the
 covariance it needs is read off the final Jacobian, which is never stored.
 
+## The size and the strain, in physical units
+
+A refined profile width is a number of degrees, and a number of degrees is not
+transferable: the same 0.09° of 1/cosθ broadening is a 400 Å coherent domain on
+Mo Kα and a 233 Å one on Cu Kα. `RefinementResult.microstructure` is one
+`PhaseMicrostructure` per phase, in phase order, carrying the four sample
+coefficients read as the two quantities behind them. Part 2 states the two
+conversions as equations {eq}`ms-size-coefficient` and {eq}`ms-strain-coefficient`.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `PhaseMicrostructure.phase_index` , `PhaseMicrostructure.phase_name` | which phase this block is about | the index into `Structure.phases` and that phase's `Phase.name`, so a block reads on its own in a multi-phase fit. |
+| `PhaseMicrostructure.terms` | one `MicrostructureTerm` per sample coefficient the phase carries | four rows — `lor_size`, `gauss_size`, `lor_strain`, `gauss_strain` — whether or not any of them refined. `PhaseMicrostructure.term("lor_size")` fetches one by coefficient name. |
+| `MicrostructureTerm.kind` | `"size"` or `"strain"` | which conversion produced `MicrostructureTerm.value`: a **coherent domain size** in ångströms, or a dimensionless Δd/d. |
+| `MicrostructureTerm.coefficient` | the refined coefficient itself | in its stored units, deg 2θ for the Lorentzian pair and deg² for the Gaussian variances, so a row can be checked against `RefinementResult.parameters` without converting anything. |
+| `MicrostructureTerm.value` , `MicrostructureTerm.esd` | the reading and its uncertainty | `None` for cause; `MicrostructureTerm.unavailable` says which cause. |
+| `MicrostructureTerm.path` | the parameter path it came from | `phases.0.lor_size` and so on, so the row joins to `RefinementResult.parameters` and to any diagnostic's `where`. |
+| `PhaseMicrostructure.wavelength` , `PhaseMicrostructure.scherrer_k` | the two constants the size reading used | the source's longest declared line, and the Scherrer *K*. Carried so a size can be rescaled to another convention without knowing which build produced it. |
+| `PhaseMicrostructure.size_agreement` , `PhaseMicrostructure.strain_agreement` | the Gaussian reading divided by the Lorentzian one | 1 means the two independent columns describe one specimen. `None` when either reading is absent. |
+| `PhaseMicrostructure.separable` , `PhaseMicrostructure.size_strain_collinearity` | whether size and strain are distinguishable over the range measured | read below before quoting either number. `None` means the report did not assess it. |
+
+`FitReport.microstructure` is the same list, carried onto the report so a
+reader working from `Refinement.report()` need not go back to the result — with
+the separability caveat below filled in, which is the one part the report adds.
+
+A coherent domain size is the length over which the lattice diffracts in phase.
+It is **not** a particle size and must not be reported as one: `Phase.particle_radius_um`
+is a different quantity for a different correction, the absorption path through
+a grain, and a particle is an aggregate of domains. Nor is a domain size a
+two-figure number. *K* moves 10–20 % with crystallite shape, so
+`SCHERRER_K = 0.9` is one convention among several — GSAS-II reads its size off
+the same FWHM with *K* = 1, FullProf off the integral breadth, which for a pure
+Lorentzian is 1.571× rietx's answer. Quote the size as an order of magnitude,
+with the *K* the row carries.
+
+### Why size and strain are quoted with a caveat
+
+Over a short 2θ range 1/cosθ and tanθ are nearly the same curve, so a fit can
+trade a size against a strain with no cost in Rwp. That is the Williamson–Hall
+problem, and it is the reason a size is reported with `PhaseMicrostructure.separable`
+attached rather than on its own. The verdict is the width trend's own
+(`TrendAnalysis.separable` on the `"width"` observable, with
+`PhaseMicrostructure.size_strain_collinearity` carrying the correlation it was
+decided on), so the report holds one opinion about it, not two. It is `None` —
+no claim made — when Layer 1 abstained or no width trend was fitted.
+
+Where it says `False`, quote neither number alone. Refining one of the pair and
+holding the other is not a workaround: the answer then depends on which one was
+held. Measuring over a wider range is.
+
+### The esds, and the four absences
+
+Each reading is a function of exactly one refined coefficient, so its esd is
+that coefficient's scaled by the derivative and nothing is dropped: a size's
+relative esd equals its coefficient's, and so does a strain's. A *combined*
+Gaussian-plus-Lorentzian size would be a function of two correlated columns and
+is deliberately not reported — the two are read separately and compared through
+`PhaseMicrostructure.size_agreement` instead.
+
+`MicrostructureTerm.unavailable` names why a number is missing, and the four
+answers mean different things.
+
+| `unavailable` | What happened |
+|---|---|
+| `"at_zero"` | the coefficient is at its off state, where a size is infinite and a strain is a perfect lattice. True, and not a number to report. This is what a phase whose widths were never refined says, in all four rows. |
+| `"no_wavelength"` | the source declares no emission line, so no size can be read. Never reaches a strain, which has no wavelength in it. |
+| `"not_measured"` | the coefficient carries no esd, so `MicrostructureTerm.value` stands and `MicrostructureTerm.esd` does not: the parameter was never freed, its column measured nothing, or the result came from `rietx.replay`. |
+| `None` | nothing is missing. |
+
+### A joint fit shares the size, not the degrees
+
+In a multi-histogram fit `MultiHistogramRefinement` normalises the size
+coefficients by wavelength, because a size coefficient is proportional to λ
+while a strain coefficient is not. The shared column is the coefficient at the
+first histogram's wavelength and every histogram's own structure copy carries
+the one it needs, so the crystallite behind them is a single number and the
+`SIZE_NORMALISED_ACROSS_WAVELENGTHS` diagnostic says so. Read a shared
+`phases.*.lor_size` as histogram 0's coefficient, never as the number your
+second pattern shows.
+
 ## How many observations there are
 
 `Statistics.n_points` is the N the least-squares algorithm uses, and it is not

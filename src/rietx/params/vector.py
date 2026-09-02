@@ -703,6 +703,12 @@ class ParameterTable:
         #: the stage's size cap (a width, deg 2θ), or ``None`` for "no claim
         #: made" — see :meth:`freeze_size_cap`
         self._size_cap: float | None = None
+        #: path → a fixed positive factor between this table's *physical* value
+        #: and the number the free column carries — see :meth:`apply_value_scale`.
+        #: Empty for every single-histogram table, which is why an unscaled
+        #: table's arithmetic is untouched: the rebuild writes the literal 1.0
+        #: it always wrote, and ``x0``/``bounds`` skip the lookup's branch.
+        self._value_scale: dict[str, float] = {}
         self._collect(structure, instrument)
         self._rebuild()
 
@@ -1051,7 +1057,7 @@ class ParameterTable:
                 if i in col:
                     c_rows.append(i)
                     c_cols.append(col[i])
-                    c_vals.append(1.0)
+                    c_vals.append(self._value_scale.get(e.path, 1.0))
                 else:
                     d[i] = e.value
             else:
@@ -1248,6 +1254,14 @@ class ParameterTable:
         first Jacobian has a live column.  Only softplus entries strictly
         below ``value`` are touched (already-lifted ones and other transforms
         are left alone); returns the paths actually seeded.
+
+        **The seed is in column units, not this table's** (WP-1131): a scaled
+        entry (:meth:`apply_value_scale`) is seeded to ``value`` times its
+        scale, so the shared column lands on ``value`` in every histogram.
+        Seeding the physical value instead would give the histograms
+        different internal coordinates for one shared column, and the joint
+        table's *identical values from each histogram* would quietly stop
+        being true -- nothing raises, the last write simply wins.
         """
         seeded = []
         for path in paths:
@@ -1255,8 +1269,9 @@ class ParameterTable:
             if i is None:
                 continue
             e = self.entries[i]
-            if e.transform == "softplus" and e.value < value:
-                e.value = value
+            target = value * self._value_scale.get(path, 1.0)
+            if e.transform == "softplus" and e.value < target:
+                e.value = target
                 seeded.append(path)
         if seeded:
             self._rebuild()
@@ -1324,8 +1339,15 @@ class ParameterTable:
         return [e.path for i, e in enumerate(self.entries) if reach[i] > 0.0]
 
     def x0(self) -> np.ndarray:
-        return np.array([to_internal(self.entries[i].value, self.entries[i].transform)
+        return np.array([to_internal(self._unscaled(self.entries[i]),
+                                     self.entries[i].transform)
                          for i in self._free_idx], dtype=np.float64)
+
+    def _unscaled(self, e: Entry) -> float:
+        """``e.value`` in the units the free column carries (see
+        :meth:`apply_value_scale`); identical to ``e.value`` unscaled."""
+        s = self._value_scale.get(e.path)
+        return e.value if s is None else e.value / s
 
     def freeze_cell_windows(self, phases: set[int] | None) -> None:
         """Declare which phases' cells get the default window this stage.
@@ -1367,6 +1389,69 @@ class ParameterTable:
         """
         self._size_cap = cap
 
+    def apply_value_scale(self, scale: dict[str, float]) -> None:
+        """Declare a fixed factor between a path's physical value and its column.
+
+        For every ``path: s`` here this table's physical value is ``s`` times
+        what the free column carries — :meth:`decode` multiplies (the factor is
+        that path's row of C), :meth:`x0` divides, :meth:`bounds` divides the
+        physical window, and an esd comes back multiplied because it goes
+        through the same C.  The derivative chain needs no edit at all:
+        ``_peak_chain_column`` finite-differences θ *through* :meth:`decode`, so
+        an analytic column picks the factor up exactly where the whole-model FD
+        column does, and the two cannot disagree about it.
+
+        **What it is for** (WP-1131).  A joint fit shares a column between
+        histograms by giving them the same internal coordinate, which is right
+        only for a quantity that is the same number in every histogram.  A
+        crystallite-size coefficient is not: it is (180/π)·K·λ/L, so one
+        specimen needs coefficients in the ratio of the wavelengths
+        (:func:`~rietx.model.profiles.caglioti.apparent_size_from_size_coefficient`).
+        :class:`~rietx.params.multi.MultiParameterTable` therefore hands each
+        histogram the factor λ_h/λ_ref, and the shared column becomes the
+        coefficient at λ_ref — one specimen, one number, with each histogram's
+        structure copy still carrying the coefficient *it* needs.
+
+        Three rules, enforced rather than commented:
+
+        * a factor is **finite and positive** — it divides;
+        * a **tied** path may not be scaled, and a scaled path may not be a
+          tie's source: a tie's coefficients are written against physical
+          values, so neither the row nor its sources would still mean what the
+          tie says.  Nothing in the package ties a size coefficient, so this is
+          a refusal a caller has to go looking for;
+        * an **unknown** path is a caller's typo, not a silent no-op.
+
+        ``{}`` (or a map of exact ``1.0``\\ s) restores the unscaled table bit
+        for bit, and no single-histogram fit ever sets one.
+        """
+        cleaned: dict[str, float] = {}
+        for path, factor in scale.items():
+            if path not in self._paths:
+                raise KeyError(f"no such parameter: {path!r}")
+            if not (factor > 0.0 and math.isfinite(factor)):
+                raise ValueError(
+                    f"value scale for {path!r} must be finite and positive, "
+                    f"got {factor!r}")
+            e = self.entries[self._paths[path]]
+            if e.tie is not None:
+                raise ValueError(
+                    f"{path!r} is tied and cannot carry a value scale; a tie's "
+                    "coefficients are written against physical values")
+            if factor != 1.0:
+                cleaned[path] = float(factor)
+        if cleaned:
+            for e in self.entries:
+                if e.tie is None:
+                    continue
+                for src, _ in e.tie.terms:
+                    if src in cleaned:
+                        raise ValueError(
+                            f"{e.path!r} is tied to {src!r}, which carries a "
+                            "value scale; a tie's sources must be unscaled")
+        self._value_scale = cleaned
+        self._rebuild()
+
     def bounds(self) -> tuple[np.ndarray, np.ndarray]:
         """Internal-space bounds for the free vector, in ``free_paths`` order.
 
@@ -1399,6 +1484,13 @@ class ParameterTable:
                 size_name = _size_parameter_name(e.path)
                 if size_name is not None:
                     e_hi = size_cap_hi(size_name, e.value, e_hi, size_cap_width)
+            scale = self._value_scale.get(e.path)
+            if scale is not None:
+                # every bound above is a *physical* limit on this table's own
+                # value; the column carries value/scale, so the window it sees
+                # is that limit divided.  Applied here rather than in each
+                # branch, so a new bound kind inherits it.
+                e_lo, e_hi = e_lo / scale, e_hi / scale
             low, high = internal_bounds(e_lo, e_hi, e.transform)
             lo.append(low)
             hi.append(high)

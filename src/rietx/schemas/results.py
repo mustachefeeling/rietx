@@ -630,6 +630,106 @@ class GeometryTable(Base):
         return [d for d in self.distances if not d.bonded]
 
 
+class MicrostructureTerm(Base):
+    """One profile coefficient read as the physical quantity behind it.
+
+    ``kind`` is ``"size"`` — a **coherent domain size** in Å, the length over
+    which the lattice diffracts in phase — or ``"strain"``, the dimensionless
+    Δd/d.  ``path`` names the coefficient it came from, ``coefficient`` is that
+    coefficient in its stored units (deg for the Lorentzian pair, deg² for the
+    Gaussian variances), and ``value``/``esd`` are the reading.
+
+    **A coherent domain size is not a particle size** and must never be
+    reported as one: ``Phase.particle_radius_um`` is Brindley's absorption
+    path, a *particle*, and profile broadening measures the domain inside it,
+    which is smaller than the particle and unrelated to it.  Nor is it a
+    two-figure number: the Scherrer constant moves 10-20 % with crystallite
+    shape (:data:`~rietx.model.profiles.caglioti.SCHERRER_K`), so this is an
+    order-of-magnitude statement about the specimen.
+
+    ``value`` and ``esd`` are ``None`` **for cause**, and ``unavailable`` says
+    which cause (WP-1072's rule: a quantity that cannot be measured is absent
+    rather than zero):
+
+    * ``"at_zero"`` — the coefficient is at its off state, where a size is
+      infinite and a strain is a perfect lattice.  True, and not a number;
+    * ``"no_wavelength"`` — a size needs a λ and the source declares none
+      (never reaches a strain, which has no λ in it);
+    * ``"not_measured"`` — the coefficient carries no esd, so ``value`` stands
+      and ``esd`` does not.  Three ways that happens and they are one answer
+      here: the parameter was never freed, its column measured nothing
+      (``ParameterTable.unmeasured_rows``), or the result came from ``replay``.
+
+    The propagation is exact and needs no covariance beyond one variance,
+    because each reading is a function of exactly **one** parameter:
+    ``L = (180/π)·K·λ/x`` gives ``σ_L = L·σ_x/x``, and ``Δd/d = (π/360)·y``
+    is linear, so ``σ`` scales by the same constant.  A *combined*
+    Gaussian-plus-Lorentzian size would need the cross-term and is not reported
+    — the two are read separately and compared instead
+    (:attr:`PhaseMicrostructure.size_agreement`).
+    """
+
+    path: str
+    kind: Literal["size", "strain"]
+    coefficient: float
+    #: Å for ``kind="size"``, dimensionless Δd/d for ``kind="strain"``
+    value: float | None = None
+    esd: float | None = None
+    unavailable: str | None = None
+
+
+class PhaseMicrostructure(Base):
+    """A phase's size and strain as physical numbers, with esds (WP-1131).
+
+    Four coefficients, four readings: ``lor_size`` and ``gauss_size`` each
+    imply a coherent domain size, ``lor_strain`` and ``gauss_strain`` each a
+    Δd/d.  They are four *independent* columns in this package — unlike
+    GSAS-II, which refines one magnitude per mechanism plus a Gaussian/Lorentzian
+    mixing coefficient — so nothing makes them agree and
+    :attr:`size_agreement` / :attr:`strain_agreement` report whether they do.
+
+    ``separable`` is the caveat, carried **beside the number** rather than left
+    to a reader: over a narrow 2θ range the 1/cosθ and tanθ templates are
+    collinear (the Williamson-Hall problem) and a size quoted without saying so
+    is the confident wrong singleton the FitReport exists to refuse.  It is the
+    width ``TrendAnalysis``'s own ``separable``, attached when the report ran
+    Layer 1 and ``None`` — *no claim made* — otherwise; never recomputed here,
+    because a second opinion on one statistic is two statistics.
+    """
+
+    phase_index: int
+    phase_name: str = ""
+    #: the λ the sizes were read at — the source's longest declared line, the
+    #: selector every size surface in the package shares
+    wavelength: float | None = None
+    #: the Scherrer constant used, so a row can be rescaled without knowing
+    #: which build produced it.  **Required, not defaulted** (WP-1076, and
+    #: WP-1305's ``delta_bic`` precedent): a 0.0 here would read as an *answer*
+    #: about a constant nothing set, and a size scales linearly in it, so a
+    #: document written without one must fail to load rather than load with a
+    #: K nobody chose
+    scherrer_k: float
+    terms: list[MicrostructureTerm] = Field(default_factory=list)
+    #: Gaussian-implied size ÷ Lorentzian-implied size, when both are readable.
+    #: 1 means the two independent columns describe one specimen; far from 1
+    #: means they do not, and neither is quotable alone
+    size_agreement: float | None = None
+    #: the same ratio for the two strains
+    strain_agreement: float | None = None
+    #: the width trend's own separability verdict, or None for "not assessed"
+    separable: bool | None = None
+    #: |correlation| between the 1/cosθ and tanθ templates over the sampled
+    #: range, carried with ``separable`` so a reader sees how close it came
+    size_strain_collinearity: float | None = None
+
+    def term(self, name: str) -> MicrostructureTerm | None:
+        """The term for a coefficient name (``"lor_size"``, …), or None."""
+        for t in self.terms:
+            if t.path.rsplit(".", 1)[-1] == name:
+                return t
+        return None
+
+
 class StageResult(Base):
     """One stage's outcome.
 
@@ -895,6 +995,13 @@ class RefinementResult(Base):
     # (WP-1072) — see :class:`GeometryTable`.  Rietveld-only, and None when the
     # result did not come from a fit that had a compiled model to search.
     geometry: GeometryTable | None = None
+
+    # Coherent domain size and microstrain as physical numbers (WP-1131) — see
+    # :class:`PhaseMicrostructure`.  A carrier for the same reason ``geometry``
+    # is: the esds come from the covariance read off the final Jacobian, which
+    # is never serialized.  Empty when the fit had no compiled model to read a
+    # wavelength and phase names from.
+    microstructure: list[PhaseMicrostructure] = Field(default_factory=list)
 
     # Degeneracy evidence measured on the final Jacobian, which is never
     # serialized — see :class:`Identifiability`.  None when the result did not

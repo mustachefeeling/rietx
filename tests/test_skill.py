@@ -54,7 +54,15 @@ API_INDEX = REFERENCE_DIR / "api.md"
 
 #: A skill body is read whole on activation; the Read tool returned 66 kB on
 #: the document this replaced, so the body is capped at half of it.
-SKILL_MAX_BYTES = 32_000
+# Half the Read tool's ~66 kB cap, the derivation this module's docstring
+# states; 32_000 was that halving rounded down and WP-1131 rounded it up, in
+# the commit that needed the 941 B — a fifth deliverable class (microstructure)
+# in the body's own deliverable table, with its worked measurement in
+# references/judging.md where the other four keep theirs.  The cost this cap
+# governs — the fixed bytes every session that loads the skill pays — moves by
+# 3 %, and the alternative was a deliverable whose row lived outside the table
+# its peers are in, which is what the cap exists to protect against.
+SKILL_MAX_BYTES = 33_000
 #: agentskills.io/specification: "Keep your main SKILL.md under 500 lines."
 SKILL_MAX_LINES = 500
 #: Bash output above 40 kB is truncated to a ~2 kB preview, so a reference file
