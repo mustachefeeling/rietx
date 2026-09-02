@@ -585,7 +585,7 @@ quoted — one raced an edit of its own tree, the other started within three
 seconds of another session's suite in the `wp1324` worktree, which rung 3's
 exclusivity rule says is not quotable. **+54 tests**, all passes: 45 in the new
 `tests/test_microstructure.py` and 9 in `tests/test_multi_histogram.py`
-(5 → 14). No new skips — 122 in every run this session. Full suite: [see below].
+(5 → 14). No new skips — 122 in every run this session. **Full suite**, same venv and platform, once on the final tree: **4140 passed, 131 skipped** in 33:52 — above the ~15-30 min the commands section quotes, and wall clock is a range not a figure, so read the green rather than the minutes.
 
 *Next* — nothing in this WP. It is closed. Two threads lead out of it: 1130 can
 proceed (its dependency is discharged), and a **λ-free `gauss_strain`** joint
