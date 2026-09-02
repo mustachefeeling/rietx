@@ -484,6 +484,79 @@ and put them in this file's handover entry.
 
 ## Handover log
 
+### 2026-09-02 (2nd) — the handover run properly, and what the first pass missed
+
+**What this means.** The first pass reproduced the handover protocol from
+memory instead of running `/wp-handover`, and reported the WP closed. Running
+the ritual properly then found four things, two of them defects of the same
+shape this WP exists to correct. Nothing about the physics changed; what
+changed is that the work is now actually reviewable, actually verified against
+the tree it lands on, and the WP that depends on it can be picked up by someone
+who never reads this file.
+
+*Done, and each is a step of the protocol the first pass skipped.*
+
+- **Step 5, forward references.** `1130` depends on this WP and had **no**
+  `### Inherited` at all. Its next session would have read `Depends on:
+  WP-1131` and not known the dependency was discharged, nor that the width
+  check it wants shipped in v1.2 rather than here. It now carries the two
+  diagnostic codes and their bound twins, both conversions as imports rather
+  than hand computations, `result.microstructure` as a better input to its
+  background diagnostic than a coefficient (with `separable` to read first),
+  and the joint-fit gotcha. Its `Depends on:` line follows.
+- **Step 6, the name audit** — run against what this session *declared*, and it
+  found two WP-1076 shapes in this session's own diff. A joint fit reported
+  `microstructure=[]`, an empty list that reads as "no microstructure" about
+  the fits this whole correction exists for; it is filled from histogram 0 now,
+  whose value scale is exactly 1.0. And `PhaseMicrostructure.scherrer_k` was
+  `float = 0.0`, a defaulted constant a size scales linearly in — required now,
+  on WP-1305's `delta_bic` precedent.
+- **Step 7.** The consumed `### Inherited` was renamed rather than deleted.
+- **Step 9, `/code-review medium --fix`.** Six findings, all applied, **none
+  declined**. Two were real bugs and neither had a test, so each now has a guard
+  that was **confirmed to fail on the unfixed code**: `build_report` aliased the
+  result's blocks (`list(...)` is shallow and pydantic does not copy a nested
+  model on assignment), so building a report wrote `separable` into the
+  *result* — verified, it came back `separable=True, collinearity=0.0` — and a
+  second, abstaining report inherited the first one's verdict instead of the
+  `None` it promises; and a size term's declared window did not travel with its
+  scaled value, so any finite bound raised pydantic's own `min<=value<=max` at
+  `MultiParameterTable` construction, with a message saying nothing about
+  wavelengths. Three smaller ones applied as found, one of which caught a
+  commit message of mine claiming an esd dict was "built once" when the loop
+  above it had already built exactly that dict.
+- **Step 10, verified on the tree that lands.** `main` had moved **11 commits**
+  (WP-1324, PR #226) and the first pass's own check said zero — `git fetch
+  origin main` leaves `origin/main` stale, so the comparison was against a stale
+  ref, and the maintainer's "main has shifted" is what caught it. Merged, one
+  ROADMAP conflict resolved by hand (both WPs closed the same day and each side
+  of the conflict dropped the other's fact).
+
+*Measured, on the merged tree, this worktree's own `[dev]` venv (no jax, no
+torch), darwin/arm64, python 3.12.12, alone on the machine.* Full suite
+**4176 passed, 131 skipped** in 23:12, on the exact commit that is pushed; fast
+selection **4013 passed, 122 skipped**. The bare-branch figures the first pass
+quoted (4140/131 full, 3977/122 fast) were for a tree nothing will ever hold:
+branch protection is `strict: false`, so a PR merges green without being built
+against the main it lands on, and the difference here is WP-1324's +36 tests
+plus this pass's +4.
+
+*Gotchas this pass adds to the four already above.* (1) `git fetch origin
+<branch>` does not update `refs/remotes/origin/<branch>` here, so
+`rev-list HEAD..origin/main` after it answers about a stale ref and can report
+0 when main has moved eleven commits — fetch bare. (2) A module-scoped fixture
+makes an aliasing bug invisible: the test asserting `result.…separable is None`
+passed only because it ran *before* the one that builds a report. Order was
+doing the work, not the assertion.
+
+*Next* — nothing in this WP; it is closed and the PR is #227. The threads out
+of it are unchanged: 1130 is unblocked, and a λ-free `gauss_strain` joint
+fixture is still derived-and-believed rather than measured. One thing this pass
+declined to change, and it is worth someone's judgement rather than silence:
+the value scales are frozen at `MultiParameterTable.__init__` from the declared
+λ, so a joint fit that *refines* wavelength leaves the normalisation stale by
+the shift. It is ppm-level, and re-freezing per stage is a different change.
+
 ### 2026-09-02 — both halves landed, and a third of the WP was already done
 
 **What this means.** A joint fit of one specimen at two wavelengths now shares
