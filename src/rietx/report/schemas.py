@@ -24,6 +24,7 @@ from ..schemas.common import Base
 from ..schemas.results import (
     CorrelationPair,
     GeometryTable,
+    PhaseMicrostructure,
     RestraintReport,
     SoftMode,
 )
@@ -178,7 +179,13 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   defaulted (0 ⇔ none declared, None ⇔ nothing counted); no gate or emission
 #   condition moved, but it is a new field on the report a consumer enumerates,
 #   so it bumps for the same reason 1.2 did.
-THRESHOLDS_VERSION = "1.4"
+# 1.4 → 1.5 (WP-1131): ``FitReport.microstructure`` — the per-phase coherent
+#   domain size and microstrain carried through from the result, each block's
+#   ``separable``/``size_strain_collinearity`` filled from the width trend on
+#   the Layer-1 branch and left None on the abstained one.  Additive and
+#   defaulted, and no gate moved; it bumps because it is a new field on the
+#   report a consumer enumerates, exactly as 1.3 and 1.4 did.
+THRESHOLDS_VERSION = "1.5"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -1114,6 +1121,13 @@ class FitReport(Base):
     #: Evidence, never a verdict: McCusker §11's "chemical sense of the
     #: structural model" is the reader's judgement, and nothing here scores it
     geometry: GeometryTable | None = None
+    #: per-phase coherent domain size and microstrain with esds (WP-1131),
+    #: carried through from the result.  Model-free like ``geometry`` — a
+    #: width is a width whether or not the fit is mature enough to linearise —
+    #: so it speaks on the abstention branch too; the *separability* caveat on
+    #: each block is the part that needs Layer 1, and stays ``None`` (no claim
+    #: made) when Layer 1 abstained
+    microstructure: list[PhaseMicrostructure] = Field(default_factory=list)
     layer1_available: bool = False
     #: set when the global maturity gate refused Layer 1 (the report abstains)
     abstained_reason: str | None = None

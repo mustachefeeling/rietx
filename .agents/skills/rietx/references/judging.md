@@ -248,3 +248,46 @@ The two the package cannot supply stay the caller's, and the row says so rather
 than leaving them blank: nothing in a pattern file records what pinned the 2θ
 scale, and no esd can tell you it is a precision on the shape rather than an
 accuracy on the absolute.
+
+## Microstructure: what a domain size is, and what it is not
+
+`result.microstructure` reads each of a phase's four sample-broadening
+coefficients as the quantity behind it — a **coherent domain size** in Å from
+the two 1/cosθ terms, a dimensionless Δd/d from the two tanθ terms — with an
+esd, or a named reason there is none (`MicrostructureTerm.unavailable`:
+`at_zero`, `no_wavelength`, `not_measured`).
+
+**A domain size is not a particle size.** `Phase.particle_radius_um` is a
+different quantity for a different correction, the absorption path through a
+grain; profile broadening measures the coherent domain inside it, which is
+smaller and unrelated. Reporting one as the other is the commonest way to
+misread this block.
+
+**It is not a two-figure number either.** The Scherrer constant moves 10-20 %
+with crystallite shape, and the codes disagree about which constant and which
+measure of breadth: rietx reads the FWHM with K = 0.9, GSAS-II the FWHM with
+K = 1, FullProf the integral breadth — which for a pure Lorentzian is 1.571×
+rietx's answer. Quote the size as an order of magnitude with the `scherrer_k`
+the block carries, and quote a Δd/d with its convention (rietx's is the FWHM of
+the d-spacing distribution; GSAS-II's `mustrain` is twice it, FullProf's
+apparent strain half of it before the breadth factor).
+
+**Read `separable` before either number.** Over a short 2θ range 1/cosθ and
+tanθ are one curve, so the fit trades a size against a strain at no cost in
+Rwp. `PhaseMicrostructure.separable` is the width trend's own verdict and
+`size_strain_collinearity` the correlation it was decided on. `False` is not a
+smaller number to quote — it is a wider range to collect. Refining one of the
+pair and holding the other is not a workaround: the answer then depends on
+which was held.
+
+**Then read `size_agreement`.** rietx registers the Gaussian and Lorentzian
+halves of each mechanism as independent columns, where GSAS-II refines one
+magnitude and a mixing coefficient. Nothing makes them agree, so the ratio is a
+measurement: far from 1 means the two describe different specimens and neither
+is quotable alone.
+
+**In a joint fit, read the size and never the degrees.** A size coefficient is
+proportional to λ, so `MultiHistogramRefinement` normalises the shared column
+and reports it at histogram 0's wavelength, saying so through
+`SIZE_NORMALISED_ACROSS_WAVELENGTHS`. Each histogram's own structure copy
+carries the coefficient it needs; the crystallite behind them is one number.

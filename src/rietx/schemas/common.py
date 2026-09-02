@@ -109,7 +109,15 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: preference", which is the defaulted-``False`` lie WP-1076 named, so a
 #: document written before this field does not load rather than loading with an
 #: answer nobody computed.
-SCHEMA_VERSION = "0.14"
+#: 0.14 → 0.15 (WP-1131): ``RefinementResult.microstructure`` — the four
+#: profile coefficients read as a coherent domain size and a Δd/d, with esds.
+#: Additive and defaulted to an empty list, which is the honest empty state
+#: here (a result built without a compiled model measured no wavelength and can
+#: read no size), but it is a new field a consumer enumerates, so it bumps.
+#: ``PhaseMicrostructure.scherrer_k`` inside it is **required**: a size scales
+#: linearly in K, so a defaulted 0.0 would be an answer about a constant nobody
+#: chose (WP-1076; WP-1305's ``delta_bic`` took the same decision).
+SCHEMA_VERSION = "0.15"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

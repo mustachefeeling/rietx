@@ -33,6 +33,7 @@ from .model.absorption import (
 )
 from .model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, Mode, compile_model
 from .model.geometry import geometry_table
+from .model.microstructure import microstructure_table
 from .model.profiles.caglioti import (
     SCHERRER_K,
     apparent_size_from_size_coefficient,
@@ -2759,6 +2760,17 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                               stderr_internal=stderr_internal,
                               correlation=correlation)
 
+    # The widths read as a coherent domain size and a Δd/d (WP-1131), built
+    # here for geometry's reason — the esds come off the same final Jacobian —
+    # and through the same λ selector the size bound and the size flag use, so
+    # the three cannot attribute one coefficient to different wavelengths.
+    # ``stderr_phys`` rather than a second ``stderr_physical`` call: with a
+    # correlation matrix that build is a dense n x n, which a Pawley table
+    # makes large, and the two calls would return the same dict.
+    microstructure = microstructure_table(
+        structure, values, wavelength=_longest_line_wavelength(model),
+        esds=stderr_phys)
+
     # Specimen absorption: report what was applied and, crucially, the Biso
     # bias it removed — for a capillary Rwp is provably unchanged by it, so
     # nothing else in the result would show that the correction did anything.
@@ -2854,6 +2866,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),
         ticks=ticks, qpa=qpa, restraints=restraints_report, geometry=geometry,
+        microstructure=microstructure,
         phase_agreement=_phase_agreement(model, values, structure),
         data_support=support,
         absorption=absorption, identifiability=identifiability,

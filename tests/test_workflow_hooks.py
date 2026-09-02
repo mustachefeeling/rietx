@@ -353,3 +353,183 @@ def test_both_entry_spellings_parse() -> None:
     # not an entry: prose that merely opens with a date, and an undated heading
     assert hook._ENTRY_DATE_RE.findall("2026-08-20 was the day") == []
     assert hook._ENTRY_DATE_RE.findall("### the third session") == []
+
+
+# --------------------------------------------------------------------------- #
+# The handover-owed nudge (.claude/hooks/handover_owed.py): a WP session's last
+# act is /wp-handover, not a summary of it.  Fires on Stop, once, only where a
+# WP branch is at rest with the command never run (measured 2026-09-02).
+# --------------------------------------------------------------------------- #
+
+_owed_spec = importlib.util.spec_from_file_location(
+    "handover_owed_hook", ROOT / ".claude" / "hooks" / "handover_owed.py"
+)
+owed = importlib.util.module_from_spec(_owed_spec)
+_owed_spec.loader.exec_module(owed)
+
+
+@pytest.fixture
+def wp_branch_at_rest(repo: Path, tmp_path: Path) -> tuple[Path, Path]:
+    """A pushed ``wp9001`` worktree carrying one substantive WP commit."""
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(origin)], check=True)
+    (repo / "README").write_text("x\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "init")
+    _git(repo, "remote", "add", "origin", str(origin))
+    _git(repo, "push", "-q", "-u", "origin", "main")
+    wt = repo / ".claude" / "worktrees" / "wp9001"
+    _git(repo, "worktree", "add", "-q", "-b", "wp9001-fixture", str(wt))
+    (wt / "docs" / "wp").mkdir(parents=True, exist_ok=True)
+    write_wp(wt, "9001", "🔄", ["2026-09-02"])
+    commit_wp(wt, "9001", "2026-09-02", code=True)
+    _git(wt, "push", "-q", "-u", "origin", "wp9001-fixture")
+    return repo, wt
+
+
+def _stop(tree: Path, transcript: Path | None = None, **extra) -> dict:
+    payload = {"cwd": str(tree), "session_id": "s1", "hook_event_name": "Stop"}
+    if transcript is not None:
+        payload["transcript_path"] = str(transcript)
+    payload.update(extra)
+    return payload
+
+
+def _transcript(tmp_path: Path, name: str, body: str) -> Path:
+    p = tmp_path / name
+    p.write_text(body, encoding="utf-8")
+    return p
+
+
+def test_nudge_fires_on_a_wp_branch_at_rest(
+    wp_branch_at_rest: tuple[Path, Path], tmp_path: Path
+) -> None:
+    _, wt = wp_branch_at_rest
+    t = _transcript(tmp_path, "quiet.jsonl", '{"type":"assistant","text":"done"}\n')
+    reason = owed.nudge(_stop(wt, t))
+    assert reason is not None
+    assert "WP-9001" in reason and "wp9001-fixture" in reason
+    assert "/wp-handover 9001" in reason  # the command, spelled to be run
+
+
+def test_nudge_names_the_branch_s_wp_not_the_newest_commit_s(
+    wp_branch_at_rest: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """A session that also touched another WP is still handed over on its own."""
+    _, wt = wp_branch_at_rest
+    _git(wt, "branch", "-m", "wp9001-fixture", "wp9002-fixture")
+    t = _transcript(tmp_path, "quiet.jsonl", "{}\n")
+    reason = owed.nudge(_stop(wt, t))
+    assert reason is not None and "WP-9002" in reason  # not 9001, the commit's
+
+
+def test_the_hook_s_own_source_does_not_look_like_a_handover(
+    wp_branch_at_rest: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """Reading the hook or these tests must not silence the hook.
+
+    Both sentinels are assembled from fragments precisely so that neither file
+    contains one; spelled out, they matched the transcript of every session
+    that opened either, which is a false negative in the one place it hurts —
+    the session maintaining the gate (measured 2026-09-02).
+    """
+    for path in (
+        ROOT / ".claude" / "hooks" / "handover_owed.py",
+        Path(__file__),
+    ):
+        assert not owed._HANDOVER_RAN_RE.search(path.read_text(encoding="utf-8")), path
+    # and the reason it prints is not a match either, or one nudge silences the next
+    _, wt = wp_branch_at_rest
+    reason = owed.nudge(_stop(wt, _transcript(tmp_path, "quiet.jsonl", "{}\n")))
+    assert reason and not owed._HANDOVER_RAN_RE.search(reason)
+
+
+def test_nudge_is_silent_once_the_command_has_run(
+    wp_branch_at_rest: tuple[Path, Path], tmp_path: Path
+) -> None:
+    _, wt = wp_branch_at_rest
+    # Assembled, not spelled: a literal here would land in the transcript of
+    # any session that reads this file and silence the hook for it.
+    cmd = "wp-" + "handover"
+    for name, body in (
+        ("skill.jsonl", '{"name":"Skill","input":{"skill": "%s"}}\n' % cmd),
+        ("typed.jsonl", f"<command-{'name'}>/{cmd}</command-name>\n"),
+    ):
+        assert owed.nudge(_stop(wt, _transcript(tmp_path, name, body))) is None
+    # merely reading or naming the command is not running it
+    named = '{"name":"Bash","input":{"command":"cat .claude/commands/wp-handover.md"}}\n'
+    assert owed.nudge(_stop(wt, _transcript(tmp_path, "named.jsonl", named))) is not None
+
+
+def test_nudge_never_blocks_two_stops_in_a_row(
+    wp_branch_at_rest: tuple[Path, Path], tmp_path: Path
+) -> None:
+    _, wt = wp_branch_at_rest
+    t = _transcript(tmp_path, "quiet.jsonl", "{}\n")
+    assert owed.nudge(_stop(wt, t, stop_hook_active=True)) is None
+
+
+def test_nudge_is_silent_mid_flight(
+    wp_branch_at_rest: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """Dirty tree or unpushed work is a session still working, not one ending."""
+    _, wt = wp_branch_at_rest
+    t = _transcript(tmp_path, "quiet.jsonl", "{}\n")
+    (wt / "src" / "fixture.py").write_text("# edited\n", encoding="utf-8")
+    assert owed.nudge(_stop(wt, t)) is None
+    commit_wp(wt, "9001", "2026-09-02")
+    assert owed.nudge(_stop(wt, t)) is None  # clean again, but unpushed
+    _git(wt, "push", "-q")
+    assert owed.nudge(_stop(wt, t)) is not None
+
+
+def test_nudge_needs_a_wp_branch_that_added_something(
+    wp_branch_at_rest: tuple[Path, Path], tmp_path: Path
+) -> None:
+    main, wt = wp_branch_at_rest
+    t = _transcript(tmp_path, "quiet.jsonl", "{}\n")
+    assert owed.nudge(_stop(main, t)) is None  # main adds nothing to origin/main
+    _git(wt, "branch", "-m", "wp9001-fixture", "tidy-up")
+    assert owed.nudge(_stop(wt, t)) is None  # commits, but not a WP branch
+    assert owed.nudge(_stop(tmp_path, t)) is None  # not a repository at all
+
+
+def test_nudge_does_not_require_a_wp_prefixed_commit(
+    wp_branch_at_rest: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """A docs-only WP session owes its handover as much as a code one.
+
+    Its commits are ``docs:``/``tooling:`` (39 of the last 400 on main), and
+    the branch — not the commit subject — is what names the WP.
+    """
+    main, wt = wp_branch_at_rest
+    _git(wt, "reset", "-q", "--hard", "origin/main")
+    (wt / "note.md").write_text("prose\n", encoding="utf-8")
+    _git(wt, "add", "-A")
+    _git(wt, "commit", "-q", "-m", "docs: a paragraph")
+    _git(wt, "push", "-q", "--force")
+    reason = owed.nudge(_stop(wt, _transcript(tmp_path, "quiet.jsonl", "{}\n")))
+    assert reason is not None and "WP-9001" in reason
+
+
+def test_nudge_asks_once_per_head(
+    wp_branch_at_rest: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """A session that says "not finished" is not asked again until work lands."""
+    _, wt = wp_branch_at_rest
+    t = _transcript(tmp_path, "quiet.jsonl", "{}\n")
+    assert owed.nudge(_stop(wt, t)) is not None
+    assert owed.nudge(_stop(wt, t)) is None
+    assert owed.nudge(_stop(wt, t, session_id="s2")) is not None  # a new session asks
+    commit_wp(wt, "9001", "2026-09-03", code=True)
+    _git(wt, "push", "-q")
+    assert owed.nudge(_stop(wt, t)) is not None  # more work landed
+
+
+def test_nudge_fails_silent_on_a_signal_it_cannot_measure(
+    wp_branch_at_rest: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """No readable transcript reads as "ran": never block on an unmeasured claim."""
+    _, wt = wp_branch_at_rest
+    assert owed.nudge(_stop(wt)) is None
+    assert owed.nudge(_stop(wt, tmp_path / "missing.jsonl")) is None
