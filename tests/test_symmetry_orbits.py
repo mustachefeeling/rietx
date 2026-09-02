@@ -269,6 +269,47 @@ def test_naming_the_setting_silences_it() -> None:
             if d.code == "SPACE_GROUP_SETTING_ASSUMED"] == []
 
 
+def _calcite(symbol: str) -> Structure:
+    """Hexagonal-axes cell and coordinates, which is how calcite is printed."""
+    return Structure(phases=[Phase(
+        name="calcite", space_group=symbol,
+        cell=Cell(a=P(value=4.9896), b=P(value=4.9896), c=P(value=17.061),
+                  alpha=P(value=90.0), beta=P(value=90.0), gamma=P(value=120.0)),
+        atoms=[
+            Atom(label="Ca", species="Ca",
+                 x=P(value=0.0), y=P(value=0.0), z=P(value=0.0)),
+            Atom(label="C", species="C",
+                 x=P(value=0.0), y=P(value=0.0), z=P(value=0.25)),
+            Atom(label="O", species="O",
+                 x=P(value=0.2578), y=P(value=0.0), z=P(value=0.25)),
+        ])])
+
+
+def test_rhombohedral_alternatives_are_named_but_never_costed() -> None:
+    """`:H` against `:R` changes the *axes*, so no composition compares them.
+
+    An origin choice keeps the axes, so one coordinate list means something
+    under each setting and quoting both compositions is the whole point. Under
+    `R -3 c` it is arithmetic: calcite's hexagonal Ca6 C6 O18 reads as
+    Ca2 C12 O12 through rhombohedral-axis operators, and offering that as "the
+    composition the other setting implies" invites the reader to recognise a
+    compound that does not exist.
+    """
+    found = [d for d in _symmetry_silence_diagnostics(_calcite("R -3 c"))
+             if d.code == "SPACE_GROUP_SETTING_ASSUMED"]
+    assert len(found) == 1
+    message = found[0].message
+    assert "R -3 c:H" in message and "R -3 c:R" in message
+    assert "→" not in message                    # no formula either way
+    assert "C12" not in message and "Ca2" not in message
+    assert "axes" in message
+
+    # and the origin-choice path still costs both, which is the case that works
+    spinel = [d for d in _symmetry_silence_diagnostics(_spinel("F d -3 m"))
+              if d.code == "SPACE_GROUP_SETTING_ASSUMED"]
+    assert "→" in spinel[0].message
+
+
 def test_a_scaffold_is_not_asked_for_a_composition() -> None:
     """Outside rietveld the atoms are a placeholder, so the composition is a
     fiction — but ``:H`` against ``:R`` changes the operators, so the setting

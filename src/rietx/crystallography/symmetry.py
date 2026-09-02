@@ -342,6 +342,25 @@ def _op_arrays(op: gemmi.Op) -> tuple[np.ndarray, np.ndarray]:
             np.array(op.tran, dtype=np.float64) / gemmi.Op.DEN)
 
 
+@functools.lru_cache(maxsize=64)
+def _group_arrays(xhm: str) -> tuple[tuple[gemmi.Op, ...], np.ndarray, np.ndarray]:
+    """Operations of one group with their (R, t) already in float64.
+
+    Rebuilding them per call is what :func:`site_orbit` spent most of its time
+    on — it walks the operation list three times, and a 192-operation group
+    costs 0.78 ms a walk, so a 48-site cubic phase paid 0.76 s every time
+    ``snap_diagnostics`` ran.  The arrays are exactly what :func:`_op_arrays`
+    returns and are never written to, so the cache changes no number.
+    """
+    ops = tuple(get_spacegroup(xhm).operations())
+    pairs = [_op_arrays(op) for op in ops]
+    rot = np.array([r for r, _ in pairs], dtype=np.float64)
+    tran = np.array([t for _, t in pairs], dtype=np.float64)
+    rot.flags.writeable = False
+    tran.flags.writeable = False
+    return ops, rot, tran
+
+
 @dataclass(frozen=True)
 class SiteOrbit:
     """The orbit of one fractional position, derived from its stabiliser.
@@ -432,30 +451,22 @@ def site_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
     exactly why the guard is kept: it is the invariant, and an invariant nobody
     can currently break is the one worth asserting.
     """
-    ops = list(sg.operations())
+    ops, all_rot, all_tran = _group_arrays(sg.xhm())
     order = len(ops)
     x = np.asarray(xyz, dtype=np.float64).reshape(3)
 
-    def fixing(p: np.ndarray, bound: float) -> list[gemmi.Op]:
-        held = []
-        for op in ops:
-            r, t = _op_arrays(op)
-            d = r @ p + t - p
-            d -= np.round(d)
-            if np.all(np.abs(d) <= bound):
-                held.append(op)
-        return held
+    def fixing(p: np.ndarray, bound: float) -> list[int]:
+        d = all_rot @ p + all_tran - p
+        d -= np.round(d)
+        return list(np.flatnonzero(np.all(np.abs(d) <= bound, axis=1)))
 
     candidates = fixing(x, tol * (1.0 + _SITE_TOL_SLACK))
     if len(candidates) == 1:
         snapped, shift = x, 0.0          # general position: no arithmetic at all
     else:
-        acc = np.zeros(3)
-        for op in candidates:
-            r, t = _op_arrays(op)
-            p = r @ x + t
-            acc += p - np.round(p - x)   # this image on the branch nearest x
-        snapped = acc / len(candidates)
+        p = all_rot[candidates] @ x + all_tran[candidates]
+        p -= np.round(p - x)             # each image on the branch nearest x
+        snapped = p.mean(axis=0)
         delta = snapped - x
         shift = float(np.max(np.abs(delta - np.round(delta))))
         if shift <= _SNAP_NOISE:
@@ -463,22 +474,24 @@ def site_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
 
     stab_ops = fixing(snapped, _COINCIDENCE_TOL)
     if len(stab_ops) == 1 and shift:
-        snapped, shift = x, 0.0          # the projection landed nowhere special
+        # the projection landed nowhere special: keep the caller's numbers, and
+        # re-measure the stabiliser *there*, since x can be fixed exactly by an
+        # operation the projected point is not — leaving the stabiliser stale
+        # would report the wrong site symmetry and trip the guard below
+        snapped, shift = x, 0.0
+        stab_ops = fixing(snapped, _COINCIDENCE_TOL)
     coincide = min(tol, _COINCIDENCE_TOL)
     images: list[np.ndarray] = []
-    rots: list[np.ndarray] = []
-    trans: list[np.ndarray] = []
-    for op in ops:
-        r, t = _op_arrays(op)
-        p = (r @ snapped + t) % 1.0
+    keep: list[int] = []
+    for i in range(order):
+        p = (all_rot[i] @ snapped + all_tran[i]) % 1.0
         for q in images:
             diff = np.abs(p - q)
             if np.all(np.minimum(diff, 1.0 - diff) <= coincide):
                 break
         else:
             images.append(p)
-            rots.append(r)
-            trans.append(t)
+            keep.append(i)
 
     multiplicity = len(images)
     if multiplicity * len(stab_ops) != order:
@@ -495,10 +508,9 @@ def site_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
         position=snapped % 1.0,
         shift=shift,
         multiplicity=multiplicity,
-        stabilizer=np.array([np.rint(_op_arrays(op)[0]).astype(np.int64)
-                             for op in stab_ops]),
-        rot=np.asarray(rots),
-        tran=np.asarray(trans),
+        stabilizer=np.rint(all_rot[stab_ops]).astype(np.int64),
+        rot=np.array(all_rot[keep]),
+        tran=np.array(all_tran[keep]),
         images=np.asarray(images),
     )
 
@@ -562,7 +574,13 @@ def snap_diagnostics(sg: gemmi.SpaceGroup, sites, *, source: str,
     """
     moved: list[tuple[str, float, int, str]] = []
     for j, (label, xyz) in enumerate(sites):
-        orbit = site_orbit(sg, np.asarray(xyz, dtype=np.float64), tol=tol)
+        try:
+            orbit = site_orbit(sg, np.asarray(xyz, dtype=np.float64), tol=tol)
+        except ValueError as exc:
+            # a reader's refusal must name the file it read (io/CLAUDE.md); the
+            # orbit guard knows the site and the group but not where they came
+            # from, and this is the only place that does
+            raise ValueError(f"site {label!r} in {source}: {exc}") from exc
         if orbit.shift:
             moved.append((label, orbit.shift, orbit.multiplicity,
                           f"{prefix}.atoms.{j}"))

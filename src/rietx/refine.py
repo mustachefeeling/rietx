@@ -3033,8 +3033,16 @@ def _symmetry_silence_diagnostics(structure: Structure,
         taken, others = setting_alternatives(phase.space_group)
         if not others:
             continue
+        # An origin choice keeps the axes, so one coordinate list means
+        # something under each setting and the compositions are comparable —
+        # that comparison is the whole point.  ``:H`` against ``:R`` changes
+        # the axes themselves, so the cell and the coordinates belong to one of
+        # the two and reading them under the other is arithmetic, not a
+        # composition: calcite's hexagonal 6/6/18 came back as 2/12/12.
+        same_axes = not any(s.rsplit(":", 1)[-1] in ("H", "R")
+                            for s in (taken, *others))
         implied = []
-        if structural:
+        if structural and same_axes:
             cell = tuple(getattr(phase.cell, n).value
                          for n in ("a", "b", "c", "alpha", "beta", "gamma"))
             sites = [(a.species, a.x.value, a.y.value, a.z.value, a.occ.value)
@@ -3047,7 +3055,10 @@ def _symmetry_silence_diagnostics(structure: Structure,
                 formula = " ".join(f"{s}{c:g}" for s, c in sorted(counts.items()))
                 implied.append(f"{setting} → {formula}")
         detail = ("; ".join(implied) if implied
-                  else f"{taken}, against {', '.join(others)}")
+                  else f"{taken}, against {', '.join(others)}"
+                  + ("" if same_axes else " — hexagonal against rhombohedral "
+                     "axes, so the cell and the coordinates belong to one of "
+                     "them and no composition compares the two"))
         out.append(Diagnostic(
             level="warning", code="SPACE_GROUP_SETTING_ASSUMED",
             where=[f"phases.{i}.space_group"],
