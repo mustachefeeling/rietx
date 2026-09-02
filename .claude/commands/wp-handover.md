@@ -78,8 +78,9 @@ steps below run unchanged.
    condition, a surprise — sitting in the handover entry and not in the
    skill? Root CLAUDE.md § skill routes it: the body if it holds for every
    fit, the task shape's `references/` file otherwise, a `(Measured: …)`
-   tag on the row; the mechanised half (a code without a row, a verb the
-   index omits, a copy out of sync) is `tests/test_skill.py`'s. A declared
+   tag on the row; the mechanised half is three suites' — a code without a
+   row `tests/test_docs_consistency.py`, a verb the index omits
+   `tests/test_skill.py`, a copy out of sync `tests/test_skill_cli.py`. A declared
    name with no writer — a defaulted `False`/`0` that reads as an *answer* about
    something nothing checked, a `Literal` member no code produces (**nine in
    WP-1076 alone**, and they were found by writing a manual chapter over the

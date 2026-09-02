@@ -481,7 +481,7 @@ def _engine_codes() -> set[str]:
 
     ``gui/`` is excluded on purpose: the GUI server's session codes
     (NOT_FOUND, RUN_IN_FLIGHT, ...) share the shape but are a separate
-    namespace with no protocol rows — §9c's namespace note declares the
+    namespace with no protocol rows — §7's namespace note (`references/diagnostics.md`) declares the
     split.  The lowercase ``GateFailure`` codes fall out of the shape filter
     and are covered by the vocabulary test instead.
     """

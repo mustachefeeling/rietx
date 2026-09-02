@@ -322,7 +322,7 @@ wins on *every* agreement index while biasing displacement parameters to 0.958
 and 0.000 Å² against a truth of 0.5, and `worst_absorption` (0.46 against 0.08)
 is the only row separating the two fits — the plot does not either.
 
-**Resolution-limited is a stopping point, not a failure**: the edit directions
+**`resolution_limited` is a stopping point, not a failure**: the edit directions
 are indistinguishable on merged peaks, not the model wrong — a legitimate end
 state for phase-ID work; for structure-grade work, *collect better data*.
 

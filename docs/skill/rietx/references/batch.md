@@ -31,16 +31,18 @@ rule the logs suggest but do not decide, and names what would decide it. A
 hypothesis row is not a weaker rule; it is an open question stated as one, and
 §6 applies to it — do not act on it as if it were measured. Before adding a
 row, ask whether it holds for one fit alone: if it does, it belongs in the
-body or in §8, not here. `tests/test_skill.py` refuses a row without its tag,
-and `CONTRIBUTING.md` § The agent skill has the sync step.
+body or in §8, not here. All rows sit under *The rows*, one after another,
+each closed by its tag; `tests/test_skill.py` refuses a row without one, and
+`CONTRIBUTING.md` § The agent skill has the sync step.
 
 ## The rows
 
 **9c.1 Declare each job's deliverable and stop rule before the batch starts,
 and read the stop on the report, never on Rwp.** §4b's *Stop when* column is
 the stop rule per job and it differs by deliverable; a batch launched without
-one stops on whatever its author watched, which was Rwp in every campaign run
-that had no rule. *(Measured: WP-1307 round 1.1, R11 — three of four ramp
+one stops on whatever its author reached for — in the campaign's six refining
+runs an external comparison, a script exit, an instruction, and for three of
+them nothing: they ended waiting. *(Measured: WP-1307 round 1.1, R11 — three of four ramp
 cells stopped on a §4b deliverable row, against 0 of 6 in the 86-run campaign
 and 0 in round 1.0, when §4b had no such row to reach for.)*
 
@@ -50,8 +52,9 @@ it moved the residual (§6, rule 22): its scale at the floor is not a
 measurement of 0 wt %, and its cell is the one you handed in. Screening
 candidates, sort such a fit into "not testable on this pattern", never into the
 rejects — and never let the batch walk it: before the hold existed, one absent
-phase cost 27 % of a 35-minute session, and more than 115× that when
-reproduced without bounds. *(Measured: WP-1301, and WP-1307's baseline ramp
+phase cost 27 % of a 35-minute session, and its chain, reproduced on 13
+sub-onset patterns, took 6.7 s with cell bounds and was killed unfinished at
+13 minutes without them. *(Measured: WP-1301, and WP-1307's baseline ramp
 run — the flat direction's share of wall.)*
 
 **9c.3 Rank candidates only on fits of the same channels, the same excluded

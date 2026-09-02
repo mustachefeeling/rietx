@@ -95,6 +95,8 @@ Seams: `docs/skill/rietx/SKILL.md` (routing table, description, header),
       commands) and `AGENTS.md`'s pointer to it
 - [ ] Tests: the four skill/doc suites, the manual build, ruff, the fast
       suite; counts in the handover entry
+- [x] Skill: the §9c routing row and `references/batch.md` (above); the
+      body's `resolution_limited` name kept where its paragraph is
 
 ## Acceptance
 

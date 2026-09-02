@@ -207,10 +207,14 @@ REFERENCE_PROVENANCE_PREFIX = "*A reference file of the `rietx` skill."
 EVIDENCE_DECLARATION = "Every row carries its evidence"
 #: ``# 9c. Title`` — the section a reference specialises, from its own H1.
 _H1_SECTION = re.compile(r"^# (\d+[a-z]?)\.")
-#: ``**9c.3 The rule.**`` — a numbered row of an evidence-tagged reference.
-_ROW_HEAD = re.compile(r"^\*\*(\d+[a-z]?)\.(\d+) ", re.M)
-#: ``*(Measured: …)*`` / ``*(Hypothesis: …)*``, closing a row.
-_EVIDENCE_TAG = re.compile(r"\*\((Measured|Hypothesis): .+?\)\*", re.S)
+#: ``**9c.3 The rule.**`` — a numbered row of an evidence-tagged reference,
+#: matched against one paragraph.
+_ROW_HEAD = re.compile(r"^\*\*(\d+[a-z]?)\.(\d+) ")
+#: ``*(Measured: …)*`` / ``*(Hypothesis: …)*`` — the tag *closes* the row, so it
+#: is matched at the end of the row's last paragraph, never searched for: a
+#: quoted example in the prose, or a tag under an "Open questions" heading
+#: after the rows, must not cover a row that has none.
+_EVIDENCE_TAG = re.compile(r"\*\((Measured|Hypothesis): .+\)\*\Z", re.S)
 
 
 def _paragraphs(text: str) -> list[str]:
@@ -233,9 +237,34 @@ def test_every_reference_opens_with_its_load_condition_and_provenance(path: Path
 
 
 def _evidence_tagged() -> list[Path]:
-    """The references whose provenance paragraph opts into tagged rows."""
-    return [p for p in REFERENCES if EVIDENCE_DECLARATION in " ".join(
-        _paragraphs(p.read_text(encoding="utf-8"))[2].split())]
+    """The references whose provenance paragraph opts into tagged rows.
+
+    Runs at collection (it parametrises a test), so a malformed file is left
+    to the header test above to name rather than raised here, where it would
+    take the whole module down.
+    """
+    tagged = []
+    for p in REFERENCES:
+        paras = _paragraphs(p.read_text(encoding="utf-8"))
+        if len(paras) > 2 and EVIDENCE_DECLARATION in " ".join(paras[2].split()):
+            tagged.append(p)
+    return tagged
+
+
+def _rows(paras: list[str]) -> list[list[str]]:
+    """The rows section: each row is its head paragraph plus what follows it,
+    from the first numbered row to the next heading."""
+    rows: list[list[str]] = []
+    for p in paras:
+        if p.startswith("#"):
+            if rows:
+                break
+            continue
+        if _ROW_HEAD.match(p):
+            rows.append([p])
+        elif rows:
+            rows[-1].append(p)
+    return rows
 
 
 def test_the_evidence_gate_has_a_file_to_gate():
@@ -247,23 +276,26 @@ def test_the_evidence_gate_has_a_file_to_gate():
 
 @pytest.mark.parametrize("path", _evidence_tagged(), ids=lambda p: p.name)
 def test_every_row_of_an_evidence_tagged_reference_carries_its_tag(path: Path):
-    text = path.read_text(encoding="utf-8")
-    section = _H1_SECTION.match(text)
+    paras = _paragraphs(path.read_text(encoding="utf-8"))
+    section = _H1_SECTION.match(paras[0])
     assert section, f"{path.name}: a tagged reference's H1 carries its section number"
-    heads = list(_ROW_HEAD.finditer(text))
-    assert heads, f"{path.name}: declares tagged rows and has none"
+    rows = _rows(paras)
+    assert rows, f"{path.name}: declares tagged rows and has none"
     numbers = []
-    for i, head in enumerate(heads):
-        sec, n = head.group(1), int(head.group(2))
+    for row in rows:
+        sec, n = _ROW_HEAD.match(row[0]).groups()
         assert sec == section.group(1), (
             f"{path.name}: row {sec}.{n} is numbered under §{sec}; the file is "
             f"§{section.group(1)}")
-        end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
-        assert _EVIDENCE_TAG.search(text[head.start():end]), (
-            f"{path.name}: row {sec}.{n} has no *(Measured: …)* or "
+        unnumbered = [p for p in row[1:] if p.startswith("**")]
+        assert not unnumbered, (
+            f"{path.name}: after row {sec}.{n}, a bold-opened paragraph is not a "
+            f"numbered row, so the gate cannot see it: {unnumbered[0][:60]!r}")
+        assert _EVIDENCE_TAG.search(row[-1]), (
+            f"{path.name}: row {sec}.{n} does not close with a *(Measured: …)* or "
             "*(Hypothesis: …)* tag — name the run and its number, or what "
             "would decide it")
-        numbers.append(n)
+        numbers.append(int(n))
     assert numbers == sorted(set(numbers)), (
         f"{path.name}: row numbers must be unique and increasing, got {numbers}")
 
