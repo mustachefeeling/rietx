@@ -96,13 +96,12 @@ symmetry-breaking actually splits, **6.2 % of points captured −28 % of the
 total Δχ²**, i.e. net *negative* exactly where a real distortion must
 concentrate its advantage while the global numbers pointed the other way. The
 same asymmetry appears in plan hygiene: restoring two Gaussian terms silently
-dropped from a copied plan moved one weight fraction **0.387 → 0.475** and Rwp
-0.157 → 0.118, so a candidate compared against a carelessly-copied predecessor
-is being compared against nothing in particular. *(Measured: archive screening
-campaign — the cubic-versus-rhombohedral NiO adjudication, whose ΔBIC −5553
-for the richer model was real and reproducible while the interpretation was
-wrong, and its windowed Δχ²; the dropped Gaussian terms are the Mn₃O₄ 8.28 K
-fraction.)*
+dropped from a copied plan moved one weight fraction by **0.09 in absolute
+terms** and Rwp by **0.04**, so a candidate compared against a copied
+predecessor is being compared against nothing in particular. *(Measured: archive screening campaign — the cubic-versus-rhombohedral NiO adjudication,
+whose ΔBIC −5553 for the richer model was real and reproducible while the
+interpretation was wrong, and its windowed Δχ²; the dropped Gaussian terms are
+from a low-temperature scan of a spinel series.)*
 
 **9c.5 Budget a job from what a converged job costs on this batch, and read a
 job past its budget as a diagnosis.** §8.13: a stage that takes minutes is
@@ -293,16 +292,17 @@ series.)*
 **9c.19 Gate every summary statistic on determinacy, state the gate beside the
 number, and report the screened n.** Reference and fitted rows alike carry
 undetermined parameters, and differencing them silently is how a batch
-publishes noise: real rows read **`a = 3.633 ± 30.7 Å`** and a microstrain esd
-of **78011**, at a phase present at **6e-5 wt %**. Screen by a minimum weight
-fraction and by the untrustworthy-value codes (`PHASE_UNCONSTRAINED`,
-`BOUND_HIT`) before differencing anything, then say so with the result — a
-median screened to patterns above 1 wt % that did not declare its screen could
-not be reproduced from the saved rows by a later audit, which is a defect in
-the record even where the value is right. The screen is not cosmetic: one
-unscreened draft median read **0.329 pp where the screened one was 0.931 pp
-over 142 rows**. *(Measured: archive screening campaign, the CuO/Cu₂O
-tranche's cross-code agreement medians and their re-audit.)*
+publishes noise: real rows read a cell edge whose **esd was an order of
+magnitude larger than the edge itself**, a microstrain esd of **78011**, and a
+phase present at **6e-5 wt %**. Screen by a minimum weight fraction and by the
+untrustworthy-value codes (`PHASE_UNCONSTRAINED`, `BOUND_HIT`) before
+differencing anything, then say so with the result — a median screened to
+patterns above 1 wt % that did not declare its screen could not be reproduced
+from the saved rows by a later audit, which is a defect in the record even
+where the value is right. The screen is not cosmetic: one unscreened draft
+median read **0.329 pp where the screened one was 0.931 pp over 142 rows**.
+*(Measured: archive screening campaign, the CuO/Cu₂O tranche's cross-code
+agreement medians and their re-audit.)*
 
 **9c.20 Sum each side's weight percents over the phases the comparison shares
 before differencing them.** `weight_percent` normalises over the phases *in
@@ -312,12 +312,11 @@ apparent disagreement **12–14×** through exactly that, and it was first
 written up as a separate "normalisation basis" defect before review reduced it
 to the omitted phase itself: one mechanism, not two. The tell sits on the
 *reference* side, since a rietx model's own fractions always sum to 100:
-exported columns summing to **74–83 %** (median 77.21 against the reference's
-own 78.49) say the generating model carried a phase the export does not.
-Difference like-for-like sums and print the assertion rather than claiming it
-in prose. *(Measured: archive screening campaign — the CuO/Cu₂O
-five-against-six-phase comparison, and the audit that reclassified my first
-account of it.)*
+exported columns summing **well short of 100 %** say the generating model
+carried a phase the export does not. Difference like-for-like sums and print
+the assertion rather than claiming it in prose. *(Measured: archive screening
+campaign — the CuO/Cu₂O five-against-six-phase comparison, and the audit that
+reclassified my first account of it.)*
 
 **9c.21 Count how many units actually carry a reference before quoting an
 agreement statistic.** A median over data with no reference is a fabrication,
@@ -335,59 +334,63 @@ pairing audit.)*
 **9c.22 Run a negative control through the identical machinery, and expect the
 threshold you pre-registered to be wrong.** A control is what fixes the
 false-positive floor, and without one a threshold is a guess about the noise:
-apparent distortion measured **799 ppm** on the control, against which the
-real claim's **6220 ppm** sits **7.8× above** and survives — but the threshold
-written in advance was **500 ppm, below the artefact floor**, so it was
-guaranteed to fire whatever the data said. Committing to a threshold early is
-right; committing before the quantity's noise floor is known is a coin flip,
-and anything in 2000–4000 ppm would have separated true from false here.
-Relatedly, gate secondary criteria on the candidate being competitive at all:
-one criterion rejected a model everywhere and the next then read that rejected
-model's `c/a` and found it ≠ 1, which is a parameter being non-zero inside a
-model nothing supports. Pair the control with a **positive** arm: a detector
-that has never fired on a true case licenses nothing, and the 799 ppm floor
-was only interpretable because the same machinery reproduced a published
-**6280 ppm** on the one case in the batch known to be real. *(Measured: archive screening campaign, 11-BM variable-temperature series — the distortion
-claim, its negative control, and the published positive it reproduced.)*
+the control's apparent distortion fixed a floor that the real claim sat **7.8×
+above**, and so survived — but the threshold written in advance sat **below
+that floor**, so it was guaranteed to fire whatever the data said. Committing
+to a threshold early is right; committing before the quantity's noise floor is
+known is a coin flip, and here a threshold a few times the measured floor
+would have separated true from false. Relatedly, gate secondary criteria on
+the candidate being competitive at all: one criterion rejected a model
+everywhere and the next then read that rejected model's `c/a` and found it ≠
+1, which is a parameter being non-zero inside a model nothing supports. Pair
+the control with a **positive** arm: a detector that has never fired on a true
+case licenses nothing, and this floor was only interpretable because the same
+machinery reproduced a **published** distortion magnitude, to ~1 %, on the one
+case in the batch known to be real. *(Measured: archive screening campaign,
+11-BM variable-temperature series — the distortion claim, its negative
+control, and the published positive it reproduced.)*
 
 **9c.23 Hold the configuration constant before reading a trend along the batch
 axis — then do not read the surviving trend as physics either.** Where
 configuration is confounded with the axis, a pooled trend mixes two
 measurements, so restrict first: one series restricted to its **194
-identically-configured scans** still showed the effect cleanly (722 ppm below
-15 K → 595 → 348 → ~2 ppm above 150 K). Note what that bought — it
-*exonerated* the configuration and left a trend that was **still an
-artefact**, the negative control's temperature-driven peak broadening bought
-as apparent `c/a` by a tetragonal model fitted to a broadened-but-unsplit
-reflection (9c.22's floor). Surviving a configuration hold is necessary and
-nowhere near sufficient. The same reasoning retires a *null* result: freezing
-a covariate removes its dynamic range, so "broadening does not predict cost"
-measured under a frozen instrument is a claim about that protocol only.
-*(Measured: archive screening campaign — the 11-BM negative control's
-configuration restriction, and the frozen-width CuO/Cu₂O timing null.)*
+identically-configured scans** still showed the effect cleanly — a monotone
+fall of more than two orders of magnitude from the coldest scans to the
+warmest. Note what that bought — it *exonerated* the configuration and left a
+trend that was **still an artefact**, the negative control's
+temperature-driven peak broadening bought as apparent `c/a` by a tetragonal
+model fitted to a broadened-but-unsplit reflection (9c.22's floor). Surviving
+a configuration hold is necessary and nowhere near sufficient. The same
+reasoning retires a *null* result: freezing a covariate removes its dynamic
+range, so "broadening does not predict cost" measured under a frozen
+instrument is a claim about that protocol only. *(Measured: archive screening
+campaign — the 11-BM negative control's configuration restriction, and the
+frozen-width CuO/Cu₂O timing null.)*
 
 **9c.24 Establish whether the transition is first order before reading any
 phase fraction across it — the order decides whether the fraction is an
 observable at all.** A first-order transition genuinely coexists, so a
 parent-plus-distorted two-phase model is correct and its fraction *is* the
-measurement (ZnCr₂O₄ and MgCr₂O₄ hold ~42/55 wt % to base temperature, Mn₃O₄
-~50/50 at T_N; both are explicit in the literature). A continuous transition
-never coexists, and a parent whose distortion is undetectable never has a
-second phase at all — in either case the child's metric approaches the
-parent's, the two become one phase, and the weight split is unidentifiable
-**by construction**, which is exactly what `HIGH_CORRELATION` on the two
-scales reports (ρ ≈ −0.98 on **87 of 182** patterns, all of them above T_N).
-Read the symptom correctly: a candidate that is fully in (**ΔBIC ≈ −10⁴**) at
-8 K, out (**+9.5, weight exactly 0**) at 21 K, back at 36 K and gone at 71 K
-is a profile-shaping device being switched on wherever the peak shape is
-imperfect, so **ΔBIC across a batch is not by itself a discriminator** even at
-−8 700 to −41 300 — only a **distortion magnitude against a published value**
-separated them (6220 against 6280 ppm). The observable across a continuous
-transition is the order parameter, never the fraction. *(Measured: archive
-screening campaign, 11-BM variable-temperature series — a compound published
-as showing no detected structural transition, modelled as two phases; the
-first-order coexistence figures are Kemei et al., J. Phys.: Condens. Matter
-25, 326001 (2013) and Phys. Rev. B 90, 064418 (2014).)*
+measurement: ZnCr₂O₄ and MgCr₂O₄ hold *both* low-temperature phases in
+near-equal amounts down to base temperature, and Mn₃O₄ does the same below its
+T_N — all explicit in the papers cited below, whose figures are the ones to
+quote. A continuous transition never coexists, and a parent whose distortion
+is undetectable never has a second phase at all — in either case the child's
+metric approaches the parent's, the two become one phase, and the weight split
+is unidentifiable **by construction**, which is exactly what
+`HIGH_CORRELATION` on the two scales reports (ρ ≈ −0.98 on **87 of 182**
+patterns, all of them above T_N). Read the symptom correctly: a candidate that
+is fully in (**ΔBIC ≈ −10⁴**) at the coldest scan, out (**+9.5, weight exactly
+0**) at the next, back at a third and gone at a fourth is a profile-shaping
+device switched on wherever the peak shape is imperfect, so **ΔBIC across a
+batch is not by itself a discriminator** even at −8 700 to −41 300 — only a
+**distortion magnitude against a published value** separated them, and it
+agreed with the paper to ~1 %. The observable across a continuous transition
+is the order parameter, never the fraction. *(Measured: archive screening
+campaign, 11-BM variable-temperature series — a compound published as showing
+no detected structural transition, modelled as two phases; the first-order
+coexistence figures are Kemei et al., J. Phys.: Condens. Matter 25, 326001
+(2013) and Phys. Rev. B 90, 064418 (2014).)*
 
 **9c.25 Once a scale is at its bound, every local identifiability statistic
 goes quiet — scan it instead.** On one such phase `background.absorption` gave
@@ -404,16 +407,15 @@ pin-and-scan control on the fifth phase.)*
 **9c.26 Trustworthiness is a property of the unit, not of the protocol, so do
 not credit a batch with its best fit's identifiability.** Identifiability
 varies along a batch: a profile-likelihood scan showed **three basins spanning
-0 / ~1.5 / 98.68 wt % inside a total Rwp span of 0.0109 pp** at one
+nearly the whole 0–100 wt % range inside a total Rwp span of ~0.01 pp** at one
 temperature and was clean and single-minimum at another with **58× more
-signal**, and at the bad point the reported `weight_fraction_stderr` of
-**±0.65 wt %** understated the admissible range by **~2 orders of magnitude**
-— a covariance esd describes local curvature and cannot see a second basin.
-Run any such scan **warm-started from one common state**: the first attempt,
-run cold, gave scattered minima at Rwp 3.5–6.1 and measured the optimiser
-rather than the landscape. *(Measured: archive screening campaign, the
-YBaCo₄O₇ gas-cell series — the 300 °C pin-and-scan against its 200 °C
-control.)*
+signal**, and at the bad point the reported `weight_fraction_stderr`
+understated the admissible range by **~2 orders of magnitude** — a covariance
+esd describes local curvature and cannot see a second basin. Run any such scan
+**warm-started from one common state**: the first attempt, run cold, gave
+scattered minima at Rwp 3.5–6.1 and measured the optimiser rather than the
+landscape. *(Measured: archive screening campaign, the YBaCo₄O₇ gas-cell
+series — the 300 °C pin-and-scan against its 200 °C control.)*
 
 **9c.27 Multi-start agreement is evidence about the landscape only if the
 starts were where you think.** Three seeds converging on one basin proved
@@ -423,10 +425,10 @@ same tiny strain and the agreement measured the seeding bug. Verify each
 seed's physical value, not merely that the three differ. Where a term wants to
 sit on a floor, seeding and flooring it away from zero is what makes the basin
 reachable at all — a `lor_strain` lower bound of 0.02 kept the optimiser off
-the bound in **14 of 15 patterns** and moved that phase from **1.39 % to 10.08
-wt %** against the reference's **10.56 %**, at an Rwp **0.10 pp better** than
-baseline. *(Measured: archive screening campaign — the ZnCr₂O₄ size-strain
-arm, and the YBaCo₄O₇ strain-floor arm.)*
+the bound in **14 of 15 patterns** and moved that phase from a fraction the
+reference contradicts to one agreeing with it within **0.5 pp**, at an Rwp
+**0.10 pp better** than baseline. *(Measured: archive screening campaign — the
+ZnCr₂O₄ size-strain arm, and the YBaCo₄O₇ strain-floor arm.)*
 
 **9c.28 Freeze the model between rounds when the purpose is regression.**
 Changing the model destroys the comparison that proves the machinery moved

@@ -38,8 +38,8 @@ What an operator must know, all measured:
   of the three cases above, the tray is the one to think twice about.  Chaining
   eight ex-situ YBaCo₄O₇ specimens that shared only a method *created* the
   disagreement it was then used to measure: refitting them as independent cold
-  points moved the referenced pattern's Rwp gap from **0.571 to 0.045 pp** and
-  its cell-*a* gap from **0.051 to 0.0041 Å**, and what had been recorded as
+  points shrank the referenced pattern's Rwp gap by **13×** and its cell-*a* gap
+  by **12×**, and what had been recorded as
   that campaign's largest cell-*a* disagreement with TOPAS was the chain's own
   artefact.  Warm chaining is ~10x cheaper per pattern (**0.16 s against
   1.82 s** measured on one series), and on specimens with no physical ordering
@@ -77,8 +77,8 @@ What an operator must know, all measured:
   by **σ magnitude** (98.9σ and 84.4σ on the scales the QPA is built from,
   against ≤8.8σ everywhere else).  Read what was flagged before reading physics
   into it: two of the largest flags measured anywhere — **81.5σ** for *a* and
-  *b* exchanging in `Fddd` and **15.8σ** for *a* and *c* in `Pnma`
-  (5.404 ↔ 5.665 Å) — are degenerate axis relabellings, and the largest on
+  *b* exchanging in `Fddd` and **15.8σ** for *a* and *c* in `Pnma` — are
+  degenerate axis relabellings, and the largest on
   another run (16.6σ) was a *held* cell reaching the pattern with two different
   held histories, which is bookkeeping rather than two measurements.
 - **`SEQUENTIAL_RESEED` is not the net for a wrong basin.**  Its trigger is
