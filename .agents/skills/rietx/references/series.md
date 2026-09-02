@@ -115,8 +115,30 @@ What an operator must know, all measured:
   68-pattern ramp flagging four steps over four patterns it costs 5 % of the
   chain, and the cost scales with the patterns flagged rather than with the
   series length.  Nothing else moves: the refits are separate `Refinement` runs
-  writing to their own `<label>.verify` histories.
+  writing to their own `<label>.verify` histories.  **An abstaining
+  verification is a finding, not a pass:** on a polymorph-swap exhibit the refit
+  fired and then reported *"an independent cold refit of both patterns does not
+  determine this parameter, so the step could not be re-measured"* — the check
+  needs the parameter determined and the pathology is that it is not.  Read that
+  message as `PHASE_UNCONSTRAINED` about the step, and go to a cold refit sample
+  rather than concluding the step was real.
 
+- **The check that covers both blind spots is a cold-refit sample, and it is
+  affordable.**  Neither `SEQUENTIAL_RESEED` (needs a ~25 % Rwp jump) nor
+  `direction="both"` (agrees in a degenerate band) sees a wrong basin at
+  negligible Rwp cost, and the audited job that did see it refitted **380
+  patterns cold against the chain and found 316 material disagreements, 29 of
+  them at |ΔRwp| ≤ 0.5 pp** — invisible to both.  Whole job, warm chain plus 380
+  cold refits plus 244 minority-geometry fits plus 2 reference fits, **57 minutes
+  single-threaded**.  Sample the chain cold; it is the only check here that
+  catches a cheap wrong basin.
+- **Two batch rows apply to a chain and live in §9c**, which a series operator
+  never loads: a phase that switches fully in and fully out along the ramp is a
+  degenerate split rather than a coexistence, and whether its fraction is an
+  observable at all depends on the transition's order
+  ([`references/batch.md`](batch.md) § 9c.24); and the shared `EventStream` opens
+  its file in append mode, so a re-run of a ramp writes into the previous run's
+  log unless the path is rotated (§ 9c.13) — measured on chains, both of them.
 - **A trajectory of phase fractions is a QPA question at every point of it, and
   the background is what decides it.**  Fractions ride on scales, and an
   over-flexible background biases scales silently while *improving* every
