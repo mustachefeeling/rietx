@@ -34,8 +34,12 @@ a reader cannot open is admitted, but it must be recognisable as one before
 the reader acts on it. Two things the private case does not relax. Every
 number still comes from the log, and anything the log does not decide is a
 `Hypothesis` row: unverifiable is not a licence to be vaguer. And a scientific
-magnitude derived from unpublished data stays out — quote the ratio, the
-shape, or the published figure instead, which is where the lesson was anyway.
+magnitude derived from unpublished data stays out. The line is what the row is
+about: what the *run* did may be quoted — counts, rates, wall clock, a ratio of
+fit qualities, which is what the rows below are made of anyway — and what the
+*specimen* is may not: a cell, a phase fraction, a domain size, a transition
+temperature, and a ratio of two of those is still one of those. Quote the
+shape, or a published figure, instead, which is where the lesson was anyway.
 `(Hypothesis: …)` is for a
 rule the logs suggest but do not decide, and names what would decide it. A
 hypothesis row is not a weaker rule; it is an open question stated as one, and

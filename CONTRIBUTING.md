@@ -109,8 +109,12 @@ so a reader knows before the first row which tags they can follow and which
 they must take on trust — a private run that reads like a citation is the
 thing this rule exists to stop. Nothing else relaxes: the numbers still come
 from the log, and a scientific magnitude derived from unpublished data stays
-out. Quote the ratio, the shape, or a published figure, which is where the
-lesson was anyway.
+out. The line is what the row is about: what the *run* did may be quoted —
+counts, rates, wall clock, a ratio of fit qualities, which is what a rows file
+is made of anyway — and what the *specimen* is may not: a cell, a phase
+fraction, a domain size, a transition temperature, and a ratio of two of those
+is still one of those. Quote the shape, or a published figure, instead, which
+is where the lesson was anyway.
 
 Then, in the same change:
 
