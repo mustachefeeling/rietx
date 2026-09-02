@@ -80,7 +80,7 @@ Seams: `docs/skill/rietx/SKILL.md` (routing table, description, header),
 
 - [x] The WP, filed: this file, its ROADMAP row, and protocol rule 4's
       third destination
-- [ ] `tests/test_skill.py`: every reference opens with an H1, a "Load it"
+- [x] `tests/test_skill.py`: every reference opens with an H1, a "Load it"
       paragraph and the provenance line; a reference declaring "Every row
       carries its evidence" has every numbered row tagged `(Measured: …)` or
       `(Hypothesis: …)`, numbered under its own section, increasing
