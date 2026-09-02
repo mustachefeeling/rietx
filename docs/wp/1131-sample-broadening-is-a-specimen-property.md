@@ -395,17 +395,41 @@ needs it any more.
 - [x] **Measure `gauss_size` the way Finding 2 measured `lor_size`.** ✔ Done,
       and the derivation held: the damage is larger. Same fixture, same control,
       the normalisation switched off on the same build (§ Finding 7).
-- [ ] **Manual + protocol.** `docs/manual/microstructure.md` gains the extraction
-      it currently omits (the chapter states the laws and gives no route to a
-      number), the theory manual gains the equations per the root CLAUDE.md's
-      rule that a WP adding physics adds its equation to Part 2, and Part 1 gains
-      the new public names or the partition fails.
-- [ ] **`rietx compare` row** — the standing rule, and the cumulative Δχ² panel
-      is what would localise a width change to the regions it acts in.
-- [ ] Tests (unit for the conversions against hand-computed values; the
-      two-wavelength joint fixture from Finding 2 with its strain control, which
-      must stay in the suite as the thing that fails if the sharing regresses) +
-      obs/calc/diff PNGs to `tests/output/`.
+- [x] **Manual + protocol.** ✔ Part 2's `microstructure.md` gains
+      § *Reading a width as a strain* with {eq}`ms-strain-law` and
+      {eq}`ms-strain-coefficient`, both `*Source:*`-attributed, and Stokes &
+      Wilson (1944) joins the bibliography; the λ asymmetry is stated there
+      because that is where the two equations sit side by side. Part 1's
+      `using/results.md` gains § *The size and the strain, in physical units* —
+      the field table, the four absences, the separability caveat and the
+      joint-fit note — which is what the API partition demanded (20 new public
+      names). The skill's deliverable table gains a **Microstructure** row and
+      `references/judging.md` its worked measurement; `references/diagnostics.md`
+      gains the `SIZE_NORMALISED_ACROSS_WAVELENGTHS` row. `SKILL_MAX_BYTES` went
+      32 000 → 33 000 in the commit that needed it, argued there: the derivation
+      ("half the ~66 kB Read cap") is unchanged, and the alternative was a
+      deliverable whose row lived outside the table its four peers are in.
+- [x] **`rietx compare` row** — ✔ **none, and the reason is the rule itself.**
+      The standing rule is "add a row whenever a new *correction* lands", and
+      this WP lands none: on a single-histogram standard — which every one of
+      `compare`'s standards is — the sharing change is bit-identical by
+      construction, and the report block changes no residual, so a variant
+      toggling it would draw a flat Δχ² panel and assert nothing. The width
+      comparison the task imagined already exists: every standard's baseline
+      plan frees all four sample terms in its `sample_broadening` stage
+      (`viz/compare.py:171`), so `result.microstructure` is populated on every
+      run already, and the `stephens` variant is the width change the Δχ² panel
+      localises.
+- [x] Tests ✔ — `tests/test_microstructure.py` (the conversions against hand
+      computations and against the law evaluated at six angles; the block's
+      value, esd, four absences and the G/L agreement; an end-to-end fit whose
+      size and strain each cover their truth; a JSON round trip) and four new
+      rows in `tests/test_multi_histogram.py` (the two-wavelength size fixture,
+      the `gauss_size` λ² twin, the λ-free strain control, the two selectors'
+      agreement, the empty-scale cases and the `apply_value_scale` refusals).
+      PNGs to `tests/output/`: `wp1131_size_joint_h{0,1}`,
+      `wp1131_gauss_size_joint_h{0,1}`, `wp1131_microstructure_fit`, all
+      inspected.
 
 ## Acceptance
 
