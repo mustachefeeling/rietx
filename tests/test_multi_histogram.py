@@ -28,7 +28,10 @@ from rietx.model.profiles.caglioti import (
     size_coefficient_for_size,
     strain_coefficient_for_microstrain,
 )
-from rietx.optimize.least_squares import _longest_line_wavelength
+from rietx.optimize.least_squares import (
+    _longest_line_wavelength,
+    _multi_closures,
+)
 from rietx.params.multi import (
     MultiParameterTable,
     SharingMap,
@@ -530,3 +533,66 @@ def test_a_seed_lands_on_one_number_in_the_shared_column():
         values[h]["phases.0.lor_size"], lam)
         for h, lam in enumerate((0.41390, 0.71070))]
     assert sizes[0] == pytest.approx(sizes[1], rel=1e-9)
+
+
+def test_a_scaled_column_is_the_jacobian_the_residual_actually_has():
+    """The claim behind ``apply_value_scale``, checked where it is used.
+
+    The factor is folded into C, so ``decode`` multiplies — and
+    ``_peak_chain_column`` finite-differences θ *through* ``decode``, which is
+    why the analytic column picks it up with no edit to any derivative branch.
+    That is an argument, and this is the measurement: every column of the
+    stacked multi-histogram Jacobian against a central difference of the
+    stacked residual, with the two scaled columns (λ and λ²) among them.
+
+    Un-checked, a wrong factor here would be a column short by 1.72× or 2.95×
+    on a converging fit — a slower solve and a wrong covariance, neither of
+    which raises.
+    """
+    lams = (0.41390, 0.71070)
+    ranges = ((3.0, 20.0), (5.0, 34.0))
+    patterns, structures, instruments = [], [], []
+    for h, lam in enumerate(lams):
+        structure = make_lab6()
+        structure.phases[0].scale.value = 5e-4
+        structure.phases[0].lor_size.value = size_coefficient_for_size(400.0, lam)
+        structure.phases[0].gauss_size.value = (
+            size_coefficient_for_size(600.0, lam) ** 2)
+        ins = Instrument.debye_scherrer(wavelength=lam)
+        ins.profile.w.value = 3e-4
+        ins.background = BackgroundChebyshev(
+            coefficients=[Parameter(value=v) for v in (40.0, -6.0)])
+        tt = np.arange(ranges[h][0], ranges[h][1], 0.02)
+        blank = PatternData(two_theta=tt.tolist(),
+                            intensity=np.zeros_like(tt).tolist())
+        model = compile_model(structure, ins, blank, mode="rietveld")
+        table = ParameterTable(structure, ins)
+        y = model.evaluate(table.decode(table.x0()))
+        y = np.random.default_rng(1 + h).poisson(np.maximum(y, 1.0)).astype(float)
+        patterns.append(PatternData(two_theta=model.tt.tolist(),
+                                    intensity=y.tolist()))
+        structures.append(structure)
+        instruments.append(ins)
+
+    mt = MultiParameterTable(structures[0], instruments)
+    mt.set_vary(["phases.*.lor_size", "phases.*.gauss_size", "phases.*.scale",
+                 "phases.*.cell.a"], True)
+    mt.apply_to_models()
+    models = [compile_model(mt.structures[h], mt.instruments[h], patterns[h],
+                            mode="rietveld") for h in range(2)]
+    residual, jacobian, _ = _multi_closures(models, mt)
+
+    # the two size columns really are scaled, or the rest proves nothing
+    assert mt.value_scales[1]["phases.0.lor_size"] == pytest.approx(LAM_RATIO)
+    assert mt.value_scales[1]["phases.0.gauss_size"] == pytest.approx(LAM_RATIO ** 2)
+
+    x = mt.x0()
+    J = jacobian(x)
+    for c, path in enumerate(mt.free_paths):
+        step = 1e-6 * max(1.0, abs(x[c]))
+        plus, minus = x.copy(), x.copy()
+        plus[c] += step
+        minus[c] -= step
+        fd = (residual(plus) - residual(minus)) / (2 * step)
+        scale = max(np.abs(J[:, c]).max(), np.abs(fd).max(), 1e-30)
+        assert np.abs(J[:, c] - fd).max() / scale < 2e-5, path

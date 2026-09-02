@@ -441,6 +441,18 @@ esd, or `None` with a reason; and a fit driven to 1130's trigger widths
 fires the width finding while every bundled pattern's converged fit stays
 silent.
 
+**Met, 2026-09-02**, clause by clause. The fixture recovers **408.8 Å at both
+wavelengths** (`lor_size`) and **400.2 Å at both** (`gauss_size`) against a true
+400 Å, where the shared column landed 363.3/623.9 and 378.2/649.3 before; the
+agreement between the two histograms is asserted at `rel=1e-9`, because after
+the fix it is structural rather than statistical. The strain control is unmoved
+to every digit printed. A single-wavelength joint fit declares **no scaling at
+all** — an empty map, not a map of 1.0s — so `ParameterTable` takes the branch
+it always took and the arithmetic is untouched. A converged single-pattern fit
+reports 399.9(26) Å and Δd/d 0.00084(27), and every absent number names its
+cause. The width finding is v1.2's and was already calibrated silent on the
+bundled patterns.
+
 ```sh
 .venv/bin/python -m pytest tests/test_multi_histogram.py tests/test_microstructure.py -q
 .venv/bin/python -m pytest tests/test_fitreport_layers.py tests/test_manual_api.py -q
