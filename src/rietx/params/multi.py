@@ -28,6 +28,7 @@ unchanged, while a scoped glob (``hist.1.*``) targets one.
 from __future__ import annotations
 
 import fnmatch
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -177,7 +178,17 @@ class MultiParameterTable:
             for path, factor in scale.items():
                 _, ip, term = path.split(".")
                 param = getattr(struct.phases[int(ip)], term)
+                # the declared window travels with the value: it is a limit on
+                # the *specimen* quantity, so in this histogram's units it is
+                # the same factor away.  Scaling the value alone would trip
+                # ``Parameter``'s own min<=value<=max validator on any size
+                # term carrying a finite bound, with a message that says
+                # nothing about wavelengths -- and would leave the histograms
+                # disagreeing about a window the caller stated once.
+                lo, hi = param.min * factor, param.max * factor
+                param.min, param.max = -math.inf, math.inf
                 param.value = param.value * factor
+                param.min, param.max = lo, hi
         self.tables: list[ParameterTable] = [
             ParameterTable(s, ins, joint=True)
             for s, ins in zip(self.structures, self.instruments, strict=True)]

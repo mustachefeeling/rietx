@@ -151,7 +151,6 @@ def _stamped(actions: list[SuggestedAction]) -> list[SuggestedAction]:
     return actions
 
 
-
 def _attach_separability(report: FitReport) -> None:
     """Copy the width trend's separability verdict onto every phase block.
 
@@ -210,7 +209,12 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # and is attached below, so a block read from the abstained branch says
     # ``separable=None`` — no claim made — rather than claiming separability
     # nothing measured.
-    report.microstructure = list(result.microstructure)
+    # Copied, not aliased: ``_attach_separability`` writes into these blocks,
+    # and a shared instance would leave the *result* carrying a verdict it
+    # never computed — and would let a second, abstaining report inherit the
+    # first one's ``separable`` instead of the ``None`` it promises.
+    report.microstructure = [b.model_copy(deep=True)
+                             for b in result.microstructure]
     # The identifiability section (WP-1056) is likewise read from the stored
     # result plus what the fit screened at Jacobian time, never linearised —
     # and an exchangeable held parameter is exactly the evidence a *converged*

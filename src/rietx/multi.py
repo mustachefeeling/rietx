@@ -358,7 +358,7 @@ class MultiHistogramRefinement:
         data_off = np.concatenate([[0], np.cumsum(n_data)]).astype(int)
 
         # per-histogram slices ---------------------------------------------------
-        per_values, per_ycalc, per_ybkg = [], [], []
+        per_values, per_ycalc, per_ybkg, per_esds = [], [], [], []
         histograms: list[HistogramResult] = []
         top_bg: list[GuardFinding] = []
         for h in range(n):
@@ -377,6 +377,7 @@ class MultiHistogramRefinement:
             corr_h = corr[np.ix_(cm, cm)] if corr is not None else None
             esd_h = (table.stderr_physical(thetas[h], s_h, corr_h)
                      if s_h is not None else {})
+            per_esds.append(esd_h)
 
             n_free_h = mt.n_shared + len(mt.per_hist_paths[h])
             stats = compute_statistics(model.y_obs, y_calc, model.sigma,
@@ -474,7 +475,12 @@ class MultiHistogramRefinement:
         # one bound test, two consumers: the rows' at_bound flag and the
         # BOUND_HIT diagnostics (WP-1076)
         at_bounds = bound_findings(mt.bounds(), mt.free_paths, outcome.theta)
-        esd_hist0 = self._histogram0_esds(thetas, stderr, corr)
+        # Histogram 0's physical esds, built once in the loop above and read by
+        # two consumers (WP-1131): the shared rows of ``_parameters``, and the
+        # microstructure block, which reads histogram 0 because its value scale
+        # is exactly 1.0.  With a correlation matrix this is a dense n x n, so
+        # a second build here would double the cost for the same dict.
+        esd_hist0 = per_esds[0] if per_esds else {}
         parameters = self._parameters(thetas, stderr, corr, at_bounds, esd_hist0)
         diagnostics = self._top_diagnostics(outcome, correlation_guard, top_bg,
                                             at_bounds)
@@ -543,22 +549,6 @@ class MultiHistogramRefinement:
         mult = [[len(op[0]) for op in cp.sites.ops] for cp in model.phases]
         wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
         return compute_qpa(struct, values, scale_cov, mult, wavelength=wavelength)
-
-    def _histogram0_esds(self, thetas, stderr, corr) -> dict[str, float]:
-        """Physical esds of histogram 0's table — the reference histogram.
-
-        Two readers and one build (WP-1131): the shared rows of
-        :meth:`_parameters`, and the microstructure block, which reads
-        histogram 0 because its value scale is exactly 1.0.  With a correlation
-        matrix this is a dense n x n, which a large table makes expensive, so
-        it is built once here rather than at each caller.
-        """
-        if stderr is None:
-            return {}
-        cm0 = self.mtable.col_map(0)
-        return self.mtable.tables[0].stderr_physical(
-            thetas[0], stderr[cm0],
-            corr[np.ix_(cm0, cm0)] if corr is not None else None)
 
     def _parameters(self, thetas, stderr, corr, at_bounds, esd0) -> list[RefinedParameter]:
         mt = self.mtable
@@ -635,7 +625,7 @@ def _size_sharing_diagnostics(mtable) -> list[Diagnostic]:
     lams = [_longest_wavelength(ins) for ins in mtable.instruments]
     out: list[Diagnostic] = []
     ref = lams[0]
-    for path in sorted(scales[0].keys() | set().union(*(set(s) for s in scales))):
+    for path in sorted(set().union(*(set(s) for s in scales))):
         values = [t.entries[t._paths[path]].value for t in mtable.tables
                   if path in t._paths]
         if not any(v != 0.0 for v in values):
@@ -651,7 +641,7 @@ def _size_sharing_diagnostics(mtable) -> list[Diagnostic]:
                 f"fit spans λ = {min(lams):.5g}-{max(lams):.5g} Å. The shared "
                 f"column is therefore the coefficient at λ = {ref:.5g} Å "
                 f"(histogram 0), and each histogram's own copy carries "
-                f"{'/'.join(f'{f:.4g}' for f in factors)}× it: "
+                f"{', '.join(f'{f:.4g}' for f in factors)}× it respectively: "
                 f"{', '.join(f'{v:.6g}' for v in values)} deg"
                 f"{'²' if term.startswith('gauss') else ''}. The specimen "
                 f"quantity being shared is the crystallite size, not the "

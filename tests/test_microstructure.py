@@ -34,7 +34,10 @@ from rietx.model.profiles.caglioti import (
     size_coefficient_for_size,
     strain_coefficient_for_microstrain,
 )
+from rietx.params.multi import MultiParameterTable
+from rietx.params.transforms import to_internal
 from rietx.params.vector import ParameterTable
+from rietx.report import build_report
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.strategy.staged import RefinementPlan, Stage
 from tests.test_schemas import make_lab6
@@ -399,3 +402,67 @@ def test_the_block_survives_a_json_round_trip(size_and_strain_fit):
             == pytest.approx(result.microstructure[0].term("lor_size").value))
     assert (again.microstructure[0].term("gauss_size").unavailable
             == "at_zero")
+
+
+def test_building_a_report_does_not_write_a_verdict_into_the_result(
+        size_and_strain_fit):
+    """The report's blocks are copies, so the *result* keeps its own answer.
+
+    `_attach_separability` writes `separable` into the blocks it is handed, and
+    pydantic does not copy a nested model on assignment — so a shallow
+    `list(result.microstructure)` left `build_report` mutating the result. Two
+    ways that shows: `RefinementResult` serializes a separability verdict
+    nothing in the result computed (the WP-1076 shape its own docstring argues
+    against), and a *second*, abstaining report inherits the first one's
+    verdict instead of the `None` it promises.
+
+    Ordering matters to this test and is the reason it exists: the module's
+    other tests happen to read the result before building a report, so the bug
+    was invisible to them and would have stayed green.
+    """
+    ref, result = size_and_strain_fit
+    report = ref.report()
+    assert report.microstructure[0] is not result.microstructure[0]
+    # the report may carry a verdict; the result must not have acquired one
+    assert result.microstructure[0].separable is None
+    assert result.microstructure[0].size_strain_collinearity is None
+    # a model-free report abstains, and gets None rather than the first one's
+    bare = build_report(result)
+    assert bare.microstructure[0].separable is None
+    assert bare.microstructure[0].size_strain_collinearity is None
+    # …and it is still a copy, so the round trip cannot leak either way
+    assert bare.microstructure[0] is not result.microstructure[0]
+
+
+def test_a_declared_size_window_travels_with_the_value_across_wavelengths():
+    """A window is a limit on the specimen, so it scales with the coefficient.
+
+    `Parameter` validates `min <= value <= max` on assignment, so scaling a
+    size term's value while leaving its bounds behind raises a `ValidationError`
+    at `MultiParameterTable` construction — on a caller who did nothing but
+    declare a maximum crystallite width, with a message that says nothing about
+    wavelengths. It is also wrong in itself: the caller states the window once,
+    on the specimen quantity, and unscaled bounds leave the histograms
+    disagreeing about it, which the bound intersection then resolves silently
+    by taking the tightest.
+    """
+    structure = make_lab6()
+    structure.phases[0].lor_size.value = 0.02
+    structure.phases[0].lor_size.max = 0.03
+    instruments = [Instrument.debye_scherrer(wavelength=lam)
+                   for lam in (0.41390, 0.71070)]
+    mt = MultiParameterTable(structure, instruments)
+
+    windows = [(mt.structures[h].phases[0].lor_size.min,
+                mt.structures[h].phases[0].lor_size.max) for h in (0, 1)]
+    assert windows[0] == (0.0, 0.03)
+    assert windows[1][1] == pytest.approx(0.03 * (LAM_LONG / LAM_SHORT), rel=1e-12)
+
+    # the two histograms therefore agree about the shared column's window, so
+    # the intersection is the identity rather than a silent tightening: the
+    # bound the solver sees is the declared 0.03 deg in the *reference*
+    # histogram's units, which is where the shared column lives
+    mt.set_vary(["phases.*.lor_size"], True)
+    col = mt.free_paths.index("phases.0.lor_size")
+    _, hi = mt.bounds()
+    assert hi[col] == pytest.approx(to_internal(0.03, "softplus"), rel=1e-12)

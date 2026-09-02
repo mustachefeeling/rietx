@@ -962,11 +962,18 @@ def _freeze_size_cap_multi(models: list[CompiledModel],
                            mtable: "MultiParameterTable") -> None:
     """The freeze above for a joint refinement, where a phase is *shared*.
 
-    ``lor_size`` is a phase parameter written once per histogram (last write
-    wins, ``MultiParameterTable.refresh_bounds``), so the **widest** cap governs
-    for the strain reason one function up: a crystallite only has to clear 2 nm
-    for *some* histogram's wavelength, and a joint fit is entitled to whichever
-    line can express it.
+    ``lor_size`` is a phase parameter, so the **widest** cap is the one declared
+    to every table, for the strain reason one function up: a crystallite only
+    has to clear 2 nm for *some* histogram's wavelength, and a joint fit is
+    entitled to whichever line can express it.
+
+    Since WP-1131 the caps do not merely overwrite one another.
+    ``MultiParameterTable`` **intersects** each histogram's bounds onto the
+    shared column, and each table divides its physical cap by its own value
+    scale — so the binding bound is the widest cap expressed in the reference
+    histogram's units, which is the 2 nm floor read at the reference λ. Only
+    the histogram whose λ carries the cap arms it, and the arming asymmetry is
+    exactly what makes the intersection land there.
     """
     caps = [_model_size_cap(m) for m in models]
     cap = max(caps) if caps else None
