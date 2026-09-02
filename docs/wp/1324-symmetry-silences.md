@@ -117,7 +117,7 @@ prompted this put 327 atoms in a cell holding 315 and refined perfectly. The
 cost is nothing measurable: every op subset the forward model freezes for the
 standards this repo fits is bit-identical to before.
 
-**Done.** All five tasks; eight commits.
+**Done.** All five tasks; ten commits. PR [#226](https://github.com/yue-here/rietx/pull/226), which closes issues #215 and #217.
 
 - **The orbit (#215).** `symmetry.site_orbit` is the one authority for a site's
   stabiliser, snapped position, multiplicity and orbit images. Four steps:
@@ -142,10 +142,19 @@ standards this repo fits is bit-identical to before.
 **Measured** — `[dev]` venv (no jax/torch), Python 3.12.12, darwin/arm64, this
 worktree, on current `origin/main` merged in:
 
-- Acceptance `tests/test_wyckoff.py tests/test_symmetry_orbits.py`: **105
-  passed**. Fast selection `-m "not slow"`: **3952 passed, 122 skipped**, up
-  exactly the 32 tests `test_symmetry_orbits.py` adds from 3920/122 on `main`
-  — no new skips. Full selection: see the final line of this entry.
+- Acceptance `tests/test_wyckoff.py tests/test_symmetry_orbits.py`: **106
+  passed**.
+- Fast selection `-m "not slow"`: **3954 passed, 122 skipped** (2:52).
+  `test_symmetry_orbits.py` collects exactly **33**, and this session's first
+  run — same tree without that file, and with the docs gate red because its
+  skill rows had not landed — gave 3920 passed + 1 failed. 3920 + 1 + 33 =
+  3954, so **every test added is a pass and no skip changed**. There is no
+  fast-selection figure for bare `main` here: the protocol forbids running one
+  for a baseline, so the arithmetic above is the check, not a subtraction.
+- Full selection: **4117 passed, 131 skipped** (33:52), nothing else mid-suite.
+  This is *not* differenced against `main` — the quotable full-suite baseline
+  is the nightly `full` job, which is `[dev,jax]` on Linux and so not the same
+  measurement as this one.
 - `ruff check src tests examples` clean; `sphinx -W` clean.
 - **The invariant, over gemmi's whole table.** 564 settings × 30 positions
   (general, special, and jittered at 3e-5 / 9.9e-5 / 1.01e-4 / 5e-4 across the
@@ -237,11 +246,28 @@ and checkCIF cannot catch it; the XYZ half gets the sharper form) and
 [1320](1320-qpa-multimodal-fraction.md) (these two are the *ZMV family* against
 the scale family its background and absorption checks cover).
 
-**Code review** (protocol step 9): `/code-review medium --fix` — outcome
-recorded in the line below, added after the pass returned.
+**Code review** (protocol step 9): `/code-review medium --fix`, four findings,
+all four taken; commit `f86f7527`. The load-bearing one was a bug this WP
+introduced — 7 of the 40 ambiguous symbols are the `:H`/`:R` pairs, where the
+settings use different *axes*, so quoting "the composition each setting
+implies" fed `phase_zmv` hexagonal coordinates under rhombohedral-axis
+operators and calcite's Ca6 C6 O18 came back as Ca2 C12 O12. Compositions are
+now quoted only where the axes are shared, and the test the finding survived
+is added. The three smaller ones: recompute the stabiliser after the
+"projection landed nowhere special" reversion (defensive — the branch is
+reachable, the stale case was not constructible in 50 000 samples); cache each
+group's operations with their float64 (R, t), taking `snap_diagnostics` over 48
+`F d -3 m` sites from **0.76 s to 0.22 s**, which matters because it now runs
+per fit and per CIF read; and re-raise the orbit guard's `ValueError` prefixed
+with the site and source, so a reader's refusal names the file (io/CLAUDE.md).
+Nothing was declined. Its load-bearing claims were re-measured here rather than
+taken on report: `xhm()` round-trips through `get_spacegroup` for all 564
+settings and the cached arrays match `sg.operations()` element for element, the
+28 op-subsets are still bit-identical, and the fuzz is still 0 and 0.
 
 **Next.** Nothing blocks on this and no successor inherits unfinished work
-here. In order: (1) close issues #215 and #217 on the PR; (2) the SKILL.md cap
+here. In order: (1) merge #226 when CI is green, which closes #215 and #217;
+(2) the SKILL.md cap
 decision above, whenever someone is next in that file — it is the second
 session to hit it; (3) unrelated, the WPs this one sat beside in the
 "what fires, and what stays silent" group are untouched — 1310, 1311, 1320,
