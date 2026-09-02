@@ -63,6 +63,18 @@ structure factors differently. WP-1134's own log notes three defects found
 only by *combining* parts on a single path — the same argument for
 exercising this combination.
 
+### Inherited
+
+- **2026-09-02, from the magnetic scattering track
+  ([1327](1327-magnetic-structure.md)): the joint-fit audit gains a third row
+  when the moment lands.** Task 3 here audits that per-histogram physics keys
+  on the histogram's own radiation (dispersion no-ops on the neutron arm, b
+  against f(Q), polarisation against none). 1327 adds a magnetic term that
+  enters a `neutron_cw` histogram only and is identically zero on an X-ray
+  one, so shape the audit as a table keyed on the source kind that a new
+  term joins with one row, rather than three hand-written checks. Nothing to
+  build here for it now.
+
 ## Non-goals
 
 - **Not the neutron µR estimator** —

@@ -135,6 +135,16 @@ missing from its arm applies unchanged. A new format token is spelled in
 
 ### Inherited
 
+- **2026-09-02, from the magnetic scattering track
+  ([1328](1328-magnetic-interchange.md)): the `.pcr` reader refuses a
+  magnetic phase with the TOPAS reader's sentence, and 1328 lifts both.**
+  `coverage.py`'s `magnetic structure` feature stays `Stance.REFUSED` until
+  1327's model exists; a FullProf phase with Jbt = ±1 landing here now takes
+  the same stance and the same sentence ("the nuclear half would look
+  complete"), through the registry rather than a raise, so that 1328 changes
+  one table. Do not map a Fourier-component magnetic phase onto a nuclear
+  structure in the meantime.
+
 - **2026-09-02, from [1324](1324-symmetry-silences.md): a space-group symbol
   without a setting suffix now has one authority, and a reader landing here must
   decide which side of it the format sits on.**

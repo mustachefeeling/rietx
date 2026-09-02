@@ -58,6 +58,17 @@ N× the rows, and WP-1125 measured that profiling a linear block buys no
 evaluation, so the wall-clock ratio against the chain is reported, not
 assumed.
 
+### Inherited
+
+- **2026-09-02, from the magnetic scattering track
+  ([1329](1329-moment-in-a-series.md)): a second use case, named, not
+  measured.** An ordered moment through T_N is an order parameter, m ∝
+  (1 − T/T_N)^β, nonlinear in β and T_N, so it is the `Parameter.expr` fence
+  rather than this WP's linear form; 1329 delivers the |m|(T) trajectory
+  with held patterns marked and leaves the exponent to the user. If this
+  WP's measurement on the ZrMo₂O₈ ramp says the joint form is worth having,
+  the moment trajectory is the second series to measure it on.
+
 ## Non-goals
 
 - A library of physical models. One declared function, linear in its

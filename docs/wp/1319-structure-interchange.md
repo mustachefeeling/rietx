@@ -56,6 +56,15 @@ stated here so no later WP builds bond perception on geometry alone.
 
 ### Inherited
 
+- **2026-09-02, from the magnetic scattering track
+  ([1328](1328-magnetic-interchange.md)): magCIF is not this WP's.** The
+  operator list with time-reversal signs, the site moments and the parent
+  propagation vector go through `structure_from_cif` and
+  `write_refinement_cif` in 1328, guarded by the COMCIFS `cif_mag.dic`
+  rather than by checkCIF, which has no magCIF arm. The checkCIF conformance
+  work here should leave the writer's tag check extensible to a second
+  dictionary, and nothing more.
+
 - **2026-09-02, from [1324](1324-symmetry-silences.md): a CIF the writer emits
   must name its space-group *setting*, not the symbol it was handed.** 40 H-M
   symbols are held in more than one setting (the `:1`/`:2` origin choices and
