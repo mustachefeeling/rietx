@@ -29,7 +29,12 @@ from rietx.model.profiles.caglioti import (
     strain_coefficient_for_microstrain,
 )
 from rietx.optimize.least_squares import _longest_line_wavelength
-from rietx.params.multi import SharingMap, _longest_wavelength, size_value_scales
+from rietx.params.multi import (
+    MultiParameterTable,
+    SharingMap,
+    _longest_wavelength,
+    size_value_scales,
+)
 from rietx.params.vector import ParameterTable
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.strategy.staged import RefinementPlan, Stage
@@ -496,3 +501,32 @@ def test_the_gaussian_size_variance_is_normalised_as_lambda_squared():
     assert row.where == ["phases.0.gauss_size"]
     assert row.value == pytest.approx(LAM_RATIO ** 2, rel=1e-12)
     assert "λ²" in row.message
+
+
+def test_a_seed_lands_on_one_number_in_the_shared_column():
+    """A scaled entry is seeded in *column* units, so the histograms agree.
+
+    ``Stage.seed`` lifts a softplus coefficient off the exact-zero floor before
+    solving.  Seeded as a physical value it would put the two histograms at
+    different internal coordinates for one shared column, and
+    ``_rebuild_columns``'s "identical values from each histogram" would silently
+    stop holding — the last write would win and the reference histogram would
+    end up seeded to the *other* one's number.
+    """
+    structure = make_lab6()
+    instruments = [Instrument.debye_scherrer(wavelength=lam)
+                   for lam in (0.41390, 0.71070)]
+    mt = MultiParameterTable(structure, instruments)
+    mt.set_vary(["phases.*.lor_size"], True)
+    mt.seed_softplus(["phases.0.lor_size"], 1e-3)
+
+    values = mt.decode(mt.x0())
+    # each histogram's own physical value is the seed times its own factor …
+    assert values[0]["phases.0.lor_size"] == pytest.approx(1e-3, rel=1e-12)
+    assert values[1]["phases.0.lor_size"] == pytest.approx(1e-3 * LAM_RATIO,
+                                                           rel=1e-12)
+    # … which is one crystallite size, which is the whole point
+    sizes = [apparent_size_from_size_coefficient(
+        values[h]["phases.0.lor_size"], lam)
+        for h, lam in enumerate((0.41390, 0.71070))]
+    assert sizes[0] == pytest.approx(sizes[1], rel=1e-9)

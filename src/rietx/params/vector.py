@@ -1254,6 +1254,14 @@ class ParameterTable:
         first Jacobian has a live column.  Only softplus entries strictly
         below ``value`` are touched (already-lifted ones and other transforms
         are left alone); returns the paths actually seeded.
+
+        **The seed is in column units, not this table's** (WP-1131): a scaled
+        entry (:meth:`apply_value_scale`) is seeded to ``value`` times its
+        scale, so the shared column lands on ``value`` in every histogram.
+        Seeding the physical value instead would give the histograms
+        different internal coordinates for one shared column, and the joint
+        table's *identical values from each histogram* would quietly stop
+        being true -- nothing raises, the last write simply wins.
         """
         seeded = []
         for path in paths:
@@ -1261,8 +1269,9 @@ class ParameterTable:
             if i is None:
                 continue
             e = self.entries[i]
-            if e.transform == "softplus" and e.value < value:
-                e.value = value
+            target = value * self._value_scale.get(path, 1.0)
+            if e.transform == "softplus" and e.value < target:
+                e.value = target
                 seeded.append(path)
         if seeded:
             self._rebuild()
