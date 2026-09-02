@@ -248,18 +248,6 @@ coefficient is at zero, unmeasured, or gradient-free. That is WP-1072's rule —
 a quantity that cannot be measured is absent rather than zero — and
 `ParameterTable.unmeasured_rows` already marks the inputs.
 
-### What the 2026-08-27 review left here, folded in
-
-1130 depends on this WP: its `BACKGROUND_BELOW_ANCHORS` defers to a width read in
-physical units to tell a nanocrystalline fit from a phase that has become a
-pedestal. **That dependency is discharged** — the width check landed in v1.2 as
-`SIZE_UNUSUALLY_SMALL` (below 5 nm apparent crystallite) and
-`STRAIN_UNUSUALLY_LARGE` (above 1.5 deg), with their bounds calibrated against
-the 606-refinement TOPAS archive, their `params.vector` bound twins
-(`size_cap`/`strain_cap`) and rows in `docs/skill/rietx/references/`. The
-trigger-dataset pointer stays in 1130 § The trigger dataset; nothing in this WP
-needs it any more.
-
 ## Non-goals
 
 - **Not the missing instrument `Z` term.** GSAS-II's Lorentzian is
