@@ -1039,6 +1039,49 @@ multi-dataset templates and stale batch files, excluded because their numbers
 are not from one converged state. Both classes are named in the round-five sweep
 JSON, not hidden in the median.
 
+### FullProf `.pcr` — six real files, none of them vendorable
+
+`io/projects/fullprof.py` reads a FullProf refinement *control* file, the same
+kind of source as the `.inp` above: the solved model rather than a pattern. It
+was written and settled against **six real `.pcr` files** in the same private
+archive, and **none is vendored**, for the same reason and under the same
+`ATTRIBUTION.md` reasoning — they are a collaborator's and an owner's working
+research inputs under no uniform, redistributable licence. A format's *facts*
+may be read from them; the bytes may not be shipped.
+`tests/test_projects_fullprof.py` synthesizes every fixture inline. This section
+is therefore the only place the real-file evidence is checkable, which is what
+`io/CLAUDE.md` § Adding a format, step 1 requires of a format with no vendorable
+file.
+
+The six, and what each settled:
+
+| file | what it established |
+|---|---|
+| `crwo6002_momcomp.pcr` | The **line grammar**, read off `:4`/`:5` (nineteen fields) and `:7`/`:8`. Also the `ATZ = 963.5` that forced `_PHASE_INTEGER_FIELDS` — `cur.ints()` over the whole phase-control line would refuse every real file, because `ATZ` and `Pr3` are quantities, not counts. And a **stale λ in the refinable-λ slot** |
+| `crwo6002_momcomp_softconstrained.pcr` | The soft-moment constraint block (`SoftMomentConstraint`), and that a magnetic phase present alongside nuclear ones must **refuse** rather than return the nuclear subset silently |
+| `crwo6002_BV2andBV4.pcr` | The two **single-atom coordinate ties** that must *not* refuse: O1's x to its y (parameter 56) and O2's (parameter 57), on `P 42/m n m`'s 4f site, which rietx's own `dof.0` already reproduces. This is the file that makes the tie check re-derive a site's DOF count instead of refusing every shared codeword |
+| `crwo6002_G5_nc.pcr` | A second magnetic layout (two magnetic sites), and the **lying phase-number comments** — a `.pcr`'s inline `!Phase No.` text disagrees with the block order, so the reader counts blocks and never trusts the comment |
+| `300q-1p5K_1.pcr` | `Aut 1`; the `Jbt` header rename; O1's **negative `Biso` = −0.67266 Å²**, a real FullProf outcome that rietx's zero bound cannot clamp without changing every high-Q intensity, hence a refusal rather than a repair; and the cubic **`a = b = c`** cell tie (parameter 40) plus the `F D -3 M` → `F d -3 m:2` origin choice |
+| `yag_xpress_072_new.pcr` | The **`NPATT 6` refusal**. A joint refinement over six patterns is a different layout throughout, and which bank's resolution function to return is a question the file does not answer. This is the only one of the six that does not read |
+
+Two limits of this corpus are recorded rather than smoothed over, because both
+shaped the code:
+
+- **It contains no cross-atom tie at all.** Every shared-number group in all six
+  files is a *single-atom* coordinate tie, i.e. one rietx carries. So the corpus
+  reaches neither arm of the report-versus-refuse split that
+  `atom_tie_recoverability` draws, and a rule inferred from it would have been an
+  accident. That is why the split is derived from whether the restoring
+  `Refinement.tie_equal` call can be written unambiguously, and tested on
+  synthesized files, rather than from what these six happen to contain.
+- **Its cell ties are tetragonal and cubic only** — parameter 5 (`a = b`) and
+  parameter 40 (`a = b = c`) — so the space group masks the defect in every case
+  the archive can reach. The same codewords under an orthorhombic or triclinic
+  symbol are *not* reproduced, which is why `cell_parameter_ties` asks
+  `crystallography.symmetry.cell_constraints` rather than trusting the corpus.
+  Exactly the limit `TOPAS_CELL_COUPLING_DROPPED` hit one reader over, whose four
+  coupled files were tetragonal and cubic for the same reason.
+
 ## v1.3 PowderLine recipe fixtures (WP-1306)
 
 `powderline/` holds two complete **cross-engine** refinement fixtures vendored

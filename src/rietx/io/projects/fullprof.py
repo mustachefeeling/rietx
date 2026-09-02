@@ -1685,10 +1685,15 @@ def nuclear_parameter_ties(phase: FullProfPhase, where: str | None = None
     orthorhombic or triclinic symbol do not, and are reported dropped.
 
     **Dropped** — anything else, and the two that matter are a group spanning
-    **two atoms** (a shared ``Biso`` across sites, the reviewer's case) and a
-    group involving a non-coordinate column. Neither is derivable from symmetry,
-    so nothing on the built ``Structure`` would hold them together and the
-    refinement would carry strictly more free parameters than FullProf's did.
+    **two atoms** (a shared ``Biso`` across sites) and a group involving a
+    non-coordinate column. Neither is derivable from symmetry, so nothing on the
+    built ``Structure`` would hold them together and the refinement would carry
+    strictly more free parameters than FullProf's did.
+
+    Being dropped does not decide whether :func:`to_structure` refuses. That
+    turns on whether the caller can put the tie back in one unambiguous call,
+    which :func:`atom_tie_recoverability` answers per group: a recoverable drop
+    reports, an ambiguous one refuses.
     """
     import gemmi
 
@@ -1752,6 +1757,91 @@ def nuclear_parameter_ties(phase: FullProfPhase, where: str | None = None
                 continue
         dropped.append(text)
     return carried, dropped
+
+
+def atom_tie_recoverability(phase: FullProfPhase) -> dict[str, bool]:
+    """For each tie :func:`nuclear_parameter_ties` drops, can the caller restore it?
+
+    Keyed by the same ``parameter N: ...`` description that function returns, so
+    the two compose. The value answers the only question that decides whether
+    dropping a tie is a *stated, recoverable loss* or a reading the reader would
+    have to choose between — the distinction ``io/CLAUDE.md`` draws between
+    reporting and refusing.
+
+    ``True`` where the constraint can be re-declared on the ``Refinement`` with
+    one unambiguous call, measured rather than assumed:
+
+    * a group in ``biso`` or ``occ`` alone — those are direct parameter paths
+      (``phases.i.atoms.j.biso``), and ``Refinement.tie_equal`` accepts a
+      cross-atom pair of them.
+    * a group in **one** coordinate column where every site involved has
+      **exactly one** DOF — the site's only freedom is ``dof.0``, so the
+      correspondence between the two paths is forced rather than picked.
+
+    ``False`` where writing the call would mean choosing:
+
+    * a group spanning **different** columns on different atoms (``A.x`` to
+      ``B.y``): coordinates refine through site-symmetry directions, and the two
+      sites' ``dof`` bases are not the same direction, so which index stands for
+      the tied direction is a decision the file does not make.
+    * a coordinate group touching a site whose DOF count is not 1 — with two or
+      more DOFs the index correspondence is again a choice, and with none there
+      is no path to tie.
+
+    The corpus reaches none of these: its three shared-number groups are all
+    *single-atom* coordinate ties, which :func:`nuclear_parameter_ties` carries.
+    So this function's job is to keep a case the corpus cannot reach from being
+    decided by accident — the same argument that moved the cell ties onto
+    ``cell_constraints`` rather than onto corpus faith.
+    """
+    import gemmi
+
+    from ...crystallography.wyckoff import coordinate_basis, stabilizer_rotations
+
+    groups: dict[int, list[tuple[int, str, str, float]]] = {}
+    for atom_index, atom in enumerate(phase.atoms):
+        for column in _TIED_ATOM_COLUMNS:
+            value = atom.values.get(column)
+            if value is None or value.code is None:
+                continue
+            groups.setdefault(value.code.number, []).append(
+                (atom_index, atom.label, column, value.code.multiplier))
+
+    try:
+        sg = gemmi.SpaceGroup(phase.space_group)
+    except Exception:
+        sg = None
+
+    def dof_count(atom_index: int) -> int | None:
+        if sg is None:
+            return None
+        atom = phase.atoms[atom_index]
+        try:
+            xyz = [atom.values[k].value for k in ("x", "y", "z")]
+            return len(coordinate_basis(stabilizer_rotations(sg, xyz)))
+        except Exception:
+            return None
+
+    out: dict[str, bool] = {}
+    for number in sorted(groups):
+        members = groups[number]
+        if len(members) < 2:
+            continue
+        described = ", ".join(
+            f"{label}.{column}(x{multiplier:+g})"
+            for _, label, column, multiplier in members)
+        text = f"parameter {number}: {described}"
+        columns = {m[2] for m in members}
+        if len(columns) != 1:
+            out[text] = False
+            continue
+        (column,) = columns
+        if column in ("biso", "occ"):
+            out[text] = True
+            continue
+        out[text] = all(
+            dof_count(index) == 1 for index in {m[0] for m in members})
+    return out
 
 
 #: Two decoded multipliers count as the same coefficient within this tolerance.
@@ -1922,19 +2012,22 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
       indistinguishable from one it genuinely fixed. That is the collapse this
       module's own docstring forbids ("never collapses an absent column into
       ``False``"), so it is refused instead of invented.
-    * **An atom-coordinate or cross-atom codeword tie rietx cannot express** —
-      see :func:`nuclear_parameter_ties`. FullProf ties two values by giving
-      them one parameter number, and a tie that a site's symmetry does not
-      already reproduce (a shared ``Biso`` across two sites, say) has nowhere to
-      live on a ``Structure``: building anyway yields a model with strictly more
-      free parameters than the fit it represents. The tie *can* be re-declared
-      one layer up — ``Refinement.tie_equal`` and ``Refinement.tie`` take exactly
-      this shape — so the refusal names the calls that reproduce it rather than
-      only naming the loss. ``drop_parameter_ties=True`` is how a caller
-      *declares* it accepts the looser model; the omission is then the caller's
-      and is recorded as a ``FULLPROF_TIE_DROPPED`` diagnostic. A **cell** tie is
-      the one case that reports rather than refuses — see the repairs above and
-      :func:`cell_parameter_ties`.
+    * **A codeword tie whose restoring call cannot be written unambiguously** —
+      see :func:`nuclear_parameter_ties` for which ties are dropped and
+      :func:`atom_tie_recoverability` for which of those refuse. The rule is
+      root ``CLAUDE.md``'s: **report a stated, recoverable loss; refuse a
+      reading we would have to choose.** Dropping a tie is not a contradiction,
+      so it refuses only where putting it back would mean picking one
+      correspondence over another — a group spanning *different* columns on
+      different atoms, or a coordinate group touching a site whose DOF count is
+      not 1, since ``dof.k`` indices on two different sites are not the same
+      direction. Where the call *is* unambiguous — a shared ``Biso`` or ``Occ``
+      across sites, or one coordinate column across single-DOF sites — the tie
+      is dropped, **reported** as ``FULLPROF_TIE_DROPPED``, and the message names
+      the ``Refinement.tie_equal`` / ``Refinement.tie`` call that recovers it.
+      ``drop_parameter_ties=True`` remains how a caller declares it accepts the
+      looser model where the tie *does* refuse. **Cell** ties always report, for
+      the same reason — see :func:`cell_parameter_ties`.
 
     ``Scale`` is carried through **verbatim** as a starting value and a refine
     flag, and is *not* comparable with a rietx scale: FullProf's folds ``ATZ``,
@@ -1965,6 +2058,12 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
     rewrites: dict[str, tuple[str, list[str]]] = {}
     #: (phase path, group description) per tie the caller declared it would drop.
     dropped_ties: list[tuple[str, str]] = []
+    #: (phase path, group description) per *atom* codeword tie that is dropped but
+    #: which the caller can re-declare in one unambiguous call. Reported
+    #: unconditionally rather than refused, for the same reason the cell arm below
+    #: is: the loss is stated and recoverable, so it is not a reading we would have
+    #: to choose. ``atom_tie_recoverability`` decides which arm a group lands in.
+    recoverable_ties: list[tuple[str, str]] = []
     #: (cell path, group description) per *cell* codeword tie the space group does
     #: not reproduce. Reported unconditionally — never a refusal — because the
     #: cell is built either way and the loss is the same whether or not a caller
@@ -2025,9 +2124,18 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
             origin_choices.append((f"phases.{structure_index}",
                                    ph.space_group_raw.strip(), ph.space_group))
 
-        # A codeword tie rietx cannot express is refused before anything is
-        # built, so the message is about the model rather than about a field.
+        # A codeword tie is refused before anything is built only where its
+        # restoring call would be a choice rather than a statement; the rest
+        # report. `atom_tie_recoverability` draws that line.
         carried, dropped = nuclear_parameter_ties(ph, where)
+        # A dropped tie the caller can re-declare in one unambiguous call is a
+        # stated, recoverable loss, so it reports; one that would make us choose
+        # between two readings of the file refuses. `io/CLAUDE.md`'s rule.
+        recoverable = atom_tie_recoverability(ph)
+        restorable = [g for g in dropped if recoverable.get(g, False)]
+        dropped = [g for g in dropped if not recoverable.get(g, False)]
+        for group in restorable:
+            recoverable_ties.append((f"phases.{structure_index}", group))
         if dropped and not drop_parameter_ties:
             also_carried = (f" It does reproduce {'; '.join(carried)}."
                             if carried else "")
@@ -2174,6 +2282,19 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
         # not reproduce. No `drop_parameter_ties=True` prefix — this is not gated
         # on the flag (the cell builds either way), so the sentence is the loss
         # itself, the same one `TOPAS_CELL_COUPLING_DROPPED` carries.
+        # The recoverable atom arm: dropped, reported, and restorable in one call.
+        for path, group in recoverable_ties:
+            diagnostics.append(Diagnostic(
+                level="warning", code="FULLPROF_TIE_DROPPED",
+                message=(f"the codeword tie {group} in {named} is not carried "
+                         f"onto the Structure, which therefore has more free "
+                         f"parameters than the refinement the file records. It "
+                         f"is dropped rather than refused because it can be "
+                         f"re-declared in one unambiguous call: "
+                         f"Refinement.tie_equal on the two parameter paths, or "
+                         f"Refinement.tie(path, source, scale=multiplier) for a "
+                         f"signed group"),
+                where=[path]))
         for path, group in dropped_cell_ties:
             diagnostics.append(Diagnostic(
                 level="warning", code="FULLPROF_TIE_DROPPED",

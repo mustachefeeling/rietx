@@ -32,9 +32,11 @@ from pathlib import Path
 
 import pytest
 
+import rietx as rx
 from rietx.io.projects.fullprof import (
     FullProfPcrError,
     _strip,
+    atom_tie_recoverability,
     cell_parameter_ties,
     decode_codeword,
     normalize_space_group,
@@ -44,6 +46,7 @@ from rietx.io.projects.fullprof import (
     read_fullprof_pcr,
     to_structure,
 )
+from rietx.schemas.instrument import NeutronSource
 
 # --------------------------------------------------------------- the fixtures
 #
@@ -1389,41 +1392,123 @@ O2     O       0.30294  0.30294  0.34087  0.18463   1.00000   0   0   0    1
                   0.00     0.00     0.00     0.00      0.00"""
 
 
-def test_a_tie_across_two_atoms_is_refused_naming_the_parameters(tmp_path):
-    """Two sites sharing a Biso codeword is one FullProf parameter, not two.
+def test_a_recoverable_cross_atom_tie_reports_rather_than_refusing(tmp_path):
+    """A shared Biso across two sites is dropped, reported, and restorable.
 
-    Nothing on a ``Structure`` holds them together, so building would hand back
-    a model with strictly more free parameters than the fit the file records —
-    silently. Refused by default, in the shape ``nuclear_only`` set: the refusal
-    names the tie and the call that reproduces it.
+    Two sites sharing a Biso codeword is one FullProf parameter, not two, so the
+    built ``Structure`` does carry more free parameters than the fit. But that
+    is a **stated, recoverable loss** rather than a reading we would have to
+    choose between, and root ``CLAUDE.md``'s rule is to report those and refuse
+    only the ambiguous ones. ``biso`` is a direct parameter path, so the
+    restoring call is unambiguous — and this test proves the message's promise
+    by making the call, rather than asserting the sentence exists.
     """
     pcr = _pcr(tmp_path, "tied.pcr", _phase(atoms=_SHARED_BISO_SITES))
     model = read_fullprof_pcr(pcr)
     carried, dropped = nuclear_parameter_ties(model.phases[0])
     assert carried == []
     assert dropped == ["parameter 8: Cr.biso(x+1), W.biso(x+1)"]
+    assert atom_tie_recoverability(model.phases[0]) == {
+        "parameter 8: Cr.biso(x+1), W.biso(x+1)": True}
+
+    # No refusal, and no flag needed to get past one.
+    diagnostics: list = []
+    structure = to_structure(model, diagnostics=diagnostics)
+    assert len(structure.phases[0].atoms) == 4
+    reported = [d for d in diagnostics if d.code == "FULLPROF_TIE_DROPPED"]
+    assert len(reported) == 1
+    assert reported[0].level == "warning"
+    assert "Cr.biso" in reported[0].message and "W.biso" in reported[0].message
+    assert reported[0].where == ["phases.0"]
+    # It does not claim the caller declared anything — that prefix belongs to
+    # the arm that still refuses.
+    assert "drop_parameter_ties=True:" not in reported[0].message
+
+    # The remedy the message names actually works on the structure handed back.
+    refinement = rx.Refinement(
+        structure, rx.Instrument(source=NeutronSource(wavelength=1.5406)))
+    assert refinement.tie_equal(
+        ["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"]) == [
+            "phases.0.atoms.1.biso"]
+
+
+def test_an_ambiguous_cross_atom_tie_still_refuses(tmp_path):
+    """Tying two sites' *coordinates* is the case that has to refuse.
+
+    Coordinates refine through site-symmetry directions (``dof.k``), and two
+    different sites' ``dof`` bases are not the same direction — so restoring the
+    tie would mean choosing which index on each site stands for it. Here both
+    sites sit at DOF-0 special positions, so there is no path to tie at all.
+    That is a reading we would have to pick, not a loss we can state, so it
+    refuses and names the escape.
+    """
+    sites = _SHARED_BISO_SITES.replace(
+        "                  0.00     0.00     0.00    81.00      0.00\n"
+        "W      W       0.00000  0.00000  0.00000  0.21358   0.25000   0   0   0    1\n"
+        "                  0.00     0.00     0.00    81.00      0.00",
+        "                 81.00     0.00     0.00     0.00      0.00\n"
+        "W      W       0.00000  0.00000  0.00000  0.21358   0.25000   0   0   0    1\n"
+        "                 81.00     0.00     0.00     0.00      0.00")
+    assert sites != _SHARED_BISO_SITES, "the codeword lines were not rewritten"
+    pcr = _pcr(tmp_path, "tiedxy.pcr", _phase(atoms=sites))
+    model = read_fullprof_pcr(pcr)
+    carried, dropped = nuclear_parameter_ties(model.phases[0])
+    assert dropped == ["parameter 8: Cr.x(x+1), W.x(x+1)"]
+    assert atom_tie_recoverability(model.phases[0]) == {
+        "parameter 8: Cr.x(x+1), W.x(x+1)": False}
     with pytest.raises(FullProfPcrError) as excinfo:
         to_structure(model)
     message = str(excinfo.value)
-    assert "Cr.biso" in message and "W.biso" in message
-    # The remedy is named, because it exists: the tie is expressible one layer
-    # up, on the Refinement, even though a Structure cannot carry it.
+    assert "Cr.x" in message and "W.x" in message
     assert "tie_equal" in message
     assert "drop_parameter_ties=True" in message
 
 
-def test_dropping_a_tie_is_the_callers_declared_choice_and_is_recorded(tmp_path):
-    """``drop_parameter_ties=True`` builds, and says what it gave up."""
-    pcr = _pcr(tmp_path, "tied.pcr", _phase(atoms=_SHARED_BISO_SITES))
+def test_dropping_an_ambiguous_tie_is_the_callers_declared_choice(tmp_path):
+    """``drop_parameter_ties=True`` builds the refusing arm, and says so."""
+    sites = _SHARED_BISO_SITES.replace(
+        "                  0.00     0.00     0.00    81.00      0.00\n"
+        "W      W       0.00000  0.00000  0.00000  0.21358   0.25000   0   0   0    1\n"
+        "                  0.00     0.00     0.00    81.00      0.00",
+        "                 81.00     0.00     0.00     0.00      0.00\n"
+        "W      W       0.00000  0.00000  0.00000  0.21358   0.25000   0   0   0    1\n"
+        "                 81.00     0.00     0.00     0.00      0.00")
+    pcr = _pcr(tmp_path, "tiedxy.pcr", _phase(atoms=sites))
     diagnostics: list = []
     structure = to_structure(read_fullprof_pcr(pcr), drop_parameter_ties=True,
                              diagnostics=diagnostics)
     assert len(structure.phases[0].atoms) == 4
     dropped = [d for d in diagnostics if d.code == "FULLPROF_TIE_DROPPED"]
     assert len(dropped) == 1
-    assert dropped[0].level == "warning"
-    assert "Cr.biso" in dropped[0].message and "W.biso" in dropped[0].message
+    assert dropped[0].message.startswith("drop_parameter_ties=True:")
+    assert "Cr.x" in dropped[0].message and "W.x" in dropped[0].message
     assert dropped[0].where == ["phases.0"]
+
+
+def test_the_six_real_files_contain_no_cross_atom_tie(tmp_path):
+    """Why the recoverability rule is written from principle, not from corpus.
+
+    Every shared-number group in the archive's six ``.pcr`` files is a
+    *single-atom* coordinate tie, which is carried. So the corpus reaches
+    neither arm of the recoverable/ambiguous split, and a rule inferred from it
+    would have been an accident — the same argument that moved the cell ties
+    onto ``cell_constraints``. Recorded here as the fixture-level statement of
+    that fact: a phase built from single-atom ties alone has an empty
+    recoverability map, because nothing was dropped.
+    """
+    pcr = _pcr(tmp_path, "single.pcr", _phase(atoms=_CR2WO6_SITES.replace(
+        "O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1  #color cyan\n"
+        "                  0.00     0.00     0.00     0.00      0.00",
+        "O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1  #color cyan\n"
+        "                561.00   561.00     0.00     0.00      0.00")))
+    model = read_fullprof_pcr(pcr)
+    carried, dropped = nuclear_parameter_ties(model.phases[0])
+    assert dropped == []
+    assert carried == ["parameter 56: O1.x(x+1), O1.y(x+1)"]
+    assert atom_tie_recoverability(model.phases[0]) == {
+        "parameter 56: O1.x(x+1), O1.y(x+1)": False}, (
+        "a carried group's recoverability is never consulted, but it must not "
+        "claim to be restorable — the map answers only 'if this were dropped'")
 
 
 def test_a_sites_own_coordinate_tie_is_carried_by_symmetry_not_refused(tmp_path):
