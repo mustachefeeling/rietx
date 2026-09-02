@@ -184,6 +184,122 @@ def test_every_reference_file_is_reachable_from_the_body():
 DOTTED = re.compile(r"`(rx\.[A-Za-z_][A-Za-z0-9_.]*|rietx\.[A-Za-z_][A-Za-z0-9_.]*)")
 
 
+# --- the reference files' own contract (WP-1330) ----------------------------
+#
+# A reference is opened by an agent that has read the body's routing row and
+# nothing else, so its first three paragraphs say what that row said: the
+# section it specialises, when to load it, and that the body's numbering is
+# the one it cites.  Every file already opened this way by convention; the pin
+# is for the next one.  A task *shape* — a series, a batch, a magnetic phase —
+# gets one reference file each, which is how the skill grows without the body
+# growing, and a file that opens some other way is one the routing table
+# cannot describe.
+#
+# A reference that collects rules from *runs* (batch.md first, filled from a
+# contributor's logs by an agent) declares in its provenance paragraph that
+# every row carries its evidence.  Each numbered row then ends in a tag saying
+# what was measured, or what would decide it.  That is the form an agent
+# analysing logs fills in, and the gate that refuses a row with no number
+# behind it.
+
+REFERENCE_LOAD_PREFIX = "Load it "
+REFERENCE_PROVENANCE_PREFIX = "*A reference file of the `rietx` skill."
+EVIDENCE_DECLARATION = "Every row carries its evidence"
+#: ``# 9c. Title`` — the section a reference specialises, from its own H1.
+_H1_SECTION = re.compile(r"^# (\d+[a-z]?)\.")
+#: ``**9c.3 The rule.**`` — a numbered row of an evidence-tagged reference,
+#: matched against one paragraph.
+_ROW_HEAD = re.compile(r"^\*\*(\d+[a-z]?)\.(\d+) ")
+#: ``*(Measured: …)*`` / ``*(Hypothesis: …)*`` — the tag *closes* the row, so it
+#: is matched at the end of the row's last paragraph, never searched for: a
+#: quoted example in the prose, or a tag under an "Open questions" heading
+#: after the rows, must not cover a row that has none.
+_EVIDENCE_TAG = re.compile(r"\*\((Measured|Hypothesis): .+\)\*\Z", re.S)
+
+
+def _paragraphs(text: str) -> list[str]:
+    return [p.strip() for p in re.split(r"\n[ \t]*\n", text) if p.strip()]
+
+
+@pytest.mark.parametrize("path", REFERENCES, ids=lambda p: p.name)
+def test_every_reference_opens_with_its_load_condition_and_provenance(path: Path):
+    paras = _paragraphs(path.read_text(encoding="utf-8"))
+    assert len(paras) >= 4, (
+        f"{path.name}: a title, a load condition, a provenance line, then content")
+    assert paras[0].startswith("# ") and "\n" not in paras[0], (
+        f"{path.name}: the first line is a one-line H1 title")
+    assert paras[1].startswith(REFERENCE_LOAD_PREFIX), (
+        f"{path.name}: the second paragraph opens {REFERENCE_LOAD_PREFIX!r} — the "
+        "situation the body's routing row names, restated where the reader lands")
+    assert paras[2].startswith(REFERENCE_PROVENANCE_PREFIX), (
+        f"{path.name}: the third paragraph is the provenance line, "
+        f"{REFERENCE_PROVENANCE_PREFIX!r}…")
+
+
+def _evidence_tagged() -> list[Path]:
+    """The references whose provenance paragraph opts into tagged rows.
+
+    Runs at collection (it parametrises a test), so a malformed file is left
+    to the header test above to name rather than raised here, where it would
+    take the whole module down.
+    """
+    tagged = []
+    for p in REFERENCES:
+        paras = _paragraphs(p.read_text(encoding="utf-8"))
+        if len(paras) > 2 and EVIDENCE_DECLARATION in " ".join(paras[2].split()):
+            tagged.append(p)
+    return tagged
+
+
+def _rows(paras: list[str]) -> list[list[str]]:
+    """The rows section: each row is its head paragraph plus what follows it,
+    from the first numbered row to the next heading."""
+    rows: list[list[str]] = []
+    for p in paras:
+        if p.startswith("#"):
+            if rows:
+                break
+            continue
+        if _ROW_HEAD.match(p):
+            rows.append([p])
+        elif rows:
+            rows[-1].append(p)
+    return rows
+
+
+def test_the_evidence_gate_has_a_file_to_gate():
+    """Collector liveness: an empty list would pass the row test vacuously."""
+    assert _evidence_tagged(), (
+        f"no reference declares {EVIDENCE_DECLARATION!r} — batch.md was the "
+        "first; if it stopped, the row gate below covers nothing")
+
+
+@pytest.mark.parametrize("path", _evidence_tagged(), ids=lambda p: p.name)
+def test_every_row_of_an_evidence_tagged_reference_carries_its_tag(path: Path):
+    paras = _paragraphs(path.read_text(encoding="utf-8"))
+    section = _H1_SECTION.match(paras[0])
+    assert section, f"{path.name}: a tagged reference's H1 carries its section number"
+    rows = _rows(paras)
+    assert rows, f"{path.name}: declares tagged rows and has none"
+    numbers = []
+    for row in rows:
+        sec, n = _ROW_HEAD.match(row[0]).groups()
+        assert sec == section.group(1), (
+            f"{path.name}: row {sec}.{n} is numbered under §{sec}; the file is "
+            f"§{section.group(1)}")
+        unnumbered = [p for p in row[1:] if p.startswith("**")]
+        assert not unnumbered, (
+            f"{path.name}: after row {sec}.{n}, a bold-opened paragraph is not a "
+            f"numbered row, so the gate cannot see it: {unnumbered[0][:60]!r}")
+        assert _EVIDENCE_TAG.search(row[-1]), (
+            f"{path.name}: row {sec}.{n} does not close with a *(Measured: …)* or "
+            "*(Hypothesis: …)* tag — name the run and its number, or what "
+            "would decide it")
+        numbers.append(int(n))
+    assert numbers == sorted(set(numbers)), (
+        f"{path.name}: row numbers must be unique and increasing, got {numbers}")
+
+
 def test_every_dotted_name_in_the_api_index_resolves():
     """The API index cannot name something the package does not have."""
     text = API_INDEX.read_text(encoding="utf-8")

@@ -5,7 +5,8 @@ description: >-
   Bail, Pawley, phase quantification, indexing an unknown cell, judging a
   FitReport) — read it before the first fit() whenever a task involves a powder
   pattern, a CIF to fit against one, phase fractions, a cell to determine, an
-  in-situ series, or an existing rietx result to judge.
+  in-situ series, a batch of candidates or of patterns fitted as separate
+  jobs, or an existing rietx result to judge.
 license: MIT
 compatibility: Requires the rietx Python package (pip install rietx) and Python 3.11+. Works offline — this file and its references ship in the wheel; the user manual it names is hosted at https://rietx.org.
 metadata:
@@ -29,10 +30,10 @@ specific to running it with no human at the plot.
 
 ## Load these when the task calls for them
 
-This file is the judgement core. The lookup tables live beside it and are loaded
-on demand, one file each. The user manual holds the object model this protocol
-drives and is not restated here; a page named `x` below is
-`https://rietx.org/using/x.html`.
+This file is the judgement core: what holds for every fit. The lookup tables, and
+the rules one task *shape* needs, live beside it, loaded on demand, one file
+each. The user manual holds the object model this protocol drives and is not
+restated here; a page named `x` below is `https://rietx.org/using/x.html`.
 
 | When | Load | Manual page |
 |---|---|---|
@@ -46,6 +47,7 @@ drives and is not restated here; a page named `x` below is
 | §7b-7f — the phase is unknown: peak picking, indexing, the closed loop, the extinction screen | [`references/diagnostics-indexing.md`](references/diagnostics-indexing.md) | `indexing` |
 | §9 — one fit is not the answer: the trajectory, and the history DAG as a search structure | [`references/history.md`](references/history.md) | `history` |
 | §9b — an in-situ ramp, a sweep or a tray: chaining N patterns, and checking the chain both ways | [`references/series.md`](references/series.md) | `series` |
+| §9c — many fits as one job: candidates against one pattern, or patterns fitted separately; the budget, the per-fit stop rule, what survives a comparison across fits | [`references/batch.md`](references/batch.md) | `history`, `series` |
 | writing the answer out: CIF, QPA table, reflection table, plots | [`references/api.md`](references/api.md) § Out | `exports` |
 
 ---
@@ -181,7 +183,7 @@ bugs; they are the geometry of the problem.
    McCusker's: equal displacement parameters across atoms in the same
    environment, and occupancies summing to a known total. Measured on
    fluorapatite's three phosphate oxygens, tying them gives a B(O) tighter than
-   the best of the three free values.
+   the best free value.
 
    **Check the premise before you tie, and not with Rwp** — it moved by 0.05 % of
    itself there. The check is in the free refinement: if each free value lies
@@ -259,8 +261,7 @@ measured evidence behind each rule is
 
     What you must **not** do is free the held parameter alongside its partner and
     refit: both free lands on §3's degenerate ridge and reports the unconstrained
-    combination at a *better* Rwp — the most common misreading of the clause. The
-    swap runs each rival **alone**; the ridge runs them **together**.
+    combination at a *better* Rwp — the most common misreading of the clause.
 15. **Read what the background is doing before you read Rwp**, because it decides
     how to read Rwp. In `report.background`, `worst_absorption` (with
     `worst_absorption_path`) is how much of a structural parameter the background
@@ -270,9 +271,9 @@ measured evidence behind each rule is
     lands in no `report.regions` entry and step 10 cannot see it.
 16. **Only then Rwp and GoF, and never alone** — as a pair with
     `background.rwp_background_subtracted`. Measured, a sharp LaB₆ fit and one
-    under 0.6° of broadening both report Rwp **0.0137** and read 0.0490 against
-    0.0766 background-subtracted: raw Rwp is flattered by whatever the background
-    carries, so the subtracted number is the one that separates two fits.
+    under 0.6° of broadening both report Rwp **0.0137**, and 0.0490 against
+    0.0766 subtracted: the raw number is flattered by whatever the background
+    carries, the subtracted one separates the two fits.
 17. **Read the structure R factors last, and never in isolation.**
     `result.phase_agreement` carries `r_bragg` (R_B) and `r_f` (R_F) per phase. A
     powder pattern does not measure individual reflection intensities, so I(obs)
@@ -284,10 +285,9 @@ measured evidence behind each rule is
     phase's R_B with the major phase's**: neither is weighted, and a minor phase's
     windows sit under the major phase's peaks.
 
-**Adding parameters: use ΔBIC, not Hamilton's R-ratio.** Measured on this
-package's own data, at 7251 channels Hamilton's test blesses a 0.13 % χ²
-improvement that is physically inert. ΔBIC has the sample-size penalty that makes
-it meaningful at powder-pattern channel counts.
+**Adding parameters: use ΔBIC, not Hamilton's R-ratio.** Measured at 7251
+channels, Hamilton's test blesses a 0.13 % χ² improvement that is physically
+inert; ΔBIC carries the sample-size penalty powder channel counts need.
 
 **Comparing against another code means adopting its protocol, not just reading
 its numbers.** Mirror its refined-parameter set, its held parameters and its
@@ -322,11 +322,9 @@ wins on *every* agreement index while biasing displacement parameters to 0.958
 and 0.000 Å² against a truth of 0.5, and `worst_absorption` (0.46 against 0.08)
 is the only row separating the two fits — the plot does not either.
 
-**Resolution-limited is a stopping point, not a failure.** An
-`abstained_kind="resolution_limited"` says the edit directions are
-indistinguishable on merged peaks, not that the model is wrong: a legitimate end
-state for phase-ID-grade work, and for structure-grade work *collect better
-data*.
+**`resolution_limited` is a stopping point, not a failure**: the edit directions
+are indistinguishable on merged peaks, not the model wrong — a legitimate end
+state for phase-ID work; for structure-grade work, *collect better data*.
 
 **The capability floor.** Verify before acting (`rx.report.predict_then_verify`,
 or a history branch), treat a *capped* confidence as an **unresolved question**
@@ -381,9 +379,8 @@ what it forbids: [`references/diagnostics.md`](references/diagnostics.md).
 
 ## 10. A worked default
 
-A lab pattern, a CIF and no other information. Adapt, do not skip the checks:
-adaptation is the literature's own instruction, because the right order depends
-on the data and the starting values (Toby, 2024).
+A lab pattern, a CIF and no other information. Adapt, do not skip the checks —
+the right order depends on the data and the starting values (Toby, 2024).
 
 ```python
 import rietx as rx
@@ -460,7 +457,7 @@ the installed package by test.
 
 - The manual, Part 2 (theory): <https://rietx.org> — every equation with its
   source, and the bibliography each author-year citation below resolves in
-- The repository, <https://github.com/yue-here/rietx>: `README.md` (capability
-  table, worked examples), `docs/DESIGN.md` (why the FitReport is shaped this
-  way), `tests/data/README.md` (provenance and reference values for every
-  bundled dataset). None of these ships in the wheel
+- The repository, <https://github.com/yue-here/rietx>: `README.md`,
+  `docs/DESIGN.md` (why the FitReport is shaped this way),
+  `tests/data/README.md` (provenance of every bundled dataset); none ships in
+  the wheel

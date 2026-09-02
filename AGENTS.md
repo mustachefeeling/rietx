@@ -16,6 +16,11 @@ agent — and any human — changing this code.
   `.claude/skills/rietx/`, so your harness may have loaded it already), then the
   manual's Part 1 (`docs/manual/using/`). Nothing in the rulebooks substitutes
   for either.
+- Learned something *running* it — a rule a batch, a series or a phase type
+  needs and a single fit does not? It goes into the skill's reference file for
+  that task shape, in the form [`CONTRIBUTING.md`](CONTRIBUTING.md) § The
+  agent skill gives; the evidence tag on every row is what makes an
+  agent-written row reviewable.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) has setup, the test ladder, and the
   style essentials a change is held to.
 

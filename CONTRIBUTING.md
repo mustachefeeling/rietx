@@ -64,6 +64,56 @@ fails before review reads it.
 - A new correction ships with a record field or a diagnostic stating what
   it changed — never an Rwp comparison as its evidence.
 
+## The agent skill
+
+`docs/skill/rietx/` is what an agent reads before driving the package on real
+data: `SKILL.md`, read whole, and `references/`, one file per lookup or per
+task shape, loaded when the body's routing table names it. It is the third
+place a change can need to land, beside the code and the manual, and the one
+that takes what you *learned running the package* rather than what you
+changed in it. Two committed copies, `.agents/skills/rietx/` and
+`.claude/skills/rietx/`, are regenerated from it and must stay byte-identical.
+
+Where a rule goes:
+
+- It holds for every fit: the body. The body is at its byte cap, so a new
+  sentence there is paid for by a cut (`tests/test_skill.py` states the cap
+  and why).
+- It holds for a task *shape* — a series, a batch of candidates, a magnetic
+  phase: that shape's file under `references/`, numbered under the body
+  section it specialises (`9b` series, `9c` batch), reached by one routing
+  row whose *When* column names the situation and never the feature. A new
+  shape is a new file: copy the three-paragraph header of an existing one
+  (the title, "Load it when …", the provenance line), which the tests pin.
+- It is a measured surprise about one fit: `references/surprises.md`.
+- A diagnostic code, a gate or an action: its row in the diagnostics or
+  abstention tables; `tests/test_docs_consistency.py` fails until it exists.
+- It is a rule for changing the package, not for running it: a `CLAUDE.md`.
+
+**Writing a row from runs.** A reference that collects rules from runs
+declares in its provenance line that every row carries its evidence, and each
+row then reads: the rule as one bold imperative sentence, numbered under the
+file's section; two to four sentences on what was measured — the dataset or
+episode, N, the number that decides; and a closing tag,
+`*(Measured: <the run a reader can find>)*` or
+`*(Hypothesis: <what would decide it>)*`. `references/batch.md` § Writing a
+row is the worked form. If an agent is writing the rows from your logs, hand
+it that section and this one: every number in a row comes from the log, and
+anything the log does not decide is a Hypothesis row, never a softer Measured
+one. Before a row, ask whether it holds for one fit alone — then it is the
+body's or §8's, not the shape's.
+
+Then, in the same change:
+
+```sh
+.venv/bin/python -m pytest tests/test_skill.py tests/test_skill_cli.py tests/test_docs_consistency.py
+.venv/bin/rietx skill --install . --copy      # re-sync the two committed copies
+```
+
+The first refuses a row without its tag, a reference without its header, a
+link that does not resolve, a name the package does not export and a body
+over its cap; the second regenerates the two copies.
+
 ## Licensing
 
 MIT. Port code only from permissively licensed sources, and update

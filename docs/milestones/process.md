@@ -323,6 +323,16 @@ reach outside indexing/ (no confident singleton, `quick` is the default,
 run the indexing acceptance suite before closing an engine change).
 Landed at 698, cap landed + 24 as above.
 
+723 -> 732 for WP-1330 (2026-09-02): the skill bullet grew from three
+lines to twelve, because a session that measures a rule an agent
+*driving* rietx needs had nowhere told where it goes — protocol rule 4
+routed findings to the handover log and named no third destination.
+What enters here is the routing (skill / CLAUDE.md / handover), the
+shape rule (one `references/` file per task shape, numbered under the
+body section it specialises), the evidence tag and the cap-is-paid-for
+rule; the row form and the sync commands are CONTRIBUTING.md § The
+agent skill's.  Landed at the cap.
+
 ### `docs/ROADMAP.md`
 
 400 -> 416 for the agentic-report planning session (2026-08-18): four

@@ -200,8 +200,9 @@ line if the checkpoint ended it. Close with
    classes outsiders miss most: a `Literal` member or defaulted field with no
    writer, physics without a citation, a correction offering an Rwp comparison
    as evidence, a reader repairing a file without a diagnostic, GPL-derived
-   code, a diagnostic code with no agent-skill row, physics with
-   Part 1 prose but no Part 2 equation.
+   code, a diagnostic code or a measured operating rule with no agent-skill
+   row (root CLAUDE.md § skill: the body, or the task shape's reference),
+   physics with Part 1 prose but no Part 2 equation.
 7. **`/code-review medium N`** for `src/` changes above the step-6 threshold;
    name the level (unnamed, it reuses whatever was typed last).
 8. **Two audiences.** *Public*, posted **as a review, from a file** (so the sha
