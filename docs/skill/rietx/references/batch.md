@@ -460,14 +460,15 @@ look measured, and one campaign's own 68.5 min session figure was
 generously they were stretched. *(Measured: archive screening campaign, the
 full numeric re-audit of its own findings record.)*
 
-**9c.30 Expect model debugging, not the solve, to be the batch's cost.** "The
-batch is expensive" is nearly always a claim about getting the model right:
-one pilot's summed solve time was **13.2 min** (409.7 s + 382.0 s, confirmed
-against `results.json`) after **20–25 min of setup before the first production
-fit**, while a fully audited job of **380 chained patterns plus 380 cold
-refits plus 244 minority-geometry cold fits plus 2 reference fits ran in 57
-minutes single-threaded**. Speed is usually not the constraint, so budget the
-pilot and the inventory rather than the cores — and pass an explicit long
+**9c.30 Expect model debugging, not the solve, to be the batch's cost.** In the
+one batch where both halves were timed, "the batch is expensive" was a claim
+about getting the model right: that pilot's summed solve time was **13.2 min**
+(409.7 s + 382.0 s, confirmed against `results.json`) after **20–25 min of
+setup before the first production fit**, while a fully audited job of **380
+chained patterns plus 380 cold refits plus 244 minority-geometry cold fits plus
+2 reference fits ran in 57 minutes single-threaded**. Speed was not the
+constraint in either job measured, so budget the pilot and the inventory rather
+than the cores — and pass an explicit long
 timeout, since a production run will outlive a shell's default and being
 auto-backgrounded mid-run is indistinguishable from finishing. *(Measured: archive screening campaign — the CuO/Cu₂O pilot's audited solve sums, whose
 68.5 min session wall figure is itself unverifiable from the event logs and is
@@ -488,3 +489,21 @@ the shell that launched it, and record `result.provenance` per unit so a later
 reader can tell which build produced which number. *(Measured: archive
 screening campaign — the CuO/Cu₂O timing pilot's BLAS miss, and the campaign's
 collapsed version baselines.)*
+
+**9c.32 Build the `FitReport` on the pilot fit and read `report.background` —
+`result.diagnostics` does not carry the between-peak verdict.** Almost every
+capillary or cryostat pattern holds a container amorphous halo, and a low-order
+polynomial cuts straight through one while Rwp stays respectable because the
+Bragg channels dominate the weighted residual. A 6-term Chebyshev with no
+declared peak left the fitted background **35 % high below 3.5° and up to 2×
+low across 4–7°** at Rwp 0.157, and the report said so on three channels at
+once — `off_region_chi2_reduced` **2.885** against its 1.5 threshold,
+`off_region_durbin_watson` **0.393** against 1.0 over 7 408 off-region
+channels, the summary naming the between-peak residual "systematic, not noise",
+and the halo's own maximum listed **first** in `report.unmatched` at 7.6σ —
+while `result.diagnostics` carried only `BACKGROUND_ABSORPTION`. Model the
+feature with a `BackgroundPeak` or a `BackgroundPSpline` rather than more
+polynomial terms, which hide it while improving every statistic. *(Measured: archive screening campaign — the 11-BM VT Mn₃O₄ 8.281 K fit, whose report was
+rebuilt and read only after the tranche was written up; the package's own
+manual measures the same Kapton halo at d = 4.74 Å and needs fourteen Chebyshev
+terms to match one Gaussian's three.)*
