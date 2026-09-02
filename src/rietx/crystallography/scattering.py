@@ -20,9 +20,11 @@ element (``La``).
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from functools import lru_cache
 from importlib import resources
 
+import gemmi
 import numpy as np
 
 from .._about import DATA_PACKAGE as _DATA_PACKAGE
@@ -72,6 +74,90 @@ def normalize_species(species: str) -> str:
             if candidate in table:
                 return candidate
     raise KeyError(f"no Waasmaier-Kirfel coefficients for species {species!r}")
+
+
+#: A well-formed ion label: 1-2 letters, an optional explicit charge digit
+#: (``"1"`` in ``"Ag1+"`` is written out, never omitted, in this table's own
+#: keys), then the sign.  Deliberately the same shape :func:`normalize_species`
+#: parses, so a label this does not match is either a bare element (no
+#: fallback is possible) or malformed (``normalize_species`` already raises on
+#: those, which is not this function's job to repeat).
+_ION_RE = re.compile(r"^([A-Za-z]{1,2})(\d*)([+-])$")
+
+
+@dataclass(frozen=True)
+class SpeciesFallback:
+    """One ion :func:`normalize_species` could not find, reported instead of
+    swallowed (issue #202).
+
+    ``true_electrons`` is Z minus the signed formal charge — the ion's own
+    electron count, derived rather than tabulated so nothing here duplicates
+    a second copy of periodic-table data.  ``returned_electrons`` is what the
+    fallback actually supplies: ``f0(element, k=0)`` of the neutral atom the
+    substitution used, which is *approximately* Z (the Gaussian fit reproduces
+    the sum rule to a few parts in 10⁴, not exactly — ``f0("Y", 0) ==
+    38.980795``, not ``39``) and is read off the same table `f0` reads rather
+    than assumed to equal Z, so the two are on the same footing as the number
+    a real refinement would see.
+    """
+
+    species: str            # the raw label, e.g. "Y3+"
+    element: str            # the neutral atom substituted, e.g. "Y"
+    charge: int             # signed formal charge parsed from `species`
+    true_electrons: float   # Z - charge
+    returned_electrons: float  # f0(element, 0), what the fallback supplies
+
+    @property
+    def delta_frac(self) -> float | None:
+        """Fractional error the substitution puts on the scattering factor
+        f (not |f|²) at k = 0.
+
+        ``None`` when ``true_electrons`` is itself zero -- a bare proton
+        (``H+``/``H1+``) or ``He2+``, where the formal charge equals Z.  The
+        fraction is genuinely undefined there (division by the ion's own,
+        zero, electron count), not zero, so ``None`` is the honest answer:
+        the same "no single number" convention ``Diagnostic.value`` already
+        documents (``schemas.common.Diagnostic``), rather than a
+        ``ZeroDivisionError`` a caller three frames up (``Refinement.fit``,
+        unconditionally) has no way to expect.
+        """
+        if self.true_electrons == 0.0:
+            return None
+        return (self.returned_electrons - self.true_electrons) / self.true_electrons
+
+
+def detect_fallback(species: str) -> SpeciesFallback | None:
+    """Whether normalizing ``species`` silently substituted the neutral atom.
+
+    ``None`` covers every case that is *not* the #202 defect: a bare element
+    (``"Fe"``), an ion the table carries in full (``"O2-"``), and a malformed
+    label — ``normalize_species`` already raises cleanly on those, and this
+    function never widens that: it only re-derives, from the same regex
+    grammar, whether a **well-formed** ion's charge survived resolution.  Any
+    exception ``normalize_species`` raises here (an element absent from the
+    table under any form) is swallowed the same way, because a totally
+    unknown species is a different, already-loud failure — this function's
+    only job is the quiet one.
+    """
+    s = species.strip()
+    m = _ION_RE.match(s)
+    if not m:
+        return None
+    elem, digits, sign = m.groups()
+    elem = elem.capitalize()
+    charge = int(digits or "1") * (1 if sign == "+" else -1)
+    try:
+        resolved = normalize_species(s)
+    except KeyError:
+        return None
+    if resolved != elem:
+        return None  # the ion itself is tabulated -- no fallback happened
+    z = gemmi.Element(elem).atomic_number
+    true_electrons = float(z - charge)
+    returned_electrons = float(f0(elem, np.array([0.0]))[0])
+    return SpeciesFallback(species=s, element=elem, charge=charge,
+                           true_electrons=true_electrons,
+                           returned_electrons=returned_electrons)
 
 
 def f0(species: str, k: np.ndarray) -> np.ndarray:
