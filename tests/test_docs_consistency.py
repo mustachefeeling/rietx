@@ -131,9 +131,11 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #   2026-09-01  src/rietx/indexing/CLAUDE.md  296 -> 300  for the placement pass
 #   2026-09-01  tests/CLAUDE.md               253 -> 275  for the placement pass
 #   2026-09-01  docs/ROADMAP.md               589 -> 597  for the roadmap reorder: landed 573, cap landed + 24
+#   2026-09-02  docs/ROADMAP.md               597 -> 621  for the magnetic scattering track (1326-1329, out of
+#                                                          the v2 fence): a section and four rows, landed 597, cap landed + 24
 SIZE_CAPS: dict[str, int | None] = {
     "CLAUDE.md": 722,
-    "docs/ROADMAP.md": 597,
+    "docs/ROADMAP.md": 621,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,

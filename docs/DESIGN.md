@@ -191,6 +191,21 @@ differentiable from day one.
     (2015 Fig. 7b). Every derivative in this literature is a forward
     difference — a differentiable FPA is unclaimed territory, and the v0.4
     backends are the prerequisite. **Still fenced.**
+  - *Magnetic fence revised (2026-09-02).* "Magnetic structures" was a v2+
+    line item under the same neutron fence as TOF. Three things changed the
+    grounds. CW neutron shipped in v1.1 (WP-1134), so the premise "neutron
+    is fenced" no longer holds. The package now states the gap itself: three
+    readers refuse a magnetic construct with one sentence, and the
+    unexplained-intensity report names a magnetic contribution as a cause
+    it cannot test. And the seams it needs exist: a per-site opt-in block
+    (`Atom.aniso`, `Phase.microstrain`), a per-species table frozen at stage
+    compile (`PhaseSites.f_anom`), a reflection list frozen per stage, the
+    orbit average the dispersion path already takes, and the hold rule for a
+    flat direction (WP-1301). An outside proposal (PR #221) asked; the
+    track is ROADMAP § Unscheduled, WPs 1326–1329, with the two decisions
+    the proposal left open taken in 1327. **What stays fenced**: the
+    incommensurate case (superspace, with modulated structures), polarised
+    neutrons, magnetic X-ray scattering, and TOF.
 
 ## Architecture invariants
 

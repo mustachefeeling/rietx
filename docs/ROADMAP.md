@@ -91,8 +91,9 @@ PR #111; the exporter registry next. Two contributor PRs wait on review
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 and two of the three opened the day after (1323, 1325),
-grouped by what their evidence says; the older four, 1119, 1130, 1131 (1130
-restructured behind it 2026-08-27) and 1133. [1324](wp/1324-symmetry-silences.md)
+grouped by what their evidence says; the magnetic scattering track
+(1326–1329, out of the v2 fence 2026-09-02); the older four, 1119, 1130,
+1131 (1130 restructured behind it 2026-08-27) and 1133. [1324](wp/1324-symmetry-silences.md)
 closed out of that group on 2026-09-02 — a site multiplicity is now
 |G|/|stabiliser| and both symmetry silences are reported (issues #215, #217).
 
@@ -119,7 +120,7 @@ there ([v1.3 record](milestones/v1.3.md) § Appendix — acceptance at ship).
 | v1.2 | The GUI for a crystallographer: house style, one help mechanism, onboarding, the panels a first-time user meets | ✅ **shipped 2026-08-28** ([record](milestones/v1.2.md)) | all six rows met on the release tree: one token layer and nine control registers with no size at a call site; one help mechanism over a 119-entry corpus crossed against the live vocabularies both ways, its 47 remaining authored titles a per-file budget that fails both ways; a project created from a blank state four ways in a real browser (a shipped example, browse, a typed cell, no structure at all); zero axis movement on hover, tab change and a whole exclude drag, 4 → 1 reacts per drag; refine flags, typed coordinates and a saved instrument profile in the Model panel; and the manual guarded by two partitions (77 routes, nine panels), 18 generated screenshots and a generated glossary — suite counts in the record's ship appendix |
 | v1.3 | Agents and programs: the termination view, the hold, the skill, the interchange format | ✅ **shipped 2026-08-30** ([record](milestones/v1.3.md), [notes](releases/1.3.0.md)) | six rows written at ship rather than at the open, and recorded as the weaker evidence that is: one integration surface, the python API, `rietx.agent` deleted on **zero** traced calls across four rounds; a result answering "done or not, and why" in one call, its diagnostics 35.2 → 3.5 kB from dedup and cap alone; an unsupported phase **held** rather than bounded (13 sub-onset ramp patterns: a cell 14.9 Å from truth free, 0.163 Å bounded by hand, **not reported** here); the protocol a 31 968 B skill read whole with a derived gate that found **four** undocumented entry points on its first run; the PowderLine recipe at **11-93 ppm** from TOPAS on all five free cell parameters; and the block measured — round 1.1, eight cells, $38.39, **seven of eight** stopping on a criterion this package states against **zero** in the 86-run baseline — suite counts in the record's ship appendix |
 | v1.4 | Free-standing peaks: fit_peaks + the extra-components seam | ⬜ queued | — (written at the open, protocol rule 6) |
-| v2+ | FPA (with the peaks buffer), neutron TOF, texture, magnetic and modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
+| v2+ | FPA (with the peaks buffer), neutron TOF, texture, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
 ## Work packages
 
@@ -530,6 +531,25 @@ aggregated after the fact (1322).
 |---|---|---|---|
 | [1325](wp/1325-parametric-series.md) | Parametric series: a parameter as a function of the series axis | ⬜ | — (1119 soft) |
 
+#### The magnetic scattering track — out of the v2 fence 2026-09-02
+
+Four rungs in dependency order, opened 2026-09-02 from the assessment of PR
+#221 (an outside proposal for one magnetic WP; declined as a PR, its evidence
+kept). Three readers refuse a magnetic structure with one sentence, and the
+unexplained-intensity report names a magnetic contribution as a cause it
+cannot test; CW neutron shipped in 1134, so the fence's premise is gone. 1326
+needs no moment (a satellite is a position); 1327 takes the two decisions the
+proposal left open and holds an unsupported moment at zero (1301's rule); the
+datasets are GSAS-II tutorial pairs, the provenance the package already
+vendors from.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1326](wp/1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | ⬜ | — |
+| [1327](wp/1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | ⬜ | 1326 |
+| [1328](wp/1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ⬜ | 1327 (1118 soft) |
+| [1329](wp/1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | ⬜ | 1327 (1326 soft) |
+
 ### v2+ — fenced
 
 Seams pre-built, implementations fenced out. **No WP files for v2+ on
@@ -545,12 +565,12 @@ scope creep. Each item names what fenced it.
   texture (Von Dreele 1997; #131); Z-matrices and rigid bodies (#195);
   difference Fourier / maximum-entropy maps (McCusker §6; the partition input
   exists in `lebail_update`, the consumer is structure completion; #197);
-  internal-standard and amorphous QPA; **magnetic structures** (propagation
-  vectors, magnetic form factors, magnetic groups gemmi does not carry);
-  **modulated structures** (superspace — 1314 reads Jana's files without
-  them); **stacking faults** (DIFFaX-style recursion). The last three were
-  named 2026-09-01 as gaps a neutron-capable Rietveld code is asked for; no
-  issue yet.
+  internal-standard and amorphous QPA; **modulated structures** (superspace —
+  1314 reads Jana's files without them); **stacking faults** (DIFFaX-style
+  recursion). Both were named 2026-09-01 as gaps a neutron-capable Rietveld
+  code is asked for; no issue yet. **Magnetic structures left this fence
+  2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate
+  case, polarised neutrons and magnetic X-rays stay fenced (1327's non-goals).
 - **Solution.** Structure solution from an indexed cell; charge flipping
   (#198); search-match phase identification (prior art: the 36-cell screen at
   `guillemot-study:studies/guillemot/match_hl2.py`).
