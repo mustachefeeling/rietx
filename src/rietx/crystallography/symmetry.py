@@ -19,11 +19,13 @@ approximate — thing to enumerate here.
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass, field
 
 import gemmi
 import numpy as np
 
+from ..schemas.common import Diagnostic
 from .lattice import d_spacings, two_theta_deg
 
 #: ceiling on the (2h+1)(2k+1)(2l+1) enumeration grid ``generate_reflections``
@@ -51,6 +53,50 @@ def get_spacegroup(symbol: str) -> gemmi.SpaceGroup:
     if sg is None:
         raise ValueError(f"unknown space group symbol: {symbol!r}")
     return sg
+
+
+@functools.lru_cache(maxsize=1)
+def _settings_by_hm() -> dict[str, tuple[str, ...]]:
+    """H-M symbols the tables hold more than one setting for, in table order.
+
+    Built from gemmi rather than listed, so it cannot drift out of date; on
+    the bundled tables it is **40** symbols, the origin-choice pairs
+    (``:1``/``:2``) plus the rhombohedral groups' axis choices (``:H``/``:R``).
+    """
+    by_hm: dict[str, list[str]] = {}
+    for sg in gemmi.spacegroup_table():
+        held = by_hm.setdefault(sg.hm, [])
+        if sg.xhm() not in held:
+            held.append(sg.xhm())
+    return {hm: tuple(v) for hm, v in by_hm.items() if len(v) > 1}
+
+
+def setting_alternatives(symbol: str) -> tuple[str, tuple[str, ...]]:
+    """The setting a **bare** symbol resolves to, and the ones it passed over.
+
+    Returns ``("", ())`` when the caller named a setting (the symbol carries a
+    ``:`` suffix) or when the tables hold only one — so the CIF and TOPAS
+    routes, which both carry a setting, stay silent: ``cif.py`` prefers gemmi's
+    own reading of the file, and the ``.inp`` reader maps TOPAS's trailing
+    ``Z`` to ``:2`` (WP-1118).
+
+    A bare symbol is not an error and this does not make it one — gemmi's
+    choice of the first setting has to be made and is defensible.  What it
+    cannot be is invisible.  ``F d -3 m`` resolves to ``:1``, and spinel
+    coordinates from a paper are almost always origin choice 2, where the 8a
+    and 16d multiplicities **swap**: A at (⅛,⅛,⅛) counts 16 under ``:1``
+    against 8 under ``:2``, B at (½,½,½) the reverse, so a hand-built phase
+    gives A₂BO₄ where AB₂O₄ was meant — wrong ``element_counts``, wrong ZMV,
+    wrong weight fractions, and a fit that converges anyway (issue #217).
+    """
+    if ":" in symbol:
+        return "", ()
+    sg = get_spacegroup(symbol)
+    settings = _settings_by_hm().get(sg.hm, ())
+    if len(settings) < 2:
+        return "", ()
+    taken = sg.xhm()
+    return taken, tuple(s for s in settings if s != taken)
 
 
 #: Largest deviation of a symmetry-fixed cell angle from its exact value that
@@ -260,7 +306,216 @@ def rotation_matrices(sg: gemmi.SpaceGroup) -> np.ndarray:
     return np.array(mats)
 
 
-def expand_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = 1e-4
+#: Default tolerance, in fractional coordinates, for "this operation fixes this
+#: site".  A structure whose coordinates are quoted to five decimals — the
+#: ICSD's usual precision — can miss an exact relation such as y = 2x by 1e-4,
+#: which is why the boundary sits here rather than at roundoff.
+SITE_TOL = 1e-4
+
+#: Relative slack making the :data:`SITE_TOL` comparison **inclusive**.  A
+#: five-decimal file lands on the boundary *exactly*: the deviation computed
+#: from ICSD 18318's B11 site is ``1.0000000000000286e-04`` and from its B16
+#: ``9.999999999998899e-05`` — the same nominal 1e-4, on opposite sides of a
+#: strict ``<``.  Which side a coordinate falls on is then decided by binary
+#: rounding rather than by crystallography, so a deviation *at* the tolerance
+#: counts as within it (issue #215).
+_SITE_TOL_SLACK = 1e-9
+
+#: Tolerance at which two images of an *already snapped* position count as the
+#: same orbit member.  Coincidence after the snap is exact to roundoff, so this
+#: is a float-equality threshold and never a crystallographic judgement — the
+#: judgement is all in :data:`SITE_TOL`, one step earlier.
+_COINCIDENCE_TOL = 1e-9
+
+#: Below this the snap did nothing and ``SiteOrbit.shift`` reports 0.0.  A site
+#: already *on* its special position still averages to itself only to within an
+#: ulp or two — h·x/h is not exactly x unless h is a power of two — and a
+#: report of that is a report of arithmetic, not of the structure.  The floor
+#: sits seven orders under :data:`SITE_TOL`, so nothing a file could mean is
+#: swallowed by it.
+_SNAP_NOISE = 1e-12
+
+
+def _op_arrays(op: gemmi.Op) -> tuple[np.ndarray, np.ndarray]:
+    """(R, t) of one gemmi operation as float64; gemmi scales both by Op.DEN."""
+    return (np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN,
+            np.array(op.tran, dtype=np.float64) / gemmi.Op.DEN)
+
+
+@functools.lru_cache(maxsize=64)
+def _group_arrays(xhm: str) -> tuple[tuple[gemmi.Op, ...], np.ndarray, np.ndarray]:
+    """Operations of one group with their (R, t) already in float64.
+
+    Rebuilding them per call is what :func:`site_orbit` spent most of its time
+    on — it walks the operation list three times, and a 192-operation group
+    costs 0.78 ms a walk, so a 48-site cubic phase paid 0.76 s every time
+    ``snap_diagnostics`` ran.  The arrays are exactly what :func:`_op_arrays`
+    returns and are never written to, so the cache changes no number.
+    """
+    ops = tuple(get_spacegroup(xhm).operations())
+    pairs = [_op_arrays(op) for op in ops]
+    rot = np.array([r for r, _ in pairs], dtype=np.float64)
+    tran = np.array([t for _, t in pairs], dtype=np.float64)
+    rot.flags.writeable = False
+    tran.flags.writeable = False
+    return ops, rot, tran
+
+
+@dataclass(frozen=True)
+class SiteOrbit:
+    """The orbit of one fractional position, derived from its stabiliser.
+
+    A site multiplicity is a group-theoretic fact — |G| / |stabiliser| — and
+    not a count of how many images survived a pairwise comparison.  This class
+    is the one authority for it: :func:`expand_orbit` reads the images with
+    their rotations,
+    :func:`~rietx.crystallography.structure_factor.select_orbit_ops` the
+    operation subset frozen onto the compiled model, and
+    :func:`~rietx.crystallography.wyckoff.stabilizer_rotations` the stabiliser
+    itself, so the forward model, the Wyckoff constraints and QPA can no longer
+    disagree about how many atoms a site puts in the cell.
+
+    Attributes
+    ----------
+    position : (3,) float — the given position **snapped** onto the special
+        position its stabiliser defines, wrapped into [0,1).  The snap is the
+        Reynolds average over the stabiliser, so it moves the coordinate only
+        along directions the site symmetry forbids, and never further than the
+        deviation it removes.  On a general position it is the input,
+        bit-identical.
+    shift : float — the largest periodic component of ``position − xyz``; 0.0
+        when nothing moved.
+    multiplicity : int — |G| / |stabilizer|, always a divisor of |G|.
+    stabilizer : (h,3,3) int — rotation parts of the operations fixing the
+        site.  Translations are dropped because a displacement or a tensor
+        transforms without them (see ``wyckoff.py``).
+    rot, tran : (m,3,3) float, (m,3) float — one operation per left coset of
+        the stabiliser, in gemmi's own order, so each generates a *distinct*
+        orbit image.
+    images : (m,3) float — those images of ``position``, wrapped into [0,1).
+    """
+
+    position: np.ndarray
+    shift: float
+    multiplicity: int
+    stabilizer: np.ndarray
+    rot: np.ndarray
+    tran: np.ndarray
+    images: np.ndarray
+
+
+def site_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
+               tol: float = SITE_TOL) -> SiteOrbit:
+    """Stabiliser, snapped position, multiplicity and orbit images of one site.
+
+    A site multiplicity is |G| / |G_x| with G_x the site-symmetry group
+    (International Tables for Crystallography Vol. A, Hahn ed., 2005,
+    sect. 8.3.2), so it always divides the group order.  Snapping a coordinate
+    onto the special position its stabiliser defines follows cctbx
+    (Grosse-Kunstleve & Adams, 2002, J. Appl. Cryst. 35, 477), which derives
+    the site symmetry the same way rather than counting coincidences.
+
+    Four steps, in this order because each depends on the one before:
+
+    1. **Candidates.** The operations with R·x + t ≡ x (mod 1) to within
+       ``tol``, inclusive of the boundary (:data:`_SITE_TOL_SLACK`).
+    2. **Snap.** Their Reynolds average, each image taken on the lattice branch
+       nearest x.  Every term is within ``tol`` of x, so the average is too;
+       when the candidates are a group it is exactly a fixed point of every one
+       of them.
+    3. **Stabiliser.** The operations fixing the *snapped* position, to
+       roundoff.  This — not step 1 — is the stabiliser, and it is a genuine
+       subgroup because the exact stabiliser of a point always is.  Step 1's
+       set need not be one: a coordinate jittered off a cubic ¼¼¼ site can
+       satisfy some members of its site symmetry within ``tol`` and miss
+       others, and averaging over that set is a projection, not a claim.  When
+       the snap buys nothing — the stabiliser comes back trivial — the
+       caller's own numbers are kept and the shift is zero.
+    4. **Cosets.** The distinct images of the snapped position, and the first
+       operation reaching each.  Two operations give the same image iff they
+       share a left coset of the stabiliser, so by orbit-stabiliser the count
+       is |G| / |stabiliser| and cannot depend on the order gemmi yields
+       operations in.
+
+    A greedy pairwise dedup — what this replaced — has neither property: the
+    comparison is not transitive, so the partition follows the operation order,
+    and nothing forces the count to divide |G|.  Perturbing an 18h site of
+    ``R -3 m:H`` off its y = 2x relation by ±1e-4 returned orbits of 22 and 30
+    under a group of order 36 (issue #215), and one such site put 327 boron
+    atoms in a cell that holds 315 — 3.8 % carried silently into ZMV and every
+    ``weight_percent``, while the fit converged.
+
+    Raises ``ValueError`` prefixed ``ORBIT_NOT_A_MULTIPLICITY`` when the count
+    is not |G| / |stabiliser|.  Steps 3 and 4 make that unreachable — they
+    measure one point's own stabiliser and one point's own orbit — which is
+    exactly why the guard is kept: it is the invariant, and an invariant nobody
+    can currently break is the one worth asserting.
+    """
+    ops, all_rot, all_tran = _group_arrays(sg.xhm())
+    order = len(ops)
+    x = np.asarray(xyz, dtype=np.float64).reshape(3)
+
+    def fixing(p: np.ndarray, bound: float) -> list[int]:
+        d = all_rot @ p + all_tran - p
+        d -= np.round(d)
+        return list(np.flatnonzero(np.all(np.abs(d) <= bound, axis=1)))
+
+    candidates = fixing(x, tol * (1.0 + _SITE_TOL_SLACK))
+    if len(candidates) == 1:
+        snapped, shift = x, 0.0          # general position: no arithmetic at all
+    else:
+        p = all_rot[candidates] @ x + all_tran[candidates]
+        p -= np.round(p - x)             # each image on the branch nearest x
+        snapped = p.mean(axis=0)
+        delta = snapped - x
+        shift = float(np.max(np.abs(delta - np.round(delta))))
+        if shift <= _SNAP_NOISE:
+            snapped, shift = x, 0.0      # already on it; the average is noise
+
+    stab_ops = fixing(snapped, _COINCIDENCE_TOL)
+    if len(stab_ops) == 1 and shift:
+        # the projection landed nowhere special: keep the caller's numbers, and
+        # re-measure the stabiliser *there*, since x can be fixed exactly by an
+        # operation the projected point is not — leaving the stabiliser stale
+        # would report the wrong site symmetry and trip the guard below
+        snapped, shift = x, 0.0
+        stab_ops = fixing(snapped, _COINCIDENCE_TOL)
+    coincide = min(tol, _COINCIDENCE_TOL)
+    images: list[np.ndarray] = []
+    keep: list[int] = []
+    for i in range(order):
+        p = (all_rot[i] @ snapped + all_tran[i]) % 1.0
+        for q in images:
+            diff = np.abs(p - q)
+            if np.all(np.minimum(diff, 1.0 - diff) <= coincide):
+                break
+        else:
+            images.append(p)
+            keep.append(i)
+
+    multiplicity = len(images)
+    if multiplicity * len(stab_ops) != order:
+        raise ValueError(
+            f"ORBIT_NOT_A_MULTIPLICITY: site "
+            f"{np.array2string(x, precision=6)} in {sg.xhm()!r} expands to "
+            f"{multiplicity} images against a stabiliser of order "
+            f"{len(stab_ops)} in a group of order {order}; a multiplicity is "
+            f"|G|/|stabiliser| and must divide |G|. Tolerance {tol:g} admitted "
+            f"operations that are not a subgroup — the coordinates are not "
+            f"consistent with this space group's setting")
+
+    return SiteOrbit(
+        position=snapped % 1.0,
+        shift=shift,
+        multiplicity=multiplicity,
+        stabilizer=np.rint(all_rot[stab_ops]).astype(np.int64),
+        rot=np.array(all_rot[keep]),
+        tran=np.array(all_tran[keep]),
+        images=np.asarray(images),
+    )
+
+
+def expand_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = SITE_TOL
                  ) -> list[tuple[np.ndarray, np.ndarray]]:
     """Orbit of one fractional position, **with the rotation that produced each image**.
 
@@ -269,39 +524,89 @@ def expand_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = 1e-4
     rotation is what a caller needs when the site carries something that
     *transforms* rather than merely moves: a displacement ellipsoid is
     U\\* → R·U\\*·Rᵀ (see ``adp.py``), so an image drawn with the parent's tensor
-    is drawn wrong in every non-orthogonal setting.  Deduplication is by position
-    with tolerance ``tol``, so a special position keeps the first operation that
-    reached it — any of the stabiliser's members leaves the site's own tensor
-    invariant, which is why "the first" is well defined here rather than
-    arbitrary.
+    is drawn wrong in every non-orthogonal setting.
+
+    One operation per left coset of the stabiliser (:func:`site_orbit`), so a
+    special position keeps the first operation that reached it and "the first"
+    is well defined: the operations giving one image are exactly a coset, and
+    any of the stabiliser's members leaves the site's own tensor invariant.
+    That was the *claim* of the greedy version this replaced, and it did not
+    hold at the tolerance boundary, where the merged set was not a coset.
     """
-    ops = sg.operations()
-    seen: list[tuple[np.ndarray, np.ndarray]] = []
-    for op in ops:
-        r = np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN
-        t = np.array(op.tran, dtype=np.float64) / gemmi.Op.DEN
-        p = (r @ np.asarray(xyz, dtype=np.float64) + t) % 1.0
-        dup = False
-        for q, _ in seen:
-            diff = np.abs(p - q)
-            diff = np.minimum(diff, 1.0 - diff)  # periodic distance
-            if np.all(diff < tol):
-                dup = True
-                break
-        if not dup:
-            seen.append((p, r))
-    return seen
+    orbit = site_orbit(sg, xyz, tol=tol)
+    return [(orbit.images[i], orbit.rot[i]) for i in range(orbit.multiplicity)]
 
 
-def expand_positions(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = 1e-4
+def expand_positions(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = SITE_TOL
                      ) -> list[np.ndarray]:
     """Orbit of one fractional position under the space group.
 
     Returns the distinct equivalent positions (each wrapped into [0,1)); the
-    orbit length is the site multiplicity.  Coincident images (special
-    positions) are deduplicated with tolerance ``tol``.
+    orbit length is the site multiplicity, |G| / |stabiliser| — see
+    :func:`site_orbit` for why that is a derivation and not a count.
     """
     return [p for p, _ in expand_orbit(sg, xyz, tol=tol)]
+
+
+#: How many snapped sites a ``SITE_SNAPPED_TO_SPECIAL_POSITION`` message names
+#: before it says "and N more".  ``where`` still carries every one of them.
+_SNAP_MESSAGE_SITES = 4
+
+
+def snap_diagnostics(sg: gemmi.SpaceGroup, sites, *, source: str,
+                     prefix: str, tol: float = SITE_TOL) -> list[Diagnostic]:
+    """``SITE_SNAPPED_TO_SPECIAL_POSITION`` for the sites whose orbit needed one.
+
+    ``sites`` is an iterable of ``(label, (x, y, z))`` in model order; ``source``
+    names where the coordinates came from, and ``prefix`` is the dot-path of the
+    phase (``"phases.0"``) whose atoms they are.
+
+    A site within ``tol`` of a special position but not on it is expanded at the
+    snapped position, so its multiplicity is the special one — which is what the
+    file's own ``_atom_site_symmetry_multiplicity`` says, and what its density
+    implies.  The stored coordinate is **not** rewritten: the deviation is the
+    caller's number and may be real, and the fit is unharmed either way, but it
+    decides how many atoms the site puts in the cell and therefore ZMV and every
+    weight fraction, so it cannot be decided in silence (issue #215).
+
+    Empty when nothing moved, which is every structure whose sites sit on their
+    special positions exactly.
+    """
+    moved: list[tuple[str, float, int, str]] = []
+    for j, (label, xyz) in enumerate(sites):
+        try:
+            orbit = site_orbit(sg, np.asarray(xyz, dtype=np.float64), tol=tol)
+        except ValueError as exc:
+            # a reader's refusal must name the file it read (io/CLAUDE.md); the
+            # orbit guard knows the site and the group but not where they came
+            # from, and this is the only place that does
+            raise ValueError(f"site {label!r} in {source}: {exc}") from exc
+        if orbit.shift:
+            moved.append((label, orbit.shift, orbit.multiplicity,
+                          f"{prefix}.atoms.{j}"))
+    if not moved:
+        return []
+    named = ", ".join(f"{lbl} ({shift:.1e} → multiplicity {m})"
+                      for lbl, shift, m, _ in moved[:_SNAP_MESSAGE_SITES])
+    if len(moved) > _SNAP_MESSAGE_SITES:
+        named += f", and {len(moved) - _SNAP_MESSAGE_SITES} more"
+    worst = max(shift for _, shift, _, _ in moved)
+    return [Diagnostic(
+        level="warning", code="SITE_SNAPPED_TO_SPECIAL_POSITION",
+        where=[path for *_, path in moved],
+        message=(f"{len(moved)} site(s) in {source} sit within {tol:g} of a "
+                 f"special position of {sg.xhm()!r} without being on it, and "
+                 f"were expanded at it: {named}. Largest shift {worst:.2e} in "
+                 f"fractional coordinates"),
+        suggestion="the stored coordinates are unchanged and the fit is "
+                   "unaffected, but the multiplicity is the special one — it "
+                   "is what decides how many atoms the site puts in the cell, "
+                   "hence ZMV and every weight fraction. Check these sites "
+                   "against the source's own multiplicities: if they agree, "
+                   "nothing is wrong and the coordinates are simply rounded; "
+                   "if they disagree, the coordinates and the space group are "
+                   "telling you different things",
+    )]
 
 
 @dataclass

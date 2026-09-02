@@ -90,10 +90,13 @@ PR #111; the exporter registry next. Two contributor PRs wait on review
 (#206 atom bounds, #208 species fallback).
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
-triage's 1309–1322 and the three opened the day after (1323–1325), grouped by
-what their evidence says; the older three, 1119, 1130 and 1133. **1131 closed
-2026-09-02**, which discharges 1130's dependency on it — the width check 1130
-was waiting for had already shipped in v1.2.
+triage's 1309–1322 and two of the three opened the day after (1323, 1325),
+grouped by what their evidence says; the older three, 1119, 1130 and 1133. Two
+closed on 2026-09-02: [1324](wp/1324-symmetry-silences.md), where a site
+multiplicity is now |G|/|stabiliser| and both symmetry silences are reported
+(issues #215, #217), and [1131](wp/1131-sample-broadening-is-a-specimen-property.md),
+which also discharges 1130's dependency on it — the width check 1130 was
+waiting for had already shipped in v1.2.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -481,8 +484,10 @@ for one specimen), and every converged fit reports a coherent domain size and a
 Each row is a silent wrong answer, the class the repo's rules are strictest
 about: a report that repeats itself (1310), a parameter that walks unflagged
 (1311), a confident fraction the pattern cannot fix (1320), a bound persisted
-as absent (1321), an alternation with no stop rule (1323), an orbit that is
-not a multiplicity (1324).
+as absent (1321), an alternation with no stop rule (1323). The orbit that was
+not a multiplicity (1324) is closed; what it measured — the same threshold
+deciding two questions, and 3.81 % of a cell mass riding on which side of a
+strict `<` a five-decimal file fell — is the shape the rest of the group has.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -491,7 +496,7 @@ not a multiplicity (1324).
 | [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ⬜ | — (1310 soft) |
 | [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | — (PR #206 first) |
 | [1323](wp/1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | — |
-| [1324](wp/1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, a setting nobody chose | ⬜ | — |
+| [1324](wp/1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, a setting nobody chose | ✅ 2026-09-02 | — |
 
 #### One file, many patterns
 

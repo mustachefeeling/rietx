@@ -109,6 +109,45 @@ experimenter quoting a refined number. Past that threshold the symbol and the
 angle contradict each other, one of the two is wrong, and choosing between them
 is yours: the value is left byte for byte and the read raises.
 
+A third note is a report rather than a repair. A site sitting within 1e-4 of a
+special position without being on it — what a file quoting five decimals
+produces — has its orbit expanded *at* that position, so its multiplicity is the
+special one, and `SITE_SNAPPED_TO_SPECIAL_POSITION` names the site, the shift
+and the multiplicity. The stored coordinates are unchanged and the fit is
+unaffected. What the multiplicity decides is how many atoms the site puts in the
+cell, and so ZMV and every weight fraction; compare it against the file's own
+`_atom_site_symmetry_multiplicity`.
+
+Building a phase by hand rather than from a file has one more way to go quiet.
+A bare Hermann-Mauguin symbol resolves to the first setting the tables hold, and
+40 symbols hold more than one — the `:1`/`:2` origin choices and the
+rhombohedral `:H`/`:R` axes. Site multiplicities differ between settings, so
+spinel's origin-2 coordinates under a bare `F d -3 m` build Mg₂AlO₄ where
+MgAl₂O₄ was meant, with Rwp unmoved. `SPACE_GROUP_SETTING_ASSUMED` quotes the
+cell contents each setting implies, which is the part you can recognise:
+
+```python
+import rietx as rx
+
+P = rx.Parameter
+spinel = rx.Phase(
+    name="spinel",
+    space_group="F d -3 m:2",          # the setting, not just the symbol
+    cell=rx.Cell.cubic(8.0806),
+    atoms=[
+        rx.Atom(label="Mg", species="Mg", x=P(value=0.125),
+                y=P(value=0.125), z=P(value=0.125)),
+        rx.Atom(label="Al", species="Al", x=P(value=0.5),
+                y=P(value=0.5), z=P(value=0.5)),
+        rx.Atom(label="O", species="O", x=P(value=0.2624),
+                y=P(value=0.2624), z=P(value=0.2624)),
+    ],
+)
+```
+
+Naming the setting silences it. Files carry theirs, so a CIF or a TOPAS `.inp`
+never raises it.
+
 ## Instrument profiles
 
 A calibrated instrument is a file. `save_instrument_profile` writes one and
