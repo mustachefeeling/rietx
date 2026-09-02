@@ -208,7 +208,7 @@ confound to state rather than to absorb. *(Measured: archive screening campaign
 R3, the (La,Sr)FeO₃ series among two affected batches; `history/events.py`
 opens with mode `"a"` on current main.)*
 
-**9c.14 Pilot the model on three patterns before multiplying it by N.** The
+**9c.14 Pilot the model on a dozen patterns before multiplying it by N.** The
 dominant failure at scale is not a bad fit but a *good* fit to a wrong model, N
 times, and the errors that do it are invisible in the residual: a
 space-group setting resolved from a bare Hermann-Mauguin symbol (**40 symbols
@@ -218,10 +218,14 @@ class silently zeroed and **no diagnostic firing**), a unit conversion made
 once in a shared calibration and therefore wrong in every pattern that uses
 it, and a mis-parsed axis (**a GSAS FXYE with its `BANK` line commented out
 returned `[50.0, 4399.6]°` instead of `[0.5, 43.996]°`** — same point count, no
-exception, `provenance` `None`). Total cost is near-linear in length, so three
-patterns is ~1 % of the run and tests all of it; per-pattern cost is *sub*-linear
-in model size (**1.489 s → 4.170 s, 2.80× for a 5.35× increase in
-reflections**), so the pilot's per-pattern time is an upper bound. Assert a
+exception, `provenance` `None`). Total cost is near-linear in length, so a
+dozen patterns is a few per cent of a long run and tests all of it; per-pattern
+cost is *sub*-linear in model size (**1.489 s → 4.170 s, 2.80× for a 5.35×
+increase in reflections**), so the pilot's per-pattern time is an upper bound.
+Time the pilot as well as reading it: a 12-pattern one measured **5.92 s per
+pattern against the same tranche's 4.17 in the previous round**, a 42 % miss
+traced to single-threaded BLAS, and it measured that before a chunk size was
+committed to rather than after. Assert a
 sanity bound on every parsed 2θ axis, check a transcribed phase's cell mass
 against the source file's own (**286.182 against 286.184, 7 ppm**, settled an
 ambiguous Cu₂O setting whose origin-1 alternative was a 1:2 Cu:O compound —
@@ -230,7 +234,7 @@ complement rather than substitute), and validate any reference-file reader
 against check values you did not derive. *(Measured: archive screening
 campaign — the Cu₂O transcription against its own TOPAS `.inp`, the FXYE reader
 fallback on the Zn/Mg chromite set, and the CuO/Cu₂O tranche's five-to-six-phase
-cost scaling.)*
+cost scaling and 12-pattern timing pilot.)*
 
 **9c.15 Re-derive the batch's inventory from the archive and de-duplicate by
 file identity.** A batch scoped from a list someone wrote is scoped to that
@@ -412,7 +416,11 @@ by 0.03–0.04 pp, a pilot's prose total **1.9 %** from its own `results.json`,
 and a wt % quoted as 16.09 where the row says 16.10. Two of the eleven were
 descriptions of upstream defects that had **already been fixed** at the commit
 checked, so a reader would have concluded two open issues were still open —
-which is the argument for auditing before publishing rather than after. Keep
+which is the argument for auditing before publishing rather than after. The
+audit's own totals were not exempt from its own rule: its header says eleven
+disagreements, its closing prose says twelve, and its per-row labels support
+nine, so quote the cell you actually recounted rather than the summary above
+it. Keep
 narrative
 estimates out of the same register as measurements, too: a prose "~40 min"
 beside a log-derived "43.8 s" makes an unverifiable number look measured, and
