@@ -91,7 +91,7 @@ Seams: `docs/skill/rietx/SKILL.md` (routing table, description, header),
       CLAUDE.md cap raised by the lines it costs, in the caps diary
 - [x] `/wp-handover` step 6 and `/pr-review` step 6 ask the unmechanised
       question; `docs/wp/TEMPLATE.md` carries a Skill line in Tasks
-- [ ] `CONTRIBUTING.md` § The agent skill (placement, the row form, the two
+- [x] `CONTRIBUTING.md` § The agent skill (placement, the row form, the two
       commands) and `AGENTS.md`'s pointer to it
 - [ ] Tests: the four skill/doc suites, the manual build, ruff, the fast
       suite; counts in the handover entry
