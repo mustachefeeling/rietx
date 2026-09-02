@@ -133,8 +133,10 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #   2026-09-01  docs/ROADMAP.md               589 -> 597  for the roadmap reorder: landed 573, cap landed + 24
 #   2026-09-02  docs/ROADMAP.md               597 -> 621  for the magnetic scattering track (1326-1329, out of
 #                                                          the v2 fence): a section and four rows, landed 597, cap landed + 24
+#   2026-09-02  CLAUDE.md                     722 -> 723  for WP-1131's two rules and the handover-trigger note
+#                                                          (PRs #227, #228), which landed at 723 with no bump; repaired in #229
 SIZE_CAPS: dict[str, int | None] = {
-    "CLAUDE.md": 722,
+    "CLAUDE.md": 723,
     "docs/ROADMAP.md": 621,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
