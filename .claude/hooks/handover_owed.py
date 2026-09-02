@@ -20,7 +20,7 @@ It fires only when every one of these holds, which is the end-state of a WP
 session and almost nothing else:
 
 * the tree is a worktree whose branch names a WP (``wp1131-…``);
-* ``origin/main..HEAD`` carries at least one ``WP-NNNN:`` commit;
+* the branch adds at least one commit to ``origin/main``;
 * the branch is **at rest** — working tree clean, nothing unpushed — which is
   where a session lands when it believes it is done, and is not where it sits
   between checklist items;
@@ -44,13 +44,20 @@ from pathlib import Path
 from typing import Optional
 
 STAMP_NAME = "wp-handover-nudge"
-_WP_COMMIT_RE = re.compile(r"^WP-(\d{4}):")
 _WP_BRANCH_RE = re.compile(r"wp-?(\d{4})", re.IGNORECASE)
-# A Skill call (``{"skill": "wp-handover"}``) or the typed slash command.  The
+# A Skill call (the command's name as the ``skill`` key of a tool input) or the
+# typed slash command (``<command-name>`` carrying it).  The
 # bare word is not enough: a session that only *reads* the command file, or
 # names it in prose, has not run it — which is exactly the failure above.
+#
+# Both sentinels are assembled from fragments so that **this file's own source
+# contains neither of them**.  Spelled out, they match the transcript of any
+# session that reads, greps or edits this hook or its tests, which silences the
+# nudge for the rest of that session — measured on the session that wrote it
+# (2026-09-02), whose own transcript matched before this line was split.
+_NAME = "wp-" + "handover"
 _HANDOVER_RAN_RE = re.compile(
-    r'"skill"\s*:\s*"wp-handover"|<command-name>/wp-handover'
+    r'"skill"\s*:\s*"' + _NAME + r'"|<command-' + "name>/" + _NAME
 )
 
 REASON = """Stop paused: WP-{wp} has {n} commit(s) on `{branch}`, the branch is clean and \
@@ -69,8 +76,11 @@ ask again until more work lands."""
 
 def _git(root: Path, *args: str) -> Optional[str]:
     try:
+        # 5 s, not 10: ``nudge`` makes up to seven of these inside the hook's
+        # own 15 s budget (.claude/settings.json), and a git call slow enough
+        # to matter is one more reason to let the stop through.
         proc = subprocess.run(
-            ["git", *args], cwd=root, capture_output=True, text=True, timeout=10
+            ["git", *args], cwd=root, capture_output=True, text=True, timeout=5
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -84,12 +94,20 @@ def base_ref(root: Path) -> str:
     return "main"
 
 
-def wp_commits(root: Path) -> list[str]:
-    """WP numbers of the ``WP-NNNN:`` commits this branch adds, newest first."""
-    log = _git(root, "log", "--no-merges", "--pretty=%s", f"{base_ref(root)}..HEAD")
-    if not log:
-        return []
-    return [m.group(1) for m in (_WP_COMMIT_RE.match(s) for s in log.splitlines()) if m]
+def commits_ahead(root: Path) -> int:
+    """How many commits this branch adds to ``origin/main``, merges excluded.
+
+    Any commit, not only a ``WP-NNNN:``-prefixed one: the branch name is what
+    says which WP this is, and a WP session whose every commit was ritual
+    (``docs:``, ``tooling:`` — 39 of the last 400 on main) owes its handover
+    exactly as much.  Requiring the prefix would have left this hook silent on
+    the two branches that introduced it.
+    """
+    count = _git(root, "rev-list", "--count", "--no-merges", f"{base_ref(root)}..HEAD")
+    try:
+        return int(count)
+    except (TypeError, ValueError):
+        return 0
 
 
 def at_rest(root: Path) -> bool:
@@ -153,10 +171,11 @@ def nudge(payload: dict) -> Optional[str]:
         return None
     root = Path(payload.get("cwd") or Path.cwd())
     branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
-    if not branch or not _WP_BRANCH_RE.search(branch):
+    named = _WP_BRANCH_RE.search(branch) if branch else None
+    if named is None:
         return None
-    numbers = wp_commits(root)
-    if not numbers:
+    n = commits_ahead(root)
+    if n == 0:
         return None
     if not at_rest(root):
         return None
@@ -167,7 +186,9 @@ def nudge(payload: dict) -> Optional[str]:
     if handover_ran(payload.get("transcript_path")):
         return None
     record_nudge(root, head, session_id)
-    return REASON.format(wp=numbers[0], n=len(numbers), branch=branch)
+    # The **branch** names the WP this session is on; a commit subject need not
+    # (a session that touched a second WP would send the handover there).
+    return REASON.format(wp=named.group(1), n=n, branch=branch)
 
 
 def main() -> int:

@@ -23,7 +23,7 @@ Run the session-start ritual. The SessionStart hook's report
 2. **Identify the WP**: the one the user names, else ROADMAP "Current
    focus" — read the two sections, not the file
    (`sed -n '/^## Session protocol/,/^## Milestones/p' docs/ROADMAP.md`, one
-   contiguous block): ~2k tokens against the file's ~13k, and a WP file is
+   contiguous block): ~1.3k tokens against the file's ~12k, and a WP file is
    self-contained. **§ Session protocol is read for its step 3**, which is
    the only statement of the handover trigger that stays in context after
    this command scrolls away; narrowing this read to Current focus alone
