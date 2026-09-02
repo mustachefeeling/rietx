@@ -596,3 +596,34 @@ def test_a_scaled_column_is_the_jacobian_the_residual_actually_has():
         fd = (residual(plus) - residual(minus)) / (2 * step)
         scale = max(np.abs(J[:, c]).max(), np.abs(fd).max(), 1e-30)
         assert np.abs(J[:, c] - fd).max() / scale < 2e-5, path
+
+
+def test_a_joint_fit_reports_its_microstructure(size_fixture):
+    """The block must not be empty on the fits this WP exists for.
+
+    ``RefinementResult.microstructure`` defaults to an empty list, and an empty
+    list reads as *no microstructure* — the WP-1076 shape — so a joint fit that
+    never filled it would say that about a specimen it had just measured a
+    crystallite size for. Read off histogram 0, whose value scale is exactly
+    1.0, so its coefficients are the shared column and the size behind them is
+    the specimen's one number.
+    """
+    patterns, _ = size_fixture
+    structure, _ = _width_start(0.41390)
+    instruments = [_width_start(lam)[1] for lam in (0.41390, 0.71070)]
+    ref = MultiHistogramRefinement(structure, instruments)
+    result = ref.fit(patterns, plan=_width_plan("lor_size"))
+
+    assert len(result.microstructure) == 1
+    block = result.microstructure[0]
+    assert block.wavelength == pytest.approx(0.41390), "the reference histogram"
+    size = block.term("lor_size")
+    assert size.unavailable is None
+    assert size.esd is not None and size.esd > 0.0
+    # the same crystallite the two structure copies imply, read either way
+    per_copy = apparent_size_from_size_coefficient(
+        ref.fitted_structures[1].phases[0].lor_size.value, 0.71070)
+    assert size.value == pytest.approx(per_copy, rel=1e-9)
+    assert size.value == pytest.approx(TRUE_SIZE_A, rel=0.05)
+    # and the joint result carries the constant it used, never a defaulted zero
+    assert block.scherrer_k > 0.0

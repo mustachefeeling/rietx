@@ -23,7 +23,12 @@ import numpy as np
 
 from .backend.api import backend_dtype_note
 from .model.forward import PHASE_SUPPORT_SIGMA, compile_model
-from .optimize.least_squares import SOLVERS, run_multi_least_squares
+from .model.microstructure import microstructure_table
+from .optimize.least_squares import (
+    SOLVERS,
+    _longest_line_wavelength,
+    run_multi_least_squares,
+)
 from .optimize.qpa import compute_qpa, microabsorption_diagnostics
 from .optimize.statistics import background_absorption, compute_statistics
 from .params.multi import (
@@ -469,7 +474,8 @@ class MultiHistogramRefinement:
         # one bound test, two consumers: the rows' at_bound flag and the
         # BOUND_HIT diagnostics (WP-1076)
         at_bounds = bound_findings(mt.bounds(), mt.free_paths, outcome.theta)
-        parameters = self._parameters(thetas, stderr, corr, at_bounds)
+        esd_hist0 = self._histogram0_esds(thetas, stderr, corr)
+        parameters = self._parameters(thetas, stderr, corr, at_bounds, esd_hist0)
         diagnostics = self._top_diagnostics(outcome, correlation_guard, top_bg,
                                             at_bounds)
         if stage_results:
@@ -515,7 +521,19 @@ class MultiHistogramRefinement:
             two_theta=histograms[0].two_theta, y_obs=histograms[0].y_obs,
             y_calc=histograms[0].y_calc, y_background=histograms[0].y_background,
             sigma=histograms[0].sigma, ticks=histograms[0].ticks,
-            qpa=histograms[0].qpa, histograms=histograms)
+            qpa=histograms[0].qpa,
+            # WP-1131: one block per phase, read off **histogram 0** — the
+            # reference wavelength, whose value scale is exactly 1.0, so its
+            # coefficients *are* the shared column and the size behind them is
+            # the specimen's one number.  Reading any other histogram would
+            # give the same size from a different coefficient; reading none
+            # would leave every joint fit reporting an empty list, which says
+            # "no microstructure" about the fits this correction exists for.
+            microstructure=microstructure_table(
+                mt.structures[0], per_values[0],
+                wavelength=_longest_line_wavelength(models[0]),
+                esds=esd_hist0),
+            histograms=histograms)
 
     def _histogram_qpa(self, h, model, struct, values, theta_h, s_h, corr_h):
         scale_paths = [f"phases.{ip}.scale" for ip in range(len(struct.phases))]
@@ -526,7 +544,23 @@ class MultiHistogramRefinement:
         wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
         return compute_qpa(struct, values, scale_cov, mult, wavelength=wavelength)
 
-    def _parameters(self, thetas, stderr, corr, at_bounds) -> list[RefinedParameter]:
+    def _histogram0_esds(self, thetas, stderr, corr) -> dict[str, float]:
+        """Physical esds of histogram 0's table — the reference histogram.
+
+        Two readers and one build (WP-1131): the shared rows of
+        :meth:`_parameters`, and the microstructure block, which reads
+        histogram 0 because its value scale is exactly 1.0.  With a correlation
+        matrix this is a dense n x n, which a large table makes expensive, so
+        it is built once here rather than at each caller.
+        """
+        if stderr is None:
+            return {}
+        cm0 = self.mtable.col_map(0)
+        return self.mtable.tables[0].stderr_physical(
+            thetas[0], stderr[cm0],
+            corr[np.ix_(cm0, cm0)] if corr is not None else None)
+
+    def _parameters(self, thetas, stderr, corr, at_bounds, esd0) -> list[RefinedParameter]:
         mt = self.mtable
         params: list[RefinedParameter] = []
         # The row path is the combined path — shared rows unprefixed,
@@ -538,10 +572,6 @@ class MultiHistogramRefinement:
         # shared parameters reported once, from histogram 0's covariance (its
         # diagonal esd is the true combined marginal — cross-terms with the
         # other histograms' columns do not enter a single path's variance).
-        cm0 = mt.col_map(0)
-        esd0 = (mt.tables[0].stderr_physical(thetas[0], stderr[cm0],
-                                             corr[np.ix_(cm0, cm0)] if corr is not None else None)
-                if stderr is not None else {})
         for e in mt.tables[0].entries:
             if mt.sharing.is_shared(e.path) and (e.vary or e.tie is not None):
                 params.append(RefinedParameter(

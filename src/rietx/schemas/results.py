@@ -703,8 +703,12 @@ class PhaseMicrostructure(Base):
     #: selector every size surface in the package shares
     wavelength: float | None = None
     #: the Scherrer constant used, so a row can be rescaled without knowing
-    #: which build produced it
-    scherrer_k: float = 0.0
+    #: which build produced it.  **Required, not defaulted** (WP-1076, and
+    #: WP-1305's ``delta_bic`` precedent): a 0.0 here would read as an *answer*
+    #: about a constant nothing set, and a size scales linearly in it, so a
+    #: document written without one must fail to load rather than load with a
+    #: K nobody chose
+    scherrer_k: float
     terms: list[MicrostructureTerm] = Field(default_factory=list)
     #: Gaussian-implied size ÷ Lorentzian-implied size, when both are readable.
     #: 1 means the two independent columns describe one specimen; far from 1

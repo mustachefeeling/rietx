@@ -114,6 +114,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: Additive and defaulted to an empty list, which is the honest empty state
 #: here (a result built without a compiled model measured no wavelength and can
 #: read no size), but it is a new field a consumer enumerates, so it bumps.
+#: ``PhaseMicrostructure.scherrer_k`` inside it is **required**: a size scales
+#: linearly in K, so a defaulted 0.0 would be an answer about a constant nobody
+#: chose (WP-1076; WP-1305's ``delta_bic`` took the same decision).
 SCHEMA_VERSION = "0.15"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
