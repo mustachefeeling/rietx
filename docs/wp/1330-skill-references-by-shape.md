@@ -87,7 +87,7 @@ Seams: `docs/skill/rietx/SKILL.md` (routing table, description, header),
 - [x] `references/batch.md` (§9c): the header, the row form, four seeded rows;
       the routing row, the description phrase and the placement sentence in
       the body, paid for by cuts; copies re-synced
-- [ ] Root CLAUDE.md § skill: the three destinations and the shape rule; the
+- [x] Root CLAUDE.md § skill: the three destinations and the shape rule; the
       CLAUDE.md cap raised by the lines it costs, in the caps diary
 - [ ] `/wp-handover` step 6 and `/pr-review` step 6 ask the unmechanised
       question; `docs/wp/TEMPLATE.md` carries a Skill line in Tasks

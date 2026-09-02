@@ -135,8 +135,10 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          the v2 fence): a section and four rows, landed 597, cap landed + 24
 #   2026-09-02  CLAUDE.md                     722 -> 723  for WP-1131's two rules and the handover-trigger note
 #                                                          (PRs #227, #228), which landed at 723 with no bump; repaired in #229
+#   2026-09-02  CLAUDE.md                     723 -> 732  for WP-1330's skill bullet: the three destinations
+#                                                          and the shape rule, landed at the cap
 SIZE_CAPS: dict[str, int | None] = {
-    "CLAUDE.md": 723,
+    "CLAUDE.md": 732,
     "docs/ROADMAP.md": 621,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
