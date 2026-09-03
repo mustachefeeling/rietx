@@ -378,6 +378,105 @@ Separately, `phases.1.gauss_size` returns a degenerate (NaN) R² column at
 convergence, so it has no gradient there. Probably sitting at a bound; worth one
 look while the above is open.
 
+### Gap A answered, 2026-09-03 — the guard fired, and the trigger is gone
+
+**Protocol.** The model is no longer transcribed. WP-1118's TOPAS reader builds
+it: `read_topas_inp` → `to_structure` on `d8_01612_vt_reel_02.inp`, which gives
+the four phases, their cells with the file's own `min`/`max`, the sites and
+`beq = boverall` = 2.66123. The instrument is still hand-built (1118 has no
+`to_instrument` yet): CuKα1, `monochromator_two_theta` 27.26, radius 217.5 mm,
+TCHZ from the file with `pkx → profile.y` and `pky → profile.x`,
+`sample_displacement` −0.219690422 mm, and `Simple_Axial_Model`'s 6.62303 mm
+divided by the radius into `axial_sl`/`axial_hl`. Pattern `read_pattern(scan=16)`,
+`two_theta_limits=(14, 70)` as `start_X`/`finish_X` declare — **3887 fitted
+channels**. Five cumulative stages: scale+background, cell, aberrations
+(displacement, axial, zero shift), displacement (`biso`), widths (`gauss_size`,
+`lor_strain`, unbounded — the trigger's own condition, where the `.inp` instead
+bounds the *physical* size and strain, `csgc ≥ 30` nm and `slc ≤ 0.1`).
+
+The canonical run — one `boverall` tied across all 42 sites, TOPAS's own
+Chebyshev-12 — converges at **Rwp 0.1092 / GoF 1.48**, against this WP's
+recorded reproduction of 0.1104 / 1.51 and the maintainer's trial 0.1076 / 1.52.
+The protocol is the same protocol.
+
+**The literal question: `BACKGROUND_ABSORPTION` fired.** In all nine runs below,
+every time above `BACKGROUND_ABSORPTION_GUARD` = 0.25. The canonical run's whole
+table is three rows — `phases.1.scale` **0.442**, `phases.2.scale` 0.260,
+`phases.3.scale` 0.050 — and `worst_absorption_path` is `phases.1.scale`. Free
+the displacement parameters per atom instead of tying them and the worst becomes
+a `phases.1.atoms.*.biso` at **0.75–0.76**, which is §4b's QPA row exactly: the
+background reproducing three quarters of a displacement parameter.
+
+So **Gap A's own conditional resolves the way it feared**. The premise "nothing
+rietx computes participated in any of the three corrections" narrows to
+§ Finding 7's pattern — a diagnostic computed, correct, above its threshold, and
+unread — and the first deliverable is the row that tells a reader what to do
+with it, not a new estimator. It is also the third instance in this file of one
+shape: a number that is right and reaches nobody (Finding 7), a number that
+reads as silence (the NaN above), and now a *finding* that fired and was not
+looked at.
+
+**And the trigger fit no longer reproduces.** Mean background per region as a
+ratio to TOPAS's converged Chebyshev-12, the same seven regions as § Finding 1:
+
+| protocol | 14-18 | 18-25 | 25-32 | 32-40 | 40-50 | 50-60 | 60-70 | Rwp |
+|---|---|---|---|---|---|---|---|---|
+| **§ Finding 1, widths free (2026-08)** | 1.01 | **0.54** | **0.50** | **0.55** | **0.59** | **0.59** | **0.69** | 0.1105 |
+| boverall, Chebyshev-12 | 1.17 | 1.02 | 1.01 | 0.94 | 0.99 | 0.95 | 0.92 | 0.1092 |
+| one Biso per phase | 1.17 | 1.01 | 1.01 | 0.95 | 0.99 | 0.94 | 0.91 | 0.1082 |
+| Biso free per atom | 1.16 | 1.05 | 1.03 | 0.94 | 1.03 | 0.98 | 0.94 | 0.1071 |
+| cells started at the `.inp`'s `min` | 1.17 | 1.02 | 1.01 | 0.94 | 0.99 | 0.95 | 0.92 | 0.1092 |
+| cold: generic scales and `beq` too | 1.17 | 1.01 | 1.01 | 0.95 | 0.99 | 0.94 | 0.91 | 0.1082 |
+| no axial model | 1.17 | 1.03 | 1.02 | 0.95 | 0.99 | 0.95 | 0.92 | 0.1094 |
+| no axial model, Biso free | 1.18 | 1.09 | 1.12 | 1.03 | 1.13 | 1.10 | 1.02 | 0.1146 |
+| **`auto_background` P-spline** (Finding 1's own row) | 1.22 | 0.93 | 1.02 | 0.93 | 0.96 | 0.93 | 0.90 | 0.1164 |
+| P-spline, Biso free per atom | 1.22 | 0.98 | 1.17 | 1.09 | 1.18 | 1.19 | 1.08 | 0.1435 |
+
+Nine protocols, spanning **both** background bases Finding 1 used (its own second
+table puts the auto P-spline at 152.3 and Chebyshev-12 at 227.7 in 18–25°, so the
+basis had to be varied before any claim of non-reproduction), three treatments of
+the displacement parameters, warm and cold starts, and the axial model present and
+absent. Every one lands in **0.90–1.22**. None reaches 0.50–0.71. The width
+runaway does not recur either: the largest `lor_strain` anywhere above is **1.22**
+against § Finding 2's **10.37**, and no `gauss_size` exceeds 0.702 against 24.93.
+
+**One part of Finding 2 is provably prevented, and it is not the important part.**
+`PHASE_UNCONSTRAINED` (WP-1301, which shipped after these findings were measured)
+fires on phase 0 in every run and holds its free structural paths, so "the hydrate
+carrying `lor_strain` 159.5 at `scale` exactly 0" cannot happen now. The **cubic**
+phase's runaway is the one that moved the background, and nothing here explains
+its absence: that phase is supported, so no hold applies to it, and the width caps
+would not have bitten — `strain_cap(14, 70)` is **79.98**, eight times Finding 2's
+10.37. Left unresolved and recorded as such: this file says the runaway is gone,
+not why.
+
+**What that does to the WP.** The anchored estimate was to be judged against
+TOPAS at 0.82–1.20 (§ Finding 1) and the fit now occupies **0.90–1.22** — the
+same band. Measured here for the first time on the *real* scan rather than the
+synthetic, the two model-free estimators sit either side of it: arPLS λ=1e7 at
+**1.09–1.26**, SNIP at **0.80–1.05**. So `BACKGROUND_BELOW_ANCHORS` has, on this
+scan and on this tree, **no separation left to fire on**: § Gap C's gate
+("if the anchors' high bias in crowded regions is not separable from a factor-2
+deficit at the widths the trigger had") has lost the factor-2 deficit that was
+the whole signal. Read § Gap C, § The anchor selector and § The diagnostic in
+that light before building any of them — the honest next step may be the 🛑 that
+gate already provides for, with the panel and this record as the deliverable.
+
+**Two things this run says about neighbouring work.** The `.inp` the WP names as
+its protocol source **cannot be read as it ships**: `read_topas_inp` refuses
+`d8_01612_vt_reel_02.inp`, `_reel_01.inp` and `_vt_02.inp` at their first `#if`
+(only `d8_01612_fit_01.inp`, a different range, reads), so every number above is
+from a copy with the `#if`/`#endif` blocks stripped in the scratchpad. That is
+WP-1118's, not this WP's, and the refusal is correct — it is the reach that is
+narrow. And the reader reports `TOPAS_FEATURES_NOT_IMPORTED` for LT-ZrMo₂O₈'s
+`spherical_harmonics_hkl` strain broadening, which rietx has no equivalent for;
+that phase is the one carrying `worst_absorption` in seven of the nine runs.
+
+Figures, `tests/output/` (gitignored, so re-run the scratchpad script):
+`wp1130_zrmo2o8_scan16_fit.png` and `wp1130_zrmo2o8_scan16_background.png`, the
+second being § Finding 8's panel — background only, y cropped to its own range,
+TOPAS's region means and both model-free estimators in the frame.
+
 ### Both fixed, 2026-09-03 — and the second one is the WP's own theme
 
 `cell_window` now refuses a value no cell can take, naming the path. The
@@ -548,7 +647,7 @@ and Gap C decides whether the diagnostic is buildable at all.
       the raise must name the path; a cell below the floor is a model to refuse
       where there is a diagnostics channel. Check `phases.1.gauss_size`'s NaN
       R² column at the same time.
-- [ ] **Gap A: re-run the trigger fit and record what fired.** Fetch the scan
+- [x] **Gap A: re-run the trigger fit and record what fired.** Fetch the scan
       (§ The trigger dataset; `pkx → y`, `pky → x`), refine as Finding 1 did,
       and read `result.diagnostics` and `report.background.absorption`. Record
       the answer in this file. If `BACKGROUND_ABSORPTION` fired, its
