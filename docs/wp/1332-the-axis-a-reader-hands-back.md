@@ -83,8 +83,8 @@ one reports is the one design call this WP has to take rather than reach for.
 - [ ] Tests: the synthetic `good`/`bad` pair from #236 verbatim (no data file
       needed), plus one per-format smoke that the guard does not fire on the
       suite's real patterns.
-- [ ] Skill: the diagnostic's row in `references/diagnostics.md` — which has
-      86 B of headroom (see 1338). On this tree `references/batch.md` holds
+- [ ] Skill: the diagnostic's row in `references/diagnostics.md` (room
+      enough since PR #111's split; see 1338). On this tree `references/batch.md` holds
       rows 9c.1–9c.4 only; **PR #233 (open, unmerged on 2026-09-03)** adds a
       9c.14 telling an operator to *"assert a sanity bound on every parsed 2θ
       axis"* because the package does not. If #233 has merged when this lands,

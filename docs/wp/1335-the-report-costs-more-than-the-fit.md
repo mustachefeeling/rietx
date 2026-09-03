@@ -136,8 +136,10 @@ choice.
 - [ ] Decide, and write down, whether a phase with no free structural
       parameter is analysed at all — the docstring argument covers refined
       microstrain and does not obviously extend.
-- [ ] `summary()` accepts a precomputed report, or returns one; the doubling
+- [x] `summary()` accepts a precomputed report, or returns one; the doubling
       goes away by a documented route rather than by a caller's workaround.
+      **Landed in PR #259**: `summary(report=)`, refusing `plan=` beside it;
+      the test counts builds at `build_report`, the seam both routes share.
 - [ ] A span (or field) covering the stage-report work, so a caller summing
       events sees it; decide the `EVENT_SCHEMA_VERSION` question deliberately.
 - [ ] Document what `stage_reports=True` costs, roughly, where the flag is
@@ -174,4 +176,6 @@ with Rwp bit-identical; a `summary()` + `report()` pair builds one report.
   `self.report(plan=plan)` unconditionally. Re-checked the same day: the
   issue's premise that the guard does not need `_strain_errors`' output is
   wrong on the tree — `n_used` comes from the `weight` it returns — so the
-  hoist is a separation, not a line move.
+  hoist is a separation, not a line move. Task 3 landed the same day as PR
+  #259 on its own branch, being the one task here that needed no
+  measurement.

@@ -98,8 +98,8 @@ honest empty state where the fact has no computing authority.
 **Whether this needed a WP was asked rather than assumed**, and the reporter's
 own reasoning is why it got one: item (4) is a new diagnostic code, and root
 CLAUDE.md's rule is that a WP adding a code adds its row — which now means a
-row in `references/diagnostics.md`, a file with **86 B of headroom** (see
-1338). That is planned here rather than discovered at the cap. Against that, this adds
+row in `references/diagnostics.md`, a file that had **86 B of headroom**
+until PR #111 split it (see 1338). That is planned here rather than discovered at the cap. Against that, this adds
 no new physics and no new dependency.
 
 ## Non-goals

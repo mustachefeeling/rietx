@@ -102,7 +102,14 @@ at push time. Measured on this worktree at `c79fb5df`:
 | `references/api.md` | 36 000 | 29 193 | +6 807 B |
 | `references/surprises.md` | 36 000 | 20 916 | +15 084 B |
 
-**Two files are within 100 bytes of their cap**, so almost any addition to
+**Re-measured on `main` at `b717cc98`, after PR #111 merged (2026-09-03):**
+`SKILL.md` 32 989 B (**+11 B**); `references/diagnostics.md` 32 125 B
+(+3 875 B) beside the new `diagnostics-projects.md` at 10 273 B. The split
+this WP names below has happened, and the whole of the pressure now sits on
+`SKILL.md`, which cannot be split the same way.
+
+**Two files were within 100 bytes of their cap** at `c79fb5df`, and one
+still is, so almost any addition to
 either is a merge conflict against any other addition to the same file,
 including two that are individually one sentence. It already happened: #233
 was green with `batch.md` at 35 570 B, `main` then grew it ~1 kB (`e06a8f54`),
@@ -128,9 +135,11 @@ right for a file loaded on demand is a judgement only the maintainer can make.
 does not require deciding the others; it would have made `main`'s two near-full
 files visible before anyone wrote a word. Budget per PR is probably more
 machinery than the problem deserves. **Note that several other WPs in this
-triage round each add a `references/diagnostics.md` row** (1332, 1336, 1340),
-so the 86 B is spent several times over; this WP is on their critical path
-even though none depends on it formally.
+triage round each add a `references/diagnostics.md` row** (1332, 1336, 1340).
+Until #111's split that was the 86 B spent several times over; after it the
+rows fit, and the critical path runs through `SKILL.md`'s 11 B instead — any
+body sentence a WP adds meets this WP first, even though none depends on it
+formally.
 
 ## Non-goals
 

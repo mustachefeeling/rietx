@@ -141,7 +141,7 @@ choice should be visible.
 - [ ] Skill: `references/judging.md` — that `status` is optimiser exit, and
       the width row. `references/diagnostics.md` gains
       `PEAK_WIDTH_LAW_MISMATCH` on the refinement side if it becomes reachable
-      there (86 B of headroom; see 1338).
+      there (room enough since PR #111's split; see 1338).
 
 ## Acceptance
 
