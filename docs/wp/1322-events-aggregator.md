@@ -69,6 +69,59 @@ consumer" — #207's own framing): the aggregator's `termination` histogram
 and held-path counts summarise exactly the marker vocabulary 1317 reads
 from `SeriesResult`, so neither surface invents a second set of names.
 
+### Inherited
+
+- **2026-09-03, from the issue triage (issues #223 and #237, the same defect
+  reported twice): an aggregator cannot segment the log it is given, because
+  `EventStream` appends with no run marker.** `EventStream.__init__` opens
+  unconditionally in append mode (`history/events.py:139`):
+
+  ```python
+  self._fh = open(self.path, "a", encoding="utf-8") if self.path else None
+  ```
+
+  So re-running anything into the same `events=` path silently merges the new
+  run into the previous one, with nothing in the file saying two runs are
+  present, and `read_events` returns both as one stream. **The failure is
+  silent, the corrupted quantity is plausible, and the only signal is an
+  external check most callers will not have.** Measured twice during a timing
+  study over a 638-pattern series: in the worst case a **10.3 s fit reported as
+  459.0 s** (44.67x). It was caught only by asserting event-log-summed
+  durations against an independently measured wall clock (3472.73 s against
+  3409.27 s, ratio 1.0186 once fixed). It is worse for a long series, where
+  re-running one leg after a crash is the normal recovery and the merged log is
+  then the *expected* workflow rather than an accident.
+
+  **Append is nonetheless the right default and must stay one.** It is
+  load-bearing in two places: `SequentialRefinement` forwards every pattern's
+  events through one stream so a series run appends to exactly one log (the
+  module comment at `sequential.py` ~248 says so explicitly), and `rietx watch`
+  tails the file, so truncating under a reader would be worse. The fix is not
+  to change the mode.
+
+  Three directions, cheapest first, and the reporters agree on which: **(1) a
+  run header record written on open** — a `record: "run"` line carrying the
+  fingerprint and created timestamp the header already computes, so a reader
+  can partition a file into runs and a consumer summing durations can refuse or
+  warn when it sees more than one; one line per file, and it protects the
+  *reader* rather than relying on the writer remembering, which is the case
+  that actually bites. **(2)** an explicit `EventStream(path,
+  mode="append"|"truncate")` with the default unchanged. **(3)** at minimum,
+  document it where `events=` is documented. A contributor has offered a PR
+  for (1).
+
+  **The design constraint to settle first**: `EventKind` is closed and the run
+  state is deliberately not an event (root CLAUDE.md), so a new *kind* is an
+  `EVENT_SCHEMA_VERSION` bump while a header *record* on a different key may
+  not be. Decide which shape (1) takes before writing it — this WP's aggregator
+  is its first consumer either way.
+
+  Skill rows to revise **in the same change** (all three copies, via
+  `rietx skill --install . --copy`): `references/batch.md` section 9c.13 tells
+  an operator to rotate or re-path the log before every run, and
+  `references/series.md` cross-references it for ramps. Both become
+  descriptions of a package that no longer needs the workaround.
+
 ## Non-goals
 
 - **Not the interactive scrubber** — [1317](1317-series-scrubber.md)'s.

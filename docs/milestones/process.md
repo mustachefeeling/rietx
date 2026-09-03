@@ -464,6 +464,21 @@ compression pass set the convention; the admission rule is unchanged, and
 two new tests keep the shape — a row's section mirrors its WP's Milestone
 line, and a status cell is a glyph and a date.
 
+597 -> 621 for the magnetic scattering track (2026-09-02): a section and four
+rows (1326-1329), landed 597, cap landed + 24.  Recorded here after the fact,
+in the 2026-09-03 bump below; the diary had missed it.
+
+621 -> 645 for the 2026-09-03 issue triage: the 22 issues newer than the
+2026-09-01 rounds arranged into ten unscheduled WPs (1332-1341) — ten index
+rows across the three existing Unscheduled sections whose subjects they extend,
+plus one new section for the costs a multi-hundred-pattern campaign paid and a
+single fit never sees.  Landed 639.  Same rule as every bump above: rows cannot
+go down a rank, so the cap grows with the WP count and with nothing else, and
+the evidence lives in the WP files.  The three remaining issues cost no lines
+here, being folded into WP-1118, WP-1310 and WP-1322's own files; Current focus
+paid for its new sentence by cutting four closed WPs' narratives back to their
+numbers, which their own files already carry (protocol rule 5).
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
