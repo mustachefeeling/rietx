@@ -235,7 +235,7 @@ footer .note{flex-basis:100%;margin-top:8px;font-size:.82rem;color:var(--faint)}
 <main>
 <section class="hero"><div class="wrap">
   <h1>Rietveld refinement for humans and machines</h1>
-  <p class="lede"><code>rietx</code> is an open-source python package for analysing powder diffraction data. It is designed with a
+  <p class="lede"><code>rietx</code> is an open-source Python package for analysing powder diffraction data. It is designed with a
     streamlined API that can be easily used by most common AI coding agents out of the box.</p>
   <div class="cta">
     <span class="install"><span class="ps">$</span>pip install rietx</span>
@@ -248,7 +248,7 @@ footer .note{flex-basis:100%;margin-top:8px;font-size:.82rem;color:var(--faint)}
   <div class="sec-head">
     <h2>Agentic refinement with standard models</h2>
     <p>The dataset is 275 <em>in situ</em> XRD patterns from supported Cu/CuO redox collected on a lab
-      diffractometer with sub-minute acquisition times. The measurements were made at 300&deg;C
+      diffractometer with sub-minute acquisition times. The measurements were made at up to 300&nbsp;&deg;C
       under changing chemical environments using a bespoke gas cell. A coding agent (Claude Sonnet 5 running in
       Claude Code) was given the patterns and the reference structures and asked to refine the series.</p>
   </div>
@@ -339,7 +339,7 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
 <section class="block" id="gui"><div class="wrap">
   <div class="sec-head">
     <h2>The GUI</h2>
-    <p><code>rietx gui</code> runs the <code>rietx</code> GUI in the browser. The history mode is shown here:
+    <p><code>rietx gui</code> runs the <code>rietx</code> GUI in the browser. The history panel is shown here:
       a <code>git</code>-like tree of refinement checkpoints can be easily loaded and compared.</p>
   </div>
   <figure class="shot">
@@ -355,7 +355,7 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
   <ul class="feat">
     <li><strong>Rietveld, Le Bail and Pawley</strong><span>Multi-phase, X-ray and constant-wavelength neutron. <a href="https://rietx.org/using/concepts.html">Concepts</a></span></li>
     <li><strong>Reads common file formats</strong><span>.xy/.xye, GSAS, pdCIF, .chi, Rigaku .ras/.rasx, Bruker .uxd/.brml/.raw, PANalytical .xrdml. <a href="https://rietx.org/using/files.html">Files</a></span></li>
-    <li><strong>Speaks other languages</strong><span>Reads and writes TOPAS, GSAS, FullProf and other formats. (In progress) <a href="https://rietx.org/using/recipe.html">Recipe</a></span></li>
+    <li><strong>Speaks other languages</strong><span>Reads a TOPAS <code>.inp</code>, and PowderLine’s engine-neutral recipe both ways. GSAS-II, FullProf and the write direction are planned. <a href="https://rietx.org/using/recipe.html">Recipe</a></span></li>
     <li><strong>Phase quantification</strong><span>Weight fractions with esds propagated through the full covariance, and a flag when a phase is not determined by the data. <a href="https://rietx.org/using/qpa.html">QPA</a></span></li>
     <li><strong>Series</strong><span>Sequential refinement with warm start, run in both directions to catch a trajectory that depends on the order. <a href="https://rietx.org/using/series.html">Series</a></span></li>
     <li><strong>A report, not just Rwp</strong><span>Where the misfit is, which parameters the fit cannot separate, and what to try next. <a href="https://rietx.org/using/report.html">FitReport</a></span></li>
