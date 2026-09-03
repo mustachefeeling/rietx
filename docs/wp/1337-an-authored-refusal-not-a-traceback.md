@@ -123,7 +123,8 @@ lands first.
 ## Tasks
 
 - [ ] A synthetic Pawley fixture that genuinely floors a width candidate —
-      without it #244 cannot be pinned. Take the reporter's offer if cheaper.
+      without it #244 cannot be pinned. Decided 2026-09-03: take the
+      reporter's offer to build it.
 - [ ] Establish whether the two builds' row-count disagreement is the Pawley
       restraint block in `model/rows.py::layout()`; fix at the layout, not at
       the column copy, if so.
@@ -163,4 +164,4 @@ Pawley fixture's `summary()` returns.
   Re-checked the same day against the tree: the bound refusal is documented
   (seven refusals, not three) and made, on the target's own bounds; the defect
   is that a DOF target's coordinates are not reached. Test modules named as
-  they exist.
+  they exist. Decided the same day: the reporter builds the Pawley fixture.

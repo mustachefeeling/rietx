@@ -117,7 +117,8 @@ What worked was noticing that one row was in the wrong file and moving it,
 which will not always be available. **And the incentive runs the wrong way:
 the cheapest way to pass is to delete someone else's prose.**
 
-Four options, and the choice is the maintainer's. Split the largest files, as
+Four options; **decided 2026-09-03: warn first**, the rest when the next row
+lands in a near-full file. Split the largest files, as
 #111 does for `diagnostics.md` (35 914 → 32 125 + a 9 736 B
 `diagnostics-projects.md`) on a real seam, import-time versus fit-time codes —
 but `SKILL.md` cannot be split that way, being the routing body. Raise the
@@ -145,8 +146,9 @@ even though none depends on it formally.
       type-level roots widen.
 - [ ] The private-corpus check, per tag, with its liveness guard, and the
       reason the chosen classification rule was preferred written beside it.
-- [ ] Decide the cap policy — warn-at-95 %, a split, a raise, or a
-      combination — and record the decision where the caps live.
+- [ ] Cap policy, decided 2026-09-03: a CI warning at 95 % of each cap lands
+      now; split versus raise is decided when the next row lands in a
+      near-full file, and recorded where the caps live.
 - [ ] Whatever is chosen, make the near-full state visible to a contributor
       before they write, not after CI.
 - [ ] Tests: all three land as tests, and are expected **green on the tree as
@@ -178,4 +180,5 @@ deliberately broken fixture of each kind fails.
 
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issues #238,
   #241, #247). The cap table was re-measured rather than copied: `SKILL.md`
-  now has 22 B of headroom, not the 34 the issue reported.
+  now has 22 B of headroom, not the 34 the issue reported. Decided the same
+  day: warn at 95 % first, split versus raise deferred to the next row.

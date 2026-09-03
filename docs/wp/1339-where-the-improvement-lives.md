@@ -113,8 +113,12 @@ is a design call to take rather than accept.
    point in parameter space. This one is about **where in the data** an
    improvement lives relative to where its physics says it must.
 
-Whether (3) is a `Diagnostic` or report-only output is the decision the
-contributor asked for and has not been given.
+**Decided 2026-09-03 by the maintainer**: asks (1) and (2) together, the NiO
+case as acceptance (the pattern to be obtained with permission — the task
+below), and (3) as **report-only output** — a number the reader judges, not
+a `Diagnostic`, because a diagnostic needs a threshold and the package
+reports evidence rather than verdicts. The contributor's PR offer for (1)
+and (2) is accepted.
 
 ## Non-goals
 
@@ -138,8 +142,9 @@ contributor asked for and has not been given.
       external check quoted from the issue.
 - [ ] The split-family enumerator and the windowed Δχ² share, for two nested
       models.
-- [ ] Decide `Diagnostic` versus report-only for the disagreement case, and
-      write the reason down.
+- [ ] The disagreement case as report-only output (decided 2026-09-03: a
+      number the reader judges, never a `Diagnostic` with a threshold); write
+      the reason where the number lives.
 - [ ] Acceptance on the NiO pair: the localisation test must return the
       negative share (~−28 % on 6.2 % of points) that reversed the answer, and
       the check must be able to fail — a genuinely localised improvement on a
@@ -177,4 +182,5 @@ The pattern is not in the repo today.
   Re-checked the same day against the tree: there is no function to lift —
   the cumulative is one line in `run` and the difference is browser
   JavaScript; the NiO pattern is not in the repo, so acceptance rests on a
-  constructed pair.
+  constructed pair. Decisions recorded the same day: scope is (1) and (2)
+  with NiO as acceptance, (3) is report-only.

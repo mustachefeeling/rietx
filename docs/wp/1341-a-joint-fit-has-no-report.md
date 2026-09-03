@@ -51,11 +51,12 @@ and a second-class citizen in its own reporting.
 does not assume all three are oversights: `max_shift_over_esd` across
 histograms with different point counts and weights may have no agreed
 definition, and the report's region logic may be genuinely single-histogram in
-its assumptions. So the first job of this WP is to answer *which of the three
-are intended limits and which are simply unimplemented*, and to write the
-answer where a reader meets it — WP-1076's rule, one rank up: **a declared
-name is a claim, and an honest empty state is `None` with a reason, never a
-default that reads as an answer.**
+its assumptions. **The maintainer answered on 2026-09-03: none of the three
+is an intended limit; all are unimplemented.** What remains to write where a
+reader meets it is the one definitional question inside (3) — what
+`max_shift_over_esd` means across weighted histograms — under WP-1076's rule,
+one rank up: **a declared name is a claim, and an honest empty state is
+`None` with a reason, never a default that reads as an answer.**
 
 The ordering the reporter says would help most from outside is (2), then (3),
 then (1) — **an event log is the cheapest thing that makes a joint fit
@@ -94,10 +95,9 @@ Some constraints that shape (1) and (3):
 
 ## Tasks
 
-- [ ] Answer, on the record, which of the three gaps are intended limits.
-      `max_shift_over_esd` across weighted histograms is the one most likely
-      to be a real definitional problem; if it is, say so where the field is
-      declared rather than leaving `None`.
+- [ ] Decided 2026-09-03: none of the three gaps is an intended limit. Define
+      `max_shift_over_esd` across weighted histograms; if no definition holds,
+      say so where the field is declared rather than leaving `None`.
 - [ ] `events=` (and `cancel=`) on `MultiHistogramRefinement.fit`, carrying
       the histogram index in `data` the way `sequential.py` carries the series
       index — no new `EventKind`.
@@ -135,4 +135,5 @@ stated reason it cannot, and reports what the WP decided it reports.
   Checked on the tree: the four-member public surface is as reported, and
   `bound_findings` is already reached from `multi.py`, so the guard path is
   not what is missing. Re-checked the same day: 1312 owns #194 and is named;
-  test modules named as they exist.
+  test modules named as they exist. Decided the same day: none of the three
+  gaps is intended.
