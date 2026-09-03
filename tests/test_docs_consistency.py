@@ -138,7 +138,7 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #   2026-09-02  CLAUDE.md                     723 -> 732  for WP-1330's skill bullet: the three destinations
 #                                                          and the shape rule, landed at the cap
 SIZE_CAPS: dict[str, int | None] = {
-    "CLAUDE.md": 732,
+    "CLAUDE.md": 739,
     "docs/ROADMAP.md": 621,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,

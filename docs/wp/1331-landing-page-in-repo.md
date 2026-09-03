@@ -1,6 +1,8 @@
 # WP-1331 — The landing page enters the repository, and the data does not
 
-Milestone: unscheduled · Status: 🔄 2026-09-03
+Milestone: unscheduled · Status: ✅ 2026-09-03 — the private payload repository
+and its `SITE_DATA_TOKEN` secret are the maintainer's; the page publishes without
+them, animation panel dead
 Depends on: — (1003 soft: `DOCS_URL` and the Pages workflow are its)
 
 ## Goal
@@ -138,5 +140,79 @@ answers as the table above says for all six paths.
   asset.
 
 ## Handover log
+
+### 2026-09-03 — the page is in the repository, and it works served
+
+The landing page written the day before now lives in `docs/landing/` and is
+published by the same workflow that publishes the manual: `rietx.org/` is the
+page, `rietx.org/manual.html` is the manual, and nothing else moved. It was in no
+repository at all before this, and the contributor's observed series it animates
+still is not — that stays in a private repository the workflow fetches, behind
+ignore rules a test asserts in both directions.
+
+The part that was not planned is the part worth knowing. The page was authored as
+an Artifact *fragment*, and nobody had ever served `build.py --site`'s output: it
+had no charset, so every `·` and `°C` rendered as mojibake, and the payload fetch
+its own source comments described did not exist, so the animation never ran
+outside the artifact. Both were found by serving the built site and looking at it,
+not by reading the diff. A move that had been treated as a `git mv` was in fact
+three defects deep.
+
+**Done.** Thirteen files into `docs/landing/`, `data/` and the built pages left
+out. Four `.gitignore` rules, two of which stop the payload being published and
+one of which stops the four figures being hidden. `root_doc = "manual"`,
+`index.md` → `manual.md`, conditional `html_extra_path`. `pages.yml` fetches the
+payload, builds the page, then builds the manual. The `--site` build gained a
+document skeleton and a real fetch. Three links in the page that meant "the
+manual" and pointed at the site root. `examples/fap_lab.py` and
+`tests/data/fluorapatite.cif`. `tests/test_landing.py`, thirteen tests. The
+manual's TeX guard stopped policing the page copied in beside it.
+
+**Measured** (`[dev]` venv, darwin/arm64, no other suite running — `pgrep`
+checked):
+
+- Fast selection on the merged tree: **4083 passed, 122 skipped**, 2:13. The WP
+  adds **15** tests: `tests/test_landing.py` 13 and `tests/test_examples.py`
+  4 → 6. On a checkout **without** the payload — which is CI, and a fork — that is
+  **14 passes and 1 skip**, not 15 passes: `test_the_inline_build_stays_a_fragment`
+  needs a payload to have an inline build to check. Measured both ways by moving
+  `data/` aside: 19 passed with it, 18 passed + 1 skipped without.
+- The full selection did **not** run, and should not: no `src/` file changed, so
+  nothing here can move a measured number (`tests/CLAUDE.md` § Running, rung 3).
+- `git check-ignore --no-index`, one path at a time: the six paths answer as the
+  Context table says. The guard was broken on purpose once — deleting the
+  `docs/landing/preview.html` rule turns the test red with "git tracks it,
+  expected ignored".
+- `examples/fap_lab.py`: converged, Rwp = 0.0893, GoF = 1.60, a = 9.37228(10) Å,
+  c = 6.88626(9) Å, 3.7 s. The numbers the page prints, now from a script the
+  suite runs rather than from beside it.
+- The built site served over http: `/` is the page with the animation running
+  (readout `24/275 · 28 min · 300 °C · 0.2 % H₂ in N₂`, four legend entries),
+  `/manual.html` is the manual, no console errors but the browser's own
+  `/favicon.ico` probe.
+
+**Gotchas.**
+
+- `html_extra_path` must stay conditional. `-W` turns a missing entry into an
+  error and `tests/test_manual.py` builds the manual on every run, so an
+  unconditional entry breaks the suite on any checkout that has not built the
+  page.
+- The two builds are not interchangeable. `build.py` must keep emitting a
+  *fragment* (the Artifact runtime refuses a file with its own `<html>`) and
+  `--site` must keep emitting a document. `tests/test_landing.py` pins both.
+- Anything that walks the manual's build output now sees pages Sphinx never
+  rendered. One guard already had to learn that; a new one should exclude
+  `COPIED_IN` rather than widen what it treats as markup.
+- The page's own README is the file map and the source of its numbers. It is a
+  record now, not a plan.
+
+**Next**, and only the maintainer can do the first: create the private payload
+repository `yue-here/rietx-site-data` with `demo.json` and `transcript.json` in
+it, and add a fine-grained read-only token as the repository secret
+`SITE_DATA_TOKEN`. Until then every push publishes the page with a dead animation
+panel — the workflow skips the fetch rather than failing, so nothing goes red to
+say so. Then: point the `rietx.org` DNS/Pages config at the built site if it is
+not already, and decide whether the rig header's "model to confirm" should read
+Claude Sonnet 5, which `data/transcript.json` already supplies.
 
 - **2026-09-03** — created.
