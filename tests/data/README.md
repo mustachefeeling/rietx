@@ -261,8 +261,14 @@ cell. They come from a published refinement whose stated method *is* the
 feature, so `tests/test_acceptance_wavelength.py` asks "does rietx reproduce a
 published refinement that required this", not "does the new parameter move".
 
-**Reference values, published.** Gaultois *et al.*, *J. Phys.: Condens. Matter*
-(2013), ms. CM/461205 — the combined refinement of these two histograms:
+**Reference values, published.** Gaultois *et al.*, "Structural disorder,
+magnetism, and electrical and thermoelectric properties of pyrochlore
+Nd₂Ru₂O₇", *J. Phys.: Condens. Matter* **25** (2013) 186004,
+[doi:10.1088/0953-8984/25/18/186004](https://doi.org/10.1088/0953-8984/25/18/186004)
+(preprint [arXiv:1301.6661](https://arxiv.org/abs/1301.6661)) — the combined
+refinement of these two histograms. That paper's A-site substitution, "Ru
+substitutes on the Nd-site up to 7.0(3)%", is why a refinement of this specimen
+carries a complementary Nd/Ru occupancy tie:
 
 | quantity | published |
 |---|---|
