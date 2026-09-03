@@ -221,3 +221,61 @@ series **returns** what completed, with `SEQUENTIAL_CANCELLED`.  Note that
 and raises `TypeError`, and per-stage Rwp lives on the `stage_end` events of the
 shared `EventStream` instead (present on **637 of 637** payloads in one run,
 where `StageResult` carries no `rwp` field at all).
+
+Where `stage_reports=True` *does* apply — the single `Refinement.fit()` calls of a batch — it
+is expensive, and the name suggests only that it adds output.  On the bundled NAC fixture it
+cost **6.5×**: 1.923 s against 0.296 s, median of three, with Rwp identical to six decimal
+places, so it changes nothing about the refinement.  `cProfile` puts 75 % of the fit inside
+`_stage_report`, whose March-Dollase texture and Stephens strain analyses re-run at *every*
+stage and each cost more than the optimiser step they describe; the solve itself is 23 %.
+Sample it — the first fit, the last, anything you will plot — rather than setting it on every
+fit of a long run.
+
+That cost also sits **outside** the stage brackets, which makes one natural way of totalling a
+run wrong.  Σ(`stage_start`→`stage_end`) is 11 % of wall clock with stage reports on and 50 %
+with them off, and the bracketed total is unchanged between the two (0.225 s against 0.223 s)
+because it only ever covered the solve.  The log is not missing the time —
+`fit_start`→`fit_end` accounts for ~100 % either way — so take a fit's cost from that span,
+and never from a sum of per-stage durations.
+
+## Microstrain evolves along a chain — leave it free, or it lands in the fractions
+
+Hold the **instrument** profile after calibrating it once, and let the **per-phase** width
+terms refine per pattern.  That is not a stylistic preference: in an in-situ reaction, an
+electrochemical cycle or a temperature ramp, microstrain and domain size genuinely change
+along the series, and a chain that holds sample broadening fixed has nowhere to put that
+change.  It goes into whatever *is* free — usually the scales, and therefore the weight
+fractions, which is the one number such a run is normally for.  Measured on an 11-BM
+cryostat ramp, a phase's `lor_strain` rose 0.019° → ~0.11° toward low temperature,
+reproducibly and in both directions; a chain with that term pinned would have had to absorb
+the same intensity redistribution somewhere else.
+
+The mirror-image mistake is a **numeric floor carried across instruments**.  A microstrain or
+size floor is a hedge against the term collapsing to zero and capturing no broadening at all,
+and it has to be re-derived from the peak widths of the data in front of you.  A 0.02° floor
+that behaved well on lab Cu Kα data was reused on 11-BM, where the instrumental width is one
+to two orders of magnitude smaller; it pinned `lor_size` **and** `lor_strain` to the bound on
+every pattern of a series and inflated Rwp 3–4× (0.546 with the floor, 0.148 without, same
+pattern and seed), while `BOUND_HIT` fired on the width paths on essentially every fit.  The
+package's own suggested remedy for the resulting misfit — free `instrument.profile.u` — did
+not help (0.546 → 0.544).  So: measure the FWHM of two or three strong isolated peaks off the
+**observed** data, keep any floor well below the narrowest of them, and say which number you
+used and why.  A floor at or above the instrumental width is not a floor, it is the profile.
+
+## A symmetry test that has not been run against a null is not yet a test
+
+A trajectory that ends in "the symmetry changes at T\*" needs the claim checked against a
+compound, or a sub-series, where the symmetry is reported **not** to change — and the check
+has to be able to fail.  The reason is specific and it defeated two candidate methods on one
+tranche: a lower-symmetry model carries freedom that a naive parameter count does not see —
+more resolved reflections, and more atoms once sites split — so a bare ΔBIC comparison tilts
+toward the lower symmetry regardless of the physics.  Applied to a cubic control it "found" a
+distortion below 235 K in a compound reported cubic throughout.
+
+What survived that control was a two-part criterion: a jump in Rwp(T) against its own
+baseline scatter, **confirmed by the shape of the ΔBIC curve** — a step followed by a new
+plateau, rather than a smooth decay.  Write the threshold down before running it, report the
+null arm's result next to the positive one, and if the null fires too, say that the detector
+measured flexibility rather than physics.  A shuffled-coordinate run on the same patterns is
+the cheapest null available when no second compound is to hand: on one series it gave ~12×
+the β scatter and ~3× the Rwp scatter of the true ordering.
