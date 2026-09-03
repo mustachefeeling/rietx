@@ -246,8 +246,12 @@ def _span_basis(jac: np.ndarray, cols: list[int]) -> np.ndarray:
     column demonstrably spans nothing; a NaN column spans something *unknown*,
     so dropping it would quietly narrow the span and understate every number
     built on it — the direction that silences a guard rather than tripping it.
-    The caller withholds instead: :func:`block_projection_r2` returns ``{}``
-    on a non-finite block (WP-1130).
+    A caller that *fires* on a threshold withholds instead:
+    :func:`block_projection_r2` returns ``{}`` on a non-finite block or
+    nuisance set (WP-1130).  The two callers that only *rank*
+    (:func:`one_parameter_gains`, ``strategy.suggest``) make no such check, so
+    read this as a property of that one caller and not of this function's
+    every consumer.
     """
     cols = [c for c in cols if np.any(jac[:, c])]
     q, _ = np.linalg.qr(jac[:, cols])
@@ -311,7 +315,7 @@ def block_projection_r2(jac: np.ndarray, block: list[int],
     for k, path in targets:
         j = jac[:, k]
         denom = float(j @ j)
-        if not denom > 0.0 or not np.isfinite(denom):
+        if not (denom > 0.0 and np.isfinite(denom)):
             continue
         resid = _off_span(q, j)
         out[path] = float(np.clip(1.0 - float(resid @ resid) / denom, 0.0, 1.0))

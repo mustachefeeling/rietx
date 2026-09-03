@@ -390,13 +390,17 @@ def cell_window(name: str, value: float, lo: float, hi: float,
     out_lo = window_lo if lo == -np.inf else lo
     out_hi = window_hi if hi == np.inf else hi
     if not out_lo < out_hi:
-        # unreachable from a validated Parameter, which enforces
-        # ``min <= value <= max``; kept because the caller hands scipy this
-        # pair directly and a degenerate one is what WP-1130 came here for
+        # The window branches above cannot produce this (both clamp around
+        # ``value``), so it is always a *stored* bound pair that has no
+        # interior: ``min == max`` passes the schema's ``min <= value <= max``
+        # and reaches here whenever such an entry is also free.  Kept because
+        # the caller hands scipy this pair directly and a degenerate one is
+        # what WP-1130 came here for.
         raise ValueError(
             f"{where}: the window for value {value} is degenerate, "
-            f"[{out_lo}, {out_hi}].  A stored bound that excludes the stored "
-            "value is the only way to reach this; refuse the model.")
+            f"[{out_lo}, {out_hi}].  A stored bound pair with no interior "
+            "(min == max) on a free parameter is the way to reach this; "
+            "fix the model rather than refining against it.")
     return out_lo, out_hi
 
 

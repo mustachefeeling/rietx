@@ -915,6 +915,17 @@ and Gap C decides whether the diagnostic is buildable at all.
       is a bracket to look at and never a reference the co-refined answer should
       match — with § Gap C's numbers as the evidence. The channel rule is
       1133's.
+- [ ] **`worst_absorption` reports 0.0 where it means "not measured"** — found
+      by the 2026-09-04 review pass and declined there as outside its diff, but
+      it is this WP's own subject. `block_projection_r2` now withholds by
+      returning `{}`, and `report/background.py` renders an empty table as
+      `absorption={}` with `worst_absorption=0.0`, which reads as "the
+      background can imitate nothing". The same happens whenever
+      `Identifiability` is built for another reason and the absorption table is
+      simply absent. No regression against the `nan` it replaced — both are
+      silent — but it is WP-1076's defaulted-`False`-as-an-answer shape exactly,
+      and the honest fix is `worst_absorption: float | None` plus a `None` arm
+      in the consumers. A schema change, so it wants its own commit.
 - [ ] Tests. The selector's unit tests go with the selector (🛑). What is left
       is worth having on its own: the **corrected synthetic** of § Gap C is the
       first fixture in this repo with a *known* background and the real net

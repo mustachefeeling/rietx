@@ -309,6 +309,7 @@ the next, one commit apart, because each pattern warm-starts from its
 predecessor and a different seed changes how many recovery rungs the next one
 needs (§9b). The per-fit bound above does not survive a chain in either
 direction.
+
 **8.21 A model-selection test can bless a change that makes half your phases
 stop being measurements.** On a four-phase in-situ scan, the majority phase's
 lines were visibly mis-shaped and the cause was real: its control file modelled
