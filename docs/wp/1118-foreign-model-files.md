@@ -1,8 +1,8 @@
 # WP-1118 — foreign model files: read a refinement in, write one back
 
-Milestone: unscheduled · Status: 🔄 2026-09-01 — the TOPAS `.inp` reader
-landed (PR #98); the model-format registry, the other two readers and every
-writer remain
+Milestone: unscheduled · Status: 🔄 2026-09-03 — the TOPAS `.inp` reader
+landed (PR #98) and the FullProf `.pcr` reader (PR #111); the model-format
+registry, the GSAS `.EXP`/`.PRM` reader and every writer remain
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -243,7 +243,7 @@ missing from its arm applies unchanged. A new format token is spelled in
 - [x] TOPAS `.inp` reader — the format with the evidence behind it.
 - [ ] GSAS `.EXP` + `.PRM` reader, and make `tests/test_acceptance_fap.py` take
       its protocol from the reader instead of from transcribed constants.
-- [ ] FullProf `.pcr` reader.
+- [x] FullProf `.pcr` reader. — PR #111, merged 2026-09-03 (`b717cc98`)
 - [ ] Origin-choice honesty: `SPACE_GROUP_ORIGIN_ASSUMED` when a multi-origin
       symbol resolves unpinned, and the TOPAS suffixes accepted on input
       (issue #101; lift `normalize_space_group` from the #98 draft).
@@ -293,6 +293,174 @@ work this WP does.
   § "Learned in v0.2".
 
 ## Handover log
+
+### 2026-09-03 — the FullProf `.pcr` reader landed (PR #111)
+
+A FullProf `.pcr` control file now opens the same way a TOPAS `.inp` does.
+`rietx.io.projects.read_fullprof_pcr` returns what the file states — phases,
+cell, sites, displacement parameters, the magnetic blocks, the run's own
+agreement figures — and `projects.fullprof.to_structure` builds a `Structure`
+from it carrying the **file's own refine flags**, decoded out of FullProf's
+`10·n + multiplier` codewords. The codeword is the whole point of the format for
+this WP's purpose: it is where a `.pcr` records both *which* parameters were
+refined and *which of them moved together*, and neither is recoverable from a
+CIF plus a pattern. Where a tie is one rietx already carries — a single atom's
+coordinates following its own site-symmetry DOF — it is reproduced; where it is
+not, the reader says so by name rather than dropping it, and says whether the
+reader could restore it with one `Refinement.tie_equal` call. The other format
+is unmoved: `.EXP`/`.PRM` still has no reader, and there is still no writer in
+any direction.
+
+*Reviewed, not written, in this session.* PR #111 ran six review rounds on the
+`/pr-review` bench between 2026-08-26 and 2026-09-03 (the PR opened 2026-08-24); this entry is written at
+the merge, from those rounds and from the merged tree, and is the handover the
+step-9 clause added by the 2026-09-02 repair session says a contributor's
+`WP-NNNN:` commits owe.
+
+*Done* — all of it PR #111 (`mustachefeeling/fullprof-pcr-reader`, head `a99ce2ef`), merged
+2026-09-03 as `b717cc98`, +4462/−35 across 14 files:
+
+- `src/rietx/io/projects/fullprof.py` (2326 lines) — the reader. The package
+  `__init__` gains `read_fullprof_pcr` and `FullProfPcrError` and nothing else;
+  `to_structure` stays module-level, which is the shape #98 chose so the two
+  formats' conversions cannot shadow each other through the package export.
+- The answer's shape, matching the TOPAS reader's: `FullProfModel` is *what the
+  file states*, `to_structure(model, *, nuclear_only=False,
+  drop_parameter_ties=False, diagnostics=None)` is the conversion. `Biso` is
+  FullProf's B and rietx's `biso` is also B — no 8π² conversion — and
+  `species_raw` sits beside `species` on every `FullProfAtom`, so the spelling
+  repair is checkable against the file structurally, not only through a
+  diagnostic.
+- **53 refusals, each naming file and line** through `FullProfPcrError`
+  (a `ValueError`, so `io/CLAUDE.md`'s "raise naming the file, never the
+  parser's exception" holds). The reader handles the single-pattern
+  constant-wavelength layout completely and refuses the rest by name.
+- Four diagnostics, each with a row in all three synced skill copies:
+  `FULLPROF_SPECIES_NORMALISED`, `FULLPROF_ORIGIN_CHOICE`,
+  `FULLPROF_OCCUPANCY_UNCHECKED`, `FULLPROF_TIE_DROPPED`. The skill's
+  `references/diagnostics.md` was over its own cap on `main` (35 914 of 36 000
+  B); this PR splits the project-reader codes out into
+  `references/diagnostics-projects.md`, taking that file to 32 125 B and the new
+  one to 10 273 B. **That split is what buys `diagnostics.md` its next few
+  years, and it is an argument for landing this PR that has nothing to do with
+  FullProf.**
+- `tests/test_projects_fullprof.py` (1934 lines, 85 tests) — every fixture
+  synthesized inline, because no real `.pcr` may be vendored, and every line in
+  them quoted in a comment from a named archive file and line.
+- `tests/data/README.md` — the six-file corpus section, which is the only place
+  the real-file evidence is checkable, plus **two limits recorded rather than
+  smoothed over**: the corpus contains no cross-atom tie at all, and its cell
+  ties are tetragonal and cubic only. Both are why the corresponding rules are
+  derived from symmetry and from what a restoring call can express, rather than
+  from what six files happen to contain.
+- `ATTRIBUTION.md` — one row. FullProf is closed and no FullProf source was
+  consulted; the format's facts come from six real archive files plus
+  Rodríguez-Carvajal's manual and the ILL school notes already cited. No `.pcr`
+  is vendored and nothing enters `src/rietx/data/`, so the wheel's licence fence
+  is not reached.
+
+*Measured* (merged tree `a99ce2ef` onto `origin/main` `b2ab4950`, a
+fast-forward, so CI measured the same tree; `/pr-review` bench `.venv`
+`[dev,jax]`, python 3.12.12, darwin/arm64, nothing else running): the **full
+suite**, `-n auto --dist loadgroup` with no marker, is **4452 passed, 80
+skipped** in 35m21s. `ruff check src tests examples` clean. The fast selection
+was not run separately and no collection delta is quoted here — the full run
+covers it, and round six's `+139` was measured against a `main` that has since
+moved.
+
+The full suite was run **once, on the final tree**, and that tree is the one
+that merged: after the contributor's force-push (below) the merged commit's
+tree object was compared against the tested one and they are the same object,
+`b2dc6a8f22ee59ab1ff2bb89535c9a8f4d5db79f`, so no re-run was owed.
+
+*In flight*: nothing of this WP. PR #111 was the last open contributor PR
+against it.
+
+*Gotchas*:
+
+- **A coordinate tie is restored through the DOF path, not the column path.**
+  `atom_tie_recoverability` says whether `FULLPROF_TIE_DROPPED`'s group can be
+  re-declared, and the call it needs is `tie_equal` on
+  `phases.i.atoms.j.dof.k` for a coordinate group but on the column path
+  (`.biso`, `.occ`) for a Biso or Occ group — because a coordinate column
+  already follows its own dof by site symmetry, and root `CLAUDE.md`'s
+  "symmetry outranks a user tie" makes `tie_equal` on `.z` **refuse**. The
+  diagnostic's message named the column spelling on both arms until round five;
+  it now names the DOF spelling where that is what works, and the skill row
+  carries the raising example so a driving agent meets the refusal before it
+  hits it.
+- **The split is derived from what a restoring call can express, never from the
+  corpus.** All six archive files contain single-atom ties only, so the corpus
+  reaches neither arm of the report-versus-refuse decision. A rule inferred
+  from it would have been an accident. The same reasoning made
+  `cell_parameter_ties` ask `crystallography.symmetry.cell_constraints` rather
+  than trust incidence: the archive's cell ties are tetragonal and cubic only,
+  where the space group masks the defect — exactly the limit
+  `TOPAS_CELL_COUPLING_DROPPED` hit the sibling reader over, for the same
+  reason.
+- **A `.pcr`'s own comments lie, in two ways, and the parser trusts neither.**
+  A column's `!` header text changes with `Jbt` (`Ang` and `Mom` share a
+  column), so header text is discarded before the walk and the reader keys on
+  position; and a phase's inline `!Phase No.` can disagree with block order, so
+  the reader counts blocks. A parser keyed on the header breaks on exactly the
+  magnetic phase.
+- **`ATZ` and `Pr3` are quantities, not counts.** Reading the phase-control
+  line with `cur.ints()` throughout would refuse every real file — hence
+  `_PHASE_INTEGER_FIELDS` naming which columns are integers.
+- **A negative `Biso` is a real FullProf outcome, and it is refused rather than
+  repaired.** One archive file carries O1 at −0.67266 Å². rietx's zero bound
+  cannot clamp it without changing every high-Q intensity, so the file is
+  refused by name; this is the `io/` rule that a reader may repair only where
+  it can say what it did, applied where the repair would not be sayable.
+- **FullProf's `Occ` is degenerate with the phase scale**, so only the *ratio*
+  between sites is recoverable and a phase whose ratios disagree is refused.
+  That ratio test does double duty: it is also what *verifies* the origin-choice
+  preference for a bare symbol (`F D -3 M` → `F d -3 m:2`) rather than trusting
+  it.
+- **A magnetic phase reads but does not build.** Present alongside nuclear
+  phases, `to_structure` refuses rather than returning the nuclear subset
+  silently.
+- **The skill's caps are now a live constraint, and a merge can cross one that
+  neither branch crossed.** `references/diagnostics.md` sat at 35 914 of 36 000
+  B on `main` before this PR's split. Two additions can each be under a cap
+  while their merge is over it, and branch protection here is `strict: false`,
+  so nothing but a review on the merged tree ever measures that — seen for real
+  on #233 the same week.
+
+- **A contributor's commit identity is a merge gate, and nothing checks it.**
+  `58efff0a` on this branch ("merge main") was authored `m <m@m>` from a
+  misconfigured local `user.email`. GitHub attributes a commit to whoever owns
+  the address, `m@m` is verified on a **real and unrelated account**, and that
+  account was therefore listed among this PR's participants. It was caught at
+  review and fixed by a rebase before the merge; `main` had never carried the
+  address, and after the force-push the branch is 11 commits under one
+  identity. Two things make this worth a rule rather than an anecdote. It is
+  **invisible to every check we run** — CI, `ruff`, the suite and branch
+  protection are all indifferent to authorship, and the GitHub UI shows the
+  contributor's avatar on the PR while the commit underneath carries someone
+  else. And it is **cheap before the merge and expensive after**: removing it
+  from `main` would mean rewriting merged history behind the two protection
+  toggles only the maintainer can operate. So a `/pr-review` pass over an
+  outside PR should read `.commit.author.email` and the **resolved**
+  `.author.login` per commit, not the PR's author field. A second failure mode
+  sits beside it and reads the same way in the UI: an address that is not
+  verified on the contributor's account resolves to **nobody**, so the work
+  lands on `main` credited to no one — four commits across #111 and #233 were
+  in that state, and the fix there is verifying the email, not rewriting
+  anything.
+- **`SKILL.md` came out of this with 11 bytes of headroom** — 32 989 B against
+  `test_skill.py`'s 33 000 cap, because #242 landed in the body while this
+  branch was in flight. This PR's `diagnostics.md` split fixes the *references*
+  side and buys that file years; the body itself now has room for nothing, and
+  the next addition to it needs the same treatment first.
+
+*Next*: unchanged — the **registry-shape task** is still the single gate on the
+`.EXP`/`.PRM` offer (#103), the `STR(...)` decision (#107) and
+[1314](1314-mfile-reader.md)'s Jana reader, and still settles whether
+`read_topas_inp` and `read_fullprof_pcr` become top-level exports with a
+`capabilities()` arm. Two of the three readers now exist, which makes the
+registry's shape a question with two real instances to answer it rather than
+one.
 
 ### 2026-09-01 (2nd session) — the TOPAS `.inp` reader landed (PR #98, reconstructed post hoc)
 
