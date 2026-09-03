@@ -1432,6 +1432,78 @@ def test_a_recoverable_cross_atom_tie_reports_rather_than_refusing(tmp_path):
             "phases.0.atoms.1.biso"]
 
 
+#: A coordinate codeword shared by two sites that each have **exactly one** DOF,
+#: and for both of them that DOF *is* z — so the correspondence between the two
+#: paths is forced rather than picked, which is the `True` branch of
+#: `atom_tie_recoverability` no other fixture reaches.  `W` is moved off
+#: (0, 0, 0) — where it has no freedom at all, which is what the refusing
+#: fixture below relies on — to (0, 0, 0.1), a 1-DOF position; its `Occ` moves
+#: 0.25 -> 0.50 with it, because the site multiplicity doubles and
+#: `occupancy_factor` requires every site's `Occ x M_general/M_site` to agree.
+_SHARED_Z_SINGLE_DOF_SITES = """\
+Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1
+                  0.00     0.00    81.00     0.00      0.00
+W      W       0.00000  0.00000  0.10000  0.22402   0.50000   0   0   0    1
+                  0.00     0.00    81.00     0.00      0.00
+O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1
+                  0.00     0.00     0.00     0.00      0.00
+O2     O       0.30294  0.30294  0.34087  0.18463   1.00000   0   0   0    1
+                  0.00     0.00     0.00     0.00      0.00"""
+
+
+def test_a_recoverable_coordinate_tie_restores_on_the_dof_path(tmp_path):
+    """The other recoverable arm, and the spelling its message must name.
+
+    Round five found that the restoring call this arm promises is not writable
+    as a reader would naturally write it: the group description says ``Cr.z,
+    W.z``, but ``Refinement.tie_equal`` **refuses** ``phases.0.atoms.1.z``
+    because a coordinate column already follows its own ``dof`` by site
+    symmetry, and symmetry outranks a user tie.  Only the ``dof.k`` spelling
+    works.  No fixture reached this branch before — the one test that *makes*
+    the call made it on ``biso``, where the column path is the parameter path —
+    so the gap survived three rounds of review.
+
+    This test asserts both halves on the same structure: that the branch
+    returns ``True``, and that the call named in the diagnostic is the one that
+    succeeds while the obvious one raises.  It also removes an ambiguity in the
+    DOF-0 fixture below, which cannot tell a computed ``0`` from a swallowed
+    exception because ``dof_count``'s ``except Exception: return None`` also
+    yields ``False`` — this is the one case that must come back ``True``, so a
+    signature change in ``coordinate_basis``/``stabilizer_rotations`` fails
+    here rather than going quiet.
+    """
+    pcr = _pcr(tmp_path, "tiedz.pcr", _phase(atoms=_SHARED_Z_SINGLE_DOF_SITES))
+    model = read_fullprof_pcr(pcr)
+    carried, dropped = nuclear_parameter_ties(model.phases[0])
+    assert carried == []
+    assert dropped == ["parameter 8: Cr.z(x+1), W.z(x+1)"]
+    assert atom_tie_recoverability(model.phases[0]) == {
+        "parameter 8: Cr.z(x+1), W.z(x+1)": True}
+
+    # Reports rather than refuses, and needs no flag to get past a refusal.
+    diagnostics: list = []
+    structure = to_structure(model, diagnostics=diagnostics)
+    reported = [d for d in diagnostics if d.code == "FULLPROF_TIE_DROPPED"]
+    assert len(reported) == 1
+    assert reported[0].level == "warning"
+    assert reported[0].where == ["phases.0"]
+    assert "drop_parameter_ties=True:" not in reported[0].message
+    # The message must name the DOF spelling, because the column one raises.
+    assert "dof.k" in reported[0].message
+
+    instrument = rx.Instrument(source=NeutronSource(wavelength=1.5406))
+    # The path a reader would copy out of the group description is refused...
+    with pytest.raises(ValueError, match="symmetry outranks a user tie"):
+        rx.Refinement(structure.model_copy(deep=True),
+                      instrument.model_copy(deep=True)).tie_equal(
+            ["phases.0.atoms.0.z", "phases.0.atoms.1.z"])
+    # ...and the one the message names works.
+    assert rx.Refinement(
+        structure.model_copy(deep=True), instrument.model_copy(deep=True)
+    ).tie_equal(["phases.0.atoms.0.dof.0",
+                 "phases.0.atoms.1.dof.0"]) == ["phases.0.atoms.1.dof.0"]
+
+
 def test_an_ambiguous_cross_atom_tie_still_refuses(tmp_path):
     """Tying two sites' *coordinates* is the case that has to refuse.
 

@@ -1776,14 +1776,19 @@ def atom_tie_recoverability(phase: FullProfPhase) -> dict[str, bool]:
       cross-atom pair of them.
     * a group in **one** coordinate column where every site involved has
       **exactly one** DOF — the site's only freedom is ``dof.0``, so the
-      correspondence between the two paths is forced rather than picked.
+      correspondence between the two paths is forced rather than picked. Note
+      the call must be written on the ``dof.k`` paths, not the ``.x``/``.y``/
+      ``.z`` columns the group description names: a coordinate column already
+      follows its own dof by site symmetry, and ``tie_equal`` refuses to
+      outrank that. The three user-facing strings say so.
 
     ``False`` where writing the call would mean choosing:
 
-    * a group spanning **different** columns on different atoms (``A.x`` to
-      ``B.y``): coordinates refine through site-symmetry directions, and the two
-      sites' ``dof`` bases are not the same direction, so which index stands for
-      the tied direction is a decision the file does not make.
+    * a group spanning **different** columns (``A.x`` to ``B.y``, and equally
+      ``A.x`` to ``A.y`` on one atom — the branch is ``len(columns) != 1``):
+      coordinates refine through site-symmetry directions, and two ``dof``
+      bases are not the same direction, so which index stands for the tied
+      direction is a decision the file does not make.
     * a coordinate group touching a site whose DOF count is not 1 — with two or
       more DOFs the index correspondence is again a choice, and with none there
       is no path to tie.
@@ -2148,9 +2153,14 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                 f"would hand back a model with strictly more free parameters "
                 f"than the refinement this file records, with nothing raised. "
                 f"The tie can be re-declared one layer up, on the Refinement: "
-                f"`ref.tie_equal(['phases.{structure_index}.atoms.I.COL', "
-                f"'phases.{structure_index}.atoms.J.COL'])` for a +1 group, or "
-                f"`ref.tie(path, source, scale=multiplier)` for a signed one. "
+                f"`ref.tie_equal(['phases.{structure_index}.atoms.I.biso', "
+                f"'phases.{structure_index}.atoms.J.biso'])` for a +1 group in "
+                f"Biso or Occ, or the same call on the DOF paths "
+                f"(`phases.{structure_index}.atoms.I.dof.k`) for one in a "
+                f"coordinate column — a coordinate column already follows its "
+                f"own dof by site symmetry, so tie_equal refuses `.x` and takes "
+                f"`.dof.k`. `ref.tie(path, source, scale=multiplier)` for a "
+                f"signed one. "
                 f"Pass drop_parameter_ties=True to declare instead that the "
                 f"looser model is what you want.")
         for group in dropped:
@@ -2291,9 +2301,14 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
                          f"parameters than the refinement the file records. It "
                          f"is dropped rather than refused because it can be "
                          f"re-declared in one unambiguous call: "
-                         f"Refinement.tie_equal on the two parameter paths, or "
-                         f"Refinement.tie(path, source, scale=multiplier) for a "
-                         f"signed group"),
+                         f"Refinement.tie_equal on the two parameter paths — "
+                         f"the column paths (phases.i.atoms.j.biso, .occ) for a "
+                         f"Biso or Occ group, but the DOF paths "
+                         f"(phases.i.atoms.j.dof.k) for a coordinate group, "
+                         f"because a coordinate column already follows its own "
+                         f"dof by site symmetry and tie_equal refuses to "
+                         f"outrank that — or Refinement.tie(path, source, "
+                         f"scale=multiplier) for a signed group"),
                 where=[path]))
         for path, group in dropped_cell_ties:
             diagnostics.append(Diagnostic(
