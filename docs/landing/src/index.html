@@ -10,7 +10,8 @@
   --rule:#e6e0d8; --rule-strong:#d1c9bf;
   --accent:#c65d0a; --accent-ink:#a34c06; --accent-soft:#fdf0e3; --on-accent:#ffffff;
   --calc:#ff7f0e; --obs:#1c1917; --diff:#7a7a7a; --zero:#cfcfcf;
-  --p0:#1f77b4; --p1:#d62728; --p2:#2ca02c; --support:#aaa298;
+  --p0:#1f77b4; --p1:#d62728; --p2:#2ca02c;
+  --support:#6f6559; --support-2:#c2b7a6; --support-3:#e0d9ce;
   --atm-n2:#c9c2b8; --atm-h2:#7ea6d8; --atm-air:#e08a7a;
   --ok:#2a7d2a; --warn:#b5561b;
   --heat0:#ffffff; --heat1:#ffe2bd; --heat2:#ff7f0e; --heat3:#5a2106;
@@ -25,7 +26,8 @@
     --rule:#312a22; --rule-strong:#463d32;
     --accent:#ff9d4d; --accent-ink:#ffb679; --accent-soft:#2c1f12; --on-accent:#1c1917;
     --calc:#ff9d4d; --obs:#ece7df; --diff:#8f8f8f; --zero:#4a4a4a;
-    --p0:#6fb1ff; --p1:#ff7b7b; --p2:#6ede8a; --support:#7d7468;
+    --p0:#6fb1ff; --p1:#ff7b7b; --p2:#6ede8a;
+    --support:#d3c7b6; --support-2:#7a6d5c; --support-3:#443e36;
     --atm-n2:#4a443c; --atm-h2:#3f6a9c; --atm-air:#a6533f;
     --ok:#5fd45f; --warn:#ffa25c;
     --heat0:#15110d; --heat1:#5a2c0c; --heat2:#ff9d4d; --heat3:#ffeacb;
@@ -38,7 +40,8 @@
   --rule:#312a22; --rule-strong:#463d32;
   --accent:#ff9d4d; --accent-ink:#ffb679; --accent-soft:#2c1f12; --on-accent:#1c1917;
   --calc:#ff9d4d; --obs:#ece7df; --diff:#8f8f8f; --zero:#4a4a4a;
-  --p0:#6fb1ff; --p1:#ff7b7b; --p2:#6ede8a; --support:#7d7468;
+  --p0:#6fb1ff; --p1:#ff7b7b; --p2:#6ede8a;
+  --support:#d3c7b6; --support-2:#7a6d5c; --support-3:#443e36;
   --atm-n2:#4a443c; --atm-h2:#3f6a9c; --atm-air:#a6533f;
   --ok:#5fd45f; --warn:#ffa25c;
   --heat0:#15110d; --heat1:#5a2c0c; --heat2:#ff9d4d; --heat3:#ffeacb;
@@ -120,7 +123,7 @@ input[type=range]{flex:1;accent-color:var(--accent);min-width:120px}
   flex:none;width:43ch;font-variant-numeric:tabular-nums}
 .readout b{color:var(--ink);font-weight:500}
 .rig-body{display:grid;grid-template-columns:minmax(300px,5fr) minmax(0,7fr)}
-/* the pane: the brief pinned on top, the run's log streaming under it.
+/* the pane: the prompt pinned on top, the run's log streaming under it.
    absolute in its cell, so neither ever sizes the row -- the panels do */
 .tx-cell{position:relative;border-right:1px solid var(--rule);min-height:320px}
 .tx{position:absolute;inset:0;display:grid;grid-template-rows:auto minmax(0,1fr);background:var(--surface)}
@@ -129,10 +132,10 @@ input[type=range]{flex:1;accent-color:var(--accent);min-width:120px}
 .tx b{font-weight:600;color:var(--ink)}
 .tx .cut{color:var(--faint)}
 .tx .pending{color:var(--muted);font-style:italic}
-.brief{padding:14px 18px 15px;border-bottom:1px solid var(--rule);background:var(--surface-2);
+.prompt{padding:14px 18px 15px;border-bottom:1px solid var(--rule);background:var(--surface-2);
   font-size:.82rem;line-height:1.5;color:var(--ink-2)}
-.brief p{margin:0 0 7px;white-space:pre-wrap}
-.brief p:last-child{margin-bottom:0}
+.prompt p{margin:0 0 7px;white-space:pre-wrap}
+.prompt p:last-child{margin-bottom:0}
 .con{overflow:auto;padding:12px 18px 16px;font-family:var(--mono);font-size:.72rem;line-height:1.55;color:var(--muted)}
 .con .ln{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .con .ln.warn{color:var(--warn)}
@@ -158,9 +161,9 @@ input[type=range]{flex:1;accent-color:var(--accent);min-width:120px}
   .rig-head .ctl{flex-wrap:wrap;gap:8px 12px}
   .readout{flex:1 1 100%;width:auto;padding-left:46px;white-space:normal}
   .tx-cell{border-right:0;border-bottom:1px solid var(--rule);height:430px}
-  /* the brief scrolls on a narrow screen; a sticky fade says so without cutting a line dead */
-  .brief{max-height:190px;overflow:auto}
-  .brief::after{content:"";display:block;position:sticky;bottom:-15px;height:22px;margin-top:-22px;
+  /* the prompt scrolls on a narrow screen; a sticky fade says so without cutting a line dead */
+  .prompt{max-height:190px;overflow:auto}
+  .prompt::after{content:"";display:block;position:sticky;bottom:-15px;height:22px;margin-top:-22px;
     background:linear-gradient(transparent,var(--surface-2))}
 }
 @media (max-width:600px){
@@ -262,8 +265,8 @@ footer .note{flex-basis:100%;margin-top:8px;font-size:.82rem;color:var(--faint)}
       </div>
     </div>
     <div class="rig-body">
-      <div class="tx-cell"><aside class="tx" aria-label="The brief and the run log">
-        <div class="brief" id="brief"></div>
+      <div class="tx-cell"><aside class="tx" aria-label="The prompt and the run log">
+        <div class="prompt" id="prompt"></div>
         <div class="con" id="con" aria-live="off"></div>
       </aside></div>
       <div class="panels">
@@ -442,26 +445,34 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
   let YMAX = 0; for (let i = 0; i < OBS.length; i++) if (OBS[i] > YMAX) YMAX = OBS[i];
   let YMIN = Infinity; for (let i = 0; i < OBS.length; i++) if (OBS[i] < YMIN) YMIN = OBS[i];
   const F = D.frames, T_END = F[N - 1].tm;          // the plotted clock, minutes, pauses cut
-  const PH = D.phases, PC = PH.map((p, k) => p.support ? "--support" : `--p${k}`);
+  const PH = D.phases;
+  // The support phases share one taupe family, a shade each in payload order, so they read
+  // as a group and still separate.  Only the first two carry a legend entry: the third sits
+  // on the axis at 0 wt % through the whole series, so a label would name an invisible line.
+  const SUP = ["--support", "--support-2", "--support-3"];
+  const SUP_IDX = PH.map((p, k) => k).filter(k => PH[k].support);
+  const PC = PH.map((p, k) => p.support
+    ? SUP[Math.min(SUP_IDX.indexOf(k), SUP.length - 1)] : `--p${k}`);
+  const LEGEND_IDX = PH.map((p, k) => k).filter(k => !PH[k].support).concat(SUP_IDX.slice(0, 2));
   const WMAX = Math.ceil(Math.max(...F.map(fr => Math.max(...fr.wt))) / 10) * 10;   // top of the wt % axis
 
   /* ---------- transcript ---------- */
   const TR = await json("transcript-data", "data/transcript.json");
   const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const cutMarks = s => esc(s).replace(/\[…\]|\[\.\.\.\]/g, '<span class="cut">[…]</span>');
-  // the brief and the agent's prose are markdown: inline code, bold and headings render, nothing else does
+  // the prompt and the agent's prose are markdown: inline code, bold and headings render, nothing else does
   const md = s => cutMarks(s).replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>").replace(/^#{1,6} (.+)$/gm, "<b>$1</b>");
   const ATM_SHORT = a => a.indexOf("H") >= 0 && a.indexOf("N") >= 0 ? "H\u2082/N\u2082" : a;
   const SEG_AT = (() => { const m = {}; for (const g of D.segments) m[g.start] = g; return m; })();
-  function renderBrief(){
-    const el = $("#brief"), out = ['<div class="lbl">The brief</div>'];
+  function renderPrompt(){
+    const el = $("#prompt"), out = ['<div class="lbl">Prompt</div>'];
     if (TR && TR.prompt){
       if (TR.agent) $("#agentName").textContent = TR.agent;
       if (TR.model){ const m = $("#modelName"); m.textContent = "(" + TR.model + ")"; m.classList.remove("pending"); }
       if (TR.experiment) $("#expName").textContent = TR.experiment;
       for (const para of TR.prompt.split(/\n\n+/)) out.push(`<p>${md(para)}</p>`);
     } else {
-      out.push('<p class="pending">The contributor\'s brief, cut, goes here.</p>');
+      out.push('<p class="pending">The run\'s prompt, cut, goes here.</p>');
     }
     el.innerHTML = out.join("");
   }
@@ -678,7 +689,7 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
     const place = (rs, y) => rs.forEach((r, i) => fit(r.text, L + pw * tpos(r.start), L + pw * tpos(r.end), y, i === 0, i === rs.length - 1));
     place(runs("atm", v => v), sy + 14);
     place(runs("T", v => v + " °C"), sy + 27);
-    // one line per phase up to the current frame; the support phases underneath, in one grey
+    // one line per phase up to the current frame; the support phases underneath, in their own shades
     const order = PH.map((p, k) => k).sort((i, j) => (PH[j].support ? 1 : 0) - (PH[i].support ? 1 : 0));
     for (const k of order){
       const main = !PH[k].support;
@@ -692,9 +703,8 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
     ctx.beginPath(); ctx.moveTo(px(F[f].tm) + .5, TP); ctx.lineTo(px(F[f].tm) + .5, yb); ctx.stroke(); ctx.globalAlpha = 1;
   }
   function renderLegend(){
-    const items = PH.map((p, k) => p.support ? "" : `<span><i style="--c:var(${PC[k]})"></i><span class="n">${p.html}</span></span>`);
-    items.push(`<span><i style="--c:var(--support)"></i><span class="n">support</span></span>`);
-    $("#legend").innerHTML = items.join("");
+    $("#legend").innerHTML = LEGEND_IDX.map(k =>
+      `<span><i style="--c:var(${PC[k]})"></i><span class="n">${PH[k].html}</span></span>`).join("");
   }
 
   /* ---------- run loop ---------- */
@@ -731,14 +741,7 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
   new IntersectionObserver(es => { visible = es[0].isIntersecting; }, { threshold: .1 }).observe($("#agent"));
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onTheme);
   new MutationObserver(onTheme).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
-  // The page says what it is showing: the fits are the full-resolution ones, the
-  // points are a subset of the channels they were fitted against (see build_demo.py).
-  if (D.decimation > 1){
-    $("#decimationNote").textContent =
-      `The pattern panel plots every ${D.decimation === 2 ? "second" : D.decimation + "th"} measured channel, `
-      + `${D.steps_per_fwhm} steps across a peak; the fits behind it used all of them.`;
-  }
-  renderLegend(); renderBrief();
+  renderLegend(); renderPrompt();
   setPlaying(!reduce);
   if (reduce) frame = N - 1;
   render();

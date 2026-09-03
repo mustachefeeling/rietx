@@ -21,14 +21,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numpy as np
 from build import leaks  # noqa: E402  (one leak list for payload, transcript and page)
 
-PHASES = [  # column suffix, display name, formula (HTML), determined-by-data, support
-    ("Cu",                 "Cu",        "Cu",                              True,  False),
-    ("Cu2O",               "Cu₂O",      "Cu<sub>2</sub>O",                 True,  False),
-    ("CuO",                "CuO",       "CuO",                             True,  False),
-    ("support 1",           "support 1",  "support 1", True, True),
-    ("support 2",            "support 2",   "support 2",   False, True),
-    ("support 3",  "support 3",   "support 3", False, True),
+# The reacting phases are the animation's subject and are named here.  The support phases
+# are not, and their names are not in this file either: naming them would pin the
+# contributor's unpublished formulation, which is the same thing the filename and
+# specimen-code fences keep out.  So the support columns are read from the bundle's own
+# `metadata.csv` header — every `wtpct_` column that is not one of the three below, in
+# header order — and ship as "support n".  Deliberately not a `build.LEAK` token: a denylist
+# publishes what it denies, and a name written down to be refused is a name in the
+# repository.  Not knowing it is the stronger fence (WP-1331).
+REACTING = [  # column suffix, display name, formula (HTML)
+    ("Cu",   "Cu",   "Cu"),
+    ("Cu2O", "Cu₂O", "Cu<sub>2</sub>O"),
+    ("CuO",  "CuO",  "CuO"),
 ]
+WT = "wtpct_"
+
+
+def phase_columns(header: list[str]) -> list[tuple[str, str, str, bool]]:
+    """`(column suffix, name, html, support)` per phase, reacting first then the supports."""
+    suffixes = [c[len(WT):] for c in header if c.startswith(WT)]
+    named = [r[0] for r in REACTING]
+    missing = [n for n in named if n not in suffixes]
+    assert not missing, f"metadata.csv has no {WT}{missing[0]} column"
+    out = [(c, n, h, False) for c, n, h in REACTING]
+    for i, c in enumerate(s for s in suffixes if s not in named):
+        out.append((c, f"support {i + 1}", f"support {i + 1}", True))
+    return out
 # metadata token -> (display text, colour key); the contributor's programme
 ATM = {"1N2atm": ("N₂", "n2"), "2H2mixatm": ("0.2 % H₂ in N₂", "h2"), "3airatm": ("air", "air")}
 
@@ -88,7 +106,9 @@ def build(bundle: Path, k: int = 1) -> dict:
     fwhm_native = steps_per_fwhm(x, calc)
     x, obs, calc = decimate(x, obs, calc, k=k)
     with open(bundle / "metadata.csv", newline="") as fh:
-        rows = list(csv.DictReader(fh))
+        reader = csv.DictReader(fh)
+        cols = phase_columns(list(reader.fieldnames or []))
+        rows = list(reader)
     assert len(rows) == obs.shape[0]
     assert [int(r["series_index"]) for r in rows] == list(range(len(rows)))
     # the plotted clock: pauses collapse to one ordinary interval
@@ -102,7 +122,7 @@ def build(bundle: Path, k: int = 1) -> dict:
         tm.append(acc)
     frames = []
     for i, r in enumerate(rows):
-        wt = [float(r[f"wtpct_{k}"]) for k, *_ in PHASES]
+        wt = [float(r[WT + c]) for c, *_ in cols]
         frames.append(OrderedDict(
             T=int(r["temperature_c"]), atm=ATM[r["atmosphere"]][0],
             t=t[i], tm=round(tm[i] / 60, 2),
@@ -126,7 +146,7 @@ def build(bundle: Path, k: int = 1) -> dict:
         decimation=k, steps_per_fwhm=round(fwhm_native / k, 2),
         two_theta=[round(float(v), 4) for v in x],
         obs_b64=b64(np.round(obs)), calc_x10_b64=b64(np.round(calc * 10)),
-        phases=[OrderedDict(name=n, html=h, determined=d, support=s) for _, n, h, d, s in PHASES],
+        phases=[OrderedDict(name=n, html=h, support=sup) for _, n, h, sup in cols],
         frames=frames, segments=segments, pauses=pauses,
         rwp_median=round(float(np.median([f["rwp"] for f in frames])), 2),
         n_converged=sum(f["status"] == "converged" for f in frames),

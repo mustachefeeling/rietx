@@ -70,6 +70,15 @@ def build():
 
 
 @pytest.fixture(scope="module")
+def build_demo():
+    """`docs/landing/build_demo.py`, imported by path like `build.py` above."""
+    spec = importlib.util.spec_from_file_location("landing_build_demo", LANDING / "build_demo.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture(scope="module")
 def site_html(build) -> str:
     """The site build's bytes, assembled without writing anything."""
     return build.assemble(True)
@@ -169,9 +178,45 @@ def test_the_committed_payload_is_below_what_can_be_refined():
         f"{payload['steps_per_fwhm']} steps across a peak is refinable data "
         f"(rietx wants 5-10); rebuild with a larger decimation factor"
     )
-    # and the page says so rather than leaving a reader to compare with the original
-    src = (LANDING / "src" / "index.html").read_text(encoding="utf-8")
-    assert "decimationNote" in src
+
+
+def test_the_animation_caption_is_the_credit_and_nothing_else(site_html):
+    """The rig's caption carries the contributor's credit, and no other sentence.
+
+    It once described the run and named the support phases; both went when the phases
+    did.  Pinned because the credit is the one thing on this page that is owed to
+    somebody, and a later edit that grows the caption back should have to say so here.
+    """
+    captions = re.findall(r'<p class="caption">(.*?)</p>', site_html, re.S)
+    text = re.sub(r"<[^>]+>", "", captions[0]).strip()
+    assert text == "Data and refinement contributed by @mustachefeeling."
+
+
+def test_the_support_phases_ship_unnamed(build_demo):
+    """The payload names the reacting phases; the support formulation is not named at all.
+
+    Cu, Cu2O and CuO are the animation's subject.  The support phases would pin the
+    contributor's unpublished sample, so they ship positionally as "support n" — and the
+    builder does not know their names either: `phase_columns` reads every other `wtpct_`
+    column straight off the bundle's own header.  Deliberately not a `build.LEAK` token,
+    because a denylist publishes what it denies.
+    """
+    payload = json.loads((LANDING / "data" / "demo.json").read_text(encoding="utf-8"))
+    support = [ph for ph in payload["phases"] if ph["support"]]
+    assert support, "no support phases in the payload"
+    for i, ph in enumerate(support, start=1):
+        assert ph["name"] == ph["html"] == f"support {i}", ph
+
+    named = [name for _, name, _ in build_demo.REACTING]
+    assert [ph["name"] for ph in payload["phases"] if not ph["support"]] == named
+
+    # the mechanism, on a header the bundle could have: whatever the extra columns are
+    # called, they come back positional
+    cols = build_demo.phase_columns(
+        ["series_index"] + [f"wtpct_{c}" for c, *_ in build_demo.REACTING]
+        + ["wtpct_SomePhase", "wtpct_Another"])
+    assert [name for _, name, _, _ in cols] == named + ["support 1", "support 2"]
+    assert [sup for *_, sup in cols] == [False] * len(named) + [True, True]
 
 
 def test_no_leak_token_reaches_the_built_page(site_html, build):

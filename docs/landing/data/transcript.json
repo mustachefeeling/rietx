@@ -8,7 +8,7 @@
   "assistant_messages": 289,
   "tool_calls": 154
  },
- "prompt": "You are one tranche of a `rietx` Rietveld-refinement benchmarking campaign […]\n\n**The lab-XRD six-phase CuO/Cu reduction series.** […] 275 patterns with 6 phases: Cu, Cu2O, CuO, support 2, support 1, support 3. Raw patterns: [raw-data directory] — 275 files. […]\n\n[…] running the 275-pattern chain forward AND backward […]",
+ "prompt": "You are one tranche of a `rietx` Rietveld-refinement benchmarking campaign […]\n\n**The lab-XRD six-phase CuO/Cu reduction series.** […] 275 patterns with 6 phases: Cu, Cu2O, CuO and three support phases. Raw patterns: [raw-data directory] — 275 files. […]\n\n[…] running the 275-pattern chain forward AND backward […]",
  "head": [
   {
    "t": "[env] SCHEMA_VERSION=0.15 rietx=1.3.0"
@@ -20,7 +20,7 @@
    "t": "[calibration] pattern=[pattern 0] status=max_iter rwp=0.1287 gof=1.207 […] wall=55.96s"
   },
   {
-   "t": "    [warning] PHASE_UNCONSTRAINED where=['phases.5.cell.a', […]] :: phase 5 (support 3) contributes at most 0.57σ of the observation noise anywhere in the fitted range, so the data cannot distinguish […]",
+   "t": "    [warning] PHASE_UNCONSTRAINED where=['phases.5.cell.a', […]] :: phase 5 ([support 3]) contributes at most 0.57σ of the observation noise anywhere in the fitted range, so the data cannot distinguish […]",
    "cls": "warn"
   },
   {

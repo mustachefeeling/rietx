@@ -32,6 +32,11 @@ LEAK = ("8pptn0", "etoh", "sio2", "0523",                       # specimen code,
         "/Users/", "/Volumes/", "gaultois", "michael", "capel", "donat")   # machines and people
 LEAK_RE = (r"_I\d+_", r"\b\d{10}_", r"\b\d{8}_CuO")           # scan token, acquisition timestamp, run-folder date
 
+# The support phases are kept out a rank earlier and are deliberately NOT tokens here: a
+# denylist publishes what it denies, and these names would be in the repository either way.
+# `build_demo.phase_columns` takes them from the bundle's own header instead and ships
+# them as "support n", so no build of this page has ever held one (WP-1331).
+
 # base64 is drawn from [A-Za-z0-9+/], so a four-character token turns up inside a
 # 200 kB inlined PNG by chance — measured: `etoh` and `sio2` both do, and `0523`
 # would have without the case fold.  A blob carries no name, so it is not scanned.

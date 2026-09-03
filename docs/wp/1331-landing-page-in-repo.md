@@ -1,4 +1,4 @@
-# WP-1331 — The landing page enters the repository, and the data does not
+# WP-1331 — The landing page enters the repository, and the data comes redacted
 
 Milestone: unscheduled · Status: ✅ 2026-09-03 — page and payload both in the
 repository; the payload is decimated to the unrefinable side of rietx's own
@@ -9,8 +9,9 @@ Depends on: — (1003 soft: `DOCS_URL` and the Pages workflow are its)
 
 `rietx.org/` serves a landing page built from `docs/landing/` by the same Pages
 workflow that builds the manual, and the manual moves to `rietx.org/manual.html`.
-The page's source is version-controlled; the contributor's observed data that the
-page animates is not, and cannot become so by accident.
+The page's source is version-controlled, and so is the data it animates — but only
+as a figure of the contributor's series: decimated below what rietx will refine,
+with the reacting phases named and the support formulation not.
 
 ## Context
 
@@ -111,9 +112,13 @@ the manual alone, which is the correct answer for a fork.
       that meant "the manual" and pointed at the site root now point at
       `manual.html`.
 - [x] The payload joins the repository, decimated ×2 by `build_demo.py`, with the
-      factor and the resulting steps-per-FWHM recorded in the file, printed in the
-      page's caption and asserted by a test.
+      factor and the resulting steps-per-FWHM recorded in the file and asserted by
+      a test.
 - [x] `README.md` and `pyproject.toml`: the manual is `rietx.org/manual.html`.
+- [x] The page copy the maintainer asked for: the rig's caption is the
+      contributor's credit and nothing else, the transcript pane's label is
+      `Prompt`, and the support phases ship as `support 1`–`3` in two shades with
+      a legend entry each. The names are gone from the branch's history too.
 - [x] `examples/fap_lab.py` + `tests/data/fluorapatite.cif`, so
       `tests/test_examples.py` runs the script the page quotes.
 - [x] `tests/test_landing.py`: the ignore rules (both directions), the
@@ -151,6 +156,52 @@ answers as the table above says for all six paths.
 
 ## Handover log
 
+### 2026-09-03 (3rd session) — the page stops naming the sample
+
+The animation now credits the contributor and says nothing else about the
+specimen. Its caption is one line, the transcript pane is labelled `Prompt`
+rather than "The brief", and the three support phases are `support 1`–`3` — two
+of them drawn in their own shade with a legend entry each, the third flat on the
+axis at 0 wt % and left unlabelled. The names are out of the branch's fifteen
+commits as well as its tip, so the merge cannot carry them into main.
+
+**Done.** The caption trimmed to the credit; `.brief`/`#brief`/`renderBrief` and
+the pane's label renamed to prompt; `--support-2`/`--support-3` tokens in all
+three theme blocks; `PC`/`LEGEND_IDX` in the page assign a shade per support
+phase in payload order and label the first two. `build_demo.PHASES` became
+`REACTING` plus `phase_columns`, which reads every other `wtpct_` column off the
+bundle's own `metadata.csv` header — so the builder no longer knows the names
+either. `data/demo.json` renamed in place (no bundle here to rebuild from) and
+its dead `determined` flag dropped, since the caption that used it is gone.
+`data/transcript.json`: the prompt's phase list and the `PHASE_UNCONSTRAINED`
+line genericised. Two tests replace the `decimationNote` assertion:
+`test_the_animation_caption_is_the_credit_and_nothing_else` and
+`test_the_support_phases_ship_unnamed`.
+
+**The decision worth keeping: the fence is not knowing, not a denylist.** The
+first cut of this added the three names to `build.LEAK` so a rebuild could not
+reintroduce one — which writes them into the repository in the act of refusing
+them. A denylist publishes what it denies. Taking the support columns positionally
+off the bundle's header removes the name from the pipeline instead, and is the
+stronger fence for costing nothing to state. `build.py` now says so where the
+tokens would have gone.
+
+**Gotchas.** One of the removed words also occurs, by coincidence, as a made-up
+phase name in a strain-cap fixture that has been on `main` for months. It is not
+the contributor's data and rewriting it would rewrite `main`, so it stays; a
+successor who greps and gets a hit there has not found a leak. And the page
+no longer says it is showing decimated channels; `decimation` and
+`steps_per_fwhm` in the payload plus `docs/landing/README.md` § The payload are
+where that is on the record now. Flagged to the maintainer as the one line they
+may want back.
+
+**Measured** (`[dev]` venv, darwin/arm64): `tests/test_landing.py` 14 → 16,
+`test_landing.py` + `test_manual.py` + `test_docs_consistency.py` 45 passed.
+Legend and both support shades checked by rendering the served site in light and
+dark at 2× and looking, not by reading the CSS.
+
+**Next:** nothing in this WP. Review and merge are the maintainer's.
+
 ### 2026-09-03 (2nd session) — the payload comes in too, redacted by resolution
 
 The private-repo plan is gone. The maintainer asked for the payload to be cut
@@ -162,7 +213,7 @@ What made it committable is *resolution*, not identifiers — those were already
 stripped. Decimated to every second measured channel the file sits at 2.38 steps
 across a peak against the 5-to-10 rietx itself asks for, so it is a figure of the
 contributor's series and not the series. `tests/test_landing.py` asserts that
-rather than trusting it, and the page prints the factor in its own caption.
+rather than trusting it.
 
 **The measurement worth keeping.** Averaging k channels is the obvious reduction
 and it is the wrong one. It divides the counting noise by √k, so the observed

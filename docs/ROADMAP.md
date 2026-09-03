@@ -540,7 +540,7 @@ aggregated after the fact (1322).
 |---|---|---|---|
 | [1313](wp/1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | — |
 | [1330](wp/1330-skill-references-by-shape.md) | The skill grows by reference: one file per task shape, and the row an agent can write | ✅ 2026-09-02 | 1304, 1308 |
-| [1331](wp/1331-landing-page-in-repo.md) | The landing page enters the repository, and the data does not | ✅ 2026-09-03 | — (1003 soft) |
+| [1331](wp/1331-landing-page-in-repo.md) | The landing page enters the repository, and the data comes redacted | ✅ 2026-09-03 | — (1003 soft) |
 
 #### Candidates — named on a use case, not yet on a measurement
 
