@@ -192,6 +192,36 @@ def test_summary_before_fit_raises():
         ref.summary()
 
 
+def test_summary_reuses_a_report_passed_in(monkeypatch):
+    """Issue #251: a caller wanting the text and the structured report builds
+    one report, not two.  Counted at ``build_report``, the seam both routes
+    share, so the pin is on the number of builds and not on any text."""
+    import rietx.report as report_mod
+
+    ref, _result = _fit()
+    report = ref.report()
+    builds: list[int] = []
+    orig = report_mod.build_report
+
+    def counted(*args, **kwargs):
+        builds.append(1)
+        return orig(*args, **kwargs)
+
+    monkeypatch.setattr(report_mod, "build_report", counted)
+    reused = ref.summary(deliverable="qpa", report=report)
+    assert builds == []
+    fresh = ref.summary(deliverable="qpa")
+    assert builds == [1]
+    assert reused == fresh
+
+
+def test_summary_refuses_a_plan_beside_a_report():
+    ref, _result = _fit()
+    report = ref.report()
+    with pytest.raises(ValueError, match="not both"):
+        ref.summary(plan=rx.RefinementPlan.mccusker_default(), report=report)
+
+
 def test_summary_protocol_names_the_plan_and_held_reasons():
     ref, _result = _fit()
     text = ref.summary()

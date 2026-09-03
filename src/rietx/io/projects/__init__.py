@@ -5,15 +5,21 @@
 the instrument and the converged figures of merit, which makes it the cheapest
 source of a validated reference for testing.
 
-One module per format, mirroring `io/`'s organising rule.
+One module per format, mirroring `io/`'s organising rule: a format's
+specification citation, its parser, its refusals and its licence fence are one
+fact each, and several fences in one file drift.
 """
 
+from .fullprof import FullProfPcrError, read_fullprof_pcr
 from .topas import TopasInpError, read_topas_inp
 
-# Only the format-named entry points are exported (WP-1118). `to_structure` is a
-# *module-level* name reached as `projects.topas.to_structure`: exporting it here
-# would collide with #111's FullProf `to_structure` and the collision resolves by
-# silently rebinding one over the other. The reader and its error are the seam
-# the package promises; the model→`Structure` conversion (and its future
-# `from_structure` inverse and `write_topas_inp` writer) live on the module.
-__all__ = ["read_topas_inp", "TopasInpError"]
+# The package exports only each format's *format-named* entry point (and its
+# error) — never the module's ``to_structure``. WP-1118's scope is "read a
+# refinement in, write one back", so each format's module owns the symmetric
+# pair ``to_structure`` / (later) ``from_structure``; that pair is right at the
+# module level but a bare ``to_structure`` re-exported here would be one
+# package name for two different functions the moment a sibling reader lands
+# its own (the second import silently winning). So each conversion stays
+# reachable as ``rietx.io.projects.<format>.to_structure`` and nothing shadows
+# across formats.
+__all__ = ["read_topas_inp", "TopasInpError", "read_fullprof_pcr", "FullProfPcrError"]

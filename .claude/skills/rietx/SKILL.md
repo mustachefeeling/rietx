@@ -39,7 +39,7 @@ restated here; a page named `x` below is `https://rietx.org/using/x.html`.
 |---|---|---|
 | you are about to call rietx: entry points, constructors, the four answer types and their fields, the report | [`references/api.md`](references/api.md) | `quickstart`, `model`, `refining`, `results`, `agents` |
 | you were handed another program's input file: a PowderLine recipe | [`references/api.md`](references/api.md) § In | `recipe` |
-| §7 — a `Diagnostic` fired and you need its row: every engine code, and what it forbids | [`references/diagnostics.md`](references/diagnostics.md) | `results` |
+| §7/§7g — a `Diagnostic` fired and you need its row: every engine code, and a foreign project file's import-time codes | [`references/diagnostics.md`](references/diagnostics.md), [`references/diagnostics-projects.md`](references/diagnostics-projects.md) | `results` |
 | §6 — something declined to answer: abstentions, caveats, gate failures, `best_or_none()` returning `None` | [`references/abstention.md`](references/abstention.md) | `report` |
 | §5 — you are about to quote a number: which field carries which fact, and read numbers rather than pixels | [`references/numbers.md`](references/numbers.md) | `report`, `results` |
 | §4/§4b — a judging or deliverable rule needs its measurement, before you override one | [`references/judging.md`](references/judging.md) | `report`, `qpa`, `constraints` |
@@ -372,8 +372,7 @@ Several places will decline to answer. When they do, that *is* the answer.
     unmodelled peak shape, an amorphous component or a second phase.
 
 Every signal, its meaning and its correct response:
-[`references/abstention.md`](references/abstention.md). Every engine code and
-what it forbids: [`references/diagnostics.md`](references/diagnostics.md).
+[`references/abstention.md`](references/abstention.md).
 
 ---
 
