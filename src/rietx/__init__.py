@@ -1,4 +1,4 @@
-"""rietx: API-first Rietveld refinement of powder X-ray diffraction data."""
+"""rietx: Python-API-first analysis and Rietveld refinement of powder diffraction data."""
 
 import difflib
 import importlib

@@ -644,6 +644,13 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   tightens each way, so adding or renaming a route or tab fails until a chapter covers it, and
   naming one the server does not serve fails too; screenshots from
   `docs/manual/make_screenshots.py`.
+- **The site root is the landing page, and `docs/landing/README.md` is its rulebook**
+  (WP-1331). Two consequences reach a session that never opens that directory. `/` is the
+  page and the manual is `/manual.html` — sphinx's `root_doc` is `manual.md`, so a link
+  meaning "the manual" is never the site root. And `conf.py` copies the page in through
+  `html_extra_path` **only if `docs/landing/site` exists** (`-W` makes a missing entry an
+  error, and the suite builds the manual on every run), so the build output holds pages
+  Sphinx never rendered and a guard walking it must exclude them, not widen itself.
 - **A walkthrough has one authority, and it is `examples/`.** The manual `{literalinclude}`s those
   scripts and `tests/test_examples.py` runs them, so a worked example is code that ran. Never write
   a third copy.

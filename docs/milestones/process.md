@@ -333,6 +333,18 @@ body section it specialises), the evidence tag and the cap-is-paid-for
 rule; the row form and the sync commands are CONTRIBUTING.md § The
 agent skill's.  Landed at the cap.
 
+732 -> 739 for WP-1331 (2026-09-03): a landing page joined the repository
+at docs/landing/ and took the site root.  The subsystem detail went down a
+rank as this rule requires — docs/landing/README.md is the file map, the
+build's two shapes and the fence on the contributor's data, and the
+gitignore reasoning is in .gitignore's own block and tests/test_landing.py's
+docstring.  What could not go down a rank is what a session that never opens
+docs/landing/ still meets: the manual is now /manual.html so a link meaning
+"the manual" is never the site root, and conf.py's conditional
+html_extra_path puts pages Sphinx never rendered into the build output, which
+a guard walking that output must exclude rather than widen itself around
+(one already had to).  Landed at the cap.
+
 ### `docs/ROADMAP.md`
 
 400 -> 416 for the agentic-report planning session (2026-08-18): four

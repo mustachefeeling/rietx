@@ -8,6 +8,11 @@ name: Docs site
 # (WP-1304).  docs/AGENT_PROTOCOL.md rides along as the pointer it became, so
 # the URL published since v1.0 still resolves; it goes in v1.4.
 #
+# Since WP-1331 the site root is the landing page, not the manual: sphinx's
+# root document is manual.md, and docs/landing/build.py --site writes the page
+# into docs/landing/site, which conf.py copies in through html_extra_path.  So
+# / is the landing page and /manual.html the manual; no other URL moved.
+#
 # The package itself is installed before the build because docs/manual/conf.py
 # injects fenced constants from the live package; a source-only checkout
 # builds a manual that quotes nothing.
@@ -42,6 +47,10 @@ jobs:
           cache-dependency-glob: pyproject.toml
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[docs]"
+      # Before sphinx: docs/manual/conf.py adds docs/landing/site to
+      # html_extra_path only if it exists, and it reads that at conf load.
+      - name: Build the landing page
+        run: .venv/bin/python docs/landing/build.py --site
       - name: Build the manual (-W, as the test suite does)
         run: .venv/bin/python -m sphinx -W -b html docs/manual site
       - name: The agent skill, verbatim, beside the manual

@@ -69,3 +69,29 @@ docs/manual/_build/
 
 # Generated at Sphinx build time from rietx.help (docs/manual/conf.py).
 docs/manual/_generated/
+
+# The landing page (docs/landing/, WP-1331).  Three rules, and they are here
+# rather than beside the rules they answer because ORDER decides: the last
+# match wins, so an un-ignore for `*.png` and an ignore under `!docs/**/*.html`
+# both have to sit after those lines.
+#
+# `preview.html`, `dist/index.html` and `site/` are one page built three ways,
+# each with `data/demo.json` inlined or copied beside it — build products, none
+# of them a thing to read in a diff.  `dist/` above already covers one;
+# `preview.html` was matched by `!docs/**/*.html` and would have been committed,
+# 3.2 MB of it.
+#
+# `docs/landing/data/` is deliberately NOT in this list.  The payload IS
+# committed: it keeps every second measured channel, which puts it at 2.4 steps
+# across a peak against the package's own 5-to-10 guideline, so what ships is a
+# figure of the contributor's series rather than the series
+# (docs/landing/build_demo.py § `decimate`, and `tests/test_landing.py` asserts
+# the committed file is on the unrefinable side of that line).
+docs/landing/preview.html
+docs/landing/site/
+# ...and the other direction, for the fourth time: `*.png` swallowed the
+# landing page's four committed figures exactly as it swallowed Part 1's, the
+# GUI chapters' screenshots and the GUI dist.  `tests/test_landing.py` asks
+# `git check-ignore` about all six paths, in both directions, because reading
+# this file correctly is what failed the first three times.
+!docs/landing/img/*.png

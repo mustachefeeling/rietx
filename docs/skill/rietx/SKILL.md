@@ -455,7 +455,7 @@ the installed package by test.
 
 ## See also
 
-- The manual, Part 2 (theory): <https://rietx.org> — every equation with its
+- The manual, Part 2 (theory): <https://rietx.org/manual.html> — every equation with its
   source, and the bibliography each author-year citation below resolves in
 - The repository, <https://github.com/yue-here/rietx>: `README.md`,
   `docs/DESIGN.md` (why the FitReport is shaped this way),

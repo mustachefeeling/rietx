@@ -9,7 +9,8 @@ copy of the same walkthrough.
 
 **Where the outputs go.** Each script writes its plots beside itself
 (`examples/nac_fit.png`, `examples/srm660c_fit.png`, `…_vlm.png`,
-`…_fit.html`), from a path built off its own `__file__`, so running it from a
+`…_fit.html`, `examples/fap_fit.png`), from a path built off its own
+`__file__`, so running it from a
 temporary cwd would not redirect anything.  This runner therefore accepts the
 write; those names are gitignored.  Its own data paths are `__file__`-relative
 too, so the scripts are run in place.
@@ -85,6 +86,12 @@ def srm660c_run():
     return _run("srm660c_lab.py").stdout, before
 
 
+@pytest.fixture(scope="module")
+def fap_run():
+    before = _timestamps("fap_fit.png")
+    return _run("fap_lab.py").stdout, before
+
+
 @pytest.mark.xdist_group("example-nac")
 def test_nac_11bm_example_runs(nac_run):
     """The quickstart walkthrough: read, Le Bail, add the impurity the report
@@ -101,6 +108,17 @@ def test_srm660c_lab_example_runs(srm660c_run):
     out, _ = srm660c_run
     for marker in ("Rwp", "wrote"):
         assert marker in out, f"srm660c_lab.py printed no {marker!r} line:\n{out}"
+
+
+@pytest.mark.xdist_group("example-fap")
+def test_fap_lab_example_runs(fap_run):
+    """The landing page's walkthrough (WP-1331): a seven-site structural
+    refinement of lab Cu Kα data, and the two warnings it earns. The page
+    quotes this script's output, so a rename that breaks it must fail here
+    rather than on the published page."""
+    out, _ = fap_run
+    for marker in ("converged", "Rwp=", "PATTERN_UNDERSAMPLED", "wrote"):
+        assert marker in out, f"fap_lab.py printed no {marker!r} line:\n{out}"
 
 
 @pytest.mark.xdist_group("example-nac")
@@ -128,3 +146,16 @@ def test_srm660c_example_writes_its_renderings(srm660c_run):
         path = EXAMPLES / name
         assert path.exists(), f"srm660c_lab.py wrote no {name}"
         assert path.stat().st_mtime_ns != stamp, f"srm660c_lab.py left a stale {name}"
+
+
+@pytest.mark.xdist_group("example-fap")
+def test_fap_example_writes_its_plot(fap_run):
+    """Same reason as the NAC one above: the script swallows an ImportError
+    around plotting, so with matplotlib installed that branch must not be the
+    one taken. The figure is what the landing page shows."""
+    pytest.importorskip("matplotlib")
+    _, before = fap_run
+    for name, stamp in before.items():
+        path = EXAMPLES / name
+        assert path.exists(), f"fap_lab.py wrote no {name}"
+        assert path.stat().st_mtime_ns != stamp, f"fap_lab.py left a stale {name}"

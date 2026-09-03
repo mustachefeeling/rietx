@@ -153,6 +153,26 @@ math_numfig = True
 # whether one has run.
 exclude_patterns = ["_build", "_generated"]
 
+# The manual's root document is `manual.md`, not `index.md`, because `/` on the
+# published site belongs to the landing page (WP-1331) and Sphinx would
+# otherwise write `index.html` over it.  Nothing in the manual references the
+# root document by name — no `:doc:`, no toctree entry — so the rename cost two
+# lines; the reader-visible change is that the manual's front page is
+# `rietx.org/manual.html`.  `_about.DOCS_URL` is the *site* root and is
+# unaffected, as are `help.py`'s `page.html#id` anchors.
+root_doc = "manual"
+
+# ...and the landing page itself, copied in verbatim beside the built manual.
+# `docs/landing/site/` is a build product of `docs/landing/build.py --site`,
+# which needs a payload that is not in this repository (see docs/landing/
+# README.md), so it is absent from a source checkout — and `-W` turns a missing
+# `html_extra_path` entry into an error, while `tests/test_manual.py` builds the
+# manual on every run.  Hence the existence test: a checkout without the landing
+# page builds the manual alone, which is the right answer for a fork, and the
+# Pages workflow runs the landing build first so the published site has both.
+_landing_site = _Path(__file__).parent.parent / "landing" / "site"
+html_extra_path = [str(_landing_site)] if _landing_site.is_dir() else []
+
 html_theme = "furo"
 html_title = f"rietx {release} — manual"
 html_static_path = ["_static"]
