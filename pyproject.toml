@@ -18,7 +18,7 @@ name = "rietx"
 # and every history node, so a stale one mislabels the provenance of real
 # results, and the release workflow refuses a tag that disagrees with it.
 version = "1.3.0"
-description = "API-first, differentiable Rietveld refinement of powder X-ray diffraction data"
+description = "Python-API-first analysis and Rietveld refinement of powder diffraction data"
 readme = "README.md"
 license = "MIT"
 # LICENSE-3RD-PARTY.md carries the MIT texts of the JS packages bundled in the
@@ -27,8 +27,9 @@ license = "MIT"
 # provenance table).
 license-files = ["LICENSE", "LICENSE-3RD-PARTY.md"]
 requires-python = ">=3.11"
-authors = [{ name = "Yue Wu" }]
-keywords = ["rietveld", "powder-diffraction", "xrd", "crystallography", "refinement"]
+authors = [{ name = "Yue Wu" }, { name = "Michael W. Gaultois" }]
+keywords = ["rietveld", "powder-diffraction", "neutron-diffraction", "xrd",
+            "crystallography", "refinement"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
