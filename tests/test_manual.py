@@ -35,6 +35,19 @@ MARKUP_WITHOUT_PROSE = re.compile(
     r"<(script|style|pre)\b[^>]*>.*?</\1\s*>|<code\b[^>]*>.*?</code\s*>", re.S | re.I
 )
 
+# The landing page is copied into the build verbatim through `html_extra_path`
+# (WP-1331), so the output tree holds pages Sphinx never rendered and whose
+# markup is nobody's MyST.  They are not this suite's to police, and one of them
+# writes a shell prompt as `<span class="ps">$</span>pip install rietx` — prose
+# by MARKUP_WITHOUT_PROSE's definition, and a false positive for the TeX guard.
+# Derived from the directory conf.py actually copies, so the exclusion is exactly
+# what was added and a new manual page stays covered.
+_LANDING_SITE = MANUAL_DIR.parent / "landing" / "site"
+COPIED_IN = (
+    {p.relative_to(_LANDING_SITE).as_posix() for p in _LANDING_SITE.rglob("*.html")}
+    if _LANDING_SITE.is_dir() else set()
+)
+
 CITE_ROLE = re.compile(r"\{cite\}`([^`]+)`")
 SOURCE_LINE = re.compile(r"\*Source:\*\s+`([A-Za-z_][\w.]*)`")
 BIB_KEY = re.compile(r"^@\w+\{([^,\s]+)\s*,", re.MULTILINE)
@@ -93,6 +106,8 @@ def test_no_unrendered_math_survives_the_build(built_manual):
     assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
     stray: list[str] = []
     for page in sorted(out.rglob("*.html")):
+        if page.relative_to(out).as_posix() in COPIED_IN:
+            continue        # the landing page — see COPIED_IN
         text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
         for match in re.finditer(r".{0,60}\$.{0,60}", text, re.S):
             stray.append(f"{page.name}: …{match.group(0).strip()}…")
