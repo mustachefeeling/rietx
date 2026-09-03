@@ -1,6 +1,7 @@
 # WP-1130 — The fit has no reference: a background level it cannot argue with
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-03 — the mailbox pruned, `cell_window`
+and the NaN-silenced absorption guard fixed; the three gaps next
 Depends on: — (nothing; WP-1131 closed 2026-09-02 and the width check this WP
 needed had in fact shipped in v1.2 — see § What this reads rather than computes)
 
@@ -377,6 +378,56 @@ Separately, `phases.1.gauss_size` returns a degenerate (NaN) R² column at
 convergence, so it has no gradient there. Probably sitting at a bound; worth one
 look while the above is open.
 
+### Both fixed, 2026-09-03 — and the second one is the WP's own theme
+
+`cell_window` now refuses a value no cell can take, naming the path. The
+boundary is stated where the confusion is: a *positive* length under
+`CELL_MIN_LENGTH_A` keeps its window and travels, because a short cell is a
+model to refuse where there is a diagnostics channel; a length ≤ 0, or an angle
+outside (0°, 180°), is not a short cell but not a cell at all — the metric
+tensor is singular or indefinite there — so it raises with the path in the
+message instead of reaching scipy as a degenerate pair. The postcondition
+"never returns `lo >= hi`" is asserted in the function and swept in the tests
+over both branches, which is what the original case-by-case tests could not
+catch: the failing value sat outside the range anyone thought to write a case
+for.
+
+**The NaN R² was not about `gauss_size` at all**, and the look was worth
+taking. `gauss_size` is not among `background_absorption`'s targets
+(`.biso`, `.scale`, `.occ`, `.adp.`), so the NaN could not have been that
+statistic's own reading of it — but the same run showed why it did not matter
+which column carried the NaN. Measured on this tree, before the fix: **one
+non-finite entry anywhere in the Jacobian's background block or in a target
+column makes every `background_absorption` R² `nan`** — `np.any` does not
+filter it out, NaN being truthy, so `_span_basis`' zero-column filter passes it
+straight into the QR. And `nan > BACKGROUND_ABSORPTION_GUARD` is `False`, so
+`BACKGROUND_ABSORPTION` **never fires**, while
+`FitReport.background.worst_absorption` reports `nan` rather than a number.
+
+That is the exact inverse of the failure the zero-column filter was written
+for. A zero column *saturates* the guard, R² = 1.00 for every target, which is
+loud and was found. A NaN column *silences* it, on the fit most likely to need
+it — a fit with a degenerate column is a fit whose background is absorbing
+something — and nothing anywhere says so. It is § Finding 7's shape one rank
+down: not a diagnostic computed and unread, but a diagnostic computed to a
+value that reads as "silent" and cannot be told from one.
+
+`block_projection_r2` now **withholds rather than reports**: a non-finite block
+or nuisance column returns `{}`, since the span it belonged to is unknowable,
+and a non-finite target column is skipped exactly as a zero-norm one is.
+Absence is a state every consumer already handles; `nan` is a number that
+compares `False` against everything. A NaN column is deliberately *not* dropped
+from the span the way a zero one is — a zero column demonstrably spans nothing,
+a NaN column spans something unknown, and dropping it would narrow the span and
+understate every R² built on it, which is again the silencing direction.
+
+**Left unfixed and named here**: `one_parameter_gains` shares `_span_basis` and
+has the same exposure — a non-finite column gives `nan` gains, which compare
+`False` against every threshold, so a Layer-1 suggestion goes missing silently.
+It is a different statistic with a different consumer and was not this task; the
+`_span_basis` docstring now states the contract and says which caller enforces
+it.
+
 ### The 2026-08-27 review — four design faults and three evidence gaps
 
 The first draft of this plan was reviewed against the code before any of it
@@ -489,7 +540,7 @@ each can change what is built — Gap A may make the protocol row the first
 deliverable, Gap B may name a missing model the widths were standing in for,
 and Gap C decides whether the diagnostic is buildable at all.
 
-- [ ] **Fix `cell_window`** — independent of everything below and of 1131;
+- [x] **Fix `cell_window`** — independent of everything below and of 1131;
       land it first as its own commit. `params.vector.cell_window` returns
       `lo == hi` for any negative value (the closing clamp `min(lo, value)`,
       `max(hi, value)` snaps both ends onto it), and scipy then raises a bare

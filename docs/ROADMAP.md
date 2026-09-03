@@ -467,7 +467,7 @@ with a refinable scale and its own esds (1309, issue #171).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | ⬜ | — (1131 closed) |
+| [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | 🔄 2026-09-03 | — |
 | [1309](wp/1309-measured-background.md) | A measured background: the container exists, the scale and the esds do not | ⬜ | — |
 
 #### The specimen is not an angle, and the neutron follow-through
