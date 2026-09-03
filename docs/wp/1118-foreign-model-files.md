@@ -135,6 +135,56 @@ missing from its arm applies unchanged. A new format token is spelled in
 
 ### Inherited
 
+- **2026-09-03, from the issue triage (issue #234): the `.gpx` non-goal's
+  stated reason does not hold, and the real obstacle is worse than the one
+  written down.** A `.gpx` is **not** one pickled object and not a container
+  format: it is a headerless sequence of `pickle.dump(item, f, protocol=2)`
+  calls, one per top-level GSAS-II tree item (`Controls`, `Phases`, each
+  `PWDR <name>`), each a list of `[label, data]` pairs, read back by looping
+  `pickle.load(f, encoding="latin-1")` until `EOFError`. Established from
+  GSAS-II's own `GSASIImiscGUI.py` (`ProjFileSave`/`ProjFileOpen`) read as
+  specification only, and corroborated on **146 real `.gpx` files** from a
+  private archive: every one unpickles to completion with stdlib `pickle` plus
+  `numpy` and nothing else — no GSAS-II import, no `ModuleNotFoundError`, and
+  exactly **three** non-builtin types across the whole corpus (`numpy.float64`,
+  `numpy.int64`, `numpy.ndarray`). **So a reader needs no GSAS-II dependency.**
+
+  The obstacle that does hold: `pickle.load` will import and call **any**
+  callable named in the stream, so a `.gpx` reader is an arbitrary-code-
+  execution surface over a user-supplied file, and every reader rietx has today
+  — pattern formats, `.inp`, `.pcr`, `.cif` — is text. The archive corpus
+  cannot settle it: 146 benign files prove nothing about a malicious one, and
+  "the files I have are fine" is the corpus-faith argument this WP already
+  rejected for cell ties. **This is a security-posture decision for the
+  maintainer, not a technical one**, which is why the reporter wrote no reader.
+  Their four options: (1) a **restricted unpickler** — subclass
+  `pickle.Unpickler` and override `find_class` to an allow-list, refusing every
+  other global *by name*, the same "report or refuse, never drop" discipline
+  `io/projects/coverage.py` applies to format keywords; `find_class` is
+  pickle's only import hook, so this closes the hole rather than narrowing it,
+  and it is the established pattern (PyTorch's `weights_only=True`,
+  `numpy.load(allow_pickle=False)`), with a measured allow-list of builtins
+  plus `numpy.ndarray`, `numpy.dtype`, `numpy.core.multiarray._reconstruct`.
+  (2) A **`pickletools.genops` opcode walk** — strictly stronger and strictly
+  more code to own for the same result; (1)'s trust boundary is already
+  provable. (3) **Read GSAS-II's text instead** — `.EXP`/`.PRM`, already spec'd
+  and licence-clear here, with the corpus's 79 `.lst` files; the cost is real,
+  a `.lst` being a refinement *listing* rather than a round-trippable model, so
+  a lesser deliverable and not a substitute. (4) **Require an export** via
+  GSASIIscriptable to CIF — zero new attack surface, work moved to the user.
+  The reporter's inclination is (1) if `.gpx` is wanted at all, (3) as this
+  WP's honest next task if it is not, and they offer to implement either.
+  **Decided 2026-09-03 by the maintainer: (1), the restricted unpickler.**
+  The task is below; the reporter's offer to implement it stands.
+
+  Two corrections that cost nothing to carry: **"pysas" is not GSAS-II's python
+  interface** (that name is an unrelated XMM-Newton toolkit; the documented one
+  is **GSASIIscriptable**), and if `.gpx` proceeds the corroborating corpus
+  should widen first — all 146 files are plain CW-powder Rietveld projects, so
+  image data, single-crystal (HKLF), sequential-fit results and magnetic phases
+  are untested, and GSAS-II's docs place `G2VarObj` instances in some
+  `Constraints` records where this corpus has only plain strings.
+
 - **2026-09-02, from the magnetic scattering track
   ([1328](1328-magnetic-interchange.md)): the `.pcr` reader refuses a
   magnetic phase with the TOPAS reader's sentence, and 1328 lifts both.**
@@ -223,9 +273,13 @@ missing from its arm applies unchanged. A new format token is spelled in
 - **Not a TOPAS-compatible engine.** No macro language, no `prm` expression
   evaluator, no `fit_obj`. A construct with no model here is reported, not
   emulated.
-- **Not GSAS-II `.gpx`.** It is a pickled python object graph; reading it means
-  importing GSAS-II's own classes, which both the licence fence and the
-  dependency policy refuse. `.EXP`/`.PRM` are text and documented.
+- **GSAS-II `.gpx` is no longer fenced out — it is a task, behind a
+  restricted unpickler** (decided 2026-09-03 on issue #234; the Inherited
+  entry has the measurements). Until that day this bullet fenced it for a
+  reason measured false. What stays out: any `.gpx` content the corroborating
+  corpus does not cover — image, single-crystal, sequential-fit and magnetic
+  projects — until the corpus widens, and a `.gpx` *writer*, which is the
+  writers task like every other format. `.EXP`/`.PRM` are text and documented.
 - **Not the additive component seam.** A `fit_obj` or a `.pcr` extra peak lands
   on `Instrument.extra_components`, which is [1102](1102-component-seam-humps.md)'s.
 - **Not a pattern reader.** `io/`'s existing registry keeps that job.
@@ -244,6 +298,16 @@ missing from its arm applies unchanged. A new format token is spelled in
 - [ ] GSAS `.EXP` + `.PRM` reader, and make `tests/test_acceptance_fap.py` take
       its protocol from the reader instead of from transcribed constants.
 - [x] FullProf `.pcr` reader. — PR #111, merged 2026-09-03 (`b717cc98`)
+- [ ] GSAS-II `.gpx` reader behind a **restricted unpickler** (decided
+      2026-09-03, issue #234): subclass `pickle.Unpickler`, override
+      `find_class` to an allow-list — builtins plus `numpy.ndarray`,
+      `numpy.dtype`, `numpy.core.multiarray._reconstruct`, the set measured on
+      146 files — and refuse every other global **by name**, the same "report
+      or refuse, never drop" rule as the format keywords. Loop
+      `pickle.load(f, encoding="latin-1")` to `EOFError`; the tree is a list of
+      `[label, data]` pairs per top-level item. Widen the corpus before
+      shipping (image, HKLF, sequential, magnetic; `G2VarObj` in
+      `Constraints`). GSAS-II's own source is read as specification only.
 - [ ] Origin-choice honesty: `SPACE_GROUP_ORIGIN_ASSUMED` when a multi-origin
       symbol resolves unpinned, and the TOPAS suffixes accepted on input
       (issue #101; lift `normalize_space_group` from the #98 draft).
@@ -293,6 +357,17 @@ work this WP does.
   § "Learned in v0.2".
 
 ## Handover log
+
+### 2026-09-03 — the `.gpx` fence lifted, behind a restricted unpickler
+
+The maintainer decided issue #234: a GSAS-II `.gpx` reader is in scope, built
+on a `pickle.Unpickler` whose `find_class` admits an allow-list and refuses
+every other name. The Non-goals bullet that fenced it out for a reason
+measured false is rewritten, the task is on the list with the measured
+allow-list and the corpus-widening caveat, and the reporter's offer to
+implement it stands. Nothing else in this WP moved. Next action: the
+contributor's PR, or the next session on this WP, builds the reader against
+the widened corpus.
 
 ### 2026-09-03 — the FullProf `.pcr` reader landed (PR #111)
 

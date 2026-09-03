@@ -97,18 +97,14 @@ PR #111; the exporter registry next. Two contributor PRs wait on review
 (#206 atom bounds, #208 species fallback).
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
-triage's 1309–1322 and two of the three opened the day after (1323, 1325),
-grouped by what their evidence says; the magnetic scattering track
-(1326–1329, out of the v2 fence 2026-09-02); the older three, 1119, 1130 and
-1133. Three closed on 2026-09-02: [1330](wp/1330-skill-references-by-shape.md)
-(one skill reference per task shape), [1324](wp/1324-symmetry-silences.md)
-(both symmetry silences reported, issues #215, #217) and
-[1131](wp/1131-sample-broadening-is-a-specimen-property.md), which discharges
-1130's dependency on it. [1331](wp/1331-landing-page-in-repo.md) closed
-2026-09-03: the landing page is in `docs/landing/` and takes `rietx.org/`, the
-manual `manual.html`, and the animation payload comes with it — decimated to the
-unrefinable side of the package's own guideline, which is what let a
-contributor's series into a public repository as a figure of itself.
+triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
+(1326–1329); the older three, 1119, 1130 and 1133. The **2026-09-03 triage**
+adds 1332–1341 — three more on what fires and what stays silent, three costs
+a multi-hundred-pattern campaign paid that a single fit never sees, three
+views over what a fit already knows, and the skill's own gates — and folded
+three issues into 1118, 1310 and 1322 rather than opening a WP. Four closed
+since 2026-09-02: 1330, 1324, 1131 (which discharges 1130's dependency on it)
+and 1331, the landing page.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -500,6 +496,10 @@ as absent (1321), an alternation with no stop rule (1323). The orbit that was
 not a multiplicity (1324) is closed; what it measured — the same threshold
 deciding two questions, and 3.81 % of a cell mass riding on which side of a
 strict `<` a five-decimal file fell — is the shape the rest of the group has.
+The 2026-09-03 triage adds three: a 2θ axis read 100× wrong from a commented
+header (1332), a fit that says `converged` while its own diagnostics say
+otherwise (1336), and two paths that fail in a raw traceback where the package
+promised an authored refusal (1337).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -509,6 +509,26 @@ strict `<` a five-decimal file fell — is the shape the rest of the group has.
 | [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | — (PR #206 first) |
 | [1323](wp/1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | — |
 | [1324](wp/1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, a setting nobody chose | ✅ 2026-09-02 | — |
+| [1332](wp/1332-the-axis-a-reader-hands-back.md) | The axis a reader hands back | ⬜ | — |
+| [1336](wp/1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | ⬜ | — (1310 soft) |
+| [1337](wp/1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | — (1311, 1321 soft) |
+
+#### A long run is not one fit
+
+Three costs a multi-hundred-pattern campaign paid and a single fit never sees
+(2026-09-03 triage): a raise on one pattern taking a chain of hundreds with it,
+including a *converged* fit's esd computation (1333); 3.9 % of stages burning
+46.6 % of stage time by exhausting their budget for a 1.23 % median cost
+reduction (1334); and a report path costing 26× the fit it reports on (1335).
+Two are pure cost; 1333 also hides a silent wrong answer, a verification pass
+that died reading as one that passed. Together they decide whether a batch is
+affordable.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1333](wp/1333-a-series-survives-one-pattern.md) | A series survives one pattern, and says which one it lost | ⬜ | — (1317 soft) |
+| [1334](wp/1334-the-stage-that-ran-out-of-budget.md) | The stage that ran out of budget | ⬜ | — |
+| [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | — |
 
 #### One file, many patterns
 
@@ -526,13 +546,19 @@ optional-dependency format.
 Views over quantities already computed, no new physics: a series navigated by
 its own T/t trace (1317, with issue #218's forward-pass exposure), the Stephens
 S_HKL block as a strain surface (1318), and a run's own `events.jsonl`
-aggregated after the fact (1322).
+aggregated after the fact (1322). The 2026-09-03 triage adds three: the
+localisation statistic `rietx compare` computes, over any two results on one
+pattern (1339); a mole fraction from the scale and the cell volume, on a basis
+that travels with it (1340); and the report a joint fit has never had (1341).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1317](wp/1317-series-scrubber.md) | Scrub the series along its own trace | ⬜ | — |
 | [1318](wp/1318-strain-surface.md) | The Stephens strain surface, rendered | ⬜ | — |
 | [1322](wp/1322-events-aggregator.md) | The run is instrumentable, and nothing says so | ⬜ | — |
+| [1339](wp/1339-where-the-improvement-lives.md) | Where the improvement lives | ⬜ | — |
+| [1340](wp/1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | — (1320 soft) |
+| [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | — (1312, 1335 soft) |
 
 #### The repo's own process
 
@@ -541,6 +567,7 @@ aggregated after the fact (1322).
 | [1313](wp/1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | — |
 | [1330](wp/1330-skill-references-by-shape.md) | The skill grows by reference: one file per task shape, and the row an agent can write | ✅ 2026-09-02 | 1304, 1308 |
 | [1331](wp/1331-landing-page-in-repo.md) | The landing page enters the repository, and the data comes redacted | ✅ 2026-09-03 | — (1003 soft) |
+| [1338](wp/1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | ⬜ | — |
 
 #### Candidates — named on a use case, not yet on a measurement
 

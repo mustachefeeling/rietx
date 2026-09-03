@@ -77,6 +77,68 @@ empty state reads as an answer.
 
 ### Inherited
 
+- **2026-09-03, from the issue triage (issue #231): a fourth defect of the
+  same class, on the same seam — `BOUND_HIT` from an early stage is reported
+  verbatim on the converged result, where the parameter is nowhere near a
+  bound.** The guard is generated while a stage runs; when a later stage moves
+  the parameter off the bound — the normal, desired outcome of a staged plan —
+  the warning survives and describes a state that no longer exists, with the
+  message *"<path> refined to its bound"* and the suggestion *"widen the bound
+  or fix the parameter"*, both false of the converged fit.
+
+  Reproduced synthetically on the repo's own `make_lab6`, cell seeded 0.5 %
+  large so stage 1 (only `zero_shift` free) drives the shift onto its ±0.02°
+  bound absorbing a cell error, stage 2 frees the cell and it returns:
+
+  | | `zero_shift` | `a` | `BOUND_HIT` |
+  |---|---|---|---|
+  | stop after `zero` | +0.020000° (100 % of bound) | fixed | True |
+  | then free the cell | +0.000001° (0 % of bound) | 4.156600227 | **True** |
+
+  The second row is a **fully successful fit** — truth is `a = 4.15660`,
+  `zero_shift = 0` — carrying a warning about a limit it is five orders of
+  magnitude from. `BOUND_HIT_RTOL = 1e-10` (`strategy/staged.py:1008`) is
+  **not** implicated: the tolerance is right and `bound_findings` is right for
+  the vector it is handed. The defect is *which vector reaches the final
+  diagnostics list*, which is this WP's dedup seam.
+
+  **It is convincing, which is why it is more than cosmetic.** Two independent
+  readers built confident wrong physical mechanisms on one before checking the
+  parameter's own value: on a real capillary synchrotron fit `BOUND_HIT` fired
+  on `capillary_offset_along_beam` in five of five fits, read as the specimen
+  offset being pinned and load-bearing and therefore the absolute cell values
+  untrustworthy; the second hypothesis was that the ±1 mm default
+  (`schemas/instrument.py:788`) is too tight for that instrument, with seven
+  GSAS-II refinements of the same specimens carrying 1.2–4.5 mm equivalents as
+  circumstantial support. **One experiment killed both**: re-running at ±1, ±5
+  and ±20 mm gave results bit-identical to six significant figures (same cell,
+  same sigma, same Rwp), the offset converging at 3.3 % of the ±1 mm bound on
+  the *opposite side of zero* from the bound hit in an early stage. The genuine
+  finding in that fit was the `HIGH_CORRELATION` beside it, which *is*
+  evaluated at convergence and *is* real; the bound warning cost two rounds of
+  misdirected analysis.
+
+  Three fixes, ranked by the reporter, and the first two are this WP's:
+  **(1) re-evaluate the guards on the converged vector** before building the
+  final diagnostics list, so the final list means exactly "true at
+  convergence" — a parameter genuinely at a bound at the end still reports;
+  **(2) carry the stage identity** on the finding and distinguish "hit during
+  stage N, resolved by convergence" from "at bound at convergence" — a
+  transient excursion is a useful signal about plan ordering even when it
+  resolves, but this is a design call rather than a fix; **(3) add
+  `diagnostics` to `StageResult`**, which today carries `name, status,
+  n_iterations, cost_initial, cost_final, freed, ftol,
+  n_constraint_truncations, held, released` and no diagnostics, so the
+  aggregated list on `RefinementResult` is the only view and it is undated.
+  (1) and (3) are complementary and the reporter offers a PR for either.
+  WP-1076's rule applies to (3): a declared field needs its writer named at
+  review, and `staged.bound_findings` stays the one bound test feeding both
+  surfaces, pinned set-equal rather than re-derived.
+
+  Related and *not* this WP: `status == "converged"` on a fit whose diagnostics
+  say `MODEL_FAR_FROM_DATA` is
+  [1336](1336-the-fit-does-not-say-it-is-unusable.md).
+
 - **From the roadmap reorder, 2026-09-01 (issue #211)**: a fourth member of
   this WP's class — a surface that reads as an answer and is not. A stage's
   `turn_on` glob frees a parameter the caller pinned with `vary=False`
