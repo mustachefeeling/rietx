@@ -40,7 +40,8 @@ def build(bundle: Path) -> dict:
     assert obs.shape == calc.shape and obs.shape[1] == x.shape[0]
     assert np.all(obs == np.round(obs)), "observed counts are not integral"
     assert obs.max() < 32767 and calc.max() * 10 < 32767
-    rows = list(csv.DictReader(open(bundle / "metadata.csv")))
+    with open(bundle / "metadata.csv", newline="") as fh:
+        rows = list(csv.DictReader(fh))
     assert len(rows) == obs.shape[0]
     assert [int(r["series_index"]) for r in rows] == list(range(len(rows)))
     # the plotted clock: pauses collapse to one ordinary interval
@@ -85,20 +86,26 @@ def build(bundle: Path) -> dict:
 
 # The payload also keeps the reference code's name and the raw gas tokens out; the transcript
 # may name the reference code (the brief does) but never its numbers.
-DEMO_TOKENS = (".xy", "xrdml", "topas", "TOPAS", "1N2atm", "2H2mixatm", "3airatm")
+DEMO_TOKENS = (".xy", "xrdml", "topas", "1N2atm", "2H2mixatm", "3airatm")
 TRANSCRIPT_TOKENS = ("1N2atm", "2H2mixatm", "3airatm")
 
 def check_no_leak(text: str, bundle: Path, tokens: tuple[str, ...] = DEMO_TOKENS) -> None:
-    """Refuse `text` if any pattern filename, scan index or leak token from `bundle` is in it."""
-    rows = list(csv.DictReader(open(bundle / "metadata.csv")))
+    """Refuse `text` if any pattern filename, scan index or leak token from `bundle` is in it.
+
+    Case-insensitive throughout, for `build.leaks`' reason: the transcript is prose
+    cut by hand, and a filename's case is not the case a sentence writes it in.
+    """
+    with open(bundle / "metadata.csv", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    lowered = text.lower()
     bad = set()
     for r in rows:
         stem = r["filename"].rsplit(".", 1)[0]
         for token in (stem, r["filename"], f"_I{r['scan_index']}_"):
-            if token in text:
+            if token.lower() in lowered:
                 bad.add(token)
     bad.update(leaks(text))
-    bad.update(t for t in tokens if t in text)
+    bad.update(t for t in tokens if t.lower() in lowered)
     if bad:
         raise SystemExit(f"leak: {sorted(bad)[:5]}")
 

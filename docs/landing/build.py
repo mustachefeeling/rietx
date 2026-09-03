@@ -22,17 +22,28 @@ DEMO = HERE / "data" / "demo.json"
 TRANSCRIPT = HERE / "data" / "transcript.json"
 # Nothing from the contributor's bundle that names a file, a specimen, a machine or a person
 # may reach the page. Tokens are substrings; the regexes catch the filename grammar itself.
+# **Matched case-insensitively**, because half of what this guards is prose cut by hand: a
+# filename says `sio2` and `etoh` while a sentence says `SiO2` and `EtOH`, and a person is
+# `gaultois` in a path and `Gaultois` in a line of the run log.  A token written in one case
+# would have passed the other straight through — which is the only failure this file has.
 LEAK = ("8pptn0", "etoh", "sio2", "0523",                       # specimen code, sample tags, acquisition-date prefix
         "02pct", "solgel", "8reg0", "drypack", "ultrathin",      # sibling specimens' tags
         "splitter",                                              # the reference's own parser
-        "/Users/", "/Volumes/", "gaultois", "Michael", "michael", "Capel", "Donat")   # machines and people
+        "/Users/", "/Volumes/", "gaultois", "michael", "capel", "donat")   # machines and people
 LEAK_RE = (r"_I\d+_", r"\b\d{10}_", r"\b\d{8}_CuO")           # scan token, acquisition timestamp, run-folder date
+
+# base64 is drawn from [A-Za-z0-9+/], so a four-character token turns up inside a
+# 200 kB inlined PNG by chance — measured: `etoh` and `sio2` both do, and `0523`
+# would have without the case fold.  A blob carries no name, so it is not scanned.
+BLOB = re.compile(r"base64,[A-Za-z0-9+/=]+")
 
 def leaks(text: str) -> list[str]:
     """Every leak token or pattern found in `text`, in list order; empty means clean."""
-    found = [t for t in LEAK if t in text]
+    text = BLOB.sub("base64,", text)
+    lowered = text.lower()
+    found = [t for t in LEAK if t.lower() in lowered]
     for pat in LEAK_RE:
-        m = re.search(pat, text)
+        m = re.search(pat, text, re.IGNORECASE)
         if m:
             found.append(m.group(0))
     return found
@@ -67,6 +78,12 @@ def assemble(site: bool) -> str:
     html = html.replace("%%FAVICON%%", "favicon.svg" if site else data_uri(fav))
     for name, rel in IMAGES.items():
         html = html.replace(f"%%IMG:{name}%%", rel if site else data_uri(HERE / rel))
+    if not site and not DEMO.exists():
+        # The inline build is the one-file artifact, whose whole point is the payload;
+        # absent, say so rather than raising FileNotFoundError from inside a replace.
+        # (`--site` is the build where absent is a legitimate state — see __main__.)
+        raise SystemExit(f"no payload at {DEMO} — the inline build needs one; "
+                         f"`build.py --site` is the build that does not")
     demo = "" if site else DEMO.read_text(encoding="utf-8")
     html = html.replace("%%DEMO%%", demo)
     tr = TRANSCRIPT.read_text(encoding="utf-8").strip() if TRANSCRIPT.exists() else ""

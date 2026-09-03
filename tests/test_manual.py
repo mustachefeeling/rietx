@@ -41,12 +41,17 @@ MARKUP_WITHOUT_PROSE = re.compile(
 # writes a shell prompt as `<span class="ps">$</span>pip install rietx` — prose
 # by MARKUP_WITHOUT_PROSE's definition, and a false positive for the TeX guard.
 # Derived from the directory conf.py actually copies, so the exclusion is exactly
-# what was added and a new manual page stays covered.
+# what was added and a new manual page stays covered.  Read when the guard runs,
+# never at import: `tests/test_landing.py` *creates* `docs/landing/site` during
+# the session, so a set frozen at collection time is empty on the checkout that
+# had none — and the landing page's `$` is then scanned as the manual's prose.
 _LANDING_SITE = MANUAL_DIR.parent / "landing" / "site"
-COPIED_IN = (
-    {p.relative_to(_LANDING_SITE).as_posix() for p in _LANDING_SITE.rglob("*.html")}
-    if _LANDING_SITE.is_dir() else set()
-)
+
+
+def _copied_in() -> set[str]:
+    if not _LANDING_SITE.is_dir():
+        return set()
+    return {p.relative_to(_LANDING_SITE).as_posix() for p in _LANDING_SITE.rglob("*.html")}
 
 CITE_ROLE = re.compile(r"\{cite\}`([^`]+)`")
 SOURCE_LINE = re.compile(r"\*Source:\*\s+`([A-Za-z_][\w.]*)`")
@@ -104,10 +109,11 @@ def test_no_unrendered_math_survives_the_build(built_manual):
     """
     out, result = built_manual
     assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    copied_in = _copied_in()
     stray: list[str] = []
     for page in sorted(out.rglob("*.html")):
-        if page.relative_to(out).as_posix() in COPIED_IN:
-            continue        # the landing page — see COPIED_IN
+        if page.relative_to(out).as_posix() in copied_in:
+            continue        # the landing page — see _copied_in()
         text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
         for match in re.finditer(r".{0,60}\$.{0,60}", text, re.S):
             stray.append(f"{page.name}: …{match.group(0).strip()}…")

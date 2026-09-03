@@ -19,6 +19,11 @@ text = path.read_text(encoding="utf-8")
 doc = json.loads(text)
 for key in ("agent", "model", "experiment", "prompt", "head", "marks", "report"):
     assert key in doc, f"transcript.json lacks {key!r}"
+for i, m in enumerate(doc["marks"]):
+    # `at` is how the page keys a mark to its frame: without it the mark is silently
+    # never rendered, which is a cut that looks fine here and is missing on the page.
+    assert "at" in m and isinstance(m["at"], int), f"marks[{i}] has no integer 'at'"
+    assert "lines" in m, f"marks[{i}] has no 'lines'"
 n_lines = len(doc["head"]) + sum(len(m["lines"]) for m in doc["marks"])
 check_no_leak(text, bundle, TRANSCRIPT_TOKENS)
 print(f"ok: {path.name}, {n_lines} log lines, {len(doc['report'])} report paragraphs, "

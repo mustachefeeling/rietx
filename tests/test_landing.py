@@ -47,7 +47,13 @@ LANDING = REPO_ROOT / "docs" / "landing"
 # `docs/landing/site`, so two workers running it at once race over the same
 # directory (tests/CLAUDE.md — a shared fixture stays on one worker, and this
 # shares a directory rather than a fixture).  The module costs about a second.
-pytestmark = pytest.mark.xdist_group("landing")
+#
+# And the group is the *manual build's*, not one of its own: `conf.py` puts
+# `docs/landing/site` on `html_extra_path`, so a sphinx build on another worker
+# copies the very directory this module is rmtree-ing — a `-W` build that fails
+# on a file that vanished under it.  Sharing the group keeps the two serialised
+# on one worker, which is the only thing `--dist loadgroup` guarantees.
+pytestmark = pytest.mark.xdist_group("manual-build")
 
 
 def _build_module():
