@@ -1,8 +1,8 @@
 # WP-1130 — The fit has no reference: a background level it cannot argue with
 
 Milestone: unscheduled · Status: ⬜
-Depends on: — (WP-1131 closed 2026-09-02, and the width check it named had in
-fact shipped in v1.2; see ### Inherited)
+Depends on: — (nothing; WP-1131 closed 2026-09-02 and the width check this WP
+needed had in fact shipped in v1.2 — see § What this reads rather than computes)
 
 ## Goal
 
@@ -37,14 +37,14 @@ maintainer's flat-basin heuristic. Nothing rietx computes participated in any
 of the three corrections. That is the finding this WP exists to fix; the
 background is the instance.
 
-### Inherited
+### What this reads rather than computes
 
-From [1131](1131-sample-broadening-is-a-specimen-property.md)'s session,
-2026-09-02, which closed. Four things change the work here.
+Folded in from [1131](1131-sample-broadening-is-a-specimen-property.md)'s
+session, 2026-09-02, and re-checked against the tree on 2026-09-03. Four things
+this WP does not have to build.
 
-- **The dependency is discharged, and not by 1131.** This file's `Depends on:`
-  line names 1131 for "the width check, and the size/strain conversions". The
-  **width check shipped in v1.2**, before 1131 was ever worked:
+- **The width check shipped in v1.2**, before 1131 was ever worked, so the
+  dependency this file used to declare is discharged and not by 1131:
   `SIZE_UNUSUALLY_SMALL` (apparent crystallite below `refine.SIZE_FLAG_SIZE_A`
   = 50 Å, via Scherrer at the pattern's longest line) and
   `STRAIN_UNUSUALLY_LARGE` (above `refine.STRAIN_FLAG_WIDTH` = 1.5 deg), each
@@ -52,16 +52,17 @@ From [1131](1131-sample-broadening-is-a-specimen-property.md)'s session,
   `strain_cap` off the fitted range) that arms only on a term already at the
   floor, and rows in `docs/skill/rietx/references/{diagnostics,abstention}.md`.
   Both thresholds are calibrated on the 606-refinement TOPAS archive rather
-  than invented. **So this WP is unblocked now**, and the tasks below that say
-  "defers to 1131's width finding" should name those two codes instead.
-- **The conversions exist and are one import, not a hand computation.**
+  than invented. **Every task below that says "defers to 1131's width finding"
+  means those two codes.**
+- **The conversions are one import, not a hand computation.**
   `model/profiles/caglioti.py` holds both directions of both laws:
   `apparent_size_from_size_coefficient` / `size_coefficient_for_size` (which
   need a λ) and `microstrain_from_strain_coefficient` /
-  `strain_coefficient_for_microstrain` (which do not). § Finding 2's "`lor_strain`
-  of 10.37 is Δd/d ≈ 9 %" is `microstrain_from_strain_coefficient(10.37)` and
-  need not be recomputed by hand; state no constant of your own.
-- **There is now a better input than a coefficient.**
+  `strain_coefficient_for_microstrain` (which do not). § Finding 2's
+  "`lor_strain` of 10.37 is Δd/d ≈ 9 %" is
+  `microstrain_from_strain_coefficient(10.37)` and need not be recomputed by
+  hand; state no constant of your own.
+- **There is a better input than a coefficient.**
   `RefinementResult.microstructure` / `FitReport.microstructure` carry, per
   phase, the coherent domain size in Å and the Δd/d with esds — or a named
   reason there is none (`at_zero`, `no_wavelength`, `not_measured`) — plus
@@ -77,6 +78,28 @@ From [1131](1131-sample-broadening-is-a-specimen-property.md)'s session,
   which is one number; the degrees are not. The
   `SIZE_NORMALISED_ACROSS_WAVELENGTHS` diagnostic says so on any fit it applies
   to.
+
+### Superseded in part, 2026-09-03
+
+The findings below were measured 2026-08-23 to 08-27 and are dated claims about
+the tree, not standing facts. One has gone stale:
+
+- **`AGENT_PROTOCOL.md` no longer exists as a document.** WP-1304 turned it
+  into the agent skill, `docs/skill/rietx/`, and `docs/AGENT_PROTOCOL.md` is a
+  pointer kept for one release and deleted at v1.4. So the two tasks below that
+  said "an `AGENT_PROTOCOL.md` row" now name their skill destination instead,
+  under the root CLAUDE.md § skill rule (WP-1330): a rule that holds for
+  **every** fit goes in `SKILL.md`'s body, one that holds for a task shape goes
+  in one `references/` file for that shape. A background reference read against
+  a fitted background is a per-fit judgement, so it is a `references/` row on
+  the diagnostic plus, at most, one body clause.
+
+Re-checked and still true on 2026-09-03: the `cell_window` degeneracy
+(§ Bug found on the way — `cell_window("a", -3.0, -inf, inf)` returns
+`(-3.0, -3.0)` on this tree), `BACKGROUND_ABSORPTION_GUARD = 0.25` in
+`strategy/staged.py`, the three unread `PatternDiagnostics` fields of
+§ Finding 7, and `report.background.absorption` / `worst_absorption` as Gap A's
+read.
 
 ### The trigger dataset
 
@@ -477,9 +500,10 @@ and Gap C decides whether the diagnostic is buildable at all.
 - [ ] **Gap A: re-run the trigger fit and record what fired.** Fetch the scan
       (§ The trigger dataset; `pkx → y`, `pky → x`), refine as Finding 1 did,
       and read `result.diagnostics` and `report.background.absorption`. Record
-      the answer in this file. If `BACKGROUND_ABSORPTION` fired, the
-      `AGENT_PROTOCOL.md` row for it gains the sentence "a phase width can be
-      the absorber, and the R² names the victim, not the cause".
+      the answer in this file. If `BACKGROUND_ABSORPTION` fired, its
+      row in `docs/skill/rietx/references/diagnostics.md` gains the sentence
+      "a phase width can be the absorber, and the R² names the victim, not the
+      cause".
 - [ ] **Gap B: adopt TOPAS's protocol and localise the residual misfit.** Check
       the channel count and what each Rwp sum includes; then, on the capped
       fit, the cumulative Δχ² by region against the widths-free fit (the
@@ -526,7 +550,8 @@ and Gap C decides whether the diagnostic is buildable at all.
       a reference in it would have shown a smooth decay and been called fine.
 - [ ] **`rietx compare` row** — the standing rule in the root CLAUDE.md, and the
       cumulative Δχ² panel is what localises this to 18–25° in the first place.
-- [ ] **`AGENT_PROTOCOL.md` rows.** Rwp and GoF never accept a background; a
+- [ ] **Agent-skill rows** (not `AGENT_PROTOCOL.md`, which WP-1304 replaced).
+      Rwp and GoF never accept a background; a
       fitted background below the anchors by more than their stated bias names
       the phase widths as first suspect, not the background function; a
       model-free estimate is biased high by construction and is not a
