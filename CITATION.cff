@@ -7,14 +7,19 @@ cff-version: 1.2.0
 message: If rietx contributed to published work, please cite it.
 type: software
 title: rietx
-abstract: API-first, differentiable Rietveld refinement of powder X-ray diffraction data
+abstract: Python-API-first analysis and Rietveld refinement of powder diffraction data
 authors:
   - family-names: Wu
     given-names: Yue
+    orcid: https://orcid.org/0000-0003-2874-8267
+  - family-names: Gaultois
+    given-names: Michael W.
+    orcid: https://orcid.org/0000-0003-2172-2507
 license: MIT
 repository-code: https://github.com/yue-here/rietx
 keywords:
   - rietveld
-  - powder-diffraction
   - xrd
+  - powder-diffraction
+  - neutron-diffraction
   - crystallography
