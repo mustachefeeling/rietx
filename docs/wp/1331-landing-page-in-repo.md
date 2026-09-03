@@ -82,25 +82,38 @@ the manual alone, which is the correct answer for a fork.
 ## Tasks
 
 - [x] Open the WP: this file, the ROADMAP row under § Unscheduled, Current focus.
-- [ ] `docs/landing/`: `src/`, `build.py`, `build_demo.py`, `img/`, `tools/`,
-      `README.md`. `dist/`, `preview.html`, `data/`, `site/` and `__pycache__`
-      stay out.
-- [ ] `.gitignore`: un-ignore `docs/landing/img/*.png`, ignore
+- [x] `docs/landing/`: `src/`, `build.py`, `build_demo.py`, `img/`, `tools/`,
+      `README.md` — thirteen files. `dist/`, `preview.html`, `data/`, `site/`
+      and `__pycache__` stay out.
+- [x] `.gitignore`: un-ignore `docs/landing/img/*.png`, ignore
       `docs/landing/preview.html`, `docs/landing/data/` and `docs/landing/site/`,
       each with the comment saying which direction it fails in.
-- [ ] `conf.py`: `root_doc = "manual"`, conditional `html_extra_path`;
+- [x] `conf.py`: `root_doc = "manual"`, conditional `html_extra_path`;
       `git mv docs/manual/index.md docs/manual/manual.md`.
-- [ ] `pages.yml`: fetch the payload from the private repo with a secret, run
+- [x] The `--site` build renders: a document skeleton (the source is an artifact
+      *fragment*, so a web server got mojibake) and the payload fetch its own
+      comments promised but did not have. **Not planned — found by serving the
+      output and looking**, which nobody had done.
+- [x] `pages.yml`: fetch the payload from the private repo with a secret, run
       `build.py --site`, then sphinx. The fetch is best-effort so a fork's build
-      still passes.
-- [ ] `README.md` and `pyproject.toml`: the manual is `rietx.org/manual.html`.
-- [ ] `examples/fap_lab.py` + `fluorapatite.cif`, so `tests/test_examples.py`
-      runs the script the page quotes.
-- [ ] `tests/test_landing.py`: the ignore rules (both directions), the
-      placeholders, the leak tokens, every root-relative link resolves against
-      the built site, and the `--site` build runs.
-- [ ] Skill: none. The landing page is not a refinement surface and nothing an
+      still passes. Three links in the page that meant "the manual" and pointed
+      at the site root now point at `manual.html`.
+- [x] `README.md` and `pyproject.toml`: the manual is `rietx.org/manual.html`.
+- [x] `examples/fap_lab.py` + `tests/data/fluorapatite.cif`, so
+      `tests/test_examples.py` runs the script the page quotes.
+- [x] `tests/test_landing.py`: the ignore rules (both directions), the
+      placeholders, the leak tokens, every relative link resolves against what
+      the build writes, the document skeleton, the fetch, and every `rx.*` name
+      the page prints. Plus the manual's TeX guard, which began policing the
+      page copied in beside it.
+- [x] Skill: none. The landing page is not a refinement surface and nothing an
       agent driving rietx does reaches it.
+
+**Left for the maintainer, and only they can do it** (§ Non-goals): create the
+private payload repository `yue-here/rietx-site-data` holding `demo.json` and
+`transcript.json`, and add a fine-grained read-only token as the repository
+secret `SITE_DATA_TOKEN`. Until then every push publishes the page with no
+animation — the workflow skips the fetch rather than failing.
 
 ## Acceptance
 
