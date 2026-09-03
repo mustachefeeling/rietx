@@ -68,10 +68,19 @@ noise and all; what it costs is peak *shape*, the calculated line growing spikie
 as apexes fall between retained channels.
 
 Everything else the fence covers is unchanged: no filename, scan index, specimen
-token, path or person from the bundle reaches either file, `build.py`'s `leaks()`
-and `tools/check_transcript.py` enforce it case-insensitively, and the bundle's
-own files (`curves.npz`, `metadata.csv`, plots, logs, `agent_transcripts/`) stay
-out of the repository entirely.
+token or path from the bundle reaches either file, `build.py`'s `leaks()` and
+`tools/check_transcript.py` enforce it case-insensitively, and the bundle's own
+files (`curves.npz`, `metadata.csv`, plots, logs, `agent_transcripts/`) stay out
+of the repository entirely.
+
+**People are now the one exception, and it is a credit rather than a leak.** The
+fence started with a people arm, on the reasoning that a name in a run log is a
+name the bundle did not offer to publish. The caption then became the credit the
+contributors asked for, which names all of them — and a person the page thanks
+cannot also be a token that fails the build, so the arm is empty. What keeps a
+machine path out is `/Users/`, `/Volumes/` and `LEAK_RE`, none of which ever
+moved; the transcript's own cut still replaces a name with a role, because a
+name *inside the run log* is still not a credit.
 
 ## Sources behind the page's numbers
 

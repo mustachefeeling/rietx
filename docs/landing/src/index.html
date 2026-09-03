@@ -234,10 +234,9 @@ footer .note{flex-basis:100%;margin-top:8px;font-size:.82rem;color:var(--faint)}
 
 <main>
 <section class="hero"><div class="wrap">
-  <h1>Rietveld refinement, driven from Python</h1>
-  <p class="lede">rietx is an open-source package for refining powder diffraction data. Load a pattern and a structure,
-    run a plan, and read a report that says what the fit determined and what it could not.
-    The API a person scripts is the one a coding agent calls.</p>
+  <h1>Rietveld refinement for humans and machines</h1>
+  <p class="lede">rietx is an open-source package for analysing powder diffraction data. It is designed with a
+    streamlined API that can be easily used by most common AI coding agents out of the box.</p>
   <div class="cta">
     <span class="install"><span class="ps">$</span>pip install rietx</span>
     <a class="btn primary" href="https://rietx.org/manual.html">Read the manual</a>
@@ -247,11 +246,11 @@ footer .note{flex-basis:100%;margin-top:8px;font-size:.82rem;color:var(--faint)}
 
 <section class="block" id="agent"><div class="wrap">
   <div class="sec-head">
-    <h2>Refined by an agent</h2>
-    <p>A copper oxide catalyst measured in situ on a lab diffractometer: one pattern a minute through a ten-hour run
-      under nitrogen, then 0.2 % hydrogen in nitrogen, then air. A coding agent was given the patterns and the
-      reference structures and asked to refine the series. The panels replay its 275 six-phase Rietveld fits,
-      and the log beside them streams as they go.</p>
+    <h2>Agentic refinement with standard models</h2>
+    <p>The dataset is 275 patterns from an <em>in situ</em> Cu looping experiment collected on a lab
+      diffractometer with sub-minute acquisition times. The measurements were made at high temperature and
+      under changing environments using a bespoke gas cell. A coding agent (Claude Sonnet 5 running in
+      Claude Code) was given the patterns and the reference structures and asked to refine the series.</p>
   </div>
   <div class="rig">
     <div class="rig-head">
@@ -276,17 +275,16 @@ footer .note{flex-basis:100%;margin-top:8px;font-size:.82rem;color:var(--faint)}
       </div>
     </div>
   </div>
-  <p class="caption">Contributed by Michael W. Gaultois. Work performed with Prof. Clare Grey at the Department of Chemistry, University of Cambridge.</p>
+  <p class="caption">Contributed by Michael W. Gaultois. Work performed with Jamie Capel, Martin C. Chan, Stuart Scott, Felix Donat, and Prof. Clare Grey at the Department of Chemistry, University of Cambridge.</p>
 </div></section>
 
 <section class="block" id="example"><div class="wrap">
   <div class="sec-head">
     <h2>An example refinement</h2>
-    <p>Fluorapatite from the GSAS-II tutorial data: a lab Cu Kα pattern with seven atomic sites.
-      The script is complete, and the output is what it printed.</p>
+    <p>Fluorapatite from the GSAS-II tutorial data: a lab Cu Kα pattern with seven atomic sites.</p>
   </div>
   <div class="two">
-    <div class="codebox"><div class="bar"><span>fap_lab.py</span><span>python</span></div>
+    <div class="codebox"><div class="bar"><span>fap_lab.py</span></div>
 <pre><span class="k">import</span> rietx <span class="k">as</span> rx
 
 data = rx.read_pattern(<span class="s">"FAP.XRA"</span>)          <span class="c"># GSAS raw format</span>
@@ -311,7 +309,7 @@ result = ref.fit(data, plan=<span class="s">"mccusker_structural"</span>,
 report = rx.build_report(result)
 <span class="k">print</span>(report.summary)
 result.plot(path=<span class="s">"fap_fit.png"</span>)</pre></div>
-    <div class="codebox"><div class="bar"><span>output</span><span>2.8 s, imports included, on an Apple M4</span></div>
+    <div class="codebox"><div class="bar"><span>output</span></div>
 <pre class="out"><span class="g">converged</span>  Rwp=0.0893  GoF=1.60
   a = 9.37228 +/- 0.00010 A
   c = 6.88626 +/- 0.00009 A
@@ -355,10 +353,11 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
 </div></section>
 
 <section class="block" id="features"><div class="wrap">
-  <div class="sec-head"><h2>What it does</h2></div>
+  <div class="sec-head"><h2>Features</h2></div>
   <ul class="feat">
     <li><strong>Rietveld, Le Bail and Pawley</strong><span>Multi-phase, X-ray and constant-wavelength neutron. <a href="https://rietx.org/using/concepts.html">Concepts</a></span></li>
     <li><strong>Reads the common formats</strong><span>.xy/.xye, GSAS, pdCIF, .chi, Rigaku .ras/.rasx, Bruker .uxd/.brml/.raw, PANalytical .xrdml. <a href="https://rietx.org/using/files.html">Files</a></span></li>
+    <li><strong>Speaks other codes’ files</strong><span>Reads a TOPAS <code>.inp</code>, and PowderLine’s engine-neutral recipe both ways. Writing the others back is in progress. <a href="https://rietx.org/using/recipe.html">Recipe</a></span></li>
     <li><strong>Phase quantification</strong><span>Weight fractions with esds propagated through the full covariance, and a flag when a phase is not determined by the data. <a href="https://rietx.org/using/qpa.html">QPA</a></span></li>
     <li><strong>Series</strong><span>Sequential refinement with warm start, run in both directions to catch a trajectory that depends on the order. <a href="https://rietx.org/using/series.html">Series</a></span></li>
     <li><strong>A report, not just Rwp</strong><span>Where the misfit is, which parameters the fit cannot separate, and what to try next. <a href="https://rietx.org/using/report.html">FitReport</a></span></li>
@@ -366,6 +365,7 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
     <li><strong>Indexing</strong><span>Three engines, a ranked list with its caveats, never one confident cell. <a href="https://rietx.org/using/indexing.html">Indexing</a></span></li>
     <li><strong>The corrections a lab pattern needs</strong><span>Axial divergence, displacement and transparency, absorption, preferred orientation, anisotropic displacement and strain, anomalous dispersion on by default. <a href="https://rietx.org/using/model.html">Model</a></span></li>
     <li><strong>Solvers and backends</strong><span>Trust-region and Levenberg–Marquardt on an analytic Jacobian; optional JAX and torch backends. <a href="https://rietx.org/estimation.html">Estimation</a></span></li>
+    <li><strong>Fast without a GPU</strong><span>The hot loop runs on compiled kernels in a stock install, about 2× on a multi-phase fit, with the plain numpy path kept as the oracle they are checked against. <a href="https://rietx.org/using/install.html">Install</a></span></li>
     <li><strong>For agents</strong><span>A packaged skill with the protocol and the diagnostic vocabulary: <code>rietx skill --install</code>. <a href="https://rietx.org/using/agents.html">Agents</a></span></li>
   </ul>
 </div></section>
@@ -398,7 +398,7 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
   <a href="https://rietx.org/manual.html">Manual</a>
   <a href="https://github.com/yue-here/rietx/blob/main/CITATION.cff">Cite</a>
   <a href="https://github.com/yue-here/rietx/blob/main/ATTRIBUTION.md">Sources</a>
-  <span class="note">Algorithms are implemented from the published literature, cited in the manual. CIF and symmetry handling uses gemmi. Page written with Claude Code.</span>
+  <span class="note">Algorithms are implemented from the published literature, cited in the manual. CIF and symmetry handling uses gemmi. Page written by Claude with edits by <a href="https://github.com/yue-here">@yue-here</a>.</span>
 </div></footer>
 
 <script type="application/json" id="demo-data">%%DEMO%%</script>

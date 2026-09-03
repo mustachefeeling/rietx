@@ -190,8 +190,9 @@ def test_the_animation_caption_is_the_credit_and_nothing_else(site_html):
     captions = re.findall(r'<p class="caption">(.*?)</p>', site_html, re.S)
     text = re.sub(r"<[^>]+>", "", captions[0]).strip()
     assert text == (
-        "Contributed by Michael W. Gaultois. Work performed with Prof. Clare Grey "
-        "at the Department of Chemistry, University of Cambridge."
+        "Contributed by Michael W. Gaultois. Work performed with Jamie Capel, "
+        "Martin C. Chan, Stuart Scott, Felix Donat, and Prof. Clare Grey at the "
+        "Department of Chemistry, University of Cambridge."
     )
 
 

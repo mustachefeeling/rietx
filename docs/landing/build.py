@@ -23,17 +23,15 @@ TRANSCRIPT = HERE / "data" / "transcript.json"
 # Nothing from the contributor's bundle that names a file, a specimen, a machine or a person
 # may reach the page. Tokens are substrings; the regexes catch the filename grammar itself.
 # **Matched case-insensitively**, because half of what this guards is prose cut by hand: a
-# filename says `sio2` and `etoh` while a sentence says `SiO2` and `EtOH`, and a person is
-# `gaultois` in a path and `Gaultois` in a line of the run log.  A token written in one case
-# would have passed the other straight through — which is the only failure this file has.
-# Two names left this list when the caption became a named credit (WP-1331): a person the
-# page thanks by name cannot also be a token that fails the build.  What keeps a machine
-# path out is `/Users/`, `/Volumes/` and LEAK_RE, none of which moved.
+# filename says `sio2` and `etoh` while a sentence says `SiO2` and `EtOH`.  A token written in
+# one case would have passed the other straight through — which is the only failure this file
+# has.  The people arm is now empty (WP-1331): the caption credits every one of them by name,
+# and a person the page thanks cannot also be a token that fails the build.  What keeps a
+# machine path out is `/Users/`, `/Volumes/` and LEAK_RE, none of which ever moved.
 LEAK = ("8pptn0", "etoh", "sio2", "0523",                       # specimen code, sample tags, acquisition-date prefix
         "02pct", "solgel", "8reg0", "drypack", "ultrathin",      # sibling specimens' tags
         "splitter",                                              # the reference's own parser
-        "/Users/", "/Volumes/", "capel", "donat")   # machines, and people who are
-                                                    # not credited on the page
+        "/Users/", "/Volumes/")                                  # machine paths
 LEAK_RE = (r"_I\d+_", r"\b\d{10}_", r"\b\d{8}_CuO")           # scan token, acquisition timestamp, run-folder date
 
 # The support phases are kept out a rank earlier and are deliberately NOT tokens here: a

@@ -119,6 +119,8 @@ the manual alone, which is the correct answer for a fork.
       contributor's credit and nothing else, the transcript pane's label is
       `Prompt`, and the support phases ship as `support 1`–`3` in two shades with
       a legend entry each. The names are gone from the branch's history too.
+- [x] The maintainer's copy pass over the whole page: title, lede, the rig's
+      framing paragraph, the named credit, two features, the byline.
 - [x] `examples/fap_lab.py` + `tests/data/fluorapatite.cif`, so
       `tests/test_examples.py` runs the script the page quotes.
 - [x] `tests/test_landing.py`: the ignore rules (both directions), the
@@ -157,6 +159,28 @@ answers as the table above says for all six paths.
 ## Handover log
 
 ### 2026-09-03 (3rd session) — the page stops naming the sample
+
+**Later the same session: the maintainer's copy pass.** The page is now pitched
+at both readers it has — "Rietveld refinement for humans and machines", and a
+lede that says the API is meant to be driven by a coding agent out of the box.
+The rig's section is "Agentic refinement with standard models" and its paragraph
+names the model (Claude Sonnet 5 in Claude Code) and the measurement rather than
+the gas programme. Two features joined the list, both true and both checkable:
+the compiled kernels a stock install runs (about 2× on a multi-phase fit, WP-1115
+§ Measured after landing) and the foreign-format seam (`projects.read_topas_inp`
+in, PowderLine's recipe both ways, the rest in progress). The two codebox bars
+lost their right-hand labels, the example lost a sentence, and the footer byline
+is now "Page written by Claude with edits by @yue-here".
+
+**And the people arm of the leak fence is empty.** The credit names five people
+at the contributors' request, so `capel` and `donat` had to leave `LEAK` exactly
+as `gaultois` and `michael` did one commit earlier: a person the page thanks by
+name cannot also be a token that fails its own build. The rule that survives is
+the distinction, not the list — a name *in a run log* is still not a credit, so
+`transcript.json`'s cut still replaces one with a role, and `/Users/`,
+`/Volumes/` and `LEAK_RE` are what have always kept a machine path out.
+`docs/landing/README.md` records this as the one deliberate exception rather
+than leaving its "no person reaches either file" sentence to go quietly false.
 
 The animation now credits the contributor and says nothing else about the
 specimen. Its caption is one line, the transcript pane is labelled `Prompt`
