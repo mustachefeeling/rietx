@@ -21,11 +21,13 @@ also what the mockup artifact shows.
 | `tools/check_transcript.py` | the leak check for the transcript; `build.py` runs the same token list over the whole page |
 | `tools/rig_shots.js` | screenshots of the animation rig alone, both themes, at chosen frames (`FRAMES=120,274`) — the quickest check after a change to the panels |
 
-## What is still missing
+## The agent pane
 
-1. **The agent's run** is in (`data/transcript.json`, from the 2026-09-03 bundle's `agent_transcripts/`, the run that built the animation bundle: Claude Sonnet 5 under Claude Code, 2026-09-01, 2 h 7 min, 289 assistant messages, 154 tool calls). The pane pins the brief at the top and streams the run log underneath, one line per pattern, in step with the panels: the page formats those lines from `demo.json` (index, temperature, atmosphere, status, Rwp — the run's own record of each fit), and `transcript.json` supplies everything around them. A gas or temperature step opens a marker; a non-converged fit is orange; the closing report arrives with the last pattern, and the loop holds ~6 s there before restarting. To re-cut it: pick messages by index from the JSONL, keep the text verbatim, mark cuts `[…]`, replace file names with `[pattern n]` (n = `series_index` from `metadata.csv`), paths with `[raw-data directory]` and people with a role, then run `tools/check_transcript.py`.
+Nothing is outstanding here; both items below are in.
 
-2. **The model name** in the rig header comes from `transcript.json` ("model to confirm" while the file is absent).
+1. **The agent's run** (`data/transcript.json`, from the 2026-09-03 bundle's `agent_transcripts/`, the run that built the animation bundle: Claude Sonnet 5 under Claude Code, 2026-09-01, 2 h 7 min, 289 assistant messages, 154 tool calls). The pane pins the brief at the top and streams the run log underneath, one line per pattern, in step with the panels: the page formats those lines from `demo.json` (index, temperature, atmosphere, status, Rwp — the run's own record of each fit), and `transcript.json` supplies everything around them. A gas or temperature step opens a marker; a non-converged fit is orange; the closing report arrives with the last pattern, and the loop holds ~6 s there before restarting. To re-cut it: pick messages by index from the JSONL, keep the text verbatim, mark cuts `[…]`, replace file names with `[pattern n]` (n = `series_index` from `metadata.csv`), paths with `[raw-data directory]` and people with a role, then run `tools/check_transcript.py`.
+
+2. **The model name** in the rig header comes from `transcript.json`'s `model` field, today `Claude Sonnet 5`. With the file absent the header reads "model to confirm" instead, which is what a checkout without the payload shows.
 
 ## How it is built and served
 
