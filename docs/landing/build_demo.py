@@ -140,7 +140,7 @@ def build(bundle: Path, k: int = 1) -> dict:
         return base64.b64encode(np.ascontiguousarray(a, dtype="<i2").tobytes()).decode("ascii")
     return OrderedDict(
         title="CuO reduction and reoxidation, in situ",
-        credit="Data and refinement contributed by @mustachefeeling",
+        credit="Contributed by Michael W. Gaultois. Work performed with Prof. Clare Grey at the Department of Chemistry, University of Cambridge.",
         n=len(frames), npts=int(x.shape[0]),
         # what the redaction cost, in the package's own terms
         decimation=k, steps_per_fwhm=round(fwhm_native / k, 2),

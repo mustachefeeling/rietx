@@ -189,7 +189,10 @@ def test_the_animation_caption_is_the_credit_and_nothing_else(site_html):
     """
     captions = re.findall(r'<p class="caption">(.*?)</p>', site_html, re.S)
     text = re.sub(r"<[^>]+>", "", captions[0]).strip()
-    assert text == "Data and refinement contributed by @mustachefeeling."
+    assert text == (
+        "Contributed by Michael W. Gaultois. Work performed with Prof. Clare Grey "
+        "at the Department of Chemistry, University of Cambridge."
+    )
 
 
 def test_the_support_phases_ship_unnamed(build_demo):
