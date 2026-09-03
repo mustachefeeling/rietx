@@ -477,6 +477,98 @@ Figures, `tests/output/` (gitignored, so re-run the scratchpad script):
 second being § Finding 8's panel — background only, y cropped to its own range,
 TOPAS's region means and both model-free estimators in the frame.
 
+### Gap B answered, 2026-09-04 — the missing model is named, and freeing it is not a fix
+
+**The protocol matches, and the channel count is not the mismatch.** The file is
+4168 points, 10.0000–70.0423°, step 0.014409°. TOPAS's `start_X 14 finish_X 70`
+with `x_calculation_step = Yobs_dx_at(Xo)` selects **3887** observed channels;
+`two_theta_limits=(14, 70)` gives rietx **3887**. The RAW carries no esd column
+(`DataRef.has_sigma` false), so `PatternData.sig()` is √max(y, 1) and the weight
+is 1/y — TOPAS's own default, with the file's minimum count 58, far from where
+the max(y, 1) floor would differ. Both sums are over the same channels with the
+same weights, so an Rwp comparison here is admissible. § Gap B's premise that a
+protocol mismatch might explain the gap is **refuted**: there is none in the two
+places it could hide.
+
+**Where the residual sits.** On the canonical run (Rwp 0.1092, χ² 8460 over 3887
+channels, 2.176 per channel):
+
+| region | 14-18 | 18-25 | 25-32 | 32-40 | 40-50 | 50-60 | 60-70 |
+|---|---|---|---|---|---|---|---|
+| χ² share | 0.040 | **0.264** | **0.263** | 0.108 | 0.136 | 0.098 | 0.091 |
+| χ²_red | 1.23 | 4.60 | 4.58 | 1.64 | 1.65 | 1.20 | 1.11 |
+| local Rwp | 0.0581 | 0.1039 | 0.1373 | 0.1151 | 0.1214 | 0.1063 | 0.1102 |
+
+Layer 0's peak clusters localise it further: **29.71–31.02°** carries 13.7 % of
+χ² at local Rwp 0.195, and **20.84–21.83°** another 9.9 % at 0.135. Read the
+reflection table over those two windows and they are **98.7 %** and **90.4 %**
+LT-ZrMo₂O₈ by I_calc.
+
+**The missing model, named.** LT-ZrMo₂O₈ is the one phase whose `.inp` block
+carries `spherical_harmonics_hkl` — TOPAS's *hkl-dependent* strain broadening —
+and `read_topas_inp` says so at import, `TOPAS_FEATURES_NOT_IMPORTED` naming
+`preferred orientation (spherical_harmonics_hkl)` and `peak profile (gauss_fwhm,
+lor_fwhm)` on that phase. rietx has the equivalent physics: Stephens (1999)
+anisotropic strain, `Phase.microstrain`, six Laue-allowed coefficients under
+`Pmn21`. So this is a *transcription* gap, not a capability gap — and it is the
+one § Gap B asked to name.
+
+**Freeing it improves Rwp by 20 % and costs two phases.** Seeding the block
+isotropically at 100 ppm and freeing `phases.1.microstrain.dof.*` inside the
+sample-broadening stage (never after it — the block locks `lor_strain`, and the
+run confirms it: that path comes back `refinable=False`, "structurally fixed by
+symmetry or by the model"):
+
+| | Rwp | GoF | χ² | free | χ² 29.71-31.02 | χ² 20.84-21.83 |
+|---|---|---|---|---|---|---|
+| no Stephens | 0.1092 | 1.48 | 8460 | 186 | 1170 | 838 |
+| Stephens on LT | **0.0878** | 1.19 | 5465 | 190 | 228 | 154 |
+
+Δχ² = 2995 for +4 net free parameters at N = 3887 → **ΔBIC = −2962**. By the
+model-selection test the skill prescribes, the block is overwhelmingly
+justified, and 79–82 % of both problem regions goes away.
+
+**And `PHASE_UNCONSTRAINED` fires on two of the four phases, which were
+supported without it.** `StageResult.held` for the widths stage grows from
+phase 0's five paths to *twelve*: `phases.2.cell.a`, `phases.2.lor_strain`,
+`phases.2.gauss_size`, `phases.3.cell.a`, `phases.3.cell.c`,
+`phases.3.lor_strain`, `phases.3.gauss_size` join it, and the result carries
+three `PHASE_UNCONSTRAINED` findings where the fit without the block carries
+one. Six hkl-dependent coefficients on the majority phase are enough to imitate
+the minority phases' lines, so the better Rwp is bought by making half the phase
+set unmeasurable. **ΔBIC cannot see that and the guard can** — which is § 4's
+rule about Rwp, one rank up and reproduced live: the fit that looks better is
+the one where two of the four answers stopped being measurements.
+
+**What this says about this WP, which is the point.** The background barely
+moves. Ratio to TOPAS's converged curve, the same seven regions:
+
+| | 14-18 | 18-25 | 25-32 | 32-40 | 40-50 | 50-60 | 60-70 |
+|---|---|---|---|---|---|---|---|
+| no Stephens | 1.17 | 1.02 | 1.01 | 0.94 | 0.99 | 0.95 | 0.92 |
+| Stephens on LT | 1.15 | 1.02 | 1.01 | 0.95 | 0.98 | 0.95 | 0.92 |
+
+The single largest defect in the fit — 35 % of its χ², a genuine and correctly
+diagnosed *phase width* error of exactly the kind § Finding 2 blames — is worth
+**≤ 2 % of the background level**. So the widths ⇄ background coupling
+§ Finding 2 asserts is **not generic**: it needed the runaway, not merely a
+width error. A width wrong enough to own a third of χ² does not move the
+background at all.
+
+`BACKGROUND_ABSORPTION` on `phases.1.scale` is likewise **invariant** across the
+pair, 0.442 against 0.437, while `phases.2.scale` falls 0.260 → 0.077 (that
+phase having just lost its support). A statistic that does not move when χ²
+falls by a third is measuring the geometry of the problem rather than the
+current misfit, which is what § Finding 6's "measured at the degenerate optimum,
+so whether it fires from a good start is unmeasured" left open. It fires from a
+good start, at the same value.
+
+Fenced, per § Gap B's own instruction to record a missing model rather than
+build one: nothing here proposes wiring Stephens in by default, and the
+`.inp`'s spherical-harmonic coefficients are *fixed* in the file
+(`!ahkl_c00` … `!ahkl_c44p`, taken from range 22), so a reader that imported
+them would import a held model, not a refinable one. Its home is WP-1118.
+
 ### Both fixed, 2026-09-03 — and the second one is the WP's own theme
 
 `cell_window` now refuses a value no cell can take, naming the path. The
@@ -654,7 +746,7 @@ and Gap C decides whether the diagnostic is buildable at all.
       row in `docs/skill/rietx/references/diagnostics.md` gains the sentence
       "a phase width can be the absorber, and the R² names the victim, not the
       cause".
-- [ ] **Gap B: adopt TOPAS's protocol and localise the residual misfit.** Check
+- [x] **Gap B: adopt TOPAS's protocol and localise the residual misfit.** Check
       the channel count and what each Rwp sum includes; then, on the capped
       fit, the cumulative Δχ² by region against the widths-free fit (the
       `rietx compare` panel's shape). Name what the widths were absorbing, or
