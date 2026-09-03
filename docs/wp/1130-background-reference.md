@@ -1,7 +1,8 @@
 # WP-1130 — The fit has no reference: a background level it cannot argue with
 
-Milestone: unscheduled · Status: 🔄 2026-09-03 — the mailbox pruned, `cell_window`
-and the NaN-silenced absorption guard fixed; the three gaps next
+Milestone: unscheduled · Status: 🔄 2026-09-04 — two bugs fixed and all three
+gaps answered; the trigger no longer reproduces and § Gap C's gate refuses the
+selector and the diagnostic, leaving the panel as the deliverable
 Depends on: — (nothing; WP-1131 closed 2026-09-02 and the width check this WP
 needed had in fact shipped in v1.2 — see § What this reads rather than computes)
 
@@ -569,6 +570,98 @@ build one: nothing here proposes wiring Stephens in by default, and the
 (`!ahkl_c00` … `!ahkl_c44p`, taken from range 22), so a reader that imported
 them would import a held model, not a refinable one. Its home is WP-1118.
 
+### Gap C answered, 2026-09-04 — the gate closes: 🛑 on the diagnostic
+
+**The synthetic is corrected, and this time it passes its own fidelity check.**
+§ Finding 6's synthetic was 2.3× too weak in 18–25°, the region that mattered.
+This one is built from the converged fit's *own* `y_calc − y_background`, so the
+net Bragg distribution is the real one by construction: **34.7 %** in 18–25°
+against the real 34.8 %, **23.2 %** above 45° against 23.9 %. A known analytic
+background (900/2θ + 60 + 40·exp(−(2θ−14)/12), spanning 73.2–164.2 counts) is
+added and the sum sampled from a Poisson. Truth is known channel by channel.
+
+**Bias against that truth, by region:**
+
+| estimator | 14-18 | 18-25 | 25-32 | 32-40 | 40-50 | 50-60 | 60-70 |
+|---|---|---|---|---|---|---|---|
+| arPLS λ=1e7 | 1.063 | 1.177 | 1.308 | 1.217 | 1.230 | 1.323 | 1.204 |
+| arPLS λ=1e9 | 1.072 | 1.166 | 1.245 | 1.208 | 1.246 | 1.313 | 1.206 |
+| SNIP | 0.864 | 0.943 | 0.992 | 0.910 | 0.921 | 0.964 | 0.859 |
+| flat-basin anchors ±2° | 1.003 | 1.084 | 1.082 | 1.086 | 1.151 | 1.174 | 1.158 |
+| flat-basin anchors ±4° | 1.025 | 1.058 | 1.084 | 1.085 | 1.067 | 1.085 | 1.143 |
+| flat-basin anchors ±6° | 1.026 | 1.057 | 1.078 | 1.075 | 1.057 | 1.078 | 1.141 |
+| flat-basin anchors ±10° | **−1.480** | **0.267** | 1.244 | 1.246 | 1.024 | 1.061 | 1.148 |
+
+Signs and magnitudes confirm § Finding 6 on better evidence: arPLS biased high
+everywhere (+6 to +32 % here against its +4 → +57 % on the old synthetic), SNIP
+low everywhere (−14 to −4 % against −12 to −18 %), and the two arPLS λ agree to
+5 %, not the 1 % claimed. The **window sensitivity is not a trend but a cliff**:
+±2/±4/±6 are stable and ±10 collapses, returning a *negative* background at low
+angle, because past that width no anchor survives there and the Chebyshev
+extrapolates. Recorded as the WP asked, with the correction that the number to
+report is where it breaks, not a slope.
+
+**But the deciding number is coverage, not bias.** Anchors per region on the
+synthetic at ±4°: 20/278, **1/486**, 15/485, 46/556, 35/694, 58/694, 173/694.
+In 18–25° — the region the whole WP is about — the estimate rests on **one
+channel in 486**, and its "+5.8 % bias" is a property of the Chebyshev's
+stiffness rather than a measurement of the floor.
+
+**On the two bundled patterns the selector produces nothing at all.**
+
+| pattern | channels | peak density | anchors found |
+|---|---|---|---|
+| `FAP.XRA` (dense lab, CuKα doublet), Rwp 0.0902 | 5750 | 2.97 /deg | **0** at ±2.3°, ±5.7° and ±11.5° |
+| `11BM_NAC.fxye` (synchrotron), Rwp 0.1299 | 59 498 | 26.19 /deg | 274 / **19** / **19** |
+
+Zero on the dense pattern this WP itself nominated as the CI comparator, at
+every window. Nineteen of 59 498 on 11-BM, where the curve through them diverges
+by four to seven orders of magnitude. The selector works on one of the three
+patterns tried, and on that one it is blind exactly where the question is asked.
+
+**The obvious fallback is refuted too, and this is what closes the gate.** Since
+arPLS is biased high everywhere and SNIP low everywhere, the tempting move is to
+stop estimating a level and quote the **bracket** [SNIP, arPLS] — no new
+estimator, no new knobs, both already in `background/estimators.py`, and a band
+rather than a singleton is this package's own rule. Measured over **8 Poisson
+realisations of the known truth**, the bracket contains it in all seven regions
+in **4 of 8**. It fails in 25–32°, where SNIP's bias crosses zero and its floor
+reaches 1.012. Used as a threshold on that floor:
+
+| | 14-18 | 18-25 | 25-32 | 32-40 | 40-50 | 50-60 | 60-70 |
+|---|---|---|---|---|---|---|---|
+| § Finding 1's trigger (ratio to TOPAS) | 1.01 | 0.54 | 0.50 | 0.55 | 0.59 | 0.59 | 0.69 |
+| SNIP floor over 8 seeds | 0.895 | 0.963 | 1.012 | 0.927 | 0.943 | 0.966 | 0.900 |
+| **trigger fires?** | no | yes | yes | yes | yes | yes | yes |
+| the fit on this tree (Gap A) | 1.17 | 1.02 | 1.01 | 0.94 | 0.99 | 0.95 | 0.92 |
+| **good fit fires?** | no | no | **yes** | no | no | **yes** | no |
+
+It catches the trigger in 6 regions of 7 — and fires on a *correct* fit in 2 of
+7. That is § Fault 1's concrete false positive, arriving from the estimator's
+own bias rather than from a nanocrystalline specimen, and no threshold moves it:
+the floor is above 1 in the region where the false positive lands.
+
+**Verdict — the gate is met and it says stop.** § Gap C's own words: "if the
+anchors' high bias in crowded regions is not separable from a factor-2 deficit
+at the widths the trigger had, the diagnostic is 🛑 on that evidence, and this
+WP's deliverable is the panel plus the record." Two things are now true and
+either alone is sufficient. The factor-2 deficit no longer occurs at all
+(§ Gap A, nine protocols at 0.90–1.22), so there is nothing left to separate
+*from*. And no model-free estimate measured here separates a correct fit from a
+bad one without false positives: the anchors have no coverage where it matters
+and none at all on two of three patterns, and the bracket flags a good fit in
+two regions of seven.
+
+So **`BACKGROUND_BELOW_ANCHORS` and `background.anchors` are 🛑**, on measured
+evidence, and the tasks below are marked accordingly. What survives is the
+panel, the record, and the two things already landed — the guard that fires and
+now says how to read itself, and the NaN that used to silence it.
+
+Figure: `tests/output/wp1130_gap_c_anchor_coverage.png` (gitignored; the
+scratchpad script rebuilds it) — the synthetic with its known truth, the three
+estimates over it, and below them the anchor count per region, which is the
+panel that makes the gate legible in one look.
+
 ### Both fixed, 2026-09-03 — and the second one is the WP's own theme
 
 `cell_window` now refuses a value no cell can take, naming the path. The
@@ -752,7 +845,7 @@ and Gap C decides whether the diagnostic is buildable at all.
       `rietx compare` panel's shape). Name what the widths were absorbing, or
       the protocol mismatch, in this file. A model TOPAS has and rietx lacks is
       a finding to record and fence, not to build here.
-- [ ] **Gap C: the anchor selector's bias curve against a known truth.**
+- [x] **Gap C: the anchor selector's bias curve against a known truth.**
       Rebuild Finding 6's synthetic with the real net Bragg distribution (34.8 %
       of it in 18–25°, 23.9 % above 45°) so it passes the fidelity check the
       first one failed, then score flat-basin anchoring beside arPLS and SNIP
@@ -762,7 +855,10 @@ and Gap C decides whether the diagnostic is buildable at all.
       from a factor-2 deficit at the widths the trigger had, the diagnostic is
       🛑 on that evidence, and this WP's deliverable is the panel plus the
       record.
-- [ ] **The anchor selector.** `background.anchors` (a peer of
+- [🛑] **The anchor selector.** Refused by § Gap C's gate, 2026-09-04: zero
+      anchors on `FAP.XRA` at every window, 19 of 59 498 on `11BM_NAC.fxye`, and
+      1 of 486 in the one region that matters on the synthetic. Was to be:
+      `background.anchors` (a peer of
       `background.select`): the second-derivative significance test, the basin
       condition, and a smooth physical form through the survivors. Returns the
       anchors, the curve, a **per-region reliability flag** derived from
@@ -770,7 +866,10 @@ and Gap C decides whether the diagnostic is buildable at all.
       is derived from the pattern (a multiple of the instrument FWHM, or of
       `PatternDiagnostics.peak_density_per_deg`), never a bare degree count,
       with the ±2/±4/±6/±10 sensitivity recorded beside the derivation.
-- [ ] **The diagnostic.** `BACKGROUND_BELOW_ANCHORS` (code, paths, value,
+- [🛑] **The diagnostic.** Refused with the selector it reads. The
+      [SNIP, arPLS] bracket, the only model-free alternative measured, holds the
+      known truth in 4 of 8 noise realisations and fires on a correct fit in 2
+      regions of 7. Was to be: `BACKGROUND_BELOW_ANCHORS` (code, paths, value,
       message per the `GuardFinding` constructor rule), per region, threshold
       taken from Gap C's bias curve and never from the trigger. It states the
       one-sided reading, and it **defers to 1131's width finding**: with a
@@ -780,44 +879,60 @@ and Gap C decides whether the diagnostic is buildable at all.
       Its stated false positive is the nanocrystalline fit, and a fixture for
       that (broad peaks, correct background) is in the tests as the case that
       must stay silent.
-- [ ] **Re-measure `background_absorption` from a good start**, with and without
-      the width columns, and either reinstate or bury the widen-the-target-list
-      idea on that evidence rather than on the degenerate optimum's.
-- [ ] **A background panel for `plot_for_vlm`.** Not "draw the background" — it
-      already appears, as a thin line at the bottom of an axis scaled to the
-      tallest peak, where Finding 8 measures the error at 2.6–4.9 % of panel
-      height. The panel is: fitted background **and** the anchored estimate in
-      one frame, y cropped to their own range, anchors marked, peak-crowded
-      regions shaded. Finding 8's rule is the acceptance test — a panel without
-      a reference in it would have shown a smooth decay and been called fine.
-- [ ] **`rietx compare` row** — the standing rule in the root CLAUDE.md, and the
-      cumulative Δχ² panel is what localises this to 18–25° in the first place.
+- [x] **Re-measure `background_absorption` from a good start** — done in
+      § Gap B: it fires from a good start at 0.442, and at 0.437 after a change
+      that removes 35 % of χ², so it is measuring the geometry of the problem
+      rather than the current misfit. The widen-the-target-list idea stays
+      **buried**: the widths never ran away in nine protocols, so there is no
+      evidence for widening and § Finding 6's withdrawal stands.
+- [ ] **A background panel for `plot_for_vlm`** — after § Gap C this is the WP's
+      **main remaining deliverable**, and its reference has changed. Not "draw
+      the background": it already appears, as a thin line at the bottom of an
+      axis scaled to the tallest peak, where § Finding 8 measures the error at
+      2.6–4.9 % of panel height. The panel is: fitted background in one frame
+      with y cropped to its own range, peak-crowded regions shaded, and **a
+      reference band rather than an anchored curve** — SNIP below and arPLS
+      above, both already in `background/estimators.py`, whose measured biases
+      (§ Gap C) are what the band means. The distinction that makes this legal
+      after the 🛑: a band good enough to *show* is not good enough to *fire*
+      on, since a reader compares while a guard thresholds, and § Gap C's
+      refutation is a refutation of the threshold. Label the band with its
+      measured bias so it is never read as a truth. § Finding 8's rule is the
+      acceptance test — a panel without a reference in it would have shown a
+      smooth decay and been called fine — and § Gap C's own last line names the
+      panel as what survives.
+- [🛑] **`rietx compare` row** — the root CLAUDE.md's rule is "add a row
+      whenever a new **correction** lands", and after § Gap C none does. Nothing
+      to compare. (The cumulative Δχ² panel's *shape* was still what localised
+      this to 18–25°, and § Gap B did that reading by hand.)
 - [ ] **Agent-skill rows** (not `AGENT_PROTOCOL.md`, which WP-1304 replaced).
-      Rwp and GoF never accept a background; a
-      fitted background below the anchors by more than their stated bias names
-      the phase widths as first suspect, not the background function; a
-      model-free estimate is biased high by construction and is not a
-      reference the co-refined answer should match. The channel rule is
+      One landed with § Gap A — `BACKGROUND_ABSORPTION`'s row now says the R²
+      names the victim and not the cause, and to read the width codes first.
+      Two remain, both now *without* a diagnostic behind them, so both are body
+      or `references/` prose rather than a code row: Rwp and GoF never accept a
+      background; and **a model-free estimate is biased by construction, in a
+      direction that is known per estimator and a magnitude that is not**, so it
+      is a bracket to look at and never a reference the co-refined answer should
+      match — with § Gap C's numbers as the evidence. The channel rule is
       1133's.
-- [ ] Tests (unit for the selector on synthetic anchors with known answers; the
-      corrected synthetic and the bundled-pattern comparators from Gap C; the
-      nanocrystalline silent case; a real-data run on the trigger scan by hand,
-      recorded here, since the dataset has no home in the repo) + obs/calc/diff
-      PNGs to `tests/output/`, **including the anchors-against-fit plot**, which
-      is the figure that made this legible.
+- [ ] Tests. The selector's unit tests go with the selector (🛑). What is left
+      is worth having on its own: the **corrected synthetic** of § Gap C is the
+      first fixture in this repo with a *known* background and the real net
+      Bragg distribution, and it pins the two shipped estimators' bias signs
+      (arPLS high, SNIP low) which nothing currently asserts. Plus obs/calc/diff
+      PNGs to `tests/output/` and the background panel above.
 
 ## Acceptance
 
-In CI: the anchor selector's per-region bias against the corrected synthetic's
-known background is recorded and the diagnostic's threshold sits above it, and
-a correct fit of the bundled dense pattern and of the nanocrystalline fixture
-stays silent. By hand, recorded in the handover: on the trigger scan the
-diagnostic fires on the widths-free fit and stays silent on the capped one,
-and Gaps A and B carry their answers.
+**Rewritten 2026-09-04, after the three gaps.** The original acceptance was
+written for a diagnostic § Gap C has since refused, and a WP does not keep an
+acceptance for work it has decided not to do. What is asked now: the three gaps
+carry their answers in this file (done); the corrected synthetic pins the two
+shipped estimators' bias signs; and the background panel puts a reference in the
+frame, judged by looking, per § Finding 8.
 
 ```sh
-.venv/bin/python -m pytest tests/test_background_anchors.py -q
-.venv/bin/python -m pytest tests/test_background_auto.py tests/test_fitreport_layers.py tests/test_absent_phase.py -q
+.venv/bin/python -m pytest tests/test_background_auto.py tests/test_fitreport_layers.py tests/test_absent_phase.py tests/test_background_peaks.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m ruff check src tests examples
 ```
