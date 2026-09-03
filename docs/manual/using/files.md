@@ -8,9 +8,11 @@ graph LR
   P["pattern file<br/><i>.xye .fxye .raw .cif …</i>"] --> RP["read_pattern"]
   C["structure<br/><i>.cif</i>"] --> SC["Structure.from_cif"]
   I["instrument profile<br/><i>.json</i>"] --> LP["load_instrument_profile"]
+  G["GSAS-I instrument file<br/><i>.prm</i>"] --> GP["read_gsas_prm"]
   RP --> REF(["refinement"])
   SC --> REF
   LP --> REF
+  GP --> REF
   subgraph rex ["my_sample.rex/"]
     PJ["project.json<br/><i>settings</i>"]
     PC["the pattern file<br/><i>copied byte for byte</i>"]
@@ -173,6 +175,28 @@ profile…` and `Load profile…`. Saving lands it in the project's `exports/`
 directory. It needs a model and not a fit, unlike everything else written
 there: the other exports describe a refinement result, while a profile
 describes the instrument as it stands.
+
+### Reading a GSAS-I `.prm` instrument file
+
+`read_gsas_prm` reads a GSAS-I instrument-parameter file (Larson & Von Dreele,
+*GSAS*, LAUR 86-748) — the text file an APS 11-BM mail-in ships beside its
+pattern — straight into an `Instrument`, with the same `vary=False` contract
+as `load_instrument_profile`:
+
+<!-- api-doc: no-exec — needs a real .prm file on disk -->
+```python
+instrument = rx.read_gsas_prm("beamline.prm")
+```
+
+It reads the dominant case the format ships — one bank, `HTYPE PXCR`
+(constant-wavelength X-ray), GSAS profile function 3 — converting `GU`/`GV`/
+`GW` from centidegrees² and `LX`/`LY` from centidegrees into the degrees²/
+degrees `ProfileTCHZ` uses. A neutron time-of-flight file (`HTYPE PNTR`) and
+every other GSAS profile function are refused by name rather than
+approximated: each puts something onto the axis or into the coefficients that
+`ProfileTCHZ`'s constant-wavelength Caglioti/TCH law cannot express. A GSAS
+`.EXP`/`.LST` refinement output, a TOPAS `.inp` or a FullProf `.pcr` still has
+no reader and is transcribed by hand.
 
 ## The `.rex` project directory
 
