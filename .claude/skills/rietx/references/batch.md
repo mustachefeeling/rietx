@@ -367,31 +367,6 @@ instrument is a claim about that protocol only. *(Measured: archive screening
 campaign — the 11-BM negative control's configuration restriction, and the
 frozen-width CuO/Cu₂O timing null.)*
 
-**9c.24 Establish whether the transition is first order before reading any
-phase fraction across it — the order decides whether the fraction is an
-observable at all.** A first-order transition genuinely coexists, so a
-parent-plus-distorted two-phase model is correct and its fraction *is* the
-measurement: ZnCr₂O₄ and MgCr₂O₄ hold *both* low-temperature phases in
-near-equal amounts down to base temperature, and Mn₃O₄ does the same below its
-T_N — all explicit in the papers cited below, whose figures are the ones to
-quote. A continuous transition never coexists, and a parent whose distortion
-is undetectable never has a second phase at all — in either case the child's
-metric approaches the parent's, the two become one phase, and the weight split
-is unidentifiable **by construction**, which is exactly what
-`HIGH_CORRELATION` on the two scales reports (ρ ≈ −0.98 on **87 of 182**
-patterns, all of them above T_N). Read the symptom correctly: a candidate that
-is fully in (**ΔBIC ≈ −10⁴**) at the coldest scan, out (**+9.5, weight exactly
-0**) at the next, back at a third and gone at a fourth is a profile-shaping
-device switched on wherever the peak shape is imperfect, so **ΔBIC across a
-batch is not by itself a discriminator** even at −8 700 to −41 300 — only a
-**distortion magnitude against a published value** separated them, and it
-agreed with the paper to ~1 %. The observable across a continuous transition
-is the order parameter, never the fraction. *(Measured: archive screening
-campaign, 11-BM variable-temperature series — a compound published as showing
-no detected structural transition, modelled as two phases; the first-order
-coexistence figures are Kemei et al., J. Phys.: Condens. Matter 25, 326001
-(2013) and Phys. Rev. B 90, 064418 (2014).)*
-
 **9c.25 Once a scale is at its bound, every local identifiability statistic
 goes quiet — scan it instead.** On one such phase `background.absorption` gave
 0.183 and 0.208, *below* a well-behaved phase's 0.318, the top five
