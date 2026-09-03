@@ -156,23 +156,77 @@ task below.
 - **The JSON request field** (WP-1110 item 16) unless it falls out free once the
   object exists.
 
+### Decisions taken, 2026-09-04
+
+The four the tasks below asked for, settled with the maintainer before any code
+was written.  Recorded here rather than only in a handover entry, because three
+of them are the shape a later reader has to work inside.
+
+**1. A variable is a `Parameter` with a name, spelled `vars.<name>`.** The
+namespace is free: the model tree's only top-level segments are `phases` and
+`instrument`, so `vars.` cannot collide, and it globs — `set_vary("vars.*")`.
+Reusing `schemas.common.Parameter` rather than inventing a type is what makes
+the equivalence bar reachable: `ParameterTable._add` takes an entry's bounds
+*and its transform* straight off the `Parameter`, so a variable declared with
+the same `min`/`max`/`transform` as the model parameter it replaces produces
+the identical `Entry`, and the fit cannot tell them apart.  `Atom.biso` is
+`Parameter(value=0.5, min=0.0, max=25.0)`, identity transform, which is what
+the acceptance fit declares.
+
+**2. A tied source is accepted iff it is a variable.** Measured on this tree
+(2026-09-04): `ParameterTable._flatten` already collapses chains exactly and
+raises on cycles — a depth-2 user chain `C = 3B+1`, `B = 2A+0.5` comes back as
+coefficient 6.0 and constant 2.5, and a user tie onto a *symmetry*-tied source
+(`biso = 4·x` where `x ← dof.0`) flattens onto `dof.0` at coefficient 4.0 and
+constant 0.7972.  Both are refused by the verb, and nothing the package derives
+reaches depth 2 (cell `b ← a` and `x ← dof.0` are both depth 1), so the
+flattening has been correct but unexercised.  So the refusal is verb-level and
+the decision is which half to keep: a **variable** may follow other variables
+(`B = A + C`, TOPAS's `prm B = 2 A`), and a **model path** keeps the refusal,
+where *"tie to what it follows instead"* is good advice — naming `dof.0` is
+clearer than reaching it through `.x`, and the constant that flattening bakes in
+is one nobody wrote.
+
+**3. Issue #212's cross-phase restraint row is its own WP.** It is a residual
+*row*, not a parameter — a new `BLOCK_ORDER` block and a `Structure`-level
+schema seam beside `resolve_phase_restraints` — and it shares only the
+(path, coefficient) representation with the work here.  Folding it in would turn
+a parameter-surface WP into a residual-row one.  [1325](1325-parametric-series.md)
+and the issue's filer both wait on the seam, not on this object.
+
+**4. No expression parser, this WP.** Four reasons, weighted: it would be the
+**second** parser for one language, since `Parameter.expr` is reserved for the
+nonlinear DSL and the two would have to agree on precedence, name resolution
+and error text for the half they share; a **stored** string joins
+`PROJECT_FORMAT_VERSION`, while `(path, coefficient)` pairs already are the
+storage, and sugar added later needs no bump where a withdrawn grammar does;
+the failure mode is **silent** — `"2A"` is multiplication in a `.inp` and a
+syntax error in Python, `"A + B*2"` has a precedence answer somebody must
+choose, and a wrong one converges under a constraint the caller did not write;
+and it would **pre-empt** the boundary 1118 parked here, since #107's macro pass
+would then want to feed TOPAS expressions to a grammar that is almost, but not,
+TOPAS's.  Against all that: a strict parser refusing `2A` rather than guessing
+removes most of the third reason, a string beats a coefficient dict for anyone
+typing into the GUI, and the nonlinear DSL has been designed-but-unbuilt for a
+while.  So this is *not in this WP*, not *never*: a string form is a thin
+lowering onto the same pairs and can land without re-litigating any of the
+above.
+
 ## Tasks
 
-- [ ] Decide the object: what a variable *is* on the table (a synthetic entry
-      via `add_parameter`, under what path spelling), what `parameters()` shows
-      for it, and how a caller names it in a tie.
+- [x] Decide the object: a `Parameter` named `vars.<name>`, appended by
+      `add_parameter`, listed by `parameters()` like any other row, named in a
+      tie by its path (Decisions § 1).
 - [ ] Persistence: `RefinementState`, the history node, the project round trip,
       and the contract bump with its comment.
 - [ ] Verbs: declare and remove a variable; multi-term ties, which the
       representation already holds.
-- [ ] Take the #212 decision — the cross-phase linear **restraint** row is
-      either this WP's first deliverable or its own WP — and say which in the
-      handover either way, because 1325 and the issue's filer both wait on it.
-- [ ] Take the chain decision — keep the one-level refusal or flatten — and
-      record the reason either way.
-- [ ] An expression string for the linear subset, **if it survives the design**:
-      a parser is where a wrong answer looks right, and the method calls already
-      work.
+- [x] Take the #212 decision — a WP of its own (Decisions § 3).
+- [x] Take the chain decision — a tied source is accepted iff it is a
+      variable, measured either way (Decisions § 2).
+- [x] An expression string for the linear subset — it did **not** survive the
+      design, and the four reasons plus the case against them are recorded
+      (Decisions § 4) so a later session need not re-take it.
 - [ ] The manual: the reference sections `using/constraints.md` signposts, and a
       row in the agent skill's `references/diagnostics.md` (all three copies)
       if a diagnostic code lands — `AGENT_PROTOCOL.md` has been a redirect
