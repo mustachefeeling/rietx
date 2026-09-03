@@ -171,12 +171,14 @@ manual's TeX guard stopped policing the page copied in beside it.
 **Measured** (`[dev]` venv, darwin/arm64, no other suite running — `pgrep`
 checked):
 
-- Fast selection on the merged tree: **4083 passed, 122 skipped**, 2:13. The WP
-  adds **15** tests: `tests/test_landing.py` 13 and `tests/test_examples.py`
-  4 → 6. On a checkout **without** the payload — which is CI, and a fork — that is
-  **14 passes and 1 skip**, not 15 passes: `test_the_inline_build_stays_a_fragment`
-  needs a payload to have an inline build to check. Measured both ways by moving
-  `data/` aside: 19 passed with it, 18 passed + 1 skipped without.
+- Fast selection on the merged tree (`origin/main` had not moved, so the branch
+  *is* the merged tree): **4083 passed, 122 skipped**, 2:06, run from a state with
+  no `docs/landing/site`. The WP adds **15** tests: `tests/test_landing.py` 13 and
+  `tests/test_examples.py` 4 → 6. This checkout has the payload; **CI does not**,
+  and there it is **14 passes and 1 skip** — `test_the_inline_build_stays_a_fragment`
+  needs a payload to have an inline build to check, so CI should read 4082 passed
+  and 123 skipped. Measured both ways by moving `data/` aside: 19 passed with it,
+  18 passed + 1 skipped without. A new skip is not a new pass.
 - The full selection did **not** run, and should not: no `src/` file changed, so
   nothing here can move a measured number (`tests/CLAUDE.md` § Running, rung 3).
 - `git check-ignore --no-index`, one path at a time: the six paths answer as the
@@ -190,6 +192,25 @@ checked):
   (readout `24/275 · 28 min · 300 °C · 0.2 % H₂ in N₂`, four legend entries),
   `/manual.html` is the manual, no console errors but the browser's own
   `/favicon.ico` probe.
+
+**The review pass** (`/code-review medium --fix`) found eight and all were
+applied; two would have gone red on CI and both were reproduced here before being
+accepted. `test_manual`'s exclusion set was frozen at import while
+`tests/test_landing.py` *creates* `docs/landing/site` during the run, so on a
+checkout with no prior landing build the set is empty, sphinx picks the page up
+anyway, and the TeX guard fails on the page's own shell prompt — reproduced by
+deleting `site/` and restoring the frozen form (1 failed, 19 passed, that exact
+message). And the two modules sat in different `xdist_group`s, so `--site`'s
+`rmtree` could run while sphinx copied the same directory. The leak guard is now
+case-insensitive (half of what it guards is prose cut by hand: `sio2` in a
+filename, `SiO2` in a sentence) with inlined base64 stripped first, since a
+four-character token turns up in a 200 kB PNG by chance. And the skill's "the
+manual: `https://rietx.org`" now resolved to the landing page — the same bug the
+new test guards *inside* the page, missed outside it, fixed in all three copies.
+Three findings were declined: the skill frontmatter's "hosted at" the site root
+(defensible, and pinned by `test_skill.py`), `assert`-for-validation in the
+landing scripts (maintainer scripts, never run under `-O`), and canvas edge cases
+unreachable with the real payload.
 
 **Gotchas.**
 
