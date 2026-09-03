@@ -20,11 +20,12 @@ subsets, FCJ node counts or window ranges *within* a least-squares run.
 
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 from pydantic import Field
 
-from .common import SCHEMA_VERSION, Base, Diagnostic, Mode
+from .common import SCHEMA_VERSION, Base, Diagnostic, Mode, Parameter
 from .instrument import Instrument
 
 # ``StageSpec``/``PlanSpec`` used to be *defined* here, in parallel with a second
@@ -44,7 +45,7 @@ from .structure import Structure
 #: inside itself, and the refreshed values ride on the ``"stage"`` node's
 #: ``ReflectionState``, so a node of that kind had nothing left to record.
 NodeKind = Literal["root", "stage", "set_vary", "set_value", "set_tie",
-                   "edit_model", "merge"]
+                   "set_variable", "edit_model", "merge"]
 
 
 class NodeAction(Base):
@@ -92,6 +93,13 @@ class NodeAction(Base):
     window_slack_deg: float | None = None
     ties: dict[str, TieSpec] = Field(default_factory=dict)
     untied: list[str] = Field(default_factory=list)
+    #: ``"set_variable"``'s own arguments (WP-1119), by the same rule as
+    #: ``ties``/``untied``: what the action *did*, with the whole register on
+    #: :attr:`RefinementState.variables`, which is what a checkout restores.
+    #: Keyed by bare name — ``"A"``, not ``"vars.A"`` — because that is what
+    #: ``Refinement.add_variable``/``remove_variable`` take.
+    variables: dict[str, Parameter] = Field(default_factory=dict)
+    removed_variables: list[str] = Field(default_factory=list)
 
     def api_call(self) -> str:
         """The equivalent public-API call, so a log doubles as a session script.
@@ -126,20 +134,43 @@ class NodeAction(Base):
         if self.kind == "set_tie":
             parts = []
             for path, spec in self.ties.items():
-                if len(spec.terms) != 1:
-                    # no public verb declares a multi-source tie, so the log
-                    # says so rather than rendering a call that does not exist
+                if not spec.terms:
+                    # a derived tie with no sources is not something a verb
+                    # declares, so the log says what it is rather than
+                    # rendering a call that does not exist
                     parts.append(f"# {path} = {spec.describe()}")
                     continue
-                src, scale = spec.terms[0]
-                args = f"{path!r}, {src!r}"
-                if scale != 1.0:
-                    args += f", scale={scale!r}"
+                if len(spec.terms) == 1:
+                    # the one-source spelling, kept byte for byte: it is what
+                    # `ref.tie(path, source, scale=…)` prints, and a log is
+                    # read as a session script
+                    src, scale = spec.terms[0]
+                    args = f"{path!r}, {src!r}"
+                    if scale != 1.0:
+                        args += f", scale={scale!r}"
+                else:
+                    # WP-1119 gave `tie` a multi-source form, so this renders a
+                    # call that runs rather than the comment it used to
+                    args = f"{path!r}, {dict(spec.terms)!r}"
                 if spec.const:
                     args += f", offset={spec.const!r}"
                 parts.append(f"ref.tie({args})")
             if self.untied:
                 parts.append(f"ref.untie({self.untied!r})")
+            return "; ".join(parts)
+        if self.kind == "set_variable":
+            parts = []
+            for name, prm in self.variables.items():
+                args = f"{name!r}, {prm.value!r}"
+                for field, default in (("vary", False), ("min", -math.inf),
+                                       ("max", math.inf), ("transform", "identity"),
+                                       ("unit", None)):
+                    got = getattr(prm, field)
+                    if got != default:
+                        args += f", {field}={got!r}"
+                parts.append(f"ref.add_variable({args})")
+            for name in self.removed_variables:
+                parts.append(f"ref.remove_variable({name!r})")
             return "; ".join(parts)
         if self.kind == "merge":
             return f"ref.merge(...)  # {self.name}"
@@ -190,6 +221,13 @@ class RefinementState(Base):
     # not carry them would restore a state with the constraints silently gone,
     # and the parameter count with them.
     ties: dict[str, TieSpec] = Field(default_factory=dict)
+    # Named variables (WP-1119), bare name → its declaration.  Carried for the
+    # reason ``ties`` is, one step further along: a variable is not a property
+    # of the models *at all* — it has no field for ``apply_to_models`` to write
+    # to — so the document is its only source of truth, and a node that did not
+    # carry it would restore a state whose ties reference a parameter that no
+    # longer exists.
+    variables: dict[str, Parameter] = Field(default_factory=dict)
 
 
 class NodeMetrics(Base):

@@ -41,7 +41,12 @@ from ..model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, DerivativeBases
 from ..model.forward import accumulate_planes as _accumulate
 from ..model.restraints import restraint_partials
 from ..params.transforms import dphys_dinternal
-from ..params.vector import ParameterTable, size_cap, strain_cap
+from ..params.vector import (
+    ParameterTable,
+    is_variable_path,
+    size_cap,
+    strain_cap,
+)
 from .cancel import RefinementCancelled
 
 if TYPE_CHECKING:
@@ -466,6 +471,61 @@ def _column_extras(table: ParameterTable) -> list[list[str]]:
             for c in range(len(free))]
 
 
+def _column_identities(table: ParameterTable, extras: list[list[str]]
+                       ) -> list[tuple[str, list[str]]]:
+    """Per free column, the ``(path, extra)`` the dispatch below should read.
+
+    Identity for every model parameter, so an unconstrained or dot-path-tied
+    model dispatches exactly as it did before this existed.
+
+    It is not the identity for a **named variable** (WP-1119), and that is the
+    whole point.  Dispatch is by the free path's *name*, and a variable has a
+    name no analytic branch was written for — so ``vars.B_metal`` driving four
+    Biso rows fell straight to the whole-model FD column, while the same
+    constraint written with ``phases.0.atoms.0.biso`` as its master took the
+    peak-chain branch.  Measured on a four-site LaB6 fit, that is a column
+    8.6e-7 from the analytic one and one extra full residual evaluation per
+    Jacobian, for a construct whose whole claim is to be a *renaming*.
+
+    A variable moves no residual row of its own — the forward model never reads
+    a ``vars.*`` path — so what it is, for dispatch, is exactly what it reaches.
+    Two cases, and the second is narrower on purpose:
+
+    * it reaches **one** path at coefficient exactly 1: the column *is* that
+      parameter's column, so every branch applies, the closed-form ones
+      included.  Their formulae assume ``p = to_physical(θ_c)``, which is what
+      a unit coefficient means; ``dpdu_of`` still reads the **variable's** own
+      transform, which is the chain factor that belongs there.
+    * it reaches several, or one at any other coefficient: only the branches
+      that read their coefficients off C may have it.  Those are
+      ``_peak_chain_column`` (it perturbs θ and decodes, so every coefficient
+      and constant is carried) and ``_structural_column`` (it reads the atom's
+      rows out of C).  The closed-form linear branches exclude themselves,
+      since each requires an empty ``extra``.
+    """
+    C, _ = table.constraint_block()
+    csc = C.tocsc()
+    paths = [e.path for e in table.entries]
+    out: list[tuple[str, list[str]]] = []
+    for c, path in enumerate(table.free_paths):
+        if not is_variable_path(path):
+            out.append((path, extras[c]))
+            continue
+        sl = slice(csc.indptr[c], csc.indptr[c + 1])
+        reach = [(paths[r], v) for r, v in zip(csc.indices[sl], csc.data[sl],
+                                               strict=True) if paths[r] != path]
+        if not reach:
+            # a declared variable nothing follows: it moves no row at all, so
+            # its column is zero however it is built, and the FD path says that
+            # in one residual evaluation without claiming a branch
+            out.append((path, extras[c]))
+        elif len(reach) == 1 and reach[0][1] == 1.0:
+            out.append((reach[0][0], []))
+        else:
+            out.append((reach[0][0], [q for q, _ in reach[1:]]))
+    return out
+
+
 def _within_atom(extra: list[str], ip: str, j: str) -> bool:
     """Whether every path this column also moves belongs to atom ``j`` of ``ip``.
 
@@ -513,11 +573,16 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
     # rather than fail (WP-1070).  Empty for every untied column, which is why
     # an unconstrained model dispatches exactly as it did before.
     extras = _column_extras(table)
+    # What each column *is*, for dispatch.  Identity except for a named
+    # variable, which has no branch of its own and is read as what it reaches.
+    identities = _column_identities(table, extras)
     # every physical path some column of this Jacobian can move — the free
     # names plus everything their ties reach.  Any question of the form "can
     # this stage move X?" must be asked here rather than of ``free``, which is
     # the same distinction ``ParameterTable.moving_paths`` draws one rank down.
-    reach = set(free).union(*extras) if extras else set(free)
+    # Read off ``identities``, so a variable contributes the physical paths it
+    # drives rather than a ``vars.*`` name that answers every predicate "no".
+    reach = {q for name, extra in identities for q in (name, *extra)}
 
     def dpdu_of(c: int, theta: np.ndarray) -> float:
         e = table.entries[table._paths[free[c]]]
@@ -555,8 +620,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                                                profile_derivs=need_profile)
             return bases
 
-        for c, path in enumerate(free):
-            extra = extras[c]
+        for c, (path, extra) in enumerate(identities):
             if path in bkg_cols and not extra:
                 # y is linear in the coefficient: ∂y/∂c_n = basis row; the
                 # penalty rows are linear too (√λ·D₂), chain-ruled through

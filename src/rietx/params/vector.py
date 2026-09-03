@@ -231,6 +231,28 @@ class Entry:
     locked: bool = False  # structurally fixed: set_vary may never free it
 
 
+#: Path prefix of a caller's own named variable (WP-1119).  A variable is a
+#: synthetic entry like a Wyckoff DOF, so it needs a namespace outside the model
+#: tree; ``phases`` and ``instrument`` are that tree's only top-level segments,
+#: so ``vars.`` cannot collide, and it is a plain dot-path so ``set_vary("vars.*")``
+#: globs it like anything else.  Declared here because this module is where a
+#: path means something, and read by ``Refinement`` and the tie verbs.
+VAR_PREFIX = "vars."
+
+
+def is_variable_path(path: str) -> bool:
+    """Is ``path`` a caller's named variable rather than a model parameter?
+
+    One predicate rather than a repeated ``startswith``, because two rules turn
+    on it and they must not drift: a tied source is accepted only where this is
+    true (a variable may follow other variables — TOPAS's ``prm B = 2 A`` — while
+    a tied *model* path keeps the refusal that steers a caller to what it
+    follows), and only a path answering true is written back to the variable
+    register instead of into the pydantic models.
+    """
+    return path.startswith(VAR_PREFIX)
+
+
 #: Cell parameter names in table order — lengths first, then angles.
 _CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
 

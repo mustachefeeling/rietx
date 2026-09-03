@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import math
 import warnings
+from collections.abc import Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
@@ -58,9 +59,15 @@ from .optimize.statistics import (
     data_support,
     structure_r_factors,
 )
-from .params.vector import AffineTie, ParameterTable, _is_wavelength
+from .params.vector import (
+    VAR_PREFIX,
+    AffineTie,
+    ParameterTable,
+    _is_wavelength,
+    is_variable_path,
+)
 from .report.schemas import THRESHOLDS_VERSION, FitReport, StageReport
-from .schemas.common import Diagnostic, Provenance
+from .schemas.common import Diagnostic, Parameter, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
 from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
 from .schemas.params import ParameterRow, TieSpec
@@ -140,6 +147,36 @@ class _StageHold:
 
     held: list[str]
     released: list[str]
+
+
+def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
+               scale: float) -> list[tuple[str, float]]:
+    """Normalise ``tie``'s ``source`` to ``(path, coefficient)`` pairs.
+
+    One source, a mapping or a pair sequence all become the same list, so the
+    single-source spelling is the one-entry case rather than its own branch.
+    ``scale`` multiplies every term: on one source that is its documented
+    meaning, and on several it is the only reading under which the two
+    spellings agree.
+    """
+    if isinstance(source, str):
+        return [(source, scale)]
+    pairs = list(source.items()) if isinstance(source, dict) else [
+        tuple(term) for term in source]
+    if not pairs:
+        raise ValueError("a tie needs at least one source")
+    seen: dict[str, float] = {}
+    for path, coeff in pairs:
+        if not isinstance(path, str):
+            raise ValueError(
+                f"a tie source is a dot-path; got {path!r}. Pass one path, a "
+                "{path: coefficient} dict, or a list of (path, coefficient) pairs")
+        if path in seen:
+            raise ValueError(
+                f"{path!r} appears twice in one tie; sum the coefficients "
+                "instead, so the tie says what it means")
+        seen[path] = float(coeff)
+    return [(path, scale * coeff) for path, coeff in seen.items()]
 
 
 def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
@@ -342,6 +379,12 @@ class Refinement:
         #: ties are rederived by every ``ParameterTable`` build and are absent
         #: here, which is what ``untie`` and ``TieSpec.user`` read.
         self._ties: dict[str, TieSpec] = {}
+        #: named variables (WP-1119), bare name → its ``Parameter``.  The one
+        #: authority, and one step beyond ``_ties``: a tie is not a property of
+        #: the models, and a variable is not *in* them at all — there is no
+        #: field for ``apply_to_models`` to write, so this dict is where its
+        #: value lives between table builds and what ``snapshot`` persists.
+        self._variables: dict[str, Parameter] = {}
         #: of those, the ones the most recent table build actually declared —
         #: what ``TieSpec.user`` is answered from, so a row names whose tie is
         #: *in force* on it rather than whose was asked for
@@ -401,6 +444,8 @@ class Refinement:
             two_theta_limits=self._two_theta_limits,
             reflections=_extract_reflections(model or self._model),
             ties={p: s.model_copy(deep=True) for p, s in self._ties.items()},
+            variables={n: v.model_copy(deep=True)
+                       for n, v in self._variables.items()},
         )
 
     def _record(self, tree: RefinementTree, action: NodeAction, model: CompiledModel,
@@ -445,6 +490,8 @@ class Refinement:
         # a checkout starts with no hold and the next stage takes its own
         self._held = []
         self._ties = {p: s.model_copy(deep=True) for p, s in node.state.ties.items()}
+        self._variables = {n: v.model_copy(deep=True)
+                           for n, v in node.state.variables.items()}
         self._pending_reflections = [r.model_copy(deep=True) for r in node.state.reflections]
         self._head_id = node.id
         self._invalidate_fit()
@@ -460,6 +507,8 @@ class Refinement:
         ref._two_theta_limits = self._two_theta_limits
         ref._free_paths = list(self._free_paths)
         ref._ties = {p: s.model_copy(deep=True) for p, s in self._ties.items()}
+        ref._variables = {n: v.model_copy(deep=True)
+                          for n, v in self._variables.items()}
         ref._head_id = self._head_id
         ref._pending_reflections = [r.model_copy(deep=True) for r in self._pending_reflections]
         # The branch is built from ``self.instrument``, which carries the last
@@ -523,6 +572,7 @@ class Refinement:
         # register it leaves is the one the node carries, and a tie that stopped
         # applying is said once — at the edit that ended it — instead of on
         # every listing afterwards (WP-1070).
+        self._declare_variables(table)
         applied = self._apply_ties(table)
         self._ties = {p: s for p, s in self._ties.items() if p in applied}
         if structure is not None:
@@ -560,6 +610,7 @@ class Refinement:
         if self._free_paths:
             return self._prepare_table(restore=True)
         table = ParameterTable(self.structure, self.instrument)
+        self._declare_variables(table)
         self._apply_ties(table)
         return table
 
@@ -685,7 +736,7 @@ class Refinement:
         for path, value in values.items():
             by_path[path].value = float(value)
         table.refresh_ties()  # dependents follow their sources (b←a, x←dof)
-        table.apply_to_models(self.structure, self.instrument)
+        self._write_back(table)
         # the fitted curve and statistics described the *old* values
         self._invalidate_fit()
         if self.history is None:
@@ -699,6 +750,57 @@ class Refinement:
     # ------------------------------------------------------------------
     # user constraints (WP-1070)
     # ------------------------------------------------------------------
+    def _declare_variables(self, table: ParameterTable) -> None:
+        """Append this refinement's named variables to a freshly built table.
+
+        The counterpart of :meth:`_apply_ties`, and it runs **first**, because a
+        user tie may name a variable as its source and a table cannot be told
+        about a tie whose source it has never heard of.
+
+        A variable is a synthetic entry exactly as a Wyckoff DOF is — the shape
+        :meth:`ParameterTable.add_parameter` exists for — but with one
+        difference that is the whole reason this method exists: a DOF is
+        *rederived* from the structure on every build, and a variable cannot be,
+        because nothing in the structure knows about it.  So it is re-declared
+        from :attr:`_variables`, which is why that dict is the one authority for
+        what a variable *is* and why ``snapshot`` has to carry it.
+
+        Bounds and transform come straight off the caller's ``Parameter``, which
+        is what makes a variable and the model parameter it replaces produce the
+        identical :class:`~rietx.params.vector.Entry`.
+        """
+        for name, prm in self._variables.items():
+            table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
+                                lo=prm.min, hi=prm.max, transform=prm.transform)
+
+    def _write_back(self, table: ParameterTable,
+                    stderr: dict[str, float] | None = None) -> None:
+        """``apply_to_models``, plus the one thing it structurally cannot do.
+
+        ``ParameterTable.apply_to_models`` writes values back by walking the
+        pydantic model tree, so a synthetic entry with no model field has
+        nowhere to be written — true of a Wyckoff DOF too, but harmless there,
+        since the DOF is rebuilt from the coordinates it wrote.  A variable has
+        no such second home: drop its refined value here and the next table
+        build re-declares it at the value it was *created* with, silently
+        undoing the fit for every parameter that follows it.
+
+        So the register is the variable's model, and this is where it is
+        written.  Every call site holding the *working* state goes through
+        here; the two that do not — ``suggest``'s deep copies and the
+        module-level exporter — have no register to write to.
+        """
+        table.apply_to_models(self.structure, self.instrument, stderr=stderr)
+        if not self._variables:
+            return
+        values = {e.path: e.value for e in table.entries}
+        for name, prm in self._variables.items():
+            value = values.get(f"{VAR_PREFIX}{name}")
+            if value is not None:
+                prm.value = value
+                if stderr is not None:
+                    prm.stderr = stderr.get(f"{VAR_PREFIX}{name}")
+
     def _apply_ties(self, table: ParameterTable) -> set[str]:
         """Re-declare this refinement's user ties on a freshly built table.
 
@@ -768,7 +870,18 @@ class Refinement:
             raise ValueError(
                 f"{path!r} is structurally fixed (symmetry, or a representation "
                 f"that owns this channel) and cannot be a tie {role}")
-        if entry.tie is not None:
+        if entry.tie is not None and not (role == "source" and is_variable_path(path)):
+            # **A tied source is accepted iff it is a variable** (WP-1119).  The
+            # table has always flattened chains exactly — a depth-2 chain comes
+            # back with the product coefficient and the composed constant, and a
+            # cycle raises — so this refusal is a judgement about what a caller
+            # meant, not a limit of the machinery.  It is kept for a *model*
+            # path, where the advice it gives is right: ``biso = 4·x`` with
+            # ``x ← dof.0`` silently becomes ``4·dof.0 + 0.7972``, a constant
+            # nobody wrote, and naming ``dof.0`` says the same thing out loud.
+            # It is lifted between variables, where composing is the point —
+            # ``B = A + C``, TOPAS's ``prm B = 2 A`` — and where there is no
+            # symmetry to outrank and no hidden constant to inherit.
             sources = ", ".join(repr(p) for p, _ in entry.tie.terms)
             # ``_applied_ties``, not ``_ties``: the question is whose tie is in
             # force on this row, and after a symmetry collision the register
@@ -777,7 +890,8 @@ class Refinement:
             if role == "source":
                 raise ValueError(
                     f"{path!r} follows {sources} ({kind}), so it carries no "
-                    "freedom of its own; tie to what it follows instead")
+                    "freedom of its own; tie to what it follows instead, or "
+                    "name a variable, which may follow other variables")
             raise ValueError(
                 f"{path!r} already follows {sources} ({kind}); "
                 f"{'untie it first' if kind == 'a user tie' else 'symmetry outranks a user tie'}")
@@ -787,8 +901,112 @@ class Refinement:
                 "so tying it would reduce a parameter count that is already zero")
         return entry
 
-    def tie(self, path: str, source: str, *, scale: float = 1.0,
-            offset: float = 0.0) -> str:
+    def add_variable(self, name: str, value: float, *, vary: bool = False,
+                     min: float = -math.inf, max: float = math.inf,
+                     transform: str = "identity",
+                     unit: str | None = None) -> str:
+        """Declare a named variable other parameters can follow.  Returns its path.
+
+        A parameter of the caller's own, with its own value and bounds, living
+        outside the model tree — TOPAS's ``prm``.  It exists so a constraint can
+        be written in terms of a *quantity* rather than in terms of whichever
+        model parameter happened to be nominated as the master::
+
+            ref.add_variable("B_metal", 0.7, min=0.0, max=25.0)
+            ref.tie_equal(["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"],
+                          source="vars.B_metal")
+            ref.tie("phases.0.atoms.3.biso", "vars.B_metal", scale=2.0)
+            ref.set_vary("vars.*", True)
+
+        The path is ``"vars." + name``, and it is an ordinary dot-path from
+        there on: :meth:`parameters` lists it, :meth:`set_vary` globs it,
+        :meth:`set_values` moves it, and a fit refines it and gives it an esd.
+
+        ``min``/``max``/``transform`` are the declaration that matters.  A
+        variable is a :class:`~rietx.schemas.common.Parameter`, and the table
+        reads an entry's bounds and transform straight off one — so a variable
+        declared like the model parameter it replaces is **indistinguishable**
+        to the fit, which is the property that makes this a renaming rather
+        than a new degree of freedom.  Declared unlike it, it is a different
+        problem: a softplus parameter given the default identity transform is
+        no longer kept off its own floor.
+
+        Refuses a name that is not a single identifier, one that would collide
+        with an existing entry, and a redeclaration — :meth:`remove_variable`
+        first, so the history records that the old one ended.
+        """
+        if not name or not name.isidentifier():
+            raise ValueError(
+                f"variable name {name!r} must be a single identifier — no dots "
+                "(the path is built as 'vars.' + name) and no fnmatch "
+                "metacharacters, or a glob could not name it")
+        if name in self._variables:
+            raise ValueError(
+                f"variable {name!r} already exists; remove_variable({name!r}) "
+                "first, so the history records that the old one ended")
+        prm = Parameter(value=value, vary=vary, min=min, max=max,
+                        transform=transform, unit=unit)
+        path = f"{VAR_PREFIX}{name}"
+        # the table is the authority on collisions: add_parameter raises on a
+        # path that already exists, and probing one here means the refusal
+        # happens before the register is touched
+        self._working_table().add_parameter(
+            path, prm.value, vary=prm.vary, lo=prm.min, hi=prm.max,
+            transform=prm.transform)
+        self._variables[name] = prm
+        self._commit_variable_edit(declared={name: prm}, removed=[])
+        return path
+
+    def remove_variable(self, name: str) -> str:
+        """Delete a named variable, refusing while anything follows it.
+
+        The refusal names the dependents, because the fix is theirs: untie them
+        (or retie them elsewhere) and the variable is free to go.  Deleting it
+        under them would leave ties naming a parameter that does not exist,
+        which :meth:`_apply_ties` would then drop one build later — a
+        constraint lost two moves away from the call that lost it.
+
+        Returns the path removed.
+        """
+        if name not in self._variables:
+            raise ValueError(
+                f"no variable named {name!r}; declared: "
+                f"{sorted(self._variables) or 'none'}")
+        path = f"{VAR_PREFIX}{name}"
+        dependents = sorted(p for p, spec in self._ties.items()
+                            if any(src == path for src, _ in spec.terms))
+        if dependents:
+            raise ValueError(
+                f"{path!r} still has {len(dependents)} dependent(s) "
+                f"({', '.join(dependents[:5])}"
+                f"{'…' if len(dependents) > 5 else ''}); untie them first, or "
+                "the ties would be left naming a parameter that no longer exists")
+        del self._variables[name]
+        self._free_paths = [p for p in self._free_paths if p != path]
+        self._commit_variable_edit(declared={}, removed=[name])
+        return path
+
+    def _commit_variable_edit(self, *, declared: dict[str, Parameter],
+                              removed: list[str]) -> None:
+        """Land a variable edit: the fit is invalidated and a node is added."""
+        # a declared variable follows nothing and nothing follows it yet, so no
+        # value in the model moved — but the parameter *count* can have, and
+        # every esd and statistic the last fit reported was computed against the
+        # table as it stood
+        self._invalidate_fit()
+        if self.history is None:
+            return
+        node = self.history.add(
+            parents=[self._head_id] if self._head_id else [],
+            action=NodeAction(kind="set_variable",
+                              variables={n: v.model_copy(deep=True)
+                                         for n, v in declared.items()},
+                              removed_variables=list(removed)),
+            state=self.snapshot())
+        self._head_id = node.id
+
+    def tie(self, path: str, source: "str | dict[str, float] | Sequence[tuple[str, float]]",
+            *, scale: float = 1.0, offset: float = 0.0) -> str:
         """Constrain ``path`` to ``scale·source + offset``, recording a node.
 
         The general affine form, of which :meth:`tie_equal` is the ``scale=1,
@@ -814,10 +1032,22 @@ class Refinement:
         :meth:`set_values` spelled obscurely; and an implied value outside the
         target's own bounds would start the bounded solver infeasible.
 
+        ``source`` takes **several** sources as well as one — a dict or a list
+        of ``(path, coefficient)`` pairs — because the representation underneath
+        has always been ``Σ c·source + const`` and only the verb was
+        single-term::
+
+            ref.tie("vars.B", {"vars.A": 1.0, "vars.C": 1.0})
+
+        ``scale`` multiplies every term, so the one-source spelling is exactly
+        the one-entry case of the many-source one and neither is a special
+        path through the code.
+
         Returns ``path``.  Like :meth:`set_vary`, the node is recorded only
         once the history tree exists.
         """
-        return self._declare_ties({path: (source, float(scale), float(offset))})[0]
+        return self._declare_ties({path: (_tie_terms(source, float(scale)),
+                                          float(offset))})[0]
 
     def tie_equal(self, paths: list[str] | str, *,
                   source: str | None = None) -> list[str]:
@@ -858,7 +1088,7 @@ class Refinement:
             raise ValueError(
                 f"{globs} matches only {src!r}, so there is nothing to tie to "
                 "it; an equality group needs at least two parameters")
-        return self._declare_ties({p: (src, 1.0, 0.0) for p in targets})
+        return self._declare_ties({p: ([(src, 1.0)], 0.0) for p in targets})
 
     def untie(self, paths: list[str] | str) -> list[str]:
         """Release user ties, recording a ``set_tie`` node.
@@ -903,27 +1133,41 @@ class Refinement:
         self._commit_tie_edit(table, ties={}, untied=hits)
         return hits
 
-    def _declare_ties(self, spec: dict[str, tuple[str, float, float]]) -> list[str]:
-        """Validate and apply ``{target: (source, scale, offset)}`` as one move."""
+    def _declare_ties(self, spec: "dict[str, tuple[list[tuple[str, float]], float]]"
+                      ) -> list[str]:
+        """Validate and apply ``{target: (terms, offset)}`` as one move.
+
+        ``terms`` is the ``(path, coefficient)`` list the affine block has
+        always held; a single-source tie arrives here as a one-entry list, so
+        there is no second path through the checks for it.
+        """
         table = self._working_table()
-        for path, (source, scale, offset) in spec.items():
-            if path == source:
-                raise ValueError(f"{path!r} cannot be tied to itself")
-            if scale == 0.0:
-                raise ValueError(
-                    f"a tie with scale 0 fixes {path!r} at {offset}; that is "
-                    "set_values, and it says so in the history")
+        for path, (terms, offset) in spec.items():
             entry = self._tie_entry(table, path, role="target")
-            src = self._tie_entry(table, source, role="source")
-            implied = scale * src.value + offset
+            implied = offset
+            for source, scale in terms:
+                if path == source:
+                    raise ValueError(f"{path!r} cannot be tied to itself")
+                if scale == 0.0:
+                    # one term at zero is the whole tie, and its sentence is
+                    # the pre-WP-1119 one, byte for byte; among several it is
+                    # a term that says nothing, and the fix is to drop it
+                    raise ValueError(
+                        f"a tie with scale 0 fixes {path!r} at {offset}; that "
+                        "is set_values, and it says so in the history"
+                        if len(terms) == 1 else
+                        f"the term on {source!r} has coefficient 0, so this "
+                        f"tie does not depend on it; drop the term")
+                implied += scale * self._tie_entry(
+                    table, source, role="source").value
             if not (entry.lo <= implied <= entry.hi):
                 raise ValueError(
                     f"the tie puts {path}={implied:g} outside its bounds "
                     f"[{entry.lo}, {entry.hi}]")
-        specs = {path: TieSpec(terms=[(source, scale)], const=offset, user=True)
-                 for path, (source, scale, offset) in spec.items()}
-        for path, (source, scale, offset) in spec.items():
-            table.set_tie(path, AffineTie(terms=((source, scale),), const=offset))
+        specs = {path: TieSpec(terms=list(terms), const=offset, user=True)
+                 for path, (terms, offset) in spec.items()}
+        for path, (terms, offset) in spec.items():
+            table.set_tie(path, AffineTie(terms=tuple(terms), const=offset))
             self._ties[path] = specs[path]
         self._commit_tie_edit(table, ties=specs, untied=[])
         return list(spec)
@@ -932,7 +1176,7 @@ class Refinement:
                          ties: dict[str, TieSpec], untied: list[str]) -> None:
         """Land a tie edit: values follow, models are written, a node is added."""
         table.refresh_ties()  # a new dependent takes its source's value at once
-        table.apply_to_models(self.structure, self.instrument)
+        self._write_back(table)
         self._free_paths = list(table.free_paths)
         # the fitted curve, its statistics and its esds all described a model
         # with a different parameter count
@@ -1150,10 +1394,11 @@ class Refinement:
             # both changed → keep the preferred side (already in `merged`)
 
         table = ParameterTable(self.structure, self.instrument)
+        self._declare_variables(table)
         for e in table.entries:
             if e.path in merged:
                 e.value = merged[e.path]
-        table.apply_to_models(self.structure, self.instrument)
+        self._write_back(table)
         self._invalidate_fit()
 
         node = tree.add(
@@ -1195,6 +1440,7 @@ class Refinement:
     # ------------------------------------------------------------------
     def _prepare_table(self, *, restore: bool) -> ParameterTable:
         table = ParameterTable(self.structure, self.instrument)
+        self._declare_variables(table)
         table.set_vary(["*"], False)
         # before the free set, not after: a tied entry never matches set_vary,
         # so restoring first would report every tied path as "no longer exists"
@@ -1306,7 +1552,7 @@ class Refinement:
         # (between-stage refresh; frozen within the stage); the free-path
         # set lets the compiler allocate FCJ nodes for axial parameters
         # that are about to refine from zero
-        table.apply_to_models(self.structure, self.instrument)
+        self._write_back(table)
         new_model = compile_model(
             self.structure, self.instrument, data, mode=mode,
             two_theta_limits=two_theta_limits,
@@ -1601,7 +1847,7 @@ class Refinement:
 
         assert model is not None and outcome is not None
         self._model = model
-        table.apply_to_models(self.structure, self.instrument)
+        self._write_back(table)
         self._record_free_paths(table)
 
         if mode == "pawley":
@@ -1687,7 +1933,7 @@ class Refinement:
                 # live monitoring (viz.live.LiveSession): rewrite the HTML view
                 stream.write_snapshot(model, table, outcome, stage.name)
             if tree is not None:
-                table.apply_to_models(self.structure, self.instrument)
+                self._write_back(table)
                 self._record_free_paths(table)
                 self._record(tree, NodeAction(
                     kind="stage", name=stage.name, turn_on=list(stage.turn_on),
@@ -1788,7 +2034,7 @@ class Refinement:
         diagnostics.extend(_constraint_diagnostics(stage.name, outcome))
 
         self._model = model
-        table.apply_to_models(self.structure, self.instrument)
+        self._write_back(table)
         self._record_free_paths(table)
 
         stage_result = StageResult(
