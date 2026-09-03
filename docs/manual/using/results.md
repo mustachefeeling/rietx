@@ -700,6 +700,18 @@ the picture confirms the text rather than standing in for it:
 print(ref.summary(plot="fit.png"))
 ```
 
+`report=` takes the `FitReport` that `ref.report()` already built, so a
+caller that wants the text and the structured report builds one report, not
+two — the report is the expensive half of the call, and in a batch the
+doubling is the dominant cost. Pass the report or `plan=`, never both: a
+report was built under its own plan.
+
+<!-- api-doc: no-exec — continues the earlier session, needs a completed fit -->
+```python
+report = ref.report()
+print(ref.summary(deliverable="qpa", report=report))
+```
+
 A series prints its own view: `SeriesResult.summary()` — `str(series_result)`
 — is the trajectory table (first and last few entries, with the count
 between them), the `SEQUENTIAL_*` series-level diagnostics, and each shown

@@ -59,7 +59,7 @@ from .optimize.statistics import (
     structure_r_factors,
 )
 from .params.vector import AffineTie, ParameterTable, _is_wavelength
-from .report.schemas import THRESHOLDS_VERSION, StageReport
+from .report.schemas import THRESHOLDS_VERSION, FitReport, StageReport
 from .schemas.common import Diagnostic, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
 from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
@@ -1902,8 +1902,17 @@ class Refinement:
                             free_paths=list(self._free_paths), **kw)
 
     def summary(self, *, deliverable: str | None = None, plot: str | None = None,
-               plan: RefinementPlan | str | None = None) -> str:
+               plan: RefinementPlan | str | None = None,
+               report: FitReport | None = None) -> str:
         """The termination view (WP-1302): "done, or not, and why" from one call.
+
+        ``report`` takes the :class:`~rietx.report.schemas.FitReport` this
+        fit's :meth:`report` already built, so a caller that wants the text
+        *and* the structured report builds one rather than two — the report
+        is the expensive half of this call (issue #251). Its default,
+        ``None``, builds one here under ``plan``; passing both is refused,
+        because a report was built under its own plan and a second one
+        would be silently ignored.
 
         Numerical heuristics first, agreement indices second-to-last, the
         visual check named but never substituted for them (the agent skill
@@ -1932,7 +1941,12 @@ class Refinement:
         if self._model is None or self.result_ is None:
             raise RuntimeError("call fit() first")
         result = self.result_
-        report = self.report(plan=plan)
+        if report is not None and plan is not None:
+            raise ValueError(
+                "summary(plan=..., report=...): a report is built under its own "
+                "plan, so pass the report or the plan, not both")
+        if report is None:
+            report = self.report(plan=plan)
 
         lines = [f"Refinement.summary: {result.status} ({result.mode})"]
         lines += _stage_lines(result.stages, result.statistics.max_shift_over_esd)
