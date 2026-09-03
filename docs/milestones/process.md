@@ -472,9 +472,10 @@ in the 2026-09-03 bump below; the diary had missed it.
 2026-09-01 rounds arranged into ten unscheduled WPs (1332-1341) — ten index
 rows across the three existing Unscheduled sections whose subjects they extend,
 plus one new section for the costs a multi-hundred-pattern campaign paid and a
-single fit never sees.  Landed 639.  Same rule as every bump above: rows cannot
-go down a rank, so the cap grows with the WP count and with nothing else, and
-the evidence lives in the WP files.  The three remaining issues cost no lines
+single fit never sees.  Landed 639, then 641 after the same-day re-check.
+Same rule as every bump above: rows cannot go down a rank, so the cap grows
+with the WP count and with nothing else, and the evidence lives in the WP
+files.  The three remaining issues cost no lines
 here, being folded into WP-1118, WP-1310 and WP-1322's own files; Current focus
 paid for its new sentence by cutting four closed WPs' narratives back to their
 numbers, which their own files already carry (protocol rule 5).

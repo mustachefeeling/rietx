@@ -42,12 +42,17 @@ their driver branched on `status` and treated every row as usable.
 
 **The design constraint the issue does not know about.** `status` is
 `Literal["converged", "max_iter", "diverged"]` on both `RefinementResult` and
-`StageResult`, and `StageResult`'s docstring states the rule explicitly: the
-vocabulary is **exactly the three terminations the solver produces**, and a
-fourth member was removed by WP-1076 because nothing set it — *"a consumer
-writing an exhaustive match handled a branch that could not occur"*. So the
-issue's first option (`converged_with_findings`) is the one shape this WP
-should **not** take without overturning that rule on the record. The two that
+`StageResult` (`schemas/results.py`), and `StageResult`'s docstring states
+the rule: *"`status` is the solver's, and the vocabulary is exactly the three
+terminations the solver produces — `optimize/least_squares.py` builds its
+outcome three ways and there is no fourth."* A `converged_with_findings`
+member is not a solver termination, so the issue's first option is the one
+shape this WP should **not** take without overturning that rule on the record.
+(WP-1076 is why the fourth member `"skipped"` left — nothing set it — which is
+a different reason; a fourth member *with* a writer would pass 1076 and still
+break the docstring's rule.) `RefinementResult` itself has **no class
+docstring** — the class opens on a `#:` comment — so the statement the
+reporter could not find does not exist anywhere yet. The two options that
 remain fit the existing grain:
 
 - say in the field's docstring that `status` reports **optimiser exit only**
@@ -69,8 +74,9 @@ message carries the ratio so the two can be told apart."*
 It is computed from a `Detection`, so it is reachable only from indexing.
 Confirmed on the tree: `refine.py`, `report/` and `strategy/` import nothing
 from `indexing`. A Rietveld refinement that declares an instrument profile
-never runs the census, though `PEAK_WIDTH_CENSUS_N = 12` is the same
-twelve-most-prominent-lines check a user is otherwise advised to do by hand.
+never runs the census, though `PEAK_WIDTH_CENSUS_N = 12`
+(`schemas/indexing.py`) is the same twelve-most-prominent-lines check a user
+is otherwise advised to do by hand.
 
 What it cost: a ~40 000-point synchrotron pattern, correctly transcribed
 instrument profile, two phases, no size or microstrain parameters. Median
@@ -109,11 +115,16 @@ choice should be visible.
 - Deduplicating per-stage findings, and the stale `BOUND_HIT` — 1310.
 - Any new width physics. `PEAK_WIDTH_LAW_MISMATCH` already says the right
   thing; this is about its reach.
+- The profile-width *ceiling* — a refined width that walked to an absurd
+  value with nothing raised (#102) — is 1311 item 4. This WP is the other
+  direction: a *declared* width an order of magnitude under the measured
+  census. One width diagnostic each, and each names the other.
 
 ## Tasks
 
-- [ ] State in `RefinementResult.status`'s own docstring what it claims and
-      what it does not, naming `diagnostics` as the quality channel.
+- [ ] Give `RefinementResult` the class docstring it lacks, and state there
+      what `status` claims and what it does not, naming `diagnostics` as the
+      quality channel.
 - [ ] Decide whether a derived usability predicate lands, and if so make it an
       expression over the live diagnostics vocabulary rather than a literal
       (WP-1037's rule: a derived flag rots silently when its name and its
@@ -138,7 +149,7 @@ The #243 script's `status` and diagnostics no longer contradict each other by
 a documented reading; a narrow-instrument synthetic fit names the width.
 
 ```sh
-.venv/bin/python -m pytest tests/test_report.py tests/test_help.py tests/test_skill.py -q
+.venv/bin/python -m pytest tests/test_report_apply.py tests/test_help.py tests/test_skill.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
 
@@ -153,4 +164,7 @@ a documented reading; a narrow-instrument synthetic fit names the width.
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issues #243,
   #249). The `status` vocabulary was checked against the tree first: it is the
   three-member solver literal WP-1076 pinned, which rules out the issue's
-  first suggestion and leaves its second and third.
+  first suggestion and leaves its second and third. Re-checked the same day:
+  `RefinementResult` has no class docstring at all; the rule that rules out a
+  fourth member is the docstring's (status is the solver's), not WP-1076's;
+  1311 item 4 named as the other width direction.

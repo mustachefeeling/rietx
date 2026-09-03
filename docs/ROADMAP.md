@@ -99,12 +99,12 @@ PR #111; the exporter registry next. Two contributor PRs wait on review
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
 (1326–1329); the older three, 1119, 1130 and 1133. The **2026-09-03 triage**
-adds 1332–1341 — three more silent wrong answers, three costs a
-multi-hundred-pattern campaign paid that a single fit never sees, three views
-over what a fit already knows, and the skill's own gates — and folded three
-issues into 1118, 1310 and 1322 rather than opening a WP. Five closed since
-2026-09-02: 1330, 1324, 1131 (which discharges 1130's dependency on it) and
-1331, the landing page.
+adds 1332–1341 — three more on what fires and what stays silent, three costs
+a multi-hundred-pattern campaign paid that a single fit never sees, three
+views over what a fit already knows, and the skill's own gates — and folded
+three issues into 1118, 1310 and 1322 rather than opening a WP. Four closed
+since 2026-09-02: 1330, 1324, 1131 (which discharges 1130's dependency on it)
+and 1331, the landing page.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -520,7 +520,9 @@ Three costs a multi-hundred-pattern campaign paid and a single fit never sees
 including a *converged* fit's esd computation (1333); 3.9 % of stages burning
 46.6 % of stage time by exhausting their budget for a 1.23 % median cost
 reduction (1334); and a report path costing 26× the fit it reports on (1335).
-None is a wrong answer; together they decide whether a batch is affordable.
+Two are pure cost; 1333 also hides a silent wrong answer, a verification pass
+that died reading as one that passed. Together they decide whether a batch is
+affordable.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -556,7 +558,7 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1322](wp/1322-events-aggregator.md) | The run is instrumentable, and nothing says so | ⬜ | — |
 | [1339](wp/1339-where-the-improvement-lives.md) | Where the improvement lives | ⬜ | — |
 | [1340](wp/1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | — (1320 soft) |
-| [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | — (1335 soft) |
+| [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | — (1312, 1335 soft) |
 
 #### The repo's own process
 

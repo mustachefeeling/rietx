@@ -34,10 +34,19 @@ b=-3546.49, c=616.024 Å at d_min=1.086 Å ... span 4.74e+09 grid points
 
 Recovery cost 252.5 s of re-fitting, and `on_result=` had saved what landed,
 so nothing was unrecoverable — the defect is the **granularity of the
-failure**. A recovered chain also carries a seam worth naming: each restarted
+failure**. A recovered chain also carries a seam: each restarted
 segment warm-starts from the *original calibrated model*, because the dead
 chain's warm state is not recoverable from a `RefinementResult`, so a
 recovered chain is not the same object as an uninterrupted one.
+
+**Why the ladder never saw it, measured on the tree.** `sequential.py`
+catches `RefinementCancelled` and nothing else (its two `except` clauses), so
+a raise inside a fit propagates straight out of `fit()`. The escalation
+ladder (WP-1051, WP-1127) ranks rung *outcomes* — a `"diverged"` status is a
+rung that lost, and escalates — but an exception is not an outcome, so the
+rung it would have escalated from is never recorded and the chain has no next
+move. That is the granularity defect in one sentence: the ladder's vocabulary
+has no member for "this rung raised".
 
 **Check this before designing.** The reported cells are **negative**
 (−347.6, −3546.5, +616.0 Å). WP-1110's `cell_window` / `CELL_MIN_LENGTH_A` is
@@ -134,11 +143,14 @@ never collected. That is the shape the failed pattern should take.
 
 ## Acceptance
 
-A 9-chain re-run of the #224 configuration loses no pattern to another
-pattern's raise, and the series that lost its backward pass says so.
+On a suite fixture with one pattern poisoned to raise, the chain returns
+every other pattern with the poisoned one flagged; a series whose backward
+pass is cancelled reports the comparison as not run. The #224 configuration
+is the reporter's and is not in the repo: quote a re-run of it if they offer
+one, never as the gate.
 
 ```sh
-.venv/bin/python -m pytest tests/test_sequential.py tests/test_statistics.py -q
+.venv/bin/python -m pytest tests/test_sequential.py tests/test_covariance_scaling.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
 
@@ -155,4 +167,7 @@ pattern's raise, and the series that lost its backward pass says so.
 
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issues #224,
   #225). Two raises, one granularity question, and one silent wrong answer
-  underneath both.
+  underneath both. Re-checked the same day against the tree: the chain
+  catches `RefinementCancelled` only, so a raise is not a rung outcome;
+  acceptance moved to a fixture, the #224 tranche not being in the repo; test
+  modules named as they exist.

@@ -74,6 +74,14 @@ exercising this combination.
   one, so shape the audit as a table keyed on the source kind that a new
   term joins with one row, rather than three hand-written checks. Nothing to
   build here for it now.
+- **2026-09-03, from the issue triage (issue #252): the joint fit has now
+  been exercised from outside.** An outside campaign ran a converged
+  two-histogram X-ray + neutron fit on one shared structure (41 free
+  parameters, Rwp 0.088, GoF 1.47) — evidence for task 3's "admissible and
+  unexercised", though not the audit it asks for. What that run found missing
+  is reporting and telemetry (`summary`/`report`, `events=`,
+  `max_shift_over_esd`), which is
+  [1341](1341-a-joint-fit-has-no-report.md), not this WP.
 
 ## Non-goals
 

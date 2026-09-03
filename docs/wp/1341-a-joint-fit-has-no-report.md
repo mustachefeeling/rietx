@@ -1,7 +1,8 @@
 # WP-1341 — a joint fit has no report
 
 Milestone: unscheduled · Status: ⬜
-Depends on: — (1335 soft: the report path this one gains should already be cheap)
+Depends on: — (1312 soft: it exercises and audits the joint fit; 1335 soft: the
+report path this one gains should already be cheap)
 
 ## Goal
 
@@ -86,8 +87,10 @@ Some constraints that shape (1) and (3):
   telemetry over a capability that already works.
 - The cost of the solo report path — 1335. This WP should land **after** or
   alongside it, or it imports a 26× tax into the one arm that does not have it.
-- X-ray + neutron joint refinement as a *capability* question — that is
-  issue #194, which asks whether the machinery already permits it.
+- X-ray + neutron joint refinement as a *capability* question — issue #194,
+  owned by WP-1312 (its item 3: exercise, audit and document the joint fit).
+  #252's converged two-histogram fit is evidence for that task and is
+  recorded there; this WP gives the fit a report.
 
 ## Tasks
 
@@ -115,7 +118,7 @@ A two-histogram fit emits an event log, carries a convergence figure or a
 stated reason it cannot, and reports what the WP decided it reports.
 
 ```sh
-.venv/bin/python -m pytest tests/test_multi.py tests/test_events.py -q
+.venv/bin/python -m pytest tests/test_multi_histogram.py tests/test_events_viz_history.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
 
@@ -131,4 +134,5 @@ stated reason it cannot, and reports what the WP decided it reports.
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issue #252).
   Checked on the tree: the four-member public surface is as reported, and
   `bound_findings` is already reached from `multi.py`, so the guard path is
-  not what is missing.
+  not what is missing. Re-checked the same day: 1312 owns #194 and is named;
+  test modules named as they exist.

@@ -6,7 +6,7 @@ Depends on: —
 ## Goal
 
 Two paths that fail loudly fail *legibly*: a tie whose implied value leaves a
-declared bound refuses in the same voice as `tie()`'s other three refusals,
+declared bound refuses in the same voice as `tie()`'s other six refusals,
 and a Pawley `summary()` no longer dies in a numpy broadcast whose traceback
 names neither the parameter nor the mode.
 
@@ -18,12 +18,15 @@ and neither is a silent wrong answer — they fail deterministically, which is
 the safe direction. They are diagnosability defects, with one genuine bug
 underneath.
 
-**#246 — `tie()`'s missing refusal.** `Refinement.tie()` documents a family:
-*"an unknown path is a typo; a **locked** end is structurally fixed; an
-**already-tied** target names what holds it."* A fourth case is not in the
-family — when the tie's implied value pushes the affected *coordinate* outside
-its declared bounds, what comes back is raw pydantic from
-`validate_assignment`:
+**#246 — `tie()`'s bound refusal stops one rank short of the coordinate.**
+`Refinement.tie()` documents seven refusals, and the last of them is this
+one: *"an implied value outside the target's own bounds would start the
+bounded solver infeasible."* The code makes it (`_declare_ties`, checking
+`entry.lo <= implied <= entry.hi`) — on the **target entry's own** bounds. A
+symmetry-adapted displacement DOF has bounds of ±∞, so that check passes, and
+the bound that fails is on the *coordinate* the DOF reaches through the
+symmetry affine map, one rank down, where what comes back is raw pydantic
+from `validate_assignment`:
 
 ```
 pydantic_core._pydantic_core.ValidationError: 1 validation error for Parameter
@@ -60,7 +63,9 @@ ref.tie("phases.0.atoms.1.dof.0", "phases.0.atoms.0.dof.0", scale=1.0, offset=3.
 The wanted refusal, in the existing voice: *"tying `phases.0.atoms.1.dof.0` to
 `1.0·phases.0.atoms.0.dof.0 + 3.0` implies x = 3.2482 on Al1, outside its
 bounds [0.0, 1.0]; loosen the bound or change the offset."* The bound check
-itself is right and stays.
+is right for what it checks and stays; it has to reach what the target
+reaches — root CLAUDE.md's rule that a claim about what a name reaches is
+verified where it is used, here applied to a refusal rather than a Jacobian.
 
 **#244 — `suggest()` broadcasts wrong when a width sits on its transform floor
 in Pawley mode.** Reached through `summary()`, so any Pawley caller asking for
@@ -104,8 +109,8 @@ build a synthetic one that floors a width. Building that fixture is the first
 task, because without it the fix cannot be pinned.
 
 Both issues want the same thing even if the broadcast is left as it is: **a
-failure that names the parameter**. That is cheaper than either fix and worth
-landing first.
+failure that names the parameter**. That is cheaper than either fix and
+lands first.
 
 ## Non-goals
 
@@ -124,8 +129,10 @@ landing first.
       the column copy, if so.
 - [ ] Whatever the mechanism, `suggest()` names the parameter whose seeded
       probe changed the row count rather than letting numpy speak.
-- [ ] `tie()` gains its fourth authored refusal, naming the tie, the implied
-      value, the atom and the bound — in the voice of the existing three.
+- [ ] `tie()`'s bound refusal checks the coordinates a DOF target reaches
+      (its symmetry affine ties), not only the target entry's own bounds —
+      naming the tie, the implied value, the atom and the bound, in the voice
+      of the existing six.
 - [ ] Tests: the #246 reproduction asserts the message's content, not just the
       raise; the Pawley fixture asserts `summary()` returns.
 - [ ] Skill: `references/surprises.md` — the row that declaring bounds
@@ -138,7 +145,7 @@ Both reproductions produce an authored message naming the parameter; the
 Pawley fixture's `summary()` returns.
 
 ```sh
-.venv/bin/python -m pytest tests/test_constraints.py tests/test_suggest.py -q
+.venv/bin/python -m pytest tests/test_params_surface.py tests/test_suggest.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
 
@@ -153,3 +160,7 @@ Pawley fixture's `summary()` returns.
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issues #244,
   #246). Grouped because both are loud failures in the wrong voice, and
   because #246's exposure is created by following #204's workaround.
+  Re-checked the same day against the tree: the bound refusal is documented
+  (seven refusals, not three) and made, on the target's own bounds; the defect
+  is that a DOF target's coordinates are not reached. Test modules named as
+  they exist.

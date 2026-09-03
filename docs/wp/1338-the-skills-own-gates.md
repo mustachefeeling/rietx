@@ -44,9 +44,9 @@ decisions come with it, and they are real rather than oversights: the
 reference files name **types** as well as attributes (*"`StageResult` carries
 no `rwp`"*), which `BODY_DOTTED`'s four roots do not reach — widen the roots
 or leave type-level claims unpinned; and a **negative** claim is the one a
-walk cannot check and exactly the kind that rots when a field is added. Worth
-knowing the gate would not catch it. (Note that 1334 proposes adding `rwp`,
-which would falsify that very row.)
+walk cannot check and exactly the kind that rots when a field is added. The
+gate would not catch it. (Note that 1334 proposes adding `rwp`, which would
+falsify that very row.)
 
 **#241 — nothing checks that a private tag names its declared corpus.** #239
 admitted a row measured on data the project cannot ship, and put two

@@ -15,12 +15,15 @@ reader hands one back, and the finding travels on the `diagnostics=` channel
 
 Two reports of the same defect, one from a real archive and one from review
 (issues #230, #236). A GSAS `FXYE` carries 2θ in **centidegrees**, and
-`identify_format` dispatches on the `BANK ... CONS ...` record rather than on
-the suffix — which is right, and documented as such in
-`src/rietx/io/CLAUDE.md`. The gap is what happens when the dispatch misses:
-the file falls through to the generic three-column reader, the same numbers
-are read as degrees, and nothing downstream doubts a pattern running to
-4399.6°.
+dispatch goes by content rather than suffix — `identify_format`
+(`io/readers.py`) asks each `PATTERN_FORMATS` entry whether it `matches`, and
+the GSAS sniff is `looks_gsas` (`io/formats/gsas.py`), which tests
+`_SNIFF_BANK_RE = r"^BANK\s+\d+"` in multiline mode. That is right, and
+documented as such in `src/rietx/io/CLAUDE.md`. The gap is what happens when
+the sniff misses: a `#`-prefixed `BANK` line fails `^BANK`, the file falls
+through to the last-resort two/three-column reader `read_xy`
+(`io/formats/xy.py`), the same numbers are read as degrees, and nothing
+downstream doubts a pattern running to 4399.6°.
 
 Reproduced on `main` at `754e486d`, two files differing only by a leading `#`:
 
@@ -69,8 +72,9 @@ one reports is the one design call this WP has to take rather than reach for.
 
 ## Tasks
 
-- [ ] A commented `BANK` record is still a `BANK` record: the GSAS sniffer
-      reads it, with a test on the two-byte-difference pair from #236.
+- [ ] A commented `BANK` record is still a `BANK` record: `_SNIFF_BANK_RE`
+      admits a leading comment marker, with a test on the two-byte-difference
+      pair from #236.
 - [ ] `read_pattern` checks the axis it is about to return and reports an
       implausible one by name, through `diagnostics=`; decide and record in
       the docstring which ranges refuse and which report.
@@ -79,12 +83,13 @@ one reports is the one design call this WP has to take rather than reach for.
 - [ ] Tests: the synthetic `good`/`bad` pair from #236 verbatim (no data file
       needed), plus one per-format smoke that the guard does not fire on the
       suite's real patterns.
-- [ ] Skill: `references/batch.md` § 9c.14 currently tells an operator to
-      *"assert a sanity bound on every parsed 2θ axis"* **because the package
-      does not**. When this lands that clause becomes something the package
-      does; revise the row in the same change, all three copies via
-      `rietx skill --install . --copy`. Add the diagnostic's row to
-      `references/diagnostics.md` — which has 86 B of headroom (see 1338).
+- [ ] Skill: the diagnostic's row in `references/diagnostics.md` — which has
+      86 B of headroom (see 1338). On this tree `references/batch.md` holds
+      rows 9c.1–9c.4 only; **PR #233 (open, unmerged on 2026-09-03)** adds a
+      9c.14 telling an operator to *"assert a sanity bound on every parsed 2θ
+      axis"* because the package does not. If #233 has merged when this lands,
+      that clause describes something the package now does — revise the row in
+      the same change, all three copies via `rietx skill --install . --copy`.
 
 ## Acceptance
 
@@ -92,7 +97,7 @@ The synthetic pair from #236 reads the same axis from both files, or reports
 by name on the one it cannot establish; no suite pattern gains a diagnostic.
 
 ```sh
-.venv/bin/python -m pytest tests/test_io_readers.py tests/test_skill.py -q
+.venv/bin/python -m pytest tests/test_readers.py tests/test_readers_robust.py tests/test_skill.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m ruff check src tests examples
 ```
@@ -107,4 +112,7 @@ by name on the one it cannot establish; no suite pattern gains a diagnostic.
 
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issues #230,
   #236 — the same defect reported twice, once from an archive and once from
-  review of #233).
+  review of #233). Re-checked the same day against the tree: the sniff is
+  `looks_gsas`'s `_SNIFF_BANK_RE`, the fallback is `read_xy`, and the skill
+  row this file first told a session to revise (9c.14) exists only in the
+  open PR #233.

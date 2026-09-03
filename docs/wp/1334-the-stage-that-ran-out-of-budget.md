@@ -37,14 +37,25 @@ The ask is a per-stage rule of the shape *"if a stage exhausts its iteration
 budget while improving cost by less than ε, stop rather than escalate"* —
 **reported, not silent**. Everything it needs is already emitted.
 
-**Two corrections to the issue, established on the tree at `c79fb5df`.**
+**Three corrections to the issue, established on the tree at `c79fb5df`.**
 
 1. `StageResult.status` is `Literal["converged", "max_iter", "diverged"]`, so
    "this stage exhausted its budget" **is already on the object** as
    `status == "max_iter"`. What is missing is the finer split the event log
    carries (`ftol` vs `xtol` vs `gtol` vs both), which is a different and
    smaller ask than the issue's wording suggests.
-2. `rwp` genuinely is absent. `stage_end` emits `rwp=stage_rwp`, computed
+2. **It is already reported, too.** `refine.py::_max_iter_diagnostics` emits
+   a `STAGE_MAX_ITER` warning on the result naming every stage whose status
+   is `max_iter`, and its docstring records why: `StageResult.status` "has
+   carried `max_iter` all along, but folded into a per-stage record nobody
+   reads in a batch run", and WP-1028 §(d) measured three identical
+   NaCl/Li₂CO₃ mixtures at 39 s, 858 s and 2838 s — a 73× spread — from
+   exactly this. Its suggestion text is the package's standing diagnosis:
+   *the parameters freed there are probably degenerate (the agent skill §3)
+   rather than merely slow: free fewer.* So "reported, not silent" is already
+   true at the result level; what #222 adds is the **cost** of leaving the
+   budget to run out, and a rule that stops it.
+3. `rwp` genuinely is absent. `stage_end` emits `rwp=stage_rwp`, computed
    right there (`refine.py`, the `_run_plan` loop), while `StageResult`'s
    fields are `name, status, n_iterations, cost_initial, cost_final, freed,
    ftol, n_constraint_truncations, held, released`. So a caller doing
@@ -52,7 +63,7 @@ budget while improving cost by less than ε, stop rather than escalate"* —
    shape as #218 and #222's own sibling ask: the quantity exists and is not
    reachable from the object the caller holds.
 
-**What the measurement method establishes, and is worth keeping.** The
+**What the measurement method establishes.** The
 campaign started from the opposite hypothesis — that fits get slow when peaks
 broaden or a phase fraction collapses. Pooled over 976 timed stage rows the
 correlations point at reflection count (r = +0.398); stratifying into 12
@@ -70,15 +81,21 @@ size: `s/iter = 4.4 µs × n_points + 2.9 ms`, r(n_points, s/iter) = **+0.972**.
 Broadening moves neither the number of steps nor the price of one. So the
 lever this WP pulls (fewer iterations) is the only one measured to work.
 
-A result that reflects well on the package and belongs in the record: the one
+One result belongs in the record: the one
 repeatable phase-fraction signal has the **opposite** sign to the naive
 expectation — a phase going to zero makes fits *faster*, because
 `PHASE_UNCONSTRAINED` fires and rietx holds that phase's 7–9 parameters
 (WP-1301). The machinery designed to protect the answer also protects the
 clock.
 
-**The stop rule is a judgement, not a threshold to invent.** Root CLAUDE.md's
-rule stands: a wall-clock budget in a test is a runaway guard, never a timer.
+**The stop rule is a floor under the cost, not the cure — and the package
+already names the cure.** `STAGE_MAX_ITER`'s own suggestion says a stalled
+stage is a degenerate group and the fix is the plan (free fewer), and #222's
+census agrees: the stalls concentrate in `biso` and `warm_refit`, the classic
+scale/Biso/background degeneracy. In a batch the plan is not retuned per
+pattern, so a rule that stops a stage going nowhere is what bounds the cost;
+it must not be read as making the plan right. **The rule is a judgement, not
+a threshold to invent.** Root CLAUDE.md's rule stands: a wall-clock budget in a test is a runaway guard, never a timer.
 Here the budget is in the *library*, so the criterion must be stated in the
 quantity the solver owns (relative cost decrease over the last k iterations),
 never in seconds, and its default must be justified against the p90 = 92 %
@@ -103,8 +120,9 @@ minority that rescues a fit.
       that `status == "max_iter"` is the whole answer and the log's split is
       deliberately log-only.
 - [ ] A stop rule: a stage exhausting its budget below a stated relative-cost
-      improvement stops, and raises a finding saying it did. Default chosen
-      against the measured p90, not invented.
+      improvement stops, and `STAGE_MAX_ITER` (or a sibling) says the rule cut
+      it rather than the budget running out. Default chosen against the
+      measured p90, not invented.
 - [ ] Re-measure the #222 tranche shape on a suite fixture and record the
       recovered fraction, so the rule's effect is a number and not a claim.
 - [ ] Tests: a stage that would exhaust its budget for nothing now stops and
@@ -114,19 +132,22 @@ minority that rescues a fit.
 
 ## Acceptance
 
-The measured tranche's `max_nfev` share of stage time falls substantially with
-no converged parameter moving beyond its esd; the number is quoted with its
-venv and platform (root CLAUDE.md § Numbers).
+On a suite fixture reproducing the #222 shape (a `biso` or `warm_refit` stage
+that runs to its budget for under a few per cent of cost), the `max_nfev`
+share of stage time falls substantially with no converged parameter moving
+beyond its esd; the number is quoted with its venv and platform (root
+CLAUDE.md § Numbers). The 638-pattern tranche is the reporter's and not in the
+repo.
 
 ```sh
-.venv/bin/python -m pytest tests/test_staged.py tests/test_schemas.py -q
+.venv/bin/python -m pytest tests/test_schemas.py tests/test_termination_view.py -q   # plus the stop rule's own module, this WP's
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
 
 ## References
 
 - Issue #222 (638-pattern laboratory chemical-looping series, 1846 fits).
-  Its method note is worth keeping: bucketing timed fits on
+  Its method note: bucketing timed fits on
   `(series_index, series_pass)` is wrong whenever an index recurs (a reseed
   retry, a verification refit, a restarted segment) — it reported 700.686 s
   against a 147.988 s wall clock, **ratio 4.73**, and nothing about the number
@@ -139,4 +160,7 @@ venv and platform (root CLAUDE.md § Numbers).
 
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issue #222).
   Two of the issue's asks were checked against the tree first: `max_iter` is
-  already on `StageResult.status`, `rwp` genuinely is not.
+  already on `StageResult.status`, `rwp` genuinely is not. Re-checked the
+  same day: `STAGE_MAX_ITER` already reports the exhausted stage on the
+  result and carries the package's own diagnosis, so this WP is the cost and
+  the stop rule, not the report; acceptance moved to a fixture.

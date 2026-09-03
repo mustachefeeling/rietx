@@ -271,9 +271,12 @@ missing from its arm applies unchanged. A new format token is spelled in
 - **Not a TOPAS-compatible engine.** No macro language, no `prm` expression
   evaluator, no `fit_obj`. A construct with no model here is reported, not
   emulated.
-- **Not GSAS-II `.gpx`.** It is a pickled python object graph; `.EXP`/`.PRM`
-  are text and documented. **The reason written here was measured false on
-  2026-09-03 — read the Inherited entry below before acting on this fence.**
+- **Not GSAS-II `.gpx`, pending a decision that is the maintainer's.** Until
+  2026-09-03 this bullet said reading one means importing GSAS-II's classes;
+  that was measured false (issue #234, Inherited below: a `.gpx` unpickles
+  with stdlib plus numpy). The fence that does hold is that `pickle.load` on
+  a user file is arbitrary code execution — a security-posture call, not a
+  dependency one. `.EXP`/`.PRM` are text and documented.
 - **Not the additive component seam.** A `fit_obj` or a `.pcr` extra peak lands
   on `Instrument.extra_components`, which is [1102](1102-component-seam-humps.md)'s.
 - **Not a pattern reader.** `io/`'s existing registry keeps that job.

@@ -22,10 +22,15 @@ It is reachable only through `rietx compare` — a browser UI over **bundled
 standards × predefined variants** (`run(standard_key, variant_key)`,
 `catalog()`, standards hard-coded in `_build_srm660c` / `_build_fap` /
 `_build_nac` / `_build_lab6_capillary`, variants as `_with_*` functions).
-There is no function taking two results on the same pattern and returning
-where their Δχ² lives. So for the case the principle was written for — a
-user's own two candidate space groups on their own data — the analysis has to
-be rebuilt by hand.
+And there is less to lift than "the statistic" suggests: per variant the
+cumulative is one line inside `run` (`cumulative = np.cumsum(delta ** 2)`,
+stored as `RunRecord.cumulative_chi2`), and the **difference against the
+reference** — the panel — is computed in the browser, in the JavaScript
+embedded in `compare_app.py`. There is no function taking two results on the
+same pattern and returning where their Δχ² lives; one has to be written, and
+then both the record and the page consume it. So for the case the principle
+was written for — a user's own two candidate space groups on their own data —
+the analysis has to be rebuilt by hand.
 
 **Issue #219 rebuilt it by hand, and it reversed the answer.** A laboratory
 Cu-Kα pattern of commercial NiO, 6495 points. Cubic `F m -3 m` against
@@ -122,9 +127,15 @@ contributor asked for and has not been given.
 
 ## Tasks
 
-- [ ] Lift the panel-3 statistic into a library function over two results on
-      one pattern; `viz/compare.py` then calls it rather than owning it, so
-      there is one authority and the UI is a consumer.
+- [ ] Write the library function over two results on one pattern (the
+      cumulative Σ(δ²_b − δ²_a) and its quantile breakdown); `run` and the
+      page's JavaScript both consume it, so there is one authority and the UI
+      is a consumer.
+- [ ] The NiO pattern: obtain it from the contributor with permission to ship
+      it under `tests/data/` and a provenance row in `tests/data/README.md`
+      (data carries its own fence, per file — root CLAUDE.md § Licensing), or
+      build the acceptance on a constructed nested pair and keep NiO as an
+      external check quoted from the issue.
 - [ ] The split-family enumerator and the windowed Δχ² share, for two nested
       models.
 - [ ] Decide `Diagnostic` versus report-only for the disagreement case, and
@@ -141,11 +152,13 @@ contributor asked for and has not been given.
 
 ## Acceptance
 
-The NiO pair reproduces the measured decile breakdown and the negative
-split-family share; a constructed localised improvement scores positive.
+A constructed nested pair with a genuinely localised improvement scores
+positive and an absorbed one scores negative; the NiO pair, if it ships,
+reproduces the measured decile breakdown and the −28 % split-family share.
+The pattern is not in the repo today.
 
 ```sh
-.venv/bin/python -m pytest tests/test_compare_ui.py tests/test_statistics.py -q
+.venv/bin/python -m pytest tests/test_compare_ui.py -q   # plus the new function's own module, this WP's
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
 
@@ -161,3 +174,7 @@ split-family share; a constructed localised improvement scores positive.
 ## Handover log
 
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issue #219).
+  Re-checked the same day against the tree: there is no function to lift —
+  the cumulative is one line in `run` and the difference is browser
+  JavaScript; the NiO pattern is not in the repo, so acceptance rests on a
+  constructed pair.

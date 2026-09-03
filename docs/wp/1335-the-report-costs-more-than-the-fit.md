@@ -30,8 +30,17 @@ if n_used < max(STRAIN_MIN_REFLECTIONS, len(basis) + 1):
 
 `_strain_errors` runs `_GAUSS_NEWTON_ITERATIONS = 4` iterations per phase,
 each a dense `npts × 2·n_group` `np.linalg.lstsq` with `npts = len(model.tt)`
-— the full pattern. Its output is not needed by the reflection-count test, so
-on the face of it the guard hoists above the solve. Measured on a ~49 000
+— the full pattern. **The issue's premise that the guard does not need its
+output is wrong on the tree**: `_strain_errors` returns `(d_lambda, weight)`,
+`weight` feeds `live` (the √weight leverage cut just below the call), and
+`live.sum()` is the `n_used` the guard tests. So the hoist is not a line move.
+What the guard needs is the per-reflection leverage weight, a squared column
+norm of the design; the question is whether that norm can be had without the
+four Gauss-Newton solves that follow. If the design columns are built once and
+the norms taken before any `lstsq`, the guard hoists; if the weights are
+re-formed each iteration at the updated Λ, it does not, and the saving is one
+iteration's cost rather than four. Establish which before claiming the number.
+Measured on a ~49 000
 point three-phase fit, timed end to end against the fit's own `wall_s`:
 
 | | end to end | fit only | ratio |
@@ -120,8 +129,10 @@ choice.
 
 ## Tasks
 
-- [ ] Hoist `analyse_strain`'s reflection-count guard above `_strain_errors`;
-      measure the recovered fraction on the #250 shape.
+- [ ] Separate the leverage weights from the Gauss-Newton solve in
+      `_strain_errors` so the reflection-count guard runs before any `lstsq`,
+      if the weights admit it; measure the recovered fraction on the #250
+      shape either way.
 - [ ] Decide, and write down, whether a phase with no free structural
       parameter is analysed at all — the docstring argument covers refined
       microstrain and does not obviously extend.
@@ -144,7 +155,7 @@ The #245 fixture's `stage_reports=True` / `False` ratio falls well below 6.5×
 with Rwp bit-identical; a `summary()` + `report()` pair builds one report.
 
 ```sh
-.venv/bin/python -m pytest tests/test_report.py tests/test_refine.py -q
+.venv/bin/python -m pytest tests/test_report_apply.py tests/test_termination_view.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
 
@@ -160,4 +171,7 @@ with Rwp bit-identical; a `summary()` + `report()` pair builds one report.
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issues #245,
   #250, #251). Verified on the tree that `analyse_strain` calls
   `_strain_errors` before its early-out and that `summary()` calls
-  `self.report(plan=plan)` unconditionally.
+  `self.report(plan=plan)` unconditionally. Re-checked the same day: the
+  issue's premise that the guard does not need `_strain_errors`' output is
+  wrong on the tree — `n_used` comes from the `weight` it returns — so the
+  hoist is a separation, not a line move.

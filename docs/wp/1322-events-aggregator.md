@@ -116,11 +116,13 @@ from `SeriesResult`, so neither surface invents a second set of names.
   not be. Decide which shape (1) takes before writing it — this WP's aggregator
   is its first consumer either way.
 
-  Skill rows to revise **in the same change** (all three copies, via
-  `rietx skill --install . --copy`): `references/batch.md` section 9c.13 tells
-  an operator to rotate or re-path the log before every run, and
-  `references/series.md` cross-references it for ramps. Both become
-  descriptions of a package that no longer needs the workaround.
+  Skill rows that may need revising **in the same change** (all three copies,
+  via `rietx skill --install . --copy`): on this tree `references/batch.md`
+  holds rows 9c.1–9c.4 only, but **PR #233 (open, unmerged on 2026-09-03)**
+  adds a 9c.13 telling an operator to rotate or re-path the log before every
+  run, cross-referenced from `references/series.md` for ramps. If #233 has
+  merged by then, both become descriptions of a package that no longer needs
+  the workaround.
 
 ## Non-goals
 
