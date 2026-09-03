@@ -103,38 +103,40 @@ before fixing the shape; concepts only, and the licence fences in
 `ATTRIBUTION.md` apply (TOPAS closed, GSAS-II spec-only under its grant-back
 clause).
 
-### Inherited
+### The boundary this WP draws for someone else
 
-- **2026-09-01, from [1118](1118-foreign-model-files.md): the TOPAS `.inp`
-  reader merged (PR #98), and it resolves a `.inp`'s symbols without being an
-  expression evaluator — which is the boundary this WP has to draw.**
-  `io/projects/topas.py` carries module-level `symbol_table` and private
-  `_resolve` / `_arith` (none of them a package export):
-  enough arithmetic to read a value a file states through a named symbol, and
-  deliberately no more. Nothing of it is exported, so nothing here has to keep
-  it working — but do not redeclare it before deciding whether this WP's named
-  variable is what it should have been resolving into.
-  The live question 1118 parked **here**: seven archive files open a phase
-  with the macro form `STR(R-3)` / `STR(######, "#name#")`, which the reader's
-  line-based split cannot see, so it refuses such a file by name rather than
-  reading it (issue #107 — the refusal landed with PR #98, reading it did
-  not). Whether the fix is a special case or a general macro pass is 1118's
-  registry-shape
-  task — but a general pass borders this WP's equation scope, and 1118's file
-  says explicitly that the boundary is decided **here, not twice**.
-- **From the roadmap reorder, 2026-09-01 (issue #212)**: the first concrete
-  ask for this WP's linear half is a *restraint row* rather than a tie — a
-  conserved elemental ratio across phases (Cu/(Ca+Al) = 1.935 through a
-  reduction series, where diffraction alone moves 17 wt % between two
-  phases for 0.2–0.5 pp of Rwp). It is linear in the phase scales because
-  moles of E ∝ Σ_p S_p·V_p·n_{E,p} and `phase_zmv`'s `element_counts`
-  already carries n_{E,p}; a `√w·(Σ c_k·x_k − target)/σ` row over
-  (path, coefficient) pairs needs no expression language. The seam question
-  the issue isolates: `Phase.restraints` is per phase and `Structure` holds
-  no cross-phase list, so the row lives beside `resolve_phase_restraints`
-  at Structure level. Decide here whether that row is this WP's first
-  deliverable or a WP of its own; [1325](1325-parametric-series.md) names it
-  as one instance of a parametric constraint.
+**A foreign-file reader resolves symbols without being an expression
+evaluator, and that line is drawn here.** WP-1118's two merged readers both
+stopped short of one on purpose: `io/projects/topas.py` carries module-level
+`symbol_table` and private `_resolve` / `_arith` — enough arithmetic to read a
+value a `.inp` states through a named symbol, and deliberately no more — and
+`io/projects/fullprof.py` decodes a `.pcr`'s `10·n + multiplier` codewords into
+ties without parsing anything. Neither is a package export (`io.projects.__all__`
+is the two readers and their two error types), so nothing here has to keep either
+working. What this WP must not do is redeclare that arithmetic before deciding
+whether a named variable is what those readers should have been resolving into.
+
+The live case 1118 parked here is issue **#107**: seven archive files open a
+phase with the macro form `STR(R-3)` / `STR(######, "#name#")`, invisible to the
+reader's line-based split, so such a file is refused by name (`_STR_MACRO`,
+`topas.py:1866`) rather than read. Whether the fix is a special case or a general
+macro pass is 1118's registry-shape task, but a general pass borders this WP's
+equation scope and 1118's file says the boundary is settled **here, not twice**.
+
+### The first concrete ask is a restraint row, not a tie
+
+Issue **#212** wants a conserved elemental ratio held across phases —
+Cu/(Ca+Al) = 1.935 through a reduction series, where diffraction alone moves
+17 wt % between two phases for 0.2–0.5 pp of Rwp. It is linear in the phase
+scales, because moles of E ∝ Σ_p S_p·V_p·n_{E,p} and `phase_zmv`'s
+`element_counts` (`optimize/qpa.py`) already carries n_{E,p}, so a
+`√w·(Σ c_k·x_k − target)/σ` row over (path, coefficient) pairs needs no
+expression language at all. The seam the issue isolates: `Phase.restraints` is
+per phase and `Structure` holds no cross-phase list, so the row belongs beside
+`resolve_phase_restraints` (`model/restraints.py:114`) at `Structure` level.
+[1325](1325-parametric-series.md) names it as one instance of a parametric
+constraint. Whether it is this WP's first deliverable or a WP of its own is the
+task below.
 
 ## Non-goals
 
@@ -163,13 +165,18 @@ clause).
       and the contract bump with its comment.
 - [ ] Verbs: declare and remove a variable; multi-term ties, which the
       representation already holds.
+- [ ] Take the #212 decision — the cross-phase linear **restraint** row is
+      either this WP's first deliverable or its own WP — and say which in the
+      handover either way, because 1325 and the issue's filer both wait on it.
 - [ ] Take the chain decision — keep the one-level refusal or flatten — and
       record the reason either way.
 - [ ] An expression string for the linear subset, **if it survives the design**:
       a parser is where a wrong answer looks right, and the method calls already
       work.
 - [ ] The manual: the reference sections `using/constraints.md` signposts, and a
-      row in `AGENT_PROTOCOL.md` if a diagnostic code lands.
+      row in the agent skill's `references/diagnostics.md` (all three copies)
+      if a diagnostic code lands — `AGENT_PROTOCOL.md` has been a redirect
+      stub since WP-1304.
 - [ ] Tests, including the equivalence bar below.
 
 ## Acceptance
