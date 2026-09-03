@@ -1,8 +1,8 @@
 # WP-1331 — The landing page enters the repository, and the data does not
 
-Milestone: unscheduled · Status: ✅ 2026-09-03 — the private payload repository
-and its `SITE_DATA_TOKEN` secret are the maintainer's; the page publishes without
-them, animation panel dead
+Milestone: unscheduled · Status: ✅ 2026-09-03 — page and payload both in the
+repository; the payload is decimated to the unrefinable side of rietx's own
+guideline, which is what let it in
 Depends on: — (1003 soft: `DOCS_URL` and the Pages workflow are its)
 
 ## Goal
@@ -21,15 +21,25 @@ file, `%%…%%` placeholders), a 90-line `build.py`, `build_demo.py`, four PNGs
 (~900 kB), the fluorapatite example, and `tools/` for screenshots and the leak
 check.
 
-**The fence is the reason this WP is not a `git mv`.** `data/demo.json` is 1.9 MB
+**The fence is the reason this WP is not a `git mv`.** `data/demo.json` was 1.9 MB
 of a contributor's observed in-situ series and `data/transcript.json` is their
-agent run; neither may enter the repository, and a public release asset would not
-do either, because release assets are public. Root CLAUDE.md § Licensing states
-the rule this specialises: **data carries its own fence, per file**, and a PyPI
-upload publishes harder than a repository does. `build.py` already enforces it at
-build time with a token list (`LEAK`, `LEAK_RE`) over the whole assembled page,
-and `tools/check_transcript.py` over the transcript; this WP adds the second line
-of defence, which is `.gitignore` plus a test that asserts the ignore rules.
+agent run. Root CLAUDE.md § Licensing states the rule this specialises: **data
+carries its own fence, per file**, and a PyPI upload publishes harder than a
+repository does. Identifiers were never the hard part — `build_demo.py` already
+refuses any filename, scan index or specimen token, `build.py`'s `leaks()` scans
+the assembled page and `tools/check_transcript.py` the transcript, all
+case-insensitively. The hard part was *fidelity*: a full-resolution copy of an
+unpublished in-situ series is the measurement.
+
+**So the payload is redacted by resolution and committed.** Decimated to every
+second channel it sits at 2.38 steps across a peak, against the 5-to-10 rietx
+itself asks for (`optimize.statistics`, `PATTERN_UNDERSAMPLED`) — a figure of the
+series rather than the series, asserted by `tests/test_landing.py` rather than
+trusted. **Decimated, not averaged**: a mean of k channels divides the counting
+noise by √k, so the observed cloud tightens onto the calculated curve and the
+difference curve flattens, and the panel then shows a better fit than the Rwp
+printed beside it. Measured at k = 2 and k = 3 by rendering both. No private
+repository, no secret, no fetch; a fork builds the whole site.
 
 **The move breaks three `.gitignore` rules, two of them in the dangerous
 direction.** Measured 2026-09-03 with `git check-ignore -v --no-index`, one path
@@ -73,9 +83,10 @@ the manual alone, which is the correct answer for a fork.
 
 ## Non-goals
 
-- **Creating the private data repository and pushing the contributor's data.**
-  That is an outward-facing action on the maintainer's account with someone
-  else's data; this WP wires `pages.yml` to fetch from it and stops there.
+- **Publishing the series at acquisition resolution.** What ships is decimated to
+  the unrefinable side of the package's own guideline; the bundle's own files
+  (`curves.npz`, `metadata.csv`, plots, logs, `agent_transcripts/`) stay out
+  entirely.
 - Rewriting any of the page's copy, or filling in the model name the rig header
   still shows as "model to confirm" (the landing page README § What is still
   missing).
@@ -96,10 +107,12 @@ the manual alone, which is the correct answer for a fork.
       *fragment*, so a web server got mojibake) and the payload fetch its own
       comments promised but did not have. **Not planned — found by serving the
       output and looking**, which nobody had done.
-- [x] `pages.yml`: fetch the payload from the private repo with a secret, run
-      `build.py --site`, then sphinx. The fetch is best-effort so a fork's build
-      still passes. Three links in the page that meant "the manual" and pointed
-      at the site root now point at `manual.html`.
+- [x] `pages.yml`: run `build.py --site`, then sphinx. Three links in the page
+      that meant "the manual" and pointed at the site root now point at
+      `manual.html`.
+- [x] The payload joins the repository, decimated ×2 by `build_demo.py`, with the
+      factor and the resulting steps-per-FWHM recorded in the file, printed in the
+      page's caption and asserted by a test.
 - [x] `README.md` and `pyproject.toml`: the manual is `rietx.org/manual.html`.
 - [x] `examples/fap_lab.py` + `tests/data/fluorapatite.cif`, so
       `tests/test_examples.py` runs the script the page quotes.
@@ -111,11 +124,8 @@ the manual alone, which is the correct answer for a fork.
 - [x] Skill: none. The landing page is not a refinement surface and nothing an
       agent driving rietx does reaches it.
 
-**Left for the maintainer, and only they can do it** (§ Non-goals): create the
-private payload repository `yue-here/rietx-site-data` holding `demo.json` and
-`transcript.json`, and add a fine-grained read-only token as the repository
-secret `SITE_DATA_TOKEN`. Until then every push publishes the page with no
-animation — the workflow skips the fetch rather than failing.
+Nothing is left for the maintainer but review: page, payload and workflow are all
+in the repository and a fork builds the whole site with no secret.
 
 ## Acceptance
 
@@ -140,6 +150,47 @@ answers as the table above says for all six paths.
   asset.
 
 ## Handover log
+
+### 2026-09-03 (2nd session) — the payload comes in too, redacted by resolution
+
+The private-repo plan is gone. The maintainer asked for the payload to be cut
+down to what actually drives the panel and committed, and it is: page, data and
+workflow are all in the repository, a fork builds the whole site with no secret,
+and there is nothing left owed to anyone.
+
+What made it committable is *resolution*, not identifiers — those were already
+stripped. Decimated to every second measured channel the file sits at 2.38 steps
+across a peak against the 5-to-10 rietx itself asks for, so it is a figure of the
+contributor's series and not the series. `tests/test_landing.py` asserts that
+rather than trusting it, and the page prints the factor in its own caption.
+
+**The measurement worth keeping.** Averaging k channels is the obvious reduction
+and it is the wrong one. It divides the counting noise by √k, so the observed
+cloud tightens onto the calculated curve and the difference curve flattens — the
+panel then shows a *better* fit than the Rwp printed beside it. Rendered at k = 2
+and k = 3 and looked at: the scatter visibly collapses while the header still
+reads 13.3 %. Decimation keeps every point it keeps a real measured channel,
+noise and all; what it costs is peak shape, the calculated line growing spikier
+as apexes fall between retained channels. That trade is the right way round for a
+panel whose whole job is to show what a real fit looks like.
+
+*Measured*: 1.95 MB → 0.99 MB, 1297 → 649 channels, 4.87 → 2.38 steps per FWHM
+(the native data was already marginal at 4.87, just under the guideline). Peak
+widths read off the **calculated** curve, not the observed one: any peak finder
+reads counting noise as peaks and drags the median to about one channel, which is
+how the first measurement of this came out at 1.75 and would have justified a far
+harsher cut. Fast selection **4084 passed, 122 skipped**, 2:22 (`[dev]`,
+darwin/arm64, nothing else mid-suite), run from a state with no
+`docs/landing/site`. `tests/test_landing.py` is 14 tests now, +1 on the entry
+below; the new one fails on a full-resolution rebuild with the message that says
+how to fix it, checked. **CI now reads the same figures**, where the entry below
+had to predict 4082/123 — with the payload committed there is no
+payload-conditional skip left.
+
+*Gotcha for a successor*: `build_demo.py`'s decimation factor **defaults to 1**,
+so a rebuild that forgets the argument silently restores full resolution. That is
+what the test is for, and why the factor is recorded in the payload rather than
+only in a command someone has to remember.
 
 ### 2026-09-03 — the page is in the repository, and it works served
 

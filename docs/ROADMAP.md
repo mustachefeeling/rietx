@@ -106,9 +106,9 @@ grouped by what their evidence says; the magnetic scattering track
 [1131](wp/1131-sample-broadening-is-a-specimen-property.md), which discharges
 1130's dependency on it. [1331](wp/1331-landing-page-in-repo.md) closed
 2026-09-03: the landing page is in `docs/landing/` and takes `rietx.org/`, the
-manual `manual.html`. **Owed to the maintainer**: the private payload repository
-and its `SITE_DATA_TOKEN`, without which the page publishes with a dead
-animation and nothing goes red.
+manual `manual.html`, and the animation payload comes with it — decimated to the
+unrefinable side of the package's own guideline, which is what let a
+contributor's series into a public repository as a figure of itself.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and

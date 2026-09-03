@@ -2,12 +2,10 @@
 
 Three failure modes, none of which any other suite sees.
 
-**The ignore rules, in both directions.** The page's animation replays a
-contributor's observed in-situ series. That payload is not in this repository
-and may not be (root CLAUDE.md § Licensing: data carries its own fence, per
-file), so `docs/landing/data/`, `site/`, `dist/` and `preview.html` are ignored —
-and `preview.html` in particular was matched by the `!docs/**/*.html` un-ignore
-and would have been committed, 3.2 MB with the payload inlined. The other
+**The ignore rules, in both directions.** `site/`, `dist/` and `preview.html`
+are build products and ignored — `preview.html` in particular was matched by the
+`!docs/**/*.html` un-ignore and would have been committed, 3.2 MB with the
+payload inlined. The other
 direction is the older bug: the repo-wide `*.png` rule has now swallowed four
 directories of committed images (Part 1's figures, the GUI chapters'
 screenshots, the GUI dist, and this page's four), so `img/` is un-ignored and
@@ -33,6 +31,7 @@ from __future__ import annotations
 
 import html as _html
 import importlib.util
+import json
 import re
 import subprocess
 import sys
@@ -80,18 +79,18 @@ def site_html(build) -> str:
 # What may reach the repository
 # ----------------------------------------------------------------------
 
-#: path -> must it be ignored?  The six the move was measured against.
+#: path -> must it be ignored?
 IGNORE_EXPECTED = {
     "docs/landing/src/index.html": False,      # the one source
     "docs/landing/build.py": False,
     "docs/landing/README.md": False,
     "docs/landing/img/fap-light.png": False,   # committed figure, under a repo-wide *.png
     "docs/landing/img/gui-history-dark.png": False,
+    "docs/landing/data/demo.json": False,      # committed, and decimated to earn it
+    "docs/landing/data/transcript.json": False,
     "docs/landing/preview.html": True,         # built page, payload inlined
     "docs/landing/dist/index.html": True,
     "docs/landing/site/index.html": True,
-    "docs/landing/data/demo.json": True,       # the payload itself
-    "docs/landing/data/transcript.json": True,
 }
 
 
@@ -139,6 +138,42 @@ def test_the_committed_figures_are_actually_committed():
         )
 
 
+#: rietx asks for 5-10 steps across a FWHM and raises PATTERN_UNDERSAMPLED below 5
+#: (`optimize.statistics`).  The committed payload has to sit clearly under that: it
+#: is what makes the file a figure of the contributor's series rather than the series.
+MAX_STEPS_PER_FWHM = 3.0
+
+
+def test_the_committed_payload_is_below_what_can_be_refined():
+    """The redaction is asserted, not merely performed.
+
+    `docs/landing/data/demo.json` is in the repository because it keeps every
+    second measured channel; at the acquisition's own step it would be a copy of a
+    contributor's unpublished in-situ series.  If someone rebuilds it at full
+    resolution — `build_demo.py` takes the factor as an argument and defaults to 1 —
+    nothing else would notice.
+
+    Decimation, not averaging, for a reason worth keeping: a mean of k channels
+    divides the counting noise by sqrt(k), so the observed cloud tightens onto the
+    calculated curve and the difference curve flattens, and the panel then shows a
+    better fit than the Rwp printed beside it.
+    """
+    payload = json.loads((LANDING / "data" / "demo.json").read_text(encoding="utf-8"))
+    # .get, not [], so a payload built before the field existed fails with the
+    # message rather than a KeyError
+    assert payload.get("decimation", 1) >= 2, (
+        "the committed payload is at full resolution; rebuild it with a decimation "
+        "factor (build_demo.py <bundle> <out> 2)"
+    )
+    assert payload.get("steps_per_fwhm", 99) <= MAX_STEPS_PER_FWHM, (
+        f"{payload['steps_per_fwhm']} steps across a peak is refinable data "
+        f"(rietx wants 5-10); rebuild with a larger decimation factor"
+    )
+    # and the page says so rather than leaving a reader to compare with the original
+    src = (LANDING / "src" / "index.html").read_text(encoding="utf-8")
+    assert "decimationNote" in src
+
+
 def test_no_leak_token_reaches_the_built_page(site_html, build):
     """`build.py` raises on a leak at build time; this is the same question
     asked of the assembled bytes, so a change to `leaks()` that stopped
@@ -168,8 +203,7 @@ def test_the_site_build_is_a_document_not_a_fragment(site_html):
 def test_the_inline_build_stays_a_fragment(build):
     """...and the other build must NOT gain one, or the artifact publish gets a
     document inside a document."""
-    if not build.DEMO.exists():
-        pytest.skip("no payload in this checkout; the inline build needs one")
+    assert build.DEMO.exists(), "the payload is committed; this should not be conditional"
     assert not build.assemble(False).lstrip().lower().startswith("<!doctype")
 
 

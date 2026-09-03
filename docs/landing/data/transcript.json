@@ -1,0 +1,103 @@
+{
+ "agent": "Claude Code",
+ "model": "Claude Sonnet 5",
+ "experiment": "CuO reduction and reoxidation, in situ",
+ "run": {
+  "date": "2026-09-01",
+  "wall_minutes": 127,
+  "assistant_messages": 289,
+  "tool_calls": 154
+ },
+ "prompt": "You are one tranche of a `rietx` Rietveld-refinement benchmarking campaign […]\n\n**The lab-XRD six-phase CuO/Cu reduction series.** […] 275 patterns with 6 phases: Cu, Cu2O, CuO, support 2, support 1, support 3. Raw patterns: [raw-data directory] — 275 files. […]\n\n[…] running the 275-pattern chain forward AND backward […]",
+ "head": [
+  {
+   "t": "[env] SCHEMA_VERSION=0.15 rietx=1.3.0"
+  },
+  {
+   "t": "[setup] 275 patterns found"
+  },
+  {
+   "t": "[calibration] pattern=[pattern 0] status=max_iter rwp=0.1287 gof=1.207 […] wall=55.96s"
+  },
+  {
+   "t": "    [warning] PHASE_UNCONSTRAINED where=['phases.5.cell.a', […]] :: phase 5 (support 3) contributes at most 0.57σ of the observation noise anywhere in the fitted range, so the data cannot distinguish […]",
+   "cls": "warn"
+  },
+  {
+   "t": "[calibration] wrote calibrated_state.json, wall=56.0s"
+  },
+  {
+   "t": "[forward] chunk [0:70) starting COLD from calibrated_state.json"
+  }
+ ],
+ "marks": [
+  {
+   "at": 69,
+   "lines": [
+    {
+     "t": "[forward] chunk [0:70) done: 70 patterns, wall=412.9s (5.899 s/pattern), converged=68 max_iter=2 other=0"
+    },
+    {
+     "t": "[forward] chunk [70:140) resuming from state_forward.json"
+    }
+   ]
+  },
+  {
+   "at": 139,
+   "lines": [
+    {
+     "t": "[forward] chunk [70:140) done: 70 patterns, wall=321.3s (4.590 s/pattern) […]"
+    },
+    {
+     "t": "[forward] chunk [140:210) resuming from state_forward.json"
+    }
+   ]
+  },
+  {
+   "at": 209,
+   "lines": [
+    {
+     "t": "[forward] chunk [140:210) done: 70 patterns, wall=552.7s (7.895 s/pattern) […]"
+    },
+    {
+     "t": "[forward] chunk [210:275) resuming from state_forward.json"
+    }
+   ]
+  },
+  {
+   "at": 274,
+   "lines": [
+    {
+     "t": "[forward] chunk [210:275) done: 65 patterns, wall=241.0s (3.708 s/pattern) […]"
+    },
+    {
+     "kind": "elide",
+     "t": "the backward chain, 275 patterns"
+    },
+    {
+     "t": "[finalize] forward=275 backward=275 entries loaded"
+    },
+    {
+     "t": "[path-dependence] 7 SEQUENTIAL_PATH_DEPENDENT diagnostics (empty is a measured result, not a gap)",
+     "cls": "warn"
+    },
+    {
+     "t": "  phases.0.cell.b differs between the forward and backward chains by up to 16.6σ (at [pattern 244]: 3.65475 vs 3.6108)",
+     "cls": "warn"
+    },
+    {
+     "t": "  […]",
+     "cls": "warn"
+    },
+    {
+     "t": "[finalize] wrote results.json with 275 rows"
+    }
+   ]
+  }
+ ],
+ "report": [
+  "**Timing hypothesis — answer in plain words.** Cost tracks iteration count almost one-to-one (Pearson r=0.983, Spearman ρ=0.950) and tracks neither peak broadening (ρ=0.158) nor minimum phase fraction (ρ=0.063). […]",
+  "**Regression vs the previous round.** No regression: Rwp median/p90 |Δ|, all four exported phases' wt% |Δ|, and convergence health (272/275, the same 3 non-converged patterns) […]"
+ ],
+ "note": "Prompt and log are the run's own text, cut. The per-pattern lines are its record of each fit, one line each. […] marks a cut; brackets replace file names, paths and people."
+}

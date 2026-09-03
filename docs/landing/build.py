@@ -104,9 +104,9 @@ if __name__ == "__main__":
         for rel in IMAGES.values():
             shutil.copy(HERE / rel, out / rel)
         shutil.copy(HERE / "src" / "favicon.svg", out / "favicon.svg")
-        # Absent is a state, not an error: the payload is a contributor's data and
-        # lives outside this repository (README § How it is built and served), so a
-        # fork builds the page without the animation rather than failing.
+        # The payload is committed (README § The payload), so absence means someone
+        # removed it.  Still not an error: the page renders without the animation
+        # rather than failing the whole site build.
         if DEMO.exists():
             shutil.copy(DEMO, out / "data" / "demo.json")
         if TRANSCRIPT.exists():

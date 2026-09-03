@@ -12,9 +12,9 @@ also what the mockup artifact shows.
 | `src/index.html` | the page: markup, CSS, JS. The one source. Placeholders `%%IMG:…%%`, `%%DEMO%%`, `%%TRANSCRIPT%%`, `%%FAVICON%%` |
 | `src/favicon.svg` | the manual's favicon recoloured to the accent (`#d8660c` light, `#ff9d4d` dark) |
 | `build.py` | `python build.py` → `dist/index.html` (everything inlined); `python build.py --site` → `site/` with `img/`, `data/`, `favicon.svg` |
-| `build_demo.py` | `python build_demo.py <bundle dir> data/demo.json` — the animation payload from the contributor's `curves.npz` + `metadata.csv`. Refuses to write if any filename, scan index or specimen token from the bundle reaches the output |
+| `build_demo.py` | `python build_demo.py <bundle dir> data/demo.json 2` — the animation payload from the contributor's `curves.npz` + `metadata.csv`, decimated by the third argument (**always 2** for the committed file; see § The payload below). Refuses to write if any filename, scan index or specimen token from the bundle reaches the output |
 | `data/transcript.json` | what the pane shows around the log: `prompt` (the brief, cut to a few lines), `head` (the stdout before the series), `marks` (lines that land on a given frame: the chunk boundaries, the finalise summary), `report` (the agent's closing words, cut) and `note`. Cuts are marked `[…]`, file names and paths are bracketed stand-ins. `python tools/check_transcript.py <bundle dir> data/transcript.json` refuses any pattern filename, scan index, specimen tag, machine path or person from the bundle |
-| `data/demo.json` | the built payload, 1.9 MB: 275 × 1297 obs and calc as base64 Int16, weight fractions, the gas/temperature programme. Each frame carries `t` (the file's clock, s) and `tm` (the plotted clock, min: the six pauses of 18–58 min between scans count as one 74 s interval; `pauses` lists them). Phases carry `determined` and `support`; segments carry the atmosphere text and a colour `key` (`n2`, `h2`, `air`). No filenames |
+| `data/demo.json` | the built payload, **committed**, 0.99 MB: 275 × 649 obs and calc as base64 Int16, weight fractions, the gas/temperature programme. Each frame carries `t` (the file's clock, s) and `tm` (the plotted clock, min: the six pauses of 18–58 min between scans count as one 74 s interval; `pauses` lists them). Phases carry `determined` and `support`; segments carry the atmosphere text and a colour `key` (`n2`, `h2`, `air`). `decimation` and `steps_per_fwhm` record the redaction, and the page prints them in the caption. No filenames |
 | `img/` | `fap-light/dark.png` from `examples/fap_lab.py`; `gui-history-light/dark.png`, the GUI at 1440×900 @2x with 24 nodes in 3 lanes |
 | `tools/gui_shots.js` | builds the three-lane history in a running GUI (`rietx gui --port 8799 --no-open --state-dir …`, then `POST /api/examples/open {"name":"fap"}`) and screenshots it. Needs `playwright-core` and the cached Chromium; run from any directory with `PWC=<node_modules/playwright-core> OUT=<dir> node gui_shots.js` |
 | `tools/page_shots.js` | full-page screenshots of the built page in both themes at a given width |
@@ -31,27 +31,45 @@ Nothing is outstanding here; both items below are in.
 
 ## How it is built and served
 
-`.github/workflows/pages.yml` fetches `data/` from the private payload
-repository, runs `python docs/landing/build.py --site`, then builds the manual
-with `html_extra_path = ["../landing/site"]` and `root_doc = "manual"`. The
-landing page lands at `/`, the manual at `/manual.html`, and no other URL moved.
+`.github/workflows/pages.yml` runs `python docs/landing/build.py --site`, then
+builds the manual with `html_extra_path = ["../landing/site"]` and
+`root_doc = "manual"`. The landing page lands at `/`, the manual at
+`/manual.html`, and no other URL moved. Everything the page needs is in the
+repository, so a fork builds the whole thing with no secret and no fetch.
 
-- **The payload does not enter this repository.** `data/demo.json` is a
-  contributor's observed series at full resolution and `data/transcript.json` is
-  their agent run; the bundle's own files stay out too. `data/`, `site/`,
-  `dist/` and `preview.html` are gitignored and `tests/test_landing.py` asserts
-  that, in both directions. A public release asset would not do: release assets
-  are public.
-- Without `data/`, the page renders its pending state and the build still
-  passes, so a fork builds.
 - `docs/manual/conf.py` adds `html_extra_path` only when `docs/landing/site`
   exists: `-W` makes a missing entry an error, and `tests/test_manual.py` builds
   the manual on every run.
+- `dist/`, `site/` and `preview.html` are gitignored — one page built three ways.
+  `data/` is **not**, and § The payload says why.
 - The fluorapatite example is `examples/fap_lab.py`, with `fluorapatite.cif`
   beside it, so `tests/test_examples.py` runs it and the manual can
   `literalinclude` it.
 - `rietx._about.DOCS_URL` stays `https://rietx.org`, and `help.py`'s anchors are
   `page.html#id`, so neither moved.
+
+## The payload
+
+`data/demo.json` is in the repository because it is **decimated to every second
+measured channel**. At the acquisition's own 0.0501° step the file would be a
+copy of a contributor's unpublished in-situ series; at 0.1002° it sits at 2.38
+steps across a peak, against the 5-to-10 rietx itself asks for, so it is a figure
+of that series and not the series. `tests/test_landing.py` asserts that rather
+than trusting it, and the page prints the factor in its own caption.
+
+**Decimated, not averaged, and the difference matters.** A mean of *k* channels
+divides the counting noise by √*k*: the observed cloud tightens onto the
+calculated curve and the difference curve flattens, so the panel shows a better
+fit than the Rwp printed beside it. Measured at k = 2 and k = 3 by rendering
+both. Keeping every *k*-th channel keeps each point a real measured channel,
+noise and all; what it costs is peak *shape*, the calculated line growing spikier
+as apexes fall between retained channels.
+
+Everything else the fence covers is unchanged: no filename, scan index, specimen
+token, path or person from the bundle reaches either file, `build.py`'s `leaks()`
+and `tools/check_transcript.py` enforce it case-insensitively, and the bundle's
+own files (`curves.npz`, `metadata.csv`, plots, logs, `agent_transcripts/`) stay
+out of the repository entirely.
 
 ## Sources behind the page's numbers
 

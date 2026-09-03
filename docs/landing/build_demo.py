@@ -32,7 +32,52 @@ PHASES = [  # column suffix, display name, formula (HTML), determined-by-data, s
 # metadata token -> (display text, colour key); the contributor's programme
 ATM = {"1N2atm": ("N₂", "n2"), "2H2mixatm": ("0.2 % H₂ in N₂", "h2"), "3airatm": ("air", "air")}
 
-def build(bundle: Path) -> dict:
+#: The redaction, and why it keeps every k-th channel instead of averaging k of them
+#: (WP-1331).  Averaging is the obvious reduction and it is the wrong one: it divides
+#: the counting noise by sqrt(k), so the observed cloud tightens onto the calculated
+#: curve and the difference curve flattens, and the panel then shows a better fit than
+#: the Rwp printed beside it.  Measured at k=2 and k=3 by rendering both: the scatter
+#: visibly collapses while the header still reads 13.3 %.  Decimation keeps every point
+#: it keeps a real measured channel, noise and all, so the picture stays honest about
+#: what the number means; what it costs is peak *shape*, the calculated line growing
+#: spikier as the apexes fall between retained channels.
+DECIMATE = "every k-th channel, never a mean of k"
+
+
+def decimate(x: np.ndarray, *ys: np.ndarray, k: int):
+    """Keep every `k`-th channel of `x` and of each row of each `y`. See DECIMATE.
+
+    This is what lets the payload into the repository at all: a full-resolution copy
+    of a contributor's unpublished in-situ series is their measurement, while one the
+    package's own guideline calls unrefinable is a figure of it.  The page draws about
+    520 CSS pixels of 2-theta, so the panels never needed the acquisition's own step.
+    What the coarser step costs is stated in the payload as the package would state it,
+    `steps_per_fwhm` against rietx's 5-to-10 (`optimize.statistics`,
+    `PATTERN_UNDERSAMPLED`).
+    """
+    if k == 1:
+        return (x, *ys)
+    return (x[::k], *(y[:, ::k] for y in ys))
+
+
+def steps_per_fwhm(x: np.ndarray, calc: np.ndarray) -> float:
+    """Median reflection FWHM in steps, read off the *calculated* curve.
+
+    The observed curve's counting noise is picked up as peaks by any finder and
+    drags the median to about one channel; the model curve has none, and its widths
+    are what a step actually has to resolve.
+    """
+    from scipy.signal import find_peaks, peak_widths
+    meds = []
+    for i in np.linspace(0, calc.shape[0] - 1, 5).astype(int):
+        y = calc[i].astype(float)
+        pk, _ = find_peaks(y, prominence=(y.max() - np.median(y)) * 0.05)
+        if len(pk):
+            meds.append(float(np.median(peak_widths(y, pk, rel_height=0.5)[0])))
+    return round(float(np.median(meds)), 2) if meds else float("nan")
+
+
+def build(bundle: Path, k: int = 1) -> dict:
     z = np.load(bundle / "curves.npz")
     x = z["two_theta"].astype(np.float64)
     obs = z["y_obs"]
@@ -40,6 +85,8 @@ def build(bundle: Path) -> dict:
     assert obs.shape == calc.shape and obs.shape[1] == x.shape[0]
     assert np.all(obs == np.round(obs)), "observed counts are not integral"
     assert obs.max() < 32767 and calc.max() * 10 < 32767
+    fwhm_native = steps_per_fwhm(x, calc)
+    x, obs, calc = decimate(x, obs, calc, k=k)
     with open(bundle / "metadata.csv", newline="") as fh:
         rows = list(csv.DictReader(fh))
     assert len(rows) == obs.shape[0]
@@ -75,6 +122,8 @@ def build(bundle: Path) -> dict:
         title="CuO reduction and reoxidation, in situ",
         credit="Data and refinement contributed by @mustachefeeling",
         n=len(frames), npts=int(x.shape[0]),
+        # what the redaction cost, in the package's own terms
+        decimation=k, steps_per_fwhm=round(fwhm_native / k, 2),
         two_theta=[round(float(v), 4) for v in x],
         obs_b64=b64(np.round(obs)), calc_x10_b64=b64(np.round(calc * 10)),
         phases=[OrderedDict(name=n, html=h, determined=d, support=s) for _, n, h, d, s in PHASES],
@@ -112,7 +161,8 @@ def check_no_leak(text: str, bundle: Path, tokens: tuple[str, ...] = DEMO_TOKENS
 if __name__ == "__main__":
     bundle = Path(sys.argv[1])
     out = Path(sys.argv[2])
-    payload = build(bundle)
+    k = int(sys.argv[3]) if len(sys.argv) > 3 else 1
+    payload = build(bundle, k=k)
     text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     check_no_leak(text, bundle)
     out.write_text(text, encoding="utf-8")

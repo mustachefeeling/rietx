@@ -731,6 +731,13 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
   new IntersectionObserver(es => { visible = es[0].isIntersecting; }, { threshold: .1 }).observe($("#agent"));
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onTheme);
   new MutationObserver(onTheme).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  // The page says what it is showing: the fits are the full-resolution ones, the
+  // points are a subset of the channels they were fitted against (see build_demo.py).
+  if (D.decimation > 1){
+    $("#decimationNote").textContent =
+      `The pattern panel plots every ${D.decimation === 2 ? "second" : D.decimation + "th"} measured channel, `
+      + `${D.steps_per_fwhm} steps across a peak; the fits behind it used all of them.`;
+  }
   renderLegend(); renderBrief();
   setPlaying(!reduce);
   if (reduce) frame = N - 1;

@@ -39,11 +39,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      # Read in a step `if:` below, which is why it is lifted here — a secret is
-      # not addressable in that expression directly.  Empty on a fork, and on
-      # this repository until the payload repository exists.
-      SITE_DATA_TOKEN: ${{ secrets.SITE_DATA_TOKEN }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -52,20 +47,6 @@ jobs:
           cache-dependency-glob: pyproject.toml
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[docs]"
-      # The landing page's animation replays a contributor's observed in-situ
-      # series.  That payload is not in this repository and may not be (root
-      # CLAUDE.md § Licensing; docs/landing/README.md), and a public release
-      # asset would not do because release assets are public — so it is fetched
-      # here from a private repository with a fine-grained read-only token.
-      # Absent, the page still builds and simply has no animation, which is what
-      # a fork gets.
-      - name: The landing page's payload, from the private repository
-        if: env.SITE_DATA_TOKEN != ''
-        uses: actions/checkout@v7
-        with:
-          repository: yue-here/rietx-site-data
-          token: ${{ secrets.SITE_DATA_TOKEN }}
-          path: docs/landing/data
       # Before sphinx: docs/manual/conf.py adds docs/landing/site to
       # html_extra_path only if it exists, and it reads that at conf load.
       - name: Build the landing page
