@@ -964,6 +964,99 @@ and put them in this file's handover entry.
 
 ## Handover log
 
+### 2026-09-04 — the trigger is gone, and the diagnostic is refused
+
+**What this means.** This WP was opened because a four-phase fit put its
+background at half of what TOPAS found, and the plan was to build an
+independent estimate of the background level so a fit could be argued with.
+That premise no longer holds. Rebuilt from the control file rather than
+transcribed by hand, the same fit on today's package lands within 10-22 % of
+TOPAS's background under **nine** different protocols, and the phase-width
+runaway that caused the deficit does not recur — the largest strain coefficient
+is 1.22 where it was 10.37. So there is no factor-of-two error left to detect.
+The estimator that was to detect it was then built and measured anyway, against
+a synthetic with a genuinely known background, and it **fails**: on the bundled
+fluorapatite pattern it finds no anchors at all, on 11-BM it finds 19 in 59 498,
+and on the one pattern where it works it has a single anchor in the 486 channels
+of the region the whole WP is about. The obvious fallback — quote a band between
+the two estimators that already ship, since one is biased high and the other low
+— was also measured and also fails: it flags a *correct* fit in two regions of
+seven. The WP's own gate says this outcome is a 🛑, so the diagnostic and the
+selector are stopped on evidence rather than deferred.
+
+What the session did deliver is smaller and real. The guard that should have
+caught this in the first place, `BACKGROUND_ABSORPTION`, **did** fire — every
+run, above its threshold — and nobody had looked. It now carries a row saying
+how to read it. A latent bug meant one non-finite number anywhere in the
+Jacobian silenced that guard completely while reporting nothing; that is fixed.
+And a cell parameter no crystal can have used to reach the solver as a
+degenerate bound pair and raise an error naming nothing; that is fixed too.
+
+**Done.** Five commits. (1) The mailbox pruned and one stale finding corrected —
+`AGENT_PROTOCOL.md` has been the agent skill since WP-1304, so the two tasks
+that were to add rows there now name `docs/skill/rietx/`. (2) `cell_window`
+refuses a length ≤ 0 or an angle outside (0°, 180°) **naming the path**, keeps
+its existing treatment of a positive short cell, and asserts its own
+"never returns `lo >= hi`" postcondition, swept over both branches;
+`block_projection_r2` **withholds** on a non-finite column instead of returning
+`nan`. (3) Gap A. (4) Gap B. (5) Gap C. Two skill entries: the
+`BACKGROUND_ABSORPTION` row, and `surprises.md` 8.21.
+
+**Measured.** All on this worktree's own `.venv`, `[dev]` only (no jax, no
+torch), darwin/arm64, nothing else mid-suite (`pgrep` clean).
+
+- Fast suite `-m "not slow"`: **4230 passed, 122 skipped**, ~3:11. Three tests
+  were added this session (two in `test_absent_phase.py`, one in
+  `test_background_peaks.py`), all passes, no new skip. No local pre-baseline
+  was taken — the ladder says CI owns that.
+- The trigger scan, rebuilt: 3887 fitted channels, **Rwp 0.1092 / GoF 1.48**
+  against this file's recorded 0.1104 / 1.51 and the maintainer's TOPAS trial
+  0.1076 / 1.52. Nine protocols, background 0.90-1.22 of TOPAS, never 0.50-0.71.
+- `BACKGROUND_ABSORPTION` fired in all nine, 0.44 on a phase scale with the
+  displacement parameters tied, 0.75-0.76 on a displacement parameter with them
+  free. Guard 0.25.
+- Stephens on the majority phase: Rwp 0.1092 → 0.0878, χ² 8460 → 5465 for +4
+  net free parameters, ΔBIC −2962 — and `PHASE_UNCONSTRAINED` on two of four
+  phases that were supported without it.
+- Gap C's synthetic: net Bragg 34.7 % in 18-25° (real 34.8 %), 23.2 % above 45°
+  (real 23.9 %). arPLS +6 to +32 %, SNIP −14 to −4 %, anchors +2.5 to +14.3 %
+  but with 1 anchor in 486 channels where it matters.
+
+**Gotchas for the successor.**
+
+- **The dataset is not in the repo and the reader cannot open it as it ships.**
+  Fetch `zrmo2o8_vt.zip` (§ The trigger dataset), then strip the `#if`/`#endif`
+  blocks from `d8_01612_vt_reel_02.inp` before `read_topas_inp` — three of the
+  archive's four `.inp`s refuse at their first `#if`. Filed into WP-1118.
+- **`Instrument` still has to be hand-built**; WP-1118 has no `to_instrument`.
+  The `pkx → profile.y`, `pky → profile.x` crossing this file warns about is
+  real and silent.
+- **`StageSpec.strain_seed` does not take `None`** — omit the field rather than
+  passing it, or pydantic refuses.
+- Figures land in `tests/output/` (gitignored): the fit, the background panel
+  with references in frame, and the Gap C anchor-coverage panel.
+
+**Next, in order.**
+
+1. **Decide whether this WP closes 🛑 or continues for the panel.** That is the
+   one open question and it is the maintainer's. Everything the WP set out to
+   build is refused; what is left is one view and two paragraphs of prose. A
+   defensible reading is that the panel belongs to
+   [1133](1133-diagnostic-names-its-view.md) — which now depends on this WP for
+   an argument rather than for an estimator (its `### Inherited` says so) — and
+   that 1130 closes 🛑 with its record.
+2. **If it continues**: the panel is specified in the tasks, with a labelled
+   band rather than a curve, and the rule that licenses it — a reference good
+   enough to show is not good enough to fire on.
+3. **Not this WP's, but found by it and worth someone's time**: `one_parameter_gains`
+   shares the NaN exposure that was fixed in `block_projection_r2`, so a Layer-1
+   suggestion can go missing silently. Named in `_span_basis`' docstring.
+4. **Unresolved and stated as such**: nothing here explains why the *cubic*
+   phase's width runaway does not recur. `PHASE_UNCONSTRAINED` accounts for the
+   hydrate's arm only, and `strain_cap(14, 70)` is 79.98 against the recorded
+   10.37, so neither guard would have bitten.
+
+
 ### 2026-08-27 — the plan reviewed against the code, and restructured
 
 **What this means.** The findings of 2026-08-23 stand and the WP keeps its
