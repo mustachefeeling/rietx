@@ -317,21 +317,29 @@ depth-2 user chain (`C = 3B+1`, `B = 2A+0.5`) to coefficient 6.0 and constant
 `dof.0` at coefficient 4.0, constant 0.7972 — both exact, cycles raise, and
 nothing the package derives reaches depth 2.
 
-**Suite**: `-m "not slow"` **4242 passed, 122 skipped** in the 3-4 min band
-(224 s), against a **4227**-passing baseline on the same tree before this WP —
-+17 exactly, which is `tests/test_named_variables.py`, with no new skip. The
-**full** selection is **4407 passed, 131 skipped** in 24:46, green, and that is
-the evidence `_column_identities` is the identity it claims to be: it sits in
-the dispatch every acceptance fit's Jacobian goes through, and no acceptance
-number moved.
+**Suite**: `-m "not slow"` **4247 passed, 127 skipped** in the 4-5 min band
+(263 s), against a **4227 passed, 122 skipped** baseline on the same tree before
+this WP — **+20 passed and +5 skipped**, which is exactly the 25 tests added:
+17 in `tests/test_named_variables.py`, one `test_cross_backend` meta-test, and
+the seven instances of its new `families_variable` row, five of which are the
+jax/torch methods and so *skip* on a `[dev]` venv rather than pass. The **full**
+selection is **4410 passed, 136 skipped** in 31:31, green — +3 and +5 on the
+4407/131 the same tree measured before the review pass, the same eight tests
+seen from the other selection. Its value is not the count: it is the evidence
+that `_column_identities` is the identity it claims to be for a model parameter,
+since it sits in the dispatch every acceptance fit's Jacobian goes through and no
+acceptance number moved.
 
 **Merged against [1130](1130-background-reference.md)**, which was in flight in
-a sibling worktree and lands first. Both branches edit `params/vector.py` and
-the merge is clean — 1130 is in `cell_window`, this WP adds `VAR_PREFIX` and
-`is_variable_path` above it — and the merged tree runs **4247 passed, 122
-skipped** (167 s, its own `[dev]` venv resolving to the merged source), which is
-4242 plus 1130's five. Checked by merging for real rather than by
-`git merge-tree`: a clean text merge is not a passing one.
+a sibling worktree and lands first. `params/vector.py` merges clean (1130 is in
+`cell_window`, this WP adds `VAR_PREFIX` and `is_variable_path` above it); the
+**two conflicts are both documentation and both keep-both** — the skill's
+`surprises.md`, where 1130 takes 8.21 and this takes 8.22 and both rewrite the
+title (resolution: both rows in number order, "Twenty-two"), and 1118's
+`### Inherited`, where each pushes a forward reference. Resolved that way, the
+merged tree is green. Checked by merging for real, not by `git merge-tree`: the
+first such check said "no conflict" and was already stale by the next commit,
+and a clean text merge is not a passing one either way.
 
 ### Two findings recorded rather than fixed
 
@@ -427,12 +435,16 @@ wrong as written, which the measurement had to say rather than accommodate.
 (no jax/torch, so the cross-backend rows self-skip). Full numbers in
 § Acceptance; the headlines:
 
-- Fast selection **4242 passed, 122 skipped** against a 4227 baseline on the
-  same tree — **+17 exactly**, which is `tests/test_named_variables.py`, and
-  **no new skip**. Full selection **4407 passed, 131 skipped**, 24:46, green;
-  no full baseline was taken (CI's job), so that is quoted as green with a
-  delta consistent with the fast one rather than as an exact difference.
-  `pgrep` showed no other suite running.
+- Fast selection **4247 passed, 127 skipped** (263 s) against a **4227 passed,
+  122 skipped** baseline on the same tree — **+20 passed and +5 skipped**, which
+  is exactly the 25 tests added: 17 named-variable tests, one `test_cross_backend`
+  meta-test, and seven instances of its new `families_variable` row, of which the
+  five jax/torch methods **skip** on a `[dev]` venv rather than pass. Full
+  selection **4410 passed, 136 skipped**, 31:31, green (+3/+5 on the 4407/131 the
+  same tree gave before the review pass — the same eight tests from the other
+  side). No full baseline was taken, that being CI's job, so the full figure is
+  quoted as green with a delta consistent with the fast one. `pgrep` showed no
+  other suite running before either.
 - The variable's Jacobian column sat **8.6e-7** from the analytic one before
   the fix and is bit-identical after it, as is the residual.
 - Two spellings of one constraint come out **bit-identical**: Rwp, the
@@ -481,6 +493,46 @@ wrong as written, which the measurement had to say rather than accommodate.
 - `_write_back` briefly grew a `stderr=` argument mirroring
   `apply_to_models`, with no caller — the WP-1076 shape, added by this branch
   and removed in review before the PR.
+
+*The review pass* (`/code-review medium --fix`) found nine things and is the
+reason this entry is not shorter. One was serious: **a node recorded by a
+refinement with a variable could not be replayed.** `refine.replay` rebuilds
+the table from the structure and instrument alone and then re-declares the
+node's ties, and a variable has no model field — so the table had no `vars.*`
+row and the first tie naming one raised. `_declare_variables` had been wired
+into the three table builds `Refinement` owns, and `replay` is a fourth, outside
+the class. That is the persistence failure this WP's own Context described in
+the abstract and the branch then shipped anyway, which is worth saying plainly:
+knowing the shape of a bug is not the same as finding it.
+
+Five more applied: `remove_variable` scanned only ties where the variable was a
+*source*, so removing one that was itself a tie target left its own tie in the
+register — and a same-named `add_variable` then silently resurrected it over the
+new declaration; `history.tree._values` built a node diff from the models, so a
+variable's value never appeared while its dependents did; the GUI's
+`_RWP_TRANSPARENT` had no `set_variable` member; `_tie_terms` destructured a
+non-pair, reading `tie(p, ["a.b", "c.d"])` as path `'a'` and coefficient `'b'`;
+and the manual's composition example tied a variable it never declared (a
+`no-exec` block, so no test could have caught it). Two the pass raised and left
+were taken anyway: `_column_identities` naming a multi-row reach by its lowest C
+row (so a variable driving a Wyckoff DOF was named `.x`, matched no structural
+branch, and made the docstring's own claim false — it now takes the name from
+the paths it drives *directly*), and the missing `tests/test_cross_backend.py`
+row, which root CLAUDE.md requires of any new way to widen C. One was declined:
+`add_variable(unit=…)` is a `Parameter` field that `help.py` renders through
+`UNIT_DISPLAY` and that round-trips on the register, so it is as read as
+`Atom.biso`'s and not the WP-1076 shape.
+
+*Two holes in the test matrix, found while closing the first one.* A config in
+`test_cross_backend.CONFIGS` but absent from `CONFIG_PARAMS` collects **zero
+tests and reports nothing** — `families_variable` sat inert through a green run
+and was caught only by counting collected items by hand. Closed for the six
+configs that file defines. Deliberately not closed over the `**STATES` it merges
+in, because three of those — `toy_anomalous`, `toy_roughness`, `toy_stephens` —
+have no matrix row either, and whether they should is a real question that an
+assertion must not settle by fiat. **`toy_stephens` is the one to look at**:
+anisotropic strain is a derivative path, and the invariant that sent this WP to
+add a row applies to it with at least as much force.
 
 *In flight beside this*: [1130](1130-background-reference.md), in a sibling
 worktree and landing first. Every file merges clean except
