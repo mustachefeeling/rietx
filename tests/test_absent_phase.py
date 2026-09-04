@@ -100,6 +100,46 @@ def test_angles_get_a_degree_window_clipped_inside_the_degenerate_ends():
     assert hi < 180.0 and lo <= 179.5 <= hi
 
 
+def test_a_value_no_cell_can_take_is_refused_by_name():
+    """Not a short cell — not a cell.  WP-1130's bug.
+
+    The clamp above keeps a *positive* short length (it is a model to refuse
+    where there is a diagnostics channel).  At ``value <= -pad/f`` it instead
+    snaps both ends of the window onto ``value``, and the degenerate pair goes
+    to ``least_squares``, which raises "Each lower bound must be strictly less
+    than each upper bound" — naming no parameter and nothing about cells.  A
+    trigonal ``a`` reached −42.7 Å that way.
+    """
+    for name, value in [("a", -5.0), ("b", -42.7), ("c", 0.0)]:
+        with pytest.raises(ValueError, match=r"phases\.1\.cell\." + name):
+            cell_window(name, value, -np.inf, np.inf,
+                        path=f"phases.1.cell.{name}")
+    for name, value in [("alpha", 0.0), ("beta", 180.0), ("gamma", -1.0)]:
+        with pytest.raises(ValueError, match="not a cell angle"):
+            cell_window(name, value, -np.inf, np.inf,
+                        path=f"phases.1.cell.{name}")
+
+    # without a path it still says which parameter, since that is all it has
+    with pytest.raises(ValueError, match="cell parameter 'a'"):
+        cell_window("a", -5.0, -np.inf, np.inf)
+
+
+def test_the_window_is_never_degenerate():
+    """The postcondition, over every value the function accepts.
+
+    ``lo == hi`` is the shape the caller cannot handle: it is passed straight
+    to the solver's ``bounds``.  Sweeping both branches is cheap and is what
+    would have caught this, since the failing value was outside the range
+    anyone thought to write a case for.
+    """
+    for value in [1e-12, 1e-6, 0.8, 1.5, 2.0, 5.4312, 10.0, 42.7, 1e3, 1e6]:
+        lo, hi = cell_window("a", value, -np.inf, np.inf)
+        assert lo < hi and lo <= value <= hi
+    for value in [1e-9, 0.5, 1.0, 60.0, 90.0, 120.0, 179.0, 179.999]:
+        lo, hi = cell_window("beta", value, -np.inf, np.inf)
+        assert lo < hi and lo <= value <= hi
+
+
 def _lab6_table():
     s = make_lab6()
     s.phases[0].cell.a.vary = True

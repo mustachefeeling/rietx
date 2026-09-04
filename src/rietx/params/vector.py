@@ -296,7 +296,8 @@ def _cell_parameter_name(path: str, *, phases: set[int]) -> str | None:
     return None
 
 
-def cell_window(name: str, value: float, lo: float, hi: float) -> tuple[float, float]:
+def cell_window(name: str, value: float, lo: float, hi: float,
+                *, path: str | None = None) -> tuple[float, float]:
     """The default bounds on one cell parameter, anchored at ``value``.
 
     **Why a cell needs a default bound at all.**  Every structural parameter of
@@ -363,11 +364,44 @@ def cell_window(name: str, value: float, lo: float, hi: float) -> tuple[float, f
     a badly-scaled problem.  That is a speed lead for the v1.1 harness WPs, not
     something to take here: a correction does not ship on an Rwp comparison, and
     this one's evidence is a diagnostic.)
+    **A value no cell can take is refused here, by name.**  The clamp below
+    keeps the window from excluding where the parameter already is, and a
+    *positive* length under :data:`CELL_MIN_LENGTH_A` therefore keeps its
+    window and travels — a cell below the floor is a model to refuse where
+    there is a diagnostics channel (the rule in ``crystallography.cif`` one
+    rank up), not a bound to raise on here.  But a length ``≤ 0`` or an angle
+    outside ``(0°, 180°)`` is not a short cell, it is not a cell: the metric
+    tensor is singular or indefinite there, and the clamp turns it into a
+    *degenerate* window, because ``value·(1 + f) + pad < value`` once
+    ``value ≤ −pad/f`` snaps both ends onto ``value``.  ``least_squares``
+    then raises ``Each lower bound must be strictly less than each upper
+    bound``, which names no parameter, nothing about cells and nothing about
+    the phase — measured in WP-1130, where a trigonal ``a`` ran to −42.7 Å
+    during a cumulative stage and the traceback said none of that.  So the
+    raise is made here instead, carrying ``path``.  The postcondition is the
+    point and is asserted at the end: this function never returns
+    ``lo >= hi``.
     """
+    where = repr(path) if path is not None else f"cell parameter {name!r}"
     if name in ("alpha", "beta", "gamma"):
+        if not 0.0 < value < 180.0:
+            raise ValueError(
+                f"{where} is {value}°, which is not a cell angle: the metric "
+                "tensor is singular at 0° and 180° and indefinite outside "
+                "them.  Refuse the model rather than bounding it — a cell "
+                "this far out is a transcription or a diverged stage, not a "
+                "parameter to window.")
         window_lo = max(_ANGLE_MIN_DEG, value - CELL_WINDOW_ANGLE_DEG)
         window_hi = min(_ANGLE_MAX_DEG, value + CELL_WINDOW_ANGLE_DEG)
     else:
+        if not value > 0.0:
+            raise ValueError(
+                f"{where} is {value} Å, which is not a cell length.  Refuse "
+                "the model rather than bounding it — a cell this far out is a "
+                "transcription or a diverged stage, not a parameter to "
+                f"window.  (A positive length below the {CELL_MIN_LENGTH_A} Å "
+                "floor is left alone here and reported where there is a "
+                "diagnostics channel.)")
         window_lo = max(CELL_MIN_LENGTH_A,
                         value * (1.0 - CELL_WINDOW_FRACTION) - CELL_WINDOW_PAD_A)
         window_hi = value * (1.0 + CELL_WINDOW_FRACTION) + CELL_WINDOW_PAD_A
@@ -376,8 +410,21 @@ def cell_window(name: str, value: float, lo: float, hi: float) -> tuple[float, f
     # on here (ParameterTable has no diagnostics channel — the rule in
     # crystallography.cif one rank up)
     window_lo, window_hi = min(window_lo, value), max(window_hi, value)
-    return (window_lo if lo == -np.inf else lo,
-            window_hi if hi == np.inf else hi)
+    out_lo = window_lo if lo == -np.inf else lo
+    out_hi = window_hi if hi == np.inf else hi
+    if not out_lo < out_hi:
+        # The window branches above cannot produce this (both clamp around
+        # ``value``), so it is always a *stored* bound pair that has no
+        # interior: ``min == max`` passes the schema's ``min <= value <= max``
+        # and reaches here whenever such an entry is also free.  Kept because
+        # the caller hands scipy this pair directly and a degenerate one is
+        # what WP-1130 came here for.
+        raise ValueError(
+            f"{where}: the window for value {value} is degenerate, "
+            f"[{out_lo}, {out_hi}].  A stored bound pair with no interior "
+            "(min == max) on a free parameter is the way to reach this; "
+            "fix the model rather than refining against it.")
+    return out_lo, out_hi
 
 
 #: The sample strain terms this cap covers, in the units each one is stored in:
@@ -1629,7 +1676,8 @@ class ParameterTable:
             if windowed:
                 cell_name = _cell_parameter_name(e.path, phases=windowed)
                 if cell_name is not None:
-                    e_lo, e_hi = cell_window(cell_name, e.value, e_lo, e_hi)
+                    e_lo, e_hi = cell_window(cell_name, e.value, e_lo, e_hi,
+                                             path=e.path)
             if cap is not None:
                 strain_name = _strain_parameter_name(e.path)
                 if strain_name is not None:

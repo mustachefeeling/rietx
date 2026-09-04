@@ -135,6 +135,34 @@ missing from its arm applies unchanged. A new format token is spelled in
 
 ### Inherited
 
+- **2026-09-04, from [WP-1130](1130-background-reference.md) § Gap A/B, which
+  drove the `.inp` reader on a real workshop file.** Two things it found,
+  neither a bug.
+  1. **`#if` blocks the files people actually ship.** Of the four `.inp`s in
+     the Durham ZrMo₂O₈ workshop archive, **three refuse** at their first `#if`
+     — `d8_01612_vt_reel_02.inp`, `_reel_01.inp` and `_vt_02.inp` — and only
+     `d8_01612_fit_01.inp` reads. The refusal is *correct* (which branch was
+     refined is unknown and reading on would report a model mixing both) and
+     the message is good. What it means is that the multi-pattern reel files —
+     the ones a series is actually run from, and the case WP-1110's agent round
+     named as the hardest part of the work — are outside the reader's reach.
+     1130 got its model by stripping the `#if`/`#endif` blocks in a scratchpad,
+     which is a workaround no user should have to invent. Worth deciding: a
+     `#prm`-only integer evaluator would resolve `#if (#out pattern_count > 1)`
+     and the `Run_Number` guards, which is most of what these files use `#if`
+     for.
+  2. **`TOPAS_FEATURES_NOT_IMPORTED` named the thing that mattered, and nothing
+     downstream could act on it.** The file's `spherical_harmonics_hkl` strain
+     block on one phase was reported and dropped; 1130 then measured that this
+     one phase owned **24 % of the fit's χ²**, and that supplying rietx's own
+     equivalent (Stephens `Phase.microstrain`) took Rwp 0.1092 → 0.0878. So the
+     diagnostic is doing its job and the gap is a *conversion*, not a
+     capability: rietx has the physics. If `to_structure` ever grows a
+     hkl-strain arm, note that the `.inp`'s coefficients are **fixed**
+     (`!ahkl_c00` … `!ahkl_c44p`, taken from another range), so importing them
+     imports a held model — and 1130 also measured that freeing such a block
+     can make other phases `PHASE_UNCONSTRAINED`, so this is not a change to
+     make silently.
 - **2026-09-04, from [1119](1119-named-variables.md): the equation boundary you
   parked there is decided, and it is drawn short of a parser.** 1119 shipped
   `Refinement.add_variable` — a caller's own `Parameter` at `vars.<name>` that

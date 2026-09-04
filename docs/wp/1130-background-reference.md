@@ -1,8 +1,11 @@
 # WP-1130 — The fit has no reference: a background level it cannot argue with
 
-Milestone: unscheduled · Status: ⬜
-Depends on: — (WP-1131 closed 2026-09-02, and the width check it named had in
-fact shipped in v1.2; see ### Inherited)
+Milestone: unscheduled · Status: 🛑 2026-09-04 — closed on its own gate. The
+trigger no longer reproduces and no model-free estimate separates a correct fit
+from a bad one, so the selector and the diagnostic are refused; the record and
+two shipped fixes are what this WP leaves. The panel goes to 1133
+Depends on: — (nothing; WP-1131 closed 2026-09-02 and the width check this WP
+needed had in fact shipped in v1.2 — see § What this reads rather than computes)
 
 ## Goal
 
@@ -37,14 +40,14 @@ maintainer's flat-basin heuristic. Nothing rietx computes participated in any
 of the three corrections. That is the finding this WP exists to fix; the
 background is the instance.
 
-### Inherited
+### What this reads rather than computes
 
-From [1131](1131-sample-broadening-is-a-specimen-property.md)'s session,
-2026-09-02, which closed. Four things change the work here.
+Folded in from [1131](1131-sample-broadening-is-a-specimen-property.md)'s
+session, 2026-09-02, and re-checked against the tree on 2026-09-03. Four things
+this WP does not have to build.
 
-- **The dependency is discharged, and not by 1131.** This file's `Depends on:`
-  line names 1131 for "the width check, and the size/strain conversions". The
-  **width check shipped in v1.2**, before 1131 was ever worked:
+- **The width check shipped in v1.2**, before 1131 was ever worked, so the
+  dependency this file used to declare is discharged and not by 1131:
   `SIZE_UNUSUALLY_SMALL` (apparent crystallite below `refine.SIZE_FLAG_SIZE_A`
   = 50 Å, via Scherrer at the pattern's longest line) and
   `STRAIN_UNUSUALLY_LARGE` (above `refine.STRAIN_FLAG_WIDTH` = 1.5 deg), each
@@ -52,16 +55,17 @@ From [1131](1131-sample-broadening-is-a-specimen-property.md)'s session,
   `strain_cap` off the fitted range) that arms only on a term already at the
   floor, and rows in `docs/skill/rietx/references/{diagnostics,abstention}.md`.
   Both thresholds are calibrated on the 606-refinement TOPAS archive rather
-  than invented. **So this WP is unblocked now**, and the tasks below that say
-  "defers to 1131's width finding" should name those two codes instead.
-- **The conversions exist and are one import, not a hand computation.**
+  than invented. **Every task below that says "defers to 1131's width finding"
+  means those two codes.**
+- **The conversions are one import, not a hand computation.**
   `model/profiles/caglioti.py` holds both directions of both laws:
   `apparent_size_from_size_coefficient` / `size_coefficient_for_size` (which
   need a λ) and `microstrain_from_strain_coefficient` /
-  `strain_coefficient_for_microstrain` (which do not). § Finding 2's "`lor_strain`
-  of 10.37 is Δd/d ≈ 9 %" is `microstrain_from_strain_coefficient(10.37)` and
-  need not be recomputed by hand; state no constant of your own.
-- **There is now a better input than a coefficient.**
+  `strain_coefficient_for_microstrain` (which do not). § Finding 2's
+  "`lor_strain` of 10.37 is Δd/d ≈ 9 %" is
+  `microstrain_from_strain_coefficient(10.37)` and need not be recomputed by
+  hand; state no constant of your own.
+- **There is a better input than a coefficient.**
   `RefinementResult.microstructure` / `FitReport.microstructure` carry, per
   phase, the coherent domain size in Å and the Δd/d with esds — or a named
   reason there is none (`at_zero`, `no_wavelength`, `not_measured`) — plus
@@ -77,6 +81,28 @@ From [1131](1131-sample-broadening-is-a-specimen-property.md)'s session,
   which is one number; the degrees are not. The
   `SIZE_NORMALISED_ACROSS_WAVELENGTHS` diagnostic says so on any fit it applies
   to.
+
+### Superseded in part, 2026-09-03
+
+The findings below were measured 2026-08-23 to 08-27 and are dated claims about
+the tree, not standing facts. One has gone stale:
+
+- **`AGENT_PROTOCOL.md` no longer exists as a document.** WP-1304 turned it
+  into the agent skill, `docs/skill/rietx/`, and `docs/AGENT_PROTOCOL.md` is a
+  pointer kept for one release and deleted at v1.4. So the two tasks below that
+  said "an `AGENT_PROTOCOL.md` row" now name their skill destination instead,
+  under the root CLAUDE.md § skill rule (WP-1330): a rule that holds for
+  **every** fit goes in `SKILL.md`'s body, one that holds for a task shape goes
+  in one `references/` file for that shape. A background reference read against
+  a fitted background is a per-fit judgement, so it is a `references/` row on
+  the diagnostic plus, at most, one body clause.
+
+Re-checked and still true on 2026-09-03: the `cell_window` degeneracy
+(§ Bug found on the way — `cell_window("a", -3.0, -inf, inf)` returns
+`(-3.0, -3.0)` on this tree), `BACKGROUND_ABSORPTION_GUARD = 0.25` in
+`strategy/staged.py`, the three unread `PatternDiagnostics` fields of
+§ Finding 7, and `report.background.absorption` / `worst_absorption` as Gap A's
+read.
 
 ### The trigger dataset
 
@@ -354,6 +380,339 @@ Separately, `phases.1.gauss_size` returns a degenerate (NaN) R² column at
 convergence, so it has no gradient there. Probably sitting at a bound; worth one
 look while the above is open.
 
+### Gap A answered, 2026-09-03 — the guard fired, and the trigger is gone
+
+**Protocol.** The model is no longer transcribed. WP-1118's TOPAS reader builds
+it: `read_topas_inp` → `to_structure` on `d8_01612_vt_reel_02.inp`, which gives
+the four phases, their cells with the file's own `min`/`max`, the sites and
+`beq = boverall` = 2.66123. The instrument is still hand-built (1118 has no
+`to_instrument` yet): CuKα1, `monochromator_two_theta` 27.26, radius 217.5 mm,
+TCHZ from the file with `pkx → profile.y` and `pky → profile.x`,
+`sample_displacement` −0.219690422 mm, and `Simple_Axial_Model`'s 6.62303 mm
+divided by the radius into `axial_sl`/`axial_hl`. Pattern `read_pattern(scan=16)`,
+`two_theta_limits=(14, 70)` as `start_X`/`finish_X` declare — **3887 fitted
+channels**. Five cumulative stages: scale+background, cell, aberrations
+(displacement, axial, zero shift), displacement (`biso`), widths (`gauss_size`,
+`lor_strain`, unbounded — the trigger's own condition, where the `.inp` instead
+bounds the *physical* size and strain, `csgc ≥ 30` nm and `slc ≤ 0.1`).
+
+The canonical run — one `boverall` tied across all 42 sites, TOPAS's own
+Chebyshev-12 — converges at **Rwp 0.1092 / GoF 1.48**, against this WP's
+recorded reproduction of 0.1104 / 1.51 and the maintainer's trial 0.1076 / 1.52.
+The protocol is the same protocol.
+
+**The literal question: `BACKGROUND_ABSORPTION` fired.** In all nine runs below,
+every time above `BACKGROUND_ABSORPTION_GUARD` = 0.25. The canonical run's whole
+table is three rows — `phases.1.scale` **0.442**, `phases.2.scale` 0.260,
+`phases.3.scale` 0.050 — and `worst_absorption_path` is `phases.1.scale`. Free
+the displacement parameters per atom instead of tying them and the worst becomes
+a `phases.1.atoms.*.biso` at **0.75–0.76**, which is §4b's QPA row exactly: the
+background reproducing three quarters of a displacement parameter.
+
+So **Gap A's own conditional resolves the way it feared**. The premise "nothing
+rietx computes participated in any of the three corrections" narrows to
+§ Finding 7's pattern — a diagnostic computed, correct, above its threshold, and
+unread — and the first deliverable is the row that tells a reader what to do
+with it, not a new estimator. It is also the third instance in this file of one
+shape: a number that is right and reaches nobody (Finding 7), a number that
+reads as silence (the NaN above), and now a *finding* that fired and was not
+looked at.
+
+**And the trigger fit no longer reproduces.** Mean background per region as a
+ratio to TOPAS's converged Chebyshev-12, the same seven regions as § Finding 1:
+
+| protocol | 14-18 | 18-25 | 25-32 | 32-40 | 40-50 | 50-60 | 60-70 | Rwp |
+|---|---|---|---|---|---|---|---|---|
+| **§ Finding 1, widths free (2026-08)** | 1.01 | **0.54** | **0.50** | **0.55** | **0.59** | **0.59** | **0.69** | 0.1105 |
+| boverall, Chebyshev-12 | 1.17 | 1.02 | 1.01 | 0.94 | 0.99 | 0.95 | 0.92 | 0.1092 |
+| one Biso per phase | 1.17 | 1.01 | 1.01 | 0.95 | 0.99 | 0.94 | 0.91 | 0.1082 |
+| Biso free per atom | 1.16 | 1.05 | 1.03 | 0.94 | 1.03 | 0.98 | 0.94 | 0.1071 |
+| cells started at the `.inp`'s `min` | 1.17 | 1.02 | 1.01 | 0.94 | 0.99 | 0.95 | 0.92 | 0.1092 |
+| cold: generic scales and `beq` too | 1.17 | 1.01 | 1.01 | 0.95 | 0.99 | 0.94 | 0.91 | 0.1082 |
+| no axial model | 1.17 | 1.03 | 1.02 | 0.95 | 0.99 | 0.95 | 0.92 | 0.1094 |
+| no axial model, Biso free | 1.18 | 1.09 | 1.12 | 1.03 | 1.13 | 1.10 | 1.02 | 0.1146 |
+| **`auto_background` P-spline** (Finding 1's own row) | 1.22 | 0.93 | 1.02 | 0.93 | 0.96 | 0.93 | 0.90 | 0.1164 |
+| P-spline, Biso free per atom | 1.22 | 0.98 | 1.17 | 1.09 | 1.18 | 1.19 | 1.08 | 0.1435 |
+
+Nine protocols, spanning **both** background bases Finding 1 used (its own second
+table puts the auto P-spline at 152.3 and Chebyshev-12 at 227.7 in 18–25°, so the
+basis had to be varied before any claim of non-reproduction), three treatments of
+the displacement parameters, warm and cold starts, and the axial model present and
+absent. Every one lands in **0.90–1.22**. None reaches 0.50–0.71. The width
+runaway does not recur either: the largest `lor_strain` anywhere above is **1.22**
+against § Finding 2's **10.37**, and no `gauss_size` exceeds 0.702 against 24.93.
+
+**One part of Finding 2 is provably prevented, and it is not the important part.**
+`PHASE_UNCONSTRAINED` (WP-1301, which shipped after these findings were measured)
+fires on phase 0 in every run and holds its free structural paths, so "the hydrate
+carrying `lor_strain` 159.5 at `scale` exactly 0" cannot happen now. The **cubic**
+phase's runaway is the one that moved the background, and nothing here explains
+its absence: that phase is supported, so no hold applies to it, and the width caps
+would not have bitten — `strain_cap(14, 70)` is **79.98**, eight times Finding 2's
+10.37. Left unresolved and recorded as such: this file says the runaway is gone,
+not why.
+
+**What that does to the WP.** The anchored estimate was to be judged against
+TOPAS at 0.82–1.20 (§ Finding 1) and the fit now occupies **0.90–1.22** — the
+same band. Measured here for the first time on the *real* scan rather than the
+synthetic, the two model-free estimators sit either side of it: arPLS λ=1e7 at
+**1.09–1.26**, SNIP at **0.80–1.05**. So `BACKGROUND_BELOW_ANCHORS` has, on this
+scan and on this tree, **no separation left to fire on**: § Gap C's gate
+("if the anchors' high bias in crowded regions is not separable from a factor-2
+deficit at the widths the trigger had") has lost the factor-2 deficit that was
+the whole signal. Read § Gap C, § The anchor selector and § The diagnostic in
+that light before building any of them — the honest next step may be the 🛑 that
+gate already provides for, with the panel and this record as the deliverable.
+
+**Two things this run says about neighbouring work.** The `.inp` the WP names as
+its protocol source **cannot be read as it ships**: `read_topas_inp` refuses
+`d8_01612_vt_reel_02.inp`, `_reel_01.inp` and `_vt_02.inp` at their first `#if`
+(only `d8_01612_fit_01.inp`, a different range, reads), so every number above is
+from a copy with the `#if`/`#endif` blocks stripped in the scratchpad. That is
+WP-1118's, not this WP's, and the refusal is correct — it is the reach that is
+narrow. And the reader reports `TOPAS_FEATURES_NOT_IMPORTED` for LT-ZrMo₂O₈'s
+`spherical_harmonics_hkl` strain broadening, which rietx has no equivalent for;
+that phase is the one carrying `worst_absorption` in seven of the nine runs.
+
+Figures, `tests/output/` (gitignored, so re-run the scratchpad script):
+`wp1130_zrmo2o8_scan16_fit.png` and `wp1130_zrmo2o8_scan16_background.png`, the
+second being § Finding 8's panel — background only, y cropped to its own range,
+TOPAS's region means and both model-free estimators in the frame.
+
+### Gap B answered, 2026-09-04 — the missing model is named, and freeing it is not a fix
+
+**The protocol matches, and the channel count is not the mismatch.** The file is
+4168 points, 10.0000–70.0423°, step 0.014409°. TOPAS's `start_X 14 finish_X 70`
+with `x_calculation_step = Yobs_dx_at(Xo)` selects **3887** observed channels;
+`two_theta_limits=(14, 70)` gives rietx **3887**. The RAW carries no esd column
+(`DataRef.has_sigma` false), so `PatternData.sig()` is √max(y, 1) and the weight
+is 1/y — TOPAS's own default, with the file's minimum count 58, far from where
+the max(y, 1) floor would differ. Both sums are over the same channels with the
+same weights, so an Rwp comparison here is admissible. § Gap B's premise that a
+protocol mismatch might explain the gap is **refuted**: there is none in the two
+places it could hide.
+
+**Where the residual sits.** On the canonical run (Rwp 0.1092, χ² 8460 over 3887
+channels, 2.176 per channel):
+
+| region | 14-18 | 18-25 | 25-32 | 32-40 | 40-50 | 50-60 | 60-70 |
+|---|---|---|---|---|---|---|---|
+| χ² share | 0.040 | **0.264** | **0.263** | 0.108 | 0.136 | 0.098 | 0.091 |
+| χ²_red | 1.23 | 4.60 | 4.58 | 1.64 | 1.65 | 1.20 | 1.11 |
+| local Rwp | 0.0581 | 0.1039 | 0.1373 | 0.1151 | 0.1214 | 0.1063 | 0.1102 |
+
+Layer 0's peak clusters localise it further: **29.71–31.02°** carries 13.7 % of
+χ² at local Rwp 0.195, and **20.84–21.83°** another 9.9 % at 0.135. Read the
+reflection table over those two windows and they are **98.7 %** and **90.4 %**
+LT-ZrMo₂O₈ by I_calc.
+
+**The missing model, named.** LT-ZrMo₂O₈ is the one phase whose `.inp` block
+carries `spherical_harmonics_hkl` — TOPAS's *hkl-dependent* strain broadening —
+and `read_topas_inp` says so at import, `TOPAS_FEATURES_NOT_IMPORTED` naming
+`preferred orientation (spherical_harmonics_hkl)` and `peak profile (gauss_fwhm,
+lor_fwhm)` on that phase. rietx has the equivalent physics: Stephens (1999)
+anisotropic strain, `Phase.microstrain`, six Laue-allowed coefficients under
+`Pmn21`. So this is a *transcription* gap, not a capability gap — and it is the
+one § Gap B asked to name.
+
+**Freeing it improves Rwp by 20 % and costs two phases.** Seeding the block
+isotropically at 100 ppm and freeing `phases.1.microstrain.dof.*` inside the
+sample-broadening stage (never after it — the block locks `lor_strain`, and the
+run confirms it: that path comes back `refinable=False`, "structurally fixed by
+symmetry or by the model"):
+
+| | Rwp | GoF | χ² | free | χ² 29.71-31.02 | χ² 20.84-21.83 |
+|---|---|---|---|---|---|---|
+| no Stephens | 0.1092 | 1.48 | 8460 | 186 | 1170 | 838 |
+| Stephens on LT | **0.0878** | 1.19 | 5465 | 190 | 228 | 154 |
+
+Δχ² = 2995 for +4 net free parameters at N = 3887 → **ΔBIC = −2962**. By the
+model-selection test the skill prescribes, the block is overwhelmingly
+justified, and 79–82 % of both problem regions goes away.
+
+**And `PHASE_UNCONSTRAINED` fires on two of the four phases, which were
+supported without it.** `StageResult.held` for the widths stage grows from
+phase 0's five paths to *twelve*: `phases.2.cell.a`, `phases.2.lor_strain`,
+`phases.2.gauss_size`, `phases.3.cell.a`, `phases.3.cell.c`,
+`phases.3.lor_strain`, `phases.3.gauss_size` join it, and the result carries
+three `PHASE_UNCONSTRAINED` findings where the fit without the block carries
+one. Six hkl-dependent coefficients on the majority phase are enough to imitate
+the minority phases' lines, so the better Rwp is bought by making half the phase
+set unmeasurable. **ΔBIC cannot see that and the guard can** — which is § 4's
+rule about Rwp, one rank up and reproduced live: the fit that looks better is
+the one where two of the four answers stopped being measurements.
+
+**What this says about this WP, which is the point.** The background barely
+moves. Ratio to TOPAS's converged curve, the same seven regions:
+
+| | 14-18 | 18-25 | 25-32 | 32-40 | 40-50 | 50-60 | 60-70 |
+|---|---|---|---|---|---|---|---|
+| no Stephens | 1.17 | 1.02 | 1.01 | 0.94 | 0.99 | 0.95 | 0.92 |
+| Stephens on LT | 1.15 | 1.02 | 1.01 | 0.95 | 0.98 | 0.95 | 0.92 |
+
+The single largest defect in the fit — 35 % of its χ², a genuine and correctly
+diagnosed *phase width* error of exactly the kind § Finding 2 blames — is worth
+**≤ 2 % of the background level**. So the widths ⇄ background coupling
+§ Finding 2 asserts is **not generic**: it needed the runaway, not merely a
+width error. A width wrong enough to own a third of χ² does not move the
+background at all.
+
+`BACKGROUND_ABSORPTION` on `phases.1.scale` is likewise **invariant** across the
+pair, 0.442 against 0.437, while `phases.2.scale` falls 0.260 → 0.077 (that
+phase having just lost its support). A statistic that does not move when χ²
+falls by a third is measuring the geometry of the problem rather than the
+current misfit, which is what § Finding 6's "measured at the degenerate optimum,
+so whether it fires from a good start is unmeasured" left open. It fires from a
+good start, at the same value.
+
+Fenced, per § Gap B's own instruction to record a missing model rather than
+build one: nothing here proposes wiring Stephens in by default, and the
+`.inp`'s spherical-harmonic coefficients are *fixed* in the file
+(`!ahkl_c00` … `!ahkl_c44p`, taken from range 22), so a reader that imported
+them would import a held model, not a refinable one. Its home is WP-1118.
+
+### Gap C answered, 2026-09-04 — the gate closes: 🛑 on the diagnostic
+
+**The synthetic is corrected, and this time it passes its own fidelity check.**
+§ Finding 6's synthetic was 2.3× too weak in 18–25°, the region that mattered.
+This one is built from the converged fit's *own* `y_calc − y_background`, so the
+net Bragg distribution is the real one by construction: **34.7 %** in 18–25°
+against the real 34.8 %, **23.2 %** above 45° against 23.9 %. A known analytic
+background (900/2θ + 60 + 40·exp(−(2θ−14)/12), spanning 73.2–164.2 counts) is
+added and the sum sampled from a Poisson. Truth is known channel by channel.
+
+**Bias against that truth, by region:**
+
+| estimator | 14-18 | 18-25 | 25-32 | 32-40 | 40-50 | 50-60 | 60-70 |
+|---|---|---|---|---|---|---|---|
+| arPLS λ=1e7 | 1.063 | 1.177 | 1.308 | 1.217 | 1.230 | 1.323 | 1.204 |
+| arPLS λ=1e9 | 1.072 | 1.166 | 1.245 | 1.208 | 1.246 | 1.313 | 1.206 |
+| SNIP | 0.864 | 0.943 | 0.992 | 0.910 | 0.921 | 0.964 | 0.859 |
+| flat-basin anchors ±2° | 1.003 | 1.084 | 1.082 | 1.086 | 1.151 | 1.174 | 1.158 |
+| flat-basin anchors ±4° | 1.025 | 1.058 | 1.084 | 1.085 | 1.067 | 1.085 | 1.143 |
+| flat-basin anchors ±6° | 1.026 | 1.057 | 1.078 | 1.075 | 1.057 | 1.078 | 1.141 |
+| flat-basin anchors ±10° | **−1.480** | **0.267** | 1.244 | 1.246 | 1.024 | 1.061 | 1.148 |
+
+Signs and magnitudes confirm § Finding 6 on better evidence: arPLS biased high
+everywhere (+6 to +32 % here against its +4 → +57 % on the old synthetic), SNIP
+low everywhere (−14 to −4 % against −12 to −18 %), and the two arPLS λ agree to
+5 %, not the 1 % claimed. The **window sensitivity is not a trend but a cliff**:
+±2/±4/±6 are stable and ±10 collapses, returning a *negative* background at low
+angle, because past that width no anchor survives there and the Chebyshev
+extrapolates. Recorded as the WP asked, with the correction that the number to
+report is where it breaks, not a slope.
+
+**But the deciding number is coverage, not bias.** Anchors per region on the
+synthetic at ±4°: 20/278, **1/486**, 15/485, 46/556, 35/694, 58/694, 173/694.
+In 18–25° — the region the whole WP is about — the estimate rests on **one
+channel in 486**, and its "+5.8 % bias" is a property of the Chebyshev's
+stiffness rather than a measurement of the floor.
+
+**On the two bundled patterns the selector produces nothing at all.**
+
+| pattern | channels | peak density | anchors found |
+|---|---|---|---|
+| `FAP.XRA` (dense lab, CuKα doublet), Rwp 0.0902 | 5750 | 2.97 /deg | **0** at ±2.3°, ±5.7° and ±11.5° |
+| `11BM_NAC.fxye` (synchrotron), Rwp 0.1299 | 59 498 | 26.19 /deg | 274 / **19** / **19** |
+
+Zero on the dense pattern this WP itself nominated as the CI comparator, at
+every window. Nineteen of 59 498 on 11-BM, where the curve through them diverges
+by four to seven orders of magnitude. The selector works on one of the three
+patterns tried, and on that one it is blind exactly where the question is asked.
+
+**The obvious fallback is refuted too, and this is what closes the gate.** Since
+arPLS is biased high everywhere and SNIP low everywhere, the tempting move is to
+stop estimating a level and quote the **bracket** [SNIP, arPLS] — no new
+estimator, no new knobs, both already in `background/estimators.py`, and a band
+rather than a singleton is this package's own rule. Measured over **8 Poisson
+realisations of the known truth**, the bracket contains it in all seven regions
+in **4 of 8**. It fails in 25–32°, where SNIP's bias crosses zero and its floor
+reaches 1.012. Used as a threshold on that floor:
+
+| | 14-18 | 18-25 | 25-32 | 32-40 | 40-50 | 50-60 | 60-70 |
+|---|---|---|---|---|---|---|---|
+| § Finding 1's trigger (ratio to TOPAS) | 1.01 | 0.54 | 0.50 | 0.55 | 0.59 | 0.59 | 0.69 |
+| SNIP floor over 8 seeds | 0.895 | 0.963 | 1.012 | 0.927 | 0.943 | 0.966 | 0.900 |
+| **trigger fires?** | no | yes | yes | yes | yes | yes | yes |
+| the fit on this tree (Gap A) | 1.17 | 1.02 | 1.01 | 0.94 | 0.99 | 0.95 | 0.92 |
+| **good fit fires?** | no | no | **yes** | no | no | **yes** | no |
+
+It catches the trigger in 6 regions of 7 — and fires on a *correct* fit in 2 of
+7. That is § Fault 1's concrete false positive, arriving from the estimator's
+own bias rather than from a nanocrystalline specimen, and no threshold moves it:
+the floor is above 1 in the region where the false positive lands.
+
+**Verdict — the gate is met and it says stop.** § Gap C's own words: "if the
+anchors' high bias in crowded regions is not separable from a factor-2 deficit
+at the widths the trigger had, the diagnostic is 🛑 on that evidence, and this
+WP's deliverable is the panel plus the record." Two things are now true and
+either alone is sufficient. The factor-2 deficit no longer occurs at all
+(§ Gap A, nine protocols at 0.90–1.22), so there is nothing left to separate
+*from*. And no model-free estimate measured here separates a correct fit from a
+bad one without false positives: the anchors have no coverage where it matters
+and none at all on two of three patterns, and the bracket flags a good fit in
+two regions of seven.
+
+So **`BACKGROUND_BELOW_ANCHORS` and `background.anchors` are 🛑**, on measured
+evidence, and the tasks below are marked accordingly. What survives is the
+panel, the record, and the two things already landed — the guard that fires and
+now says how to read itself, and the NaN that used to silence it.
+
+Figure: `tests/output/wp1130_gap_c_anchor_coverage.png` (gitignored; the
+scratchpad script rebuilds it) — the synthetic with its known truth, the three
+estimates over it, and below them the anchor count per region, which is the
+panel that makes the gate legible in one look.
+
+### Both fixed, 2026-09-03 — and the second one is the WP's own theme
+
+`cell_window` now refuses a value no cell can take, naming the path. The
+boundary is stated where the confusion is: a *positive* length under
+`CELL_MIN_LENGTH_A` keeps its window and travels, because a short cell is a
+model to refuse where there is a diagnostics channel; a length ≤ 0, or an angle
+outside (0°, 180°), is not a short cell but not a cell at all — the metric
+tensor is singular or indefinite there — so it raises with the path in the
+message instead of reaching scipy as a degenerate pair. The postcondition
+"never returns `lo >= hi`" is asserted in the function and swept in the tests
+over both branches, which is what the original case-by-case tests could not
+catch: the failing value sat outside the range anyone thought to write a case
+for.
+
+**The NaN R² was not about `gauss_size` at all**, and the look was worth
+taking. `gauss_size` is not among `background_absorption`'s targets
+(`.biso`, `.scale`, `.occ`, `.adp.`), so the NaN could not have been that
+statistic's own reading of it — but the same run showed why it did not matter
+which column carried the NaN. Measured on this tree, before the fix: **one
+non-finite entry anywhere in the Jacobian's background block or in a target
+column makes every `background_absorption` R² `nan`** — `np.any` does not
+filter it out, NaN being truthy, so `_span_basis`' zero-column filter passes it
+straight into the QR. And `nan > BACKGROUND_ABSORPTION_GUARD` is `False`, so
+`BACKGROUND_ABSORPTION` **never fires**, while
+`FitReport.background.worst_absorption` reports `nan` rather than a number.
+
+That is the exact inverse of the failure the zero-column filter was written
+for. A zero column *saturates* the guard, R² = 1.00 for every target, which is
+loud and was found. A NaN column *silences* it, on the fit most likely to need
+it — a fit with a degenerate column is a fit whose background is absorbing
+something — and nothing anywhere says so. It is § Finding 7's shape one rank
+down: not a diagnostic computed and unread, but a diagnostic computed to a
+value that reads as "silent" and cannot be told from one.
+
+`block_projection_r2` now **withholds rather than reports**: a non-finite block
+or nuisance column returns `{}`, since the span it belonged to is unknowable,
+and a non-finite target column is skipped exactly as a zero-norm one is.
+Absence is a state every consumer already handles; `nan` is a number that
+compares `False` against everything. A NaN column is deliberately *not* dropped
+from the span the way a zero one is — a zero column demonstrably spans nothing,
+a NaN column spans something unknown, and dropping it would narrow the span and
+understate every R² built on it, which is again the silencing direction.
+
+**Left unfixed and named here**: `one_parameter_gains` shares `_span_basis` and
+has the same exposure — a non-finite column gives `nan` gains, which compare
+`False` against every threshold, so a Layer-1 suggestion goes missing silently.
+It is a different statistic with a different consumer and was not this task; the
+`_span_basis` docstring now states the contract and says which caller enforces
+it.
+
 ### The 2026-08-27 review — four design faults and three evidence gaps
 
 The first draft of this plan was reviewed against the code before any of it
@@ -466,7 +825,7 @@ each can change what is built — Gap A may make the protocol row the first
 deliverable, Gap B may name a missing model the widths were standing in for,
 and Gap C decides whether the diagnostic is buildable at all.
 
-- [ ] **Fix `cell_window`** — independent of everything below and of 1131;
+- [x] **Fix `cell_window`** — independent of everything below and of 1131;
       land it first as its own commit. `params.vector.cell_window` returns
       `lo == hi` for any negative value (the closing clamp `min(lo, value)`,
       `max(hi, value)` snaps both ends onto it), and scipy then raises a bare
@@ -474,19 +833,20 @@ and Gap C decides whether the diagnostic is buildable at all.
       the raise must name the path; a cell below the floor is a model to refuse
       where there is a diagnostics channel. Check `phases.1.gauss_size`'s NaN
       R² column at the same time.
-- [ ] **Gap A: re-run the trigger fit and record what fired.** Fetch the scan
+- [x] **Gap A: re-run the trigger fit and record what fired.** Fetch the scan
       (§ The trigger dataset; `pkx → y`, `pky → x`), refine as Finding 1 did,
       and read `result.diagnostics` and `report.background.absorption`. Record
-      the answer in this file. If `BACKGROUND_ABSORPTION` fired, the
-      `AGENT_PROTOCOL.md` row for it gains the sentence "a phase width can be
-      the absorber, and the R² names the victim, not the cause".
-- [ ] **Gap B: adopt TOPAS's protocol and localise the residual misfit.** Check
+      the answer in this file. If `BACKGROUND_ABSORPTION` fired, its
+      row in `docs/skill/rietx/references/diagnostics.md` gains the sentence
+      "a phase width can be the absorber, and the R² names the victim, not the
+      cause".
+- [x] **Gap B: adopt TOPAS's protocol and localise the residual misfit.** Check
       the channel count and what each Rwp sum includes; then, on the capped
       fit, the cumulative Δχ² by region against the widths-free fit (the
       `rietx compare` panel's shape). Name what the widths were absorbing, or
       the protocol mismatch, in this file. A model TOPAS has and rietx lacks is
       a finding to record and fence, not to build here.
-- [ ] **Gap C: the anchor selector's bias curve against a known truth.**
+- [x] **Gap C: the anchor selector's bias curve against a known truth.**
       Rebuild Finding 6's synthetic with the real net Bragg distribution (34.8 %
       of it in 18–25°, 23.9 % above 45°) so it passes the fidelity check the
       first one failed, then score flat-basin anchoring beside arPLS and SNIP
@@ -496,7 +856,10 @@ and Gap C decides whether the diagnostic is buildable at all.
       from a factor-2 deficit at the widths the trigger had, the diagnostic is
       🛑 on that evidence, and this WP's deliverable is the panel plus the
       record.
-- [ ] **The anchor selector.** `background.anchors` (a peer of
+- [🛑] **The anchor selector.** Refused by § Gap C's gate, 2026-09-04: zero
+      anchors on `FAP.XRA` at every window, 19 of 59 498 on `11BM_NAC.fxye`, and
+      1 of 486 in the one region that matters on the synthetic. Was to be:
+      `background.anchors` (a peer of
       `background.select`): the second-derivative significance test, the basin
       condition, and a smooth physical form through the survivors. Returns the
       anchors, the curve, a **per-region reliability flag** derived from
@@ -504,7 +867,10 @@ and Gap C decides whether the diagnostic is buildable at all.
       is derived from the pattern (a multiple of the instrument FWHM, or of
       `PatternDiagnostics.peak_density_per_deg`), never a bare degree count,
       with the ±2/±4/±6/±10 sensitivity recorded beside the derivation.
-- [ ] **The diagnostic.** `BACKGROUND_BELOW_ANCHORS` (code, paths, value,
+- [🛑] **The diagnostic.** Refused with the selector it reads. The
+      [SNIP, arPLS] bracket, the only model-free alternative measured, holds the
+      known truth in 4 of 8 noise realisations and fires on a correct fit in 2
+      regions of 7. Was to be: `BACKGROUND_BELOW_ANCHORS` (code, paths, value,
       message per the `GuardFinding` constructor rule), per region, threshold
       taken from Gap C's bias curve and never from the trigger. It states the
       one-sided reading, and it **defers to 1131's width finding**: with a
@@ -514,43 +880,71 @@ and Gap C decides whether the diagnostic is buildable at all.
       Its stated false positive is the nanocrystalline fit, and a fixture for
       that (broad peaks, correct background) is in the tests as the case that
       must stay silent.
-- [ ] **Re-measure `background_absorption` from a good start**, with and without
-      the width columns, and either reinstate or bury the widen-the-target-list
-      idea on that evidence rather than on the degenerate optimum's.
-- [ ] **A background panel for `plot_for_vlm`.** Not "draw the background" — it
-      already appears, as a thin line at the bottom of an axis scaled to the
-      tallest peak, where Finding 8 measures the error at 2.6–4.9 % of panel
-      height. The panel is: fitted background **and** the anchored estimate in
-      one frame, y cropped to their own range, anchors marked, peak-crowded
-      regions shaded. Finding 8's rule is the acceptance test — a panel without
-      a reference in it would have shown a smooth decay and been called fine.
-- [ ] **`rietx compare` row** — the standing rule in the root CLAUDE.md, and the
-      cumulative Δχ² panel is what localises this to 18–25° in the first place.
-- [ ] **`AGENT_PROTOCOL.md` rows.** Rwp and GoF never accept a background; a
-      fitted background below the anchors by more than their stated bias names
-      the phase widths as first suspect, not the background function; a
-      model-free estimate is biased high by construction and is not a
-      reference the co-refined answer should match. The channel rule is
+- [x] **Re-measure `background_absorption` from a good start** — done in
+      § Gap B: it fires from a good start at 0.442, and at 0.437 after a change
+      that removes 35 % of χ², so it is measuring the geometry of the problem
+      rather than the current misfit. The widen-the-target-list idea stays
+      **buried**: the widths never ran away in nine protocols, so there is no
+      evidence for widening and § Finding 6's withdrawal stands.
+- [ ] **A background panel for `plot_for_vlm`** — after § Gap C this is the WP's
+      **main remaining deliverable**, and its reference has changed. Not "draw
+      the background": it already appears, as a thin line at the bottom of an
+      axis scaled to the tallest peak, where § Finding 8 measures the error at
+      2.6–4.9 % of panel height. The panel is: fitted background in one frame
+      with y cropped to its own range, peak-crowded regions shaded, and **a
+      reference band rather than an anchored curve** — SNIP below and arPLS
+      above, both already in `background/estimators.py`, whose measured biases
+      (§ Gap C) are what the band means. The distinction that makes this legal
+      after the 🛑: a band good enough to *show* is not good enough to *fire*
+      on, since a reader compares while a guard thresholds, and § Gap C's
+      refutation is a refutation of the threshold. Label the band with its
+      measured bias so it is never read as a truth. § Finding 8's rule is the
+      acceptance test — a panel without a reference in it would have shown a
+      smooth decay and been called fine — and § Gap C's own last line names the
+      panel as what survives.
+- [🛑] **`rietx compare` row** — the root CLAUDE.md's rule is "add a row
+      whenever a new **correction** lands", and after § Gap C none does. Nothing
+      to compare. (The cumulative Δχ² panel's *shape* was still what localised
+      this to 18–25°, and § Gap B did that reading by hand.)
+- [ ] **Agent-skill rows** (not `AGENT_PROTOCOL.md`, which WP-1304 replaced).
+      One landed with § Gap A — `BACKGROUND_ABSORPTION`'s row now says the R²
+      names the victim and not the cause, and to read the width codes first.
+      Two remain, both now *without* a diagnostic behind them, so both are body
+      or `references/` prose rather than a code row: Rwp and GoF never accept a
+      background; and **a model-free estimate is biased by construction, in a
+      direction that is known per estimator and a magnitude that is not**, so it
+      is a bracket to look at and never a reference the co-refined answer should
+      match — with § Gap C's numbers as the evidence. The channel rule is
       1133's.
-- [ ] Tests (unit for the selector on synthetic anchors with known answers; the
-      corrected synthetic and the bundled-pattern comparators from Gap C; the
-      nanocrystalline silent case; a real-data run on the trigger scan by hand,
-      recorded here, since the dataset has no home in the repo) + obs/calc/diff
-      PNGs to `tests/output/`, **including the anchors-against-fit plot**, which
-      is the figure that made this legible.
+- [ ] **`worst_absorption` reports 0.0 where it means "not measured"** — found
+      by the 2026-09-04 review pass and declined there as outside its diff, but
+      it is this WP's own subject. `block_projection_r2` now withholds by
+      returning `{}`, and `report/background.py` renders an empty table as
+      `absorption={}` with `worst_absorption=0.0`, which reads as "the
+      background can imitate nothing". The same happens whenever
+      `Identifiability` is built for another reason and the absorption table is
+      simply absent. No regression against the `nan` it replaced — both are
+      silent — but it is WP-1076's defaulted-`False`-as-an-answer shape exactly,
+      and the honest fix is `worst_absorption: float | None` plus a `None` arm
+      in the consumers. A schema change, so it wants its own commit.
+- [ ] Tests. The selector's unit tests go with the selector (🛑). What is left
+      is worth having on its own: the **corrected synthetic** of § Gap C is the
+      first fixture in this repo with a *known* background and the real net
+      Bragg distribution, and it pins the two shipped estimators' bias signs
+      (arPLS high, SNIP low) which nothing currently asserts. Plus obs/calc/diff
+      PNGs to `tests/output/` and the background panel above.
 
 ## Acceptance
 
-In CI: the anchor selector's per-region bias against the corrected synthetic's
-known background is recorded and the diagnostic's threshold sits above it, and
-a correct fit of the bundled dense pattern and of the nanocrystalline fixture
-stays silent. By hand, recorded in the handover: on the trigger scan the
-diagnostic fires on the widths-free fit and stays silent on the capped one,
-and Gaps A and B carry their answers.
+**Rewritten 2026-09-04, after the three gaps.** The original acceptance was
+written for a diagnostic § Gap C has since refused, and a WP does not keep an
+acceptance for work it has decided not to do. What is asked now: the three gaps
+carry their answers in this file (done); the corrected synthetic pins the two
+shipped estimators' bias signs; and the background panel puts a reference in the
+frame, judged by looking, per § Finding 8.
 
 ```sh
-.venv/bin/python -m pytest tests/test_background_anchors.py -q
-.venv/bin/python -m pytest tests/test_background_auto.py tests/test_fitreport_layers.py tests/test_absent_phase.py -q
+.venv/bin/python -m pytest tests/test_background_auto.py tests/test_fitreport_layers.py tests/test_absent_phase.py tests/test_background_peaks.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m ruff check src tests examples
 ```
@@ -581,6 +975,158 @@ and put them in this file's handover entry.
   maintainer's own refinement, not ported code.
 
 ## Handover log
+
+### 2026-09-04 (2nd session) — closed 🛑, and what leaves the building
+
+Closed on § Gap C's own gate rather than abandoned. The WP set out to build an
+independent estimate of the background **level** and a diagnostic that reads a
+fitted background against it. Neither ships, and both refusals are measured
+rather than judged: the fault the WP existed to catch does not reproduce on
+this tree under nine protocols, and the estimator built to catch it finds no
+anchors at all on one bundled pattern, 19 of 59 498 on another, and one anchor
+in the 486 channels of the region that matters on the third. The band between
+the two shipped estimators — the only alternative worth trying, since it needs
+no new code — holds a known truth in 4 of 8 noise realisations and fires on a
+**correct** fit in two regions of seven. There is no threshold here worth
+shipping.
+
+**What leaves the building anyway**, and it is not nothing:
+
+- Two bugs fixed. `cell_window` no longer hands the solver a degenerate bound
+  pair for a value no cell can take, and a single non-finite number in the
+  Jacobian no longer silences `BACKGROUND_ABSORPTION` while reporting `nan`.
+- **The guard was already right, and unread.** `BACKGROUND_ABSORPTION` fired on
+  every one of the nine runs, above its threshold, and the original three rounds
+  of investigation never looked at it. Its skill row now says the R² names the
+  victim and not the cause. That is the WP's real finding, and it is § Finding
+  7's shape — a number that is correct and reaches nobody — rather than the
+  missing-estimator shape the WP was written around.
+- `surprises.md` 8.21: a ΔBIC-endorsed width model can make two of four phases
+  stop being measurements, and a width error owning 35 % of χ² can move the
+  background by ≤ 2 %, so the two are not automatically coupled.
+- Forward references into [1118](1118-foreign-model-files.md) (the `.inp`
+  reader's reach on the reel files people actually run) and
+  [1133](1133-diagnostic-names-its-view.md) (which inherits the panel).
+
+**Not done, deliberately, and recorded here so nobody re-opens it by accident:**
+the anchor selector, the diagnostic, the `rietx compare` row (no correction
+landed, so the rule does not apply), and the `worst_absorption` `0.0`-as-answer
+fix, which is a report-schema change and is now
+[1133](1133-diagnostic-names-its-view.md)'s to pick up or to file anew.
+
+**If anyone reopens this**, the thing to reopen is not the estimator. It is the
+question § Gap A left unanswered: *why* the cubic phase's width runaway does not
+recur. `PHASE_UNCONSTRAINED` accounts for the hydrate's arm only, and
+`strain_cap(14, 70)` is 79.98 against the recorded 10.37, so neither guard would
+have bitten. Something else changed between 2026-08-27 and 2026-09-04 and this
+session did not find it.
+
+
+### 2026-09-04 — the trigger is gone, and the diagnostic is refused
+
+**What this means.** This WP was opened because a four-phase fit put its
+background at half of what TOPAS found, and the plan was to build an
+independent estimate of the background level so a fit could be argued with.
+That premise no longer holds. Rebuilt from the control file rather than
+transcribed by hand, the same fit on today's package lands within 10-22 % of
+TOPAS's background under **nine** different protocols, and the phase-width
+runaway that caused the deficit does not recur — the largest strain coefficient
+is 1.22 where it was 10.37. So there is no factor-of-two error left to detect.
+The estimator that was to detect it was then built and measured anyway, against
+a synthetic with a genuinely known background, and it **fails**: on the bundled
+fluorapatite pattern it finds no anchors at all, on 11-BM it finds 19 in 59 498,
+and on the one pattern where it works it has a single anchor in the 486 channels
+of the region the whole WP is about. The obvious fallback — quote a band between
+the two estimators that already ship, since one is biased high and the other low
+— was also measured and also fails: it flags a *correct* fit in two regions of
+seven. The WP's own gate says this outcome is a 🛑, so the diagnostic and the
+selector are stopped on evidence rather than deferred.
+
+What the session did deliver is smaller and real. The guard that should have
+caught this in the first place, `BACKGROUND_ABSORPTION`, **did** fire — every
+run, above its threshold — and nobody had looked. It now carries a row saying
+how to read it. A latent bug meant one non-finite number anywhere in the
+Jacobian silenced that guard completely while reporting nothing; that is fixed.
+And a cell parameter no crystal can have used to reach the solver as a
+degenerate bound pair and raise an error naming nothing; that is fixed too.
+
+**Done.** Five commits. (1) The mailbox pruned and one stale finding corrected —
+`AGENT_PROTOCOL.md` has been the agent skill since WP-1304, so the two tasks
+that were to add rows there now name `docs/skill/rietx/`. (2) `cell_window`
+refuses a length ≤ 0 or an angle outside (0°, 180°) **naming the path**, keeps
+its existing treatment of a positive short cell, and asserts its own
+"never returns `lo >= hi`" postcondition, swept over both branches;
+`block_projection_r2` **withholds** on a non-finite column instead of returning
+`nan`. (3) Gap A. (4) Gap B. (5) Gap C. Two skill entries: the
+`BACKGROUND_ABSORPTION` row, and `surprises.md` 8.21.
+
+**Measured.** All on this worktree's own `.venv`, `[dev]` only (no jax, no
+torch), darwin/arm64, nothing else mid-suite (`pgrep` clean).
+
+- Fast suite `-m "not slow"`: **4230 passed, 122 skipped**, ~3:11, nothing else
+  mid-suite. Three tests were added this session (two in `test_absent_phase.py`,
+  one in `test_background_peaks.py`), all passes, no new skip. No local
+  pre-baseline was taken — the ladder says CI owns that. The review pass re-ran
+  the same selection after its fixes and got the same two numbers.
+- **The full selection did not run, and no figure is quoted for it.** It was
+  launched on the final tree, killed before producing any output, and by the
+  time it could be relaunched another session held the machine with its own
+  suite (`tests/CLAUDE.md` § Running: rung 3 is exclusive, and a count measured
+  beside another run is not quotable). The judgement that made it optional
+  rather than owed: neither code change can move a converged number. Every new
+  `cell_window` raise replaces an input that previously reached scipy as a
+  degenerate bound pair and crashed there, or that is not a cell at all; and
+  `block_projection_r2` changes its output only where that output was `nan`.
+  The reason to have wanted it anyway is that a new raise now sits in a path
+  every windowed fit calls, so **the acceptance rows are the check a successor
+  should run first** if anything here is doubted.
+- The trigger scan, rebuilt: 3887 fitted channels, **Rwp 0.1092 / GoF 1.48**
+  against this file's recorded 0.1104 / 1.51 and the maintainer's TOPAS trial
+  0.1076 / 1.52. Nine protocols, background 0.90-1.22 of TOPAS, never 0.50-0.71.
+- `BACKGROUND_ABSORPTION` fired in all nine, 0.44 on a phase scale with the
+  displacement parameters tied, 0.75-0.76 on a displacement parameter with them
+  free. Guard 0.25.
+- Stephens on the majority phase: Rwp 0.1092 → 0.0878, χ² 8460 → 5465 for +4
+  net free parameters, ΔBIC −2962 — and `PHASE_UNCONSTRAINED` on two of four
+  phases that were supported without it.
+- Gap C's synthetic: net Bragg 34.7 % in 18-25° (real 34.8 %), 23.2 % above 45°
+  (real 23.9 %). arPLS +6 to +32 %, SNIP −14 to −4 %, anchors +2.5 to +14.3 %
+  but with 1 anchor in 486 channels where it matters.
+
+**Gotchas for the successor.**
+
+- **The dataset is not in the repo and the reader cannot open it as it ships.**
+  Fetch `zrmo2o8_vt.zip` (§ The trigger dataset), then strip the `#if`/`#endif`
+  blocks from `d8_01612_vt_reel_02.inp` before `read_topas_inp` — three of the
+  archive's four `.inp`s refuse at their first `#if`. Filed into WP-1118.
+- **`Instrument` still has to be hand-built**; WP-1118 has no `to_instrument`.
+  The `pkx → profile.y`, `pky → profile.x` crossing this file warns about is
+  real and silent.
+- **`StageSpec.strain_seed` does not take `None`** — omit the field rather than
+  passing it, or pydantic refuses.
+- Figures land in `tests/output/` (gitignored): the fit, the background panel
+  with references in frame, and the Gap C anchor-coverage panel.
+
+**Next, in order.**
+
+1. **Decide whether this WP closes 🛑 or continues for the panel.** That is the
+   one open question and it is the maintainer's. Everything the WP set out to
+   build is refused; what is left is one view and two paragraphs of prose. A
+   defensible reading is that the panel belongs to
+   [1133](1133-diagnostic-names-its-view.md) — which now depends on this WP for
+   an argument rather than for an estimator (its `### Inherited` says so) — and
+   that 1130 closes 🛑 with its record.
+2. **If it continues**: the panel is specified in the tasks, with a labelled
+   band rather than a curve, and the rule that licenses it — a reference good
+   enough to show is not good enough to fire on.
+3. **Not this WP's, but found by it and worth someone's time**: `one_parameter_gains`
+   shares the NaN exposure that was fixed in `block_projection_r2`, so a Layer-1
+   suggestion can go missing silently. Named in `_span_basis`' docstring.
+4. **Unresolved and stated as such**: nothing here explains why the *cubic*
+   phase's width runaway does not recur. `PHASE_UNCONSTRAINED` accounts for the
+   hydrate's arm only, and `strain_cap(14, 70)` is 79.98 against the recorded
+   10.37, so neither guard would have bitten.
+
 
 ### 2026-08-27 — the plan reviewed against the code, and restructured
 

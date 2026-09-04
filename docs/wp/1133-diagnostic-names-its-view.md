@@ -1,8 +1,9 @@
 # WP-1133 — A diagnostic names the view that shows it
 
 Milestone: unscheduled · Status: ⬜
-Depends on: WP-1130 (the background panel with a reference in the frame is the
-first view worth pointing at, and the eval's positive condition)
+Depends on: — (WP-1130 closed 🛑 2026-09-04; it did **not** deliver the panel,
+and this WP inherits it along with the argument that licenses it — see
+### Inherited)
 
 ## Goal
 
@@ -68,6 +69,26 @@ in a shim rather than the prompt, real subagents with model and effort as
 variables, and no pooling across rounds.
 
 ### Inherited
+
+From **WP-1130** § Gap C, 2026-09-04. **This WP's dependency changed shape
+rather than being discharged.** 1130's line above — "the background panel with
+a reference in the frame is the first view worth pointing at" — assumed the
+reference would be an *anchored background estimate*. That estimator is now 🛑
+on measured evidence: it returns **zero** anchors on `FAP.XRA` at every window
+and 19 of 59 498 on `11BM_NAC.fxye`, and on the one pattern where it works it
+has 1 anchor in the 486 channels of the region that matters. The fallback of
+bracketing between the two shipped estimators is also refused *as a threshold*
+— over eight realisations of a known background it contains the truth in all
+seven regions in four, and it fires on a correct fit in two regions of seven.
+
+What survives for this WP is the distinction 1130 had to draw to keep the panel
+alive, and it is a **1133-shaped** distinction rather than a background one: **a
+reference good enough to *show* is not good enough to *fire* on**, because a
+reader compares and a guard thresholds. That is an argument about what a *view*
+is for, and it is now the strongest single reason this WP exists. 1130's panel
+is still coming and is still the first view worth pointing at; its reference is
+a labelled band, not a curve.
+
 
 From **WP-1307** (round 1.1, E-RAMP complete 2026-08-29, four cells): **making
 the plotting library present did not make the package's plotting surface the
