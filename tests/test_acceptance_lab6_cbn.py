@@ -371,7 +371,20 @@ def test_the_correlation_diagnostic_separates_the_two(shared, degenerate):
     (0.164550 against 0.164806) and a QPA 0.03 pp closer to TOPAS.  So the
     old assertion was passing on 7e-4 of margin over a flat direction, which
     is a coin flip across platforms and BLAS builds rather than a property of
-    the model.
+    the model.  Neither ρ is the truer number: they are two stopping points on
+    one flat valley, and only one of them is the one a user gets.
+
+    **And "no bound is reached, so the optimum cannot move" is false here**,
+    which is the natural objection to the paragraph above.  ``run_least_squares``
+    passes ``bounds=(lo, hi)`` to scipy unconditionally, and TRF scales each
+    direction by that parameter's distance to its *nearer* bound, taking 1 only
+    where the bound is infinite (``CL_scaling_vector``, scipy
+    ``optimize/_lsq/common.py``).  So a ``biso`` at 0.44 goes from a step scale
+    of 1 to one of about 0.44, the trust region is shaped differently in those
+    directions, and the walk stops elsewhere in the same valley — with nothing
+    at a bound at any point.  Not an algorithm switch either: ``u`` and ``v``
+    carry finite declared bounds already, so this fit was in ``trf_bounds``
+    both before and after.
 
     Asserting on the phase terms keeps what this suite is *for* — the
     Lorentzian split of ``lor_size``/``lor_strain`` against instrument
@@ -384,10 +397,29 @@ def test_the_correlation_diagnostic_separates_the_two(shared, degenerate):
     def corr(result):
         return [d for d in result.diagnostics if d.code == "HIGH_CORRELATION"]
 
-    phase_terms = [d for d in corr(shared) if "phases." in d.message]
-    assert phase_terms == [], (
+    # ``where`` rather than ``message``: the paths are a structured field and
+    # the message is prose that may be reworded.
+    finding = ("phases.0.lor_size", "phases.0.lor_strain",
+               "phases.1.lor_size", "phases.1.lor_strain",
+               "instrument.profile.y")
+    split = [d for d in corr(shared)
+             if any(p in finding for p in (d.where or []))]
+    assert split == [], (
         "the identifiable plan's broadening split is no longer identifiable: "
-        f"{[d.message for d in phase_terms]}")
+        f"{[(d.where, d.message) for d in split]}")
+
+    # Asserted as a separation, not as silence.  The Gaussian Caglioti triple
+    # is flat in both builds and the 0.98 guard sits *inside* ρ(u, v)'s range
+    # on this histogram, so whether it is flagged is a property of where the
+    # walk stopped.  What must stay true is that nothing *else* is flagged:
+    # a new degeneracy anywhere outside that triple fails here.
+    caglioti = {"instrument.profile.u", "instrument.profile.v",
+                "instrument.profile.w"}
+    stragglers = [d for d in corr(shared)
+                  if not set(d.where or []) <= caglioti]
+    assert stragglers == [], (
+        "HIGH_CORRELATION on the identifiable fit outside the Gaussian "
+        f"Caglioti triple: {[(d.where, d.message) for d in stragglers]}")
 
     flagged = corr(degenerate)
     assert flagged, "the degenerate fit raised no HIGH_CORRELATION at all"
