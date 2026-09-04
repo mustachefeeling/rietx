@@ -452,8 +452,9 @@ and 1133 are older.
 A TOPAS/GSAS/FullProf/Jana control file read in and written back, refine
 flags included — all six agents of 1110's round named hand-transcribing a
 `.inp` as the hardest part of the work. 1119 is the named variable such a
-file's equations refer to; issue #212's cross-phase linear restraint is its
-first concrete ask.
+file's equations refer to, and closed 2026-09-04; issue **#212**'s cross-phase
+linear restraint is its first concrete ask, **has no WP and needs one cut** —
+seam written out in [1325](wp/1325-parametric-series.md)'s `### Inherited`.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

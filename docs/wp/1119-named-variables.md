@@ -789,7 +789,9 @@ passed, 122 skipped**, green.
 cross-phase linear restraint row, whose seam is written out in
 [1325](1325-parametric-series.md)'s `### Inherited` along with why it is not a
 tie. Then, if anyone wants it, the bounds decision in the first gotcha, which is
-the only thing here that can bite a user silently. [1118](1118-foreign-model-files.md)
+the only thing here that can bite a user silently — **taken and shipped the same
+day, in the session above; this sentence stands as what was known at the
+time**. [1118](1118-foreign-model-files.md)
 has been told its equation boundary is settled and that #107 is a `.inp` grammar
 question rather than a rietx one.
 
