@@ -524,16 +524,29 @@ row, which root CLAUDE.md requires of any new way to widen C. One was declined:
 `UNIT_DISPLAY` and that round-trips on the register, so it is as read as
 `Atom.biso`'s and not the WP-1076 shape.
 
-*Two holes in the test matrix, found while closing the first one.* A config in
+*A hole in the test matrix, found while closing it.* A config in
 `test_cross_backend.CONFIGS` but absent from `CONFIG_PARAMS` collects **zero
 tests and reports nothing** — `families_variable` sat inert through a green run
 and was caught only by counting collected items by hand. Closed for the six
-configs that file defines. Deliberately not closed over the `**STATES` it merges
-in, because three of those — `toy_anomalous`, `toy_roughness`, `toy_stephens` —
-have no matrix row either, and whether they should is a real question that an
-assertion must not settle by fiat. **`toy_stephens` is the one to look at**:
-anisotropic strain is a derivative path, and the invariant that sent this WP to
-add a row applies to it with at least as much force.
+configs that file defines.
+
+Deliberately **not** closed over the `**STATES` it merges in, and the reason
+needed checking rather than asserting. Three of those — `toy_anomalous`,
+`toy_roughness`, `toy_stephens` — have no row in *this* matrix, which is not the
+same as being untested, and a first draft of this entry said it was. What they
+actually have: all three carry a numpy bit-identity golden
+(`test_backend_shim.test_numpy_path_bit_identical_to_golden`), and
+`toy_stephens` and `toy_anomalous` additionally get whole-matrix jax
+`jacfwd`-against-analytic agreement
+(`test_backend_jax.test_jacfwd_matches_analytic_on_state`) — so their Jacobians
+*are* checked against an independent implementation, just not through this file
+and not with the torch arm.
+
+**`toy_roughness` is the one to look at**, and it is a narrower finding than the
+draft claimed: it has a golden and no Jacobian-agreement test anywhere, so
+surface roughness is the one correction of the three whose derivative no second
+opinion covers. Whether that is worth a row here or a line in
+`test_backend_jax` is a question this WP found and did not answer.
 
 *In flight beside this*: [1130](1130-background-reference.md), in a sibling
 worktree and landing first. Every file merges clean except

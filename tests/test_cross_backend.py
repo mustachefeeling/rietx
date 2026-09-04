@@ -533,14 +533,17 @@ def test_every_config_defined_here_is_actually_parametrised():
     ``families_variable`` (WP-1119), which sat inert through a green run and
     was noticed only because its collection count was checked by hand.
 
-    Scoped to the configs **this file defines**, and that scope is the finding
-    rather than a convenience.  ``CONFIGS`` also merges ``**STATES`` from
-    ``test_backend_shim``, and three of those — ``toy_anomalous``,
-    ``toy_roughness``, ``toy_stephens`` — have no matrix row either. Whether
-    they should is a real question this assertion must not answer by fiat:
-    Stephens strain in particular is a derivative path (WP-1119 found them,
-    did not add them, and its handover names them). Asserted both ways, so a
-    deleted local state whose param survives fails too.
+    Scoped to the configs **this file defines**, and that scope is deliberate.
+    ``CONFIGS`` also merges ``**STATES`` from ``test_backend_shim``, and three
+    of those — ``toy_anomalous``, ``toy_roughness``, ``toy_stephens`` — have no
+    row *here*.  That is not the same as untested, and asserting them in would
+    say it was: all three carry a numpy bit-identity golden in
+    ``test_backend_shim``, and two of them (``toy_stephens``, ``toy_anomalous``)
+    also get jax ``jacfwd``-against-analytic agreement in ``test_backend_jax``.
+    ``toy_roughness`` is the one with no Jacobian second opinion anywhere, which
+    is a question for whoever owns surface roughness rather than for this
+    assertion.  Asserted both ways, so a deleted local state whose param
+    survives fails too.
     """
     local = {"families", "families_voigt", "families_tied", "families_variable",
              "capillary_offsets", "background_peaks"}
