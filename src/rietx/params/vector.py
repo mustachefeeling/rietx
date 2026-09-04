@@ -1656,10 +1656,10 @@ class ParameterTable:
         :func:`size_cap_hi` and :func:`tie_window` are applied, rather than on
         the :class:`Entry`, and the distinction is the point: all four are
         **solver** bounds for the stage about to run, not facts about the
-        stored parameter.  Putting any
-        of them on the entry would surface it through ``ParameterRow`` and the
-        ``.rxt`` document, both of which tell a reader that bounds come from the
-        schema — and there it would read as a claim the caller never made.
+        stored parameter.  Putting any of them on the entry would surface it
+        through ``ParameterRow`` and the ``.rxt`` document, both of which tell a
+        reader that bounds come from the schema — and there it would read as a
+        claim the caller never made.
         ``bound_findings`` is fed from here, so a cell that reaches its window,
         a strain/size term held at its cap, or a tie source held where its
         dependent's own limits put it (:func:`tie_window`) is still reported.
@@ -1887,6 +1887,10 @@ class ParameterTable:
                 # pydantic error naming no path, no phase and no tie, *after*
                 # the solve.  Naming all three is the least a caller needs to
                 # know which of their declarations to widen.
+                # ``ValueError`` rather than re-raising: pydantic's own
+                # ValidationError *is* a ValueError, so nothing catching the
+                # broad type notices, and nothing in the package catches the
+                # narrow one around this call.
                 entry = self.entries[self._paths[path]]
                 tie = (f"; it follows {_tie_text(entry.tie)}"
                        if entry.tie is not None else "")
