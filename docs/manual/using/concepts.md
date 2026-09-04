@@ -243,6 +243,7 @@ worthwhile:
 ```python
 ref.add_variable("B_base", 0.4)
 ref.add_variable("B_extra", 0.1)
+ref.add_variable("B_total", 0.5)      # declared before it can be tied
 ref.tie("vars.B_total", {"vars.B_base": 1.0, "vars.B_extra": 1.0})
 ```
 

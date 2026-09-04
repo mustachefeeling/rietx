@@ -502,6 +502,18 @@ def _column_identities(table: ParameterTable, extras: list[list[str]]
       and constant is carried) and ``_structural_column`` (it reads the atom's
       rows out of C).  The closed-form linear branches exclude themselves,
       since each requires an empty ``extra``.
+
+    Which of the reached paths *names* the column matters, and it is chosen
+    rather than taken.  C's rows are in table order, so the lowest one is an
+    accident of where a parameter sits in the model: a variable driving a
+    Wyckoff DOF reaches ``[…atoms.1.x, …atoms.1.dof.0]`` and would be named by
+    ``.x``, which matches no structural branch, sending a column that *is* a DOF
+    to the peak chain — exact, but the slow way round, and it would make the
+    paragraph above false.  So the name is taken from the paths whose **own**
+    tie lists this column directly, which is the difference between what the
+    variable drives (``dof.0``) and what that in turn drives (``.x``, by site
+    symmetry).  Where every reached path is direct — the equal-Biso case, four
+    rows all following the variable — the rule changes nothing.
     """
     C, _ = table.constraint_block()
     csc = C.tocsc()
@@ -514,6 +526,13 @@ def _column_identities(table: ParameterTable, extras: list[list[str]]
         sl = slice(csc.indptr[c], csc.indptr[c + 1])
         reach = [(paths[r], v) for r, v in zip(csc.indices[sl], csc.data[sl],
                                                strict=True) if paths[r] != path]
+        # the paths this column drives *directly*, which is what may name it
+        direct = [q for q, _ in reach
+                  if (tie := table.entries[table._paths[q]].tie) is not None
+                  and any(src == path for src, _ in tie.terms)]
+        if direct:
+            reach = ([pair for pair in reach if pair[0] == direct[0]]
+                     + [pair for pair in reach if pair[0] != direct[0]])
         if not reach:
             # a declared variable nothing follows: it moves no row at all, so
             # its column is zero however it is built, and the FD path says that

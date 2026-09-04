@@ -1054,7 +1054,8 @@ class GuiSession:
     #: (it did, found in a browser).  ``edit_model`` is deliberately not here:
     #: it replaces the model, and a number measured on the old one has stopped
     #: describing anything on screen.
-    _RWP_TRANSPARENT = frozenset({"set_vary", "set_value", "set_tie"})
+    _RWP_TRANSPARENT = frozenset({"set_vary", "set_value", "set_tie",
+                                  "set_variable"})
 
     @classmethod
     def _stage_rwp(cls, p: Project, plan) -> list[float | None]:

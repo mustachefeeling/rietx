@@ -161,8 +161,21 @@ def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
     """
     if isinstance(source, str):
         return [(source, scale)]
-    pairs = list(source.items()) if isinstance(source, dict) else [
-        tuple(term) for term in source]
+    if isinstance(source, dict):
+        pairs = list(source.items())
+    else:
+        # checked as a *shape*, not destructured: ``["a.b", "c.d"]`` is the
+        # natural mistake here (``tie`` takes a bare path too), and unpacking it
+        # would silently read a two-character path as (path, coefficient) and
+        # fail two lines later on ``float('b')``
+        pairs = []
+        for term in source:
+            if isinstance(term, str) or len(tuple(term)) != 2:
+                raise ValueError(
+                    f"a tie term is a (path, coefficient) pair; got {term!r}. "
+                    "Pass one path, a {path: coefficient} dict, or a list of "
+                    "(path, coefficient) pairs")
+            pairs.append(tuple(term))
     if not pairs:
         raise ValueError("a tie needs at least one source")
     seen: dict[str, float] = {}
@@ -979,6 +992,13 @@ class Refinement:
         which :meth:`_apply_ties` would then drop one build later — a
         constraint lost two moves away from the call that lost it.
 
+        A tie whose *target* is this variable is the other direction and is not
+        a refusal: it is the removed parameter's own constraint, so it goes with
+        it.  Leaving it in the register would warn "no such parameter" on every
+        table build afterwards, and a later ``add_variable`` of the same name
+        would silently resurrect it — the new declaration's value overwritten by
+        a tie the caller had already deleted.
+
         Returns the path removed.
         """
         if name not in self._variables:
@@ -995,6 +1015,7 @@ class Refinement:
                 f"{'…' if len(dependents) > 5 else ''}); untie them first, or "
                 "the ties would be left naming a parameter that no longer exists")
         del self._variables[name]
+        self._ties.pop(path, None)  # its own tie, if it followed another variable
         self._free_paths = [p for p in self._free_paths if p != path]
         self._commit_variable_edit(declared={}, removed=[name])
         return path
@@ -4425,6 +4446,15 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     structure = state.structure.model_copy(deep=True)
     instrument = state.instrument.model_copy(deep=True)
     table = ParameterTable(structure, instrument)
+    for name, prm in state.variables.items():
+        # ``Refinement._declare_variables`` one rank down, and for its reason:
+        # a named variable (WP-1119) has no model field, so a table rebuilt
+        # from the structure and instrument alone does not have it — and a tie
+        # the node recorded against one would then raise "tie references
+        # unknown parameter".  Declared *before* the ties, exactly as
+        # ``_prepare_table`` does it.
+        table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
+                            lo=prm.min, hi=prm.max, transform=prm.transform)
     table.set_vary(["*"], False)
     for path, spec in state.ties.items():
         # the user constraints the node was recorded under: without them the

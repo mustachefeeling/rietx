@@ -89,7 +89,7 @@ from rietx.optimize.least_squares import (
     _multi_closures,
     run_least_squares,
 )
-from rietx.params.vector import AffineTie, ParameterTable
+from rietx.params.vector import VAR_PREFIX, AffineTie, ParameterTable
 from rietx.strategy.staged import Stage
 from tests.test_backend_shim import STATES
 from tests.test_v02_core import ANALYTIC_FAMILIES, _lab_state
@@ -175,6 +175,54 @@ def _state_families_tied():
                   AffineTie.identity("instrument.background.c0"))
     table.refresh_ties()
     for path in [*ANALYTIC_FAMILIES, "instrument.background.c0"]:
+        assert table.set_vary([path], True), path
+    table.apply_to_models(structure, ins)
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return model, table, {}
+
+
+def _state_families_variable():
+    """A **named variable** carrying the columns instead of a model path (WP-1119).
+
+    The row ``families_tied`` is one rank up: there, a model parameter is the
+    master and its name is what ``_make_jacobian`` dispatches on.  Here nothing
+    in the model is the master — ``vars.B`` is a synthetic entry with no field
+    behind it — so the free path's name matches **no** analytic branch, and the
+    numpy Jacobian has to decide the branch from what the column *reaches*
+    instead (``_column_identities``).  That is a new way to widen C, which is
+    what obliges this file to grow a row (root CLAUDE.md § Backends).
+
+    It is also the row that would have caught the defect WP-1119 found by
+    measuring instead: un-gated, a variable's column falls to the whole-model FD
+    fallback while the same constraint spelled with a model master takes the
+    peak chain, and the two disagree by ~1e-6.  The traced backends walk
+    straight through C either way and so are the independent opinion.
+
+    Three shapes, one per branch the reach can name: four Biso rows on the peak
+    chain (several reached paths, all direct), a phase scale at coefficient 1
+    on the closed-form ``_scale_column`` (one reached path, the case that is
+    licensed to keep the linear branches), and a Wyckoff DOF, where the reach is
+    ``[…x, …dof.0]`` and only the *directly* driven ``dof.0`` may name the
+    column — otherwise a coordinate DOF is dispatched as a coordinate and takes
+    the wrong branch.
+    """
+    structure, ins, pattern = _lab_state()
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for name, value, lo, hi in (("B", 0.5, 0.0, 25.0),
+                                ("S", float(structure.phases[0].scale.value),
+                                 0.0, np.inf),
+                                ("D", 0.1993, -1.0, 1.0)):
+        table.add_parameter(f"{VAR_PREFIX}{name}", value, vary=True,
+                            lo=lo, hi=hi, transform="identity")
+    table.set_tie("phases.0.atoms.0.biso", AffineTie.identity(f"{VAR_PREFIX}B"))
+    table.set_tie("phases.0.atoms.1.biso",
+                  AffineTie(terms=((f"{VAR_PREFIX}B", 2.0),), const=0.1))
+    table.set_tie("phases.0.scale", AffineTie.identity(f"{VAR_PREFIX}S"))
+    table.set_tie("phases.0.atoms.1.dof.0", AffineTie.identity(f"{VAR_PREFIX}D"))
+    table.refresh_ties()
+    for path in ("phases.0.cell.a", "instrument.background.c0"):
         assert table.set_vary([path], True), path
     table.apply_to_models(structure, ins)
     model = compile_model(structure, ins, pattern, mode="rietveld",
@@ -297,6 +345,7 @@ def _state_background_peaks():
 CONFIGS = {"families": _state_families,
            "families_voigt": _state_families_voigt,
            "families_tied": _state_families_tied,
+           "families_variable": _state_families_variable,
            "capillary_offsets": _state_capillary_offsets,
            "background_peaks": _state_background_peaks, **STATES}
 
@@ -321,6 +370,7 @@ CONFIG_PARAMS = [
     _config("families"),
     _config("families_voigt"),
     _config("families_tied"),
+    _config("families_variable"),
     _config("capillary_offsets"),
     _config("background_peaks"),
     _config("toy_lebail"),
@@ -473,6 +523,36 @@ def _assert_columns(J_ref, J_test, labels, *, rel_max, cos_min,
 # ----------------------------------------------------------------------
 # the matrix
 # ----------------------------------------------------------------------
+def test_every_config_defined_here_is_actually_parametrised():
+    """A config registered and never run is a matrix row that is not there.
+
+    ``CONFIGS`` builds the states and ``CONFIG_PARAMS`` is what the rows
+    iterate, and nothing joined them: a state added to the first alone
+    collects zero tests, passes, and reports nothing — the "guard that goes
+    quiet instead of red" shape (`tests/CLAUDE.md`).  Measured while adding
+    ``families_variable`` (WP-1119), which sat inert through a green run and
+    was noticed only because its collection count was checked by hand.
+
+    Scoped to the configs **this file defines**, and that scope is the finding
+    rather than a convenience.  ``CONFIGS`` also merges ``**STATES`` from
+    ``test_backend_shim``, and three of those — ``toy_anomalous``,
+    ``toy_roughness``, ``toy_stephens`` — have no matrix row either. Whether
+    they should is a real question this assertion must not answer by fiat:
+    Stephens strain in particular is a derivative path (WP-1119 found them,
+    did not add them, and its handover names them). Asserted both ways, so a
+    deleted local state whose param survives fails too.
+    """
+    local = {"families", "families_voigt", "families_tied", "families_variable",
+             "capillary_offsets", "background_peaks"}
+    assert local <= set(CONFIGS), sorted(local - set(CONFIGS))
+    parametrised = {p.values[0] for p in CONFIG_PARAMS}
+    assert local <= parametrised, (
+        "defined here but never run: "
+        f"{sorted(local - parametrised)}")
+    assert parametrised <= set(CONFIGS), (
+        f"parametrised with no state: {sorted(parametrised - set(CONFIGS))}")
+
+
 @pytest.mark.parametrize("config", CONFIG_PARAMS)
 @pytest.mark.parametrize("method", list(METHODS))
 def test_jacobian_matches_analytic(method, config):

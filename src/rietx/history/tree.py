@@ -267,10 +267,17 @@ class RefinementTree:
 
     @staticmethod
     def _values(node: HistoryNode) -> dict[str, float]:
-        from ..params.vector import ParameterTable
+        from ..params.vector import VAR_PREFIX, ParameterTable
 
         table = ParameterTable(node.state.structure, node.state.instrument)
-        return {e.path: e.value for e in table.entries}
+        values = {e.path: e.value for e in table.entries}
+        # a named variable (WP-1119) has no model field, so a table built from
+        # the structure and instrument alone has no row for it; its value is on
+        # the state, and without this a diff of two nodes a variable moved
+        # between reports its dependents and never the quantity that moved them
+        values.update({f"{VAR_PREFIX}{name}": prm.value
+                       for name, prm in node.state.variables.items()})
+        return values
 
     # -- rendering ------------------------------------------------------
     def summary(self) -> str:
