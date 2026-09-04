@@ -568,7 +568,10 @@ from `[dev]`, macOS/darwin, numpy backend).
 - **Fast selection 4262 passed, 127 skipped** — *identical* to the entry below,
   which is the check this session owed: it added no test, so passed+skipped
   must not move, and it did not.
-- Full selection, on the merged tree: FULL_RESULT. `origin/main` had not moved
+- Full selection, on the merged tree: **4425 passed, 136 skipped**, green in
+  26:06. That is the entry below's 4423 plus the two `test_docs_consistency`
+  tests the first attempt caught failing, so no test count moved and none
+  should have — this session added no test. `origin/main` had not moved
   since the merge at 08:35, so the branch tree *is* the merged tree and no
   second merge was needed. The first attempt at it is worth recording as a
   procedure failure rather than a result: it was launched and then edited under
@@ -577,8 +580,11 @@ from `[dev]`, macOS/darwin, numpy backend).
   rule is in CLAUDE.md already** (the full suite fires once, on the final
   tree); this is what ignoring it buys.
 - **CI was red on the pushed tip the whole time, on two asserts this WP wrote**,
-  and neither the macOS fast selection nor the macOS full one could see it. The
-  fix is its own commit; the numbers are below.
+  and neither the macOS fast selection nor the macOS full one could see it —
+  three green local suite runs in one morning, over a branch whose required
+  checks were failing. All six jobs are green on `e9e898de`, including the
+  `fast py3.12`, `fast py3.14` and `fast jax` rows that were red; the
+  measurements that resized the bars are in *Gotchas*.
 - **The `scale` anchoring is provably a no-op on every real path**, which is
   the evidence that no acceptance number can move: the only path literal in
   `ParameterTable._collect`/`apply_to_models` ending in `.scale` is
