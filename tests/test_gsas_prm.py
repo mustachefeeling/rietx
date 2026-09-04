@@ -12,6 +12,8 @@ parser reads what the manual says and refuses what it does not.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 import rietx as rx
@@ -311,3 +313,137 @@ def test_nonzero_reserved_prcf_term_is_refused(tmp_path):
 
 def test_read_gsas_prm_is_exported_at_top_level():
     assert rx.read_gsas_prm is read_gsas_prm
+
+# -- the diagnostics channel, and the committed files nothing was reading ----
+
+DATA = Path(__file__).parent / "data"
+
+
+def test_the_channel_reports_what_the_instrument_does_not_carry():
+    """``io/CLAUDE.md``: a value at the model's identity is dropped **with a
+    diagnostic**, a non-zero one raises.  The reader had only the refusal half,
+    so a caller could not learn that the file said something the ``Instrument``
+    does not carry — including field 6's Kα2/Kα1 ratio, which is read and never
+    applied.
+    """
+    diagnostics: list = []
+    ins = read_gsas_prm(DATA / "mg090.prm", diagnostics=diagnostics)
+
+    dropped = [d for d in diagnostics if d.code == "GSAS_PRM_FIELD_DROPPED"]
+    assert {tuple(d.where) for d in dropped} == {("ICONS",), ("PRCF",),
+                                                 ("IRAD/ITYP",)}
+    assert all(d.level == "info" for d in dropped), (
+        "a field at the model's identity is reported, not warned about — the "
+        "file agreed with the model")
+    icons = next(d for d in dropped if d.where == ["ICONS"])
+    assert "Kα2/Kα1" in icons.message and "not applied" in icons.message
+
+    # …and the same read with no list passed returns the same instrument in
+    # silence, which is what makes the channel opt-in rather than a behaviour
+    # change (`io/CLAUDE.md`'s own contract for every other reader here).
+    assert read_gsas_prm(DATA / "mg090.prm") == ins
+
+
+def test_the_geometry_is_chosen_rather_than_read_and_says_so():
+    """A ``.prm`` states no geometry at all, and ``HTYPE PXCR`` spans
+    Bragg-Brentano and Debye-Scherrer.  The reader picks the capillary its
+    corpus is and must say so, because ``Geometry.kind`` selects the position
+    correction and the two geometries' absorption corrections have different
+    *off* states (``mu_r = 0`` against ``mu_t = inf``) — so a flat-plate
+    calibration read in silence arrives with the wrong half of that machinery
+    armed.
+    """
+    diagnostics: list = []
+    ins = read_gsas_prm(DATA / "mg090.prm", diagnostics=diagnostics)
+    assert ins.geometry.kind == "debye_scherrer"
+
+    assumed = [d for d in diagnostics if d.code == "GSAS_PRM_GEOMETRY_ASSUMED"]
+    assert len(assumed) == 1, "fires on every read, not only on a suspect file"
+    assert assumed[0].level == "warning"
+    assert assumed[0].where == ["instrument.geometry.kind"]
+    assert "not read from the file" in assumed[0].message
+    assert "flat-plate" in (assumed[0].suggestion or "")
+
+
+def test_a_refusal_leaves_no_half_list_on_the_callers_list():
+    """Every diagnostic is emitted past the last refusal, so a file that is
+    about to raise does not also leave findings behind."""
+    diagnostics: list = []
+    with pytest.raises(ValueError):
+        read_gsas_prm(DATA / "mg090.Cu311.inst", diagnostics=diagnostics)
+    assert diagnostics == []
+
+
+def test_the_one_real_non_pxcr_file_in_the_repo_is_refused_for_the_true_reason():
+    """``tests/data/mg090.Cu311.inst`` is ``HTYPE PNCR`` — powder neutron,
+    **constant wavelength** — and ``tests/data/README.md`` documents it as the
+    ndruo pair's neutron instrument file, which
+    ``test_acceptance_wavelength.py`` transcribes by hand today.
+
+    Its meaning is established, so the catch-all "what this file's HTYPE means
+    is not established at all" was false of it: ``ProfileTCHZ`` is exactly
+    where ``Instrument.constant_wavelength_neutron`` puts its own resolution
+    function.  Refusing is still right, for the reason used everywhere else in
+    this reader — its ``PRCF`` is type 1 and no real file pins that layout
+    down.  The refusal has to say *that*.
+    """
+    with pytest.raises(ValueError, match="PNCR") as exc:
+        read_gsas_prm(DATA / "mg090.Cu311.inst")
+    message = str(exc.value)
+    assert "constant-wavelength" in message
+    assert "type 1" in message, "the refusal must name the missing fixture"
+    assert "not established at all" not in message, (
+        "PNCR is recognised by name; the catch-all branch is for values the "
+        "manual does not define")
+
+
+def test_a_non_numeric_icons_field_names_the_file(tmp_path):
+    """``io/CLAUDE.md``: a reader raises ``ValueError``/``OSError`` **naming
+    the file**, never its parser's own exception.  ``_read_icons`` ended in a
+    bare ``float()`` generator, so a text token in the wavelength field gave
+    ``could not convert string to float: 'ABCDEFGHI'`` — no file, no format,
+    nothing a caller could act on."""
+    p = tmp_path / "bad_icons.prm"
+    p.write_text(_prm(icons="ABCDEFGHI    0.0000    0.0000"
+                            "               0.990    0     0.500"),
+                 encoding="utf-8")
+    with pytest.raises(ValueError, match="bad_icons.prm") as exc:
+        read_gsas_prm(p)
+    assert "not a number" in str(exc.value)
+    assert "could not convert string to float" not in str(exc.value)
+
+
+def test_the_unit_conversion_agrees_with_the_hand_transcription():
+    """The one thing a synthetic fixture cannot check.
+
+    Every other test here builds its own ``.prm`` text, so fixture and
+    conversion come from the same assumption: flip ``/1e4`` to ``/1e2`` and
+    ``test_reads_the_dominant_case`` would simply be edited to stay green.
+    This compares the reader against a transcription made independently of it
+    — ``test_acceptance_wavelength._xray_instrument``, which was typed from
+    ``mg090.prm``'s own ``PRCF`` record before this reader existed — so the two
+    have to agree or one of them is wrong.  WP-1118's task for this reader,
+    one file over: take the protocol from the reader instead of from
+    transcribed constants.
+    """
+    from tests.test_acceptance_wavelength import LAM_XRAY, _xray_instrument
+
+    read = read_gsas_prm(DATA / "mg090.prm")
+    hand = _xray_instrument()
+
+    assert read.source.lines[0].wavelength.value == pytest.approx(LAM_XRAY)
+    for term in ("u", "v", "w", "x", "y"):
+        assert getattr(read.profile, term).value == pytest.approx(
+            getattr(hand.profile, term).value), (
+            f"profile.{term}: reader and hand transcription disagree")
+    # The axial pair is where the two *stop* agreeing, and the reader is the
+    # one that is right: mg090.prm states S/L = H/L = 0.0011 at PRCF positions
+    # 7 and 8, and the hand transcription sets neither, so it models an
+    # instrument with no axial divergence at all.  Asserted as the asymmetry
+    # rather than as equality, because equality is false and the direction of
+    # the difference is the point — it is the argument for that suite taking
+    # its profile from this reader.
+    assert read.geometry.axial_sl.value == pytest.approx(0.0011)
+    assert read.geometry.axial_hl.value == pytest.approx(0.0011)
+    assert hand.geometry.axial_sl.value == 0.0
+    assert hand.geometry.axial_hl.value == 0.0

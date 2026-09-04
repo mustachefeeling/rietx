@@ -64,9 +64,11 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "`rx.read_gsas_prm` reads a GSAS-I `.prm` instrument-parameter file "
         "(the dominant one-bank, constant-wavelength case; a neutron "
         "time-of-flight file and every other GSAS profile function are "
-        "refused by name). A GSAS `.EXP`/`.LST` refinement output, a TOPAS "
-        "`.inp` or a FullProf `.pcr` still has no reader and is transcribed "
-        "by hand — `rx.read_recipe` will not open one.",
+        "refused by name). A GSAS `.EXP`/`.LST` refinement output has no "
+        "reader and is transcribed by hand. A TOPAS `.inp` and a FullProf "
+        "`.pcr` do have readers — `rietx.io.projects.read_topas_inp` and "
+        "`read_fullprof_pcr` — with no top-level `rx.` entry point yet; "
+        "`rx.read_recipe` will not open either.",
         ("rx.read_pattern", "rx.read_pdcif", "rx.read_recipe",
          "rx.read_gsas_prm", "rx.Structure.from_cif",
          "rx.Instrument.bragg_brentano", "rx.Instrument.debye_scherrer",

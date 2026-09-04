@@ -193,10 +193,16 @@ It reads the dominant case the format ships — one bank, `HTYPE PXCR`
 `GW` from centidegrees² and `LX`/`LY` from centidegrees into the degrees²/
 degrees `ProfileTCHZ` uses. A neutron time-of-flight file (`HTYPE PNTR`) and
 every other GSAS profile function are refused by name rather than
-approximated: each puts something onto the axis or into the coefficients that
-`ProfileTCHZ`'s constant-wavelength Caglioti/TCH law cannot express. A GSAS
-`.EXP`/`.LST` refinement output, a TOPAS `.inp` or a FullProf `.pcr` still has
-no reader and is transcribed by hand.
+approximated, and the refusal says which reason applies to which: a
+time-of-flight file puts something onto the axis that `ProfileTCHZ`'s
+constant-wavelength Caglioti/TCH law cannot express, while a
+constant-wavelength neutron file (`HTYPE PNCR`) states a law it *could* hold
+and is refused only for want of a real fixture to pin its coefficient layout
+down. A GSAS `.EXP`/`.LST` refinement output has no reader and is transcribed
+by hand. A TOPAS `.inp` and a FullProf `.pcr` do have readers —
+`rietx.io.projects.read_topas_inp` and `read_fullprof_pcr` — though neither
+has a top-level `rx.` entry point yet, and `rx.read_recipe` will not open
+either.
 
 ## The `.rex` project directory
 

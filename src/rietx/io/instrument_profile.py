@@ -38,6 +38,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .._about import PROFILE_FORMAT_KEY
+from ..schemas.common import Diagnostic
 from ..schemas.instrument import BackgroundChebyshev, Instrument
 
 #: Tag a profile file is recognised by.  A format contract, so the token lives
@@ -117,15 +118,30 @@ def _iter_parameters(ins: Instrument):
 
 #: ``HTYPE`` values this reader recognises and what each means.  Only
 #: ``PXCR`` (constant-wavelength X-ray, Bragg-Brentano/Debye-Scherrer powder)
-#: is read; every other value in the manual puts something this reader's
-#: destination (:class:`~rietx.schemas.instrument.ProfileTCHZ`, a Caglioti/TCH
-#: **angular** resolution function) cannot express, so it is refused by name
-#: rather than approximated — the same *scope, not evidence* argument
-#: ``io/formats/gsas.py`` makes for its non-``CONS`` bintypes.  ``PNTR`` is
+#: is read, and every other value is refused **by name** rather than
+#: approximated.  The reason differs by value and the table says which:
+#: a time-of-flight ``HTYPE`` puts something this reader's destination
+#: (:class:`~rietx.schemas.instrument.ProfileTCHZ`, a Caglioti/TCH **angular**
+#: resolution function) cannot express, which is the *scope, not evidence*
+#: argument ``io/formats/gsas.py`` makes for its non-``CONS`` bintypes;
+#: a constant-wavelength neutron ``HTYPE`` is the opposite case and is refused
+#: for want of a fixture.  Claiming scope for both would be false of the
+#: second.  ``PNTR`` is
 #: the one this corpus actually contains (2 of 1508 files): powder neutron
 #: time-of-flight, whose ``BNKPAR``/per-bank ``PRCF`` records parameterise a
 #: flight-time peak shape (moderator pulse, L2, DIFC/DIFA) with no 2θ
 #: resolution law inside them at all.
+#:
+#: ``PNCR`` is the other way round and is refused for a different reason.  A
+#: constant-wavelength neutron file states exactly the kind of thing this
+#: reader's destination can hold — ``ProfileTCHZ`` is where
+#: :meth:`Instrument.constant_wavelength_neutron` puts its own resolution
+#: function — so what stops it is not the *meaning* of the record but the
+#: absence of a fixture: ``tests/data/mg090.Cu311.inst`` is the one real
+#: ``PNCR`` file this repository holds and its ``PRCF`` is **type 1**, whose
+#: coefficient layout no real example pins down (see ``_PRCF_TYPE_REFUSALS``).
+#: Refusing it by name for the reason that is true keeps the refusal honest
+#: and says what a future reader would need.
 _HTYPE_PXCR = "PXCR"
 _HTYPE_REFUSALS: dict[str, str] = {
     "PNTR": (
@@ -139,6 +155,18 @@ _HTYPE_REFUSALS: dict[str, str] = {
         "correction entirely (see the module docstring's calibrate/freeze "
         "workflow, written for a constant-wavelength source) and is out of "
         "scope here."
+    ),
+    "PNCR": (
+        "powder neutron constant-wavelength data.  Unlike PNTR its "
+        "resolution function is the kind ProfileTCHZ can hold — it is what "
+        "Instrument.constant_wavelength_neutron builds — so this refusal is "
+        "about evidence, not meaning: the one real PNCR file this "
+        "repository holds (tests/data/mg090.Cu311.inst, the neutron half of "
+        "the ndruo pair) carries a PRCF of type 1, and no real file pins "
+        "down type 1's coefficient layout, so reading it by position off "
+        "type 3 would be a guess rather than a parser.  A real type-3 PNCR "
+        "file, or a type-1 example with numbers to verify against, is what "
+        "this needs."
     ),
 }
 
@@ -180,7 +208,8 @@ _PRCF_HEADER_RE = re.compile(
 _PRCF_CONT_RE = re.compile(r"^INS\s*(\d+)PRCF1(\d+)\s+(.+?)\s*$", re.MULTILINE)
 
 
-def read_gsas_prm(path: str | Path) -> Instrument:
+def read_gsas_prm(path: str | Path, *,
+                  diagnostics: list[Diagnostic] | None = None) -> Instrument:
     """Read a GSAS-I ``.prm`` instrument-parameter file as a **frozen** ``Instrument``.
 
     Larson & Von Dreele (2004), *GSAS — General Structure Analysis System*,
@@ -241,11 +270,36 @@ def read_gsas_prm(path: str | Path) -> Instrument:
     profile has room for (``GU GV GW`` → u/v/w, ``LX LY`` → x/y, ``S/L H/L``
     → axial_sl/axial_hl) are read.  ``GP`` (position 4) and every coefficient
     past position 8 (``trns``, ``shft``, ``sfec`` and further reserved slots)
-    are refused if non-zero and dropped silently only at their identity value
-    (0) — every real file in the corpus is 0 there, so this is the same
-    "refuse a value at drift, never a value at the model's identity" rule
+    are refused if non-zero and dropped only at their identity value (0) —
+    every real file in the corpus is 0 there, so this is the same "refuse a
+    value at drift, never a value at the model's identity" rule
     ``io/CLAUDE.md``'s ``recipe.py`` section already states, applied to a
     second format's version of it.
+
+    **``diagnostics``** completes that rule's other half: a value dropped at
+    the model's identity is dropped *with a diagnostic*, so a caller can learn
+    that the file said something the ``Instrument`` does not carry.  Pass a
+    list to collect them; the codes are
+
+    * ``GSAS_PRM_FIELD_DROPPED`` — once per record that carried a field this
+      reader does not map: ``ICONS`` (a zero second wavelength or zero-point,
+      the unidentified field 5, and field 6's Kα2/Kα1 ratio, which is read and
+      **not applied**), ``PRCF`` (``GP`` and every coefficient past position 8,
+      all at 0), and ``IRAD``/``ITYP``, which are ignored by design.
+    * ``GSAS_PRM_GEOMETRY_ASSUMED`` — always, because a ``.prm`` states no
+      geometry at all and this reader returns
+      :meth:`Instrument.debye_scherrer`.
+
+    That second one matters more than a dropped zero.  ``Geometry.kind``
+    selects the position correction and its suggested action
+    (``report/layer1.POSITION_TEMPLATES``,
+    ``layer2._POSITION_ACTIONS_BY_GEOMETRY``), and the two geometries'
+    absorption corrections have different *off* states (``mu_r = 0`` against
+    ``mu_t = ∞``).  ``PXCR`` spans Bragg-Brentano and Debye-Scherrer, and the
+    format gives nothing to tell them apart, so this reader does not infer:
+    it picks the one the corpus it was built against is (11-BM capillary) and
+    **says so**.  A caller reading a flat-plate ``PXCR`` calibration must set
+    the geometry itself.
     """
     p = Path(path)
     text = p.read_text(encoding="utf-8", errors="ignore")
@@ -270,7 +324,7 @@ def read_gsas_prm(path: str | Path) -> Instrument:
             f"one bank of several would silently pick a bank rather than "
             f"letting the caller choose")
 
-    wavelength, polarization = _read_icons(text, p)
+    wavelength, polarization, ka2_ratio = _read_icons(text, p)
     prof_type, coeffs = _read_prcf(text, p)
     if prof_type != _PRCF_TYPE_READ:
         what = _PRCF_TYPE_REFUSALS.get(prof_type)
@@ -313,8 +367,47 @@ def read_gsas_prm(path: str | Path) -> Instrument:
                 f"position 8, so a non-zero one here is unidentified rather "
                 f"than dropped")
 
+    if diagnostics is not None:
+        # The drop half of io/CLAUDE.md's rule: a field at the model's
+        # identity is dropped *with a diagnostic*, one per record, naming the
+        # values so the caller can see what was in the file.  Emitted only
+        # here, past every refusal above, so a file about to be refused does
+        # not leave a half-list behind on the caller's list.
+        dropped = [
+            ("ICONS", f"field 5 (unidentified) = 0, and field 6's Kα2/Kα1 "
+                      f"ratio = {ka2_ratio!r}, read and not applied (it is "
+                      f"inert while field 2 is 0, as it is here)"),
+            ("PRCF", f"GP (position 4) = 0, and {len(rest)} coefficient(s) "
+                     f"past position 8 = 0 — this reader maps positions 1-8 "
+                     f"onto ProfileTCHZ"),
+            ("IRAD/ITYP", "ignored by design: the wavelength is read from "
+                          "ICONS rather than looked up from IRAD's table, and "
+                          "an angular range belongs to the pattern, not the "
+                          "instrument"),
+        ]
+        for record, what in dropped:
+            diagnostics.append(Diagnostic(
+                level="info", code="GSAS_PRM_FIELD_DROPPED",
+                message=f"{p.name}: {record} — {what}",
+                where=[record]))
+
     instrument = Instrument.debye_scherrer(
         wavelength=wavelength, polarization=polarization)
+    if diagnostics is not None:
+        diagnostics.append(Diagnostic(
+            level="warning", code="GSAS_PRM_GEOMETRY_ASSUMED",
+            message=(f"{p.name}: a GSAS .prm states no geometry, and HTYPE "
+                     f"PXCR spans Bragg-Brentano and Debye-Scherrer, so this "
+                     f"instrument came back debye_scherrer "
+                     f"(packing_fraction=0.6, a capillary offset pair) "
+                     f"because that is what the corpus this reader was built "
+                     f"against is — it was not read from the file"),
+            where=["instrument.geometry.kind"],
+            suggestion=("if this calibration is from a flat-plate "
+                        "diffractometer, set the geometry yourself: "
+                        "Geometry.kind selects the position correction and "
+                        "the two geometries' absorption corrections have "
+                        "different off states (mu_r = 0 against mu_t = inf)")))
     prof = instrument.profile
     prof.u.value = gu / 1e4
     prof.v.value = gv / 1e4
@@ -344,8 +437,13 @@ def _check_htype(htype: str, p: Path) -> None:
         f"file's HTYPE means is not established at all")
 
 
-def _read_icons(text: str, p: Path) -> tuple[float, float]:
-    """Read bank 1's ``ICONS`` record: (wavelength, polarization).
+def _read_icons(text: str, p: Path) -> tuple[float, float, float]:
+    """Read bank 1's ``ICONS`` record: (wavelength, polarization, ratio).
+
+    The third return value is field 6's Kα2/Kα1 intensity ratio, which this
+    reader does **not** apply (it is inert while field 2 is zero, as it is in
+    the whole corpus).  It comes back so the caller can be told the file
+    carried it — see ``GSAS_PRM_FIELD_DROPPED``.
 
     Six fields (``ALAM1 ALAM2 ZERO POL <reserved> <ratio>``, in that order —
     the module docstring says which are read, refused-if-nonzero or
@@ -370,7 +468,15 @@ def _read_icons(text: str, p: Path) -> tuple[float, float]:
             f"every real calibration file in the corpus this reader was "
             f"built against carries — reading a subset of them would be a "
             f"guess about which is missing")
-    alam1, alam2, zero, pol, reserved, _ratio = (float(f) for f in fields)
+    try:
+        alam1, alam2, zero, pol, reserved, ratio = (float(f) for f in fields)
+    except ValueError as exc:
+        raise ValueError(
+            f"{p.name}: bank 1's ICONS record holds a token that is not a "
+            f"number ({fields!r}) — the six fields are ALAM1 ALAM2 ZERO POL "
+            f"reserved ratio and every one of them is numeric in the corpus "
+            f"this reader was built against, so this is a malformed record "
+            f"rather than a convention it has not met") from exc
     if alam2 != 0.0:
         raise ValueError(
             f"{p.name}: ICONS field 2 (a second wavelength line, GSAS "
@@ -392,7 +498,7 @@ def _read_icons(text: str, p: Path) -> tuple[float, float]:
             f"is unidentified (every real file in the corpus this reader "
             f"was built against carries 0 here), so a non-zero value is "
             f"refused rather than silently dropped")
-    return alam1, pol
+    return alam1, pol, ratio
 
 
 def _read_prcf(text: str, p: Path) -> tuple[str, list[float]]:
