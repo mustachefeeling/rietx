@@ -777,7 +777,11 @@ def tie_window(lo: float, hi: float, coeff: float,
     live there: it is a **solver** bound for the stage about to run, derived
     from two declarations the caller already made, never a fact about the
     stored parameter — so it must not surface through ``ParameterRow`` or the
-    ``.rxt`` document as a claim nobody wrote.
+    ``.rxt`` document as a claim nobody wrote.  **Last of the four, and that is
+    load-bearing**: :func:`cell_window` reads an infinite side as the side
+    nobody claimed, so a window applied ahead of it would pass as a claim the
+    caller never made and switch the runaway guard off (measured: the cell comes
+    back at the dependent's own [0, 100] instead of [3.89877, 4.41443]).
 
     **Prior art.**  TOPAS honours bounds inside the matrix solve and lets a
     limit itself be an expression of other parameters (Coelho, 2018,
@@ -1648,16 +1652,26 @@ class ParameterTable:
     def bounds(self) -> tuple[np.ndarray, np.ndarray]:
         """Internal-space bounds for the free vector, in ``free_paths`` order.
 
-        This is where :func:`cell_window`, :func:`strain_cap_hi` and
-        :func:`size_cap_hi` are applied, rather than on the :class:`Entry`, and
-        the distinction is the point: all three are **solver** bounds for the
-        stage about to run, not facts about the stored parameter.  Putting any
+        This is where :func:`cell_window`, :func:`strain_cap_hi`,
+        :func:`size_cap_hi` and :func:`tie_window` are applied, rather than on
+        the :class:`Entry`, and the distinction is the point: all four are
+        **solver** bounds for the stage about to run, not facts about the
+        stored parameter.  Putting any
         of them on the entry would surface it through ``ParameterRow`` and the
         ``.rxt`` document, both of which tell a reader that bounds come from the
         schema — and there it would read as a claim the caller never made.
         ``bound_findings`` is fed from here, so a cell that reaches its window,
         a strain/size term held at its cap, or a tie source held where its
         dependent's own limits put it (:func:`tie_window`) is still reported.
+
+        **They do not commute, and a new one goes last.**  :func:`cell_window`
+        reads an *infinite* side as the side nobody claimed and applies its
+        runaway default only there, so anything that makes a side finite ahead
+        of it passes as a claim the caller never made and disarms the guard —
+        measured, an unsupported phase's cell came back at a tied dependent's
+        [0, 100] instead of [3.89877, 4.41443].  Each of the four only ever
+        narrows, so appending a fifth is always safe and inserting one is not
+        (WP-1119).
         """
         windowed = getattr(self, "_cell_window_phases", None)
         cap = getattr(self, "_strain_cap", None)

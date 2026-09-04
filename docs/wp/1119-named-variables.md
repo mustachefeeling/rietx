@@ -408,7 +408,22 @@ and is not needed for the ordinary case any more.
 An empty intersection is **refused, not clipped**: two declarations that cannot
 both hold is a caller contradicting themselves, and this table has no
 diagnostics channel to explain a repair in — the same rule that puts a CIF's
-angle repair in the reader.
+angle repair in the reader. The refusal names the **dependent**, because the
+window is on the source and widening the source is the wrong move; the same
+sentence the skill and the manual now give for a `BOUND_HIT` on a tie source.
+
+**The four derived bounds are ordered, and the order was nearly wrong.** Found
+in self-review, not by a test: `cell_window` treats a finite stored side as a
+claim the caller made and applies its runaway default only where the side is
+*infinite*, so a tie window handed to it first passes as a claim nobody wrote
+and switches the guard off. Measured with the order reversed, an unsupported
+phase's cell comes back at the dependent's own [0, 100] instead of the window's
+[3.89877, 4.41443] — the exact failure `cell_window` exists to prevent, caused
+by the thing that was meant to add safety. Applied **last** it cannot happen:
+all three defaults only ever narrow, so intersecting afterwards is the tightest
+of the four and leaves each of their decisions reading the stored bounds.
+`test_the_tie_window_narrows_after_the_cell_window_not_before_it` fails on
+purpose with the order reversed, which is where that number came from.
 
 **Measured**, on the four-site LaB6 fixture, with the whole four-stage plan so
 the fit under the bar is a converged one (Rwp 0.0458, GoF 1.12, flat residual —
@@ -505,6 +520,11 @@ question.
 
 *Gotchas*
 
+- **A new derived bound has to go last, and nothing enforces that.** The four
+  are not commutative: `cell_window` branches on whether a side is infinite, so
+  anything that makes a side finite before it runs disarms it. Reversing the
+  order turned the cell runaway guard off completely, and only reading the diff
+  found it. A fifth derived bound inherits the trap.
 - **The fixture's `MASTER_MAX = 12.0` was a workaround and is now a claim.** It
   used to exist because the coefficient-2 dependent would otherwise sail to 50;
   the window puts that ceiling at 12.5 by itself, so 12.0 is now simply a
