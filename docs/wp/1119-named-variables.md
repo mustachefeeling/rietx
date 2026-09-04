@@ -568,9 +568,17 @@ from `[dev]`, macOS/darwin, numpy backend).
 - **Fast selection 4262 passed, 127 skipped** — *identical* to the entry below,
   which is the check this session owed: it added no test, so passed+skipped
   must not move, and it did not.
-- Full selection, on the merged tree: FULL_PLACEHOLDER. `origin/main` had not
-  moved since the merge at 08:35, so the branch tree *is* the merged tree and
-  no second merge was needed.
+- Full selection, on the merged tree: FULL_RESULT. `origin/main` had not moved
+  since the merge at 08:35, so the branch tree *is* the merged tree and no
+  second merge was needed. The first attempt at it is worth recording as a
+  procedure failure rather than a result: it was launched and then edited under
+  — the ROADMAP work for 1342 landed mid-run — so it came back with two
+  `test_docs_consistency` failures that were green before it finished. **The
+  rule is in CLAUDE.md already** (the full suite fires once, on the final
+  tree); this is what ignoring it buys.
+- **CI was red on the pushed tip the whole time, on two asserts this WP wrote**,
+  and neither the macOS fast selection nor the macOS full one could see it. The
+  fix is its own commit; the numbers are below.
 - **The `scale` anchoring is provably a no-op on every real path**, which is
   the evidence that no acceptance number can move: the only path literal in
   `ParameterTable._collect`/`apply_to_models` ending in `.scale` is
@@ -580,6 +588,22 @@ from `[dev]`, macOS/darwin, numpy backend).
 
 *Gotchas*
 
+- **A bar measured on one platform is not a bar, and this WP wrote two of
+  them.** `test_the_declared_ceiling_needs_no_workaround` asserted Rwp
+  *equality* between two independently-converged arms — bit-identical on macOS,
+  1 ulp apart on Linux py3.12/3.14 — while its own sibling test's docstring, in
+  the same file, states the rule it broke. The other is worse in shape than in
+  size: the **esd** was barred at `rel=1e-9`, and an esd is the one quantity in
+  that comparison that goes through `normal_covariance`, which equilibrates and
+  then cuts eigenvalues at `rcond·|λ|max`, so a near-threshold eigenvalue falls
+  differently under a different column order. Good returns 4.2e-16 on macOS and
+  **2.5e-9 on Linux**, against the 4.1e-9 a deliberately broken column gives:
+  1.6x, where `tests/CLAUDE.md` asks for 10x. No bar there separates good from
+  broken, so the esd is now a 1e-6 sanity check and the discrimination is
+  carried by the refined values (1e-9 against 1.14e-8) and the integer
+  iteration counts (9 against 4). No new `tests/CLAUDE.md` clause: the rule
+  that catches this — measure the spread on the quantity the assertion names,
+  and a margin under ~10x still smells — is already there, unapplied.
 - **A hand read is not a substitute for the agent pass, and this WP now has the
   measurement.** Two sessions read this diff by hand; the second one found
   three things and wrote that the first two were "the kind an agent pass is
