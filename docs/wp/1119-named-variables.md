@@ -301,7 +301,19 @@ nothing the package derives reaches depth 2.
 
 **Suite**: `-m "not slow"` **4242 passed, 122 skipped** in the 3-4 min band
 (224 s), against a **4227**-passing baseline on the same tree before this WP —
-+17 exactly, which is `tests/test_named_variables.py`, with no new skip.
++17 exactly, which is `tests/test_named_variables.py`, with no new skip. The
+**full** selection is **4407 passed, 131 skipped** in 24:46, green, and that is
+the evidence `_column_identities` is the identity it claims to be: it sits in
+the dispatch every acceptance fit's Jacobian goes through, and no acceptance
+number moved.
+
+**Merged against [1130](1130-background-reference.md)**, which was in flight in
+a sibling worktree and lands first. Both branches edit `params/vector.py` and
+the merge is clean — 1130 is in `cell_window`, this WP adds `VAR_PREFIX` and
+`is_variable_path` above it — and the merged tree runs **4247 passed, 122
+skipped** (167 s, its own `[dev]` venv resolving to the merged source), which is
+4242 plus 1130's five. Checked by merging for real rather than by
+`git merge-tree`: a clean text merge is not a passing one.
 
 ### Two findings recorded rather than fixed
 
