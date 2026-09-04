@@ -1,7 +1,8 @@
 # WP-1119 — named variables and equations: a `prm` of one's own
 
-Milestone: unscheduled · Status: ✅ 2026-09-04 — named variables ship, and the
-equivalence bar caught the Jacobian dispatching on a name
+Milestone: unscheduled · Status: ✅ 2026-09-04 — named variables ship; the
+equivalence bar caught the Jacobian dispatching on a name, and the TOPAS
+comparison closed the tie-bounds hole
 Depends on: — (WP-1070 built the affine block this extends; 1118 is its first
 non-human consumer, and needs this to land in)
 
@@ -238,6 +239,12 @@ above.
       `references/diagnostics.md` is untouched.
 - [x] Tests, including the equivalence bar below — which the tests
       rewrote (Acceptance, and the § Measured block under it).
+- [x] Reassess the shipped surface against TOPAS's `prm`, and close what the
+      comparison shows is a hole rather than a difference: a tie now carries its
+      dependent's bounds onto its source (`params.vector.tie_window`), and the
+      several-source corner it cannot close names the path, the bounds and the
+      tie instead of raising a bare `ValidationError`
+      (§ The tie-bounds hole, closed).
 
 ## Acceptance
 
@@ -342,67 +349,92 @@ venv resolving to the merged source) against 1130 at `7a7c4262`. Checked by merg
 first such check said "no conflict" and was already stale by the next commit,
 and a clean text merge is not a passing one either way.
 
-### Two findings recorded rather than fixed
+### The tie-bounds hole, closed — and what TOPAS decided about it
 
-Both pre-date this WP and reproduce with no variable anywhere, so neither is
-this WP's to repair; both are named because a variable is where a caller now
-meets them.
+Reassessing the shipped surface against TOPAS's `prm` left the design confirmed
+in every respect but one, and the exception was worth reopening the WP for.
 
-1. **A tie bounds only its source.** The solver's box covers the free column, so
-   a tie at a coefficient other than 1 can carry its dependent past *its own*
-   `min`/`max`. `tie("…atoms.2.biso", "…atoms.0.biso", scale=2.0)` on a `Biso`
-   bounded [0, 25] reaches 50 and surfaces as a pydantic `ValidationError`
-   inside `apply_to_models` — not as a refusal, not as a clamp, and not naming
-   the tie. `_declare_ties` checks the implied value at declaration and nothing
-   checks it again. The fixture works around it with a `MASTER_MAX` whose
-   comment says why, and the manual says plainly that a variable's bounds are
-   the ones the solve sees.
+**Where the two codes agree.** A `prm` is a named object with its own value,
+bounds and fixed flag, which is `add_variable`; a `prm` may be an equation over
+other `prm`s, which is Decisions § 2's chain rule; a constrained model quantity
+is written as a function of it, which is `tie`. What rietx does not have is
+TOPAS's *string* equations, and Decisions § 4 says why on purpose.
 
-   **The shape of the fix, which is narrower than "decide a policy".** What a
-   dependent's own limits ask for is `lo ≤ Σ c_k·θ_k + d ≤ hi`: a linear
-   inequality on a *functional* of θ. That splits in two, and the split is the
-   whole design:
+**Where they differ, and it was a hole.** In TOPAS a constrained quantity is an
+*equation*, not a parameter, so it carries no limits of its own and a limit is
+written on the independent parameter — by hand, and visibly. rietx cannot copy
+that: a `Parameter`'s `min`/`max` are schema physics (`Biso` in [0, 25], `occ`
+in [0, 1.5], March `r` off its pole) and they go on existing after the parameter
+is tied. But the solver's box covers the **free column**, and a tied entry is
+not one — so a coefficient other than 1 carried a dependent straight past a
+limit that is physics, and the first thing to notice was pydantic, inside
+`apply_to_models`, after the solve, naming no path, no phase and no tie.
 
-   * **One source** — the ordinary tie, and everything before this WP. One term
-     makes the inequality a **box** on that θ, which is exactly `scipy`'s
-     vocabulary, so the default TRF driver can enforce it *exactly* and for
-     free. Several dependents on one source intersect, which is not a new rule:
-     WP-1131 already settled that shared bounds are **intersected, not
-     last-write-wins**.
-   * **Several sources** — the multi-term tie this WP added. Two terms or more
-     make it a half-space, not a box, and TRF's only vocabulary is a box, so it
-     is **not expressible in the default driver at all**. It is expressible
-     under `solver="lm"`, whose stated reason to exist is precisely "bounds
-     enforced inside the linear solve, and linear inequalities on *functionals*
-     of θ" — the Stephens positivity cone (DESIGN.md § the LM driver). A tie
-     bound is that same shape, and nobody has pointed the machinery at it.
+**The fix is the arithmetic TOPAS has the user do.** `lo ≤ Σ c_k·θ_k + d ≤ hi`
+solved for one source is a **box**, which is exactly TRF's vocabulary, so
+`params.vector.tie_window` inverts it, `_derive_tie_windows` intersects it over
+every dependent a source drives, and `bounds()` applies it beside `cell_window`,
+`strain_cap_hi` and `size_cap_hi` — for their stated reason, that these are
+solver bounds for the stage and not facts about the stored parameter, so none of
+them may surface through `ParameterRow` or the `.rxt` document as a claim the
+caller never made. Reporting is then free and already correct: `bound_findings`
+reads that same call, so a source stopped at a dependent's ceiling comes back as
+`BOUND_HIT` naming the source. `MultiParameterTable` composes `ParameterTable`
+and calls `table.bounds()`, so a joint fit inherits it with no second copy.
 
-   **Prior art agrees with the first half.** TOPAS solves with a
-   bounds-constrained routine that honours bounds *inside* the matrix solve, and
-   its bounding constraints "can be defined using computer algebra" — a limit
-   may itself be an expression of other parameters (Coelho, 2018, *J. Appl.
-   Cryst.* **51**, 210, §3.2). Structurally it also avoids this failure mode:
-   a constrained quantity there is an *equation*, not an independent parameter,
-   so it carries no limits of its own and the limit is written on the
-   independent parameter. rietx differs because its parameters carry declared
-   physical limits in the schema that go on existing after the parameter is
-   tied. So "narrow the source's box" is what a mature code does; the
-   difference worth keeping is that TOPAS has the *user* write it, visibly,
-   where rietx would derive it — which argues for deriving it **and reporting
-   it**, not for deriving it silently.
+**Applied unconditionally rather than behind a freeze, and that is a
+measurement, not a judgement.** Across every real structure in the repository
+`ParameterTable` derives **52** ties (68 with `aniso=True`), every one
+single-term, and **not one** with a finite bound on the dependent — cell
+lengths, cell angles and fractional coordinates all carry `Parameter`'s default
+±inf. So the window narrows a *user's* tie and provably nothing else, which is
+what removed the "it changes existing fits" objection that had kept this a
+decision rather than a repair.
 
-   What remains genuinely open, then, is small: whether the derived narrowing
-   is the default or opt-in (it moves where an existing fit may go, so it is an
-   observable change either way), what the diagnostic is called, and whether
-   the several-source case refuses, reports, or asks for `solver="lm"`. GSAS-II
-   was **not** consulted — the corpus copy of its paper fails to extract — and
-   should be before this is settled.
-2. **`add_variable(vary=True)` was overruled by a recorded free set** — found by
-   the tests, fixed here, and worth naming because it is a shape rather than a
-   typo: `_prepare_table` clears every vary flag and replays `_free_paths`, a
-   list written before the variable existed, so the declaration lost to a
-   restore that could not know about it. Any future synthetic entry declared
-   *after* the first stage inherits the same trap.
+**The several-source case is the one this WP created, and it does not close.**
+Two terms make a half-space, and TRF's only vocabulary is a box, so what lands
+is the **outer** box: the projection of the feasible set onto one axis, computed
+from the co-sources' own declared bounds so the result cannot depend on the
+order dependents are visited in. It can admit an infeasible corner; it can never
+exclude a feasible point, which is the direction that matters, since the inner
+box would quietly delete answers the caller asked for. An unbounded co-source
+gives ±inf, which is honest. What survives the corner is now **attributable**:
+`apply_to_models` catches the `ValidationError` and re-raises naming the path,
+the bounds and the tie. The alternative route — `solver="lm"`, whose stated
+reason to exist is linear inequalities on *functionals* of θ (the Stephens
+positivity cone) — is where a future WP would express the half-space exactly,
+and is not needed for the ordinary case any more.
+
+An empty intersection is **refused, not clipped**: two declarations that cannot
+both hold is a caller contradicting themselves, and this table has no
+diagnostics channel to explain a repair in — the same rule that puts a CIF's
+angle repair in the reader.
+
+**Measured**, on the four-site LaB6 fixture, with the whole four-stage plan so
+the fit under the bar is a converged one (Rwp 0.0458, GoF 1.12, flat residual —
+checked in the plot, not only in the assertion): a dependent declaring a ceiling
+of 0.33 and following at coefficient 0.5 stops its master at **0.66** and itself
+at **0.33**, with `BOUND_HIT` on the master. The same fit with the window
+disabled reaches 0.6697 and 0.3348 and raises — now as *"writing
+phases.0.atoms.1.biso=0.334839 back to the model breaks its own bounds [0, 0.33];
+it follows 0.5·phases.0.atoms.0.biso"*. The fixture's `MASTER_MAX = 12.0`
+workaround is no longer load-bearing and an arm now runs at `Atom.biso`'s own
+[0, 25].
+
+**Not consulted: GSAS-II**, whose corpus paper fails to extract. It remains the
+one major code whose behaviour here is unknown, and the outer-box choice above
+is the place a second opinion would land.
+
+### One finding recorded rather than fixed
+
+Pre-dates this WP and reproduces with no variable anywhere.
+
+**`add_variable(vary=True)` was overruled by a recorded free set** — found by
+the tests, fixed here, and worth naming because it is a shape rather than a
+typo: `_prepare_table` clears every vary flag and replays `_free_paths`, a list
+written before the variable existed, so the declaration lost to a restore that
+could not know about it. Any future synthetic entry declared *after* the first
+stage inherits the same trap.
 
 ## References
 
@@ -415,7 +447,82 @@ meets them.
 
 ## Handover log
 
-### 2026-09-04 — named variables ship, and the bar caught a silent FD column
+### 2026-09-04 (2nd session) — the TOPAS comparison closes the tie-bounds hole
+
+Reading the shipped surface back against TOPAS's `prm` confirmed the design in
+every respect but one, and the exception turned out to be a repair rather than
+the open decision the morning's entry called it. In TOPAS a constrained quantity
+is an *equation*, so it has no limits of its own and you write the limit on the
+independent parameter, by hand. rietx cannot do that — `Biso` is [0, 25] Å²
+because that is physics, and it stays [0, 25] after the parameter is tied — and
+the solver only ever saw the free column, so a tie at coefficient 2 walked its
+dependent to 50 and the first thing to notice was pydantic, after the solve,
+naming nothing. rietx now derives the limit TOPAS has you write: a dependent
+bounded at 25 and followed at coefficient 2 gives its source a ceiling of 12.5,
+intersected over every dependent that source drives. A fit stopped there is
+reported like any other bound. That was the last thing in this WP that could
+bite someone silently.
+
+The reason it could land at all is a measurement, and it is the part worth
+carrying: **across every real structure in the repository the package derives 52
+ties (68 with anisotropic ADPs), every one single-term and not one with a finite
+bound**, because cells and fractional coordinates carry ±inf. So the new bound
+narrows a user's tie and provably nothing else — which is what dissolved the
+"but it changes existing fits" objection that had made this look like a policy
+question.
+
+*Done*, one commit on top of the six:
+
+- **`params.vector.tie_window`** — `lo ≤ Σ c·θ + d ≤ hi` solved for one source,
+  intersected by `_derive_tie_windows` and applied in `bounds()` beside
+  `cell_window`, `strain_cap_hi` and `size_cap_hi`, for their stated reason:
+  these are solver bounds for the stage, never facts about the stored parameter,
+  so none of them may surface through `ParameterRow` or `.rxt`. Reporting came
+  free — `bound_findings` reads that same call. `MultiParameterTable` calls
+  `table.bounds()`, so a joint fit inherits it with no second copy.
+- **The several-source case gets the outer box**, computed from the co-sources'
+  declared bounds so it does not depend on visit order. It can admit an
+  infeasible corner and can never exclude a feasible point, which is the
+  direction that matters. What survives the corner is attributable now:
+  `apply_to_models` re-raises naming the path, its bounds and the tie.
+- **An empty intersection is refused, not clipped** — two declarations that
+  cannot both hold, and this table has no diagnostics channel to explain a
+  repair in.
+- Seven unit tests in `test_params.py` (including the "every derived tie claims
+  nothing" measurement, asserted rather than left to the acceptance suites) and
+  two fit-level ones in `test_named_variables.py`.
+
+*Measured* — same venv and platform as the entry below.
+
+- The bound test runs the **whole four-stage plan**, because the first draft of
+  it froze three stages and produced Rwp 2.76 / GoF 67.6: a bound assertion that
+  passed on a fit that was nothing like the data. The plot said so, again, and
+  the same standing rule caught it that caught the equivalence bar twice this
+  morning. As it stands: Rwp 0.0458, GoF 1.12, flat residual, master held at
+  0.66 and dependent at its declared 0.33, `BOUND_HIT` on the master. With the
+  window disabled the same fit reaches 0.6697/0.3348 and raises.
+- Suite figures: see § Acceptance, re-measured on this tree.
+
+*Gotchas*
+
+- **The fixture's `MASTER_MAX = 12.0` was a workaround and is now a claim.** It
+  used to exist because the coefficient-2 dependent would otherwise sail to 50;
+  the window puts that ceiling at 12.5 by itself, so 12.0 is now simply a
+  tighter bound the caller declared. `test_the_declared_ceiling_needs_no_workaround`
+  is the arm that runs at `Atom.biso`'s own [0, 25] and says so.
+- **GSAS-II is still not consulted** — its corpus paper fails to extract. It is
+  the one major code whose behaviour here is unknown, and the outer-box choice
+  is where a second opinion would land.
+- The half-space could be expressed *exactly* under `solver="lm"`, whose stated
+  reason to exist is linear inequalities on functionals of θ (the Stephens
+  positivity cone). Nobody has pointed that machinery at a tie bound. It is no
+  longer needed for the ordinary case, which is why it is a note and not a task.
+
+*Next*, unchanged from the entry below: **cut the WP for issue #212**, the
+cross-phase linear restraint row, whose seam is in
+[1325](1325-parametric-series.md)'s `### Inherited`.
+
+### 2026-09-04 (1st session) — named variables ship, and the bar caught a silent FD column
 
 You can now name a quantity and constrain parameters to it, instead of
 nominating one of them as the master: `ref.add_variable("B_metal", 0.7, min=0,
@@ -496,16 +603,15 @@ wrong as written, which the measurement had to say rather than accommodate.
 
 *Gotchas*, and the first two are not this WP's to fix:
 
-- **A tie bounds only its source.** The solver's box covers the free column and
-  a tied parameter is not one, so `tie(..., scale=2.0)` can carry a dependent
-  past its own `max` — measured at 49.99999999999999 against `Atom.biso`'s
-  ceiling of 25 — and it surfaces as a pydantic `ValidationError` inside
-  `apply_to_models`, naming no path, no tie and no phase, *after* the solve.
-  Pre-existing and reproducing with no variable anywhere. A fix has to choose
-  between refusing at declaration (which cannot know where the fit will go),
-  narrowing the free column's box by the coefficients (correct, and it moves
-  existing fits), or a `Diagnostic` — a decision, not a repair. Skill § 8.22
-  carries the agent-facing half.
+- **A tie bounds only its source** — the finding this session's second half
+  then closed, so the entry below it is the one to read. As found: the solver's
+  box covers the free column and a tied parameter is not one, so
+  `tie(..., scale=2.0)` carried a dependent past its own `max` (measured at
+  49.99999999999999 against `Atom.biso`'s ceiling of 25) and surfaced as a
+  pydantic `ValidationError` inside `apply_to_models`, naming nothing, after the
+  solve. Pre-existing, reproducing with no variable anywhere, and written up
+  here as a decision rather than a repair — wrongly, as it turned out: the
+  decision it seemed to need was already made by what the coefficients say.
 - **The equivalence bar was wrong twice before it was right, and the plot said
   so first.** Draft one never freed the profile width the fixture perturbs 2×,
   so both arms converged at Rwp 0.57, GoF 13.9 — obvious in the obs/calc/diff

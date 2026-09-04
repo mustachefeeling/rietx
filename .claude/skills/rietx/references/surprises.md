@@ -310,26 +310,32 @@ predecessor and a different seed changes how many recovery rungs the next one
 needs (§9b). The per-fit bound above does not survive a chain in either
 direction.
 
-**8.22 A tie bounds only its source, so a constraint can carry a parameter
-outside its own limits — and the error names nothing.** The least-squares box
-covers the *free* column, and a tied parameter is not one: it is reconstructed
-from its source after the solve. So a coefficient other than 1 can put a
-dependent anywhere. `Atom.biso` is declared `[0, 25] Å²`; with the master free
-and `ref.tie("phases.0.atoms.2.biso", "phases.0.atoms.0.biso", scale=2.0)`, a
-Biso-only stage drives the master to its own ceiling of 25 and the dependent to
-**49.99999999999999**, at which point pydantic raises
-`value 49.99999999999999 lies outside bounds [0.0, 25.0]` from inside
-`ParameterTable.apply_to_models`. Read that message carefully: it names no
-parameter path, no tie, no phase, and it arrives *after* the solve, so the
-stage's work is gone with it. `Refinement.tie` does check the implied value —
-but at **declaration**, where the master is still where you left it, and nothing
-checks it again while the fit moves.
+**8.22 A tie carries its dependent's bounds back onto its source, so a source
+can stop somewhere it never declared.** The least-squares box covers the *free*
+column, and a tied parameter is not one — it is reconstructed from its source
+after the solve — so a dependent's own limits have to reach the solver through
+the tie or not at all. They do: `dependent = coefficient · source + offset`
+inverts to a range on the source, intersected over every dependent that source
+drives and with whatever the source declares itself. `Atom.biso` is `[0, 25] Å²`,
+so under `ref.tie("phases.0.atoms.2.biso", "phases.0.atoms.0.biso", scale=2.0)`
+the master is given a ceiling of **12.5** whatever its own `max` says, and
+`BOUND_HIT` names the master when a stage stops there. Measured: master 0.66 and
+dependent 0.33 under a declared dependent ceiling of 0.33 at coefficient 0.5,
+Rwp 0.0458 — a converged fit that stopped at a derived limit, not a failed one.
+(Measured: WP-1119, four-site LaB6.)
 
-**Corollary for the agent, in two parts.** Choose the *source's* bounds for its
-dependents, not for itself: a source driving `2·B` into a field capped at 25
-belongs at `max=12.5`, and that is the only place the constraint can be
-expressed. This is what makes `ref.add_variable(name, value, min=…, max=…)`
-worth reaching for even where an existing parameter could have been nominated as
-the master — the variable's bounds are the ones the solve sees, so there is one
-obvious place to put them. And when you meet that `ValidationError`, do not read
-it as a corrupt model or a bad CIF: look for a tie whose coefficient is not 1.
+**What this means when you read a run.** A `BOUND_HIT` on a source whose own
+`min`/`max` are nowhere near the value is not a bug and not a bad bound — it is
+one of its dependents' ceilings arriving through the tie, and the fix is to widen
+*that* parameter, not the one the diagnostic names. Check the coefficients before
+touching anything.
+
+**One case it cannot close.** A tie with *several* sources is a slanted boundary,
+and the optimiser can only be handed a range, so what it gets is the smallest
+range containing every allowed point — it never rules out an answer you asked
+for, and it can leave a corner where two sources conspire to put a dependent out
+of range. Landing there raises on write-back, after the solve, naming the
+parameter, its bounds and the tie: *"writing phases.0.atoms.1.biso=40 back to
+the model breaks its own bounds [0, 25]; it follows 2·phases.0.atoms.0.biso"*.
+Read that as a constraint to widen, never as a corrupt model or a bad CIF.
+(Measured: WP-1119.)

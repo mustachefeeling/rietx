@@ -227,14 +227,24 @@ is a different problem — a quantity whose physical parameter uses the softplus
 reparameterisation, given the default `identity`, is no longer kept off its own
 floor.
 
-**The bounds that matter are the ones the solver sees, and those are the
-variable's.** A dependent's own `min`/`max` are checked when the tie is
-declared and not afterwards, so a coefficient other than 1 can carry a dependent
-past its own ceiling while the variable is still inside its. Choose the
-variable's bounds for its dependents: a variable driving `2·B` into a field
-bounded at 25 belongs at `max=12.5`. This is a property of ties generally, not
-of variables — `tie(..., scale=2.0)` between two model parameters behaves the
-same way — but a variable is where you get to fix it in one place.
+**A dependent's own bounds reach the solver too, and you do not have to do the
+arithmetic.** A tie says `dependent = coefficient · source + offset`, so a
+dependent bounded at 25 and followed at coefficient 2 puts its source's ceiling
+at 12.5 — and that is what the stage is given, intersected over every dependent
+the source drives and with whatever the source declares itself. The tighter of
+the two wins, so declaring `max=12.5` by hand changes nothing and declaring
+`max=25` costs nothing. A source stopped at a limit it never wrote is reported
+like any other: `BOUND_HIT`, naming the source.
+
+This is a property of ties generally, not of variables — `tie(..., scale=2.0)`
+between two model parameters behaves the same way. It is exact for a tie with
+one source, which is every tie rietx derives and most that anyone writes. With
+several sources the constraint is a slanted boundary rather than a range and the
+optimiser can only be given a range, so what it gets is the smallest range
+containing every allowed point: it never rules out an answer you asked for, and
+it can leave a corner where two sources conspire. If a fit lands in that corner
+the write-back refuses, naming the parameter, its bounds and the tie that drove
+it.
 
 A variable may follow other variables, which is what makes composing them
 worthwhile:

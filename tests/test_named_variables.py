@@ -521,7 +521,8 @@ def test_the_declared_ceiling_needs_no_workaround(four_site_pattern):
         assert 0.0 <= rows[BISOS[j]] <= 25.0
 
 
-def test_a_tie_holds_its_source_where_the_dependents_ceiling_is(four_site_pattern):
+def test_a_tie_holds_its_source_where_the_dependents_ceiling_is(four_site_pattern,
+                                                                monkeypatch):
     """A runaway that used to end in a bare pydantic error now ends at a bound.
 
     The dependent declares a ceiling of 0.33 and follows the master at
@@ -546,19 +547,20 @@ def test_a_tie_holds_its_source_where_the_dependents_ceiling_is(four_site_patter
         ref = rx.Refinement(structure, instrument)
         ref.tie(BISOS[1], BISOS[0], scale=0.5)
         if not window:
-            ParameterTable._derive_tie_windows = lambda self, tied, d: {}
-        try:
-            result = ref.fit(four_site_pattern, plan=rx.RefinementPlan(stages=[
-                rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
-                         max_iter=30),
-                rx.Stage("cell", ["phases.*.cell.*", "instrument.zero_shift"],
-                         max_iter=30),
-                rx.Stage("profile", ["instrument.profile.w", "instrument.profile.x"],
-                         max_iter=30),
-                rx.Stage("biso", [BISOS[0]], max_iter=30)]))
-        finally:
-            if not window:
-                del ParameterTable._derive_tie_windows
+            # setattr, never `del` after assigning: the real method lives on the
+            # class, so overwriting it and deleting the overwrite removes the
+            # method itself — which passed alone and took 21 unrelated tests
+            # down under ``-n auto``, in whichever worker ran this one first.
+            monkeypatch.setattr(ParameterTable, "_derive_tie_windows",
+                                lambda self, tied, d: {})
+        result = ref.fit(four_site_pattern, plan=rx.RefinementPlan(stages=[
+            rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
+                     max_iter=30),
+            rx.Stage("cell", ["phases.*.cell.*", "instrument.zero_shift"],
+                     max_iter=30),
+            rx.Stage("profile", ["instrument.profile.w", "instrument.profile.x"],
+                     max_iter=30),
+            rx.Stage("biso", [BISOS[0]], max_iter=30)]))
         return result, {r.path: r.value for r in ref.parameters()}
 
     result, rows = run(window=True)
