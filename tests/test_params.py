@@ -478,3 +478,19 @@ def test_the_tie_window_narrows_after_the_cell_window_not_before_it():
     assert (lo[k], hi[k]) == cell_window("a", a, -np.inf, np.inf,
                                          path="phases.0.cell.a")
     assert (lo[k], hi[k]) != (0.0, 100.0)
+
+
+def test_a_mixed_sites_occupancies_bound_each_other():
+    """The manual's own example, and the clearest case the window buys.
+
+    ``occ`` is declared [0, 1.5], and ``occ₁ = 1 − occ₀`` means ``occ₀`` above 1
+    puts ``occ₁`` negative.  Nobody writes that; it falls out of the tie and the
+    two declared ranges, and it is the box the stage runs against.
+    """
+    table = make_table()
+    table.set_vary(["phases.0.atoms.0.occ"], True)
+    table.set_tie("phases.0.atoms.1.occ",
+                  AffineTie(terms=(("phases.0.atoms.0.occ", -1.0),), const=1.0))
+    lo, hi = table.bounds()
+    k = table.free_paths.index("phases.0.atoms.0.occ")
+    assert (lo[k], hi[k]) == (0.0, 1.0)         # not occ's own [0, 1.5]

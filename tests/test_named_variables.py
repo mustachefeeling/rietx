@@ -507,17 +507,29 @@ def test_the_declared_ceiling_needs_no_workaround(four_site_pattern):
     both arms reach the same fit the ``MASTER_MAX`` arms do — the workaround
     was never load-bearing once the window exists, and this is the assertion
     that says so rather than the comment.
+
+    Run on the **four-stage** plan, not a Biso-only one: an earlier draft froze
+    the scale and the width the fixture perturbs and converged at Rwp 2.64, so
+    the two arms agreed about a fit that was nothing like the data.  Two
+    spellings of one constraint agree on a bad fit too; the claim here is that
+    they agree on a *good* one, which is why the Rwp bar is asserted.
     """
     plan = rx.RefinementPlan(stages=[
-        rx.Stage("biso", ["phases.*.atoms.*.biso", "vars.*"], max_iter=40)])
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
+                 max_iter=30),
+        rx.Stage("cell", ["phases.*.cell.*", "instrument.zero_shift"], max_iter=30),
+        rx.Stage("profile", ["instrument.profile.w", "instrument.profile.x"],
+                 max_iter=30),
+        rx.Stage("biso", ["phases.*.atoms.*.biso", "vars.*"], max_iter=30)])
     a = dot_path_arm()          # master_max=25.0, the schema's own
     b = variable_arm()
     ra, rb = a.fit(four_site_pattern, plan=plan), b.fit(four_site_pattern, plan=plan)
     _plot(ra, "schema_ceiling_dotpath")
     _plot(rb, "schema_ceiling_variable")
     assert ra.statistics.rwp == rb.statistics.rwp
+    assert ra.statistics.rwp < 0.05          # the same fit, not the same failure
     rows = {r.path: r.value for r in a.parameters()}
-    for j, (scale, offset) in enumerate(COEFFS):
+    for j in range(len(COEFFS)):
         assert 0.0 <= rows[BISOS[j]] <= 25.0
 
 

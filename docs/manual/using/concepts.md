@@ -168,6 +168,21 @@ outside the target's own bounds are all refused with the reason and the
 parameter holding it. The exception in that list is the subject of the next
 section: a named variable may follow other named variables.
 
+**A tie carries the dependent's bounds back onto its source, and you do not
+have to do that arithmetic.** The dependent leaves the free vector, so the
+optimiser never sees its `min`/`max` directly; what it is given instead is the
+range on the *source* that keeps the dependent inside them. The mixed-site
+example above is the clearest case. `occ` is declared `[0, 1.5]`, and
+`occ₁ = 1 − occ₀` means `occ₀` must stay in `[0, 1]` for `occ₁` to be positive
+— so `[0, 1]` is the box that stage runs against, without anyone writing it.
+Every dependent a source drives contributes, and the tightest wins, along with
+whatever the source declares itself. A fit that stops at such a limit reports
+it like any other bound (`BOUND_HIT`, naming the source), and the parameter to
+widen is then the *dependent*, not the one the diagnostic names. Ties with
+several sources are the one case this cannot close exactly;
+{ref}`named-variables` has that detail, since they are where several sources
+arise.
+
 :::{admonition} Worked example: tying three displacement parameters
 :class: tip
 
