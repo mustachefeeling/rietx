@@ -7,7 +7,14 @@ than chained (§9b is the chain, whose fits share an order and a path).
 *A reference file of the `rietx` skill. The body it belongs to is
 [`SKILL.md`](../SKILL.md); section numbers are the ones the body cites. Every
 row carries its evidence: `(Measured: …)` names the run and its number,
-`(Hypothesis: …)` names what would decide it.*
+`(Hypothesis: …)` names what would decide it. Where that run belongs to the
+**archive screening campaign**, the tag names that corpus instead of a run a
+reader can open — a screening campaign over a private diffraction archive of
+laboratory, synchrotron and reactor-neutron patterns, refined against the
+existing TOPAS, GSAS and XND answers for the same data wherever those survive.
+The archive is unpublished and ships in no wheel, so those rows cannot be
+reproduced from this repository; every number in them still comes from the log,
+and no scientific magnitude of any specimen in it appears in any row.*
 
 A batch is N separate `rx.Refinement` runs, or N branches of one history tree
 ([`references/history.md`](history.md)), each a whole §1-§10 job with its own
