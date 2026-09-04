@@ -773,8 +773,7 @@ class Refinement:
             table.add_parameter(f"{VAR_PREFIX}{name}", prm.value, vary=prm.vary,
                                 lo=prm.min, hi=prm.max, transform=prm.transform)
 
-    def _write_back(self, table: ParameterTable,
-                    stderr: dict[str, float] | None = None) -> None:
+    def _write_back(self, table: ParameterTable) -> None:
         """``apply_to_models``, plus the one thing it structurally cannot do.
 
         ``ParameterTable.apply_to_models`` writes values back by walking the
@@ -789,8 +788,15 @@ class Refinement:
         written.  Every call site holding the *working* state goes through
         here; the two that do not — ``suggest``'s deep copies and the
         module-level exporter — have no register to write to.
+
+        No ``stderr`` argument, unlike ``apply_to_models``: the esd of a
+        variable reaches a caller through ``result_.parameters`` and the
+        ``ParameterRow`` built from it, keyed by ``vars.<name>`` like any other
+        path, so a second copy on the register would have no reader.  A
+        parameter nothing writes is the shape WP-1076 removes, and one added
+        here would fail no test.
         """
-        table.apply_to_models(self.structure, self.instrument, stderr=stderr)
+        table.apply_to_models(self.structure, self.instrument)
         if not self._variables:
             return
         values = {e.path: e.value for e in table.entries}
@@ -798,8 +804,6 @@ class Refinement:
             value = values.get(f"{VAR_PREFIX}{name}")
             if value is not None:
                 prm.value = value
-                if stderr is not None:
-                    prm.stderr = stderr.get(f"{VAR_PREFIX}{name}")
 
     def _apply_ties(self, table: ParameterTable) -> set[str]:
         """Re-declare this refinement's user ties on a freshly built table.

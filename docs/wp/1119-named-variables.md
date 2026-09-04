@@ -217,40 +217,116 @@ above.
 - [x] Decide the object: a `Parameter` named `vars.<name>`, appended by
       `add_parameter`, listed by `parameters()` like any other row, named in a
       tie by its path (Decisions § 1).
-- [ ] Persistence: `RefinementState`, the history node, the project round trip,
-      and the contract bump with its comment.
-- [ ] Verbs: declare and remove a variable; multi-term ties, which the
-      representation already holds.
+- [x] Persistence: `RefinementState.variables`, `NodeAction.variables` /
+      `removed_variables` under a `set_variable` kind, the project round trip
+      (free — `history.jsonl`'s head *is* the working state), and
+      `SCHEMA_VERSION` 0.15 → 0.16 with its comment.
+- [x] Verbs: `add_variable` / `remove_variable`, and `tie` taking a
+      `{path: coefficient}` mapping or a pair list, with `scale` multiplying
+      every term.
 - [x] Take the #212 decision — a WP of its own (Decisions § 3).
 - [x] Take the chain decision — a tied source is accepted iff it is a
       variable, measured either way (Decisions § 2).
 - [x] An expression string for the linear subset — it did **not** survive the
       design, and the four reasons plus the case against them are recorded
       (Decisions § 4) so a later session need not re-take it.
-- [ ] The manual: the reference sections `using/constraints.md` signposts, and a
-      row in the agent skill's `references/diagnostics.md` (all three copies)
-      if a diagnostic code lands — `AGENT_PROTOCOL.md` has been a redirect
-      stub since WP-1304.
-- [ ] Tests, including the equivalence bar below.
+- [x] The manual: `{ref}`named-variables`` in `using/concepts.md`, signposted
+      from `using/constraints.md`, plus the `set_variable` row and the two new
+      state fields in `using/history.md`, and both verbs in the skill's
+      `references/api.md` (three copies synced). No diagnostic code landed, so
+      `references/diagnostics.md` is untouched.
+- [x] Tests, including the equivalence bar below — which the tests
+      rewrote (Acceptance, and the § Measured block under it).
 
 ## Acceptance
 
-The example that started it, driven through a real fit, with the equivalence bar
-this milestone asks for:
-
 ```sh
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+.venv/bin/python -m pytest tests/test_named_variables.py
 ```
 
-- A fit whose Bisos follow one named variable at coefficients 1, 2 and 1 + 0.5
-  is **bit-identical** to the same constraint expressed with today's dot-path
-  ties — same Rwp, same refined values, same esds. The variable is a renaming,
-  so anything else is a bug.
-- The parameter count drops by exactly the number of dependents.
-- The variable survives save, open and a history checkout, and a checkout
-  restores the parameter *count* (the `RefinementState.ties` rule).
-- A variable whose dependent becomes symmetry-tied after a model edit is
-  reported and dropped, not silently overwritten.
+The bar, as measured on 2026-09-04 rather than as written on 2026-08-21. The
+original said the variable spelling must be **bit-identical** to the dot-path
+one, "so anything else is a bug". That is two claims, and only the first of
+them is true:
+
+- **The model is identical, bit for bit.** Two arms of one fixture — four-site
+  LaB6, the coefficients 1, 1, 2 and 1 + 0.5 — differing only in whether the
+  four Biso rows follow `phases.0.atoms.0.biso` or `vars.B_metal`. The decoded
+  physical state agrees path by path, the residual is `array_equal`, and every
+  Jacobian column agrees with the column carrying the same parameter. This is
+  where the check has to be, because the whole-model FD agrees with itself
+  either way (the "agreeing with the wrong oracle" trap the root CLAUDE.md
+  records for a phase scale's column) — and it is the check that **found the
+  defect**, below.
+- **The converged fit is bit-identical only where θ's column order coincides.**
+  A variable is *appended* to the table, so in a multi-stage plan it is the last
+  column while the dot-path master sits in the middle. Same columns, different
+  order, and scipy's TRF is order-dependent in its last bits. With one free
+  column, both arms put it at index 0 and Rwp, χ², the iteration count, all four
+  dependents and the esd come back bit-identical. With six, Rwp differs by
+  7.8e-14 and the refined Biso by 1.6e-9 relative — against an esd of 0.19 on
+  that parameter. The test carries `rel=1e-8` and says in its docstring that the
+  bar is a statement about the **solver**, not about this feature.
+- The parameter count drops by exactly the number of dependents, and rises by
+  one for the variable.
+- The variable survives a history checkout and a `history.jsonl` round trip, and
+  a checkout restores the parameter *count*.
+- A dependent that becomes symmetry-tied after a model edit is reported and
+  dropped, not silently overwritten.
+
+### Measured, 2026-09-04
+
+macOS darwin 25.5.0, worktree `.venv`, python 3.12, `[dev]` extras (no
+jax/torch, so the cross-backend rows self-skip).
+
+**The defect the bar found, which nothing went red over.** `_make_jacobian`
+dispatches on the free path's *name*, and `vars.B_metal` is a name no analytic
+branch was written for — so a variable driving four Biso rows fell to the
+whole-model FD column while the identical constraint written with
+`phases.0.atoms.0.biso` as its master took the peak chain. That column sat
+**8.6e-7** from the analytic one, and cost one extra full residual evaluation
+per Jacobian, for a construct whose entire claim is to be a renaming. The FD
+fallback is *exact* in the sense its own docstring means — it decodes through C
+like the residual — so it is approximate to O(h) and never short, which is
+exactly why no test could have caught it. `_column_identities` fixes it at the
+dispatch: a variable moves no residual row of its own, so what it *is*, for
+dispatch, is what it reaches. Afterwards every column is bit-identical.
+
+**The chain measurement**, which decided Decisions § 2. `_flatten` collapses a
+depth-2 user chain (`C = 3B+1`, `B = 2A+0.5`) to coefficient 6.0 and constant
+2.5, and a user tie onto a symmetry-tied source (`biso = 4·x`, `x ← dof.0`) onto
+`dof.0` at coefficient 4.0, constant 0.7972 — both exact, cycles raise, and
+nothing the package derives reaches depth 2.
+
+**Suite**: `-m "not slow"` **4242 passed, 122 skipped** in the 3-4 min band
+(224 s), against a **4227**-passing baseline on the same tree before this WP —
++17 exactly, which is `tests/test_named_variables.py`, with no new skip.
+
+### Two findings recorded rather than fixed
+
+Both pre-date this WP and reproduce with no variable anywhere, so neither is
+this WP's to repair; both are named because a variable is where a caller now
+meets them.
+
+1. **A tie bounds only its source.** The solver's box covers the free column, so
+   a tie at a coefficient other than 1 can carry its dependent past *its own*
+   `min`/`max`. `tie("…atoms.2.biso", "…atoms.0.biso", scale=2.0)` on a `Biso`
+   bounded [0, 25] reaches 50 and surfaces as a pydantic `ValidationError`
+   inside `apply_to_models` — not as a refusal, not as a clamp, and not naming
+   the tie. `_declare_ties` checks the implied value at declaration and nothing
+   checks it again. The fixture works around it with a `MASTER_MAX` whose
+   comment says why, and the manual says plainly that a variable's bounds are
+   the ones the solve sees. A fix would have to decide between refusing at
+   declaration (which cannot know where the fit will go), narrowing the free
+   column's box by the coefficients (correct, and it changes existing fits), or
+   reporting a `Diagnostic` — a decision, not a repair.
+2. **`add_variable(vary=True)` was overruled by a recorded free set** — found by
+   the tests, fixed here, and worth naming because it is a shape rather than a
+   typo: `_prepare_table` clears every vary flag and replays `_free_paths`, a
+   list written before the variable existed, so the declaration lost to a
+   restore that could not know about it. Any future synthetic entry declared
+   *after* the first stage inherits the same trap.
 
 ## References
 
