@@ -339,3 +339,112 @@ def test_a_fixed_angle_within_tolerance_is_accepted_and_still_held():
                           _cell(4.76, 4.76, 12.99, 90.0, 90.0,
                                 120.0 - 0.5 * SYMMETRY_ANGLE_TOL_DEG))
     assert layout["gamma"] == (True, None)
+
+
+# -- a tie bounds its source, not only itself (WP-1119) -----------------
+#
+# The dependent's ``min``/``max`` are schema physics that go on existing after
+# it is tied, but the solver's box covers only the *free* column — so before
+# these, a coefficient other than 1 carried a dependent straight past its own
+# ceiling and the first thing that noticed was pydantic, inside
+# ``apply_to_models``, after the solve.
+
+
+def test_a_dependents_own_ceiling_becomes_its_sources_ceiling():
+    table = make_table()
+    table.set_vary(["phases.0.atoms.0.biso"], True)          # Atom.biso is [0, 25]
+    table.set_tie("phases.0.atoms.1.biso",
+                  AffineTie(terms=(("phases.0.atoms.0.biso", 2.0),)))
+    lo, hi = table.bounds()
+    k = table.free_paths.index("phases.0.atoms.0.biso")
+    assert (lo[k], hi[k]) == (0.0, 12.5)                     # bitwise: 25 / 2
+
+
+def test_a_negative_coefficient_swaps_the_ends():
+    table = make_table()
+    table.set_vary(["phases.0.atoms.0.biso"], True)
+    table.set_tie("phases.0.atoms.1.biso",
+                  AffineTie(terms=(("phases.0.atoms.0.biso", -1.0),), const=20.0))
+    lo, hi = table.bounds()
+    k = table.free_paths.index("phases.0.atoms.0.biso")
+    # 0 ≤ 20 − s ≤ 25  ⇒  −5 ≤ s ≤ 20, intersected with biso's own [0, 25]
+    assert (lo[k], hi[k]) == (0.0, 20.0)
+
+
+def test_windows_intersect_over_every_dependent_of_one_source():
+    table = make_table()
+    table.set_vary(["phases.0.atoms.0.biso"], True)
+    table.set_tie("phases.0.atoms.1.biso",
+                  AffineTie(terms=(("phases.0.atoms.0.biso", 2.0),)))
+    table.add_parameter("synthetic.dep", 0.0, lo=0.0, hi=2.5)
+    table.set_tie("synthetic.dep",
+                  AffineTie(terms=(("phases.0.atoms.0.biso", 0.5),)))
+    lo, hi = table.bounds()
+    k = table.free_paths.index("phases.0.atoms.0.biso")
+    assert (lo[k], hi[k]) == (0.0, 5.0)     # the tighter of 12.5 and 5, not the last
+
+
+def test_an_unbounded_dependent_claims_nothing():
+    """Every tie the package *derives* is this case — measured, not assumed.
+
+    Cell lengths, cell angles and fractional coordinates all carry
+    :class:`~rietx.schemas.common.Parameter`'s default ±inf, so the 52 ties
+    ``ParameterTable`` builds across the repository's real structures (68 with
+    anisotropic ADPs) narrow nothing.  That is what let the window apply
+    unconditionally rather than behind a freeze, so it is asserted rather than
+    left to the acceptance suites to notice.
+    """
+    table = make_table()                      # cubic: b, c ← a, all unbounded
+    table.set_vary(["phases.0.cell.a"], True)
+    assert table._tie_windows == {}
+    lo, hi = table.bounds()
+    k = table.free_paths.index("phases.0.cell.a")
+    assert (lo[k], hi[k]) == (-np.inf, np.inf)
+
+
+def test_a_second_source_widens_the_window_to_an_outer_box():
+    """Two sources make a half-space, and the projection of one is what lands.
+
+    ``d = s + u`` with ``d`` in [0, 25] does not bound ``s`` at 25 unless ``u``
+    is pinned at 0 — the honest box is the one that admits every feasible
+    ``s``, so a bounded co-source narrows and an unbounded one does not.
+    """
+    def window(u_lo: float, u_hi: float) -> tuple[float, float]:
+        table = make_table()
+        table.add_parameter("synthetic.u", 1.0, vary=True, lo=u_lo, hi=u_hi)
+        table.set_vary(["phases.0.atoms.0.biso"], True)
+        table.set_tie("phases.0.atoms.1.biso",
+                      AffineTie(terms=(("phases.0.atoms.0.biso", 1.0),
+                                       ("synthetic.u", 1.0))))
+        lo, hi = table.bounds()
+        k = table.free_paths.index("phases.0.atoms.0.biso")
+        return lo[k], hi[k]
+
+    assert window(-np.inf, np.inf) == (0.0, 25.0)   # nothing known: biso's own
+    assert window(10.0, 20.0) == (0.0, 15.0)        # 25 − 10, the outer box
+    assert window(0.0, 0.0) == (0.0, 25.0)          # pinned: the single-source answer
+
+
+def test_two_bounds_that_cannot_both_hold_are_refused_not_clipped():
+    table = make_table()
+    table.add_parameter("synthetic.big", 30.0, vary=True, lo=30.0, hi=40.0)
+    with pytest.raises(ValueError, match="cannot be reconciled"):
+        table.set_tie("phases.0.atoms.1.biso",
+                      AffineTie(terms=(("synthetic.big", 2.0),)))
+
+
+def test_a_bound_broken_on_write_back_names_the_path_and_the_tie():
+    """The multi-source corner the outer box cannot close, made attributable.
+
+    Before this it arrived as a bare pydantic ``ValidationError`` naming no
+    path, no phase and no tie, from inside ``apply_to_models`` after the solve.
+    """
+    table = make_table()
+    table.set_vary(["phases.0.atoms.0.biso"], True)
+    table.set_tie("phases.0.atoms.1.biso",
+                  AffineTie(terms=(("phases.0.atoms.0.biso", 2.0),)))
+    table.entries[table._paths["phases.0.atoms.1.biso"]].value = 40.0
+    structure, instrument = make_lab6(), Instrument.debye_scherrer(wavelength=0.4139)
+    with pytest.raises(ValueError, match=r"phases\.0\.atoms\.1\.biso=40.*"
+                                         r"\[0, 25\].*2·phases\.0\.atoms\.0\.biso"):
+        table.apply_to_models(structure, instrument)

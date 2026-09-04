@@ -23,6 +23,7 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
+from pydantic import ValidationError
 from scipy import sparse
 
 from ..crystallography.adp import U_NAMES
@@ -692,6 +693,61 @@ def size_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
     return hi
 
 
+def _tie_text(tie: AffineTie) -> str:
+    """``2·phases.0.atoms.0.biso + 0.5`` — a tie in the spelling a caller wrote."""
+    parts = [f"{coeff:g}\u00b7{src}" for src, coeff in tie.terms]
+    if tie.const:
+        parts.append(f"{tie.const:g}")
+    return " + ".join(parts)
+
+
+def tie_window(lo: float, hi: float, coeff: float,
+               offset_lo: float, offset_hi: float) -> tuple[float, float]:
+    """Where a source must stay for its dependent to honour *its own* bounds.
+
+    A tie says ``dependent = coeff·source + offset``, and the dependent carries
+    the schema's declared physical limits ``[lo, hi]`` — ``Biso`` in [0, 25],
+    ``occ`` in [0, 1.5], March-Dollase ``r`` in its floored range.  The solver's
+    box, though, covers the **free** column, and a tied entry is not one, so
+    nothing stops a coefficient other than 1 carrying the dependent straight
+    past a limit that is physics.  This is the interval that stops it:
+    ``lo ≤ coeff·s + offset ≤ hi`` solved for ``s``, with the sign of ``coeff``
+    swapping the ends.
+
+    ``offset_lo``/``offset_hi`` bracket everything in the tie that is *not*
+    this source — the flattened constant, every held source, and every other
+    free source at its own declared bounds.  With one source they are equal and
+    the answer is exact.  With several they are not, and the answer is the
+    **outer** box: the projection of a half-space onto one axis, which can
+    admit an infeasible corner but can never exclude a feasible point.  That
+    direction is the whole point — a relaxation bounds the runaway wherever the
+    co-sources are themselves bounded and gets out of the way where they are
+    not, whereas the inner box would quietly delete solutions the caller asked
+    for.  An unbounded co-source gives ±inf here, which is the honest answer.
+
+    Applied in :meth:`ParameterTable.bounds` beside :func:`cell_window`,
+    :func:`strain_cap_hi` and :func:`size_cap_hi`, and for the same reason they
+    live there: it is a **solver** bound for the stage about to run, derived
+    from two declarations the caller already made, never a fact about the
+    stored parameter — so it must not surface through ``ParameterRow`` or the
+    ``.rxt`` document as a claim nobody wrote.
+
+    **Prior art.**  TOPAS honours bounds inside the matrix solve and lets a
+    limit itself be an expression of other parameters (Coelho, 2018,
+    *J. Appl. Cryst.* **51**, 210, §3.2).  Structurally it never meets this
+    case at all: a constrained quantity there is an *equation* rather than a
+    parameter, so it carries no limits of its own and the limit is written on
+    the independent one, by hand and visibly.  rietx cannot copy that — its
+    limits are schema physics that go on existing after a parameter is tied —
+    so it derives what TOPAS has the user write, and reports it: a source held
+    at a window it did not declare comes back through ``bound_findings`` as
+    ``BOUND_HIT`` like any other bound the stage imposed.
+    """
+    a, b = lo - offset_hi, hi - offset_lo
+    a, b = a / coeff, b / coeff
+    return (a, b) if coeff > 0.0 else (b, a)
+
+
 class ParameterTable:
     """The tree-to-flat-θ machinery behind a fit — internal, not the agent surface.
 
@@ -1073,6 +1129,7 @@ class ParameterTable:
         c_rows: list[int] = []
         c_cols: list[int] = []
         c_vals: list[float] = []
+        tied: list[tuple[int, list[tuple[int, float]]]] = []
         d = np.zeros(n, dtype=np.float64)
         for i, e in enumerate(self.entries):
             if e.tie is None:
@@ -1092,8 +1149,65 @@ class ParameterTable:
                         c_vals.append(coeff)
                     else:
                         d[i] += coeff * self.entries[j].value
+                tied.append((i, [(j, c) for j, c in terms
+                                 if j in col and c != 0.0]))
         self._C = sparse.csr_matrix((c_vals, (c_rows, c_cols)), shape=(n, m))
         self._d = d
+        self._tie_windows = self._derive_tie_windows(tied, d)
+
+    def _derive_tie_windows(self, tied: list[tuple[int, list[tuple[int, float]]]],
+                            d: np.ndarray) -> dict[int, tuple[float, float]]:
+        """Each free source's window, intersected over every dependent it drives.
+
+        The derivation and its prior art are :func:`tie_window`'s; this is the
+        bookkeeping around it.  Two rules the arithmetic does not state.
+
+        A dependent claiming nothing on either side constrains nothing, so an
+        entry with two infinite bounds is skipped rather than contributing a
+        ±inf window — measured on this tree, that is **every tie the package
+        derives**: 52 of them across four real structures (68 with anisotropic
+        ADPs), all single-term, and not one with a finite bound, because cell
+        lengths, angles and fractional coordinates all carry the
+        :class:`~rietx.schemas.common.Parameter` default of ±inf.  So this
+        narrows a *user's* tie and provably nothing else, which is what made it
+        safe to apply unconditionally rather than behind a freeze.
+
+        Co-source ranges are read from the entries' own **declared** bounds and
+        never from another window computed here, so the result does not depend
+        on the order dependents are visited in.  Using the wider input keeps
+        every window an outer box, which is the direction :func:`tie_window`
+        needs.
+
+        An empty intersection is **refused, not clipped**: two declarations that
+        cannot both hold is the caller contradicting themselves, and this table
+        has no diagnostics channel to say so in (the rule that puts a CIF's
+        angle repair in the reader instead).
+        """
+        windows: dict[int, tuple[float, float]] = {}
+        for i, free_terms in tied:
+            e = self.entries[i]
+            if not (math.isfinite(e.lo) or math.isfinite(e.hi)):
+                continue
+            spans = [(j, c, min(c * self.entries[j].lo, c * self.entries[j].hi),
+                      max(c * self.entries[j].lo, c * self.entries[j].hi))
+                     for j, c in free_terms]
+            for j, coeff, _, _ in spans:
+                off_lo = float(d[i]) + sum(s for k, _, s, _ in spans if k != j)
+                off_hi = float(d[i]) + sum(s for k, _, _, s in spans if k != j)
+                if math.isnan(off_lo) or math.isnan(off_hi):
+                    continue          # ±inf cancelling: nothing is claimed
+                lo, hi = tie_window(e.lo, e.hi, coeff, off_lo, off_hi)
+                w_lo, w_hi = windows.get(j, (-math.inf, math.inf))
+                windows[j] = (max(w_lo, lo), min(w_hi, hi))
+        for j, (lo, hi) in windows.items():
+            e = self.entries[j]
+            if max(lo, e.lo) > min(hi, e.hi):
+                raise ValueError(
+                    f"the ties on {e.path!r} need it in "
+                    f"[{lo:g}, {hi:g}] for their dependents to stay inside "
+                    f"their own bounds, which cannot be reconciled with its own "
+                    f"[{e.lo:g}, {e.hi:g}]; widen one of the two")
+        return windows
 
     #: Paths whose freedom λ trades against.  A cell *angle* is included: a
     #: monoclinic β scales no length on its own, but the metric it enters is
@@ -1484,8 +1598,9 @@ class ParameterTable:
         of them on the entry would surface it through ``ParameterRow`` and the
         ``.rxt`` document, both of which tell a reader that bounds come from the
         schema — and there it would read as a claim the caller never made.
-        ``bound_findings`` is fed from here, so a cell that reaches its window
-        or a strain/size term held at its cap is still reported.
+        ``bound_findings`` is fed from here, so a cell that reaches its window,
+        a strain/size term held at its cap, or a tie source held where its
+        dependent's own limits put it (:func:`tie_window`) is still reported.
         """
         windowed = getattr(self, "_cell_window_phases", None)
         cap = getattr(self, "_strain_cap", None)
@@ -1494,6 +1609,13 @@ class ParameterTable:
         for i in self._free_idx:
             e = self.entries[i]
             e_lo, e_hi = e.lo, e.hi
+            tied_window = self._tie_windows.get(i)
+            if tied_window is not None:
+                # first, because it is the only one of the four derived from a
+                # bound the caller *declared* rather than from a default; the
+                # three below then narrow it further exactly as they would a
+                # stored bound.
+                e_lo, e_hi = max(e_lo, tied_window[0]), min(e_hi, tied_window[1])
             if windowed:
                 cell_name = _cell_parameter_name(e.path, phases=windowed)
                 if cell_name is not None:
@@ -1678,7 +1800,24 @@ class ParameterTable:
         values = {e.path: e.value for e in self.entries}
 
         def put(p: Parameter, path: str) -> None:
-            p.value = values[path]
+            try:
+                p.value = values[path]
+            except ValidationError as exc:
+                # A bound broken *here* is one the solver never saw: the box
+                # covers free columns, and this is where a tied value first
+                # meets the schema.  :func:`tie_window` closes the single-source
+                # case exactly, so what survives is a multi-source tie's
+                # infeasible corner — rare, and previously arriving as a bare
+                # pydantic error naming no path, no phase and no tie, *after*
+                # the solve.  Naming all three is the least a caller needs to
+                # know which of their declarations to widen.
+                entry = self.entries[self._paths[path]]
+                tie = (f"; it follows {_tie_text(entry.tie)}"
+                       if entry.tie is not None else "")
+                raise ValueError(
+                    f"writing {path}={values[path]:g} back to the model breaks "
+                    f"its own bounds [{entry.lo:g}, {entry.hi:g}]{tie}"
+                ) from exc
             if stderr is not None:
                 p.stderr = stderr.get(path)
 

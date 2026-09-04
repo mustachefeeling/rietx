@@ -38,13 +38,14 @@ from tests.test_schemas import make_lab6
 #: The four Biso coefficients of the WP's own example: 1, 1, 2, and 1 + 0.5.
 COEFFS = ((1.0, 0.0), (1.0, 0.0), (2.0, 0.0), (1.0, 0.5))
 
-#: Ceiling on the master.  ``Atom.biso`` is bounded [0, 25] and the solver
-#: bounds only the **free** column, so a dependent at coefficient 2 can be
-#: carried past its own ceiling by a master that is inside its.  That is
-#: pre-WP-1119 behaviour of ``tie`` itself (a plain ``tie(..., scale=2.0)``
-#: reproduces it with no variable anywhere), and it is the reason a variable's
-#: bounds have to be chosen for its *dependents*: they are the only bounds the
-#: solve sees.
+#: Ceiling the fixture declares on the master, kept as a *tighter* claim than
+#: the one the ties imply.  ``Atom.biso`` is [0, 25] and the coefficient-2
+#: dependent puts the master's own ceiling at 12.5
+#: (:func:`~rietx.params.vector.tie_window`), so 12.0 is the caller's, not a
+#: workaround — which is what it used to be, when the solver's box covered only
+#: the free column and a dependent at coefficient 2 sailed past its own ceiling
+#: to 50.  ``test_the_declared_ceiling_needs_no_workaround`` is the arm that
+#: leaves it at the schema's 25.
 MASTER_MAX = 12.0
 
 BISOS = [f"phases.0.atoms.{j}.biso" for j in range(4)]
@@ -495,3 +496,80 @@ def test_a_dependent_that_becomes_symmetry_tied_is_reported_and_dropped(ref):
     assert "phases.0.cell.b" not in ref._ties
     # and the variable itself is untouched: nothing followed it any more
     assert ref.remove_variable("L") == "vars.L"
+
+
+def test_the_declared_ceiling_needs_no_workaround(four_site_pattern):
+    """The whole fixture at ``Atom.biso``'s own [0, 25], and it converges.
+
+    The coefficient-2 dependent implies a ceiling of 12.5 on the master and the
+    ``+ 0.5`` one a floor of −0.5; intersected with the master's own [0, 25]
+    that is [0, 12.5], which is inside where this pattern's answer lies.  So
+    both arms reach the same fit the ``MASTER_MAX`` arms do — the workaround
+    was never load-bearing once the window exists, and this is the assertion
+    that says so rather than the comment.
+    """
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("biso", ["phases.*.atoms.*.biso", "vars.*"], max_iter=40)])
+    a = dot_path_arm()          # master_max=25.0, the schema's own
+    b = variable_arm()
+    ra, rb = a.fit(four_site_pattern, plan=plan), b.fit(four_site_pattern, plan=plan)
+    _plot(ra, "schema_ceiling_dotpath")
+    _plot(rb, "schema_ceiling_variable")
+    assert ra.statistics.rwp == rb.statistics.rwp
+    rows = {r.path: r.value for r in a.parameters()}
+    for j, (scale, offset) in enumerate(COEFFS):
+        assert 0.0 <= rows[BISOS[j]] <= 25.0
+
+
+def test_a_tie_holds_its_source_where_the_dependents_ceiling_is(four_site_pattern):
+    """A runaway that used to end in a bare pydantic error now ends at a bound.
+
+    The dependent declares a ceiling of 0.33 and follows the master at
+    coefficient 0.5, which puts the master's own ceiling at 0.66 — just under
+    the 0.6697 this pattern's answer wants.  So the fit converges properly (this
+    is the same four-stage plan the equivalence bar uses, and the plot is a good
+    one), *and* runs into the derived limit, which is the pair of things the
+    check needs.  The master stops at 0.66, the dependent at its declared 0.33,
+    and the stop is **reported** — ``bound_findings`` reads the same
+    ``bounds()`` the window is applied in, so a source held somewhere it never
+    declared comes back as ``BOUND_HIT`` like any other bound a stage imposed.
+
+    Without the window the master reaches 0.6697, the dependent 0.3348, and the
+    first thing to notice is pydantic inside ``apply_to_models`` — measured
+    below, by disabling the window on a copy of the same fit.
+    """
+    def run(*, window: bool) -> tuple[object, dict[str, float]]:
+        structure, instrument = four_site_models(true=False)
+        structure.phases[0].atoms[0].biso.value = 0.3    # starts well inside 0.66
+        structure.phases[0].atoms[1].biso.value = 0.15   # value first: max validates it
+        structure.phases[0].atoms[1].biso.max = 0.33
+        ref = rx.Refinement(structure, instrument)
+        ref.tie(BISOS[1], BISOS[0], scale=0.5)
+        if not window:
+            ParameterTable._derive_tie_windows = lambda self, tied, d: {}
+        try:
+            result = ref.fit(four_site_pattern, plan=rx.RefinementPlan(stages=[
+                rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
+                         max_iter=30),
+                rx.Stage("cell", ["phases.*.cell.*", "instrument.zero_shift"],
+                         max_iter=30),
+                rx.Stage("profile", ["instrument.profile.w", "instrument.profile.x"],
+                         max_iter=30),
+                rx.Stage("biso", [BISOS[0]], max_iter=30)]))
+        finally:
+            if not window:
+                del ParameterTable._derive_tie_windows
+        return result, {r.path: r.value for r in ref.parameters()}
+
+    result, rows = run(window=True)
+    _plot(result, "tie_window_bound")
+    assert result.statistics.rwp < 0.06                 # a converged fit, not a stuck one
+    assert rows[BISOS[0]] == pytest.approx(0.66, rel=1e-9)
+    assert rows[BISOS[1]] == pytest.approx(0.33, rel=1e-9)
+    assert rows[BISOS[1]] <= 0.33                       # inside its declared ceiling
+    assert any(d.code == "BOUND_HIT" and BISOS[0] in d.where
+               for d in result.diagnostics)
+
+    with pytest.raises(ValueError, match=r"phases\.0\.atoms\.1\.biso=0\.33.*"
+                                         r"0\.5\u00b7phases\.0\.atoms\.0\.biso"):
+        run(window=False)
