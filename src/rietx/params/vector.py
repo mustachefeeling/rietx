@@ -1896,30 +1896,45 @@ class ParameterTable:
         CIF exporter write standard uncertainties.
         """
         values = {e.path: e.value for e in self.entries}
+        #: Every (parameter, path) the walk below reaches, written only once the
+        #: walk is complete.  **The write is all-or-nothing**: the bound refusal
+        #: under ``_write`` raises part-way through a tree of hundreds of
+        #: parameters, and assigning as we go left ``structure`` holding some of
+        #: the stage's answer and some of the previous one — a model nothing
+        #: reports as damaged.  Assignment order is unchanged, and no parent
+        #: model is revalidated by a write to a ``Parameter``, so deferring the
+        #: writes cannot change what any of them sees.
+        pending: list[tuple[Parameter, str]] = []
 
         def put(p: Parameter, path: str) -> None:
+            pending.append((p, path))
+
+        def _refuse(path: str, value: float, exc: Exception | None = None):
+            # A bound broken *here* is one the solver never saw: the box
+            # covers free columns, and this is where a tied value first
+            # meets the schema.  :func:`tie_window` closes the single-source
+            # case exactly, so what survives is a multi-source tie's
+            # infeasible corner — rare, and previously arriving as a bare
+            # pydantic error naming no path, no phase and no tie, *after*
+            # the solve.  Naming all three is the least a caller needs to
+            # know which of their declarations to widen.
+            # ``ValueError`` rather than re-raising: pydantic's own
+            # ValidationError *is* a ValueError, so nothing catching the
+            # broad type notices, and nothing in the package catches the
+            # narrow one around this call.
+            entry = self.entries[self._paths[path]]
+            tie = (f"; it follows {_tie_text(entry.tie)}"
+                   if entry.tie is not None else "")
+            raise ValueError(
+                f"writing {path}={value:g} back to the model breaks "
+                f"its own bounds [{entry.lo:g}, {entry.hi:g}]{tie}"
+            ) from exc
+
+        def _write(p: Parameter, path: str) -> None:
             try:
                 p.value = values[path]
             except ValidationError as exc:
-                # A bound broken *here* is one the solver never saw: the box
-                # covers free columns, and this is where a tied value first
-                # meets the schema.  :func:`tie_window` closes the single-source
-                # case exactly, so what survives is a multi-source tie's
-                # infeasible corner — rare, and previously arriving as a bare
-                # pydantic error naming no path, no phase and no tie, *after*
-                # the solve.  Naming all three is the least a caller needs to
-                # know which of their declarations to widen.
-                # ``ValueError`` rather than re-raising: pydantic's own
-                # ValidationError *is* a ValueError, so nothing catching the
-                # broad type notices, and nothing in the package catches the
-                # narrow one around this call.
-                entry = self.entries[self._paths[path]]
-                tie = (f"; it follows {_tie_text(entry.tie)}"
-                       if entry.tie is not None else "")
-                raise ValueError(
-                    f"writing {path}={values[path]:g} back to the model breaks "
-                    f"its own bounds [{entry.lo:g}, {entry.hi:g}]{tie}"
-                ) from exc
+                _refuse(path, values[path], exc)
             if stderr is not None:
                 p.stderr = stderr.get(path)
 
@@ -1972,3 +1987,13 @@ class ParameterTable:
         # stage's recompile
         for sub, cp in background_peak_parameters(instrument.background_peaks):
             put(cp, f"instrument.background_peaks.{sub}")
+        # the walk is over.  Check every value against the schema *before*
+        # assigning any of them, so the refusal below leaves the models exactly
+        # as it found them; the assignment pass keeps the guard as a backstop
+        # for anything the check does not model.
+        for p, path in pending:
+            v = values[path]
+            if not (p.min <= v <= p.max):
+                _refuse(path, v)
+        for p, path in pending:
+            _write(p, path)

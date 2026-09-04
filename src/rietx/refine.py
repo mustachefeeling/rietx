@@ -133,7 +133,14 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     """
     if mode not in ("lebail", "pawley"):
         return False
-    return ".atoms." in path or path.endswith(".scale") or ".source.lines." in path
+    # The scale test is anchored at ``phases.``, not left as a bare suffix: the
+    # only path that ends in ``.scale`` is a phase's, and since WP-1119 a
+    # caller's own ``add_variable("scale", …)`` produces ``vars.scale``, which
+    # the suffix alone force-fixed — a variable held in Le Bail and Pawley for
+    # spelling its name like a phase parameter.
+    return (".atoms." in path
+            or (path.startswith("phases.") and path.endswith(".scale"))
+            or ".source.lines." in path)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1200,9 +1207,17 @@ class Refinement:
                     f"[{entry.lo}, {entry.hi}]")
         specs = {path: TieSpec(terms=list(terms), const=offset, user=True)
                  for path, (terms, offset) in spec.items()}
+        # **The table first, the register second, and never interleaved.**
+        # ``set_tie`` rebuilds the affine block, which raises on a cycle — now
+        # reachable through a user's own ties, since WP-1119 lets a variable be
+        # a tied source.  Interleaved, a group whose *second* target closes a
+        # cycle left the first one in ``self._ties`` with no history node and no
+        # table: half a ``tie_equal``, applied by a call that reported failure.
+        # The table is thrown away on the raise, so writing it first costs
+        # nothing and makes the declaration the single move it says it is.
         for path, (terms, offset) in spec.items():
             table.set_tie(path, AffineTie(terms=tuple(terms), const=offset))
-            self._ties[path] = specs[path]
+        self._ties.update(specs)
         self._commit_tie_edit(table, ties=specs, untied=[])
         return list(spec)
 
