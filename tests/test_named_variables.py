@@ -11,6 +11,8 @@ nothing.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -46,6 +48,19 @@ COEFFS = ((1.0, 0.0), (1.0, 0.0), (2.0, 0.0), (1.0, 0.5))
 MASTER_MAX = 12.0
 
 BISOS = [f"phases.0.atoms.{j}.biso" for j in range(4)]
+
+#: Every test refinement writes its obs/calc/diff for visual inspection
+#: (`tests/CLAUDE.md`), because Rwp hides a locally bad fit — and here the two
+#: arms are meant to be the *same* fit, so the pair being indistinguishable by
+#: eye is the claim these tests make numerically.
+OUT = Path(__file__).parent / "output"
+
+
+def _plot(result, tag: str) -> None:
+    OUT.mkdir(exist_ok=True)
+    result.plot(path=str(OUT / f"vars_{tag}.png"))
+    result.plot(path=str(OUT / f"vars_{tag}_lowangle.png"),
+                two_theta_range=(3.0, 10.0))
 
 
 def four_site_models(*, true: bool, master_max: float = 25.0):
@@ -276,6 +291,8 @@ def test_the_fit_is_bit_identical_where_the_column_order_coincides(
     a, b = dot_path_arm(master_max=MASTER_MAX), variable_arm(master_max=MASTER_MAX)
     ra = a.fit(four_site_pattern, plan=plan)
     rb = b.fit(four_site_pattern, plan=plan)
+    _plot(ra, "onecol_dotpath")
+    _plot(rb, "onecol_variable")
 
     assert a._working_table().free_paths == [BISOS[0]]
     assert b._working_table().free_paths == ["vars.B_metal"]
@@ -294,33 +311,62 @@ def test_the_converged_fit_agrees_when_the_variable_sits_elsewhere_in_theta(
         four_site_pattern):
     """A variable is appended, so in a multi-stage plan it is θ's *last* column.
 
-    The columns are identical (above) and a one-column fit is bit-identical
-    (above), so what is left is scipy's TRF reading the same columns in a
-    different order — measured at 1.6e-9 relative on the refined Biso and
-    7.8e-14 on Rwp.  The bar is set an order of magnitude above that and is a
-    statement about the **solver**, not about this feature: the parameter count
-    and every physical answer agree far inside any esd (the master's is 0.19).
+    The columns are identical (above) and a one-free-column fit is bit-identical
+    (above), so all that is left here is scipy's TRF reading the same columns in
+    a different order.  Measured on this fixture (Rwp 0.0419, GoF 1.03, nine
+    free), that costs **nothing**: Rwp, the per-stage iteration counts and every
+    refined value come back bit for bit, and the master's esd within one ulp
+    (4.2e-16 relative).
+
+    The bar is `rel=1e-9` rather than an equality, and it carries its margin
+    both ways rather than being picked.  Above: the agreement it must pass is
+    4.2e-16, six orders under it.  Below: with `_column_identities` disabled —
+    the variable's column back on the whole-model FD fallback — the same
+    comparison returns **1.14e-8** on the refined Biso and 4.1e-9 on its esd,
+    eleven times over the bar, and the last stage stops at **4 iterations
+    instead of 9** because the approximate column convinces the solver it has
+    converged.  An equality is the wrong shape here for the reason
+    `tests/CLAUDE.md` gives: a tolerance between two independently-converged
+    fits is a cross-platform claim, and this measurement is one platform.
     """
     plan = rx.RefinementPlan(stages=[
         rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
                  max_iter=30),
-        rx.Stage("cell", ["phases.*.cell.*"], max_iter=30),
+        rx.Stage("cell", ["phases.*.cell.*", "instrument.zero_shift"],
+                 max_iter=30),
+        # The fixture perturbs the profile width 2x, so a plan that never frees
+        # it converges at Rwp ~0.57 and every esd it quotes is inflated by the
+        # misfit — which would make "the two arms agree far inside the esd" a
+        # weaker statement than it reads as (tests/CLAUDE.md: look at the plot).
+        # `w` and `x` only, not `profile.*`: this pattern does not determine
+        # `u`, `v` or `y`, and `y` in particular sits on its softplus floor, so
+        # the whole glob leaves a near-flat direction in the free set. That
+        # costs nothing in the fitted *values* — they agree between the two arms
+        # to 3e-9 of an esd either way — but it makes the **esds** themselves
+        # order-sensitive at 1e-4, since `normal_covariance` equilibrates and
+        # then cuts eigenvalues at `rcond·|λ|max`, and a near-threshold
+        # eigenvalue is decided differently under a different column order.
+        rx.Stage("profile", ["instrument.profile.w", "instrument.profile.x"],
+                 max_iter=30),
         rx.Stage("biso", ["phases.*.atoms.*.biso", "vars.*"], max_iter=30),
     ])
     a, b = dot_path_arm(), variable_arm()
     ra = a.fit(four_site_pattern, plan=plan)
     rb = b.fit(four_site_pattern, plan=plan)
+    _plot(ra, "converged_dotpath")
+    _plot(rb, "converged_variable")
 
     assert (ra.statistics.n_free_parameters
             == rb.statistics.n_free_parameters), "a renaming changed the count"
-    assert rb.statistics.rwp == pytest.approx(ra.statistics.rwp, rel=1e-12)
+    assert [s.n_iterations for s in ra.stages] == [s.n_iterations for s in rb.stages]
+    assert rb.statistics.rwp == pytest.approx(ra.statistics.rwp, rel=1e-9)
     for j in range(4):
         x = a.fitted_structure.phases[0].atoms[j].biso.value
         y = b.fitted_structure.phases[0].atoms[j].biso.value
-        assert y == pytest.approx(x, rel=1e-8)
+        assert y == pytest.approx(x, rel=1e-9)
     esd_a = {p.path: p.stderr for p in ra.parameters}[BISOS[0]]
     esd_b = {p.path: p.stderr for p in rb.parameters}["vars.B_metal"]
-    assert esd_b == pytest.approx(esd_a, rel=1e-8)
+    assert esd_b == pytest.approx(esd_a, rel=1e-9)
 
 
 def test_the_parameter_count_drops_by_the_number_of_dependents(ref, pattern):
@@ -349,7 +395,7 @@ def test_a_fit_moves_the_variable_and_the_next_build_starts_from_there(
         rx.Stage("biso", ["phases.*.atoms.*.biso", "vars.*"], max_iter=40)])
     ref = variable_arm(master_max=MASTER_MAX)
     declared = ref._variables["B_metal"].value
-    ref.fit(four_site_pattern, plan=plan)
+    _plot(ref.fit(four_site_pattern, plan=plan), "write_back")
 
     refined = ref._variables["B_metal"].value
     assert refined != declared

@@ -98,7 +98,7 @@ PR #111; the exporter registry next. Two contributor PRs wait on review
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
-(1326–1329); the older three, 1119, 1130 and 1133. The **2026-09-03 triage**
+(1326–1329); the older two, 1130 and 1133. The **2026-09-03 triage**
 adds 1332–1341 — three more on what fires and what stays silent, three costs
 a multi-hundred-pattern campaign paid that a single fit never sees, three
 views over what a fit already knows, and the skill's own gates — and folded
@@ -455,7 +455,7 @@ first concrete ask.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | 🔄 2026-09-01 | — |
-| [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ⬜ | — |
+| [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ✅ 2026-09-04 | — |
 | [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | 1118 |
 | [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | — |
 

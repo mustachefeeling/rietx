@@ -135,6 +135,22 @@ missing from its arm applies unchanged. A new format token is spelled in
 
 ### Inherited
 
+- **2026-09-04, from [1119](1119-named-variables.md): the equation boundary you
+  parked there is decided, and it is drawn short of a parser.** 1119 shipped
+  `Refinement.add_variable` — a caller's own `Parameter` at `vars.<name>` that
+  other parameters follow by affine tie, with `tie` now taking several sources
+  — and **deliberately no expression string**, for four reasons its Decisions
+  § 4 records in full (chiefly that it would be the second parser for one
+  language, against the nonlinear DSL `Parameter.expr` is reserved for). So:
+  the object a reader would target now exists, and the arithmetic your two
+  readers carry privately (`topas.symbol_table`/`_resolve`/`_arith`, the
+  `.pcr` codeword decoder) is still theirs — 1119 explicitly did not redeclare
+  it. **The consequence for the registry-shape task and for #107**: a general
+  macro pass is *not* blocked on rietx growing an expression language, because
+  rietx is not growing one; if `STR(...)` needs a macro pass, it is a `.inp`
+  grammar concern that lives entirely in `io/projects/topas.py` and answers to
+  the Technical Reference, not to anything here. Decide it there.
+
 - **2026-09-03, from the issue triage (issue #234): the `.gpx` non-goal's
   stated reason does not hold, and the real obstacle is worse than the one
   written down.** A `.gpx` is **not** one pickled object and not a container

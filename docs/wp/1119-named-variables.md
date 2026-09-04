@@ -1,6 +1,7 @@
 # WP-1119 — named variables and equations: a `prm` of one's own
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-04 — named variables ship, and the
+equivalence bar caught the Jacobian dispatching on a name
 Depends on: — (WP-1070 built the affine block this extends; 1118 is its first
 non-human consumer, and needs this to land in)
 
@@ -259,15 +260,32 @@ them is true:
   either way (the "agreeing with the wrong oracle" trap the root CLAUDE.md
   records for a phase scale's column) — and it is the check that **found the
   defect**, below.
-- **The converged fit is bit-identical only where θ's column order coincides.**
-  A variable is *appended* to the table, so in a multi-stage plan it is the last
-  column while the dot-path master sits in the middle. Same columns, different
-  order, and scipy's TRF is order-dependent in its last bits. With one free
-  column, both arms put it at index 0 and Rwp, χ², the iteration count, all four
-  dependents and the esd come back bit-identical. With six, Rwp differs by
-  7.8e-14 and the refined Biso by 1.6e-9 relative — against an esd of 0.19 on
-  that parameter. The test carries `rel=1e-8` and says in its docstring that the
-  bar is a statement about the **solver**, not about this feature.
+- **The converged fit is bit-identical too, once the fit is a good one.** A
+  variable is *appended* to the table, so in a multi-stage plan it is θ's last
+  column while the dot-path master sits in the middle — same columns, different
+  order, and scipy's TRF need not be indifferent to that. Measured, it is: on
+  the four-stage plan (Rwp 0.041927047660878604, GoF 1.03, nine free) Rwp, the
+  per-stage iteration counts `[9, 15, 7, 9]` and **every** refined value agree
+  bit for bit, with the master's esd within one ulp (4.2e-16 relative).
+  The test still carries `rel=1e-9` rather than an equality, because a
+  tolerance between two independently-converged fits is a cross-platform claim
+  and this is one platform (`tests/CLAUDE.md`) — and that bar has its margin
+  measured both ways: 4.2e-16 above it in agreement, and **1.14e-8** below it
+  when `_column_identities` is disabled, eleven times over.
+
+  **An earlier draft of this bar read 1.6e-9, and the number was an artefact of
+  a bad fixture.** The first plan never freed the profile width the fixture
+  perturbs 2×, so both arms converged at Rwp 0.57 with GoF 13.9 — visible
+  immediately in the obs/calc/diff PNG, which is what that standing rule is for
+  — and a solver wandering through a badly misfit problem amplified the column
+  ordering into the ninth digit. The plot, not the assertion, is what said so.
+  A second draft freed `instrument.profile.*` whole and moved the esd
+  disagreement to 8.7e-5, which was a different lesson and also real: the free
+  set then contains `profile.y` sitting on its softplus floor, and
+  `normal_covariance` equilibrates and cuts eigenvalues at `rcond·|λ|max`, so a
+  near-threshold eigenvalue is decided differently under a different column
+  order. The *values* agreed to 3e-9 of an esd throughout. The fixture now
+  frees `w` and `x` only, which this pattern determines.
 - The parameter count drops by exactly the number of dependents, and rises by
   one for the variable.
 - The variable survives a history checkout and a `history.jsonl` round trip, and
@@ -350,6 +368,134 @@ meets them.
   authorities above. [1110](1110-agent-surface-friction.md) — items 5 and 16.
 
 ## Handover log
+
+### 2026-09-04 — named variables ship, and the bar caught a silent FD column
+
+You can now name a quantity and constrain parameters to it, instead of
+nominating one of them as the master: `ref.add_variable("B_metal", 0.7, min=0,
+max=25)` gives `vars.B_metal`, an ordinary dot-path that the parameter listing
+shows, `set_vary("vars.*")` frees, a fit refines and reports an esd for, and
+that survives a checkout. Three oxygens can now share *one displacement
+parameter* rather than sharing *atom 4's*, which is what the crystallography
+actually says. But the feature is not the session's result. Testing whether the
+new spelling really was a renaming exposed a defect in code nobody was
+suspecting: the Jacobian dispatches on a free parameter's **name**, so a
+variable — a name no analytic branch was written for — silently took the
+whole-model finite-difference column, while the identical constraint written the
+old way took the analytic peak chain. That is a column 8.6e-7 wrong and an extra
+full residual evaluation per iteration, and nothing was red, because the FD
+fallback is exact-but-approximate rather than short. It is fixed by dispatching
+on what a column *reaches* rather than on what it is called.
+
+The negative results are worth as much. There is **no expression parser** and
+deliberately so, with the four reasons and the case against them both written
+down so nobody re-takes the decision. And the WP's own acceptance bar — "the two
+spellings must be bit-identical, anything else is a bug" — turned out to be
+wrong as written, which the measurement had to say rather than accommodate.
+
+*Done*, six commits:
+
+- **The object** (Decisions § 1). A variable is a `schemas.common.Parameter`
+  with a name, appended by `ParameterTable.add_parameter` at `vars.<name>` —
+  the shape a Wyckoff DOF already uses. Reusing `Parameter` rather than
+  inventing a type is what makes the equivalence reachable at all: `_add` reads
+  an entry's bounds *and* transform straight off one, so a variable declared
+  like the parameter it replaces produces the identical `Entry`.
+- **Persistence**, the genuinely new part. A Wyckoff DOF is rederived from the
+  structure every build and written back through the coordinates; a variable is
+  in the models nowhere, so `apply_to_models` has nothing to write it to.
+  `Refinement._variables` is its model — `_declare_variables` re-declares it on
+  each of the four table builds (before `_apply_ties`, since a tie may name it),
+  and `_write_back` wraps all seven working-state write-backs to carry its
+  refined value home. Without that second half the next build re-declares the
+  variable at its *created* value and silently undoes the fit for everything
+  following it. `RefinementState.variables` and a `set_variable` node kind carry
+  it into the history; `SCHEMA_VERSION` 0.15 → 0.16.
+- **Verbs**: `add_variable`, `remove_variable` (refuses under a dependent,
+  naming it), and `tie` taking `{path: coefficient}` or pair lists with `scale`
+  multiplying every term. The representation was always `Σ c·src + const`; only
+  the verb was single-term.
+- **The chain rule** (Decisions § 2): a tied source is accepted **iff it is a
+  variable**. Measured both ways first — `_flatten` already collapses a depth-2
+  chain exactly and raises on cycles, and nothing the package derives reaches
+  depth 2, so the old refusal was a judgement rather than a limit.
+- **`_column_identities`**, the fix above.
+- Manual `{ref}`named-variables``, the `history.md` rows, and skill
+  `references/surprises.md` § 8.22.
+
+*Measured* — macOS darwin 25.5.0, worktree `.venv`, python 3.12, `[dev]` extras
+(no jax/torch, so the cross-backend rows self-skip). Full numbers in
+§ Acceptance; the headlines:
+
+- Fast selection **4242 passed, 122 skipped** against a 4227 baseline on the
+  same tree — **+17 exactly**, which is `tests/test_named_variables.py`, and
+  **no new skip**. Full selection **4407 passed, 131 skipped**, 24:46, green;
+  no full baseline was taken (CI's job), so that is quoted as green with a
+  delta consistent with the fast one rather than as an exact difference.
+  `pgrep` showed no other suite running.
+- The variable's Jacobian column sat **8.6e-7** from the analytic one before
+  the fix and is bit-identical after it, as is the residual.
+- Two spellings of one constraint come out **bit-identical**: Rwp, the
+  per-stage iteration counts and every refined value, with the master's esd
+  within one ulp (4.2e-16). True both with one free column and with nine, so
+  the variable sitting at a different index of θ costs nothing here. The test's
+  `rel=1e-9` has its margin measured both ways — 4.2e-16 above, and **1.14e-8**
+  below with `_column_identities` disabled, where the last stage also stops at 4
+  iterations instead of 9 because the FD column convinces the solver it has
+  converged.
+
+*Gotchas*, and the first two are not this WP's to fix:
+
+- **A tie bounds only its source.** The solver's box covers the free column and
+  a tied parameter is not one, so `tie(..., scale=2.0)` can carry a dependent
+  past its own `max` — measured at 49.99999999999999 against `Atom.biso`'s
+  ceiling of 25 — and it surfaces as a pydantic `ValidationError` inside
+  `apply_to_models`, naming no path, no tie and no phase, *after* the solve.
+  Pre-existing and reproducing with no variable anywhere. A fix has to choose
+  between refusing at declaration (which cannot know where the fit will go),
+  narrowing the free column's box by the coefficients (correct, and it moves
+  existing fits), or a `Diagnostic` — a decision, not a repair. Skill § 8.22
+  carries the agent-facing half.
+- **The equivalence bar was wrong twice before it was right, and the plot said
+  so first.** Draft one never freed the profile width the fixture perturbs 2×,
+  so both arms converged at Rwp 0.57, GoF 13.9 — obvious in the obs/calc/diff
+  PNG the standing rule requires, and invisible in an assertion that passed —
+  and a solver wandering through a misfit problem put the two column orders
+  1.6e-9 apart. Draft two freed `instrument.profile.*` whole, which leaves
+  `profile.y` on its softplus floor and moved the *esd* disagreement to 8.7e-5:
+  `normal_covariance` equilibrates then cuts eigenvalues at `rcond·|λ|max`, and
+  a near-threshold one is decided differently under a different column order.
+  Values agreed to 3e-9 of an esd throughout both. Freeing `w` and `x` only —
+  what this pattern determines — gives the bit-identity above. **The numbers a
+  bar quotes are only as good as the fit under it**, and a converged-looking
+  assertion is not evidence the fit converged.
+- **`multi.py` and `sequential.py` know nothing about variables.** A joint
+  multi-histogram residual builds its own `MultiParameterTable`, and a series
+  builds a `Refinement` per pattern; neither is wired, and neither was in
+  scope. A variable is a `Refinement` surface today.
+- **A synthetic entry declared after the first stage loses to the free-set
+  restore.** `add_variable(vary=True)` came back held because `_prepare_table`
+  clears every vary flag and replays `_free_paths`, a list written before the
+  variable existed. Fixed here by appending the path there, but the shape will
+  catch anything else added after a stage has run.
+- `_write_back` briefly grew a `stderr=` argument mirroring
+  `apply_to_models`, with no caller — the WP-1076 shape, added by this branch
+  and removed in review before the PR.
+
+*In flight beside this*: [1130](1130-background-reference.md), in a sibling
+worktree and landing first. Every file merges clean except
+`references/surprises.md`, where it takes 8.21 and this takes 8.22 and both
+rewrite the title; the resolution is to keep both rows in order under
+"Twenty-two". The merged tree was measured before that row landed: **4247
+passed, 122 skipped**, green.
+
+*Next*, and none of it is this WP's: **cut the WP for issue #212** — the
+cross-phase linear restraint row, whose seam is written out in
+[1325](1325-parametric-series.md)'s `### Inherited` along with why it is not a
+tie. Then, if anyone wants it, the bounds decision in the first gotcha, which is
+the only thing here that can bite a user silently. [1118](1118-foreign-model-files.md)
+has been told its equation boundary is settled and that #107 is a `.inp` grammar
+question rather than a rietx one.
 
 - **2026-08-21** — created, from the session that closed 1110. The Context
   block's demo is this tree's measured behaviour, not a sketch: the linear
