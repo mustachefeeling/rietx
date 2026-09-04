@@ -1183,7 +1183,9 @@ class ParameterTable:
         has no diagnostics channel to say so in (the rule that puts a CIF's
         angle repair in the reader instead).
         """
-        windows: dict[int, tuple[float, float]] = {}
+        # each side carries the dependent that set it, because the fix for a
+        # window is almost never on the parameter the window is *on*
+        acc: dict[int, tuple[float, str, float, str]] = {}
         for i, free_terms in tied:
             e = self.entries[i]
             if not (math.isfinite(e.lo) or math.isfinite(e.hi)):
@@ -1197,17 +1199,25 @@ class ParameterTable:
                 if math.isnan(off_lo) or math.isnan(off_hi):
                     continue          # ±inf cancelling: nothing is claimed
                 lo, hi = tie_window(e.lo, e.hi, coeff, off_lo, off_hi)
-                w_lo, w_hi = windows.get(j, (-math.inf, math.inf))
-                windows[j] = (max(w_lo, lo), min(w_hi, hi))
-        for j, (lo, hi) in windows.items():
+                if math.isnan(lo) or math.isnan(hi):
+                    continue          # …and again once the bound is subtracted
+                w_lo, from_lo, w_hi, from_hi = acc.get(
+                    j, (-math.inf, e.path, math.inf, e.path))
+                if lo > w_lo:
+                    w_lo, from_lo = lo, e.path
+                if hi < w_hi:
+                    w_hi, from_hi = hi, e.path
+                acc[j] = (w_lo, from_lo, w_hi, from_hi)
+        for j, (lo, from_lo, hi, from_hi) in acc.items():
             e = self.entries[j]
             if max(lo, e.lo) > min(hi, e.hi):
+                blame = from_lo if lo > e.lo else from_hi
                 raise ValueError(
-                    f"the ties on {e.path!r} need it in "
-                    f"[{lo:g}, {hi:g}] for their dependents to stay inside "
-                    f"their own bounds, which cannot be reconciled with its own "
-                    f"[{e.lo:g}, {e.hi:g}]; widen one of the two")
-        return windows
+                    f"{blame!r} follows {e.path!r}, and staying inside its own "
+                    f"bounds needs {e.path} in [{lo:g}, {hi:g}] — which cannot "
+                    f"be reconciled with {e.path}'s own [{e.lo:g}, {e.hi:g}]. "
+                    f"Widen one of the two, or change the tie's coefficient")
+        return {j: (lo, hi) for j, (lo, _, hi, _) in acc.items()}
 
     #: Paths whose freedom λ trades against.  A cell *angle* is included: a
     #: monoclinic β scales no length on its own, but the metric it enters is

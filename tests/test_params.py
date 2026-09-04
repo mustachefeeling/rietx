@@ -428,7 +428,11 @@ def test_a_second_source_widens_the_window_to_an_outer_box():
 def test_two_bounds_that_cannot_both_hold_are_refused_not_clipped():
     table = make_table()
     table.add_parameter("synthetic.big", 30.0, vary=True, lo=30.0, hi=40.0)
-    with pytest.raises(ValueError, match="cannot be reconciled"):
+    # and it names the *dependent*, which is where the fix usually is: the
+    # window is on the source, and widening the source is the wrong move.
+    with pytest.raises(ValueError, match=r"'phases\.0\.atoms\.1\.biso' follows "
+                                         r"'synthetic\.big'.*\[0, 12\.5\].*"
+                                         r"\[30, 40\]"):
         table.set_tie("phases.0.atoms.1.biso",
                       AffineTie(terms=(("synthetic.big", 2.0),)))
 
