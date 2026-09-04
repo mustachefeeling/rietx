@@ -327,18 +327,32 @@ depth-2 user chain (`C = 3B+1`, `B = 2A+0.5`) to coefficient 6.0 and constant
 nothing the package derives reaches depth 2.
 
 **Suite**, re-measured on the final tree after the second session. `-m "not
-slow"` **4258 passed, 127 skipped** (TBD s), against the **4247 passed, 127
-skipped** the first session left — **+11 passed, no new skip**, which is
-exactly the tests the tie-window work added: ten in `tests/test_params.py` and
-two in `tests/test_named_variables.py`. The first session's own arithmetic
-stands below it: 4247/127 against a **4227 passed, 122 skipped** pre-WP
-baseline on the same tree, +20 passed and +5 skipped, being 17 named-variable
-tests, one `test_cross_backend` meta-test and seven instances of its new
-`families_variable` row, five of which are jax/torch methods and so *skip* on a
-`[dev]` venv. The **full** selection is **4423 passed, 136 skipped** in 25:56,
-green. Its value is not the count: `_column_identities` and `tie_window` both
-sit in code every acceptance fit goes through — the Jacobian dispatch and the
-solver's box — and no acceptance number moved.
+slow"` **4262 passed, 127 skipped** (140 s), and the arithmetic needs the merge
+in it: the first session left **4247 passed, 127 skipped** on the *pre-merge*
+tree, `origin/main` then brought **3** fast tests of its own
+(`test_absent_phase.py` two, `test_background_peaks.py` one — counted from the
+diff, not assumed), and this session added **12** — ten in `tests/test_params.py`
+and two in `tests/test_named_variables.py`. 4247 + 3 + 12 = 4262, **no new
+skip**. The first session's own arithmetic stands under that: 4247/127 against
+a **4227 passed, 122 skipped** pre-WP baseline on the same tree, +20 passed and
++5 skipped, being 17 named-variable tests, one `test_cross_backend` meta-test
+and seven instances of its new `families_variable` row, five of which are
+jax/torch methods and so *skip* on a `[dev]` venv.
+
+The **full** selection is **4423 passed, 136 skipped** in 25:56, green, on the
+merged tree at `4645793b` — one commit before the last of those twelve tests,
+so it carries eleven of them, and its delta is quoted as consistent with the
+fast one rather than exact (`tests/CLAUDE.md` § Quoting numbers: both ends of an
+exact full-suite check cost an hour of machine time). The commit it does not
+carry adds one test and widens a window to admit its source's current value,
+which nothing in that run could reach — a source outside its own window would
+have made `least_squares` refuse `x0`, and none did. The full run's value is not
+its count anyway: `_column_identities` and `tie_window` sit in the Jacobian
+dispatch and the solver's box every acceptance fit goes through, and no
+acceptance number moved. **One caveat on its wall clock**: a 21-test serial
+selection was started beside it by mistake, so 25:56 is not a clean figure. The
+counts are unaffected, and `tests/CLAUDE.md` § Running already says why the
+mistake matters.
 
 **Merged against [1130](1130-background-reference.md)**, which was in flight in
 a sibling worktree and lands first. `params/vector.py` merges clean (1130 is in
@@ -556,7 +570,9 @@ question.
   the schema's own [0, 25].
 - The manual's mixed-site tie: `occ₀` now runs against **[0, 1]**, not `occ`'s
   declared [0, 1.5].
-- Suite figures: see § Acceptance, re-measured on this tree.
+- Suite figures in § Acceptance: fast **4262 passed, 127 skipped**, whose
+  delta needs the merge in it (4247 + 3 of main's + 12 of this session's);
+  full **4423 passed, 136 skipped**, green, one commit back.
 
 *Gotchas*
 
