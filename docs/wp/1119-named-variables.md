@@ -508,6 +508,99 @@ the three it found *and* fixed are in the session entry below.
 
 ## Handover log
 
+### 2026-09-04 (3rd session) — the agent review the last entry said had not run
+
+The entry below closes by admitting that `/code-review medium --fix` never ran
+on this branch, because the session was told not to spawn agents, and that
+reading the diff by hand had found three things where the agent pass had found
+nine for the first session. It has now run. It found five more, and three of
+them were real bugs that a hand read had been over twice without seeing. All
+three are the same shape and it is the shape this WP created: **a call that
+fails part-way and leaves the state it was changing half-changed.** Letting a
+user tie parameters to a variable of their own is what made a cyclic
+declaration reachable, and a raise on the second target of a group used to
+leave the first one tied with no history node behind it. Nothing here changes
+what a converged fit returns; it changes what happens when a caller gets a
+declaration wrong, which is the only thing a constraint surface is really for.
+
+*Done* — three fixes, each its own commit, plus the record:
+
+- **`_declare_ties` wrote the register inside the apply loop.** `set_tie`
+  rebuilds the affine block and raises on a cycle, so `tie_equal` over a group
+  whose second target closed one left the first in `Refinement._ties` with the
+  table thrown away and no node committed — half a declaration, from a call
+  that reported failure. Every `set_tie` first, `self._ties.update(specs)`
+  after. The table is discarded on the raise either way, so ordering it costs
+  nothing.
+- **`mode_fixed_path` force-fixed a variable named `scale`.** The test was a
+  bare `path.endswith(".scale")`, which matches `vars.scale`, so
+  `add_variable("scale", …)` was silently held in Le Bail and Pawley for
+  spelling its name like a phase parameter. Anchored at `phases.`.
+- **`apply_to_models` assigned as it walked.** The bound refusal the session
+  below added fires part-way through a tree of hundreds of parameters, so
+  `structure` and `instrument` were left holding some of the stage's answer and
+  some of the previous one, with nothing reporting the damage — and that path
+  is now documented and reachable by design, not a corner. The walk collects
+  `(parameter, path)`, a check pass raises before anything is assigned, then a
+  write pass assigns; the `ValidationError` catch stays as a backstop for
+  anything the check does not model.
+
+- **The two it declined to fix are recorded above** (§ Findings recorded rather
+  than fixed) and the correctness one is cut as
+  [1342](1342-a-freeze-that-reads-names.md): `_unsupported_phase_paths` and
+  `mode_fixed_path`'s callers filter `free_paths` by a `phases.N.` prefix, so a
+  phase driven through a variable escapes [1301](1301-hold-unsupported-phase.md)'s
+  hold entirely. That is CLAUDE.md's `moving_paths`-not-`free_paths` rule one
+  rank above where the Jacobian already applies it. It needed its own WP
+  because 1301 is closed, and because holding a column that reaches several
+  phases is a decision, not a lookup. The `.rxt` finding stays a record: no
+  data loss, and a `FORMAT_VERSION` bump for a cosmetic row should ride with
+  the next grammar change rather than be spent on one.
+- **No skill row, and no CLAUDE.md line.** Every fix here makes a wrong
+  declaration fail cleanly where it used to half-succeed; nothing an agent
+  driving rietx does changes, and "the verb behaves as documented" is not a
+  rule worth a row. No physics landed, so no Part 2 equation is owed, and no
+  field, `Literal` member or default was declared.
+
+*Measured* — same venv and platform as the entries below (worktree `.venv`
+from `[dev]`, macOS/darwin, numpy backend).
+
+- **Fast selection 4262 passed, 127 skipped** — *identical* to the entry below,
+  which is the check this session owed: it added no test, so passed+skipped
+  must not move, and it did not.
+- Full selection, on the merged tree: FULL_PLACEHOLDER. `origin/main` had not
+  moved since the merge at 08:35, so the branch tree *is* the merged tree and
+  no second merge was needed.
+- **The `scale` anchoring is provably a no-op on every real path**, which is
+  the evidence that no acceptance number can move: the only path literal in
+  `ParameterTable._collect`/`apply_to_models` ending in `.scale` is
+  `f"{base}.scale"` under `base = f"phases.{ip}"`, and `BACKGROUND_PEAK_FIELDS`
+  is `("position", "height", "fwhm")`. The other two fixes are identical to
+  the old code on every path that does not raise.
+
+*Gotchas*
+
+- **A hand read is not a substitute for the agent pass, and this WP now has the
+  measurement.** Two sessions read this diff by hand; the second one found
+  three things and wrote that the first two were "the kind an agent pass is
+  good at". The pass then found three more of exactly that kind, in code both
+  reads had covered. The rule already in the protocol — step 9 is not optional
+  — is what to carry; the entry below is the counter-example.
+- **The ROADMAP 645-line cap has no headroom, and every capped document sits
+  exactly on its cap.** Adding a WP row costs a line of narrative somewhere.
+  Here 1324's measurement was already restated in 1320, so the pointer paid for
+  the row; a session that needs to add two rows should expect to move a
+  paragraph to a milestone record rather than to trim twice.
+
+*Next*, unchanged in order from the entry below and still not this WP's work.
+**Cut the WP for issue #212**, the cross-phase linear restraint row, whose seam
+is in [1325](1325-parametric-series.md)'s `### Inherited`; it has a waiting
+filer. Then [1337](1337-an-authored-refusal-not-a-traceback.md), whose #246 no
+longer reproduces as its text says. [1342](1342-a-freeze-that-reads-names.md)
+now sits behind both: it is a silent wrong answer rather than a missing
+feature, but it fires only for a caller who ties a variable to a phase the data
+cannot see, and nobody has.
+
 ### 2026-09-04 (2nd session) — the TOPAS comparison closes the tie-bounds hole
 
 Reading the shipped surface back against TOPAS's `prm` confirmed the design in

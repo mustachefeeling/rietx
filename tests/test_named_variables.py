@@ -319,16 +319,22 @@ def test_the_converged_fit_agrees_when_the_variable_sits_elsewhere_in_theta(
     refined value come back bit for bit, and the master's esd within one ulp
     (4.2e-16 relative).
 
-    The bar is `rel=1e-9` rather than an equality, and it carries its margin
-    both ways rather than being picked.  Above: the agreement it must pass is
-    4.2e-16, six orders under it.  Below: with `_column_identities` disabled —
-    the variable's column back on the whole-model FD fallback — the same
-    comparison returns **1.14e-8** on the refined Biso and 4.1e-9 on its esd,
-    eleven times over the bar, and the last stage stops at **4 iterations
-    instead of 9** because the approximate column convinces the solver it has
-    converged.  An equality is the wrong shape here for the reason
-    `tests/CLAUDE.md` gives: a tolerance between two independently-converged
-    fits is a cross-platform claim, and this measurement is one platform.
+    The bar on the refined values is `rel=1e-9` rather than an equality, and it
+    carries its margin both ways rather than being picked.  Above: the
+    agreement it must pass is 4.2e-16 on macOS, six orders under it, and under
+    the bar again on Linux.  Below: with `_column_identities` disabled — the
+    variable's column back on the whole-model FD fallback — the same comparison
+    returns **1.14e-8** on the refined Biso, eleven times over, and the last
+    stage stops at **4 iterations instead of 9** because the approximate column
+    convinces the solver it has converged.  An equality is the wrong shape here
+    for the reason `tests/CLAUDE.md` gives: a tolerance between two
+    independently-converged fits is a cross-platform claim, and this
+    measurement is one platform.
+
+    **The esd is not one of the discriminating arms** and its bar is 1e-6; the
+    comment beside it has the measurement that settled that, and the two arms
+    that do carry the claim are the values above and the integer iteration
+    counts.
     """
     plan = rx.RefinementPlan(stages=[
         rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
@@ -365,9 +371,21 @@ def test_the_converged_fit_agrees_when_the_variable_sits_elsewhere_in_theta(
         x = a.fitted_structure.phases[0].atoms[j].biso.value
         y = b.fitted_structure.phases[0].atoms[j].biso.value
         assert y == pytest.approx(x, rel=1e-9)
+    # The esd is the **weak** arm here and its bar says so: 1e-6, not the 1e-9
+    # the values carry.  It is the one quantity in this comparison that goes
+    # through `normal_covariance`, which equilibrates and then cuts eigenvalues
+    # at `rcond·|λ|max`, so a near-threshold eigenvalue is decided differently
+    # under a different column order — the effect the plan above already
+    # narrowed from 1e-4 to nothing measurable on macOS (4.2e-16) and which
+    # comes back at **2.5e-9 on Linux py3.12/3.14**.  That is within 2x of the
+    # 4.1e-9 the broken column returns, so no bar on the esd separates good
+    # from broken across platforms, and pretending otherwise is what made this
+    # red.  The discrimination lives in the two arms that do hold: the refined
+    # values at `rel=1e-9` against the broken column's 1.14e-8, and the
+    # per-stage iteration counts above, which are integers — 9 against 4.
     esd_a = {p.path: p.stderr for p in ra.parameters}[BISOS[0]]
     esd_b = {p.path: p.stderr for p in rb.parameters}["vars.B_metal"]
-    assert esd_b == pytest.approx(esd_a, rel=1e-9)
+    assert esd_b == pytest.approx(esd_a, rel=1e-6)
 
 
 def test_the_parameter_count_drops_by_the_number_of_dependents(ref, pattern):
@@ -526,7 +544,15 @@ def test_the_declared_ceiling_needs_no_workaround(four_site_pattern):
     ra, rb = a.fit(four_site_pattern, plan=plan), b.fit(four_site_pattern, plan=plan)
     _plot(ra, "schema_ceiling_dotpath")
     _plot(rb, "schema_ceiling_variable")
-    assert ra.statistics.rwp == rb.statistics.rwp
+    # `rel=1e-9`, not an equality, for the reason the sibling equivalence test
+    # states: two *independently converged* fits agreeing bit for bit is a
+    # cross-platform claim, and any one run measures one platform.  These two
+    # arms are bit-identical on macOS and **1 ulp apart** (1.7e-16 relative) on
+    # Linux py3.12/3.14 — the same nine columns read in a different order by a
+    # different BLAS.  The bar keeps the claim (the same fit, seven orders of
+    # margin) and the line below is what makes it a *good* fit rather than a
+    # shared failure.
+    assert ra.statistics.rwp == pytest.approx(rb.statistics.rwp, rel=1e-9)
     assert ra.statistics.rwp < 0.05          # the same fit, not the same failure
     rows = {r.path: r.value for r in a.parameters()}
     for j in range(len(COEFFS)):
