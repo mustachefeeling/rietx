@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from rietx import Instrument
-from rietx.params.vector import AffineTie, ParameterTable
+from rietx.params.vector import AffineTie, ParameterTable, cell_window
 from rietx.schemas.common import Parameter
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 from tests.test_schemas import make_lab6
@@ -452,3 +452,29 @@ def test_a_bound_broken_on_write_back_names_the_path_and_the_tie():
     with pytest.raises(ValueError, match=r"phases\.0\.atoms\.1\.biso=40.*"
                                          r"\[0, 25\].*2·phases\.0\.atoms\.0\.biso"):
         table.apply_to_models(structure, instrument)
+
+
+def test_the_tie_window_narrows_after_the_cell_window_not_before_it():
+    """Order between the four derived bounds, and it is load-bearing.
+
+    ``cell_window`` treats a **finite** stored side as a claim the caller made
+    and leaves it alone, applying its runaway default only where the side is
+    infinite.  A tie window handed to it first would look exactly like such a
+    claim — a finite bound nobody wrote — and would switch off the guard that
+    keeps an unsupported phase's cell from wandering.  Applied last it cannot:
+    the three defaults each read the stored bounds, and the intersection is
+    tighter than any of them.
+    """
+    table = make_table()
+    table.set_vary(["phases.0.cell.a"], True)
+    table.add_parameter("synthetic.dep", 0.0, lo=0.0, hi=100.0)
+    table.set_tie("synthetic.dep",
+                  AffineTie(terms=(("phases.0.cell.a", 1.0),)))
+    table.freeze_cell_windows({0})              # the phase the data cannot see
+    lo, hi = table.bounds()
+    k = table.free_paths.index("phases.0.cell.a")
+    a = table.entries[table._paths["phases.0.cell.a"]].value
+    # the cell window's own answer, not the tie's [0, 100] passed through
+    assert (lo[k], hi[k]) == cell_window("a", a, -np.inf, np.inf,
+                                         path="phases.0.cell.a")
+    assert (lo[k], hi[k]) != (0.0, 100.0)

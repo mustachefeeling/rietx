@@ -1666,13 +1666,6 @@ class ParameterTable:
         for i in self._free_idx:
             e = self.entries[i]
             e_lo, e_hi = e.lo, e.hi
-            tied_window = self._tie_windows.get(i)
-            if tied_window is not None:
-                # first, because it is the only one of the four derived from a
-                # bound the caller *declared* rather than from a default; the
-                # three below then narrow it further exactly as they would a
-                # stored bound.
-                e_lo, e_hi = max(e_lo, tied_window[0]), min(e_hi, tied_window[1])
             if windowed:
                 cell_name = _cell_parameter_name(e.path, phases=windowed)
                 if cell_name is not None:
@@ -1686,6 +1679,17 @@ class ParameterTable:
                 size_name = _size_parameter_name(e.path)
                 if size_name is not None:
                     e_hi = size_cap_hi(size_name, e.value, e_hi, size_cap_width)
+            tied_window = self._tie_windows.get(i)
+            if tied_window is not None:
+                # **last of the four, and the order is load-bearing.**
+                # ``cell_window`` branches on whether a side is infinite — an
+                # infinite one being the side nobody claimed — so a tie window
+                # applied ahead of it would hand it a finite bound the caller
+                # never wrote and suppress the runaway guard it exists to be.
+                # Narrowing afterwards cannot: every one of the three only ever
+                # narrows, so intersecting last is the tightest of all four and
+                # leaves each of their decisions reading the stored bounds.
+                e_lo, e_hi = max(e_lo, tied_window[0]), min(e_hi, tied_window[1])
             scale = self._value_scale.get(e.path)
             if scale is not None:
                 # every bound above is a *physical* limit on this table's own
