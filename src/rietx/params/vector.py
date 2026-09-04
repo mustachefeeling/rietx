@@ -1259,6 +1259,7 @@ class ParameterTable:
                 if hi < w_hi:
                     w_hi, from_hi = hi, e.path
                 acc[j] = (w_lo, from_lo, w_hi, from_hi)
+        out: dict[int, tuple[float, float]] = {}
         for j, (lo, from_lo, hi, from_hi) in acc.items():
             e = self.entries[j]
             if max(lo, e.lo) > min(hi, e.hi):
@@ -1268,7 +1269,28 @@ class ParameterTable:
                     f"bounds needs {e.path} in [{lo:g}, {hi:g}] — which cannot "
                     f"be reconciled with {e.path}'s own [{e.lo:g}, {e.hi:g}]. "
                     f"Widen one of the two, or change the tie's coefficient")
-        return {j: (lo, hi) for j, (lo, _, hi, _) in acc.items()}
+            # **Never hand the solver an x0 it has already left.**  A window
+            # says where a source may *go*, and the value it is *at* is a
+            # separate fact — one that ``commit`` can put an ulp the wrong side
+            # of, since a stage that stops on a window writes its answer back
+            # through ``decode`` and ``_rebuild`` recomputes the window from it.
+            # Widening to admit the value costs an ulp there and needs no
+            # tolerance to tune, where the alternative is ``least_squares``
+            # refusing the *next* stage with "x0 is infeasible" about a
+            # parameter nobody tied.
+            #
+            # It also decides what happens to a state that was inconsistent
+            # before any window existed.  Those are caught earlier now — the
+            # write-back in ``apply_to_models`` refuses at declaration, naming
+            # the path, the value, the bound and the tie — but "earlier" is not
+            # "always", and this is deliberately not the place to raise: the
+            # refusal WP-1337 § #246 wants belongs in its own voice beside
+            # ``tie()``'s other six, and reaching a DOF target's coordinates is
+            # that WP's task 4.  The computation it needs is right here, on the
+            # *flattened* ties; only the refusal is missing.
+            v = e.value
+            out[j] = (min(lo, v), max(hi, v))
+        return out
 
     #: Paths whose freedom λ trades against.  A cell *angle* is included: a
     #: monoclinic β scales no length on its own, but the metric it enters is

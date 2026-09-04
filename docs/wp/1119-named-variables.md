@@ -235,8 +235,10 @@ above.
 - [x] The manual: `{ref}`named-variables`` in `using/concepts.md`, signposted
       from `using/constraints.md`, plus the `set_variable` row and the two new
       state fields in `using/history.md`, and both verbs in the skill's
-      `references/api.md` (three copies synced). No diagnostic code landed, so
-      `references/diagnostics.md` is untouched.
+      `references/api.md` (three copies synced). No *new* diagnostic code
+      landed; the second session gave the existing `BOUND_HIT` row in
+      `references/diagnostics.md` its new cause, a tie handing a dependent's
+      ceiling back to its source.
 - [x] Tests, including the equivalence bar below — which the tests
       rewrote (Acceptance, and the § Measured block under it).
 - [x] Reassess the shipped surface against TOPAS's `prm`, and close what the
@@ -324,18 +326,19 @@ depth-2 user chain (`C = 3B+1`, `B = 2A+0.5`) to coefficient 6.0 and constant
 `dof.0` at coefficient 4.0, constant 0.7972 — both exact, cycles raise, and
 nothing the package derives reaches depth 2.
 
-**Suite**: `-m "not slow"` **4247 passed, 127 skipped** in the 4-5 min band
-(263 s), against a **4227 passed, 122 skipped** baseline on the same tree before
-this WP — **+20 passed and +5 skipped**, which is exactly the 25 tests added:
-17 in `tests/test_named_variables.py`, one `test_cross_backend` meta-test, and
-the seven instances of its new `families_variable` row, five of which are the
-jax/torch methods and so *skip* on a `[dev]` venv rather than pass. The **full**
-selection is **4410 passed, 136 skipped** in 31:31, green — +3 and +5 on the
-4407/131 the same tree measured before the review pass, the same eight tests
-seen from the other selection. Its value is not the count: it is the evidence
-that `_column_identities` is the identity it claims to be for a model parameter,
-since it sits in the dispatch every acceptance fit's Jacobian goes through and no
-acceptance number moved.
+**Suite**, re-measured on the final tree after the second session. `-m "not
+slow"` **4258 passed, 127 skipped** (TBD s), against the **4247 passed, 127
+skipped** the first session left — **+11 passed, no new skip**, which is
+exactly the tests the tie-window work added: ten in `tests/test_params.py` and
+two in `tests/test_named_variables.py`. The first session's own arithmetic
+stands below it: 4247/127 against a **4227 passed, 122 skipped** pre-WP
+baseline on the same tree, +20 passed and +5 skipped, being 17 named-variable
+tests, one `test_cross_backend` meta-test and seven instances of its new
+`families_variable` row, five of which are jax/torch methods and so *skip* on a
+`[dev]` venv. The **full** selection is **4423 passed, 136 skipped** in 25:56,
+green. Its value is not the count: `_column_identities` and `tie_window` both
+sit in code every acceptance fit goes through — the Jacobian dispatch and the
+solver's box — and no acceptance number moved.
 
 **Merged against [1130](1130-background-reference.md)**, which was in flight in
 a sibling worktree and lands first. `params/vector.py` merges clean (1130 is in
@@ -486,7 +489,7 @@ narrows a user's tie and provably nothing else — which is what dissolved the
 "but it changes existing fits" objection that had made this look like a policy
 question.
 
-*Done*, one commit on top of the six:
+*Done*, eight commits and a merge on top of the first session's six:
 
 - **`params.vector.tie_window`** — `lo ≤ Σ c·θ + d ≤ hi` solved for one source,
   intersected by `_derive_tie_windows` and applied in `bounds()` beside
@@ -503,19 +506,56 @@ question.
 - **An empty intersection is refused, not clipped** — two declarations that
   cannot both hold, and this table has no diagnostics channel to explain a
   repair in.
-- Seven unit tests in `test_params.py` (including the "every derived tie claims
+- Ten unit tests in `test_params.py` (including the "every derived tie claims
   nothing" measurement, asserted rather than left to the acceptance suites) and
   two fit-level ones in `test_named_variables.py`.
+- **The manual's own mixed-site example is the clearest thing this buys.**
+  `occ` is declared [0, 1.5] and `occ₁ = 1 − occ₀` puts `occ₁` negative above
+  `occ₀ = 1`, so `using/concepts.md`'s flagship tie now runs against [0, 1] and
+  nobody wrote it. The bounds paragraph therefore sits under
+  {ref}`constraining-parameters`, where a reader meets ties, rather than only
+  under named variables; the several-source caveat stays with the variables,
+  since that is where several sources arise. Skill § 8.22 is rewritten from the
+  hole to the repair, and the `BOUND_HIT` row of `references/diagnostics.md`
+  gains the cause, because that row is the one an agent meets
+  programmatically.
+- **A window widens to admit the value its source is at**, which is the last
+  thing the handover found and the one that was nearly a regression. A window
+  says where a source may *go*; `commit` writes a stage's answer back through
+  `decode` and rebuilds, so a stage that stops **on** a window can return an
+  ulp the wrong side and leave the next stage meeting `least_squares` refusing
+  `x0` as infeasible about a parameter nobody tied. Widening costs an ulp
+  there and needs no tolerance. It also decides the inconsistent-state case,
+  and deliberately does **not** raise: that refusal belongs to
+  [1337](1337-an-authored-refusal-not-a-traceback.md) § #246, in `tie()`'s own
+  voice, and the widening is the seam it replaces. Its `### Inherited` has the
+  detail.
+- **Two things the diff review found**, and neither had a test until it did.
+  The bound test disabled the window by assigning over
+  `ParameterTable._derive_tie_windows` and `del`-ing the assignment, which
+  removes the real method rather than restoring it — green alone, and 21
+  unrelated tests down under `-n auto`. And the four derived bounds **do not
+  commute**: applying the tie window before `cell_window` disarmed the cell
+  runaway guard entirely, because `cell_window` reads a finite side as a claim
+  the caller made.
 
 *Measured* — same venv and platform as the entry below.
 
-- The bound test runs the **whole four-stage plan**, because the first draft of
-  it froze three stages and produced Rwp 2.76 / GoF 67.6: a bound assertion that
-  passed on a fit that was nothing like the data. The plot said so, again, and
-  the same standing rule caught it that caught the equivalence bar twice this
-  morning. As it stands: Rwp 0.0458, GoF 1.12, flat residual, master held at
-  0.66 and dependent at its declared 0.33, `BOUND_HIT` on the master. With the
-  window disabled the same fit reaches 0.6697/0.3348 and raises.
+- **The weak-fit trap caught both new fit tests, in a session that had just
+  finished writing it down.** The bound test's first draft froze three stages
+  and converged at Rwp 2.76 / GoF 67.6, and the "no workaround" test shipped a
+  Biso-only plan at Rwp 2.64 / GoF 64.7 — two arms agreeing about a fit that is
+  nothing like the data, which is a claim about the solver and not about the
+  constraint. Both were found by opening the PNG, neither by an assertion, and
+  the entry below records the identical lesson from four hours earlier. Reading
+  a rule is not the same as applying it; the plots are.
+- As they stand, both on the four-stage plan: the bound test at Rwp 0.0458,
+  GoF 1.12, flat residual, master held at 0.66 and dependent at its declared
+  0.33, `BOUND_HIT` on the master — and with the window disabled the same fit
+  reaches 0.6697/0.3348 and raises. The no-workaround pair agree bit for bit at
+  the schema's own [0, 25].
+- The manual's mixed-site tie: `occ₀` now runs against **[0, 1]**, not `occ`'s
+  declared [0, 1.5].
 - Suite figures: see § Acceptance, re-measured on this tree.
 
 *Gotchas*
@@ -538,9 +578,16 @@ question.
   positivity cone). Nobody has pointed that machinery at a tie bound. It is no
   longer needed for the ordinary case, which is why it is a note and not a task.
 
-*Next*, unchanged from the entry below: **cut the WP for issue #212**, the
-cross-phase linear restraint row, whose seam is in
-[1325](1325-parametric-series.md)'s `### Inherited`.
+*Next*, in order. **Cut the WP for issue #212** — the cross-phase linear
+restraint row, whose seam is in [1325](1325-parametric-series.md)'s
+`### Inherited`; unchanged from the entry below.
+Then [1337](1337-an-authored-refusal-not-a-traceback.md), which this session
+moved: its #246 no longer reproduces as its text says (the write-back refuses
+at declaration now, naming the coordinate, the value, the bound and the tie),
+and the computation its task 4 asks for — reaching a DOF target's coordinates —
+is written and running, so what is left there is the refusal's *voice* and the
+atom label. Its `### Inherited` says so with the measured output. The two are
+independent; #212 has a waiting filer and 1337 does not.
 
 ### 2026-09-04 (1st session) — named variables ship, and the bar caught a silent FD column
 

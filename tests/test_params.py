@@ -494,3 +494,26 @@ def test_a_mixed_sites_occupancies_bound_each_other():
     lo, hi = table.bounds()
     k = table.free_paths.index("phases.0.atoms.0.occ")
     assert (lo[k], hi[k]) == (0.0, 1.0)         # not occ's own [0, 1.5]
+
+
+def test_a_window_never_excludes_the_value_the_solver_starts_from():
+    """A window says where a source may go; where it *is* is a separate fact.
+
+    ``commit`` writes a stage's answer back through ``decode`` and rebuilds, so
+    a stage that stops **on** a window can come back an ulp the wrong side of
+    it, and the next stage would then meet ``least_squares`` refusing ``x0`` as
+    infeasible about a parameter nobody tied.  Widening to admit the value
+    costs an ulp there and needs no tolerance.  It also leaves a state that was
+    inconsistent before any window existed to the surface that already refuses
+    it — see WP-1337 § #246, whose refusal belongs beside ``tie()``'s others.
+    """
+    table = make_table()
+    table.add_parameter("synthetic.src", 5.0, vary=True)      # unbounded, at 5
+    table.add_parameter("synthetic.dep", 0.0, lo=0.0, hi=1.0)
+    table.set_tie("synthetic.dep",
+                  AffineTie(terms=(("synthetic.src", 1.0),), const=-10.0))
+    # dep = src - 10 in [0, 1] wants src in [10, 11]; src is at 5
+    lo, hi = table.bounds()
+    k = table.free_paths.index("synthetic.src")
+    assert (lo[k], hi[k]) == (5.0, 11.0)      # widened down to x0, not [10, 11]
+    assert lo[k] <= table.x0()[k] <= hi[k]    # what scipy actually checks
