@@ -103,11 +103,9 @@ triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
 multi-hundred-pattern campaign paid that a single fit never sees, three views
 over what a fit already knows, and the skill's own gates — and folded three
 issues into 1118, 1310 and 1322 rather than opening a WP. Closed since
-2026-09-02: 1330, 1324, 1131, 1331 the landing page,
-[1130](wp/1130-background-reference.md) 🛑 on its own gate (its fault no longer
-reproduces and no model-free estimate separates a good fit from a bad one; the
-panel goes to 1133, now unblocked), and
-[1119](wp/1119-named-variables.md), named variables.
+2026-09-02: 1330, 1324, 1131, 1331 the landing page, 1119 named variables, and
+1130 🛑 on its own gate, which unblocks 1133 ([v1.3](milestones/v1.3.md) has
+both).
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
