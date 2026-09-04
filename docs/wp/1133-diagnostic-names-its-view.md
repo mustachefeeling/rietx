@@ -1,8 +1,9 @@
 # WP-1133 — A diagnostic names the view that shows it
 
 Milestone: unscheduled · Status: ⬜
-Depends on: WP-1130 (the background panel with a reference in the frame is the
-first view worth pointing at, and the eval's positive condition)
+Depends on: — (WP-1130 closed 🛑 2026-09-04; it did **not** deliver the panel,
+and this WP inherits it along with the argument that licenses it — see
+### Inherited)
 
 ## Goal
 
