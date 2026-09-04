@@ -1016,10 +1016,23 @@ its existing treatment of a positive short cell, and asserts its own
 **Measured.** All on this worktree's own `.venv`, `[dev]` only (no jax, no
 torch), darwin/arm64, nothing else mid-suite (`pgrep` clean).
 
-- Fast suite `-m "not slow"`: **4230 passed, 122 skipped**, ~3:11. Three tests
-  were added this session (two in `test_absent_phase.py`, one in
-  `test_background_peaks.py`), all passes, no new skip. No local pre-baseline
-  was taken — the ladder says CI owns that.
+- Fast suite `-m "not slow"`: **4230 passed, 122 skipped**, ~3:11, nothing else
+  mid-suite. Three tests were added this session (two in `test_absent_phase.py`,
+  one in `test_background_peaks.py`), all passes, no new skip. No local
+  pre-baseline was taken — the ladder says CI owns that. The review pass re-ran
+  the same selection after its fixes and got the same two numbers.
+- **The full selection did not run, and no figure is quoted for it.** It was
+  launched on the final tree, killed before producing any output, and by the
+  time it could be relaunched another session held the machine with its own
+  suite (`tests/CLAUDE.md` § Running: rung 3 is exclusive, and a count measured
+  beside another run is not quotable). The judgement that made it optional
+  rather than owed: neither code change can move a converged number. Every new
+  `cell_window` raise replaces an input that previously reached scipy as a
+  degenerate bound pair and crashed there, or that is not a cell at all; and
+  `block_projection_r2` changes its output only where that output was `nan`.
+  The reason to have wanted it anyway is that a new raise now sits in a path
+  every windowed fit calls, so **the acceptance rows are the check a successor
+  should run first** if anything here is doubted.
 - The trigger scan, rebuilt: 3887 fitted channels, **Rwp 0.1092 / GoF 1.48**
   against this file's recorded 0.1104 / 1.51 and the maintainer's TOPAS trial
   0.1076 / 1.52. Nine protocols, background 0.90-1.22 of TOPAS, never 0.50-0.71.
