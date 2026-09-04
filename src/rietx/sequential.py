@@ -1373,14 +1373,23 @@ def _path_dependence_diagnostics(forward: SeriesResult,
             continue
         _, vf, sf = f.arrays()
         _, vb, sb = b.arrays()
+        # Judge a pattern only where *both* chains measured an esd.  A
+        # parameter with no esd anywhere cannot be judged this way at all, and
+        # neither can a pattern one chain refined and the other held: its esd
+        # exists on one side only, and dividing the two values' difference by
+        # it reports a significance the held side never earned.  A tied
+        # dependent path reaches exactly that state routinely, since
+        # ``_build_result`` emits tie rows whether or not their source was
+        # refined.  The mask is per pattern rather than per path, so the
+        # patterns both chains did measure are still judged.
+        comparable = np.isfinite(sf) & np.isfinite(sb)
         combined = np.sqrt(np.nan_to_num(sf) ** 2 + np.nan_to_num(sb) ** 2)
-        # A parameter with no esd anywhere cannot be judged this way; skip it
-        # rather than declare agreement it has not earned.
-        if not np.any(combined > 0.0):
+        if not np.any(comparable & (combined > 0.0)):
             continue
         with np.errstate(divide="ignore", invalid="ignore"):
             n_sigma = np.abs(vf - vb) / np.where(combined > 0.0, combined, np.nan)
         n_sigma = np.where(np.abs(vf - vb) > _noise_floor(vf, vb), n_sigma, 0.0)
+        n_sigma = np.where(comparable, n_sigma, 0.0)
         if not np.any(n_sigma > PATH_DEPENDENCE_SIGMA):
             continue
         k = int(np.nanargmax(n_sigma))

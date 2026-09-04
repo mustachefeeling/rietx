@@ -1003,6 +1003,55 @@ def test_path_dependence_ignores_numerically_identical_chains():
         "SEQUENTIAL_PATH_DEPENDENT"]
 
 
+def test_path_dependence_needs_an_esd_from_both_chains():
+    """A pattern one chain refined and the other held has an esd on one side
+    only, and ``Trajectory.arrays`` reports the missing one as NaN.  Combining
+    them through ``np.nan_to_num`` divides the two values' difference by the
+    refining chain's esd alone, which is a significance the held side never
+    earned — 100σ below, on a series where not one pattern was measured twice.
+
+    A tied dependent path reaches this state routinely: ``_build_result`` emits
+    tie rows whether or not their source was refined, so a cubic phase's
+    ``cell.b`` is present in every pattern while its ``cell.a`` is absent in
+    the held ones (and so is dropped by the length gate).
+    """
+    esd = 1e-4
+    held_late = _synthetic_series(
+        "phases.1.cell.b",
+        [5.4000, 5.4010, 5.4020, 5.4030, 5.4030, 5.4030, 5.4030, 5.4030],
+        [esd, esd, esd, esd, None, None, None, None])
+    held_early = _synthetic_series(
+        "phases.1.cell.b",
+        [5.4100, 5.4100, 5.4100, 5.4100, 5.4100, 5.4110, 5.4120, 5.4130],
+        [None, None, None, None, esd, esd, esd, esd])
+    assert _path_dependence_diagnostics(held_late, held_early) == []
+
+
+def test_path_dependence_keeps_the_patterns_both_chains_measured():
+    """The mask is per pattern, not per path.  Six of these eight patterns
+    were measured by both chains and agree well inside their esds; two are
+    one-sided.  Dropping the whole path would discard the six, and judging the
+    two reports the series as path-dependent at 80σ on the strength of the
+    patterns that carry no comparable esd."""
+    esd = 1e-4
+    forward = _synthetic_series(
+        "phases.1.cell.b",
+        [5.4000, 5.4010, 5.4020, 5.4030, 5.4040, 5.4050, 5.4060, 5.4060],
+        [esd] * 8)
+    backward = _synthetic_series(
+        "phases.1.cell.b",
+        [5.4001, 5.4011, 5.4019, 5.4031, 5.4039, 5.4051, 5.4130, 5.4140],
+        [esd] * 6 + [None, None])
+    assert _path_dependence_diagnostics(forward, backward) == []
+
+    # …and a real disagreement inside the comparable patterns still fires,
+    # with the one-sided pair present and ignored: the two channels are
+    # separable, and only one of them is an artefact.
+    backward.entries[5].parameters[0].value = 5.4060
+    assert [d.code for d in _path_dependence_diagnostics(forward, backward)] == [
+        "SEQUENTIAL_PATH_DEPENDENT"]
+
+
 def test_a_uniform_ramp_is_not_a_discontinuity(thermal_series):
     """A steady trend has every step at the median step, so the robust test
     passes it — which is the point of measuring against the series' own scatter
