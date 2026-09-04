@@ -954,6 +954,15 @@ class Refinement:
             path, prm.value, vary=prm.vary, lo=prm.min, hi=prm.max,
             transform=prm.transform)
         self._variables[name] = prm
+        if prm.vary and self._free_paths:
+            # ``_free_paths`` is the *declared* free set, and once a stage has
+            # recorded one it is what ``_prepare_table`` restores — it clears
+            # every vary flag and replays that list.  A variable declared
+            # ``vary=True`` after the first stage would otherwise come back
+            # held, its own declaration silently overruled by a list written
+            # before it existed.  Appended, not inserted: entry order is what
+            # the restore replays and a variable is appended to the table too.
+            self._free_paths.append(path)
         self._commit_variable_edit(declared={name: prm}, removed=[])
         return path
 

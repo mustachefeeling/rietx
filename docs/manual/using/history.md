@@ -70,6 +70,7 @@ ratio is what makes wide branching affordable.
 | `set_vary` | `Refinement.set_vary` |
 | `set_value` | `Refinement.set_values` |
 | `set_tie` | `Refinement.tie`, `Refinement.tie_equal` and `Refinement.untie` |
+| `set_variable` | `Refinement.add_variable` and `Refinement.remove_variable` |
 | `edit_model` | `Refinement.edit` |
 | `merge` | `Refinement.merge` |
 
@@ -83,7 +84,9 @@ depends on the kind. `NodeAction.name` is the stage's name, or the label given
 to an edit or a merge. `NodeAction.turn_on` and `NodeAction.turn_off` are the
 globs a stage freed or a `set_vary` changed. `NodeAction.values` is what
 `set_values` was called with. `NodeAction.ties` and `NodeAction.untied` are what
-a tie edit declared and removed.
+a tie edit declared and removed, and `NodeAction.variables` and
+`NodeAction.removed_variables` are the same pair for a variable edit — the
+declaration by name, and the names deleted.
 
 A stage records its solver settings as well: `NodeAction.max_iter`,
 `NodeAction.lebail_cycles`, `NodeAction.seed`, `NodeAction.strain_seed`,
@@ -127,13 +130,20 @@ default, which keeps a plain stage's line short.
 | `RefinementState.free_paths` | the dot-paths that were free |
 | `RefinementState.two_theta_limits` | the fitted range |
 | `RefinementState.ties` | the user constraints in force |
+| `RefinementState.variables` | the named variables declared, by name |
 | `RefinementState.reflections` | extracted or refined intensities, per phase |
 
-The last three are carried because the models do not hold them. A vary flag
+The last four are carried because the models do not hold them. A vary flag
 survives in the models, but the free *set* after globbing does not; a symmetry
 tie is rederived from the space group on every table build, while a tie you
 declared is not derivable from anything. A node without them would restore a
 model with the constraints silently gone, and the parameter count with them.
+
+`RefinementState.variables` is that argument one step further along. A tie is
+not a property of the models; a {ref}`named variable <named-variables>` is not
+*in* them at all — there is no field for it to be written to — so the node is
+its only record, and a checkout that dropped it would restore ties naming a
+parameter that no longer exists.
 
 `RefinementState.reflections` is a list of `ReflectionState`, one per phase whose
 intensities are not computed from the structure.

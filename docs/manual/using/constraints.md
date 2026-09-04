@@ -12,6 +12,12 @@ length or an angle towards a target, and the fit is free to disagree with it at
 a cost. {ref}`restraining-a-distance` is that reference. Use a constraint for a
 relation you are sure of and a restraint for one you are only mostly sure of.
 
+A constraint does not have to name a model parameter as its master.
+{ref}`named-variables` is the reference for `Refinement.add_variable` and
+`Refinement.remove_variable`, which declare a quantity of your own for other
+parameters to follow, and for the multi-source form of `Refinement.tie` that
+lets one such variable be written in terms of others.
+
 The parameter *paths* both take, and the one grammatical trap in them, are in
 [](model.md). The symmetry constraints you never declare (a cell edge following
 another, a coordinate confined to its site-symmetry direction) are created for

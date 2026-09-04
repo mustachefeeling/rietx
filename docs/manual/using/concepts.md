@@ -162,9 +162,11 @@ that flag false, and they cannot be released: symmetry outranks a user tie
 everywhere the two meet. [](model.md) reads a held row field by field.
 
 The verbs refuse rather than approximate. A locked parameter, an already-tied
-one, a source that is itself tied (which would make a chain), a target the
-current intensity mode force-fixes, and an implied value outside the target's
-own bounds are all refused with the reason and the parameter holding it.
+one, a source that is itself tied *and is a model parameter* (which would make
+a chain), a target the current intensity mode force-fixes, and an implied value
+outside the target's own bounds are all refused with the reason and the
+parameter holding it. The exception in that list is the subject of the next
+section: a named variable may follow other named variables.
 
 :::{admonition} Worked example: tying three displacement parameters
 :class: tip
@@ -191,6 +193,69 @@ that these are one parameter. Where the free values disagree by more than
 their esds, the atoms are telling you they are not in the same environment, and
 tying them replaces a measurement with an assumption.
 :::
+
+(named-variables)=
+## Naming a variable of your own
+
+Every constraint above names a model parameter as its master: one of the three
+oxygens carries the freedom and the other two follow it. That reads oddly when
+the quantity is not any one of them — three oxygens do not have *atom 4's*
+displacement parameter, they have one displacement parameter that all three
+share. A **named variable** is that quantity, declared in its own right.
+
+<!-- api-doc: no-exec — it needs the reader's own structure and instrument -->
+```python
+ref = rx.Refinement(structure, instrument)
+
+ref.add_variable("B_phosphate", 0.5, min=0.0, max=25.0)     # -> "vars.B_phosphate"
+for j in (4, 5, 6):
+    ref.tie(f"phases.0.atoms.{j}.biso", "vars.B_phosphate")
+
+ref.set_vary("vars.*", True)          # it refines like anything else
+```
+
+The path is `"vars."` plus the name, and it is an ordinary dot-path from there:
+`Refinement.parameters` lists it, `set_vary` globs it, `set_values` moves it,
+a fit refines it and reports an esd for it. `Refinement.remove_variable` deletes
+one, and refuses while anything still follows it, naming the dependents.
+
+`min`, `max` and `transform` are the part worth thinking about, because a
+variable is a `Parameter` and those are the fields the fit reads. Declared with
+the same bounds and transform as the model parameter it replaces, it produces
+the identical column and the identical answer. Declared with different ones it
+is a different problem — a quantity whose physical parameter uses the softplus
+reparameterisation, given the default `identity`, is no longer kept off its own
+floor.
+
+**The bounds that matter are the ones the solver sees, and those are the
+variable's.** A dependent's own `min`/`max` are checked when the tie is
+declared and not afterwards, so a coefficient other than 1 can carry a dependent
+past its own ceiling while the variable is still inside its. Choose the
+variable's bounds for its dependents: a variable driving `2·B` into a field
+bounded at 25 belongs at `max=12.5`. This is a property of ties generally, not
+of variables — `tie(..., scale=2.0)` between two model parameters behaves the
+same way — but a variable is where you get to fix it in one place.
+
+A variable may follow other variables, which is what makes composing them
+worthwhile:
+
+<!-- api-doc: no-exec — it needs the reader's own structure and instrument -->
+```python
+ref.add_variable("B_base", 0.4)
+ref.add_variable("B_extra", 0.1)
+ref.tie("vars.B_total", {"vars.B_base": 1.0, "vars.B_extra": 1.0})
+```
+
+That second argument is the other half: `Refinement.tie` takes several sources
+as a `{path: coefficient}` mapping or a list of pairs, not only one, and `scale`
+multiplies every term. A model parameter still may **not** follow a tied model
+parameter — there the refusal's advice is right, since naming what it follows
+says the same thing without inheriting a constant nobody wrote.
+
+What a variable is not is an expression language. The relation is affine —
+`Σ coefficient · source + constant` — because that is what the constraint block
+computes exactly, and there is no string form: `"2*A + 0.5"` parses nowhere, and
+the method calls above are the whole surface.
 
 (restraining-a-distance)=
 ## Restraining a distance or an angle
