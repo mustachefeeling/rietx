@@ -1,8 +1,9 @@
 # WP-1130 — The fit has no reference: a background level it cannot argue with
 
-Milestone: unscheduled · Status: 🔄 2026-09-04 — two bugs fixed and all three
-gaps answered; the trigger no longer reproduces and § Gap C's gate refuses the
-selector and the diagnostic, leaving the panel as the deliverable
+Milestone: unscheduled · Status: 🛑 2026-09-04 — closed on its own gate. The
+trigger no longer reproduces and no model-free estimate separates a correct fit
+from a bad one, so the selector and the diagnostic are refused; the record and
+two shipped fixes are what this WP leaves. The panel goes to 1133
 Depends on: — (nothing; WP-1131 closed 2026-09-02 and the width check this WP
 needed had in fact shipped in v1.2 — see § What this reads rather than computes)
 
@@ -974,6 +975,52 @@ and put them in this file's handover entry.
   maintainer's own refinement, not ported code.
 
 ## Handover log
+
+### 2026-09-04 (2nd session) — closed 🛑, and what leaves the building
+
+Closed on § Gap C's own gate rather than abandoned. The WP set out to build an
+independent estimate of the background **level** and a diagnostic that reads a
+fitted background against it. Neither ships, and both refusals are measured
+rather than judged: the fault the WP existed to catch does not reproduce on
+this tree under nine protocols, and the estimator built to catch it finds no
+anchors at all on one bundled pattern, 19 of 59 498 on another, and one anchor
+in the 486 channels of the region that matters on the third. The band between
+the two shipped estimators — the only alternative worth trying, since it needs
+no new code — holds a known truth in 4 of 8 noise realisations and fires on a
+**correct** fit in two regions of seven. There is no threshold here worth
+shipping.
+
+**What leaves the building anyway**, and it is not nothing:
+
+- Two bugs fixed. `cell_window` no longer hands the solver a degenerate bound
+  pair for a value no cell can take, and a single non-finite number in the
+  Jacobian no longer silences `BACKGROUND_ABSORPTION` while reporting `nan`.
+- **The guard was already right, and unread.** `BACKGROUND_ABSORPTION` fired on
+  every one of the nine runs, above its threshold, and the original three rounds
+  of investigation never looked at it. Its skill row now says the R² names the
+  victim and not the cause. That is the WP's real finding, and it is § Finding
+  7's shape — a number that is correct and reaches nobody — rather than the
+  missing-estimator shape the WP was written around.
+- `surprises.md` 8.21: a ΔBIC-endorsed width model can make two of four phases
+  stop being measurements, and a width error owning 35 % of χ² can move the
+  background by ≤ 2 %, so the two are not automatically coupled.
+- Forward references into [1118](1118-foreign-model-files.md) (the `.inp`
+  reader's reach on the reel files people actually run) and
+  [1133](1133-diagnostic-names-its-view.md) (which inherits the panel).
+
+**Not done, deliberately, and recorded here so nobody re-opens it by accident:**
+the anchor selector, the diagnostic, the `rietx compare` row (no correction
+landed, so the rule does not apply), and the `worst_absorption` `0.0`-as-answer
+fix, which is a report-schema change and is now
+[1133](1133-diagnostic-names-its-view.md)'s to pick up or to file anew.
+
+**If anyone reopens this**, the thing to reopen is not the estimator. It is the
+question § Gap A left unanswered: *why* the cubic phase's width runaway does not
+recur. `PHASE_UNCONSTRAINED` accounts for the hydrate's arm only, and
+`strain_cap(14, 70)` is 79.98 against the recorded 10.37, so neither guard would
+have bitten. Something else changed between 2026-08-27 and 2026-09-04 and this
+session did not find it.
+
 
 ### 2026-09-04 — the trigger is gone, and the diagnostic is refused
 

@@ -98,13 +98,15 @@ PR #111; the exporter registry next. Two contributor PRs wait on review
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
-(1326–1329); the older three, 1119, 1130 and 1133. The **2026-09-03 triage**
-adds 1332–1341 — three more on what fires and what stays silent, three costs
-a multi-hundred-pattern campaign paid that a single fit never sees, three
-views over what a fit already knows, and the skill's own gates — and folded
-three issues into 1118, 1310 and 1322 rather than opening a WP. Four closed
-since 2026-09-02: 1330, 1324, 1131 (which discharges 1130's dependency on it)
-and 1331, the landing page.
+(1326–1329); the older two, 1119 and 1133. The **2026-09-03 triage** adds
+1332–1341 — three more on what fires and what stays silent, three costs a
+multi-hundred-pattern campaign paid that a single fit never sees, three views
+over what a fit already knows, and the skill's own gates — and folded three
+issues into 1118, 1310 and 1322 rather than opening a WP. Closed since
+2026-09-02: 1330, 1324, 1131, 1331 the landing page, and
+[1130](wp/1130-background-reference.md) 🛑 on its own gate — its fault no longer
+reproduces and no model-free estimate separates a good fit from a bad one. The
+panel goes to 1133, now unblocked.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -467,7 +469,7 @@ with a refinable scale and its own esds (1309, issue #171).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | 🔄 2026-09-04 | — |
+| [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | 🛑 2026-09-04 | — |
 | [1309](wp/1309-measured-background.md) | A measured background: the container exists, the scale and the esds do not | ⬜ | — |
 
 #### The specimen is not an angle, and the neutron follow-through
