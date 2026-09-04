@@ -544,14 +544,18 @@ question.
   [1337](1337-an-authored-refusal-not-a-traceback.md) § #246, in `tie()`'s own
   voice, and the widening is the seam it replaces. Its `### Inherited` has the
   detail.
-- **Two things the diff review found**, and neither had a test until it did.
-  The bound test disabled the window by assigning over
-  `ParameterTable._derive_tie_windows` and `del`-ing the assignment, which
-  removes the real method rather than restoring it — green alone, and 21
-  unrelated tests down under `-n auto`. And the four derived bounds **do not
-  commute**: applying the tie window before `cell_window` disarmed the cell
-  runaway guard entirely, because `cell_window` reads a finite side as a claim
-  the caller made.
+- **The review was done by reading the diff, not by `/code-review medium
+  --fix`** — this session's standing instruction was not to spawn agents,
+  so the pass that found nine things for the first session did not run.
+  Reading found three, all fixed and now tested, and the first two are
+  the kind an agent pass is good at. (1) The bound test disabled the window by
+  assigning over `ParameterTable._derive_tie_windows` and `del`-ing the
+  assignment, which removes the real method rather than restoring it — green
+  alone, and 21 unrelated tests down under `-n auto`. (2) The four derived
+  bounds **do not commute**: applying the tie window before `cell_window`
+  disarmed the cell runaway guard entirely, because `cell_window` reads a finite
+  side as a claim the caller made. (3) The window had to widen to admit its
+  source's value, the bullet above.
 
 *Measured* — same venv and platform as the entry below.
 
