@@ -496,14 +496,13 @@ for one specimen), and every converged fit reports a coherent domain size and a
 Each row is a silent wrong answer, the class the repo's rules are strictest
 about: a report that repeats itself (1310), a parameter that walks unflagged
 (1311), a confident fraction the pattern cannot fix (1320), a bound persisted
-as absent (1321), an alternation with no stop rule (1323). The orbit that was
-not a multiplicity (1324) is closed; what it measured — the same threshold
-deciding two questions, and 3.81 % of a cell mass riding on which side of a
-strict `<` a five-decimal file fell — is the shape the rest of the group has.
-The 2026-09-03 triage adds three: a 2θ axis read 100× wrong from a commented
-header (1332), a fit that says `converged` while its own diagnostics say
-otherwise (1336), and two paths that fail in a raw traceback where the package
-promised an authored refusal (1337).
+as absent (1321), an alternation with no stop rule (1323), a freeze reading
+parameter *names* that a phase driven through a tie walks past (1342). The
+orbit that was not a multiplicity (1324) is closed; 1320 restates what it
+measured. The 2026-09-03 triage adds three: a 2θ axis read 100× wrong from a
+commented header (1332), a fit that says `converged` while its own diagnostics
+say otherwise (1336), and two paths failing in a raw traceback where the
+package promised an authored refusal (1337).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -516,6 +515,7 @@ promised an authored refusal (1337).
 | [1332](wp/1332-the-axis-a-reader-hands-back.md) | The axis a reader hands back | ⬜ | — |
 | [1336](wp/1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | ⬜ | — (1310 soft) |
 | [1337](wp/1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | — (1311, 1321 soft) |
+| [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ⬜ | — (1301, 1119 soft) |
 
 #### A long run is not one fit
 

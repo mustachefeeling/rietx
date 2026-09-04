@@ -480,8 +480,9 @@ free for the stage. This is CLAUDE.md's "can this parameter move? is
 applies it — the same reason `_column_identities` exists. Not fixed here: a
 correct hold needs the per-column reach off **C** that `_column_extras` computes
 in `optimize/` and the table does not have, plus a decision about *what* to hold
-when one variable drives several phases. Cut it a task before anyone ties a
-variable to a phase that can vanish.
+when one variable drives several phases. Cut as
+[1342](1342-a-freeze-that-reads-names.md), because 1301 is closed and a finding
+with no live home is a finding nobody meets.
 
 **3. `vars.*` rows never reach the `.rxt` document.** `gui/textdoc.py`'s
 `render` emits `phases.N.` and `instrument.` blocks only, so a project with
@@ -489,7 +490,9 @@ named variables shows tied rows annotated `= vars.B` naming a parameter that
 appears nowhere in the document, and the editor's "set `vars.B` instead"
 refusal points at a path the reader cannot find. No data loss — variables live
 on the refinement state and are never reconstructed from the doc. Not fixed
-here: a new block is a grammar change and a `FORMAT_VERSION` bump.
+here: a new block is a grammar change and a `FORMAT_VERSION` bump, and there
+is no open WP it belongs to — the next `.rxt` grammar change should carry it
+rather than pay a version bump for a cosmetic row.
 
 Findings 2 and 3 are from `/code-review medium --fix` on the finished branch;
 the three it found *and* fixed are in the session entry below.
