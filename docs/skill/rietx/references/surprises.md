@@ -1,4 +1,4 @@
-# 8. Twenty things that will surprise you, all measured
+# 8. Twenty-one things that will surprise you, all measured
 
 Load it when something the fit did makes no sense. Every entry is a measured result that contradicts an intuition.
 
@@ -309,3 +309,32 @@ the next, one commit apart, because each pattern warm-starts from its
 predecessor and a different seed changes how many recovery rungs the next one
 needs (§9b). The per-fit bound above does not survive a chain in either
 direction.
+
+**8.21 A model-selection test can bless a change that makes half your phases
+stop being measurements.** On a four-phase in-situ scan, the majority phase's
+lines were visibly mis-shaped and the cause was real: its control file modelled
+hkl-dependent strain and the transcription had dropped it. Freeing the
+equivalent Stephens block (six Laue-allowed coefficients under `Pmn21`) took Rwp
+0.1092 → 0.0878 and χ² 8460 → 5465 for **+4 net free parameters** at 3887
+channels — ΔBIC −2962, so the test §4 prescribes endorses it overwhelmingly —
+and removed 79-82 % of the two worst regions' χ². It also made
+`PHASE_UNCONSTRAINED` fire on **two of the four phases**, which were supported
+without it: six hkl-dependent coefficients on the majority phase are enough to
+imitate the minority phases' lines, and `StageResult.held` grew from five paths
+to twelve. The better fit is the one where half the answers stopped being
+measurements. **Corollary for the agent: ΔBIC counts parameters, not whether
+each phase still has support. After any Rwp gain from a new width or shape
+model, re-read `PHASE_UNCONSTRAINED` and `StageResult.held` before quoting a
+single scale, fraction or cell from the improved fit.**
+
+The same run refutes a tempting converse. That width error owned **35 % of the
+fit's χ²**, and correcting it moved the background level by **≤ 2 %** in every
+region. A phase width and the background can be degenerate — a phase broadened
+past the instrument becomes a second background — but they are not
+*automatically* coupled: a width wrong enough to dominate the residual can leave
+the background where it was. So do not read a width finding as a background
+finding, or the reverse, without measuring. `BACKGROUND_ABSORPTION` on the
+majority phase's scale was likewise unmoved, 0.442 before and 0.437 after, which
+is the useful half: it measures the geometry of the problem, not the current
+misfit, so it fires from a good start at the same value it fires at from a bad
+one.

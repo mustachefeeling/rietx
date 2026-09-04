@@ -241,6 +241,17 @@ def _span_basis(jac: np.ndarray, cols: list[int]) -> np.ndarray:
 
     All columns zero leaves an ``(n, 0)`` basis, whose projector is zero, i.e.
     "this block imitates nothing" — which is true.
+
+    **A non-finite column is not dropped, and the caller owns that.**  A zero
+    column demonstrably spans nothing; a NaN column spans something *unknown*,
+    so dropping it would quietly narrow the span and understate every number
+    built on it — the direction that silences a guard rather than tripping it.
+    A caller that *fires* on a threshold withholds instead:
+    :func:`block_projection_r2` returns ``{}`` on a non-finite block or
+    nuisance set (WP-1130).  The two callers that only *rank*
+    (:func:`one_parameter_gains`, ``strategy.suggest``) make no such check, so
+    read this as a property of that one caller and not of this function's
+    every consumer.
     """
     cols = [c for c in cols if np.any(jac[:, c])]
     q, _ = np.linalg.qr(jac[:, cols])
@@ -279,10 +290,24 @@ def block_projection_r2(jac: np.ndarray, block: list[int],
     ``block``, ``nuisance`` and the indices in ``targets`` index columns of
     ``jac``.  A zero-norm target column is skipped rather than reported as 0 or
     1: it carries no information either way.
+
+    **A non-finite column withholds rather than reports.**  One NaN entry
+    anywhere in the block poisons the whole QR and every target comes back
+    ``nan``; ``nan > threshold`` is ``False``, so the guard goes *silent* on
+    the fit most likely to need it and
+    ``FitReport.background.worst_absorption`` carries ``nan`` rather than a
+    number (measured, WP-1130 — and ``np.any`` does not catch it, NaN being
+    truthy).  So a non-finite **block** or **nuisance** column withholds the
+    whole table, since the span it was part of is unknowable, and a non-finite
+    **target** column is skipped like a zero-norm one.  Absence is a state
+    every consumer already handles; ``nan`` is a number that compares
+    ``False`` against everything.
     """
     if not block or not targets:
         return {}
     jac = np.asarray(jac)
+    if not np.all(np.isfinite(jac[:, block + list(nuisance or ())])):
+        return {}
     if nuisance:
         jac = _off_span(_span_basis(jac, nuisance), jac)
     q = _span_basis(jac, block)
@@ -290,7 +315,7 @@ def block_projection_r2(jac: np.ndarray, block: list[int],
     for k, path in targets:
         j = jac[:, k]
         denom = float(j @ j)
-        if denom <= 0.0:
+        if not (denom > 0.0 and np.isfinite(denom)):
             continue
         resid = _off_span(q, j)
         out[path] = float(np.clip(1.0 - float(resid @ resid) / denom, 0.0, 1.0))

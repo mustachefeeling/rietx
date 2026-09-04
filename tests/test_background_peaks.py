@@ -524,6 +524,38 @@ def test_a_zero_column_is_dropped_from_a_projection_span():
     assert _span_basis(np.zeros((6, 2)), [0, 1]).shape == (6, 0)
 
 
+def test_a_non_finite_column_withholds_the_statistic_rather_than_reporting_nan():
+    """The opposite of the zero column: it *silences* the guard.
+
+    A zero column saturates every R² at 1; one NaN entry poisons the QR and
+    every R² comes back ``nan``, which compares ``False`` against the
+    threshold — so ``BACKGROUND_ABSORPTION`` never fires and
+    ``FitReport.background.worst_absorption`` carries ``nan`` instead of a
+    number.  ``np.any`` does not catch it, NaN being truthy.  Absence is a
+    state every consumer already handles (WP-1130).
+    """
+    free = ["instrument.background.c0", "instrument.background.c1",
+            "phases.0.scale"]
+    jac = np.zeros((6, 3))
+    jac[:, 0] = [1.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+    jac[:, 1] = [0.0, 1.0, 1.0, 0.0, 0.0, 0.0]
+    jac[:, 2] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+    assert "phases.0.scale" in background_absorption(jac, free)
+
+    for col, value in [(0, np.nan), (1, np.inf),      # the block
+                       (2, np.nan), (2, np.inf)]:     # the target
+        bad = jac.copy()
+        bad[3, col] = value
+        assert background_absorption(bad, free) == {}, (col, value)
+
+    # a NaN column is *not* quietly dropped from the span the way a zero one
+    # is: it spans something unknown, and narrowing the span would understate
+    # every R² built on it
+    bad = jac.copy()
+    bad[3, 0] = np.nan
+    assert _span_basis(bad, [0, 1]).shape[1] == 2
+
+
 def test_peak_columns_join_the_background_block():
     """The statistic asks what the *whole declared background* can imitate."""
     jac = np.zeros((5, 2))
