@@ -457,16 +457,42 @@ workaround is no longer load-bearing and an arm now runs at `Atom.biso`'s own
 one major code whose behaviour here is unknown, and the outer-box choice above
 is the place a second opinion would land.
 
-### One finding recorded rather than fixed
+### Findings recorded rather than fixed
 
-Pre-dates this WP and reproduces with no variable anywhere.
-
-**`add_variable(vary=True)` was overruled by a recorded free set** — found by
+**1. `add_variable(vary=True)` was overruled by a recorded free set** — found by
 the tests, fixed here, and worth naming because it is a shape rather than a
 typo: `_prepare_table` clears every vary flag and replays `_free_paths`, a list
 written before the variable existed, so the declaration lost to a restore that
 could not know about it. Any future synthetic entry declared *after* the first
 stage inherits the same trap.
+
+Pre-dates this WP and reproduces with no variable anywhere; found by the tests,
+fixed here, and worth naming because it is a shape rather than a typo.
+
+**2. A structural freeze reading `free_paths` does not see a variable driving a
+phase.** `_unsupported_phase_paths` filters `table.free_paths` by
+`p.startswith("phases.N.")`, and `mode_fixed_path`'s force-fix of `.atoms.`
+paths is read off the same list. Tie a phase's cell or `biso` to a variable and
+the only free *name* is `vars.X`, so [1301](1301-hold-unsupported-phase.md)'s
+hold on a phase the data cannot see never fires and the flat direction stays
+free for the stage. This is CLAUDE.md's "can this parameter move? is
+`moving_paths`, never `free_paths`" one rank above where the Jacobian already
+applies it — the same reason `_column_identities` exists. Not fixed here: a
+correct hold needs the per-column reach off **C** that `_column_extras` computes
+in `optimize/` and the table does not have, plus a decision about *what* to hold
+when one variable drives several phases. Cut it a task before anyone ties a
+variable to a phase that can vanish.
+
+**3. `vars.*` rows never reach the `.rxt` document.** `gui/textdoc.py`'s
+`render` emits `phases.N.` and `instrument.` blocks only, so a project with
+named variables shows tied rows annotated `= vars.B` naming a parameter that
+appears nowhere in the document, and the editor's "set `vars.B` instead"
+refusal points at a path the reader cannot find. No data loss — variables live
+on the refinement state and are never reconstructed from the doc. Not fixed
+here: a new block is a grammar change and a `FORMAT_VERSION` bump.
+
+Findings 2 and 3 are from `/code-review medium --fix` on the finished branch;
+the three it found *and* fixed are in the session entry below.
 
 ## References
 
