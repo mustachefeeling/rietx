@@ -356,10 +356,47 @@ meets them.
    the tie. `_declare_ties` checks the implied value at declaration and nothing
    checks it again. The fixture works around it with a `MASTER_MAX` whose
    comment says why, and the manual says plainly that a variable's bounds are
-   the ones the solve sees. A fix would have to decide between refusing at
-   declaration (which cannot know where the fit will go), narrowing the free
-   column's box by the coefficients (correct, and it changes existing fits), or
-   reporting a `Diagnostic` — a decision, not a repair.
+   the ones the solve sees.
+
+   **The shape of the fix, which is narrower than "decide a policy".** What a
+   dependent's own limits ask for is `lo ≤ Σ c_k·θ_k + d ≤ hi`: a linear
+   inequality on a *functional* of θ. That splits in two, and the split is the
+   whole design:
+
+   * **One source** — the ordinary tie, and everything before this WP. One term
+     makes the inequality a **box** on that θ, which is exactly `scipy`'s
+     vocabulary, so the default TRF driver can enforce it *exactly* and for
+     free. Several dependents on one source intersect, which is not a new rule:
+     WP-1131 already settled that shared bounds are **intersected, not
+     last-write-wins**.
+   * **Several sources** — the multi-term tie this WP added. Two terms or more
+     make it a half-space, not a box, and TRF's only vocabulary is a box, so it
+     is **not expressible in the default driver at all**. It is expressible
+     under `solver="lm"`, whose stated reason to exist is precisely "bounds
+     enforced inside the linear solve, and linear inequalities on *functionals*
+     of θ" — the Stephens positivity cone (DESIGN.md § the LM driver). A tie
+     bound is that same shape, and nobody has pointed the machinery at it.
+
+   **Prior art agrees with the first half.** TOPAS solves with a
+   bounds-constrained routine that honours bounds *inside* the matrix solve, and
+   its bounding constraints "can be defined using computer algebra" — a limit
+   may itself be an expression of other parameters (Coelho, 2018, *J. Appl.
+   Cryst.* **51**, 210, §3.2). Structurally it also avoids this failure mode:
+   a constrained quantity there is an *equation*, not an independent parameter,
+   so it carries no limits of its own and the limit is written on the
+   independent parameter. rietx differs because its parameters carry declared
+   physical limits in the schema that go on existing after the parameter is
+   tied. So "narrow the source's box" is what a mature code does; the
+   difference worth keeping is that TOPAS has the *user* write it, visibly,
+   where rietx would derive it — which argues for deriving it **and reporting
+   it**, not for deriving it silently.
+
+   What remains genuinely open, then, is small: whether the derived narrowing
+   is the default or opt-in (it moves where an existing fit may go, so it is an
+   observable change either way), what the diagnostic is called, and whether
+   the several-source case refuses, reports, or asks for `solver="lm"`. GSAS-II
+   was **not** consulted — the corpus copy of its paper fails to extract — and
+   should be before this is settled.
 2. **`add_variable(vary=True)` was overruled by a recorded free set** — found by
    the tests, fixed here, and worth naming because it is a shape rather than a
    typo: `_prepare_table` clears every vary flag and replays `_free_paths`, a
