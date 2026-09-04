@@ -336,8 +336,9 @@ a sibling worktree and lands first. `params/vector.py` merges clean (1130 is in
 **two conflicts are both documentation and both keep-both** — the skill's
 `surprises.md`, where 1130 takes 8.21 and this takes 8.22 and both rewrite the
 title (resolution: both rows in number order, "Twenty-two"), and 1118's
-`### Inherited`, where each pushes a forward reference. Resolved that way, the
-merged tree is green. Checked by merging for real, not by `git merge-tree`: the
+`### Inherited`, where each pushes a forward reference. Resolved that way,
+the merged tree runs **4250 passed, 127 skipped** (279 s, its own `[dev]`
+venv resolving to the merged source) against 1130 at `7a7c4262`. Checked by merging for real, not by `git merge-tree`: the
 first such check said "no conflict" and was already stale by the next commit,
 and a clean text merge is not a passing one either way.
 
