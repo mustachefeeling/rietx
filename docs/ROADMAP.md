@@ -98,23 +98,24 @@ PR #111; the exporter registry next. Two contributor PRs wait on review
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
-(1326–1329); the older two, 1119 and 1133. The **2026-09-03 triage** adds
+(1326–1329); the older one, 1133. The **2026-09-03 triage** adds
 1332–1341 — three more on what fires and what stays silent, three costs a
 multi-hundred-pattern campaign paid that a single fit never sees, three views
 over what a fit already knows, and the skill's own gates — and folded three
 issues into 1118, 1310 and 1322 rather than opening a WP. Closed since
-2026-09-02: 1330, 1324, 1131, 1331 the landing page, and
-[1130](wp/1130-background-reference.md) 🛑 on its own gate — its fault no longer
-reproduces and no model-free estimate separates a good fit from a bad one. The
-panel goes to 1133, now unblocked.
+2026-09-02: 1330, 1324, 1131, 1331 the landing page, 1119 named variables, and
+1130 🛑 on its own gate, which unblocks 1133 ([v1.3](milestones/v1.3.md) has
+both).
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
 the `grade` prior-counting change (1046 § 4); the model-cost estimate (1113
 § Findings); the two v1.1 speed fronts nobody owns (the per-reflection 19.4 %,
 1121; the `refit=` choice that discards half a trigger series' wall in ladder
-rungs, 1124); and the LaB6+cBN correlation test's Linux-only red, never green
-there ([v1.3 record](milestones/v1.3.md) § Appendix — acceptance at ship).
+rungs, 1124); the LaB6+cBN correlation test's Linux-only red, never green
+there ([v1.3 record](milestones/v1.3.md) § Appendix — acceptance at ship); and
+`toy_roughness`, the one backend state whose Jacobian no second opinion covers
+(golden only, no `jacfwd` row — 1119 § Gotchas).
 
 ## Milestones
 
@@ -451,13 +452,14 @@ and 1133 are older.
 A TOPAS/GSAS/FullProf/Jana control file read in and written back, refine
 flags included — all six agents of 1110's round named hand-transcribing a
 `.inp` as the hardest part of the work. 1119 is the named variable such a
-file's equations refer to; issue #212's cross-phase linear restraint is its
-first concrete ask.
+file's equations refer to, and closed 2026-09-04; issue **#212**'s cross-phase
+linear restraint is its first concrete ask, **has no WP and needs one cut** —
+seam written out in [1325](wp/1325-parametric-series.md)'s `### Inherited`.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | 🔄 2026-09-01 | — |
-| [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ⬜ | — |
+| [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ✅ 2026-09-04 | — |
 | [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | 1118 |
 | [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | — |
 
@@ -494,14 +496,13 @@ for one specimen), and every converged fit reports a coherent domain size and a
 Each row is a silent wrong answer, the class the repo's rules are strictest
 about: a report that repeats itself (1310), a parameter that walks unflagged
 (1311), a confident fraction the pattern cannot fix (1320), a bound persisted
-as absent (1321), an alternation with no stop rule (1323). The orbit that was
-not a multiplicity (1324) is closed; what it measured — the same threshold
-deciding two questions, and 3.81 % of a cell mass riding on which side of a
-strict `<` a five-decimal file fell — is the shape the rest of the group has.
-The 2026-09-03 triage adds three: a 2θ axis read 100× wrong from a commented
-header (1332), a fit that says `converged` while its own diagnostics say
-otherwise (1336), and two paths that fail in a raw traceback where the package
-promised an authored refusal (1337).
+as absent (1321), an alternation with no stop rule (1323), a freeze reading
+parameter *names* that a phase driven through a tie walks past (1342). The
+orbit that was not a multiplicity (1324) is closed; 1320 restates what it
+measured. The 2026-09-03 triage adds three: a 2θ axis read 100× wrong from a
+commented header (1332), a fit that says `converged` while its own diagnostics
+say otherwise (1336), and two paths failing in a raw traceback where the
+package promised an authored refusal (1337).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -514,6 +515,7 @@ promised an authored refusal (1337).
 | [1332](wp/1332-the-axis-a-reader-hands-back.md) | The axis a reader hands back | ⬜ | — |
 | [1336](wp/1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | ⬜ | — (1310 soft) |
 | [1337](wp/1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | — (1311, 1321 soft) |
+| [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ⬜ | — (1301, 1119 soft) |
 
 #### A long run is not one fit
 

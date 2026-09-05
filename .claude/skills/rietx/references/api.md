@@ -92,9 +92,11 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.Refinement.parameters(*, mode: Mode | None = None) -> list[ParameterRow]` — Every parameter as data — fixed, locked and tied rows included.
 - `rx.Refinement.set_vary(path_globs: list[str] | str, vary: bool = True) -> list[str]` — Free (or hold) every parameter matching `path_globs`.
 - `rx.Refinement.set_values(values: dict[str, float])` — Set parameter values by dot-path, recording a `set_value` node.
-- `rx.Refinement.tie(path: str, source: str, *, scale: float = 1.0, offset: float = 0.0) -> str` — Constrain `path` to `scale·source + offset`, recording a node.
+- `rx.Refinement.tie(path: str, source: str | dict[str, float] | Sequence[tuple[str, float]], *, scale: float = 1.0, offset: float = 0.0) -> str` — Constrain `path` to `scale·source + offset`, recording a node.
 - `rx.Refinement.tie_equal(paths: list[str] | str, *, source: str | None = None) -> list[str]` — Make every parameter matching `paths` one parameter.
 - `rx.Refinement.untie(paths: list[str] | str) -> list[str]` — Release user ties, recording a `set_tie` node.
+- `rx.Refinement.add_variable(name: str, value: float, *, vary: bool = False, min: float = -inf, max: float = inf, transform: str = 'identity', unit: str | None = None) -> str` — Declare a named variable other parameters can follow.
+- `rx.Refinement.remove_variable(name: str) -> str` — Delete a named variable, refusing while anything follows it.
 - `rx.Refinement.edit(*, structure: Structure | None = None, instrument: Instrument | None = None, label: str = '') -> str | None` — Record a change to the model itself — adding an impurity phase, raising the background order, swapping the geometry.
 - `rx.refine(data: PatternData, structure: Structure, instrument: Instrument, *, mode: Mode = 'rietveld', plan: RefinementPlan | str = 'mccusker_default', two_theta_limits: tuple[float, float] | None = None, backend: str = 'numpy', solver: str = 'trf', history: bool | str | Path | RefinementTree = False, events=None, cancel=None) -> RefinementResult` — One-shot functional API: `refine(data, structure, instrument)`.
 - `rx.RefinementPlan`

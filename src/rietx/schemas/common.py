@@ -117,7 +117,18 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: ``PhaseMicrostructure.scherrer_k`` inside it is **required**: a size scales
 #: linearly in K, so a defaulted 0.0 would be an answer about a constant nobody
 #: chose (WP-1076; WP-1305's ``delta_bic`` took the same decision).
-SCHEMA_VERSION = "0.15"
+#: 0.15 → 0.16 (WP-1119): ``RefinementState.variables`` and
+#: ``NodeAction.variables``/``removed_variables`` — named variables, a caller's
+#: own ``Parameter`` outside the model tree that other parameters follow by
+#: affine tie.  Additive and defaulted to empty, which is the honest empty state
+#: (a refinement that declared none), but a variable is the one piece of
+#: refinement state with **no** model field behind it: ``apply_to_models`` has
+#: nothing to write it to, so the document is its only source of truth and a
+#: node that dropped it would restore ties pointing at a parameter that is gone.
+#: The field it reuses is ``Parameter`` itself rather than a new type, which is
+#: what makes a variable and the model parameter it replaces produce the
+#: identical table ``Entry``.
+SCHEMA_VERSION = "0.16"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

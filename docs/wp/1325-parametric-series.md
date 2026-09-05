@@ -60,6 +60,39 @@ assumed.
 
 ### Inherited
 
+- **2026-09-04, from [1119](1119-named-variables.md): the soft dependency is
+  discharged, and one piece of your scope is now unowned.** A named coefficient
+  is a named variable and that object exists: `Refinement.add_variable(name,
+  value, min=, max=, transform=)` gives `vars.<name>`, an ordinary dot-path that
+  `parameters()` lists, `set_vary("vars.*")` frees and a fit refines with an
+  esd; `Refinement.tie` takes `{path: coefficient}` so one variable can be
+  written in terms of others; and a variable is persisted in
+  `RefinementState.variables`, so a checkout restores it. Two things to carry
+  across. (1) **A variable's bounds are the only bounds the solve sees** — a
+  tied dependent is not a free column, so a coefficient other than 1 can put it
+  outside its own `min`/`max` and the failure is a pydantic error naming
+  nothing (skill `references/surprises.md` § 8.22). A parametric coefficient
+  driving several patterns' parameters has to be bounded for its dependents.
+  (2) **The linear relation is exact and the nonlinear one does not exist**:
+  `p = C·θ + d` is what the constraint block computes, so a coefficient times a
+  series axis is free, and anything with a product or a power of the axis in it
+  is outside the machinery entirely.
+- **2026-09-04, from [1119](1119-named-variables.md): issue #212 is a WP of its
+  own and nobody has cut it.** 1119 was asked to decide whether the cross-phase
+  linear *restraint* row belongs to it, and the answer was no — it is a residual
+  row and a `Structure`-level schema seam, sharing only the (path, coefficient)
+  shape with a tie. The seam, as 1119 leaves it: `Phase.restraints` is per
+  phase and `Structure` holds no cross-phase list, so the row belongs beside
+  `resolve_phase_restraints` (`model/restraints.py:114`); it needs a new
+  `BLOCK_ORDER` block in `model/rows.py`; and it needs no expression language,
+  because `√w·(Σ c_k·x_k − target)/σ` over (path, coefficient) pairs is the
+  whole thing and `phase_zmv(...).element_counts` (`optimize/qpa.py`) already
+  carries n_{E,p}. The evidence in the issue: Cu/(Ca+Al) = 1.935 through a
+  reduction series, where diffraction alone moves 17 wt % between two phases for
+  0.2–0.5 pp of Rwp. This WP names it as one instance of a parametric
+  constraint, so **cutting that WP is the next action on it** and it is recorded
+  here rather than in 1119, which is closed.
+
 - **2026-09-02, from the magnetic scattering track
   ([1329](1329-moment-in-a-series.md)): a second use case, named, not
   measured.** An ordered moment through T_N is an order parameter, m ∝

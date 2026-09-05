@@ -23,6 +23,7 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
+from pydantic import ValidationError
 from scipy import sparse
 
 from ..crystallography.adp import U_NAMES
@@ -229,6 +230,28 @@ class Entry:
     transform: str
     tie: AffineTie | None = None  # affine dependence on other entries
     locked: bool = False  # structurally fixed: set_vary may never free it
+
+
+#: Path prefix of a caller's own named variable (WP-1119).  A variable is a
+#: synthetic entry like a Wyckoff DOF, so it needs a namespace outside the model
+#: tree; ``phases`` and ``instrument`` are that tree's only top-level segments,
+#: so ``vars.`` cannot collide, and it is a plain dot-path so ``set_vary("vars.*")``
+#: globs it like anything else.  Declared here because this module is where a
+#: path means something, and read by ``Refinement`` and the tie verbs.
+VAR_PREFIX = "vars."
+
+
+def is_variable_path(path: str) -> bool:
+    """Is ``path`` a caller's named variable rather than a model parameter?
+
+    One predicate rather than a repeated ``startswith``, because two rules turn
+    on it and they must not drift: a tied source is accepted only where this is
+    true (a variable may follow other variables — TOPAS's ``prm B = 2 A`` — while
+    a tied *model* path keeps the refusal that steers a caller to what it
+    follows), and only a path answering true is written back to the variable
+    register instead of into the pydantic models.
+    """
+    return path.startswith(VAR_PREFIX)
 
 
 #: Cell parameter names in table order — lengths first, then angles.
@@ -717,6 +740,65 @@ def size_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
     return hi
 
 
+def _tie_text(tie: AffineTie) -> str:
+    """``2·phases.0.atoms.0.biso + 0.5`` — a tie in the spelling a caller wrote."""
+    parts = [f"{coeff:g}\u00b7{src}" for src, coeff in tie.terms]
+    if tie.const:
+        parts.append(f"{tie.const:g}")
+    return " + ".join(parts)
+
+
+def tie_window(lo: float, hi: float, coeff: float,
+               offset_lo: float, offset_hi: float) -> tuple[float, float]:
+    """Where a source must stay for its dependent to honour *its own* bounds.
+
+    A tie says ``dependent = coeff·source + offset``, and the dependent carries
+    the schema's declared physical limits ``[lo, hi]`` — ``Biso`` in [0, 25],
+    ``occ`` in [0, 1.5], March-Dollase ``r`` in its floored range.  The solver's
+    box, though, covers the **free** column, and a tied entry is not one, so
+    nothing stops a coefficient other than 1 carrying the dependent straight
+    past a limit that is physics.  This is the interval that stops it:
+    ``lo ≤ coeff·s + offset ≤ hi`` solved for ``s``, with the sign of ``coeff``
+    swapping the ends.
+
+    ``offset_lo``/``offset_hi`` bracket everything in the tie that is *not*
+    this source — the flattened constant, every held source, and every other
+    free source at its own declared bounds.  With one source they are equal and
+    the answer is exact.  With several they are not, and the answer is the
+    **outer** box: the projection of a half-space onto one axis, which can
+    admit an infeasible corner but can never exclude a feasible point.  That
+    direction is the whole point — a relaxation bounds the runaway wherever the
+    co-sources are themselves bounded and gets out of the way where they are
+    not, whereas the inner box would quietly delete solutions the caller asked
+    for.  An unbounded co-source gives ±inf here, which is the honest answer.
+
+    Applied in :meth:`ParameterTable.bounds` beside :func:`cell_window`,
+    :func:`strain_cap_hi` and :func:`size_cap_hi`, and for the same reason they
+    live there: it is a **solver** bound for the stage about to run, derived
+    from two declarations the caller already made, never a fact about the
+    stored parameter — so it must not surface through ``ParameterRow`` or the
+    ``.rxt`` document as a claim nobody wrote.  **Last of the four, and that is
+    load-bearing**: :func:`cell_window` reads an infinite side as the side
+    nobody claimed, so a window applied ahead of it would pass as a claim the
+    caller never made and switch the runaway guard off (measured: the cell comes
+    back at the dependent's own [0, 100] instead of [3.89877, 4.41443]).
+
+    **Prior art.**  TOPAS honours bounds inside the matrix solve and lets a
+    limit itself be an expression of other parameters (Coelho, 2018,
+    *J. Appl. Cryst.* **51**, 210, §3.2).  Structurally it never meets this
+    case at all: a constrained quantity there is an *equation* rather than a
+    parameter, so it carries no limits of its own and the limit is written on
+    the independent one, by hand and visibly.  rietx cannot copy that — its
+    limits are schema physics that go on existing after a parameter is tied —
+    so it derives what TOPAS has the user write, and reports it: a source held
+    at a window it did not declare comes back through ``bound_findings`` as
+    ``BOUND_HIT`` like any other bound the stage imposed.
+    """
+    a, b = lo - offset_hi, hi - offset_lo
+    a, b = a / coeff, b / coeff
+    return (a, b) if coeff > 0.0 else (b, a)
+
+
 class ParameterTable:
     """The tree-to-flat-θ machinery behind a fit — internal, not the agent surface.
 
@@ -1098,6 +1180,7 @@ class ParameterTable:
         c_rows: list[int] = []
         c_cols: list[int] = []
         c_vals: list[float] = []
+        tied: list[tuple[int, list[tuple[int, float]]]] = []
         d = np.zeros(n, dtype=np.float64)
         for i, e in enumerate(self.entries):
             if e.tie is None:
@@ -1117,8 +1200,97 @@ class ParameterTable:
                         c_vals.append(coeff)
                     else:
                         d[i] += coeff * self.entries[j].value
+                tied.append((i, [(j, c) for j, c in terms
+                                 if j in col and c != 0.0]))
         self._C = sparse.csr_matrix((c_vals, (c_rows, c_cols)), shape=(n, m))
         self._d = d
+        self._tie_windows = self._derive_tie_windows(tied, d)
+
+    def _derive_tie_windows(self, tied: list[tuple[int, list[tuple[int, float]]]],
+                            d: np.ndarray) -> dict[int, tuple[float, float]]:
+        """Each free source's window, intersected over every dependent it drives.
+
+        The derivation and its prior art are :func:`tie_window`'s; this is the
+        bookkeeping around it.  Two rules the arithmetic does not state.
+
+        A dependent claiming nothing on either side constrains nothing, so an
+        entry with two infinite bounds is skipped rather than contributing a
+        ±inf window — measured on this tree, that is **every tie the package
+        derives**: 52 of them across four real structures (68 with anisotropic
+        ADPs), all single-term, and not one with a finite bound, because cell
+        lengths, angles and fractional coordinates all carry the
+        :class:`~rietx.schemas.common.Parameter` default of ±inf.  So this
+        narrows a *user's* tie and provably nothing else, which is what made it
+        safe to apply unconditionally rather than behind a freeze.
+
+        Co-source ranges are read from the entries' own **declared** bounds and
+        never from another window computed here, so the result does not depend
+        on the order dependents are visited in.  Using the wider input keeps
+        every window an outer box, which is the direction :func:`tie_window`
+        needs.
+
+        An empty intersection is **refused, not clipped**: two declarations that
+        cannot both hold is the caller contradicting themselves, and this table
+        has no diagnostics channel to say so in (the rule that puts a CIF's
+        angle repair in the reader instead).
+        """
+        # each side carries the dependent that set it, because the fix for a
+        # window is almost never on the parameter the window is *on*
+        acc: dict[int, tuple[float, str, float, str]] = {}
+        for i, free_terms in tied:
+            e = self.entries[i]
+            if not (math.isfinite(e.lo) or math.isfinite(e.hi)):
+                continue
+            spans = [(j, c, min(c * self.entries[j].lo, c * self.entries[j].hi),
+                      max(c * self.entries[j].lo, c * self.entries[j].hi))
+                     for j, c in free_terms]
+            for j, coeff, _, _ in spans:
+                off_lo = float(d[i]) + sum(s for k, _, s, _ in spans if k != j)
+                off_hi = float(d[i]) + sum(s for k, _, _, s in spans if k != j)
+                if math.isnan(off_lo) or math.isnan(off_hi):
+                    continue          # ±inf cancelling: nothing is claimed
+                lo, hi = tie_window(e.lo, e.hi, coeff, off_lo, off_hi)
+                if math.isnan(lo) or math.isnan(hi):
+                    continue          # …and again once the bound is subtracted
+                w_lo, from_lo, w_hi, from_hi = acc.get(
+                    j, (-math.inf, e.path, math.inf, e.path))
+                if lo > w_lo:
+                    w_lo, from_lo = lo, e.path
+                if hi < w_hi:
+                    w_hi, from_hi = hi, e.path
+                acc[j] = (w_lo, from_lo, w_hi, from_hi)
+        out: dict[int, tuple[float, float]] = {}
+        for j, (lo, from_lo, hi, from_hi) in acc.items():
+            e = self.entries[j]
+            if max(lo, e.lo) > min(hi, e.hi):
+                blame = from_lo if lo > e.lo else from_hi
+                raise ValueError(
+                    f"{blame!r} follows {e.path!r}, and staying inside its own "
+                    f"bounds needs {e.path} in [{lo:g}, {hi:g}] — which cannot "
+                    f"be reconciled with {e.path}'s own [{e.lo:g}, {e.hi:g}]. "
+                    f"Widen one of the two, or change the tie's coefficient")
+            # **Never hand the solver an x0 it has already left.**  A window
+            # says where a source may *go*, and the value it is *at* is a
+            # separate fact — one that ``commit`` can put an ulp the wrong side
+            # of, since a stage that stops on a window writes its answer back
+            # through ``decode`` and ``_rebuild`` recomputes the window from it.
+            # Widening to admit the value costs an ulp there and needs no
+            # tolerance to tune, where the alternative is ``least_squares``
+            # refusing the *next* stage with "x0 is infeasible" about a
+            # parameter nobody tied.
+            #
+            # It also decides what happens to a state that was inconsistent
+            # before any window existed.  Those are caught earlier now — the
+            # write-back in ``apply_to_models`` refuses at declaration, naming
+            # the path, the value, the bound and the tie — but "earlier" is not
+            # "always", and this is deliberately not the place to raise: the
+            # refusal WP-1337 § #246 wants belongs in its own voice beside
+            # ``tie()``'s other six, and reaching a DOF target's coordinates is
+            # that WP's task 4.  The computation it needs is right here, on the
+            # *flattened* ties; only the refusal is missing.
+            v = e.value
+            out[j] = (min(lo, v), max(hi, v))
+        return out
 
     #: Paths whose freedom λ trades against.  A cell *angle* is included: a
     #: monoclinic β scales no length on its own, but the metric it enters is
@@ -1502,15 +1674,26 @@ class ParameterTable:
     def bounds(self) -> tuple[np.ndarray, np.ndarray]:
         """Internal-space bounds for the free vector, in ``free_paths`` order.
 
-        This is where :func:`cell_window`, :func:`strain_cap_hi` and
-        :func:`size_cap_hi` are applied, rather than on the :class:`Entry`, and
-        the distinction is the point: all three are **solver** bounds for the
-        stage about to run, not facts about the stored parameter.  Putting any
-        of them on the entry would surface it through ``ParameterRow`` and the
-        ``.rxt`` document, both of which tell a reader that bounds come from the
-        schema — and there it would read as a claim the caller never made.
-        ``bound_findings`` is fed from here, so a cell that reaches its window
-        or a strain/size term held at its cap is still reported.
+        This is where :func:`cell_window`, :func:`strain_cap_hi`,
+        :func:`size_cap_hi` and :func:`tie_window` are applied, rather than on
+        the :class:`Entry`, and the distinction is the point: all four are
+        **solver** bounds for the stage about to run, not facts about the
+        stored parameter.  Putting any of them on the entry would surface it
+        through ``ParameterRow`` and the ``.rxt`` document, both of which tell a
+        reader that bounds come from the schema — and there it would read as a
+        claim the caller never made.
+        ``bound_findings`` is fed from here, so a cell that reaches its window,
+        a strain/size term held at its cap, or a tie source held where its
+        dependent's own limits put it (:func:`tie_window`) is still reported.
+
+        **They do not commute, and a new one goes last.**  :func:`cell_window`
+        reads an *infinite* side as the side nobody claimed and applies its
+        runaway default only there, so anything that makes a side finite ahead
+        of it passes as a claim the caller never made and disarms the guard —
+        measured, an unsupported phase's cell came back at a tied dependent's
+        [0, 100] instead of [3.89877, 4.41443].  Each of the four only ever
+        narrows, so appending a fifth is always safe and inserting one is not
+        (WP-1119).
         """
         windowed = getattr(self, "_cell_window_phases", None)
         cap = getattr(self, "_strain_cap", None)
@@ -1532,6 +1715,17 @@ class ParameterTable:
                 size_name = _size_parameter_name(e.path)
                 if size_name is not None:
                     e_hi = size_cap_hi(size_name, e.value, e_hi, size_cap_width)
+            tied_window = self._tie_windows.get(i)
+            if tied_window is not None:
+                # **last of the four, and the order is load-bearing.**
+                # ``cell_window`` branches on whether a side is infinite — an
+                # infinite one being the side nobody claimed — so a tie window
+                # applied ahead of it would hand it a finite bound the caller
+                # never wrote and suppress the runaway guard it exists to be.
+                # Narrowing afterwards cannot: every one of the three only ever
+                # narrows, so intersecting last is the tightest of all four and
+                # leaves each of their decisions reading the stored bounds.
+                e_lo, e_hi = max(e_lo, tied_window[0]), min(e_hi, tied_window[1])
             scale = self._value_scale.get(e.path)
             if scale is not None:
                 # every bound above is a *physical* limit on this table's own
@@ -1702,9 +1896,45 @@ class ParameterTable:
         CIF exporter write standard uncertainties.
         """
         values = {e.path: e.value for e in self.entries}
+        #: Every (parameter, path) the walk below reaches, written only once the
+        #: walk is complete.  **The write is all-or-nothing**: the bound refusal
+        #: under ``_write`` raises part-way through a tree of hundreds of
+        #: parameters, and assigning as we go left ``structure`` holding some of
+        #: the stage's answer and some of the previous one — a model nothing
+        #: reports as damaged.  Assignment order is unchanged, and no parent
+        #: model is revalidated by a write to a ``Parameter``, so deferring the
+        #: writes cannot change what any of them sees.
+        pending: list[tuple[Parameter, str]] = []
 
         def put(p: Parameter, path: str) -> None:
-            p.value = values[path]
+            pending.append((p, path))
+
+        def _refuse(path: str, value: float, exc: Exception | None = None):
+            # A bound broken *here* is one the solver never saw: the box
+            # covers free columns, and this is where a tied value first
+            # meets the schema.  :func:`tie_window` closes the single-source
+            # case exactly, so what survives is a multi-source tie's
+            # infeasible corner — rare, and previously arriving as a bare
+            # pydantic error naming no path, no phase and no tie, *after*
+            # the solve.  Naming all three is the least a caller needs to
+            # know which of their declarations to widen.
+            # ``ValueError`` rather than re-raising: pydantic's own
+            # ValidationError *is* a ValueError, so nothing catching the
+            # broad type notices, and nothing in the package catches the
+            # narrow one around this call.
+            entry = self.entries[self._paths[path]]
+            tie = (f"; it follows {_tie_text(entry.tie)}"
+                   if entry.tie is not None else "")
+            raise ValueError(
+                f"writing {path}={value:g} back to the model breaks "
+                f"its own bounds [{entry.lo:g}, {entry.hi:g}]{tie}"
+            ) from exc
+
+        def _write(p: Parameter, path: str) -> None:
+            try:
+                p.value = values[path]
+            except ValidationError as exc:
+                _refuse(path, values[path], exc)
             if stderr is not None:
                 p.stderr = stderr.get(path)
 
@@ -1757,3 +1987,13 @@ class ParameterTable:
         # stage's recompile
         for sub, cp in background_peak_parameters(instrument.background_peaks):
             put(cp, f"instrument.background_peaks.{sub}")
+        # the walk is over.  Check every value against the schema *before*
+        # assigning any of them, so the refusal below leaves the models exactly
+        # as it found them; the assignment pass keeps the guard as a backstop
+        # for anything the check does not model.
+        for p, path in pending:
+            v = values[path]
+            if not (p.min <= v <= p.max):
+                _refuse(path, v)
+        for p, path in pending:
+            _write(p, path)
