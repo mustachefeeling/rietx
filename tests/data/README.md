@@ -272,7 +272,7 @@ refinement of these two histograms:
 |---|---|
 | a (Å) | 10.342312(8) |
 | x(O 48f) | 0.33012(7) |
-| data points | 51 295 |
+| data points | 51 295, a subset of these files' 49 493 + 3 296 |
 | refined neutron λ (Å) | 1.5406704, from a declared 1.54040 (+176 ppm) |
 
 and the paper's own account of the protocol, which is what this feature
@@ -296,9 +296,10 @@ the published 0.33012(7).
 **The occupancy is the one not to copy**, and the paper is the reason. It
 concludes that A-site disorder is *suggested*, not established, and says why in
 its own terms: allowing it improves the fit only marginally; the neutron
-histogram cannot see it at all, because Nd (7.03 fm) and Ru (7.69 fm) have
-nearly the same coherent scattering length, so the Z contrast lives entirely in
-the synchrotron histogram; and an X-ray PDF of the same specimen would not
+histogram cannot see it at all, because Nd and Ru have nearly the same coherent
+scattering length — 7.69 fm against 7.03 fm, the values Sears (1992) tabulates
+and gemmi ships — so the Z contrast lives entirely in the synchrotron
+histogram; and an X-ray PDF of the same specimen would not
 settle it either — the substitution refined to unphysical occupancies there
 (correlated with the scale factor), and ideal ordering against 7.0 % Ru gave
 R = 10.05 % against 10.02 %, a difference the paper describes as smaller than
