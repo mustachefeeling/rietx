@@ -132,13 +132,14 @@ What an operator must know, all measured:
   cold refits plus 244 minority-geometry fits plus 2 reference fits, **57 minutes
   single-threaded**.  Sample the chain cold; it is the only check here that
   catches a cheap wrong basin.
-- **Two batch rows apply to a chain and live in §9c**, which a series operator
-  never loads: a phase that switches fully in and fully out along the ramp is a
-  degenerate split rather than a coexistence, and whether its fraction is an
-  observable at all depends on the transition's order
-  ([`references/batch.md`](batch.md) § 9c.24); and the shared `EventStream` opens
-  its file in append mode, so a re-run of a ramp writes into the previous run's
-  log unless the path is rotated (§ 9c.13) — measured on chains, both of them.
+- **One batch row applies to a chain and lives in §9c**, which a series
+  operator never loads: the shared `EventStream` opens its file in append mode,
+  so a re-run of a ramp writes into the previous run's log unless the path is
+  rotated ([`references/batch.md`](batch.md) § 9c.13) — measured on chains.
+  The companion rule — a phase that switches fully in and fully out along the
+  ramp is a degenerate split rather than a coexistence, and whether its
+  fraction is an observable at all depends on the transition's order — is this
+  file's own *Is the transition first order?* section, not a batch row.
 - **A trajectory of phase fractions is a QPA question at every point of it, and
   the background is what decides it.**  Fractions ride on scales, and an
   over-flexible background biases scales silently while *improving* every
