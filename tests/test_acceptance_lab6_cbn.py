@@ -377,12 +377,13 @@ def test_the_correlation_diagnostic_separates_the_two(shared, degenerate):
     **And "no bound is reached, so the optimum cannot move" is false here**,
     which is the natural objection to the paragraph above.  ``run_least_squares``
     passes ``bounds=(lo, hi)`` to scipy unconditionally, and TRF scales each
-    direction by that parameter's distance to its *nearer* bound, taking 1 only
-    where the bound is infinite (``CL_scaling_vector``, scipy
-    ``optimize/_lsq/common.py``).  So a ``biso`` at 0.44 goes from a step scale
-    of 1 to one of about 0.44, the trust region is shaped differently in those
-    directions, and the walk stops elsewhere in the same valley — with nothing
-    at a bound at any point.  Not an algorithm switch either: ``u`` and ``v``
+    direction by the distance to the bound the *gradient points at* — ``ub - x``
+    where ``g < 0``, ``x - lb`` where ``g > 0``, and 1 only where that bound is
+    infinite (``CL_scaling_vector``, scipy ``optimize/_lsq/common.py``).  So a
+    ``biso`` at 0.44 under (0, 25) goes from a step scale of 1 to one of 0.44
+    where the gradient pushes it down and 24.56 where it pushes it up, the
+    trust region is shaped differently in those directions, and the walk stops
+    elsewhere in the same valley — with nothing at a bound at any point.  Not an algorithm switch either: ``u`` and ``v``
     carry finite declared bounds already, so this fit was in ``trf_bounds``
     both before and after.
 

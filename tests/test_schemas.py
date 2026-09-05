@@ -219,10 +219,32 @@ def test_schema_version_bumped_and_pre_fix_documents_still_load():
     the shape ``model_dump_json`` actually wrote), still loads unaffected —
     the break is to construction, not to persisted documents, because
     ``model_fields_set``/dict-keys are already complete on load and nothing
-    is inherited."""
+    is inherited.
+
+    The version is pinned against the changelog block rather than a
+    literal.  A literal ``== "0.16"`` goes red on the next WP that bumps
+    the constant, under a name whose subject is ``Atom`` bounds, and reads
+    as though this fix broke (review round 4 on PR #206).  What this test
+    is entitled to assert is that the bump for *this* change is recorded
+    and has been reached — not that nothing has happened since."""
+    import rietx.schemas.common as common
     from rietx.schemas.common import SCHEMA_VERSION
 
-    assert SCHEMA_VERSION == "0.16"
+    entry = re.search(
+        r"^#: (\d+\.\d+) \u2192 (\d+\.\d+) \(issue #204\)",
+        inspect.getsource(common),
+        re.M,
+    )
+    assert entry is not None, (
+        "the SCHEMA_VERSION changelog no longer records the issue #204 "
+        "bump; this test's whole claim is that the shrunken set of legal "
+        "Atom constructions is a documented version change")
+
+    def as_key(v):
+        return tuple(int(part) for part in v.split("."))
+
+    assert as_key(entry.group(2)) > as_key(entry.group(1))
+    assert as_key(SCHEMA_VERSION) >= as_key(entry.group(2))
 
     pre_fix_doc = (
         '{"label": "Fe1", "species": "Fe",'
