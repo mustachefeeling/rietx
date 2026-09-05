@@ -344,6 +344,65 @@ def test_the_channel_reports_what_the_instrument_does_not_carry():
     assert read_gsas_prm(DATA / "mg090.prm") == ins
 
 
+def test_a_drop_is_only_reported_for_a_record_the_file_carried(tmp_path):
+    """Round two, item 1.  The three rows were built unconditionally, so two
+    of them described files that said no such thing: a ``.prm`` with no
+    ``IRAD``/``ITYP`` still got the "ignored by design" row, and a ``PRCF``
+    declaring exactly eight coefficients still got "0 coefficient(s) past
+    position 8".  The rule the channel implements is about a value **the file
+    carried** being dropped at the model's identity; a row about a record that
+    is absent is a defaulted field answering a question nobody asked
+    (WP-1076), and it is ``info``, so the corpus would keep it invisible.
+    """
+    # a file carrying neither record: no IRAD/ITYP row at all
+    text = _prm()
+    without = "\n".join(ln for ln in text.splitlines()
+                        if "IRAD" not in ln and "ITYP" not in ln) + "\n"
+    assert "IRAD" not in without and "ITYP" not in without
+    path = tmp_path / "no_irad.prm"
+    path.write_text(without, encoding="utf-8")
+    diagnostics: list = []
+    read_gsas_prm(path, diagnostics=diagnostics)
+    where = {tuple(d.where) for d in diagnostics
+             if d.code == "GSAS_PRM_FIELD_DROPPED"}
+    assert ("IRAD/ITYP",) not in where
+    assert ("ICONS",) in where and ("PRCF",) in where   # the two real ones
+
+    # …and the row is still there for a file that does carry one
+    both = tmp_path / "with_irad.prm"
+    both.write_text(_prm(), encoding="utf-8")
+    diagnostics = []
+    read_gsas_prm(both, diagnostics=diagnostics)
+    assert ("IRAD/ITYP",) in {tuple(d.where) for d in diagnostics
+                              if d.code == "GSAS_PRM_FIELD_DROPPED"}
+
+
+def test_no_coefficients_past_eight_is_not_reported_as_a_drop(tmp_path):
+    """The other half of round two's item 1: a ``PRCF`` declaring exactly
+    eight coefficients has nothing past position 8, and the message said
+    "0 coefficient(s) past position 8 = 0" — a drop that did not happen.
+    ``GP`` at position 4 is genuinely read and dropped either way, so the row
+    itself stays."""
+    eight = _prm(ncoef=8, coeffs=(1.0, -0.5, 0.2, 0.0, 0.15, 0.0, 0.0011,
+                                  0.0022))
+    p8 = tmp_path / "eight.prm"
+    p8.write_text(eight, encoding="utf-8")
+    diagnostics: list = []
+    read_gsas_prm(p8, diagnostics=diagnostics)
+    prcf = next(d for d in diagnostics
+                if d.code == "GSAS_PRM_FIELD_DROPPED" and d.where == ["PRCF"])
+    assert "past position 8" not in prcf.message
+    assert "GP (position 4)" in prcf.message
+
+    p19 = tmp_path / "nineteen.prm"
+    p19.write_text(_prm(), encoding="utf-8")
+    nineteen: list = []
+    read_gsas_prm(p19, diagnostics=nineteen)
+    prcf = next(d for d in nineteen
+                if d.code == "GSAS_PRM_FIELD_DROPPED" and d.where == ["PRCF"])
+    assert "11 coefficient(s) past position 8" in prcf.message
+
+
 def test_the_geometry_is_chosen_rather_than_read_and_says_so():
     """A ``.prm`` states no geometry at all, and ``HTYPE PXCR`` spans
     Bragg-Brentano and Debye-Scherrer.  The reader picks the capillary its

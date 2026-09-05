@@ -206,6 +206,9 @@ _HTYPE_RE = re.compile(r"^INS\s*HTYPE\s+(\S+)", re.MULTILINE)
 _PRCF_HEADER_RE = re.compile(
     r"^INS\s*(\d+)PRCF1\s+(\d+)\s+(\d+)\s+([\d.Ee+-]+)", re.MULTILINE)
 _PRCF_CONT_RE = re.compile(r"^INS\s*(\d+)PRCF1(\d+)\s+(.+?)\s*$", re.MULTILINE)
+#: ``IRAD``/``ITYP`` are ignored by design, but the diagnostic saying so
+#: must only fire for a file that actually carried one — see the guard below.
+_IRAD_ITYP_RE = re.compile(r"^INS\s*\d+I?\s*(IRAD|ITYP)\b", re.MULTILINE)
 
 
 def read_gsas_prm(path: str | Path, *,
@@ -285,7 +288,10 @@ def read_gsas_prm(path: str | Path, *,
       reader does not map: ``ICONS`` (a zero second wavelength or zero-point,
       the unidentified field 5, and field 6's Kα2/Kα1 ratio, which is read and
       **not applied**), ``PRCF`` (``GP`` and every coefficient past position 8,
-      all at 0), and ``IRAD``/``ITYP``, which are ignored by design.
+      all at 0), and ``IRAD``/``ITYP``, which are ignored by design.  Each
+      row describes a record **this file carried**: the ``IRAD``/``ITYP`` row
+      is absent for a file holding neither, and the "past position 8" clause
+      is absent for a ``PRCF`` declaring exactly eight.
     * ``GSAS_PRM_GEOMETRY_ASSUMED`` — always, because a ``.prm`` states no
       geometry at all and this reader returns
       :meth:`Instrument.debye_scherrer`.
@@ -373,18 +379,27 @@ def read_gsas_prm(path: str | Path, *,
         # values so the caller can see what was in the file.  Emitted only
         # here, past every refusal above, so a file about to be refused does
         # not leave a half-list behind on the caller's list.
+        # Each row is a statement about *this file*, so a row is only built
+        # where the file carried the thing it describes.  A drop diagnostic
+        # for a record that is absent is the same shape as a defaulted field
+        # answering a question nobody asked (WP-1076): it is `info`, and the
+        # corpus makes it true often enough that it would not be noticed.
         dropped = [
             ("ICONS", f"field 5 (unidentified) = 0, and field 6's Kα2/Kα1 "
                       f"ratio = {ka2_ratio!r}, read and not applied (it is "
                       f"inert while field 2 is 0, as it is here)"),
-            ("PRCF", f"GP (position 4) = 0, and {len(rest)} coefficient(s) "
-                     f"past position 8 = 0 — this reader maps positions 1-8 "
-                     f"onto ProfileTCHZ"),
-            ("IRAD/ITYP", "ignored by design: the wavelength is read from "
-                          "ICONS rather than looked up from IRAD's table, and "
-                          "an angular range belongs to the pattern, not the "
-                          "instrument"),
         ]
+        past_8 = (f", and {len(rest)} coefficient(s) past position 8 = 0"
+                  if rest else "")
+        dropped.append(
+            ("PRCF", f"GP (position 4) = 0{past_8} — this reader maps "
+                     f"positions 1-8 onto ProfileTCHZ"))
+        if _IRAD_ITYP_RE.search(text):
+            dropped.append(
+                ("IRAD/ITYP", "ignored by design: the wavelength is read from "
+                              "ICONS rather than looked up from IRAD's table, "
+                              "and an angular range belongs to the pattern, "
+                              "not the instrument"))
         for record, what in dropped:
             diagnostics.append(Diagnostic(
                 level="info", code="GSAS_PRM_FIELD_DROPPED",
