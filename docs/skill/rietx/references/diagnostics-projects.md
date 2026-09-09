@@ -1,21 +1,31 @@
-# 7g. The project-file readers: what an imported model does not carry
+# 7g. The project and recipe readers: what an imported file does not carry
 
-Load it when you read another program's *project* file — a TOPAS `.inp`, a FullProf `.pcr`, a GSAS `.EXP` or a GSAS-II `.gpx` — or its *instrument-parameter* file — a GSAS `.prm`, a GSAS-II `.instprm` — or when you write one of those back, and a `Diagnostic` came with it.
+Load it when you read another program's *project* file — a TOPAS `.inp`, a FullProf `.pcr`, a GSAS `.EXP` or a GSAS-II `.gpx` — its *instrument-parameter* file — a GSAS `.prm`, a GSAS-II `.instprm` — or its *recipe* file — a PowderLine recipe — or when you write one of those back, and a `Diagnostic` came with it.
 
 *A reference file of the `rietx` skill. The body it belongs to is [`SKILL.md`](../SKILL.md); section numbers are the ones the body cites.*
 
 These are the codes of `rietx.io.projects` — one module per foreign format,
 governed by WP-1118 — together with `rx.read_gsas_prm`'s, which is not a
-project reader but emits on the same channel for the same reason. They are a different channel from every other family in
-§7, and the difference is the reason they have their own file: **none of them
-ever appears on `result.diagnostics`.** A project reader emits them at *import*,
-into a list you pass in (`read_topas_inp(..., diagnostics=[])`,
-`rietx.io.projects.fullprof.to_structure(..., diagnostics=[])`,
-`rx.read_gsas_prm(..., diagnostics=[])`), and if you do
-not pass one the finding is still on the model — `model.coverage.reported`,
-`model.skipped_blocks`, `species_raw` — but nothing is raised. So the question
-these answer is not "is my fit wrong" but **"is the model I just imported the
-model that file describes"**, which has to be asked before a fit exists.
+project reader but emits on the same channel for the same reason, and of the
+PowderLine recipe reader. They are a different channel from every other
+family in §7, but not because none of them ever appears on
+`result.diagnostics` — that is equally true of `CIF_SPECIES_NORMALISED`,
+`CIF_CELL_ANGLE_CORRECTED` and every `PATTERN_*` row, all of which stay in §7.
+The criterion that does separate them is **whose file you are reading**:
+another program's project, instrument-parameter or recipe file — a TOPAS
+`.inp`, a FullProf `.pcr`, a GSAS `.EXP`/`.gpx`, a GSAS `.prm`, a PowderLine
+recipe — against your own data and structure files, which every fit reads
+whether or not another program was ever involved. A project reader emits
+its codes at *import*, into a list you pass in (`read_topas_inp(...,
+diagnostics=[])`, `rietx.io.projects.fullprof.to_structure(...,
+diagnostics=[])`, `rx.read_gsas_prm(..., diagnostics=[])`); the recipe reader
+emits its own at the read (`read_recipe`, `Recipe.diagnostics`). If you do not
+pass a list the finding for a project import is still on the model —
+`model.coverage.reported`, `model.skipped_blocks`, `species_raw` — but nothing
+is raised. So the question a project reader answers is not "is my fit wrong"
+but **"is the model I just imported the model that file describes"**, asked
+before a fit exists; the recipe reader answers a related but distinct
+question of its own, below.
 
 Each row states, as the others do, what you must *not* assume once it fires.
 Two conventions run across the family. A reader **repairs and reports** where
@@ -67,3 +77,30 @@ arrives by moving its row rather than by growing a reader.
 | `GSAS2_INSTPRM_FIELD_NOT_WRITTEN` | (warning — same writer) Assume an exported `.instprm` is your whole instrument. It is what GSAS-II's own instrument items can state: never the background, the specimen absorption, the sample displacement or the transparency, which that program keeps in its *sample* parameters, and never the refine flags, a calibration having refined nothing by the time it ships. A true-Voigt profile is named here too — GSAS-II's constant-wavelength function is a TCH pseudo-Voigt with no Voigt option, so the widths cross and the shape model becomes the target's |
 | `GSAS2_CIF_SETTING_IN_OPERATORS` | (info — from `rx.write_gsas2_phase_cif`: pass `diagnostics=[]`) Assume the exported CIF's H-M symbol states this phase's setting. It cannot: GSAS-II resolves a bare two-origin symbol such as `F d -3 m` to origin choice **2** and answers a colon-suffixed one by setting the phase to `P 1`, while gemmi resolves the same bare string to choice **1**. So the file states the setting three times — the bare symbol in `_symmetry_space_group_name_H-M`, the resolved one in `_space_group_name_H-M_alt`, and the operations in `_space_group_symop_operation_xyz`, which is the channel GSAS-II checks its own reading against. Nothing is lost; read the operations, never the symbol, if a third program opens the file |
 | `GSAS2_CIF_FIELD_NOT_WRITTEN` | (warning — same writer) Assume a GSAS-II project built from this CIF starts where your refinement did. A phase CIF states no refine flags, no phase scale and no sample broadening, so that program starts from its own defaults for all three, and any Stephens strain, preferred orientation, extinction or restraints the phase carries are named here because a CIF has no tags for them |
+
+The `RECIPE_*` family is the reader of the **PowderLine interchange format**
+(`read_recipe`, `Recipe.diagnostics`) rather than `result.diagnostics`, and it
+answers a question the others do not: *how does the fit I am about to run
+differ from the one the recipe describes?* A recipe is written for whichever
+engine gets it, so some of what it declares has no counterpart here, and every
+such difference is a row below rather than a silence. Anything the format
+states that this package cannot represent at all raises `RecipeError` naming
+the field — see the manual's recipe chapter for the list and the reason behind
+each.
+
+| Code | What it means you must not do |
+|---|---|
+| `RECIPE_FLAG_DROPPED` | (warning) Compare this fit's free-parameter count, esds or χ² against the reference engine's as if the two refined the same problem. A parameter the recipe flagged for refinement has **no counterpart here** and its flag was not honoured — GSAS-II's constant Lorentzian `Z`, a hump's Lorentzian γ, or a size/strain half that `LG_eta` put at exactly its off state, where a softplus parameter's gradient *is* its value and nothing can move it. The starting model is unchanged (each of these is at its identity), so the answer is a fit to the same data with one fewer degree of freedom, not a fit to a different model. `where` names what carries the difference instead |
+| `RECIPE_FIELD_DROPPED` | (info) Assume every field of the recipe reached the model. A **fixed** value sitting at its identity was dropped rather than translated: `Z = 0` is no constant Lorentzian, a hump's γ under one 2θ step is a width these data cannot hold, and `refinement_cycles` is GSAS-II's cycle count where the stopping rule here is the solver's ftol. Nothing about the model moved; the *record* of what the recipe said is now this diagnostic and not the model |
+| `RECIPE_FLAG_TRANSLATED` | (info) Look for a mixing parameter in the result. GSAS-II carries one magnitude per broadening effect plus a Lorentzian share `LG_eta`; this package carries a Lorentzian and a Gaussian coefficient and no share, so a freed `LG_eta` became two free coefficients. Same two degrees of freedom, different names — `where` gives them |
+| `RECIPE_ENGINE_DEFAULT_DECLINED` | (info) Read a difference from the reference engine's broadening as a disagreement about the data. The recipe left a size or strain magnitude **null**, which GSAS-II fills with its own project default (1 µm, 1000 × 10⁻⁶ Δd/d — measured off its committed output, not read from a manual) and this package reads as silence. On a synchrotron pattern the strain default alone is 0.057°·tanθ, a quarter of the peak width at the top of the range, so the instrument terms will differ by however much that was. Another engine's project default is not physics; if you want it, state it in the recipe |
+| `RECIPE_BACKGROUND_RESEEDED` / `RECIPE_SCALE_RESEEDED` | (info) Compare a background coefficient or a phase scale against the recipe's own number, or against another engine's. Neither is transferable: the two codes scale the Chebyshev domain differently, and a scale factor's normalisation is each code's own (on one committed specimen GSAS-II converges to 3.77e-2 and TOPAS to 2.61e-6). The term count and the refine flag are carried; the values are re-seeded, the scale by matching the summed calculated intensity to the data. **Phase scale *ratios* are comparable and the absolute values are not** — which is what a recipe quantifying phase fractions actually needs |
+| `RECIPE_BACKGROUND_PEAK_DEGENERATE` | (warning) Quote the background-peak parameters, or expect the fit to converge. The recipe declares a peak whose FWHM reaches the fitted range, so it never falls to half height inside the window and carries no curvature the Chebyshev terms have not got — it will correlate with the low-order background at \|ρ\| = 1 and the stage will spend its budget walking that valley. Both reference engines confirm it from opposite ends on the one committed instance: one let the peak run to 8.77e10 °2θ at esd 0, the other kept it at 1.63° with an esd 188× its own value. A hump substitutes for polynomial terms; it never adds to them (§`HUMP_TOO_NARROW` is the same lesson from the narrow end) |
+| `RECIPE_CONVENTION_ASSUMED` | (info) Treat the split as measured. GSAS-II's `SH/L` is a **combined** (S+H)/L and this package's axial divergence is two parameters, so it was halved evenly — the symmetric Finger-Cox-Jephcoat reading, and the only one a single number admits. No committed recipe can distinguish it from an uneven split; if your specimen's slit and detector heights differ, set `axial_sl` and `axial_hl` yourself |
+| `RECIPE_PLAN_STAGED` | (info) Read the stage list as a change to what the recipe asked to refine. PowderLine runs one pass over everything flagged; `Recipe.plan` frees the same set over several stages in McCusker order, because a single cold step walked a monoclinic cell to a = 4231 Å on a real fixture. Staging here is **cumulative**, so the last stage *is* the recipe's single pass — the free set at the end is the recipe's and only the route differs |
+| `RECIPE_DISPERSION_DECLINED` | (info) Read it as an approximation you are choosing. The recipe's wavelength is outside the bundled Cromer-Liberman table's 3-70 keV band — a PDF-beamline λ = 0.1665 Å is 74.5 keV — so f = f₀ is used. Every edge of every element in such a recipe is more than an order of magnitude below that energy, so it is the correct limit rather than a concession; what would be wrong is extrapolating the table. The result still carries `DISPERSION_NEGLECTED`, as any `dispersion=None` fit does |
+| `RECIPE_FIT_RANGE_CHANNELS` | (info) Compare an Rwp against another engine's before checking this count against theirs. A recipe states a `fit_range` in **angles** and an engine fits **channels**, and the two need not agree to the channel: on the committed fixtures this package's inclusive mask selects 3767 where GSAS-II's own `fit_profile.txt` shows it fitted 3768, keeping the first channel past the stated upper limit. `value` is the count and the message gives the first and last 2θ |
+| `RECIPE_ZERO_WEIGHT_EXCLUDED` | (info) Assume the pattern's channel count is the fitted count. A recipe excludes a point by giving it weight 0, which has no finite σ, so those channels became `excluded_regions` instead. Same points excluded, different mechanism |
+| `RECIPE_BOUND_HONOURED` | (info) Read a `BOUND_HIT` on this path as a bug. The recipe's 4-tuple carried a `min`/`max`, which PowderLine documents as *not implemented in GSAS-II* — honouring it is the conservative reading and a **recorded difference** from the reference engine, not an accident |
+| `RECIPE_SCHEMA_UNTESTED` | (warning) Trust a field whose meaning may have moved. The recipe declares a `schema_version` this reader has not been checked against; it is read anyway, because PowderLine's models allow extra fields on purpose, but a field that changed meaning is being read with its old one |
+| `RECIPE_NOTHING_REFINED` | (warning) Read the answer as a refinement. No parameter in the recipe is flagged, so the plan has one stage that frees nothing — the model evaluated at its declared values, which is a simulation |
