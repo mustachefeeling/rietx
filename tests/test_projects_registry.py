@@ -100,7 +100,10 @@ ABAQUS_INP = """*HEADING
 
 def _write(tmp_path: Path, name: str, text: str) -> Path:
     p = tmp_path / name
-    p.write_text(text)
+    # Named for `test_portability`'s reason and not only to satisfy it: the
+    # sniff decodes through `base.decode`, so a fixture written in the
+    # platform's encoding would be testing the platform rather than the sniff.
+    p.write_text(text, encoding="utf-8")
     return p
 
 
