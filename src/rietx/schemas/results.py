@@ -1089,6 +1089,19 @@ class RefinementResult(Base):
             value = dict(value)
             legacy = value.pop(_LEGACY_COUNT_FIELD)
             value.setdefault("n_extra_components", legacy)
+        # ``n_background_components`` landed in v1.4 beside a second union
+        # member.  Before it, every declared component *was* background, so a
+        # document that counted one and not the other is telling us both — and
+        # without this the count silently disappears from
+        # ``report.background.n_peaks`` the moment an older result is reopened,
+        # which is the ``None``-means-nothing-counted lie one field over.  A
+        # v1.4 writer always states both (0 included), so this never overrides
+        # a real answer.
+        if (isinstance(value, dict)
+                and value.get("n_extra_components") is not None
+                and value.get("n_background_components") is None):
+            value = dict(value)
+            value["n_background_components"] = value["n_extra_components"]
         return value
 
     # Per-histogram slices of a multi-histogram joint refinement (WP-0308);

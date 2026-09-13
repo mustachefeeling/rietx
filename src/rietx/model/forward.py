@@ -476,8 +476,14 @@ class CompiledExtraPeak:
     #: ``(n_lines, 2)`` frozen [i0, i1) index ranges into ``tt``; a line this
     #: peak does not image onto carries ``[0, 0)``
     win: np.ndarray
-    #: λ_l/λ_0 per line — the Bragg-image ratio, frozen because the wavelengths
-    #: are frozen per stage (WP-1134)
+    #: λ_l/λ_0 per line — the Bragg-image ratio, frozen at compile with the
+    #: window it sizes.  A wavelength *is* a table row since WP-1134, so the
+    #: freeze is a declaration and not a fact about θ: a stage that frees λ
+    #: moves every Bragg peak and leaves this ratio where the stage found it.
+    #: Legitimate at the scale a calibration moves λ (ppm, against a ratio the
+    #: window's slack covers many times over) and required by the
+    #: frozen-per-stage contract the window rests on — the ``f_anom`` argument
+    #: in ``scalar_chain_supported``, one member over.
     lam_ratio: np.ndarray
     #: dot-path of each line's weight; line 0 is structurally locked at 1
     weight_paths: tuple[str, ...]
@@ -1575,6 +1581,13 @@ class CompiledModel:
         """y_calc on the fit grid.  ``intensities`` (one per-hkl vector per
         phase) is required semantics for the hot loop in lebail/pawley mode;
         at-rest callers omit it and read the buffers."""
+        if not self.peak_components:
+            # The empty case is off at the *call*, not inside a summed zero
+            # array: this is the hot loop, and a model that declares no peak
+            # pays neither the allocation nor the add.  Both arms keep the
+            # association they had — addition is not associative, so folding
+            # these two returns into one would move every converged fit.
+            return self.background(values) + self.bragg_component(values, intensities)
         return (self.background(values) + self.extra_peak_curve(values)
                 + self.bragg_component(values, intensities))
 
@@ -1790,6 +1803,23 @@ class CompiledModel:
         # true value is zero, and the FD column is exact because it decodes
         # through C like the residual does.
         if path.startswith("instrument.extra_components."):
+            return False
+        # A *declared sharp peak* widens what two instrument names reach, and
+        # the widening is outside every analytic branch: ``extra_peak_curve``
+        # scales each non-primary image by ``weight_l · Lp(2θ_l)/Lp(2θ_0)``, so
+        # with a peak compiled, ``instrument.polarization`` and a line
+        # ``weight`` move counts the per-peak scalar chain never sees.  Left
+        # claimed, the column comes back **short** rather than raising — the
+        # WP-1070 failure exactly: measured at 0 against a whole-model FD of
+        # −1.75 on the Kα2 rows of a 500 counts·deg holder line.  Conditioned
+        # on a peak actually being compiled, so a model without one keeps the
+        # analytic column it has always had.  ``getattr`` because this
+        # predicate is called unbound on ``None`` by a test that asks only
+        # about a path.
+        if getattr(self, "peak_components", ()) and (
+                path == "instrument.polarization"
+                or (path.startswith("instrument.source.lines.")
+                    and path.endswith(".weight"))):
             return False
         if path.startswith("phases."):
             return True

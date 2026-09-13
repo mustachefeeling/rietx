@@ -1360,11 +1360,13 @@ class PeakComponent(Base):
       η's *upper bound* and never of its value.  A caller who knows the peak is
       near-Gaussian can say so with ``eta.max`` and buy a much smaller window.
 
-    All four default to ``vary=False``, and no plan preset frees them: no stage
-    glob matches the ``instrument.extra_components.`` prefix, which is the
-    reason :attr:`Instrument.extra_components` is spelled with an underscore
-    rather than nested under ``background``.  Freeing a declared peak is the
-    caller's explicit act, always.
+    All four default to ``vary=False``.  **One** preset frees them —
+    ``mccusker_structural``'s ``extra_components`` stage, whose glob
+    ``instrument.extra_components.*`` is member-blind because the dot-path
+    carries the list index and never the ``kind`` — and every other preset
+    stops short of the prefix.  Nothing ever *adds* a component, which is the
+    safety property that matters: a sharp peak with a free area improves any
+    Rwp, so one exists only because the caller declared it.
     """
 
     #: apparent °2θ centre of the **primary** emission line.  Required, and

@@ -545,7 +545,9 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "window is frozen at stage compile and sized from those bounds, "
             "which is what lets the centre refine without leaving its window. "
             "A declared peak is inert (vary=False, area 0) until a stage frees "
-            "it, and no plan preset ever does."
+            "it; of the presets only `mccusker_structural` does, in its "
+            "`extra_components` stage, and nothing ever adds a peak you did "
+            "not declare."
         ),
         unit="deg 2θ", default=None,
         typical="where you can see the intruding line, bounded a few tenths "

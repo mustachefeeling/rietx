@@ -3202,7 +3202,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # reflection" is asked against the same predicted positions Layer 0 uses,
     # and the two must not disagree about where the model puts a line.
     diagnostics = diagnostics + _extra_peak_diagnostics(
-        model, structure, values, ticks, table)
+        model, values, ticks, table)
 
     # Degeneracy evidence off the answer-producing stage's Jacobian, which is
     # not serialized and so cannot be recovered later (WP-1055/-1056).  The
@@ -4003,7 +4003,7 @@ def _far_from_data_diagnostics(model: CompiledModel, y_calc, y_bkg,
 
 
 
-def _extra_peak_diagnostics(model: CompiledModel, structure, values: dict,
+def _extra_peak_diagnostics(model: CompiledModel, values: dict,
                             ticks: dict, table) -> list[Diagnostic]:
     """The two things a declared sharp peak is owed (WP-1103).
 
@@ -4044,12 +4044,26 @@ def _extra_peak_diagnostics(model: CompiledModel, structure, values: dict,
     predicted = sorted(t for name, row in ticks.items()
                        if name != EXTRA_TICK_KEY for t in row)
     predicted_arr = np.asarray(predicted, dtype=np.float64)
+    # "Refined to no intensity" is a statement about what the *fit* did, so it
+    # is asked only of an area the fit could move.  A declared peak's area
+    # defaults to 0.0 and no preset but ``mccusker_structural`` frees it, so
+    # without this every inert declaration would come back carrying a warning
+    # about a refinement that never happened.  ``moving_paths`` and not
+    # ``free_paths`` for the usual reason: a tie moves a path that is no column
+    # of θ (root CLAUDE.md § Invariants).
+    moving = set(table.moving_paths)
 
     for pc in model.peak_components:
         name = pc.label or f"extra_components[{pc.index}]"
         centre = float(values[pc.paths["center"]])
         area_path = pc.paths["area"]
         area = float(values[area_path])
+
+        if area <= 0.0 and area_path not in moving:
+            # Declared and inert: area 0 makes the term identically zero and
+            # nothing in this fit could change that, so there is neither a
+            # refinement to report on nor a degeneracy to warn about.
+            continue
 
         entry = (table.entries[table._paths[area_path]]
                  if area_path in table._paths else None)

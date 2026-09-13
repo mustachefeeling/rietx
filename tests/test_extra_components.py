@@ -2038,3 +2038,130 @@ def test_the_counts_agree_when_only_humps_are_declared():
 
     assert result.n_extra_components == 2
     assert result.n_background_components == result.n_extra_components
+
+
+def test_a_declared_peak_unclaims_the_two_instrument_paths_it_widens():
+    """The WP-1070 invariant, which this member breaks in a new place.
+
+    `extra_peak_curve` scales every non-primary image by
+    `weight_l · Lp(2θ_l)/Lp(2θ_0)`, so with a peak compiled,
+    `instrument.polarization` and each line `weight` move counts that no
+    per-peak scalar chain evaluates.  An analytic branch claiming them returns
+    the column **short** rather than raising — the failure mode that rule
+    exists for — and the shortfall is the whole peak.
+
+    Conditioned on a peak actually being compiled, so a model without one keeps
+    the analytic column it has always had; both halves are asserted, because
+    unclaiming the paths unconditionally would cost every ordinary fit its
+    analytic polarization column.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    tt = np.arange(35.0, 45.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+    widened = ("instrument.polarization", "instrument.source.lines.1.weight")
+
+    def build(peaks):
+        # a two-line source, because the widening *is* the Kalpha2 image: on a
+        # single-line source there is no ratio to take and the curve does not
+        # depend on either path.  The guard is deliberately blunter than that —
+        # it fires whenever a peak is compiled — which costs a single-line
+        # instrument an analytic column it would not have missed.  That is a
+        # cheap trade (polarization is rarely freed and line 0's weight is
+        # structurally locked) against a condition that could go stale.
+        ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+        ins.source.dispersion = None
+        ins.extra_components = list(peaks)
+        table = ParameterTable(structure, ins)
+        return table, compile_model(structure, ins, data, mode="rietveld",
+                                    moving_paths=set(table.moving_paths))
+
+    # without a peak: still claimed, as before this member existed
+    _t, plain = build(())
+    for path in widened:
+        assert plain.scalar_chain_supported(path) is True, path
+
+    # with one: unclaimed, and the curve really does move with both
+    table, model = build([make_peak(center=40.0, span=0.4, area=500.0)])
+    values = table.decode(table.x0())
+    base = np.asarray(model.extra_peak_curve(values))
+    for path in widened:
+        assert model.scalar_chain_supported(path) is False, path
+        bumped = dict(values)
+        bumped[path] = values[path] + 1e-6
+        moved = np.abs(np.asarray(model.extra_peak_curve(bumped)) - base).max()
+        assert moved > 0.0, path
+
+
+def test_an_inert_declaration_is_not_reported_as_having_refined_to_nothing():
+    """`EXTRA_PEAK_NO_INTENSITY` is about what the *fit* did.
+
+    A declared peak's area defaults to 0 and stays there unless a stage frees
+    it, which is the ordinary case — declare now, free later, or never.  Firing
+    there would warn about a refinement that never happened, on the most common
+    state this member is in.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = _instrument(peaks=[make_peak(center=40.0, span=0.4)])
+    tt = np.arange(15.0, 60.0, 0.05)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 200.0).tolist())
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage(name="bkg", turn_on=["instrument.background.*"], max_iter=2)]))
+
+    assert not [d for d in result.diagnostics
+                if d.code.startswith("EXTRA_PEAK")]
+
+
+def test_the_cif_background_description_counts_humps_only():
+    """A deposited file must not claim flexibility the fit never granted.
+
+    The same miscount as `n_extra_components`, in a third place and with a
+    worse consequence: this sentence goes into the CIF a reader deposits.
+    """
+    from rietx.io.exporters import _background_description
+
+    hump_only = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=35.0, unit="deg"))])
+    assert "1 explicit Gaussian background peak" in \
+        _background_description(hump_only)
+
+    with_peak = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=35.0, unit="deg")),
+        make_peak(center=40.0),
+    ])
+    assert "1 explicit Gaussian background peak" in \
+        _background_description(with_peak)
+    assert "2 explicit" not in _background_description(with_peak)
+
+    peak_only = _instrument(peaks=[make_peak(center=40.0)])
+    assert "explicit Gaussian background peak" not in \
+        _background_description(peak_only)
+
+
+def test_a_pre_v1_4_result_keeps_its_background_count_when_reopened():
+    """Before v1.4 every declared component *was* background.
+
+    A stored result carries only `n_extra_components`, so without the
+    migration `report.background.n_peaks` comes back `None` — "nothing
+    counted" — about a document that counted it perfectly well.
+    """
+    from rietx.schemas.results import RefinementResult
+
+    doc = {"mode": "rietveld", "status": "converged",
+           "provenance": {"package_version": "1.3.0"},
+           "two_theta": [10.0], "y_obs": [1.0], "y_calc": [1.0],
+           "parameters": [],
+           "statistics": {"rwp": 1.0, "rp": 1.0, "rexp": 1.0, "chi2": 1.0,
+                          "gof": 1.0, "n_points": 1, "n_free_parameters": 0},
+           "n_extra_components": 2}
+    reopened = RefinementResult.model_validate(doc)
+    assert reopened.n_extra_components == 2
+    assert reopened.n_background_components == 2
+
+    # a v1.4 writer states both, so the migration never overrides a real answer
+    doc_14 = dict(doc, n_extra_components=3, n_background_components=1)
+    assert RefinementResult.model_validate(doc_14).n_background_components == 1
