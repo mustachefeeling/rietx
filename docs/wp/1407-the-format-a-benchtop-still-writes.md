@@ -482,11 +482,13 @@ which this build will now name all six of rather than guess between.
 **Measured.** `[dev]` venv — this worktree's own, **no jax and no torch**, so
 the 132 skips include every backend row — darwin.
 
-- Fast selection **4604 passed, 132 skipped**, against 4577/132 before:
-  **+27 passed, +0 skipped**, which reconciles exactly as 22 new test functions
-  plus one `REAL_FIXTURES` row over three parametrized tests plus two
-  `SYNTHETIC_FIXTURES` arms. No new skip.
-- The WP's own acceptance selection: **427 passed**. ruff clean.
+- Fast selection **4607 passed, 132 skipped**, against 4577/132 before:
+  **+30 passed, +0 skipped**. Reconciled: 22 new test functions, plus one
+  `REAL_FIXTURES` row over three parametrized tests, plus two
+  `SYNTHETIC_FIXTURES` arms — 27 — plus the review pass's three regression
+  tests. No new skip.
+- The WP's own acceptance selection: **427 passed** (before the review's three;
+  429 after). ruff clean.
 - **The full selection deliberately did not run.** Nothing here can move a
   measured number: no physics, no default and no solver path changed, and the
   slow acceptance suites name their `qarr/*.prn` inputs explicitly rather than
@@ -518,6 +520,39 @@ rule, the 19-key `.udf` vocabulary, and what each fixture can and cannot prove.
    decode, computes one point too few, and offsets the abscissa by half a step.
    All three are refuted by the committed `.prn` files. That is now a standing
    rule in `io/CLAUDE.md`.
+
+**The review pass found four real defects, and two of them were in the one
+thing its module exists to protect.** `/code-review high --fix` raised seven
+findings; six were acted on and one judged.
+
+- **The `.pks`/`.udi` escape was broken, twice.** The gate never skipped comment
+  lines although its own docstring said it did, so a genuine two-column profile
+  with a `#` header — the commonest shape any ASCII export has — was refused as
+  a peak list; and it dropped the bounded read's last line unconditionally, so
+  an eight-row profile became seven and fell under the minimum. Fixed: the
+  markers now mirror `read_xy`'s exactly, because this gate's whole job is to
+  predict whether *that* reader would open the file.
+- **Both new scan guards tested sign but not finiteness.** A header holding a
+  denormal step or an infinite angle reached `round()` and raised
+  `OverflowError`, which names neither file nor field and escapes every
+  caller's allowlist — so a damaged file arrived at the GUI import route as a
+  500, breaking `io/CLAUDE.md` § Refusals. Reachable from **plain text** in
+  `.udf`, whose range and step are free-text fields where `nan` parses. The
+  truncation harness structurally cannot find this: it shortens files, it never
+  scrambles bytes.
+- **Two the review declined and this session took**, both being things a person
+  reads. `identify_format`'s "Supported:" list was built from the whole
+  registry, so it told a user their unrecognised binary `.raw` was unreadable
+  and then offered "Unrecognised binary .raw" as a supported format;
+  `cli.py` already filtered `refuses is None` for the same purpose, and the test
+  now asserts every reader's title **and no refusal's**, which is what it always
+  meant. And this WP's own goal and title still claimed *four* named refusals
+  after `.sd` turned out to be V5 and readable — corrected in place, because a
+  goal stating what the WP disproved is the first thing a successor reads.
+- **One finding was advice about a test this change had silently repointed**: an
+  existing case used `PATTERN_FORMATS[-1]` to mean `xy`, and adding
+  `RAW_UNKNOWN` below it made that a refusal entry without anything going red.
+  Now looked up by name.
 
 **Two names were deliberately *not* declared** (WP-1076): `RatioAlpha21` gets no
 `METADATA_KEYS` entry, because the hint path already resolves `CuKa` by
