@@ -1,6 +1,6 @@
 # WP-1407 — The format a benchtop still writes: PANalytical `.udf`/`.rd`, and four named refusals
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-13 — both readers, three refusals; `.rd` reproduces a committed `.prn` oracle bit for bit
 Depends on: — (1047 is the seam this extends, and is closed)
 
 ## Goal
@@ -435,6 +435,128 @@ holds a registered binary reader nothing exercises.
   patterns, which is what makes the `.prn` oracle idea possible.
 
 ## Handover log
+
+### 2026-09-13 (2nd session) — complete; all nine tasks
+
+This build now opens the two formats a Philips or PANalytical lab actually has
+on disk, and the useful part is not that the count went up by two. The binary
+one stores a **square root** of its counts, so anyone who read it the obvious
+way — including the one permissively-licensed description of it in existence —
+got a pattern with every peak in exactly the right place and every intensity
+wrong. Nothing in a fit would reveal that. What settled it was files: the IUCr
+round-robin kit still publishes the original logged `.rd` scans beside the
+ASCII conversions this repository has committed since v0.3, so for once there
+is an oracle rather than a second opinion, and the reader now reproduces a
+committed pattern channel for channel. The scoping session had assumed those
+files were gone and planned around their absence; they were one Cloudflare
+challenge away.
+
+The other half is smaller and more cheerful: `.udf` is a current format, not a
+legacy one, and fifty-six real files from two labs turn out to agree on
+everything a reader needs, so it ships with no guesswork at all. Three things
+are refused rather than read, and the point of each is what it declines to
+claim — most of all a binary `.raw`, which six unrelated vendors write and
+which this build will now name all six of rather than guess between.
+
+**Done.** All nine tasks; six commits.
+
+1. **Task 1 retired both fixture risks, positively.** The IUCr CPD kit serves
+   `philips.zip` — **28 original logged `.rd` files**, Dec 1997, of which 16 are
+   the originals of `qarr/*.prn` patterns already committed here. Two are now
+   committed (`qarr/corundum.rd`, `qarr/cpd-1e.rd`). And 56 real `.udf` files
+   carry **19 keys in one order**, identically, across two labs and two
+   instrument vintages.
+2. **Task 2** put both formats in `ATTRIBUTION.md`, and the MAUD per-file
+   contradiction in the section preamble, then deleted the four consulted
+   sources from the scratchpad so the parsers were written with them closed.
+3. **Tasks 3-5** are the two readers, the literal-offset writer and the
+   fixtures. **Task 6** is the two refusal entries. **Tasks 7-9** are tests,
+   `io/CLAUDE.md`, the caps diary and the skill.
+
+**Measured.** `[dev]` venv — this worktree's own, **no jax and no torch**, so
+the 132 skips include every backend row — darwin.
+
+- Fast selection **4604 passed, 132 skipped**, against 4577/132 before:
+  **+27 passed, +0 skipped**, which reconciles exactly as 22 new test functions
+  plus one `REAL_FIXTURES` row over three parametrized tests plus two
+  `SYNTHETIC_FIXTURES` arms. No new skip.
+- The WP's own acceptance selection: **427 passed**. ruff clean.
+- **The full selection deliberately did not run.** Nothing here can move a
+  measured number: no physics, no default and no solver path changed, and the
+  slow acceptance suites name their `qarr/*.prn` inputs explicitly rather than
+  globbing the directory the two `.rd` files were added to — checked, because
+  that glob is the one way this change could have reached them. `pgrep` showed
+  no other suite running either way.
+- `origin/main` **had not moved** since the branch was cut, re-checked
+  immediately before the merge step, so the counts are the merged tree's by
+  identity.
+
+**The measurements themselves are in `tests/data/README.md` § Philips**, not
+here: the 28-file offset table, the four independent confirmations of the √
+rule, the 19-key `.udf` vocabulary, and what each fixture can and cannot prove.
+
+**Three things this WP changed its own mind about, all from task 1.**
+
+1. **`.sd` is not a separate format.** It is this format's V5 extension, so the
+   planned refuse-by-name was wrong; both versions are claimed by magic.
+2. **V5 is read, not refused.** Its data offset rests on one description copied
+   twice — `Yohko/importtool` reproduces xylib's code tables verbatim, down to
+   the `810 - 214 - 8*3` expression — and no V5 file exists anywhere, which is
+   the Bruker v2 footing this project *refuses* on. It is read anyway because
+   the gate is decisive in a way v2's never was: `n` comes from header fields,
+   so `len == 810 + 2n` tests the header offsets and the data start **jointly**,
+   and a wrong 810 cannot shift a pattern silently. A failure refuses by name
+   and says no V5 file was obtainable.
+3. **The permissive description is the defective one.** PyXRD's `rd_parser.py`
+   is BSD-2 — the source a port would legally start from — and it omits the √
+   decode, computes one point too few, and offsets the abscissa by half a step.
+   All three are refuted by the committed `.prn` files. That is now a standing
+   rule in `io/CLAUDE.md`.
+
+**Two names were deliberately *not* declared** (WP-1076): `RatioAlpha21` gets no
+`METADATA_KEYS` entry, because the hint path already resolves `CuKa` by
+anode-and-wavelength agreement and the preset already carries the 0.5 every real
+file states — so the key would have had no consumer; and the `.rd`
+diffractometer and focus codes are decoded and checked but not carried into the
+pattern, for the same reason. Both decisions are recorded in the tasks.
+
+**In flight: nothing.** Tree clean and pushed, WP ✅.
+
+**Gotchas for whoever touches this next.**
+
+- **`archive.org` is unreachable from this network** (TLS interception on
+  `curl`; Claude Code's WebFetch declines `web.archive.org` by policy), and
+  several fixture rows here are documented as "recovered via the Internet
+  Archive". The live IUCr site is the better route and its Cloudflare challenge
+  clears for a *headed persistent* browser profile — plain headless Chromium
+  does not clear it, and `ctx.request.get` 403s while **writing the 5.8 kB
+  challenge page into your output file**, which looks like a successful
+  download. Fetch from inside the page.
+- **`qarr/cpd-1e.rd` is committed because it is the exception.** Its `.prn` was
+  made by the rounding converter where the other fifteen truncate, so it is off
+  by exactly one count on 2108 channels. That is asserted. Do not "fix" the
+  reader to chase it.
+- **The `.rd` writer refuses a count the √ encoding cannot hold** rather than
+  writing the nearest one, so a round-trip test cannot assert a number the
+  caller never wrote. Use `CORUNDUM_HEAD`. The first version of its inverse used
+  `isqrt` where the encoder rounds *up*, and every test failed loudly — which is
+  what the refusal is for.
+- **`docs/skill/rietx/references/api.md` is generated.** A hand edit fails
+  `test_skill.py`; author in `docs/skill/make_api_index.py`, regenerate, then
+  `rietx skill --install . --copy`.
+
+**Next**, and none of it is owed by this WP:
+
+1. **The Stoe ask is the one thing worth sending.** It is cheap, has a long lead
+   time and nothing depends on it: a few `.raw` files paired with the WinXPOW
+   ASCII export of the *same* scans, including one multi-range file. The export
+   is an exact oracle, so the binary could be worked out cold. The
+   `raw_unclaimed` refusal is where that reader hangs.
+2. If a real `.pks` or `.udi` ever turns up, `peaklist.py` can stop matching on
+   the suffix and match on content like `.dif` does; its whole reason for being
+   a separate module disappears that day.
+3. `.csv`, `.jcp` (JCAMP-DX, which deserves its own module) and Scintag remain
+   the declared non-goals.
 
 - **2026-09-13** — **created; no implementation.** A request to support
   "PANalytical's `.raw`" turned out to name a file that does not exist, and

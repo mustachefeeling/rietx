@@ -84,14 +84,14 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 ## Current focus
 
 **v1.4 — free-standing peaks** ([§ v1.4](#v14--free-standing-peaks-in-flight),
-[record](milestones/v1.4.md)), opened 2026-09-12 with its acceptance rows
-written in advance. All three WPs closed 2026-09-13:
-[1101](wp/1101-standalone-peak-fitting.md) `fit_peaks`,
-[1102](wp/1102-component-seam-humps.md) the seam (whose rename is the
-milestone's one break), and [1103](wp/1103-peak-components.md) sharp peaks,
-making the seam's clause-2 contract a tested claim. **No open WP**: what is
-left is deleting the `AGENT_PROTOCOL.md` pointer — nobody's, and now more owed,
-since 1103's rows went to the skill on the strength of it.
+[record](milestones/v1.4.md)), opened 2026-09-12, all three WPs closed
+2026-09-13. **No open WP**: what is left is deleting the `AGENT_PROTOCOL.md`
+pointer — nobody's, and now more owed, since 1103's rows went to the skill on
+the strength of it. Unscheduled
+[1407](wp/1407-the-format-a-benchtop-still-writes.md) also landed 2026-09-13
+(`.udf`, `.rd`/`.sd`, three refusals), leaving **one cheap unowned ask**: Stoe
+`.raw` files paired with the WinXPOW ASCII export of the same scans would make
+Stoe writable, and nothing depends on it.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) foreign model files — the
 TOPAS `.inp` reader merged 2026-09-01 (PR #98); the FullProf `.pcr` reader is
@@ -553,7 +553,7 @@ does not exist (`.raw` is six unrelated vendors, none of them PANalytical).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1407](wp/1407-the-format-a-benchtop-still-writes.md) | The format a benchtop still writes: PANalytical `.udf`/`.rd`, and four named refusals | ⬜ | — |
+| [1407](wp/1407-the-format-a-benchtop-still-writes.md) | The format a benchtop still writes: PANalytical `.udf`/`.rd`, and four named refusals | ✅ 2026-09-13 | — |
 
 #### Render what the fit already knows
 
