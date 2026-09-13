@@ -1121,7 +1121,8 @@ def check_guards(table, outcome, threshold: float,
             if r2 > background_threshold:
                 report.background_correlations.append(
                     GuardFinding.background_absorption(path, r2))
-        for path, r2 in sorted(roughness_absorption(outcome.jac, free).items(),
+        for path, r2 in sorted(roughness_absorption(
+                outcome.jac, free, peak_prefixes).items(),
                                key=lambda kv: -kv[1]):
             if r2 > roughness_threshold:
                 report.roughness_correlations.append(

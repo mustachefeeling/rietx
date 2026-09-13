@@ -451,7 +451,7 @@ def _displacement_like(path: str) -> bool:
     return path.endswith(".biso") or ".adp." in path
 
 
-def _roughness_nuisance(path: str) -> bool:
+def _roughness_nuisance(path: str, peak_prefixes: frozenset[str]) -> bool:
     """Directions that are free anyway and would swamp the comparison.
 
     Roughness is a *multiplicative* correction, so it is trivially "scale-like":
@@ -461,20 +461,29 @@ def _roughness_nuisance(path: str) -> bool:
     so the question worth asking is what is left of roughness *after* they have
     taken whatever they can — a partial R².
 
-    An explicit background peak is a background direction on the same footing
-    (``background_absorption`` folds it into the *same* block, one function up):
-    a declared hump is background flexibility the caller granted, so it is a
-    nuisance to project out here too — three columns per peak left in the
-    comparison would swamp the roughness/ADP partial R² exactly as the scale
-    does.
+    A **background-landing** extra component is a background direction on the
+    same footing (:func:`background_absorption` folds it into the *same* block,
+    one function up): a declared hump is background flexibility the caller
+    granted, so it is a nuisance to project out here too — three columns per
+    hump left in the comparison would swamp the roughness/ADP partial R²
+    exactly as the scale does.
+
+    A **peak-landing** one is not (WP-1103).  ``peak_prefixes`` is the same set
+    :func:`background_absorption` excludes and :func:`extra_peak_absorption`
+    takes, so all three read one partition of the declared components: a
+    declared sharp peak is not background flexibility, and projecting its
+    columns out here would quietly shrink the very partial R² this guard is
+    read from.  Required rather than defaulted, for the reason stated one
+    function up.
     """
     return (path.endswith(".scale")
-            or path.startswith(("instrument.background.",
-                                "instrument.extra_components.")))
+            or path.startswith("instrument.background.")
+            or (path.startswith("instrument.extra_components.")
+                and not path.startswith(tuple(peak_prefixes))))
 
 
-def roughness_absorption(jac: np.ndarray, free_paths: list[str]
-                         ) -> dict[str, float]:
+def roughness_absorption(jac: np.ndarray, free_paths: list[str],
+                         peak_prefixes: frozenset[str]) -> dict[str, float]:
     """Two-way degeneracy between surface roughness and the ADPs (WP-0502).
 
     Surface roughness depresses low-angle intensity, which is exactly the
@@ -521,7 +530,8 @@ def roughness_absorption(jac: np.ndarray, free_paths: list[str]
     disp = [(k, p) for k, p in enumerate(free_paths) if _displacement_like(p)]
     if not rough or not disp:
         return {}
-    nuisance = [k for k, p in enumerate(free_paths) if _roughness_nuisance(p)]
+    nuisance = [k for k, p in enumerate(free_paths)
+                if _roughness_nuisance(p, peak_prefixes)]
     out = block_projection_r2(jac, [k for k, _ in disp],
                               [(k, free_paths[k]) for k in rough], nuisance)
     out.update(block_projection_r2(jac, rough, disp, nuisance))

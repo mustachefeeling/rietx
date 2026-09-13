@@ -649,22 +649,45 @@ def test_the_two_absorption_statistics_partition_the_components():
 
 
 def test_a_hump_is_a_roughness_nuisance_too():
-    """The sibling of ``background_absorption`` folding peaks into its block
-    (candidate 3): a declared peak is background flexibility that refines
+    """The sibling of ``background_absorption`` folding humps into its block
+    (candidate 3): a declared hump is background flexibility that refines
     regardless, so the roughness/ADP comparison projects it out first — three
-    columns per peak left in would swamp the partial R² exactly as the scale
+    columns per hump left in would swamp the partial R² exactly as the scale
     does.  Was matched only for ``instrument.background.`` while its sibling
     already matched ``instrument.extra_components.``.
     """
     from rietx.optimize.statistics import _roughness_nuisance
 
-    assert _roughness_nuisance("instrument.extra_components.0.height")
-    assert _roughness_nuisance("instrument.extra_components.3.position")
-    assert _roughness_nuisance("instrument.background.c2")
-    assert _roughness_nuisance("phases.0.scale")
-    assert not _roughness_nuisance("phases.0.atoms.0.biso")
+    none: frozenset[str] = frozenset()
+    assert _roughness_nuisance("instrument.extra_components.0.height", none)
+    assert _roughness_nuisance("instrument.extra_components.3.position", none)
+    assert _roughness_nuisance("instrument.background.c2", none)
+    assert _roughness_nuisance("phases.0.scale", none)
+    assert not _roughness_nuisance("phases.0.atoms.0.biso", none)
     assert not _roughness_nuisance(
-        "instrument.geometry.surface_roughness.suortti_b")
+        "instrument.geometry.surface_roughness.suortti_b", none)
+
+
+def test_a_declared_peak_is_not_a_roughness_nuisance():
+    """The partition reaches the *third* statistic, not only the first two.
+
+    ``background_absorption`` excludes the peak-landing components and
+    ``extra_peak_absorption`` takes them; ``roughness_absorption`` projects the
+    same partition out as nuisance, so all three divide one list the same way.
+    Projecting a declared sharp peak out here would shrink the very partial R²
+    the roughness guard is read from — and the ``mccusker_structural`` plan
+    frees the two blocks in the same fit.
+    """
+    from rietx.optimize.statistics import _roughness_nuisance
+
+    peaks = frozenset({"instrument.extra_components.1."})
+    assert not _roughness_nuisance("instrument.extra_components.1.center", peaks)
+    assert not _roughness_nuisance("instrument.extra_components.1.area", peaks)
+    # index 1 and index 11 are different components: the trailing dot is why
+    assert _roughness_nuisance("instrument.extra_components.11.height", peaks)
+    # a hump declared beside it is still a nuisance
+    assert _roughness_nuisance("instrument.extra_components.0.height", peaks)
+    assert _roughness_nuisance("instrument.background.c2", peaks)
 
 
 # ----------------------------------------------------------------------

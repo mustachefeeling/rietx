@@ -601,7 +601,7 @@ def _absorption_at(two_theta_min: float):
     model = compile_model(structure, ins, pattern, mode="rietveld",
                           moving_paths=set(table.moving_paths))
     jac = _make_jacobian(model, table)(table.x0())
-    return roughness_absorption(jac, table.free_paths), table, jac
+    return roughness_absorption(jac, table.free_paths, frozenset()), table, jac
 
 
 def test_roughness_is_identifiable_when_the_fit_reaches_low_angle():
