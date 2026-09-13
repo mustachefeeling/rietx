@@ -3,7 +3,7 @@
 
 Each correction in this chapter multiplies the reflection intensity of
 {eq}`fm-rietveld`. A method result from shipping all of them, recorded once
-here rather than per section: **not one is well judged by ΔRwp** — one
+here rather than per section: **not one is well judged by $\Delta R_{wp}$** — one
 provably cannot move it (capillary absorption, an exact reparameterisation),
 one moves it the wrong way when it is right (a declared flat-plate
 thickness on a thick specimen), and the largest accuracy wins (dispersion
@@ -105,7 +105,7 @@ prints — see {ref}`ch-method` for how that was settled.
 The expression factors *exactly* into $A = K(\mu R)\cdot\exp(+c(\mu R)
 \sin^2\theta)$ — a constant times a Debye-Waller shape. Applying it to a
 model with free scale and displacement parameters is therefore an **exact
-reparameterisation**: Rwp cannot move. Its entire physical content is the
+reparameterisation**: $R_{wp}$ cannot move. Its entire physical content is the
 Biso shift
 
 ```{math}

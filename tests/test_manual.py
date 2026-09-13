@@ -280,6 +280,47 @@ def test_every_article_carries_its_doi_in_the_one_case_the_file_uses():
     assert not stale, f"NO_DOI names entries that are gone: {stale}"
 
 
+#: Part 2 — the theory chapters, which are the manual's top-level `.md` files
+#: other than the root document.  Derived rather than listed, so a chapter
+#: added to Part 2 inherits the guards below (the `using/` subdirectory is
+#: Part 1 and `tests/test_manual_api.py` is its guard).
+def _part_two() -> list[Path]:
+    pages = [p for p in CHAPTERS
+             if p.parent == MANUAL_DIR and p.name not in {"manual.md"}]
+    assert len(pages) > 5, "Part 2 chapters not found — has the tree moved?"
+    return pages
+
+
+def test_part_two_sets_a_statistic_as_mathematics():
+    """`Rwp` in plain text, four lines under an equation that defines
+    $R_{wp}$, was the reader-visible half of this (WP-1408).
+
+    The rule is stated in `manual.md` § How to read this manual and is a
+    difference between the two parts, not a global ban: Part 1 writes Rwp and
+    χ² as plain text, because that is the word on the GUI header and in a
+    console line. So this guard covers Part 2 only, and it exempts code spans
+    and fenced blocks, where the token is a field name or captured output.
+    """
+    offenders = []
+    for page in _part_two():
+        fence = None
+        for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
+            stripped = line.lstrip()
+            if fence is None and stripped.startswith(("```", ":::")):
+                fence = stripped[:3]
+                continue
+            if fence is not None:
+                if stripped.startswith(fence):
+                    fence = None
+                continue
+            if "Rwp" in re.sub(r"`[^`]*`", "", line):
+                offenders.append(f"{page.name}:{number}: {line.strip()[:70]}")
+    assert not offenders, (
+        "Part 2 writes the statistic as mathematics — $R_{wp}$, "
+        "$\\Delta R_{wp}$ — never as plain text:\n" + "\n".join(offenders)
+    )
+
+
 def test_every_source_symbol_imports():
     """Each equation's *Source:* line names a live module or attribute; a
     rename breaks this test rather than the reader's trust."""

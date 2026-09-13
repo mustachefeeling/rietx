@@ -20,7 +20,7 @@ r_{\mathrm{pen}} \;=\; \sqrt{\lambda}\, (D_2\, c),
 {source}`rietx.background.models`
 
 with $D_2$ the $(n-2) \times n$ second-difference matrix. The rows land in
-$J^\top J$ (so the covariance is regularised) but are excluded from Rwp and
+$J^\top J$ (so the covariance is regularised) but are excluded from $R_{wp}$ and
 the serial-correlation statistics — they are soft observations, not data.
 
 (explicit-humps)=
@@ -111,7 +111,7 @@ are selected with the same two ingredients:
 ## Flexibility is a correctness question
 
 A background able to imitate the peaks biases ADPs up and scales (hence
-QPA fractions) down *while Rwp improves*. The right measure is the block
+QPA fractions) down *while $R_{wp}$ improves*. The right measure is the block
 projection of a structural Jacobian column $j_i$ onto the span $B$ of the
 background columns:
 

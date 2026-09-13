@@ -200,7 +200,7 @@ r_{\mathrm{restr}} \;=\; \sqrt{w}\,
 {source}`rietx.model.restraints`
 
 appended after the data rows, so restraints land in the covariance
-$J^\top J$ but are excluded from Rwp, Durbin-Watson and the Bérar-Lelann
+$J^\top J$ but are excluded from $R_{wp}$, Durbin-Watson and the Bérar-Lelann
 inflation — soft observations, not data. Unlike the background-penalty and
 Pawley rows the geometry is nonlinear in θ (a bond length
 $d = \sqrt{\Delta x^\top G\, \Delta x}$ depends on coordinates *and* cell),

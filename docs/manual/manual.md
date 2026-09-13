@@ -81,6 +81,14 @@ Parameter dot-paths are the other dotted thing here, and they are never
 capitalised. `phases.0.cell.a` and `instrument.profile.w` are *data*: addresses
 into the parameter table, not attributes of a class.
 
+The two parts set a fit statistic differently, on purpose. Part 2 sets it as
+mathematics — $R_{wp}$, $\chi^2_{\mathrm{red}}$, $\Delta d/d$ — because there it
+is a symbol in an equation, defined by one. Part 1 writes the same statistics as
+plain text — Rwp, χ², GoF — because that is the word on the GUI's own header and
+in a console line, and Part 1 is about driving the package rather than deriving
+it. In either part a name in code font is the **field** and not the statistic:
+`Statistics.rwp` is where the number lives.
+
 ## Part 1: Using rietx
 
 The chapters run in the order a first session with the package runs: install

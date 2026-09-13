@@ -48,7 +48,7 @@ background carries much of the raw intensity. The Durbin-Watson statistic
 on weighted residuals {cite}`hillflack1987` flags serial correlation
 ($d \approx 2$ ⇒ uncorrelated).
 
-A recurring result across the shipped corrections is that ΔRwp is a poor
+A recurring result across the shipped corrections is that $\Delta R_{wp}$ is a poor
 judge of physical improvements ({ref}`ch-corrections`, {ref}`ch-method`) —
 what these indices measure is agreement, not correctness.
 

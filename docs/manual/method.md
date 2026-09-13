@@ -79,25 +79,25 @@ across.
 
 {source}`rietx.model.profiles.fcj.fcj_offsets_weights`
 
-## µR, µt, and why ΔRwp judges none of this
+## µR, µt, and why $\Delta R_{wp}$ judges none of this
 
 Capillary absorption {eq}`corr-rouse` factors *exactly* into a scale times
 a Debye-Waller shape: applied to a model with free scale and displacement
-parameters, Rwp provably cannot move (measured: 3×10⁻⁸ on real 11-BM data),
+parameters, $R_{wp}$ provably cannot move (measured: 3×10⁻⁸ on real 11-BM data),
 while every Biso shifts by exactly the predicted {eq}`corr-deltab`. The
 correction is real physics with zero fit-quality signature. Flat-plate µt
 is the same story with the degeneracy only approximate — 3–47 % of its
-signature survives the projection — so it *does* move Rwp, and on a
+signature survives the projection — so it *does* move $R_{wp}$, and on a
 genuinely thick specimen declaring a thickness moves it the *wrong way*,
 which is how you learn the specimen was not thin.
 
 Of the eight corrections shipped in one release, not one is well judged by
-ΔRwp: two provably cannot move it, one moves it the wrong way when it is
-right, three move it while changing nothing quotable, and the two largest
+$\Delta R_{wp}$: two provably cannot move it, one moves it the wrong way when it
+is right, three move it while changing nothing quotable, and the two largest
 accuracy wins (dispersion taking round-robin QPA from RMS 2.26 to
 0.69 wt %; absorption unbiasing ADPs by up to 1.5 Å²) are invisible in it.
 That is why every correction ships with a record field or diagnostic
 stating what it changed — and why this manual quotes those fields rather
-than Rwp comparisons as evidence.
+than $R_{wp}$ comparisons as evidence.
 
 {source}`rietx.model.absorption.equivalent_delta_biso_from_transmission`

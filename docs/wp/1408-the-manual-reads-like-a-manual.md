@@ -249,7 +249,7 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   and first page (never a bare title match), and record the count that could not
   be confirmed. Guard: `test_manual.py` fails on an unbraced interior capital in
   a title and on an entry whose field set is not its type's declared set.
-- [ ] **H — `Rwp` in maths.** $R_{wp}$ in prose, `rwp` for the field, plain text
+- [x] **H — `Rwp` in maths.** $R_{wp}$ in prose, `rwp` for the field, plain text
   only inside a mermaid label; both parts. Guard: a source-side check for a bare
   `Rwp` outside code spans, fences and mermaid blocks.
 - [ ] **I — the hyphen check recorded** in the handover entry with its counts;
