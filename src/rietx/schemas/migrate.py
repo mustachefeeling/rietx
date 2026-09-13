@@ -19,6 +19,8 @@ handles the first.
 
 from __future__ import annotations
 
+import re
+
 from .instrument import _LEGACY_COMPONENT_FIELD
 
 #: Where a stored document is read and this repair is applied.  Listed so a
@@ -30,47 +32,41 @@ READ_POINTS: tuple[str, ...] = (
     "rietx.gui.textdoc.parse",
 )
 
-#: ``(old, new)`` textual repairs.  Each is anchored on a *syntactic* boundary —
-#: a trailing dot, meaning a dot-path, or a JSON key's colon — so the bare word
-#: in a free-text label or an annotation note is left alone.
+#: The legacy name as a whole word: not followed by a letter, digit or
+#: underscore, so ``background_peaksish`` is left alone while every spelling
+#: that actually occurs is caught.
 #:
-#: **The first rule carries no** ``instrument.`` **prefix, and that is the
-#: point.**  An ``.rxt`` renders each block's rows with the block prefix
-#: stripped (``textdoc._render_block``), so a v1.2 document spells a component
-#: row ``background_peaks.0.fwhm`` and not
-#: ``instrument.background_peaks.0.fwhm``.  A rule anchored on the prefix
-#: migrates the project JSON and the history tree and silently misses the text
-#: document, which is the same class of gap this module exists to close.  The
-#: plan block is the other way round — it renders globs in full
-#: (``free … instrument.background.*``) — so the unprefixed rule covers both and
-#: no second rule is needed for the prefixed form.
-_PATH_REPAIRS: tuple[tuple[str, str], ...] = (
-    (f"{_LEGACY_COMPONENT_FIELD}.", "extra_components."),
-    (f'"{_LEGACY_COMPONENT_FIELD}":', '"extra_components":'),
-)
+#: **One rule, matching the bare name rather than a prefixed path**, because the
+#: name reaches a stored document in four shapes and anchoring on any one of
+#: them misses the others:
+#:
+#: * ``"background_peaks":`` — the JSON key, in a project or a history node;
+#: * ``instrument.background_peaks.0.fwhm`` — a dot-path in ``free_paths``;
+#: * ``background_peaks.0.fwhm`` — the same row in an ``.rxt``, which renders
+#:   each block with its own prefix stripped (``textdoc._render_block``), so the
+#:   ``instrument.`` is simply not there;
+#: * ``instrument.background_peaks*`` — a glob a caller wrote without the dot,
+#:   which fnmatch accepts and a dot-anchored rule would skip.
+#:
+#: An earlier version of this module anchored on ``instrument.`` and silently
+#: missed the third, which is the same class of gap the module exists to close,
+#: reintroduced inside it.
+_LEGACY_NAME = re.compile(rf"\b{_LEGACY_COMPONENT_FIELD}\b")
 
 
 def migrate_document_text(text: str) -> tuple[str, bool]:
     """Repair a stored document's text; return it with whether anything moved.
 
+    **The one authority.**  There is deliberately no second entry point taking
+    already-parsed paths: two functions applying "the same" rules are two
+    functions that can disagree, and the disagreement would be silent in
+    exactly the way this module was written to prevent.  A caller holding
+    parsed paths passes them through this.
+
     Idempotent, and a no-op on anything written by this release: a document
     holding none of the legacy spellings is returned unchanged and ``False``,
-    so a caller can apply this unconditionally on every read without paying for
+    so a caller can apply it unconditionally on every read without paying for
     it and without a version check that would itself have to be maintained.
     """
-    out = text
-    for old, new in _PATH_REPAIRS:
-        out = out.replace(old, new)
+    out = _LEGACY_NAME.sub("extra_components", text)
     return out, out != text
-
-
-def migrate_paths(paths: list[str]) -> list[str]:
-    """The same repair for paths already parsed out of a document.
-
-    For a caller holding a list of dot-paths or globs rather than the document
-    they came from — a plan handed in by code that read a v1.2 project itself,
-    for instance.  Same rules, so the two cannot disagree.
-    """
-    return [migrate_document_text(p)[0] if f"{_LEGACY_COMPONENT_FIELD}." in p
-            else p.replace(f".{_LEGACY_COMPONENT_FIELD}", ".extra_components")
-            for p in paths]

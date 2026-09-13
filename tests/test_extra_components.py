@@ -1,9 +1,11 @@
-"""Additive background peaks: an explicit broad Gaussian beside the background.
+"""The additive component seam, and humps as its first member.
 
-The feature is three parameters (position, height, width) summed on top of
-whichever :data:`~rietx.schemas.instrument.Background` model is in use, and
-almost every test here exists because one of those three could be wrong in a way
-nothing else would notice:
+:data:`~rietx.schemas.instrument.ExtraComponent` is a union discriminated on
+``kind``; :class:`~rietx.schemas.instrument.HumpComponent` is its one member,
+three parameters (position, height, width) summed on top of whichever
+:data:`~rietx.schemas.instrument.Background` model is in use.  Almost every test
+here exists because one of those three could be wrong in a way nothing else
+would notice:
 
 * the empty default has to be **exactly** off, not approximately (the
   ``restraints``/``microstrain``/``surface_roughness`` idiom);
@@ -16,6 +18,11 @@ nothing else would notice:
 * and the width bound is the feature's physical content, not a numerical
   guard: a free position/height/width is a Bragg peak with no cell behind it,
   and enough of those improve any Rwp.
+
+The last section covers the v1.2 rename (WP-1102).  Its load-bearing tests are
+the ones about *paths* rather than values: a stored value under a vanished
+field raises, while a stored plan glob under the old spelling loads clean and
+then frees nothing.
 """
 
 from __future__ import annotations
@@ -42,11 +49,7 @@ from rietx.schemas.instrument import (
     HumpComponent,
     Instrument,
 )
-from rietx.schemas.migrate import (
-    READ_POINTS,
-    migrate_document_text,
-    migrate_paths,
-)
+from rietx.schemas.migrate import READ_POINTS, migrate_document_text
 from rietx.schemas.pattern import PatternData
 from rietx.strategy.staged import (
     HUMP_MIN_WIDTH_MULT,
@@ -870,15 +873,33 @@ def test_the_migration_is_idempotent():
     assert twice == once and not changed
 
 
-def test_migrate_paths_agrees_with_the_textual_repair():
-    """Two entry points, one set of rules — pinned rather than restated."""
-    paths = ["instrument.background_peaks.0.fwhm",
-             "instrument.background_peaks.*",
-             "phases.0.cell.a"]
-    by_list = migrate_paths(paths)
-    by_text = json.loads(migrate_document_text(json.dumps(paths))[0])
-    assert by_list == by_text
-    assert by_list[-1] == "phases.0.cell.a"
+@pytest.mark.parametrize("stored,expected", [
+    # the JSON key, in a project document or a history node
+    ('"background_peaks": []', '"extra_components": []'),
+    # a dot-path in free_paths
+    ("instrument.background_peaks.0.fwhm",
+     "instrument.extra_components.0.fwhm"),
+    # the same row in an .rxt, where the block prefix is stripped
+    ("background_peaks.0.fwhm", "extra_components.0.fwhm"),
+    # a glob written without the dot, which fnmatch accepts
+    ("instrument.background_peaks*", "instrument.extra_components*"),
+    # the bare path, no trailing anything
+    ("instrument.background_peaks", "instrument.extra_components"),
+])
+def test_every_shape_the_legacy_name_reaches_a_document_in(stored, expected):
+    """Four spellings plus the bare one, and one rule has to catch all of them.
+
+    Anchoring on any single shape misses the others; the first version of this
+    module anchored on ``instrument.`` and missed the ``.rxt`` row.
+    """
+    assert migrate_document_text(stored)[0] == expected
+
+
+def test_a_word_that_merely_contains_the_legacy_name_is_left_alone():
+    """The word boundary is what keeps the rule from over-reaching."""
+    for safe in ("background_peaksish", "my_background_peaks_note"):
+        out, changed = migrate_document_text(safe)
+        assert out == safe and not changed
 
 
 def test_a_v1_2_project_directory_opens_and_its_plan_still_frees_the_hump(
