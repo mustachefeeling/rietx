@@ -45,6 +45,7 @@ REAL_FIXTURES = [
     ("rigaku_powder.rasx", "rasx"),             # a zip container: BOM'd members
     ("bruker_absorber.brml", "brml"),           # a zip of XML, 4.5 MB unread
     ("bruker_raw4_scrambled.raw", "bruker_raw"),  # binary TLV, one range, 7134 pts
+    ("qarr/corundum.rd", "philips_rd"),    # Philips V3, 250-byte header, packed
 ]
 
 #: Formats with **no vendorable real file**, built here instead.  Kept apart from
@@ -72,7 +73,12 @@ REAL_FIXTURES = [
 #: one, BSD-2) but it is 33 points and five keys, so cutting it reaches almost
 #: none of the header; all 56 real files are unlicensed, so the full 19-key
 #: header is synthesized here from the table in ``tests/data/README.md``.
-SYNTHETIC_FIXTURES = ["uxd", "rasx", "brml", "raw4", "raw3", "gsas_esd", "udf"]
+#: ``philips_v5`` is the ``raw3`` case exactly: a real **V3** ``.rd`` is
+#: vendored and truncated above, but **no V5 file exists anywhere**, and V5's
+#: header is 810 bytes against V3's 250 — so a cut lands at depths the V3 file
+#: cannot reach, and this arm is the only truncation coverage that version has.
+SYNTHETIC_FIXTURES = ["uxd", "rasx", "brml", "raw4", "raw3", "gsas_esd", "udf",
+                      "philips_v5"]
 
 
 def _synthesize(kind: str, path: Path) -> Path:
@@ -83,10 +89,19 @@ def _synthesize(kind: str, path: Path) -> Path:
         write_udf,
         write_uxd,
     )
-    from tests.writers_xrd import write_raw3, write_raw4
+    from tests.writers_xrd import (
+        CORUNDUM_HEAD,
+        write_philips_rd,
+        write_raw3,
+        write_raw4,
+    )
 
     if kind == "udf":
         return write_udf(path, [500 + i % 7 for i in range(400)])
+    if kind == "philips_v5":
+        # 400 points of real counts, so the 810-byte header and a long data
+        # block are both deep enough for a cut to land inside either
+        return write_philips_rd(path, CORUNDUM_HEAD * 34, version=b"V5RD")
 
     if kind == "gsas_esd":
         # every fifth channel fills its 8-character field, so a cut lands

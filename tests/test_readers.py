@@ -1076,6 +1076,136 @@ def test_the_schema_is_a_parser_boundary_like_any_other(tmp_path):
     assert "pydantic" not in message and "validation error" not in message
 
 
+# --------------------------------------------------------------- philips rd
+def test_a_philips_rd_reproduces_its_own_prn_conversion_bit_for_bit():
+    """The strongest claim any binary reader here makes, and it is available
+    only because the IUCr CPD kit publishes the *same scans* in two formats:
+    ``qarr/corundum.rd`` is the original logged file and ``qarr/corundum.prn``
+    is a conversion of it that this repo already committed for the QPA
+    acceptance.  So the oracle is independent of everything in this module."""
+    rd = rx.read_pattern(DATA / "qarr" / "corundum.rd")
+    prn = rx.read_pattern(DATA / "qarr" / "corundum.prn")
+
+    assert rd.intensity == prn.intensity          # all 7251, exactly
+    assert rd.two_theta == pytest.approx(prn.two_theta, abs=5e-10)
+    assert rx.io.readers.identify_format(DATA / "qarr" / "corundum.rd").name \
+        == "philips_rd"
+
+
+def test_the_rd_intensities_are_root_compressed_not_raw():
+    """Read raw, the ``uint16`` gives a profile with every peak in the right
+    place and every intensity wrong — the failure no reader can see in its own
+    output.  The gap is large and one-directional, so this cannot pass by
+    accident: the raw maximum is 829 where the count is 6872."""
+    import numpy as np
+
+    raw = np.frombuffer((DATA / "qarr" / "corundum.rd").read_bytes(),
+                        dtype="<u2", count=7251, offset=250).astype(np.int64)
+    data = rx.read_pattern(DATA / "qarr" / "corundum.rd")
+
+    assert raw.max() == 829
+    assert max(data.intensity) == 6872.0
+    assert data.intensity == [float(v * v // 100) for v in raw]
+
+
+def test_the_two_prn_converters_disagree_by_one_count_on_exactly_one_file():
+    """``qarr/cpd-1e.rd`` is committed because it is the exception, and the
+    fixture exists so a successor does not "fix" the reader to chase it: the
+    kit's ``.prn`` converter truncates on fifteen files and this one's rounds.
+    The reader truncates — what xylib and the other fifteen conversions do — so
+    this file is off by exactly one count where the rounding differs, and by
+    nothing anywhere else."""
+    rd = rx.read_pattern(DATA / "qarr" / "cpd-1e.rd")
+    prn = rx.read_pattern(DATA / "qarr" / "cpd-1e.prn")
+
+    off = [b - a for a, b in zip(rd.intensity, prn.intensity) if a != b]
+    assert set(off) == {1.0}
+    assert len(off) == 2108
+
+
+def test_a_philips_rd_reports_the_anode_it_states_twice():
+    """The anode is the one enumerated code with a consumer, and decoding it
+    makes the file say ``Cu`` twice — once as the code at offset 85 and once as
+    λα1 — which is what lets ``suggest_instrument`` resolve by agreement."""
+    from rietx.gui.imports import suggest_instrument
+
+    data = rx.read_pattern(DATA / "qarr" / "corundum.rd")
+
+    assert data.metadata["anode"] == "Cu"
+    assert data.metadata["wavelength"] == "1.540562"
+    assert data.metadata["sample"] == "CPD RR Corundum"
+    assert suggest_instrument(data.metadata)["radiation"] == "CuKa"
+
+
+def test_a_wrong_data_offset_is_caught_by_the_maximum_value_field(tmp_path):
+    """Offset 136 holds ``max(v)`` in all 28 real files and is in no published
+    description.  It is the sharpest of the three gates because a ``.rd`` read
+    at the wrong offset still *looks* like a diffraction pattern."""
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd
+
+    p = write_philips_rd(tmp_path / "lying.rd", CORUNDUM_HEAD, stated_max=999)
+
+    with pytest.raises(ValueError, match="records a maximum stored value of 999"):
+        rx.read_pattern(p)
+
+
+def test_a_length_that_disagrees_with_the_header_is_refused(tmp_path):
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd
+
+    p = write_philips_rd(tmp_path / "short.rd", CORUNDUM_HEAD, end=99.0)
+
+    with pytest.raises(ValueError, match=r"short\.rd is V3RD.*should be"):
+        rx.read_pattern(p)
+
+
+def test_bytes_past_the_last_point_are_refused(tmp_path):
+    """Same gate from the other side: the header says how long the file is."""
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd
+
+    p = write_philips_rd(tmp_path / "trailing.rd", CORUNDUM_HEAD,
+                         trailing=b"\x01\x02")
+
+    with pytest.raises(ValueError, match="and it is"):
+        rx.read_pattern(p)
+
+
+def test_a_v5_reads_only_when_the_length_gate_holds(tmp_path):
+    """V5 has no real file anywhere and its data offset rests on one description
+    copied twice.  It is read because ``n`` comes from the header, so
+    ``len == 810 + 2n`` tests the header offsets and the data start jointly and
+    a wrong 810 cannot shift the pattern silently.  The refusal says so."""
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd
+
+    counts = CORUNDUM_HEAD
+    good = write_philips_rd(tmp_path / "good.sd", counts, version=b"V5RD")
+
+    assert rx.read_pattern(good).intensity == [float(c) for c in counts]
+
+    # the same bytes claiming to be V5 with a V3-sized header: 560 bytes short
+    v3 = write_philips_rd(tmp_path / "mislabelled.sd", counts)
+    raw = bytearray(v3.read_bytes())
+    raw[:4] = b"V5RD"
+    (tmp_path / "mislabelled.sd").write_bytes(bytes(raw))
+
+    with pytest.raises(ValueError, match="No V5 file was obtainable anywhere"):
+        rx.read_pattern(tmp_path / "mislabelled.sd")
+
+
+def test_philips_rd_and_bruker_raw_are_disjoint_in_both_directions(tmp_path):
+    """``.raw`` is written by six unrelated vendors and ``.rd`` by two, so
+    neither reader may trust a suffix.  Both match on magic bytes, so a Philips
+    file named ``.raw`` still reaches this reader and a Bruker file named
+    ``.rd`` still reaches that one."""
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd, write_raw4
+
+    philips = write_philips_rd(tmp_path / "philips.raw", CORUNDUM_HEAD)
+    bruker = write_raw4(tmp_path / "bruker.rd", [
+        dict(start=10.0, step=0.02, intensity=[500.0 + i % 7 for i in range(50)])])
+
+    assert rx.io.readers.identify_format(philips).name == "philips_rd"
+    assert rx.io.readers.identify_format(bruker).name == "bruker_raw"
+
+
 # ---------------------------------------------------------------------- udf
 #: The 19 keys every one of the 56 real ``.udf`` files carries, in their order,
 #: with the values an ASU PANalytical Aeris wrote on 3 June 2025.  No real file

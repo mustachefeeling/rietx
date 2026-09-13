@@ -47,6 +47,7 @@ from .chi import CHI, read_chi
 from .dif import DIF, read_dif
 from .gsas import GSAS, read_gsas
 from .pdcif import PDCIF, read_pdcif
+from .philips_rd import PHILIPS_RD, read_philips_rd
 from .ras import RAS, read_ras
 from .rasx import RASX, read_rasx
 from .udf import UDF, read_udf
@@ -57,7 +58,11 @@ from .xy import XY, read_xy
 #: Every format ``read_pattern`` accepts, **in dispatch order** (see above).
 #: ``BRUKER_RAW`` is first: its magic bytes name the format *and* its version at
 #: offset 0, which no other entry can imitate and which no other entry needs to
-#: be told apart from.  ``RASX`` and ``BRML`` follow, sharing a zip's magic and
+#: be told apart from.  ``PHILIPS_RD`` is second on the same grounds, and the
+#: pair is disjoint by construction — ``RAW…`` against ``V3RD``/``V5RD`` — which
+#: matters more here than usual, since ``.raw`` is written by six unrelated
+#: vendors and ``.rd`` by two, so neither reader may trust a suffix.
+#: ``RASX`` and ``BRML`` follow, sharing a zip's magic and
 #: separated by their manifests rather than by it; then ``RAS``, ``UXD``,
 #: ``XRDML`` and ``UDF``, each recognised by a first line, a root element or a
 #: required pair of header keys its own spec mandates, which is stronger
@@ -66,9 +71,9 @@ from .xy import XY, read_xy
 #: to build an abscissa at all, so a file matching them is a ``.udf`` or is
 #: nothing, and putting it below ``PDCIF``/``GSAS`` would only let a weaker
 #: sniff answer first.
-PATTERN_FORMATS: tuple[PatternFormat, ...] = (BRUKER_RAW, RASX, BRML, RAS, UXD,
-                                              XRDML, UDF, PDCIF, GSAS, CHI, DIF,
-                                              XY)
+PATTERN_FORMATS: tuple[PatternFormat, ...] = (BRUKER_RAW, PHILIPS_RD, RASX, BRML,
+                                              RAS, UXD, XRDML, UDF, PDCIF, GSAS,
+                                              CHI, DIF, XY)
 
 __all__ = [
     "HEAD_BYTES",
@@ -93,6 +98,7 @@ __all__ = [
     "read_dif",
     "read_gsas",
     "read_pdcif",
+    "read_philips_rd",
     "read_ras",
     "read_rasx",
     "read_udf",

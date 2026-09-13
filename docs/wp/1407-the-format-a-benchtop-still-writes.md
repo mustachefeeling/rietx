@@ -333,7 +333,7 @@ holds a registered binary reader nothing exercises.
       the `CuKa` preset already carries weight 0.5 for Kα2, which is what all 56
       real files state, so no obtainable file would exercise a value different
       from the default. A declared name with no writer fails no test.
-- [ ] 4. `.rd` reader: `src/rietx/io/formats/philips_rd.py`. **Restated by task
+- [x] 4. `.rd` reader: `src/rietx/io/formats/philips_rd.py`. **Restated by task
       1**: `.sd` is V5 of this same format, so the reader **claims** both by
       magic (`V3RD`/`V5RD`) rather than refusing `.sd` by name. Intensities are
       √-compressed, `counts = v*v // 100`. Gates, all measured on 28 files:
@@ -343,9 +343,15 @@ holds a registered binary reader nothing exercises.
       since `n` comes from them — is the whole of its evidence and a failure
       refuses by name. Magic-byte `matches`, disjoint from `bruker_raw` in both
       directions (precedent: `tests/test_readers.py:2144`).
-- [ ] 5. `write_philips_rd()` in `tests/writers_xrd.py`, packing offsets
+- [x] 5. `write_philips_rd()` in `tests/writers_xrd.py`, packing offsets
       **literally** and never from the reader's table, plus the
       `SYNTHETIC_FIXTURES` arm in `tests/test_readers_robust.py:71`.
+      **Reshaped by task 1**: V3 now has a real fixture, so `qarr/corundum.rd`
+      joins `REAL_FIXTURES` and the writer's synthetic arm is **V5**, the
+      version no file exists for — the `raw3` case exactly. The writer
+      **refuses** a count the √ encoding cannot hold rather than writing the
+      nearest one, so a round trip cannot assert a number the caller never
+      wrote; `CORUNDUM_HEAD` is twelve real counts for callers to use.
 - [ ] 6. The three remaining refusals: the vendor-agnostic binary-`.raw`
       message (six vendors named, this build's readers named, the ASCII-export
       remedy), and `.pks` / `.udi` as peak lists — extension **unless the file
