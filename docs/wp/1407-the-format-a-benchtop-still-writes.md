@@ -423,6 +423,26 @@ holds a registered binary reader nothing exercises.
   measured number, and protocol rule 6 fires the full suite only when a change
   could.
 
+  **The review pass changed the WP, which is worth knowing before trusting
+  it.** `/code-review high --fix` raised eleven findings; seven were applied
+  and four judged here. Two were plain wrong references. Three were defects in
+  the plan itself and would each have cost a successor real work: the
+  acceptance bar demanded a Kα2/Kα1 ratio that no `METADATA_KEYS` member
+  declares, so `base.metadata()` would have refused at the acceptance step; the
+  declared stop boundary sat at task 4, one task before the writer that builds
+  the **only** fixture `.rd` can ever have, so stopping there would have
+  shipped a registered binary reader with no coverage; and the counts were
+  labelled `[dev,jax,torch]`, copied from 1047's handover, when this worktree's
+  venv has neither. The numbers were right and the label was not, which is the
+  failure `tests/CLAUDE.md` § Quoting numbers exists to catch. One finding was
+  **declined**: backfilling `docs/milestones/process.md`'s caps diary, because
+  the three preceding ROADMAP bumps are missing there too and adding only this
+  one would misrepresent the record. That backfill is unowned and still owed.
+
+  **`origin/main` had not moved** since this worktree was created, so the
+  branch tip already sits on current main and no merge was needed; the counts
+  above are the merged tree's by identity rather than by re-measurement.
+
   **In flight: nothing.** Tree clean, pushed, WP at ⬜ because no task landed.
 
   **Gotchas for a successor.**
