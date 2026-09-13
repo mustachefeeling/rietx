@@ -112,10 +112,8 @@ issues into 1118, 1310 and 1322 rather than opening a WP.
 the `grade` prior-counting change (1046 § 4); the model-cost estimate (1113
 § Findings); the two v1.1 speed fronts nobody owns (the per-reflection 19.4 %,
 1121; the `refit=` choice that discards half a trigger series' wall in ladder
-rungs, 1124); the LaB6+cBN correlation test's Linux-only red, never green
-there ([v1.3 record](milestones/v1.3.md) § Appendix — acceptance at ship); and
-`toy_roughness`, the one backend state whose Jacobian no second opinion covers
-(golden only, no `jacfwd` row — 1119 § Gotchas).
+rungs, 1124); and `toy_roughness`, the one backend state whose Jacobian no
+second opinion covers (golden only, no `jacfwd` row — 1119 § Gotchas).
 
 ## Milestones
 
