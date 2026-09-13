@@ -75,6 +75,11 @@ so a session loads only what it needs:
    **Milestone opens**: bump `pyproject.version` to `1.x.0.dev0`, and write
    the record's Scope and Acceptance rows *at the open* — the v1.3 record says
    plainly that rows written at ship are the weaker evidence.
+   **A break or a user-facing addition is staged in a record on the day it
+   lands** — the open milestone's, or the last shipped one when none is open.
+   The notes are written from the **tag range**, not from the milestone, and
+   v1.4's pass found two changes shipping with no record entry behind them
+   (v1.4 record § Appendix).
 
 `tests/test_docs_consistency.py` enforces the mechanical parts: status
 vocabulary and glyph sync, the index section matching each WP's `Milestone:`
