@@ -179,7 +179,7 @@ use is the design case.
 
 ## Tasks
 
-- [ ] Schema: `PeakComponent` + validators (finite center/fwhm bounds with a
+- [x] Schema: `PeakComponent` + validators (finite center/fwhm bounds with a
       suggesting refusal, `EXTRA_PEAK_FWHM_MIN`); JSON round-trip;
       `SCHEMA_VERSION` 0.18 → 0.19; `help.py` entries for every new field
       (`tests/test_help.py` crosses the vocabulary both ways, so the member

@@ -56,6 +56,7 @@ from rietx.schemas.instrument import (
     Geometry,
     HumpComponent,
     Instrument,
+    PeakComponent,
     RoughnessPitschke,
     RoughnessSuortti,
     Source,
@@ -128,11 +129,16 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
     families — the four roughness fields, the P-spline's air term and the three
     background-peak fields — which is the same hole the preferred-orientation
     block was in.  A single defaulted :class:`HumpComponent` declares the
-    ``instrument.extra_components.*.{position,height,fwhm}`` families; without it
-    the corpus could describe a peak the coverage tests never meet.
+    ``instrument.extra_components.*.{position,height,fwhm}`` families and a
+    :class:`PeakComponent` the ``{center,area,eta}`` ones; without them the
+    corpus could describe a component field the coverage tests never meet.  Both
+    members are present rather than either, because ``fwhm`` is the one field
+    name they share and its entry has to answer for both.
 
-    Every ``Parameter`` here still sits at its schema default, so these models
-    feed :func:`_schema_parameters` on the same terms as the default pair.
+    Every ``Parameter`` here sits at its schema default **except** the peak's
+    ``center``, which has no usable default: finite bounds are what size its
+    frozen window, so :class:`PeakComponent` refuses one without them.  The
+    numbers below are arbitrary and only have to be finite.
     """
     structure, _ = _default_models()
     spline = BackgroundPSpline(
@@ -145,7 +151,11 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
                               goniometer_radius_mm=217.5,
                               surface_roughness=RoughnessSuortti()),
             background=spline,
-            extra_components=[HumpComponent()])),
+            extra_components=[
+                HumpComponent(),
+                PeakComponent(center=Parameter(value=30.0, min=29.0, max=31.0,
+                                               unit="deg")),
+            ])),
         (structure, Instrument(
             source=Source(lines=[EmissionLine(wavelength=1.540598)]),
             geometry=Geometry(kind="bragg_brentano",

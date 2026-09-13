@@ -1053,6 +1053,46 @@ HUMP_FIELDS: tuple[str, ...] = ("position", "height", "fwhm")
 #: it exists to make the pole unreachable, not to encode a physical width.
 HUMP_FWHM_MIN = 0.1
 
+#: :class:`PeakComponent`'s refinable fields, in path order — the
+#: :data:`HUMP_FIELDS` role for the second member.  ``center`` and not
+#: ``position`` because it is the *apparent* centre of a peak this package does
+#: not place from a cell, and ``area`` and not ``scale`` because
+#: :func:`rietx.refine.mode_fixed_path` force-fixes every ``*.scale`` path under
+#: Le Bail and Pawley, where a declared sharp peak must stay refinable.
+PEAK_FIELDS: tuple[str, ...] = ("center", "area", "fwhm", "eta")
+
+#: Which fields each :data:`ExtraComponent` member refines, keyed by its
+#: ``kind`` discriminator.  One authority, so
+#: :func:`rietx.params.vector.extra_component_parameters` stays member-agnostic
+#: instead of growing an ``isinstance`` ladder that ``apply_to_models`` would
+#: have to grow in step — exactly the drift clause 4 of the member contract
+#: exists to prevent.  A new member adds its row here, and
+#: ``tests/test_extra_components.py`` fails on a member whose row is missing.
+COMPONENT_FIELDS: dict[str, tuple[str, ...]] = {
+    "hump": HUMP_FIELDS,
+    "peak": PEAK_FIELDS,
+}
+
+#: Lower bound on :attr:`PeakComponent.fwhm`, in °2θ.  The same pole the
+#: :data:`HUMP_FWHM_MIN` comment describes — the pseudo-Voigt divides by Γ and a
+#: softplus ``min=0.0`` underflows to *exactly* zero — derived by the same rule
+#: at the other end of the instrument range.
+#:
+#: :data:`rietx.background.diagnostics.STEPS_PER_FWHM_MIN` = 5 channels across a
+#: feature is the minimum anything can be refined from; 0.001 °2θ is the step of
+#: the finest scan this package is tested against (APS 11-BM,
+#: ``tests/data/11BM_Si640c.xy``, stated in that file's own header), so
+#: 5 × 0.001 = 0.005.  :data:`HUMP_FWHM_MIN` takes 0.02° — the finest step a
+#: *routine* powder scan uses — and is 20× larger for that reason alone.
+#:
+#: It is a floor on the *parameterisation*, not a claim about how sharp a real
+#: peak is.  Unlike the hump's floor, which sits whole degrees below any real
+#: hump, this one has no comfortable margin beneath a legitimate width: sharp is
+#: the point of this member.  It exists to make the pole unreachable, and a
+#: caller whose peak is genuinely narrower than five channels has a spike, not a
+#: peak this profile describes.
+EXTRA_PEAK_FWHM_MIN = 0.005
+
 #: Softplus lower bound at or under which `internal_bounds` gives up on the
 #: bound entirely — the same 1e-12 `schemas/structure.py` uses, restated here
 #: rather than imported so `schemas/instrument.py` keeps importing nothing from
@@ -1218,6 +1258,166 @@ class HumpComponent(Base):
         return self
 
 
+
+class PeakComponent(Base):
+    """One declared sharp pseudo-Voigt peak the phases cannot account for.
+
+    A sample holder reflecting at its own specimen distance, a mount, a window,
+    an unidentified sharp impurity — something that diffracts, sits where no
+    phase in the model puts a line, and **overlaps peaks that matter**.  That
+    overlap is the whole reason this member exists: ``excluded_regions`` is the
+    alternative, and it masks the sample peak underneath along with the
+    intruder.
+
+        y(2θ) = A · pV(2θ − 2θ_c; Γ, η)
+
+    with pV the unit-area pseudo-Voigt already used for every Bragg reflection
+    (:func:`rietx.model.profiles.pseudovoigt.pseudo_voigt`): η·L + (1−η)·G, both
+    components unit-area at one FWHM Γ.  The intensity therefore enters as an
+    **area**, which is what a reflection intensity is, and A is in counts·deg.
+
+    **This is a declaration, never a detection.**  The package does not look for
+    extra peaks and does not decide whether yours is real; it fits what you
+    declare and reports evidence about it.  What it will not do is refuse.
+
+    **Why it is not a phase.**  TOPAS spells the same capability as a cell-less
+    "peaks phase" (``xo_Is``; Coelho, 2018, *J. Appl. Cryst.* **51**, 210).
+    Here a :class:`~rietx.Phase` is crystallographic through and through — cell
+    ties, Wyckoff sites, QPA weight fractions — and a cell-less one breaks every
+    consumer of it.  The component seam gives the same power without the schema
+    violence, which is the argument :data:`ExtraComponent` is built on.
+
+    **What it is not corrected for, and why that is the point.**  The centre is
+    the **apparent** position of the *primary* emission line: no ``zero_shift``,
+    no sample-displacement or transparency shift, no FCJ asymmetry.  A holder
+    sits at its own distance from the focusing circle and its aberrations are
+    its own, so correcting it with the specimen's would be worse than not
+    correcting it at all.  All of it is absorbed into a free centre, which is
+    also why the centre carries no crystallographic meaning: see the non-goal in
+    WP-1103 about reading a d-spacing off it.
+
+    **Emission lines: all of them, by default.**  The holder diffracts the same
+    source, so its Kα2 is physically there.  ``all_lines=True`` places each line
+    at the Bragg image of the apparent centre and scales it by the line's weight
+    **times the two lines' Lorentz-polarisation ratio** — not the bare weight,
+    which is a measured bias and not a simplification: holding it biased the
+    fitted Kα1 by −2e-4° and −0.26 mean σ pull on lab Cu Kα LaB6 (WP-1018, and
+    :mod:`rietx.indexing.peakfit` states the same arithmetic for the same
+    reason).  Set ``all_lines=False`` for something that does not diffract at
+    all — a fluorescence line, a detector artefact — where a Kα2 image would be
+    a claim about physics that is not happening.
+
+    Fields, and the reason each bound is the bound it is:
+
+    * ``center`` — °2θ, identity transform, and **finite ``min``/``max`` are
+      required**.  This is the one place this member disagrees with
+      :class:`HumpComponent`, whose ``position`` is deliberately unbounded, and
+      the difference is not taste: a hump is evaluated on the whole grid, so its
+      position has no window to leave, while this peak is evaluated in a window
+      frozen at stage compile.  That window is sized from ``center``'s *bounds*,
+      which is what lets a free centre move during a stage without ever leaving
+      it — the frozen-per-stage invariant held by construction instead of by
+      plumbing ``free_paths`` into the compile.  With no bound there is no
+      window to size, so the refusal is a real one and it suggests a range.
+    * ``area`` — counts·deg, softplus, ``min=0.0``, default 0.0.  ``min=0.0``
+      under softplus is safe for the one reason it is ever safe: **zero is the
+      off state.**  A = 0 makes the term identically zero everywhere, so the
+      underflow softplus permits lands on the identity and not on a pole (root
+      CLAUDE.md § Invariants; contrast ``PreferredOrientation.r``).  A declared
+      peak is therefore bit-identical to no peak until something frees it.
+    * ``fwhm`` — °2θ, softplus, floored at :data:`EXTRA_PEAK_FWHM_MIN` with the
+      same reachability repair :class:`HumpComponent` carries, because this one
+      divides.  **Finite ``min``/``max`` are required** for the window reason
+      above: the half-width is ``k(η)·fwhm.max``, so an unbounded width is an
+      unbounded window.
+    * ``eta`` — the Gaussian/Lorentzian mixing, logit-transformed, default 0.5.
+      Both ends are legitimate (η = 0 is a pure Gaussian, η = 1 a pure
+      Lorentzian) and neither is a pole, so unlike a softplus width this needs
+      no floor — but it does need a logit rather than a softplus, which is what
+      :class:`HumpComponent`'s own docstring predicted for the η it declined to
+      have.  **η's upper bound sizes the window too**: ``k(η)`` is the
+      half-width in FWHM units at which the discarded area of the profile stays
+      under ``forward.WINDOW_AREA_TOL``, and it is a steep function of η
+      (k(0) ≈ 1.05, k(0.6) ≈ 9.5, k(1) ≈ 16), so the window is built at ``k`` of
+      η's *upper bound* and never of its value.  A caller who knows the peak is
+      near-Gaussian can say so with ``eta.max`` and buy a much smaller window.
+
+    All four default to ``vary=False``, and no plan preset frees them: no stage
+    glob matches the ``instrument.extra_components.`` prefix, which is the
+    reason :attr:`Instrument.extra_components` is spelled with an underscore
+    rather than nested under ``background``.  Freeing a declared peak is the
+    caller's explicit act, always.
+    """
+
+    #: apparent °2θ centre of the **primary** emission line.  Required, and
+    #: required to carry finite bounds: they size the frozen window.
+    center: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, unit="deg"))
+    area: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="counts*deg",
+                                          transform="softplus"))
+    fwhm: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.1,
+                                          min=EXTRA_PEAK_FWHM_MIN, max=2.0,
+                                          unit="deg", transform="softplus"))
+    eta: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.5, min=0.0, max=1.0,
+                                          transform="logit"))
+    #: Place an image of this peak at every emission line, weighted by the
+    #: line's weight × its Lorentz-polarisation ratio.  ``False`` for something
+    #: that does not diffract (fluorescence, a detector artefact).
+    all_lines: bool = True
+    #: Discriminator.  Its one legal value names this member of
+    #: :data:`ExtraComponent`; the union dispatches on it, never on shape.
+    kind: Literal["peak"] = "peak"
+    #: free-text tag, e.g. ``"steel holder 110"``.  Rendered in diagnostics so a
+    #: finding can name the peak a human declared.  Not a parameter and not part
+    #: of any dot-path — the paths index the list, so a relabelled peak keeps its
+    #: refined values.
+    label: str | None = None
+
+    @model_validator(mode="after")
+    def _window_bounds_are_finite(self) -> "PeakComponent":
+        """Refuse a peak whose window cannot be sized, and say what to write.
+
+        ``center`` and ``fwhm`` bound the frozen evaluation window, so an
+        infinite bound is not a loose claim but an unbuildable one.  This is a
+        refusal rather than a repair because the range is a fact about the
+        caller's pattern that the schema cannot see — the
+        :meth:`HumpComponent._fwhm_floor_is_reachable` situation inverted, where
+        the repair was possible precisely because the floor was a property of
+        the transform and not of anyone's data.
+        """
+        for name, hint in (("center", "min=28.0, max=28.8"),
+                           ("fwhm", f"min={EXTRA_PEAK_FWHM_MIN}, max=0.5")):
+            par = getattr(self, name)
+            if not (math.isfinite(par.min) and math.isfinite(par.max)):
+                raise ValueError(
+                    f"PeakComponent.{name} needs finite min and max: they size "
+                    "the evaluation window, which is frozen at stage compile and "
+                    "cannot follow a parameter that has no bound. Give it the "
+                    f"range you expect — e.g. Parameter(value={par.value!r}, "
+                    f"{hint}, unit='deg').")
+        return self
+
+    @model_validator(mode="after")
+    def _fwhm_floor_is_reachable(self) -> "PeakComponent":
+        """Repair a width bound softplus cannot actually enforce.
+
+        :meth:`HumpComponent._fwhm_floor_is_reachable` byte for byte, at this
+        member's floor, and for the reason stated there: the broken bound
+        **outlives the default**, so a stored ``min: 0.0`` deserializes straight
+        back into the pole and no ``default_factory`` ever runs on that path.
+        """
+        if self.fwhm.min <= _SOFTPLUS_FLOOR:
+            # value **before** min, as in the hump: ``Base`` validates on
+            # assignment, so raising the floor under a value still below it
+            # would trip ``Parameter._check_bounds`` mid-repair.
+            self.fwhm.value = max(self.fwhm.value, EXTRA_PEAK_FWHM_MIN)
+            self.fwhm.min = EXTRA_PEAK_FWHM_MIN
+        return self
+
+
 #: A declared parametric term added to the calculated pattern, discriminated on
 #: ``kind``.  One member today, :class:`HumpComponent`; WP-1103 adds a sharp
 #: peak.  The union is a *bare* PEP-604 alias with ``kind`` ``Literal``\ s, the
@@ -1239,13 +1439,18 @@ class HumpComponent(Base):
 #: 1. **An evaluator in ``xp`` ops**, whole-grid or frozen-window, so every
 #:    backend differentiates it through the traced twin and no member needs an
 #:    analytic Jacobian branch of its own.  Registered in
-#:    :mod:`rietx.model.components`, which is the one authority.
+#:    :mod:`rietx.model.components`, which is the one authority.  The
+#:    arithmetic may live wherever it belongs — a hump's in
+#:    :mod:`rietx.background.models`, a peak's in the unit-area pseudo-Voigt
+#:    every reflection already uses — but the *registry* is one place.
 #: 2. **A declared aggregate membership**, held as *data* rather than implied by
 #:    the class: which reported aggregate the member's curve joins — the
 #:    reported background (``result.y_background``, ``BackgroundEvidence``, the
 #:    absorption span) for a hump, the tick list for a peak.  It is the axis on
 #:    which members differ most, and reading it off the class name is how a
-#:    member ends up counted twice or not at all.
+#:    member ends up counted twice or not at all.  The declaration is
+#:    :data:`rietx.model.components.COMPONENT_AGGREGATE`, and it is read, never
+#:    inferred.
 #: 3. **Its curve is subtracted from the Le Bail/Pawley partition net**, or
 #:    phases are handed shares of counts that are not theirs.  For a
 #:    background-landing member this is free, because
@@ -1284,15 +1489,21 @@ class HumpComponent(Base):
 #: WP-1103's; the contract is written so that it would be a member rather than a
 #: redesign.
 #:
-#: **What this union has not yet proved.**  The contract has two axes — an
-#: evaluator's *shape*, and *where the member lands* — and with one member
-#: neither is tested against a second case.  :class:`HumpComponent` is a local
-#: bump in 2θ reported as background.  WP-1103's sharp peak is the proving case
-#: for the second axis (same evaluator shape, different destination); a Debye
-#: term ``Σⱼ Bⱼ·sin(Q rⱼ)/(Q rⱼ)``, which GSAS-II and FullProf both ship and
-#: this package does not, would be the proving case for the first.  Until one of
-#: them lands, treat clause 2 as a design intention rather than as a tested one.
-ExtraComponent = HumpComponent
+#: **What this union has proved, and what it has not.**  The contract has two
+#: axes — an evaluator's *shape*, and *where the member lands* — and they are no
+#: longer in the same state.  :class:`HumpComponent` is a local bump in 2θ
+#: reported as background; :class:`PeakComponent` is the same evaluator shape
+#: landing somewhere else entirely, on the tick list, which is what turned
+#: clause 2 from a design intention into a tested one (WP-1103).  Read the
+#: membership from :data:`rietx.model.components.COMPONENT_AGGREGATE`; a member
+#: that infers it from the class name passes no test here.
+#:
+#: The *first* axis is still untested.  Both members are a local feature in 2θ
+#: evaluated over a window; a Debye term ``Σⱼ Bⱼ·sin(Q rⱼ)/(Q rⱼ)`` — a
+#: whole-pattern oscillation in Q, which GSAS-II and FullProf both ship and this
+#: package does not — would be its proving case.  Until one lands, a claim that
+#: this seam admits *any* evaluator shape is an intention.
+ExtraComponent = HumpComponent | PeakComponent
 
 
 class Instrument(Base):

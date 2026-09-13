@@ -28,26 +28,34 @@ then frees nothing.
 from __future__ import annotations
 
 import json
+import typing
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
 import rietx as rx
 from rietx.background.models import hump_curve
 from rietx.io.exporters import _background_description
 from rietx.io.instrument_profile import save_instrument_profile
+from rietx.model.components import COMPONENT_AGGREGATE
 from rietx.model.forward import compile_model
 from rietx.optimize.least_squares import _make_jacobian, _make_residual
 from rietx.optimize.statistics import _span_basis, background_absorption
 from rietx.params.vector import ParameterTable, extra_component_parameters
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import (
+    COMPONENT_FIELDS,
+    EXTRA_PEAK_FWHM_MIN,
     HUMP_FIELDS,
     HUMP_FWHM_MIN,
+    PEAK_FIELDS,
     BackgroundChebyshev,
     BackgroundPSpline,
+    ExtraComponent,
     HumpComponent,
     Instrument,
+    PeakComponent,
 )
 from rietx.schemas.migrate import READ_POINTS, migrate_document_text
 from rietx.schemas.pattern import PatternData
@@ -982,3 +990,180 @@ def test_a_v1_2_result_json_still_opens_under_the_new_count_name():
            "n_background_peaks": 2}
     assert migrate_document_text(json.dumps(doc))[1] is False
     assert RefinementResult.model_validate(doc).n_extra_components == 2
+
+
+# ----------------------------------------------------------------------
+# The second member: a declared sharp peak (WP-1103)
+#
+# `HumpComponent` alone left clause 2 of the member contract — a member's
+# aggregate membership is *declared data*, never read off the class name — as a
+# design intention with nothing exercising it.  These tests are what make it a
+# tested one, so the ones that matter most are the ones about *where the member
+# lands* rather than about arithmetic: a peak is not background, its curve must
+# leave `y_background` alone, and its positions must reach the tick list.
+# ----------------------------------------------------------------------
+
+
+def make_peak(center=28.4, span=0.4, **kw):
+    """A `PeakComponent` with the finite centre bounds the schema requires."""
+    kw.setdefault("center", Parameter(value=center, min=center - span,
+                                      max=center + span, unit="deg"))
+    return PeakComponent(**kw)
+
+
+def test_the_union_has_two_members_and_dispatches_on_kind_not_shape():
+    """Both members round-trip to their own class through one list.
+
+    A structural union would be free to pick either class for a blob whose
+    fields happened to fit, which is the accident root CLAUDE.md names for
+    `PlanSpec`; the discriminator is what makes the answer a lookup.
+    """
+    inst = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=20.0, unit="deg")),
+        make_peak(label="holder 110"),
+    ])
+    blob = inst.model_dump(mode="json")
+    back = Instrument.model_validate(json.loads(json.dumps(blob)))
+    assert [type(c).__name__ for c in back.extra_components] == [
+        "HumpComponent", "PeakComponent"]
+    assert [c.kind for c in back.extra_components] == ["hump", "peak"]
+    assert back.extra_components[1].label == "holder 110"
+    assert back.model_dump(mode="json") == blob
+
+
+def test_json_round_trip_keeps_every_peak_component_parameter():
+    """Every declared field survives, values and bounds alike.
+
+    `HUMP_FIELDS`' test one member over; the bounds are load-bearing here in a
+    way they are not for a hump, because they size the frozen window.
+    """
+    peak = make_peak(area=Parameter(value=1234.5, min=0.0, unit="counts*deg",
+                                    transform="softplus"),
+                     eta=Parameter(value=0.75, min=0.0, max=1.0,
+                                   transform="logit"),
+                     all_lines=False)
+    peak.fwhm.value = 0.123
+    back = PeakComponent.model_validate(
+        json.loads(json.dumps(peak.model_dump(mode="json"))))
+    for name in PEAK_FIELDS:
+        before, after = getattr(peak, name), getattr(back, name)
+        assert (after.value, after.min, after.max) == (
+            before.value, before.min, before.max), name
+    assert back.all_lines is False
+
+
+def test_a_centre_or_width_with_no_finite_bound_is_refused_and_suggests_one():
+    """The refusal names the field, says why, and shows what to write.
+
+    A window frozen at stage compile cannot follow an unbounded parameter, so
+    this is unbuildable rather than merely loose — and unlike the width floor it
+    cannot be repaired, because the range is a fact about the caller's pattern
+    that the schema cannot see.
+    """
+    with pytest.raises(ValidationError, match=r"center needs finite min and max"):
+        PeakComponent()
+    with pytest.raises(ValidationError, match=r"fwhm needs finite min and max"):
+        make_peak(fwhm=Parameter(value=0.1, min=EXTRA_PEAK_FWHM_MIN,
+                                 unit="deg", transform="softplus"))
+    with pytest.raises(ValidationError) as excinfo:
+        PeakComponent()
+    assert "Parameter(value=" in str(excinfo.value)
+
+
+def test_a_stored_zero_width_bound_is_repaired_at_this_members_floor():
+    """The hump's repair, at this member's floor, for the same reason.
+
+    A stored `min: 0.0` deserializes straight back into the pole and no
+    `default_factory` runs on that path, so the repair has to live in a
+    validator.  The floor differs from the hump's by 20x and that is the whole
+    difference: 5 channels of the finest scan step rather than of the coarsest.
+    """
+    blob = make_peak().model_dump(mode="json")
+    blob["fwhm"]["min"] = 0.0
+    blob["fwhm"]["value"] = 0.0
+    back = PeakComponent.model_validate(blob)
+    assert back.fwhm.min == EXTRA_PEAK_FWHM_MIN
+    assert back.fwhm.value == EXTRA_PEAK_FWHM_MIN
+    assert EXTRA_PEAK_FWHM_MIN == pytest.approx(5 * 0.001)
+
+
+def test_the_field_registry_covers_every_member_and_agrees_with_the_union():
+    """Clause 4: one authority for which fields a member refines.
+
+    Both directions, because each catches a different mistake — a member with
+    no row registers no parameters at all (silent), and a row for a member that
+    no longer exists outlives it (also silent).
+    """
+    kinds = {m.model_fields["kind"].default
+             for m in typing.get_args(ExtraComponent)}
+    assert set(COMPONENT_FIELDS) == kinds
+    assert set(COMPONENT_AGGREGATE) == kinds
+    for kind, member in ((m.model_fields["kind"].default, m)
+                         for m in typing.get_args(ExtraComponent)):
+        declared = set(COMPONENT_FIELDS[kind])
+        actual = {n for n, f in member.model_fields.items()
+                  if f.annotation is Parameter}
+        assert declared == actual, kind
+
+
+def test_aggregate_membership_is_read_from_data_not_from_the_class_name():
+    """Clause 2, and the reason this WP exists.
+
+    The registry is keyed by the `kind` discriminator, so a member's
+    destination is a lookup.  The assertion that matters is the second one: the
+    two members' aggregates *differ*, which is what makes the lookup do work
+    that a shared default could not.
+    """
+    assert COMPONENT_AGGREGATE["hump"] == "background"
+    assert COMPONENT_AGGREGATE["peak"] == "ticks"
+    assert len(set(COMPONENT_AGGREGATE.values())) == 2
+
+
+def test_both_halves_of_the_table_know_the_peak_component_paths():
+    """`_collect_instrument` and `apply_to_models`, the clause 4 pair.
+
+    The hump's version of this test one member over; it is repeated rather than
+    parametrised because the failure it catches is a *field list* going out of
+    step, and a shared loop would use one field list for both halves.
+    """
+    structure = make_lab6()
+    instrument = _instrument(peaks=[make_peak()])
+    table = ParameterTable(structure, instrument)
+    paths = [f"instrument.extra_components.0.{n}" for n in PEAK_FIELDS]
+    for path in paths:
+        assert path in table._paths, path
+    for path, value in zip(paths, (28.5, 777.0, 0.25, 0.321), strict=True):
+        table.entries[table._paths[path]].value = value
+    table.apply_to_models(structure, instrument)
+
+    peak = instrument.extra_components[0]
+    assert (peak.center.value, peak.area.value, peak.fwhm.value,
+            peak.eta.value) == (28.5, 777.0, 0.25, 0.321)
+
+
+def test_a_mixed_list_registers_each_member_with_its_own_fields():
+    """A hump and a peak in one list, each contributing its own paths.
+
+    The regression this guards is the one `isinstance` would have caused: a
+    single hardcoded field tuple silently reads `position` off a peak that has
+    none, or registers a peak's `eta` against a hump.
+    """
+    comps = [HumpComponent(position=Parameter(value=20.0, unit="deg")),
+             make_peak()]
+    subs = [sub for sub, _ in extra_component_parameters(comps)]
+    assert subs == ["0.position", "0.height", "0.fwhm",
+                    "1.center", "1.area", "1.fwhm", "1.eta"]
+
+
+def test_the_intensity_field_is_not_called_scale():
+    """Le Bail and Pawley force-fix every `*.scale` path, and a peak must not be.
+
+    A naming rule with a functional consequence, so it is asserted against the
+    function that would have enforced it rather than against the string.
+    """
+    from rietx.refine import mode_fixed_path
+
+    for mode in ("lebail", "pawley"):
+        for name in PEAK_FIELDS:
+            path = f"instrument.extra_components.0.{name}"
+            assert not mode_fixed_path(path, mode), (path, mode)
