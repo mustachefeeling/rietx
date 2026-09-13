@@ -782,3 +782,18 @@ WP, the measured counts are `tests/data/README.md`.
 294 -> 300 for WP-1118: the coverage registry is the "classify every name"
 rule of the section above acquiring an implementation, so the clause names
 where the table lives rather than restating what it decides.
+
+300 -> 350 for WP-1407 (2026-09-13): two readers and two refusals, so four
+rows in the per-format table, plus three rules the Philips √ encoding
+taught and a fourth axis case.  The rules are what a cap is for: a format
+may **encode** its counts rather than store them, and only a real file says
+so; the *permissive* description can be the defective one, so a description
+is checked against a file before it is believed; and a format's own
+redundancy is the gate to reach for, refused on disagreement rather than
+repaired.  Each governs the next format anyone adds here, which is protocol
+rule 4's test, so none could go down a rank.  What did go down: every
+measurement — the 28-file offset table, the four confirmations of the √
+rule, the 19-key `.udf` vocabulary — is `tests/data/README.md` § Philips,
+and which source each fact came from is `ATTRIBUTION.md`.  The blocks were
+cut by roughly a third before the cap was touched, per this comment's own
+instruction; 344 landed against the 350.

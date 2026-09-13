@@ -173,7 +173,17 @@ SIZE_CAPS: dict[str, int | None] = {
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,
-    "src/rietx/io/CLAUDE.md": 300,
+    # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
+    # Philips √ encoding taught — that a format may encode its counts rather
+    # than store them, that the *permissive* description can be the defective
+    # one so a description is checked against a file before it is believed, and
+    # that a refusal claims only what its evidence allows (three tiers, with a
+    # claims-nothing entry sitting below every reader). None is narrative that
+    # could be demoted: each governs the next format anyone adds, which is
+    # protocol rule 4's test. The WP's own measurements stayed in
+    # tests/data/README.md, and the blocks were cut by a third before the cap
+    # was touched — per this test's own instruction not to delete facts to fit.
+    "src/rietx/io/CLAUDE.md": 350,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

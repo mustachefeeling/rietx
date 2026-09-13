@@ -1,17 +1,36 @@
-# WP-1407 — The format a benchtop still writes: PANalytical `.udf`/`.rd`, and four named refusals
+# WP-1407 — The format a benchtop still writes: PANalytical `.udf`/`.rd`, and three named refusals
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-13 — both readers, three refusals; `.rd` reproduces a committed `.prn` oracle bit for bit
 Depends on: — (1047 is the seam this extends, and is closed)
 
 ## Goal
 
 `read_pattern` opens PANalytical `.udf` (which a benchtop sold today still
-writes) and the Philips PC-APD binary `.rd` (V3 and V5), and **declines four
-more things by name rather than by traceback**: `.sd`, a binary `.raw` that
-matched no reader, and the two peak-list formats `.pks` and `.udi`. Everything
-rides the `io/formats/` seam WP-1047 built, so each format is one module.
+writes) and the Philips PC-APD binary `.rd` (V3 and V5), and **declines three
+more things by name rather than by traceback**: a binary `.raw` that matched no
+reader, and the two peak-list formats `.pks` and `.udi`. Everything rides the
+`io/formats/` seam WP-1047 built, so each format is one module.
+
+**Three, not the four this goal originally claimed.** `.sd` was scoped as a
+fourth refusal and turned out to be this same format's V5 extension, so it is
+*read*, not declined — see the supersession note below. Corrected here rather
+than left standing, because a goal stating what the WP disproved is the first
+thing a successor reads.
 
 ## Context
+
+> **Superseded in part, 2026-09-13 (task 1).** Task 1 retired both fixture
+> risks and changed three things below. (1) **`.rd` is no longer file-less**:
+> the IUCr CPD kit serves a `philips.zip` of **28 original logged `.rd`
+> files**, 16 of which are the originals of `.prn` patterns already committed
+> here, so `.rd` ships on real files plus a value oracle in the tree rather
+> than on descriptions. (2) **The stored `uint16` is √-compressed**
+> (`counts = v*v // 100`) — nothing below anticipated this, and it is the
+> single most important fact about the format. (3) **`.sd` is this format's
+> V5 extension, not a separate format**, so the "refuse `.sd` by name" plan in
+> task 4 and the acceptance bullet are wrong and are restated there. What
+> stands: everything about `.udf`, Stoe, `.pks`/`.udi`, and the licensing.
+> Measurements and the header table: `tests/data/README.md` § Philips.
 
 ### The request, and the naming correction that reshaped it
 
@@ -100,8 +119,8 @@ true):
 | format | shape | independent descriptions | permissive? | real file | verdict |
 |---|---|---|---|---|---|
 | `.udf` | ASCII, above | PyXRD `udf_parser.py` (**BSD-2**), psidata `xrd_panalytical.py` (**Apache-2.0**), CrysFML `Read_Pattern_Panalytical_Udf` (LGPL), xylib `philips_udf.cpp` (LGPL) | **two** | one vendorable, structural; real ones unvendorable | **read** |
-| `.rd` | binary, magic `V3RD` / `V5RD` at offset 0, uint16 intensities | xylib `philips_raw.cpp` (LGPL, from Martijn Fransen's vendor-supplied spec), PyXRD `rd_parser.py` (**BSD-2**, "Philips Binary V3 & V5"), `Yohko/importtool` `import_Philips_Raw.ipf` (LGPL) | **three, one permissive** | none found | **read**, v3-style gates |
-| `.sd` | binary sibling | xylib only | no | none | **refuse by name** |
+| `.rd` **V3** | binary, magic `V3RD` at offset 0, 250-byte header, **√-compressed** uint16 | xylib `philips_raw.cpp` (LGPL, from Martijn Fransen's vendor-supplied spec), PyXRD `rd_parser.py` (**BSD-2**, and **wrong** — it omits the √ decode, the point count and the axis origin), `Yohko/importtool` (LGPL, a port of xylib) | **two, one permissive** | **28, with 16 `.prn` value oracles already committed** | **read** |
+| `.rd`/`.sd` **V5** | the same header, data at 810 | one description, copied into the other two verbatim | — | **none anywhere** | **read behind the length gate only** (below) |
 | Stoe `.raw` | binary, multi-range | **none, anywhere** | n/a | none | **refuse, vendor-agnostically** |
 | Stoe `.pks`, PANalytical `.udi` | peak lists | n/a | n/a | none | **refuse, like `.dif`** |
 | `.csv`, `.jcp`, Scintag | ASCII / binary | one or none | no | none | Non-goal |
@@ -290,17 +309,19 @@ mid-format, mirroring 1047's own rule — task 5 is where `.rd` acquires the onl
 fixture it can have, since no real one exists, so a tree stopped after task 4
 holds a registered binary reader nothing exercises.
 
-- [ ] 1. Retire the fixture risks. Chase the QARR `.rd` lead (Internet Archive,
+- [x] 1. Retire the fixture risks. Chase the QARR `.rd` lead (Internet Archive,
       from a network that can reach it) and table the `.udf` key vocabulary off
       the real Aeris files. Record both in `tests/data/README.md` either way,
       including what each PyXRD inline fixture can and cannot prove. Licence
-      checked per file first.
-- [ ] 2. `ATTRIBUTION.md` § Format specifications: one row for `.udf`, one for
+      checked per file first. **Both retired, both positively**: 28 real `.rd`
+      files with 16 committed value oracles, and 19 `.udf` keys identical across
+      56 real files. See the supersession note in Context.
+- [x] 2. `ATTRIBUTION.md` § Format specifications: one row for `.udf`, one for
       `.rd`, naming which source each fact came from and which corrections are
       this project's, on the template of the three Bruker `.raw` rows
       (`:250-252`). Add the MAUD per-file contradiction as the worked example
       of step 1. Then close the sources.
-- [ ] 3. `.udf` reader: `src/rietx/io/formats/udf.py` exporting a
+- [x] 3. `.udf` reader: `src/rietx/io/formats/udf.py` exporting a
       `PatternFormat`. Text, so its writer stays inline in
       `tests/test_readers.py`. Registry position after the binary and container
       formats and before `xy`; say why in `formats/__init__.py:57-63`.
@@ -310,34 +331,65 @@ holds a registered binary reader nothing exercises.
       not**, and `base.metadata()` refuses an undeclared key, so the acceptance
       line below buys a new `METADATA_KEYS` entry (`base.py:164`) — declare it
       with the two consumers that match on it, or drop the ratio from the bar.
-- [ ] 4. `.rd` reader: `src/rietx/io/formats/philips_rd.py`, V3 and V5, with
-      `.sd` refused **by name alone** and a stated remedy. Magic-byte
-      `matches`, disjoint from `bruker_raw` in both directions (precedent:
-      `tests/test_readers.py:2144`).
-- [ ] 5. `write_philips_rd()` in `tests/writers_xrd.py`, packing offsets
+      **Dropped from the bar, and the reason is WP-1076.** The hint already
+      takes the direct route without it: the header states the anode *and* both
+      wavelengths exactly, so `suggest_instrument` resolves `CuKa` by
+      name-and-wavelength agreement with no candidate matching. The ratio would
+      then need a `METADATA_KEYS` entry, a new preset field and a consumer — and
+      the `CuKa` preset already carries weight 0.5 for Kα2, which is what all 56
+      real files state, so no obtainable file would exercise a value different
+      from the default. A declared name with no writer fails no test.
+- [x] 4. `.rd` reader: `src/rietx/io/formats/philips_rd.py`. **Restated by task
+      1**: `.sd` is V5 of this same format, so the reader **claims** both by
+      magic (`V3RD`/`V5RD`) rather than refusing `.sd` by name. Intensities are
+      √-compressed, `counts = v*v // 100`. Gates, all measured on 28 files:
+      `len == data_start + 2n`, `n == round((end-start)/step) + 1`, and
+      `uint16@136 == max(v)`. V5's data start (810) rests on one description
+      and no file, so the length gate — which tests the header offsets too,
+      since `n` comes from them — is the whole of its evidence and a failure
+      refuses by name. Magic-byte `matches`, disjoint from `bruker_raw` in both
+      directions (precedent: `tests/test_readers.py:2144`).
+- [x] 5. `write_philips_rd()` in `tests/writers_xrd.py`, packing offsets
       **literally** and never from the reader's table, plus the
       `SYNTHETIC_FIXTURES` arm in `tests/test_readers_robust.py:71`.
-- [ ] 6. The three remaining refusals: the vendor-agnostic binary-`.raw`
+      **Reshaped by task 1**: V3 now has a real fixture, so `qarr/corundum.rd`
+      joins `REAL_FIXTURES` and the writer's synthetic arm is **V5**, the
+      version no file exists for — the `raw3` case exactly. The writer
+      **refuses** a count the √ encoding cannot hold rather than writing the
+      nearest one, so a round trip cannot assert a number the caller never
+      wrote; `CORUNDUM_HEAD` is twelve real counts for callers to use.
+- [x] 6. The three remaining refusals: the vendor-agnostic binary-`.raw`
       message (six vendors named, this build's readers named, the ASCII-export
       remedy), and `.pks` / `.udi` as peak lists — extension **unless the file
       parses as a two-column profile**, which keeps `.dif`'s escape — via
       `PatternFormat.refuses` +
       `ReaderCapability.refuses`, by extension, saying so in `sniff`.
-- [ ] 7. Tests: a `# ---- <format>` section per reader in
+- [x] 7. Tests: a `# ---- <format>` section per reader in
       `tests/test_readers.py`, the truncation arms, and the
       `tests/test_capabilities.py:222` scan-capable set if either format is
       multi-scan. **No obs/calc/diff PNGs**: this WP fits nothing, it only
-      reads files.
-- [ ] 8. Docs and close: `io/CLAUDE.md` § Per format rows and any new rule,
+      reads files. Neither format is multi-scan, so the scan-capable set is
+      unchanged and that assertion needed no edit.
+- [x] 8. Docs and close: `io/CLAUDE.md` § Per format rows and any new rule,
       diagnostics rows in `docs/skill/rietx/references/diagnostics.md` for any
-      new code, ROADMAP row, milestone record.
-- [ ] 9. Skill: **one routing-table row is not owed** here, because a new
+      new code, ROADMAP row, milestone record. **No diagnostics row is owed**:
+      this WP added no new code, reusing `PATTERN_INTENSITY_SCALED` only. Four
+      per-format rows and three new rules landed in `io/CLAUDE.md`, which took
+      its cap from 300 to 350 — the blocks were cut by a third first, and the
+      cap comment says why each rule could not be demoted to this file.
+- [x] 9. Skill: **one routing-table row is not owed** here, because a new
       readable format changes nothing about how an agent *drives* a fit. What
       is owed is a diagnostics row per new code (task 8) and, if the
       binary-`.raw` refusal ships, a line in the skill's file-opening guidance
       saying that a `.raw` may belong to any of six vendors so the refusal
       message is the thing to read. Confirm against root CLAUDE.md § skill at
-      close and record the decision either way.
+      close and record the decision either way. **Decided**: no routing row and
+      no diagnostics row. The `.raw` line went into `references/api.md` § In and
+      **not** the body, because the body takes only what holds for *every* fit
+      and this holds only for a fit that starts from a `.raw`. It is authored in
+      the generator (`docs/skill/make_api_index.py`), since `api.md` is
+      rendered and a hand edit fails `test_skill.py`; both committed copies were
+      re-synced with `rietx skill --install . --copy`.
 
 ## Acceptance
 
@@ -348,16 +400,18 @@ holds a registered binary reader nothing exercises.
 .venv/bin/python -m ruff check src tests examples
 ```
 
-- A `.udf` file opens and reports the anode, **both** wavelengths and the
-  Kα2/Kα1 ratio its header carries.
-- A `.rd` V3 and a V5 file each open. If the QARR lead pays off the values are
-  checked against the committed `qarr/*.prn` oracle; if it does not, the
-  acceptance line claims **structure and metadata only** and says so.
-- A `.sd` file is refused by name, not by traceback, and **without claiming a
-  version**: nothing here establishes whether `.sd` shares `.rd`'s `V?RD`
-  magic, so reading a version out of it would be the same guess the Stoe rule
-  forbids. If task 1 settles that it does share the magic, say so in the
-  evidence table and the refusal may then name the version.
+- A `.udf` file opens and reports the anode and **both** wavelengths its header
+  carries, and the instrument hint resolves `CuKa` from them by agreement. The
+  Kα2/Kα1 ratio is **not** on the bar; task 3 records why.
+- **The lead paid off, so the bar is bit-identity**: `qarr/corundum.rd` opens
+  and reproduces the committed `qarr/corundum.prn` **exactly on all 7251
+  channels**, and `qarr/cpd-1e.rd` reproduces its own `.prn` to within the ±1
+  count the kit's two converters disagree by (documented, asserted, not
+  chased).
+- A **V5** file opens only if `len == 810 + 2n` holds with `n` from the header;
+  otherwise it is refused by name saying no V5 file was obtainable. There is no
+  separate `.sd` refusal: task 1 settled that `.sd` is V5 of this format, so it
+  is claimed by magic like any other member.
 - A binary `.raw` matching no reader is refused with a message naming the six
   `.raw` vendors and this build's readers; a `.pks` or `.udi` is refused as a
   peak list. Both appear in `capabilities()`;
@@ -387,6 +441,163 @@ holds a registered binary reader nothing exercises.
   patterns, which is what makes the `.prn` oracle idea possible.
 
 ## Handover log
+
+### 2026-09-13 (2nd session) — complete; all nine tasks
+
+This build now opens the two formats a Philips or PANalytical lab actually has
+on disk, and the useful part is not that the count went up by two. The binary
+one stores a **square root** of its counts, so anyone who read it the obvious
+way — including the one permissively-licensed description of it in existence —
+got a pattern with every peak in exactly the right place and every intensity
+wrong. Nothing in a fit would reveal that. What settled it was files: the IUCr
+round-robin kit still publishes the original logged `.rd` scans beside the
+ASCII conversions this repository has committed since v0.3, so for once there
+is an oracle rather than a second opinion, and the reader now reproduces a
+committed pattern channel for channel. The scoping session had assumed those
+files were gone and planned around their absence; they were one Cloudflare
+challenge away.
+
+The other half is smaller and more cheerful: `.udf` is a current format, not a
+legacy one, and fifty-six real files from two labs turn out to agree on
+everything a reader needs, so it ships with no guesswork at all. Three things
+are refused rather than read, and the point of each is what it declines to
+claim — most of all a binary `.raw`, which six unrelated vendors write and
+which this build will now name all six of rather than guess between.
+
+**Done.** All nine tasks; six commits.
+
+1. **Task 1 retired both fixture risks, positively.** The IUCr CPD kit serves
+   `philips.zip` — **28 original logged `.rd` files**, Dec 1997, of which 16 are
+   the originals of `qarr/*.prn` patterns already committed here. Two are now
+   committed (`qarr/corundum.rd`, `qarr/cpd-1e.rd`). And 56 real `.udf` files
+   carry **19 keys in one order**, identically, across two labs and two
+   instrument vintages.
+2. **Task 2** put both formats in `ATTRIBUTION.md`, and the MAUD per-file
+   contradiction in the section preamble, then deleted the four consulted
+   sources from the scratchpad so the parsers were written with them closed.
+3. **Tasks 3-5** are the two readers, the literal-offset writer and the
+   fixtures. **Task 6** is the two refusal entries. **Tasks 7-9** are tests,
+   `io/CLAUDE.md`, the caps diary and the skill.
+
+**Measured.** `[dev]` venv — this worktree's own, **no jax and no torch**, so
+the 132 skips include every backend row — darwin.
+
+- Fast selection **4607 passed, 132 skipped**, against 4577/132 before:
+  **+30 passed, +0 skipped**. Reconciled: 22 new test functions, plus one
+  `REAL_FIXTURES` row over three parametrized tests, plus two
+  `SYNTHETIC_FIXTURES` arms — 27 — plus the review pass's three regression
+  tests. No new skip.
+- The WP's own acceptance selection: **427 passed** (before the review's three;
+  429 after). ruff clean.
+- **The full selection deliberately did not run.** Nothing here can move a
+  measured number: no physics, no default and no solver path changed, and the
+  slow acceptance suites name their `qarr/*.prn` inputs explicitly rather than
+  globbing the directory the two `.rd` files were added to — checked, because
+  that glob is the one way this change could have reached them. `pgrep` showed
+  no other suite running either way.
+- `origin/main` **had not moved** since the branch was cut, re-checked
+  immediately before the merge step, so the counts are the merged tree's by
+  identity.
+
+**The measurements themselves are in `tests/data/README.md` § Philips**, not
+here: the 28-file offset table, the four independent confirmations of the √
+rule, the 19-key `.udf` vocabulary, and what each fixture can and cannot prove.
+
+**Three things this WP changed its own mind about, all from task 1.**
+
+1. **`.sd` is not a separate format.** It is this format's V5 extension, so the
+   planned refuse-by-name was wrong; both versions are claimed by magic.
+2. **V5 is read, not refused.** Its data offset rests on one description copied
+   twice — `Yohko/importtool` reproduces xylib's code tables verbatim, down to
+   the `810 - 214 - 8*3` expression — and no V5 file exists anywhere, which is
+   the Bruker v2 footing this project *refuses* on. It is read anyway because
+   the gate is decisive in a way v2's never was: `n` comes from header fields,
+   so `len == 810 + 2n` tests the header offsets and the data start **jointly**,
+   and a wrong 810 cannot shift a pattern silently. A failure refuses by name
+   and says no V5 file was obtainable.
+3. **The permissive description is the defective one.** PyXRD's `rd_parser.py`
+   is BSD-2 — the source a port would legally start from — and it omits the √
+   decode, computes one point too few, and offsets the abscissa by half a step.
+   All three are refuted by the committed `.prn` files. That is now a standing
+   rule in `io/CLAUDE.md`.
+
+**The review pass found four real defects, and two of them were in the one
+thing its module exists to protect.** `/code-review high --fix` raised seven
+findings; six were acted on and one judged.
+
+- **The `.pks`/`.udi` escape was broken, twice.** The gate never skipped comment
+  lines although its own docstring said it did, so a genuine two-column profile
+  with a `#` header — the commonest shape any ASCII export has — was refused as
+  a peak list; and it dropped the bounded read's last line unconditionally, so
+  an eight-row profile became seven and fell under the minimum. Fixed: the
+  markers now mirror `read_xy`'s exactly, because this gate's whole job is to
+  predict whether *that* reader would open the file.
+- **Both new scan guards tested sign but not finiteness.** A header holding a
+  denormal step or an infinite angle reached `round()` and raised
+  `OverflowError`, which names neither file nor field and escapes every
+  caller's allowlist — so a damaged file arrived at the GUI import route as a
+  500, breaking `io/CLAUDE.md` § Refusals. Reachable from **plain text** in
+  `.udf`, whose range and step are free-text fields where `nan` parses. The
+  truncation harness structurally cannot find this: it shortens files, it never
+  scrambles bytes.
+- **Two the review declined and this session took**, both being things a person
+  reads. `identify_format`'s "Supported:" list was built from the whole
+  registry, so it told a user their unrecognised binary `.raw` was unreadable
+  and then offered "Unrecognised binary .raw" as a supported format;
+  `cli.py` already filtered `refuses is None` for the same purpose, and the test
+  now asserts every reader's title **and no refusal's**, which is what it always
+  meant. And this WP's own goal and title still claimed *four* named refusals
+  after `.sd` turned out to be V5 and readable — corrected in place, because a
+  goal stating what the WP disproved is the first thing a successor reads.
+- **One finding was advice about a test this change had silently repointed**: an
+  existing case used `PATTERN_FORMATS[-1]` to mean `xy`, and adding
+  `RAW_UNKNOWN` below it made that a refusal entry without anything going red.
+  Now looked up by name.
+
+**Two names were deliberately *not* declared** (WP-1076): `RatioAlpha21` gets no
+`METADATA_KEYS` entry, because the hint path already resolves `CuKa` by
+anode-and-wavelength agreement and the preset already carries the 0.5 every real
+file states — so the key would have had no consumer; and the `.rd`
+diffractometer and focus codes are decoded and checked but not carried into the
+pattern, for the same reason. Both decisions are recorded in the tasks.
+
+**In flight: nothing.** Tree clean and pushed, WP ✅.
+
+**Gotchas for whoever touches this next.**
+
+- **`archive.org` is unreachable from this network** (TLS interception on
+  `curl`; Claude Code's WebFetch declines `web.archive.org` by policy), and
+  several fixture rows here are documented as "recovered via the Internet
+  Archive". The live IUCr site is the better route and its Cloudflare challenge
+  clears for a *headed persistent* browser profile — plain headless Chromium
+  does not clear it, and `ctx.request.get` 403s while **writing the 5.8 kB
+  challenge page into your output file**, which looks like a successful
+  download. Fetch from inside the page.
+- **`qarr/cpd-1e.rd` is committed because it is the exception.** Its `.prn` was
+  made by the rounding converter where the other fifteen truncate, so it is off
+  by exactly one count on 2108 channels. That is asserted. Do not "fix" the
+  reader to chase it.
+- **The `.rd` writer refuses a count the √ encoding cannot hold** rather than
+  writing the nearest one, so a round-trip test cannot assert a number the
+  caller never wrote. Use `CORUNDUM_HEAD`. The first version of its inverse used
+  `isqrt` where the encoder rounds *up*, and every test failed loudly — which is
+  what the refusal is for.
+- **`docs/skill/rietx/references/api.md` is generated.** A hand edit fails
+  `test_skill.py`; author in `docs/skill/make_api_index.py`, regenerate, then
+  `rietx skill --install . --copy`.
+
+**Next**, and none of it is owed by this WP:
+
+1. **The Stoe ask is the one thing worth sending.** It is cheap, has a long lead
+   time and nothing depends on it: a few `.raw` files paired with the WinXPOW
+   ASCII export of the *same* scans, including one multi-range file. The export
+   is an exact oracle, so the binary could be worked out cold. The
+   `raw_unclaimed` refusal is where that reader hangs.
+2. If a real `.pks` or `.udi` ever turns up, `peaklist.py` can stop matching on
+   the suffix and match on content like `.dif` does; its whole reason for being
+   a separate module disappears that day.
+3. `.csv`, `.jcp` (JCAMP-DX, which deserves its own module) and Scintag remain
+   the declared non-goals.
 
 - **2026-09-13** — **created; no implementation.** A request to support
   "PANalytical's `.raw`" turned out to name a file that does not exist, and

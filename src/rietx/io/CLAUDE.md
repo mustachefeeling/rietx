@@ -84,6 +84,18 @@ here opens, so the file's size says nothing about a member's.
 a `.dif` peak list is not a profile. One field rather than a side table, so
 `capabilities()` stays honest without `reader_formats` meaning two things.
 
+**A refusal claims only what its evidence allows, and its registry position is
+part of the claim** (WP-1407). Three tiers: matched on **content** (`dif`'s hkl
+triple) asserts what the file is; matched on the **suffix** (`peak_list`, no
+sample of `.pks`/`.udi` obtainable) says in the message that it matched the name
+and not the columns, and gates *negatively* — refuse unless the file reads as a
+plain two-column profile, which keeps `.dif`'s escape for a misnamed scan; and
+claiming **nothing** (`raw_unclaimed`) names `.raw`'s six vendors and picks
+none, since the likeliest one is Stoe and no description of Stoe exists in any
+licence anywhere. A claims-nothing entry goes **below the ASCII catch-all**, so
+it can shadow no reader — asserted as a property (`xy` last *of the readers*,
+everything after it a refusal), never as an index.
+
 ## Options
 
 Two levels: `READER_OPTIONS` is the build-wide vocabulary, `PatternFormat.options`
@@ -149,6 +161,27 @@ without deciding, because no obtainable file has a varying column. Numbers in
 √counts·a is not √y — and that is the case GSAS-II gets wrong by weighting 1/y
 regardless.
 
+## The stored number need not be the measured one
+
+σ above is about a *scale* a reader can name. `.rd` is the sharper case: the
+stored `uint16` is **√-compressed**, `counts = v²//100` (WP-1407), and read raw
+it yields a profile with every peak in the right place and every intensity
+wrong — which no reader can see in its own output and no truncation harness can
+catch. Three rules generalise (measurements: `tests/data/README.md` § Philips):
+
+- **A format may encode its counts, and only a real file says so.** Four
+  independent confirmations here; any one alone would have been thin.
+- **The permissive description can be the defective one.** PyXRD's
+  `rd_parser.py` is the BSD-2 source a port would legally start from, and it
+  omits the decode, drops the last point and shifts the axis half a step. A
+  licence says what may be copied, never what is right, so a description is
+  checked against a file before it is believed and the file settles a
+  disagreement between two.
+- **A format's own redundancy is the gate to reach for**, ahead of any invented
+  check — `.rd` states its length twice and its maximum once, `.udf` states its
+  point count two ways. Disagreement is **refused, not repaired**: a wrong parse
+  there puts the 2θ of every point in doubt.
+
 ## The axis is never trusted
 
 Most vendor files are **not powder scans** — 4 of the 5 real `.uxd` files
@@ -161,6 +194,13 @@ three formats that state an axis use the same three-way policy:
 - recognisably something else → **raise**, naming what the file actually holds
   (a q or d axis, a rocking curve, a pole-figure ring);
 - unrecognisable → read as 2θ **and say so** (`PATTERN_X_AXIS_ASSUMED`).
+
+**A format stating no axis at all is a fourth case and emits nothing** (WP-1407,
+`.udf`, following `.xy`): the policy is for formats that *have* a field to
+classify, and a warning firing on 100 % of a format's files trains people to
+ignore it. The assumption goes in `sniff`, where a UI shows it — a decision with
+evidence, since all 56 real `.udf` files are powder scans over classic 2θ ranges
+against `.uxd`'s four-of-five that were not.
 
 The policy is `base.check_axis()` and the **classifying is not part of it**: the
 authority differs per format and is always the field that *means* the axis —
@@ -207,6 +247,8 @@ a convention, which is the one repair a reader may never make.
 | format | claimed by | σ | notes |
 |---|---|---|---|
 | `bruker_raw` | one of four magic strings at offset 0 — **first**, being the only entry whose sniff names the format *and* its version | measured by arithmetic; neither version declares a unit, and the counting time is **ms** in v4, seconds in v3 | multi-range; **nothing is located by counting and nothing is a fixed stride** — v4 is walked to EOF and strided by `datumSize` (`2Theta` occurs twice in the single-range real file; `datumSize` is 8 there), v3 by `data_record_length` past `total_size_of_extra_records`. **v1 and v2 are named and refused**: no corroborated description of either exists. v3's global gate — the declared ranges must account for the file — judges the leftover by **content, not length**: a range read at the wrong offset leaves counts behind and counts are not zeros, so a zero pad is admitted (a real 82-range VT reel pads with 3280 of them) and any non-zero tail past one datum's slack still refuses, naming its first byte's offset |
+| `philips_rd` | magic `V3RD` or `V5RD` at offset 0 — **second**, on the same footing as `bruker_raw` and disjoint from it by construction, which matters because `.raw` has six vendors and `.rd` two | the Poisson fallback, and no arithmetic test: the √ encoding establishes that the decoded quantity is a count | single-scan. **Intensities are √-compressed**, `counts = v²//100`, truncating like xylib and the kit's own converter (§ The stored number). Data at **250** for V3 and **810** for V5. Three gates, all the file's own redundancy and all measured on 28 real files: `len == data_start + 2n`, `n == round((end−start)/step) + 1`, and `uint16@136 == max(v)`. **V5 is read on the length gate alone and says so when it fails** — no V5 file exists anywhere and its offset rests on one description copied twice, which would ordinarily be Bruker v1/v2's refusal footing; it is read because `n` comes from header fields, so the gate tests the header offsets *and* the data start jointly and a wrong 810 cannot shift a pattern silently. `.sd` is that V5, not a separate format, so there is no by-name refusal for it. The anode code at 85 is the one enumerated field carried into the pattern (`suggest_instrument` matches on it, and λα1 says the same thing, so the file states it twice); the diffractometer and focus codes decode correctly on all 28 and agree with the kit's prose, but no `METADATA_KEYS` entry means an instrument model and nothing would consume one |
+| `udf` | both of `DataAngleRange` and `ScanStepSize` present as `Key,Value,/` lines in the bounded head — the two the parser needs to build an abscissa at all, so a file matching them is a `.udf` or is nothing | the Poisson fallback; the format declares no intensity unit anywhere, and every value in all 56 real files is whole | single-scan; not a legacy format (a PANalytical Aeris on sale today writes it). **A value may contain commas** — `Title1` runs to ten fields — so a line splits on the *first* comma only, and an empty value (`Title2,,/`) is a present key. The abscissa is reconstructed from the range and the step, never stored, so the point count is the gate. The block is a bare marker line (`RawScan` in all 56) then comma-separated integers terminated by `/`, the comma before it optional. **`ScanStepTime` is not seconds per step** on a PIXcel-class detector and nothing is derived from it: 5246 points at the stated 18.87 s would be 27 hours against a scan the file's own name calls eight minutes. **No axis field**, so no `PATTERN_X_AXIS_ASSUMED` (§ The axis is never trusted) |
 | `rasx` | a zip holding a `Data<N>/Profile<N>.txt` member | the same arithmetic as `.ras` | multi-scan; `root.xml` is the authority on order and membership, not the zip name list; every member read through a cap, because `ZipInfo.file_size` is the archive's own claim |
 | `brml` | a zip holding a `DataContainer.xml` **and** a `RawData<N>.xml` | derived through the absorber, √(y/a)·a | multi-scan; **every column is located from `DataViews`, never counted** — 2θ is column 2 and the intensity column 7 in the real files, so GSAS-II's fixed `entry[2]`/`[4]` is one layout's coincidence. A `RecordedRawDataView` of `Length > 1` is a detector frame and is refused |
 | `ras` | first line `*RAS_DATA_START` | measured per file (above) | multi-scan; third column is an attenuator and is **never applied** — no spec says whether column 2 is already corrected, and all five obtainable files have it constant, so `RAS_ATTENUATOR_PRESENT` names the affected 2θ range instead |
@@ -216,7 +258,9 @@ a convention, which is the one repair a reader may never make.
 | `gsas` | `^BANK \d+` in the first 4 kB, or one bounded read further when a `TIME_MAP` token sits in that window | ESD/FXYE column, else Poisson | disjoint from `bruker_raw`'s magic by construction, so the `.raw` collision resolves either way. **A `TIME_MAP` step table can push the first bank past the 4 kB sniff window** (real: `vnb5053.dat` from the GSAS distribution's examples, first bank at byte 6068 behind a 71-row `(10I8)` table) — so the sniff missed it and it fell to `xy`, refused there with the wrong cause (a 2θ direction, from records read as columns). The `TIME_MAP` token is GSAS-shaped evidence and lands in the window, so a file showing it earns one more bounded read (64 kB) to look past the table — the `.chi` count-check discipline (§ Dispatch), never a widened window for every file; a table larger than that stays unsniffed, the same tradeoff the 4 kB bound itself makes. **The bank record makes two independent declarations and they are read as two**: the *bintype* governs how the x axis is computed, the *type flag* governs how one data record is laid out, and nothing couples them. Only `CONS`/`CONST` is read — one rule under two vendor spellings (a start angle and a step, in centidegrees), the manual's token being `CONS`, and the rule the centidegree fold rests on. **Every other bintype is refused by name, each saying what its axis actually holds**, and the reason is *scope, not evidence*: none of the manual's other eight is 2θ — a flight time (`RALF`, `SLOG`, `LOG6`, `TIME_MAP`), a d-spacing (`COND`), a Q (`CONQ`), a detector position (`LPSD`), a photon energy (`EDS`) — and `PatternData` holds 2θ, so supporting any of them is a schema change before it is a parser change. This is § The axis is never trusted's *recognisably something else* row, reached through the bintype instead of an axis label. Matched **exactly, never by prefix**: `COND` and `CONQ` share three characters with `CONS`. **The bintype is read from a loose header match** (bank number, channel and record counts, bintype) taken *before* the strict record parse, because the coefficient count differs per bintype — a `CONS` bank writes a start and a step, a `TIME_MAP` bank a lone map number — so matching with the strict CONS record first skipped a real one-coefficient `TIME_MAP` bank and reported it a *missing* BANK record, the by-name refusal never reached (the ≥2-coefficient `RALF`/`SLOG`/`CONQ` banks matched the strict record and were named all along; `TIME_MAP` was the one that slipped, and it is also the one whose step table triggers the sniff-window miss above). Letting the bintype decide the layout was the wrong-answer path: a non-`CONS` bank was *forced* to FXYE behind a divisible-by-three test on its value count, so a `RALF` bank of ESD pairs read as three-column x/y/esd whenever its pair count was a multiple of three, and a `RALF`/`SLOG` FXYE bank had its microseconds divided by 100 and called degrees — an ISIS PEARL file came back as a plausible 2528-point 15.00–194.88° scan. **GSAS-II has that second bug too** (`G2pwd_fxye` divides by 100 with no bintype branch anywhere), so it is not a source to copy here. On the flag side, **`STD`/`ESD`/`FXYE` are the layouts read and every other flag is refused by name**, `ALT` and `FXY` included: `STD` is also what a bank stating *no* flag means — four obtainable real files write it that way — and that default is why an unrecognised flag was silent, an `ALT` or `FXY` bank falling through to counts-only with its own x column entering the intensity array while an axis was synthesized from `c1`/`c2`, the result tagged `gsas-alt` with the flag used as a label rather than a decision. Here the reason really *is* the fixture: every obtainable `ALT` file is also a `RALF` bank (refused one decision earlier, so it cannot exercise an ALT reader at all) and no `FXY` file was found anywhere, and for ALT the manual's Fortran format and GSAS-II's scale factors disagree by 100× on x and 10× on y/esd, so neither source is safe alone. The flag is matched as a **keyword**, because it is the record's last field and a bank writing an odd number of coefficients leaves one *in* the flag's position (`BANK 1 4 4 CONST 1000 20 0` was read as flag `0` and tagged `gsas-0`); a number there is absence, not a flag, so that file still reads as STD. **The three layouts that are read also differ in whether a field has a position or only a separator, and that too is behaviour, not style**: an `ESD` bank is read *positionally* — ten 8-character fields to an 80-column record — because a value that fills its field leaves no separating space and fuses with its neighbour, which real 11-BM patterns do at 100 000 counts and dim siblings never do. `FXYE`/`FXY` are free-format and stay whitespace-split (`mg090.fxye`'s tokens are 9–10 characters wide, so slicing would destroy it); `STD`'s field is a 2-character repeat count plus a 6-character value, so its values cannot reach the field's edge and fusion is structurally impossible there. Widths and the fusion measurements: `tests/data/README.md` § GSAS ESD |
 | `chi` | four-line header whose declared count matches the rows | third column when written | the count gate is the one O(N) sniff |
 | `dif_peaklist` | `.dif` **and** peak-list content | — | refused; matched on evidence not suffix, so a real profile misnamed `.dif` still reaches `xy` |
-| `xy` | text, not binary — **last** | third column when written | a NUL in the first 4 kB is refused by name unless behind a BOM: ASCII-range UTF-16LE is valid UTF-8 with interleaved NULs, and Windows vendor software exports it |
+| `peak_list` | the `.pks` (Stoe) or `.udi` (PANalytical) suffix, **unless** the file reads as a plain two-column profile | — | refused; matched on the *name*, because no sample of either format could be obtained — and the message says so rather than implying a content test. The negative gate keeps `.dif`'s escape |
+| `xy` | text, not binary — **last of the readers** | third column when written | a NUL in the first 4 kB is refused by name unless behind a BOM: ASCII-range UTF-16LE is valid UTF-8 with interleaved NULs, and Windows vendor software exports it |
+| `raw_unclaimed` | a binary `.raw` every reader above declined — **last of everything**, so it can shadow nothing | — | refused, **claiming nothing**: it names the six vendors who write `.raw`, says this build reads Bruker v3/v4 and Philips PC-APD, and picks none. This is where a Stoe reader hangs if files ever arrive — the cheap ask is a few `.raw` files paired with the WinXPOW ASCII export of the *same* scans, which is an exact oracle |
 
 ## `recipe.py` — a whole refinement, and **not** a pattern format
 

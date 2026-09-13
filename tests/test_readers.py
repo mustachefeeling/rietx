@@ -110,8 +110,11 @@ def test_the_scan_option_is_named_only_by_a_format_that_has_one(tmp_path):
     """Telling someone to select a scan in a file that cannot hold several is a
     wrong instruction, not a vague one — so ``ascending`` takes the format."""
     tt, y = [10.0, 11.0, 10.5], [1.0, 2.0, 3.0]
+    # named, not indexed: ``PATTERN_FORMATS[-1]`` meant ``xy`` until WP-1407 put
+    # a refusal below it, and this case wants a single-scan *reader*
+    single_scan = next(f for f in PATTERN_FORMATS if f.name == "xy")
     with pytest.raises(ValueError) as plain:
-        ascending(tt, y, path=tmp_path / "a.xy", fmt=PATTERN_FORMATS[-1])
+        ascending(tt, y, path=tmp_path / "a.xy", fmt=single_scan)
     assert "scan=" not in str(plain.value)
 
     multi = PatternFormat(
@@ -536,16 +539,122 @@ def test_a_binary_file_is_refused_by_name_rather_than_by_traceback(tmp_path):
     so the case is written as what it always meant: a binary file no registered
     format claims.  A Bruker binary that is merely broken is refused by its own
     reader instead, which is a better message and a different test.
+
+    The **name** moved too, and for the same kind of reason: a binary ``.raw``
+    now has its own refusal (six vendors write that suffix), so this case has to
+    be a binary file whose suffix claims nothing in order to still reach the
+    terminal message.
     """
-    p = tmp_path / "d8.raw"
+    p = tmp_path / "d8.dat"
     p.write_bytes(b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 8)
 
     with pytest.raises(ValueError) as refusal:
         rx.read_pattern(p)
     message = str(refusal.value)
-    assert "d8.raw" in message and "looks binary" in message
+    assert "d8.dat" in message and "looks binary" in message
+    # every **reader**'s title, and no refusal's: a format recognised in order
+    # to be declined is not something this build can read, so listing one under
+    # "Supported" would contradict the sentence it follows
     for fmt in PATTERN_FORMATS:
-        assert fmt.title in message
+        assert (fmt.title in message) is (fmt.refuses is None), fmt.name
+
+
+def test_an_unclaimed_binary_raw_names_six_vendors_and_picks_none(tmp_path):
+    """``.raw`` belongs to six unrelated vendors and this build reads two of
+    them, so "not a pattern this build can read" invites the reasonable but
+    wrong conclusion that the file is corrupt.  The refusal claims to recognise
+    nothing — the format most likely to land here is Stoe's, which has no
+    description in any licence anywhere, so asserting a vendor would be exactly
+    the guess this area exists to prevent."""
+    p = tmp_path / "stoe.raw"
+    p.write_bytes(b"\x00\x01\x02\x03" + bytes(range(256)) * 8)
+
+    with pytest.raises(ValueError) as refusal:
+        rx.read_pattern(p)
+    message = str(refusal.value)
+
+    assert "stoe.raw" in message
+    assert "6 unrelated vendors" in message
+    for vendor in ("Bruker/Siemens DIFFRAC", "GSAS", "Rigaku", "Scintag",
+                   "Shimadzu", "Stoe"):
+        assert vendor in message
+    # it says which this build reads, and offers a way out
+    assert "v3 and v4" in message and "PC-APD" in message
+    assert "ASCII" in message
+    # and it names no vendor as *this* file's
+    assert "is a Stoe" not in message
+
+
+def test_a_real_raw_is_never_routed_to_the_unclaimed_refusal(tmp_path):
+    """The entry sits below every reader, so the ordering cannot go wrong —
+    asserted rather than trusted, because the message it would give is
+    confidently unhelpful about a file that reads perfectly."""
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd, write_raw4
+
+    bruker = write_raw4(tmp_path / "bruker.raw", [
+        dict(start=10.0, step=0.02, intensity=[500.0 + i % 7 for i in range(50)])])
+    philips = write_philips_rd(tmp_path / "philips.raw", CORUNDUM_HEAD)
+
+    assert rx.io.readers.identify_format(bruker).name == "bruker_raw"
+    assert rx.io.readers.identify_format(philips).name == "philips_rd"
+    assert len(rx.read_pattern(bruker).two_theta) == 50
+
+
+def test_a_pks_or_udi_is_refused_as_a_peak_list_on_its_name(tmp_path):
+    """Unlike ``.dif`` this is a suffix match, because no sample of either
+    format could be obtained to write a content test against — and the refusal
+    says so rather than implying a check it did not do."""
+    for name, vendor in (("scan.pks", "Stoe"), ("scan.udi", "PANalytical")):
+        p = tmp_path / name
+        p.write_text("; peak list\n  10.00   1234   1 1 0\n"
+                     "  20.00    567   2 0 0\n", encoding="utf-8")
+
+        with pytest.raises(ValueError) as refusal:
+            rx.read_pattern(p)
+        message = str(refusal.value)
+
+        assert name in message and vendor in message
+        assert "declined on its name" in message
+
+
+def test_a_real_profile_misnamed_pks_still_opens(tmp_path):
+    """``.dif``'s escape, kept: a suffix is a filename.  Dropping it would make
+    a genuine two-column scan a lab happened to name ``.pks`` unopenable with
+    nothing to do about it."""
+    p = tmp_path / "profile.pks"
+    p.write_text("".join(f"{10.0 + 0.02 * i:.2f} {500 + i % 7}\n"
+                         for i in range(40)), encoding="utf-8")
+
+    assert rx.io.readers.identify_format(p).name == "xy"
+    assert len(rx.read_pattern(p).two_theta) == 40
+
+
+def test_the_pks_escape_survives_a_comment_header_and_a_short_scan(tmp_path):
+    """The escape's gate predicts whether ``xy`` would open the file, so it has
+    to skip the lines ``xy`` skips: a ``#`` header is the commonest shape a
+    two-column export has, and counting those lines against it closed the escape
+    for exactly the files it exists to let out.  The bounded read's cut line is
+    dropped for the same reason it is dropped at all — only when the read *was*
+    bounded, or an eight-row profile is refused for being seven rows long."""
+    commented = tmp_path / "header.pks"
+    commented.write_text("# sample: alumina\n! 2theta intensity\n" +
+                         "".join(f"{10.0 + 0.02 * i:.2f} {500 + i % 7}\n"
+                                 for i in range(40)), encoding="utf-8")
+    short = tmp_path / "short.udi"
+    short.write_text("".join(f"{10.0 + 0.02 * i:.2f} {500 + i % 7}\n"
+                             for i in range(8)), encoding="utf-8")
+
+    assert rx.io.readers.identify_format(commented).name == "xy"
+    assert len(rx.read_pattern(commented).two_theta) == 40
+    assert rx.io.readers.identify_format(short).name == "xy"
+
+    # and a peak list is still one: its rows carry an hkl and its header is not
+    # a comment marker either reader knows
+    peaks = tmp_path / "real.pks"
+    peaks.write_text("; peak list\n  10.00   1234   1 1 0\n"
+                     "  20.00    567   2 0 0\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="declined on its name"):
+        rx.read_pattern(peaks)
 
 
 def test_a_byte_order_mark_means_text_even_though_utf16_is_full_of_nuls(tmp_path):
@@ -562,11 +671,26 @@ def test_a_byte_order_mark_means_text_even_though_utf16_is_full_of_nuls(tmp_path
 
 def test_the_registry_order_is_the_dispatch_order():
     """The first format whose ``matches`` returns True reads the file, so the
-    tuple's order is behaviour and ``xy`` being last is the whole of why
-    anything else is ever reached."""
+    tuple's order is behaviour and ``xy`` being last **of the readers** is the
+    whole of why anything else is ever reached.
+
+    One entry sits below it and it is not a reader: ``raw_unclaimed`` refuses a
+    binary ``.raw`` every reader has already declined, and its position is what
+    makes that safe — reached last, it cannot shadow anything, so no ordering
+    mistake can route a real Bruker or Philips file into a message that names
+    six vendors and picks none.  That is asserted as a property of what the
+    entry *is* rather than as its index, so a second such refusal does not
+    silently slip above a reader.
+    """
     names = [f.name for f in PATTERN_FORMATS]
-    assert names[-1] == "xy"
+    readers = [f.name for f in PATTERN_FORMATS if f.refuses is None]
+
+    assert readers[-1] == "xy"
+    assert names[-1] == "raw_unclaimed"
     assert len(set(names)) == len(names)
+    # every entry after the last reader is a refusal
+    assert all(f.refuses is not None
+               for f in PATTERN_FORMATS[names.index("xy") + 1:])
 
 
 # --------------------------------------------------------------------- gsas
@@ -1074,6 +1198,352 @@ def test_the_schema_is_a_parser_boundary_like_any_other(tmp_path):
     message = str(refusal.value)
     assert "onepoint.xy" in message and "at least 2 points" in message
     assert "pydantic" not in message and "validation error" not in message
+
+
+# --------------------------------------------------------------- philips rd
+def test_a_philips_rd_reproduces_its_own_prn_conversion_bit_for_bit():
+    """The strongest claim any binary reader here makes, and it is available
+    only because the IUCr CPD kit publishes the *same scans* in two formats:
+    ``qarr/corundum.rd`` is the original logged file and ``qarr/corundum.prn``
+    is a conversion of it that this repo already committed for the QPA
+    acceptance.  So the oracle is independent of everything in this module."""
+    rd = rx.read_pattern(DATA / "qarr" / "corundum.rd")
+    prn = rx.read_pattern(DATA / "qarr" / "corundum.prn")
+
+    assert rd.intensity == prn.intensity          # all 7251, exactly
+    assert rd.two_theta == pytest.approx(prn.two_theta, abs=5e-10)
+    assert rx.io.readers.identify_format(DATA / "qarr" / "corundum.rd").name \
+        == "philips_rd"
+
+
+def test_the_rd_intensities_are_root_compressed_not_raw():
+    """Read raw, the ``uint16`` gives a profile with every peak in the right
+    place and every intensity wrong — the failure no reader can see in its own
+    output.  The gap is large and one-directional, so this cannot pass by
+    accident: the raw maximum is 829 where the count is 6872."""
+    import numpy as np
+
+    raw = np.frombuffer((DATA / "qarr" / "corundum.rd").read_bytes(),
+                        dtype="<u2", count=7251, offset=250).astype(np.int64)
+    data = rx.read_pattern(DATA / "qarr" / "corundum.rd")
+
+    assert raw.max() == 829
+    assert max(data.intensity) == 6872.0
+    assert data.intensity == [float(v * v // 100) for v in raw]
+
+
+def test_the_two_prn_converters_disagree_by_one_count_on_exactly_one_file():
+    """``qarr/cpd-1e.rd`` is committed because it is the exception, and the
+    fixture exists so a successor does not "fix" the reader to chase it: the
+    kit's ``.prn`` converter truncates on fifteen files and this one's rounds.
+    The reader truncates — what xylib and the other fifteen conversions do — so
+    this file is off by exactly one count where the rounding differs, and by
+    nothing anywhere else."""
+    rd = rx.read_pattern(DATA / "qarr" / "cpd-1e.rd")
+    prn = rx.read_pattern(DATA / "qarr" / "cpd-1e.prn")
+
+    off = [b - a for a, b in zip(rd.intensity, prn.intensity) if a != b]
+    assert set(off) == {1.0}
+    assert len(off) == 2108
+
+
+def test_a_philips_rd_reports_the_anode_it_states_twice():
+    """The anode is the one enumerated code with a consumer, and decoding it
+    makes the file say ``Cu`` twice — once as the code at offset 85 and once as
+    λα1 — which is what lets ``suggest_instrument`` resolve by agreement."""
+    from rietx.gui.imports import suggest_instrument
+
+    data = rx.read_pattern(DATA / "qarr" / "corundum.rd")
+
+    assert data.metadata["anode"] == "Cu"
+    assert data.metadata["wavelength"] == "1.540562"
+    assert data.metadata["sample"] == "CPD RR Corundum"
+    assert suggest_instrument(data.metadata)["radiation"] == "CuKa"
+
+
+def test_a_wrong_data_offset_is_caught_by_the_maximum_value_field(tmp_path):
+    """Offset 136 holds ``max(v)`` in all 28 real files and is in no published
+    description.  It is the sharpest of the three gates because a ``.rd`` read
+    at the wrong offset still *looks* like a diffraction pattern."""
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd
+
+    p = write_philips_rd(tmp_path / "lying.rd", CORUNDUM_HEAD, stated_max=999)
+
+    with pytest.raises(ValueError, match="records a maximum stored value of 999"):
+        rx.read_pattern(p)
+
+
+def test_a_length_that_disagrees_with_the_header_is_refused(tmp_path):
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd
+
+    p = write_philips_rd(tmp_path / "short.rd", CORUNDUM_HEAD, end=99.0)
+
+    with pytest.raises(ValueError, match=r"short\.rd is V3RD.*should be"):
+        rx.read_pattern(p)
+
+
+def test_bytes_past_the_last_point_are_refused(tmp_path):
+    """Same gate from the other side: the header says how long the file is."""
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd
+
+    p = write_philips_rd(tmp_path / "trailing.rd", CORUNDUM_HEAD,
+                         trailing=b"\x01\x02")
+
+    with pytest.raises(ValueError, match="and it is"):
+        rx.read_pattern(p)
+
+
+def test_a_v5_reads_only_when_the_length_gate_holds(tmp_path):
+    """V5 has no real file anywhere and its data offset rests on one description
+    copied twice.  It is read because ``n`` comes from the header, so
+    ``len == 810 + 2n`` tests the header offsets and the data start jointly and
+    a wrong 810 cannot shift the pattern silently.  The refusal says so."""
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd
+
+    counts = CORUNDUM_HEAD
+    good = write_philips_rd(tmp_path / "good.sd", counts, version=b"V5RD")
+
+    assert rx.read_pattern(good).intensity == [float(c) for c in counts]
+
+    # the same bytes claiming to be V5 with a V3-sized header: 560 bytes short
+    v3 = write_philips_rd(tmp_path / "mislabelled.sd", counts)
+    raw = bytearray(v3.read_bytes())
+    raw[:4] = b"V5RD"
+    (tmp_path / "mislabelled.sd").write_bytes(bytes(raw))
+
+    with pytest.raises(ValueError, match="No V5 file was obtainable anywhere"):
+        rx.read_pattern(tmp_path / "mislabelled.sd")
+
+
+def test_a_damaged_angle_triple_is_refused_by_name_not_by_overflow(tmp_path):
+    """The three doubles at offset 214 are bytes like any other, and a damaged
+    header can hold a denormal step or an infinity.  ``round()`` answers those
+    with an ``OverflowError`` that names neither the file nor the field — and
+    ``OverflowError`` is outside every caller's allowlist, so it reaches the GUI
+    import route as a 500 rather than as a refusal."""
+    import struct
+
+    for step, start, end in ((5e-324, 5.0, 50.0),       # span overflows
+                             (0.02, 5.0, float("inf")),  # so does the range
+                             (float("nan"), 5.0, 50.0)):
+        buf = bytearray(b"\x00" * 300)
+        buf[0:4] = b"V3RD"
+        buf[214:238] = struct.pack("<3d", step, start, end)
+        p = tmp_path / f"damaged_{step:g}_{end:g}.rd"
+        p.write_bytes(bytes(buf))
+
+        with pytest.raises(ValueError, match="which is not a scan"):
+            rx.read_pattern(p)
+
+
+def test_philips_rd_and_bruker_raw_are_disjoint_in_both_directions(tmp_path):
+    """``.raw`` is written by six unrelated vendors and ``.rd`` by two, so
+    neither reader may trust a suffix.  Both match on magic bytes, so a Philips
+    file named ``.raw`` still reaches this reader and a Bruker file named
+    ``.rd`` still reaches that one."""
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd, write_raw4
+
+    philips = write_philips_rd(tmp_path / "philips.raw", CORUNDUM_HEAD)
+    bruker = write_raw4(tmp_path / "bruker.rd", [
+        dict(start=10.0, step=0.02, intensity=[500.0 + i % 7 for i in range(50)])])
+
+    assert rx.io.readers.identify_format(philips).name == "philips_rd"
+    assert rx.io.readers.identify_format(bruker).name == "bruker_raw"
+
+
+# ---------------------------------------------------------------------- udf
+#: The 19 keys every one of the 56 real ``.udf`` files carries, in their order,
+#: with the values an ASU PANalytical Aeris wrote on 3 June 2025.  No real file
+#: can be vendored — all three repositories holding them declare no licence — so
+#: the header is reproduced as *facts read off them* (`tests/data/README.md`
+#: § Philips has the table) and the tests below synthesize from it.
+AERIS_HEADER = [
+    ("SampleIdent", "2025_06_03_CeO2_3_60_8min"),
+    ("Title1", "CeO2 Standard"),
+    ("Title2", ""),
+    ("DiffrType", "?"),
+    ("DiffrNumber", "1"),
+    ("Anode", "Cu"),
+    ("LabdaAlpha1", " 1.540598"),
+    ("LabdaAlpha2", " 1.544426"),
+    ("RatioAlpha21", " 0.50000"),
+    ("DivergenceSlit", "Fixed, 1/2"),
+    ("ReceivingSlit", "UNDEFINED"),
+    ("MonochromatorUsed", "NO"),
+    ("GeneratorVoltage", "  40"),
+    ("TubeCurrent", "  15"),
+    ("FileDateTime", "03-jun-2025 15:55"),
+    ("ScanType", "CONTINUOUS"),
+    ("ScanStepTime", " 18.87"),
+]
+
+#: PyXRD's own inline UDF test data, verbatim under **BSD-2** — the one
+#: vendorable fixture this format has.  Unlike its ``.rd`` sibling it is valid
+#: as committed: UDF is plain ASCII, so the raw-string prefix does it no harm.
+#: It carries **5** of the 19 keys, and ends its block ``0/`` where every real
+#: file ends ``425,/``, which is the evidence that the comma is optional.
+PYXRD_UDF_FIXTURE = """SampleIdent,Sample5 ,/
+Title1,Dat2rit program ,/
+Title2,Sample5 ,/
+DataAngleRange,   5.0000, 5.6400,/
+ScanStepSize,     0.020,/
+RawScan
+    8000,    7000,    6000,    5000,    4000,    3000,    2000,    1000
+    800,     700,     600,     500,     400,     300,     200,     100
+    80,      70,      60,      50,      40,      30,      20,      10
+    8,       7,       6,       5,       4,       3,       2,       1
+    0/"""
+
+
+def write_udf(path, values, *, lo=3.00043, step=0.01086644,
+              hi=None, header=AERIS_HEADER, marker="RawScan", comma=True):
+    """A ``.udf`` in the real files' shape: 19 keys, a marker, eight per line.
+
+    ``hi`` defaults to the end angle the range and step imply, so a caller that
+    wants the two to *disagree* has to say so — which is the gate under test.
+    """
+    hi = lo + step * (len(values) - 1) if hi is None else hi
+    lines = [f"{k},{v},/" for k, v in header]
+    lines += [f"DataAngleRange, {lo:9.5f}, {hi:9.5f},/",
+              f"ScanStepSize, {step:.11f},/", marker]
+    rows = [values[i:i + 8] for i in range(0, len(values), 8)]
+    body = [",".join(f"{v:8.0f}" for v in row) for row in rows]
+    path.write_text("\n".join(lines) + "\n" + ",\n".join(body)
+                    + ("," if comma else "") + "/\n", encoding="utf-8")
+    return path
+
+
+def test_a_udf_reconstructs_its_axis_and_reports_what_the_header_knows(tmp_path):
+    """The abscissa is not stored: it is ``DataAngleRange`` plus ``ScanStepSize``."""
+    counts = [3819, 3775, 3890, 3829, 3764, 3811, 3894, 3752, 3827, 3784]
+    p = write_udf(tmp_path / "aeris.udf", counts)
+
+    data = rx.read_pattern(p)
+
+    assert rx.io.readers.identify_format(p).name == "udf"
+    assert len(data.two_theta) == 10
+    assert data.two_theta[0] == pytest.approx(3.00043)
+    assert data.two_theta[1] - data.two_theta[0] == pytest.approx(0.01086644)
+    assert data.intensity == [float(c) for c in counts]
+    assert data.metadata["anode"] == "Cu"
+    assert data.metadata["wavelength"] == "1.540598"
+    assert data.metadata["wavelength_alpha2"] == "1.544426"
+    # whole numbers are counts, whose σ is the package's Poisson fallback
+    assert data.sigma is None
+
+
+def test_a_udf_value_may_contain_commas_so_a_line_splits_on_the_first_only(tmp_path):
+    """``DivergenceSlit,Fixed, 1/2,/`` is two fields and ``Title1`` runs to ten
+    in the real corpus.  Splitting on every comma is the obvious parse and would
+    make the title ``CeO2`` and the slit ``Fixed``."""
+    header = [(k, v) for k, v in AERIS_HEADER if k != "Title1"]
+    header.insert(1, ("Title1", "CBN - Sorbic Acid, Slurry, Heptane, 5/9/25, JL"))
+    p = write_udf(tmp_path / "commas.udf", [10, 20, 30, 40], header=header)
+
+    data = rx.read_pattern(p)
+
+    assert data.metadata["title"] == "CBN - Sorbic Acid, Slurry, Heptane, 5/9/25, JL"
+
+
+def test_an_empty_udf_value_is_a_present_key_not_an_absent_one(tmp_path):
+    """``Title2,,/`` occurs in nearly every real file."""
+    p = write_udf(tmp_path / "empty.udf", [10, 20, 30, 40])
+
+    data = rx.read_pattern(p)
+
+    # Title2 is empty in AERIS_HEADER and no metadata key claims it; what the
+    # test pins is that the *parse* survived it and the next keys still landed
+    assert data.metadata["sample"] == "2025_06_03_CeO2_3_60_8min"
+    assert "title" in data.metadata
+
+
+def test_a_udf_whose_two_length_statements_disagree_is_refused(tmp_path):
+    """The file says how long it is twice — a range plus a step, and a count of
+    values — and the two agree in all 56 real files.  A disagreement puts the 2θ
+    of *every* point in doubt, so it is a contradiction and not a repair."""
+    p = write_udf(tmp_path / "short.udf", [10, 20, 30, 40], hi=3.1)
+
+    with pytest.raises(ValueError, match=r"short\.udf.*points.*data block holds 4"):
+        rx.read_pattern(p)
+
+
+def test_a_udf_step_that_is_not_a_number_is_refused_by_name(tmp_path):
+    """``DataAngleRange`` and ``ScanStepSize`` are free text, so ``nan`` and
+    ``inf`` parse as floats and a denormal step overflows the point count.
+    ``round()`` refuses all three without naming the file — an ``OverflowError``
+    on the infinities, a bare ``ValueError`` on the NaN — so the scan gate asks
+    for a finite span rather than only for a positive one."""
+    for step in ("5e-324", "nan", "inf"):
+        p = tmp_path / f"bad_{step}.udf"
+        p.write_text(f"DataAngleRange, 5.0, 50.0,/\nScanStepSize, {step},/\n"
+                     "RawScan\n1,2,3,/\n", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="do not describe a scan"):
+            rx.read_pattern(p)
+
+
+def test_the_terminating_comma_is_optional(tmp_path):
+    """Every real file ends ``425,/``; PyXRD's vendorable fixture ends ``0/``."""
+    a = write_udf(tmp_path / "with.udf", [10, 20, 30, 40], comma=True)
+    b = write_udf(tmp_path / "without.udf", [10, 20, 30, 40], comma=False)
+
+    assert rx.read_pattern(a).intensity == rx.read_pattern(b).intensity
+
+
+def test_the_vendorable_pyxrd_fixture_parses_on_five_keys(tmp_path):
+    """It carries 5 of the 19 keys, so the reader must require only the two that
+    make an abscissa — a vocabulary check would reject the one file that ships."""
+    p = tmp_path / "pyxrd.udf"
+    p.write_text(PYXRD_UDF_FIXTURE, encoding="utf-8")
+
+    data = rx.read_pattern(p)
+
+    assert rx.io.readers.identify_format(p).name == "udf"
+    assert len(data.two_theta) == 33
+    assert data.two_theta[0] == pytest.approx(5.0)
+    assert data.two_theta[-1] == pytest.approx(5.64)
+    assert data.intensity[0] == 8000.0 and data.intensity[-1] == 0.0
+    assert "anode" not in data.metadata
+
+
+def test_a_udf_derives_no_counting_time_from_scan_step_time(tmp_path):
+    """``ScanStepTime`` is not seconds per step on a PIXcel-class detector: the
+    Aeris writes 18.87 for a scan its own name calls eight minutes over 5246
+    points.  Recording it as ``count_time_s`` would make every derived σ wrong."""
+    p = write_udf(tmp_path / "time.udf", [10, 20, 30, 40])
+
+    assert "count_time_s" not in rx.read_pattern(p).metadata
+
+
+def test_a_udf_with_scaled_intensities_withholds_sigma_and_says_so(tmp_path):
+    """The format declares no intensity unit, so arithmetic is all there is."""
+    p = tmp_path / "rate.udf"
+    header = "\n".join(f"{k},{v},/" for k, v in AERIS_HEADER)
+    p.write_text(header + "\nDataAngleRange,   3.00000,   3.06000,/\n"
+                 "ScanStepSize, 0.02000,/\nRawScan\n"
+                 "  3.5,  4.25,  5.75,  6.5,/\n", encoding="utf-8")
+
+    notes: list = []
+    data = rx.read_pattern(p, diagnostics=notes)
+
+    assert data.sigma is None
+    assert [n.code for n in notes] == ["PATTERN_INTENSITY_SCALED"]
+
+
+def test_a_udf_seeds_the_instrument_hint_without_the_three_candidate_guess(tmp_path):
+    """The header states the anode *and* both wavelengths exactly, so the hint
+    resolves by agreement rather than by matching λ against Kα1/Kα2/weighted
+    mean.  This is why ``RatioAlpha21`` earns no ``METADATA_KEYS`` entry: the
+    CuKa preset already carries the 0.5 every real file states, so a declared
+    key would have no consumer (WP-1076)."""
+    from rietx.gui.imports import suggest_instrument
+
+    p = write_udf(tmp_path / "hint.udf", [10, 20, 30, 40])
+
+    hint = suggest_instrument(rx.read_pattern(p).metadata)
+
+    assert hint["radiation"] == "CuKa"
+    assert "anode and wavelength agreeing" in hint["why"]
 
 
 # ---------------------------------------------------------------------- uxd

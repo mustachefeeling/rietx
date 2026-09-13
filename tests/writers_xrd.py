@@ -38,6 +38,7 @@ scrambled; ``tests/data/README.md`` has the measurement).
 
 from __future__ import annotations
 
+import math
 import struct
 from pathlib import Path
 
@@ -197,6 +198,84 @@ def write_raw3(path: Path, ranges, *, sample="Synthesized", anode="Cu",
             if measured is not None:
                 out += struct.pack("<d", measured[i])
 
+    out += trailing
+    path.write_bytes(bytes(out))
+    return path
+
+
+#: Philips PC-APD, packed from the literal field table — see rule 1 above.  The
+#: offsets were derived from **28 real V3 files** before the reader was written
+#: (``tests/data/README.md`` § Philips) and agree with both published
+#: descriptions; they are repeated here rather than imported so the two cannot
+#: drift together.
+_PHILIPS_HEADER = {b"V3RD": 250, b"V5RD": 810}
+
+#: The first twelve counts of ``tests/data/qarr/corundum.rd``, as its committed
+#: ``.prn`` conversion states them.  Real instrument output, so every one is
+#: exactly representable in the format's √ encoding and a synthesized file can
+#: round-trip without the writer having to choose values for the caller.
+CORUNDUM_HEAD = (182, 176, 176, 174, 158, 139, 151, 174, 196, 187, 161, 169)
+
+
+def write_philips_rd(path: Path, counts, *, start=5.0, step=0.02,
+                     version=b"V3RD", sample="Synthesized", anode=0,
+                     end=None, stated_max=None, trailing=b"") -> Path:
+    """A Philips ``.rd``/``.sd`` holding ``counts`` — real counts, not packed.
+
+    The √ compression is applied **here**, so a caller writes the counts it
+    expects to read back and the round trip exercises the decode instead of
+    agreeing with it by construction.
+
+    **A count the format cannot hold is refused, not quietly moved.**  The
+    encoding is lossy above ~100 counts: ``v = isqrt(100·c)`` inverts
+    ``v²//100`` only for the smallest ``c`` of each ``v``, and by 400 counts one
+    step of ``v`` already spans four of them.  Silently writing the nearest
+    representable count would make a round-trip test pass while asserting
+    something the caller did not write, so this raises instead and the caller
+    uses counts a real instrument produced (:data:`CORUNDUM_HEAD` below).
+
+    This writer exists mainly for **V5**, which has no real file anywhere.  A V3
+    fixture *is* committed (``tests/data/qarr/corundum.rd``, whose intensities
+    are checked against a ``.prn`` conversion of the same scan in the same
+    tree), so what this package knows about V3 comes from that file and not from
+    here.  The other use is violating the reader's three gates on purpose:
+    ``end`` and ``stated_max`` write a range or a maximum that disagrees with
+    the data, and ``trailing`` appends bytes past the last point.
+    """
+    values = []
+    for c in counts:
+        # the reader truncates, so the v that decodes back to c is the *smallest*
+        # whose square over 100 reaches it — ceil(√(100c)), not isqrt(100c)
+        v = 0 if int(c) <= 0 else math.isqrt(100 * int(c) - 1) + 1
+        if v * v // 100 != int(c):
+            raise ValueError(
+                f"{c} counts is not representable in the .rd √ encoding — the "
+                f"nearest below it is {v * v // 100} and the next is "
+                f"{(v + 1) ** 2 // 100}. Writing one of those would make a "
+                "round trip assert a number the caller never wrote; use counts "
+                "a real instrument produced, e.g. CORUNDUM_HEAD")
+        values.append(v)
+    last = start + step * (len(values) - 1)
+    header = bytearray(b"\x00" * _PHILIPS_HEADER[version])
+    header[0:4] = version
+    header[4:44] = _fixed("Philips Analytical X-Ray B.V.", 40)
+    header[44:84] = _fixed("PC-APD, Diffraction software", 40)
+    header[84] = 3                                  # diffractometer: PW3710
+    header[85] = anode                              # 0 = Cu
+    header[86] = 3                                  # focus: LFF
+    header[94:118] = struct.pack("<3d", 1.540562, 1.54439, 0.5)
+    header[130:132] = struct.pack("<H", round(start * 200))
+    header[132:134] = struct.pack("<H", round(last * 200))
+    header[136:138] = struct.pack(
+        "<H", max(values) if stated_max is None else stated_max)
+    header[138:146] = _fixed(sample[:7], 8)
+    header[146:166] = _fixed(sample[:19], 20)
+    header[214:238] = struct.pack("<3d", step, start,
+                                  last if end is None else end)
+
+    out = bytearray(header)
+    for v in values:
+        out += struct.pack("<H", v)
     out += trailing
     path.write_bytes(bytes(out))
     return path
