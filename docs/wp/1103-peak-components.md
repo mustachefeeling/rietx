@@ -290,13 +290,18 @@ keeps its own of several things — is where the audit misses.
   both new tests, no new skip. One pins that a joint fit writes the same
   reserved key as a single one; one pins that a declared peak is not a
   roughness nuisance while a hump beside it still is.
+* Full selection: **4745 passed, 141 skipped**, 23:20 — 4743 before, the same
+  **+2 passed** and no new skip, so the acceptance tier is unmoved. Run on the
+  final tree; `origin/main` has not moved since the branch point, so it is the
+  merged tree's number and not just this branch's.
 * The profile round-trip, measured rather than read: an `Instrument` carrying
   one `PeakComponent` saves and loads back with **zero** components, while
   `profile.w` survives unchanged.
-* No acceptance or cross-backend numbers were re-measured. Nothing in these
-  three commits touches a fitted value: the tick fix adds a reported position,
+* Nothing in these three commits touches a fitted value, which is what the
+  unmoved acceptance tier says out loud: the tick fix adds a reported position,
   the statistics fix changes which columns a *diagnostic* projects out, and the
-  rest is prose.
+  rest is prose. The GUI was not re-run — nothing since the first pass touches
+  the TypeScript side.
 
 **Two findings taken and declined, both recorded rather than left silent.**
 
