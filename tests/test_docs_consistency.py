@@ -146,6 +146,11 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          rows in one new section, its paragraph cut to the
 #                                                          rungs' order and the one surface decision, the rest
 #                                                          left in the WP files; landed 670
+#   2026-09-13  docs/ROADMAP.md               676 -> 682  for WP-1407: one row in one new Unscheduled
+#                                                          group ("The formats a lab still has") plus the
+#                                                          two-line blurb every group in that section
+#                                                          carries; landed 678, +4 headroom so the next
+#                                                          few index rows do not each need a cap commit
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -156,7 +161,15 @@ SIZE_CAPS: dict[str, int | None] = {
     "CLAUDE.md": 755,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
-    "docs/ROADMAP.md": 676,
+    # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
+    # has".  Its two-line blurb is the one part that cannot be demoted to the WP
+    # file: every group in this section carries one, so a group without it does
+    # not match the document.  Raised for the blurb only; the WP's own findings
+    # stayed in the WP file.  Landed at 678: the +4 is headroom, per this file's
+    # docstring ("measured size plus headroom"), because an index row is the one
+    # line a new WP cannot demote and a zero-headroom cap makes the next row a
+    # cap commit of its own.
+    "docs/ROADMAP.md": 682,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,

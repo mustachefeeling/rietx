@@ -142,7 +142,7 @@ moves — 1101–1103 opened for v1.1 and are queued for v1.4, 1069–1078 ran p
 v1.0's ship — so the **`Milestone:` line in the WP file is the authority** on
 where a WP stands, and the section it sits under here mirrors that line (a
 test asserts it). An unscheduled WP takes the next number in the newest
-block (13xx today). A retired number is never recycled: 0603 moved to v0.4 as
+block (14xx today). A retired number is never recycled: 0603 moved to v0.4 as
 0408 and stays empty. Status cells here carry the glyph and the date, nothing
 else; the WP file's own Status line carries the summary.
 
@@ -545,6 +545,15 @@ optional-dependency format.
 |---|---|---|---|
 | [1315](wp/1315-zip-collection-reader.md) | A zip of patterns is N scans | ⬜ | — |
 | [1316](wp/1316-hdf5-multiscan-reader.md) | A NeXus/HDF5 multi-scan reader, behind an extra | ⬜ | — |
+
+#### The formats a lab still has
+
+1047's declared follow-up, reopened by an ask for a PANalytical `.raw` that
+does not exist (`.raw` is six unrelated vendors, none of them PANalytical).
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1407](wp/1407-the-format-a-benchtop-still-writes.md) | The format a benchtop still writes: PANalytical `.udf`/`.rd`, and four named refusals | ⬜ | — |
 
 #### Render what the fit already knows
 
