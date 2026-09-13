@@ -15,8 +15,23 @@ tensor $G^*$ {cite}`itc-b`:
 
 *Source:* `rietx.crystallography.lattice`
 
-where $G$ is the direct metric tensor built from $(a, b, c, \alpha, \beta,
-\gamma)$. Peak positions then follow Bragg's law,
+where $\mathbf{h} = (h, k, l)$ is the row vector of Miller indices and $G$ is
+the direct metric tensor built from $(a, b, c, \alpha, \beta, \gamma)$.
+Written out, with $(A, B, C, D, E, F) = (G^*_{11}, G^*_{22}, G^*_{33},
+2G^*_{23}, 2G^*_{13}, 2G^*_{12})$, {eq}`pos-dspacing` is the familiar
+quadratic form
+
+```{math}
+:label: pos-dspacing-terms
+
+\frac{1}{d^2} \;=\; A h^2 + B k^2 + C l^2 + D\,kl + E\,hl + F\,hk ,
+```
+
+*Source:* `rietx.crystallography.lattice.inv_d_squared`
+
+which for an orthogonal cell ($\alpha = \beta = \gamma = 90°$) reduces to
+$1/d^2 = h^2/a^2 + k^2/b^2 + l^2/c^2$, the cross terms vanishing with the
+off-diagonal elements of $G^*$. Peak positions then follow Bragg's law,
 
 ```{math}
 :label: pos-bragg
