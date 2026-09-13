@@ -310,7 +310,7 @@ holds a registered binary reader nothing exercises.
       checked per file first. **Both retired, both positively**: 28 real `.rd`
       files with 16 committed value oracles, and 19 `.udf` keys identical across
       56 real files. See the supersession note in Context.
-- [ ] 2. `ATTRIBUTION.md` § Format specifications: one row for `.udf`, one for
+- [x] 2. `ATTRIBUTION.md` § Format specifications: one row for `.udf`, one for
       `.rd`, naming which source each fact came from and which corrections are
       this project's, on the template of the three Bruker `.raw` rows
       (`:250-252`). Add the MAUD per-file contradiction as the worked example
