@@ -5,8 +5,8 @@ name: Docs site
 # — _about.DOCS_URL is the one authority for the resulting URLs, and the skill
 # is fetchable file by file at /skill/rietx/… so a harness with network and no
 # wheel can pull the body without pulling the reference files it does not need
-# (WP-1304).  docs/AGENT_PROTOCOL.md rides along as the pointer it became, so
-# the URL published since v1.0 still resolves; it goes in v1.4.
+# (WP-1304).  The pointer this replaced, published at /AGENT_PROTOCOL.md from
+# v1.0 to v1.3, was deleted in v1.4 and that URL now 404s.
 #
 # Since WP-1331 the site root is the landing page, not the manual: sphinx's
 # root document is manual.md, and docs/landing/build.py --site writes the page
@@ -57,7 +57,6 @@ jobs:
         run: |
           mkdir -p site/skill
           cp -R docs/skill/rietx site/skill/rietx
-          cp docs/AGENT_PROTOCOL.md site/AGENT_PROTOCOL.md
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
