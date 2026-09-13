@@ -238,7 +238,7 @@ entirely; B's guard is a measurement script, not a test, for the same reason
 - [x] **E2 — TCHZ expanded** where the shape is named, to whatever a citable
   source supports (see § E); the convention note that rietx writes that
   coefficient $P$.
-- [ ] **F — `*Source:*` becomes a link.** `REPO_URL` in `_about.py`; a `{source}`
+- [x] **F — `*Source:*` becomes a link.** `REPO_URL` in `_about.py`; a `{source}`
   role registered in `conf.py` resolving the dotted name through `inspect` to a
   blob URL with a line anchor, pinned to `v{release}` for a released version and
   `main` for a `.dev`; all 104 lines converted; `test_manual.py`'s `SOURCE_LINE`

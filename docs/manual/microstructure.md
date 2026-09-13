@@ -28,7 +28,7 @@ line's breadth as an apparent size,
 L \;=\; \frac{K\lambda}{\beta\,\cos\theta} \qquad [\text{Å}],
 ```
 
-*Source:* `rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti`
 
 with $\beta$ the FWHM in radians of $2\theta$. $K$ depends on the crystallite
 shape **and** on which measure of breadth is used — 0.89 for the FWHM of a
@@ -50,7 +50,7 @@ Jacobian is $dQ/d(2\theta) = 2\pi\cos\theta/\lambda$, and the $\cos\theta$ of
 \qquad [\text{Å}^{-1}],
 ```
 
-*Source:* `rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti`
 
 independent of both $\lambda$ and $\theta$ — Scherrer broadening is *constant
 in Q*. Because the size law of {eq}`prof-caglioti-l` **is** $1/\cos\theta$, the
@@ -65,7 +65,7 @@ L \;=\; \frac{180}{\pi}\cdot\frac{K\lambda}{X_s}
 X_s \;=\; \frac{180}{\pi}\cdot\frac{K\lambda}{L},
 ```
 
-*Source:* `rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti`
 
 reading $\sqrt{P}$ in place of $X_s$ for the Gaussian variance coefficient of
 {eq}`prof-caglioti-g`. The right-hand form is the seeding direction — a width
@@ -101,7 +101,7 @@ $\lambda = 2d\sin\theta$ at fixed $\lambda$ gives $\Delta d/d = -\cot\theta\,
 \qquad [\text{radians}],
 ```
 
-*Source:* `rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti`
 
 which is the $\tan\theta$ term of {eq}`prof-caglioti-l`. Inverting it for the
 coefficient $Y_s$ in deg $2\theta$,
@@ -114,7 +114,7 @@ coefficient $Y_s$ in deg $2\theta$,
 Y_s \;=\; \frac{360}{\pi}\cdot\frac{\Delta d}{d},
 ```
 
-*Source:* `rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti`
 
 reading $\sqrt{U_s}$ in place of $Y_s$ for the Gaussian variance coefficient of
 {eq}`prof-caglioti-g`, exactly as {eq}`ms-size-coefficient` reads $\sqrt{P}$.
@@ -160,7 +160,7 @@ homogeneous **quartic** in $(h, k, l)$:
 \quad [\text{Å}^{-4}],
 ```
 
-*Source:* `rietx.crystallography.stephens`
+{source}`rietx.crystallography.stephens`
 
 fifteen monomials, hence at most fifteen coefficients. Since $2\theta =
 2\arcsin(\lambda\sqrt{M}/2)$ gives $d(2\theta)/dM = \tan\theta / M$, the
@@ -174,7 +174,7 @@ uses is
 \cdot \sqrt{\textstyle\sum_{HKL} S_{HKL}\, h^H k^K l^L} \quad [\deg],
 ```
 
-*Source:* `rietx.crystallography.stephens`
+{source}`rietx.crystallography.stephens`
 
 added to the Lorentzian FWHM as $\Lambda(hkl)\cdot\tan\theta$ — the first
 width in the model that depends on $hkl$ rather than only on θ.

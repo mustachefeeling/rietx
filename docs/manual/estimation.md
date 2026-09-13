@@ -11,7 +11,7 @@ S(\theta) \;=\; \sum_i w_i \bigl(y_{\mathrm{obs},i}
 \qquad w_i = 1/\sigma_i^2,
 ```
 
-*Source:* `rietx.optimize.least_squares`
+{source}`rietx.optimize.least_squares`
 
 minimised over the residual rows of {eq}`fm-rows` {cite}`rietveld1969`.
 Weights come from the data file's esd column whenever it is present;
@@ -40,7 +40,7 @@ R_{\exp} = \sqrt{\frac{N - P}{\sum w y_o^2}}, \qquad
 \chi^2_{\mathrm{red}} = \frac{\sum w (y_o - y_c)^2}{N - P},
 ```
 
-*Source:* `rietx.optimize.statistics`
+{source}`rietx.optimize.statistics`
 
 with $\mathrm{GoF} = \sqrt{\chi^2_{\mathrm{red}}} = R_{wp}/R_{\exp}$, plus
 the background-subtracted $R_{wp}$ variant Toby recommends when the
@@ -66,7 +66,7 @@ R_F = \frac{\sum_{hkl} \bigl| |F_o| - |F_c| \bigr|}{\sum_{hkl} |F_o|},
 \qquad I_{hkl} = m\,|F_{hkl}|^2,
 ```
 
-*Source:* `rietx.optimize.statistics.structure_r_factors`
+{source}`rietx.optimize.statistics.structure_r_factors`
 
 with $m$ the reflection multiplicity, so $|F| = \sqrt{I/m}$ and $R_F$ is the
 index a single-crystal $R$ is comparable with. Powder data measure neither
@@ -99,7 +99,7 @@ M_{\mathrm{ind}} = \sum_k \frac{I'_k}{I_k},
 I'_k = I_k - \int_{\chi_k} |F_k|^2\, G(\Delta 2\theta_k)\, \mathrm{d}(2\theta),
 ```
 
-*Source:* `rietx.optimize.statistics.effective_observations`
+{source}`rietx.optimize.statistics.effective_observations`
 
 where $G$ is the symmetric profile of {ref}`ch-profiles` and $\chi_k$ is the
 part of reflection $k$'s own interval — $\pm${{ EFFECTIVE_OBS_ALPHA }} FWHM —
@@ -127,7 +127,7 @@ generous.
 \sqrt{\chi'^2 / \chi^2},
 ```
 
-*Source:* `rietx.optimize.least_squares.covariance_estimates`
+{source}`rietx.optimize.least_squares.covariance_estimates`
 
 where the second factor is the Bérar-Lelann serial-correlation inflation
 {cite}`berar1991`: consecutive same-sign weighted residuals are summed
@@ -156,7 +156,7 @@ parameters rather than one of them, and its esd is the quadratic form
 \qquad g_i = \frac{\partial f}{\partial \theta_i},
 ```
 
-*Source:* `rietx.model.geometry`
+{source}`rietx.model.geometry`
 
 over the **whole** covariance of {eq}`est-cov` — "the whole correlation
 matrix, not just the diagonal elements, should be included in the calculation"
@@ -236,7 +236,7 @@ the final cycle's parameter shifts against their own esds
 \;\le\; \epsilon_{\mathrm{conv}},
 ```
 
-*Source:* `rietx.optimize.least_squares.run_least_squares`
+{source}`rietx.optimize.least_squares.run_least_squares`
 
 with the paper's band $\epsilon_{\mathrm{conv}} =$ {{ MAX_SHIFT_CONVERGED }}
 quoted, never tuned. Both sides are measured in **external** parameter units:
@@ -272,7 +272,7 @@ covariance, are always fp64 on host; a GPU backend may compute Jacobian
 \operatorname{cond}(J^\top J) \;=\; \operatorname{cond}(J)^2,
 ```
 
-*Source:* `rietx.backend.linalg64`
+{source}`rietx.backend.linalg64`
 
   so a routine Rietveld $\operatorname{cond}(J) \sim 10^4$ leaves
   $\operatorname{cond}(J^\top J) \sim 10^8$, which fp32 cannot invert at
@@ -316,7 +316,7 @@ residual and $J_j$ a held parameter's column,
                           {\tilde{\jmath}^{\top} \tilde{\jmath}},
 ```
 
-*Source:* `rietx.optimize.statistics.one_parameter_gains`
+{source}`rietx.optimize.statistics.one_parameter_gains`
 
 which is Rao's score statistic {cite}`rao1948` applied to the linearised
 model, computed through the Frisch-Waugh-Lovell projection identity

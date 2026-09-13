@@ -94,3 +94,11 @@ SERVER_TOKEN = "rietx"
 #: with ``rietx.agent`` in WP-1303.  A brand token: a rename or a hosting move
 #: changes it here and nowhere else.
 DOCS_URL = "https://rietx.org"
+
+#: Root of the source repository, no trailing slash.  A brand token like
+#: :data:`DOCS_URL`, and the base the theory manual builds a per-equation
+#: source link on (WP-1408): each *Source:* line resolves its dotted name
+#: through ``inspect`` at build time and links to ``<REPO_URL>/blob/<ref>/<path>
+#: #L<line>``.  Kept here rather than read from ``pyproject.urls`` because the
+#: metadata of an editable install is not reliably the checkout's.
+REPO_URL = "https://github.com/yue-here/rietx"

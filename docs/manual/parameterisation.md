@@ -13,7 +13,7 @@ an affine constraint block
 p_{\mathrm{phys}} \;=\; C\, p_{\mathrm{free}} + d,
 ```
 
-*Source:* `rietx.params.vector`
+{source}`rietx.params.vector`
 
 with sparse $C$ rebuilt at every stage boundary and constant during a
 least-squares run — a constant matmul stays exact under the autodiff
@@ -45,7 +45,7 @@ the cell is **refused** if it disagrees by more than
 orthorhombic symbol over a cell carrying $\beta = 93.2°$ would otherwise
 compute every $d$-spacing from that angle in silence.
 
-*Source:* `rietx.crystallography.symmetry.cell_constraints`
+{source}`rietx.crystallography.symmetry.cell_constraints`
 
 Strictly positive quantities (widths, scales) refine through the softplus
 transform,
@@ -56,7 +56,7 @@ transform,
 p \;=\; \log(1 + e^{u}),
 ```
 
-*Source:* `rietx.params.transforms`
+{source}`rietx.params.transforms`
 
 smooth, monotonic and $p > 0$ for all finite $u$, so the optimiser works in
 an unconstrained variable instead of pressing a hard zero bound; bounded
@@ -78,7 +78,7 @@ satisfy $R\,\delta = \delta$, so the coordinate basis spans
 \bigcap_R \ker(R - I)
 ```
 
-*Source:* `rietx.crystallography.wyckoff`
+{source}`rietx.crystallography.wyckoff`
 
 ({cite}`itc-a` sect. 8.3.2). The $U^{ij}$ tensor transforms as $U \to R\,U
 R^\top$ under a rotation acting on fractional coordinates, so the allowed
@@ -93,7 +93,7 @@ U \;=\; \sum_k \theta_k\, B_k,
 \qquad R\, B_k\, R^\top \in \operatorname{span}\{B_j\} \ \forall R.
 ```
 
-*Source:* `rietx.crystallography.wyckoff`
+{source}`rietx.crystallography.wyckoff`
 
 Both bases come back as smallest-integer row vectors in a deterministic
 RREF-derived form — an $x,x,z$ site gives $[[1,1,0],[0,0,1]]$; a hexagonal
@@ -115,7 +115,7 @@ m \;=\; \frac{|G|}{|G_{\mathbf{x}}|},
 \mathbf{x} \bmod 1\},
 ```
 
-*Source:* `rietx.crystallography.symmetry.site_orbit`
+{source}`rietx.crystallography.symmetry.site_orbit`
 
 so $m$ always divides the group order {cite}`itc-a`, and the orbit is
 generated one image per left coset of $G_{\mathbf{x}}$. Counting distinct
@@ -144,7 +144,7 @@ moment as
 \mathbf{m} \;\to\; \varepsilon \,\det(R)\, R\, \mathbf{m},
 ```
 
-*Source:* `rietx.crystallography.magnetic.operators.MagneticOperator.moment_matrix`
+{source}`rietx.crystallography.magnetic.operators.MagneticOperator.moment_matrix`
 
 with $R$ **untransposed** {cite}`halpern1939` — the reciprocal-space
 $R^\top$ convention this manual uses elsewhere for an *hkl* does not apply to
@@ -163,7 +163,7 @@ so the magnitude is not $\sqrt{\sum_i m_i^2}$ except in a cubic cell:
 |\mathbf{m}| \;=\; \sqrt{\mathbf{m}^\top G\, \mathbf{m}},
 ```
 
-*Source:* `rietx.crystallography.magnetic.operators.moment_magnitude`
+{source}`rietx.crystallography.magnetic.operators.moment_magnitude`
 
 with $G$ the unit-vector metric — ones on the diagonal, the cell's cosines
 off it — so a hexagonal $(1, 1, 0)$ moment has magnitude 1 $\mu_B$, not
@@ -179,7 +179,7 @@ direct-lattice basis vector to unit length before applying it:
 \frac{\mathbf{c}}{c}\right) \mathbf{m},
 ```
 
-*Source:* `rietx.crystallography.magnetic.operators.moment_to_cartesian`
+{source}`rietx.crystallography.magnetic.operators.moment_to_cartesian`
 
 the same Cholesky-derived Cartesian frame the ADP construction above uses, so
 the crystal-axis and fractional actions of $R$ agree and the constraint
@@ -197,7 +197,7 @@ r_{\mathrm{restr}} \;=\; \sqrt{w}\,
 \frac{\mathrm{computed}(\theta) - \mathrm{target}}{\sigma},
 ```
 
-*Source:* `rietx.model.restraints`
+{source}`rietx.model.restraints`
 
 appended after the data rows, so restraints land in the covariance
 $J^\top J$ but are excluded from Rwp, Durbin-Watson and the Bérar-Lelann
@@ -223,7 +223,7 @@ S \;=\; S_y \;+\; c_w S_G,
 \frac{\mathrm{computed}_k(\theta) - \mathrm{target}_k}{\sigma_k}\right)^2,
 ```
 
-*Source:* `rietx.model.forward.CompiledModel.restraint_residual`
+{source}`rietx.model.forward.CompiledModel.restraint_residual`
 
 with $S_y$ the data rows of {eq}`est-obj` and $S_G$ the restraint rows of
 {eq}`par-restraint` squared. The guidelines set $c_w$ high while the structural

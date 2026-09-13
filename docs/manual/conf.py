@@ -9,11 +9,15 @@
 # numbered equations and point at their source symbols.  Part 1's own guard is
 # name resolution rather than constant injection (tests/test_manual_api.py).
 
+import importlib as _importlib
+import inspect as _inspect
 import re as _re
 from importlib.metadata import version as _dist_version
 from pathlib import Path as _Path
 
-from rietx._about import DIST_NAME
+from docutils import nodes as _nodes
+
+from rietx._about import DIST_NAME, REPO_URL
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
 from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 from rietx.examples import list_examples
@@ -376,3 +380,89 @@ def _write_skill() -> None:
 
 
 _write_skill()
+
+
+# ----------------------------------------------------------------------
+# The `{source}` role (WP-1408)
+#
+# Every displayed equation in Part 2 carries a *Source:* line naming the
+# symbol its docstring was transcribed from.  The name resolving is the
+# manual's oldest guard (WP-0604), and the role turns the same resolution into
+# a link: `inspect` gives the file and the line, so a reader goes from the
+# equation to the code that runs it in one click, and a renamed symbol breaks
+# the **build** rather than leaving a dead link on the page.
+#
+# The link goes to `main`, not to a tag of `release`.  A tag would pin the
+# line number to a tree it is certainly true of, which is the better property
+# — and it was measured not to hold: `pyproject.version` is the last *shipped*
+# milestone whether or not that milestone was tagged, and on 2026-09-14 the
+# version read 1.4.0 while `git ls-remote --tags` stopped at v1.3.0, so every
+# link would have been a 404.  `main` is also the tree the published manual is
+# built from, so the page and its links agree; the cost is a line number that
+# can drift by a few lines between a build and a later reading.
+# ----------------------------------------------------------------------
+
+#: The repository root, which is what a blob URL's path is relative to.
+_REPO_ROOT = _Path(__file__).resolve().parents[2]
+
+#: What to link at — see the note above for why this is a branch and not a tag.
+_SOURCE_REF = "main"
+
+
+def _assignment_line(path: _Path, name: str) -> int:
+    """Where a module-level constant is bound.
+
+    `inspect.getsourcelines` works on anything with code behind it and raises
+    on a float, so a `*Source:*` line naming a threshold — and several do —
+    needs the assignment found by reading.  Falling back to the top of the
+    file would be worse than useless: it would look like a working link.
+    """
+    pattern = _re.compile(rf"^{_re.escape(name)}\s*[:=]")
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if pattern.match(line):
+            return number
+    raise LookupError(f"{name}: no module-level assignment in {path.name}")
+
+
+def _resolve_source(dotted: str) -> tuple[str, int]:
+    """(path relative to the repository root, 1-based line) for a dotted name."""
+    parts = dotted.split(".")
+    for split in range(len(parts), 0, -1):
+        try:
+            module = _importlib.import_module(".".join(parts[:split]))
+        except ImportError:
+            continue
+        break
+    else:
+        raise LookupError(f"{dotted}: no importable module prefix")
+
+    obj = module
+    for attr in parts[split:]:
+        if not hasattr(obj, attr):
+            raise LookupError(f"{dotted}: {obj!r} has no attribute {attr!r}")
+        obj = getattr(obj, attr)
+
+    path = _Path(_inspect.getsourcefile(module)).resolve()
+    try:
+        line = _inspect.getsourcelines(obj)[1] or 1
+    except (TypeError, OSError):
+        line = _assignment_line(path, parts[-1]) if parts[split:] else 1
+    return path.relative_to(_REPO_ROOT).as_posix(), line
+
+
+def _source_role(name, rawtext, text, lineno, inliner, options=None, content=None):
+    dotted = text.strip().strip("`")
+    try:
+        path, line = _resolve_source(dotted)
+    except Exception as exc:                      # noqa: BLE001 — reported, not raised
+        message = inliner.reporter.error(f"{{source}}: {exc}", line=lineno)
+        return [inliner.problematic(rawtext, rawtext, message)], [message]
+    url = f"{REPO_URL}/blob/{_SOURCE_REF}/{path}#L{line}"
+    link = _nodes.reference("", "", _nodes.literal(text=dotted), refuri=url,
+                            classes=["source-link"])
+    return [_nodes.emphasis(text="Source: "), link], []
+
+
+def setup(app):
+    app.add_role("source", _source_role)
+    return {"version": release, "parallel_read_safe": True, "parallel_write_safe": True}

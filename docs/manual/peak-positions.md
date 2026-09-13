@@ -13,7 +13,7 @@ tensor $G^*$ {cite}`itc-b`:
 \qquad G^* = G^{-1},
 ```
 
-*Source:* `rietx.crystallography.lattice`
+{source}`rietx.crystallography.lattice`
 
 where $\mathbf{h} = (h, k, l)$ is the row vector of Miller indices and $G$ is
 the direct metric tensor: the matrix of dot products of the cell edge vectors,
@@ -38,7 +38,7 @@ ac\cos\beta & bc\cos\alpha & c^2
 \quad [\text{Å}^2].
 ```
 
-*Source:* `rietx.crystallography.lattice.direct_metric_tensor`
+{source}`rietx.crystallography.lattice.direct_metric_tensor`
 
 It is symmetric by construction, and $G^*$, its inverse, is in Å⁻². A cubic
 cell makes $G = a^2 I$, and an orthogonal one makes it diagonal; every
@@ -53,7 +53,7 @@ quadratic form
 \frac{1}{d^2} \;=\; A h^2 + B k^2 + C l^2 + D\,kl + E\,hl + F\,hk ,
 ```
 
-*Source:* `rietx.crystallography.lattice.inv_d_squared`
+{source}`rietx.crystallography.lattice.inv_d_squared`
 
 which for an orthogonal cell ($\alpha = \beta = \gamma = 90°$) reduces to
 $1/d^2 = h^2/a^2 + k^2/b^2 + l^2/c^2$, the cross terms vanishing with the
@@ -65,7 +65,7 @@ off-diagonal elements of $G^*$. Peak positions then follow Bragg's law,
 2\theta \;=\; 2 \arcsin\!\left(\frac{\lambda}{2d}\right).
 ```
 
-*Source:* `rietx.crystallography.lattice`
+{source}`rietx.crystallography.lattice`
 
 Every emission line diffracts at its own Bragg angle. Differentiating
 {eq}`pos-bragg` at fixed $d$ gives the doublet-splitting law
@@ -76,7 +76,7 @@ Every emission line diffracts at its own Bragg angle. Differentiating
 \Delta 2\theta \;=\; 2 \tan\theta \cdot \frac{\Delta\lambda}{\lambda},
 ```
 
-*Source:* `rietx.schemas.instrument`
+{source}`rietx.schemas.instrument`
 
 which grows with $\tan\theta$ — a Kα₂ line is never a fixed offset from Kα₁.
 
@@ -92,7 +92,7 @@ spacing $d_M$ satisfies $\lambda = 2 d_M \sin\theta_M$. At that same setting
 \frac{\lambda}{n} \;=\; 2\,\frac{d_M}{n}\,\sin\theta_M ,
 ```
 
-*Source:* `rietx.schemas.instrument.Harmonic`
+{source}`rietx.schemas.instrument.Harmonic`
 
 and $d_M/n$ is the spacing of the $n$th-order reflection of the same planes. So
 the transmitted beam carries $\lambda/n$ for every integer $n \ge 2$ whose
@@ -112,7 +112,7 @@ d \;=\; \frac{\lambda}{2 n \sin\theta}
 \sin\theta_n \;=\; \frac{1}{n}\,\sin\theta_1 ,
 ```
 
-*Source:* `rietx.schemas.instrument.Harmonic`
+{source}`rietx.schemas.instrument.Harmonic`
 
 where $\theta_1$ and $\theta_n$ are where the fundamental and the harmonic put
 the *same* reflection. Since $\sin$ increases on $(0°, 90°)$, $\theta_n <
@@ -154,7 +154,7 @@ every computed position unchanged:
 2\theta_{hkl} \;\text{unchanged for all}\; hkl .
 ```
 
-*Source:* `rietx.params.vector.check_wavelength_freedom`
+{source}`rietx.params.vector.check_wavelength_freedom`
 
 For one histogram that one-parameter family is an exactly flat direction of the
 residual, whatever the data quality: $\lambda$ and the cell cannot both be free.
@@ -168,7 +168,7 @@ instead —
  \;=\; \frac{2\tan\theta}{\lambda},
 ```
 
-*Source:* `rietx.model.forward`
+{source}`rietx.model.forward`
 
 the same $\tan\theta$ signature as {eq}`pos-doublet`, which is exactly the
 signature a uniform cell scaling has. Across $N$ histograms of one specimen the
@@ -198,7 +198,7 @@ their ratio enters {cite}`wilson1963,klug1974`:
 \Delta 2\theta \;=\; -\frac{2 s}{R} \cos\theta \quad [\mathrm{rad}].
 ```
 
-*Source:* `rietx.model.corrections.displacement_shift_deg`
+{source}`rietx.model.corrections.displacement_shift_deg`
 
 The $\cos\theta$ dependence is what separates it from the zero-point error.
 **Sample transparency** — finite beam penetration puts the effective
@@ -212,7 +212,7 @@ diffracting surface below the physical one (thick-sample limit
 \qquad t = \frac{1}{2 \mu_{\mathrm{eff}} R},
 ```
 
-*Source:* `rietx.model.corrections.transparency_shift_deg`
+{source}`rietx.model.corrections.transparency_shift_deg`
 
 with $t \ge 0$ dimensionless; for strongly absorbing samples $t \to 0$ and
 the correction vanishes.
@@ -234,7 +234,7 @@ whose diffracting volume sits off the centre of the $2\theta$ circle
 \quad [\mathrm{rad}].
 ```
 
-*Source:* `rietx.model.corrections.capillary_displacement_shift_deg`
+{source}`rietx.model.corrections.capillary_displacement_shift_deg`
 
 Here $a$ is the displacement along the incident beam, positive downstream,
 and $b$ the displacement perpendicular to it in the diffraction plane,
@@ -265,4 +265,4 @@ cell-parameter error. Bearden's compilation {cite}`bearden1967` is a
 *different* scale (Mo Kα₂ differs by 24 ppm); individual rows must not be
 "corrected" toward it.
 
-*Source:* `rietx.schemas.instrument`
+{source}`rietx.schemas.instrument`

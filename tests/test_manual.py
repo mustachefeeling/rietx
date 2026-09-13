@@ -54,7 +54,12 @@ def _copied_in() -> set[str]:
     return {p.relative_to(_LANDING_SITE).as_posix() for p in _LANDING_SITE.rglob("*.html")}
 
 CITE_ROLE = re.compile(r"\{cite\}`([^`]+)`")
-SOURCE_LINE = re.compile(r"\*Source:\*\s+`([A-Za-z_][\w.]*)`")
+#: Each displayed equation's source line, as `{source}` spells it (WP-1408).
+#: The role resolves the name to a repository link at build time, so `-W`
+#: already fails on one that does not import; these tests keep naming the
+#: symbol in the failure and keep the coverage rule that every labelled
+#: equation sits beside one.
+SOURCE_LINE = re.compile(r"^\{source\}`([A-Za-z_][\w.]*)`$", re.MULTILINE)
 BIB_KEY = re.compile(r"^@\w+\{([^,\s]+)\s*,", re.MULTILINE)
 
 
@@ -195,7 +200,7 @@ def test_every_source_symbol_imports():
     symbols: set[str] = set()
     for page in CHAPTERS:
         symbols.update(SOURCE_LINE.findall(page.read_text(encoding="utf-8")))
-    assert symbols, "no *Source:* lines found — pattern or chapters moved?"
+    assert symbols, "no {source} lines found — pattern or chapters moved?"
     for dotted in sorted(symbols):
         parts = dotted.split(".")
         obj = None
@@ -213,14 +218,14 @@ def test_every_source_symbol_imports():
 
 def test_source_lines_cover_every_labelled_equation():
     """Every {math} directive with a :label: sits in a section that carries
-    at least one *Source:* line — an equation with no named source is a
+    at least one `{source}` line — an equation with no named source is a
     transcription with no audit trail."""
     for page in CHAPTERS:
         text = page.read_text(encoding="utf-8")
         n_labels = len(re.findall(r"^:label:", text, re.MULTILINE))
         n_sources = len(SOURCE_LINE.findall(text))
         if n_labels:
-            assert n_sources > 0, f"{page.name}: {n_labels} labelled equations, no *Source:* lines"
+            assert n_sources > 0, f"{page.name}: {n_labels} labelled equations, no {{source}} lines"
 
 
 def test_the_hump_table_agrees_with_the_refinement_that_produced_it():
