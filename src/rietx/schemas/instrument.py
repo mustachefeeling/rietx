@@ -1093,6 +1093,24 @@ COMPONENT_FIELDS: dict[str, tuple[str, ...]] = {
 #: peak this profile describes.
 EXTRA_PEAK_FWHM_MIN = 0.005
 
+#: Default upper bound on :attr:`PeakComponent.fwhm`, in °2θ — a *default*, not
+#: a limit, and a caller who needs a broader peak simply says so.
+#:
+#: It is a default at all because this bound is not only a claim about the peak,
+#: it is the **window's size**: the frozen half-width is
+#: ``window_fwhm_mult(eta.max)·fwhm.max + WINDOW_MIN_DEG``, and ``k(η)`` reaches
+#: about 16 at η = 1.  Left at the width bound a `Parameter` would otherwise
+#: carry, the window swallows the whole pattern and the member costs what it was
+#: windowed to avoid.  0.5° is several times the FWHM of a laboratory
+#: diffractometer at any angle, so it is generous for something described as a
+#: *sharp* peak while keeping the default window near ±8°.
+#:
+#: The trade is the one the whole sized-from-bounds design makes, and it is
+#: worth stating plainly: a bound is what makes a free centre provably stay
+#: inside a frozen window, and the price of a loose bound is a wide window.
+#: Tight bounds are the caller's to set and are worth setting.
+EXTRA_PEAK_FWHM_MAX = 0.5
+
 #: Softplus lower bound at or under which `internal_bounds` gives up on the
 #: bound entirely — the same 1e-12 `schemas/structure.py` uses, restated here
 #: rather than imported so `schemas/instrument.py` keeps importing nothing from
@@ -1358,7 +1376,8 @@ class PeakComponent(Base):
                                           transform="softplus"))
     fwhm: Parameter = Field(
         default_factory=lambda: Parameter(value=0.1,
-                                          min=EXTRA_PEAK_FWHM_MIN, max=2.0,
+                                          min=EXTRA_PEAK_FWHM_MIN,
+                                          max=EXTRA_PEAK_FWHM_MAX,
                                           unit="deg", transform="softplus"))
     eta: Parameter = Field(
         default_factory=lambda: Parameter(value=0.5, min=0.0, max=1.0,

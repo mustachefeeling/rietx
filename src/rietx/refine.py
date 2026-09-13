@@ -32,7 +32,14 @@ from .model.absorption import (
     mu_t_identifiable_fraction,
     transmission_intensity_fraction,
 )
-from .model.forward import PHASE_SUPPORT_SIGMA, CompiledModel, Mode, compile_model
+from .model.components import EXTRA_TICK_KEY
+from .model.forward import (
+    PHASE_SUPPORT_SIGMA,
+    CompiledModel,
+    Mode,
+    _line_image_deg,
+    compile_model,
+)
 from .model.geometry import geometry_table
 from .model.microstructure import microstructure_table
 from .model.profiles.caglioti import (
@@ -2966,6 +2973,7 @@ def _phase_agreement(model: CompiledModel, values: dict[str, float],
     return rows
 
 
+
 def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray, *,
                   mode: Mode, status: str, stage_results: list[StageResult],
                   diagnostics: list[Diagnostic], structure: Structure,
@@ -3017,6 +3025,36 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                 for lam in model.line_wavelengths]
         pos = np.concatenate(rows) if rows else np.array([])
         ticks[name] = sorted(float(p) for p in pos if np.isfinite(p))
+
+    # Declared sharp peaks are ticks too, under one reserved key.  This is the
+    # whole of the member contract's clause 2 for `PeakComponent`: a hump joins
+    # the reported background, a peak joins this list, and the destination is
+    # read from `model.components.COMPONENT_AGGREGATE` rather than inferred.
+    #
+    # Without it Layer 0's `unmatched_obs` reports every declared peak as an
+    # unindexed impurity — the Kα2-ticks lesson one rank over, and the same
+    # failure: a peak the model *does* put intensity at, reported as
+    # unexplained because nothing wrote it down.
+    #
+    # No zero-shift is added, unlike a phase's: the centre is the *apparent*
+    # position by declaration and carries its own aberrations (see
+    # `PeakComponent`), so adding the specimen's shift would move a tick off the
+    # peak the model actually drew.
+    #
+    # Accepted wrinkle, recorded rather than special-cased: Layer 0's
+    # `Region.n_reflections` counts ticks, so these inflate that count in their
+    # own regions.  It is right for segmentation and for the unmatched logic,
+    # and mislabelled as a count of reflections.
+    extra_ticks: list[float] = []
+    for pc in model.peak_components:
+        centre = values[pc.paths["center"]]
+        reach = len(pc.lam_ratio) if pc.all_lines else 1
+        for il in range(reach):
+            pos_l = _line_image_deg(centre, float(pc.lam_ratio[il]), np)
+            if np.isfinite(pos_l):
+                extra_ticks.append(float(pos_l))
+    if extra_ticks:
+        ticks[EXTRA_TICK_KEY] = sorted(extra_ticks)
 
     # Quantitative phase analysis from the refined scales.  Le Bail scales are
     # degenerate with the extracted intensities, so QPA is Rietveld-only.  σ(W)

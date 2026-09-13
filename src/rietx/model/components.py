@@ -61,6 +61,26 @@ COMPONENT_EXTENT: dict[str, Literal["grid", "window"]] = {
 }
 
 
+#: ``RefinementResult.ticks`` key carrying every declared sharp peak's
+#: positions — the concrete form clause 2's ``"ticks"`` aggregate takes on the
+#: way out.  Parenthesised because no CIF phase name is: a tick list is read by
+#: name, so a phase actually called ``"(extra)"`` and this row would be one
+#: entry and one of the two would vanish.  ``compile_model`` refuses that
+#: collision rather than renaming anything.
+#:
+#: One key for every declared peak, not one per component: a consumer asks "is
+#: there a peak here the model knows about", and the answer does not depend on
+#: which component supplied it.  Which one did is in
+#: ``Instrument.extra_components`` and in the diagnostics, which carry the
+#: dot-path.
+#:
+#: It lives here rather than in :mod:`rietx.refine` because
+#: :mod:`rietx.model.forward` enforces the collision and ``refine`` writes the
+#: key, and ``refine`` imports ``forward`` — so the one authority has to sit
+#: under both.
+EXTRA_TICK_KEY = "(extra)"
+
+
 def component_fields(kind: str) -> tuple[str, ...]:
     """The member's refinable field names, in path order (clause 4).
 
@@ -86,6 +106,7 @@ COMPONENT_KINDS: tuple[str, ...] = tuple(COMPONENT_AGGREGATE)
 
 __all__ = [
     "COMPONENT_AGGREGATE",
+    "EXTRA_TICK_KEY",
     "COMPONENT_EXTENT",
     "COMPONENT_KINDS",
     "component_aggregate",

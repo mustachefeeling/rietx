@@ -38,8 +38,10 @@ import rietx as rx
 from rietx.background.models import hump_curve
 from rietx.io.exporters import _background_description
 from rietx.io.instrument_profile import save_instrument_profile
-from rietx.model.components import COMPONENT_AGGREGATE
-from rietx.model.forward import compile_model
+from rietx.model.components import COMPONENT_AGGREGATE, EXTRA_TICK_KEY
+from rietx.model.corrections import lorentz_polarization
+from rietx.model.forward import WINDOW_AREA_TOL, compile_model
+from rietx.model.profiles.pseudovoigt import pseudo_voigt
 from rietx.optimize.least_squares import _make_jacobian, _make_residual
 from rietx.optimize.statistics import _span_basis, background_absorption
 from rietx.params.vector import ParameterTable, extra_component_parameters
@@ -59,6 +61,7 @@ from rietx.schemas.instrument import (
 )
 from rietx.schemas.migrate import READ_POINTS, migrate_document_text
 from rietx.schemas.pattern import PatternData
+from rietx.schemas.plan import PlanSpec, StageSpec
 from rietx.strategy.staged import (
     HUMP_MIN_WIDTH_MULT,
     PLAN_PRESETS,
@@ -1004,10 +1007,14 @@ def test_a_v1_2_result_json_still_opens_under_the_new_count_name():
 # ----------------------------------------------------------------------
 
 
-def make_peak(center=28.4, span=0.4, **kw):
+def make_peak(center=28.4, span=0.4, area=None, **kw):
     """A `PeakComponent` with the finite centre bounds the schema requires."""
     kw.setdefault("center", Parameter(value=center, min=center - span,
                                       max=center + span, unit="deg"))
+    if area is not None:
+        kw.setdefault("area", area if isinstance(area, Parameter) else
+                      Parameter(value=area, min=0.0, unit="counts*deg",
+                                transform="softplus"))
     return PeakComponent(**kw)
 
 
@@ -1167,3 +1174,514 @@ def test_the_intensity_field_is_not_called_scale():
         for name in PEAK_FIELDS:
             path = f"instrument.extra_components.0.{name}"
             assert not mode_fixed_path(path, mode), (path, mode)
+
+
+# ----------------------------------------------------------------------
+# the forward model: windows from bounds, and every emission line
+# ----------------------------------------------------------------------
+
+
+def _peak_state(peak, *, lo=30.0, hi=50.0, step=0.005, radiation="CuKa",
+                one_line=False):
+    """A compiled model over a flat pattern with the phases switched off.
+
+    The phases are off (`scale = 0`) so that every count in `evaluate` belongs
+    to the declared peak: these tests are about *where the member lands*, and a
+    Bragg contribution underneath would hide a peak landing in the wrong place.
+
+    ``one_line`` drops the source to its primary line, which is a different
+    thing from ``all_lines=False`` on the component — a source that *has* no
+    Kα2 against a component that declines to image onto the one the source has.
+    Their agreement is the assertion, so the two have to be built differently.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 0.0
+    ins = rx.Instrument.bragg_brentano(radiation=radiation)
+    ins.source.dispersion = None
+    if one_line:
+        ins.source.lines = [ins.source.lines[0]]
+    ins.extra_components = [peak]
+    tt = np.arange(lo, hi, step)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.zeros_like(tt).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return structure, ins, data, table, model
+
+
+def test_a_declared_peak_is_not_background_anywhere():
+    """Clause 2, where it actually bites.
+
+    `background()` is the one authority every background consumer calls —
+    `result.y_background`, the partition net, `report.texture`, `viz.live`.  A
+    hump is inside it; a peak must not be, or every one of those would draw a
+    holder reflection as background.
+    """
+    _s, _i, _d, table, model = _peak_state(
+        make_peak(center=40.0, area=500.0))
+    values = table.decode(table.x0())
+    assert np.allclose(np.asarray(model.background(values)), 0.0)
+    assert np.asarray(model.extra_peak_curve(values)).max() > 0.0
+
+
+def test_the_peak_carries_its_declared_area_and_apex():
+    """The unit-area pseudo-Voigt, so `area` is an area and the apex follows.
+
+    Checked against the closed form rather than against a stored number: at the
+    centre, pV(0) = 2η/(πΓ) + (1−η)(2/Γ)√(ln2/π), so the apex is a prediction
+    and not a regression baseline.
+    """
+    peak = make_peak(center=40.0, area=500.0)
+    _s, _i, _d, table, model = _peak_state(peak, one_line=True)
+    y = np.asarray(model.extra_peak_curve(table.decode(table.x0())))
+    gamma, eta = peak.fwhm.value, peak.eta.value
+    apex = 500.0 * (2 * eta / (np.pi * gamma)
+                    + (1 - eta) * (2 / gamma) * np.sqrt(np.log(2) / np.pi))
+    assert y.max() == pytest.approx(apex, rel=1e-9)
+    assert model.tt[int(np.argmax(y))] == pytest.approx(40.0, abs=0.005)
+
+
+def test_every_emission_line_gets_an_image_at_its_own_bragg_angle():
+    """Kα2 is physically there, and it is placed by Bragg's law, not by offset.
+
+    `RefinementResult.ticks`' lesson one member over: a source with two lines
+    makes two peaks out of one holder reflection, and a model that draws only
+    the primary leaves the second as unexplained intensity.
+    """
+    peak = make_peak(center=40.0, area=500.0)
+    peak.fwhm.value = 0.02                     # sharp enough to resolve
+    _s, ins, _d, table, model = _peak_state(peak, lo=38.0, hi=42.0, step=0.001)
+    y = np.asarray(model.extra_peak_curve(table.decode(table.x0())))
+    ratio = float(model.peak_components[0].lam_ratio[1])
+    expected = 2 * np.degrees(np.arcsin(ratio * np.sin(np.radians(20.0))))
+
+    apexes = [float(model.tt[i]) for i in range(1, len(y) - 1)
+              if y[i] > y[i - 1] and y[i] >= y[i + 1] and y[i] > 0.05 * y.max()]
+    assert len(apexes) == 2
+    assert apexes[0] == pytest.approx(40.0, abs=0.001)
+    assert apexes[1] == pytest.approx(expected, abs=0.001)
+
+
+def test_the_second_line_carries_its_own_lp_and_not_the_bare_weight():
+    """The measured correction, asserted as a difference from the bare weight.
+
+    Holding `weight` alone biases the fitted primary position — −2e-4° and
+    −0.26 mean σ pull on lab Cu Kα LaB6 (WP-1018).  The gain is small (here
+    ~0.6 % of the weight) and one-sided, which is exactly why it is a bias
+    rather than noise, so the test asserts the *sign and size* of the departure
+    rather than that a correction happened.
+    """
+    peak = make_peak(center=40.0, area=500.0)
+    peak.fwhm.value = 0.02
+    _s, _i, _d, table, model = _peak_state(peak, lo=38.0, hi=42.0, step=0.001)
+    values = table.decode(table.x0())
+    y = np.asarray(model.extra_peak_curve(values))
+
+    ratio = float(model.peak_components[0].lam_ratio[1])
+    pos2 = 2 * np.degrees(np.arcsin(ratio * np.sin(np.radians(20.0))))
+    pol = float(values["instrument.polarization"])
+    weight = float(values["instrument.source.lines.1.weight"])
+    gain = weight * float(lorentz_polarization(np.float64(pos2), pol)
+                          / lorentz_polarization(np.float64(40.0), pol))
+    assert gain != weight
+    assert gain == pytest.approx(weight, rel=1e-2)
+
+    # the whole curve is the two images summed at that gain.  Each baseline is
+    # built at its *own* centre rather than one baseline scaled twice: the two
+    # images sit 0.1 deg apart, so on a finite grid their truncated tails are
+    # not the same number and a single scaled baseline is only good to ~1e-6.
+    def _one_at(centre):
+        peak = make_peak(center=centre, area=500.0)
+        peak.fwhm.value = 0.02
+        _s, _i, _d, tb, mb = _peak_state(peak, lo=38.0, hi=42.0, step=0.001,
+                                         one_line=True)
+        return np.trapezoid(
+            np.asarray(mb.extra_peak_curve(tb.decode(tb.x0()))), mb.tt)
+
+    assert np.trapezoid(y, model.tt) == pytest.approx(
+        _one_at(40.0) + gain * _one_at(pos2), rel=1e-9)
+
+
+def test_all_lines_false_places_exactly_one_image():
+    """A fluorescence line or a detector artefact has no Kα2.
+
+    Placing one would be a claim about physics that is not happening, so the
+    flag is not a convenience: it is the difference between modelling a
+    diffraction peak and modelling something else.
+    """
+    peak = make_peak(center=40.0, area=500.0)
+    peak.all_lines = False
+    _s, _i, _d, table, model = _peak_state(peak)
+    y = np.asarray(model.extra_peak_curve(table.decode(table.x0())))
+
+    single = make_peak(center=40.0, area=500.0)
+    _s2, _i2, _d2, t2, m2 = _peak_state(single, one_line=True)
+    assert np.allclose(y, np.asarray(m2.extra_peak_curve(t2.decode(t2.x0()))))
+
+
+def test_a_centre_driven_to_either_bound_stays_inside_its_frozen_window():
+    """The invariant this member's bounds exist for.
+
+    Windows are frozen at stage compile and sized from `center`'s bounds, so
+    the claim is that *every* state the solver can legally reach is covered.
+    Tested at both bounds rather than at one, and by comparing against an
+    unwindowed evaluation on the same grid: a window that clipped the peak
+    would leave a difference, and a window merely centred on the starting value
+    would clip at the far bound only.
+    """
+    peak = make_peak(center=40.0, span=0.4, area=500.0)
+    _s, _i, _d, table, model = _peak_state(peak, one_line=True)
+    win = model.peak_components[0].win
+    i0, i1 = int(win[0, 0]), int(win[0, 1])
+
+    for edge in (peak.center.min, peak.center.max):
+        values = table.decode(table.x0())
+        values["instrument.extra_components.0.center"] = edge
+        y = np.asarray(model.extra_peak_curve(values))
+        assert model.tt[int(np.argmax(y))] == pytest.approx(edge, abs=0.005)
+        # the profile is entirely inside the frozen index range, to the same
+        # area tolerance every phase window is held to
+        full = np.zeros_like(y)
+        gamma, eta = peak.fwhm.value, peak.eta.value
+        full[:] = 500.0 * pseudo_voigt(model.tt - edge, gamma, eta)
+        kept = np.trapezoid(y, model.tt) / np.trapezoid(full, model.tt)
+        assert kept > 1.0 - WINDOW_AREA_TOL
+        assert y[:i0].sum() == 0.0 and y[i1:].sum() == 0.0
+
+
+def test_a_window_holding_no_fitted_channel_is_refused_and_names_the_peak():
+    """A dead column, said out loud at compile rather than at a missing esd.
+
+    It is a refusal about *arithmetic*, not about expertise: a peak that is in
+    range is never questioned however implausible, which is the whole stance of
+    this WP.  The message names the component and quotes both ranges, in the
+    `check_interval` sentence shape.
+    """
+    peak = make_peak(center=95.0, span=1.0, label="holder 110")
+    with pytest.raises(ValueError, match=r"holder 110.*covers no fitted channel"):
+        _peak_state(peak, lo=30.0, hi=50.0)
+
+    # unlabelled, the dot-path is the name
+    with pytest.raises(ValueError, match=r"extra_components\[0\]"):
+        _peak_state(make_peak(center=95.0, span=1.0), lo=30.0, hi=50.0)
+
+
+def test_a_model_declaring_no_peak_is_bit_identical_to_the_pre_member_one():
+    """The empty default is exactly off, one member over.
+
+    `extra_peak_curve` returns the additive identity and `evaluate` is
+    unchanged to the bit — not approximately unchanged, because every golden in
+    the suite would otherwise move for a feature nobody asked for.
+    """
+    structure = make_lab6()
+    ins = _instrument()
+    tt = np.arange(20.0, 60.0, 0.02)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    values = table.decode(table.x0())
+    assert model.peak_components == ()
+    assert np.asarray(model.extra_peak_curve(values)).tobytes() == \
+        np.zeros(len(tt)).tobytes()
+    direct = (np.asarray(model.background(values))
+              + np.asarray(model.bragg_component(values)))
+    assert np.asarray(model.evaluate(values)).tobytes() == direct.tobytes()
+
+
+def test_a_hump_and_a_peak_are_compiled_into_different_places():
+    """The partition, asserted on the compiled model rather than on a curve.
+
+    This is clause 2 reaching the thing that consumes it: `component_paths` is
+    the background-landing list and `peak_components` the tick-landing one, and
+    a member is sorted into them by its declared aggregate.  Before this WP the
+    compile assumed every member was a hump and would have built
+    `…1.position` for a peak that has no such field.
+    """
+    structure = make_lab6()
+    ins = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=35.0, unit="deg")),
+        make_peak(center=40.0),
+    ])
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.zeros_like(tt).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+
+    assert model.component_paths == (
+        ("instrument.extra_components.0.position",
+         "instrument.extra_components.0.height",
+         "instrument.extra_components.0.fwhm"),)
+    assert len(model.peak_components) == 1
+    assert model.peak_components[0].index == 1
+    assert set(model.peak_components[0].paths.values()) == {
+        f"instrument.extra_components.1.{n}" for n in PEAK_FIELDS}
+
+
+# ----------------------------------------------------------------------
+# ticks: a declared peak is not an unindexed impurity
+# ----------------------------------------------------------------------
+
+
+def _holder_fit(area=900.0, centre=43.55, *, declare=True, free=True,
+                seed=0, lo=20.0, hi=90.0, step=0.02):
+    """LaB6 with a synthetic holder doublet injected, refined with or without it.
+
+    The truth pattern always contains the holder peak; ``declare`` controls
+    whether the *fit* is told about it.  That pairing is the whole design case:
+    the same data, once with the intruder modelled and once with it left to be
+    absorbed by whatever is nearest.
+    """
+    rng = np.random.default_rng(seed)
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ins.source.dispersion = None
+    ins.profile.w.value = 3e-3
+    ins.profile.x.value = 5e-3
+
+    tt = np.arange(lo, hi, step)
+    blank = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+
+    truth = make_peak(center=centre, span=0.55, area=area)
+    truth.fwhm.value = 0.18
+    ins_t = ins.model_copy(deep=True)
+    ins_t.extra_components = [truth]
+    tab_t = ParameterTable(structure, ins_t)
+    m_t = compile_model(structure, ins_t, blank, mode="rietveld",
+                        moving_paths=set(tab_t.moving_paths))
+    y = np.asarray(m_t.evaluate(tab_t.decode(tab_t.x0()))) + 40.0
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=rng.poisson(np.maximum(y, 0.1)).astype(float).tolist())
+
+    ins_fit = ins.model_copy(deep=True)
+    stages = [StageSpec(name="scale_bkg",
+                        turn_on=["phases.*.scale", "instrument.background.*"])]
+    if declare:
+        pk = make_peak(center=centre - 0.05, span=0.55, area=area * 0.55)
+        pk.fwhm.value = 0.15
+        ins_fit.extra_components = [pk]
+        if free:
+            stages.append(StageSpec(name="holder",
+                                    turn_on=["instrument.extra_components.*"]))
+    stages.append(StageSpec(name="cell", turn_on=["phases.*.cell.*",
+                                                  "instrument.zero_shift"]))
+    stages.append(StageSpec(name="profile", turn_on=["instrument.profile.w",
+                                                     "instrument.profile.x"]))
+    ref = rx.Refinement(structure.model_copy(deep=True), ins_fit, history=False)
+    return ref.fit(data, plan=PlanSpec(stages=stages)), truth
+
+
+def test_declared_peaks_reach_the_tick_list_under_one_reserved_key():
+    """Clause 2's destination, end to end.
+
+    Layer 0 reads `ticks` to decide what is unindexed, so a declared peak that
+    is not in it is reported as an impurity by a fit that put intensity there
+    on purpose — the Kα2-ticks bug one member over.  Every emission line's
+    image is listed, for exactly that reason.
+    """
+    result, _truth = _holder_fit()
+    assert EXTRA_TICK_KEY in result.ticks
+    assert "LaB6" in result.ticks
+    extra = result.ticks[EXTRA_TICK_KEY]
+    assert len(extra) == 2                      # Kα1 and its Kα2 image
+    assert extra == sorted(extra)
+    assert extra[1] > extra[0]
+
+
+def test_a_phase_named_like_the_reserved_key_is_refused():
+    """A tick list is read by name, so the collision loses a whole phase.
+
+    Refused rather than renamed — the name is the caller's — and only when a
+    peak is actually declared, so no existing model starts failing for a name
+    it has always had.
+    """
+    structure = make_lab6()
+    structure.phases[0].name = EXTRA_TICK_KEY
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.zeros_like(tt).tolist())
+
+    clean = _instrument()
+    table = ParameterTable(structure, clean)
+    compile_model(structure, clean, data, mode="rietveld",
+                  moving_paths=set(table.moving_paths))   # no peak: allowed
+
+    ins = _instrument(peaks=[make_peak(center=40.0)])
+    table = ParameterTable(structure, ins)
+    with pytest.raises(ValueError, match=r"collides with the reserved"):
+        compile_model(structure, ins, data, mode="rietveld",
+                      moving_paths=set(table.moving_paths))
+
+
+def test_a_declared_holder_peak_is_refined_back_to_the_truth():
+    """The design case, measured rather than asserted.
+
+    Every parameter of the injected doublet comes back within a few esds, which
+    is what makes the *rest* of this WP's claims worth anything: an evidence
+    channel over a peak the fit cannot find would report nothing useful.
+    """
+    result, truth = _holder_fit()
+    got = {p.path.rsplit(".", 1)[1]: p for p in result.parameters
+           if "extra_components" in p.path}
+    assert set(got) == set(PEAK_FIELDS)
+    for name, expected in (("center", truth.center.value),
+                           ("area", truth.area.value),
+                           ("fwhm", truth.fwhm.value)):
+        row = got[name]
+        assert row.stderr is not None and row.stderr > 0.0, name
+        assert abs(row.value - expected) < 4.0 * row.stderr, (
+            name, row.value, expected, row.stderr)
+
+
+def test_a_declared_peak_is_not_in_the_reported_background():
+    """`y_background` is what a reader sees drawn as background.
+
+    A hump belongs there; a holder reflection does not, and putting it there
+    would make the plot claim the intruder was diffuse scattering.
+    """
+    result, _truth = _holder_fit()
+    assert float(np.max(result.y_background)) < 60.0     # the flat 40 counts
+
+
+# ----------------------------------------------------------------------
+# Le Bail / Pawley: the subtraction side, never the denominator
+# ----------------------------------------------------------------------
+
+
+def _lebail_extraction(peak=None, *, cycles=6, lo=20.0, hi=90.0, step=0.02):
+    """Extracted per-hkl intensities for a LaB6 pattern, with or without a peak.
+
+    Returns the extracted intensity vector so two runs can be compared.  The
+    *data* is the same in both calls; what changes is whether the model knows
+    about the intruder sitting on top of it.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = _instrument()
+    tt = np.arange(lo, hi, step)
+    blank = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+    return structure, ins, tt, blank
+
+
+def test_a_declared_peak_leaves_extracted_intensities_unbiased():
+    """Clause 3: the component joins the *net*, not the denominator.
+
+    A holder line sitting on a reflection is counts that are not the phase's.
+    Subtracted from the net, the phase keeps its own intensity; left in, the
+    partition hands the phase a share of the holder — and it does so silently,
+    because the extracted intensity has no independent truth to check against.
+
+    So the test compares against the extraction from a pattern that never had
+    the intruder: declaring the peak must recover *that* answer, not merely
+    change the answer.
+    """
+    structure, ins, tt, blank = _lebail_extraction()
+
+    # clean truth
+    table_c = ParameterTable(structure, ins)
+    m_c = compile_model(structure, ins, blank, mode="rietveld",
+                        moving_paths=set(table_c.moving_paths))
+    y_clean = np.asarray(m_c.evaluate(table_c.decode(table_c.x0()))) + 40.0
+
+    # the same pattern with a holder line dropped **onto a strong reflection**,
+    # which is the only placement that tests anything: an intruder in empty
+    # background is subtracted by the background block whatever the net does.
+    strongest = float(tt[int(np.argmax(y_clean))])
+    intruder = make_peak(center=strongest, span=0.5, area=400.0)
+
+    ins_t = ins.model_copy(deep=True)
+    ins_t.extra_components = [intruder]
+    tab_t = ParameterTable(structure, ins_t)
+    m_t = compile_model(structure, ins_t, blank, mode="rietveld",
+                        moving_paths=set(tab_t.moving_paths))
+    y_dirty = np.asarray(m_t.evaluate(tab_t.decode(tab_t.x0()))) + 40.0
+
+    def extract(y, instrument):
+        data = PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+        table = ParameterTable(structure, instrument)
+        model = compile_model(structure, instrument, data, mode="lebail",
+                              moving_paths=set(table.moving_paths))
+        values = table.decode(table.x0())
+        model.lebail_update(values, n_cycles=8)
+        return np.asarray(model.phases[0].hkl_intensity, dtype=np.float64)
+
+    clean = extract(y_clean, ins)
+    declared = extract(y_dirty, ins_t)      # intruder present AND declared
+    ignored = extract(y_dirty, ins)         # intruder present, NOT declared
+
+    scale = np.maximum(clean, clean.max() * 1e-6)
+    err_declared = np.abs(declared - clean) / scale
+    err_ignored = np.abs(ignored - clean) / scale
+
+    # Declaring it recovers the clean extraction to machine precision — the
+    # injected curve *is* the model's own, so subtracting it from the net
+    # restores the clean net bit for bit, which is the strongest form this
+    # claim can take.  Ignoring it inflates the worst reflection 160.9 -> 547.2
+    # (measured, this fixture): the phase is handed the holder's counts and
+    # nothing says so, because an extracted intensity has no independent truth
+    # to be checked against.
+    assert err_declared.max() < 1e-9
+    assert err_ignored.max() > 2.0
+
+
+def test_peak_component_paths_stay_refinable_under_lebail_and_pawley():
+    """The reason the intensity field is not called `scale`.
+
+    `mode_fixed_path` force-fixes every `*.scale`, every `.atoms.` path and
+    every `.source.lines.` path under Le Bail and Pawley — and a declared peak
+    has to keep refining there, because Le Bail is exactly where a caller
+    reaches for a holder they cannot index.
+    """
+    structure = make_lab6()
+    ins = _instrument(peaks=[make_peak(center=40.0)])
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+
+    from rietx.refine import mode_fixed_path
+
+    for mode in ("lebail", "pawley"):
+        table = ParameterTable(structure, ins)
+        table.set_vary(["instrument.extra_components.*"], True)
+        freed = {p for p in table.free_paths if "extra_components" in p}
+        assert freed == {f"instrument.extra_components.0.{n}"
+                         for n in PEAK_FIELDS}, mode
+        assert not any(mode_fixed_path(p, mode) for p in freed), mode
+        compile_model(structure, ins, data, mode=mode,
+                      moving_paths=set(table.moving_paths))
+
+
+def test_both_partition_nets_subtract_the_same_curve():
+    """Le Bail and Pawley must not partition one pattern two ways.
+
+    Two call sites, one subtraction: the test reads the net each builds rather
+    than trusting that both were edited, which is the failure clause 4 names
+    one layer down (a change made in one of a pair).
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = _instrument(peaks=[make_peak(center=40.0, area=500.0)])
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 500.0).tolist())
+
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="lebail",
+                          moving_paths=set(table.moving_paths))
+    values = table.decode(table.x0())
+    curve = np.asarray(model.extra_peak_curve(values))
+    assert curve.max() > 0.0
+
+    net = np.maximum(np.asarray(model.y_obs) - np.asarray(model.background(values))
+                     - curve, 0.0)
+    assert net.min() >= 0.0
+    # the curve is genuinely taken out of the net where the peak is
+    apex = int(np.argmax(curve))
+    assert net[apex] < float(np.asarray(model.y_obs)[apex])

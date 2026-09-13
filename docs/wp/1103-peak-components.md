@@ -184,14 +184,17 @@ use is the design case.
       `SCHEMA_VERSION` 0.18 → 0.19; `help.py` entries for every new field
       (`tests/test_help.py` crosses the vocabulary both ways, so the member
       lands red without them); release-notes line.
-- [ ] Forward model: windows-from-bounds + all-lines evaluation
+- [x] Forward model: windows-from-bounds + all-lines evaluation
       (weight × Lp) + empty-window refusal; frozen-window test — a center
       freed to its bound stays inside its window.
-- [ ] Le Bail/Pawley: unbiased-extraction test (a declared synthetic holder
+- [x] Le Bail/Pawley: unbiased-extraction test (a declared synthetic holder
       line leaves extracted phase intensities unbiased) + lebail-refinable
-      test + multi-histogram `SharingMap` test.
+      test. *The multi-histogram `SharingMap` row is dropped: sharing is a
+      question about a quantity two histograms have in common, and a declared
+      peak is a fact about one specimen's mount at one geometry — there is no
+      quantity to share. Said here rather than left as an unticked box.*
 - [ ] Jacobian: FD assertion + cross-backend CONFIGS row.
-- [ ] Ticks `"(extra)"` + the phase-name collision refusal + the Layer 0
+- [x] Ticks `"(extra)"` + the phase-name collision refusal + the Layer 0
       unmatched-obs test.
 - [ ] Evidence: `EXTRA_PEAK_ON_REFLECTION` + `extra_peak_absorption`
       (evidence-only; threshold only if the acceptance measurement supplies
