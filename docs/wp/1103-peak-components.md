@@ -396,6 +396,20 @@ Three of those four are the same error — *a count or a claim that was correct
 while the union had one member* — which is the cost of adding a second member
 to a seam, and the thing a third member should be checked against first.
 
+**One thing the review noted and neither of us fixed**, recorded so a successor
+does not have to rediscover it: an **inert** declared peak (area 0, never
+freed) still writes its centre into `result.ticks["(extra)"]`, so Layer 0 reads
+that position as explained while the model draws nothing there. That could
+suppress a true `unmatched` finding. I tried to reproduce the suppression — a
+strong synthetic impurity at a position with a declared-but-inert component,
+against the same fit without one — and **could not**: neither arm reported an
+unmatched peak at all, so the fixture never exercised the path. So the
+behaviour is unchanged, on the rule that a mechanism the measurement did not
+show is not one to write. Whoever picks it up needs a fixture where Layer 0's
+`unmatched` actually fires first; the fix, if it is one, is to tick only
+components with non-zero area, which is the same principle already applied to
+`EXTRA_PEAK_NO_INTENSITY`.
+
 Four tests, one per defect. Fast suite after the fixes: **4575 passed, 132
 skipped**; the full selection was **not** re-run after them, so the 4739/141
 figure above is the tree before the review commit — CI's fast matrix is the
