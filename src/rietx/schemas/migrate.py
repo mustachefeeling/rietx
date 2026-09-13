@@ -30,14 +30,22 @@ READ_POINTS: tuple[str, ...] = (
     "rietx.gui.textdoc.parse",
 )
 
-#: ``(old, new)`` textual repairs, longest-first so no rule can eat another's
-#: prefix.  Both entries are anchored on ``instrument.`` or on a JSON key
-#: boundary: the bare word ``background_peaks`` never appears in a free-text
-#: label or an annotation note in a form that either pattern matches, so a
-#: false positive would need a caller to have written the dot-path itself into
-#: prose, where rewriting it is the right answer anyway.
+#: ``(old, new)`` textual repairs.  Each is anchored on a *syntactic* boundary —
+#: a trailing dot, meaning a dot-path, or a JSON key's colon — so the bare word
+#: in a free-text label or an annotation note is left alone.
+#:
+#: **The first rule carries no** ``instrument.`` **prefix, and that is the
+#: point.**  An ``.rxt`` renders each block's rows with the block prefix
+#: stripped (``textdoc._render_block``), so a v1.2 document spells a component
+#: row ``background_peaks.0.fwhm`` and not
+#: ``instrument.background_peaks.0.fwhm``.  A rule anchored on the prefix
+#: migrates the project JSON and the history tree and silently misses the text
+#: document, which is the same class of gap this module exists to close.  The
+#: plan block is the other way round — it renders globs in full
+#: (``free … instrument.background.*``) — so the unprefixed rule covers both and
+#: no second rule is needed for the prefixed form.
 _PATH_REPAIRS: tuple[tuple[str, str], ...] = (
-    (f"instrument.{_LEGACY_COMPONENT_FIELD}.", "instrument.extra_components."),
+    (f"{_LEGACY_COMPONENT_FIELD}.", "extra_components."),
     (f'"{_LEGACY_COMPONENT_FIELD}":', '"extra_components":'),
 )
 
@@ -63,8 +71,6 @@ def migrate_paths(paths: list[str]) -> list[str]:
     they came from — a plan handed in by code that read a v1.2 project itself,
     for instance.  Same rules, so the two cannot disagree.
     """
-    return [p.replace(f"instrument.{_LEGACY_COMPONENT_FIELD}.",
-                      "instrument.extra_components.")
-            .replace(f"instrument.{_LEGACY_COMPONENT_FIELD}",
-                     "instrument.extra_components")
+    return [migrate_document_text(p)[0] if f"{_LEGACY_COMPONENT_FIELD}." in p
+            else p.replace(f".{_LEGACY_COMPONENT_FIELD}", ".extra_components")
             for p in paths]

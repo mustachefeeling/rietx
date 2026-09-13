@@ -831,6 +831,31 @@ def test_a_stored_plan_glob_is_migrated_and_not_merely_the_value():
     assert parsed["free_paths"] == ["instrument.extra_components.0.height"]
 
 
+def test_an_rxt_row_is_migrated_though_it_carries_no_instrument_prefix():
+    """The gap a prefix-anchored rule leaves, caught in review.
+
+    ``.rxt`` renders each block with its own prefix stripped, so a v1.2
+    document spells the row ``background_peaks.0.fwhm``. A repair anchored on
+    ``instrument.`` migrates the project JSON and the history tree and misses
+    the text document — the same silent class the whole module exists for.
+    """
+    doc = ("rxt 1\n"
+           "instrument\n"
+           "  zero_shift        @ 0.0021\n"
+           "  background_peaks.0.fwhm  @ 5.4\n")
+    out, changed = migrate_document_text(doc)
+    assert changed
+    assert "extra_components.0.fwhm" in out
+    assert "background_peaks" not in out
+
+
+def test_the_plan_block_renders_globs_in_full_and_is_covered_too():
+    """The other spelling in the same file: a stage line carries the prefix."""
+    line = "stage humps       free instrument.background_peaks.*\n"
+    out, _ = migrate_document_text(line)
+    assert out.strip().endswith("instrument.extra_components.*")
+
+
 def test_the_migration_is_a_no_op_on_a_document_this_release_wrote():
     """It runs unconditionally on every read, so it must cost nothing."""
     doc = _instrument(peaks=(_peak(),)).model_dump_json()
