@@ -100,7 +100,7 @@ steps below run unchanged.
    directory that corrects or extends the repo record gets ported into the
    repo now — a memory note is not a channel to the next session's repo
    state.
-9. **Review the diff before it becomes a PR.** Run `/code-review medium
+9. **Review the diff before it becomes a PR.** Run `/code-review high
    --fix` — it reads this session's work (a clean tree means the branch's own
    diff against `origin/main`) and applies what it accepts to the working
    tree. It belongs *here*, ahead of Verify, because a fix is a code change:
