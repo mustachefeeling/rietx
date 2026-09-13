@@ -437,7 +437,7 @@ Also owed to v1.4: deleting the `AGENT_PROTOCOL.md` pointer
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1101](wp/1101-standalone-peak-fitting.md) | fit_peaks: standalone peak fitting at named positions | ✅ 2026-09-13 | — |
-| [1102](wp/1102-component-seam-humps.md) | The additive component seam + broad humps | ⬜ | — |
+| [1102](wp/1102-component-seam-humps.md) | The additive component seam + broad humps | 🔄 2026-09-13 | — |
 | [1103](wp/1103-peak-components.md) | Sharp extra peaks: the second component member | ⬜ | 1102 (the seam) |
 
 ### Unscheduled

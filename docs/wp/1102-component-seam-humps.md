@@ -1,6 +1,9 @@
 # WP-1102 — The additive component seam, and broad humps as its first member
 
-Milestone: v1.4 · Status: ⬜
+Milestone: v1.4 · Status: 🔄 2026-09-13 — audited at the open: the humps
+half shipped in v1.2 as `Instrument.background_peaks` (PR #115, merged
+2026-08-27), so what is left of this WP is the union seam itself, a
+`capabilities()` arm, and one constant resting on a single measured case
 Depends on: — (independent of 1101; [1103](1103-peak-components.md) lands its
 second member in this seam)
 
@@ -14,6 +17,34 @@ impurities) as its first member. A hump refines center/fwhm/area/eta with
 esds and reports an **area, never a weight fraction**.
 
 ## Context
+
+**Audited at this WP's open (2026-09-13): eight of the ten tasks below already
+shipped, in v1.2, under a different name.** PR #115 — the one the 2026-08-26
+handover entry describes as open — merged 2026-08-27 as
+`Instrument.background_peaks: list[BackgroundPeak]`, a concrete list rather
+than the `ExtraComponent` union this WP specifies. It is not a sketch: 33 tests
+in `tests/test_background_peaks.py` (778 lines), a cross-backend `CONFIGS` row,
+a `viz/compare.py` variant with its `test_compare_ui.py` row, `help.py` entries,
+a manual equation with its `*Source:*` line, three skill `references/` rows, and
+a released compatibility note. What landed, task by task, is marked in the list
+below. What did **not** land:
+
+- the `ExtraComponent` **union** itself — the seam is the WP's headline and the
+  only part [1103](1103-peak-components.md) is gated on;
+- a `capabilities()` arm for it (`features` has no `background_peaks` key, so a
+  client cannot ask whether this build has the seam);
+- `BACKGROUND_PEAK_MIN_WIDTH_MULT`, the width guard's multiple, is calibrated
+  against **one** measured case (20.8×, inside a 3-5 band) with no paper behind
+  it — which this WP's own rule forbids, thresholds being quoted or measured,
+  never tuned.
+
+Two of the WP's specified fields were deliberately **declined** in what shipped,
+with grounds stated in the `BackgroundPeak` docstring: `eta` (a broad feature
+sits on a polynomial that already absorbs the Gaussian/pseudo-Voigt difference,
+so η is a third number the data cannot separate) and `area` as a stored
+parameter (shipped as `height`, TOPAS's `xo_Is`, so a published TOPAS fit
+compares term by term; area remains a projection of the three, not a fourth).
+Both readings are better than this WP's, and neither is reopened here.
 
 - **Why a union seam and not two ad-hoc features.** A hump and a sharp extra
   peak ([1103](1103-peak-components.md)) are the same mathematical object —
@@ -112,6 +143,28 @@ esds and reports an **area, never a weight fraction**.
   `.rxt` instrument block render component rows for free (whole-table rule);
   no model editor (the P-spline precedent — it has none either).
 
+- **Three seams WP-1101 left, verified present 2026-09-13** (folded from this
+  WP's `### Inherited`, which is now consumed). `indexing.peaks.window_indices`
+  and `group_at` are the **one** window sizing — detection, the GUI peak editor
+  and `fit_peaks` all go through them, and `group_at` carries the refusals a
+  *given* position needs (off the end of the pattern, in a gap).
+  `indexing.peakfit.reseed_candidate` is the one authority for "does this window
+  hold a component that is not declared?" — the residual proposes a position and
+  ΔBIC decides; it is what a component seam should ask rather than measuring seed
+  distances, which 1101 tried first and which stayed silent on a 26-esd bias.
+  `rx.fit_peaks(data, instrument, positions)` fits named peaks with no model at
+  all, so a declared component's position can be checked against a free fit of
+  the same window without building a refinement.
+- **If this WP adds a `PeakFlag` member** (1101's warning, still standing) it is a
+  four-surface edit — the schema `Literal`, `help.py`, `gui/src/lib/rxt.ts`'s
+  `PEAK_FLAGS` and the committed `tests/data/gui/help_keys.json` — and touching
+  `gui/src` means `npm --prefix gui ci && npm --prefix gui run build`, because the
+  dist digest covers it.
+- **The v1.4 acceptance row for this WP is deliberately unfinished** and is
+  sharpened at this open, before the work ([`../milestones/v1.4.md`](../milestones/v1.4.md)
+  § Acceptance) — a bar written by a session that had not read this WP is a bar
+  set too low.
+
 ## Non-goals
 
 - Arbitrary callables / an expression DSL (fenced above, with grounds).
@@ -126,37 +179,62 @@ esds and reports an **area, never a weight fraction**.
 
 ## Tasks
 
-- [ ] Schema: `ExtraComponent` union + `HumpComponent` + `HUMP_FWHM_MIN` +
-      reachability validator; JSON round-trip tests; release-notes line (the
-      1.0.2 notes' "three background models now frozen" neighbourhood gets
-      its amendment).
-- [ ] Table wiring via `extra_component_parameters` feeding both collect and
-      apply; test that refined hump values survive a stage recompile.
-- [ ] Forward model: evaluator joins `evaluate()`; Le Bail / partition
-      subtraction seams; `bkg_paths` disjointness guard test; test that a
-      declared hump leaves Le Bail extracted phase intensities unbiased.
-- [ ] Jacobian: FD-fallback assertion + new CONFIGS row in
-      `tests/test_cross_backend.py`.
-- [ ] Background-aggregate membership: `y_background` authority +
-      `background_absorption` generalization + tests.
-- [ ] `BACKGROUND_HUMP_SHARP` (constant fixed by the acceptance task's
-      width-ladder measurement, provenance beside it) +
-      `../AGENT_PROTOCOL.md` §7 row + §3 degeneracy line.
-- [ ] Surfaces: capabilities schema-shaped key
-      (`"extra_components" in Instrument.model_fields`) + expected-key set;
-      `io/exporters._background_description` mentions "+ N humps";
-      instrument-profile strip.
-- [ ] Manual: `using/data.md` subsection (declare, free late,
-      area-not-fraction, when a hump vs P-spline flexibility) +
-      `../manual/background.md` equation with `*Source:*`; api-surface
-      documentation of the new public names (freezes them).
-- [ ] Compare: `_with_hump` variant beside `_with_pspline` (`viz/compare.py`;
-      declare a hump + a late freeing stage) + `tests/test_compare_ui.py` row.
-- [ ] Acceptance measurement + tests: synthetic crystalline + known hump —
-      area recovered within its esd band; the absorption table
-      declared-hump vs P-spline-flexibility on the same pattern (the honest
-      evidence, not Rwp); the width ladder that fixes
-      `BACKGROUND_HUMP_SHARP`; obs/calc/diff PNGs to `tests/output/`.
+Marked against the tree as audited 2026-09-13. `✅ v1.2` means the task's
+*content* shipped under `background_peaks`; it does not mean the seam this WP
+specifies exists. **The union decision is the open one and it gates the rest** —
+until it is taken, none of the three remaining items has a settled shape.
+
+- [ ] **The seam decision, and it is first.** `ExtraComponent` union, or
+      `background_peaks` left as the shipped concrete list with
+      [1103](1103-peak-components.md)'s sharp peaks landing beside it? The field
+      is public, released in v1.2, documented in the manual and the skill, and
+      reached by ~30 files, so a rename is a break to record, not a refactor.
+      Whatever is decided is written here with its grounds before any code moves.
+- [x] ✅ v1.2 Schema: `BackgroundPeak` + `BACKGROUND_PEAK_FWHM_MIN` +
+      reachability validator (the `MARCH_R_MIN` pattern); JSON round-trip;
+      release-notes line (`../releases/1.2.0.md`). `eta` and a stored `area`
+      declined with grounds — see the Context note.
+- [x] ✅ v1.2 Table wiring via `params.vector.background_peak_parameters`
+      feeding both collect and apply;
+      `test_a_refined_peak_survives_a_stage_boundary` is the recompile test this
+      WP asked for.
+- [x] ✅ v1.2 Forward model: `CompiledModel.background()` is the one authority,
+      so the Le Bail/Pawley partition net subtracts declared peaks with no
+      second seam; `test_peak_paths_never_join_the_linear_background_block` is
+      the `bkg_paths` disjointness guard.
+- [x] ✅ v1.2 Jacobian: FD fallback asserted
+      (`test_no_analytic_branch_claims_a_peak_path`,
+      `test_the_fd_column_matches_a_hand_written_derivative`) + the
+      `background_peaks` `CONFIGS` row in `tests/test_cross_backend.py`.
+- [x] ✅ v1.2 Background-aggregate membership: `y_background` through the same
+      authority; `background_absorption`'s block selection takes the peak
+      prefix, **including** the zero-norm-column span fix the 2026-08-26 entry
+      names as a precondition (`test_a_zero_column_is_dropped_from_a_projection_span`).
+- [x] ✅ v1.2 The width fence, as `BACKGROUND_PEAK_TOO_NARROW` +
+      `BACKGROUND_PEAK_MIN_WIDTH_MULT` measured against the instrument alone —
+      **but see the open item below on its constant.**
+- [ ] **`capabilities()` has no arm for the seam.** `features` carries no
+      `background_peaks`/component key, so a client cannot ask whether this
+      build has it. Derived predicate, export name as data in `_SURFACE_FLAGS`,
+      per WP-1037.
+- [ ] **`BACKGROUND_PEAK_MIN_WIDTH_MULT` rests on one case** (20.8×, inside a
+      3-5 band, no paper) — the width-ladder measurement this WP specified was
+      never run, and a tuned threshold is what this repo's own rule forbids.
+      Either measure the ladder, cite practice, or say in the constant's
+      docstring that it is a single-case calibration and why that is enough.
+- [x] ✅ v1.2 Surfaces: `io/exporters._background_description` says
+      "+ N explicit Gaussian background peaks";
+      `save_instrument_profile` strips them
+      (`test_save_instrument_profile_strips_the_peaks`).
+- [x] ✅ v1.2 Manual: `using/data.md` subsection and the
+      `../manual/background.md` equation with its `*Source:*`; api-surface
+      documented.
+- [x] ✅ v1.2 Compare: `_with_background_peak` beside `_with_pspline` +
+      its `tests/test_compare_ui.py` row.
+- [x] ✅ v1.2 Acceptance measurement: 11-BM Si640c in Kapton, the four-row
+      background table in the `BackgroundPeak` docstring, and
+      `test_a_known_hump_comes_back_within_its_esds`. The evidence is the
+      esd fall (6×) and the independently-fitted blank, not the Rwp.
 
 ## Acceptance
 
@@ -182,45 +260,15 @@ change touches guard evidence on every state.
   manual concepts). If the hump parameterisation should cite prior practice,
   the citation comes from the maintainer-local paper corpus, not memory.
 
-### Inherited
-
-**From WP-1101 (2026-09-13) — v1.4 is open, and three things it built are
-yours to reuse rather than rebuild.**
-
-The milestone opened on 2026-09-13 (`pyproject.version` → `1.4.0.dev0`,
-[`milestones/v1.4.md`](../milestones/v1.4.md)). **Your acceptance row in that
-record is deliberately unfinished**: it says only what `../ROADMAP.md` already
-commits to, and is marked for sharpening at your open, because a bar written by
-a session that has not read this WP is a bar set too low. Sharpening it is the
-first act of the session that starts here — before the work, not after it.
-
-Three seams 1101 left behind:
-
-* `indexing.peaks.window_indices` and `group_at` are now the **one** window
-  sizing — detection, the GUI peak editor and `fit_peaks` all go through them,
-  and `group_at` carries the refusals a *given* position needs (off the end of
-  the pattern, in a gap).
-* `peakfit.reseed_candidate` is the one authority for "does this window hold a
-  component that is not declared?" — the residual proposes a position and ΔBIC
-  decides. `fit_group` walks it; `fit_peaks` asks it once. It is what a
-  component seam should ask rather than measuring seed distances, which 1101
-  tried first and which stayed silent on a 26-esd bias.
-* `rx.fit_peaks(data, instrument, positions)` fits named peaks with no model at
-  all. It is the *measurement* half of the same question this WP models, so a
-  component's declared position can be checked against a free fit of the same
-  window without building a refinement.
-
-One mechanical cost, if this WP adds a `PeakFlag` member: it is a four-surface
-edit — the schema `Literal`, `help.py`, `gui/src/lib/rxt.ts`'s `PEAK_FLAGS`,
-and the committed `tests/data/gui/help_keys.json` — and touching `gui/src`
-means `npm --prefix gui ci && npm --prefix gui run build`, because the dist
-digest covers it.
-
 ## Handover log
 
 - **2026-08-26** — **a proposed `BackgroundPeak` implements the humps half
-  under a different shape**, from a different starting point. Transcribed from
-  PR #115 (**open, not merged** — three review findings outstanding), whose own
+  under a different shape**, from a different starting point. *(Superseded in
+  part, 2026-09-13: PR #115 **merged** 2026-08-27 and shipped in v1.2. Every
+  "proposed"/"would" below is now a description of the tree; the four
+  differences it names are all in `src/`. See the Context note at this WP's
+  open for what that leaves.)* Transcribed from
+  PR #115 (open at the time of writing — three review findings outstanding), whose own
   handover draft is not taken verbatim: one of its bullets asserts a claim that
   PR withdraws, corrected below. A data-owner request for "a small number of
   explicit broad peaks summed on top of whatever background model is in use" is
