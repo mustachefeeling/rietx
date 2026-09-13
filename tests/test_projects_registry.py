@@ -39,6 +39,7 @@ from rietx.io.projects.registry import (
     identify_project_format,
     read_project_model,
 )
+from rietx.schemas import Diagnostic
 
 # The `.pcr` builders are `test_projects_fullprof`'s, imported rather than
 # rewritten: a second fixture writer for one format is a second description of
@@ -166,6 +167,20 @@ def test_the_refusal_names_what_this_build_does_open(tmp_path):
         assert expected in message
 
 
+def test_the_refusal_says_when_the_file_is_binary(tmp_path):
+    """A vendor binary is the likeliest thing to arrive at the wrong door.
+
+    Every sniff here decodes with ``errors="ignore"``, so a ``.raw`` looks from
+    the refusal exactly like a text file nothing claimed — and all three readers
+    the message goes on to name are wrong advice for it.  ``identify_format``
+    says so one registry over, for the same reason and in the same words.
+    """
+    path = tmp_path / "scan.raw"
+    path.write_bytes(b"RAW1.01\x00\x00\x00\x00" + bytes(64))
+    with pytest.raises(ValueError, match="looks binary"):
+        identify_project_format(path)
+
+
 def test_read_project_model_tags_the_answer_with_its_format(tmp_path):
     """The answer names the format and hands on the format's own model.
 
@@ -247,6 +262,73 @@ def test_a_reader_error_reaches_the_caller_naming_the_file(tmp_path):
     with pytest.raises(ValueError) as exc:
         read_project_model(path)
     assert "macro.inp" in str(exc.value) and "STR(" in str(exc.value)
+
+
+def _stub_format(**overrides) -> ProjectFormat:
+    """A registry member that exists only for this module.
+
+    Two of the front door's promises are about members no real format is: one
+    that reports before it refuses, and one recognised in order to be declined.
+    Both are contracts of `read_project_model`/`identify_project_format` rather
+    than of any parser, so they are exercised at that level instead of being
+    asserted from the table and believed.
+    """
+    fields = dict(
+        name="stub", title="Stub Format", extensions=(".stub",),
+        sniff="claims any file, for this module only", carries=("nothing",),
+        reports_at="read", matches=lambda _p: True,
+        read=lambda _p, **_kw: None, to_structure=lambda _m, **_kw: None)
+    return ProjectFormat(**(fields | overrides))
+
+
+def test_a_read_that_repairs_then_refuses_keeps_what_it_repaired(tmp_path, monkeypatch):
+    """Parity with `read_pattern`, which hands its list straight down.
+
+    The front door reads into a list of its own so the answer can carry the
+    reports whether or not one was passed — but copying only on success would
+    lose every repair a read made before it refused, which is the most useful
+    thing a caller holding an exception has: how far it got, and what it found.
+
+    Tested through a stub because **no reader in this build can reach the case
+    today**: `read_topas_inp` appends every one of its diagnostics after its
+    last raise, and `read_fullprof_pcr` reports at build. So the `finally` is a
+    property of the door, asserted where it lives — without it, a reader that
+    later emits before refusing would lose the reports in silence.
+    """
+    def repairs_then_refuses(_path, *, diagnostics=None, **_kw):
+        diagnostics.append(Diagnostic(level="info", code="STUB_REPAIRED",
+                                      message="a repair made before refusing"))
+        raise ValueError("refused after repairing")
+
+    monkeypatch.setattr(registry, "PROJECT_FORMATS",
+                        (_stub_format(read=repairs_then_refuses),))
+    notes: list = []
+    with pytest.raises(ValueError, match="refused after repairing"):
+        read_project_model(_write(tmp_path, "x.stub", "anything"),
+                           diagnostics=notes)
+    assert [d.code for d in notes] == ["STUB_REPAIRED"]
+
+
+def test_a_refusing_member_is_left_out_of_the_supported_list(tmp_path, monkeypatch):
+    """`refuses` has no writer among the members, so exercise the filter itself.
+
+    Root CLAUDE.md: a declared name is a claim, and an absent writer fails no
+    test.  `None` is the honest empty state here rather than a defaulted
+    `False`, and the field is deliberate symmetry with `PatternFormat.refuses`
+    — but the `if f.refuses is None` filter it exists for is unreachable while
+    no member sets it, so it is tested against a member that does rather than
+    left to be believed.
+    """
+    declined = _stub_format(matches=lambda _p: False,
+                            refuses="recognised in order to be declined")
+    monkeypatch.setattr(registry, "PROJECT_FORMATS",
+                        (*PROJECT_FORMATS, declined))
+    with pytest.raises(ValueError) as exc:
+        registry.identify_project_format(
+            _write(tmp_path, "nothing.txt", "10.0 3\n10.1 5\n"))
+    # in the registry, and absent from the sentence listing what is supported
+    assert "Stub Format" not in str(exc.value)
+    assert "FullProf .pcr" in str(exc.value)
 
 
 # --------------------------------------------------------------------------

@@ -388,11 +388,12 @@ be inferred.
 cross-backend rows self-skip), python 3.12.12, darwin/arm64, `pgrep` clean both
 times:
 
-- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4629 passed, 132
-  skipped**, ~2:08 (two runs, 127.6 s and 128.3 s). The delta is **+21 passed,
-  +0 skipped** — `tests/test_projects_registry.py` collects 21 and every one
-  passes; no other file's collection moved, `test_capabilities.py`'s edit being
-  one assertion inside an existing test.
+- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4632 passed, 132
+  skipped**, ~2:05-2:08 (three runs, 124.7 s / 127.6 s / 128.3 s; the first is
+  the final tree). The delta is **+24 passed, +0 skipped** —
+  `tests/test_projects_registry.py` collects 24 and every one passes; no other
+  file's collection moved, `test_capabilities.py`'s edit being one assertion
+  inside an existing test.
 - `tests/test_acceptance_fap.py`, the WP's named acceptance: 2 passed.
 - `ruff check src tests examples` clean; `sphinx -W` clean.
 - **The full suite did not run**, and deliberately: `tests/CLAUDE.md`'s rung 3
@@ -420,13 +421,17 @@ times:
   **extended** from it rather than handed to the reader, so it stays the caller's
   own object. The general shape to watch for: a per-format flag that routes a
   caller's channel is a place where being wrong is silent.
-- **Two defaults are `None`/`()` on purpose and each has a writer.**
-  `ProjectFormat.refuses` is `None` for both current members because neither is a
-  recognise-in-order-to-decline format, mirroring `PatternFormat.refuses`.
-  `ProjectModel.diagnostics` defaults to `()` and the `reports_at == "build"` arm
-  of `read_project_model` is its writer — for FullProf the read genuinely reports
-  nothing, since all four of its codes fire at build. Neither is WP-1076's
-  defaulted `False`.
+- **Two declared names have no writer among the members, and the review was
+  right to say so out loud.** `ProjectFormat.refuses` is `None` on both, because
+  neither is a recognise-in-order-to-decline format — so the `if f.refuses is
+  None` filter it exists for was unreachable. `ProjectModel.diagnostics` is
+  always `()` for `fullprof_pcr`, whose read has no channel at all, so a
+  format-agnostic caller writing `if model.diagnostics:` is silent on every
+  `.pcr` however much it repaired. Neither is WP-1076's defaulted `False` — both
+  are the honest empty state — but both were claims resting on a docstring. Now:
+  the docstring says which formats an empty tuple means anything about, and the
+  filter is exercised against a stub member that sets `refuses`, rather than
+  asserted from the table and believed.
 - **`.inp` and `.pcr` fixtures cannot be vendored, so the `.pcr` ones are
   `test_projects_fullprof`'s builders imported.** A second fixture writer for one
   format is a second description of its layout, and the two would drift on
@@ -437,6 +442,23 @@ times:
   the main checkout — which was six merges behind `origin/main`, and missing the
   09-10 entry recording PR #248. Reconciled by re-reading from the worktree. The
   cheap habit: after `EnterWorktree`, re-read the WP file.
+- **The review pass found six things, four of which it fixed, and the two it
+  left were both worth acting on.** The one that mattered: `_TOPAS_LINE`
+  *restated* the grammar's opener tuple instead of reading it, so an opener
+  added to `topas._BLOCK_OPENERS` would keep parsing through `read_topas_inp`
+  while `read_project_model` answered "not a refinement file this build can
+  read" — drift in one direction and in silence. The alternation is now built
+  from that tuple (verified byte-identical to the literal it replaced), with
+  `STR` the one member taken out and spelled `STR(`. Also fixed: the binary
+  hint on the refusal, matching `identify_format`; the `diagnostics` docstring;
+  and a manual sentence claiming the sniff decides "without reading" a file it
+  reads 64 kB of. Of the two left to me, the partial-diagnostics one turned out
+  to be a docstring claiming a parity it did not keep — `read_pattern` hands its
+  list straight down, so a read that repairs and then refuses keeps what it
+  repaired, and this door copied only on success. Fixed with a `finally`, and
+  **no reader in this build can reach the case today** (every TOPAS diagnostic is
+  appended after its last raise, and FullProf reports at build), so it is tested
+  through a stub member at the door where the promise lives.
 - **Two documentation gates fired on this work and both were right.**
   `test_manual_api.py` put 90 public names in no bucket, which is what made
   `rietx.io.projects` a declared-provisional module (the WP-1078 mechanism —

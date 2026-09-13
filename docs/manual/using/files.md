@@ -277,7 +277,7 @@ those are what such a file usually turns out to be.
 
 Call `rx.read_topas_inp` or `rx.read_fullprof_pcr` directly when you already
 know what you have; `rx.identify_project_format` answers which format claims a
-file without reading it.
+file without parsing it, reading only enough of the head to decide.
 
 ### What comes back
 

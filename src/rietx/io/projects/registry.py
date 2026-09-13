@@ -54,7 +54,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from ..formats.base import HEAD_BYTES, head
+from ..formats.base import HEAD_BYTES, head, looks_binary
 from . import fullprof, topas
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -143,7 +143,13 @@ class ProjectModel:
     #: same reason: the keyword argument is for a caller accumulating across
     #: several files, while this is the durable record of what this one file
     #: needed repaired.  Empty here means the read repaired nothing — a fact,
-    #: not the absence of one, which is the difference that matters
+    #: not the absence of one, which is the difference that matters — but only
+    #: **where the format reports at read**.  Where
+    #: :attr:`ProjectFormat.reports_at` is ``"build"`` the read has no channel
+    #: at all, so this is always empty and says nothing either way; that
+    #: format's repairs are on the list handed to :meth:`to_structure`.  Read
+    #: ``format.reports_at`` before reading an empty tuple as an answer, which
+    #: is WP-1076's trap in the one place this type could still spring it
     diagnostics: tuple[Diagnostic, ...] = ()
 
     def to_structure(self, *, diagnostics: list[Diagnostic] | None = None,
@@ -187,19 +193,32 @@ def _matches_fullprof_pcr(path: Path) -> bool:
     return False
 
 
+#: The top-level directives a **phase-less** ``.inp`` still states, so a Pawley
+#: or indexing-only file is claimed too.  Only these are written out here: the
+#: block openers come from the grammar itself, below.
+_TOPAS_TOP_LEVEL = ("macro", "prm", "iters", "continue_after_convergence")
+
 #: Block openers and top-level directives that are TOPAS's and nobody else's,
-#: anchored at the start of a line.  The openers are the grammar's
-#: (``topas._BLOCK_OPENERS``, the Technical Reference § 5.1 phase tree) rather
-#: than what an archive happens to contain — ``io/CLAUDE.md`` § Project readers'
-#: first rule — with the top-level directives a phase-less ``.inp`` still
-#: states, so a Pawley or indexing-only file is claimed too.  ``xdd`` follows
-#: ``xdd_scr``/``xdd_sum`` for the alternation reason ``topas._BLOCK`` gives.
-#: ``STR(`` is here although the reader refuses such a file **by name**: a
+#: anchored at the start of a line.  The openers are **read from** the grammar's
+#: own tuple (``topas._BLOCK_OPENERS``, the Technical Reference § 5.1 phase
+#: tree) rather than restated here, because a restatement is a second grammar
+#: that drifts in one direction only and in silence: an opener added there but
+#: not here parses fine through ``read_topas_inp`` while ``read_project_model``
+#: answers "not a refinement file this build can read".  Its order is inherited
+#: with it, which is what keeps ``xdd`` behind ``xdd_scr``/``xdd_sum`` for the
+#: alternation reason ``topas._BLOCK`` gives.
+#:
+#: ``STR`` is the one member taken out of that inheritance and spelled here as
+#: ``STR(``: the macro is recognised **in order to be refused by name** — a
 #: refusal naming the file is the answer, and declining to *recognise* it would
-#: send the file to "no format claims this", which is the worse message.
+#: send the file to "no format claims this", the worse message — while a bare
+#: ``STR`` token is not evidence of a ``.inp`` the way the lower-case openers
+#: are.
 _TOPAS_LINE = re.compile(
-    r"^[ \t]*(?:str|hkl_Is|xo_Is|d_Is|xdd_scr|xdd_sum|xdd|fit_obj"
-    r"|macro|prm|iters|continue_after_convergence)\b"
+    r"^[ \t]*(?:"
+    + "|".join([*(k for k in topas._BLOCK_OPENERS if k != "STR"),
+                *_TOPAS_TOP_LEVEL])
+    + r")\b"
     r"|^[ \t]*STR[ \t]*\(", re.M)
 
 
@@ -265,16 +284,23 @@ def identify_project_format(path: str | Path) -> ProjectFormat:
     **which** is the whole difference between a message and a traceback, and it
     is built from the registry rather than written out, so a format added
     tomorrow appears in it (``identify_format``'s reasoning, one registry over).
+
+    The binary note is the other half of that same reasoning.  Every sniff here
+    decodes with ``errors="ignore"``, so a vendor binary handed to this door
+    reaches the refusal looking exactly like a text file nothing claimed — and
+    the three readers the message then points at are all the wrong advice for
+    it.  Saying so costs one head read, on the path that is already failing.
     """
     p = Path(path)
     for fmt in PROJECT_FORMATS:
         if fmt.matches(p):
             return fmt
+    why = " (it looks binary)" if looks_binary(head(p)) else ""
     known = ", ".join(f"{f.title} [{', '.join(f.extensions)}]"
                       for f in PROJECT_FORMATS if f.refuses is None)
     raise ValueError(
-        f"{p.name} is not a refinement file this build can read. "
-        f"Supported: {known}. A powder *pattern* goes through read_pattern, a "
+        f"{p.name} is not a refinement file this build can read{why}. "
+        f"Supported: {known}. A powder pattern goes through read_pattern, a "
         f"GSAS-I instrument-parameter file through read_gsas_prm, and a "
         f"PowderLine recipe through read_recipe.")
 
@@ -316,8 +342,16 @@ def read_project_model(path: str | Path, *,
     # appended to theirs.  Extending rather than assigning keeps that list the
     # caller's own object, which is what ``read_pattern``'s channel promises.
     found: list[Diagnostic] = []
-    stated = fmt.read(p, diagnostics=found)
-    if diagnostics is not None:
-        diagnostics.extend(found)
+    try:
+        stated = fmt.read(p, diagnostics=found)
+    finally:
+        # `finally`, not after the call, so a read that repairs three things and
+        # *then* refuses still leaves those three in the caller's list — which
+        # is what `read_pattern` does by handing its list straight down, and
+        # this docstring claims parity with it.  They say how far the read got
+        # and what it had already found, which is the most useful thing a caller
+        # holding an exception has.
+        if diagnostics is not None:
+            diagnostics.extend(found)
     return ProjectModel(format=fmt, path=p, stated=stated,
                         diagnostics=tuple(found))
