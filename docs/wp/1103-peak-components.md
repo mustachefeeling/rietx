@@ -193,7 +193,7 @@ use is the design case.
       question about a quantity two histograms have in common, and a declared
       peak is a fact about one specimen's mount at one geometry — there is no
       quantity to share. Said here rather than left as an unticked box.*
-- [ ] Jacobian: FD assertion + cross-backend CONFIGS row.
+- [x] Jacobian: FD assertion + cross-backend CONFIGS row.
 - [x] Ticks `"(extra)"` + the phase-name collision refusal + the Layer 0
       unmatched-obs test.
 - [ ] Evidence: `EXTRA_PEAK_ON_REFLECTION` + `extra_peak_absorption`

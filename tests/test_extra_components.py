@@ -1685,3 +1685,51 @@ def test_both_partition_nets_subtract_the_same_curve():
     # the curve is genuinely taken out of the net where the peak is
     apex = int(np.argmax(curve))
     assert net[apex] < float(np.asarray(model.y_obs)[apex])
+
+
+# ----------------------------------------------------------------------
+# the Jacobian: the FD fallback is declared, not discovered
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", PEAK_FIELDS)
+def test_no_analytic_branch_claims_a_peak_component_path(name):
+    """WP-1070's failure mode: a branch that claims a path it does not reach.
+
+    `_make_jacobian` dispatches on the free path's *name*, and a branch that
+    answers for a path it was not written for returns a column that is wrong
+    rather than absent.  The hump's version of this test one member over; the
+    peak needs its own because its four names are different names.
+    """
+    structure = make_lab6()
+    ins = _instrument(peaks=[make_peak(center=40.0, area=300.0)])
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    path = f"instrument.extra_components.0.{name}"
+    assert model.scalar_chain_supported(path) is False
+
+
+def test_peak_component_paths_never_join_the_linear_background_block():
+    """`bkg_paths` is a block whose columns are claimed *exact* design rows.
+
+    A declared peak is nonlinear in its centre, width and mixing, so a path of
+    its in that tuple would take the "y is linear in this coefficient" branch
+    and get a silently wrong column — the hump's reason, and it applies to this
+    member with one more nonlinear parameter.
+    """
+    structure = make_lab6()
+    ins = _instrument(peaks=[make_peak(center=40.0, area=300.0)],
+                      background=BackgroundChebyshev.with_terms(5))
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    peak_paths = {f"instrument.extra_components.0.{n}" for n in PEAK_FIELDS}
+    assert set(model.bkg_paths).isdisjoint(peak_paths)
+    assert model.component_paths == ()          # it is not a hump either
