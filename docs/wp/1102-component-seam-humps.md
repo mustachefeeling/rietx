@@ -387,11 +387,15 @@ and `area` as a stored parameter); neither was reopened.
 *Measured* (macOS, this worktree's own `[dev]` venv — no jax, no torch; machine
 otherwise idle, checked with `pgrep`):
 
-- Fast selection **4503 passed, 127 skipped** (2:24), against 4614 items before
-  the work: **+16, and +16 is exactly what was added** — 15 in
-  `test_extra_components.py` (34 → 49) and 1 in `test_capabilities.py`. No new
-  skip.
-- Full suite **4666 passed, 136 skipped** (23:43), once, on the final tree.
+- Fast selection **4504 passed, 127 skipped** (2:18), against 4614 items before
+  the work: **+17, and +17 is exactly what was added** — 15 in
+  `test_extra_components.py` (34 → 49), 1 in `test_capabilities.py`, and 1 the
+  review pass brought. No new skip.
+- Full suite **4667 passed, 136 skipped** (26:55), on the final tree, machine
+  otherwise idle. `origin/main` had not moved under the branch (0 commits), so
+  the branch tree **is** the merged tree and these are the merged tree's counts.
+  Re-run after the review pass changed `src/`: the earlier figures on the
+  pre-review tree were 4503/127 fast and 4666/136 full.
 - vitest 591 passed / 22 files; `svelte-check` 0 errors over 381 files; manual
   builds under `-W`; ruff clean.
 - The rename's own size, for anyone costing a similar one: 81 lines in `src/`
