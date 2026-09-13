@@ -54,6 +54,54 @@ body[data-theme="dark"] {
   color: var(--color-content-foreground) !important;
 }
 
+/* A numbered equation gets a column of its own for the number (WP-1408).
+ *
+ * Sphinx's `basic.css` floats `span.eqno` right and reserves nothing for it,
+ * so a wide equation is typeset straight under its own number: measured in
+ * chromium, (3.3) ran 179 px into "(3.3)" and 136 px out of the 736 px content
+ * column.  A float cannot be the fix, because the equation's width is not
+ * known until MathJax has typeset it.
+ *
+ * A two-cell grid makes the collision impossible instead of unlikely: the
+ * typeset math has its own cell and the number has another, whatever either
+ * measures.  `overflow-x` on the math cell is the fallback for an equation too
+ * wide for the cell — a scrollbar rather than an overlap — and
+ * `justify-content: safe center` is what keeps such an equation readable:
+ * centred while it fits, left-aligned once it overflows, because a centred
+ * overflow puts its own left edge out of reach of the scrollbar.
+ *
+ * The number has to be taken **out of absolute positioning** to be a grid
+ * item at all: Furo pins it with `position: absolute; right: .5rem; top: 50%`,
+ * which is the whole reason it can sit on top of the equation.  Made static it
+ * sizes its own column, so a two-digit chapter and a two-digit equation widen
+ * the reserve by themselves and no number is typed here.
+ *
+ * `:has()` scopes this to *numbered* equations; an unnumbered one keeps
+ * Sphinx's own centring, and a browser without `:has()` drops the whole block
+ * and renders exactly as before.  Nothing here is a colour, so there is no
+ * light/dark half. */
+div.math:has(> span.eqno) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 1rem;
+}
+
+div.math:has(> span.eqno) > span.eqno {
+  position: static;
+  transform: none;
+  float: none;
+  grid-area: 1 / 2;
+}
+
+div.math:has(> span.eqno) > mjx-container {
+  grid-area: 1 / 1;
+  display: flex;
+  justify-content: safe center;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 /* Figures are committed as a light/dark pair and selected with Furo's own
  * `only-light` / `only-dark` classes.  Centre them and stop a wide panel from
  * scrolling the page sideways. */
