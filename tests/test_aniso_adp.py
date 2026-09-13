@@ -426,7 +426,7 @@ def test_background_absorption_of_adp_dofs_is_reported_and_low():
                           moving_paths=set(table.moving_paths))
     outcome = run_least_squares(model, table, max_iter=40)
 
-    r2 = background_absorption(outcome.jac, table.free_paths)
+    r2 = background_absorption(outcome.jac, table.free_paths, frozenset())
     adp_r2 = {p: v for p, v in r2.items() if ".adp." in p}
     assert adp_r2, "ADP DOFs must be screened, not skipped"
     worst = max(adp_r2.values())

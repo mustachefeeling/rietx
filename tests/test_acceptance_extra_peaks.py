@@ -158,6 +158,13 @@ def arms():
     from tests.test_acceptance_srm660c import build_srm_inputs
 
     data, structure, instrument = build_srm_inputs()
+    # Dispersion DECLINED explicitly, inherited from nothing
+    # (tests/test_validation_matrix.py): `build_srm_inputs` already declines it
+    # because SRM 660c is this suite's dispersion-OFF anchor, and every arm here
+    # is compared against the *clean* arm of the same protocol — so the setting
+    # only has to be the same in all four, and it has to be stated rather than
+    # ridden in from a default that may move.
+    assert instrument.source.dispersion is None
 
     clean = _fit(data, structure, instrument)
 

@@ -755,7 +755,8 @@ def test_background_absorption_numbers_are_unchanged_by_the_refactor():
     bg = [k for k, p in enumerate(free) if p.startswith("instrument.background.")]
     targets = [(k, p) for k, p in enumerate(free)
                if p.endswith((".biso", ".scale", ".occ")) or ".adp." in p]
-    assert background_absorption(jac, free) == block_projection_r2(jac, bg, targets)
+    assert background_absorption(jac, free, frozenset()) \
+        == block_projection_r2(jac, bg, targets)
 
 
 # -- end-to-end recovery -----------------------------------------------------

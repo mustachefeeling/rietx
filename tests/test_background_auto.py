@@ -647,7 +647,8 @@ def test_penalty_rows_suppress_absorption():
                         "phases.*.atoms.*.biso"], True)
         model = compile_model(structure, ins, data, moving_paths=set(table.moving_paths))
         outcome = run_least_squares(model, table)
-        return max(background_absorption(outcome.jac, table.free_paths).values())
+        return max(background_absorption(
+            outcome.jac, table.free_paths, frozenset()).values())
 
     unpenalized, penalized = max_r2(0.0), max_r2(1e4)
     assert unpenalized > 0.3, f"expected a degenerate case, got R²={unpenalized:.3f}"
