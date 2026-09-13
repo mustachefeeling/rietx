@@ -1,6 +1,6 @@
 # WP-1103 — Sharp extra peaks: the second component member
 
-Milestone: v1.4 · Status: ⬜
+Milestone: v1.4 · Status: 🔄 2026-09-13
 Depends on: WP-1102 (the component seam this member lands in)
 
 ## Goal
