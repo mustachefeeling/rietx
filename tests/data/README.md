@@ -19,6 +19,7 @@
 | `qarr/cpd-2.prn` | **Sample 2** = sample-1 phases + brucite Mg(OH)₂ (strongly platy → preferred-orientation test) | same | same |
 | `qarr/cpd-4.prn` | **Sample 4** = corundum / coarse magnetite (Fe₃O₄) / zircon (ZrSiO₄) — microabsorption test | same | same |
 | `qarr/corundum.prn`, `qarr/fluorite.prn`, `qarr/zincite.prn`, `qarr/brucite.prn`, `qarr/magnetit.prn`, `qarr/zircon.prn` | Pure single-phase patterns of the round-robin component phases, same instrument/conditions — component references for the mixtures and the SRM 676a corundum comparison | same | same |
+| `qarr/corundum.rd`, `qarr/cpd-1e.rd` | The **original logged Philips `.rd`** files behind two of the `.prn` patterns above — binary `V3RD`, 250-byte header, 7251 √-compressed `uint16` intensities, 14752 bytes each. The v1.4 Philips reader's only real fixtures, and the `.prn` beside each is an independent value oracle already in the tree | The same IUCr CPD kit, "Binary Philips RD format (Original logged files)" column, `www.iucr.org/__data/iucr/powder/QARR/philips.zip`, logged 19–21 Dec 1997 — see the WP-1407 section below | same as the `.prn` files (same release, same page, same licence note) |
 | `bethanechol_indexing.json` | The **indexing benchmark**: ten sets of twenty 2θ positions for bethanechol chloride (C₇H₁₇ClN₂O₂), the known answer (monoclinic P2₁/n, a = 8.875, b = 16.408, c = 7.137 Å, β = 93.84°, V = 1036.9 Å³), the published M(20) = 197 / F(20) = 1080, and Table 5's scores — v1.0 indexing acceptance (`test_acceptance_indexing.py`) | Bergmann, Le Bail, Shirley & Zlokazov (2004), *Z. Kristallogr.* **219**, 783-790, Tables 5 and 6 | Published tables, transcribed with attribution; **no program output and no code** — see the section below |
 | `hl2_peaks.txt` | 74 peak positions (2θ, d, I_rel) from a **genuinely unindexed** laboratory pattern, Cu Kα1 — the abstention fixture, whose correct answer is "we do not know" | Our own derived product: peaks picked from `HL2-1_2.xy` in the `examples/` folder of datalab-org/guillemot (MIT), which is *not* vendored here | Derived table, carried with attribution |
 | `absorption_cylinder_rouse.dat` | Cylinder **transmission** factor A (not A\* = 1/A) vs µR and sin²θ, 4 dp — 80 values: the full sin²θ = 0 column (µR 0.00–0.50 step 0.01) plus four complete µR = 0.50 / 1.00 rows. Ground truth for the WP-0501 capillary absorption correction (`test_absorption.py`) | Rouse, Cooper, York & Chakera (1970), *Acta Cryst.* **A26**, 682-691, Table 1(a)/(b) | Published table, transcribed with attribution; no code involved |
@@ -1259,3 +1260,185 @@ drawn width of `y_calc − y_bkg` in `fit_profile.txt`:
 | `fit_range` | °2θ, **inclusive** both ends | `two_theta_limits` | Same source |
 | `Uiso` | Å² | `biso` = 8π²·Uiso | Direct |
 | Chebyshev coefficients | GSAS-II domain | count and `refine_flag` carried; **coefficients re-seeded** | The two codes scale the Chebyshev domain differently; carrying the numbers would be a wrong start dressed as a right one |
+
+## Philips/PANalytical pattern formats (WP-1407)
+
+### `qarr/*.rd` — the original logged files behind patterns already in this tree
+
+The IUCr CPD round-robin kit publishes every sample in **seven** format columns,
+and one of them is headed *"Binary Philips RD format (Original logged files)"*.
+So the `qarr/*.prn` patterns committed above are a **conversion** of a Philips
+`.rd` original that the same page still serves, and every `.prn` here is
+therefore an independent value oracle for the `.rd` reader. Retrieved
+2026-09-13 from `www.iucr.org/__data/iucr/powder/QARR/philips.zip` (28 files)
+and `.../xda.zip` (27 files), through a browser session, since the site sits
+behind a Cloudflare challenge that refuses `curl` and plain headless Chromium
+alike.
+
+The archive holds **28** files: 21 of 14752 bytes (7251 points, 5–150° 2θ) and 7
+of 9752 (4751 points, 5–100°, the pharmaceutical samples), all logged 19 Dec
+1997 – 20 Jan 1998. **16** have a `.prn` counterpart committed here. Two are
+committed as fixtures; the rest stay out of the tree and only their measurements
+are recorded below.
+
+**The header layout, measured off all 28 files.** Offsets are specification
+facts (merger, not expression) and were read from the bytes first; the
+`ATTRIBUTION.md` row records which independent descriptions corroborate each.
+
+| offset | type | meaning | how established |
+|---|---|---|---|
+| 0 | 4 bytes | magic `V3RD` (or `V5RD`) | all 28 files; both descriptions |
+| 4 | text | `Philips Analytical X-Ray B.V.`, NUL-padded | all 28 |
+| 44 | text | `PC-APD, Diffraction software`, NUL-padded | all 28 |
+| 84 | int8 | diffractometer code; **3 = PW3710 based system** | all 28 read 3, and the kit's own prose says "Philips 3020 Goniometer with **PW3710** Controller" |
+| 85 | int8 | anode code; **0 = Cu** | all 28 read 0; prose says "Copper … X-ray Tube" |
+| 86 | int8 | focus code; **3 = LFF** | all 28 read 3; prose says "Long Fine Focus" |
+| 94 | 3 × float64 | λα1, λα2, α2/α1 ratio | all 28: 1.540562 / 1.54439 / 0.5 |
+| 130 | uint16 | start 2θ × 200 | all 28 agree with the float64 at 222 |
+| 132 | uint16 | end 2θ × 200 | all 28 agree with the float64 at 230 |
+| 136 | uint16 | **maximum stored value** | equals `max(data)` in all 28 — not in any published description, found here |
+| 138 | 8 bytes | file name (`CORUNDUM`) | all 28 |
+| 146 | 20 bytes | sample identification (`CPD RR Corundum`) | all 28 |
+| 214, 222, 230 | 3 × float64 | step, start 2θ, end 2θ | all 28 |
+| 250 | uint16[] | the intensities | `len(file) == 250 + 2·n` in all 28 |
+
+The three enumerated codes at 84/85/86 are worth the row on their own: the kit's
+prose states the controller, the anode and the focus type independently, and all
+three decode correctly out of the published code tables. That is a check of the
+*tables*, not just of one file.
+
+**The intensity encoding, which is the whole reason this format can go wrong
+quietly.** The stored `uint16` is not a count. It is
+√-compressed, and the count is recovered as
+
+```
+counts = (v * v) // 100
+```
+
+Read raw, a `.rd` file yields a profile with every peak in the right place and
+every intensity wrong, which is exactly the failure mode a reader cannot detect
+by looking at the result. Four independent confirmations, and one source that
+gets it wrong:
+
+- **The committed `.prn` oracle.** `(v*v)//100` reproduces the committed
+  pattern **bit for bit on all 7251 channels** for **15 of the 16** files that
+  have one.
+- **The kit's second converter.** The `.xda` column was converted from the same
+  `.rd` originals by a different program (Winfit, against CONVERT for DOS for
+  the `.prn`), and it agrees on the *quantity* for **27 of 27** files, differing
+  only by rounding to nearest where `.prn` truncates.
+- **The arithmetic itself.** Four of the 28 files hold counts above 65535 (up to
+  841 076 for `VALINE.RD`), which a raw `uint16` cannot represent at all.
+- **xylib** states it: `floor(0.01 * packed_y * packed_y)`, with the comment
+  "intensities are packed into 2-byte integers in this interesting way".
+- **PyXRD's `rd_parser.py` omits it entirely** and returns the raw `uint16` as
+  the intensity. This is the *permissive* description, the one a port would
+  legally start from, and it is the defective one. Nothing but a real file
+  reveals that.
+
+**`qarr/cpd-1e.rd` is committed precisely because it is the exception.** Its
+committed `.prn` matches `round`, not `truncate`, differing from the other
+fifteen on 2108 of 7251 channels by exactly one count. The `.rd` bytes are not
+in question: `round((v/10)²)` reproduces that `.prn` exactly on all 7251
+channels, so one file's `.prn` was made by the rounding converter. The fixture
+pins the story so a successor does not "fix" the reader to chase it.
+
+**Two more defects the real files expose in the published descriptions**, both
+invisible without a file: PyXRD computes the point count as
+`int((max-min)/step)`, one short of the 7251 actually present, and places the
+abscissa at `min + step·(n + 0.5)`, a half-step offset that the committed `.prn`
+(which starts at exactly 5.00000) refutes. PyXRD also reads the sample
+identification as 16 bytes where xylib reads 20; `622M001912-644 clay form` in
+PyXRD's own test data splits 8/16 and `CPD RR Corundum` pads to 20, so 20 is the
+reading both files support.
+
+**V5 has no file anywhere.** All 28 are `V3RD`. The only V5-specific fact in any
+source is that its data begins at offset **810** instead of 250, and the three
+places that state it are one description copied: xylib, then PyXRD and
+`Yohko/importtool` reproducing xylib's code tables verbatim (the Igor procedure
+even carries xylib's `810 - 214 - 8*3` expression). xylib also states that `.sd`
+is this format's V5 extension rather than a separate format, which is what lets
+the reader claim both by magic instead of refusing `.sd` by name.
+
+**What the fixtures can and cannot prove.** `qarr/corundum.rd` proves the whole
+V3 chain end to end against a committed oracle: header, gates, √-decoding and
+all 7251 values. `qarr/cpd-1e.rd` proves the rounding story and nothing else.
+Neither proves anything about V5, whose only guarantee is the length gate
+(`len == 810 + 2·n`, with `n` derived from the header's own angle triple), and
+that gate is stated in the reader as the whole of the V5 evidence.
+
+**PyXRD's inline `.rd` test data is a description, never a fixture.** It embeds
+what was once a real file inside a Python **raw** string, so every `\00` is
+three literal characters and the bytes are mangled. Its visible structure
+(magic, the two `PC-APD` strings, the sample name) is readable and was used
+above; its values are not. Same class of trap as
+`bruker_raw4_scrambled.raw`.
+
+### `.udf` — 56 real files, and one key vocabulary across all of them
+
+PANalytical `.udf` is not a legacy format: a PANalytical Aeris, a benchtop on
+sale today, writes it, and the newest file read here is dated 12 June 2025.
+Read 2026-09-13 from `yargerlab/Data` (55 files, ASU PANalytical Aeris, 2023 and
+2025 vintages) and `SantiagoJulioD/LabAv2` (1 file, an X'Pert). **Licence
+checked per repository: all three of the repositories the scoping session found
+declare none at all**, so facts are recorded here and no bytes ship. This is the
+`.uxd` position, except that `.udf` also has a vendorable structural fixture
+(below), which `.uxd` never had.
+
+**Exactly 19 keys, in one order, in all 56 files** — two labs, two instrument
+vintages, four scan ranges. `DiffrType` alone varies between them (`?` on the
+Aeris, `XPERT` on the other):
+
+| key | fields | what the 56 files hold |
+|---|---|---|
+| `SampleIdent` | 1 | free text, may be empty |
+| `Title1` | **1 to 10** | free text; **commas are ordinary characters in a value** |
+| `Title2` | 1 | usually empty; one file carries a goniometer description |
+| `DiffrType` | 1 | `?` or `XPERT` |
+| `DiffrNumber` | 1 | `1` |
+| `Anode` | 1 | `Cu` |
+| `LabdaAlpha1` | 1 | `1.540598` |
+| `LabdaAlpha2` | 1 | `1.544426` |
+| `RatioAlpha21` | 1 | `0.50000` |
+| `DivergenceSlit` | 2 | `Fixed, 1/2` |
+| `ReceivingSlit` | 1 | `UNDEFINED` — a sentinel, not an absent key |
+| `MonochromatorUsed` | 1 | `NO` |
+| `GeneratorVoltage` | 1 | `40` or `45` |
+| `TubeCurrent` | 1 | `15` or `40` |
+| `FileDateTime` | 1 | `03-jun-2025 15:55` |
+| `DataAngleRange` | 2 | e.g. `3.00043,  59.99491` |
+| `ScanStepSize` | 1 | `0.01086644000` or `0.02626056501` |
+| `ScanType` | 1 | `CONTINUOUS` |
+| `ScanStepTime` | 1 | five distinct values; **see the caveat below** |
+
+`Title1` carrying up to ten comma-separated fields is the load-bearing one: a
+line cannot be split on every comma, only on the first, with the trailing `,/`
+stripped.
+
+**The abscissa is reconstructed, and the file states the count twice.** No 2θ
+is stored per point. `round((end - start) / step) + 1` reproduces the number of
+values present in **all 56 files with no exceptions**, which makes it a genuine
+self-consistency gate rather than a guess. The residue
+`(end-start)/step - round(...)` reaches 2.5e-4 of a step, so the stated end
+angle is not an exact multiple and rounding is the only correct reconstruction.
+
+**The block.** A `RawScan` marker line (all 56), then comma-separated integers,
+eight to a line, terminated by `/`. Every intensity in every file is a
+non-negative integer.
+
+**`ScanStepTime` is not seconds per step, and must not be used as one.** The
+Aeris pairs `ScanStepTime, 18.87` with a filename claiming an eight-minute scan
+over 5246 points; 5246 × 18.87 s is 27 hours. This is a PIXcel-class
+position-sensitive detector, where the effective counting time per point is not
+the drive's dwell. The reader records the value and derives nothing from it.
+
+**The vendorable fixture, and what it proves.** `PyXRD/test_udf_parser.py`
+embeds a complete UDF file inline under BSD-2, and unlike its `.rd` sibling it
+is **valid as committed**: UDF is plain ASCII with no backslash escapes, so the
+raw-string prefix does it no harm. It is plainly synthesised (`Title1,Dat2rit
+program`, 33 points falling 8000 to 1). It proves the parse and the block
+structure. It does **not** prove the key vocabulary, carrying only **5** of the
+19 keys, and it ends its data block `0/` where every real file ends `425,/` — so
+it is also the evidence that the comma before the terminator is optional. The
+key table above is what the real files prove, and the two together are why the
+reader requires only `DataAngleRange`, `ScanStepSize` and the marker.

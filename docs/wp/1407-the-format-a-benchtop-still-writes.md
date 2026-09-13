@@ -13,6 +13,19 @@ rides the `io/formats/` seam WP-1047 built, so each format is one module.
 
 ## Context
 
+> **Superseded in part, 2026-09-13 (task 1).** Task 1 retired both fixture
+> risks and changed three things below. (1) **`.rd` is no longer file-less**:
+> the IUCr CPD kit serves a `philips.zip` of **28 original logged `.rd`
+> files**, 16 of which are the originals of `.prn` patterns already committed
+> here, so `.rd` ships on real files plus a value oracle in the tree rather
+> than on descriptions. (2) **The stored `uint16` is √-compressed**
+> (`counts = v*v // 100`) — nothing below anticipated this, and it is the
+> single most important fact about the format. (3) **`.sd` is this format's
+> V5 extension, not a separate format**, so the "refuse `.sd` by name" plan in
+> task 4 and the acceptance bullet are wrong and are restated there. What
+> stands: everything about `.udf`, Stoe, `.pks`/`.udi`, and the licensing.
+> Measurements and the header table: `tests/data/README.md` § Philips.
+
 ### The request, and the naming correction that reshaped it
 
 The ask was "PANalytical's `.raw`". **There is no PANalytical `.raw`.** `.raw`
@@ -100,8 +113,8 @@ true):
 | format | shape | independent descriptions | permissive? | real file | verdict |
 |---|---|---|---|---|---|
 | `.udf` | ASCII, above | PyXRD `udf_parser.py` (**BSD-2**), psidata `xrd_panalytical.py` (**Apache-2.0**), CrysFML `Read_Pattern_Panalytical_Udf` (LGPL), xylib `philips_udf.cpp` (LGPL) | **two** | one vendorable, structural; real ones unvendorable | **read** |
-| `.rd` | binary, magic `V3RD` / `V5RD` at offset 0, uint16 intensities | xylib `philips_raw.cpp` (LGPL, from Martijn Fransen's vendor-supplied spec), PyXRD `rd_parser.py` (**BSD-2**, "Philips Binary V3 & V5"), `Yohko/importtool` `import_Philips_Raw.ipf` (LGPL) | **three, one permissive** | none found | **read**, v3-style gates |
-| `.sd` | binary sibling | xylib only | no | none | **refuse by name** |
+| `.rd` **V3** | binary, magic `V3RD` at offset 0, 250-byte header, **√-compressed** uint16 | xylib `philips_raw.cpp` (LGPL, from Martijn Fransen's vendor-supplied spec), PyXRD `rd_parser.py` (**BSD-2**, and **wrong** — it omits the √ decode, the point count and the axis origin), `Yohko/importtool` (LGPL, a port of xylib) | **two, one permissive** | **28, with 16 `.prn` value oracles already committed** | **read** |
+| `.rd`/`.sd` **V5** | the same header, data at 810 | one description, copied into the other two verbatim | — | **none anywhere** | **read behind the length gate only** (below) |
 | Stoe `.raw` | binary, multi-range | **none, anywhere** | n/a | none | **refuse, vendor-agnostically** |
 | Stoe `.pks`, PANalytical `.udi` | peak lists | n/a | n/a | none | **refuse, like `.dif`** |
 | `.csv`, `.jcp`, Scintag | ASCII / binary | one or none | no | none | Non-goal |
@@ -290,11 +303,13 @@ mid-format, mirroring 1047's own rule — task 5 is where `.rd` acquires the onl
 fixture it can have, since no real one exists, so a tree stopped after task 4
 holds a registered binary reader nothing exercises.
 
-- [ ] 1. Retire the fixture risks. Chase the QARR `.rd` lead (Internet Archive,
+- [x] 1. Retire the fixture risks. Chase the QARR `.rd` lead (Internet Archive,
       from a network that can reach it) and table the `.udf` key vocabulary off
       the real Aeris files. Record both in `tests/data/README.md` either way,
       including what each PyXRD inline fixture can and cannot prove. Licence
-      checked per file first.
+      checked per file first. **Both retired, both positively**: 28 real `.rd`
+      files with 16 committed value oracles, and 19 `.udf` keys identical across
+      56 real files. See the supersession note in Context.
 - [ ] 2. `ATTRIBUTION.md` § Format specifications: one row for `.udf`, one for
       `.rd`, naming which source each fact came from and which corrections are
       this project's, on the template of the three Bruker `.raw` rows
@@ -310,10 +325,16 @@ holds a registered binary reader nothing exercises.
       not**, and `base.metadata()` refuses an undeclared key, so the acceptance
       line below buys a new `METADATA_KEYS` entry (`base.py:164`) — declare it
       with the two consumers that match on it, or drop the ratio from the bar.
-- [ ] 4. `.rd` reader: `src/rietx/io/formats/philips_rd.py`, V3 and V5, with
-      `.sd` refused **by name alone** and a stated remedy. Magic-byte
-      `matches`, disjoint from `bruker_raw` in both directions (precedent:
-      `tests/test_readers.py:2144`).
+- [ ] 4. `.rd` reader: `src/rietx/io/formats/philips_rd.py`. **Restated by task
+      1**: `.sd` is V5 of this same format, so the reader **claims** both by
+      magic (`V3RD`/`V5RD`) rather than refusing `.sd` by name. Intensities are
+      √-compressed, `counts = v*v // 100`. Gates, all measured on 28 files:
+      `len == data_start + 2n`, `n == round((end-start)/step) + 1`, and
+      `uint16@136 == max(v)`. V5's data start (810) rests on one description
+      and no file, so the length gate — which tests the header offsets too,
+      since `n` comes from them — is the whole of its evidence and a failure
+      refuses by name. Magic-byte `matches`, disjoint from `bruker_raw` in both
+      directions (precedent: `tests/test_readers.py:2144`).
 - [ ] 5. `write_philips_rd()` in `tests/writers_xrd.py`, packing offsets
       **literally** and never from the reader's table, plus the
       `SYNTHETIC_FIXTURES` arm in `tests/test_readers_robust.py:71`.
@@ -350,14 +371,15 @@ holds a registered binary reader nothing exercises.
 
 - A `.udf` file opens and reports the anode, **both** wavelengths and the
   Kα2/Kα1 ratio its header carries.
-- A `.rd` V3 and a V5 file each open. If the QARR lead pays off the values are
-  checked against the committed `qarr/*.prn` oracle; if it does not, the
-  acceptance line claims **structure and metadata only** and says so.
-- A `.sd` file is refused by name, not by traceback, and **without claiming a
-  version**: nothing here establishes whether `.sd` shares `.rd`'s `V?RD`
-  magic, so reading a version out of it would be the same guess the Stoe rule
-  forbids. If task 1 settles that it does share the magic, say so in the
-  evidence table and the refusal may then name the version.
+- **The lead paid off, so the bar is bit-identity**: `qarr/corundum.rd` opens
+  and reproduces the committed `qarr/corundum.prn` **exactly on all 7251
+  channels**, and `qarr/cpd-1e.rd` reproduces its own `.prn` to within the ±1
+  count the kit's two converters disagree by (documented, asserted, not
+  chased).
+- A **V5** file opens only if `len == 810 + 2n` holds with `n` from the header;
+  otherwise it is refused by name saying no V5 file was obtainable. There is no
+  separate `.sd` refusal: task 1 settled that `.sd` is V5 of this format, so it
+  is claimed by magic like any other member.
 - A binary `.raw` matching no reader is refused with a message naming the six
   `.raw` vendors and this build's readers; a `.pks` or `.udi` is refused as a
   peak list. Both appear in `capabilities()`;
