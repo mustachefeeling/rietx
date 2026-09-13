@@ -145,8 +145,18 @@ def background_clause(bg: BackgroundEvidence) -> str | None:
     return "; ".join(parts) if parts else None
 
 
+#: How near a predicted position an observed peak must be to count as
+#: *explained*, in deg 2theta.  One authority since WP-1103, because a second
+#: consumer arrived: ``EXTRA_PEAK_ON_REFLECTION`` asks "is this declared
+#: component sitting on a line the model already predicts", which is the same
+#: question this answers and must not be answered with a different number — a
+#: component inside Layer 0's tolerance is one Layer 0 would have matched.
+LAYER0_MATCH_TOL_DEG = 0.08
+
+
 def build_layer0(result: RefinementResult, *, top_n: int = 15,
-                 match_tol_deg: float = 0.08, min_peak_sigma: float = 5.0) -> FitReport:
+                 match_tol_deg: float = LAYER0_MATCH_TOL_DEG,
+                 min_peak_sigma: float = 5.0) -> FitReport:
     """Layer 0 only.  :func:`rietx.build_report` adds Layers 1-2 on top."""
     tt = np.asarray(result.two_theta)
     y_obs = np.asarray(result.y_obs)

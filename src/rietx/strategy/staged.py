@@ -767,6 +767,13 @@ class GuardReport:
     # not findings: the full screened (path, R²) table the background guard
     # decided from — see the class docstring
     measured_background_absorption: dict[str, float] = field(default_factory=dict)
+    #: R^2 of each structural column on the span of the **declared sharp
+    #: peaks** (WP-1103) — the same statistic as the field above, asked of
+    #: the seam's other member.  Reported, never thresholded: nothing has
+    #: measured what separates a healthy declared peak from a parasitic one,
+    #: and the 0.25 above was measured for background blocks.  Empty when no
+    #: peak component is declared or freed.
+    measured_extra_peak_absorption: dict[str, float] = field(default_factory=dict)
     # not findings either (WP-1056): the parameter-space evidence, as
     # schemas.results rows — CorrelationPair / SoftMode / ExchangeRow
     measured_top_correlations: list = field(default_factory=list)
@@ -1075,7 +1082,11 @@ def check_guards(table, outcome, threshold: float,
     import numpy as np
 
     from ..optimize.identifiability import exchangeability_scan, soft_modes, top_correlations
-    from ..optimize.statistics import background_absorption, roughness_absorption
+    from ..optimize.statistics import (
+        background_absorption,
+        extra_peak_absorption,
+        roughness_absorption,
+    )
 
     report = GuardReport()
     report.nonpositive_adps = check_adp_positive_definite(table)
@@ -1096,8 +1107,12 @@ def check_guards(table, outcome, threshold: float,
     if outcome.jac is not None and len(free) > 1:
         # measured once: the screened table travels to the result (WP-1055)
         # and the threshold decides only which rows become findings
+        peak_prefixes = (model.peak_component_prefixes() if model is not None
+                         else frozenset())
         report.measured_background_absorption = background_absorption(
-            outcome.jac, free)
+            outcome.jac, free, peak_prefixes)
+        report.measured_extra_peak_absorption = extra_peak_absorption(
+            outcome.jac, free, peak_prefixes)
         report.measured_soft_modes = soft_modes(outcome.jac, free)
         if scan_exchangeability and model is not None:
             report.measured_exchangeability = exchangeability_scan(model, table)

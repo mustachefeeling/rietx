@@ -550,7 +550,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit="deg 2θ", default=None,
         typical="where you can see the intruding line, bounded a few tenths "
                 "either side",
-        anchor="model.html#declared-extra-peaks",
+        anchor="using/model.html#declared-extra-peaks",
     ),
     "instrument.extra_components.*.area": HelpEntry(
         title="Extra-peak area",
@@ -569,7 +569,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="counts·deg 2θ", default="0.0",
         typical="the intruding line's integrated counts above the background",
-        anchor="model.html#declared-extra-peaks",
+        anchor="using/model.html#declared-extra-peaks",
     ),
     "instrument.extra_components.*.eta": HelpEntry(
         title="Extra-peak mixing",
@@ -587,7 +587,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit=None, default="0.5",
         typical="0.3-0.9 for a lab peak; leave it fixed unless the peak is "
                 "strong enough to carry a fourth parameter",
-        anchor="model.html#declared-extra-peaks",
+        anchor="using/model.html#declared-extra-peaks",
     ),
     # -- phase -------------------------------------------------------
     "phases.*.cell.a": _CELL_LENGTH,

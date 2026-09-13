@@ -43,7 +43,11 @@ from rietx.model.corrections import lorentz_polarization
 from rietx.model.forward import WINDOW_AREA_TOL, compile_model
 from rietx.model.profiles.pseudovoigt import pseudo_voigt
 from rietx.optimize.least_squares import _make_jacobian, _make_residual
-from rietx.optimize.statistics import _span_basis, background_absorption
+from rietx.optimize.statistics import (
+    _span_basis,
+    background_absorption,
+    extra_peak_absorption,
+)
 from rietx.params.vector import ParameterTable, extra_component_parameters
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import (
@@ -63,6 +67,7 @@ from rietx.schemas.migrate import READ_POINTS, migrate_document_text
 from rietx.schemas.pattern import PatternData
 from rietx.schemas.plan import PlanSpec, StageSpec
 from rietx.strategy.staged import (
+    BACKGROUND_ABSORPTION_GUARD,
     HUMP_MIN_WIDTH_MULT,
     PLAN_PRESETS,
     check_hump_width,
@@ -537,7 +542,7 @@ def test_a_zero_column_is_dropped_from_a_projection_span():
     r2 = background_absorption(jac, ["instrument.background.c0",
                                      "instrument.extra_components.0.position",
                                      "instrument.extra_components.0.fwhm",
-                                     "phases.0.scale"])
+                                     "phases.0.scale"], frozenset())
     assert r2["phases.0.scale"] == pytest.approx(0.0, abs=1e-12)
     # all-zero block: the projector is zero, i.e. "imitates nothing"
     assert _span_basis(np.zeros((6, 2)), [0, 1]).shape == (6, 0)
@@ -559,13 +564,13 @@ def test_a_non_finite_column_withholds_the_statistic_rather_than_reporting_nan()
     jac[:, 0] = [1.0, 1.0, 0.0, 0.0, 0.0, 0.0]
     jac[:, 1] = [0.0, 1.0, 1.0, 0.0, 0.0, 0.0]
     jac[:, 2] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
-    assert "phases.0.scale" in background_absorption(jac, free)
+    assert "phases.0.scale" in background_absorption(jac, free, frozenset())
 
     for col, value in [(0, np.nan), (1, np.inf),      # the block
                        (2, np.nan), (2, np.inf)]:     # the target
         bad = jac.copy()
         bad[3, col] = value
-        assert background_absorption(bad, free) == {}, (col, value)
+        assert background_absorption(bad, free, frozenset()) == {}, (col, value)
 
     # a NaN column is *not* quietly dropped from the span the way a zero one
     # is: it spans something unknown, and narrowing the span would understate
@@ -575,17 +580,72 @@ def test_a_non_finite_column_withholds_the_statistic_rather_than_reporting_nan()
     assert _span_basis(bad, [0, 1]).shape[1] == 2
 
 
-def test_peak_columns_join_the_background_block():
+def test_hump_columns_join_the_background_block():
     """The statistic asks what the *whole declared background* can imitate."""
     jac = np.zeros((5, 2))
     jac[:, 0] = [1.0, 0.0, 0.0, 0.0, 0.0]
     jac[:, 1] = [1.0, 1.0, 0.0, 0.0, 0.0]
-    with_peak = background_absorption(
-        jac, ["instrument.extra_components.0.height", "phases.0.scale"])
+    with_hump = background_absorption(
+        jac, ["instrument.extra_components.0.height", "phases.0.scale"],
+        frozenset())
     without = background_absorption(jac, ["instrument.profile.w",
-                                          "phases.0.scale"])
-    assert with_peak["phases.0.scale"] == pytest.approx(0.5)
+                                          "phases.0.scale"], frozenset())
+    assert with_hump["phases.0.scale"] == pytest.approx(0.5)
     assert without == {}       # no background column at all, nothing to project
+
+
+def test_a_declared_peak_is_not_background_flexibility():
+    """The seam's second member had to split this statistic in two (WP-1103).
+
+    `instrument.extra_components.` stopped meaning "background" the moment the
+    union gained a peak: a `PeakComponent` is not in `y_background`, so its
+    columns in the background block would report a perfectly stiff background
+    as absorbing whatever a declared holder line happens to be correlated with.
+
+    The two statistics **partition** the declared components — the same set is
+    excluded from one and taken by the other — so a component is counted once,
+    which is clause 2 of the member contract reaching a statistic instead of a
+    curve.
+    """
+    jac = np.zeros((5, 2))
+    jac[:, 0] = [1.0, 0.0, 0.0, 0.0, 0.0]
+    jac[:, 1] = [1.0, 1.0, 0.0, 0.0, 0.0]
+    free = ["instrument.extra_components.0.area", "phases.0.scale"]
+    peaks = frozenset({"instrument.extra_components.0."})
+
+    # as a hump it is background; as a peak it is not
+    assert background_absorption(jac, free, frozenset())["phases.0.scale"] \
+        == pytest.approx(0.5)
+    assert background_absorption(jac, free, peaks) == {}
+    assert extra_peak_absorption(jac, free, peaks)["phases.0.scale"] \
+        == pytest.approx(0.5)
+    assert extra_peak_absorption(jac, free, frozenset()) == {}
+
+
+def test_the_two_absorption_statistics_partition_the_components():
+    """One model, one prefix set, and no component in both blocks or neither."""
+    structure = make_lab6()
+    ins = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=35.0, unit="deg")),
+        make_peak(center=40.0, area=300.0),
+    ])
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+
+    prefixes = model.peak_component_prefixes()
+    assert prefixes == {"instrument.extra_components.1."}
+
+    declared = [f"instrument.extra_components.{i}.{n}"
+                for i, names in ((0, HUMP_FIELDS), (1, PEAK_FIELDS))
+                for n in names]
+    in_bg = {p for p in declared if not p.startswith(tuple(prefixes))}
+    in_pk = {p for p in declared if p.startswith(tuple(prefixes))}
+    assert in_bg | in_pk == set(declared)
+    assert not (in_bg & in_pk)
 
 
 def test_a_hump_is_a_roughness_nuisance_too():
@@ -1733,3 +1793,187 @@ def test_peak_component_paths_never_join_the_linear_background_block():
     peak_paths = {f"instrument.extra_components.0.{n}" for n in PEAK_FIELDS}
     assert set(model.bkg_paths).isdisjoint(peak_paths)
     assert model.component_paths == ()          # it is not a hump either
+
+
+# ----------------------------------------------------------------------
+# evidence: recommend, never refuse
+# ----------------------------------------------------------------------
+
+
+def _clean_lab6(seed=1, lo=20.0, hi=90.0, step=0.02, boost_at=None,
+                boost_frac=0.35):
+    """A LaB6 pattern the model can fit exactly, optionally with one line boosted.
+
+    ``boost_at`` adds intensity to a single reflection that no parameter of the
+    model can produce, which is the state a caller reaches for a declared peak
+    in as a *shortcut* — the use `EXTRA_PEAK_ON_REFLECTION` exists to name.
+    """
+    rng = np.random.default_rng(seed)
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ins.source.dispersion = None
+    ins.profile.w.value = 3e-3
+    ins.profile.x.value = 5e-3
+    tt = np.arange(lo, hi, step)
+    blank = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, blank, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    y = np.asarray(model.evaluate(table.decode(table.x0()))) + 40.0
+    strongest = float(tt[int(np.argmax(y))])
+    if boost_at is not None:
+        y = y + boost_frac * y.max() * np.exp(-((tt - boost_at) / 0.08) ** 2)
+    data = PatternData(
+        two_theta=tt.tolist(),
+        intensity=rng.poisson(np.maximum(y, 0.1)).astype(float).tolist())
+    return structure, ins, data, strongest
+
+
+def _fit_with_peak(structure, ins, data, peak, turn_on):
+    ins_fit = ins.model_copy(deep=True)
+    ins_fit.extra_components = [peak]
+    ref = rx.Refinement(structure.model_copy(deep=True), ins_fit, history=False)
+    return ref.fit(data, plan=PlanSpec(stages=[
+        StageSpec(name="scale_bkg",
+                  turn_on=["phases.*.scale", "instrument.background.*"]),
+        StageSpec(name="component", turn_on=list(turn_on))]))
+
+
+def test_a_declared_peak_the_data_cannot_see_says_so():
+    """The honest evidence for "not needed", and it is not an Rwp comparison.
+
+    A peak reaches the pattern only through `area × profile`, so at zero area
+    nothing constrains its centre either — WP-1110 item 13's zero-scale phase,
+    one rank down.  The area's own esd is *absent*, which is the equilibrated
+    covariance telling the truth; the diagnostic is what makes that legible
+    without a reader knowing to look for a missing number.
+    """
+    structure, ins, data, _strong = _clean_lab6()
+    peak = make_peak(center=43.5, span=0.5, area=0.0)
+    result = _fit_with_peak(structure, ins, data, peak,
+                            ["instrument.extra_components.*"])
+
+    codes = [d.code for d in result.diagnostics]
+    assert "EXTRA_PEAK_NO_INTENSITY" in codes
+    assert "EXTRA_PEAK_ON_REFLECTION" not in codes
+
+    fired = next(d for d in result.diagnostics
+                 if d.code == "EXTRA_PEAK_NO_INTENSITY")
+    assert any(p.endswith(".center") for p in fired.where)
+    assert any(p.endswith(".area") for p in fired.where)
+
+    area = next(p for p in result.parameters if p.path.endswith(".area"))
+    assert area.stderr is None                    # unmeasured, not precise
+
+
+def test_a_declared_peak_on_a_predicted_line_is_named_as_a_degeneracy():
+    """The impurity-shortcut use, reported and never refused.
+
+    It may be exactly right — a holder line overlapping a sample peak is the
+    design case — so the finding is about *interpretation*: two terms describe
+    one peak and nothing in Rwp says which owns the counts.
+    """
+    _s, _i, _d, strong = _clean_lab6()          # where the strongest line is
+    structure2, ins2, data2, _ = _clean_lab6(seed=1, boost_at=strong)
+
+    peak = make_peak(center=strong, span=0.5, area=50.0)
+    result = _fit_with_peak(structure2, ins2, data2, peak,
+                            ["instrument.extra_components.0.area",
+                             "instrument.extra_components.0.fwhm"])
+
+    fired = [d for d in result.diagnostics
+             if d.code == "EXTRA_PEAK_ON_REFLECTION"]
+    assert len(fired) == 1
+    assert "degeneracy" in fired[0].message
+    assert fired[0].level == "warning"
+    assert any(p.endswith(".center") for p in fired[0].where)
+    # reported, never refused: the fit completed and carries an answer
+    assert result.status == "converged"
+    area = next(p for p in result.parameters if p.path.endswith(".area"))
+    assert area.value > 0.0
+
+
+def test_the_match_tolerance_is_layer_zeros_own_constant():
+    """Two consumers of one question must not answer it with two numbers.
+
+    A component inside Layer 0's tolerance is a component Layer 0 would have
+    matched to that reflection, so the diagnostic has to use Layer 0's number
+    and not a second one that happens to be similar.
+    """
+    import inspect
+
+    from rietx.report.layer0 import LAYER0_MATCH_TOL_DEG, build_layer0
+
+    assert LAYER0_MATCH_TOL_DEG == 0.08
+    sig = inspect.signature(build_layer0)
+    assert sig.parameters["match_tol_deg"].default == LAYER0_MATCH_TOL_DEG
+
+
+def test_the_evidence_channel_never_refuses_a_declared_peak():
+    """The WP's stance, asserted rather than assumed.
+
+    Every path that could have become a gate is a `Diagnostic` instead: the
+    fit converges, the parameters come back, and the findings are advice.  The
+    only refusals this member has are about arithmetic — a window with no
+    channels in it, and a phase name collision — both of which are tested
+    elsewhere and neither of which is about whether the peak is plausible.
+    """
+    structure, ins, data, strong = _clean_lab6(seed=1, boost_at=None)
+    peak = make_peak(center=strong, span=0.5, area=50.0)
+    result = _fit_with_peak(structure, ins, data, peak,
+                            ["instrument.extra_components.*"])
+    assert result.status in ("converged", "max_iter")
+    assert any("extra_components" in p.path for p in result.parameters)
+    for d in result.diagnostics:
+        assert d.level in ("info", "warning")     # never an error
+
+
+def test_the_peak_absorption_statistic_separates_the_three_cases():
+    """The measurement that decided no threshold ships (WP-1103).
+
+    Three arms on one fixture: a declared peak in empty background that the
+    data cannot see; the design case, a real overlapping intruder away from any
+    line; and the parasitic case, a peak sitting on a reflection and absorbing
+    misfit the model should have carried.
+
+    Measured R² of the worst structural column on the peak's span:
+
+        healthy (nothing there)      0.0000
+        design case (real intruder)  0.0004
+        parasitic (on a reflection)  0.2099
+
+    The separation is real — three orders of magnitude — and it is still **not
+    enough to ship a threshold on**: three arms of one synthetic fixture, one
+    phase, one component.  The background guard's 0.25 was measured across real
+    cases, and borrowing it here would not even have fired on the parasitic arm
+    (0.2099 < 0.25), which is the concrete argument against copying a number
+    across a seam because the statistic is the same.  So the table is reported
+    and the *positional* test carries the verdict.
+
+    This test pins the ordering rather than the numbers, so a change that
+    inverts the evidence fails while one that moves it does not.
+    """
+    def worst(result):
+        table = (dict(result.identifiability.extra_peak_absorption)
+                 if result.identifiability else {})
+        return max(table.values()) if table else None
+
+    structure, ins, data, strong = _clean_lab6()
+    free = ["instrument.extra_components.0.area",
+            "instrument.extra_components.0.fwhm", "phases.*.atoms.*.biso"]
+
+    healthy = worst(_fit_with_peak(structure, ins, data,
+                                   make_peak(center=43.5, span=0.5, area=200.0),
+                                   free))
+    s2, i2, d2, _ = _clean_lab6(seed=1, boost_at=strong)
+    parasitic = worst(_fit_with_peak(s2, i2, d2,
+                                     make_peak(center=strong, span=0.5,
+                                               area=200.0), free))
+
+    assert healthy is not None and parasitic is not None
+    assert healthy < 0.01
+    assert parasitic > 20 * max(healthy, 1e-6)
+    # and the borrowed background threshold would have missed it
+    assert parasitic < BACKGROUND_ABSORPTION_GUARD

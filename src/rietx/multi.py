@@ -388,7 +388,9 @@ class MultiHistogramRefinement:
             j0, j1 = data_off[h], data_off[h] + n_data[h]
             if outcome.jac is not None and len(table.free_paths) > 1:
                 jh = np.asarray(outcome.jac)[j0:j1][:, cm]
-                for path, r2 in sorted(background_absorption(jh, table.free_paths).items(),
+                for path, r2 in sorted(background_absorption(
+                        jh, table.free_paths,
+                        model.peak_component_prefixes()).items(),
                                        key=lambda kv: -kv[1]):
                     if r2 > BACKGROUND_ABSORPTION_GUARD:
                         # ``hist.h.<path>`` is this surface's own addressing —

@@ -717,6 +717,19 @@ class CompiledModel:
                     values[fwhm_path], xp)
         return y
 
+    def peak_component_prefixes(self) -> frozenset[str]:
+        """Dot-path prefixes of the components that are **not** background.
+
+        One spelling, because two consumers must partition the declared
+        components the same way: ``background_absorption`` excludes exactly
+        these and ``extra_peak_absorption`` takes exactly these, and a set that
+        disagreed between them would count a component twice or not at all —
+        which is the failure clause 2 of the member contract exists to prevent,
+        reaching a statistic instead of a curve.
+        """
+        return frozenset(f"instrument.extra_components.{pc.index}."
+                         for pc in self.peak_components)
+
     def extra_peak_curve(self, values: dict[str, float]):
         """Every declared sharp peak, summed on the fit grid.
 

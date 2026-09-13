@@ -98,9 +98,15 @@ use is the design case.
   ticks, so `"(extra)"` ticks inflate that count in their regions — right
   for segmentation and unmatched logic, mislabeled as a count; noted rather
   than special-cased.
-- **Presets never free them** (no stage glob matches the
-  `instrument.extra_components.` prefix — 1102's pin, extended to this
-  member). Freeing is the caller's explicit act; the cumulative-stages
+- **One preset frees them, the rest do not** — *corrected 2026-09-13; this
+  WP said "presets never free them" and the tree disagrees.*
+  `mccusker_structural` carries an `extra_components` stage (sixth of eleven,
+  after profile and before coordinates) whose glob is
+  `instrument.extra_components.*`, pinned by
+  `test_the_structural_plan_can_free_a_declared_peak_and_nothing_else`. The
+  safety property is the real one and is unaffected: nothing *adds* a
+  component, so one exists only because a caller declared it. Under every other
+  preset freeing is the caller's explicit act; the cumulative-stages
   recipe and its stage-1 caveat are 1102's Context, restated in this WP's
   manual section. Adding or removing a component is a model edit →
   `Refinement.edit` ([1035](1035-symmetry-surfaced.md): builds the proposed
@@ -196,11 +202,11 @@ use is the design case.
 - [x] Jacobian: FD assertion + cross-backend CONFIGS row.
 - [x] Ticks `"(extra)"` + the phase-name collision refusal + the Layer 0
       unmatched-obs test.
-- [ ] Evidence: `EXTRA_PEAK_ON_REFLECTION` + `extra_peak_absorption`
-      (evidence-only; threshold only if the acceptance measurement supplies
-      one) + FitReport carry + the skill's § 7 rows and § 3 degeneracy
-      line, re-synced with `rietx skill --install . --copy`.
-- [ ] Manual (`using/model.md` + operando recipe + `profiles.md` equation
+- [x] Evidence: `EXTRA_PEAK_ON_REFLECTION` + `EXTRA_PEAK_NO_INTENSITY` +
+      `extra_peak_absorption` (evidence-only; **no threshold ships** — the
+      measurement is in the handover) + result carry + the skill's § 7 rows
+      and § 3 degeneracy line, re-synced with `rietx skill --install . --copy`.
+- [x] Manual (`using/model.md` + operando recipe + `profiles.md` equation
       with `*Source:*`) + api-surface documentation + the preset-non-freeing
       pin extended to this member.
 - [ ] Acceptance measurement + tests: inject two overlapping holder pV

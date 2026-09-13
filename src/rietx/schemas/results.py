@@ -297,6 +297,19 @@ class Identifiability(Base):
     """
 
     background_absorption: dict[str, float] = Field(default_factory=dict)
+    #: The same statistic asked of the component seam's *other* member
+    #: (WP-1103): R² of each screened structural column on the span of the
+    #: **declared sharp peaks**.  Evidence only — no threshold fires on it,
+    #: because the 0.25 above was measured for background blocks and nothing
+    #: has measured what separates a healthy declared peak from a parasitic
+    #: one.  ``EXTRA_PEAK_ON_REFLECTION`` carries the verdict this number is
+    #: evidence beside, and it is a *positional* test rather than a
+    #: correlational one.
+    #:
+    #: The two tables **partition** the declared components: a component is in
+    #: one block or the other, never both, by its declared aggregate.  Empty
+    #: when no peak component is declared or freed.
+    extra_peak_absorption: dict[str, float] = Field(default_factory=dict)
     top_correlations: list[CorrelationPair] = Field(default_factory=list)
     soft_modes: list[SoftMode] = Field(default_factory=list)
     exchangeability: list[ExchangeRow] = Field(default_factory=list)

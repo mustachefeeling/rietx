@@ -3197,6 +3197,13 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     diagnostics = diagnostics + _low_angle_diagnostics(
         model, values, y_calc, stats, ticks)
 
+    # What a declared sharp peak did, once the fit has an answer about it
+    # (WP-1103).  Built after ``ticks`` because "is this component sitting on a
+    # reflection" is asked against the same predicted positions Layer 0 uses,
+    # and the two must not disagree about where the model puts a line.
+    diagnostics = diagnostics + _extra_peak_diagnostics(
+        model, structure, values, ticks, table)
+
     # Degeneracy evidence off the answer-producing stage's Jacobian, which is
     # not serialized and so cannot be recovered later (WP-1055/-1056).  The
     # same numbers the guards screened, carried whole rather than as the
@@ -3204,11 +3211,13 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # quote them.
     identifiability = None
     if guard is not None and (guard.measured_background_absorption
+                              or guard.measured_extra_peak_absorption
                               or guard.measured_top_correlations
                               or guard.measured_soft_modes
                               or guard.measured_exchangeability):
         identifiability = Identifiability(
             background_absorption=dict(guard.measured_background_absorption),
+            extra_peak_absorption=dict(guard.measured_extra_peak_absorption),
             top_correlations=list(guard.measured_top_correlations),
             soft_modes=list(guard.measured_soft_modes),
             exchangeability=list(guard.measured_exchangeability))
@@ -3984,6 +3993,105 @@ def _far_from_data_diagnostics(model: CompiledModel, y_calc, y_bkg,
                    "evaluation window), the wavelength, the zero shift and "
                    "the 2θ range, then re-index if the cell is the doubt",
     )]
+
+
+
+def _extra_peak_diagnostics(model: CompiledModel, structure, values: dict,
+                            ticks: dict, table) -> list[Diagnostic]:
+    """The two things a declared sharp peak is owed (WP-1103).
+
+    Both **report and gate nothing.**  Declaring a peak the phases cannot
+    account for is a legitimate act — it is the whole point of the member, and
+    the alternative a caller would otherwise reach for (``excluded_regions``)
+    masks the sample peak underneath along with the intruder.  What the package
+    owes in return is honest evidence about what the declared peak then did.
+
+    ``EXTRA_PEAK_ON_REFLECTION`` — the component sits within Layer 0's match
+    tolerance of a position the model *already* predicts.  That is the
+    impurity-shortcut use, and it is a scale/intensity degeneracy by
+    construction: two terms describing one peak, with nothing in Rwp to say
+    which owns the counts.  It may be exactly right (a holder line genuinely
+    overlapping a reflection is the design case), which is why it is a warning
+    about interpretation and not a refusal.
+
+    ``EXTRA_PEAK_NO_INTENSITY`` — the area refined onto its zero bound.  A peak
+    reaches the pattern only through ``area x profile``, so at zero area
+    nothing constrains its centre either: it is the zero-scale phase of WP-1110
+    item 13, one rank down, and the position it reports is a walk rather than a
+    measurement.  Said in the vocabulary the peak list already chose for this
+    fact (``no_intensity`` in ``PEAK_UNUSABLE_FLAGS``) rather than in a second
+    one, and tested with ``BOUND_HIT_RTOL``, which is the one place "is this
+    parameter at its bound" is answered.
+
+    This is the honest evidence for "the peak was not needed", and it is not an
+    Rwp comparison — which the package forbids as a correction's evidence for
+    the reason ``docs/milestones/v0.5.md`` records.
+    """
+    from .report.layer0 import LAYER0_MATCH_TOL_DEG
+    from .strategy.staged import BOUND_HIT_RTOL
+
+    out: list[Diagnostic] = []
+    if not model.peak_components:
+        return out
+
+    predicted = sorted(t for name, row in ticks.items()
+                       if name != EXTRA_TICK_KEY for t in row)
+    predicted_arr = np.asarray(predicted, dtype=np.float64)
+
+    for pc in model.peak_components:
+        name = pc.label or f"extra_components[{pc.index}]"
+        centre = float(values[pc.paths["center"]])
+        area_path = pc.paths["area"]
+        area = float(values[area_path])
+
+        entry = (table.entries[table._paths[area_path]]
+                 if area_path in table._paths else None)
+        lo = entry.lo if entry is not None else 0.0
+        # ``BOUND_HIT_RTOL`` is scipy's own test and the one place "is this
+        # parameter at its bound" is answered.  The ``<= 0`` clause beside it
+        # is not a second test of the same thing: softplus underflows to
+        # *exactly* zero well before the internal coordinate reaches any
+        # bound, so an area can be off at its identity without ever being
+        # "at" a bound in scipy's sense.
+        at_zero = (area <= 0.0
+                   or (np.isfinite(lo)
+                       and abs(area - lo) <= BOUND_HIT_RTOL * max(1.0, abs(lo))))
+        if at_zero:
+            out.append(Diagnostic(
+                level="warning", code="EXTRA_PEAK_NO_INTENSITY",
+                message=(
+                    f"declared peak {name!r} refined to no intensity "
+                    f"(area {area:.3g} at its zero bound) — the data does not "
+                    "see it, and its centre is therefore unmeasured rather "
+                    "than precisely measured: a peak reaches the pattern only "
+                    "through area x profile, so at zero area nothing "
+                    "constrains where it sits"),
+                where=[pc.paths["center"], area_path],
+                suggestion=(
+                    "quote neither the centre nor its esd; drop the component, "
+                    "or check that its centre bounds bracket the feature you "
+                    "meant")))
+            continue
+
+        if len(predicted_arr):
+            gap = float(np.min(np.abs(predicted_arr - centre)))
+            if gap <= LAYER0_MATCH_TOL_DEG:
+                out.append(Diagnostic(
+                    level="warning", code="EXTRA_PEAK_ON_REFLECTION",
+                    message=(
+                        f"declared peak {name!r} sits {gap:.3f} deg from a "
+                        "position this model already predicts — the two "
+                        "describe one peak between them, so the intensity "
+                        "split between phase and component is a degeneracy "
+                        "rather than a measurement"),
+                    where=[pc.paths["center"], pc.paths["area"]],
+                    suggestion=(
+                        "if the overlap is real (a holder line on a sample "
+                        "peak) this is expected and the component is doing its "
+                        "job; if the component was a shortcut for a misfitting "
+                        "reflection, fix the model instead — check the phase's "
+                        "scale, profile and preferred orientation")))
+    return out
 
 
 def _data_support_diagnostics(support, model: CompiledModel) -> list[Diagnostic]:
