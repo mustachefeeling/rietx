@@ -369,14 +369,37 @@ Two guards that were quiet rather than red, both now fixed in place:
   suite is green whether or not a new parameter family has a display format.
   Only `npm test` says.
 
-**The review pass, honestly.** `/code-review medium --fix` was launched at
-handover as step 9 requires. It ran for over an hour without returning and
-without touching the working tree, so **this entry records no findings from it
-— not "it found nothing", which would be a different claim.** The verification
-this handover does rest on is the rest of step 10: the fast and full suites,
-ruff, the GUI suite, the docs-consistency gate and the session-start scan, all
-named above with their numbers. A reviewer picking the PR up should treat the
-diff as unreviewed by that pass.
+**The review pass found four defects and all four were mine.** It ran long —
+over an hour, returning after this entry was first written, which is why the
+entry briefly said it had returned nothing. Corrected here, and worth the space
+because three of the four are one mistake made in four places.
+
+1. **An analytic branch claimed two paths this member widens.**
+   `extra_peak_curve` scales every non-primary image by
+   `weight_l · Lp(2θ_l)/Lp(2θ_0)`, so with a peak compiled,
+   `instrument.polarization` and each line `weight` move counts no per-peak
+   scalar chain evaluates — and `scalar_chain_supported` claimed both. Verified
+   rather than taken on the review's word: pre-fix both return `True`, and the
+   peak curve's derivative with respect to them is 5.5 and 3899, so the column
+   was short by the whole peak. WP-1070's failure in a new place, returning a
+   wrong column rather than raising.
+2. **`EXTRA_PEAK_NO_INTENSITY` fired on inert declarations** — area 0, never
+   freed, which is the ordinary case — warning about a refinement that never
+   happened.
+3. **The CIF background description carried the `n_extra_components`
+   miscount**, in a third place and with the worst consequence of the three: a
+   deposited file claiming background flexibility the fit never granted.
+4. **A pre-v1.4 result lost its background count on reopening**, because before
+   v1.4 the old field answered both questions and nothing said so.
+
+Three of those four are the same error — *a count or a claim that was correct
+while the union had one member* — which is the cost of adding a second member
+to a seam, and the thing a third member should be checked against first.
+
+Four tests, one per defect. Fast suite after the fixes: **4575 passed, 132
+skipped**; the full selection was **not** re-run after them, so the 4739/141
+figure above is the tree before the review commit — CI's fast matrix is the
+gate on what actually merges.
 
 **Next.** 1103 closes; nothing in it is left owed. For whoever picks up v1.4:
 
