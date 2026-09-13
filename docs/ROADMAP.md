@@ -85,12 +85,13 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 **v1.4 — free-standing peaks** ([§ v1.4](#v14--free-standing-peaks-in-flight),
 [record](milestones/v1.4.md)), opened 2026-09-12 with its acceptance rows
-written in advance. [1101](wp/1101-standalone-peak-fitting.md) `fit_peaks` and
-[1102](wp/1102-component-seam-humps.md) the component seam both closed
-2026-09-13; 1102's rename is the milestone's one break, recorded in the record.
-Next: [1103](wp/1103-peak-components.md) sharp peaks, the seam's **proving
-case**, which **sharpens its own acceptance row at its open**. Still owed, and
-nobody's WP: deleting the `AGENT_PROTOCOL.md` pointer.
+written in advance. All three WPs closed 2026-09-13:
+[1101](wp/1101-standalone-peak-fitting.md) `fit_peaks`,
+[1102](wp/1102-component-seam-humps.md) the seam (whose rename is the
+milestone's one break), and [1103](wp/1103-peak-components.md) sharp peaks,
+making the seam's clause-2 contract a tested claim. **No open WP**: what is
+left is deleting the `AGENT_PROTOCOL.md` pointer — nobody's, and now more owed,
+since 1103's rows went to the skill on the strength of it.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) foreign model files — the
 TOPAS `.inp` reader merged 2026-09-01 (PR #98); the FullProf `.pcr` reader is
@@ -436,7 +437,7 @@ Also owed to v1.4: deleting the `AGENT_PROTOCOL.md` pointer
 |---|---|---|---|
 | [1101](wp/1101-standalone-peak-fitting.md) | fit_peaks: standalone peak fitting at named positions | ✅ 2026-09-13 | — |
 | [1102](wp/1102-component-seam-humps.md) | The additive component seam + broad humps | ✅ 2026-09-13 | — |
-| [1103](wp/1103-peak-components.md) | Sharp extra peaks: the second component member | 🔄 2026-09-13 | 1102 (the seam) |
+| [1103](wp/1103-peak-components.md) | Sharp extra peaks: the second component member | ✅ 2026-09-13 | 1102 (the seam) |
 
 ### Unscheduled
 

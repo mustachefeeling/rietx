@@ -1457,11 +1457,14 @@ class PeakComponent(Base):
 #:
 #: 1. **An evaluator in ``xp`` ops**, whole-grid or frozen-window, so every
 #:    backend differentiates it through the traced twin and no member needs an
-#:    analytic Jacobian branch of its own.  Registered in
-#:    :mod:`rietx.model.components`, which is the one authority.  The
-#:    arithmetic may live wherever it belongs — a hump's in
-#:    :mod:`rietx.background.models`, a peak's in the unit-area pseudo-Voigt
-#:    every reflection already uses — but the *registry* is one place.
+#:    analytic Jacobian branch of its own.  The arithmetic lives where it
+#:    belongs — a hump's in :mod:`rietx.background.models`, a peak's in the
+#:    unit-area pseudo-Voigt every reflection already uses — and
+#:    :mod:`rietx.model.forward` calls it directly.  This clause once said the
+#:    evaluators were *registered* in :mod:`rietx.model.components`; that module
+#:    did not exist when the sentence was written, and when WP-1103 built it the
+#:    evaluator table had no reader, so it was deleted.  What the clause
+#:    requires is a property of the evaluator, not a place to list it.
 #: 2. **A declared aggregate membership**, held as *data* rather than implied by
 #:    the class: which reported aggregate the member's curve joins — the
 #:    reported background (``result.y_background``, ``BackgroundEvidence``, the

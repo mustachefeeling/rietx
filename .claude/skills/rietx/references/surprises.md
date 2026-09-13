@@ -1,4 +1,4 @@
-# 8. Twenty-two things that will surprise you, all measured
+# 8. Twenty-three things that will surprise you, all measured
 
 Load it when something the fit did makes no sense. Every entry is a measured result that contradicts an intuition.
 
@@ -368,3 +368,30 @@ parameter, its bounds and the tie: *"writing phases.0.atoms.1.biso=40 back to
 the model breaks its own bounds [0, 25]; it follows 2·phases.0.atoms.0.biso"*.
 Read that as a constraint to widen, never as a corrupt model or a bad CIF.
 (Measured: WP-1119.)
+
+
+**8.23 Declaring an intruding peak is not more *accurate* than excluding the
+region — it is cheaper, and on some patterns that is the whole difference.**
+A sample holder line sitting on a sample peak can be handled two ways: declare a
+`PeakComponent` so the channels stay in the fit, or put the region in
+`excluded_regions`. On the NIST SRM 660c LaB6 protocol with two holder lines
+injected onto reflections, both recover the clean-pattern cell — declaring to
+−1.0 ppm, excluding to +0.6 ppm — while *ignoring* the intruder costs +7.6 ppm
+and inflates the cell esd 7.5x. Excluding cost 256 of 5332 channels (4.8 %).
+**So do not tell a user that declaring is the more accurate choice; it is not,
+on a pattern with plenty of reflections.** What declaring buys is the retained
+channels and a *measured* intruder (area and position with esds) instead of a
+masked one. The balance tips toward declaring as the reflection count falls —
+a low-symmetry phase, a narrow range, or a series whose trajectory needs every
+reflection at every point — and that is the case to recommend it for.
+(Measured: WP-1103, SRM 660c.)
+
+**And read `EXTRA_PEAK_ON_REFLECTION` before quoting anything that overlaps.**
+It fires whenever the declared component lands within 0.08° of a position the
+model already predicts, which on the design case is *expected* — the intruder
+really is on a sample peak. It is telling you the intensity split between phase
+and component is a degeneracy, not a measurement: in the run above the recovered
+component areas came back 1-2σ high because they had taken a little of the
+reflection underneath. Quote the phase quantities and say the two overlap; never
+quote the component's share as if the fit had resolved it.
+(Measured: WP-1103.)

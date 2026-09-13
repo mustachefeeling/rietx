@@ -1,6 +1,6 @@
 # WP-1103 — Sharp extra peaks: the second component member
 
-Milestone: v1.4 · Status: 🔄 2026-09-13
+Milestone: v1.4 · Status: ✅ 2026-09-13 — `PeakComponent` shipped; the member contract's clause 2 is a tested claim
 Depends on: WP-1102 (the component seam this member lands in)
 
 ## Goal
@@ -239,6 +239,149 @@ use is the design case.
   (sequential carry semantics).
 
 ## Handover log
+
+### 2026-09-13 — the seam's second member, and what measuring it actually showed
+
+A user can now tell rietx about a sharp peak their phases cannot account for —
+a sample holder diffracting at its own distance, a mount, an unidentified
+impurity line — and keep fitting the channels it sits on instead of excluding
+them along with the sample peaks underneath. The package fits what is declared,
+never detects one and never refuses one, and reports two findings about what
+happened afterwards.
+
+**The measurement is more nuanced than this WP assumed, and that is the main
+thing to carry forward.** On the SRM 660c protocol with two holder lines
+injected onto LaB6 reflections, declaring them recovers the clean-pattern cell
+to −1.0 ppm where ignoring them costs +7.6 ppm and inflates the cell esd 7.5×.
+But **excluding the regions also recovers it**, to +0.6 ppm, for 4.8 % of the
+channels. So on a pattern as reflection-rich as LaB6 the case for this feature
+is not cell accuracy over `excluded_regions`; it is the retained channels and
+the fact that the intruder is *measured* rather than masked. The gain grows as
+the reflection count falls, which is the operando case the WP was written for
+and which this fixture is not. That sentence is in the acceptance module's
+docstring and in the release-notes entry, so nobody reads the table as a win it
+is not.
+
+The other thing this WP was for is done: the component seam's member contract
+had two axes and neither was tested against a second case. One of them now is.
+
+**Done.** All eight checklist items.
+
+* `PeakComponent` joins `ExtraComponent` (centre, area, FWHM, mixing, plus
+  `all_lines` and a label). `SCHEMA_VERSION` 0.18 → 0.19; no break, since an
+  absent component is exactly off.
+* **Clause 2 is a tested claim now.** `compile_model` partitions
+  `extra_components` by `COMPONENT_AGGREGATE` — read, never inferred — so a
+  hump goes to `component_paths` and into `background()`, and a peak goes to
+  `peak_components`, into `extra_peak_curve`, and onto `result.ticks` under the
+  reserved key `"(extra)"`. Both Le Bail/Pawley nets subtract it explicitly,
+  which is the whole of clause 3 for a peak-landing member and the one thing it
+  costs that a hump does not.
+* **`rietx.model.components` now exists.** Clause 1 named it "the one
+  authority" and nothing in the repository had ever defined it — the union's
+  docstring cited a module that was never written. Built rather than deleted,
+  because clause 2's declared membership needed exactly that home.
+* Windows sized from **bounds**, not values: the Bragg image of
+  `[center.min, center.max]` widened by `window_fwhm_mult(eta.max)·fwhm.max +
+  WINDOW_MIN_DEG`. Every legally reachable state is inside the window frozen
+  for it, with no `free_paths` plumbed into the compile.
+* Every emission line gets an image at its own Bragg angle, scaled by
+  `w_l · Lp(2θ_l)/Lp(2θ_0)` — the measured form, not the bare weight.
+* Two diagnostics, both advice: `EXTRA_PEAK_ON_REFLECTION` and
+  `EXTRA_PEAK_NO_INTENSITY`. `Identifiability.extra_peak_absorption` beside
+  them, reported and deliberately **not** thresholded.
+* Manual Part 1 (`using/model.md`) and Part 2 (`profiles.md`, with its
+  `*Source:*` line); skill § 7 rows and a § 3 degeneracy line; a cross-backend
+  `extra_peak` config; `help.py` entries; the GUI's `PLACES` formats.
+
+**Measured** (this session, macOS darwin 25.5.0, worktree `.venv`, `[dev]`
+only — no jax, no torch; both counts on the final tree `78f613a6`, nothing else
+mid-suite):
+
+* Fast selection: **4571 passed, 132 skipped**, 4:04.
+* Full selection: **4739 passed, 141 skipped**, 30:52.
+* GUI: `npm test` **591 passed** across 22 files; `npm run check` 0 errors.
+* Tests added, counted per file against `origin/main` rather than against a
+  re-measured main (which is CI's job): `test_extra_components.py` 50 → 89
+  (**+39**, all passes), `test_cross_backend.py` 103 → 110 (**+7**: 2 passes
+  and **5 new skips** on this `[dev]` venv — the jax/torch `extra_peak` rows,
+  which are skips and not passes), `test_acceptance_extra_peaks.py` 0 → 5
+  (**+5**, all `slow`). So the fast selection moved by **+46** items (+41
+  passed, +5 skipped) and the full by **+51** (+46 passed, +5 skipped).
+* Acceptance, SRM 660c + two injected holder lines (area 120 counts·deg, FWHM
+  0.16°, at 37.4418° and 43.6205°):
+
+      arm       a (Å)      esd        ppm     Rwp      channels
+      clean     4.156895   2.49e-05    0.0    0.08671      5332
+      ignore    4.156927   1.88e-04   +7.6    0.31714      5332
+      declare   4.156891   2.46e-05   −1.0    0.07701      5332
+      exclude   4.156898   2.49e-05   +0.6    0.08625      5076
+
+  Recovered component values: centres within 0.005° of truth, areas 123.4(43)
+  and 124.5(24) against 120, both ~1-2σ high — which is the on-reflection
+  degeneracy being real, not the fit being wrong.
+* Le Bail: declaring the intruder recovers the clean extraction to machine
+  precision (the injected curve is the model's own, so the net is restored bit
+  for bit); ignoring it inflates the worst reflection 160.9 → 547.2.
+* `extra_peak_absorption` separation, three arms on one synthetic fixture:
+  healthy 0.0000, design case 0.0004, parasitic 0.2099. **No threshold ships.**
+  Three arms of one fixture is thin, and the background guard's own 0.25 would
+  not have fired on the parasitic arm — which is the concrete argument against
+  borrowing a number across a seam because the statistic is the same.
+* Default window cost: ±8.3° (1691 of 8000 channels on a 0.01° grid); 525 with
+  caller-stated tight bounds. `EXTRA_PEAK_FWHM_MAX = 0.5` exists because at the
+  2.0 a `Parameter` would otherwise carry, `k(η=1) ≈ 16` makes the window ±32°
+  and the member costs what windowing was for.
+
+**Gotchas** — five things the tree disagreed with, four of them this WP's own
+text.
+
+1. **`CompiledModel._peak_terms` has never existed.** Cited in Context as
+   "already has the machinery"; `git log -S` finds no definition anywhere in
+   the history. The real builder is `phase_peaks`. Two prose references in
+   `indexing/peakfit.py` cited the phantom name too, and are corrected.
+2. **The window rule `30·fwhm.max + 0.3°` is the pre-WP-1112 rule**, retired
+   because a fixed ±30 FWHM carries an η-dependent intensity bias it never
+   states. It matters more here than for a phase, because `eta` is a *free*
+   parameter of this member.
+3. **`../AGENT_PROTOCOL.md` is a pointer** this milestone deletes; the rows go
+   to the skill, which kept the section numbers.
+4. **"Presets never free them" is false.** `mccusker_structural` has an
+   `extra_components` stage, sixth of eleven, pinned by a test since 1102. The
+   safety property is the real one and is untouched — nothing *adds* a
+   component — so the behaviour stands and the claim is corrected.
+5. **A count quietly became a different count.** Partitioning
+   `component_paths` left `n_extra_components` counting humps alone, so a
+   result declaring two peaks and no hump would have reported zero, and
+   `BackgroundEvidence.n_peaks` carried that number. Nothing caught it: every
+   existing test declares humps only, where the two agree. Split into
+   `n_extra_components` (the list) and `n_background_components` (the humps,
+   which is what the background section's question actually is).
+
+Two guards that were quiet rather than red, both now fixed in place:
+
+* `tests/test_cross_backend.py`'s meta-test for "a config registered and never
+  run" checked a **hand-written literal set**, so the `extra_peak` row I added
+  collected zero tests and passed — which is exactly the failure that test
+  exists to catch, one rank up. The set is now derived from the builders the
+  module defines.
+* The GUI's `PLACES` cross-check lives on the TypeScript side, so the python
+  suite is green whether or not a new parameter family has a display format.
+  Only `npm test` says.
+
+**Next.** 1103 closes; nothing in it is left owed. For whoever picks up v1.4:
+
+1. The contract's **first** axis is still untested — evaluator *shape*, a
+   whole-pattern oscillation in Q against a local feature in 2θ. A Debye term
+   is its proving case; GSAS-II and FullProf both ship one and this package
+   does not. Named in the contract, not built, and not blocking anything.
+2. **Deleting the `docs/AGENT_PROTOCOL.md` pointer** is still owed to this
+   milestone and is still nobody's WP. It is now *more* owed: this WP's rows
+   went to the skill on the strength of that deletion happening.
+3. `extra_peak_absorption` ships without a threshold. Supplying one needs arms
+   across real cases, not more arms on one synthetic fixture — and the honest
+   default meanwhile is the positional test, which is what carries the verdict.
+
 
 - **2026-09-13 (prune)** — mailbox consumed and four stale findings repaired
   in place before any work, per the session protocol's step 1. The WP was
