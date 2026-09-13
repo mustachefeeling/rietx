@@ -67,11 +67,19 @@ t5544a638  13 nodes  data=11BM_NAC.fxye
 - Optional [JAX & torch differentiable backends](https://rietx.org/using/install.html#optional-extras) 
 - [Readers](https://rietx.org/using/files.html) for many standard formats including
   `.xy`/`.xye`, GSAS raw, pdCIF, `.chi`, Rigaku `.ras`/`.rasx`, Bruker
-  `.uxd`/`.brml`/`.raw` and PANalytical `.xrdml`
+  `.uxd`/`.brml`/`.raw`, PANalytical `.xrdml`/`.udf` and Philips `.rd`/`.sd`
+- [Another program's refinement, read in](https://rietx.org/using/files.html#refinement-files-another-program-wrote):
+  `read_project_model` opens a TOPAS `.inp` or a FullProf `.pcr` by content,
+  refine flags included
 - The [`FitReport`](https://rietx.org/using/report.html), an output bundle designed for agentic consumption. 
 - A git-style branchable [refinement history](https://rietx.org/using/history.html)
 - [Sequential refinements](https://rietx.org/using/series.html)
-- [Indexing](https://rietx.org/using/indexing.html)
+- [Indexing](https://rietx.org/using/indexing.html), and
+  [peaks fitted on their own](https://rietx.org/using/indexing.html#fitting-peaks-you-name)
+  at positions you name, with no structure at all
+- [Declared extra peaks and humps](https://rietx.org/using/model.html#declared-extra-peaks):
+  a sample holder or an unidentified line stays in the fit instead of being
+  excluded along with the sample peaks underneath it
 - [Extensive agentic surface](https://rietx.org/using/agents.html)
 - [PowderLine recipe interchange](https://rietx.org/using/recipe.html): read a
   pipeline's recipe, write its four tables back
