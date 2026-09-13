@@ -1574,7 +1574,16 @@ def _describe(path: str, structure: Structure):
         return ("polarization_correction", "instrument_correction", "", None,
                 "", None)
     if path.startswith("instrument.extra_components."):
-        return (f"extra_component_{parts[2]}_{parts[3]}", "extra_component",
+        # the *foreign* format's vocabulary, not this package's: both reference
+        # engines write ``background_peak_0_position`` in ``descriptive_name``
+        # and ``background_peak`` in ``category`` (the committed
+        # ``tests/data/powderline/.../refined_parameters.csv`` of each), and
+        # this column exists so the three tables join on the name.  WP-1102's
+        # rename moved the dot-path — the left-hand column — and deliberately
+        # stops there: renaming the reference engines' spelling too would make
+        # the row unjoinable against the output it is written to be compared
+        # with.
+        return (f"background_peak_{parts[2]}_{parts[3]}", "background_peak",
                 "", None, "", None)
     if path.startswith("instrument.background."):
         sub = parts[-1]

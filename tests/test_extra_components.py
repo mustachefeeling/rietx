@@ -959,3 +959,26 @@ def test_every_declared_read_point_exists_and_is_callable():
         for part in parts[i:]:
             target = getattr(target, part)
         assert callable(target), dotted
+
+
+def test_a_v1_2_result_json_still_opens_under_the_new_count_name():
+    """The other renamed field, and the one the textual repair cannot reach.
+
+    ``n_background_peaks`` carries no word boundary before the legacy name, so
+    ``migrate_document_text`` leaves it alone by construction, and a saved
+    result is read at a fourth point (``rietx html <result.json>``) that is not
+    one of ``READ_POINTS``.  Repaired at the schema instead, the way the
+    instrument's own field is, so a v1.2 result opens rather than raising
+    ``extra_forbidden`` — old documents open.
+    """
+    from rietx.schemas.results import RefinementResult
+
+    doc = {"mode": "rietveld", "status": "converged",
+           "provenance": {"package_version": "1.2.0"},
+           "two_theta": [10.0], "y_obs": [1.0], "y_calc": [1.0],
+           "parameters": [],
+           "statistics": {"rwp": 1.0, "rp": 1.0, "rexp": 1.0, "chi2": 1.0,
+                          "gof": 1.0, "n_points": 1, "n_free_parameters": 0},
+           "n_background_peaks": 2}
+    assert migrate_document_text(json.dumps(doc))[1] is False
+    assert RefinementResult.model_validate(doc).n_extra_components == 2

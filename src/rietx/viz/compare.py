@@ -587,7 +587,7 @@ def _with_hump(inputs: StandardInputs) -> None:
     free peak can always improve.
 
     The stage is appended rather than merged into ``scale_bkg`` for the reason
-    ``strategy/staged._BACKGROUND_PEAK_STAGE`` gives: a free position over
+    ``strategy/staged._EXTRA_COMPONENT_STAGE`` gives: a free position over
     peaks that have not been placed yet hunts the wrong misfit.
     """
     lo, hi = inputs.two_theta_limits or (None, None)

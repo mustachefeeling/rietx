@@ -230,7 +230,7 @@ _ROUGHNESS_STAGE = (
 #: alongside their own stages.  **No plan ever *adds* a peak** — the glob frees
 #: what the caller declared and nothing more, which is the whole safety
 #: property of a feature whose parameters would otherwise improve any Rwp.
-_BACKGROUND_PEAK_STAGE = (
+_EXTRA_COMPONENT_STAGE = (
     Stage("extra_components", ["instrument.extra_components.*"]),
 )
 
@@ -307,7 +307,7 @@ class RefinementPlan:
             Stage("profile_w", ["instrument.profile.w"]),
             Stage("profile", ["instrument.profile.u", "instrument.profile.v",
                               "instrument.profile.x", "instrument.profile.y"]),
-            *_BACKGROUND_PEAK_STAGE,
+            *_EXTRA_COMPONENT_STAGE,
             Stage("coordinates", ["phases.*.atoms.*.dof.*"]),
             Stage("biso", list(_DISPLACEMENT_GLOBS)),
             # March-Dollase preferred orientation (WP-0307) turns on *after* the
