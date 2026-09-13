@@ -422,6 +422,20 @@ real defects in this session's own work, and it is worth saying which:
   payload and failed on the schema rather than on what it asserts; fixture
   corrected.
 
+Two further findings it raised and did not fix were **declined as code changes
+and taken as documentation**, since in both the defect was a claim rather than a
+behaviour. (1) A textual rule cannot see structure, so it also rewrites the
+legacy word in a label, an annotation note, or — the only one with teeth — a
+`DataRef` naming a pattern file called `background_peaks.xye`. Repairing that
+means enumerating the fields that may hold a path, which is the failure the
+module exists to avoid, and the residue **fails loudly**, a named missing file,
+rather than silently. Stated in the module rather than left to be rediscovered.
+(2) `history.events.read_events` is a fourth reader of stored documents and is
+not migrated; a v1.2 `events.jsonl` replayed through `rietx watch` shows old
+spellings. Nothing raises and the effect is display-only on a finished run, so
+the repair is not paid for — but `READ_POINTS` now names both exclusions, because
+a tuple claiming to list where a repair happens is a claim like any other.
+
 *Gotchas.*
 
 - **The `.rxt` carries no `instrument.` prefix.** `textdoc._render_block`

@@ -26,6 +26,20 @@ from .instrument import _LEGACY_COMPONENT_FIELD
 #: Where a stored document is read and this repair is applied.  Listed so a
 #: fourth read point is an edit here rather than a silent gap; a reader that
 #: does not appear in this tuple does not migrate.
+#:
+#: **Two readers are outside it on purpose**, and both are named here rather
+#: than left to be rediscovered:
+#:
+#: * :func:`rietx.history.events.read_events` — a v1.2 ``live/events.jsonl``
+#:   replayed through ``rietx watch`` shows dot-paths in the old spelling.
+#:   Nothing raises (an event's ``data`` is an open dict) and the effect is
+#:   display-only, on a run that has already finished, so the cost of a
+#:   fourth repair point is not paid for.
+#: * :class:`rietx.schemas.results.RefinementResult` — its renamed *count*
+#:   field is repaired at the schema instead, because ``n_background_peaks``
+#:   offers no word boundary before the legacy name for the rule below to
+#:   catch, and a result JSON is read by ``rietx html`` rather than by any
+#:   reader here.
 READ_POINTS: tuple[str, ...] = (
     "rietx.project.Project.open",
     "rietx.history.store.read_records",
@@ -51,6 +65,16 @@ READ_POINTS: tuple[str, ...] = (
 #: An earlier version of this module anchored on ``instrument.`` and silently
 #: missed the third, which is the same class of gap the module exists to close,
 #: reintroduced inside it.
+#:
+#: **What being textual costs, stated rather than discovered.**  The rule cannot
+#: see structure, so it also rewrites the legacy word where it is not a path: a
+#: ``HumpComponent.label``, a history annotation note, or — the only one with
+#: teeth — a ``DataRef`` pointing at a pattern file a user happened to name
+#: ``background_peaks.xye``, whose stored path would be rewritten and then not
+#: found.  Accepted rather than repaired: making the rule structure-aware means
+#: enumerating the fields that may hold a path, which is the failure this module
+#: exists to avoid, and the residue **fails loudly** (a missing file, named) in
+#: the one case that bites, rather than silently the way a stale glob does.
 _LEGACY_NAME = re.compile(rf"\b{_LEGACY_COMPONENT_FIELD}\b")
 
 
