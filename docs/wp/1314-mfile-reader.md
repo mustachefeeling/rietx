@@ -53,6 +53,29 @@ flipping).
 
 ### Inherited
 
+- **2026-09-13, from [1118](1118-foreign-model-files.md): the registry this WP
+  was gated on exists, and a Jana reader now has four things to fill in rather
+  than a shape to invent.** `io/projects/registry.py` holds `PROJECT_FORMATS`,
+  an ordered tuple whose order is behaviour, reached through
+  `read_project_model`, which dispatches on **content**. A new member declares
+  `name`/`title`/`extensions`/`sniff`, a `carries` list saying in words what the
+  file holds beyond a structure, a `reports_at` of `"read"` or `"build"` saying
+  which call takes a caller's diagnostics list, and its `matches`/`read`/
+  `to_structure` callables; `refuses` stays `None` unless the format is
+  recognised in order to be declined. Four consequences for this WP. (1) The
+  answer stays the format's **own** model — a `JanaModel` beside `TopasModel` —
+  never a shape shared across formats with a blank where a file is silent, which
+  is the rule that decided the registry. (2) A `.m50`/`.m40`/`.m41` trio is a
+  file *set* and no member declares a sniff for one, so how the trio is claimed
+  is this WP's first question and the registry does not answer it: `matches`
+  takes one path. (3) The member's `read` must be a top-level `rx.` export, and
+  that fires two documentation gates the moment it lands —
+  `tests/test_manual_api.py` on the public surface (`rietx.io.projects` is
+  declared provisional, so the models inherit that tier, but the verb still
+  needs a Part 1 chapter row) and `tests/test_skill.py` on
+  `docs/skill/make_api_index.py`'s `SECTIONS`. (4) `io/CLAUDE.md` § Project
+  readers now carries three further rules, all of which govern this reader.
+
 - **2026-09-01, from [1118](1118-foreign-model-files.md): the package this
   reader belongs in now exists, and so do the two rules that govern it.**
   `src/rietx/io/projects/` landed with the TOPAS `.inp` reader (PR #98) — one

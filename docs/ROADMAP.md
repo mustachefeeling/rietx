@@ -94,9 +94,9 @@ the strength of it. Unscheduled
 Stoe writable, and nothing depends on it.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) foreign model files — the
-TOPAS `.inp` reader merged 2026-09-01 (PR #98); the FullProf `.pcr` reader is
-PR #111; the exporter registry next. Two contributor PRs wait on review
-(#206 atom bounds, #208 species fallback).
+`.inp`, `.pcr` and `.PRM` readers merged, and the registry over them landed
+2026-09-13, so `rx.read_project_model` opens a file by content. Next: the two
+offers it unblocks, `.EXP` (#103) and `STR(...)` (#107).
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
@@ -458,7 +458,7 @@ seam written out in [1325](wp/1325-parametric-series.md)'s `### Inherited`.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | 🔄 2026-09-10 | — |
+| [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | 🔄 2026-09-13 | — |
 | [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ✅ 2026-09-04 | — |
 | [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | 1118 |
 | [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | — |

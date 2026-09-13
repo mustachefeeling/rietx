@@ -317,6 +317,155 @@ work this WP does.
 
 ## Handover log
 
+### 2026-09-13 — the registry, and the question it had to answer first
+
+Someone handed another program's refinement file can now open it with one call.
+`rx.read_project_model("whatever.inp")` works out from the file's contents which
+program wrote it, reads it, and hands back what the file said plus a
+`.to_structure()` carrying the file's own refine flags. Before today the two
+readers that could do this existed but were reachable only by importing them by
+name, and `rx.capabilities()` did not mention them, so nothing could ask what
+this build opens. The part that needed deciding was not the plumbing: it was what
+the registry is *for*. Four readers in this package open a foreign file, they do
+not answer the same question, and forcing them into one shape would have meant a
+model with a blank where a file simply had nothing to say — which reads as an
+answer. The decision taken is that the registry's unit is a **refinement**, and
+two of the four stay outside it with the reason written down rather than left to
+be inferred.
+
+*Done* — six commits, `wp1118-model-format-registry`.
+
+- **The mailbox pruned first** (`3a7f57a7`). Eight `### Inherited` entries folded
+  into Context, Seams and Tasks and the section deleted. Three had gone stale in
+  the ten days since the file was last edited, and the worst of them was stale in
+  the reassuring direction: WP-1308, PR #98 and WP-1330 all warn that `SKILL.md`
+  has 27, 32 or 36 bytes of headroom and that a routing row must be bought with a
+  cut. Measured today it has **1 597 B** free, because WP-1103 and #284 cut the
+  body after those notes were written. `references/api.md` § In had likewise
+  stopped being false — it already named both readers. The third was an omission
+  rather than a rot: `rx.read_gsas_prm` (PR #248) had landed as a *third reader
+  kind* and the registry task did not carry it.
+- **The registry** (`5ba04e58`): `io/projects/registry.py` with `ProjectFormat`,
+  `ProjectModel`, an ordered `PROJECT_FORMATS`, `identify_project_format` and
+  `read_project_model`; top-level exports for all of it plus `rx.read_topas_inp`
+  and `rx.read_fullprof_pcr`; a `capabilities().project_formats` arm with the
+  membership meta-test `reader_formats` is held to; `io/CLAUDE.md` § Project
+  readers +3 rules (cap 350 → 368, argued); a Part 1 chapter; and the skill's
+  routing row and § In.
+- **The read's reports made durable** (`5e85b7d5`), found reviewing the commit
+  before it — below.
+- Two prose corrections and an encoding fix.
+
+*The three decisions, and what each rules out.*
+
+1. **The unit is a refinement, not a foreign file.** `read_gsas_prm` carries a
+   machine and no model at all — no phases, no sites, no fitted numbers — so it
+   stays beside `load_instrument_profile`, which is the argument its own merge
+   made and the organising question the 09-10 entry recorded as raised and
+   unanswered. `read_recipe` is a refinement but resolves to something ready to
+   fit and is a build-wide feature. A pattern is the other registry's. Admitting
+   any of them would empty every field this registry declares about a model, on
+   one member. **What this rules out**: a future reader is placed by asking "does
+   this file state a refinement" before it is written, not after it has a home.
+2. **The answer is the format's own model, tagged.** `ProjectModel` names the
+   format and hands on `TopasModel`/`FullProfModel` untouched. A shared shape
+   would need an optional field wherever a format is silent, and a caller could
+   not tell "this file carried none" from "the reader found none" — WP-1076 one
+   registry over. What each format carries beyond a structure is declared in
+   words (`ProjectFormat.carries`) so a client asks instead of reading `None` and
+   guessing, and the conversion keywords pass through rather than being flattened
+   into one vocabulary, since two formats' options sharing a name would not share
+   a meaning.
+3. **Dispatch is on content, never the suffix.** `.inp` is written by unrelated
+   programs — WP-1407's rule one rank up, that a file extension does not name a
+   format here. FullProf goes first because `COMM` is a line the format
+   *requires*; TOPAS's evidence is a line-start keyword in a 64 kB head, the
+   weaker test, and the order is that difference. The `.inp` sniff runs the head
+   through the reader's **own** `strip_comments`, so a commented-out `xdd` is not
+   a statement and the sniff is not a second grammar to keep in step.
+
+*Measured* — worktree `.venv`, `[dev]` only (no jax, no torch, so the
+cross-backend rows self-skip), python 3.12.12, darwin/arm64, `pgrep` clean both
+times:
+
+- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4629 passed, 132
+  skipped**, ~2:08 (two runs, 127.6 s and 128.3 s). The delta is **+21 passed,
+  +0 skipped** — `tests/test_projects_registry.py` collects 21 and every one
+  passes; no other file's collection moved, `test_capabilities.py`'s edit being
+  one assertion inside an existing test.
+- `tests/test_acceptance_fap.py`, the WP's named acceptance: 2 passed.
+- `ruff check src tests examples` clean; `sphinx -W` clean.
+- **The full suite did not run**, and deliberately: `tests/CLAUDE.md`'s rung 3
+  fires only when a change can move a measured number, and nothing here touches
+  the forward model, the solver or the statistics. The FAP acceptance was run
+  anyway because this WP names it.
+- **Import cost, since `import rietx` now pulls in two ~2 500-line parsers**:
+  `rietx.io.projects` is **13.1 ms cumulative** of a 535–663 ms total (three
+  runs), about 2 %. `scipy.signal`, reached through `rietx.background`, is 274 ms
+  of the same total. Not worth a lazy-import mechanism the package does not have
+  for any other export; recorded so the next reader added knows what it costs.
+
+*In flight*: nothing. The branch is one session's work and complete.
+
+*Gotchas*:
+
+- **The asymmetry in `reports_at` was very nearly a trap, and the review caught
+  it two screens from a test arguing against it.** A `.inp` reports its repairs
+  while parsing and a `.pcr` while codewords become a `Structure`, so the first
+  design routed the caller's list on that flag — and silently dropped it when a
+  caller passed one to `to_structure` on a `.inp`. They got an empty list back,
+  which reads as "this file needed no repairs". The fix is `Recipe`'s: the read
+  reports into a list of the front door's own, lands on
+  `ProjectModel.diagnostics` whether or not anyone asked, and a caller's list is
+  **extended** from it rather than handed to the reader, so it stays the caller's
+  own object. The general shape to watch for: a per-format flag that routes a
+  caller's channel is a place where being wrong is silent.
+- **Two defaults are `None`/`()` on purpose and each has a writer.**
+  `ProjectFormat.refuses` is `None` for both current members because neither is a
+  recognise-in-order-to-decline format, mirroring `PatternFormat.refuses`.
+  `ProjectModel.diagnostics` defaults to `()` and the `reports_at == "build"` arm
+  of `read_project_model` is its writer — for FullProf the read genuinely reports
+  nothing, since all four of its codes fire at build. Neither is WP-1076's
+  defaulted `False`.
+- **`.inp` and `.pcr` fixtures cannot be vendored, so the `.pcr` ones are
+  `test_projects_fullprof`'s builders imported.** A second fixture writer for one
+  format is a second description of its layout, and the two would drift on
+  exactly the 19-field control line that format refuses a file over — which it
+  did, on the first run, against a hand-written 18-field one.
+- **The WP file read at session start was three days stale.** `/wp-start` reads
+  the WP file in step 2 and enters the worktree in step 3, so the read comes from
+  the main checkout — which was six merges behind `origin/main`, and missing the
+  09-10 entry recording PR #248. Reconciled by re-reading from the worktree. The
+  cheap habit: after `EnterWorktree`, re-read the WP file.
+- **Two documentation gates fired on this work and both were right.**
+  `test_manual_api.py` put 90 public names in no bucket, which is what made
+  `rietx.io.projects` a declared-provisional module (the WP-1078 mechanism —
+  honest here, since the registry landed with two formats and three queued) and
+  bought the Part 1 chapter. `test_skill.py` demanded the four new verbs in
+  `make_api_index.py`'s `SECTIONS`. Neither would have fired had the readers
+  stayed off the top level, which is the argument for putting them there.
+
+*Next*, in order:
+
+1. **The GSAS `.EXP` reader** — issue #103, whose filer volunteered for it once
+   the registry shape landed, and it has. They bring two spec findings for its
+   docstring (GSAS-II's `Rvals['GOF']` is reduced χ² rather than its root;
+   instrument parameters are `[default, current, refine_flag]` triples, current
+   at index 1). It is the task with a fixture already in the repo — `FAP.EXP` is
+   GSAS's converged fluorapatite fit — so it is also what lets
+   `test_acceptance_fap.py` take its protocol from a reader instead of from
+   transcribed constants, which is this WP's stated acceptance.
+2. **The `STR(...)` decision** — issue #107, whose filer offered either fix once
+   told which. 1119 settled that it needs no expression language, so it is a
+   `.inp` grammar question living entirely in `io/projects/topas.py`.
+3. **The `#if` evaluator**, newly a task line: three of four workshop `.inp`s
+   refuse at their first `#if`, and those are the multi-pattern reel files
+   WP-1110's agent round named as the hardest part of the work.
+
+The writers (#148) and the `.gpx` reader (#234, its reporter's offer standing)
+are both larger and neither is blocked, so they wait on someone choosing them
+rather than on anything here.
+
 ### 2026-09-10 — the `.PRM` half of the GSAS task landed from outside (PR #248)
 
 Merged in a `/pr-review all` pass, not a WP session; this entry exists because
