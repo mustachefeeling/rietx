@@ -348,16 +348,61 @@ mid-format, mirroring 1047's own rule.
 
 ## Handover log
 
-- **2026-09-13** — created, from a scoping round that started as "add
-  PANalytical's `.raw`" and found there is no such thing. Three findings
-  reshaped the scope and are all in Context: `.udf` is a **current** format (an
-  Aeris wrote the newest sampled file in June 2025), not a legacy one, and its
-  header alone can seed the instrument; `.rd` has a **permissive** description
-  in PyXRD, so the xylib fence never has to be argued about; and **Stoe has no
-  description anywhere**, which is why it appears here only as a refusal plus a
-  concrete, cheap ask (`.raw` files paired with WinXPOW's own ASCII export of
-  the same scans). Two risks are unretired and both are task 1: whether the
-  IUCr CPD kit still carries the Philips `.rd` originals that would turn the
-  committed `qarr/*.prn` into a value oracle, and whether a real `.udf` can be
-  licensed rather than only read. **Next**: task 1, because it decides what the
-  acceptance line may claim for both formats.
+- **2026-09-13** — **created; no implementation.** A request to support
+  "PANalytical's `.raw`" turned out to name a file that does not exist, and
+  scoping it properly changed what is worth building. `.raw` belongs to six
+  unrelated vendors and PANalytical is not among them; what the request meant
+  is the Philips family, which WP-1047 declined on purpose. The useful result
+  is that one member of that family is not a legacy format at all: a
+  PANalytical Aeris, a benchtop on sale today, writes `.udf`, and its header
+  carries enough to seed the instrument outright. The other useful result is
+  negative and saves someone a week: **Stoe cannot be written at all**, because
+  no description of it exists in any licence anywhere, so it is scoped here as
+  a refusal that claims nothing plus a cheap, specific ask. Nothing was
+  implemented; this session produced the WP and its evidence.
+
+  **Done.** The WP file and its ROADMAP row, under a new Unscheduled group
+  ("The formats a lab still has"). One commit, `be096979`, branch
+  `wp1344-benchtop-formats`.
+
+  **Measured.** Evidence gathered 2026-09-13 against live repositories, and the
+  per-format scoring against WP-1047's own bar is the table in Context.
+  Headlines: `.udf` has **two permissive descriptions** (PyXRD BSD-2, psidata
+  Apache-2.0) plus two LGPL ones; `.rd` has **three descriptions, one
+  permissive** (PyXRD's `rd_parser.py`, V3 and V5), which is the same footing
+  Bruker `.raw` v3 shipped on; `.sd` has one and no file, which is the footing
+  v2 was **refused** on; Stoe has **zero** (absent from xylib, CrysFML, GSAS-II
+  and PyXRD alike; only the closed PowDLL reads it), which is Bruker v1.
+
+  **Counts.** `[dev,jax,torch]` venv, darwin. Fast selection **4577 passed, 132
+  skipped**, unchanged, which is the right answer: this session added no test.
+  ruff clean. The **full selection deliberately did not run** — the only
+  non-documentation change is one integer in `SIZE_CAPS`, which moves no
+  measured number, and protocol rule 6 fires the full suite only when a change
+  could.
+
+  **In flight: nothing.** Tree clean, pushed, WP at ⬜ because no task landed.
+
+  **Gotchas for a successor.**
+  - **Two risks are unretired and both are task 1.** Whether the IUCr CPD kit
+    still carries the Philips `.rd` originals that would turn the committed
+    `qarr/*.prn` into a value oracle already in the tree — this could not be
+    checked here because the network intercepted `archive.org`, so it is
+    genuinely open rather than answered. And whether a real `.udf` can be
+    licensed rather than only read from.
+  - **Two inline fixtures, one usable and one not, and they look alike.**
+    PyXRD's `.udf` test data is valid as committed; its `.rd` test data is the
+    same idea mangled by a Python raw-string prefix. Do not assume the second
+    from the first.
+  - **The Stoe refusal must not claim to detect Stoe.** With no description
+    there is no magic to test. The message is about a binary `.raw` that
+    matched no reader, which is true and useful; anything sharper would be the
+    guess this WP exists to prevent.
+  - **The number is 1407, not 1344.** An unscheduled WP takes the newest block
+    and 1344 was taken on `origin/main` during scoping, so the next free number
+    is not what the main checkout's listing shows.
+
+  **Next**: task 1, because it decides what the acceptance line may claim for
+  both formats, and it is the only task whose answer can still change the
+  design. Task 3 (`.udf`) is unblocked regardless and is the cheaper half; the
+  stated stop boundary is after task 4.
