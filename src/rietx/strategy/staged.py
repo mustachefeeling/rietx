@@ -827,6 +827,19 @@ ROUGHNESS_ABSORPTION_GUARD = 0.9
 #: alone moves the total FWHM by tens of percent, so a 1.5× "hump" is a
 #: reflection.
 #:
+#: **It rests on one case, and that is the weakest joint here** (WP-1102).  No
+#: paper states a width ratio separating a diffuse feature from a reflection, so
+#: this is a measurement rather than a quotation — of a single specimen.  The
+#: repo's rule is that a threshold is quoted or measured and never *tuned*, and
+#: this one is measured, but a sample of one cannot say where inside the 3-5
+#: band the boundary really sits, only that ~20 is comfortably above it and 1.5
+#: is below.  What would move it is a width ladder over several specimens
+#: carrying known diffuse features, which has not been run; what would settle it
+#: is a published ratio, which does not appear to exist.  Read a firing
+#: accordingly: at 4.3× it is a weak statement and at 1.2× a strong one, and the
+#: diagnostic carries ``value`` as the measured multiple so a reader can make
+#: that distinction rather than taking the boundary as sharp.
+#:
 #: **Why a guard and not a bound.** The threshold is a function of U, V, W, X, Y
 #: *and* of the peak's own position, so it is not a box the solver can be handed
 #: — the :data:`STEPHENS_CONE_TOL` situation, and resolved the same way: report,

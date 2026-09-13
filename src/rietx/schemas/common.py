@@ -147,7 +147,21 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: *construction*, not to *documents* (issue #209 is the read-time follow-up
 #: that leaves open whether such an already-persisted value should also be
 #: repaired).
-SCHEMA_VERSION = "0.17"
+#: 0.17 → 0.18 (WP-1102): ``Instrument.background_peaks`` became
+#: ``extra_components``, a list of the discriminated union
+#: :data:`~rietx.schemas.instrument.ExtraComponent` whose one member today is
+#: ``HumpComponent`` (v1.2's ``BackgroundPeak``, plus a ``kind`` field);
+#: ``RefinementResult.n_background_peaks`` became ``n_extra_components``.  A
+#: **rename**, which every earlier entry here avoided, so it is stated in the
+#: direction it breaks: **old documents open and old code does not.** A v1.2
+#: project, history tree or ``.rxt`` is read by
+#: :mod:`rietx.schemas.migrate` — the field *and* the dot-paths, because those
+#: fail differently and only one of them fails loudly — while assigning
+#: ``instrument.background_peaks`` in code raises under ``extra="forbid"``.
+#: The path half is the reason the migration exists at all: a stored plan glob
+#: under the old spelling loads clean and then matches nothing, which stops
+#: refining a declared hump in silence.
+SCHEMA_VERSION = "0.18"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

@@ -689,12 +689,46 @@ Gaussian **added on top of** whichever of the three models is in use. It is not
 a fourth model: it composes with all of them, the design matrix is untouched,
 and the empty default is exactly off.
 
+The field's type is `list[ExtraComponent]`, a union discriminated on `kind`,
+and `HumpComponent` (`kind="hump"`) is its one member today. Ask a build which
+members it has rather than assuming:
+
+```python
+import rietx as rx
+
+caps = rx.capabilities()
+caps.features["extra_components"]     # the seam exists at all
+caps.extra_component_kinds            # ['hump'] — what may go in it
+```
+
+`Capabilities.extra_component_kinds` is read off the union itself, so a member
+this build has cannot be missing from it.
+
+A component is a **declaration, never code**: it is stored state, so it
+survives a save, a history checkout and a replay like any other field. That
+also fixes what could be added later. A member holding an expression — text
+over this package's own dot-paths — would fit the seam, because text
+serializes and both traced backends differentiate an expression tree. A member
+holding a Python function would not, for the same three reasons inverted: it
+does not serialize, it does not trace, and it has no JSON form. No expression
+member exists yet.
+
+:::{note}
+Renamed in this release. Up to v1.2 the field was called *background_peaks* and
+the class *BackgroundPeak*; neither name exists now. A project, history tree or
+`.rxt` written then still opens, and its saved plan still frees the hump it
+froze — the stored dot-paths are migrated on read, not only the values, because
+a value under a vanished name fails loudly while a glob under one simply stops
+matching. Code that *assigns* the old attribute raises.
+:::
+
 | Field | Is | Bound |
 |---|---|---|
 | `HumpComponent.position` | the hump's apparent 2θ | unbounded by default — it is not a Bragg position, and the range that would bound it is a property of the pattern, not of the instrument |
 | `HumpComponent.height` | its peak value in counts | softplus, `min=0`, and zero *is* the off state, so the bound is safe |
 | `HumpComponent.fwhm` | its width in 2θ | softplus, floored at `HUMP_FWHM_MIN` — the Gaussian divides by Γ, so a zero width is a pole rather than an identity |
 | `HumpComponent.label` | a free-text tag | not a parameter and not part of any dot-path |
+| `HumpComponent.kind` | the union discriminator, `"hump"` | fixed; it names which member of `ExtraComponent` this is, and the union dispatches on it rather than on shape |
 
 All three parameters default to `vary=False`, so a declared peak is inert until
 a stage frees it, and a height of zero means a declared-but-never-freed peak is

@@ -42,6 +42,11 @@ from rietx.schemas.instrument import (
     HumpComponent,
     Instrument,
 )
+from rietx.schemas.migrate import (
+    READ_POINTS,
+    migrate_document_text,
+    migrate_paths,
+)
 from rietx.schemas.pattern import PatternData
 from rietx.strategy.staged import (
     HUMP_MIN_WIDTH_MULT,
@@ -776,3 +781,101 @@ def test_save_instrument_profile_strips_the_peaks(tmp_path):
     doc = json.loads(path.read_text(encoding="utf-8"))
     assert "extra_components" not in doc["instrument"]
     assert rx.load_instrument_profile(path).extra_components == []
+
+
+# ----------------------------------------------------------------------
+# the v1.2 rename: old files open, old code does not (WP-1102)
+# ----------------------------------------------------------------------
+
+
+def test_a_v1_2_instrument_block_still_deserializes():
+    """The loud half.  ``background_peaks`` was this field's name in v1.2."""
+    doc = json.loads(_instrument(peaks=(_peak(),)).model_dump_json())
+    doc["background_peaks"] = doc.pop("extra_components")
+    migrated = Instrument.model_validate(doc)
+    assert len(migrated.extra_components) == 1
+    assert migrated.extra_components[0].fwhm.value == pytest.approx(7.0)
+    assert migrated.extra_components[0].kind == "hump"
+
+
+def test_writing_the_old_field_name_in_code_still_raises():
+    """The direction the break runs in: documents are repaired, code is not.
+
+    A caller who kept ``instrument.background_peaks = [...]`` gets a refusal
+    rather than an attribute that quietly goes nowhere, which is what a model
+    without ``extra="forbid"`` would have handed them.
+    """
+    ins = _instrument()
+    with pytest.raises(ValueError):
+        ins.background_peaks = [_peak()]
+
+
+def test_a_stored_plan_glob_is_migrated_and_not_merely_the_value():
+    """The silent half, and the whole reason the repair is textual.
+
+    A v1.2 project's saved plan frees ``instrument.background_peaks.*``.
+    Migrate only the field and the document opens, the stage runs, the glob
+    matches nothing, and the declared hump is never refined — a plausible
+    answer with no error anywhere.  The path is what this pins.
+    """
+    doc = json.dumps({
+        "plan": {"stages": [{"name": "humps",
+                             "turn_on": ["instrument.background_peaks.*"]}]},
+        "free_paths": ["instrument.background_peaks.0.height"],
+    })
+    out, changed = migrate_document_text(doc)
+    assert changed
+    parsed = json.loads(out)
+    assert parsed["plan"]["stages"][0]["turn_on"] == [
+        "instrument.extra_components.*"]
+    assert parsed["free_paths"] == ["instrument.extra_components.0.height"]
+
+
+def test_the_migration_is_a_no_op_on_a_document_this_release_wrote():
+    """It runs unconditionally on every read, so it must cost nothing."""
+    doc = _instrument(peaks=(_peak(),)).model_dump_json()
+    out, changed = migrate_document_text(doc)
+    assert out == doc and not changed
+
+
+def test_the_migration_is_idempotent():
+    once, _ = migrate_document_text(
+        '{"free_paths": ["instrument.background_peaks.0.fwhm"]}')
+    twice, changed = migrate_document_text(once)
+    assert twice == once and not changed
+
+
+def test_migrate_paths_agrees_with_the_textual_repair():
+    """Two entry points, one set of rules — pinned rather than restated."""
+    paths = ["instrument.background_peaks.0.fwhm",
+             "instrument.background_peaks.*",
+             "phases.0.cell.a"]
+    by_list = migrate_paths(paths)
+    by_text = json.loads(migrate_document_text(json.dumps(paths))[0])
+    assert by_list == by_text
+    assert by_list[-1] == "phases.0.cell.a"
+
+
+def test_every_declared_read_point_exists_and_is_callable():
+    """``READ_POINTS`` is a claim, and a claim is checked (WP-1076).
+
+    The tuple says these three readers migrate.  Renaming or moving one
+    without moving the tuple leaves it describing a reader that is gone, and
+    nothing else would go red.
+    """
+    import importlib
+
+    for dotted in READ_POINTS:
+        parts = dotted.split(".")
+        for i in range(len(parts), 1, -1):
+            try:
+                module = importlib.import_module(".".join(parts[:i]))
+            except ModuleNotFoundError:
+                continue
+            break
+        else:                                    # pragma: no cover - a failure
+            raise AssertionError(f"no importable module in {dotted}")
+        target = module
+        for part in parts[i:]:
+            target = getattr(target, part)
+        assert callable(target), dotted

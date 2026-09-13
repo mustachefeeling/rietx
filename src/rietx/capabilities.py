@@ -255,6 +255,13 @@ class Capabilities(Base):
     #: union itself.  ``anodes`` below is a *sub*-vocabulary of the X-ray entry
     #: and says nothing about the others, which is why both arms are here
     radiations: list[RadiationCapability] = Field(default_factory=list)
+    #: the ``kind`` discriminators of ``Instrument.extra_components``'s union
+    #: (WP-1102), derived from the union itself the way ``radiations`` is.  The
+    #: ``extra_components`` feature flag says the seam exists; this says which
+    #: members this build has, which is the question a client asking "can I
+    #: declare a hump here" is actually asking.  A member added without a row
+    #: here is impossible, since the row is read off the union.
+    extra_component_kinds: list[str] = Field(default_factory=list)
     anodes: list[AnodeCapability] = Field(default_factory=list)
     reader_formats: list[ReaderCapability] = Field(default_factory=list)
     #: every keyword ``read_pattern`` accepts, across all formats — the
@@ -314,6 +321,7 @@ def capabilities() -> Capabilities:
         shift_templates=list(SHIFT_TEMPLATES),
         modes=list(get_args(Mode)),
         radiations=[_radiation(cls) for cls in _source_classes()],
+        extra_component_kinds=_extra_component_kinds(),
         anodes=[_anode(name) for name in sorted(_RADIATIONS)],
         reader_formats=[
             ReaderCapability(name=f.name, title=f.title,
@@ -364,6 +372,23 @@ def _source_classes() -> list[type]:
     annotation = Instrument.model_fields["source"].annotation
     members = get_args(annotation)
     return list(members) if members else [annotation]
+
+
+def _extra_component_kinds() -> list[str]:
+    """The ``kind`` discriminators of the ``ExtraComponent`` union (WP-1102).
+
+    Read off the field's annotation for the same reason ``_source_classes``
+    is: a member added to the union cannot then be missing from the arm.  The
+    union is a single class while it has one member, which
+    ``get_args`` reports as no members — handled here exactly as the source
+    union's one-member era was, rather than by special-casing the count.
+    """
+    from .schemas.instrument import Instrument
+
+    annotation = Instrument.model_fields["extra_components"].annotation
+    (element,) = get_args(annotation)          # list[ExtraComponent]
+    members = get_args(element) or (element,)
+    return [get_args(m.model_fields["kind"].annotation)[0] for m in members]
 
 
 def _radiation(cls: type) -> RadiationCapability:
@@ -442,7 +467,7 @@ def _features() -> dict[str, bool]:
 
     from .model import compiled
     from .refine import Refinement
-    from .schemas.instrument import Geometry, Source
+    from .schemas.instrument import Geometry, Instrument, Source
     from .schemas.structure import Atom, Phase
 
     return {
@@ -456,6 +481,13 @@ def _features() -> dict[str, bool]:
         "capillary_absorption": "mu_r" in Geometry.model_fields,
         "flat_plate_absorption": "mu_t" in Geometry.model_fields,
         "anomalous_dispersion": "dispersion" in Source.model_fields,
+        # the additive component seam (WP-1102).  Schema-shaped rather than
+        # surface-shaped because the seam is a *field*, not an export: a client
+        # asks whether this build takes declared extra components at all, and
+        # ``extra_component_kinds`` below says which members it has — one flag
+        # for "is the seam here", a vocabulary for "what can go in it", the
+        # ``radiations`` split one rank down.
+        "extra_components": "extra_components" in Instrument.model_fields,
         # …and whether dispersion is ON unless declined, which moved in WP-1001
         # and is the one default whose position changes published numbers.  Read
         # off the field rather than by constructing a Source, which would need

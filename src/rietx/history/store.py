@@ -23,6 +23,7 @@ from typing import IO
 import numpy as np
 
 from ..schemas.history import HistoryRecord
+from ..schemas.migrate import migrate_document_text
 
 try:  # pragma: no cover - platform dependent
     import fcntl
@@ -78,6 +79,10 @@ def read_records(path: str | Path) -> Iterator[HistoryRecord]:
             if not line:
                 continue
             try:
+                # a tree written by v1.2 spells the component paths the old way
+                # in ``free_paths`` and in the stage globs it recorded; repaired
+                # here rather than per-field (schemas/migrate.py's docstring)
+                line, _ = migrate_document_text(line)
                 yield HistoryRecord.model_validate_json(line)
             except ValueError as exc:
                 raise ValueError(f"{path}:{lineno}: malformed history record") from exc

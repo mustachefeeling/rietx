@@ -14,7 +14,7 @@ symmetric-transmission absorption factor).
 from __future__ import annotations
 
 import math
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -1059,6 +1059,11 @@ HUMP_FWHM_MIN = 0.1
 #: its sibling.
 _SOFTPLUS_FLOOR = 1e-12
 
+#: What :attr:`Instrument.extra_components` was called in v1.2, kept here as the
+#: one spelling of the legacy name so the field migration and the path migration
+#: (:mod:`rietx.schemas.migrate`) cannot drift apart.
+_LEGACY_COMPONENT_FIELD = "background_peaks"
+
 
 class HumpComponent(Base):
     """One explicit broad Gaussian added on top of whatever background is in use.
@@ -1184,6 +1189,9 @@ class HumpComponent(Base):
         default_factory=lambda: Parameter(value=5.0,
                                          min=HUMP_FWHM_MIN,
                                          unit="deg", transform="softplus"))
+    #: Discriminator.  Its one legal value names this member of
+    #: :data:`ExtraComponent`; the union dispatches on it, never on shape.
+    kind: Literal["hump"] = "hump"
     #: free-text tag, e.g. ``"cryostat tail"``.  Not a parameter and not part of
     #: any dot-path — the paths index the list, so a relabelled peak keeps its
     #: refined values.
@@ -1208,6 +1216,83 @@ class HumpComponent(Base):
             self.fwhm.value = max(self.fwhm.value, HUMP_FWHM_MIN)
             self.fwhm.min = HUMP_FWHM_MIN
         return self
+
+
+#: A declared parametric term added to the calculated pattern, discriminated on
+#: ``kind``.  One member today, :class:`HumpComponent`; WP-1103 adds a sharp
+#: peak.  The union is a *bare* PEP-604 alias with ``kind`` ``Literal``\ s, the
+#: :data:`Background` precedent, and :attr:`Instrument.extra_components` is the
+#: list of them.
+#:
+#: **Why a union and not a second list per shape.**  Every code that has been
+#: asked this carries several kinds of additive non-Bragg term at once: GSAS-II
+#: a background function *plus* Debye diffuse terms *plus* background peaks
+#: (Toby & Von Dreele, 2013, *J. Appl. Cryst.* **46**, 544); FullProf's ``Nba``
+#: selects polynomial, Debye-like *plus* polynomial, Fourier filtering or a
+#: table (manual eq. 3.4); TOPAS a peaks phase beside ``fit_obj`` (Coelho, 2018,
+#: *J. Appl. Cryst.* **51**, 210).  A list of one concrete type is the shape
+#: none of them chose.
+#:
+#: **The member contract.**  Every member owes all six, and a new member that
+#: cannot pay one of them is the wrong shape for this seam:
+#:
+#: 1. **An evaluator in ``xp`` ops**, whole-grid or frozen-window, so every
+#:    backend differentiates it through the traced twin and no member needs an
+#:    analytic Jacobian branch of its own.  Registered in
+#:    :mod:`rietx.model.components`, which is the one authority.
+#: 2. **A declared aggregate membership**, held as *data* rather than implied by
+#:    the class: which reported aggregate the member's curve joins — the
+#:    reported background (``result.y_background``, ``BackgroundEvidence``, the
+#:    absorption span) for a hump, the tick list for a peak.  It is the axis on
+#:    which members differ most, and reading it off the class name is how a
+#:    member ends up counted twice or not at all.
+#: 3. **Its curve is subtracted from the Le Bail/Pawley partition net**, or
+#:    phases are handed shares of counts that are not theirs.  For a
+#:    background-landing member this is free, because
+#:    :meth:`~rietx.model.forward.CompiledModel.background` is the one authority
+#:    the partition already calls.
+#: 4. **Its refinable fields are declared once** and registered through one
+#:    helper feeding *both* ``_collect_instrument`` and ``apply_to_models``; a
+#:    field registered in one and forgotten in the other loses its refined value
+#:    at the next stage's recompile, silently.
+#: 5. **A new member is a closed-vocabulary schema event** — a
+#:    ``SCHEMA_VERSION`` bump — and ships with a cross-backend ``CONFIGS`` row,
+#:    a manual equation carrying its ``*Source:*`` line, and :mod:`rietx.help`
+#:    entries.
+#: 6. **A member is state, never code.**
+#:
+#: **What clause 6 admits, and what it fences.**  An *expression* member —
+#: serializable text over this package's own dot-paths, evaluated and
+#: differentiated like any other term — is admissible under this contract, and
+#: is what TOPAS's arbitrary functions actually are: its computer-algebra layer
+#: writes one node in terms of others as text in the INP file, tracks the
+#: dependencies, and gets the derivatives from them (Coelho, 2018, §2).  A
+#: **Python callable** is not admissible, and the three grounds are the ones
+#: that do *not* apply to an expression:
+#:
+#: * history stores state, and an expression string **is** state, serializing
+#:   and restoring like any other field — a callable is not;
+#: * the traced twin must differentiate the same term on jax and torch, and an
+#:   expression tree is the *easy* case for both — a Python callable closed over
+#:   arbitrary objects is not traceable at all;
+#: * the agent surface is JSON schemas under ``extra="forbid"``, and a ``str``
+#:   field is legal there — a callable has no JSON form.
+#:
+#: This package already has both halves TOPAS pairs: a typed tree addressed by
+#: dot-paths, and a tie layer writing one entry in terms of others (affine, so
+#: far — WP-1070).  Building an expression member is neither this WP's work nor
+#: WP-1103's; the contract is written so that it would be a member rather than a
+#: redesign.
+#:
+#: **What this union has not yet proved.**  The contract has two axes — an
+#: evaluator's *shape*, and *where the member lands* — and with one member
+#: neither is tested against a second case.  :class:`HumpComponent` is a local
+#: bump in 2θ reported as background.  WP-1103's sharp peak is the proving case
+#: for the second axis (same evaluator shape, different destination); a Debye
+#: term ``Σⱼ Bⱼ·sin(Q rⱼ)/(Q rⱼ)``, which GSAS-II and FullProf both ship and
+#: this package does not, would be the proving case for the first.  Until one of
+#: them lands, treat clause 2 as a design intention rather than as a tested one.
+ExtraComponent = HumpComponent
 
 
 class Instrument(Base):
@@ -1245,7 +1330,34 @@ class Instrument(Base):
     #: free position over a pattern whose peaks have not been placed yet.  The
     #: underscore puts the paths outside that glob by construction instead of
     #: by retightening seven presets.
-    extra_components: list[HumpComponent] = Field(default_factory=list)
+    extra_components: list[ExtraComponent] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_v1_2_background_peaks(cls, value: Any) -> Any:
+        """Read a 1.2-era ``background_peaks`` block as ``extra_components``.
+
+        The field shipped in v1.2 under the old name, so a project, a history
+        node or an ``.rxt`` written by that release carries it.  **Old files
+        open; old code does not**: this reads the legacy key on the way in, and
+        assigning ``instrument.background_peaks`` still raises under
+        ``extra="forbid"``, which is the direction the repo breaks in.
+
+        Only the *field* is repaired here.  The stored **paths** — a history
+        node's ``free_paths``, a saved plan's globs — are the other half and are
+        migrated in :mod:`rietx.schemas.migrate`, because they are the half that
+        fails in silence: a missing field raises, while a glob that no longer
+        matches anything simply stops refining a declared hump and returns a
+        plausible answer.
+        """
+        if isinstance(value, dict) and _LEGACY_COMPONENT_FIELD in value:
+            value = dict(value)
+            legacy = value.pop(_LEGACY_COMPONENT_FIELD)
+            # an explicit new-name block wins: a document carrying both was
+            # written by something that already knew the new name, and the
+            # legacy key is then a leftover rather than the payload
+            value.setdefault("extra_components", legacy)
+        return value
 
     @model_validator(mode="after")
     def _radiation_admits_its_corrections(self) -> "Instrument":
