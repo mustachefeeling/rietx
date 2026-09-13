@@ -881,6 +881,40 @@ def test_migrate_paths_agrees_with_the_textual_repair():
     assert by_list[-1] == "phases.0.cell.a"
 
 
+def test_a_v1_2_project_directory_opens_and_its_plan_still_frees_the_hump(
+        tmp_path):
+    """The acceptance row, end to end rather than at the repair.
+
+    Everything above pins the textual rule; this pins the thing the rule is
+    for. A project written by v1.2 is reconstructed on disk in the old
+    spelling — the instrument's field *and* the saved plan's glob — and then
+    opened by this release. The assertion that matters is the second one: the
+    document could open cleanly with the plan quietly freeing nothing, which is
+    the failure mode with no error attached to it.
+    """
+    from tests.test_project import _create, _write_xye
+    from tests.test_refine_synthetic import synthesize
+
+    pattern_file = _write_xye(tmp_path / "synth.xye", synthesize())
+    _create(tmp_path / "s.rex", pattern_file, plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale"]),
+        rx.Stage("humps", ["instrument.extra_components.*"]),
+    ]))
+    doc_path = tmp_path / "s.rex" / "project.json"
+
+    # rewrite the saved project the way v1.2 wrote it
+    written = doc_path.read_text(encoding="utf-8")
+    written = written.replace("instrument.extra_components.",
+                              "instrument.background_peaks.")
+    doc_path.write_text(written, encoding="utf-8")
+    assert "background_peaks" in doc_path.read_text(encoding="utf-8")
+
+    reopened = rx.Project.open(tmp_path / "s.rex")
+    globs = [g for stage in reopened.doc.plan.stages for g in stage.turn_on]
+    assert "instrument.extra_components.*" in globs
+    assert not any("background_peaks" in g for g in globs)
+
+
 def test_every_declared_read_point_exists_and_is_callable():
     """``READ_POINTS`` is a claim, and a claim is checked (WP-1076).
 
