@@ -138,6 +138,13 @@ class ProjectModel:
     #: the format's own model — ``TopasModel``, ``FullProfModel``.  Named for
     #: what it is: what the file *stated*, before any conversion
     stated: Any
+    #: what the **read** reported, kept whether or not a caller asked for it.
+    #: :class:`~rietx.io.recipe.Recipe` carries its own the same way and for the
+    #: same reason: the keyword argument is for a caller accumulating across
+    #: several files, while this is the durable record of what this one file
+    #: needed repaired.  Empty here means the read repaired nothing — a fact,
+    #: not the absence of one, which is the difference that matters
+    diagnostics: tuple[Diagnostic, ...] = ()
 
     def to_structure(self, *, diagnostics: list[Diagnostic] | None = None,
                      **options: Any) -> Structure:
@@ -151,11 +158,14 @@ class ProjectModel:
         meaning, and a registry that pretended otherwise would be inventing the
         agreement.
 
-        ``diagnostics`` reaches the format's channel wherever that channel is.
-        A format reporting at read (``format.reports_at``) has already filled
-        the list passed to :func:`read_project_model`; passing one here as well
-        is harmless and collects both halves for a caller accumulating across
-        several files.
+        ``diagnostics`` collects what *this* call repairs, which is a format's
+        whole channel where :attr:`ProjectFormat.reports_at` is ``"build"`` and
+        none of it where that is ``"read"``.  The read's half is never lost
+        either way: it is on :attr:`diagnostics` above, filled whether or not a
+        caller passed a list to :func:`read_project_model`.  That is what keeps
+        the asymmetry from becoming a trap — handing back an empty list reads as
+        "this file needed no repairs", and a caller who passed the list to the
+        other call would believe it (WP-1076).
         """
         if diagnostics is not None and self.format.reports_at == "build":
             options["diagnostics"] = diagnostics
@@ -280,9 +290,13 @@ def read_project_model(path: str | Path, *,
     ``diagnostics`` collects what the reader **repaired or assumed** — a rewritten
     species spelling, a translated origin suffix — the same opt-in channel
     :func:`~rietx.io.read_pattern` and
-    :func:`~rietx.structure_from_cif` take.  Where a format reports at build
-    rather than at read (:attr:`ProjectFormat.reports_at`), pass the list to
-    :meth:`ProjectModel.to_structure` as well; passing it to both is harmless.
+    :func:`~rietx.structure_from_cif` take, and for a caller accumulating across
+    several files.  Whatever the read reports lands on
+    :attr:`ProjectModel.diagnostics` too, list or no list, so the answer always
+    carries what its own file needed; a format reporting at build
+    (:attr:`ProjectFormat.reports_at`) reports through
+    :meth:`ProjectModel.to_structure` instead, and passing a list to both is
+    the way to collect either without knowing which format claimed the file.
 
     A construct the reader cannot honour raises the format's own error — a
     ``ValueError`` naming the file and the line — never a bare parser
@@ -293,7 +307,17 @@ def read_project_model(path: str | Path, *,
     """
     p = Path(path)
     fmt = identify_project_format(p)
-    if fmt.reports_at == "read":
-        return ProjectModel(format=fmt, path=p,
-                            stated=fmt.read(p, diagnostics=diagnostics))
-    return ProjectModel(format=fmt, path=p, stated=fmt.read(p))
+    if fmt.reports_at != "read":
+        return ProjectModel(format=fmt, path=p, stated=fmt.read(p))
+    # Read into a list of this function's own and copy the caller's in at the
+    # end, rather than handing the reader the caller's list directly: the
+    # answer must carry its own file's reports whether or not one was passed,
+    # and a caller accumulating across several files must still see them
+    # appended to theirs.  Extending rather than assigning keeps that list the
+    # caller's own object, which is what ``read_pattern``'s channel promises.
+    found: list[Diagnostic] = []
+    stated = fmt.read(p, diagnostics=found)
+    if diagnostics is not None:
+        diagnostics.extend(found)
+    return ProjectModel(format=fmt, path=p, stated=stated,
+                        diagnostics=tuple(found))

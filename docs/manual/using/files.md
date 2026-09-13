@@ -291,6 +291,7 @@ carried none" from "the reader found none".
 | `ProjectModel.format` | the `ProjectFormat` that claimed the file |
 | `ProjectModel.path` | the file that was read |
 | `ProjectModel.stated` | what the file stated, in that format's own model |
+| `ProjectModel.diagnostics` | what the *read* repaired or assumed, kept whether or not you asked |
 | `ProjectModel.to_structure` | build a `Structure` from it, with the file's refine flags |
 
 `ProjectModel.to_structure` passes its keywords through to the format's own
@@ -364,8 +365,14 @@ caps = rx.capabilities()
 rewritten species spelling, a translated origin suffix — happen while parsing,
 so its channel is `read_project_model(..., diagnostics=notes)`. A `.pcr`'s all
 happen while codewords become a `Structure`, so its channel is
-`ProjectModel.to_structure(diagnostics=notes)`. Passing a list to both is
-harmless and collects either.
+`ProjectModel.to_structure(diagnostics=notes)`. Passing a list to both collects
+either without your having to know which.
+
+You never lose the read's half by passing your list to the wrong call, though:
+whatever the read reported is on `ProjectModel.diagnostics` as well, filled
+list or no list. That matters more than it sounds. An empty list reads as "this
+file needed no repairs", and a caller who had passed it to the other call would
+believe it.
 
 The same facts are in the registry itself, which is what the arm is built from:
 `ProjectFormat.name`, `ProjectFormat.title`, `ProjectFormat.extensions`,

@@ -198,6 +198,42 @@ def test_the_inp_reader_reports_its_repairs_at_read(tmp_path):
     assert structure.phases[0].cell.a.vary is True
 
 
+def test_the_reads_reports_are_on_the_answer_whether_or_not_a_list_was_passed(tmp_path):
+    """The asymmetry must not become a silent empty list.
+
+    A `.inp` reports while parsing and a `.pcr` while converting, so a caller
+    who passes their list to the *other* call gets nothing back — and an empty
+    list reads as "this file needed no repairs", which is WP-1076's trap with a
+    different shape.  So the read's half is kept on the answer regardless, the
+    way `Recipe` keeps its own, and the keyword stays what it is everywhere else
+    in this package: a channel for a caller accumulating across several files.
+    """
+    # The fixture's `occ Al+3` is TOPAS's sign-first spelling; rietx's species
+    # are IUCr digit-first, so the reader rewrites it to `Al3+` and reports the
+    # substitution.  A real repair, and one a caller reading the model back
+    # could not otherwise tell from a stated value.
+    path = _write(tmp_path, "run.inp", INP_MINIMAL)
+
+    silent = read_project_model(path)                    # no list passed
+    codes = {d.code for d in silent.diagnostics}
+    assert codes == {"TOPAS_SPECIES_NORMALISED"}, (
+        "the read's reports are not on the answer")
+
+    collected: list = []
+    asked = read_project_model(path, diagnostics=collected)
+    assert {d.code for d in collected} == codes          # the caller's list too
+    assert {d.code for d in asked.diagnostics} == codes  # and still the answer's
+    # and the caller's own list object is extended, never replaced
+    assert isinstance(collected, list)
+
+    # the build half adds nothing for this format, and says so by being empty
+    # rather than by the read's reports being unreachable
+    build_notes: list = []
+    asked.to_structure(diagnostics=build_notes)
+    assert not build_notes
+    assert asked.diagnostics
+
+
 def test_a_reader_error_reaches_the_caller_naming_the_file(tmp_path):
     """The front door adds no exception of its own.
 
