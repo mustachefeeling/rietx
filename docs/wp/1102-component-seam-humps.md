@@ -165,9 +165,67 @@ Both readings are better than this WP's, and neither is reopened here.
   § Acceptance) — a bar written by a session that had not read this WP is a bar
   set too low.
 
+**The seam decision, taken 2026-09-13, and what it rests on.** Three codes were
+surveyed from the maintainer-local corpus rather than from memory, concepts only
+(TOPAS and FullProf are closed):
+
+- **TOPAS** (Coelho, 2018, *J. Appl. Cryst.* **51**, 210, corpus `QMXU7X5Z`) is a
+  typed object tree — the "main-tree", described by what the paper calls a
+  *pseudo-schema*, with complex types and inheritance — carrying a **computer
+  algebra layer** over it. Any node may be written as an equation of other nodes,
+  and parameter dependencies are tracked in dependency trees so the derivatives
+  follow automatically. Its "arbitrary functions" are **not callables**: they are
+  expression text over typed nodes, stored in the INP file, with equation states
+  held at the node level so a derivative does not re-evaluate the whole function.
+  Beside that it carries a cell-less peaks phase (`xo_Is`) and `fit_obj`.
+- **GSAS-II** (Toby & Von Dreele, 2013): a background function **plus Debye
+  diffuse terms plus background peaks**, three additive kinds at once.
+- **FullProf** (manual, corpus `Z9LBTH6U`, eq. 3.4): `Nba` selects polynomial,
+  **Debye-like plus polynomial**, Fourier filtering, or a user table. The
+  Debye-like arm is `Σⱼ B_Cⱼ·sin(Q rⱼ)/(Q rⱼ)`, six amplitudes and six distances.
+
+Two conclusions, and the second is a correction to this WP's own text.
+
+1. **Every one of the three carries several kinds of additive non-Bragg term.** A
+   list of one concrete type is the shape none of them chose, and the reason is
+   not 1103: it is that a localised empirical bump and a physically-derived
+   diffuse term are both wanted, by every code that has been asked. So the union
+   is built now, with `HumpComponent` as its first member.
+2. **This WP's fence against arbitrary functions was wrong as written.** It read:
+   history stores state and not code; the traced twin must differentiate the same
+   expression on jax/torch; the agent surface is JSON schemas under
+   `extra="forbid"`. All three hold against a **Python callable** and none against
+   an **expression**. An expression string *is* state; jax and torch differentiate
+   an expression tree natively, that being the easy case rather than the hard one;
+   and a `str` field is legal under `extra="forbid"`. TOPAS is the existence proof,
+   and this package already has both halves it pairs — a typed tree with dot-paths,
+   and a tie layer where a node is written in terms of other nodes, affine so far.
+   **The member contract is therefore written to admit an expression member** and
+   fences only the callable. Building one is not this WP's work.
+
+**No second member here.** The contract has two axes and no single member tests
+both: an evaluator's *shape* (a local bump in 2θ against a whole-pattern
+oscillation in Q) and *where the member lands* (the reported background against
+the tick list). `HumpComponent` is a local bump reported as background. A Debye
+member would test the first axis, [1103](1103-peak-components.md)'s sharp peak
+tests the second, and the second is the harder one to get right, so 1103 is the
+proving case and Debye is named in the contract rather than built. Recorded
+plainly: **until 1103 lands, the union holds one member and the evaluator-shape
+axis of its contract is unproven.**
+
+**Migration: old files open, old code does not.** `instrument.background_peaks.i.…`
+is spelled into three kinds of saved file — history JSONL, a `.rex` project's
+stage globs, and `.rxt` documents — and the two fail differently. A stored
+*value* under the old name fails loudly, which is safe. A stored *plan glob*
+loads clean and then matches nothing, which silently stops refining a declared
+peak and returns a plausible wrong answer. So the read side migrates both, and a
+`background_peaks` attribute in *code* raises. `SCHEMA_VERSION` 0.17 → 0.18.
+
+
 ## Non-goals
 
-- Arbitrary callables / an expression DSL (fenced above, with grounds).
+- Arbitrary **callables** (fenced above, with grounds). An **expression**
+  member is admitted by the contract and built by neither this WP nor 1103.
 - A fourth `Background` union kind — humps compose with any base background
   from outside it.
 - Amorphous / internal-standard QPA (v2 fence): a hump's quotable number is
@@ -184,12 +242,9 @@ Marked against the tree as audited 2026-09-13. `✅ v1.2` means the task's
 specifies exists. **The union decision is the open one and it gates the rest** —
 until it is taken, none of the three remaining items has a settled shape.
 
-- [ ] **The seam decision, and it is first.** `ExtraComponent` union, or
-      `background_peaks` left as the shipped concrete list with
-      [1103](1103-peak-components.md)'s sharp peaks landing beside it? The field
-      is public, released in v1.2, documented in the manual and the skill, and
-      reached by ~30 files, so a rename is a break to record, not a refactor.
-      Whatever is decided is written here with its grounds before any code moves.
+- [x] **The seam decision, taken 2026-09-13** (grounds in Context § The seam
+      decision). Build the union; `background_peaks` becomes `extra_components`
+      with a read-side migration; no second member in this WP.
 - [x] ✅ v1.2 Schema: `BackgroundPeak` + `BACKGROUND_PEAK_FWHM_MIN` +
       reachability validator (the `MARCH_R_MIN` pattern); JSON round-trip;
       release-notes line (`../releases/1.2.0.md`). `eta` and a stored `area`
