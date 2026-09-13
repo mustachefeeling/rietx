@@ -60,20 +60,22 @@ from any material:
 ```{math}
 :label: prof-strain-cap
 
-Y_s \;\le\; \frac{f\,(2\theta_{\max} - 2\theta_{\min})}{\tan\theta_{\max}},
+Y_s \;\le\; Y_{\max}, \qquad U_s \;\le\; Y_{\max}^2,
 \qquad
-U_s \;\le\; \left(\frac{f\,(2\theta_{\max} - 2\theta_{\min})}
-{\tan\theta_{\max}}\right)^{\!2},
-\qquad f = {{ STRAIN_CAP_RANGE_FRACTION }}
+Y_{\max} \;=\; \frac{f\,(2\theta_{\max} - 2\theta_{\min})}{\tan\theta_{\max}}
+\quad [\deg 2\theta]
 ```
 
 *Source:* `rietx.params.vector.strain_cap`
 
 with $2\theta_{\min}, 2\theta_{\max}$ the ends of the **fitted** range —
-excluded regions removed, since an excluded interval was not measured. Read
-{eq}`prof-strain-cap` as the statement that *a line wider than the interval it
-was measured over is not a line*: at $f = 1$ the strain term alone contributes
-one whole range's worth of FWHM at the pattern's highest $\theta$. It is
+excluded regions removed, since an excluded interval was not measured — and
+$f$ the fraction of that range one term is allowed to spend, which rietx sets
+to {{ STRAIN_CAP_RANGE_FRACTION }}. $U_s$ takes the square because it is a
+variance, not a width. Read {eq}`prof-strain-cap` as the statement that *a line
+wider than the interval it was measured over is not a line*: at $f = 1$ the
+strain term alone contributes one whole range's worth of FWHM at the pattern's
+highest $\theta$. It is
 dimensional and self-scaling — a 15–80° lab scan and a 0.5–50° low-angle scan
 get different bounds out of one rule, and no calibrated constant enters.
 
@@ -118,14 +120,17 @@ never to legislate a size:
 :label: prof-size-cap
 
 X_s \;\le\; \min\!\left(
-\frac{(180/\pi)\,K\lambda}{L_{\min}},\;
+\frac{(180/\pi)\,K\lambda}{L_{\min}},\;\;
 f\,(2\theta_{\max}-2\theta_{\min})\cos\theta_{\max}
-\right),
-\qquad
-L_{\min} = {{ SIZE_CAP_MIN_SIZE_NM }}\ \text{nm}
+\right)
+\quad [\deg 2\theta]
 ```
 
 *Source:* `rietx.params.vector.size_cap`
+
+with $L_{\min}$ the smallest crystallite the bound admits,
+{{ SIZE_CAP_MIN_SIZE_NM }} nm, and $f$ the range fraction of
+{eq}`prof-strain-cap`.
 
 The first term is a **floor on the crystallite** ($L \ge L_{\min}$), read as a
 ceiling on the coefficient with no reference angle (caglioti eq. 4,

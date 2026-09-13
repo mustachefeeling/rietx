@@ -120,6 +120,39 @@ def test_no_unrendered_math_survives_the_build(built_manual):
     assert not stray, "unrendered TeX in the built prose:\n" + "\n".join(stray[:10])
 
 
+@pytest.mark.xdist_group("manual-build")
+def test_no_unsubstituted_substitution_survives_the_build(built_manual):
+    """No `{{ NAME }}` reaches the rendered page.  The guard above, one
+    delimiter over, and the same blind spot: `-W` sees nothing.
+
+    A MyST substitution is expanded in prose and **not** inside a `{math}`
+    directive, so a constant written into an equation reaches MathJax as its
+    own name and is typeset as a product of italic letters.  Both instances
+    this was written for were live in the shipped HTML — `profiles.md`'s
+    strain cap printed `f = STRAINCAPRANGEFRACTION` and its size cap
+    `L_min = SIZECAPMINSIZENM nm` (WP-1408) — and neither is a build warning,
+    because the substitution is *defined*; it is simply never reached.
+
+    The fix for a new one is never to define the constant somewhere else: keep
+    the symbol in the equation and state its value in the prose beside it,
+    which is where `conf.py`'s injection works.
+    """
+    out, result = built_manual
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    copied_in = _copied_in()
+    stray: list[str] = []
+    for page in sorted(out.rglob("*.html")):
+        if page.relative_to(out).as_posix() in copied_in:
+            continue        # the landing page — see _copied_in()
+        text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
+        for match in re.finditer(r".{0,60}\{\{.{0,60}", text, re.S):
+            stray.append(f"{page.name}: …{match.group(0).strip()}…")
+    assert not stray, (
+        "a MyST substitution reached the page unexpanded (a `{{ NAME }}` inside "
+        "a {math} directive is the usual cause):\n" + "\n".join(stray[:10])
+    )
+
+
 def test_every_bib_entry_is_cited():
     """references.bib carries no dead weight: an uncited entry is either a
     chapter that lost its citation or an entry that should be pruned."""

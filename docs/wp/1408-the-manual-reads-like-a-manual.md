@@ -199,7 +199,7 @@ entirely; B's guard is a measurement script, not a test, for the same reason
 
 ## Tasks
 
-- [ ] **A — a substitution never reaches MathJax.** Move `STRAIN_CAP_RANGE_FRACTION`
+- [x] **A — a substitution never reaches MathJax.** Move `STRAIN_CAP_RANGE_FRACTION`
   and `SIZE_CAP_MIN_SIZE_NM` out of (3.3)/(3.4) into the prose beside them; keep
   the symbols $f$ and $L_\mathrm{min}$ in the equations. Guard:
   `test_manual.py` gains a built-HTML scan for a surviving `{{`/`}}` in rendered
