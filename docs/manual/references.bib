@@ -6,6 +6,34 @@
 % deslattes1985) were initially held out because their records could not be
 % verified (house rule: never fabricate a title) and were added 2026-07-29
 % once the papers themselves were supplied.
+%
+% Four rules make the rendered list consistent (WP-1408; the first two are
+% asserted by tests/test_manual.py, which is what keeps them true):
+%
+% 1. BRACE EVERY INTERIOR CAPITAL.  `bibtex_default_style = "alpha"` sentence-
+%    cases a title, so an unbraced capital that is not the first word is
+%    silently lowercased — which is how ten entries came to read "x-ray", and
+%    how this package's own citation once read "Rietx: python-api-first
+%    analysis and rietveld refinement".  An article title is sentence case
+%    with its proper nouns braced; a book, report, database or software title
+%    is a proper name in title case, so the WHOLE title is braced.
+%
+% 2. EVERY ARTICLE ENTRY CARRIES ITS DOI.  Found by Crossref and accepted only on
+%    title, year, volume AND first page; thirteen more were confirmed one at a
+%    time where Crossref's own metadata (an article number inside the title,
+%    MathML for a subscript, a missing page range) defeated the automatic
+%    match.  `scherrer1918` has none — Göttinger Nachrichten 1918 predates
+%    the register — and that is the declared exception.
+%
+% 3. DOIs ARE LOWERCASE.  Not a preference: it is what every machine source
+%    returns (Crossref normalises, and so does doi.org's content
+%    negotiation), so the field matches the only thing that can check it.  A
+%    DOI is case-insensitive and both forms resolve.
+%
+% 4. A TITLE IS TRANSCRIBED AS PUBLISHED.  `holzer1997` reads "x-ray" in lower
+%    case because Physical Review A prints it that way while the IUCr journals
+%    print "X-ray".  That unevenness belongs to the literature; do not "fix"
+%    it.  Rule 1 is about capitals the STYLE destroys, never about spelling.
 
 % ---------------------------------------------------------------- foundations
 
@@ -16,15 +44,17 @@
   volume  = {2},
   pages   = {65--71},
   year    = {1969},
+  doi     = {10.1107/s0021889869006558},
 }
 
 @article{lebail1988,
   author  = {Le Bail, A. and Duroy, H. and Fourquet, J. L.},
-  title   = {Ab-initio structure determination of {LiSbWO₆} by X-ray powder diffraction},
+  title   = {Ab-initio structure determination of {LiSbWO₆} by {X-ray} powder diffraction},
   journal = {Materials Research Bulletin},
   volume  = {23},
   pages   = {447--452},
   year    = {1988},
+  doi     = {10.1016/0025-5408(88)90019-0},
 }
 
 @article{pawley1981,
@@ -34,6 +64,7 @@
   volume  = {14},
   pages   = {357--361},
   year    = {1981},
+  doi     = {10.1107/s0021889881009618},
 }
 
 @article{vondreele1997,
@@ -43,6 +74,7 @@
   volume  = {30},
   pages   = {517--525},
   year    = {1997},
+  doi     = {10.1107/s0021889897005918},
 }
 
 @article{mccusker1999,
@@ -52,7 +84,7 @@
   volume  = {32},
   pages   = {36--50},
   year    = {1999},
-  doi     = {10.1107/S0021889898009856},
+  doi     = {10.1107/s0021889898009856},
 }
 
 @article{altomare1995,
@@ -65,7 +97,7 @@
   volume  = {28},
   pages   = {738--744},
   year    = {1995},
-  doi     = {10.1107/S0021889895005747},
+  doi     = {10.1107/s0021889895005747},
 }
 
 @article{stinton2007,
@@ -75,11 +107,12 @@
   volume  = {40},
   pages   = {87--95},
   year    = {2007},
+  doi     = {10.1107/s0021889806043275},
 }
 
 @techreport{larson2004,
   author      = {Larson, A. C. and Von Dreele, R. B.},
-  title       = {General Structure Analysis System ({GSAS})},
+  title       = {{General Structure Analysis System (GSAS)}},
   institution = {Los Alamos National Laboratory},
   number      = {LAUR 86-748},
   year        = {2004},
@@ -89,7 +122,7 @@
 
 @book{itc-a,
   editor    = {Hahn, Th.},
-  title     = {International Tables for Crystallography, Volume {A}: Space-Group Symmetry},
+  title     = {{International Tables for Crystallography, Volume A: Space-Group Symmetry}},
   publisher = {Kluwer Academic Publishers},
   address   = {Dordrecht},
   year      = {2002},
@@ -97,7 +130,7 @@
 
 @book{itc-b,
   editor    = {Shmueli, U.},
-  title     = {International Tables for Crystallography, Volume {B}: Reciprocal Space},
+  title     = {{International Tables for Crystallography, Volume B: Reciprocal Space}},
   publisher = {Kluwer Academic Publishers},
   address   = {Dordrecht},
   year      = {2001},
@@ -105,7 +138,7 @@
 
 @book{itc-c,
   editor    = {Prince, E.},
-  title     = {International Tables for Crystallography, Volume {C}: Mathematical, Physical and Chemical Tables},
+  title     = {{International Tables for Crystallography, Volume C: Mathematical, Physical and Chemical Tables}},
   publisher = {Kluwer Academic Publishers},
   address   = {Dordrecht},
   year      = {2004},
@@ -131,6 +164,7 @@
   volume  = {39},
   pages   = {78--124},
   year    = {1967},
+  doi     = {10.1103/revmodphys.39.78},
 }
 
 @article{deslattes2003,
@@ -140,6 +174,7 @@
   volume  = {75},
   pages   = {35--99},
   year    = {2003},
+  doi     = {10.1103/revmodphys.75.35},
 }
 
 @article{holzer1997,
@@ -149,11 +184,12 @@
   volume  = {56},
   pages   = {4554--4568},
   year    = {1997},
+  doi     = {10.1103/physreva.56.4554},
 }
 
 @misc{srd128,
   author = {{NIST}},
-  title  = {X-ray Transition Energies Database, Standard Reference Database 128},
+  title  = {{X-ray Transition Energies Database, Standard Reference Database 128}},
   year   = {2005},
   note   = {\url{https://physics.nist.gov/PhysRefData/XrayTrans/}},
 }
@@ -172,7 +208,7 @@
 
 @book{wilson1963,
   author    = {Wilson, A. J. C.},
-  title     = {Mathematical Theory of X-ray Powder Diffractometry},
+  title     = {{Mathematical Theory of X-ray Powder Diffractometry}},
   publisher = {Philips Technical Library},
   address   = {Eindhoven},
   year      = {1963},
@@ -180,7 +216,7 @@
 
 @book{klug1974,
   author    = {Klug, H. P. and Alexander, L. E.},
-  title     = {X-ray Diffraction Procedures for Polycrystalline and Amorphous Materials},
+  title     = {{X-ray Diffraction Procedures for Polycrystalline and Amorphous Materials}},
   edition   = {2nd},
   publisher = {Wiley},
   address   = {New York},
@@ -196,15 +232,17 @@
   volume  = {3},
   pages   = {223--228},
   year    = {1958},
+  doi     = {10.1016/0369-643x(58)90029-x},
 }
 
 @article{thompson1987,
   author  = {Thompson, P. and Cox, D. E. and Hastings, J. B.},
-  title   = {{Rietveld} refinement of {Debye--Scherrer} synchrotron X-ray data from {Al₂O₃}},
+  title   = {{Rietveld} refinement of {Debye--Scherrer} synchrotron {X-ray} data from {Al₂O₃}},
   journal = {Journal of Applied Crystallography},
   volume  = {20},
   pages   = {79--83},
   year    = {1987},
+  doi     = {10.1107/s0021889887087090},
 }
 
 @article{finger1994,
@@ -214,6 +252,7 @@
   volume  = {27},
   pages   = {892--900},
   year    = {1994},
+  doi     = {10.1107/s0021889894004218},
 }
 
 @article{armstrong1967,
@@ -223,6 +262,7 @@
   volume  = {7},
   pages   = {61--88},
   year    = {1967},
+  doi     = {10.1016/0022-4073(67)90057-x},
 }
 
 @article{weideman1994,
@@ -232,6 +272,7 @@
   volume  = {31},
   pages   = {1497--1518},
   year    = {1994},
+  doi     = {10.1137/0731077},
 }
 
 @article{humlicek1982,
@@ -241,6 +282,7 @@
   volume  = {27},
   pages   = {437--444},
   year    = {1982},
+  doi     = {10.1016/0022-4073(82)90078-4},
 }
 
 @article{zaghloul2011,
@@ -251,11 +293,12 @@
   number  = {2},
   pages   = {15},
   year    = {2011},
+  doi     = {10.1145/2049673.2049679},
 }
 
 @book{abramowitz1964,
   editor    = {Abramowitz, M. and Stegun, I. A.},
-  title     = {Handbook of Mathematical Functions},
+  title     = {{Handbook of Mathematical Functions}},
   publisher = {National Bureau of Standards},
   series    = {Applied Mathematics Series 55},
   address   = {Washington},
@@ -271,15 +314,17 @@
   volume  = {51},
   pages   = {416--431},
   year    = {1995},
+  doi     = {10.1107/s0108767394013292},
 }
 
 @article{cromer1970,
   author  = {Cromer, D. T. and Liberman, D.},
-  title   = {Relativistic calculation of anomalous scattering factors for X rays},
+  title   = {Relativistic calculation of anomalous scattering factors for {X} rays},
   journal = {Journal of Chemical Physics},
   volume  = {53},
   pages   = {1891--1898},
   year    = {1970},
+  doi     = {10.1063/1.1674266},
 }
 
 @article{cromer1981,
@@ -289,6 +334,7 @@
   volume  = {37},
   pages   = {267--268},
   year    = {1981},
+  doi     = {10.1107/s0567739481000600},
 }
 
 @article{kissel1990,
@@ -298,6 +344,7 @@
   volume  = {46},
   pages   = {170--175},
   year    = {1990},
+  doi     = {10.1107/s0108767389010718},
 }
 
 @article{trueblood1996,
@@ -307,6 +354,7 @@
   volume  = {52},
   pages   = {770--781},
   year    = {1996},
+  doi     = {10.1107/s0108767396005697},
 }
 
 @article{fischer1988,
@@ -316,6 +364,7 @@
   volume  = {44},
   pages   = {775--776},
   year    = {1988},
+  doi     = {10.1107/s0108270187012745},
 }
 
 @article{peterse1966,
@@ -325,6 +374,7 @@
   volume  = {20},
   pages   = {147--150},
   year    = {1966},
+  doi     = {10.1107/s0365110x66000318},
 }
 
 @article{grossekunstleve2002,
@@ -334,6 +384,7 @@
   volume  = {35},
   pages   = {477--480},
   year    = {2002},
+  doi     = {10.1107/s0021889802008580},
 }
 
 @article{halpern1939,
@@ -343,6 +394,7 @@
   volume  = {55},
   pages   = {898--923},
   year    = {1939},
+  doi     = {10.1103/physrev.55.898},
 }
 
 @article{perezmato2015,
@@ -352,6 +404,7 @@
   volume  = {45},
   pages   = {217--248},
   year    = {2015},
+  doi     = {10.1146/annurev-matsci-070214-021008},
 }
 
 @article{togo2024,
@@ -361,17 +414,19 @@
   volume  = {4},
   pages   = {2384822},
   year    = {2024},
+  doi     = {10.1080/27660400.2024.2384822},
 }
 
 % ------------------------------------------------------- intensity corrections
 
 @article{azaroff1955,
   author  = {Azaroff, L. V.},
-  title   = {Polarization correction for crystal-monochromatized X-radiation},
+  title   = {Polarization correction for crystal-monochromatized {X-radiation}},
   journal = {Acta Crystallographica},
   volume  = {8},
   pages   = {701--704},
   year    = {1955},
+  doi     = {10.1107/s0365110x55002156},
 }
 
 @article{rouse1970,
@@ -381,24 +436,27 @@
   volume  = {26},
   pages   = {682--691},
   year    = {1970},
+  doi     = {10.1107/s0567739470001687},
 }
 
 @article{suortti1972,
   author  = {Suortti, P.},
-  title   = {Effects of porosity and surface roughness on the X-ray intensity reflected from a powder specimen},
+  title   = {Effects of porosity and surface roughness on the {X-ray} intensity reflected from a powder specimen},
   journal = {Journal of Applied Crystallography},
   volume  = {5},
   pages   = {325--331},
   year    = {1972},
+  doi     = {10.1107/s0021889872009707},
 }
 
 @article{pitschke1993,
   author  = {Pitschke, W. and Hermann, H. and Mattern, N.},
-  title   = {The influence of surface roughness on diffracted X-ray intensities in {Bragg--Brentano} geometry and its effect on the structure determination by means of {Rietveld} analysis},
+  title   = {The influence of surface roughness on diffracted {X-ray} intensities in {Bragg--Brentano} geometry and its effect on the structure determination by means of {Rietveld} analysis},
   journal = {Powder Diffraction},
   volume  = {8},
   pages   = {74--83},
   year    = {1993},
+  doi     = {10.1017/s0885715600017875},
 }
 
 @article{sabine1985,
@@ -408,6 +466,7 @@
   volume  = {38},
   pages   = {507--518},
   year    = {1985},
+  doi     = {10.1071/ph850507},
 }
 
 @article{sabine1988,
@@ -417,6 +476,7 @@
   volume  = {44},
   pages   = {368--373},
   year    = {1988},
+  doi     = {10.1107/s0108767388000613},
 }
 
 @article{sabine1988b,
@@ -426,6 +486,7 @@
   volume  = {44},
   pages   = {374--379},
   year    = {1988},
+  doi     = {10.1107/s0108767388000625},
 }
 
 @article{march1932,
@@ -435,6 +496,7 @@
   volume  = {81},
   pages   = {285--297},
   year    = {1932},
+  doi     = {10.1524/zkri.1932.81.1.285},
 }
 
 @article{dollase1986,
@@ -444,15 +506,17 @@
   volume  = {19},
   pages   = {267--272},
   year    = {1986},
+  doi     = {10.1107/s0021889886089458},
 }
 
 @article{brindley1945,
   author  = {Brindley, G. W.},
-  title   = {The effect of grain or particle size on X-ray reflections from mixed powders and alloys},
+  title   = {The effect of grain or particle size on {X-ray} reflections from mixed powders and alloys},
   journal = {Philosophical Magazine},
   volume  = {36},
   pages   = {347--369},
   year    = {1945},
+  doi     = {10.1080/14786444508520918},
 }
 
 @article{hill1987,
@@ -462,6 +526,7 @@
   volume  = {20},
   pages   = {467--474},
   year    = {1987},
+  doi     = {10.1107/s0021889887086199},
 }
 
 @article{bish1988,
@@ -471,6 +536,7 @@
   volume  = {21},
   pages   = {86--91},
   year    = {1988},
+  doi     = {10.1107/s0021889887009415},
 }
 
 @article{taylor1991,
@@ -480,11 +546,12 @@
   volume  = {24},
   pages   = {14--17},
   year    = {1991},
+  doi     = {10.1107/s002188989000841x},
 }
 
 @techreport{mcmaster1969,
   author      = {McMaster, W. H. and Del Grande, N. Kerr and Mallett, J. H. and Hubbell, J. H.},
-  title       = {Compilation of X-ray cross sections},
+  title       = {Compilation of {X-ray} cross sections},
   institution = {Lawrence Radiation Laboratory},
   number      = {UCRL-50174 Sec. II Rev. 1},
   year        = {1969},
@@ -492,7 +559,7 @@
 
 @techreport{hubbell1995,
   author      = {Hubbell, J. H. and Seltzer, S. M.},
-  title       = {Tables of X-ray mass attenuation coefficients and mass energy-absorption coefficients},
+  title       = {Tables of {X-ray} mass attenuation coefficients and mass energy-absorption coefficients},
   institution = {National Institute of Standards and Technology},
   number      = {NISTIR 5632},
   year        = {1995},
@@ -530,7 +597,7 @@
   volume  = {11},
   pages   = {102--113},
   year    = {1978},
-  doi     = {10.1107/S0021889878012844},
+  doi     = {10.1107/s0021889878012844},
 }
 
 @article{stephens1999,
@@ -540,6 +607,7 @@
   volume  = {32},
   pages   = {281--289},
   year    = {1999},
+  doi     = {10.1107/s0021889898006001},
 }
 
 % ------------------------------------------------------------------ background
@@ -551,6 +619,7 @@
   volume  = {11},
   pages   = {89--121},
   year    = {1996},
+  doi     = {10.1214/ss/1038425655},
 }
 
 @article{eilers2003,
@@ -560,6 +629,7 @@
   volume  = {75},
   pages   = {3631--3636},
   year    = {2003},
+  doi     = {10.1021/ac034173t},
 }
 
 @article{baek2015,
@@ -569,6 +639,7 @@
   volume  = {140},
   pages   = {250--257},
   year    = {2015},
+  doi     = {10.1039/c4an01061b},
 }
 
 @article{ryan1988,
@@ -578,6 +649,7 @@
   volume  = {34},
   pages   = {396--402},
   year    = {1988},
+  doi     = {10.1016/0168-583x(88)90063-8},
 }
 
 % ------------------------------------------------------------------ estimation
@@ -589,6 +661,7 @@
   volume  = {24},
   pages   = {1--5},
   year    = {1991},
+  doi     = {10.1107/s0021889890008391},
 }
 
 @article{toby2006,
@@ -598,6 +671,7 @@
   volume  = {21},
   pages   = {67--70},
   year    = {2006},
+  doi     = {10.1154/1.2179804},
 }
 
 @article{hillflack1987,
@@ -607,6 +681,7 @@
   volume  = {20},
   pages   = {356--361},
   year    = {1987},
+  doi     = {10.1107/s0021889887086485},
 }
 
 @article{durbin1950,
@@ -616,6 +691,7 @@
   volume  = {37},
   pages   = {409--428},
   year    = {1950},
+  doi     = {10.2307/2332391},
 }
 
 @article{schwarz1978,
@@ -625,6 +701,7 @@
   volume  = {6},
   pages   = {461--464},
   year    = {1978},
+  doi     = {10.1214/aos/1176344136},
 }
 
 @article{hamilton1965,
@@ -634,6 +711,7 @@
   volume  = {18},
   pages   = {502--510},
   year    = {1965},
+  doi     = {10.1107/s0365110x65001081},
 }
 
 @article{david2004,
@@ -643,6 +721,7 @@
   volume  = {109},
   pages   = {107--123},
   year    = {2004},
+  doi     = {10.6028/jres.109.008},
 }
 
 @article{andreev1994,
@@ -652,6 +731,7 @@
   volume  = {27},
   pages   = {288},
   year    = {1994},
+  doi     = {10.1107/s002188989300891x},
 }
 
 @article{schwarzenbach1989,
@@ -661,6 +741,7 @@
   volume  = {45},
   pages   = {63--75},
   year    = {1989},
+  doi     = {10.1107/s0108767388009596},
 }
 
 @article{coelho2005,
@@ -670,6 +751,7 @@
   volume  = {38},
   pages   = {455--461},
   year    = {2005},
+  doi     = {10.1107/s0021889805006096},
 }
 
 @article{coelho2018,
@@ -679,6 +761,7 @@
   volume  = {51},
   pages   = {428--435},
   year    = {2018},
+  doi     = {10.1107/s1600576718001784},
 }
 
 @article{coelho2018topas,
@@ -688,6 +771,7 @@
   volume  = {51},
   pages   = {210--218},
   year    = {2018},
+  doi     = {10.1107/s1600576718000183},
 }
 
 @article{toby2013,
@@ -697,6 +781,7 @@
   volume  = {46},
   pages   = {544--549},
   year    = {2013},
+  doi     = {10.1107/s0021889813003531},
 }
 
 @article{hestenes1952,
@@ -706,11 +791,12 @@
   volume  = {49},
   pages   = {409--436},
   year    = {1952},
+  doi     = {10.6028/jres.049.044},
 }
 
 @book{polak1971,
   author    = {Polak, E.},
-  title     = {Computational Methods in Optimization: A Unified Approach},
+  title     = {{Computational Methods in Optimization: A Unified Approach}},
   publisher = {Academic Press},
   address   = {New York},
   year      = {1971},
@@ -718,7 +804,7 @@
 
 @book{higham2002,
   author    = {Higham, N. J.},
-  title     = {Accuracy and Stability of Numerical Algorithms},
+  title     = {{Accuracy and Stability of Numerical Algorithms}},
   edition   = {2nd},
   publisher = {SIAM},
   address   = {Philadelphia},
@@ -727,7 +813,7 @@
 
 @book{nocedal2006,
   author    = {Nocedal, J. and Wright, S. J.},
-  title     = {Numerical Optimization},
+  title     = {{Numerical Optimization}},
   edition   = {2nd},
   publisher = {Springer},
   address   = {New York},
@@ -743,6 +829,7 @@
   volume  = {16},
   pages   = {1091--1094},
   year    = {1963},
+  doi     = {10.1107/s0365110x63002929},
 }
 
 @article{watkin1994,
@@ -752,6 +839,7 @@
   volume  = {50},
   pages   = {411--437},
   year    = {1994},
+  doi     = {10.1107/s0108767393012784},
 }
 
 @article{dewolff1968,
@@ -761,7 +849,7 @@
   volume = {1},
   pages = {108--113},
   year = {1968},
-  doi = {10.1107/S002188986800508X}
+  doi = {10.1107/s002188986800508x}
 }
 
 @article{smithsnyder1979,
@@ -771,7 +859,7 @@
   volume = {12},
   pages = {60--65},
   year = {1979},
-  doi = {10.1107/S002188987901178X}
+  doi = {10.1107/s002188987901178x}
 }
 
 @article{dong1999,
@@ -781,7 +869,7 @@
   volume = {32},
   pages = {850--853},
   year = {1999},
-  doi = {10.1107/S0021889899007396}
+  doi = {10.1107/s0021889899007396}
 }
 
 @article{smith1977,
@@ -791,7 +879,7 @@
   volume = {10},
   pages = {252--255},
   year = {1977},
-  doi = {10.1107/S0021889877013478}
+  doi = {10.1107/s0021889877013478}
 }
 
 @article{mighellsantoro1975,
@@ -801,17 +889,17 @@
   volume = {8},
   pages = {372--374},
   year = {1975},
-  doi = {10.1107/S0021889875010801}
+  doi = {10.1107/s0021889875010801}
 }
 
 @article{lepage1982,
   author = {Le Page, Y.},
-  title = {The derivation of the axes of the conventional unit cell from the dimensions of the Buerger-reduced cell},
+  title = {The derivation of the axes of the conventional unit cell from the dimensions of the {Buerger-reduced} cell},
   journal = {Journal of Applied Crystallography},
   volume = {15},
   pages = {255--259},
   year = {1982},
-  doi = {10.1107/S0021889882011959}
+  doi = {10.1107/s0021889882011959}
 }
 
 @article{oishitomiyasu2013,
@@ -821,7 +909,7 @@
   volume = {46},
   pages = {1277--1282},
   year = {2013},
-  doi = {10.1107/S0021889813019833}
+  doi = {10.1107/s0021889813019833}
 }
 
 @article{oishitomiyasu2014,
@@ -831,7 +919,7 @@
   volume = {47},
   pages = {593--598},
   year = {2014},
-  doi = {10.1107/S1600576714000922}
+  doi = {10.1107/s1600576714000922}
 }
 
 @article{krivygruber1976,
@@ -841,7 +929,7 @@
   volume = {32},
   pages = {297--298},
   year = {1976},
-  doi = {10.1107/S0567739476000636}
+  doi = {10.1107/s0567739476000636}
 }
 
 @article{grossekunstleve2004,
@@ -851,7 +939,7 @@
   volume = {60},
   pages = {1--6},
   year = {2004},
-  doi = {10.1107/S010876730302186X}
+  doi = {10.1107/s010876730302186x}
 }
 
 @article{bergmann2004,
@@ -882,7 +970,7 @@
   volume  = {5},
   pages   = {271--275},
   year    = {1972},
-  doi     = {10.1107/S0021889872009483}
+  doi     = {10.1107/s0021889872009483}
 }
 
 @article{boultif1991,
@@ -893,7 +981,7 @@
   volume  = {24},
   pages   = {987--993},
   year    = {1991},
-  doi     = {10.1107/S0021889891006441}
+  doi     = {10.1107/s0021889891006441}
 }
 
 @article{boultif2004,
@@ -903,7 +991,7 @@
   volume  = {37},
   pages   = {724--731},
   year    = {2004},
-  doi     = {10.1107/S0021889804014876}
+  doi     = {10.1107/s0021889804014876}
 }
 
 @article{werner1964,
@@ -925,7 +1013,7 @@
   volume  = {18},
   pages   = {367--370},
   year    = {1985},
-  doi     = {10.1107/S0021889885010512}
+  doi     = {10.1107/s0021889885010512}
 }
 
 @article{visser1969,
@@ -936,7 +1024,7 @@
   volume  = {2},
   pages   = {89--95},
   year    = {1969},
-  doi     = {10.1107/S0021889869006649}
+  doi     = {10.1107/s0021889869006649}
 }
 
 @article{toby2024,
@@ -946,7 +1034,7 @@
   volume  = {57},
   pages   = {175--180},
   year    = {2024},
-  doi     = {10.1107/S1600576723011032}
+  doi     = {10.1107/s1600576723011032}
 }
 
 @article{rao1948,
@@ -956,6 +1044,7 @@
   volume  = {44},
   pages   = {50--57},
   year    = {1948},
+  doi     = {10.1017/s0305004100023987},
 }
 
 @article{frisch1933,
@@ -965,6 +1054,7 @@
   volume  = {1},
   pages   = {387--401},
   year    = {1933},
+  doi     = {10.2307/1907330},
 }
 
 @article{lovell1963,
@@ -974,11 +1064,12 @@
   volume  = {58},
   pages   = {993--1010},
   year    = {1963},
+  doi     = {10.1080/01621459.1963.10480682},
 }
 
-@software{rietx2026,
+@misc{rietx2026,
   author  = {Wu, Yue and Gaultois, Michael W.},
-  title   = {rietx: Python-API-first analysis and Rietveld refinement of powder diffraction data},
+  title   = {{rietx: Python-API-first analysis and Rietveld refinement of powder diffraction data}},
   year    = {2026},
   url     = {https://github.com/yue-here/rietx},
 }

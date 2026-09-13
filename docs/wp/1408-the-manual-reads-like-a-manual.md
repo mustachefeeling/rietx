@@ -243,7 +243,7 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   blob URL with a line anchor, pinned to `v{release}` for a released version and
   `main` for a `.dev`; all 104 lines converted; `test_manual.py`'s `SOURCE_LINE`
   regex and its two consumers follow.
-- [ ] **G — the bibliography agrees with itself.** Brace every capital in every
+- [x] **G — the bibliography agrees with itself.** Brace every capital in every
   title (the ten rendered faults first, then the sweep); settle `@software`;
   add the `doi` field wherever Crossref confirms one against title, year, volume
   and first page (never a bare title match), and record the count that could not

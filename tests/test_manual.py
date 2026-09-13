@@ -194,6 +194,92 @@ def test_every_citation_has_a_bib_entry():
     assert not missing, f"citations with no bibliography entry: {sorted(missing)}"
 
 
+BIB_ENTRY = re.compile(r"^@(\w+)\{([^,\s]+)\s*,\n(.*?)\n\}\s*$", re.MULTILINE | re.DOTALL)
+BIB_FIELD = re.compile(r"^\s*(\w+)\s*=\s*\{(.*?)\}\s*,?\s*$", re.MULTILINE | re.DOTALL)
+
+#: The one article with no DOI, and why (references.bib § rule 2).  A list
+#: rather than a count, so adding an entry without one has to say which.
+NO_DOI = {"scherrer1918": "Göttinger Nachrichten 1918 predates the DOI register"}
+
+
+def _bib_entries() -> list[tuple[str, str, dict[str, str]]]:
+    text = (MANUAL_DIR / "references.bib").read_text(encoding="utf-8")
+    out = []
+    for kind, key, body in re.findall(r"@(\w+)\{([^,\s]+),\n(.*?)\n\}\n", text, re.S):
+        out.append((kind, key, dict(BIB_FIELD.findall(body))))
+    assert out, "no bibliography entries parsed — regex or file moved?"
+    return out
+
+
+def _unbraced_words(title: str) -> list[str]:
+    """Words of a title that the `alpha` style is free to lowercase.
+
+    Depth is tracked so a word inside `{...}` is exempt, and the depth a word
+    *started* at is what counts — reading it at the closing brace would call
+    every protected word unprotected.
+    """
+    words: list[str] = []
+    depth, word, word_depth = 0, "", 0
+    for char in title:
+        if char.isalnum() or char in "-'’":
+            if not word:
+                word_depth = depth
+            word += char
+            continue
+        if word:
+            if word_depth == 0:
+                words.append(word)
+            word = ""
+        depth += (char == "{") - (char == "}")
+    if word and word_depth == 0:
+        words.append(word)
+    return words
+
+
+def test_no_bibliography_title_has_an_unbraced_interior_capital():
+    """references.bib § rule 1, the one the reader sees when it is broken.
+
+    `bibtex_default_style = "alpha"` sentence-cases a title, so a capital that
+    is neither braced nor the first word is lowercased on every page that
+    cites the entry. It rendered ten entries as "x-ray" and this package's own
+    citation as "Rietx: python-api-first analysis and rietveld refinement"
+    (WP-1408). The first word is exempt: the style capitalises it and leaves
+    the rest of it alone.
+    """
+    offenders = []
+    for _kind, key, fields in _bib_entries():
+        title = fields.get("title")
+        if not title:
+            continue
+        for word in _unbraced_words(title)[1:]:
+            if any(c.isupper() for c in word):
+                offenders.append(f"{key}: {word!r} in {title[:60]!r}")
+    assert not offenders, (
+        "a capital the bibliography style will lowercase — brace the word, or "
+        "the whole title if it is a proper name in title case:\n"
+        + "\n".join(offenders)
+    )
+
+
+def test_every_article_carries_its_doi_in_the_one_case_the_file_uses():
+    """references.bib § rules 2 and 3: an article has a DOI, and it is lower
+    case — the form every machine source returns, so the field matches the
+    only thing that can check it."""
+    missing, miscased = [], []
+    for kind, key, fields in _bib_entries():
+        doi = fields.get("doi")
+        if kind == "article" and not doi and key not in NO_DOI:
+            missing.append(key)
+        if doi and doi != doi.lower():
+            miscased.append(f"{key}: {doi}")
+    assert not missing, (
+        "article entries with no doi field — look it up on Crossref and verify "
+        f"title, year, volume and first page, or declare it in NO_DOI: {missing}")
+    assert not miscased, f"doi fields that are not lower case: {miscased}"
+    stale = sorted(set(NO_DOI) - {key for _k, key, _f in _bib_entries()})
+    assert not stale, f"NO_DOI names entries that are gone: {stale}"
+
+
 def test_every_source_symbol_imports():
     """Each equation's *Source:* line names a live module or attribute; a
     rename breaks this test rather than the reader's trust."""
