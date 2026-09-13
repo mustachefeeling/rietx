@@ -12,7 +12,7 @@ reader returns a whole solved model and nothing re-opens it that way.
 **What the registry governs, and what it does not** (WP-1118, decided
 2026-09-13).  A *project format* is a file stating someone else's **refinement**
 — its phases, its instrument and, the part nobody can reconstruct from a CIF
-plus a pattern, its refine flags.  Three readers in this build read a foreign
+plus a pattern, its refine flags.  Other readers in this build open a foreign
 file and are *not* here, each for a stated reason:
 
 - :func:`~rietx.io.instrument_profile.read_gsas_prm` reads a GSAS-I ``.prm``,

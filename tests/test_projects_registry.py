@@ -3,11 +3,12 @@
 Three classes of test, and the third is the one worth arguing for.
 
 **Dispatch** — a file reaches the format that can read it, and one nothing here
-reads is refused by a message naming what this build *does* open.  Every fixture
-is synthesized inline: no ``.inp`` or ``.pcr`` may be vendored
-(``ATTRIBUTION.md``'s fence), which the two format suites already live with, and
-the lines below are shaped after the ones their comments quote from named
-archive files rather than invented from the grammar.
+reads is refused by a message naming what this build *does* open.  No ``.inp`` or
+``.pcr`` may be vendored (``ATTRIBUTION.md``'s fence), so every fixture is
+synthesized — the ``.inp`` ones below, shaped after the lines
+``projects/topas.py``'s comments quote from named archive files, and the ``.pcr``
+ones through ``test_projects_fullprof``'s own builders rather than a second
+writer of this format's layout.
 
 **The arm** — ``capabilities().project_formats`` is the registry, member for
 member and in order.  The same rule ``reader_formats`` is held to: a member
