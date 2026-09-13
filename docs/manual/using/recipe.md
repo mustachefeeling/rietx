@@ -71,7 +71,7 @@ never silently ignore a refine flag.
 | a non-zero `Zero` | see below |
 | a non-zero `Z` | this package's Lorentzian width is X/cosθ + Y·tanθ, with no constant term |
 | a negative `W`, `X` or `Y` | those are softplus-bounded at zero here; reading one would silently give ≈0 rather than the declared value |
-| a background peak whose Lorentzian γ exceeds one 2θ step | `BackgroundPeak` is a Gaussian, deliberately |
+| a hump whose Lorentzian γ exceeds one 2θ step | `HumpComponent` is a Gaussian, deliberately |
 | an `Uaniso` atom | anisotropic displacement through a recipe is not read yet |
 | a top-level `single_peaks` block with any live entry | free-standing peaks are not part of a refinement here; {ref}`fit_peaks <fitting-peaks-you-name>` fits them on their own |
 
@@ -85,7 +85,7 @@ angle contradicts its space group ([](data.md)): where two statements
 contradict each other, choosing is the caller's.
 
 A **fixed** value the model reaches its identity at is dropped instead, with a
-diagnostic naming it. `Z = 0` is no constant Lorentzian; a background peak's γ
+diagnostic naming it. `Z = 0` is no constant Lorentzian; a hump's γ
 below one channel is a width the data cannot hold. That split — a fixed
 identity is a report, a live value is a contradiction — is the reader-repair
 rule of [](data.md) applied one format over.
@@ -175,7 +175,7 @@ choosing, choose `Refinement.fit`.
 Read `Recipe.diagnostics` before the answer. Roughly a dozen codes can fire,
 all prefixed `RECIPE_`, and several of them mean the fit you are about to run
 differs from the reference engine's in a stated way — a dropped refine flag, a
-declined engine default, a degenerate background peak. A `RecipeError` names
+declined engine default, a degenerate hump. A `RecipeError` names
 the field and says what to do instead.
 :::
 

@@ -319,7 +319,7 @@ def test_anisotropic_adps_are_refused_by_name(lab6_doc):
 
 def test_top_level_single_peaks_are_refused_but_background_ones_are_read(
         lab6, lab6_doc):
-    assert len(lab6.instrument.background_peaks) == 1   # background.single_peaks
+    assert len(lab6.instrument.extra_components) == 1   # background.single_peaks
     doc = _edit(lab6_doc)
     doc["payload"]["single_peaks"] = {
         "positions": [[2.3, True, None, None]],
@@ -330,7 +330,7 @@ def test_top_level_single_peaks_are_refused_but_background_ones_are_read(
         read_recipe(doc)
 
 
-def test_a_wide_background_peak_gamma_is_refused_and_a_narrow_one_dropped(
+def test_a_wide_hump_gamma_is_refused_and_a_narrow_one_dropped(
         lab6, lab6_doc):
     assert "RECIPE_FIELD_DROPPED" in _codes(lab6)      # gamma 1e-5 centideg
     doc = _edit(lab6_doc)
@@ -366,7 +366,7 @@ def test_a_missing_file_and_bad_json_both_name_the_file(tmp_path):
 # --- what is reported rather than refused -----------------------------------
 
 
-def test_the_degenerate_background_peak_is_warned_about(lab6):
+def test_the_degenerate_hump_is_warned_about(lab6):
     """LaB6 declares a 23.5 deg peak on a 14 deg range, beside six Chebyshev
     terms.  Both reference engines resolved it differently and neither
     resolved it well; the reader says so before the fit does."""
@@ -491,9 +491,9 @@ def test_the_plan_frees_exactly_what_the_recipe_flagged(lab6, lab6_doc):
         "instrument.profile.u", "instrument.profile.v", "instrument.profile.w",
         "instrument.profile.x", "instrument.profile.y",
         *(f"instrument.background.c{n}" for n in range(6)),
-        "instrument.background_peaks.0.position",
-        "instrument.background_peaks.0.height",
-        "instrument.background_peaks.0.fwhm",
+        "instrument.extra_components.0.position",
+        "instrument.extra_components.0.height",
+        "instrument.extra_components.0.fwhm",
     }
 
 

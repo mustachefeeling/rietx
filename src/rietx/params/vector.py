@@ -37,8 +37,8 @@ from ..crystallography.symmetry import (
 from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
 from ..schemas.common import Parameter
 from ..schemas.instrument import (
-    BACKGROUND_PEAK_FIELDS,
     CAPILLARY_OFFSETS,
+    HUMP_FIELDS,
     BackgroundChebyshev,
     BackgroundPSpline,
     Instrument,
@@ -155,24 +155,24 @@ def background_parameters(bkg) -> list[tuple[str, Parameter]]:
     return [(f"c{n}", p) for n, p in enumerate(cheb)]
 
 
-def background_peak_parameters(peaks) -> list[tuple[str, Parameter]]:
-    """(sub-path, Parameter) pairs for ``Instrument.background_peaks``, or [].
+def extra_component_parameters(peaks) -> list[tuple[str, Parameter]]:
+    """(sub-path, Parameter) pairs for ``Instrument.extra_components``, or [].
 
     Shared by the collector and by :meth:`ParameterTable.apply_to_models` for
     the reason :func:`roughness_parameters` is — a parameter registered in one
     and forgotten in the other silently loses its refined value at the next
     stage's recompile, which has bitten this file before.  ``[]`` for the empty
     list, so a table built from an instrument that declares no peak is
-    byte-for-byte the pre-``background_peaks`` table.
+    byte-for-byte the pre-``extra_components`` table.
 
     The index comes first (``0.position``, not ``position.0``) so the peak, not
     the field, is the thing a path prefix names, and so a plan can free one
-    declared peak (``instrument.background_peaks.0.*``) without touching the
+    declared peak (``instrument.extra_components.0.*``) without touching the
     others.
     """
     return [(f"{i}.{name}", getattr(peak, name))
             for i, peak in enumerate(peaks)
-            for name in BACKGROUND_PEAK_FIELDS]
+            for name in HUMP_FIELDS]
 
 
 def roughness_parameters(rough) -> list[tuple[str, Parameter]]:
@@ -1139,8 +1139,8 @@ class ParameterTable:
         # composes with every background model and every geometry, which is the
         # whole reason it lives beside ``background`` rather than inside its
         # union.
-        for sub, cp in background_peak_parameters(instrument.background_peaks):
-            self._add(f"instrument.background_peaks.{sub}", cp)
+        for sub, cp in extra_component_parameters(instrument.extra_components):
+            self._add(f"instrument.extra_components.{sub}", cp)
 
     # -- the affine constraint block -----------------------------------
     def _flatten(self, tie: AffineTie, _seen: tuple[str, ...] = ()
@@ -1982,11 +1982,11 @@ class ParameterTable:
         for sub, cp in background_parameters(instrument.background):
             put(cp, f"instrument.background.{sub}")
         # the other half of the pair the helper exists for (see
-        # background_peak_parameters): registered in _collect_instrument and
+        # extra_component_parameters): registered in _collect_instrument and
         # written back here, or a refined hump silently reverts at the next
         # stage's recompile
-        for sub, cp in background_peak_parameters(instrument.background_peaks):
-            put(cp, f"instrument.background_peaks.{sub}")
+        for sub, cp in extra_component_parameters(instrument.extra_components):
+            put(cp, f"instrument.extra_components.{sub}")
         # the walk is over.  Check every value against the schema *before*
         # assigning any of them, so the refusal below leaves the models exactly
         # as it found them; the assignment pass keeps the guard as a backstop

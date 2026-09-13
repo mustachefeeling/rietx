@@ -123,5 +123,5 @@ def assess_background(result: RefinementResult,
         worst_absorption_path=worst_path,
         # carried verbatim, including its None: the result is the one authority
         # for the declared count and this section never recounts it
-        n_peaks=result.n_background_peaks,
+        n_peaks=result.n_extra_components,
     )

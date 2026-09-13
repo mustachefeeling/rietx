@@ -80,6 +80,7 @@ from typing import Any, get_args
 from .._about import TEXTDOC_MAGIC
 from ..schemas.common import Mode
 from ..schemas.indexing import PeakFlag
+from ..schemas.migrate import migrate_document_text
 from ..schemas.plan import PlanSpec, StageSpec
 from ..schemas.project import ProjectDoc, check_interval
 from ..strategy.staged import PLAN_PRESETS
@@ -543,6 +544,10 @@ def _number(token: str) -> float | None:
 
 def parse(text: str) -> ParsedDocument:
     """Syntax only.  Errors collect on ``.errors``; nothing is applied."""
+    # a document saved by v1.2 spells the component rows the old way; repaired
+    # before the line walk so a row's path is the only spelling below
+    # (schemas/migrate.py)
+    text, _ = migrate_document_text(text)
     doc = ParsedDocument()
     prefix: str | None = None
     phase_index: int | None = None

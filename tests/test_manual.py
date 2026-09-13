@@ -170,7 +170,7 @@ def test_source_lines_cover_every_labelled_equation():
             assert n_sources > 0, f"{page.name}: {n_labels} labelled equations, no *Source:* lines"
 
 
-def test_the_background_peak_table_agrees_with_the_refinement_that_produced_it():
+def test_the_hump_table_agrees_with_the_refinement_that_produced_it():
     """`using/data.md`'s background-peak evidence table, against the fixture.
 
     That section's headline is a comparison of measured Rwp values — one
@@ -188,7 +188,7 @@ def test_the_background_peak_table_agrees_with_the_refinement_that_produced_it()
 
     **Both prose copies, not one.**  The same table is transcribed twice — the
     Markdown table in `using/data.md` and the reST table in the
-    :class:`~rietx.schemas.instrument.BackgroundPeak` docstring — and the second
+    :class:`~rietx.schemas.instrument.HumpComponent` docstring — and the second
     is the one that drifted last time (7dbd27c fixed the manual's claim and left
     the docstring stating the old one).  Both are checked against `MANUAL_RWP`
     here, so neither copy can say a number no refinement produced.
@@ -200,9 +200,9 @@ def test_the_background_peak_table_agrees_with_the_refinement_that_produced_it()
     # --- the Markdown table in using/data.md, keyed by row label ---
     rows = {
         "cheb3": "| Chebyshev, 3 terms |",
-        "cheb3_peak": "| Chebyshev-3 **+ one background peak** |",
+        "cheb3_peak": "| Chebyshev-3 **+ one hump** |",
         "cheb6": "| Chebyshev, 6 terms |",
-        "cheb6_peak": "| Chebyshev-6 + one background peak |",
+        "cheb6_peak": "| Chebyshev-6 + one hump |",
     }
     for key, prefix in rows.items():
         line = next((ln for ln in page.splitlines() if ln.startswith(prefix)),
@@ -214,15 +214,15 @@ def test_the_background_peak_table_agrees_with_the_refinement_that_produced_it()
             f"data.md's {key} row says Rwp {cells[2]}, the fixture that "
             f"produced it says {manual_rwp[key]}")
 
-    # --- the reST table in the BackgroundPeak docstring, keyed by the `terms`
+    # --- the reST table in the HumpComponent docstring, keyed by the `terms`
     # column (its two peak rows share the label "that **+ one peak**", so the
     # label cannot key them; the term count can) ---
     doc = importlib.import_module(
-        "rietx.schemas.instrument").BackgroundPeak.__doc__
+        "rietx.schemas.instrument").HumpComponent.__doc__
     lines = doc.splitlines()
     seps = [i for i, ln in enumerate(lines)
             if ln.strip() and set(ln.strip()) <= {"=", " "}]
-    assert len(seps) >= 3, "the BackgroundPeak docstring table lost its rules"
+    assert len(seps) >= 3, "the HumpComponent docstring table lost its rules"
     terms_to_key = {"3": "cheb3", "3 + 3": "cheb3_peak",
                     "6": "cheb6", "6 + 3": "cheb6_peak"}
     seen: set[str] = set()
@@ -233,9 +233,9 @@ def test_the_background_peak_table_agrees_with_the_refinement_that_produced_it()
         if key is None:
             continue
         assert float(cols[2]) == manual_rwp[key], (
-            f"the BackgroundPeak docstring's {key} row says Rwp {cols[2]}, the "
+            f"the HumpComponent docstring's {key} row says Rwp {cols[2]}, the "
             f"fixture that produced it says {manual_rwp[key]}")
         seen.add(key)
     assert seen == set(terms_to_key.values()), (
-        f"the BackgroundPeak docstring table is missing rows: "
+        f"the HumpComponent docstring table is missing rows: "
         f"{set(terms_to_key.values()) - seen}")

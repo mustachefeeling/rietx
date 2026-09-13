@@ -150,7 +150,7 @@ def _intensity_only(path: str, bkg_cols: dict[str, int]) -> bool:
 
     Background coefficients qualify trivially — they never touch a peak at all
     — which is what lets a background-plus-scale stage skip the bases outright.
-    An additive background peak (``instrument.background_peaks.i.…``) qualifies
+    An additive background peak (``instrument.extra_components.i.…``) qualifies
     the same way and for the same reason: it is a term *added* to the pattern,
     so ∂pos/∂p, ∂Γ/∂p and ∂η/∂p of every Bragg peak are identically zero.  It
     is spelled here rather than left to fall through because the fall-through
@@ -159,7 +159,7 @@ def _intensity_only(path: str, bkg_cols: dict[str, int]) -> bool:
     all three partials by zero.
     """
     return (path in bkg_cols
-            or path.startswith("instrument.background_peaks.")
+            or path.startswith("instrument.extra_components.")
             or any(p.match(path) for p in _INTENSITY_ONLY))
 
 

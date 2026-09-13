@@ -147,8 +147,16 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          rungs' order and the one surface decision, the rest
 #                                                          left in the WP files; landed 670
 SIZE_CAPS: dict[str, int | None] = {
-    "CLAUDE.md": 739,
-    "docs/ROADMAP.md": 672,
+    # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
+    # additive non-Bragg term is a union *member* and not a new field, and that
+    # a renamed dot-path is migrated on the document text. Neither is narrative
+    # that could be demoted to a WP file: both govern work outside the WP that
+    # measured them, which is protocol rule 4's test. Raised rather than shaved,
+    # per the failure message's own instruction not to delete facts to fit.
+    "CLAUDE.md": 755,
+    # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
+    # milestone's one break and what makes 1103 the seam's proving case.
+    "docs/ROADMAP.md": 676,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,

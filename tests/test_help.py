@@ -51,10 +51,10 @@ from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.indexing import IndexingControls, ObservedPeak, PeakFlag
 from rietx.schemas.instrument import (
-    BackgroundPeak,
     BackgroundPSpline,
     EmissionLine,
     Geometry,
+    HumpComponent,
     Instrument,
     RoughnessPitschke,
     RoughnessSuortti,
@@ -127,8 +127,8 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
     instrument.  Without these the coverage tests are blind to live parameter
     families — the four roughness fields, the P-spline's air term and the three
     background-peak fields — which is the same hole the preferred-orientation
-    block was in.  A single defaulted :class:`BackgroundPeak` declares the
-    ``instrument.background_peaks.*.{position,height,fwhm}`` families; without it
+    block was in.  A single defaulted :class:`HumpComponent` declares the
+    ``instrument.extra_components.*.{position,height,fwhm}`` families; without it
     the corpus could describe a peak the coverage tests never meet.
 
     Every ``Parameter`` here still sits at its schema default, so these models
@@ -145,7 +145,7 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
                               goniometer_radius_mm=217.5,
                               surface_roughness=RoughnessSuortti()),
             background=spline,
-            background_peaks=[BackgroundPeak()])),
+            extra_components=[HumpComponent()])),
         (structure, Instrument(
             source=Source(lines=[EmissionLine(wavelength=1.540598)]),
             geometry=Geometry(kind="bragg_brentano",

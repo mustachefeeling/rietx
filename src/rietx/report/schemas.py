@@ -175,7 +175,7 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   sentence now also travels where the greps look.
 # 1.4 (additive background peaks): ``BackgroundEvidence.n_peaks`` lands — how
 #   many explicit background-peak terms the fit declared, a projection of
-#   ``RefinementResult.n_background_peaks`` (schemas/results.py).  Additive and
+#   ``RefinementResult.n_extra_components`` (schemas/results.py).  Additive and
 #   defaulted (0 ⇔ none declared, None ⇔ nothing counted); no gate or emission
 #   condition moved, but it is a new field on the report a consumer enumerates,
 #   so it bumps for the same reason 1.2 did.
@@ -533,9 +533,9 @@ class BackgroundEvidence(Base):
     #: consumer need not sort the table to branch on it
     worst_absorption: float = 0.0
     worst_absorption_path: str | None = None
-    #: explicit :class:`~rietx.schemas.instrument.BackgroundPeak` terms this fit
+    #: explicit :class:`~rietx.schemas.instrument.HumpComponent` terms this fit
     #: declared — a **projection** of
-    #: :attr:`~rietx.schemas.results.RefinementResult.n_background_peaks`, never
+    #: :attr:`~rietx.schemas.results.RefinementResult.n_extra_components`, never
     #: a second count, so the section and the result cannot disagree.  Stated
     #: here because it is the other half of "how flexible was the background":
     #: the absorption table says what it could imitate, this says with how many

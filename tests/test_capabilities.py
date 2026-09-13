@@ -139,6 +139,26 @@ def test_every_source_kind_in_the_union_appears_as_a_radiation(caps):
     assert live >= {"xray_cw", "neutron_cw"}, "both radiations must be reachable"
 
 
+def test_every_extra_component_kind_in_the_union_appears_in_the_arm(caps):
+    """Same rule one vocabulary over: the ``ExtraComponent`` union (WP-1102).
+
+    A member a caller can write into ``instrument.extra_components`` and cannot
+    discover from ``capabilities()`` is the unlisted-plan failure again.  Read
+    off the annotation, so WP-1103's peak joins the arm by existing.
+
+    The one-member case is the point of the assertion, not an exception to it:
+    ``get_args`` reports no members for a union of one, which is exactly how
+    ``radiations`` behaved before a second source kind existed.
+    """
+    element, = get_args(rx.Instrument.model_fields["extra_components"].annotation)
+    members = get_args(element) or (element,)
+    live = [get_args(m.model_fields["kind"].annotation)[0] for m in members]
+    assert caps.extra_component_kinds == live
+    assert "hump" in live
+    # and the flag saying the seam exists agrees with the arm listing members
+    assert caps.features["extra_components"] is bool(live)
+
+
 def test_each_radiation_reports_what_actually_differs(caps):
     """Derived predicates, so each flag flips with its own feature (WP-1037).
 
@@ -357,7 +377,8 @@ def test_the_documented_feature_keys_are_present(caps):
         "anisotropic_adp", "preferred_orientation", "stephens_strain",
         "secondary_extinction", "restraints", "surface_roughness",
         "capillary_absorption", "flat_plate_absorption", "anomalous_dispersion",
-        "anomalous_dispersion_default_on", "multi_histogram",
+        "anomalous_dispersion_default_on", "extra_components",
+        "multi_histogram",
         "sequential_series", "project_container", "background_estimation",
         "pattern_diagnostics", "peak_picking", "peak_fitting", "indexing",
         "cancellation", "report_trajectory", "powderline_recipe",

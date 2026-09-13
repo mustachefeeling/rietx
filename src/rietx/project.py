@@ -45,6 +45,7 @@ from .refine import _VERSION, Refinement
 from .schemas.common import Diagnostic, Mode
 from .schemas.history import NodeAction
 from .schemas.instrument import Instrument
+from .schemas.migrate import migrate_document_text
 from .schemas.pattern import PatternData
 from .schemas.plan import PlanSpec
 from .schemas.project import PROJECT_FORMAT_VERSION, DataRef, ProjectDoc
@@ -214,7 +215,11 @@ class Project:
         doc_path = root / PROJECT_JSON
         if not doc_path.is_file():
             raise FileNotFoundError(f"not a project directory (no {PROJECT_JSON}): {root}")
-        doc = ProjectDoc.model_validate_json(doc_path.read_text(encoding="utf-8"))
+        # a v1.2 project spells the component paths the old way in its saved
+        # plan's globs, which would load clean and then free nothing
+        # (schemas/migrate.py)
+        doc_text, _ = migrate_document_text(doc_path.read_text(encoding="utf-8"))
+        doc = ProjectDoc.model_validate_json(doc_text)
 
         major = doc.format_version.split(".")[0]
         if major != PROJECT_FORMAT_VERSION.split(".")[0]:

@@ -333,9 +333,9 @@ export type Format = number | "exp";
 export const PLACES: Readonly<Record<string, Format>> = {
   "instrument.background.air": 3,
   "instrument.background.c*": 3,
-  "instrument.background_peaks.*.fwhm": 4,
-  "instrument.background_peaks.*.height": 3,
-  "instrument.background_peaks.*.position": 4,
+  "instrument.extra_components.*.fwhm": 4,
+  "instrument.extra_components.*.height": 3,
+  "instrument.extra_components.*.position": 4,
   "instrument.geometry.axial_hl": 5,
   "instrument.geometry.axial_sl": 5,
   "instrument.geometry.capillary_offset_across_beam": 5,

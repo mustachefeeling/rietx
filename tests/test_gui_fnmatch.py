@@ -30,8 +30,8 @@ from pathlib import Path
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import (
-    BACKGROUND_PEAK_FWHM_MIN,
-    BackgroundPeak,
+    HUMP_FWHM_MIN,
+    HumpComponent,
     Instrument,
 )
 from rietx.schemas.structure import (
@@ -81,7 +81,7 @@ def _vocabulary() -> list[str]:
     ADP block (``adp.k`` beside ``u11``), a Stephens block (``microstrain.dof.k``
     beside ``s400``), a Kα doublet's second line weight, an atom on a special
     position whose coordinates are locked, and an additive background peak
-    (``instrument.background_peaks.0.fwhm``).  The last is here for a reason
+    (``instrument.extra_components.0.fwhm``).  The last is here for a reason
     beyond covering its own glob: it is the one path a ``background`` glob must
     **not** reach, and ``instrument.background.*`` reaches it under any nested
     spelling because fnmatch's ``*`` crosses dots.  Without a peak in the
@@ -107,11 +107,11 @@ def _vocabulary() -> list[str]:
         microstrain=StephensStrain.isotropic(1000.0, cell))
 
     lab_instrument = Instrument.bragg_brentano()
-    lab_instrument.background_peaks = [BackgroundPeak(
+    lab_instrument.extra_components = [HumpComponent(
         label="amorphous mount",
         position=Parameter(value=22.0, unit="deg"),
         height=Parameter(value=0.0, min=0.0, transform="softplus"),
-        fwhm=Parameter(value=8.0, min=BACKGROUND_PEAK_FWHM_MIN,
+        fwhm=Parameter(value=8.0, min=HUMP_FWHM_MIN,
                        transform="softplus"))]
 
     paths: list[str] = []

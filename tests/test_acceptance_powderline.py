@@ -298,7 +298,7 @@ def test_lab6_declares_the_three_model_differences_it_has(lab6):
     assert "RECIPE_BACKGROUND_PEAK_DEGENERATE" in codes
 
 
-def test_lab6_background_peak_is_the_degenerate_direction_both_engines_found(
+def test_lab6_hump_is_the_degenerate_direction_both_engines_found(
         lab6):
     """The reader warned; the fit confirms, and both references agree it is bad.
 
@@ -310,10 +310,10 @@ def test_lab6_background_peak_is_the_degenerate_direction_both_engines_found(
     _, _, result = lab6
     pairs = {frozenset(d.where) for d in result.diagnostics
              if d.code == "HIGH_CORRELATION"}
-    background_peak_pairs = [p for p in pairs
-                             if any("background_peaks" in w for w in p)]
-    assert background_peak_pairs
-    assert any(s.status == "max_iter" and s.name == "background_peaks"
+    hump_pairs = [p for p in pairs
+                             if any("extra_components" in w for w in p)]
+    assert hump_pairs
+    assert any(s.status == "max_iter" and s.name == "extra_components"
                for s in result.stages)
 
     gsas = {r["descriptive_name"]: (float(r["value"]), float(r["esd"]))

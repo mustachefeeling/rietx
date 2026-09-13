@@ -85,11 +85,12 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 **v1.4 — free-standing peaks** ([§ v1.4](#v14--free-standing-peaks-in-flight),
 [record](milestones/v1.4.md)), opened 2026-09-12 with its acceptance rows
-written in advance. [1101](wp/1101-standalone-peak-fitting.md) `fit_peaks` closed
-2026-09-13. Next: [1102](wp/1102-component-seam-humps.md), the seam with broad
-humps, then [1103](wp/1103-peak-components.md) sharp peaks; each **sharpens its
-own acceptance row at its open**, before the work. Still owed, and nobody's WP:
-deleting the `AGENT_PROTOCOL.md` pointer.
+written in advance. [1101](wp/1101-standalone-peak-fitting.md) `fit_peaks` and
+[1102](wp/1102-component-seam-humps.md) the component seam both closed
+2026-09-13; 1102's rename is the milestone's one break, recorded in the record.
+Next: [1103](wp/1103-peak-components.md) sharp peaks, the seam's **proving
+case**, which **sharpens its own acceptance row at its open**. Still owed, and
+nobody's WP: deleting the `AGENT_PROTOCOL.md` pointer.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) foreign model files — the
 TOPAS `.inp` reader merged 2026-09-01 (PR #98); the FullProf `.pcr` reader is
@@ -103,10 +104,7 @@ triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
 what stays silent, three costs a
 multi-hundred-pattern campaign paid that a single fit never sees, three views
 over what a fit already knows, and the skill's own gates — and folded three
-issues into 1118, 1310 and 1322 rather than opening a WP. Closed since
-2026-09-02: 1330, 1324, 1131, 1331 the landing page, 1119 named variables, and
-1130 🛑 on its own gate, which unblocks 1133 ([v1.3](milestones/v1.3.md) has
-both).
+issues into 1118, 1310 and 1322 rather than opening a WP.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -437,7 +435,7 @@ Also owed to v1.4: deleting the `AGENT_PROTOCOL.md` pointer
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1101](wp/1101-standalone-peak-fitting.md) | fit_peaks: standalone peak fitting at named positions | ✅ 2026-09-13 | — |
-| [1102](wp/1102-component-seam-humps.md) | The additive component seam + broad humps | ⬜ | — |
+| [1102](wp/1102-component-seam-humps.md) | The additive component seam + broad humps | ✅ 2026-09-13 | — |
 | [1103](wp/1103-peak-components.md) | Sharp extra peaks: the second component member | ⬜ | 1102 (the seam) |
 
 ### Unscheduled

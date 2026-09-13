@@ -177,6 +177,38 @@ use is the design case.
 
 ### Inherited
 
+**From WP-1102 (2026-09-13, closed ✅) — the seam exists, and you are its
+proving case.**
+
+`ExtraComponent` is a union discriminated on `kind` in `schemas/instrument.py`,
+with `HumpComponent` its one member; `Instrument.extra_components` is the list.
+Four things follow for this WP.
+
+* **The six-clause member contract is in the union's docstring**, and clause 2
+  is the one your member is *for*: a member's aggregate membership is held as
+  **data**, not read off the class name. A hump joins the reported background; a
+  peak joins the tick list. With only the hump in the union that clause is a
+  design intention and nothing tests it — 1102 says so in its own docstring
+  rather than leaving it implied, and landing this member is what turns it into
+  a tested one. If you find the clause cannot be honoured as written, changing
+  it is in scope; leaving it stated but unhonoured is not.
+* **The contract's other axis stays untested after you.** Evaluator *shape* — a
+  local bump in 2θ against a whole-pattern oscillation in Q — needs a member
+  like a Debye term, which GSAS-II and FullProf both ship and this package does
+  not. Named in the contract, not built, not yours unless you want it.
+* **A new member is a `SCHEMA_VERSION` bump** (clause 5), plus a cross-backend
+  `CONFIGS` row, a manual equation with its `*Source:*`, and `help.py` entries.
+  It also joins `capabilities().extra_component_kinds` **by existing** — that arm
+  is read off the union, so there is no list to update, and
+  `tests/test_capabilities.py` fails if the derivation stops working.
+* **The field was renamed out from under the v1.2 spelling.** `background_peaks`
+  → `extra_components`, `BackgroundPeak` → `HumpComponent`, `BACKGROUND_PEAK_*`
+  → `HUMP_*`. `schemas/migrate.py` repairs a stored document on read, at three
+  named read points; if you add a fourth reader of stored paths, it belongs in
+  `READ_POINTS` and a test checks the tuple. Do not add a second migration entry
+  point — 1102 deleted one for having no caller and for being able to disagree
+  with the first.
+
 **From WP-1101 (2026-09-13) — v1.4 is open, and three things it built are
 yours to reuse rather than rebuild.**
 

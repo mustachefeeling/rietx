@@ -42,9 +42,9 @@ import numpy as np
 
 from ..backend import get_backend
 from ..background.models import (
-    background_peak_curve,
     bspline_design_matrix,
     chebyshev_design_matrix,
+    hump_curve,
     interpolate_fixed,
     second_difference_matrix,
 )
@@ -83,8 +83,8 @@ from ..crystallography.symmetry import (
 )
 from ..schemas.common import Mode
 from ..schemas.instrument import (
-    BACKGROUND_PEAK_FIELDS,
     CAPILLARY_OFFSETS,
+    HUMP_FIELDS,
     BackgroundChebyshev,
     BackgroundFixedPlusChebyshev,
     BackgroundPSpline,
@@ -556,7 +556,7 @@ class CompiledModel:
     # P-spline smoothness penalty: extra residual rows √λ·D₂·c, already scaled
     # (columns aligned with bkg_paths); None for penalty-free backgrounds
     bkg_penalty: np.ndarray | None
-    # Explicit additive background peaks (schemas.instrument.BackgroundPeak):
+    # Explicit additive background peaks (schemas.instrument.HumpComponent):
     # one (position, height, fwhm) path triple per declared peak, in list order.
     #
     # **The count is frozen; the positions and widths are not.**  How many peaks
@@ -574,7 +574,7 @@ class CompiledModel:
     # ``_make_jacobian`` and get a silently wrong column.  The design matrix is
     # untouched; the peak sum is added after it.  A test asserts the two path
     # sets are disjoint.
-    bkg_peak_paths: tuple[tuple[str, str, str], ...] = ()
+    component_paths: tuple[tuple[str, str, str], ...] = ()
     # peak shape frozen for the stage: "tchz_pv" (default pseudo-Voigt) or
     # "voigt" (true Gaussian⊗Lorentzian via the shared Faddeeva w(z)).  A
     # compile-time structural constant, never a θ entry — the width parameters
@@ -617,7 +617,7 @@ class CompiledModel:
         the Le Bail/Pawley partition net, ``report.texture``, ``viz.live`` and
         ``result.y_background`` all call this, so a declared peak is subtracted
         from the partition and drawn as background everywhere without any of
-        them knowing it exists.  Empty ``bkg_peak_paths`` leaves the body
+        them knowing it exists.  Empty ``component_paths`` leaves the body
         bit-identical to the pre-peak one — the loop does not run.
         """
         # stacked, not np.array-ed: the coefficients come from θ (traced)
@@ -626,14 +626,14 @@ class CompiledModel:
         y = xp.matmul(coeffs, self.bkg_design)
         if self.fixed_background is not None:
             y = y + xp.asarray(self.fixed_background, dtype=np.float64)
-        if self.bkg_peak_paths:
+        if self.component_paths:
             # lifted once, and lifted *here* rather than at compile: the grid is
             # a frozen numpy constant that is about to meet a θ-derived
             # position, and jax's fp64 is scoped to the traced call (CLAUDE.md →
             # Conventions, and backend/traced.py's module docstring)
             tt = xp.asarray(self.tt, dtype=np.float64)
-            for pos_path, height_path, fwhm_path in self.bkg_peak_paths:
-                y = y + background_peak_curve(
+            for pos_path, height_path, fwhm_path in self.component_paths:
+                y = y + hump_curve(
                     tt, values[pos_path], values[height_path],
                     values[fwhm_path], xp)
         return y
@@ -645,7 +645,7 @@ class CompiledModel:
         Lorentzian X,Y through the TCH mixing, with no phase size/strain terms —
         because it answers a question about the *goniometer*: "how narrow can a
         real reflection be here?".  That is the scale a background peak's width
-        is judged against (``strategy.staged.check_background_peak_width``), and
+        is judged against (``strategy.staged.check_hump_width``), and
         it must not depend on which phase one happens to ask about.
 
         Evaluate-only and off the hot path: plain floats in, the shared
@@ -1641,7 +1641,7 @@ class CompiledModel:
         # rows the FD leaves at their zero initialisation are the rows whose
         # true value is zero, and the FD column is exact because it decodes
         # through C like the residual does.
-        if path.startswith("instrument.background_peaks."):
+        if path.startswith("instrument.extra_components."):
             return False
         if path.startswith("phases."):
             return True
@@ -2692,11 +2692,11 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     # the peak *count* is frozen here (discrete); the positions, heights and
     # widths are read from θ on every call (smooth).  Built from the same field
     # list the parameter table registers, so a path can never be spelled two
-    # ways — see ``params.vector.background_peak_parameters``.
-    bkg_peak_paths = tuple(
-        tuple(f"instrument.background_peaks.{i}.{name}"
-              for name in BACKGROUND_PEAK_FIELDS)
-        for i in range(len(instrument.background_peaks)))
+    # ways — see ``params.vector.extra_component_parameters``.
+    component_paths = tuple(
+        tuple(f"instrument.extra_components.{i}.{name}"
+              for name in HUMP_FIELDS)
+        for i in range(len(instrument.extra_components)))
 
     pawley = _build_pawley_block(phases) if mode == "pawley" else None
     restraints = CompiledRestraints(restraint_items) if restraint_items else None
@@ -2715,7 +2715,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         mode=mode, phases=phases,
         fixed_background=fixed,
         bkg_paths=bkg_paths, bkg_design=design, bkg_penalty=penalty,
-        bkg_peak_paths=bkg_peak_paths,
+        component_paths=component_paths,
         shape=instrument.profile.shape,
         # Rietveld-only, for the reason preferred orientation is: Le Bail and
         # Pawley intensities are extracted from the data and would absorb any

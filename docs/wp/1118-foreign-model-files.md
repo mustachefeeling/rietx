@@ -136,6 +136,24 @@ missing from its arm applies unchanged. A new format token is spelled in
 
 ### Inherited
 
+- **2026-09-13, from [WP-1102](1102-component-seam-humps.md) (closed ✅) — the
+  field a foreign background peak lands in was renamed, and there is now a seam
+  to land other things in.** `Instrument.background_peaks` is
+  `Instrument.extra_components`, a list of the union `ExtraComponent`
+  discriminated on `kind`, whose one member is `HumpComponent` (v1.2's
+  `BackgroundPeak`); `BACKGROUND_PEAK_*` constants are `HUMP_*`. Three
+  consequences for a reader in this WP. (1) A TOPAS `xo_Is` peaks phase or a
+  GSAS-II background peak maps onto a `HumpComponent` under the new name —
+  `io/recipe.py`'s `_read_extra_components` is the worked precedent, reading
+  PowderLine's `background.single_peaks`. (2) A foreign construct with *no*
+  counterpart today — a Debye/diffuse term, which both GSAS-II and FullProf
+  carry — is now a seam member rather than a schema argument: it can be reported
+  as uncarried in diagnostics with a named place to go later, instead of as a
+  dead end. (3) A foreign *diagnostic* about such a term keeps its own
+  vocabulary: `RECIPE_BACKGROUND_PEAK_DEGENERATE` was deliberately **not**
+  renamed, because the `RECIPE_` prefix marks it as a statement about what the
+  foreign document declared rather than about what this package calls the
+  member. Follow that rule for any reader code you add.
 - **2026-09-04, from [WP-1130](1130-background-reference.md) § Gap A/B, which
   drove the `.inp` reader on a real workshop file.** Two things it found,
   neither a bug.

@@ -192,7 +192,7 @@ _ROUGHNESS_STAGE = (
 )
 
 
-#: Additive background peaks (:class:`~rietx.schemas.instrument.BackgroundPeak`)
+#: Additive background peaks (:class:`~rietx.schemas.instrument.HumpComponent`)
 #: are freed **after the profile and before the structure**, in
 #: ``mccusker_structural`` only.
 #:
@@ -204,7 +204,7 @@ _ROUGHNESS_STAGE = (
 #: described when ``biso`` opens — which puts this stage before
 #: ``coordinates``.  Stated as an ordering argument rather than as a measured
 #: effect on purpose: on the BT-1 Cr₂WO₆ case
-#: (:class:`~rietx.schemas.instrument.BackgroundPeak` has the table) declaring
+#: (:class:`~rietx.schemas.instrument.HumpComponent` has the table) declaring
 #: the peak did **not** move Biso(Cr) back to a physical value, and the stage
 #: sits here because this is the order that gives it the chance, not because
 #: the chance was measured to be taken.
@@ -221,7 +221,7 @@ _ROUGHNESS_STAGE = (
 #: the wrong zero and cell are producing.  By this stage the widths and
 #: positions are settled, which is what makes a broad feature distinguishable
 #: from a mis-modelled reflection at all — and the
-#: ``BACKGROUND_PEAK_TOO_NARROW`` guard is only meaningful once the resolution
+#: ``HUMP_TOO_NARROW`` guard is only meaningful once the resolution
 #: function it compares against has been refined.
 #:
 #: Only ``mccusker_structural``, deliberately.  The profile-only plans have no
@@ -230,8 +230,8 @@ _ROUGHNESS_STAGE = (
 #: alongside their own stages.  **No plan ever *adds* a peak** — the glob frees
 #: what the caller declared and nothing more, which is the whole safety
 #: property of a feature whose parameters would otherwise improve any Rwp.
-_BACKGROUND_PEAK_STAGE = (
-    Stage("background_peaks", ["instrument.background_peaks.*"]),
+_EXTRA_COMPONENT_STAGE = (
+    Stage("extra_components", ["instrument.extra_components.*"]),
 )
 
 
@@ -307,7 +307,7 @@ class RefinementPlan:
             Stage("profile_w", ["instrument.profile.w"]),
             Stage("profile", ["instrument.profile.u", "instrument.profile.v",
                               "instrument.profile.x", "instrument.profile.y"]),
-            *_BACKGROUND_PEAK_STAGE,
+            *_EXTRA_COMPONENT_STAGE,
             Stage("coordinates", ["phases.*.atoms.*.dof.*"]),
             Stage("biso", list(_DISPLACEMENT_GLOBS)),
             # March-Dollase preferred orientation (WP-0307) turns on *after* the
@@ -709,10 +709,10 @@ class GuardFinding:
                    f"worst σ²(M) {worst:+.2e} at {hkl})")
 
     @classmethod
-    def narrow_background_peak(cls, path: str, fwhm: float, gamma_inst: float,
+    def narrow_hump(cls, path: str, fwhm: float, gamma_inst: float,
                                position: float) -> "GuardFinding":
         ratio = fwhm / gamma_inst if gamma_inst > 0.0 else float("inf")
-        return cls("BACKGROUND_PEAK_TOO_NARROW", (path,), float(ratio),
+        return cls("HUMP_TOO_NARROW", (path,), float(ratio),
                    f"{path} (FWHM {fwhm:.3f}° = {ratio:.1f}× the instrumental "
                    f"{gamma_inst:.3f}° at {position:.3f}° 2θ)")
 
@@ -762,8 +762,8 @@ class GuardReport:
     roughness_correlations: list[GuardFinding] = field(default_factory=list)
     # declared background peaks that are no longer describing a *broad* feature
     # — a fitted width approaching the instrumental resolution is a reflection
-    # being eaten, not diffuse scattering (see check_background_peak_width)
-    narrow_background_peaks: list[GuardFinding] = field(default_factory=list)
+    # being eaten, not diffuse scattering (see check_hump_width)
+    narrow_humps: list[GuardFinding] = field(default_factory=list)
     # not findings: the full screened (path, R²) table the background guard
     # decided from — see the class docstring
     measured_background_absorption: dict[str, float] = field(default_factory=dict)
@@ -778,7 +778,7 @@ class GuardReport:
         (``refine._guard_diagnostics``): narrow peaks come *before* the
         background/roughness absorption findings, matching that loop order."""
         return [*self.high_correlations, *self.at_bounds, *self.nonpositive_adps,
-                *self.nonpositive_strain, *self.narrow_background_peaks,
+                *self.nonpositive_strain, *self.narrow_humps,
                 *self.background_correlations, *self.roughness_correlations]
 
 
@@ -808,9 +808,9 @@ ROUGHNESS_ABSORPTION_GUARD = 0.9
 
 #: The multiple of the **instrumental** FWHM at its own position below which a
 #: declared background peak is reported as not describing a background feature
-#: (:func:`check_background_peak_width`).
+#: (:func:`check_hump_width`).
 #:
-#: This is the physical content of :class:`~rietx.schemas.instrument.BackgroundPeak`,
+#: This is the physical content of :class:`~rietx.schemas.instrument.HumpComponent`,
 #: not a numerical guard.  A free position, height and width *is* a Bragg peak
 #: with no cell and no structure factor behind it, and three of those will
 #: improve any Rwp — which this package's own rule ("a new correction ships with
@@ -827,24 +827,37 @@ ROUGHNESS_ABSORPTION_GUARD = 0.9
 #: alone moves the total FWHM by tens of percent, so a 1.5× "hump" is a
 #: reflection.
 #:
+#: **It rests on one case, and that is the weakest joint here** (WP-1102).  No
+#: paper states a width ratio separating a diffuse feature from a reflection, so
+#: this is a measurement rather than a quotation — of a single specimen.  The
+#: repo's rule is that a threshold is quoted or measured and never *tuned*, and
+#: this one is measured, but a sample of one cannot say where inside the 3-5
+#: band the boundary really sits, only that ~20 is comfortably above it and 1.5
+#: is below.  What would move it is a width ladder over several specimens
+#: carrying known diffuse features, which has not been run; what would settle it
+#: is a published ratio, which does not appear to exist.  Read a firing
+#: accordingly: at 4.3× it is a weak statement and at 1.2× a strong one, and the
+#: diagnostic carries ``value`` as the measured multiple so a reader can make
+#: that distinction rather than taking the boundary as sharp.
+#:
 #: **Why a guard and not a bound.** The threshold is a function of U, V, W, X, Y
 #: *and* of the peak's own position, so it is not a box the solver can be handed
 #: — the :data:`STEPHENS_CONE_TOL` situation, and resolved the same way: report,
 #: never refuse.  A firing means "these background peaks are not quotable", and
 #: the honest fix is a model change (a second phase, a size-broadened phase) not
 #: a tighter number.  The static half of the pair is
-#: :data:`~rietx.schemas.instrument.BACKGROUND_PEAK_FWHM_MIN`, which is a
+#: :data:`~rietx.schemas.instrument.HUMP_FWHM_MIN`, which is a
 #: ``MARCH_R_MIN``-style pole floor and nothing more — it cannot express this
 #: bound, because a schema cannot see the resolution function.
-BACKGROUND_PEAK_MIN_WIDTH_MULT = 4.0
+HUMP_MIN_WIDTH_MULT = 4.0
 
 
-def check_background_peak_width(table, model) -> list[GuardFinding]:
+def check_hump_width(table, model) -> list[GuardFinding]:
     """Declared background peaks whose fitted width is not a *background* width.
 
     Reports every peak with
 
-        Γ_peak  <  BACKGROUND_PEAK_MIN_WIDTH_MULT · Γ_instrument(2θ₀)
+        Γ_peak  <  HUMP_MIN_WIDTH_MULT · Γ_instrument(2θ₀)
 
     with Γ_instrument the TCH total FWHM of the resolution function alone
     (``CompiledModel.instrument_fwhm_deg`` — instrument U,V,W,X,Y, no phase size
@@ -882,11 +895,11 @@ def check_background_peak_width(table, model) -> list[GuardFinding]:
     # synchrotron), so it fires only when nothing physical survived.
     resolution_floor = 10.0 * (_MIN_GAMMA_G2 ** 0.5)
 
-    if model is None or not model.bkg_peak_paths:
+    if model is None or not model.component_paths:
         return []
     values = {e.path: e.value for e in table.entries}
     out: list[GuardFinding] = []
-    for pos_path, _height_path, fwhm_path in model.bkg_peak_paths:
+    for pos_path, _height_path, fwhm_path in model.component_paths:
         position = values.get(pos_path)
         fwhm = values.get(fwhm_path)
         if position is None or fwhm is None:
@@ -895,8 +908,8 @@ def check_background_peak_width(table, model) -> list[GuardFinding]:
         if gamma <= resolution_floor:
             # not evaluable here — abstain, do not endorse (see docstring)
             continue
-        if fwhm < BACKGROUND_PEAK_MIN_WIDTH_MULT * gamma:
-            out.append(GuardFinding.narrow_background_peak(
+        if fwhm < HUMP_MIN_WIDTH_MULT * gamma:
+            out.append(GuardFinding.narrow_hump(
                 fwhm_path, float(fwhm), gamma, float(position)))
     return out
 
@@ -1067,7 +1080,7 @@ def check_guards(table, outcome, threshold: float,
     report = GuardReport()
     report.nonpositive_adps = check_adp_positive_definite(table)
     report.nonpositive_strain = check_stephens_positive(table, model)
-    report.narrow_background_peaks = check_background_peak_width(table, model)
+    report.narrow_humps = check_hump_width(table, model)
     free = table.free_paths
 
     if outcome.correlation is not None and len(free) > 1:

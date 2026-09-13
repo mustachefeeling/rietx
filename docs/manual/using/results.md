@@ -359,8 +359,8 @@ the warning there says how they differ.
 
 The other half of "how flexible was the background" is not in that table, and the
 distinction is worth the sentence. The absorption column says what the background
-*could imitate*; `RefinementResult.n_background_peaks` says with how many
-explicit [background peaks](data.md) it was allowed to
+*could imitate*; `RefinementResult.n_extra_components` says with how many
+explicit [humps](data.md) it was allowed to
 do it — N peaks are 3N parameters with unconstrained positions, which a reader
 comparing two Rwp values has to be able to see. It sits on the result rather than
 in the table above because it is **declared, not measured**: the four fields

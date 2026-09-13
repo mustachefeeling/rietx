@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
 import numpy as np
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import Base, Diagnostic, Mode, Provenance
 
@@ -932,6 +932,12 @@ def _agreement_line(stats: Statistics) -> str:
     return line
 
 
+#: What :attr:`RefinementResult.n_extra_components` was called in v1.2, kept as
+#: the one spelling of the legacy name the way
+#: ``schemas.instrument._LEGACY_COMPONENT_FIELD`` is for the field it renames.
+_LEGACY_COUNT_FIELD = "n_background_peaks"
+
+
 class RefinementResult(Base):
     #: ``result.rwp`` is the single most expensive miss in WP-1110's evidence,
     #: because of *when* it fires: the ``AttributeError`` arrived after a
@@ -1011,7 +1017,7 @@ class RefinementResult(Base):
     # or shows the section absent, and nothing re-derives it from the curves.
     identifiability: Identifiability | None = None
 
-    # How many explicit :class:`~rietx.schemas.instrument.BackgroundPeak` terms
+    # How many explicit :class:`~rietx.schemas.instrument.HumpComponent` terms
     # this fit declared — the other half of "how flexible was the background":
     # :class:`Identifiability`'s absorption table says what the background could
     # imitate, this says with how many free peaks it was allowed to do it (N
@@ -1021,7 +1027,7 @@ class RefinementResult(Base):
     # It sits **here and not on** :class:`Identifiability`, whose members are
     # read off the final Jacobian and therefore exist only where a solve
     # measured them.  This is not a measurement: it is
-    # ``len(CompiledModel.bkg_peak_paths)``, a count of what the instrument
+    # ``len(CompiledModel.component_paths)``, a count of what the instrument
     # *declared*, available wherever a compiled model is.  Behind that carrier's
     # guard it read 0 — "none declared" — on every ``replay``, which is a
     # different claim from the true one and the reason it moved.  Read off the
@@ -1033,7 +1039,30 @@ class RefinementResult(Base):
     # nothing here counted — the ``data_support`` convention, and for the same
     # reason, a joint multi-histogram fit (one count per histogram, reported
     # through each histogram) or a result recorded before the feature existed.
-    n_background_peaks: int | None = None
+    n_extra_components: int | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_v1_2_n_background_peaks(cls, value: Any) -> Any:
+        """Read a 1.2-era ``n_background_peaks`` count under its new name.
+
+        The second half of WP-1102's rename, and the half the textual repair in
+        :mod:`rietx.schemas.migrate` cannot reach: ``n_background_peaks`` has no
+        word boundary before ``background_peaks``, and a saved result is read at
+        a fourth point (``rietx html <result.json>``) that is not one of that
+        module's :data:`~rietx.schemas.migrate.READ_POINTS`.  Without this, a
+        result JSON written by v1.2 raises ``extra_forbidden`` on open, which is
+        the direction the repo does **not** break in: old documents open.
+
+        A count, not a path, so it is repaired at the schema exactly the way
+        ``Instrument._migrate_v1_2_background_peaks`` repairs the field: an
+        explicit new-name value wins, the legacy key being a leftover then.
+        """
+        if isinstance(value, dict) and _LEGACY_COUNT_FIELD in value:
+            value = dict(value)
+            legacy = value.pop(_LEGACY_COUNT_FIELD)
+            value.setdefault("n_extra_components", legacy)
+        return value
 
     # Per-histogram slices of a multi-histogram joint refinement (WP-0308);
     # empty for an ordinary single-histogram fit.  ``statistics`` above is then

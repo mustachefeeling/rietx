@@ -322,7 +322,7 @@ The only fixtures carrying **two** reference engines, and they disagree: 2665 pp
 
 **Diagnostics:** `RECIPE_FLAG_DROPPED`, `RECIPE_ENGINE_DEFAULT_DECLINED`, `RECIPE_BACKGROUND_PEAK_DEGENERATE`
 
-#### `test_lab6_background_peak_is_the_degenerate_direction_both_engines_found`
+#### `test_lab6_hump_is_the_degenerate_direction_both_engines_found`
 
 `characterisation` · dataset `powderline_lab6`
 
@@ -330,7 +330,7 @@ The only fixtures carrying **two** reference engines, and they disagree: 2665 pp
 
 **Referenced to:** the two engines' own answers for the same peak, from opposite ends: GSAS-II let it run to 8.77e10 deg 2theta at esd 0 (off the pattern, unmeasured) and TOPAS kept it at 1.63 deg with an esd 188x its own value.  Here it correlates with the low-order background at |rho| = 1 and its stage spends its budget.  A measured failure recorded as a result: the recipe is over-parameterised and no fit of it can say otherwise
 
-**Measured:** HIGH_CORRELATION on the peak against the background, and the background_peaks stage at max_iter; GSAS-II's own committed position 8.77e10 with esd exactly 0
+**Measured:** HIGH_CORRELATION on the peak against the background, and the extra_components stage at max_iter; GSAS-II's own committed position 8.77e10 with esd exactly 0
 
 **Diagnostics:** `HIGH_CORRELATION`, `STAGE_MAX_ITER`
 
@@ -1252,7 +1252,7 @@ The single-histogram refinable wavelength, on NIST SRM 640c silicon at APS 11-BM
 
 **Measured:** lor_size 0.0023(2), lor_strain 0.0150(14) deg2theta -- the same order as NIST's 0.0065/0.0086, the split apportioned differently; both positive and finite
 
-#### `test_one_background_peak_beats_three_more_polynomial_terms`
+#### `test_one_hump_beats_three_more_polynomial_terms`
 
 `own_result` `ceiling` · dataset `si640c`
 
@@ -1270,11 +1270,11 @@ The single-histogram refinable wavelength, on NIST SRM 640c silicon at APS 11-BM
 
 **Claims:** the fitted term is a *background* term -- its width comes from disorder and not from the goniometer -- and describing it returns precision to the structural parameters rather than moving them
 
-**Referenced to:** the instrumental FWHM at the peak's own position from CompiledModel.instrument_fwhm_deg -- the same function check_background_peak_width (BACKGROUND_PEAK_MIN_WIDTH_MULT) measures against, called rather than re-derived, so the two stay equal if a later revision frees the Lorentzian X/Y this protocol holds at zero -- and the peak-free arm's own esds.  The refined *position* is deliberately NOT referenced to the halo: a symmetric Gaussian over 2-50 deg also absorbs the residual direct-beam rise, so it lands at 4.18(11) deg where the envelope reads 4.98 deg, and the band here is wide enough to say so
+**Referenced to:** the instrumental FWHM at the peak's own position from CompiledModel.instrument_fwhm_deg -- the same function check_hump_width (HUMP_MIN_WIDTH_MULT) measures against, called rather than re-derived, so the two stay equal if a later revision frees the Lorentzian X/Y this protocol holds at zero -- and the peak-free arm's own esds.  The refined *position* is deliberately NOT referenced to the halo: a symmetric Gaussian over 2-50 deg also absorbs the residual direct-beam rise, so it lands at 4.18(11) deg where the envelope reads 4.98 deg, and the band here is wide enough to say so
 
 **Measured:** FWHM 5.567(274) deg against an instrumental 0.00346 deg at 4.178 deg -- 1608x, where the guard is 4x and the bar here 1000x; Biso(Si) esd falls 6.0x and lambda's 5.9x while neither value moves by half of the wider esd
 
-**Diagnostics:** `BACKGROUND_PEAK_TOO_NARROW` asserted *absent*
+**Diagnostics:** `HUMP_TOO_NARROW` asserted *absent*
 
 #### `test_the_chebyshev6_arm_relaxes_the_peak_onto_the_envelope`
 
@@ -1284,9 +1284,9 @@ The single-histogram refinable wavelength, on NIST SRM 640c silicon at APS 11-BM
 
 **Referenced to:** this package's own two peak arms under the one protocol: the Chebyshev-3 arm, whose short polynomial cannot take the residual direct-beam rise, against the Chebyshev-6 arm, whose can.  Not referenced to any external number -- the halo's position is separate evidence (the blank and the envelope)
 
-**Measured:** the peak moves from 4.18(11) deg / 5.57(27) deg with three Chebyshev terms onto the envelope at 5.245(41) deg and narrows to 1.94(11) deg with six, while Rwp moves only 0.082503 -> 0.077152; zero HIGH_CORRELATION or BACKGROUND_PEAK_TOO_NARROW in either arm
+**Measured:** the peak moves from 4.18(11) deg / 5.57(27) deg with three Chebyshev terms onto the envelope at 5.245(41) deg and narrows to 1.94(11) deg with six, while Rwp moves only 0.082503 -> 0.077152; zero HIGH_CORRELATION or HUMP_TOO_NARROW in either arm
 
-**Diagnostics:** `HIGH_CORRELATION` asserted *absent*, `BACKGROUND_PEAK_TOO_NARROW` asserted *absent*
+**Diagnostics:** `HIGH_CORRELATION` asserted *absent*, `HUMP_TOO_NARROW` asserted *absent*
 
 #### `test_the_fit_renders`
 

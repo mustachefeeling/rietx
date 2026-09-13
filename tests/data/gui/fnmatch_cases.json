@@ -72,9 +72,9 @@
   "instrument.source.lines.1.weight",
   "instrument.source.lines.1.wavelength",
   "instrument.background.c3",
-  "instrument.background_peaks.0.position",
-  "instrument.background_peaks.0.height",
-  "instrument.background_peaks.0.fwhm"
+  "instrument.extra_components.0.position",
+  "instrument.extra_components.0.height",
+  "instrument.extra_components.0.fwhm"
  ],
  "patterns": [
   {
@@ -424,7 +424,7 @@
    ]
   },
   {
-   "pattern": "instrument.background_peaks.*",
+   "pattern": "instrument.extra_components.*",
    "matches": [
     71,
     72,

@@ -51,8 +51,8 @@ from rietx import Instrument, PreferredOrientation
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import (
-    BACKGROUND_PEAK_FWHM_MIN,
-    BackgroundPeak,
+    HUMP_FWHM_MIN,
+    HumpComponent,
     RoughnessSuortti,
 )
 from rietx.schemas.structure import AnisoU, StephensStrain
@@ -213,14 +213,14 @@ def _fully_declared() -> tuple[object, object]:
     instrument = Instrument.debye_scherrer(wavelength=0.4139)
     geometry = instrument.geometry.model_copy(
         update={"surface_roughness": RoughnessSuortti(b=Parameter(value=0.2))})
-    peak = BackgroundPeak(position=Parameter(value=12.0, unit="deg"),
+    peak = HumpComponent(position=Parameter(value=12.0, unit="deg"),
                           height=Parameter(value=0.0, min=0.0,
                                            transform="softplus"),
                           fwhm=Parameter(value=6.0,
-                                         min=BACKGROUND_PEAK_FWHM_MIN,
+                                         min=HUMP_FWHM_MIN,
                                          transform="softplus"))
     return structure, instrument.model_copy(
-        update={"geometry": geometry, "background_peaks": [peak]})
+        update={"geometry": geometry, "extra_components": [peak]})
 
 
 def _parameter_paths() -> set[str]:
