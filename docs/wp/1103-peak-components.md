@@ -369,6 +369,15 @@ Two guards that were quiet rather than red, both now fixed in place:
   suite is green whether or not a new parameter family has a display format.
   Only `npm test` says.
 
+**The review pass, honestly.** `/code-review medium --fix` was launched at
+handover as step 9 requires. It ran for over an hour without returning and
+without touching the working tree, so **this entry records no findings from it
+— not "it found nothing", which would be a different claim.** The verification
+this handover does rest on is the rest of step 10: the fast and full suites,
+ruff, the GUI suite, the docs-consistency gate and the session-start scan, all
+named above with their numbers. A reviewer picking the PR up should treat the
+diff as unreviewed by that pass.
+
 **Next.** 1103 closes; nothing in it is left owed. For whoever picks up v1.4:
 
 1. The contract's **first** axis is still untested — evaluator *shape*, a
