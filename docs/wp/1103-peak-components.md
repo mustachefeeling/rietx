@@ -240,6 +240,99 @@ use is the design case.
 
 ## Handover log
 
+### 2026-09-13 (2nd session) — a second review pass, and the one class of defect it kept finding
+
+Nothing in what a user can do changed today. What changed is that the feature
+now behaves the same way in a **joint** fit as in a single-histogram one: a
+declared holder peak was being reported as an unindexed impurity on every
+histogram of a joint X-ray/neutron or multi-wavelength refinement, because
+`multi.py` keeps its own tick builder and only the single-histogram one had
+been taught about declared peaks. A second statistic was also mis-partitioning
+those peaks, which quietly shrank the surface-roughness evidence in exactly the
+plan that frees both. Neither was visible from any test, because no joint-fit
+fixture and no roughness fixture had ever declared a component.
+
+**The finding worth carrying is that this was the same class of defect as
+yesterday's four, in three more places.** Every one of the seven is a count, a
+claim or a builder that was correct while `extra_components` had one member and
+became wrong when it had two. The lesson is now a rule in the root CLAUDE.md
+rather than a story here: a third member audits every *reader* of the list
+before it writes an evaluator, and a second builder of anything — `multi.py`
+keeps its own of several things — is where the audit misses.
+
+**Done this session.**
+
+* `/code-review high --fix` on the WP range (`c3a0f5df..HEAD`, 48 files, ~3.5k
+  insertions), not `main...HEAD`, which spans 118 commits of already-merged
+  PRs. Three commits, all its findings, each verified before it was taken:
+  `peak_prefixes` really is in scope at the `staged.py` call site, `_ticks`
+  really never touches `self`, `n_background_components` really is the field
+  `assess_background` writes.
+* **`CompiledModel.extra_peak_tick_positions` is the tick authority now**, and
+  both `refine._build_result` and `multi.MultiHistogramRefinement._ticks` call
+  it. A copy in each is how the two would disagree about where an emission
+  line's image falls; the no-zero-shift rule lives with the computation.
+* **`roughness_absorption` takes `peak_prefixes`, required rather than
+  defaulted.** All three statistics over the component list now divide it the
+  same way: `background_absorption` excludes the peak-landing ones,
+  `extra_peak_absorption` takes them, `_roughness_nuisance` no longer projects
+  them out. `mccusker_structural` frees the `extra_components` stage beside
+  surface roughness, so the two blocks are live in one fit and the projection
+  was shrinking the partial R² the WP-0502 guard is read from.
+* Two docstrings the second member made wrong: `BackgroundEvidence.n_peaks`
+  still cited `n_extra_components`, and `save_instrument_profile`'s rationale
+  for stripping the list was written only for the hump.
+
+**Measured** (this session, macOS darwin 25.5.0, worktree `.venv`, `[dev]` only
+— no jax, no torch; nothing else mid-suite, checked):
+
+* Fast selection: **4577 passed, 132 skipped** — 4575 before, **+2 passed**,
+  both new tests, no new skip. One pins that a joint fit writes the same
+  reserved key as a single one; one pins that a declared peak is not a
+  roughness nuisance while a hump beside it still is.
+* The profile round-trip, measured rather than read: an `Instrument` carrying
+  one `PeakComponent` saves and loads back with **zero** components, while
+  `profile.w` survives unchanged.
+* No acceptance or cross-backend numbers were re-measured. Nothing in these
+  three commits touches a fitted value: the tick fix adds a reported position,
+  the statistics fix changes which columns a *diagnostic* projects out, and the
+  rest is prose.
+
+**Two findings taken and declined, both recorded rather than left silent.**
+
+1. `io/recipe.py`'s `_describe` labels every extra-component path
+   `background_peak_{i}_{field}` with category `background_peak`, so a declared
+   holder line exports as `background_peak_0_center` in
+   `refined_parameters.csv` — the same mislabel `io/exporters.py` was corrected
+   for in this WP, in a surface the correction missed. Declined here because
+   `_describe(path, structure)` has no instrument, so discriminating the kind
+   needs the instrument threaded through it: a signature change on an export
+   path, outside a review fix. **It has no open WP home**, so it is named here
+   and nowhere else.
+2. `_compile_extra_peaks`' empty-window refusal is unconditional, so a
+   provably inert component (area 0, nothing free) hard-fails the whole fit
+   when a narrowed `two_theta_limits`, an excluded region or a shorter series
+   member puts it out of range — while `_extra_peak_diagnostics` applies the
+   opposite rule one layer up. Declined because this WP takes that refusal
+   deliberately (Context, the dead-column clause), so narrowing it is a
+   behaviour decision and not a review fix.
+
+**Pushed forward.** [1344](1344-a-joint-fit-owes-each-histogram-its-diagnostics.md)
+gained an `### Inherited` section: its census of what `multi.py` re-derives is
+wider than the diagnostics loop, and `_ticks` is the proof that list has a
+non-diagnostic entry. The skill gained **8.24** in `references/surprises.md`
+(the profile round-trip dropping a declared peak, with the check to run when
+driving that workflow unattended), and the header count moved with it. The root
+CLAUDE.md clause on the seam was corrected in place — it still said "One member
+= the evaluator-shape axis untested" after this WP shipped the second — and
+compressed to stay inside the 755-line cap rather than raising it.
+
+**Next.** 1103 still closes; the three items in yesterday's entry stand
+unchanged (the evaluator-shape axis, the owed `AGENT_PROTOCOL.md` deletion, and
+`extra_peak_absorption` shipping without a threshold). Add the `recipe.py`
+export mislabel above to that list — it is the only thing this session found
+and did not fix that has nowhere else to live.
+
 ### 2026-09-13 — the seam's second member, and what measuring it actually showed
 
 A user can now tell rietx about a sharp peak their phases cannot account for —

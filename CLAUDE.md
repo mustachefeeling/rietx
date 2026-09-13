@@ -489,7 +489,13 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   on `kind`; its docstring carries the six-clause member contract, whose last clause — **state,
   never code** — admits an **expression** member (text serializes, traces, and is a legal `str`
   under `extra="forbid"`; Coelho 2018) and fences a **callable**. A member's aggregate membership
-  is **data**, never read off the class name. One member = the evaluator-shape axis untested.
+  is **data**, never read off the class name — two members now, so that axis is *tested* and
+  **evaluator shape** is the one still untested (a Debye term proves it). WP-1103's cost was not
+  its evaluator: seven counts, claims and builders were right only while the union had one kind
+  (`n_extra_components`, a CIF description, a reopened result, an analytic branch's declared reach,
+  two of three absorption statistics, **one of the two tick builders**), none red because every
+  test until then declared one kind. **A third member audits every reader of the list before
+  writing an evaluator**; a second builder of anything (`multi.py` keeps its own) is the miss.
 - **A renamed dot-path is migrated on the document *text*, at the read points** (WP-1102,
   `schemas/migrate.py`, `READ_POINTS`). A stored **value** under a vanished name fails loudly; a
   stored **glob** loads clean and frees nothing — that asymmetry is why the repair is textual and

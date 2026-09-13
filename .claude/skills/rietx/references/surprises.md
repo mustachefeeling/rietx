@@ -1,4 +1,4 @@
-# 8. Twenty-three things that will surprise you, all measured
+# 8. Twenty-four things that will surprise you, all measured
 
 Load it when something the fit did makes no sense. Every entry is a measured result that contradicts an intuition.
 
@@ -394,4 +394,17 @@ and component is a degeneracy, not a measurement: in the run above the recovered
 component areas came back 1-2σ high because they had taken a little of the
 reflection underneath. Quote the phase quantities and say the two overlap; never
 quote the component's share as if the fit had resolved it.
+(Measured: WP-1103.)
+
+**8.24 An instrument profile does not carry a declared peak, even when the peak
+really is the instrument's.** `save_instrument_profile` writes the widths, the
+zero and the geometry and **drops `extra_components` entirely** — measured: an
+`Instrument` with one `PeakComponent` saves and loads back with zero, while
+`profile.w` survives unchanged. The stripping is deliberate for a
+`HumpComponent`, which belongs to the specimen, but a holder or window line is
+exactly the thing that *does* recur on the next sample, and it is dropped on the
+same code path. **So in the calibrate to save to load to sample workflow, re-declare
+the component on the sample's own instrument after `load_instrument_profile`;
+nothing warns you.** Check `len(instrument.extra_components)` after the load if
+you are driving that workflow unattended.
 (Measured: WP-1103.)
