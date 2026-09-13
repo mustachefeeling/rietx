@@ -63,6 +63,31 @@ not exist for diagnostics, and writing it is most of this WP: which checks are
 a fact about the *specimen* (one answer for the fit), which about a
 *histogram's radiation* (one answer each), and which about the *fit as a whole*.
 
+### Inherited
+
+- **From [1103](1103-peak-components.md) (2026-09-13): the gap is not only in
+  the diagnostics loop — `multi.py` owns a second *tick builder* too, and it
+  had the same shape of miss.** `MultiHistogramRefinement._ticks` builds its
+  per-histogram tick lists from the phases alone, so when 1103 taught
+  `refine._build_result` to write declared sharp peaks under the reserved
+  `"(extra)"` key, the joint path kept reporting every declared peak as an
+  unindexed impurity on every histogram. Found in review, not by a test: no
+  joint-fit fixture declared a component, exactly as no joint-fit fixture
+  raised `DISPERSION_NEGLECTED`. Fixed in 1103 by making
+  `CompiledModel.extra_peak_tick_positions` the one authority both builders
+  call, which is the shape this WP is looking for one rank up — the fix that
+  lasts is a single authority, not a second wiring commit.
+
+  Two things this WP can use. (1) **The census it needs is wider than the
+  diagnostics loop**: whatever rule it writes should be applied to every
+  `multi.py` member that re-derives something `Refinement` also derives, and
+  `_ticks` is the proof that list has at least one non-diagnostic entry. (2)
+  **The stated rule for a tick is already settled** and need not be
+  re-litigated: a declared peak is a fact about the *specimen's mount*, so it
+  belongs to every histogram that sees it, whereas a radiation-keyed
+  diagnostic is per histogram — two different answers from the same census,
+  which is the distinction the WP's Context says is most of the work.
+
 ## Non-goals
 
 - **Not the report.** A joint fit having no `FitReport` is WP-1341; this WP is

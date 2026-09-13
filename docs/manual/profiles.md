@@ -196,6 +196,62 @@ L(x) = \frac{2/(\pi\Gamma)}{1 + 4x^2/\Gamma^2}.
 
 *Source:* `rietx.model.profiles.pseudovoigt`
 
+## A declared peak the phases cannot account for
+
+A sample holder, a mount or an unidentified impurity may diffract the same
+source as the specimen and put a sharp line where no phase in the model has
+one. Such a line is declared rather than derived — it has no cell behind it —
+and it is evaluated as a single unit-area pseudo-Voigt of {eq}`prof-pv`, one
+image per emission line:
+
+```{math}
+:label: prof-extra-peak
+
+y_{\mathrm{peak}}(2\theta) = A \sum_{l} g_l\,
+\mathrm{pV}\!\left(2\theta - 2\theta_l;\ \Gamma,\ \eta\right),
+\qquad
+g_l = w_l\, \frac{\mathrm{Lp}(2\theta_l)}{\mathrm{Lp}(2\theta_0)},
+```
+
+with $2\theta_l$ the Bragg image of the declared apparent centre $2\theta_0$,
+
+```{math}
+:label: prof-extra-peak-image
+
+\sin\theta_l = \frac{\lambda_l}{\lambda_0}\,\sin\theta_0 .
+```
+
+*Source:* `rietx.model.forward.CompiledModel.extra_peak_curve`
+
+The intensity enters as an **area** $A$, in counts·deg, because that is what a
+reflection intensity is and what the unit-area normalisation of
+{eq}`prof-components` makes the prefactor mean. The line gain $g_l$ carries the
+line's weight *and* the two lines' Lorentz-polarisation ratio: each image
+diffracts at its own Bragg angle and so carries its own Lp, and holding the
+bare weight instead is a measured bias on the fitted primary position rather
+than a simplification. Line 0 is the primary, $w_0 \equiv 1$ and $g_0 = 1$, so
+$A$ is the primary line's area.
+
+Three things this profile deliberately does **not** carry. No position
+correction of the specimen's is applied to $2\theta_0$ — zero shift,
+displacement and transparency all describe where the *specimen* sits, and a
+holder at its own distance has aberrations of its own, which are absorbed into
+the free centre. No axial asymmetry: the Finger-Cox-Jephcoat convolution
+{eq}`prof-fcj-integral` describes the specimen's axial geometry, not the intruder's, so
+the symmetric pseudo-Voigt is the honest simple model. And no structure factor,
+no multiplicity and no Lorentz factor beyond the line ratio, because there is
+no cell to compute them from — which is why {eq}`prof-extra-peak` is a
+description of a feature and not a prediction of one.
+
+The evaluation window is frozen per stage, as every window in
+{ref}`ch-method` is, and is sized from the declared **bounds** rather than from
+the current values: the half-width is $k(\eta_{\max})\,\Gamma_{\max} +
+\Delta$ with $k$ the area-tolerance multiplier of {ref}`ch-forward` and
+$\Delta$ the same absolute movement slack a reflection window carries. A
+centre free anywhere inside its bounds is therefore inside its frozen window by
+construction.
+
+
 ## The true Voigt, via the Faddeeva function
 
 An opt-in shape (`Instrument.profile.shape = "voigt"`; TCHZ stays the

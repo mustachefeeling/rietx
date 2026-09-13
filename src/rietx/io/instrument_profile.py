@@ -63,6 +63,17 @@ def save_instrument_profile(instrument: Instrument, path: str | Path) -> None:
     case of the two: a diffuse hump belongs to this specimen, this can and this
     cryostat, so carrying one into the next sample would put a free peak at an
     angle nothing measured — and a free peak improves any Rwp.
+
+    The whole list goes, including a
+    :class:`~rietx.schemas.instrument.PeakComponent` whose declared cause — a
+    holder, a mount, a window — really is the goniometer's and really would
+    recur on the next specimen (WP-1103).  Stripped anyway, and stated here
+    rather than left to be discovered: the field is one list with two members,
+    the profile format has no way to carry half of it, and a component restored
+    frozen at the wrong 2θ range would be refused at compile
+    (``_compile_extra_peaks``) rather than ignored.  Re-declare the holder line
+    on the sample's own instrument; it is three lines and it is where the
+    centre bounds belong.
     """
     ins = instrument.model_copy(deep=True)
     ins.geometry.sample_displacement.value = 0.0

@@ -36,6 +36,7 @@ import numpy as np
 from ..crystallography.cif import format_su, write_structure_block
 from ..crystallography.lattice import d_spacings
 from ..crystallography.structure_factor import structure_factors_squared
+from ..model.components import COMPONENT_AGGREGATE
 from ..model.forward import CompiledModel
 from ..model.geometry import symmetry_operations
 from ..schemas.instrument import (
@@ -266,6 +267,13 @@ def _background_description(instrument: Instrument) -> str:
     deposited file has to say so — "4 terms" and "4 terms + 1 explicit Gaussian
     background peak" are different models, and one of them carries three more
     free parameters with an unconstrained position.
+
+    Only the **background-landing** members are counted, read from
+    ``model.components.COMPONENT_AGGREGATE`` rather than off the list's length
+    (the member contract's clause 2).  Since v1.4 the same list may also hold a
+    :class:`~rietx.schemas.instrument.PeakComponent`, which is a declared sharp
+    reflection and not background at all; counting it here would deposit a
+    sentence saying this fit granted background flexibility it never granted.
     """
     bkg = instrument.background
     if isinstance(bkg, BackgroundChebyshev):
@@ -278,7 +286,8 @@ def _background_description(instrument: Instrument) -> str:
                 f"lambda_smooth={bkg.lambda_smooth:.4g}")
     else:
         base = type(bkg).__name__
-    n = len(instrument.extra_components)
+    n = sum(1 for c in instrument.extra_components
+            if COMPONENT_AGGREGATE[c.kind] == "background")
     if n:
         base += f" + {n} explicit Gaussian background peak{'s' if n > 1 else ''}"
     return base

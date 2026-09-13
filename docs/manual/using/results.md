@@ -359,10 +359,20 @@ the warning there says how they differ.
 
 The other half of "how flexible was the background" is not in that table, and the
 distinction is worth the sentence. The absorption column says what the background
-*could imitate*; `RefinementResult.n_extra_components` says with how many
+*could imitate*; `RefinementResult.n_background_components` says with how many
 explicit [humps](data.md) it was allowed to
-do it — N peaks are 3N parameters with unconstrained positions, which a reader
-comparing two Rwp values has to be able to see. It sits on the result rather than
+do it — N humps are 3N parameters with unconstrained positions, which a reader
+comparing two Rwp values has to be able to see.
+
+There are two counts because there are two kinds of component.
+`RefinementResult.n_extra_components` is the length of
+`Instrument.extra_components`: everything you declared, humps and
+{ref}`declared sharp peaks <declared-extra-peaks>` alike.
+`n_background_components` is the humps alone, and it is the one this paragraph
+is about. A declared peak is freedom you granted, but it is not *background*
+freedom, and `background_absorption` excludes it for the same reason. Declare
+no peaks and the two numbers are equal, which is every pattern written before
+v1.4. It sits on the result rather than
 in the table above because it is **declared, not measured**: the four fields
 above are read off the final Jacobian and exist only where a solve measured them,
 while this is a count of what the instrument carried, so it is there on a

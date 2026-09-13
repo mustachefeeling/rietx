@@ -302,6 +302,180 @@ pattern has been seen before then. A `set_vary` before the first fit is
 therefore not in the log, while the one after it is. [](history.md) is that log.
 :::
 
+
+(declared-extra-peaks)=
+## Declared extra peaks
+
+Sometimes the pattern has a sharp peak no phase in your model can put there: a
+sample holder diffracting at its own distance from the focusing circle, a
+mount, a window, an unidentified impurity line. If it sits in empty background
+you can exclude the region and lose nothing. The case this feature exists for
+is the other one — **the intruder overlaps peaks that matter**, so excluding
+the region masks the sample peak underneath along with it.
+
+A `PeakComponent` declares the intruder so the channels stay in the fit:
+
+```python
+import rietx as rx
+from rietx.schemas.common import Parameter
+from rietx.schemas.instrument import PeakComponent
+
+instrument = rx.Instrument.bragg_brentano(radiation="CuKa")
+
+holder = PeakComponent(
+    label="steel holder 110",
+    center=Parameter(value=44.6, min=44.3, max=44.9, unit="deg"),
+    area=Parameter(value=800.0, min=0.0, unit="counts*deg",
+                   transform="softplus"),
+)
+instrument.extra_components.append(holder)
+
+print(instrument.extra_components[0].kind)          # peak
+print(instrument.extra_components[0].fwhm.min)      # 0.005
+```
+
+It joins `Instrument.extra_components`, the same list a broad
+hump goes on ({ref}`explicit-humps`), and the two are different members of one
+union. The difference that matters to you is
+where each one *lands*: a hump is part of the reported background and appears
+in `result.y_background`; a peak is not background at all. Its positions join
+`result.ticks` under the key `"(extra)"` instead, so the report stops calling
+your declared peak an unindexed impurity.
+
+**The package will not refuse a declared peak, and it will not detect one for
+you.** It fits what you declare and reports evidence about what happened. That
+division is deliberate: you can see your specimen and the package cannot.
+
+| Field | Is | Bound |
+|---|---|---|
+| `PeakComponent.center` | the apparent 2θ of the primary emission line | **finite `min`/`max` required** — they size the frozen window; identity transform, no default, because there is no default place for an intruder |
+| `PeakComponent.area` | its integrated intensity, counts·deg | softplus, `min=0`, and zero *is* the off state, so the bound is safe. An area and not a height because a reflection intensity is an area; not called `scale`, because every `*.scale` path is force-fixed under Le Bail and Pawley |
+| `PeakComponent.fwhm` | its width in 2θ | softplus, floored at `EXTRA_PEAK_FWHM_MIN` (the profile divides by Γ) and **bounded above**, since `fwhm.max` is what the window is built from |
+| `PeakComponent.eta` | the Lorentzian fraction of its pseudo-Voigt | logit, `[0, 1]`; both ends are legitimate rather than poles. `eta.max` sizes the window too |
+| `PeakComponent.all_lines` | whether to place an image at every emission line | `True`; set it false for something that does not diffract |
+| `PeakComponent.label` | a free-text tag, rendered in diagnostics | not a parameter and not part of any dot-path |
+| `PeakComponent.kind` | the union discriminator, `"peak"` | fixed; it names which member of `ExtraComponent` this is, and the union dispatches on it rather than on shape |
+
+All four parameters default to `vary=False`, and an area of zero means a
+declared-but-never-freed peak is bit-identical to no peak at all.
+
+### The centre is apparent, and it is bounded
+
+`center` is the **apparent** 2θ of the primary emission line. No zero shift, no
+sample-displacement or transparency correction, no axial asymmetry is applied
+to it. A holder sits at its own distance and carries its own aberrations, so
+correcting it with the specimen's would be worse than not correcting it — all
+of them are absorbed into the free centre instead. For the same reason the
+centre carries no crystallographic meaning: do not read a d-spacing off it.
+
+`center` and `fwhm` must both carry finite `min` and `max`, and a component
+without them is refused with a message saying what to write. The bounds are not
+a nicety — they are what sizes the evaluation window, which is frozen once per
+stage like every other window in the package. Because the window is built from
+the bounds rather than from the starting value, a centre free to move anywhere
+its bounds allow is inside its window by construction.
+
+The price is that a loose bound buys a wide window. `fwhm.max` defaults to 0.5°
+and the tail multiplier at `eta.max = 1` is about 16, so the default window is
+roughly ±8°. Stating bounds you actually believe is worth doing.
+
+### Every emission line, unless it is not diffraction
+
+The holder diffracts the same source your sample does, so its Kα2 is physically
+present. By default each emission line gets an image at its own Bragg angle,
+scaled by the line's weight **times the two lines' Lorentz-polarisation ratio**
+— not the bare weight, which is a measured bias rather than a simplification.
+Set `all_lines=False` for something that does not diffract at all, such as a
+fluorescence line or a detector artefact, where a Kα2 image would be a claim
+about physics that is not happening.
+
+### Freeing one
+
+One preset frees a declared component and the rest leave it alone.
+`mccusker_structural` has an `extra_components` stage, sixth of eleven — after
+the scale, background, zero, cell and profile, and before the coordinates — and
+it frees whatever you declared and nothing more. Every other preset stops short
+of these paths.
+
+Nothing ever *adds* a component, which is the safety property that matters: a
+sharp peak with a free area improves any Rwp, so one exists only because you
+declared it. Once you have, being freed by the structural plan is the same
+treatment a declared hump gets.
+
+To free one under any other plan, say so:
+
+```python
+from rietx.schemas.plan import PlanSpec, StageSpec
+
+plan = PlanSpec(stages=[
+    StageSpec(name="scale_bkg",
+              turn_on=["phases.*.scale", "instrument.background.*"]),
+    StageSpec(name="holder", turn_on=["instrument.extra_components.*"]),
+    StageSpec(name="cell", turn_on=["phases.*.cell.*", "instrument.zero_shift"]),
+])
+```
+
+Free it **after** the scale and background, for the reason every ordering in
+[](concepts.md) exists: a peak turned on over a pattern whose general level has
+not been set yet will absorb whatever is nearest. Stages are cumulative, so the
+component keeps refining in the stages that follow.
+
+Under Le Bail and Pawley a declared peak stays refinable — that is why its
+intensity field is called `area` and not `scale`, since every `*.scale` path is
+force-fixed in those modes. Its curve is subtracted from the pattern before the
+intensities are partitioned, so the phases are not handed counts that belong to
+your holder.
+
+A declared peak adds no reflections, so it does not change
+`effective_observations`: the observation count is a fact about the phases.
+
+### What the fit tells you afterwards
+
+Two findings, both advice:
+
+`EXTRA_PEAK_ON_REFLECTION` — the component ended up within 0.08° of a position
+your model already predicts. The two now describe one peak between them and
+nothing in Rwp says which owns the counts. If the overlap is real this is the
+feature working as intended; if you declared the peak to make a misfitting
+reflection go away, fix the model instead.
+
+`EXTRA_PEAK_NO_INTENSITY` — the area refined onto its zero bound, so the data
+does not see the peak. A peak reaches the pattern only through `area ×
+profile`, so at zero area nothing constrains its centre either: the centre you
+get back is a walk rather than a measurement, which is why the area's esd comes
+back absent rather than small. Either the feature is not in this specimen, or
+the centre bounds do not bracket it.
+
+`Identifiability.extra_peak_absorption` carries a number beside those, on
+`result.identifiability`: the fraction of each structural parameter's effect the
+declared peaks could reproduce. It is reported and never thresholded, because nothing has yet
+measured what separates a healthy declared peak from a parasitic one across
+real cases.
+
+### A sequence of patterns
+
+For an in-situ or operando series, `carry=["*"]` warm-starts the component from
+each pattern into the next, and its area and centre come back as trajectories
+like any other parameter. Excluding `instrument.extra_components.*` from
+`carry` pins the component to the initial model instead, which is what you want
+for a holder that genuinely does not move. [](series.md) has the carry
+semantics.
+
+The package reports what it measured. Whether a holder peak belongs in the
+figure is a question about your writeup, not about the fit.
+
+:::{admonition} For agents
+:class: agent
+A `PeakComponent` is never something to add on your own initiative: it is a
+declaration about the specimen, and only the user can make it. When a user
+declares one, free it in its own stage after scale and background, and read
+`EXTRA_PEAK_ON_REFLECTION` before quoting any intensity that overlaps it.
+`EXTRA_PEAK_NO_INTENSITY` means the centre is not quotable — not that it is
+imprecise.
+{doc}`the agent skill <skill>`
+§7 has both rows.
+:::
+
 ## What a fit reports back
 
 A result carries its own view of the table. `RefinementResult.parameters` is a

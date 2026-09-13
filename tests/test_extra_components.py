@@ -28,30 +28,46 @@ then frees nothing.
 from __future__ import annotations
 
 import json
+import typing
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
 import rietx as rx
 from rietx.background.models import hump_curve
 from rietx.io.exporters import _background_description
 from rietx.io.instrument_profile import save_instrument_profile
-from rietx.model.forward import compile_model
+from rietx.model.components import COMPONENT_AGGREGATE, EXTRA_TICK_KEY
+from rietx.model.corrections import lorentz_polarization
+from rietx.model.forward import WINDOW_AREA_TOL, compile_model
+from rietx.model.profiles.pseudovoigt import pseudo_voigt
 from rietx.optimize.least_squares import _make_jacobian, _make_residual
-from rietx.optimize.statistics import _span_basis, background_absorption
+from rietx.optimize.statistics import (
+    _span_basis,
+    background_absorption,
+    extra_peak_absorption,
+)
 from rietx.params.vector import ParameterTable, extra_component_parameters
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import (
+    COMPONENT_FIELDS,
+    EXTRA_PEAK_FWHM_MIN,
     HUMP_FIELDS,
     HUMP_FWHM_MIN,
+    PEAK_FIELDS,
     BackgroundChebyshev,
     BackgroundPSpline,
+    ExtraComponent,
     HumpComponent,
     Instrument,
+    PeakComponent,
 )
 from rietx.schemas.migrate import READ_POINTS, migrate_document_text
 from rietx.schemas.pattern import PatternData
+from rietx.schemas.plan import PlanSpec, StageSpec
 from rietx.strategy.staged import (
+    BACKGROUND_ABSORPTION_GUARD,
     HUMP_MIN_WIDTH_MULT,
     PLAN_PRESETS,
     check_hump_width,
@@ -526,7 +542,7 @@ def test_a_zero_column_is_dropped_from_a_projection_span():
     r2 = background_absorption(jac, ["instrument.background.c0",
                                      "instrument.extra_components.0.position",
                                      "instrument.extra_components.0.fwhm",
-                                     "phases.0.scale"])
+                                     "phases.0.scale"], frozenset())
     assert r2["phases.0.scale"] == pytest.approx(0.0, abs=1e-12)
     # all-zero block: the projector is zero, i.e. "imitates nothing"
     assert _span_basis(np.zeros((6, 2)), [0, 1]).shape == (6, 0)
@@ -548,13 +564,13 @@ def test_a_non_finite_column_withholds_the_statistic_rather_than_reporting_nan()
     jac[:, 0] = [1.0, 1.0, 0.0, 0.0, 0.0, 0.0]
     jac[:, 1] = [0.0, 1.0, 1.0, 0.0, 0.0, 0.0]
     jac[:, 2] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
-    assert "phases.0.scale" in background_absorption(jac, free)
+    assert "phases.0.scale" in background_absorption(jac, free, frozenset())
 
     for col, value in [(0, np.nan), (1, np.inf),      # the block
                        (2, np.nan), (2, np.inf)]:     # the target
         bad = jac.copy()
         bad[3, col] = value
-        assert background_absorption(bad, free) == {}, (col, value)
+        assert background_absorption(bad, free, frozenset()) == {}, (col, value)
 
     # a NaN column is *not* quietly dropped from the span the way a zero one
     # is: it spans something unknown, and narrowing the span would understate
@@ -564,36 +580,114 @@ def test_a_non_finite_column_withholds_the_statistic_rather_than_reporting_nan()
     assert _span_basis(bad, [0, 1]).shape[1] == 2
 
 
-def test_peak_columns_join_the_background_block():
+def test_hump_columns_join_the_background_block():
     """The statistic asks what the *whole declared background* can imitate."""
     jac = np.zeros((5, 2))
     jac[:, 0] = [1.0, 0.0, 0.0, 0.0, 0.0]
     jac[:, 1] = [1.0, 1.0, 0.0, 0.0, 0.0]
-    with_peak = background_absorption(
-        jac, ["instrument.extra_components.0.height", "phases.0.scale"])
+    with_hump = background_absorption(
+        jac, ["instrument.extra_components.0.height", "phases.0.scale"],
+        frozenset())
     without = background_absorption(jac, ["instrument.profile.w",
-                                          "phases.0.scale"])
-    assert with_peak["phases.0.scale"] == pytest.approx(0.5)
+                                          "phases.0.scale"], frozenset())
+    assert with_hump["phases.0.scale"] == pytest.approx(0.5)
     assert without == {}       # no background column at all, nothing to project
 
 
+def test_a_declared_peak_is_not_background_flexibility():
+    """The seam's second member had to split this statistic in two (WP-1103).
+
+    `instrument.extra_components.` stopped meaning "background" the moment the
+    union gained a peak: a `PeakComponent` is not in `y_background`, so its
+    columns in the background block would report a perfectly stiff background
+    as absorbing whatever a declared holder line happens to be correlated with.
+
+    The two statistics **partition** the declared components — the same set is
+    excluded from one and taken by the other — so a component is counted once,
+    which is clause 2 of the member contract reaching a statistic instead of a
+    curve.
+    """
+    jac = np.zeros((5, 2))
+    jac[:, 0] = [1.0, 0.0, 0.0, 0.0, 0.0]
+    jac[:, 1] = [1.0, 1.0, 0.0, 0.0, 0.0]
+    free = ["instrument.extra_components.0.area", "phases.0.scale"]
+    peaks = frozenset({"instrument.extra_components.0."})
+
+    # as a hump it is background; as a peak it is not
+    assert background_absorption(jac, free, frozenset())["phases.0.scale"] \
+        == pytest.approx(0.5)
+    assert background_absorption(jac, free, peaks) == {}
+    assert extra_peak_absorption(jac, free, peaks)["phases.0.scale"] \
+        == pytest.approx(0.5)
+    assert extra_peak_absorption(jac, free, frozenset()) == {}
+
+
+def test_the_two_absorption_statistics_partition_the_components():
+    """One model, one prefix set, and no component in both blocks or neither."""
+    structure = make_lab6()
+    ins = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=35.0, unit="deg")),
+        make_peak(center=40.0, area=300.0),
+    ])
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+
+    prefixes = model.peak_component_prefixes()
+    assert prefixes == {"instrument.extra_components.1."}
+
+    declared = [f"instrument.extra_components.{i}.{n}"
+                for i, names in ((0, HUMP_FIELDS), (1, PEAK_FIELDS))
+                for n in names]
+    in_bg = {p for p in declared if not p.startswith(tuple(prefixes))}
+    in_pk = {p for p in declared if p.startswith(tuple(prefixes))}
+    assert in_bg | in_pk == set(declared)
+    assert not (in_bg & in_pk)
+
+
 def test_a_hump_is_a_roughness_nuisance_too():
-    """The sibling of ``background_absorption`` folding peaks into its block
-    (candidate 3): a declared peak is background flexibility that refines
+    """The sibling of ``background_absorption`` folding humps into its block
+    (candidate 3): a declared hump is background flexibility that refines
     regardless, so the roughness/ADP comparison projects it out first — three
-    columns per peak left in would swamp the partial R² exactly as the scale
+    columns per hump left in would swamp the partial R² exactly as the scale
     does.  Was matched only for ``instrument.background.`` while its sibling
     already matched ``instrument.extra_components.``.
     """
     from rietx.optimize.statistics import _roughness_nuisance
 
-    assert _roughness_nuisance("instrument.extra_components.0.height")
-    assert _roughness_nuisance("instrument.extra_components.3.position")
-    assert _roughness_nuisance("instrument.background.c2")
-    assert _roughness_nuisance("phases.0.scale")
-    assert not _roughness_nuisance("phases.0.atoms.0.biso")
+    none: frozenset[str] = frozenset()
+    assert _roughness_nuisance("instrument.extra_components.0.height", none)
+    assert _roughness_nuisance("instrument.extra_components.3.position", none)
+    assert _roughness_nuisance("instrument.background.c2", none)
+    assert _roughness_nuisance("phases.0.scale", none)
+    assert not _roughness_nuisance("phases.0.atoms.0.biso", none)
     assert not _roughness_nuisance(
-        "instrument.geometry.surface_roughness.suortti_b")
+        "instrument.geometry.surface_roughness.suortti_b", none)
+
+
+def test_a_declared_peak_is_not_a_roughness_nuisance():
+    """The partition reaches the *third* statistic, not only the first two.
+
+    ``background_absorption`` excludes the peak-landing components and
+    ``extra_peak_absorption`` takes them; ``roughness_absorption`` projects the
+    same partition out as nuisance, so all three divide one list the same way.
+    Projecting a declared sharp peak out here would shrink the very partial R²
+    the roughness guard is read from — and the ``mccusker_structural`` plan
+    frees the two blocks in the same fit.
+    """
+    from rietx.optimize.statistics import _roughness_nuisance
+
+    peaks = frozenset({"instrument.extra_components.1."})
+    assert not _roughness_nuisance("instrument.extra_components.1.center", peaks)
+    assert not _roughness_nuisance("instrument.extra_components.1.area", peaks)
+    # index 1 and index 11 are different components: the trailing dot is why
+    assert _roughness_nuisance("instrument.extra_components.11.height", peaks)
+    # a hump declared beside it is still a nuisance
+    assert _roughness_nuisance("instrument.extra_components.0.height", peaks)
+    assert _roughness_nuisance("instrument.background.c2", peaks)
 
 
 # ----------------------------------------------------------------------
@@ -982,3 +1076,1152 @@ def test_a_v1_2_result_json_still_opens_under_the_new_count_name():
            "n_background_peaks": 2}
     assert migrate_document_text(json.dumps(doc))[1] is False
     assert RefinementResult.model_validate(doc).n_extra_components == 2
+
+
+# ----------------------------------------------------------------------
+# The second member: a declared sharp peak (WP-1103)
+#
+# `HumpComponent` alone left clause 2 of the member contract — a member's
+# aggregate membership is *declared data*, never read off the class name — as a
+# design intention with nothing exercising it.  These tests are what make it a
+# tested one, so the ones that matter most are the ones about *where the member
+# lands* rather than about arithmetic: a peak is not background, its curve must
+# leave `y_background` alone, and its positions must reach the tick list.
+# ----------------------------------------------------------------------
+
+
+def make_peak(center=28.4, span=0.4, area=None, **kw):
+    """A `PeakComponent` with the finite centre bounds the schema requires."""
+    kw.setdefault("center", Parameter(value=center, min=center - span,
+                                      max=center + span, unit="deg"))
+    if area is not None:
+        kw.setdefault("area", area if isinstance(area, Parameter) else
+                      Parameter(value=area, min=0.0, unit="counts*deg",
+                                transform="softplus"))
+    return PeakComponent(**kw)
+
+
+def test_the_union_has_two_members_and_dispatches_on_kind_not_shape():
+    """Both members round-trip to their own class through one list.
+
+    A structural union would be free to pick either class for a blob whose
+    fields happened to fit, which is the accident root CLAUDE.md names for
+    `PlanSpec`; the discriminator is what makes the answer a lookup.
+    """
+    inst = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=20.0, unit="deg")),
+        make_peak(label="holder 110"),
+    ])
+    blob = inst.model_dump(mode="json")
+    back = Instrument.model_validate(json.loads(json.dumps(blob)))
+    assert [type(c).__name__ for c in back.extra_components] == [
+        "HumpComponent", "PeakComponent"]
+    assert [c.kind for c in back.extra_components] == ["hump", "peak"]
+    assert back.extra_components[1].label == "holder 110"
+    assert back.model_dump(mode="json") == blob
+
+
+def test_json_round_trip_keeps_every_peak_component_parameter():
+    """Every declared field survives, values and bounds alike.
+
+    `HUMP_FIELDS`' test one member over; the bounds are load-bearing here in a
+    way they are not for a hump, because they size the frozen window.
+    """
+    peak = make_peak(area=Parameter(value=1234.5, min=0.0, unit="counts*deg",
+                                    transform="softplus"),
+                     eta=Parameter(value=0.75, min=0.0, max=1.0,
+                                   transform="logit"),
+                     all_lines=False)
+    peak.fwhm.value = 0.123
+    back = PeakComponent.model_validate(
+        json.loads(json.dumps(peak.model_dump(mode="json"))))
+    for name in PEAK_FIELDS:
+        before, after = getattr(peak, name), getattr(back, name)
+        assert (after.value, after.min, after.max) == (
+            before.value, before.min, before.max), name
+    assert back.all_lines is False
+
+
+def test_a_centre_or_width_with_no_finite_bound_is_refused_and_suggests_one():
+    """The refusal names the field, says why, and shows what to write.
+
+    A window frozen at stage compile cannot follow an unbounded parameter, so
+    this is unbuildable rather than merely loose — and unlike the width floor it
+    cannot be repaired, because the range is a fact about the caller's pattern
+    that the schema cannot see.
+    """
+    with pytest.raises(ValidationError, match=r"center needs finite min and max"):
+        PeakComponent()
+    with pytest.raises(ValidationError, match=r"fwhm needs finite min and max"):
+        make_peak(fwhm=Parameter(value=0.1, min=EXTRA_PEAK_FWHM_MIN,
+                                 unit="deg", transform="softplus"))
+    with pytest.raises(ValidationError) as excinfo:
+        PeakComponent()
+    assert "Parameter(value=" in str(excinfo.value)
+
+
+def test_a_stored_zero_width_bound_is_repaired_at_this_members_floor():
+    """The hump's repair, at this member's floor, for the same reason.
+
+    A stored `min: 0.0` deserializes straight back into the pole and no
+    `default_factory` runs on that path, so the repair has to live in a
+    validator.  The floor differs from the hump's by 20x and that is the whole
+    difference: 5 channels of the finest scan step rather than of the coarsest.
+    """
+    blob = make_peak().model_dump(mode="json")
+    blob["fwhm"]["min"] = 0.0
+    blob["fwhm"]["value"] = 0.0
+    back = PeakComponent.model_validate(blob)
+    assert back.fwhm.min == EXTRA_PEAK_FWHM_MIN
+    assert back.fwhm.value == EXTRA_PEAK_FWHM_MIN
+    assert EXTRA_PEAK_FWHM_MIN == pytest.approx(5 * 0.001)
+
+
+def test_the_field_registry_covers_every_member_and_agrees_with_the_union():
+    """Clause 4: one authority for which fields a member refines.
+
+    Both directions, because each catches a different mistake — a member with
+    no row registers no parameters at all (silent), and a row for a member that
+    no longer exists outlives it (also silent).
+    """
+    kinds = {m.model_fields["kind"].default
+             for m in typing.get_args(ExtraComponent)}
+    assert set(COMPONENT_FIELDS) == kinds
+    assert set(COMPONENT_AGGREGATE) == kinds
+    for kind, member in ((m.model_fields["kind"].default, m)
+                         for m in typing.get_args(ExtraComponent)):
+        declared = set(COMPONENT_FIELDS[kind])
+        actual = {n for n, f in member.model_fields.items()
+                  if f.annotation is Parameter}
+        assert declared == actual, kind
+
+
+def test_aggregate_membership_is_read_from_data_not_from_the_class_name():
+    """Clause 2, and the reason this WP exists.
+
+    The registry is keyed by the `kind` discriminator, so a member's
+    destination is a lookup.  The assertion that matters is the second one: the
+    two members' aggregates *differ*, which is what makes the lookup do work
+    that a shared default could not.
+    """
+    assert COMPONENT_AGGREGATE["hump"] == "background"
+    assert COMPONENT_AGGREGATE["peak"] == "ticks"
+    assert len(set(COMPONENT_AGGREGATE.values())) == 2
+
+
+def test_both_halves_of_the_table_know_the_peak_component_paths():
+    """`_collect_instrument` and `apply_to_models`, the clause 4 pair.
+
+    The hump's version of this test one member over; it is repeated rather than
+    parametrised because the failure it catches is a *field list* going out of
+    step, and a shared loop would use one field list for both halves.
+    """
+    structure = make_lab6()
+    instrument = _instrument(peaks=[make_peak()])
+    table = ParameterTable(structure, instrument)
+    paths = [f"instrument.extra_components.0.{n}" for n in PEAK_FIELDS]
+    for path in paths:
+        assert path in table._paths, path
+    for path, value in zip(paths, (28.5, 777.0, 0.25, 0.321), strict=True):
+        table.entries[table._paths[path]].value = value
+    table.apply_to_models(structure, instrument)
+
+    peak = instrument.extra_components[0]
+    assert (peak.center.value, peak.area.value, peak.fwhm.value,
+            peak.eta.value) == (28.5, 777.0, 0.25, 0.321)
+
+
+def test_a_mixed_list_registers_each_member_with_its_own_fields():
+    """A hump and a peak in one list, each contributing its own paths.
+
+    The regression this guards is the one `isinstance` would have caused: a
+    single hardcoded field tuple silently reads `position` off a peak that has
+    none, or registers a peak's `eta` against a hump.
+    """
+    comps = [HumpComponent(position=Parameter(value=20.0, unit="deg")),
+             make_peak()]
+    subs = [sub for sub, _ in extra_component_parameters(comps)]
+    assert subs == ["0.position", "0.height", "0.fwhm",
+                    "1.center", "1.area", "1.fwhm", "1.eta"]
+
+
+def test_the_intensity_field_is_not_called_scale():
+    """Le Bail and Pawley force-fix every `*.scale` path, and a peak must not be.
+
+    A naming rule with a functional consequence, so it is asserted against the
+    function that would have enforced it rather than against the string.
+    """
+    from rietx.refine import mode_fixed_path
+
+    for mode in ("lebail", "pawley"):
+        for name in PEAK_FIELDS:
+            path = f"instrument.extra_components.0.{name}"
+            assert not mode_fixed_path(path, mode), (path, mode)
+
+
+# ----------------------------------------------------------------------
+# the forward model: windows from bounds, and every emission line
+# ----------------------------------------------------------------------
+
+
+def _peak_state(peak, *, lo=30.0, hi=50.0, step=0.005, radiation="CuKa",
+                one_line=False):
+    """A compiled model over a flat pattern with the phases switched off.
+
+    The phases are off (`scale = 0`) so that every count in `evaluate` belongs
+    to the declared peak: these tests are about *where the member lands*, and a
+    Bragg contribution underneath would hide a peak landing in the wrong place.
+
+    ``one_line`` drops the source to its primary line, which is a different
+    thing from ``all_lines=False`` on the component — a source that *has* no
+    Kα2 against a component that declines to image onto the one the source has.
+    Their agreement is the assertion, so the two have to be built differently.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 0.0
+    ins = rx.Instrument.bragg_brentano(radiation=radiation)
+    ins.source.dispersion = None
+    if one_line:
+        ins.source.lines = [ins.source.lines[0]]
+    ins.extra_components = [peak]
+    tt = np.arange(lo, hi, step)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.zeros_like(tt).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return structure, ins, data, table, model
+
+
+def test_a_declared_peak_is_not_background_anywhere():
+    """Clause 2, where it actually bites.
+
+    `background()` is the one authority every background consumer calls —
+    `result.y_background`, the partition net, `report.texture`, `viz.live`.  A
+    hump is inside it; a peak must not be, or every one of those would draw a
+    holder reflection as background.
+    """
+    _s, _i, _d, table, model = _peak_state(
+        make_peak(center=40.0, area=500.0))
+    values = table.decode(table.x0())
+    assert np.allclose(np.asarray(model.background(values)), 0.0)
+    assert np.asarray(model.extra_peak_curve(values)).max() > 0.0
+
+
+def test_the_peak_carries_its_declared_area_and_apex():
+    """The unit-area pseudo-Voigt, so `area` is an area and the apex follows.
+
+    Checked against the closed form rather than against a stored number: at the
+    centre, pV(0) = 2η/(πΓ) + (1−η)(2/Γ)√(ln2/π), so the apex is a prediction
+    and not a regression baseline.
+    """
+    peak = make_peak(center=40.0, area=500.0)
+    _s, _i, _d, table, model = _peak_state(peak, one_line=True)
+    y = np.asarray(model.extra_peak_curve(table.decode(table.x0())))
+    gamma, eta = peak.fwhm.value, peak.eta.value
+    apex = 500.0 * (2 * eta / (np.pi * gamma)
+                    + (1 - eta) * (2 / gamma) * np.sqrt(np.log(2) / np.pi))
+    assert y.max() == pytest.approx(apex, rel=1e-9)
+    assert model.tt[int(np.argmax(y))] == pytest.approx(40.0, abs=0.005)
+
+
+def test_every_emission_line_gets_an_image_at_its_own_bragg_angle():
+    """Kα2 is physically there, and it is placed by Bragg's law, not by offset.
+
+    `RefinementResult.ticks`' lesson one member over: a source with two lines
+    makes two peaks out of one holder reflection, and a model that draws only
+    the primary leaves the second as unexplained intensity.
+    """
+    peak = make_peak(center=40.0, area=500.0)
+    peak.fwhm.value = 0.02                     # sharp enough to resolve
+    _s, ins, _d, table, model = _peak_state(peak, lo=38.0, hi=42.0, step=0.001)
+    y = np.asarray(model.extra_peak_curve(table.decode(table.x0())))
+    ratio = float(model.peak_components[0].lam_ratio[1])
+    expected = 2 * np.degrees(np.arcsin(ratio * np.sin(np.radians(20.0))))
+
+    apexes = [float(model.tt[i]) for i in range(1, len(y) - 1)
+              if y[i] > y[i - 1] and y[i] >= y[i + 1] and y[i] > 0.05 * y.max()]
+    assert len(apexes) == 2
+    assert apexes[0] == pytest.approx(40.0, abs=0.001)
+    assert apexes[1] == pytest.approx(expected, abs=0.001)
+
+
+def test_the_second_line_carries_its_own_lp_and_not_the_bare_weight():
+    """The measured correction, asserted as a difference from the bare weight.
+
+    Holding `weight` alone biases the fitted primary position — −2e-4° and
+    −0.26 mean σ pull on lab Cu Kα LaB6 (WP-1018).  The gain is small (here
+    ~0.6 % of the weight) and one-sided, which is exactly why it is a bias
+    rather than noise, so the test asserts the *sign and size* of the departure
+    rather than that a correction happened.
+    """
+    peak = make_peak(center=40.0, area=500.0)
+    peak.fwhm.value = 0.02
+    _s, _i, _d, table, model = _peak_state(peak, lo=38.0, hi=42.0, step=0.001)
+    values = table.decode(table.x0())
+    y = np.asarray(model.extra_peak_curve(values))
+
+    ratio = float(model.peak_components[0].lam_ratio[1])
+    pos2 = 2 * np.degrees(np.arcsin(ratio * np.sin(np.radians(20.0))))
+    pol = float(values["instrument.polarization"])
+    weight = float(values["instrument.source.lines.1.weight"])
+    gain = weight * float(lorentz_polarization(np.float64(pos2), pol)
+                          / lorentz_polarization(np.float64(40.0), pol))
+    assert gain != weight
+    assert gain == pytest.approx(weight, rel=1e-2)
+
+    # the whole curve is the two images summed at that gain.  Each baseline is
+    # built at its *own* centre rather than one baseline scaled twice: the two
+    # images sit 0.1 deg apart, so on a finite grid their truncated tails are
+    # not the same number and a single scaled baseline is only good to ~1e-6.
+    def _one_at(centre):
+        peak = make_peak(center=centre, area=500.0)
+        peak.fwhm.value = 0.02
+        _s, _i, _d, tb, mb = _peak_state(peak, lo=38.0, hi=42.0, step=0.001,
+                                         one_line=True)
+        return np.trapezoid(
+            np.asarray(mb.extra_peak_curve(tb.decode(tb.x0()))), mb.tt)
+
+    assert np.trapezoid(y, model.tt) == pytest.approx(
+        _one_at(40.0) + gain * _one_at(pos2), rel=1e-9)
+
+
+def test_all_lines_false_places_exactly_one_image():
+    """A fluorescence line or a detector artefact has no Kα2.
+
+    Placing one would be a claim about physics that is not happening, so the
+    flag is not a convenience: it is the difference between modelling a
+    diffraction peak and modelling something else.
+    """
+    peak = make_peak(center=40.0, area=500.0)
+    peak.all_lines = False
+    _s, _i, _d, table, model = _peak_state(peak)
+    y = np.asarray(model.extra_peak_curve(table.decode(table.x0())))
+
+    single = make_peak(center=40.0, area=500.0)
+    _s2, _i2, _d2, t2, m2 = _peak_state(single, one_line=True)
+    assert np.allclose(y, np.asarray(m2.extra_peak_curve(t2.decode(t2.x0()))))
+
+
+def test_a_centre_driven_to_either_bound_stays_inside_its_frozen_window():
+    """The invariant this member's bounds exist for.
+
+    Windows are frozen at stage compile and sized from `center`'s bounds, so
+    the claim is that *every* state the solver can legally reach is covered.
+    Tested at both bounds rather than at one, and by comparing against an
+    unwindowed evaluation on the same grid: a window that clipped the peak
+    would leave a difference, and a window merely centred on the starting value
+    would clip at the far bound only.
+    """
+    peak = make_peak(center=40.0, span=0.4, area=500.0)
+    _s, _i, _d, table, model = _peak_state(peak, one_line=True)
+    win = model.peak_components[0].win
+    i0, i1 = int(win[0, 0]), int(win[0, 1])
+
+    for edge in (peak.center.min, peak.center.max):
+        values = table.decode(table.x0())
+        values["instrument.extra_components.0.center"] = edge
+        y = np.asarray(model.extra_peak_curve(values))
+        assert model.tt[int(np.argmax(y))] == pytest.approx(edge, abs=0.005)
+        # the profile is entirely inside the frozen index range, to the same
+        # area tolerance every phase window is held to
+        full = np.zeros_like(y)
+        gamma, eta = peak.fwhm.value, peak.eta.value
+        full[:] = 500.0 * pseudo_voigt(model.tt - edge, gamma, eta)
+        kept = np.trapezoid(y, model.tt) / np.trapezoid(full, model.tt)
+        assert kept > 1.0 - WINDOW_AREA_TOL
+        assert y[:i0].sum() == 0.0 and y[i1:].sum() == 0.0
+
+
+def test_a_window_holding_no_fitted_channel_is_refused_and_names_the_peak():
+    """A dead column, said out loud at compile rather than at a missing esd.
+
+    It is a refusal about *arithmetic*, not about expertise: a peak that is in
+    range is never questioned however implausible, which is the whole stance of
+    this WP.  The message names the component and quotes both ranges, in the
+    `check_interval` sentence shape.
+    """
+    peak = make_peak(center=95.0, span=1.0, label="holder 110")
+    with pytest.raises(ValueError, match=r"holder 110.*covers no fitted channel"):
+        _peak_state(peak, lo=30.0, hi=50.0)
+
+    # unlabelled, the dot-path is the name
+    with pytest.raises(ValueError, match=r"extra_components\[0\]"):
+        _peak_state(make_peak(center=95.0, span=1.0), lo=30.0, hi=50.0)
+
+
+def test_a_model_declaring_no_peak_is_bit_identical_to_the_pre_member_one():
+    """The empty default is exactly off, one member over.
+
+    `extra_peak_curve` returns the additive identity and `evaluate` is
+    unchanged to the bit — not approximately unchanged, because every golden in
+    the suite would otherwise move for a feature nobody asked for.
+    """
+    structure = make_lab6()
+    ins = _instrument()
+    tt = np.arange(20.0, 60.0, 0.02)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    values = table.decode(table.x0())
+    assert model.peak_components == ()
+    assert np.asarray(model.extra_peak_curve(values)).tobytes() == \
+        np.zeros(len(tt)).tobytes()
+    direct = (np.asarray(model.background(values))
+              + np.asarray(model.bragg_component(values)))
+    assert np.asarray(model.evaluate(values)).tobytes() == direct.tobytes()
+
+
+def test_a_hump_and_a_peak_are_compiled_into_different_places():
+    """The partition, asserted on the compiled model rather than on a curve.
+
+    This is clause 2 reaching the thing that consumes it: `component_paths` is
+    the background-landing list and `peak_components` the tick-landing one, and
+    a member is sorted into them by its declared aggregate.  Before this WP the
+    compile assumed every member was a hump and would have built
+    `…1.position` for a peak that has no such field.
+    """
+    structure = make_lab6()
+    ins = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=35.0, unit="deg")),
+        make_peak(center=40.0),
+    ])
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.zeros_like(tt).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+
+    assert model.component_paths == (
+        ("instrument.extra_components.0.position",
+         "instrument.extra_components.0.height",
+         "instrument.extra_components.0.fwhm"),)
+    assert len(model.peak_components) == 1
+    assert model.peak_components[0].index == 1
+    assert set(model.peak_components[0].paths.values()) == {
+        f"instrument.extra_components.1.{n}" for n in PEAK_FIELDS}
+
+
+# ----------------------------------------------------------------------
+# ticks: a declared peak is not an unindexed impurity
+# ----------------------------------------------------------------------
+
+
+def _holder_fit(area=900.0, centre=43.55, *, declare=True, free=True,
+                seed=0, lo=20.0, hi=90.0, step=0.02):
+    """LaB6 with a synthetic holder doublet injected, refined with or without it.
+
+    The truth pattern always contains the holder peak; ``declare`` controls
+    whether the *fit* is told about it.  That pairing is the whole design case:
+    the same data, once with the intruder modelled and once with it left to be
+    absorbed by whatever is nearest.
+    """
+    rng = np.random.default_rng(seed)
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ins.source.dispersion = None
+    ins.profile.w.value = 3e-3
+    ins.profile.x.value = 5e-3
+
+    tt = np.arange(lo, hi, step)
+    blank = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+
+    truth = make_peak(center=centre, span=0.55, area=area)
+    truth.fwhm.value = 0.18
+    ins_t = ins.model_copy(deep=True)
+    ins_t.extra_components = [truth]
+    tab_t = ParameterTable(structure, ins_t)
+    m_t = compile_model(structure, ins_t, blank, mode="rietveld",
+                        moving_paths=set(tab_t.moving_paths))
+    y = np.asarray(m_t.evaluate(tab_t.decode(tab_t.x0()))) + 40.0
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=rng.poisson(np.maximum(y, 0.1)).astype(float).tolist())
+
+    ins_fit = ins.model_copy(deep=True)
+    stages = [StageSpec(name="scale_bkg",
+                        turn_on=["phases.*.scale", "instrument.background.*"])]
+    if declare:
+        pk = make_peak(center=centre - 0.05, span=0.55, area=area * 0.55)
+        pk.fwhm.value = 0.15
+        ins_fit.extra_components = [pk]
+        if free:
+            stages.append(StageSpec(name="holder",
+                                    turn_on=["instrument.extra_components.*"]))
+    stages.append(StageSpec(name="cell", turn_on=["phases.*.cell.*",
+                                                  "instrument.zero_shift"]))
+    stages.append(StageSpec(name="profile", turn_on=["instrument.profile.w",
+                                                     "instrument.profile.x"]))
+    ref = rx.Refinement(structure.model_copy(deep=True), ins_fit, history=False)
+    return ref.fit(data, plan=PlanSpec(stages=stages)), truth
+
+
+def test_declared_peaks_reach_the_tick_list_under_one_reserved_key():
+    """Clause 2's destination, end to end.
+
+    Layer 0 reads `ticks` to decide what is unindexed, so a declared peak that
+    is not in it is reported as an impurity by a fit that put intensity there
+    on purpose — the Kα2-ticks bug one member over.  Every emission line's
+    image is listed, for exactly that reason.
+    """
+    result, _truth = _holder_fit()
+    assert EXTRA_TICK_KEY in result.ticks
+    assert "LaB6" in result.ticks
+    extra = result.ticks[EXTRA_TICK_KEY]
+    assert len(extra) == 2                      # Kα1 and its Kα2 image
+    assert extra == sorted(extra)
+    assert extra[1] > extra[0]
+
+
+def test_a_joint_fit_writes_the_same_reserved_key_as_a_single_one():
+    """The tick list has two builders, and both owe clause 2's destination.
+
+    `multi.MultiHistogramRefinement._ticks` is the joint fit's own tick
+    builder, so a declared peak missing from it is reported as an unindexed
+    impurity by every histogram's Layer 0 — the identical failure the test
+    above pins for a single histogram, on the surface that does not share its
+    code path.  Both now read `CompiledModel.extra_peak_tick_positions`, which
+    is why they cannot disagree about where the images fall.
+    """
+    from rietx.multi import MultiHistogramRefinement
+
+    structure = make_lab6()
+    ins = _instrument(peaks=[make_peak(center=40.0)])
+    ins.extra_components[0].area.value = 500.0
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.zeros_like(tt).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    values = table.decode(table.x0())
+
+    ticks = MultiHistogramRefinement._ticks(None, model, structure, values)
+    assert EXTRA_TICK_KEY in ticks
+    assert ticks[EXTRA_TICK_KEY] == model.extra_peak_tick_positions(values)
+    assert "LaB6" in ticks
+
+    # and nothing appears for a model that declares no peak
+    plain = _instrument()
+    plain_table = ParameterTable(structure, plain)
+    plain_model = compile_model(structure, plain, data, mode="rietveld",
+                                moving_paths=set(plain_table.moving_paths))
+    assert EXTRA_TICK_KEY not in MultiHistogramRefinement._ticks(
+        None, plain_model, structure, plain_table.decode(plain_table.x0()))
+
+
+def test_a_phase_named_like_the_reserved_key_is_refused():
+    """A tick list is read by name, so the collision loses a whole phase.
+
+    Refused rather than renamed — the name is the caller's — and only when a
+    peak is actually declared, so no existing model starts failing for a name
+    it has always had.
+    """
+    structure = make_lab6()
+    structure.phases[0].name = EXTRA_TICK_KEY
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.zeros_like(tt).tolist())
+
+    clean = _instrument()
+    table = ParameterTable(structure, clean)
+    compile_model(structure, clean, data, mode="rietveld",
+                  moving_paths=set(table.moving_paths))   # no peak: allowed
+
+    ins = _instrument(peaks=[make_peak(center=40.0)])
+    table = ParameterTable(structure, ins)
+    with pytest.raises(ValueError, match=r"collides with the reserved"):
+        compile_model(structure, ins, data, mode="rietveld",
+                      moving_paths=set(table.moving_paths))
+
+
+def test_a_declared_holder_peak_is_refined_back_to_the_truth():
+    """The design case, measured rather than asserted.
+
+    Every parameter of the injected doublet comes back within a few esds, which
+    is what makes the *rest* of this WP's claims worth anything: an evidence
+    channel over a peak the fit cannot find would report nothing useful.
+    """
+    result, truth = _holder_fit()
+    got = {p.path.rsplit(".", 1)[1]: p for p in result.parameters
+           if "extra_components" in p.path}
+    assert set(got) == set(PEAK_FIELDS)
+    for name, expected in (("center", truth.center.value),
+                           ("area", truth.area.value),
+                           ("fwhm", truth.fwhm.value)):
+        row = got[name]
+        assert row.stderr is not None and row.stderr > 0.0, name
+        assert abs(row.value - expected) < 4.0 * row.stderr, (
+            name, row.value, expected, row.stderr)
+
+
+def test_a_declared_peak_is_not_in_the_reported_background():
+    """`y_background` is what a reader sees drawn as background.
+
+    A hump belongs there; a holder reflection does not, and putting it there
+    would make the plot claim the intruder was diffuse scattering.
+    """
+    result, _truth = _holder_fit()
+    assert float(np.max(result.y_background)) < 60.0     # the flat 40 counts
+
+
+# ----------------------------------------------------------------------
+# Le Bail / Pawley: the subtraction side, never the denominator
+# ----------------------------------------------------------------------
+
+
+def _lebail_extraction(peak=None, *, cycles=6, lo=20.0, hi=90.0, step=0.02):
+    """Extracted per-hkl intensities for a LaB6 pattern, with or without a peak.
+
+    Returns the extracted intensity vector so two runs can be compared.  The
+    *data* is the same in both calls; what changes is whether the model knows
+    about the intruder sitting on top of it.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = _instrument()
+    tt = np.arange(lo, hi, step)
+    blank = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+    return structure, ins, tt, blank
+
+
+def test_a_declared_peak_leaves_extracted_intensities_unbiased():
+    """Clause 3: the component joins the *net*, not the denominator.
+
+    A holder line sitting on a reflection is counts that are not the phase's.
+    Subtracted from the net, the phase keeps its own intensity; left in, the
+    partition hands the phase a share of the holder — and it does so silently,
+    because the extracted intensity has no independent truth to check against.
+
+    So the test compares against the extraction from a pattern that never had
+    the intruder: declaring the peak must recover *that* answer, not merely
+    change the answer.
+    """
+    structure, ins, tt, blank = _lebail_extraction()
+
+    # clean truth
+    table_c = ParameterTable(structure, ins)
+    m_c = compile_model(structure, ins, blank, mode="rietveld",
+                        moving_paths=set(table_c.moving_paths))
+    y_clean = np.asarray(m_c.evaluate(table_c.decode(table_c.x0()))) + 40.0
+
+    # the same pattern with a holder line dropped **onto a strong reflection**,
+    # which is the only placement that tests anything: an intruder in empty
+    # background is subtracted by the background block whatever the net does.
+    strongest = float(tt[int(np.argmax(y_clean))])
+    intruder = make_peak(center=strongest, span=0.5, area=400.0)
+
+    ins_t = ins.model_copy(deep=True)
+    ins_t.extra_components = [intruder]
+    tab_t = ParameterTable(structure, ins_t)
+    m_t = compile_model(structure, ins_t, blank, mode="rietveld",
+                        moving_paths=set(tab_t.moving_paths))
+    y_dirty = np.asarray(m_t.evaluate(tab_t.decode(tab_t.x0()))) + 40.0
+
+    def extract(y, instrument):
+        data = PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+        table = ParameterTable(structure, instrument)
+        model = compile_model(structure, instrument, data, mode="lebail",
+                              moving_paths=set(table.moving_paths))
+        values = table.decode(table.x0())
+        model.lebail_update(values, n_cycles=8)
+        return np.asarray(model.phases[0].hkl_intensity, dtype=np.float64)
+
+    clean = extract(y_clean, ins)
+    declared = extract(y_dirty, ins_t)      # intruder present AND declared
+    ignored = extract(y_dirty, ins)         # intruder present, NOT declared
+
+    scale = np.maximum(clean, clean.max() * 1e-6)
+    err_declared = np.abs(declared - clean) / scale
+    err_ignored = np.abs(ignored - clean) / scale
+
+    # Declaring it recovers the clean extraction to machine precision — the
+    # injected curve *is* the model's own, so subtracting it from the net
+    # restores the clean net bit for bit, which is the strongest form this
+    # claim can take.  Ignoring it inflates the worst reflection 160.9 -> 547.2
+    # (measured, this fixture): the phase is handed the holder's counts and
+    # nothing says so, because an extracted intensity has no independent truth
+    # to be checked against.
+    assert err_declared.max() < 1e-9
+    assert err_ignored.max() > 2.0
+
+
+def test_peak_component_paths_stay_refinable_under_lebail_and_pawley():
+    """The reason the intensity field is not called `scale`.
+
+    `mode_fixed_path` force-fixes every `*.scale`, every `.atoms.` path and
+    every `.source.lines.` path under Le Bail and Pawley — and a declared peak
+    has to keep refining there, because Le Bail is exactly where a caller
+    reaches for a holder they cannot index.
+    """
+    structure = make_lab6()
+    ins = _instrument(peaks=[make_peak(center=40.0)])
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+
+    from rietx.refine import mode_fixed_path
+
+    for mode in ("lebail", "pawley"):
+        table = ParameterTable(structure, ins)
+        table.set_vary(["instrument.extra_components.*"], True)
+        freed = {p for p in table.free_paths if "extra_components" in p}
+        assert freed == {f"instrument.extra_components.0.{n}"
+                         for n in PEAK_FIELDS}, mode
+        assert not any(mode_fixed_path(p, mode) for p in freed), mode
+        compile_model(structure, ins, data, mode=mode,
+                      moving_paths=set(table.moving_paths))
+
+
+def test_both_partition_nets_subtract_the_same_curve():
+    """Le Bail and Pawley must not partition one pattern two ways.
+
+    Two call sites, one subtraction: the test reads the net each builds rather
+    than trusting that both were edited, which is the failure clause 4 names
+    one layer down (a change made in one of a pair).
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = _instrument(peaks=[make_peak(center=40.0, area=500.0)])
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 500.0).tolist())
+
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="lebail",
+                          moving_paths=set(table.moving_paths))
+    values = table.decode(table.x0())
+    curve = np.asarray(model.extra_peak_curve(values))
+    assert curve.max() > 0.0
+
+    net = np.maximum(np.asarray(model.y_obs) - np.asarray(model.background(values))
+                     - curve, 0.0)
+    assert net.min() >= 0.0
+    # the curve is genuinely taken out of the net where the peak is
+    apex = int(np.argmax(curve))
+    assert net[apex] < float(np.asarray(model.y_obs)[apex])
+
+
+# ----------------------------------------------------------------------
+# the Jacobian: the FD fallback is declared, not discovered
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", PEAK_FIELDS)
+def test_no_analytic_branch_claims_a_peak_component_path(name):
+    """WP-1070's failure mode: a branch that claims a path it does not reach.
+
+    `_make_jacobian` dispatches on the free path's *name*, and a branch that
+    answers for a path it was not written for returns a column that is wrong
+    rather than absent.  The hump's version of this test one member over; the
+    peak needs its own because its four names are different names.
+    """
+    structure = make_lab6()
+    ins = _instrument(peaks=[make_peak(center=40.0, area=300.0)])
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    path = f"instrument.extra_components.0.{name}"
+    assert model.scalar_chain_supported(path) is False
+
+
+def test_peak_component_paths_never_join_the_linear_background_block():
+    """`bkg_paths` is a block whose columns are claimed *exact* design rows.
+
+    A declared peak is nonlinear in its centre, width and mixing, so a path of
+    its in that tuple would take the "y is linear in this coefficient" branch
+    and get a silently wrong column — the hump's reason, and it applies to this
+    member with one more nonlinear parameter.
+    """
+    structure = make_lab6()
+    ins = _instrument(peaks=[make_peak(center=40.0, area=300.0)],
+                      background=BackgroundChebyshev.with_terms(5))
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    peak_paths = {f"instrument.extra_components.0.{n}" for n in PEAK_FIELDS}
+    assert set(model.bkg_paths).isdisjoint(peak_paths)
+    assert model.component_paths == ()          # it is not a hump either
+
+
+# ----------------------------------------------------------------------
+# evidence: recommend, never refuse
+# ----------------------------------------------------------------------
+
+
+def _clean_lab6(seed=1, lo=20.0, hi=90.0, step=0.02, boost_at=None,
+                boost_frac=0.35):
+    """A LaB6 pattern the model can fit exactly, optionally with one line boosted.
+
+    ``boost_at`` adds intensity to a single reflection that no parameter of the
+    model can produce, which is the state a caller reaches for a declared peak
+    in as a *shortcut* — the use `EXTRA_PEAK_ON_REFLECTION` exists to name.
+    """
+    rng = np.random.default_rng(seed)
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ins.source.dispersion = None
+    ins.profile.w.value = 3e-3
+    ins.profile.x.value = 5e-3
+    tt = np.arange(lo, hi, step)
+    blank = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, blank, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    y = np.asarray(model.evaluate(table.decode(table.x0()))) + 40.0
+    strongest = float(tt[int(np.argmax(y))])
+    if boost_at is not None:
+        y = y + boost_frac * y.max() * np.exp(-((tt - boost_at) / 0.08) ** 2)
+    data = PatternData(
+        two_theta=tt.tolist(),
+        intensity=rng.poisson(np.maximum(y, 0.1)).astype(float).tolist())
+    return structure, ins, data, strongest
+
+
+def _fit_with_peak(structure, ins, data, peak, turn_on):
+    ins_fit = ins.model_copy(deep=True)
+    ins_fit.extra_components = [peak]
+    ref = rx.Refinement(structure.model_copy(deep=True), ins_fit, history=False)
+    return ref.fit(data, plan=PlanSpec(stages=[
+        StageSpec(name="scale_bkg",
+                  turn_on=["phases.*.scale", "instrument.background.*"]),
+        StageSpec(name="component", turn_on=list(turn_on))]))
+
+
+def test_a_declared_peak_the_data_cannot_see_says_so():
+    """The honest evidence for "not needed", and it is not an Rwp comparison.
+
+    A peak reaches the pattern only through `area × profile`, so at zero area
+    nothing constrains its centre either — WP-1110 item 13's zero-scale phase,
+    one rank down.  The area's own esd is *absent*, which is the equilibrated
+    covariance telling the truth; the diagnostic is what makes that legible
+    without a reader knowing to look for a missing number.
+    """
+    structure, ins, data, _strong = _clean_lab6()
+    peak = make_peak(center=43.5, span=0.5, area=0.0)
+    result = _fit_with_peak(structure, ins, data, peak,
+                            ["instrument.extra_components.*"])
+
+    codes = [d.code for d in result.diagnostics]
+    assert "EXTRA_PEAK_NO_INTENSITY" in codes
+    assert "EXTRA_PEAK_ON_REFLECTION" not in codes
+
+    fired = next(d for d in result.diagnostics
+                 if d.code == "EXTRA_PEAK_NO_INTENSITY")
+    assert any(p.endswith(".center") for p in fired.where)
+    assert any(p.endswith(".area") for p in fired.where)
+
+    area = next(p for p in result.parameters if p.path.endswith(".area"))
+    assert area.stderr is None                    # unmeasured, not precise
+
+
+def test_a_declared_peak_on_a_predicted_line_is_named_as_a_degeneracy():
+    """The impurity-shortcut use, reported and never refused.
+
+    It may be exactly right — a holder line overlapping a sample peak is the
+    design case — so the finding is about *interpretation*: two terms describe
+    one peak and nothing in Rwp says which owns the counts.
+    """
+    _s, _i, _d, strong = _clean_lab6()          # where the strongest line is
+    structure2, ins2, data2, _ = _clean_lab6(seed=1, boost_at=strong)
+
+    peak = make_peak(center=strong, span=0.5, area=50.0)
+    result = _fit_with_peak(structure2, ins2, data2, peak,
+                            ["instrument.extra_components.0.area",
+                             "instrument.extra_components.0.fwhm"])
+
+    fired = [d for d in result.diagnostics
+             if d.code == "EXTRA_PEAK_ON_REFLECTION"]
+    assert len(fired) == 1
+    assert "degeneracy" in fired[0].message
+    assert fired[0].level == "warning"
+    assert any(p.endswith(".center") for p in fired[0].where)
+    # reported, never refused: the fit completed and carries an answer
+    assert result.status == "converged"
+    area = next(p for p in result.parameters if p.path.endswith(".area"))
+    assert area.value > 0.0
+
+
+def test_the_match_tolerance_is_layer_zeros_own_constant():
+    """Two consumers of one question must not answer it with two numbers.
+
+    A component inside Layer 0's tolerance is a component Layer 0 would have
+    matched to that reflection, so the diagnostic has to use Layer 0's number
+    and not a second one that happens to be similar.
+    """
+    import inspect
+
+    from rietx.report.layer0 import LAYER0_MATCH_TOL_DEG, build_layer0
+
+    assert LAYER0_MATCH_TOL_DEG == 0.08
+    sig = inspect.signature(build_layer0)
+    assert sig.parameters["match_tol_deg"].default == LAYER0_MATCH_TOL_DEG
+
+
+def test_the_evidence_channel_never_refuses_a_declared_peak():
+    """The WP's stance, asserted rather than assumed.
+
+    Every path that could have become a gate is a `Diagnostic` instead: the
+    fit converges, the parameters come back, and the findings are advice.  The
+    only refusals this member has are about arithmetic — a window with no
+    channels in it, and a phase name collision — both of which are tested
+    elsewhere and neither of which is about whether the peak is plausible.
+    """
+    structure, ins, data, strong = _clean_lab6(seed=1, boost_at=None)
+    peak = make_peak(center=strong, span=0.5, area=50.0)
+    result = _fit_with_peak(structure, ins, data, peak,
+                            ["instrument.extra_components.*"])
+    assert result.status in ("converged", "max_iter")
+    assert any("extra_components" in p.path for p in result.parameters)
+    for d in result.diagnostics:
+        assert d.level in ("info", "warning")     # never an error
+
+
+def test_the_peak_absorption_statistic_separates_the_three_cases():
+    """The measurement that decided no threshold ships (WP-1103).
+
+    Three arms on one fixture: a declared peak in empty background that the
+    data cannot see; the design case, a real overlapping intruder away from any
+    line; and the parasitic case, a peak sitting on a reflection and absorbing
+    misfit the model should have carried.
+
+    Measured R² of the worst structural column on the peak's span:
+
+        healthy (nothing there)      0.0000
+        design case (real intruder)  0.0004
+        parasitic (on a reflection)  0.2099
+
+    The separation is real — three orders of magnitude — and it is still **not
+    enough to ship a threshold on**: three arms of one synthetic fixture, one
+    phase, one component.  The background guard's 0.25 was measured across real
+    cases, and borrowing it here would not even have fired on the parasitic arm
+    (0.2099 < 0.25), which is the concrete argument against copying a number
+    across a seam because the statistic is the same.  So the table is reported
+    and the *positional* test carries the verdict.
+
+    This test pins the ordering rather than the numbers, so a change that
+    inverts the evidence fails while one that moves it does not.
+    """
+    def worst(result):
+        table = (dict(result.identifiability.extra_peak_absorption)
+                 if result.identifiability else {})
+        return max(table.values()) if table else None
+
+    structure, ins, data, strong = _clean_lab6()
+    free = ["instrument.extra_components.0.area",
+            "instrument.extra_components.0.fwhm", "phases.*.atoms.*.biso"]
+
+    healthy = worst(_fit_with_peak(structure, ins, data,
+                                   make_peak(center=43.5, span=0.5, area=200.0),
+                                   free))
+    s2, i2, d2, _ = _clean_lab6(seed=1, boost_at=strong)
+    parasitic = worst(_fit_with_peak(s2, i2, d2,
+                                     make_peak(center=strong, span=0.5,
+                                               area=200.0), free))
+
+    assert healthy is not None and parasitic is not None
+    assert healthy < 0.01
+    assert parasitic > 20 * max(healthy, 1e-6)
+    # and the borrowed background threshold would have missed it
+    assert parasitic < BACKGROUND_ABSORPTION_GUARD
+
+
+def test_the_two_declared_counts_split_when_the_members_do():
+    """`n_extra_components` is the list; `n_background_components` is the humps.
+
+    They were one number while a hump was the only member, and the field that
+    consumes the second — `BackgroundEvidence.n_peaks`, which a reader uses to
+    judge how flexible the background was allowed to be — went on reading the
+    first.  Nothing caught it: every existing test declares humps only, where
+    the two agree.  A declared sharp peak is freedom the caller granted, but it
+    is not *background* freedom, and counting it as such overstates exactly
+    what the absorption table beside it measures.
+    """
+    from rietx.report import build_report
+
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=35.0, unit="deg")),
+        make_peak(center=40.0, area=300.0),
+        make_peak(center=45.0, area=300.0),
+    ])
+    tt = np.arange(15.0, 60.0, 0.05)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 200.0).tolist())
+
+    ref = rx.Refinement(structure, ins)
+    result = ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage(name="bkg", turn_on=["instrument.background.*"], max_iter=2)]))
+
+    assert result.n_extra_components == 3          # the list
+    assert result.n_background_components == 1     # the humps
+    assert build_report(result).background.n_peaks == 1
+
+    # and a replayed node carries both, being declarations rather than
+    # measurements — the reason the first one lives on the result at all
+    replayed = rx.replay(ref.history, result.node_id, data)
+    assert replayed.n_extra_components == 3
+    assert replayed.n_background_components == 1
+
+
+def test_the_counts_agree_when_only_humps_are_declared():
+    """The pre-1103 case, pinned so the split cannot drift into it.
+
+    Every v1.2-era caller declares humps alone, and for them the two numbers
+    are the same number — which is why nothing noticed when one of them
+    silently became the other.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = _instrument(peaks=(_peak(vary=False), _peak(position=70.0,
+                                                      vary=False)))
+    tt = np.arange(15.0, 60.0, 0.05)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 200.0).tolist())
+    ref = rx.Refinement(structure, ins)
+    result = ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage(name="bkg", turn_on=["instrument.background.*"], max_iter=2)]))
+
+    assert result.n_extra_components == 2
+    assert result.n_background_components == result.n_extra_components
+
+
+def test_a_declared_peak_unclaims_the_two_instrument_paths_it_widens():
+    """The WP-1070 invariant, which this member breaks in a new place.
+
+    `extra_peak_curve` scales every non-primary image by
+    `weight_l · Lp(2θ_l)/Lp(2θ_0)`, so with a peak compiled,
+    `instrument.polarization` and each line `weight` move counts that no
+    per-peak scalar chain evaluates.  An analytic branch claiming them returns
+    the column **short** rather than raising — the failure mode that rule
+    exists for — and the shortfall is the whole peak.
+
+    Conditioned on a peak actually being compiled, so a model without one keeps
+    the analytic column it has always had; both halves are asserted, because
+    unclaiming the paths unconditionally would cost every ordinary fit its
+    analytic polarization column.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    tt = np.arange(35.0, 45.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 50.0).tolist())
+    widened = ("instrument.polarization", "instrument.source.lines.1.weight")
+
+    def build(peaks):
+        # a two-line source, because the widening *is* the Kalpha2 image: on a
+        # single-line source there is no ratio to take and the curve does not
+        # depend on either path.  The guard is deliberately blunter than that —
+        # it fires whenever a peak is compiled — which costs a single-line
+        # instrument an analytic column it would not have missed.  That is a
+        # cheap trade (polarization is rarely freed and line 0's weight is
+        # structurally locked) against a condition that could go stale.
+        ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+        ins.source.dispersion = None
+        ins.extra_components = list(peaks)
+        table = ParameterTable(structure, ins)
+        return table, compile_model(structure, ins, data, mode="rietveld",
+                                    moving_paths=set(table.moving_paths))
+
+    # without a peak: still claimed, as before this member existed
+    _t, plain = build(())
+    for path in widened:
+        assert plain.scalar_chain_supported(path) is True, path
+
+    # with one: unclaimed, and the curve really does move with both
+    table, model = build([make_peak(center=40.0, span=0.4, area=500.0)])
+    values = table.decode(table.x0())
+    base = np.asarray(model.extra_peak_curve(values))
+    for path in widened:
+        assert model.scalar_chain_supported(path) is False, path
+        bumped = dict(values)
+        bumped[path] = values[path] + 1e-6
+        moved = np.abs(np.asarray(model.extra_peak_curve(bumped)) - base).max()
+        assert moved > 0.0, path
+
+
+def test_an_inert_declaration_is_not_reported_as_having_refined_to_nothing():
+    """`EXTRA_PEAK_NO_INTENSITY` is about what the *fit* did.
+
+    A declared peak's area defaults to 0 and stays there unless a stage frees
+    it, which is the ordinary case — declare now, free later, or never.  Firing
+    there would warn about a refinement that never happened, on the most common
+    state this member is in.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = _instrument(peaks=[make_peak(center=40.0, span=0.4)])
+    tt = np.arange(15.0, 60.0, 0.05)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 200.0).tolist())
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage(name="bkg", turn_on=["instrument.background.*"], max_iter=2)]))
+
+    assert not [d for d in result.diagnostics
+                if d.code.startswith("EXTRA_PEAK")]
+
+
+def test_the_cif_background_description_counts_humps_only():
+    """A deposited file must not claim flexibility the fit never granted.
+
+    The same miscount as `n_extra_components`, in a third place and with a
+    worse consequence: this sentence goes into the CIF a reader deposits.
+    """
+    from rietx.io.exporters import _background_description
+
+    hump_only = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=35.0, unit="deg"))])
+    assert "1 explicit Gaussian background peak" in \
+        _background_description(hump_only)
+
+    with_peak = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=35.0, unit="deg")),
+        make_peak(center=40.0),
+    ])
+    assert "1 explicit Gaussian background peak" in \
+        _background_description(with_peak)
+    assert "2 explicit" not in _background_description(with_peak)
+
+    peak_only = _instrument(peaks=[make_peak(center=40.0)])
+    assert "explicit Gaussian background peak" not in \
+        _background_description(peak_only)
+
+
+def test_a_pre_v1_4_result_keeps_its_background_count_when_reopened():
+    """Before v1.4 every declared component *was* background.
+
+    A stored result carries only `n_extra_components`, so without the
+    migration `report.background.n_peaks` comes back `None` — "nothing
+    counted" — about a document that counted it perfectly well.
+    """
+    from rietx.schemas.results import RefinementResult
+
+    doc = {"mode": "rietveld", "status": "converged",
+           "provenance": {"package_version": "1.3.0"},
+           "two_theta": [10.0], "y_obs": [1.0], "y_calc": [1.0],
+           "parameters": [],
+           "statistics": {"rwp": 1.0, "rp": 1.0, "rexp": 1.0, "chi2": 1.0,
+                          "gof": 1.0, "n_points": 1, "n_free_parameters": 0},
+           "n_extra_components": 2}
+    reopened = RefinementResult.model_validate(doc)
+    assert reopened.n_extra_components == 2
+    assert reopened.n_background_components == 2
+
+    # a v1.4 writer states both, so the migration never overrides a real answer
+    doc_14 = dict(doc, n_extra_components=3, n_background_components=1)
+    assert RefinementResult.model_validate(doc_14).n_background_components == 1

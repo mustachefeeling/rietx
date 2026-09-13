@@ -297,6 +297,19 @@ class Identifiability(Base):
     """
 
     background_absorption: dict[str, float] = Field(default_factory=dict)
+    #: The same statistic asked of the component seam's *other* member
+    #: (WP-1103): R² of each screened structural column on the span of the
+    #: **declared sharp peaks**.  Evidence only — no threshold fires on it,
+    #: because the 0.25 above was measured for background blocks and nothing
+    #: has measured what separates a healthy declared peak from a parasitic
+    #: one.  ``EXTRA_PEAK_ON_REFLECTION`` carries the verdict this number is
+    #: evidence beside, and it is a *positional* test rather than a
+    #: correlational one.
+    #:
+    #: The two tables **partition** the declared components: a component is in
+    #: one block or the other, never both, by its declared aggregate.  Empty
+    #: when no peak component is declared or freed.
+    extra_peak_absorption: dict[str, float] = Field(default_factory=dict)
     top_correlations: list[CorrelationPair] = Field(default_factory=list)
     soft_modes: list[SoftMode] = Field(default_factory=list)
     exchangeability: list[ExchangeRow] = Field(default_factory=list)
@@ -1040,6 +1053,20 @@ class RefinementResult(Base):
     # reason, a joint multi-histogram fit (one count per histogram, reported
     # through each histogram) or a result recorded before the feature existed.
     n_extra_components: int | None = None
+    #: How many of those are **background-landing** — humps, in v1.4's
+    #: vocabulary (WP-1103).  Equal to :attr:`n_extra_components` until the seam
+    #: gained a second member, and a separate number now because the two answer
+    #: different questions: that one is "what did I declare", this one is "how
+    #: much *background* flexibility was granted", which is what a reader
+    #: comparing two Rwp values needs and what
+    #: :attr:`Identifiability.background_absorption` screens.  A declared sharp
+    #: peak is in the first and not the second.
+    #:
+    #: Written from ``len(CompiledModel.component_paths)``, the frozen compile
+    #: state, on the same terms as the count above — declared, not measured, so
+    #: a ``replay`` carries it.  ``None`` means nothing counted, never "none
+    #: declared", which is ``0``.
+    n_background_components: int | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -1062,6 +1089,19 @@ class RefinementResult(Base):
             value = dict(value)
             legacy = value.pop(_LEGACY_COUNT_FIELD)
             value.setdefault("n_extra_components", legacy)
+        # ``n_background_components`` landed in v1.4 beside a second union
+        # member.  Before it, every declared component *was* background, so a
+        # document that counted one and not the other is telling us both — and
+        # without this the count silently disappears from
+        # ``report.background.n_peaks`` the moment an older result is reopened,
+        # which is the ``None``-means-nothing-counted lie one field over.  A
+        # v1.4 writer always states both (0 included), so this never overrides
+        # a real answer.
+        if (isinstance(value, dict)
+                and value.get("n_extra_components") is not None
+                and value.get("n_background_components") is None):
+            value = dict(value)
+            value["n_background_components"] = value["n_extra_components"]
         return value
 
     # Per-histogram slices of a multi-histogram joint refinement (WP-0308);

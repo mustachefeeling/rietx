@@ -85,6 +85,7 @@ from ..schemas.common import Mode
 from ..schemas.instrument import (
     CAPILLARY_OFFSETS,
     HUMP_FIELDS,
+    PEAK_FIELDS,
     BackgroundChebyshev,
     BackgroundFixedPlusChebyshev,
     BackgroundPSpline,
@@ -98,6 +99,7 @@ from .absorption import (
     flat_plate_reflection_absorption,
     flat_plate_transmission_absorption,
 )
+from .components import COMPONENT_AGGREGATE, EXTRA_TICK_KEY
 from .corrections import (
     capillary_displacement_shift_deg,
     displacement_shift_deg,
@@ -422,6 +424,76 @@ PAWLEY_OVERLAP_FWHM_FRAC = 0.5
 PAWLEY_OVERLAP_LAMBDA = 1.0
 
 
+
+def _line_image_deg(tt_primary, lam_ratio: float, xp):
+    """2θ of an emission line, given the **primary** line's 2θ — Bragg's law.
+
+    sin θ_l = (λ_l/λ_0)·sin θ_0, which is the same ghost transform
+    ``background.diagnostics`` uses and the same one
+    ``indexing.peakfit._line_pos`` applies to a fitted position.  Written in
+    ``xp`` ops because ``tt_primary`` is θ-derived: this is on the traced path
+    for every backend.
+
+    ``lam_ratio`` is 1.0 for the primary line and the identity is exact there,
+    so a single-line source reproduces the pre-1103 arithmetic bit for bit.
+    """
+    if lam_ratio == 1.0:
+        return tt_primary
+    s = lam_ratio * xp.sin(xp.radians(0.5 * tt_primary))
+    return 2.0 * xp.degrees(xp.arcsin(s))
+
+
+@dataclass
+class CompiledExtraPeak:
+    """One declared :class:`~rietx.schemas.instrument.PeakComponent`, frozen.
+
+    The peak-landing half of the component seam
+    (:data:`rietx.model.components.COMPONENT_AGGREGATE`).  What is frozen here
+    is exactly what the frozen-per-stage invariant asks for and no more: how
+    many peaks there are, which emission lines each one images onto, and the
+    **index range** of each (line, peak) window.  Where the peak sits, how wide
+    it is and how much of it there is are smooth, so they are read from the
+    θ-decoded values on every call.
+
+    **The windows are sized from the parameter's bounds, never from its value.**
+    That is the whole reason
+    :class:`~rietx.schemas.instrument.PeakComponent` requires finite bounds on
+    ``center`` and ``fwhm``: the half-width is ``k(η_max)·fwhm_max + slack``
+    and the span is the Bragg image of ``[center.min, center.max]``, so a centre
+    free to move anywhere its bounds allow is inside its frozen window *by
+    construction*.  The alternative — sizing from the compile-time value and
+    widening for the free ones — would need ``free_paths`` plumbed into
+    ``compile_model`` and would still be a claim about how far a solver step can
+    go.
+    """
+
+    #: index in ``Instrument.extra_components``, so a diagnostic can name the
+    #: dot-path a user declared
+    index: int
+    label: str | None
+    #: field name → dot-path, from the one field list the table registers
+    paths: dict[str, str]
+    #: ``(n_lines, 2)`` frozen [i0, i1) index ranges into ``tt``; a line this
+    #: peak does not image onto carries ``[0, 0)``
+    win: np.ndarray
+    #: λ_l/λ_0 per line — the Bragg-image ratio, frozen at compile with the
+    #: window it sizes.  A wavelength *is* a table row since WP-1134, so the
+    #: freeze is a declaration and not a fact about θ: a stage that frees λ
+    #: moves every Bragg peak and leaves this ratio where the stage found it.
+    #: Legitimate at the scale a calibration moves λ (ppm, against a ratio the
+    #: window's slack covers many times over) and required by the
+    #: frozen-per-stage contract the window rests on — the ``f_anom`` argument
+    #: in ``scalar_chain_supported``, one member over.
+    lam_ratio: np.ndarray
+    #: dot-path of each line's weight; line 0 is structurally locked at 1
+    weight_paths: tuple[str, ...]
+    #: ``False`` restricts the peak to the primary line: something that does not
+    #: diffract has no Kα2 image, and placing one would be a claim about physics
+    #: that is not happening
+    all_lines: bool
+
+
+
 @dataclass
 class CompiledPhase:
     reflections: ReflectionSet
@@ -575,6 +647,19 @@ class CompiledModel:
     # untouched; the peak sum is added after it.  A test asserts the two path
     # sets are disjoint.
     component_paths: tuple[tuple[str, str, str], ...] = ()
+    # Declared sharp peaks (schemas.instrument.PeakComponent), the *other* half
+    # of the same seam.  They are here and not in ``component_paths`` because
+    # the two members land in different places and that difference is the
+    # contract's clause 2: a hump joins the reported background, a peak does
+    # not.  ``compile_model`` partitions ``Instrument.extra_components`` by
+    # ``model.components.COMPONENT_AGGREGATE``, which is read, never inferred.
+    #
+    # The consequence a caller sees: a peak's curve is **not** in
+    # ``background()``, so it is not in ``result.y_background`` and not drawn as
+    # background anywhere — and its subtraction from the Le Bail/Pawley net is
+    # therefore not free, the way a hump's is.  It is done explicitly at both
+    # nets, which is the whole of clause 3 for this member.
+    peak_components: tuple["CompiledExtraPeak", ...] = ()
     # peak shape frozen for the stage: "tchz_pv" (default pseudo-Voigt) or
     # "voigt" (true Gaussian⊗Lorentzian via the shared Faddeeva w(z)).  A
     # compile-time structural constant, never a θ entry — the width parameters
@@ -636,6 +721,102 @@ class CompiledModel:
                 y = y + hump_curve(
                     tt, values[pos_path], values[height_path],
                     values[fwhm_path], xp)
+        return y
+
+    def peak_component_prefixes(self) -> frozenset[str]:
+        """Dot-path prefixes of the components that are **not** background.
+
+        One spelling, because two consumers must partition the declared
+        components the same way: ``background_absorption`` excludes exactly
+        these and ``extra_peak_absorption`` takes exactly these, and a set that
+        disagreed between them would count a component twice or not at all —
+        which is the failure clause 2 of the member contract exists to prevent,
+        reaching a statistic instead of a curve.
+        """
+        return frozenset(f"instrument.extra_components.{pc.index}."
+                         for pc in self.peak_components)
+
+    def extra_peak_tick_positions(self, values: dict[str, float]) -> list[float]:
+        """Where every declared sharp peak's emission-line images sit, in °2θ.
+
+        The tick half of the member contract's clause 2, written once because
+        **two** result builders owe it: ``refine._build_result`` and
+        ``multi.MultiHistogramRefinement._ticks``.  A copy in each is how a
+        joint fit ends up reporting a declared peak as an unindexed impurity
+        while a single-histogram fit does not — the ``ticks`` failure this
+        exists to prevent, one surface over.
+
+        **No zero shift**, unlike a phase's ticks: the centre is the *apparent*
+        position by declaration and carries its own aberrations
+        (:class:`~rietx.schemas.instrument.PeakComponent`), so adding the
+        specimen's shift would move a tick off the peak the model drew.
+
+        Sorted, and empty when nothing is declared — so a caller writes the
+        reserved key only when there is something to put under it.
+        """
+        out: list[float] = []
+        for pc in self.peak_components:
+            centre = values[pc.paths["center"]]
+            reach = len(pc.lam_ratio) if pc.all_lines else 1
+            for il in range(reach):
+                pos_l = _line_image_deg(centre, float(pc.lam_ratio[il]), np)
+                if np.isfinite(pos_l):
+                    out.append(float(pos_l))
+        return sorted(out)
+
+    def extra_peak_curve(self, values: dict[str, float]):
+        """Every declared sharp peak, summed on the fit grid.
+
+        Zeros when none is declared, and the empty case is *exactly* off: the
+        loop does not run and the array is the additive identity, so a model
+        that declares no peak is bit-identical to the pre-1103 one.
+
+            y(2θ) = Σ_peaks Σ_lines A·g_l · pV(2θ − 2θ_l; Γ, η)
+
+        with ``g_l = w_l · Lp(2θ_l)/Lp(2θ_0)`` the line gain and 2θ_l the Bragg
+        image of the declared centre.  The gain is the *measured* form, not the
+        bare weight: each line diffracts at its own Bragg angle so it carries
+        its own Lorentz-polarisation factor, and holding the bare weight instead
+        biases the fitted primary position (−2e-4° and −0.26 mean σ pull on lab
+        Cu Kα LaB6, WP-1018; :mod:`rietx.indexing.peakfit` states the same
+        arithmetic for the same reason).  Line 0's weight is structurally locked
+        at 1 and its own ratio is 1, so ``area`` is the primary line's area.
+
+        **No FCJ.**  The axial divergence of whatever is making this peak is not
+        the specimen's, so applying the specimen's asymmetry would be worse than
+        applying none; the symmetric pseudo-Voigt is the honest simple model and
+        the WP says so as a non-goal rather than as an oversight.
+
+        Windowed, with the window frozen at compile — see
+        :class:`CompiledExtraPeak` for why sizing it from bounds is what makes
+        the frozen-per-stage invariant hold without any free-path analysis.
+        """
+        xp = get_backend()
+        y = xp.zeros_like(xp.asarray(self.tt, dtype=np.float64))
+        if not self.peak_components:
+            return y
+        tt = xp.asarray(self.tt, dtype=np.float64)
+        pol = values["instrument.polarization"]
+        for peak in self.peak_components:
+            center = values[peak.paths["center"]]
+            area = values[peak.paths["area"]]
+            gamma = values[peak.paths["fwhm"]]
+            eta = values[peak.paths["eta"]]
+            lp0 = lorentz_polarization(center, pol)
+            n_lines = 1 if not peak.all_lines else len(peak.weight_paths)
+            for il in range(n_lines):
+                i0, i1 = int(peak.win[il, 0]), int(peak.win[il, 1])
+                if i1 <= i0:
+                    continue
+                pos = _line_image_deg(center, float(peak.lam_ratio[il]), xp)
+                gain = values[peak.weight_paths[il]]
+                if il:
+                    gain = gain * (lorentz_polarization(pos, pol) / lp0)
+                prof = pseudo_voigt(tt[i0:i1] - pos, gamma, eta)
+                # ``window_add`` is THE scatter op (backend/api.py): the index
+                # range is a frozen constant but the values are θ-derived, and
+                # a traced backend has no in-place write
+                y = xp.window_add(y, i0, i1, area * gain * prof)
         return y
 
     def instrument_fwhm_deg(self, two_theta, values: dict[str, float]):
@@ -1428,7 +1609,15 @@ class CompiledModel:
         """y_calc on the fit grid.  ``intensities`` (one per-hkl vector per
         phase) is required semantics for the hot loop in lebail/pawley mode;
         at-rest callers omit it and read the buffers."""
-        return self.background(values) + self.bragg_component(values, intensities)
+        if not self.peak_components:
+            # The empty case is off at the *call*, not inside a summed zero
+            # array: this is the hot loop, and a model that declares no peak
+            # pays neither the allocation nor the add.  Both arms keep the
+            # association they had — addition is not associative, so folding
+            # these two returns into one would move every converged fit.
+            return self.background(values) + self.bragg_component(values, intensities)
+        return (self.background(values) + self.extra_peak_curve(values)
+                + self.bragg_component(values, intensities))
 
     def phase_support(self, values: dict[str, float]) -> np.ndarray:
         """Each phase's strongest modelled point, in σ of the observation noise.
@@ -1642,6 +1831,23 @@ class CompiledModel:
         # true value is zero, and the FD column is exact because it decodes
         # through C like the residual does.
         if path.startswith("instrument.extra_components."):
+            return False
+        # A *declared sharp peak* widens what two instrument names reach, and
+        # the widening is outside every analytic branch: ``extra_peak_curve``
+        # scales each non-primary image by ``weight_l · Lp(2θ_l)/Lp(2θ_0)``, so
+        # with a peak compiled, ``instrument.polarization`` and a line
+        # ``weight`` move counts the per-peak scalar chain never sees.  Left
+        # claimed, the column comes back **short** rather than raising — the
+        # WP-1070 failure exactly: measured at 0 against a whole-model FD of
+        # −1.75 on the Kα2 rows of a 500 counts·deg holder line.  Conditioned
+        # on a peak actually being compiled, so a model without one keeps the
+        # analytic column it has always had.  ``getattr`` because this
+        # predicate is called unbound on ``None`` by a test that asks only
+        # about a path.
+        if getattr(self, "peak_components", ()) and (
+                path == "instrument.polarization"
+                or (path.startswith("instrument.source.lines.")
+                    and path.endswith(".weight"))):
             return False
         if path.startswith("phases."):
             return True
@@ -1911,7 +2117,12 @@ class CompiledModel:
         intens = [np.asarray(cp.hkl_intensity, dtype=np.float64) for cp in self.phases]
         for _ in range(n_cycles):
             bkg = self.background(values)
-            net = xp.maximum(self.y_obs - bkg, 0.0)
+            # clause 3, and the one thing a peak-landing member costs that a
+            # background-landing one does not: a hump is inside ``background``
+            # and so is subtracted for free, a peak has to be subtracted here.
+            # Without it the phases are handed shares of counts that belong to
+            # a holder.
+            net = xp.maximum(self.y_obs - bkg - self.extra_peak_curve(values), 0.0)
 
             # pass 1 — every phase's profiles, and the *total* Bragg curve they
             # are shares of.  One pass per phase would be cheaper by nothing:
@@ -2018,7 +2229,10 @@ class CompiledModel:
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
         bkg = np.asarray(self.background(values), dtype=np.float64)
-        net = np.maximum(np.asarray(self.y_obs, dtype=np.float64) - bkg, 0.0)
+        # clause 3 — see ``lebail_update``; the two nets must agree or Le Bail
+        # and Pawley partition the same pattern differently
+        extra = np.asarray(self.extra_peak_curve(values), dtype=np.float64)
+        net = np.maximum(np.asarray(self.y_obs, dtype=np.float64) - bkg - extra, 0.0)
 
         # pass 1 — every phase's profiles and the *total* Bragg curve they are
         # shares of.  Per-phase denominators would issue the same counts once
@@ -2424,6 +2638,71 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
     raise exc
 
 
+
+def _compile_extra_peaks(instrument, tt: np.ndarray, lams: list[float]
+                         ) -> tuple[CompiledExtraPeak, ...]:
+    """Freeze one window per (emission line, declared sharp peak).
+
+    **Sized from bounds, not values.**  The span is the Bragg image of
+    ``[center.min, center.max]`` and the half-width is
+    ``window_fwhm_mult(eta.max)·fwhm.max + WINDOW_MIN_DEG``, so every state the
+    solver can legally reach during this stage is inside the window that was
+    frozen for it.  Sizing from the compile-time *value* would need to know
+    which paths are free and how far a trust-region step can carry them, which
+    is a claim; a bound is a fact the schema already holds, which is why
+    :class:`~rietx.schemas.instrument.PeakComponent` insists on finite ones.
+
+    ``k(η)`` is taken at η's **upper** bound because it is steeply increasing
+    (k(0) ≈ 1.05, k(1) ≈ 16) and a window must cover the widest tail the peak
+    may adopt, not the tail it starts with.  ``WINDOW_MIN_DEG`` is the same
+    absolute movement slack every phase window carries.
+
+    A window holding no fitted channel is **refused**, naming the peak: a free
+    parameter whose column is identically zero is a dead column, and the honest
+    time to say so is now rather than at an esd that never arrives.  It is not
+    an expertise gate — a declared peak that *is* in range is never questioned,
+    however implausible.
+    """
+    out: list[CompiledExtraPeak] = []
+    for i, comp in enumerate(instrument.extra_components):
+        if COMPONENT_AGGREGATE[comp.kind] != "ticks":
+            continue
+        half = (float(window_fwhm_mult(np.float64(comp.eta.max)))
+                * comp.fwhm.max + WINDOW_MIN_DEG)
+        n_lines = len(lams)
+        win = np.zeros((n_lines, 2), dtype=np.int64)
+        ratios = np.array([lam / lams[0] for lam in lams], dtype=np.float64)
+        reach = 1 if not comp.all_lines else n_lines
+        for il in range(reach):
+            lo = _line_image_deg(comp.center.min, float(ratios[il]), np)
+            hi = _line_image_deg(comp.center.max, float(ratios[il]), np)
+            if not (np.isfinite(lo) and np.isfinite(hi)):
+                # the image of this centre is past the Bragg limit for this
+                # line: the line simply has no image, which is a fact about the
+                # wavelength and not a caller error
+                continue
+            win[il, 0] = int(np.searchsorted(tt, lo - half, side="left"))
+            win[il, 1] = int(np.searchsorted(tt, hi + half, side="right"))
+        if int(win[:, 1].sum() - win[:, 0].sum()) <= 0:
+            name = comp.label or f"extra_components[{i}]"
+            raise ValueError(
+                f"declared peak {name!r} covers no fitted channel: its centre "
+                f"bounds [{comp.center.min}, {comp.center.max}] deg, widened by "
+                f"{half:.3f} deg, fall outside the fitted range "
+                f"[{tt[0]:.3f}, {tt[-1]:.3f}] deg (or entirely inside an "
+                "excluded region). Move the centre bounds onto the peak you "
+                "mean, or drop the component.")
+        out.append(CompiledExtraPeak(
+            index=i, label=comp.label,
+            paths={n: f"instrument.extra_components.{i}.{n}"
+                   for n in PEAK_FIELDS},
+            win=win, lam_ratio=ratios,
+            weight_paths=tuple(f"instrument.source.lines.{il}.weight"
+                               for il in range(n_lines)),
+            all_lines=bool(comp.all_lines)))
+    return tuple(out)
+
+
 def compile_model(structure: Structure, instrument: Instrument, pattern: PatternData,
                   *, mode: Mode = "rietveld",
                   two_theta_limits: tuple[float, float] | None = None,
@@ -2689,14 +2968,37 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     else:  # pragma: no cover - schema exhausts the union
         raise TypeError(f"unsupported background model {type(bkg).__name__}")
 
-    # the peak *count* is frozen here (discrete); the positions, heights and
-    # widths are read from θ on every call (smooth).  Built from the same field
-    # list the parameter table registers, so a path can never be spelled two
-    # ways — see ``params.vector.extra_component_parameters``.
+    # the component *count* is frozen here (discrete); every position, width,
+    # height and area is read from θ on every call (smooth).  Built from the
+    # same field lists the parameter table registers, so a path can never be
+    # spelled two ways — see ``params.vector.extra_component_parameters``.
+    #
+    # **The list is partitioned by declared aggregate, never by class name**
+    # (``model.components.COMPONENT_AGGREGATE``, the member contract's clause 2).
+    # A hump joins the background block below; a peak is compiled into its own
+    # frozen windows and evaluated outside ``background`` entirely.
     component_paths = tuple(
         tuple(f"instrument.extra_components.{i}.{name}"
               for name in HUMP_FIELDS)
-        for i in range(len(instrument.extra_components)))
+        for i, comp in enumerate(instrument.extra_components)
+        if COMPONENT_AGGREGATE[comp.kind] == "background")
+    peak_components = _compile_extra_peaks(instrument, tt, lams)
+    if peak_components:
+        # `RefinementResult.ticks` is keyed by name, so a phase actually called
+        # "(extra)" and the declared-peak row would be one entry and one of the
+        # two would vanish — silently, and in the direction that matters (Layer
+        # 0 would stop seeing a whole phase's reflections).  Refused rather than
+        # renamed: the name is the caller's and a CIF's phase names are not
+        # parenthesised, so this is a collision worth saying out loud.  Only
+        # checked when a peak is actually declared, so no existing model can
+        # start failing for a name it has always had.
+        for phase in structure.phases:
+            if phase.name == EXTRA_TICK_KEY:
+                raise ValueError(
+                    f"phase name {EXTRA_TICK_KEY!r} collides with the reserved "
+                    "tick-list key for declared sharp peaks; rename the phase "
+                    "(parenthesised names are no CIF's) or drop the "
+                    "PeakComponent.")
 
     pawley = _build_pawley_block(phases) if mode == "pawley" else None
     restraints = CompiledRestraints(restraint_items) if restraint_items else None
@@ -2716,6 +3018,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         fixed_background=fixed,
         bkg_paths=bkg_paths, bkg_design=design, bkg_penalty=penalty,
         component_paths=component_paths,
+        peak_components=peak_components,
         shape=instrument.profile.shape,
         # Rietveld-only, for the reason preferred orientation is: Le Bail and
         # Pawley intensities are extracted from the data and would absorb any

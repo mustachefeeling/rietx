@@ -168,7 +168,8 @@ def berar_lelann_factor(delta: np.ndarray) -> float:
     return max(float(np.sqrt((run_sums @ run_sums) / chi2)), 1.0)
 
 
-def background_absorption(jac: np.ndarray, free_paths: list[str]) -> dict[str, float]:
+def background_absorption(jac: np.ndarray, free_paths: list[str],
+                          peak_prefixes: frozenset[str]) -> dict[str, float]:
     """How much of each structural parameter the background could reproduce.
 
     For parameter i with Jacobian column jᵢ and the background columns
@@ -192,23 +193,35 @@ def background_absorption(jac: np.ndarray, free_paths: list[str]) -> dict[str, f
     and dropping them overstates the risk by ~5× (measured: R² 0.46 → 0.08 at
     λ = 10⁴).
     """
-    # Additive background peaks join the block.  The statistic asks what the
-    # *whole declared background* can imitate, and an explicit broad peak is the
-    # sharpest form of the failure it exists to catch — a hump narrow enough to
-    # sit under a reflection eats Bragg intensity exactly as a too-flexible
-    # spline does, and unlike the spline it can do it with three parameters.
-    # Leaving it out would make the number *less* true the more of the
-    # background's flexibility lives in peaks.
+    # Background-landing extra components join the block.  The statistic asks
+    # what the *whole declared background* can imitate, and an explicit broad
+    # hump is the sharpest form of the failure it exists to catch — one narrow
+    # enough to sit under a reflection eats Bragg intensity exactly as a
+    # too-flexible spline does, and unlike the spline it can do it with three
+    # parameters.  Leaving it out would make the number *less* true the more of
+    # the background's flexibility lives in humps.
+    #
+    # **Peak-landing components do not join it** (WP-1103).  Since the seam
+    # gained a second member, ``instrument.extra_components.`` no longer means
+    # "background": a ``PeakComponent`` is a declared sharp peak, is not in
+    # ``y_background``, and sweeping its columns in here would report a
+    # perfectly stiff background as absorbing whatever a declared holder line
+    # happens to be correlated with.  ``peak_prefixes`` carries the dot-path
+    # prefixes of the components that are *not* background, and it is
+    # **required** rather than defaulted: a caller who forgets would silently
+    # get the pre-1103 answer, which is the defaulted-``False`` shape WP-1076
+    # names.  ``model.peak_components`` is where a caller gets it.
     #
     # The nonlinearity is not an objection: every column here is a linearisation
     # at the converged θ, the ``.biso`` and ``.scale`` targets included, and the
     # esds and correlations the guard sits beside are built from the same one.
-    # What *was* an objection is a zero column — a peak at its off state
-    # contributes three of them — and that is handled once, in ``_span_basis``,
-    # because it is a fact about spans and not about peaks.
+    # What *was* an objection is a zero column — a component at its off state
+    # contributes several — and that is handled once, in ``_span_basis``,
+    # because it is a fact about spans and not about components.
     bg = [k for k, p in enumerate(free_paths)
-          if p.startswith(("instrument.background.",
-                           "instrument.extra_components."))]
+          if (p.startswith("instrument.background.")
+              or (p.startswith("instrument.extra_components.")
+                  and not p.startswith(tuple(peak_prefixes))))]
     targets = [(k, p) for k, p in enumerate(free_paths)
                if p.endswith((".biso", ".scale", ".occ")) or ".adp." in p]
     return block_projection_r2(jac, bg, targets)
@@ -265,6 +278,38 @@ def _off_span(q: np.ndarray, v: np.ndarray) -> np.ndarray:
     :func:`_span_basis` (orthonormal), so the projector is ``q qᵀ``.
     """
     return v - q @ (q.T @ v)
+
+
+def extra_peak_absorption(jac: np.ndarray, free_paths: list[str],
+                          peak_prefixes: frozenset[str]) -> dict[str, float]:
+    """How much of each structural parameter a declared sharp peak could imitate.
+
+    :func:`background_absorption`'s question asked of the *other* member of the
+    component seam, and it is a different question with the same statistic: a
+    declared peak sitting on a reflection is free to take that reflection's
+    intensity, which is the shortcut a caller reaches for when they mean
+    "ignore this bit" and declare a component instead of excluding a region.
+
+    Reported and **not thresholded**.  The 0.25 that fires
+    ``BACKGROUND_ABSORPTION`` was measured for background blocks — 0.01-0.03 for
+    a stiff background against 0.46 for a flexible one — and nothing has
+    measured what separates a healthy declared peak from a parasitic one.  A
+    threshold copied across would be a number wearing evidence it does not have,
+    so this ships as a number a reader judges, and the WP records the separation
+    it measured either way (root CLAUDE.md: a new correction ships with a record
+    field, never an Rwp comparison).
+
+    ``peak_prefixes`` is the same set :func:`background_absorption` excludes, so
+    the two statistics partition the declared components between them rather
+    than both claiming some.
+    """
+    block = [k for k, p in enumerate(free_paths)
+             if p.startswith(tuple(peak_prefixes))] if peak_prefixes else []
+    if not block:
+        return {}
+    targets = [(k, p) for k, p in enumerate(free_paths)
+               if p.endswith((".biso", ".scale", ".occ")) or ".adp." in p]
+    return block_projection_r2(jac, block, targets)
 
 
 def block_projection_r2(jac: np.ndarray, block: list[int],
@@ -406,7 +451,7 @@ def _displacement_like(path: str) -> bool:
     return path.endswith(".biso") or ".adp." in path
 
 
-def _roughness_nuisance(path: str) -> bool:
+def _roughness_nuisance(path: str, peak_prefixes: frozenset[str]) -> bool:
     """Directions that are free anyway and would swamp the comparison.
 
     Roughness is a *multiplicative* correction, so it is trivially "scale-like":
@@ -416,20 +461,29 @@ def _roughness_nuisance(path: str) -> bool:
     so the question worth asking is what is left of roughness *after* they have
     taken whatever they can — a partial R².
 
-    An explicit background peak is a background direction on the same footing
-    (``background_absorption`` folds it into the *same* block, one function up):
-    a declared hump is background flexibility the caller granted, so it is a
-    nuisance to project out here too — three columns per peak left in the
-    comparison would swamp the roughness/ADP partial R² exactly as the scale
-    does.
+    A **background-landing** extra component is a background direction on the
+    same footing (:func:`background_absorption` folds it into the *same* block,
+    one function up): a declared hump is background flexibility the caller
+    granted, so it is a nuisance to project out here too — three columns per
+    hump left in the comparison would swamp the roughness/ADP partial R²
+    exactly as the scale does.
+
+    A **peak-landing** one is not (WP-1103).  ``peak_prefixes`` is the same set
+    :func:`background_absorption` excludes and :func:`extra_peak_absorption`
+    takes, so all three read one partition of the declared components: a
+    declared sharp peak is not background flexibility, and projecting its
+    columns out here would quietly shrink the very partial R² this guard is
+    read from.  Required rather than defaulted, for the reason stated one
+    function up.
     """
     return (path.endswith(".scale")
-            or path.startswith(("instrument.background.",
-                                "instrument.extra_components.")))
+            or path.startswith("instrument.background.")
+            or (path.startswith("instrument.extra_components.")
+                and not path.startswith(tuple(peak_prefixes))))
 
 
-def roughness_absorption(jac: np.ndarray, free_paths: list[str]
-                         ) -> dict[str, float]:
+def roughness_absorption(jac: np.ndarray, free_paths: list[str],
+                         peak_prefixes: frozenset[str]) -> dict[str, float]:
     """Two-way degeneracy between surface roughness and the ADPs (WP-0502).
 
     Surface roughness depresses low-angle intensity, which is exactly the
@@ -476,7 +530,8 @@ def roughness_absorption(jac: np.ndarray, free_paths: list[str]
     disp = [(k, p) for k, p in enumerate(free_paths) if _displacement_like(p)]
     if not rough or not disp:
         return {}
-    nuisance = [k for k, p in enumerate(free_paths) if _roughness_nuisance(p)]
+    nuisance = [k for k, p in enumerate(free_paths)
+                if _roughness_nuisance(p, peak_prefixes)]
     out = block_projection_r2(jac, [k for k, _ in disp],
                               [(k, free_paths[k]) for k in rough], nuisance)
     out.update(block_projection_r2(jac, rough, disp, nuisance))

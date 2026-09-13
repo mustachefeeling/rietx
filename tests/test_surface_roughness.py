@@ -601,7 +601,7 @@ def _absorption_at(two_theta_min: float):
     model = compile_model(structure, ins, pattern, mode="rietveld",
                           moving_paths=set(table.moving_paths))
     jac = _make_jacobian(model, table)(table.x0())
-    return roughness_absorption(jac, table.free_paths), table, jac
+    return roughness_absorption(jac, table.free_paths, frozenset()), table, jac
 
 
 def test_roughness_is_identifiable_when_the_fit_reaches_low_angle():
@@ -755,7 +755,8 @@ def test_background_absorption_numbers_are_unchanged_by_the_refactor():
     bg = [k for k, p in enumerate(free) if p.startswith("instrument.background.")]
     targets = [(k, p) for k, p in enumerate(free)
                if p.endswith((".biso", ".scale", ".occ")) or ".adp." in p]
-    assert background_absorption(jac, free) == block_projection_r2(jac, bg, targets)
+    assert background_absorption(jac, free, frozenset()) \
+        == block_projection_r2(jac, bg, targets)
 
 
 # -- end-to-end recovery -----------------------------------------------------

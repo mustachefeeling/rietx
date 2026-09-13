@@ -161,7 +161,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: The path half is the reason the migration exists at all: a stored plan glob
 #: under the old spelling loads clean and then matches nothing, which stops
 #: refining a declared hump in silence.
-SCHEMA_VERSION = "0.18"
+SCHEMA_VERSION = "0.19"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

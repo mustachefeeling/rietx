@@ -39,7 +39,7 @@ a pair, never subtracted.
 It is held at ``source.lines[l].weight`` **times the two lines'
 Lorentz-polarisation ratio**, which is not a refinement of the same idea but a
 correction of it: the second line diffracts at its own Bragg angle, so it
-carries its own Lp, exactly as ``CompiledModel._peak_terms`` gives each line.
+carries its own Lp, exactly as ``CompiledModel.phase_peaks`` gives each line.
 Holding the bare weight instead biases the fitted Kα1 position — measured, −2e-4°
 and −0.26 mean σ pull on lab Cu Kα LaB6 (:meth:`_GroupModel.freeze`).
 
@@ -192,7 +192,7 @@ class _GroupModel:
         The **gain** is ``weight_l · Lp(2θ_l)/Lp(2θ₀)``, not ``weight_l`` alone:
         each emission line diffracts at its own Bragg angle, so it also carries
         its own Lorentz-polarisation factor — which is exactly what
-        ``CompiledModel._peak_terms`` does per line.  Small and one-sided: over
+        ``CompiledModel.phase_peaks`` does per line.  Small and one-sided: over
         the 0.0775° Cu Kα split of the LaB6 110 line at 30.4° it is a 0.43 %
         deficit in the Kα2 amplitude, which drags the fitted **Kα1** position
         down by ~2e-4°.  That is ~0.6σ on a strong lab line, and it showed up as

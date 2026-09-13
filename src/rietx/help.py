@@ -105,6 +105,7 @@ UNIT_DISPLAY: dict[str, str] = {
     "mm": "mm",
     "A^2": "Å²",
     "counts": "counts",
+    "counts*deg": "counts·deg 2θ",
     "1e-12 A^-4": "10⁻¹² Å⁻⁴",
 }
 
@@ -503,21 +504,92 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         typical="of the order of the hump's rise above the smooth background",
         anchor="background.html#localised-flexibility-explicit-humps",
     ),
+    # One entry for two members, and it has to be: the dot-path carries the
+    # list index, never the `kind`, so no glob can tell a hump's width from a
+    # peak's. `fwhm` is the only field name the two share (WP-1103).
     "instrument.extra_components.*.fwhm": HelpEntry(
-        title="Background-peak width",
+        title="Extra-component width",
         description=(
-            "The full width at half maximum, in °2θ, of an explicit Gaussian "
-            "background term. What makes the term a *background* term is that "
-            "this width comes from disorder rather than the goniometer, so it is "
-            "many times the instrumental resolution; a fitted width approaching "
-            "the resolution is a reflection being eaten, reported as "
-            "`HUMP_TOO_NARROW`. Softplus, floored at a small positive "
-            "value because the Gaussian divides by it."
+            "The full width at half maximum, in °2θ, of a declared extra "
+            "component — and the two kinds want opposite things from it. For a "
+            "`hump` the width is what makes the term a *background* term: it "
+            "comes from disorder rather than the goniometer, so it is many "
+            "times the instrumental resolution, and a fitted width approaching "
+            "that resolution is a reflection being eaten, reported as "
+            "`HUMP_TOO_NARROW`. For a `peak` sharp is the whole point — it is a "
+            "real reflection from something that is not one of your phases — so "
+            "no width guard fires and the floor is only there because the "
+            "profile divides by Γ. Softplus in both cases, floored at a small "
+            "positive value; the floor differs by kind (0.1 for a hump, 0.005 "
+            "for a peak) because the two are derived from the coarsest and the "
+            "finest scan step anything can be refined from."
         ),
-        unit="deg 2θ", default="5.0",
-        typical="several times the instrumental FWHM at that angle; ~6 on the "
-                "BT-1 case this feature was measured on",
+        unit="deg 2θ", default="5.0 for a hump, 0.1 for a peak",
+        typical="a hump: several times the instrumental FWHM at that angle, ~6 "
+                "on the BT-1 case it was measured on. A peak: the instrumental "
+                "FWHM itself, since it is a reflection",
         anchor="background.html#localised-flexibility-explicit-humps",
+    ),
+    "instrument.extra_components.*.center": HelpEntry(
+        title="Extra-peak centre",
+        description=(
+            "The apparent centre, in °2θ, of a declared sharp peak your phases "
+            "cannot account for — a sample holder diffracting at its own "
+            "specimen distance, a mount, an unidentified impurity line. It is "
+            "the position of the *primary* emission line and it is **not** "
+            "corrected: no zero shift, no displacement or transparency shift, "
+            "no axial asymmetry. A holder sits at its own distance and its "
+            "aberrations are its own, so all of them are absorbed here, which "
+            "is also why you cannot read a d-spacing off this number. Unlike a "
+            "hump's position it must carry finite min/max: the evaluation "
+            "window is frozen at stage compile and sized from those bounds, "
+            "which is what lets the centre refine without leaving its window. "
+            "A declared peak is inert (vary=False, area 0) until a stage frees "
+            "it; of the presets only `mccusker_structural` does, in its "
+            "`extra_components` stage, and nothing ever adds a peak you did "
+            "not declare."
+        ),
+        unit="deg 2θ", default=None,
+        typical="where you can see the intruding line, bounded a few tenths "
+                "either side",
+        anchor="using/model.html#declared-extra-peaks",
+    ),
+    "instrument.extra_components.*.area": HelpEntry(
+        title="Extra-peak area",
+        description=(
+            "The integrated intensity of a declared sharp peak, in the "
+            "pattern's count units times °2θ. An area and not a height because "
+            "that is what a reflection intensity is, and it is not called "
+            "`scale` on purpose: every `*.scale` path is force-fixed under Le "
+            "Bail and Pawley, where a declared peak still has to refine. "
+            "Softplus with min 0 because zero is the off state — area 0 makes "
+            "the term identically zero, so a declared-but-never-freed peak is "
+            "bit-identical to no peak at all. An area that refines to its zero "
+            "bound means the data does not see the peak, and its centre then "
+            "reports no esd at all rather than a small one: that absent esd is "
+            "the evidence the peak was not needed."
+        ),
+        unit="counts·deg 2θ", default="0.0",
+        typical="the intruding line's integrated counts above the background",
+        anchor="using/model.html#declared-extra-peaks",
+    ),
+    "instrument.extra_components.*.eta": HelpEntry(
+        title="Extra-peak mixing",
+        description=(
+            "The Lorentzian fraction of a declared sharp peak's pseudo-Voigt: "
+            "0 is a pure Gaussian, 1 a pure Lorentzian, and both ends are "
+            "legitimate rather than poles, which is why this is logit- rather "
+            "than softplus-transformed. Its **upper bound** also sizes the "
+            "frozen evaluation window, because the half-width at which the "
+            "profile's discarded area stays within tolerance is a steep "
+            "function of η (about 1 FWHM at η = 0, about 16 at η = 1). A "
+            "caller who knows the intruder is near-Gaussian can say so with "
+            "eta.max and buy a much smaller window."
+        ),
+        unit=None, default="0.5",
+        typical="0.3-0.9 for a lab peak; leave it fixed unless the peak is "
+                "strong enough to carry a fourth parameter",
+        anchor="using/model.html#declared-extra-peaks",
     ),
     # -- phase -------------------------------------------------------
     "phases.*.cell.a": _CELL_LENGTH,

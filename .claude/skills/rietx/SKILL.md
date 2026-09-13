@@ -163,6 +163,7 @@ bugs; they are the geometry of the problem.
 | flat-plate µt · phase scale · Biso | mostly, but not exactly | 60–99 % absorbable, so it is also computed rather than refined — but the remainder does move Rwp, and a wrong thickness lands partly in the fit and partly in the ADPs (§8.12). |
 | preferred orientation · site occupancy | both rescale specific hkl | An occupancy refined against uncorrected texture is a texture measurement. |
 | overlapped reflection intensities (Pawley/Le Bail) | identical | The *sum* is determined; the split is not. |
+| a declared extra peak · the reflection under it | identical where they overlap | An extra peak on a reflection is a scale/intensity degeneracy by construction: two terms, one peak, and Rwp cannot say which owns the counts. `EXTRA_PEAK_ON_REFLECTION` fires. Legitimate when the intruder is real; never a way to make a misfitting reflection go away. |
 
 6. **Do not free the second member of a group without checking the first is
    pinned by something outside the fit.** `lab_calibrate` exists for this:

@@ -23,6 +23,7 @@ with $D_2$ the $(n-2) \times n$ second-difference matrix. The rows land in
 $J^\top J$ (so the covariance is regularised) but are excluded from Rwp and
 the serial-correlation statistics — they are soft observations, not data.
 
+(explicit-humps)=
 ## Localised flexibility: explicit humps
 
 The three models above are all *global* — a Chebyshev term and a spline

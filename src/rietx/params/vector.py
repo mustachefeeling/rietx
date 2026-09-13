@@ -38,7 +38,7 @@ from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_ro
 from ..schemas.common import Parameter
 from ..schemas.instrument import (
     CAPILLARY_OFFSETS,
-    HUMP_FIELDS,
+    COMPONENT_FIELDS,
     BackgroundChebyshev,
     BackgroundPSpline,
     Instrument,
@@ -155,24 +155,30 @@ def background_parameters(bkg) -> list[tuple[str, Parameter]]:
     return [(f"c{n}", p) for n, p in enumerate(cheb)]
 
 
-def extra_component_parameters(peaks) -> list[tuple[str, Parameter]]:
+def extra_component_parameters(components) -> list[tuple[str, Parameter]]:
     """(sub-path, Parameter) pairs for ``Instrument.extra_components``, or [].
 
     Shared by the collector and by :meth:`ParameterTable.apply_to_models` for
     the reason :func:`roughness_parameters` is — a parameter registered in one
     and forgotten in the other silently loses its refined value at the next
     stage's recompile, which has bitten this file before.  ``[]`` for the empty
-    list, so a table built from an instrument that declares no peak is
+    list, so a table built from an instrument that declares no component is
     byte-for-byte the pre-``extra_components`` table.
 
-    The index comes first (``0.position``, not ``position.0``) so the peak, not
-    the field, is the thing a path prefix names, and so a plan can free one
-    declared peak (``instrument.extra_components.0.*``) without touching the
-    others.
+    The index comes first (``0.position``, not ``position.0``) so the component,
+    not the field, is the thing a path prefix names, and so a plan can free one
+    declared component (``instrument.extra_components.0.*``) without touching
+    the others.
+
+    **Member-agnostic by dispatch, never by ``isinstance``.**  Which fields a
+    member refines is read from :data:`~rietx.schemas.instrument.COMPONENT_FIELDS`
+    keyed by its ``kind`` — clause 4 of the member contract, whose whole point is
+    that this function and ``apply_to_models`` cannot be grown out of step.  A
+    ladder here would be a second ladder there, and the failure is silent.
     """
-    return [(f"{i}.{name}", getattr(peak, name))
-            for i, peak in enumerate(peaks)
-            for name in HUMP_FIELDS]
+    return [(f"{i}.{name}", getattr(comp, name))
+            for i, comp in enumerate(components)
+            for name in COMPONENT_FIELDS[comp.kind]]
 
 
 def roughness_parameters(rough) -> list[tuple[str, Parameter]]:

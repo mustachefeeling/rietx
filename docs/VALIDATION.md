@@ -104,6 +104,60 @@ certificate by construction. A guard refuses to let any such dataset carry a
 
 ## The matrix
 
+### `tests/test_acceptance_extra_peaks.py`
+
+WP-1103's design case on real data: the SRM 660c protocol, contaminated by injecting a two-line holder doublet **onto** two LaB6 reflections, then refined four ways — clean, ignore, declare, exclude.  The intruder is synthetic because no committed standard carries a holder line; the pattern it is injected into is real, which is what the cell bias has to be measured against, and every arm is referenced to the clean arm rather than to the certificate so the protocol's own offset cancels.  The result is more nuanced than the WP assumed and the rows say so: declaring recovers the clean cell (-1.0 ppm) and ignoring does not (+7.6 ppm, esd 7.5x, Rwp 3.7x), but **excluding also recovers it** (+0.6 ppm) for 4.8 % of the channels.  On this fixture the case for declaring is the retained channels and the measured intruder, not cell accuracy; a pattern with few reflections is where that changes, and LaB6 is not one.
+
+#### `test_declaring_the_intruder_recovers_the_clean_cell`
+
+`own_result` · dataset `srm660c`
+
+**Claims:** declaring a sharp intruder that overlaps sample peaks recovers the cell the same data gives when the intruder is not there, and ignoring it does not
+
+**Referenced to:** the *clean* arm of this same fixture, refined by the same protocol — not the NIST certificate, because what is being measured is the bias an unmodelled overlapping line adds, and the protocol's own +28 ppm offset from the certificate is common to every arm and cancels
+
+**Measured:** declare -1.0 ppm against the clean arm, ignore +7.6 ppm (bar 20 ppm); the ignore arm also inflates the cell esd 7.5x (2.49e-05 -> 1.88e-04 A) and Rwp 3.7x (0.0867 -> 0.3171)
+
+**Diagnostics:** `EXTRA_PEAK_ON_REFLECTION`
+
+#### `test_the_excluded_regions_alternative_is_quoted_and_never_gated`
+
+`own_result` `ceiling` · dataset `srm660c`
+
+**Claims:** the excluded-regions alternative is reported beside the declared one, with its cell and the channels it costs, and neither arm is refused
+
+**Referenced to:** the same clean arm; the ceiling is that nothing anywhere gates either choice, which is a property of the code rather than of a number
+
+**Measured:** exclude +0.6 ppm for 256 of 5332 channels (4.8 %) — i.e. on THIS fixture exclusion is as accurate as declaring, and the case for declaring is the retained channels and the measured intruder, not cell accuracy. A pattern with few reflections is where that changes, and LaB6 is not one
+
+#### `test_the_declared_holder_lines_come_back_where_they_were_put`
+
+`own_result` · dataset `srm660c`
+
+**Claims:** the declared components recover the injected intruder's position, area and width, with esds
+
+**Referenced to:** the injected truth, which is known exactly because the injection uses the package's own evaluator — so this row is a self-consistency check on real data and never a claim about a real holder
+
+**Measured:** centres within 0.005 deg of 37.4418 and 43.6205 (bar 0.05); areas 123.4(43) and 124.5(24) against 120, both ~1-2 sigma high, which is the on-reflection degeneracy being real
+
+#### `test_the_declared_peaks_are_ticks_and_not_background`
+
+`identity` `ceiling` · dataset `srm660c`
+
+**Claims:** a declared peak's positions join result.ticks and its curve stays out of result.y_background
+
+**Referenced to:** the member contract's clause 2 (schemas/instrument.py): a member's aggregate is declared data, and for a peak it is the tick list, not the background
+
+**Measured:** 4 ticks under the reserved key (two peaks x two emission lines); across 3xFWHM of each centre the reported background swings < 2 % of the peak standing on it
+
+#### `test_the_arms_are_plotted_for_inspection`
+
+`ceiling` · dataset `srm660c`
+
+**Claims:** every arm writes obs/calc/diff and per-intruder zooms for visual inspection
+
+**Measured:** 12 PNGs to tests/output/; the ignore arm's residual carries the whole injected doublet and the declare arm's is flat
+
 ### `tests/test_acceptance_lab6_cbn.py`
 
 Two-phase QPA on an APS 11-BM histogram of NIST SRM 660b LaB6 mixed with cubic BN, with the standard's certified cell held so the second phase's is measurable against it.  There is no weighed composition, so every row here is cross-code against TOPAS, bounded by the 0.043 wt % spread between TOPAS's own two models of this pattern.  The suite's real subject is identifiability: Lorentzian FWHMs add, so freeing the instrument's X,Y alongside each phase's lor_size/lor_strain is one quantity split three ways, and the degenerate fit reaches a LOWER Rwp while its phase fractions move several sigma away from the reference.  An Rwp comparison would have chosen the wrong model.

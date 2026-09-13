@@ -22,6 +22,7 @@ import dataclasses
 import numpy as np
 
 from .backend.api import backend_dtype_note
+from .model.components import EXTRA_TICK_KEY
 from .model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from .model.microstructure import microstructure_table
 from .optimize.least_squares import (
@@ -345,6 +346,16 @@ class MultiHistogramRefinement:
                     for lam in model.line_wavelengths]
             pos = np.concatenate(rows) if rows else np.array([])
             ticks[name] = sorted(float(p) for p in pos if np.isfinite(p))
+        # Declared sharp peaks are ticks here too (WP-1103, the member
+        # contract's clause 2).  A joint fit's Layer 0 reads *this* list, so
+        # without the row every declared peak comes back as an unindexed
+        # impurity on every histogram — the single-histogram failure
+        # ``refine._build_result`` writes the same key to prevent.  The
+        # positions come from the compiled model rather than from a second
+        # loop, so the two surfaces cannot drift.
+        extra = model.extra_peak_tick_positions(values)
+        if extra:
+            ticks[EXTRA_TICK_KEY] = extra
         return ticks
 
     def _build_result(self, models, outcome, weights, correlation_guard,
@@ -388,7 +399,9 @@ class MultiHistogramRefinement:
             j0, j1 = data_off[h], data_off[h] + n_data[h]
             if outcome.jac is not None and len(table.free_paths) > 1:
                 jh = np.asarray(outcome.jac)[j0:j1][:, cm]
-                for path, r2 in sorted(background_absorption(jh, table.free_paths).items(),
+                for path, r2 in sorted(background_absorption(
+                        jh, table.free_paths,
+                        model.peak_component_prefixes()).items(),
                                        key=lambda kv: -kv[1]):
                     if r2 > BACKGROUND_ABSORPTION_GUARD:
                         # ``hist.h.<path>`` is this surface's own addressing —

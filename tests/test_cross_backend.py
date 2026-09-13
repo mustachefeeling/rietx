@@ -342,12 +342,80 @@ def _state_extra_components():
     return model, table, {}
 
 
+
+def _state_extra_peak():
+    """A declared sharp peak, the component seam's tick-landing member (1103).
+
+    A separate row from ``extra_components`` rather than a peak added to it,
+    because the two members reach the residual by different routes and a shared
+    state would let one cover for the other: a hump goes through
+    ``CompiledModel.background``, which every backend already differentiates as
+    part of the background block, while a peak goes through
+    ``extra_peak_curve`` — a *windowed* term, scattered with ``window_add``, and
+    the only place in the package where ``xp.arcsin`` sits on the derivative
+    path (the emission-line Bragg image).
+
+    Two lines, so the Kα2 image and its Lorentz-polarisation gain are both in
+    the columns; ``eta`` freed as well as the other three, since the mixing is a
+    logit-transformed parameter and no other row in this matrix has one.
+
+    Off every identity, for the reason the hump row states: a zero area would
+    make the centre, width and mixing columns identically zero and the state
+    would carry no information about the paths it exists to cover.
+    """
+    from rietx.schemas.common import Parameter
+    from rietx.schemas.instrument import (
+        EXTRA_PEAK_FWHM_MIN,
+        BackgroundChebyshev,
+        Instrument,
+        PeakComponent,
+    )
+    from rietx.schemas.pattern import PatternData
+    from tests.test_backend_shim import _free
+    from tests.test_coordinates import make_rutile
+
+    structure = make_rutile()
+    structure.phases[0].scale.value = 8.0e-3
+    ins = Instrument.bragg_brentano(radiation="CuKa")
+    ins.source.dispersion = None    # declined, not inherited
+    ins.profile.w.value = 8e-3
+    ins.background = BackgroundChebyshev.with_terms(3)
+    ins.background.coefficients[0].value = 20.0
+    ins.extra_components = [PeakComponent(
+        label="holder",
+        center=Parameter(value=41.0, min=40.5, max=41.5, unit="deg"),
+        area=Parameter(value=260.0, min=0.0, unit="counts*deg",
+                       transform="softplus"),
+        fwhm=Parameter(value=0.22, min=EXTRA_PEAK_FWHM_MIN, max=0.5,
+                       unit="deg", transform="softplus"),
+        eta=Parameter(value=0.45, min=0.0, max=1.0, transform="logit"))]
+
+    grid = np.arange(15.0, 90.0, 0.02)
+    empty = PatternData(two_theta=grid.tolist(),
+                        intensity=np.zeros_like(grid).tolist())
+    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim_table = ParameterTable(structure, ins)
+    y = sim.evaluate(sim_table.decode(sim_table.x0()))
+    pattern = PatternData(two_theta=sim.tt.tolist(), intensity=y.tolist())
+
+    table = ParameterTable(structure, ins)
+    _free(table, ["phases.0.scale", "instrument.background.c0",
+                  "instrument.extra_components.0.center",
+                  "instrument.extra_components.0.area",
+                  "instrument.extra_components.0.fwhm",
+                  "instrument.extra_components.0.eta"])
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return model, table, {}
+
+
 CONFIGS = {"families": _state_families,
            "families_voigt": _state_families_voigt,
            "families_tied": _state_families_tied,
            "families_variable": _state_families_variable,
            "capillary_offsets": _state_capillary_offsets,
-           "extra_components": _state_extra_components, **STATES}
+           "extra_components": _state_extra_components,
+           "extra_peak": _state_extra_peak, **STATES}
 
 #: the fast configs run everywhere; the two real-data ones are `slow`.
 #: ``families_voigt`` (WP-0405's shape) and ``toy_restraints`` (WP-0406's extra
@@ -373,6 +441,7 @@ CONFIG_PARAMS = [
     _config("families_variable"),
     _config("capillary_offsets"),
     _config("extra_components"),
+    _config("extra_peak"),
     _config("toy_lebail"),
     _config("toy_pawley"),
     _config("toy_rich"),
@@ -544,9 +613,17 @@ def test_every_config_defined_here_is_actually_parametrised():
     is a question for whoever owns surface roughness rather than for this
     assertion.  Asserted both ways, so a deleted local state whose param
     survives fails too.
+
+    **The local set is derived, not listed** (WP-1103).  It was a literal set
+    until a config added to ``CONFIGS`` and to neither this list nor
+    ``CONFIG_PARAMS`` collected zero tests and passed — which is precisely the
+    failure this test exists to catch, one rank up, and is how ``extra_peak``
+    first landed.  A hand-kept list of what to check is the same shape of guard
+    as the thing it guards, so it is read off the builders this module defines
+    (``fn.__module__``), which no edit can forget to update.
     """
-    local = {"families", "families_voigt", "families_tied", "families_variable",
-             "capillary_offsets", "extra_components"}
+    local = {name for name, fn in CONFIGS.items()
+             if getattr(fn, "__module__", None) == __name__}
     assert local <= set(CONFIGS), sorted(local - set(CONFIGS))
     parametrised = {p.values[0] for p in CONFIG_PARAMS}
     assert local <= parametrised, (
