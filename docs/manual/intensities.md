@@ -174,11 +174,12 @@ the species factor into real and imaginary parts,
 ```{math}
 :label: int-AB
 
-A(\mathbf{h}) = \sum_j \mathrm{occ}_j\, (f_{0,j} + f'_j)
+\begin{aligned}
+A(\mathbf{h}) &= \sum_j \mathrm{occ}_j\, (f_{0,j} + f'_j)
+\sum_m T_{jm}\, e^{2\pi i \mathbf{h}\cdot\mathbf{x}_{jm}}, \\
+B(\mathbf{h}) &= \sum_j \mathrm{occ}_j\, f''_j
 \sum_m T_{jm}\, e^{2\pi i \mathbf{h}\cdot\mathbf{x}_{jm}},
-\qquad
-B(\mathbf{h}) = \sum_j \mathrm{occ}_j\, f''_j
-\sum_m T_{jm}\, e^{2\pi i \mathbf{h}\cdot\mathbf{x}_{jm}},
+\end{aligned}
 ```
 
 gives $F = A + iB$, and since $T$ is real, $F(-\mathbf{h}) =

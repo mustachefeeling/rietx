@@ -205,10 +205,10 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   `test_manual.py` gains a built-HTML scan for a surviving `{{`/`}}` in rendered
   prose, sharing `MARKUP_WITHOUT_PROSE` and the landing-page exclusion with the
   `$` guard.
-- [ ] **B1 — the layout makes the collision impossible.** `_static/custom.css`
+- [x] **B1 — the layout makes the collision impossible.** `_static/custom.css`
   lays `div.math` out as a two-cell grid, math cell `overflow-x: auto`, number
   cell its own column; checked in both themes and at 1440/1100/400 px.
-- [ ] **B2 — the four wide equations are reflowed** (`prof-strain-cap`,
+- [x] **B2 — the four wide equations are reflowed** (`prof-strain-cap`,
   `prof-size-cap`, `int-AB`, `prof-tch-gamma`) so their ink fits the cell with
   clearance, using `aligned`/`split` rather than shrinking the content.
   `docs/manual/check_equations.py` lands with them: playwright, not a

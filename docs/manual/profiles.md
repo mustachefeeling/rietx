@@ -172,9 +172,12 @@ linear blend with a single FWHM $\Gamma$ and mixing $\eta$
 ```{math}
 :label: prof-tch-gamma
 
-\Gamma^5 = \Gamma_G^5 + 2.69269\, \Gamma_G^4 \Gamma_L
-+ 2.42843\, \Gamma_G^3 \Gamma_L^2 + 4.47163\, \Gamma_G^2 \Gamma_L^3
-+ 0.07842\, \Gamma_G \Gamma_L^4 + \Gamma_L^5,
+\begin{aligned}
+\Gamma^5 = \Gamma_G^5
+&+ 2.69269\, \Gamma_G^4 \Gamma_L + 2.42843\, \Gamma_G^3 \Gamma_L^2 \\
+&+ 4.47163\, \Gamma_G^2 \Gamma_L^3 + 0.07842\, \Gamma_G \Gamma_L^4
++ \Gamma_L^5,
+\end{aligned}
 ```
 
 ```{math}
