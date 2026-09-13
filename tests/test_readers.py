@@ -536,16 +536,91 @@ def test_a_binary_file_is_refused_by_name_rather_than_by_traceback(tmp_path):
     so the case is written as what it always meant: a binary file no registered
     format claims.  A Bruker binary that is merely broken is refused by its own
     reader instead, which is a better message and a different test.
+
+    The **name** moved too, and for the same kind of reason: a binary ``.raw``
+    now has its own refusal (six vendors write that suffix), so this case has to
+    be a binary file whose suffix claims nothing in order to still reach the
+    terminal message.
     """
-    p = tmp_path / "d8.raw"
+    p = tmp_path / "d8.dat"
     p.write_bytes(b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 8)
 
     with pytest.raises(ValueError) as refusal:
         rx.read_pattern(p)
     message = str(refusal.value)
-    assert "d8.raw" in message and "looks binary" in message
+    assert "d8.dat" in message and "looks binary" in message
     for fmt in PATTERN_FORMATS:
         assert fmt.title in message
+
+
+def test_an_unclaimed_binary_raw_names_six_vendors_and_picks_none(tmp_path):
+    """``.raw`` belongs to six unrelated vendors and this build reads two of
+    them, so "not a pattern this build can read" invites the reasonable but
+    wrong conclusion that the file is corrupt.  The refusal claims to recognise
+    nothing — the format most likely to land here is Stoe's, which has no
+    description in any licence anywhere, so asserting a vendor would be exactly
+    the guess this area exists to prevent."""
+    p = tmp_path / "stoe.raw"
+    p.write_bytes(b"\x00\x01\x02\x03" + bytes(range(256)) * 8)
+
+    with pytest.raises(ValueError) as refusal:
+        rx.read_pattern(p)
+    message = str(refusal.value)
+
+    assert "stoe.raw" in message
+    assert "6 unrelated vendors" in message
+    for vendor in ("Bruker/Siemens DIFFRAC", "GSAS", "Rigaku", "Scintag",
+                   "Shimadzu", "Stoe"):
+        assert vendor in message
+    # it says which this build reads, and offers a way out
+    assert "v3 and v4" in message and "PC-APD" in message
+    assert "ASCII" in message
+    # and it names no vendor as *this* file's
+    assert "is a Stoe" not in message
+
+
+def test_a_real_raw_is_never_routed_to_the_unclaimed_refusal(tmp_path):
+    """The entry sits below every reader, so the ordering cannot go wrong —
+    asserted rather than trusted, because the message it would give is
+    confidently unhelpful about a file that reads perfectly."""
+    from tests.writers_xrd import CORUNDUM_HEAD, write_philips_rd, write_raw4
+
+    bruker = write_raw4(tmp_path / "bruker.raw", [
+        dict(start=10.0, step=0.02, intensity=[500.0 + i % 7 for i in range(50)])])
+    philips = write_philips_rd(tmp_path / "philips.raw", CORUNDUM_HEAD)
+
+    assert rx.io.readers.identify_format(bruker).name == "bruker_raw"
+    assert rx.io.readers.identify_format(philips).name == "philips_rd"
+    assert len(rx.read_pattern(bruker).two_theta) == 50
+
+
+def test_a_pks_or_udi_is_refused_as_a_peak_list_on_its_name(tmp_path):
+    """Unlike ``.dif`` this is a suffix match, because no sample of either
+    format could be obtained to write a content test against — and the refusal
+    says so rather than implying a check it did not do."""
+    for name, vendor in (("scan.pks", "Stoe"), ("scan.udi", "PANalytical")):
+        p = tmp_path / name
+        p.write_text("; peak list\n  10.00   1234   1 1 0\n"
+                     "  20.00    567   2 0 0\n", encoding="utf-8")
+
+        with pytest.raises(ValueError) as refusal:
+            rx.read_pattern(p)
+        message = str(refusal.value)
+
+        assert name in message and vendor in message
+        assert "declined on its name" in message
+
+
+def test_a_real_profile_misnamed_pks_still_opens(tmp_path):
+    """``.dif``'s escape, kept: a suffix is a filename.  Dropping it would make
+    a genuine two-column scan a lab happened to name ``.pks`` unopenable with
+    nothing to do about it."""
+    p = tmp_path / "profile.pks"
+    p.write_text("".join(f"{10.0 + 0.02 * i:.2f} {500 + i % 7}\n"
+                         for i in range(40)), encoding="utf-8")
+
+    assert rx.io.readers.identify_format(p).name == "xy"
+    assert len(rx.read_pattern(p).two_theta) == 40
 
 
 def test_a_byte_order_mark_means_text_even_though_utf16_is_full_of_nuls(tmp_path):
@@ -562,11 +637,26 @@ def test_a_byte_order_mark_means_text_even_though_utf16_is_full_of_nuls(tmp_path
 
 def test_the_registry_order_is_the_dispatch_order():
     """The first format whose ``matches`` returns True reads the file, so the
-    tuple's order is behaviour and ``xy`` being last is the whole of why
-    anything else is ever reached."""
+    tuple's order is behaviour and ``xy`` being last **of the readers** is the
+    whole of why anything else is ever reached.
+
+    One entry sits below it and it is not a reader: ``raw_unclaimed`` refuses a
+    binary ``.raw`` every reader has already declined, and its position is what
+    makes that safe — reached last, it cannot shadow anything, so no ordering
+    mistake can route a real Bruker or Philips file into a message that names
+    six vendors and picks none.  That is asserted as a property of what the
+    entry *is* rather than as its index, so a second such refusal does not
+    silently slip above a reader.
+    """
     names = [f.name for f in PATTERN_FORMATS]
-    assert names[-1] == "xy"
+    readers = [f.name for f in PATTERN_FORMATS if f.refuses is None]
+
+    assert readers[-1] == "xy"
+    assert names[-1] == "raw_unclaimed"
     assert len(set(names)) == len(names)
+    # every entry after the last reader is a refusal
+    assert all(f.refuses is not None
+               for f in PATTERN_FORMATS[names.index("xy") + 1:])
 
 
 # --------------------------------------------------------------------- gsas

@@ -352,7 +352,7 @@ holds a registered binary reader nothing exercises.
       **refuses** a count the √ encoding cannot hold rather than writing the
       nearest one, so a round trip cannot assert a number the caller never
       wrote; `CORUNDUM_HEAD` is twelve real counts for callers to use.
-- [ ] 6. The three remaining refusals: the vendor-agnostic binary-`.raw`
+- [x] 6. The three remaining refusals: the vendor-agnostic binary-`.raw`
       message (six vendors named, this build's readers named, the ASCII-export
       remedy), and `.pks` / `.udi` as peak lists — extension **unless the file
       parses as a two-column profile**, which keeps `.dif`'s escape — via
