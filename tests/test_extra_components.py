@@ -1554,6 +1554,43 @@ def test_declared_peaks_reach_the_tick_list_under_one_reserved_key():
     assert extra[1] > extra[0]
 
 
+def test_a_joint_fit_writes_the_same_reserved_key_as_a_single_one():
+    """The tick list has two builders, and both owe clause 2's destination.
+
+    `multi.MultiHistogramRefinement._ticks` is the joint fit's own tick
+    builder, so a declared peak missing from it is reported as an unindexed
+    impurity by every histogram's Layer 0 — the identical failure the test
+    above pins for a single histogram, on the surface that does not share its
+    code path.  Both now read `CompiledModel.extra_peak_tick_positions`, which
+    is why they cannot disagree about where the images fall.
+    """
+    from rietx.multi import MultiHistogramRefinement
+
+    structure = make_lab6()
+    ins = _instrument(peaks=[make_peak(center=40.0)])
+    ins.extra_components[0].area.value = 500.0
+    tt = np.arange(30.0, 50.0, 0.01)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.zeros_like(tt).tolist())
+    table = ParameterTable(structure, ins)
+    model = compile_model(structure, ins, data, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    values = table.decode(table.x0())
+
+    ticks = MultiHistogramRefinement._ticks(None, model, structure, values)
+    assert EXTRA_TICK_KEY in ticks
+    assert ticks[EXTRA_TICK_KEY] == model.extra_peak_tick_positions(values)
+    assert "LaB6" in ticks
+
+    # and nothing appears for a model that declares no peak
+    plain = _instrument()
+    plain_table = ParameterTable(structure, plain)
+    plain_model = compile_model(structure, plain, data, mode="rietveld",
+                                moving_paths=set(plain_table.moving_paths))
+    assert EXTRA_TICK_KEY not in MultiHistogramRefinement._ticks(
+        None, plain_model, structure, plain_table.decode(plain_table.x0()))
+
+
 def test_a_phase_named_like_the_reserved_key_is_refused():
     """A tick list is read by name, so the collision loses a whole phase.
 

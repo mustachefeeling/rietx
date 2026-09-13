@@ -736,6 +736,34 @@ class CompiledModel:
         return frozenset(f"instrument.extra_components.{pc.index}."
                          for pc in self.peak_components)
 
+    def extra_peak_tick_positions(self, values: dict[str, float]) -> list[float]:
+        """Where every declared sharp peak's emission-line images sit, in °2θ.
+
+        The tick half of the member contract's clause 2, written once because
+        **two** result builders owe it: ``refine._build_result`` and
+        ``multi.MultiHistogramRefinement._ticks``.  A copy in each is how a
+        joint fit ends up reporting a declared peak as an unindexed impurity
+        while a single-histogram fit does not — the ``ticks`` failure this
+        exists to prevent, one surface over.
+
+        **No zero shift**, unlike a phase's ticks: the centre is the *apparent*
+        position by declaration and carries its own aberrations
+        (:class:`~rietx.schemas.instrument.PeakComponent`), so adding the
+        specimen's shift would move a tick off the peak the model drew.
+
+        Sorted, and empty when nothing is declared — so a caller writes the
+        reserved key only when there is something to put under it.
+        """
+        out: list[float] = []
+        for pc in self.peak_components:
+            centre = values[pc.paths["center"]]
+            reach = len(pc.lam_ratio) if pc.all_lines else 1
+            for il in range(reach):
+                pos_l = _line_image_deg(centre, float(pc.lam_ratio[il]), np)
+                if np.isfinite(pos_l):
+                    out.append(float(pos_l))
+        return sorted(out)
+
     def extra_peak_curve(self, values: dict[str, float]):
         """Every declared sharp peak, summed on the fit grid.
 

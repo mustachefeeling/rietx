@@ -37,7 +37,6 @@ from .model.forward import (
     PHASE_SUPPORT_SIGMA,
     CompiledModel,
     Mode,
-    _line_image_deg,
     compile_model,
 )
 from .model.geometry import geometry_table
@@ -3038,23 +3037,18 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     #
     # No zero-shift is added, unlike a phase's: the centre is the *apparent*
     # position by declaration and carries its own aberrations (see
-    # `PeakComponent`), so adding the specimen's shift would move a tick off the
-    # peak the model actually drew.
+    # `PeakComponent`).  That, and where each emission line's image falls, is
+    # `CompiledModel.extra_peak_tick_positions` — one authority, because
+    # `multi.MultiHistogramRefinement._ticks` owes the same list and a second
+    # copy there is how a joint fit ends up disagreeing with this one.
     #
     # Accepted wrinkle, recorded rather than special-cased: Layer 0's
     # `Region.n_reflections` counts ticks, so these inflate that count in their
     # own regions.  It is right for segmentation and for the unmatched logic,
     # and mislabelled as a count of reflections.
-    extra_ticks: list[float] = []
-    for pc in model.peak_components:
-        centre = values[pc.paths["center"]]
-        reach = len(pc.lam_ratio) if pc.all_lines else 1
-        for il in range(reach):
-            pos_l = _line_image_deg(centre, float(pc.lam_ratio[il]), np)
-            if np.isfinite(pos_l):
-                extra_ticks.append(float(pos_l))
+    extra_ticks = model.extra_peak_tick_positions(values)
     if extra_ticks:
-        ticks[EXTRA_TICK_KEY] = sorted(extra_ticks)
+        ticks[EXTRA_TICK_KEY] = extra_ticks
 
     # Quantitative phase analysis from the refined scales.  Le Bail scales are
     # degenerate with the extracted intensities, so QPA is Rietveld-only.  σ(W)
