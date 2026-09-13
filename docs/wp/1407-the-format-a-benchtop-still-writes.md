@@ -40,24 +40,43 @@ Checked against real files, not assumed. `yargerlab/Data` holds about thirty
 `.udf` patterns written by an **ASU PANalytical Aeris**, a benchtop still on
 sale, newest dated 12 June 2025. One header, read 2026-09-13:
 
+The file verbatim, in its own order, header only:
+
 ```
-SampleIdent,2025_06_03_CeO2_3_60_8min,/     Anode,Cu,/
-LabdaAlpha1, 1.540598,/                     LabdaAlpha2, 1.544426,/
-RatioAlpha21, 0.50000,/                     DivergenceSlit,Fixed, 1/2,/
-ReceivingSlit,UNDEFINED,/                   MonochromatorUsed,NO,/
-GeneratorVoltage,  40,/                     TubeCurrent,  15,/
-DiffrType,?,/                               DiffrNumber,1,/
-FileDateTime,03-jun-2025 15:55,/            ScanType,CONTINUOUS,/
-DataAngleRange,   3.00043,  59.99491,/      ScanStepSize, 0.01086644000,/
+SampleIdent,2025_06_03_CeO2_3_60_8min,/
+Title1,CeO2 Standard,/
+Title2,,/
+DiffrType,?,/
+DiffrNumber,1,/
+Anode,Cu,/
+LabdaAlpha1, 1.540598,/
+LabdaAlpha2, 1.544426,/
+RatioAlpha21, 0.50000,/
+DivergenceSlit,Fixed, 1/2,/
+ReceivingSlit,UNDEFINED,/
+MonochromatorUsed,NO,/
+GeneratorVoltage,  40,/
+TubeCurrent,  15,/
+FileDateTime,03-jun-2025 15:55,/
+DataAngleRange,   3.00043,  59.99491,/
+ScanStepSize, 0.01086644000,/
+ScanType,CONTINUOUS,/
 ScanStepTime, 18.87,/
 RawScan
    43202,   43027,   42690,   41849, ...
 ```
 
-Eighteen keys, `Key,Value,/` per line, then a `RawScan` block of integers
-terminated by `/`. The abscissa is **reconstructed** from `DataAngleRange` and
-`ScanStepSize`; it is not stored per point, so `ascending()` sees a synthesised
-axis and the step-consistency question is the reader's.
+**Nineteen keys** in this file, `Key,Value,/` per line, then a `RawScan` block
+of integers terminated by `/`. Three things to read off it rather than assume.
+`Title2` is **present and empty**, so an empty value is legal and is not an
+absent key. `DivergenceSlit` carries **two comma-separated fields**
+(`Fixed, 1/2`), so a value may itself contain commas and the line cannot be
+split on every comma. And the abscissa is **reconstructed** from
+`DataAngleRange` and `ScanStepSize`, not stored per point, so `ascending()`
+sees a synthesised axis and the step-consistency question is the reader's.
+
+Nineteen is this file's count, not the format's: the key set is what task 1
+tables across the whole sample, and the PyXRD fixture carries only five.
 
 It carries more than any other format in this family, and the part that matters
 is `LabdaAlpha1` + `LabdaAlpha2` + `RatioAlpha21`: `suggest_instrument` can
@@ -192,10 +211,19 @@ when the files arrive.**
 `.pks` and `.udi` are a different matter and not near-misses: they are peak
 lists, tables of positions and heights, not measured profiles. This build
 already refuses Bruker `.dif` for exactly that reason, because refining against
-a few dozen spikes is not a refinement. Refuse both the same way, **by
-extension alone**, since no sample of either exists here to gate on content the
-way `.dif` does; say so in the `sniff` string rather than implying a content
-test.
+a few dozen spikes is not a refinement.
+
+**But copy `.dif`'s shape, not just its verdict.** `dif.py`'s docstring is
+explicit that it is "matched on evidence, not suffix … a real profile that
+someone named `.dif` still falls through to the ASCII reader and opens", and a
+suffix-only refusal would lose that escape: a genuine two-column profile a lab
+happened to name `.pks` would become unopenable with nothing to do about it.
+No `.pks` or `.udi` sample exists here, so the positive test `.dif` uses (does
+this *look like* a peak list?) cannot be written. The negative one can, and it
+preserves the escape: refuse on the extension **unless the file parses as a
+plain two-column profile**, in which case fall through. Say exactly that in the
+`sniff` string, so the gate does not imply a content test it does not do, and
+revisit it the day a real `.pks` appears.
 
 ### Three questions the readers answer rather than assume
 
@@ -257,8 +285,10 @@ manual quote them verbatim.
 
 ## Tasks
 
-Ordered so a session can stop cleanly. **The boundary is after task 4**, never
-mid-format, mirroring 1047's own rule.
+Ordered so a session can stop cleanly. **The boundary is after task 5**, never
+mid-format, mirroring 1047's own rule — task 5 is where `.rd` acquires the only
+fixture it can have, since no real one exists, so a tree stopped after task 4
+holds a registered binary reader nothing exercises.
 
 - [ ] 1. Retire the fixture risks. Chase the QARR `.rd` lead (Internet Archive,
       from a network that can reach it) and table the `.udf` key vocabulary off
@@ -268,16 +298,20 @@ mid-format, mirroring 1047's own rule.
 - [ ] 2. `ATTRIBUTION.md` § Format specifications: one row for `.udf`, one for
       `.rd`, naming which source each fact came from and which corrections are
       this project's, on the template of the three Bruker `.raw` rows
-      (`:248-250`). Add the MAUD per-file contradiction as the worked example
+      (`:250-252`). Add the MAUD per-file contradiction as the worked example
       of step 1. Then close the sources.
 - [ ] 3. `.udf` reader: `src/rietx/io/formats/udf.py` exporting a
       `PatternFormat`. Text, so its writer stays inline in
       `tests/test_readers.py`. Registry position after the binary and container
       formats and before `xy`; say why in `formats/__init__.py:57-63`.
       Check whether `suggest_instrument` can take the direct route on
-      `RatioAlpha21` rather than the three-candidate λ match.
+      `RatioAlpha21` rather than the three-candidate λ match. `anode`,
+      `wavelength` and `wavelength_alpha2` are already declared; the **ratio is
+      not**, and `base.metadata()` refuses an undeclared key, so the acceptance
+      line below buys a new `METADATA_KEYS` entry (`base.py:164`) — declare it
+      with the two consumers that match on it, or drop the ratio from the bar.
 - [ ] 4. `.rd` reader: `src/rietx/io/formats/philips_rd.py`, V3 and V5, with
-      `.sd` refused by name and version and a stated remedy. Magic-byte
+      `.sd` refused **by name alone** and a stated remedy. Magic-byte
       `matches`, disjoint from `bruker_raw` in both directions (precedent:
       `tests/test_readers.py:2144`).
 - [ ] 5. `write_philips_rd()` in `tests/writers_xrd.py`, packing offsets
@@ -285,11 +319,13 @@ mid-format, mirroring 1047's own rule.
       `SYNTHETIC_FIXTURES` arm in `tests/test_readers_robust.py:71`.
 - [ ] 6. The three remaining refusals: the vendor-agnostic binary-`.raw`
       message (six vendors named, this build's readers named, the ASCII-export
-      remedy), and `.pks` / `.udi` as peak lists via `PatternFormat.refuses` +
+      remedy), and `.pks` / `.udi` as peak lists — extension **unless the file
+      parses as a two-column profile**, which keeps `.dif`'s escape — via
+      `PatternFormat.refuses` +
       `ReaderCapability.refuses`, by extension, saying so in `sniff`.
 - [ ] 7. Tests: a `# ---- <format>` section per reader in
       `tests/test_readers.py`, the truncation arms, and the
-      `tests/test_capabilities.py:202` scan-capable set if either format is
+      `tests/test_capabilities.py:222` scan-capable set if either format is
       multi-scan. **No obs/calc/diff PNGs**: this WP fits nothing, it only
       reads files.
 - [ ] 8. Docs and close: `io/CLAUDE.md` § Per format rows and any new rule,
@@ -317,7 +353,11 @@ mid-format, mirroring 1047's own rule.
 - A `.rd` V3 and a V5 file each open. If the QARR lead pays off the values are
   checked against the committed `qarr/*.prn` oracle; if it does not, the
   acceptance line claims **structure and metadata only** and says so.
-- A `.sd` file is refused by name and version, not by traceback.
+- A `.sd` file is refused by name, not by traceback, and **without claiming a
+  version**: nothing here establishes whether `.sd` shares `.rd`'s `V?RD`
+  magic, so reading a version out of it would be the same guess the Stoe rule
+  forbids. If task 1 settles that it does share the magic, say so in the
+  evidence table and the refusal may then name the version.
 - A binary `.raw` matching no reader is refused with a message naming the six
   `.raw` vendors and this build's readers; a `.pks` or `.udi` is refused as a
   peak list. Both appear in `capabilities()`;
@@ -374,8 +414,10 @@ mid-format, mirroring 1047's own rule.
   v2 was **refused** on; Stoe has **zero** (absent from xylib, CrysFML, GSAS-II
   and PyXRD alike; only the closed PowDLL reads it), which is Bruker v1.
 
-  **Counts.** `[dev,jax,torch]` venv, darwin. Fast selection **4577 passed, 132
-  skipped**, unchanged, which is the right answer: this session added no test.
+  **Counts.** `[dev]` venv (this worktree's own — it has neither jax nor torch
+  installed, so the 132 skips include every backend row), darwin. Fast selection
+  **4577 passed, 132 skipped**, unchanged, which is the right answer: this
+  session added no test.
   ruff clean. The **full selection deliberately did not run** — the only
   non-documentation change is one integer in `SIZE_CAPS`, which moves no
   measured number, and protocol rule 6 fires the full suite only when a change
@@ -405,4 +447,4 @@ mid-format, mirroring 1047's own rule.
   **Next**: task 1, because it decides what the acceptance line may claim for
   both formats, and it is the only task whose answer can still change the
   design. Task 3 (`.udf`) is unblocked regardless and is the cheaper half; the
-  stated stop boundary is after task 4.
+  stated stop boundary is after task 5.
