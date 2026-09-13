@@ -148,6 +148,15 @@ PROVISIONAL_MODULES: dict[str, str] = {
         "candidate, its figures of merit, the caveats and the evidence "
         "projection are the shape of a search that is still changing."
     ),
+    "rietx.io.projects": (
+        "the foreign-refinement readers and the registry over them "
+        "(read_project_model, read_topas_inp, read_fullprof_pcr, and the "
+        "per-format models they answer with) are under active development: "
+        "WP-1118 landed the registry on 2026-09-13 with two formats and three "
+        "more queued, each of which is evidence about the shape, and the "
+        "write direction is not written at all.  A format's own model mirrors "
+        "that format, so its fields move when the reader's coverage does."
+    ),
 }
 
 # --- the internal sentence, and what WP-1003 filed under it ---------------

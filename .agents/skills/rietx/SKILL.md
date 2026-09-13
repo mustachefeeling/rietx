@@ -38,7 +38,7 @@ restated here; a page named `x` below is `https://rietx.org/using/x.html`.
 | When | Load | Manual page |
 |---|---|---|
 | you are about to call rietx: entry points, constructors, the four answer types and their fields, the report | [`references/api.md`](references/api.md) | `quickstart`, `model`, `refining`, `results`, `agents` |
-| you were handed another program's input file: a PowderLine recipe | [`references/api.md`](references/api.md) § In | `recipe` |
+| you were handed another program's input file, not a pattern | [`references/api.md`](references/api.md) § In | `recipe`, `files` |
 | §7/§7g — a `Diagnostic` fired and you need its row: every engine code, and a foreign project file's import-time codes | [`references/diagnostics.md`](references/diagnostics.md), [`references/diagnostics-projects.md`](references/diagnostics-projects.md) | `results` |
 | §6 — something declined to answer: abstentions, caveats, gate failures, `best_or_none()` returning `None` | [`references/abstention.md`](references/abstention.md) | `report` |
 | §5 — you are about to quote a number: which field carries which fact, and read numbers rather than pixels | [`references/numbers.md`](references/numbers.md) | `report`, `results` |

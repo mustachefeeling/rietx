@@ -117,6 +117,16 @@ to move are declared rather than left to be inferred:
   (`Capabilities.indexing_thresholds_version`, and the engine and search-preset
   capability types), so a consumer that parses an answer sees a bump when the
   answer's shape or meaning moves.
+- **The foreign-refinement readers are provisional as a subsystem.**
+  `read_project_model`, `identify_project_format`, `read_topas_inp`,
+  `read_fullprof_pcr` and the per-format models they answer with
+  (`rietx.io.projects`) are documented in [](files.md) and are expected to
+  move: the registry over them landed with two formats and three more queued,
+  each of which is evidence about the shape it should have, and the write
+  direction is not written at all. A format's own model mirrors that format, so
+  its fields move when the reader's coverage does. What a reader *refuses* is
+  the stable part: a construct this package cannot represent raises naming the
+  file, in this release and in the next.
 
 ## The JSON the package writes
 

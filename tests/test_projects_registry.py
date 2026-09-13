@@ -1,0 +1,327 @@
+"""The model-format registry: dispatch, the arm, and the claims it declares.
+
+Three classes of test, and the third is the one worth arguing for.
+
+**Dispatch** — a file reaches the format that can read it, and one nothing here
+reads is refused by a message naming what this build *does* open.  Every fixture
+is synthesized inline: no ``.inp`` or ``.pcr`` may be vendored
+(``ATTRIBUTION.md``'s fence), which the two format suites already live with, and
+the lines below are shaped after the ones their comments quote from named
+archive files rather than invented from the grammar.
+
+**The arm** — ``capabilities().project_formats`` is the registry, member for
+member and in order.  The same rule ``reader_formats`` is held to: a member
+missing from its arm fails.
+
+**The declarations** — ``ProjectFormat`` states three things about a format that
+nothing else checks, and each is a claim a reader could drift away from in
+silence.  ``reports_at`` says which call takes the diagnostics list; ``read``
+and ``to_structure`` say which functions are the format's; ``matches`` says the
+file is claimed on content.  A declaration checked against the real signature
+turns "the table says so" into "the table and the code agree", which is
+``_SURFACE_FLAGS``' lesson (WP-1037) one registry over: a derived claim rots
+silently unless the *name* it asks about is data.
+"""
+
+from __future__ import annotations
+
+import inspect
+from pathlib import Path
+
+import pytest
+
+import rietx as rx
+from rietx.io.projects import registry
+from rietx.io.projects.registry import (
+    PROJECT_FORMATS,
+    ProjectFormat,
+    identify_project_format,
+    read_project_model,
+)
+
+# The `.pcr` builders are `test_projects_fullprof`'s, imported rather than
+# rewritten: a second fixture writer for one format is a second description of
+# its layout, and the two would drift on exactly the control-line field count
+# that format refuses a file over.
+from tests.test_projects_fullprof import _pcr, _phase
+
+# --------------------------------------------------------------------------
+# Fixtures, synthesized.  A `.pcr` opens with COMM and then the Job/Npr/Nph
+# control line; a `.inp` has no required opening at all, which is the whole
+# reason its sniff is a keyword scan and the `.pcr`'s is a first-line test.
+
+#: A `.pcr` header and nothing else.  Deliberately **not** a readable file: the
+#: sniff's whole claim is that it decides on the first line, so a fixture that
+#: would also parse could not tell a first-line test from a parse attempt.  The
+#: full-read tests below use `test_projects_fullprof`'s builders instead.
+PCR_HEADER_ONLY = """COMM  synthetic single-phase test
+!Job Npr Nph Nba Nex Nsc Nor Dum Iwg Ilo Ias Res Ste Nre Cry Uni Cor Opt
+   0   7   1   6   0   0   0   0   0   0   0   0   0   0   0   0   0   0
+"""
+
+INP_MINIMAL = """'A synthetic .inp, shaped after the archive files projects/topas.py quotes.
+r_wp 9.73
+xdd "sample.xy"
+ str
+  phase_name "corundum"
+  space_group R-3c
+  a  @ 4.7602
+  c  @ 12.9933
+  site Al1 x 0 y 0 z 0.3522 occ Al+3 1. beq !b 0.4
+"""
+
+INP_NO_PHASE = """iters 1000
+prm !zero 0.0
+"""
+
+INP_STR_MACRO = """xdd "sample.xy"
+ STR(R-3c)
+  phase_name "corundum"
+"""
+
+#: A file whose only TOPAS keywords sit inside comments.  It is the sniff's
+#: sharpest case: every keyword below is present as text, and none of them is
+#: stated, so a scan that looked for substrings rather than line-start tokens
+#: would claim an Abaqus deck that mentioned `str` in a heading.
+INP_ALL_COMMENTED = """'xdd "C:\\data\\str\\run.xy"
+/* str
+   phase_name "not a phase"
+*/
+nothing is stated here
+"""
+
+ABAQUS_INP = """*HEADING
+ A finite-element deck, which also uses .inp
+*NODE
+1, 0., 0., 0.
+*ELEMENT, TYPE=C3D8
+"""
+
+
+def _write(tmp_path: Path, name: str, text: str) -> Path:
+    p = tmp_path / name
+    p.write_text(text)
+    return p
+
+
+# --------------------------------------------------------------------------
+# Dispatch
+
+
+@pytest.mark.parametrize("name,text,expected", [
+    ("refined.pcr", PCR_HEADER_ONLY, "fullprof_pcr"),
+    ("run.inp", INP_MINIMAL, "topas_inp"),
+    # a Pawley or indexing-only .inp states no phase and is still a .inp
+    ("pawley.inp", INP_NO_PHASE, "topas_inp"),
+    # and one this build refuses to *read* is still recognised, so the caller
+    # gets the reader's refusal naming the macro rather than "no format claims
+    # this file", which is the less useful of the two messages
+    ("macro.inp", INP_STR_MACRO, "topas_inp"),
+])
+def test_a_file_reaches_the_format_that_can_read_it(tmp_path, name, text, expected):
+    assert identify_project_format(_write(tmp_path, name, text)).name == expected
+
+
+def test_the_suffix_is_not_the_evidence(tmp_path):
+    """``.inp`` is written by unrelated programs, so content decides.
+
+    ``io/CLAUDE.md`` § Dispatch, and WP-1407's rule one rank up: a file
+    extension does not name a format here.  An Abaqus deck with the same suffix
+    is refused, and a ``.pcr``'s content is claimed whatever it is called.
+    """
+    with pytest.raises(ValueError, match="not a refinement file"):
+        identify_project_format(_write(tmp_path, "mesh.inp", ABAQUS_INP))
+    assert identify_project_format(
+        _write(tmp_path, "no_suffix_at_all", PCR_HEADER_ONLY)).name == "fullprof_pcr"
+
+
+def test_a_keyword_inside_a_comment_is_not_a_statement(tmp_path):
+    """The sniff goes through the reader's own ``strip_comments``.
+
+    Both TOPAS comment forms are here — ``'`` to end of line and a nesting
+    ``/* */`` block — because a sniff that reimplemented either would be a
+    second grammar to keep in step with the parser, and the two would drift.
+    """
+    with pytest.raises(ValueError, match="not a refinement file"):
+        identify_project_format(_write(tmp_path, "comments.inp", INP_ALL_COMMENTED))
+
+
+def test_the_refusal_names_what_this_build_does_open(tmp_path):
+    """A message, not a traceback — and it points the three near misses onward.
+
+    A caller reaching this has a file of *some* kind, and the three things it is
+    most likely to be each have a reader that is deliberately not in this
+    registry.  Naming them is the difference between "no" and "not here, try
+    that".
+    """
+    with pytest.raises(ValueError) as exc:
+        identify_project_format(_write(tmp_path, "x.txt", "10.0 3\n10.1 5\n"))
+    message = str(exc.value)
+    for expected in ("FullProf .pcr", "TOPAS .inp", "read_pattern",
+                     "read_gsas_prm", "read_recipe"):
+        assert expected in message
+
+
+def test_read_project_model_tags_the_answer_with_its_format(tmp_path):
+    """The answer names the format and hands on the format's own model.
+
+    Deliberately not a union with optional fields: a blank would read as an
+    answer (WP-1076), so a caller reads ``stated`` and gets only fields the
+    format really has.
+    """
+    model = read_project_model(_pcr(tmp_path, "refined.pcr", _phase()))
+    assert model.format.name == "fullprof_pcr"
+    assert model.path.name == "refined.pcr"
+    assert model.stated.phases and model.stated.phases[0].name == "Cr2wO6"
+    # `reports_at="build"`, so the repairs reach the list handed to to_structure
+    diagnostics: list = []
+    structure = model.to_structure(diagnostics=diagnostics)
+    assert [p.name for p in structure.phases] == ["Cr2wO6"]
+    # the file's own refine flags crossed, decoded out of the codewords — the
+    # half nobody can reconstruct from a CIF plus a pattern
+    assert structure.phases[0].scale.vary is True
+
+
+def test_the_inp_reader_reports_its_repairs_at_read(tmp_path):
+    """``reports_at="read"``, exercised rather than asserted from the table."""
+    diagnostics: list = []
+    model = read_project_model(_write(tmp_path, "run.inp", INP_MINIMAL),
+                               diagnostics=diagnostics)
+    assert model.format.reports_at == "read"
+    assert model.stated.r_wp == pytest.approx(9.73)
+    structure = model.to_structure()
+    assert [p.name for p in structure.phases] == ["corundum"]
+    # the file's own refine flags crossed, which is the payload this WP is about
+    assert structure.phases[0].cell.a.vary is True
+
+
+def test_a_reader_error_reaches_the_caller_naming_the_file(tmp_path):
+    """The front door adds no exception of its own.
+
+    ``io/CLAUDE.md`` § Project readers: a project reader refuses where a pattern
+    reader would repair, and the refusal names the file.  Dispatching through
+    the registry must not turn that into a bare parser exception or a
+    half-built model.
+    """
+    path = _write(tmp_path, "macro.inp", INP_STR_MACRO)
+    with pytest.raises(ValueError) as exc:
+        read_project_model(path)
+    assert "macro.inp" in str(exc.value) and "STR(" in str(exc.value)
+
+
+# --------------------------------------------------------------------------
+# The arm
+
+
+def test_every_project_format_appears_in_the_capabilities_arm():
+    """The membership rule ``reader_formats`` is held to, one registry over."""
+    caps = rx.capabilities()
+    assert [f.name for f in caps.project_formats] == [f.name for f in PROJECT_FORMATS]
+    by_name = {f.name: f for f in caps.project_formats}
+    assert by_name["fullprof_pcr"].extensions == [".pcr"]
+    # the arm states what each file carries *beyond* a structure, which is what
+    # a client asks before it reads a model it has no common shape for
+    assert "refine flags" in " ".join(by_name["topas_inp"].carries)
+    assert by_name["topas_inp"].reports_at == "read"
+    assert by_name["fullprof_pcr"].reports_at == "build"
+
+
+def test_the_front_door_is_what_the_feature_flag_reports():
+    """``project_readers`` reports the door, not a format.
+
+    A build that grows a third format should not need this flag edited — which
+    format there is is ``project_formats``' question.
+    """
+    from rietx.capabilities import _SURFACE_FLAGS
+
+    assert _SURFACE_FLAGS["project_readers"] == "read_project_model"
+    assert rx.capabilities().features["project_readers"] is True
+
+
+def test_the_registry_and_the_package_export_the_same_readers():
+    """Every member's ``read`` is reachable by name from the package.
+
+    The two halves drift the way ``_SURFACE_FLAGS`` describes: a reader renamed
+    in its module keeps working through the registry while the documented name
+    is gone, and nothing goes red.  So the check is that each member's callable
+    **is** the exported one, by identity.
+    """
+    exported = {f.read.__name__ for f in PROJECT_FORMATS}
+    assert exported <= set(rx.__all__), exported - set(rx.__all__)
+    for fmt in PROJECT_FORMATS:
+        assert getattr(rx, fmt.read.__name__) is fmt.read
+
+
+# --------------------------------------------------------------------------
+# The declarations
+
+
+@pytest.mark.parametrize("fmt", PROJECT_FORMATS, ids=lambda f: f.name)
+def test_reports_at_matches_the_real_signature(fmt: ProjectFormat):
+    """The declared channel is where the keyword actually is.
+
+    ``reports_at`` is read by :meth:`ProjectModel.to_structure` to decide which
+    call gets the caller's diagnostics list, so a wrong value does not raise —
+    it silently returns an empty list, which is the shape of bug that reads as
+    "this file needed no repairs".  Pinned against ``inspect.signature`` so a
+    reader that grows or loses the keyword fails here.
+    """
+    takes = {
+        "read": "diagnostics" in inspect.signature(fmt.read).parameters,
+        "build": "diagnostics" in inspect.signature(fmt.to_structure).parameters,
+    }
+    assert takes[fmt.reports_at], (
+        f"{fmt.name} declares reports_at={fmt.reports_at!r} but that call takes "
+        f"no diagnostics keyword")
+
+
+@pytest.mark.parametrize("fmt", PROJECT_FORMATS, ids=lambda f: f.name)
+def test_every_declared_field_is_populated(fmt: ProjectFormat):
+    """No empty state that reads as an answer (WP-1076).
+
+    ``carries`` and ``sniff`` are prose a client shows a person; an empty one
+    is not "this format carries nothing", it is a row nobody wrote.
+    """
+    assert fmt.name and fmt.title and fmt.sniff
+    assert fmt.extensions and all(e.startswith(".") for e in fmt.extensions)
+    assert fmt.carries and all(fmt.carries)
+    assert callable(fmt.matches) and callable(fmt.read) and callable(fmt.to_structure)
+
+
+def test_the_order_is_strongest_evidence_first():
+    """``PATTERN_FORMATS``' rule, and here it is two members rather than sixteen.
+
+    FullProf's evidence is a line the format *requires* first; TOPAS's is a
+    keyword anywhere in a 64 kB head.  A file satisfying both would be claimed
+    by the stronger test, and the order is what says so.
+    """
+    assert PROJECT_FORMATS[0].name == "fullprof_pcr"
+    assert "COMM" in PROJECT_FORMATS[0].sniff
+
+
+def test_the_sniff_budgets_differ_by_kind_not_by_taste():
+    """A first-line test needs ``HEAD_BYTES``; a keyword scan needs more.
+
+    The ``.inp`` budget is the only one asked for by name in this package, so
+    the reason is worth pinning: a ``.inp`` has no required opening, and its
+    first block opener sits behind whatever preamble the author wrote.
+    """
+    from rietx.io.formats.base import HEAD_BYTES
+
+    assert registry.INP_SNIFF_BYTES > HEAD_BYTES
+
+
+def test_the_three_readers_left_out_are_left_out_on_purpose():
+    """``read_gsas_prm``, ``read_recipe`` and the pattern readers are not here.
+
+    Each is a foreign-file reader and each is deliberately outside this
+    registry — a ``.prm`` carries a machine and no model, a recipe is a
+    build-wide feature that resolves to something ready to fit, and a pattern is
+    the other registry's. The test is that they stay reachable and stay out,
+    because "it is missing" and "it is elsewhere on purpose" are answers a
+    later session has to be able to tell apart.
+    """
+    names = {f.read.__name__ for f in PROJECT_FORMATS}
+    assert "read_gsas_prm" not in names and "read_recipe" not in names
+    assert hasattr(rx, "read_gsas_prm") and hasattr(rx, "read_recipe")
+    assert rx.capabilities().features["powderline_recipe"] is True

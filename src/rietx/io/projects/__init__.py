@@ -11,6 +11,13 @@ fact each, and several fences in one file drift.
 """
 
 from .fullprof import FullProfPcrError, read_fullprof_pcr
+from .registry import (
+    PROJECT_FORMATS,
+    ProjectFormat,
+    ProjectModel,
+    identify_project_format,
+    read_project_model,
+)
 from .topas import TopasInpError, read_topas_inp
 
 # The package exports only each format's *format-named* entry point (and its
@@ -22,4 +29,9 @@ from .topas import TopasInpError, read_topas_inp
 # its own (the second import silently winning). So each conversion stays
 # reachable as ``rietx.io.projects.<format>.to_structure`` and nothing shadows
 # across formats.
-__all__ = ["read_topas_inp", "TopasInpError", "read_fullprof_pcr", "FullProfPcrError"]
+# The registry is the package's front door and is exported beside the
+# format-named entry points: `read_project_model` is the one call for "someone
+# handed me a file", the per-format readers the one for "I know what this is".
+__all__ = ["read_topas_inp", "TopasInpError", "read_fullprof_pcr",
+           "FullProfPcrError", "read_project_model", "identify_project_format",
+           "PROJECT_FORMATS", "ProjectFormat", "ProjectModel"]
