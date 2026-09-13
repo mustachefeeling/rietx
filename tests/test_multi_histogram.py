@@ -172,15 +172,15 @@ def test_a_narrow_declared_peak_is_flagged_per_histogram(two_patterns):
 
     A disguised-Bragg background peak — free position/height/width with a fitted
     width at the resolution — declared on one histogram surfaces
-    ``BACKGROUND_PEAK_TOO_NARROW`` in *that histogram's* own diagnostics, the
+    ``HUMP_TOO_NARROW`` in *that histogram's* own diagnostics, the
     channel a joint fit reports degeneracy evidence through.  Before this the
-    joint path was the only one that never called ``check_background_peak_width``,
+    joint path was the only one that never called ``check_hump_width``,
     so such a peak produced no warning anywhere.
     """
-    from rietx.schemas.instrument import BackgroundPeak
+    from rietx.schemas.instrument import HumpComponent
 
     structure, instruments = perturbed_inputs()
-    instruments[0].background_peaks = [BackgroundPeak(
+    instruments[0].extra_components = [HumpComponent(
         label="disguised",
         position=Parameter(value=12.0, unit="deg", vary=False),
         height=Parameter(value=150.0, min=0.0, unit="counts",
@@ -192,8 +192,8 @@ def test_a_narrow_declared_peak_is_flagged_per_histogram(two_patterns):
 
     codes0 = {d.code for d in result.histograms[0].diagnostics}
     codes1 = {d.code for d in result.histograms[1].diagnostics}
-    assert "BACKGROUND_PEAK_TOO_NARROW" in codes0
-    assert "BACKGROUND_PEAK_TOO_NARROW" not in codes1   # no peak declared there
+    assert "HUMP_TOO_NARROW" in codes0
+    assert "HUMP_TOO_NARROW" not in codes1   # no peak declared there
 
 
 def test_every_row_carries_a_bound_answer_or_says_it_has_none(two_patterns):

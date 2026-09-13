@@ -26,45 +26,45 @@ import numpy as np
 import pytest
 
 import rietx as rx
-from rietx.background.models import background_peak_curve
+from rietx.background.models import hump_curve
 from rietx.io.exporters import _background_description
 from rietx.io.instrument_profile import save_instrument_profile
 from rietx.model.forward import compile_model
 from rietx.optimize.least_squares import _make_jacobian, _make_residual
 from rietx.optimize.statistics import _span_basis, background_absorption
-from rietx.params.vector import ParameterTable, background_peak_parameters
+from rietx.params.vector import ParameterTable, extra_component_parameters
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import (
-    BACKGROUND_PEAK_FIELDS,
-    BACKGROUND_PEAK_FWHM_MIN,
+    HUMP_FIELDS,
+    HUMP_FWHM_MIN,
     BackgroundChebyshev,
-    BackgroundPeak,
     BackgroundPSpline,
+    HumpComponent,
     Instrument,
 )
 from rietx.schemas.pattern import PatternData
 from rietx.strategy.staged import (
-    BACKGROUND_PEAK_MIN_WIDTH_MULT,
+    HUMP_MIN_WIDTH_MULT,
     PLAN_PRESETS,
-    check_background_peak_width,
+    check_hump_width,
 )
 from tests.test_schemas import make_lab6
 
 WAVELENGTH = 1.5405929
-PEAK_PATHS = tuple(f"instrument.background_peaks.0.{n}"
-                   for n in BACKGROUND_PEAK_FIELDS)
+PEAK_PATHS = tuple(f"instrument.extra_components.0.{n}"
+                   for n in HUMP_FIELDS)
 
 
 # ----------------------------------------------------------------------
 # helpers
 # ----------------------------------------------------------------------
-def _peak(position=32.0, height=400.0, fwhm=7.0, *, vary=True) -> BackgroundPeak:
-    return BackgroundPeak(
+def _peak(position=32.0, height=400.0, fwhm=7.0, *, vary=True) -> HumpComponent:
+    return HumpComponent(
         label="hump",
         position=Parameter(value=position, unit="deg", vary=vary),
         height=Parameter(value=height, min=0.0, unit="counts",
                          transform="softplus", vary=vary),
-        fwhm=Parameter(value=fwhm, min=BACKGROUND_PEAK_FWHM_MIN, unit="deg",
+        fwhm=Parameter(value=fwhm, min=HUMP_FWHM_MIN, unit="deg",
                        transform="softplus", vary=vary))
 
 
@@ -75,7 +75,7 @@ def _instrument(*, peaks=(), background=None) -> Instrument:
     ins.profile.x.value = 5e-3
     if background is not None:
         ins.background = background
-    ins.background_peaks = list(peaks)
+    ins.extra_components = list(peaks)
     return ins
 
 
@@ -103,18 +103,18 @@ def test_the_empty_default_is_byte_identical_to_no_field_at_all():
     """The ``restraints``/``microstrain``/``surface_roughness`` idiom, pinned.
 
     Two halves, because "off" has to hold in both directions: the serialized
-    instrument differs from a pre-``background_peaks`` one by exactly the empty
+    instrument differs from a pre-``extra_components`` one by exactly the empty
     list, and the parameter table it produces is unchanged.
     """
     ins = _instrument()
     dumped = ins.model_dump(mode="json")
-    assert dumped["background_peaks"] == []
-    without = {k: v for k, v in dumped.items() if k != "background_peaks"}
+    assert dumped["extra_components"] == []
+    without = {k: v for k, v in dumped.items() if k != "extra_components"}
     assert json.loads(json.dumps(without)) == without   # nothing else moved
 
     table = ParameterTable(make_lab6(), ins)
-    assert not [e.path for e in table.entries if "background_peaks" in e.path]
-    assert background_peak_parameters(ins.background_peaks) == []
+    assert not [e.path for e in table.entries if "extra_components" in e.path]
+    assert extra_component_parameters(ins.extra_components) == []
 
 
 def test_a_declared_peak_at_zero_height_leaves_the_background_bit_identical():
@@ -125,7 +125,7 @@ def test_a_declared_peak_at_zero_height_leaves_the_background_bit_identical():
         peaks=(_peak(height=0.0, vary=False),), free=())
     off = np.asarray(model_off.background(table_off.decode(table_off.x0())))
     on = np.asarray(model_on.background(table_on.decode(table_on.x0())))
-    assert model_on.bkg_peak_paths and not model_off.bkg_peak_paths
+    assert model_on.component_paths and not model_off.component_paths
     assert np.array_equal(off, on)          # bit-identical, not allclose
 
 
@@ -135,10 +135,10 @@ def test_a_declared_peak_at_zero_height_leaves_the_background_bit_identical():
 def test_json_round_trip_keeps_every_peak_parameter():
     ins = _instrument(peaks=(_peak(), _peak(position=70.0, height=10.0)))
     back = Instrument.model_validate(json.loads(ins.model_dump_json()))
-    assert len(back.background_peaks) == 2
-    assert back.background_peaks[1].position.value == 70.0
-    assert back.background_peaks[0].label == "hump"
-    assert back.background_peaks[0].fwhm.transform == "softplus"
+    assert len(back.extra_components) == 2
+    assert back.extra_components[1].position.value == 70.0
+    assert back.extra_components[0].label == "hump"
+    assert back.extra_components[0].fwhm.transform == "softplus"
 
 
 def test_a_stored_zero_width_bound_is_repaired_rather_than_deserialized():
@@ -147,14 +147,14 @@ def test_a_stored_zero_width_bound_is_repaired_rather_than_deserialized():
     A project or history node written with ``min: 0.0`` would otherwise come
     back with a reachable zero width, and the Gaussian divides by it.
     """
-    peak = BackgroundPeak.model_validate({
+    peak = HumpComponent.model_validate({
         "position": {"value": 20.0},
         "height": {"value": 1.0, "min": 0.0, "transform": "softplus"},
         "fwhm": {"value": 0.0, "min": 0.0, "transform": "softplus"}})
-    assert peak.fwhm.min == BACKGROUND_PEAK_FWHM_MIN
-    assert peak.fwhm.value == BACKGROUND_PEAK_FWHM_MIN
+    assert peak.fwhm.min == HUMP_FWHM_MIN
+    assert peak.fwhm.value == HUMP_FWHM_MIN
     # a caller's own positive bound is left alone
-    kept = BackgroundPeak.model_validate({
+    kept = HumpComponent.model_validate({
         "position": {"value": 20.0},
         "height": {"value": 1.0, "min": 0.0, "transform": "softplus"},
         "fwhm": {"value": 3.0, "min": 1.0, "transform": "softplus"}})
@@ -203,7 +203,7 @@ def test_the_curve_is_a_gaussian_of_the_declared_fwhm():
     """Half height at ±Γ/2 — the property the −4 ln2 constant exists for."""
     xp = rx.backend.get_backend()
     tt = np.array([32.0 - 3.5, 32.0, 32.0 + 3.5], dtype=np.float64)
-    y = np.asarray(background_peak_curve(tt, 32.0, 400.0, 7.0, xp))
+    y = np.asarray(hump_curve(tt, 32.0, 400.0, 7.0, xp))
     assert y[1] == pytest.approx(400.0, rel=1e-15)
     assert y[0] == pytest.approx(200.0, rel=1e-12)
     assert y[2] == pytest.approx(200.0, rel=1e-12)
@@ -222,8 +222,8 @@ def test_both_halves_of_the_table_know_the_peak_paths():
     _s, ins, _d, table, _m = _state(peaks=(_peak(),))
     assert set(PEAK_PATHS) <= set(table.free_paths)
     # the helper is the one authority both sides read
-    assert [sub for sub, _p in background_peak_parameters(ins.background_peaks)] \
-        == [f"0.{n}" for n in BACKGROUND_PEAK_FIELDS]
+    assert [sub for sub, _p in extra_component_parameters(ins.extra_components)] \
+        == [f"0.{n}" for n in HUMP_FIELDS]
 
 
 def test_a_refined_peak_survives_a_stage_boundary():
@@ -238,7 +238,7 @@ def test_a_refined_peak_survives_a_stage_boundary():
         table.entries[table._paths[path]].value = value
     table.apply_to_models(structure, ins)
 
-    peak = ins.background_peaks[0]
+    peak = ins.extra_components[0]
     assert (peak.position.value, peak.height.value, peak.fwhm.value) \
         == (41.0, 555.0, 9.5)
     # and the rebuilt table — what the next stage compiles from — agrees
@@ -257,7 +257,7 @@ def test_peak_paths_never_join_the_linear_background_block():
                        BackgroundPSpline.for_range(15.0, 110.0,
                                                    knot_step_deg=8.0)):
         _s, _i, _d, _t, model = _state(peaks=(_peak(),), background=background)
-        peak_paths = {p for triple in model.bkg_peak_paths for p in triple}
+        peak_paths = {p for triple in model.component_paths for p in triple}
         assert peak_paths and set(model.bkg_paths).isdisjoint(peak_paths)
 
 
@@ -387,16 +387,16 @@ def test_the_residual_sees_the_peak():
 # ----------------------------------------------------------------------
 def test_a_broad_peak_trips_nothing_and_a_narrow_one_is_reported():
     _s, _i, _d, table, model = _state(peaks=(_peak(fwhm=7.0),))
-    assert check_background_peak_width(table, model) == []
+    assert check_hump_width(table, model) == []
 
     values = {e.path: e.value for e in table.entries}
     gamma = float(model.instrument_fwhm_deg(values[PEAK_PATHS[0]], values))
-    assert 7.0 / gamma > BACKGROUND_PEAK_MIN_WIDTH_MULT
+    assert 7.0 / gamma > HUMP_MIN_WIDTH_MULT
 
-    narrow = 0.5 * BACKGROUND_PEAK_MIN_WIDTH_MULT * gamma
+    narrow = 0.5 * HUMP_MIN_WIDTH_MULT * gamma
     table.entries[table._paths[PEAK_PATHS[2]]].value = narrow
-    findings = check_background_peak_width(table, model)
-    assert [f.code for f in findings] == ["BACKGROUND_PEAK_TOO_NARROW"]
+    findings = check_hump_width(table, model)
+    assert [f.code for f in findings] == ["HUMP_TOO_NARROW"]
     assert findings[0].paths == (PEAK_PATHS[2],)
     assert findings[0].value == pytest.approx(narrow / gamma)
     assert "instrumental" in str(findings[0])
@@ -405,8 +405,8 @@ def test_a_broad_peak_trips_nothing_and_a_narrow_one_is_reported():
 def test_the_guard_is_silent_without_a_model_or_without_peaks():
     """The ``check_stephens_positive`` convention: no model, no claim."""
     _s, _i, _d, table, model = _state(peaks=())
-    assert check_background_peak_width(table, model) == []
-    assert check_background_peak_width(table, None) == []
+    assert check_hump_width(table, model) == []
+    assert check_hump_width(table, None) == []
 
 
 def test_the_width_guard_abstains_where_the_resolution_is_not_evaluable():
@@ -431,7 +431,7 @@ def test_the_width_guard_abstains_where_the_resolution_is_not_evaluable():
     ins.profile.x.value = 0.0       # no Lorentzian width to recover it
     ins.profile.y.value = 0.0
     # 0.15° is near a genuine resolution and would be flagged at a healthy angle
-    ins.background_peaks = [_peak(position=150.0, height=50.0, fwhm=0.15,
+    ins.extra_components = [_peak(position=150.0, height=50.0, fwhm=0.15,
                                   vary=False)]
     tt = np.arange(15.0, 160.0, 0.05)
     data = PatternData(two_theta=tt.tolist(),
@@ -441,7 +441,7 @@ def test_the_width_guard_abstains_where_the_resolution_is_not_evaluable():
                           moving_paths=set(table.moving_paths))
     values = {e.path: e.value for e in table.entries}
     assert float(model.instrument_fwhm_deg(150.0, values)) < 1e-3  # collapsed
-    assert check_background_peak_width(table, model) == []          # abstained
+    assert check_hump_width(table, model) == []          # abstained
 
 
 def test_findings_are_in_the_diagnostic_emission_order():
@@ -451,11 +451,11 @@ def test_findings_are_in_the_diagnostic_emission_order():
     from rietx.strategy.staged import GuardFinding, GuardReport
 
     r = GuardReport()
-    narrow = GuardFinding.narrow_background_peak(
-        "instrument.background_peaks.0.fwhm", 0.2, 0.1, 30.0)
+    narrow = GuardFinding.narrow_hump(
+        "instrument.extra_components.0.fwhm", 0.2, 0.1, 30.0)
     bg = GuardFinding.background_absorption("phases.0.scale", 0.9)
     rough = GuardFinding.background_absorption("phases.0.atoms.0.biso", 0.95)
-    r.narrow_background_peaks = [narrow]
+    r.narrow_humps = [narrow]
     r.background_correlations = [bg]
     r.roughness_correlations = [rough]
     flat = r.findings()
@@ -516,8 +516,8 @@ def test_a_zero_column_is_dropped_from_a_projection_span():
     jac[:, 3] = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]      # the target
     assert _span_basis(jac, [0, 1, 2]).shape == (6, 1)
     r2 = background_absorption(jac, ["instrument.background.c0",
-                                     "instrument.background_peaks.0.position",
-                                     "instrument.background_peaks.0.fwhm",
+                                     "instrument.extra_components.0.position",
+                                     "instrument.extra_components.0.fwhm",
                                      "phases.0.scale"])
     assert r2["phases.0.scale"] == pytest.approx(0.0, abs=1e-12)
     # all-zero block: the projector is zero, i.e. "imitates nothing"
@@ -562,25 +562,25 @@ def test_peak_columns_join_the_background_block():
     jac[:, 0] = [1.0, 0.0, 0.0, 0.0, 0.0]
     jac[:, 1] = [1.0, 1.0, 0.0, 0.0, 0.0]
     with_peak = background_absorption(
-        jac, ["instrument.background_peaks.0.height", "phases.0.scale"])
+        jac, ["instrument.extra_components.0.height", "phases.0.scale"])
     without = background_absorption(jac, ["instrument.profile.w",
                                           "phases.0.scale"])
     assert with_peak["phases.0.scale"] == pytest.approx(0.5)
     assert without == {}       # no background column at all, nothing to project
 
 
-def test_a_background_peak_is_a_roughness_nuisance_too():
+def test_a_hump_is_a_roughness_nuisance_too():
     """The sibling of ``background_absorption`` folding peaks into its block
     (candidate 3): a declared peak is background flexibility that refines
     regardless, so the roughness/ADP comparison projects it out first — three
     columns per peak left in would swamp the partial R² exactly as the scale
     does.  Was matched only for ``instrument.background.`` while its sibling
-    already matched ``instrument.background_peaks.``.
+    already matched ``instrument.extra_components.``.
     """
     from rietx.optimize.statistics import _roughness_nuisance
 
-    assert _roughness_nuisance("instrument.background_peaks.0.height")
-    assert _roughness_nuisance("instrument.background_peaks.3.position")
+    assert _roughness_nuisance("instrument.extra_components.0.height")
+    assert _roughness_nuisance("instrument.extra_components.3.position")
     assert _roughness_nuisance("instrument.background.c2")
     assert _roughness_nuisance("phases.0.scale")
     assert not _roughness_nuisance("phases.0.atoms.0.biso")
@@ -594,19 +594,19 @@ def test_a_background_peak_is_a_roughness_nuisance_too():
 def test_the_structural_plan_can_free_a_declared_peak_and_nothing_else():
     globs = [g for stage in PLAN_PRESETS["mccusker_structural"]().stages
              for g in stage.turn_on]
-    assert "instrument.background_peaks.*" in globs
+    assert "instrument.extra_components.*" in globs
 
     # declared: the glob frees exactly the three
     _s, _i, _d, table, _m = _state(peaks=(_peak(vary=False),), free=())
     before = set(table.free_paths)
-    table.set_vary(["instrument.background_peaks.*"], True)
+    table.set_vary(["instrument.extra_components.*"], True)
     assert set(table.free_paths) - before == set(PEAK_PATHS)
 
     # not declared: the same glob frees nothing, which is what makes the stage
     # safe in a plan that runs against instruments with no hump
     _s, _i, _d, empty, _m = _state(peaks=(), free=())
     unchanged = set(empty.free_paths)
-    empty.set_vary(["instrument.background_peaks.*"], True)
+    empty.set_vary(["instrument.extra_components.*"], True)
     assert set(empty.free_paths) == unchanged
 
 
@@ -616,14 +616,14 @@ def test_no_plan_and_no_estimator_ever_adds_a_peak():
     for build in PLAN_PRESETS.values():
         for stage in build().stages:
             for glob in stage.turn_on:
-                assert "background_peaks" not in glob or glob.endswith(".*")
+                assert "extra_components" not in glob or glob.endswith(".*")
     tt = np.arange(10.0, 90.0, 0.05)
     data = PatternData(two_theta=tt.tolist(),
                        intensity=(200.0 + 400.0 * np.exp(
                            -0.5 * ((tt - 25.0) / 6.0) ** 2)).tolist())
     for kind in ("chebyshev", "pspline"):
         bkg = rx.auto_background(data, kind=kind, wavelength=WAVELENGTH)
-        assert not hasattr(bkg, "background_peaks")
+        assert not hasattr(bkg, "extra_components")
 
 
 def test_the_cif_description_and_the_instrument_profile_both_say_so():
@@ -671,7 +671,7 @@ def synthetic_hump_case():
     xp = rx.backend.get_backend()
     y = (np.asarray(model.evaluate(table.decode(table.x0())))
          + 900.0 - 1.2 * model.tt
-         + np.asarray(background_peak_curve(
+         + np.asarray(hump_curve(
              model.tt, HUMP_TRUTH["position"], HUMP_TRUTH["height"],
              HUMP_TRUTH["fwhm"], xp)))
     rng = np.random.default_rng(11)
@@ -685,7 +685,7 @@ def fit_hump_case(*, with_peak: bool):
     """One arm of the comparison: the same case with and without the peak."""
     data, structure, ins, truth = synthetic_hump_case()
     if with_peak:
-        ins.background_peaks = [_peak(position=13.0, height=30.0, fwhm=5.0,
+        ins.extra_components = [_peak(position=13.0, height=30.0, fwhm=5.0,
                                       vary=False)]
     plan = PLAN_PRESETS["mccusker_structural"]()
     return rx.refine(data, structure, ins, plan=plan), truth
@@ -705,16 +705,16 @@ def test_a_known_hump_comes_back_within_its_esds():
     """
     result, truth = fit_hump_case(with_peak=True)
     got = {row.path.rsplit(".", 1)[1]: row for row in result.parameters
-           if "background_peaks" in row.path}
-    assert set(got) == set(BACKGROUND_PEAK_FIELDS)
+           if "extra_components" in row.path}
+    assert set(got) == set(HUMP_FIELDS)
     for name in ("position", "fwhm", "height"):
         row = got[name]
         assert row.stderr is not None and row.stderr > 0.0, name
         assert abs(row.value - truth[name]) <= 2.0 * row.stderr, (
             f"{name}: {row.value} vs truth {truth[name]} ± {row.stderr}")
     assert not [d for d in result.diagnostics
-                if d.code == "BACKGROUND_PEAK_TOO_NARROW"]
-    assert result.n_background_peaks == 1
+                if d.code == "HUMP_TOO_NARROW"]
+    assert result.n_extra_components == 1
 
 
 @pytest.mark.xdist_group("background-peak-hump")
@@ -723,11 +723,11 @@ def test_the_declared_count_reaches_the_record_and_the_report():
     from rietx.report import build_report
 
     result, _truth = fit_hump_case(with_peak=True)
-    assert result.n_background_peaks == 1
+    assert result.n_extra_components == 1
     assert build_report(result).background.n_peaks == 1
 
     none, _truth = fit_hump_case(with_peak=False)
-    assert none.n_background_peaks == 0
+    assert none.n_extra_components == 0
     assert build_report(none).background.n_peaks == 0
 
 
@@ -738,7 +738,7 @@ def test_a_replayed_node_reports_the_peaks_its_instrument_declares():
     so exist only where a solve measured them — ``replay`` is evaluate-only and
     correctly carries ``None`` there, which is a tested invariant and stays one
     (asserted below, both halves).  The declared count is not a measurement:
-    it is ``len(model.bkg_peak_paths)``, available wherever a compiled model is,
+    it is ``len(model.component_paths)``, available wherever a compiled model is,
     and behind that guard it read 0 on every replayed node — "none declared",
     which is a different claim from the true one.
 
@@ -757,14 +757,14 @@ def test_a_replayed_node_reports_the_peaks_its_instrument_declares():
     ref = rx.Refinement(structure, ins)
     result = ref.fit(data, plan=rx.RefinementPlan(stages=[
         rx.Stage(name="bkg", turn_on=["instrument.background.*"], max_iter=2)]))
-    assert result.n_background_peaks == 1
+    assert result.n_extra_components == 1
 
     replayed = rx.replay(ref.history, result.node_id, data)
     # the invariant this field used to be gated by, intact in both directions
     assert replayed.identifiability is None
     assert build_report(replayed).background.absorption is None
     # and the declared count, which never needed it
-    assert replayed.n_background_peaks == 1
+    assert replayed.n_extra_components == 1
     assert build_report(replayed).background.n_peaks == 1
 
 
@@ -774,5 +774,5 @@ def test_save_instrument_profile_strips_the_peaks(tmp_path):
     path = tmp_path / "profile.json"
     save_instrument_profile(_instrument(peaks=(_peak(),)), path)
     doc = json.loads(path.read_text(encoding="utf-8"))
-    assert "background_peaks" not in doc["instrument"]
-    assert rx.load_instrument_profile(path).background_peaks == []
+    assert "extra_components" not in doc["instrument"]
+    assert rx.load_instrument_profile(path).extra_components == []

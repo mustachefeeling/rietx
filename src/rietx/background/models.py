@@ -81,19 +81,19 @@ def second_difference_matrix(n: int) -> np.ndarray:
 FOUR_LN2_NEG = -4.0 * math.log(2.0)
 
 
-def background_peak_curve(two_theta, position, height, fwhm, xp):
+def hump_curve(two_theta, position, height, fwhm, xp):
     """One explicit broad background Gaussian, evaluated on the whole grid.
 
         y(2θ) = h · exp[ −4 ln2 · ((2θ − 2θ₀)/Γ)² ]
 
-    The evaluator for :class:`rietx.schemas.instrument.BackgroundPeak`, and the
+    The evaluator for :class:`rietx.schemas.instrument.HumpComponent`, and the
     **only** one: :meth:`rietx.model.forward.CompiledModel.background` calls it
     for the numpy path and, through ``get_backend()``, for every traced backend,
     so there is no twin to drift (``backend/traced.py``'s reason for existing,
     satisfied by having nothing to copy).
 
     Empirical basis function, not a peak shape — see
-    :class:`~rietx.schemas.instrument.BackgroundPeak` for the citation of the
+    :class:`~rietx.schemas.instrument.HumpComponent` for the citation of the
     *practice* and the note that no physical derivation is claimed.
 
     ``two_theta`` must already be lifted onto ``xp`` by the caller: it is a

@@ -79,7 +79,7 @@ and never silently ignores a refine flag.  This reader refuses by name:
   ``isotropic`` — upstream raises ``NotImplementedError`` on these itself;
 * a non-zero ``Zero``, and a non-zero ``Z``;
 * a background peak whose Lorentzian γ the Gaussian-only
-  :class:`~rietx.schemas.instrument.BackgroundPeak` cannot express.
+  :class:`~rietx.schemas.instrument.HumpComponent` cannot express.
 
 A **fixed** value the model reaches its identity at is *dropped* rather than
 refused, with a ``RECIPE_FIELD_DROPPED`` diagnostic naming it: ``Z = 0`` is no
@@ -104,13 +104,13 @@ from ..crystallography.dispersion import dispersion
 from ..crystallography.lattice import cell_volume
 from ..model.forward import seed_phase_scales
 from ..model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
-from ..params.vector import background_parameters, background_peak_parameters
+from ..params.vector import background_parameters, extra_component_parameters
 from ..schemas.common import Diagnostic, Parameter
 from ..schemas.instrument import (
     BackgroundChebyshev,
-    BackgroundPeak,
     EmissionLine,
     Geometry,
+    HumpComponent,
     Instrument,
     ProfileTCHZ,
     Source,
@@ -800,14 +800,14 @@ def _read_background(payload: dict, pattern: PatternData,
 
     peaks = bg.get("single_peaks")
     if peaks:
-        instrument.background_peaks = _read_background_peaks(
+        instrument.extra_components = _read_extra_components(
             peaks, pattern, limits, diags)
 
 
-def _read_background_peaks(peaks: dict, pattern: PatternData,
+def _read_extra_components(peaks: dict, pattern: PatternData,
                            limits: tuple[float, float] | None,
-                           diags: list[Diagnostic]) -> list[BackgroundPeak]:
-    """``background.single_peaks`` → :class:`BackgroundPeak`, γ permitting.
+                           diags: list[Diagnostic]) -> list[HumpComponent]:
+    """``background.single_peaks`` → :class:`HumpComponent`, γ permitting.
 
     The recipe's background peak is a pseudo-Voigt (position, intensity, σ, γ);
     this package's is a Gaussian, deliberately and with the reason on the
@@ -827,7 +827,7 @@ def _read_background_peaks(peaks: dict, pattern: PatternData,
     lo, hi = limits if limits is not None else (tth[0], tth[-1])
     span = float(min(hi, tth[-1]) - max(lo, tth[0]))
 
-    out: list[BackgroundPeak] = []
+    out: list[HumpComponent] = []
     for i in range(n):
         base = "payload.background.single_peaks"
         pos, pos_vary, _, _ = _spec(_at(positions, i), f"{base}.positions[{i}]")
@@ -861,7 +861,7 @@ def _read_background_peaks(peaks: dict, pattern: PatternData,
                     f"step, so it is dropped: this package's background peak "
                     f"is Gaussian and nothing narrower than a channel could "
                     f"be seen anyway"),
-                where=[f"instrument.background_peaks.{i}"], value=gam_fwhm))
+                where=[f"instrument.extra_components.{i}"], value=gam_fwhm))
         if g_vary:
             diags.append(Diagnostic(
                 level="warning", code="RECIPE_FLAG_DROPPED",
@@ -869,12 +869,12 @@ def _read_background_peaks(peaks: dict, pattern: PatternData,
                     f"background peak {i}'s Lorentzian gamma is flagged for "
                     f"refinement and has no counterpart here, so that flag is "
                     f"not honoured; the Gaussian fwhm carries the width"),
-                where=[f"instrument.background_peaks.{i}.fwhm"]))
+                where=[f"instrument.extra_components.{i}.fwhm"]))
 
         fwhm = (5.0 if sig is None
                 else max(abs(sig) * math.sqrt(8.0 * math.log(2.0))
                          * CENTIDEG_TO_DEG, 1e-3))
-        peak = BackgroundPeak(
+        peak = HumpComponent(
             position=Parameter(value=0.0 if pos is None else float(pos),
                                vary=pos_vary, unit="deg"),
             height=Parameter(value=0.0 if height is None else abs(float(height)),
@@ -888,12 +888,12 @@ def _read_background_peaks(peaks: dict, pattern: PatternData,
     return out
 
 
-def _warn_peak_is_a_polynomial(i: int, peak: BackgroundPeak, span: float,
+def _warn_peak_is_a_polynomial(i: int, peak: HumpComponent, span: float,
                                diags: list[Diagnostic]) -> None:
     """A Gaussian wider than its window is a low-order polynomial in disguise.
 
     Not a tuned threshold and not this reader's opinion:
-    :class:`~rietx.schemas.instrument.BackgroundPeak`'s own record measured it
+    :class:`~rietx.schemas.instrument.HumpComponent`'s own record measured it
     — on a 16-term polynomial the same peak walked to 24.8° wide, "becomes a
     low-order background term in all but name", and the fit returned 617
     ``HIGH_CORRELATION`` findings.  The rule it states is *declare a peak
@@ -923,7 +923,7 @@ def _warn_peak_is_a_polynomial(i: int, peak: BackgroundPeak, span: float,
             f"whole budget walking that valley — both reference engines did, "
             f"in opposite directions. A background peak is a substitute for "
             f"polynomial terms, not an addition to them"),
-        where=[f"instrument.background_peaks.{i}.fwhm"],
+        where=[f"instrument.extra_components.{i}.fwhm"],
         value=peak.fwhm.value))
 
 
@@ -1320,7 +1320,7 @@ _RECIPE_STAGE_ORDER: tuple[tuple[str, frozenset[str]], ...] = (
     ("cell", frozenset({"cell"})),
     ("profile_w", frozenset({"profile_w"})),
     ("profile", frozenset({"profile", "axial", "polarization"})),
-    ("background_peaks", frozenset({"background_peak"})),
+    ("extra_components", frozenset({"extra_component"})),
     ("sample_broadening", frozenset({"broadening"})),
     ("coordinates", frozenset({"dof"})),
     ("displacement", frozenset({"biso", "occ"})),
@@ -1344,8 +1344,8 @@ def _group_of(path: str) -> str:
         return "axial"
     if path == "instrument.source.polarization":
         return "polarization"
-    if path.startswith("instrument.background_peaks."):
-        return "background_peak"
+    if path.startswith("instrument.extra_components."):
+        return "extra_component"
     if path.startswith("instrument.background."):
         return "background"
     if path.endswith(".scale"):
@@ -1386,9 +1386,9 @@ def _flagged_paths(structure: Structure, instrument: Instrument) -> set[str]:
     for sub, param in background_parameters(instrument.background):
         if param.vary:
             paths.add(f"instrument.background.{sub}")
-    for sub, param in background_peak_parameters(instrument.background_peaks):
+    for sub, param in extra_component_parameters(instrument.extra_components):
         if param.vary:
-            paths.add(f"instrument.background_peaks.{sub}")
+            paths.add(f"instrument.extra_components.{sub}")
     for ip, phase in enumerate(structure.phases):
         if phase.scale.vary:
             paths.add(f"phases.{ip}.scale")
@@ -1573,8 +1573,8 @@ def _describe(path: str, structure: Structure):
     if path == "instrument.source.polarization":
         return ("polarization_correction", "instrument_correction", "", None,
                 "", None)
-    if path.startswith("instrument.background_peaks."):
-        return (f"background_peak_{parts[2]}_{parts[3]}", "background_peak",
+    if path.startswith("instrument.extra_components."):
+        return (f"extra_component_{parts[2]}_{parts[3]}", "extra_component",
                 "", None, "", None)
     if path.startswith("instrument.background."):
         sub = parts[-1]

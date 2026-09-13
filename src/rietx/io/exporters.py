@@ -278,7 +278,7 @@ def _background_description(instrument: Instrument) -> str:
                 f"lambda_smooth={bkg.lambda_smooth:.4g}")
     else:
         base = type(bkg).__name__
-    n = len(instrument.background_peaks)
+    n = len(instrument.extra_components)
     if n:
         base += f" + {n} explicit Gaussian background peak{'s' if n > 1 else ''}"
     return base

@@ -266,7 +266,7 @@ with r = 1 the identity.
 | `Instrument.zero_shift` | `Parameter` | 0.0 deg, in [−0.5, 0.5] | a constant 2θ offset, the one position error every geometry has |
 | `Instrument.profile` | `ProfileTCHZ` | see below | the instrumental width function |
 | `Instrument.background` | one of three | `BackgroundChebyshev` | the pedestal under the peaks |
-| `Instrument.background_peaks` | list[`BackgroundPeak`] | `[]` (off) | explicit broad peaks added on top of that pedestal |
+| `Instrument.extra_components` | list[`HumpComponent`] | `[]` (off) | explicit broad peaks added on top of that pedestal |
 
 Four constructors build a plausible instrument, and the difference between them
 is which aberrations exist at all rather than which are switched on.
@@ -682,25 +682,25 @@ down, and Rwp improves while it happens. That is measured once per fit and
 reported; [](results.md) has the table.
 
 (background-peaks)=
-### Explicit background peaks
+### Explicit humps
 
-`Instrument.background_peaks` is a list of `BackgroundPeak`, each one broad
+`Instrument.extra_components` is a list of `HumpComponent`, each one broad
 Gaussian **added on top of** whichever of the three models is in use. It is not
 a fourth model: it composes with all of them, the design matrix is untouched,
 and the empty default is exactly off.
 
 | Field | Is | Bound |
 |---|---|---|
-| `BackgroundPeak.position` | the hump's apparent 2θ | unbounded by default — it is not a Bragg position, and the range that would bound it is a property of the pattern, not of the instrument |
-| `BackgroundPeak.height` | its peak value in counts | softplus, `min=0`, and zero *is* the off state, so the bound is safe |
-| `BackgroundPeak.fwhm` | its width in 2θ | softplus, floored at `BACKGROUND_PEAK_FWHM_MIN` — the Gaussian divides by Γ, so a zero width is a pole rather than an identity |
-| `BackgroundPeak.label` | a free-text tag | not a parameter and not part of any dot-path |
+| `HumpComponent.position` | the hump's apparent 2θ | unbounded by default — it is not a Bragg position, and the range that would bound it is a property of the pattern, not of the instrument |
+| `HumpComponent.height` | its peak value in counts | softplus, `min=0`, and zero *is* the off state, so the bound is safe |
+| `HumpComponent.fwhm` | its width in 2θ | softplus, floored at `HUMP_FWHM_MIN` — the Gaussian divides by Γ, so a zero width is a pole rather than an identity |
+| `HumpComponent.label` | a free-text tag | not a parameter and not part of any dot-path |
 
 All three parameters default to `vary=False`, so a declared peak is inert until
 a stage frees it, and a height of zero means a declared-but-never-freed peak is
 bit-identical to no peak at all. Nothing in the package ever *adds* a peak:
 `auto_background` sizes the polynomial or the spline and knows nothing about
-peaks, and the `mccusker_structural` plan's `background_peaks` stage frees
+peaks, and the `mccusker_structural` plan's `extra_components` stage frees
 whatever you declared and nothing more. `save_instrument_profile` strips them,
 since a hump belongs to this specimen and this sample environment rather than to
 the goniometer.
@@ -737,15 +737,15 @@ of silicon accounts for. The protocol is that acceptance test's full-range fit �
 cell held at the NIST certificate, FCJ axial divergence tied, `lor_size` and
 `lor_strain` on the phase, dispersion off, λ and Biso freed last — with the
 background swapped from its P-spline to a low-order Chebyshev, and, in the peak
-arms, one `BackgroundPeak` freed after the first stage and polished jointly with
+arms, one `HumpComponent` freed after the first stage and polished jointly with
 the polynomial at the end.
 
 | background | free background terms | Rwp | GoF | Biso(Si) / Å² | `HIGH_CORRELATION` |
 |---|---|---|---|---|---|
 | Chebyshev, 3 terms | 3 | 0.119977 | 1.9695 | 0.414(75) | 0 |
-| Chebyshev-3 **+ one background peak** | 3 + 3 | 0.082503 | 1.3544 | 0.421(12) | 0 |
+| Chebyshev-3 **+ one hump** | 3 + 3 | 0.082503 | 1.3544 | 0.421(12) | 0 |
 | Chebyshev, 6 terms | 6 | 0.088597 | 1.4545 | 0.422(29) | 0 |
-| Chebyshev-6 + one background peak | 6 + 3 | 0.077152 | 1.2666 | 0.4235(85) | 0 |
+| Chebyshev-6 + one hump | 6 + 3 | 0.077152 | 1.2666 | 0.4235(85) | 0 |
 
 **Three parameters beat three parameters.** The first two rows differ by three
 numbers, and so do the first and third — three peak parameters against three
@@ -765,7 +765,7 @@ three numbers that describe the hump give back the precision.
 FWHM 5.57(27)°. The instrumental Gaussian FWHM at that angle, from this fit's
 own refined *u*, *v*, *w*, is 0.00346° — the peak is **1 608×** the resolution,
 which is what a diffuse feature looks like and is 400× clear of the
-`BACKGROUND_PEAK_TOO_NARROW` guard in the next section. Neither peak arm returns
+`HUMP_TOO_NARROW` guard in the next section. Neither peak arm returns
 a single `HIGH_CORRELATION` finding.
 
 #### The hump is the container, on three independent legs
@@ -825,7 +825,7 @@ polynomial, the less the peak's own parameters mean. **Declare a peak instead of
 extra polynomial terms, not on top of them**, and if a peak's parameters are
 what you intend to quote, keep the background as low-order as the fit tolerates.
 
-#### What a background peak is not
+#### What a hump is not
 
 A free position, height and width is a peak with no cell and no structure factor
 behind it, and enough of those will improve any Rwp — which is exactly the kind
@@ -838,13 +838,13 @@ halo against 0.3° lines is a factor of 20 — and the guard is set for that
 weaker case.
 
 So a peak that refines to less than
-`BACKGROUND_PEAK_MIN_WIDTH_MULT` ({{ BACKGROUND_PEAK_MIN_WIDTH_MULT }}) times
+`HUMP_MIN_WIDTH_MULT` ({{ HUMP_MIN_WIDTH_MULT }}) times
 the instrumental FWHM at its own
-position comes back with a `BACKGROUND_PEAK_TOO_NARROW` diagnostic, and the
-reading is "these background peaks are not quotable" — the same reading
+position comes back with a `HUMP_TOO_NARROW` diagnostic, and the
+reading is "these humps are not quotable" — the same reading
 `STEPHENS_STRAIN_NOT_POSITIVE` has, and for the same reason: the condition
 depends on refinable parameters and on the peak's own position, so it cannot be
-a bound the solver is handed. Use a background peak for diffuse or amorphous
+a bound the solver is handed. Use a hump for diffuse or amorphous
 scattering, or a cryostat, can or holder contribution. If there is a real
 unindexed line at that angle, the honest answers are a second phase or the
 unmatched-peak report in the `FitReport`'s Layer 0.
@@ -852,21 +852,21 @@ unmatched-peak report in the `FitReport`'s Layer 0.
 ```python
 from rietx import Instrument
 from rietx.schemas.common import Parameter
-from rietx.schemas.instrument import BACKGROUND_PEAK_FWHM_MIN, BackgroundPeak
+from rietx.schemas.instrument import HUMP_FWHM_MIN, HumpComponent
 
 instrument = Instrument.debye_scherrer(wavelength=0.412359)
 # seeded at the envelope, not at the value the fit above converged to: a seed
 # is a starting guess, and the halo is where the blank says it is
-instrument.background_peaks = [BackgroundPeak(
+instrument.extra_components = [HumpComponent(
     label="Kapton halo",
     position=Parameter(value=5.0, unit="deg"),
     height=Parameter(value=50.0, min=0.0, unit="counts", transform="softplus"),
-    fwhm=Parameter(value=2.0, min=BACKGROUND_PEAK_FWHM_MIN, unit="deg",
+    fwhm=Parameter(value=2.0, min=HUMP_FWHM_MIN, unit="deg",
                    transform="softplus"))]
-assert len(instrument.background_peaks) == 1
+assert len(instrument.extra_components) == 1
 ```
 
-The paths are `instrument.background_peaks.*` — a `position`, a `height` and an
+The paths are `instrument.extra_components.*` — a `position`, a `height` and an
 `fwhm` per declared peak, indexed by its place in the list, so relabelling a
 peak never moves its refined values. Note the underscore:
 `instrument.background.*`, which every preset's first stage frees, does **not**

@@ -76,7 +76,7 @@ from .strategy.staged import (
     RefinementPlan,
     bound_findings,
     check_adp_positive_definite,
-    check_background_peak_width,
+    check_hump_width,
 )
 
 _CELL_KEYS = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -424,11 +424,11 @@ class MultiHistogramRefinement:
             # joint path is the only one that never ran the check.  Per
             # histogram (each keeps its own background and peaks), reported
             # through this histogram's diagnostics like everything else the
-            # joint fit measures per pattern (BACKGROUND_PEAK_TOO_NARROW).
-            narrow = check_background_peak_width(table, model)
+            # joint fit measures per pattern (HUMP_TOO_NARROW).
+            narrow = check_hump_width(table, model)
             if narrow:
                 diags.extend(_guard_diagnostics(
-                    GuardReport(narrow_background_peaks=narrow)))
+                    GuardReport(narrow_humps=narrow)))
             diags.extend(_wavelength_calibration_diagnostics(
                 self._declared_wavelengths[h], table, values, esd_h,
                 pinned_by=_WAVELENGTH_PINNED_BY_HELD_HISTOGRAM, h=h))

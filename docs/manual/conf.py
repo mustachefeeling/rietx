@@ -52,7 +52,7 @@ from rietx.report.schemas import (
 )
 from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
 from rietx.schemas.suggest import SUGGEST_MIN_GAIN
-from rietx.strategy.staged import BACKGROUND_PEAK_MIN_WIDTH_MULT
+from rietx.strategy.staged import HUMP_MIN_WIDTH_MULT
 
 project = "rietx manual"
 author = "rietx developers"
@@ -91,7 +91,7 @@ myst_substitutions = {
     # fifteen digits of an arccos clamp, so it is formatted rather than typed —
     # still derived, and a retuned clamp still moves the printed number.
     "ANGLE_LINEARISATION_LIMIT_DEG": f"{ANGLE_LINEARISATION_LIMIT_DEG:.1e}",
-    "BACKGROUND_PEAK_MIN_WIDTH_MULT": BACKGROUND_PEAK_MIN_WIDTH_MULT,
+    "HUMP_MIN_WIDTH_MULT": HUMP_MIN_WIDTH_MULT,
     "BRINDLEY_MU_R_FENCE": BRINDLEY_MU_R_FENCE,
     "CYLINDER_MU_R_MAX": CYLINDER_MU_R_MAX,
     "EFFECTIVE_OBS_ALPHA": EFFECTIVE_OBS_ALPHA,

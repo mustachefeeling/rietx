@@ -2545,10 +2545,10 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "higher-symmetry Laue class has fewer), or extend the "
                        "fit range; do not report the S_HKL as measured",
         ))
-    for finding in guard.narrow_background_peaks:
+    for finding in guard.narrow_humps:
         msg = str(finding)
         out.append(Diagnostic(
-            level="warning", code="BACKGROUND_PEAK_TOO_NARROW",
+            level="warning", code="HUMP_TOO_NARROW",
             where=list(finding.paths), value=finding.value,
             message=f"the declared background peak {msg} is no longer "
                     "describing a broad feature: at that width it is a "
@@ -3194,7 +3194,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         # Declared, not measured, so it is written here rather than behind the
         # guard above: every caller of this function has a compiled model, which
         # is the whole authority for the count, so ``replay`` reports it too.
-        n_background_peaks=len(model.bkg_peak_paths),
+        n_extra_components=len(model.component_paths),
     )
 
 

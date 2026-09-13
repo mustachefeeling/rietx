@@ -279,7 +279,7 @@ def _state_capillary_offsets():
     return model, table, {}
 
 
-def _state_background_peaks():
+def _state_extra_components():
     """An additive background peak, all three parameters free.
 
     A new derivative path with no row of its own: the peak is a term *added* to
@@ -296,9 +296,9 @@ def _state_background_peaks():
     """
     from rietx.schemas.common import Parameter
     from rietx.schemas.instrument import (
-        BACKGROUND_PEAK_FWHM_MIN,
+        HUMP_FWHM_MIN,
         BackgroundChebyshev,
-        BackgroundPeak,
+        HumpComponent,
         Instrument,
     )
     from rietx.schemas.pattern import PatternData
@@ -315,12 +315,12 @@ def _state_background_peaks():
     # off every identity: a zero height would make the position and width
     # columns identically zero, so the state would carry no information about
     # the two nonlinear paths it exists to cover
-    ins.background_peaks = [BackgroundPeak(
+    ins.extra_components = [HumpComponent(
         label="hump",
         position=Parameter(value=34.0, unit="deg"),
         height=Parameter(value=120.0, min=0.0, unit="counts",
                          transform="softplus"),
-        fwhm=Parameter(value=9.0, min=BACKGROUND_PEAK_FWHM_MIN, unit="deg",
+        fwhm=Parameter(value=9.0, min=HUMP_FWHM_MIN, unit="deg",
                        transform="softplus"))]
 
     grid = np.arange(15.0, 90.0, 0.02)
@@ -334,9 +334,9 @@ def _state_background_peaks():
     table = ParameterTable(structure, ins)
     _free(table, ["phases.0.scale", "instrument.background.c0",
                   "instrument.background.c1",
-                  "instrument.background_peaks.0.position",
-                  "instrument.background_peaks.0.height",
-                  "instrument.background_peaks.0.fwhm"])
+                  "instrument.extra_components.0.position",
+                  "instrument.extra_components.0.height",
+                  "instrument.extra_components.0.fwhm"])
     model = compile_model(structure, ins, pattern, mode="rietveld",
                           moving_paths=set(table.moving_paths))
     return model, table, {}
@@ -347,7 +347,7 @@ CONFIGS = {"families": _state_families,
            "families_tied": _state_families_tied,
            "families_variable": _state_families_variable,
            "capillary_offsets": _state_capillary_offsets,
-           "background_peaks": _state_background_peaks, **STATES}
+           "extra_components": _state_extra_components, **STATES}
 
 #: the fast configs run everywhere; the two real-data ones are `slow`.
 #: ``families_voigt`` (WP-0405's shape) and ``toy_restraints`` (WP-0406's extra
@@ -372,7 +372,7 @@ CONFIG_PARAMS = [
     _config("families_tied"),
     _config("families_variable"),
     _config("capillary_offsets"),
-    _config("background_peaks"),
+    _config("extra_components"),
     _config("toy_lebail"),
     _config("toy_pawley"),
     _config("toy_rich"),
@@ -546,7 +546,7 @@ def test_every_config_defined_here_is_actually_parametrised():
     survives fails too.
     """
     local = {"families", "families_voigt", "families_tied", "families_variable",
-             "capillary_offsets", "background_peaks"}
+             "capillary_offsets", "extra_components"}
     assert local <= set(CONFIGS), sorted(local - set(CONFIGS))
     parametrised = {p.values[0] for p in CONFIG_PARAMS}
     assert local <= parametrised, (

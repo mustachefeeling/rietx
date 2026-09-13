@@ -98,10 +98,10 @@ import pytest
 import rietx as rx
 from rietx.schemas.common import Parameter as P
 from rietx.schemas.instrument import (
-    BACKGROUND_PEAK_FWHM_MIN,
+    HUMP_FWHM_MIN,
     BackgroundChebyshev,
-    BackgroundPeak,
     BackgroundPSpline,
+    HumpComponent,
 )
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 
@@ -502,7 +502,7 @@ class _ChebFit(NamedTuple):
 
     ``model`` and ``values`` are here so a test that asks "how wide is this peak
     against the instrument?" calls :meth:`CompiledModel.instrument_fwhm_deg` —
-    the same function ``check_background_peak_width`` uses — rather than
+    the same function ``check_hump_width`` uses — rather than
     re-deriving the Gaussian-only ``√(U·tan²θ + V·tanθ + W)``, which is equal to
     it only while this protocol holds ``profile.x``/``profile.y`` at zero.
     ``values`` carries the full converged instrument profile (U,V,W and the
@@ -528,18 +528,18 @@ def _fit_chebyshev(nterm: int, *, with_peak: bool) -> _ChebFit:
     ins = _instrument(FULL_LIMITS)
     ins.background = BackgroundChebyshev.with_terms(nterm)
     if with_peak:
-        ins.background_peaks = [BackgroundPeak(
+        ins.extra_components = [HumpComponent(
             label="Kapton halo",
             position=P(value=5.0, unit="deg"),
             height=P(value=50.0, min=0.0, unit="counts", transform="softplus"),
-            fwhm=P(value=2.0, min=BACKGROUND_PEAK_FWHM_MIN, unit="deg",
+            fwhm=P(value=2.0, min=HUMP_FWHM_MIN, unit="deg",
                    transform="softplus"))]
 
     stages = [rx.Stage("scale_bkg", ["phases.*.scale",
                                      "instrument.background.c*"])]
     if with_peak:
-        stages.append(rx.Stage("background_peaks",
-                               ["instrument.background_peaks.*"]))
+        stages.append(rx.Stage("extra_components",
+                               ["instrument.extra_components.*"]))
     stages += [
         rx.Stage("gauss", ["instrument.profile.w", "instrument.profile.u",
                            "instrument.profile.v"]),
@@ -551,8 +551,8 @@ def _fit_chebyshev(nterm: int, *, with_peak: bool) -> _ChebFit:
                          "phases.*.atoms.*.biso"]),
     ]
     if with_peak:
-        stages.append(rx.Stage("background_peaks2",
-                               ["instrument.background_peaks.*",
+        stages.append(rx.Stage("extra_components2",
+                               ["instrument.extra_components.*",
                                 "instrument.background.c*"]))
     plan = rx.RefinementPlan(stages=stages)
     plan.intermediate_ftol = 1e-6
@@ -601,7 +601,7 @@ def cheb6():
 def cheb6_peak():
     """Chebyshev-6 + one background peak — the fourth table row.
 
-    Quoted in the manual (`using/data.md`), the ``BackgroundPeak`` docstring and
+    Quoted in the manual (`using/data.md`), the ``HumpComponent`` docstring and
     this module's `MANUAL_RWP`, and the arm the "relaxes to 5.245(41)°" caveat
     turns on; a fixture so all three are pinned to a refinement rather than to a
     number a solver change can silently move.
@@ -611,7 +611,7 @@ def cheb6_peak():
     return _fit_chebyshev(6, with_peak=True)
 
 
-def test_one_background_peak_beats_three_more_polynomial_terms(
+def test_one_hump_beats_three_more_polynomial_terms(
         cheb3, cheb3_peak, cheb6, cheb6_peak):
     """The manual's headline, and the reason it is a *comparison* and not a ΔRwp.
 
@@ -652,8 +652,8 @@ def test_the_peak_is_diffuse_by_three_orders_and_frees_the_structural_esd(
 
     **It is a background term.**  Its width is 5.57(27)° where this
     synchrotron's Gaussian FWHM at the same angle is 0.0035°, so the ratio is in
-    the thousands — three orders clear of ``BACKGROUND_PEAK_MIN_WIDTH_MULT``,
-    and ``BACKGROUND_PEAK_TOO_NARROW`` is silent.
+    the thousands — three orders clear of ``HUMP_MIN_WIDTH_MULT``,
+    and ``HUMP_TOO_NARROW`` is silent.
 
     **It gives back precision rather than moving the answer.**  Biso(Si) stays
     put to well inside one esd; what changes is the esd, by ~6×, and the same
@@ -661,8 +661,8 @@ def test_the_peak_is_diffuse_by_three_orders_and_frees_the_structural_esd(
     biasing it, which is the reading the manual carries.
     """
     res = cheb3_peak.result
-    fwhm = res.parameter("instrument.background_peaks.0.fwhm")
-    pos = res.parameter("instrument.background_peaks.0.position")
+    fwhm = res.parameter("instrument.extra_components.0.fwhm")
+    pos = res.parameter("instrument.extra_components.0.position")
     assert fwhm.stderr is not None and pos.stderr is not None
     assert 5.0 < fwhm.value < 6.2, f"hump FWHM {fwhm.value:.3f}°"
     assert 3.5 < pos.value < 5.5, f"hump position {pos.value:.3f}°"
@@ -676,7 +676,7 @@ def test_the_peak_is_diffuse_by_three_orders_and_frees_the_structural_esd(
     assert fwhm.value / inst > 1000.0, (
         f"hump is only {fwhm.value / inst:.0f}× the instrumental FWHM")
     assert not [d for d in res.diagnostics
-                if d.code == "BACKGROUND_PEAK_TOO_NARROW"]
+                if d.code == "HUMP_TOO_NARROW"]
 
     for path, floor in (("phases.0.atoms.0.biso", 4.0),
                         ("instrument.source.lines.0.wavelength", 4.0)):
@@ -703,10 +703,10 @@ def test_the_chebyshev6_arm_relaxes_the_peak_onto_the_envelope(
     "5.245(41)°" caveat the manual and the docstring both quote, held here to a
     refinement rather than to prose.
     """
-    p3 = cheb3_peak.result.parameter("instrument.background_peaks.0.position")
-    w3 = cheb3_peak.result.parameter("instrument.background_peaks.0.fwhm")
-    p6 = cheb6_peak.result.parameter("instrument.background_peaks.0.position")
-    w6 = cheb6_peak.result.parameter("instrument.background_peaks.0.fwhm")
+    p3 = cheb3_peak.result.parameter("instrument.extra_components.0.position")
+    w3 = cheb3_peak.result.parameter("instrument.extra_components.0.fwhm")
+    p6 = cheb6_peak.result.parameter("instrument.extra_components.0.position")
+    w6 = cheb6_peak.result.parameter("instrument.extra_components.0.fwhm")
 
     # the Chebyshev-6 arm moves onto the envelope and narrows
     assert 5.1 < p6.value < 5.4, f"relaxed position {p6.value:.3f}°"
@@ -716,4 +716,4 @@ def test_the_chebyshev6_arm_relaxes_the_peak_onto_the_envelope(
     assert w3.value / w6.value > 2.0, "the peak did not narrow between arms"
     # still a background width, and still identifiable
     assert not [d for d in cheb6_peak.result.diagnostics
-                if d.code in ("BACKGROUND_PEAK_TOO_NARROW", "HIGH_CORRELATION")]
+                if d.code in ("HUMP_TOO_NARROW", "HIGH_CORRELATION")]

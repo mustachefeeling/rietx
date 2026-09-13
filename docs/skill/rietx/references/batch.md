@@ -316,7 +316,7 @@ unvetoed** even though Layer 1 had abstained as unreadable, because
 `background_actions` runs on the abstain path by design — an over-stiff
 background is a *cause* of an immature fit, so branch on
 `suggested_actions[].kind` and do not read an abstention as "no advice". Model
-the feature with a `BackgroundPeak` or a `BackgroundPSpline` rather than more
+the feature with a `HumpComponent` or a `BackgroundPSpline` rather than more
 polynomial terms, which hide it while improving every statistic. *(Measured: archive screening campaign — the 11-BM VT Mn₃O₄ 8.281 K fit, whose report was
 rebuilt and read only after the tranche was written up; the package's own
 manual measures the same Kapton halo at d = 4.74 Å and needs fourteen Chebyshev

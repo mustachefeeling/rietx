@@ -293,10 +293,10 @@ def _su(value: float, esd: float | None) -> str:
     return f"{value:.2f}({esd:.2f})"
 
 
-def background_peak() -> None:
+def hump() -> None:
     """A localised background feature, described two ways.
 
-    Drawn from ``tests/test_background_peaks.py``'s synthetic hump case, which
+    Drawn from ``tests/test_extra_components.py``'s synthetic hump case, which
     is where the claim is asserted — the same rule the two refinement panels
     follow, and for the same reason: a figure with its own copy of a case can
     disagree with the test that proves the claim.
@@ -321,13 +321,13 @@ def background_peak() -> None:
     # explicit rather than through ``rx.viz``: this runs *before* the figure
     # that calls ``result.plot`` and imports the subpackage as a side effect
     from rietx.viz.plots import PALETTES
-    from tests.test_background_peaks import HUMP_TRUTH, fit_hump_case
+    from tests.test_extra_components import HUMP_TRUTH, fit_hump_case
 
     print("running the synthetic hump case …")
     flat, _truth = fit_hump_case(with_peak=False)
     peaked, truth = fit_hump_case(with_peak=True)
     got = {row.path.rsplit(".", 1)[1]: row for row in peaked.parameters
-           if "background_peaks" in row.path}
+           if "extra_components" in row.path}
 
     print("background-peak")
     for style in STYLES:
@@ -434,7 +434,7 @@ def refinement_figures():
 
 if __name__ == "__main__":
     angular_signatures()
-    background_peak()
+    hump()
     data, ref = refinement_figures()
     geometry_esds(data, ref)
     effective_observations()

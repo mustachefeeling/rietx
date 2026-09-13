@@ -526,7 +526,7 @@ CLAIMS: tuple[Claim, ...] = (
     ),
     Claim(
         "test_acceptance_powderline",
-        "test_lab6_background_peak_is_the_degenerate_direction_both_engines_found",
+        "test_lab6_hump_is_the_degenerate_direction_both_engines_found",
         "powderline_lab6", ("characterisation",),
         "a background peak the recipe declares wider than its own fitted "
         "range is a degenerate direction, and this package reaches the same "
@@ -540,7 +540,7 @@ CLAIMS: tuple[Claim, ...] = (
                   "as a result: the recipe is over-parameterised and no fit "
                   "of it can say otherwise",
         measured="HIGH_CORRELATION on the peak against the background, and "
-                 "the background_peaks stage at max_iter; GSAS-II's own "
+                 "the extra_components stage at max_iter; GSAS-II's own "
                  "committed position 8.77e10 with esd exactly 0",
         diagnostics=("HIGH_CORRELATION", "STAGE_MAX_ITER"),
     ),
@@ -1986,7 +1986,7 @@ CLAIMS: tuple[Claim, ...] = (
     # above with the P-spline swapped for a low-order Chebyshev.
     Claim(
         "test_acceptance_si640c",
-        "test_one_background_peak_beats_three_more_polynomial_terms",
+        "test_one_hump_beats_three_more_polynomial_terms",
         "si640c", ("own_result", "ceiling"),
         "one background peak buys more Rwp than three extra Chebyshev terms "
         "buy, at the same parameter cost -- which is the only form in which "
@@ -2014,7 +2014,7 @@ CLAIMS: tuple[Claim, ...] = (
         "precision to the structural parameters rather than moving them",
         reference="the instrumental FWHM at the peak's own position from "
                   "CompiledModel.instrument_fwhm_deg -- the same function "
-                  "check_background_peak_width (BACKGROUND_PEAK_MIN_WIDTH_MULT) "
+                  "check_hump_width (HUMP_MIN_WIDTH_MULT) "
                   "measures against, called rather than re-derived, so the two "
                   "stay equal if a later revision frees the Lorentzian X/Y this "
                   "protocol holds at zero -- and the peak-free arm's own esds.  "
@@ -2027,7 +2027,7 @@ CLAIMS: tuple[Claim, ...] = (
                  "4.178 deg -- 1608x, where the guard is 4x and the bar here "
                  "1000x; Biso(Si) esd falls 6.0x and lambda's 5.9x while "
                  "neither value moves by half of the wider esd",
-        diagnostics=("!BACKGROUND_PEAK_TOO_NARROW",),
+        diagnostics=("!HUMP_TOO_NARROW",),
     ),
     Claim(
         "test_acceptance_si640c",
@@ -2046,8 +2046,8 @@ CLAIMS: tuple[Claim, ...] = (
                  "Chebyshev terms onto the envelope at 5.245(41) deg and "
                  "narrows to 1.94(11) deg with six, while Rwp moves only "
                  "0.082503 -> 0.077152; zero HIGH_CORRELATION or "
-                 "BACKGROUND_PEAK_TOO_NARROW in either arm",
-        diagnostics=("!HIGH_CORRELATION", "!BACKGROUND_PEAK_TOO_NARROW"),
+                 "HUMP_TOO_NARROW in either arm",
+        diagnostics=("!HIGH_CORRELATION", "!HUMP_TOO_NARROW"),
     ),
     Claim(
         "test_acceptance_si640c", "test_the_fit_renders",

@@ -1028,15 +1028,15 @@ class BackgroundFixedPlusChebyshev(Base):
 Background = BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpline
 
 
-#: :class:`BackgroundPeak`'s refinable fields, in path order.  One authority for
-#: the three names: ``params.vector.background_peak_parameters`` registers them,
+#: :class:`HumpComponent`'s refinable fields, in path order.  One authority for
+#: the three names: ``params.vector.extra_component_parameters`` registers them,
 #: ``ParameterTable.apply_to_models`` writes them back, ``compile_model`` freezes
 #: the paths and ``strategy.staged`` reads them — so adding a fourth (an η, say)
 #: is one edit rather than five that can drift.  The sub-path *is* the field
-#: name, which is what makes ``instrument.background_peaks.0.fwhm`` legible.
-BACKGROUND_PEAK_FIELDS: tuple[str, ...] = ("position", "height", "fwhm")
+#: name, which is what makes ``instrument.extra_components.0.fwhm`` legible.
+HUMP_FIELDS: tuple[str, ...] = ("position", "height", "fwhm")
 
-#: Lower bound on :attr:`BackgroundPeak.fwhm`, in °2θ.  The Gaussian divides by
+#: Lower bound on :attr:`HumpComponent.fwhm`, in °2θ.  The Gaussian divides by
 #: Γ, so this is the :data:`~rietx.schemas.structure.MARCH_R_MIN` situation and
 #: not a `min=0.0` one: ``internal_bounds`` maps any lower bound ≤ 1e-12 to −∞
 #: and ``log(1+e^u)`` underflows to *exactly* 0.0, so a softplus "strictly
@@ -1051,7 +1051,7 @@ BACKGROUND_PEAK_FIELDS: tuple[str, ...] = ("position", "height", "fwhm")
 #: which is a Bragg peak or a spike, not diffuse scattering.  It is a floor on
 #: the *parameterisation*, deliberately far below any real hump (whole degrees):
 #: it exists to make the pole unreachable, not to encode a physical width.
-BACKGROUND_PEAK_FWHM_MIN = 0.1
+HUMP_FWHM_MIN = 0.1
 
 #: Softplus lower bound at or under which `internal_bounds` gives up on the
 #: bound entirely — the same 1e-12 `schemas/structure.py` uses, restated here
@@ -1060,7 +1060,7 @@ BACKGROUND_PEAK_FWHM_MIN = 0.1
 _SOFTPLUS_FLOOR = 1e-12
 
 
-class BackgroundPeak(Base):
+class HumpComponent(Base):
     """One explicit broad Gaussian added on top of whatever background is in use.
 
     A localised background feature — a diffuse/amorphous hump, an unmodelled
@@ -1083,7 +1083,7 @@ class BackgroundPeak(Base):
 
     **Why it is not a fourth** :data:`Background` **member.** It composes with
     all three rather than replacing any — it is an additive term beside the
-    background, so it lives on :attr:`Instrument.background_peaks` and the
+    background, so it lives on :attr:`Instrument.extra_components` and the
     design matrix is untouched.  It is also not a :class:`~rietx.Phase`: a phase
     here is crystallographic through and through (cell ties, Wyckoff sites,
     QPA) and a cell-less one breaks every consumer of it.
@@ -1156,7 +1156,7 @@ class BackgroundPeak(Base):
       nothing anywhere, so the underflow softplus permits lands on the
       identity, not on a pole (contrast ``PreferredOrientation.r``, whose
       identity is interior at r = 1 with the pole *at* the bound).
-    * ``fwhm`` — °2θ, softplus, floored at :data:`BACKGROUND_PEAK_FWHM_MIN`
+    * ``fwhm`` — °2θ, softplus, floored at :data:`HUMP_FWHM_MIN`
       with a reachability validator, because this one *does* divide.
     * shape — **Gaussian only, and the fence is deliberate.**  No mixing
       parameter: a broad feature is described by a few tens of channels of
@@ -1182,7 +1182,7 @@ class BackgroundPeak(Base):
                                           transform="softplus"))
     fwhm: Parameter = Field(
         default_factory=lambda: Parameter(value=5.0,
-                                         min=BACKGROUND_PEAK_FWHM_MIN,
+                                         min=HUMP_FWHM_MIN,
                                          unit="deg", transform="softplus"))
     #: free-text tag, e.g. ``"cryostat tail"``.  Not a parameter and not part of
     #: any dot-path — the paths index the list, so a relabelled peak keeps its
@@ -1190,7 +1190,7 @@ class BackgroundPeak(Base):
     label: str | None = None
 
     @model_validator(mode="after")
-    def _fwhm_floor_is_reachable(self) -> "BackgroundPeak":
+    def _fwhm_floor_is_reachable(self) -> "HumpComponent":
         """Repair a width bound softplus cannot actually enforce.
 
         The ``PreferredOrientation._r_bound_is_reachable`` pattern, and for the
@@ -1205,8 +1205,8 @@ class BackgroundPeak(Base):
             # the floor under a value that is still below it would trip
             # ``Parameter._check_bounds`` mid-repair.  Lifting the value first is
             # always legal — the old bound was ≤ 1e-12.
-            self.fwhm.value = max(self.fwhm.value, BACKGROUND_PEAK_FWHM_MIN)
-            self.fwhm.min = BACKGROUND_PEAK_FWHM_MIN
+            self.fwhm.value = max(self.fwhm.value, HUMP_FWHM_MIN)
+            self.fwhm.min = HUMP_FWHM_MIN
         return self
 
 
@@ -1231,21 +1231,21 @@ class Instrument(Base):
         default_factory=lambda: BackgroundChebyshev(), discriminator=None
     )
     #: Explicit broad peaks **added on top of** ``background``, not a kind of
-    #: it (:class:`BackgroundPeak`).  The empty default is **exactly off**: no
+    #: it (:class:`HumpComponent`).  The empty default is **exactly off**: no
     #: path is registered, no term is evaluated, and the serialized instrument
-    #: differs from a pre-``background_peaks`` one only by ``[]`` — the idiom
+    #: differs from a pre-``extra_components`` one only by ``[]`` — the idiom
     #: ``Structure.restraints``, ``Phase.microstrain`` and
     #: ``Geometry.surface_roughness`` already use, pinned by a bit-identity
     #: test rather than asserted here.
     #:
-    #: The field name is ``background_peaks`` and **not** ``background.peaks``
+    #: The field name is ``extra_components`` and **not** ``background.peaks``
     #: on purpose: fnmatch's ``*`` crosses dots, so a nested spelling would be
     #: matched by the ``instrument.background.*`` glob every preset's first
     #: stage carries, and every declared peak would be freed at stage 1 — a
     #: free position over a pattern whose peaks have not been placed yet.  The
     #: underscore puts the paths outside that glob by construction instead of
     #: by retightening seven presets.
-    background_peaks: list[BackgroundPeak] = Field(default_factory=list)
+    extra_components: list[HumpComponent] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _radiation_admits_its_corrections(self) -> "Instrument":

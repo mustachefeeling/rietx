@@ -208,7 +208,7 @@ def background_absorption(jac: np.ndarray, free_paths: list[str]) -> dict[str, f
     # because it is a fact about spans and not about peaks.
     bg = [k for k, p in enumerate(free_paths)
           if p.startswith(("instrument.background.",
-                           "instrument.background_peaks."))]
+                           "instrument.extra_components."))]
     targets = [(k, p) for k, p in enumerate(free_paths)
                if p.endswith((".biso", ".scale", ".occ")) or ".adp." in p]
     return block_projection_r2(jac, bg, targets)
@@ -425,7 +425,7 @@ def _roughness_nuisance(path: str) -> bool:
     """
     return (path.endswith(".scale")
             or path.startswith(("instrument.background.",
-                                "instrument.background_peaks.")))
+                                "instrument.extra_components.")))
 
 
 def roughness_absorption(jac: np.ndarray, free_paths: list[str]
