@@ -23,10 +23,21 @@ use is the design case.
   never refuse).
 - **`PeakComponent` joins the `ExtraComponent` union** — a closed-vocabulary
   member addition per [1102](1102-component-seam-humps.md)'s contract, moot
-  while both land inside the same 1.1.0 release. Not a phase kind (TOPAS
+  while both land inside the same 1.4.0 release. Not a phase kind (TOPAS
   `xo_Is`): `Phase` is crystallographic through and through, and a cell-less
   phase breaks every consumer; the seam gives the power without the schema
   violence.
+- **This WP is what makes the contract's clause 2 a *tested* claim.** The
+  six-clause member contract lives in the union's docstring in
+  `schemas/instrument.py`, and clause 2 — a member's aggregate membership is
+  held as **data**, never read off the class name — is the one this member is
+  for: a hump joins the reported background, a peak joins the tick list. With
+  `HumpComponent` alone the clause is a design intention that nothing
+  exercises, and 1102 says so in its own docstring rather than leaving it
+  implied. **If the clause cannot be honoured as written, changing it is in
+  scope; leaving it stated and unhonoured is not.** A fourth reader of stored
+  dot-paths, should this member need one, belongs in `migrate.READ_POINTS`
+  (a test pins the tuple) and never in a second migration entry point.
 - **Fields**: `kind: Literal["peak"]`; `label: str | None` (rendered in
   diagnostics, not a Parameter); `center` (Parameter, deg 2θ — the
   **apparent** primary-line position: no zero_shift, no displacement
@@ -44,25 +55,37 @@ use is the design case.
   source, so its Kα2 is physically present: Bragg-law splitting from the
   apparent center, per-line weight × Lp intensity ratios — `peakfit`'s
   measured precedent (holding the bare weight biased the fitted Kα1 by
-  −2e-4° and −0.26 mean σ pull), and `CompiledModel._peak_terms` already has
-  the machinery. `all_lines=False` covers non-diffraction artifacts
+  −2e-4° and −0.26 mean σ pull), and `CompiledModel.phase_peaks` already has
+  the machinery (`tt_bragg_lines` × `w_line` × `lp_lines`). `all_lines=False`
+  covers non-diffraction artifacts
   (fluorescence, detector). No FCJ: the holder's axial geometry is not the
   specimen's; the symmetric pV is the honest simple model.
 - **Frozen windows sized from bounds, not values.** Per (line, peak), the
   window spans the line's Bragg image of `[center.min, center.max]` widened
-  by `30·fwhm.max + 0.3°` — the phase-window rule with the bound in place of
-  the compile-time width — so a free center stays inside its frozen window
-  by construction, and the frozen-per-stage invariant
-  ([../DESIGN.md](../DESIGN.md#architecture-invariants)) holds with no
-  `free_paths=` plumbing. A window containing zero fitted channels is
-  refused at compile, naming the peak: a dead-column refusal (the
-  `check_interval` sentence shape), not an expertise gate.
+  by `window_fwhm_mult(η)·fwhm.max + WINDOW_MIN_DEG` — the phase-window rule
+  with the bound in place of the compile-time width — so a free center stays
+  inside its frozen window by construction, and the frozen-per-stage
+  invariant ([../DESIGN.md](../DESIGN.md#architecture-invariants)) holds with
+  no `free_paths=` plumbing. **η is a bound here too**: `k(η)` is what makes
+  the discarded area a *stated* bound instead of an accident of the margin,
+  so a free `eta` sizes its window at `k` of its own upper bound, never of
+  its value. A window containing zero fitted channels is refused at compile,
+  naming the peak: a dead-column refusal (the `check_interval` sentence
+  shape), not an expertise gate.
 - **Le Bail / Pawley: subtraction side, never the denominator.** The
   component curve joins the background subtraction at both seams
   (`lebail_update`, `structure_intensity_partition`) per 1102's member
   contract — denominator membership would hand phases shares of holder
   counts. Peak components stay refinable under lebail (`mode_fixed_path`
   matches `.atoms.`, `*.scale`, `.source.lines.` only).
+- **Two window sizings exist and this member uses the model's, not
+  detection's.** [1101](1101-standalone-peak-fitting.md) made
+  `indexing.peaks.window_indices` / `group_at` the one sizing for *detection*,
+  the GUI peak editor and `fit_peaks` — windows cut over raw data, carrying
+  the refusals a given position needs (off the end, in a gap). A compiled
+  component window is the other thing entirely: frozen per stage, sized from
+  bounds, and built beside the phase windows in `model/forward.py`. Reuse the
+  refusal *wording*, never the helper.
 - **Jacobian**: unknown paths fall to the whole-model FD column (data rows
   only — exact, no penalty rows); analytic columns out of scope (1102's
   stance). `tests/test_cross_backend.py` gains a peak-component CONFIGS row.
@@ -96,9 +119,31 @@ use is the design case.
   nothing has measured component blocks, so no firing threshold ships until
   this WP's acceptance measurement supplies one (record the measured
   separation either way). `at_bound`/`HIGH_CORRELATION` guards work
-  unchanged. `../AGENT_PROTOCOL.md` §7 rows for both codes + a §3 degeneracy
-  line ("an extra peak on a reflection is a scale/intensity degeneracy by
-  construction").
+  unchanged. The agent-facing rows go to the **skill**, not
+  `../AGENT_PROTOCOL.md` — v1.3 reduced that file to a pointer and this
+  milestone deletes it — but the section numbers the skill kept are the same
+  ones: a row per code in
+  [`references/diagnostics.md`](../skill/rietx/references/diagnostics.md)
+  (§ 7), and the degeneracy line ("an extra peak on a reflection is a
+  scale/intensity degeneracy by construction") in `SKILL.md` § 3.
+  `rietx skill --install . --copy` re-syncs the two committed copies.
+- **A component that is not in the specimen has no position, and that is now
+  the honest evidence** ([1110](1110-agent-surface-friction.md) item 14): a
+  peak reaches the pattern only through `area × profile`, so at zero area
+  nothing constrains its centre either — the zero-scale phase one rank down.
+  The covariance is equilibrated now, so such a parameter reports **no** esd
+  rather than the small one `pinv` used to invent, and an absent esd on a
+  centre is the evidence for "this component is not needed" — never an Rwp
+  comparison. Say it in the vocabulary the peak-list side already chose,
+  `no_intensity` (in `PEAK_UNUSABLE_FLAGS` since 1.3, so **this WP adds no
+  `PeakFlag` member and pays none of that four-surface cost**), and test "at
+  its zero bound" with `strategy.staged.BOUND_HIT_RTOL`, the one place that
+  question is answered. `rx.fit_peaks` is the measurement half of the same
+  question: a declared centre can be checked against a free fit of the same
+  window with no refinement built at all, which is what the acceptance
+  measurement does rather than comparing seed distances —
+  `peakfit.reseed_candidate` is the precedent for asking the residual instead
+  (1101 tried distances first and stayed silent on a 26-esd bias).
 - **Sequential / operando recipe** (document in the manual, beside
   `using/series.md`): `carry=["*"]` warm-starts components per pattern —
   holder area/position trajectories come free; excluding
@@ -121,6 +166,10 @@ use is the design case.
   them — evidence only.
 - FCJ asymmetry, per-component profile shapes beyond pV, restraints between
   components.
+- The contract's **other** axis — evaluator *shape*, a local bump in 2θ
+  against a whole-pattern oscillation in Q. That needs a member like a Debye
+  term, which GSAS-II and FullProf both ship and this package does not. It is
+  named in the contract, not built, and stays untested after this WP.
 - A compare variant: no standard carries holder peaks, so a variant row
   would measure nothing on every standard — a justified skip of the "add a
   row" rule, recorded here.
@@ -132,7 +181,9 @@ use is the design case.
 
 - [ ] Schema: `PeakComponent` + validators (finite center/fwhm bounds with a
       suggesting refusal, `EXTRA_PEAK_FWHM_MIN`); JSON round-trip;
-      release-notes line.
+      `SCHEMA_VERSION` 0.18 → 0.19; `help.py` entries for every new field
+      (`tests/test_help.py` crosses the vocabulary both ways, so the member
+      lands red without them); release-notes line.
 - [ ] Forward model: windows-from-bounds + all-lines evaluation
       (weight × Lp) + empty-window refusal; frozen-window test — a center
       freed to its bound stays inside its window.
@@ -144,7 +195,8 @@ use is the design case.
       unmatched-obs test.
 - [ ] Evidence: `EXTRA_PEAK_ON_REFLECTION` + `extra_peak_absorption`
       (evidence-only; threshold only if the acceptance measurement supplies
-      one) + FitReport carry + `../AGENT_PROTOCOL.md` rows.
+      one) + FitReport carry + the skill's § 7 rows and § 3 degeneracy
+      line, re-synced with `rietx skill --install . --copy`.
 - [ ] Manual (`using/model.md` + operando recipe + `profiles.md` equation
       with `*Source:*`) + api-surface documentation + the preset-non-freeing
       pin extended to this member.
@@ -175,95 +227,28 @@ use is the design case.
   [1051](1051-sequential-escalation.md) / [1016](1016-sequential-series-panel.md)
   (sequential carry semantics).
 
-### Inherited
-
-**From WP-1102 (2026-09-13, closed ✅) — the seam exists, and you are its
-proving case.**
-
-`ExtraComponent` is a union discriminated on `kind` in `schemas/instrument.py`,
-with `HumpComponent` its one member; `Instrument.extra_components` is the list.
-Four things follow for this WP.
-
-* **The six-clause member contract is in the union's docstring**, and clause 2
-  is the one your member is *for*: a member's aggregate membership is held as
-  **data**, not read off the class name. A hump joins the reported background; a
-  peak joins the tick list. With only the hump in the union that clause is a
-  design intention and nothing tests it — 1102 says so in its own docstring
-  rather than leaving it implied, and landing this member is what turns it into
-  a tested one. If you find the clause cannot be honoured as written, changing
-  it is in scope; leaving it stated but unhonoured is not.
-* **The contract's other axis stays untested after you.** Evaluator *shape* — a
-  local bump in 2θ against a whole-pattern oscillation in Q — needs a member
-  like a Debye term, which GSAS-II and FullProf both ship and this package does
-  not. Named in the contract, not built, not yours unless you want it.
-* **A new member is a `SCHEMA_VERSION` bump** (clause 5), plus a cross-backend
-  `CONFIGS` row, a manual equation with its `*Source:*`, and `help.py` entries.
-  It also joins `capabilities().extra_component_kinds` **by existing** — that arm
-  is read off the union, so there is no list to update, and
-  `tests/test_capabilities.py` fails if the derivation stops working.
-* **The field was renamed out from under the v1.2 spelling.** `background_peaks`
-  → `extra_components`, `BackgroundPeak` → `HumpComponent`, `BACKGROUND_PEAK_*`
-  → `HUMP_*`. `schemas/migrate.py` repairs a stored document on read, at three
-  named read points; if you add a fourth reader of stored paths, it belongs in
-  `READ_POINTS` and a test checks the tuple. Do not add a second migration entry
-  point — 1102 deleted one for having no caller and for being able to disagree
-  with the first.
-
-**From WP-1101 (2026-09-13) — v1.4 is open, and three things it built are
-yours to reuse rather than rebuild.**
-
-The milestone opened on 2026-09-13 (`pyproject.version` → `1.4.0.dev0`,
-[`milestones/v1.4.md`](../milestones/v1.4.md)). **Your acceptance row in that
-record is deliberately unfinished**: it says only what `../ROADMAP.md` already
-commits to, and is marked for sharpening at your open, because a bar written by
-a session that has not read this WP is a bar set too low. Sharpening it is the
-first act of the session that starts here — before the work, not after it.
-
-Three seams 1101 left behind:
-
-* `indexing.peaks.window_indices` and `group_at` are now the **one** window
-  sizing — detection, the GUI peak editor and `fit_peaks` all go through them,
-  and `group_at` carries the refusals a *given* position needs (off the end of
-  the pattern, in a gap).
-* `peakfit.reseed_candidate` is the one authority for "does this window hold a
-  component that is not declared?" — the residual proposes a position and ΔBIC
-  decides. `fit_group` walks it; `fit_peaks` asks it once. It is what a
-  component seam should ask rather than measuring seed distances, which 1101
-  tried first and which stayed silent on a 26-esd bias.
-* `rx.fit_peaks(data, instrument, positions)` fits named peaks with no model at
-  all. It is the *measurement* half of the same question this WP models, so a
-  component's declared position can be checked against a free fit of the same
-  window without building a refinement.
-
-One mechanical cost, if this WP adds a `PeakFlag` member: it is a four-surface
-edit — the schema `Literal`, `help.py`, `gui/src/lib/rxt.ts`'s `PEAK_FLAGS`,
-and the committed `tests/data/gui/help_keys.json` — and touching `gui/src`
-means `npm --prefix gui ci && npm --prefix gui run build`, because the dist
-digest covers it.
-
-
-**From WP-1110 item 14 (2026-08-21) — a declared component that is not in the
-specimen has an unidentifiable position, and this is now measurable.**
-
-A `PeakComponent` a user declares for a sharp impurity that turns out not to be
-present will refine to no intensity. A peak reaches the pattern only through
-`intensity × profile`, so at that point nothing constrains its **position**
-either — it is the zero-scale phase of WP-1110 item 13, one rank down. Until
-this session the covariance hid that: `pinv` cut eigenvalues at
-`rcond × |λ|max`, so the flat direction came back at *zero* variance and the
-position read as precisely measured. It is now equilibrated, so such a
-parameter reports **no** esd rather than a small one.
-
-Two things follow for this WP, which says it "recommends through evidence and
-never refuses or gates". The evidence for "this component is not needed" is now
-*available* and is the honest one — an absent esd on its position, not an Rwp
-comparison. And the peak-list side already chose a vocabulary for the same
-fact, `no_intensity` in `PEAK_UNUSABLE_FLAGS`; reuse the wording rather than
-inventing a second one, and reuse `strategy.staged.BOUND_HIT_RTOL` for the "at
-its zero bound" test, which is the one place that question is answered.
-
 ## Handover log
 
+- **2026-09-13 (prune)** — mailbox consumed and four stale findings repaired
+  in place before any work, per the session protocol's step 1. The WP was
+  written 2026-08-18 and the tree moved under three of its claims.
+  **`CompiledModel._peak_terms`, cited as "already has the machinery", has
+  never existed** anywhere in the repository's history (`git log -S` finds no
+  definition); the real per-line builder is `CompiledModel.phase_peaks`, and
+  two prose references in `indexing/peakfit.py` cite the phantom name too.
+  **The window rule `30·fwhm.max + 0.3°` is the pre-WP-1112 rule**, retired
+  because a fixed ±30 FWHM carries an η-dependent intensity bias it never
+  states (≈ 0.64 % at η = 0.6); `window_fwhm_mult(η)` replaced it, which
+  matters more here than for a phase because `eta` is a *free* parameter of
+  this member — hence the new clause sizing the window at `k` of η's upper
+  bound. **`../AGENT_PROTOCOL.md` is a pointer**, reduced by 1304 in v1.3 and
+  deleted by this very milestone, so the two diagnostic rows and the § 3
+  degeneracy line go to the skill; the section numbers survived the move, so
+  only the destination changed. And the mailbox's PeakFlag warning was
+  **already discharged** — `no_intensity` landed in `PEAK_UNUSABLE_FLAGS` in
+  1.3, so this WP adds no flag and pays none of that four-surface cost. Two
+  mechanical costs the mailbox named were not in the task list and now are:
+  the `SCHEMA_VERSION` bump and the `help.py` entries.
 - **2026-08-18** — created from the single-peak planning session; numbering
   opens the 11xx block (v1.1). Second member of
   [1102](1102-component-seam-humps.md)'s seam; the two were designed
