@@ -398,6 +398,30 @@ otherwise idle, checked with `pgrep`):
   across 18 files, 99 in `tests/`, 18 in the manual, 4 in the skill, 3 in
   `gui/src`, 10 in dot-path fixtures.
 
+*The review pass* (`/code-review medium --fix`) found three things, two of them
+real defects in this session's own work, and it is worth saying which:
+
+- **A v1.2 result JSON did not open.** `n_background_peaks` →
+  `n_extra_components` is the *second* renamed field, and the textual repair
+  cannot reach it by construction: `n_background_peaks` has no word boundary
+  before the legacy name. A saved result is also read at a fourth point,
+  `rietx html <result.json>`, which is not one of `READ_POINTS`. So it raised
+  `extra_forbidden` — the direction this repo does not break in. Repaired at the
+  schema, the way the instrument's field is.
+- **A rename of mine broke a join.** `io/recipe._describe`'s `descriptive_name`
+  column is *not* this package's vocabulary, whatever its own docstring implies:
+  `_CATEGORIES` says that where the two reference engines disagree a name,
+  TOPAS's is taken, and `test_acceptance_powderline` joins rietx's rows against
+  GSAS-II's CSV on that column. Reverted to `background_peak_*`, reason in the
+  code. Worth generalising: **the dot-path and the foreign label are different
+  vocabularies and a rename moves only the first.**
+- **One finding accepted in intent and redirected**: it renamed the stale
+  `_BACKGROUND_PEAK_STAGE` to `_HUMP_STAGE`, but that constant's glob frees the
+  whole seam, so `_EXTRA_COMPONENT_STAGE` — the same reasoning already applied
+  to the recipe's stage name. Its new test also carried an invalid `provenance`
+  payload and failed on the schema rather than on what it asserts; fixture
+  corrected.
+
 *Gotchas.*
 
 - **The `.rxt` carries no `instrument.` prefix.** `textdoc._render_block`
