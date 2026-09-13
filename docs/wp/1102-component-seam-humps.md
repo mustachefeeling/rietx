@@ -1,9 +1,10 @@
 # WP-1102 — The additive component seam, and broad humps as its first member
 
-Milestone: v1.4 · Status: 🔄 2026-09-13 — audited at the open: the humps
-half shipped in v1.2 as `Instrument.background_peaks` (PR #115, merged
-2026-08-27), so what is left of this WP is the union seam itself, a
-`capabilities()` arm, and one constant resting on a single measured case
+Milestone: v1.4 · Status: ✅ 2026-09-13 — `ExtraComponent` is a union
+discriminated on `kind` with `HumpComponent` its first member and a six-clause
+member contract admitting an expression member; `background_peaks` renamed with
+a read-side migration for values *and* stored globs; `capabilities()` carries
+the flag and the kind vocabulary
 Depends on: — (independent of 1101; [1103](1103-peak-components.md) lands its
 second member in this seam)
 
@@ -333,6 +334,99 @@ change touches guard evidence on every state.
   the citation comes from the maintainer-local paper corpus, not memory.
 
 ## Handover log
+
+### 2026-09-13 — the seam exists, and the fence it was given was wrong
+
+Declaring a broad hump on the background was already possible; what changes is
+that it is now the *first member of a seam* rather than a feature with its own
+field. A second kind of added term — a sharp peak, a Debye diffuse term — costs
+an evaluator and a row instead of a duplicate of the whole wiring, and a client
+can ask a build which kinds it has rather than assuming. The other half of the
+session was a correction: this WP had fenced "arbitrary functions" out of the
+package on three grounds, and all three turn out to hold against a Python
+callable and none against an *expression*, which is what TOPAS's arbitrary
+functions actually are. So the contract now admits an expression member, and
+building one is a WP rather than a redesign. The cost was a rename of a shipped
+public field, paid with a migration so that no saved project loses what it had.
+
+**The audit came first, and it removed most of the work.** The 2026-08-26 entry
+below describes PR #115 as open; it merged 2026-08-27 and shipped in v1.2, so
+eight of this WP's ten tasks were already done under the name
+`background_peaks`. Read as a live premise it would have sent this session to
+rebuild a shipped feature. Two of the fields this WP specified had also been
+deliberately declined there with better reasoning than this WP's own (`eta`,
+and `area` as a stored parameter); neither was reopened.
+
+*Done.*
+
+- **The seam decision**, taken from the corpus rather than from memory, concepts
+  only: TOPAS (Coelho 2018, `QMXU7X5Z`) is a typed object tree under a
+  pseudo-schema with a computer-algebra layer over it; GSAS-II carries a
+  background function plus Debye terms plus background peaks; FullProf's `Nba`
+  selects polynomial, Debye-like plus polynomial, Fourier filtering or a table.
+  **Every one of the three carries several kinds of additive non-Bragg term**,
+  so a list of one concrete type is the shape none of them chose — which is the
+  argument for the union, and it does not depend on 1103.
+- **`ExtraComponent`**, discriminated on `kind`, with the six-clause member
+  contract in its docstring and `HumpComponent` as its one member.
+- **The rename**, `background_peaks` → `extra_components` and the names around
+  it, across 18 files in `src/`, with `SCHEMA_VERSION` 0.17 → 0.18 and the break
+  recorded in [the v1.4 record](../milestones/v1.4.md) § Breaks for the release
+  notes.
+- **The migration**: `schemas/migrate.py`, one textual rule applied at three
+  named read points. Old files open, old code raises.
+- **`capabilities()`** gained two arms, not one — a schema-shaped
+  `features["extra_components"]` for "is the seam here" and
+  `extra_component_kinds`, read off the union, for "what goes in it".
+- **`HUMP_MIN_WIDTH_MULT` now admits its sample size.** Read in full its
+  docstring was better than the audit claimed — the number is reasoned from a
+  measured case plus a physical argument against 1.5, so measured and not tuned
+  — but it did not say the sample is one specimen. It does now, with what would
+  move it.
+
+*Measured* (macOS, this worktree's own `[dev]` venv — no jax, no torch; machine
+otherwise idle, checked with `pgrep`):
+
+- Fast selection **4503 passed, 127 skipped** (2:24), against 4614 items before
+  the work: **+16, and +16 is exactly what was added** — 15 in
+  `test_extra_components.py` (34 → 49) and 1 in `test_capabilities.py`. No new
+  skip.
+- Full suite **4666 passed, 136 skipped** (23:43), once, on the final tree.
+- vitest 591 passed / 22 files; `svelte-check` 0 errors over 381 files; manual
+  builds under `-W`; ruff clean.
+- The rename's own size, for anyone costing a similar one: 81 lines in `src/`
+  across 18 files, 99 in `tests/`, 18 in the manual, 4 in the skill, 3 in
+  `gui/src`, 10 in dot-path fixtures.
+
+*Gotchas.*
+
+- **The `.rxt` carries no `instrument.` prefix.** `textdoc._render_block`
+  strips each block's prefix, so a v1.2 row is `background_peaks.0.fwhm`. The
+  first migration anchored on the prefix and silently missed the text document —
+  the same class of gap the module exists to close, reintroduced inside it. The
+  rule now matches the bare name on a word boundary, which also catches a glob
+  written `instrument.background_peaks*` with no dot.
+- **A stored value and a stored glob fail differently, and only one is loud.**
+  This is the reason the migration is textual and not a field validator, and it
+  is what the end-to-end test asserts: the project opens either way, so a test
+  checking only that would pass against a build that freed nothing.
+- **Three vocabularies were held still deliberately**: GSAS-II's own CSV column
+  name in `tests/data/powderline`, `RECIPE_BACKGROUND_PEAK_DEGENERATE` (the
+  `RECIPE_` prefix marks it as a statement about a foreign document), and the
+  shipped release notes and milestone records, which describe what a past
+  release did and are accurate as written.
+- The recipe's stage and group names went to `extra_component`, not to `hump`:
+  the glob they carry frees the whole seam, so a stage named for one member
+  would be wrong the day 1103 lands.
+
+*Next*, and it is [1103](1103-peak-components.md)'s: land the sharp peak as the
+second member. It is the proving case for the contract axis this WP could not
+test — a member that lands somewhere other than the reported background — and
+until it does, the union has one member and says so in its own docstring. A
+Debye term (`Σⱼ Bⱼ·sin(Q rⱼ)/(Q rⱼ)`, which GSAS-II and FullProf both ship and
+this package does not) is the proving case for the *other* axis, an evaluator of
+a different shape, and is named in the contract rather than built. An expression
+member is now admissible and wants its own WP; nothing is gated on it.
 
 - **2026-08-26** — **a proposed `BackgroundPeak` implements the humps half
   under a different shape**, from a different starting point. *(Superseded in

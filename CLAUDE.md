@@ -484,6 +484,16 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   through `xp.matmul` or lift it with `xp.asarray(c, dtype=np.float64)`; both are no-ops on numpy.
   Same rule for a *new op*: add it to `_OP_NAMES` and implement it on every backend —
   `tests/test_backend_conformance.py` fails, for every registered backend at once, if you don't.
+- **An additive non-Bragg term is a *member* of `Instrument.extra_components`, never a new field**
+  (WP-1102 — GSAS-II, FullProf and TOPAS each ship several kinds at once). The union discriminates
+  on `kind`; its docstring carries the six-clause member contract, whose last clause — **state,
+  never code** — admits an **expression** member (text serializes, traces, and is a legal `str`
+  under `extra="forbid"`; Coelho 2018) and fences a **callable**. A member's aggregate membership
+  is **data**, never read off the class name. One member = the evaluator-shape axis untested.
+- **A renamed dot-path is migrated on the document *text*, at the read points** (WP-1102,
+  `schemas/migrate.py`, `READ_POINTS`). A stored **value** under a vanished name fails loudly; a
+  stored **glob** loads clean and frees nothing — that asymmetry is why the repair is textual and
+  anchored on the bare name (`.rxt` strips the block prefix, so `instrument.` is not in the row).
 - **Two things are written once and consumed everywhere; never restate either.** (1) The residual
   **row layout** `[data | background-penalty | Pawley-restraint | soft-restraint]` lives in
   `model/rows.py` (`BLOCK_ORDER`, `layout()`, `assemble()`) — the numpy residual, the numpy
